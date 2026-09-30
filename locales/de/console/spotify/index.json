@@ -1,0 +1,23 @@
+{
+  "back": "Alle Module",
+  "bothNote": "Beide Wege nutzen dieselbe Warteschlange. Jeder kann unabhängig vom anderen aktiv sein.",
+  "degraded": "Das Backend konnte nicht erreicht werden. Versuche es gleich erneut.",
+  "description": "Registriere deine eigene Spotify-App, verbinde dein Konto damit und lass Zuschauer Songs über den Chat oder eine Kanalpunkte-Belohnung einreihen. Beide Wege lassen sich unabhängig einschalten.",
+  "eyebrow": "Musikwünsche",
+  "liveOnlyLabel": "Nur live",
+  "masterAria": "Musikwünsche umschalten",
+  "masterFail": "Der Schalterzustand konnte nicht gespeichert werden.",
+  "masterHintOff": "Wünsche sind pausiert. Keiner der Wege reiht Songs ein, bis du das Modul aktivierst.",
+  "masterHintOn": "!sr und die Belohnung sind aktiv. Wünsche werden während deines Streams eingereiht.",
+  "masterLabel": "Musikwünsche aktivieren",
+  "saveChanges": "Änderungen speichern",
+  "saving": "Wird gespeichert…",
+  "titleEm": "Musik",
+  "titlePre": "Wünsche für",
+  "unsavedChanges": "Ungespeicherte Änderungen",
+  "saved": "Gespeichert",
+  "discardTitle": "Änderungen verwerfen?",
+  "discardBody": "Du hast ungespeicherte Änderungen an dieser Belohnung. Verwerfen?",
+  "discard": "Verwerfen",
+  "keepEditing": "Weiter bearbeiten"
+}

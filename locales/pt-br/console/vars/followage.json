@@ -1,0 +1,5 @@
+{
+  "name": "Tempo de seguidor",
+  "hint": "há quanto tempo segue o canal (módulo Tempo de seguidor)",
+  "desc": "Há quanto tempo o espectador segue você, no mesmo formato de !followage. {followage:alex} consulta outra pessoa, e quem não segue retorna um valor vazio. Requer o módulo Tempo de seguidor."
+}

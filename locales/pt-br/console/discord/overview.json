@@ -1,0 +1,56 @@
+{
+  "modulesTitle": "Módulos",
+  "modulesHelp": "Tudo o que o Bagel pode fazer neste servidor. Ative ou desative aqui, ou abra para escolher o canal.",
+  "needsSetup": "Precisa de configuração",
+  "needsSetupHint": "Itens ativados que ainda precisam de canal ou cargo: {n}. Abra o item desejado e escolha.",
+  "configure": "Configurar",
+  "notSetUp": "Este servidor nunca foi configurado. Execute a configuração inicial para o Bagel criar os canais e cargos necessários.",
+  "botState": "Bot",
+  "modulesOn": "Módulos ativados",
+  "tiles": {
+    "announcementsLive": {
+      "name": "Avisos de transmissão",
+      "help": "Uma publicação no canal de avisos quando a transmissão começa, editada quando termina."
+    },
+    "announcementsClips": {
+      "name": "Publicações de clipes",
+      "help": "Todos os clipes de !clip e da Twitch aparecem no seu canal de clipes."
+    },
+    "welcome": {
+      "name": "Boas-vindas",
+      "help": "Uma mensagem incorporada para cada novo membro. O Bagel nunca envia mensagens privadas a quem entra."
+    },
+    "goodbye": {
+      "name": "Despedida",
+      "help": "Uma mensagem curta no mesmo canal quando alguém sai."
+    },
+    "voiceHub": {
+      "name": "Salas de voz criadas ao entrar",
+      "help": "Entrar na central cria uma cópia de sala pessoal com botões Lock (Bloquear) e Unlock (Desbloquear)."
+    },
+    "logs": {
+      "name": "Logs da equipe",
+      "help": "Entradas, saídas, edições, exclusões e moderação em um canal."
+    },
+    "levels": {
+      "name": "Migalhas e níveis",
+      "help": "XP do chat com cartões de classificação e cartões diários. Nada para escolher."
+    },
+    "linkGuard": {
+      "name": "Proteção contra links",
+      "help": "Exclui links de membros que ainda não têm cargo."
+    },
+    "subscribers": {
+      "name": "Nível de inscritos",
+      "help": "Um cargo de Inscrito e sua área privada, criados na configuração inicial."
+    },
+    "autoRole": {
+      "name": "Cargos automáticos",
+      "help": "Todos que entram recebem o cargo de Membro."
+    },
+    "tickets": {
+      "name": "Tickets de suporte",
+      "help": "Um painel em que os membros clicam para abrir um canal privado com sua equipe."
+    }
+  }
+}

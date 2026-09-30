@@ -1,0 +1,5 @@
+{
+  "name": "Una cita guardada",
+  "hint": "una cita guardada aleatoria, o {quote:12} para una numerada (módulo Citas)",
+  "desc": "Una cita aleatoria de tu colección de citas, con el mismo formato que !quote. {quote:12} elige una numerada; un número que nadie haya usado devuelve un valor vacío. Dos {quote} en una respuesta son dos citas diferentes. Requiere el módulo Citas."
+}

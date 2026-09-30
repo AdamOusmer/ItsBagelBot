@@ -1,0 +1,52 @@
+{
+  "label": "Valorant-Statistiken",
+  "tagline": "Valorant-Ränge, Spielverlauf, Ranglisten und die tägliche Shop-Rotation im Chat.",
+  "description": "Ein Befehl, fünf Ansichten: !val zeigt den Wettbewerbsstand eines Spielers (Rangstufe, RR, RR-Änderung im letzten Spiel, höchste Rangstufe); !val matches listet kürzliche Ranglistenspiele als Agenten-K/D/A-Ergebnisse; !val account zeigt das Konto hinter einer Riot-ID mit Kontolevel; !val lb zeigt die Top 10 einer regionalen Rangliste für PC oder Konsole; !val shop zeigt die heutige globale Skin-Rotation mit VP-Preisen und Countdown bis zum Zurücksetzen. Auch !valrank, !valmatches, !valaccount, !vallb und !valshop funktionieren. Verknüpfe unten deine Riot-ID („Name#Tag“). Zuschauer können auch beliebige Spieler angeben, z. B. „!val Frosty#EUW1“, und irgendwo in der Zeile einen Shard oder eine Rangliste ergänzen, um die Abfrage einzugrenzen („!val eu Frosty#EUW1“, „!val lb console ap“). Bei leerer Region erkennt der Bot den Shard anhand des Kontos.",
+  "settings": {
+    "account": {
+      "label": "Verknüpfte Riot-ID",
+      "help": "Standardspieler für jeden Befehl als „Name#Tag“. Valorant unterstützt keine reine Namenssuche, daher ist #tag erforderlich.",
+      "placeholder": "Frosty#EUW1"
+    },
+    "region": {
+      "label": "Regions-Shard",
+      "help": "na, eu, ap, kr, br oder latam. Leer lassen, damit der Bot den Shard anhand des Kontos erkennt.",
+      "placeholder": "eu"
+    },
+    "platform": {
+      "label": "Rangliste",
+      "help": "Ränge und Ranglisten werden getrennt nach Plattform geführt; leer bedeutet PC.",
+      "placeholder": "pc",
+      "options": {
+        "pc": "PC",
+        "console": "Konsole"
+      }
+    }
+  },
+  "replies": {
+    "rank": {
+      "tagline": "Wettbewerbsstand: !val, !val rank oder !valrank.",
+      "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · Höchststand {peaktier}"
+    },
+    "matches": {
+      "tagline": "Kürzliche Ranglistenspiele (auch !valmatches).",
+      "event": "!val matches",
+      "defaultMessage": "Letzte Spiele von {player} ({count}): {matches}"
+    },
+    "account": {
+      "tagline": "Konto hinter einer ID mit Kontolevel (auch !valaccount).",
+      "event": "!val account",
+      "defaultMessage": "{player} · Kontolevel {level}"
+    },
+    "board": {
+      "tagline": "Regionale Top 10, PC oder Konsole (auch !vallb).",
+      "event": "!val lb",
+      "defaultMessage": "{board}: {entries}"
+    },
+    "shop": {
+      "tagline": "Heutige globale Skin-Rotation mit Countdown bis zum Zurücksetzen (auch !valshop).",
+      "event": "!val shop",
+      "defaultMessage": "Tägliche Rotation ({count}): {items} · Zurücksetzen in {reset}"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Apuestas",
+  "hint": "Requiere que el módulo Apuestas esté activado. También requiere que el módulo Puntos de fidelidad esté activado.",
+  "desc": "Usa {gamble:variable} en un comando personalizado para leer los valores públicos de este módulo. Requiere que el módulo Apuestas esté activado. Añadir una variable no activa su módulo. Los módulos desactivados dejan la variable visible en el chat. Los valores exclusivos de eventos están vacíos cuando el comando no tiene un evento correspondiente; usa |fallback para los valores vacíos. La vista previa usa datos de ejemplo y no confirma que el módulo esté activado. También requiere que el módulo Puntos de fidelidad esté activado."
+}

@@ -1,0 +1,37 @@
+{
+  "player": {
+    "name": "Jugador",
+    "hint": "El jugador vinculado",
+    "desc": "El jugador vinculado."
+  },
+  "elo": {
+    "name": "Elo actual",
+    "hint": "Puntuación en este momento",
+    "desc": "Puntuación en este momento."
+  },
+  "elochange": {
+    "name": "Cambio de Elo",
+    "hint": "Variación desde el inicio de la transmisión",
+    "desc": "Variación desde el inicio de la transmisión."
+  },
+  "wins": {
+    "name": "Victorias",
+    "hint": "Victorias en esta transmisión",
+    "desc": "Victorias en esta transmisión."
+  },
+  "losses": {
+    "name": "Derrotas",
+    "hint": "Derrotas en esta transmisión",
+    "desc": "Derrotas en esta transmisión."
+  },
+  "draws": {
+    "name": "Empates",
+    "hint": "Partidas de esta transmisión que terminaron sin ganador",
+    "desc": "Partidas de esta transmisión que terminaron sin ganador."
+  },
+  "matches": {
+    "name": "Partidas",
+    "hint": "Partidas en esta transmisión",
+    "desc": "Partidas en esta transmisión."
+  }
+}

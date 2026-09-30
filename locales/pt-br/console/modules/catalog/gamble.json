@@ -1,0 +1,43 @@
+{
+  "label": "Apostas",
+  "tagline": "Deixe espectadores apostar seus pontos em uma rolagem com !gamble.",
+  "description": "Dê um jogo aos seus pontos de fidelidade: espectadores digitam !gamble <amount> (ou half/all do saldo) e o bot sorteia de 1-100. Um resultado dentro da chance de vitória devolve a aposta mais o mesmo valor; qualquer outro perde a aposta. Defina as chances, limites e intervalo por espectador abaixo e personalize as mensagens de vitória e derrota. Cada crédito e débito movimenta pontos de fidelidade de verdade no mesmo registro de !points. Ativado pela página Fidelidade. Não funciona com a moeda desativada e usa o mesmo nome de moeda.",
+  "settings": {
+    "winPercent": {
+      "label": "Chance de vitória %",
+      "help": "Um resultado igual ou menor que este número vence. 50 é uma moeda justa; permitido de 1-99.",
+      "placeholder": "50"
+    },
+    "minBet": {
+      "label": "Aposta mínima",
+      "placeholder": "1"
+    },
+    "maxBet": {
+      "label": "Aposta máxima",
+      "placeholder": "1000"
+    },
+    "cooldownSeconds": {
+      "label": "Intervalo (segundos)",
+      "help": "Por espectador. Uma pessoa apostando nunca bloqueia outra.",
+      "placeholder": "10"
+    }
+  },
+  "replies": {
+    "won": {
+      "label": "Mensagem de vitória",
+      "tagline": "Quando o resultado fica dentro da chance de vitória.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} tirou {roll} (precisava de {chance} ou menos) e ganhou {amount} {points}. Saldo atual: {balance}!"
+    },
+    "lost": {
+      "label": "Mensagem de derrota",
+      "tagline": "Quando o resultado fica fora da chance de vitória.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} tirou {roll} (precisava de {chance} ou menos) e perdeu {amount} {points}. Saldo atual: {balance}."
+    }
+  },
+  "commands": {
+    "gamble_amount": "Aposte essa quantidade de pontos em uma rolagem.",
+    "gamble_half_all": "Aposte metade ou todo o saldo."
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Categoria da transmissão",
+  "hint": "a categoria que você transmite, ou {game:someone} para outro canal (opção de ativação de !game)",
+  "desc": "A categoria transmitida, a mesma que !game mostra. Funciona offline também. {game:someone} retorna a de outro canal, útil para um comando de divulgação. Segue a opção de ativação de !game."
+}

@@ -1,0 +1,42 @@
+{
+  "label": "Статистика Bedwars",
+  "tagline": "Статистика Hypixel Bedwars, оценка Urchin и метки чёрного списка в чате.",
+  "description": "Команды для зрителей на основе urchin.gg: дневные, недельные и месячные сессии Bedwars, статистика за всё время, оценка снайпера Urchin и активные метки чёрного списка. По умолчанию используется привязанный аккаунт Minecraft; зрители могут указать любого игрока, например «!daily Technoblade».",
+  "settings": {
+    "account": {
+      "label": "Привязанный аккаунт Minecraft",
+      "help": "Игрок по умолчанию для всех команд. Оставьте пустым для использования имени Twitch. Бот сохраняет UUID аккаунта, когда Mojang позволяет, поэтому команды продолжают работать после смены имени.",
+      "placeholder": "Ваше имя пользователя Minecraft"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Сессия Bedwars с дневного сброса.",
+      "defaultMessage": "{player} сегодня: победы — {wins}, поражения — {losses} · Финальные убийства: {finals} · Кровати: {beds} · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Сессия Bedwars с недельного сброса.",
+      "defaultMessage": "{player} за неделю: победы — {wins}, поражения — {losses} · Финальные убийства: {finals} · Кровати: {beds} · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Сессия Bedwars с месячного сброса.",
+      "defaultMessage": "{player} за месяц: победы — {wins}, поражения — {losses} · Финальные убийства: {finals} · Кровати: {beds} · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Статистика Bedwars за всё время.",
+      "defaultMessage": "{player}: звёзды — {stars} · Победы: {wins} · Финальные убийства: {finals} · {fkdr} FKDR · Разрушенные кровати: {beds}"
+    },
+    "sniper": {
+      "tagline": "Оценка Urchin (оверлей Cubelify).",
+      "defaultMessage": "Оценка Urchin для {player}: {score}"
+    },
+    "tags": {
+      "tagline": "Активные метки чёрного списка Urchin.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Метки чёрного списка с причинами.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

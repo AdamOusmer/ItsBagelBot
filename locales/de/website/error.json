@@ -1,0 +1,16 @@
+{
+  "back": "Zurück",
+  "home": "Zur Startseite",
+  "aside": "Der Ofen ist noch warm. Alles andere ist genau da, wo du es gelassen hast.",
+  "404.metaTitle": "404: Seite nicht gefunden | ItsBagelBot",
+  "404.metaDesc": "Diese ItsBagelBot-Seite wurde nicht gefunden.",
+  "404.eyebrow": "In den Krümeln verloren",
+  "404.title": "Diese Seite ist davongelaufen.",
+  "404.desc": "Wir haben unter jedem Sesamkorn gesucht, aber die gesuchte Seite ist nicht hier.",
+  "500.metaTitle": "500: Etwas ist schiefgelaufen | ItsBagelBot",
+  "500.metaDesc": "Bei ItsBagelBot ist ein unerwarteter Fehler aufgetreten.",
+  "500.eyebrow": "Etwas zu lange gebacken",
+  "500.title": "Etwas ist schiefgelaufen.",
+  "500.desc": "Hinter den Kulissen ist ein Blech umgekippt. Gib uns einen Moment und versuche die Seite dann erneut.",
+  "500.action": "Zurück in Sicherheit"
+}

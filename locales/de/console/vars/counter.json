@@ -1,0 +1,6 @@
+{
+  "name": "Zähler",
+  "hint": "zeigt den aktuellen Zählerwert; {count:…} liest denselben Wert (Treue)",
+  "desc": "Zeigt den aktuellen Zählerwert, ohne ihn zu ändern. Aktiviere „Zähler erhöhen“ am Befehl selbst, um einen Zähler zu erhöhen; diese Variable liest nur den Wert, den diese Option (oder !counter) erzeugt hat. {counter:target:name} liest den eigenen Zählerstand des erwähnten Zuschauers statt des Kanals. Benötigt das Modul Treuepunkte.",
+  "targetHint": "der eigene Zählerstand des erwähnten Zuschauers, nicht der des Kanals"
+}

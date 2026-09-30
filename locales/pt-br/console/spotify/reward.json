@@ -1,0 +1,19 @@
+{
+  "closeEditor": "Fechar",
+  "costPts": "Pontos: {n}",
+  "create": "Criar recompensa",
+  "defaultTitle": "Tocar uma música pedida",
+  "edit": "Editar recompensa",
+  "inputHint": "Os espectadores digitam a música ao resgatar, um nome como",
+  "inputHintLink": "Ou colam um link do Spotify.",
+  "inputHintPair": "ou um par \"artista - música\" como",
+  "noRewardBody": "Crie a recompensa de pontos do canal abaixo. Ela aparece no seu menu de pontos da Twitch assim que você salva.",
+  "noRewardTitle": "Nenhuma recompensa ainda",
+  "notSetUp": "Não configurada",
+  "previewTag": "Ensaio",
+  "removeAria": "Excluir a recompensa: {name}",
+  "rowHint": "Pontos do canal",
+  "rowLabel": "Pedido de música",
+  "thisReward": "Pedido de música",
+  "previewUserSample": "Viewer99"
+}

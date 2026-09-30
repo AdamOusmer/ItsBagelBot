@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Moderation in mehreren Schichten",
+  "title": "Was passiert, bevor eine Nachricht den Chat erreicht.",
+  "juryTitle": "Mehrere Klassifikatoren müssen sich einig sein.",
+  "juryDesc": "Unabhängige Klassifikatoren bewerten die Nachricht jeweils auf Spam- und Hasssignale. Sie wird nur entfernt, wenn sie übereinstimmen.",
+  "juryVerdict": "Konsens",
+  "spam": "Spam",
+  "hate": "Hass",
+  "gatesTitle": "Feste Prüfungen fangen das Offensichtliche ab.",
+  "gatesDesc": "Prüfungen von Rate, Form und Links laufen zuerst. Sie sind schnell und vorhersehbar und fangen Nachrichtenfluten und bekannte schädliche Links ab, bevor aufwendigere Prüfungen laufen.",
+  "gateRate": "Rate",
+  "gateShape": "Form",
+  "gateLink": "Link",
+  "gatesPassed": "3 Prüfungen bestanden",
+  "networkTitle": "Ein Raid warnt jeden geschützten Kanal.",
+  "networkDesc": "Ein Raid-Muster, das in einem Kanal erkannt wurde, wird für jeden teilnehmenden Kanal gemeldet. So ist das zweite Ziel bereits geschützt.",
+  "networkAlert": "Raid-Signatur",
+  "networkStatus": "Netzwerk geschützt"
+}

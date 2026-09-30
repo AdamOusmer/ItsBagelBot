@@ -1,0 +1,18 @@
+{
+  "operate": "Betrieb",
+  "accounts": "Konten",
+  "access": "Zugriff",
+  "overview": "Übersicht",
+  "shards": "Shards",
+  "lanes": "Verarbeitungskanäle",
+  "events": "Ingress-Feed",
+  "users": "Nutzer",
+  "notifications": "Benachrichtigungen",
+  "giveaways": "Gewinnspiele",
+  "staff": "Mitarbeiter",
+  "audit": "Audit",
+  "secrets": "Zugangsdaten",
+  "counters": "Bot-Zähler",
+  "trials": "Testkanäle",
+  "deploys": "Deployments"
+}

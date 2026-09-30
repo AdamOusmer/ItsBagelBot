@@ -1,0 +1,11 @@
+{
+  "added": "@{user} команда {command} добавлена",
+  "err.exists": "@{user} команда {command} уже существует, используйте !cmd edit",
+  "err.missing_resp": "@{user} укажите ответ для команды",
+  "err.not_found": "@{user} команда {command} не найдена, используйте !cmd add",
+  "err.usage": "Использование: !cmd <add|edit|remove> <name> [response]",
+  "link": "@{user} команды канала {channel}: {url}",
+  "page_off": "@{user} список команд канала {channel} закрыт для публики.",
+  "modified": "@{user} команда {command} изменена",
+  "removed": "@{user} команда {command} удалена"
+}

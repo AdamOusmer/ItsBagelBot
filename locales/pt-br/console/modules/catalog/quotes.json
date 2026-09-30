@@ -1,0 +1,13 @@
+{
+  "label": "Citações",
+  "tagline": "Salve as melhores falas da transmissão e repita-as no chat.",
+  "description": "Mantenha um livro de citações do canal. Alguém salva uma fala com !addquote the text (ou !quote \"the text\"), e o bot atribui um número e registra a data. Qualquer pessoa pode repetir uma com !quote para uma escolha aleatória, !quote 12 para um número específico ou !quote ferret para uma citação aleatória que contenha essa palavra. O bot responde \"Citação #12: o texto (2026-07-11)\". Escolha abaixo quem pode salvar e quem pode reescrever uma (!quote edit 12 the fixed text); ambos permitem moderadores por padrão. Moderadores removem um erro com !quote remove 12; os números nunca são reutilizados, então um número antigo continua apontando para a mesma citação. As respostas são texto fixo do sistema (traduzido para o idioma do console).",
+  "commands": {
+    "quote": "Publica uma citação salva aleatória (também !quotes).",
+    "quote_number": "Publica exatamente essa citação.",
+    "quote_word": "Publica uma citação aleatória que contenha essa palavra.",
+    "addquote_text": "Salva uma nova citação (também !quoteadd ou !quote \"text\"; quem pode salvar é definido acima); a data de salvamento fica registrada.",
+    "quote_edit_number_text": "Reescreve uma citação salva no mesmo lugar (quem pode editar é definido acima); seu número e sua data são mantidos.",
+    "quote_remove_number": "Exclui uma citação; seu número não será reutilizado."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "label": "Apuestas",
+  "tagline": "Deja que los espectadores apuesten sus puntos en una tirada con !gamble.",
+  "description": "Dale un juego a tus puntos de fidelidad: los espectadores escriben !gamble <amount> (o half/all de su saldo) y el bot tira un número de 1-100. Si entra en la probabilidad de ganar, devuelve la apuesta y otro tanto; si no, la retira. Ajusta abajo la probabilidad de ganar, los límites de apuesta y la espera por espectador, y personaliza los mensajes de victoria y derrota. Cada abono y descuento mueve puntos de fidelidad reales a través del mismo registro que !points. Se activa desde la página Fidelidad. No puede funcionar con la moneda desactivada y usa el mismo nombre de moneda.",
+  "settings": {
+    "winPercent": {
+      "label": "Probabilidad de ganar %",
+      "help": "Una tirada de este número o inferior gana. 50 equivale a una moneda equilibrada; se permite 1-99.",
+      "placeholder": "50"
+    },
+    "minBet": {
+      "label": "Apuesta mínima",
+      "placeholder": "1"
+    },
+    "maxBet": {
+      "label": "Apuesta máxima",
+      "placeholder": "1000"
+    },
+    "cooldownSeconds": {
+      "label": "Espera (segundos)",
+      "help": "Por espectador. La apuesta de una persona no bloquea a otra.",
+      "placeholder": "10"
+    }
+  },
+  "replies": {
+    "won": {
+      "label": "Mensaje de victoria",
+      "tagline": "Cuando una tirada entra en la probabilidad de ganar.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} sacaste {roll} (necesitabas {chance} o menos) y ganaste {amount} {points}. ¡Saldo actual: {balance}!"
+    },
+    "lost": {
+      "label": "Mensaje de derrota",
+      "tagline": "Cuando una tirada no entra en la probabilidad de ganar.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} sacaste {roll} (necesitabas {chance} o menos) y perdiste {amount} {points}. Saldo actual: {balance}."
+    }
+  },
+  "commands": {
+    "gamble_amount": "Apuesta esa cantidad de puntos en una tirada.",
+    "gamble_half_all": "Apuesta la mitad o la totalidad del saldo."
+  }
+}

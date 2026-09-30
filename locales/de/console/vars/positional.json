@@ -1,0 +1,8 @@
+{
+  "name": "Wortnummer",
+  "hint": "Wort 1 nach dem Befehl; {2} ist das nächste, bis {30}; {2:4} nimmt einen Bereich",
+  "desc": "Wort 1 nach dem Befehl. {2} ist das nächste und so weiter bis {30}. Leer, wenn dieses Wort nicht eingegeben wurde. {2:} nimmt ab einem Wort alles bis zum Ende als eine Zeichenfolge; ändere die Zahl für einen anderen Anfang, {1:} nimmt alles. {2:4} nimmt ebenso die Wörter 2 bis 4, und {:2} ist derselbe Bereich ab Wort 1 (die ersten zwei Wörter). Ein Ende nach dem letzten eingegebenen Wort stoppt beim letzten Wort; ein Ende vor dem Anfang, etwa {4:2}, bleibt genau wie geschrieben.",
+  "restHint": "Wort 2 bis zum Ende als eine Zeichenfolge",
+  "leadingHint": "die ersten 2 Wörter als eine Zeichenfolge",
+  "boundedHint": "Wörter 2 bis 4 als eine Zeichenfolge"
+}

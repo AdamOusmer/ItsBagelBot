@@ -1,0 +1,18 @@
+{
+  "day": "día",
+  "days": "días",
+  "hour": "hora",
+  "hours": "horas",
+  "less_than_minute": "menos de un minuto",
+  "minute": "minuto",
+  "minutes": "minutos",
+  "month": "mes",
+  "months": "meses",
+  "unavailable": "La hora no está disponible ahora.",
+  "default": "La hora actual del streamer es {time:time}.",
+  "lookup": "La hora actual en {time:place} es {time:time}.",
+  "unknown": "No sé dónde está \"{time:place}\". Prueba con una ciudad (Tokyo), un estado o país (Texas, Japan), una zona (Europe/Paris) o un desfase (UTC+2).",
+  "unset": "El streamer aún no ha configurado su zona horaria.",
+  "year": "año",
+  "years": "años"
+}

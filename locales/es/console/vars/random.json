@@ -1,0 +1,6 @@
+{
+  "name": "Aleatorio 1-100",
+  "hint": "un número aleatorio de 1 a 100, o {random:min-max}",
+  "desc": "Un número entero de 1 a 100, nuevo cada vez. {random:1-6} elige tu propio intervalo; ambos extremos incluidos.",
+  "rangeHint": "un número aleatorio en tu propio intervalo"
+}

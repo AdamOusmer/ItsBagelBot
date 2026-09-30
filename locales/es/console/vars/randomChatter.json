@@ -1,0 +1,5 @@
+{
+  "name": "Una persona aleatoria del chat",
+  "hint": "una persona elegida al azar (nunca tú ni el bot)",
+  "desc": "El nombre de una persona que ha hablado recientemente, elegido al azar. Nunca tú ni el bot. Dos en una respuesta son dos elecciones independientes, y un canal en silencio devuelve un valor vacío."
+}

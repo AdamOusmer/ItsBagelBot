@@ -1,0 +1,5 @@
+{
+  "name": "Aktueller Song",
+  "hint": "der gerade laufende Song oder {song.title} / {song.artist} (Musikwünsche)",
+  "desc": "Der gerade auf Spotify laufende Song. {song.title} und {song.artist} liefern die beiden Teile getrennt. Läuft nichts, ist die Ausgabe leer. Benötigt das Modul Musikwünsche."
+}

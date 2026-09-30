@@ -1,0 +1,18 @@
+{
+  "operate": "Управление",
+  "accounts": "Аккаунты",
+  "access": "Доступ",
+  "overview": "Обзор",
+  "shards": "Шарды",
+  "lanes": "Очереди",
+  "events": "Лента Ingress",
+  "users": "Пользователи",
+  "notifications": "Уведомления",
+  "giveaways": "Розыгрыши",
+  "staff": "Сотрудники",
+  "audit": "Аудит",
+  "secrets": "Секреты",
+  "counters": "Счётчики бота",
+  "trials": "Тестовые каналы",
+  "deploys": "Развёртывания"
+}

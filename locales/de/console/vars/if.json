@@ -1,0 +1,5 @@
+{
+  "name": "Den einen oder anderen Text ausgeben",
+  "hint": "der eine oder andere Text: {if:name:when it has something:when it does not} oder {if:name=value:…:…} für eine exakte Übereinstimmung. Variablen funktionieren innerhalb der beiden Texte nicht",
+  "desc": "Wählt den ersten Text, wenn die benannte Variable einen Inhalt hat, sonst den zweiten. Gib den Namen ohne Klammern an; mit {if:game=Chess:…:…} prüfst du stattdessen einen exakten Wert. Variablen funktionieren innerhalb der beiden Texte nicht. Lass den zweiten weg, um bei einem falschen Ergebnis nichts auszugeben. Wird dadurch die ganze Zeile leer, überspringt der Bot sie, statt eine leere Nachricht zu senden."
+}

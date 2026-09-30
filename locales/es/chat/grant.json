@@ -1,0 +1,5 @@
+{
+  "dead.body": "Algunas conexiones de tu canal han caducado. Ve a la configuración y vuelve a conectar tu cuenta para solucionar el problema.",
+  "dead.chat": "Algunas conexiones de tu canal han caducado. Inicia sesión en el panel para solucionar el problema: {dashboard_url}",
+  "dead.title": "Vuelve a conectar tu cuenta de Twitch"
+}

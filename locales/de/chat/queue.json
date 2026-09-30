@@ -1,0 +1,21 @@
+{
+  "cleared": "Die Warteschlange wurde geleert.",
+  "closed": "Die Warteschlange ist jetzt für neue Einträge geschlossen.",
+  "err.usage": "Verwendung: !queue <open|close|next|list|remove|clear>; oder !join / !leave / !list",
+  "join.already": "@{queue:user} du bist bereits auf Platz #{queue:pos} in der Warteschlange.",
+  "join.closed": "@{queue:user} die Warteschlange ist gerade geschlossen.",
+  "join.ok": "@{queue:user} du stehst jetzt auf Platz #{queue:pos} in der Warteschlange.",
+  "leave.not_in": "@{queue:user} du bist nicht in der Warteschlange.",
+  "leave.ok": "@{queue:user} du hast die Warteschlange verlassen.",
+  "list": "Als Nächstes: {queue:list}",
+  "list.empty": "Die Warteschlange ist leer.",
+  "list.more": "Als Nächstes: {queue:list} (+{queue:count} weitere)",
+  "next": "@{queue:target} du bist als Nächstes dran! (Noch wartend: {queue:count})",
+  "next.empty": "Die Warteschlange ist leer.",
+  "opened": "Die Warteschlange ist jetzt offen! Gib !join ein, um dich anzustellen.",
+  "remove.not_found": "@{queue:target} war nicht in der Warteschlange.",
+  "remove.ok": "@{queue:target} wurde aus der Warteschlange entfernt.",
+  "remove.usage": "Verwendung: !queue remove <user>",
+  "status.closed": "Die Warteschlange ist geschlossen. Noch auf ein Spiel wartend: {queue:count}.",
+  "status.open": "Die Warteschlange ist offen. Wartend: {queue:count}. Gib !join ein, um dich anzustellen."
+}

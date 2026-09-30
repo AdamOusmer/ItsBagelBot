@@ -1,0 +1,41 @@
+{
+  "join": {
+    "user": {
+      "name": "Participante",
+      "hint": "Quem entrou na fila",
+      "desc": "Quem entrou na fila."
+    },
+    "pos": {
+      "name": "Posição na fila",
+      "hint": "Seu lugar na fila",
+      "desc": "Seu lugar na fila."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "O nome do seu canal",
+      "desc": "O nome do seu canal."
+    }
+  },
+  "next": {
+    "target": {
+      "name": "Próximo jogador",
+      "hint": "Quem joga a seguir",
+      "desc": "Quem joga a seguir."
+    },
+    "count": {
+      "name": "Ainda esperando",
+      "hint": "Quantas pessoas continuam na fila",
+      "desc": "Quantas pessoas continuam na fila."
+    },
+    "user": {
+      "name": "Autor do comando",
+      "hint": "O moderador que chamou o próximo jogador",
+      "desc": "O moderador que executou !queue next."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "O nome do seu canal",
+      "desc": "O nome do seu canal."
+    }
+  }
+}

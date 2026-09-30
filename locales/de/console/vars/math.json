@@ -1,0 +1,5 @@
+{
+  "name": "Arithmetik",
+  "hint": "berechnet einen kleinen Ausdruck: + - * / und Klammern",
+  "desc": "Berechnet einen kleinen Ausdruck. Ganze Zahlen, + - * / und Klammern; sonst nichts."
+}

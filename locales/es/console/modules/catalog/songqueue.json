@@ -1,0 +1,21 @@
+{
+  "label": "Solicitudes de canciones",
+  "tagline": "!sr y una recompensa de puntos del canal que añaden canciones de Spotify a la cola.",
+  "description": "Registra tu propia aplicación de Spotify y conecta tu cuenta una vez; después deja que los espectadores añadan música de dos formas: el comando de chat !sr (con un nivel de permiso que tú eliges, desde todos hasta solo tú) y una recompensa de puntos del canal cuyo texto sea la búsqueda de la canción: un nombre, \"artist - song\" o un enlace de Spotify pegado. El bot anuncia lo que suena, busca enlaces y nombres en Spotify, y mantiene una canción por espectador en la lista de siguientes canciones. !current lee directamente tu reproductor de Spotify, por lo que responde incluso para canciones que nadie solicitó. Los moderadores gestionan la cola con !sr next, remove y clear.",
+  "commands": {
+    "sr": "Muestra lo que suena o añade una canción por nombre, \"artist - song\" o enlace de Spotify.",
+    "remove": "Retira tu solicitud en cola o elimina una posición como moderador.",
+    "skip": "Marca la canción actual como reproducida y pasa a la siguiente (también !next).",
+    "clear": "Vacía la cola.",
+    "srlist": "Muestra las siguientes cinco canciones de la cola (también !songlist).",
+    "current": "Dice qué suena ahora mismo en tu Spotify (también !song, !np)."
+  },
+  "replies": {
+    "redeem": {
+      "label": "Respuesta al canje",
+      "tagline": "Lo que publica el bot al canjear la recompensa de cola.",
+      "event": "al canjear",
+      "defaultMessage": "@{user} añadiste {track} a la cola, posición #{pos}."
+    }
+  }
+}

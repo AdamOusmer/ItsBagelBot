@@ -1,0 +1,5 @@
+{
+  "name": "Nutzungsanzahl",
+  "hint": "wie oft dieser Befehl verwendet wurde, ohne diese Nutzung; {uses} ist dasselbe (ungefähr)",
+  "desc": "Wie oft dieser Befehl in deinem Kanal verwendet wurde, ohne die Nutzung, die diesen Wert ausgibt. Jede Nutzung zählt, unabhängig vom eingegebenen Namen; ein Zähler ist nicht nötig. {uses} ist die ältere Schreibweise für denselben Wert. Die Summe ist ungefähr: Der Bot zählt in Sammelschritten, daher kann sie bis zu eine Minute verzögert sein."
+}

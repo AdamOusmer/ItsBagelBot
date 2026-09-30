@@ -1,0 +1,5 @@
+{
+  "name": "Phrase wiederholen",
+  "hint": "wiederholt eine Phrase n-mal (bis zu 20, eine Chat-Zeile)",
+  "desc": "Wiederholt deine Phrase, durch Leerzeichen getrennt. Bis zu 20-mal; sie muss in eine Chat-Zeile passen."
+}

@@ -1,0 +1,43 @@
+{
+  "label": "Alertas del chat",
+  "tagline": "Anuncia seguidores, suscripciones, Cheers, raids y pausas publicitarias en el chat.",
+  "description": "El bot publica un mensaje en el chat cuando alguien sigue el canal, se suscribe, envía Cheers o hace una raid, y puede anunciar pausas publicitarias. Activa o desactiva cada alerta y personaliza su mensaje. Las alertas nuevas están activadas por defecto, salvo la de pausa publicitaria, que permanece desactivada hasta que la actives. La alerta de seguimiento se activa como máximo una vez por espectador cada tres días, así que dejar de seguir y volver a seguir no permite llenar tu chat de spam.",
+  "replies": {
+    "follow": {
+      "label": "Alerta de seguimiento",
+      "tagline": "Cuando alguien sigue tu canal. Se activa una vez por espectador cada tres días.",
+      "event": "al seguir",
+      "defaultMessage": "¡Gracias por seguir el canal, {user}!"
+    },
+    "sub": {
+      "label": "Alerta de suscripción",
+      "tagline": "Cuando alguien se suscribe o renueva su suscripción.",
+      "event": "al suscribirse",
+      "defaultMessage": "¡Te damos la bienvenida a la comunidad, {user}! ¡Gracias por suscribirte!"
+    },
+    "gift": {
+      "label": "Alerta de suscripciones regaladas",
+      "tagline": "Cuando alguien regala suscripciones. Un mensaje por quien las regala, nunca por destinatario.",
+      "event": "al regalar suscripciones",
+      "defaultMessage": "¡{user} acaba de regalar suscripciones a la comunidad! Total: {count}. ¡Gracias!"
+    },
+    "cheer": {
+      "label": "Alerta de Cheers",
+      "tagline": "Cuando alguien envía bits en Cheers.",
+      "event": "al enviar Cheers",
+      "defaultMessage": "¡Gracias por los bits, {user}! Total: {bits}."
+    },
+    "raid": {
+      "label": "Alerta de raid",
+      "tagline": "Cuando llega una raid de otro canal.",
+      "event": "al recibir una raid",
+      "defaultMessage": "¡{user} llega de raid al canal! Espectadores: {viewers}. ¡Bienvenidos!"
+    },
+    "ads": {
+      "label": "Alerta de pausa publicitaria",
+      "tagline": "Cuando empieza una pausa publicitaria. Desactivada por defecto.",
+      "event": "al empezar una pausa publicitaria",
+      "defaultMessage": "Pausa publicitaria de {duration} s. ¡No te vayas, volvemos enseguida!"
+    }
+  }
+}

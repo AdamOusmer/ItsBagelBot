@@ -1,0 +1,5 @@
+{
+  "name": "Abgerufener Wert",
+  "hint": "Einen abgerufenen Wert aus einer gespeicherten API-Definition einfügen",
+  "desc": "Ein Wert aus einer gespeicherten Datenquellendefinition (Seite Datenquellen). Schreibe {urlfetch:name} für die gesamte Antwort oder füge einen durch Punkte getrennten Pfad hinzu, um ein Feld einer JSON-Antwort abzurufen, etwa {urlfetch:weather.forecast.current.temp_f}."
+}

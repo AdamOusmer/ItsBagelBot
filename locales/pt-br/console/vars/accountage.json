@@ -1,0 +1,5 @@
+{
+  "name": "Idade da conta",
+  "hint": "há quanto tempo a conta da Twitch existe (módulo Idade da conta)",
+  "desc": "Há quanto tempo a conta da Twitch existe. {accountage:alex} consulta outra pessoa. Exige o módulo Idade da conta."
+}

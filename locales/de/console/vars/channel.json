@@ -1,0 +1,5 @@
+{
+  "name": "Kanalname",
+  "hint": "der Kanal, in dem der Befehl ausgeführt wird",
+  "desc": "Der Anzeigename deines Kanals."
+}

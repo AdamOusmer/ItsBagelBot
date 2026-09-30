@@ -1,0 +1,5 @@
+{
+  "name": "Sehzeit",
+  "hint": "wie lange die Person zugeschaut hat, in der Formulierung von !uptime (Treue)",
+  "desc": "Wie lange die Person bei laufender Treue-Zeitmessung zugeschaut hat. {watchtime:alex} fragt nach jemand anderem. Benötigt das Modul Treuepunkte."
+}

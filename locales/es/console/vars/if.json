@@ -1,0 +1,5 @@
+{
+  "name": "Decir una cosa u otra",
+  "hint": "un texto u otro: {if:name:when it has something:when it does not}, o {if:name=value:…:…} para una coincidencia exacta. Las variables no funcionan dentro de los dos textos",
+  "desc": "Elige el primer texto cuando la variable indicada tiene contenido y el segundo cuando no. Indica su nombre sin llaves y escribe {if:game=Chess:…:…} para comprobar un valor exacto. Las variables no funcionan dentro de los dos textos. Omite el segundo y una condición falsa no dirá nada; si eso deja toda la línea vacía, el bot la omite en lugar de enviar un mensaje en blanco."
+}

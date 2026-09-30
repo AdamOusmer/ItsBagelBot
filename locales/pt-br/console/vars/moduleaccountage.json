@@ -1,0 +1,5 @@
+{
+  "name": "Idade da conta",
+  "hint": "Requer o módulo Idade da conta ativado.",
+  "desc": "Use {accountage:variable} em um comando personalizado para ler os valores públicos deste módulo. Requer o módulo Idade da conta ativado. Adicionar uma variável não ativa o módulo. Módulos desativados deixam a variável visível no chat. Valores exclusivos de eventos ficam vazios quando o comando não tem evento correspondente; use |fallback para valores vazios. A prévia usa dados de exemplo e não confirma que seu módulo está ativado."
+}

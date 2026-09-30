@@ -1,0 +1,5 @@
+{
+  "name": "Zuschauername",
+  "hint": "wer den Befehl ausgeführt hat",
+  "desc": "Die Person, die den Befehl verwendet hat. {sender} funktioniert ebenfalls."
+}

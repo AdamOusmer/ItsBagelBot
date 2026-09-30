@@ -1,0 +1,5 @@
+{
+  "name": "Abonnentenzahl",
+  "hint": "deine aktuelle Abonnentenzahl",
+  "desc": "Deine aktuelle Abonnentenzahl, direkt von Twitch. Nimmt keine Zusatzangabe an; zählt immer deinen eigenen Kanal."
+}

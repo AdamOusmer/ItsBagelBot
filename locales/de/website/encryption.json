@@ -1,0 +1,11 @@
+{
+  "p1Eyebrow": "Bei Übertragung und Speicherung verschlüsselt",
+  "p1Title": "Deine Chat-Daten sind verschlüsselt.",
+  "p1Desc": "Der Datenverkehr zwischen allen internen Diensten läuft über TLS, und alles auf den Datenträgern ist verschlüsselt.",
+  "p2Eyebrow": "Bewusst verteilt",
+  "p2Title": "Läuft auf mehreren Rechnern.",
+  "p2Desc": "Fällt einer aus, kümmern sich die anderen weiter um deinen Chat.",
+  "p3Eyebrow": "Quellcode verfügbar",
+  "p3Title": "Du kannst den Code lesen.",
+  "p3Desc": "Der Quellcode steht auf GitHub unter einer Lizenz mit einsehbarem Quellcode. Prüfe ihn, melde Probleme und sieh genau, was in deinem Chat läuft."
+}

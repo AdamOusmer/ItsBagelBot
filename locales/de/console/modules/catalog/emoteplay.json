@@ -1,0 +1,5 @@
+{
+  "label": "Emote-Pyramiden und -Serien",
+  "tagline": "Feiere Emote-Pyramiden und Emote-Serien aus dem Chat.",
+  "description": "Beobachte, wie der Chat Emote-Pyramiden baut (dasselbe Emote gestapelt: 1, 2, 3 und zurück auf 1) und Emote-Serien bildet (eine Folge von Nachrichten mit einem einzelnen Emote), und lass den Bot bei Erfolg jubeln. Vollautomatisch: keine Befehle, keine Einrichtung. Eine Pyramide zählt nur, wenn sie sauber Zeile für Zeile gebaut wird, ohne andere Nachrichten dazwischen."
+}

@@ -1,0 +1,11 @@
+{
+  "p1Eyebrow": "Cifrado en tránsito y en reposo",
+  "p1Title": "Los datos de tu chat están cifrados.",
+  "p1Desc": "El tráfico entre todos los servicios internos usa TLS, y todo lo almacenado en disco está cifrado.",
+  "p2Eyebrow": "Distribuido a propósito",
+  "p2Title": "Funciona en varias máquinas.",
+  "p2Desc": "Si una falla, las demás siguen cubriendo tu chat.",
+  "p3Eyebrow": "Código fuente disponible",
+  "p3Title": "Puedes leer el código.",
+  "p3Desc": "El código fuente está en GitHub con una licencia de código fuente disponible. Revísalo, informa de problemas y ve exactamente qué se ejecuta en tu chat."
+}

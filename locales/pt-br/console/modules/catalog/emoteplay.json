@@ -1,0 +1,5 @@
+{
+  "label": "Pirâmides e sequências de emotes",
+  "tagline": "Celebre pirâmides e sequências de emotes criadas pelo chat.",
+  "description": "Veja o chat montar pirâmides de emotes (o mesmo emote empilhado em 1, 2, 3 e de volta a 1) e sequências de emotes (uma série de mensagens com um único emote), e deixe o bot comemorar quando forem concluídas. Totalmente automático: sem comandos nem configuração. Uma pirâmide só conta quando é montada corretamente, linha por linha, sem outras mensagens no meio."
+}

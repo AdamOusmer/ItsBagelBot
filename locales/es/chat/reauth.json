@@ -1,0 +1,5 @@
+{
+  "revoked.body": "Twitch revocó la autorización del bot para tu canal (esto ocurre tras cambiar la contraseña o desconectar la aplicación). Las respuestas del chat y las alertas están en pausa. Inicia sesión en {dashboard_url} y vuelve a conectar tu cuenta de Twitch para que el bot vuelva.",
+  "revoked.chat": "El bot perdió su autorización de Twitch para este canal (cambio de contraseña o desconexión de la aplicación). Inicia sesión en {dashboard_url} para volver a conectarlo.",
+  "revoked.title": "El bot perdió el acceso a tu canal"
+}

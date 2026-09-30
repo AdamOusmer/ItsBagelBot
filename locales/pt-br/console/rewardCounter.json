@@ -1,0 +1,21 @@
+{
+  "enable": "Manter um contador",
+  "nameLabel": "Nome do contador",
+  "nameHint": "Digite um novo nome para criá-lo aqui ou um contador existente para incrementá-lo.",
+  "errNameRequired": "Informe um nome de contador ou desative Manter um contador.",
+  "scopeLabel": "Para qual total cada resgate conta",
+  "scopeViewerReward": "Por espectador, por recompensa",
+  "scopeViewerRewardDesc": "Cada espectador tem sua própria contagem para esta recompensa. Ideal para a maioria das recompensas.",
+  "scopeReward": "Por recompensa, todos os espectadores",
+  "scopeRewardDesc": "Todos contribuem para um total compartilhado desta recompensa. Ideal para metas da comunidade.",
+  "scopeViewer": "Por espectador",
+  "scopeViewerDesc": "Cada espectador tem uma contagem compartilhada entre todas as recompensas que usam este contador.",
+  "scopeChannel": "Canal inteiro",
+  "scopeChannelDesc": "Um total acumulado para o canal inteiro.",
+  "tokenNote": "Use {counter} na resposta de chat para mostrar o novo total.",
+  "pointsEnable": "Conceder pontos de fidelidade",
+  "pointsLabel": "Pontos por resgate",
+  "pointsHint": "Use {points} na resposta de chat para mostrar a quantidade.",
+  "liveOnly": "Somente enquanto estou ao vivo",
+  "liveOnlyHint": "Resgates offline ainda respondem no chat, mas não contam nem concedem pontos."
+}

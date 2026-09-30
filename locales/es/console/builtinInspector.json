@@ -1,0 +1,12 @@
+{
+  "enabled": "Activado",
+  "enabledHelp": "Activa o desactiva este comando integrado para tu canal.",
+  "usage": "Uso",
+  "preview": "Vista previa",
+  "access": "Acceso",
+  "saveAccess": "Guardar acceso",
+  "cooldown": "Tiempo de espera",
+  "replyMessage": "Mensaje de respuesta",
+  "replyHint": "Déjalo en blanco para usar la respuesta predeterminada. {clip} = enlace del clip, {user} = quien creó el clip, {target} = título.",
+  "saveReply": "Guardar respuesta"
+}

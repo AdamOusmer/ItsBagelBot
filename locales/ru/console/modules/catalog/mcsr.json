@@ -1,0 +1,57 @@
+{
+  "label": "MCSR Ranked",
+  "tagline": "Рейтинг elo и статистика сессии трансляции для спидраннеров MCSR.",
+  "description": "Команды зрителей на основе API MCSR Ranked: !elo показывает текущий рейтинг и результаты сезона; !session — изменение elo и победы/поражения с начала трансляции, фиксируя исходное состояние при выходе в эфир. !elo может указывать любого игрока (например, «!elo Feinberg»); !session всегда отслеживает связанный аккаунт. !lastmatch показывает последний матч; !record сравнивает личные встречи двух игроков; !lb показывает топ 5 рейтинга elo, очков фазы или результатов; !race — лидера недельной гонки и ваше время. !elo, !lastmatch, !record и !lb принимают «season:11» в конце для просмотра прошлого сезона. !pace, !nethers и !lastfort получают текущие отсечки спидрана с PaceMan.gg для того же аккаунта. !pb показывает личный рекорд: daily/weekly/monthly с PaceMan или «ranked» для лучшего результата сезона MCSR Ranked; после любого варианта можно указать игрока или только имя для рекорда PaceMan за всё время.",
+  "settings": {
+    "account": {
+      "label": "Связанный аккаунт Minecraft",
+      "help": "Игрок по умолчанию для всех команд. Оставьте пустым для использования имени Twitch. Бот сохраняет UUID аккаунта, если Mojang позволяет, поэтому команды Ranked работают после переименования. PaceMan по-прежнему использует имя.",
+      "placeholder": "Ваше имя пользователя Minecraft"
+    }
+  },
+  "replies": {
+    "elo": {
+      "tagline": "Текущий elo, место и результаты сезона.",
+      "defaultMessage": "{player}: {elo} elo · место #{rank} · побед: {wins}, поражений: {losses} за сезон"
+    },
+    "session": {
+      "tagline": "Elo и результаты с начала трансляции.",
+      "defaultMessage": "{player}, эта трансляция: {elochange} elo (сейчас {elo}) · побед: {wins}, поражений: {losses}, ничьих: {draws}, матчей: {matches}"
+    },
+    "pace": {
+      "tagline": "Средние отсечки текущей сессии с PaceMan.gg.",
+      "defaultMessage": "{player}, эта сессия: входов в Незер: {nethers} (среднее {nether}) · бастион {bastion} · крепость {fortress} · первый портал {firstportal} · входов/ч: {nph}"
+    },
+    "nethers": {
+      "tagline": "Число входов в Незер и темп текущей сессии.",
+      "defaultMessage": "{player}: входов в Незер за сессию: {nethers} (среднее {nether}) · входов/ч: {nph}"
+    },
+    "lastfort": {
+      "tagline": "Отсечки последнего забега, достигшего крепости или бастиона.",
+      "defaultMessage": "{player}, последняя крепость: Незер {nether} · бастион {bastion} · крепость {fortress} · первый портал {firstportal} · стронгхолд {stronghold} · давность: {ago}"
+    },
+    "lastmatch": {
+      "tagline": "Последний матч: соперник, результат, сид и изменение elo.",
+      "defaultMessage": "{player} против {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · давность: {ago}"
+    },
+    "record": {
+      "tagline": "Победы в личных встречах двух игроков.",
+      "event": "!record <player> [player2]",
+      "defaultMessage": "{playera} {winsa} - {winsb} {playerb} · сыграно: {played}"
+    },
+    "lb": {
+      "tagline": "Топ 5 рейтинга elo, очков фазы или результатов.",
+      "event": "!lb [phase [predicted]|record] [country:xx]",
+      "defaultMessage": "{board}: {list}"
+    },
+    "race": {
+      "tagline": "Лидер гонки этой недели и время игрока.",
+      "defaultMessage": "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
+    },
+    "pb": {
+      "tagline": "Личный рекорд: PaceMan за день/неделю/месяц/всё время или лучший результат сезона MCSR Ranked.",
+      "event": "!pb [daily|weekly|monthly|ranked] [player]",
+      "defaultMessage": "{player}: {time} (личный рекорд: {window})"
+    }
+  }
+}

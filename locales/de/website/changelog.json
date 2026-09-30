@@ -1,0 +1,14 @@
+{
+  "backToAll": "Alle Releases",
+  "eyebrow": "Änderungen",
+  "title": "Was es Neues gibt.",
+  "desc": "Was sich für dich geändert hat, Release für Release. Alpha-, Beta- und Vorabversionen sind gekennzeichnet. Die vollständigen Hinweise stehen auf GitHub.",
+  "metaTitle": "Änderungen - ItsBagelBot",
+  "metaDesc": "Neues in ItsBagelBot: jedes Release, nach Version sortiert und mit GitHub verknüpft.",
+  "releaseLink": "GitHub-Release",
+  "empty": "Noch nichts im Ofen.",
+  "tag.alpha": "Alpha",
+  "tag.beta": "Beta",
+  "tag.prerelease": "Vorabversion",
+  "tag.release": "Release"
+}

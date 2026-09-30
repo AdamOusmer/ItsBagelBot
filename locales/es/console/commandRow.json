@@ -1,0 +1,18 @@
+{
+  "lockedTo": "Restringido al usuario {id}",
+  "liveOnly": "Solo se ejecuta durante el directo",
+  "unsaved": "Sin guardar",
+  "unsavedTitle": "Tienes cambios sin guardar en este comando",
+  "also": "También: {aliases}",
+  "cooldown": "Espera",
+  "uses": "Usos",
+  "toggleAria": "Activar o desactivar !{name}",
+  "deleteAria": "Eliminar !{name}",
+  "builtin": "Integrado",
+  "builtinTitle": "Comando integrado: solo puede activarse o desactivarse, sin respuesta editable",
+  "failed": "Error",
+  "moreAliases": "Otros nombres alternativos: {count}; {aliases}",
+  "selected": "Seleccionado",
+  "notSelected": "Sin seleccionar",
+  "perViewerCooldown": "Cada espectador espera {n}s entre sus propias ejecuciones"
+}

@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Jugador",
+    "hint": "El jugador identificado",
+    "desc": "El jugador identificado."
+  },
+  "opponent": {
+    "name": "Rival",
+    "hint": "El otro jugador de esa partida",
+    "desc": "El otro jugador de esa partida."
+  },
+  "result": {
+    "name": "Resultado",
+    "hint": "Victoria",
+    "desc": "Victoria, derrota o empate. También se indican los abandonos y las partidas con pérdida de puntuación por inactividad."
+  },
+  "time": {
+    "name": "Tiempo",
+    "hint": "El tiempo de finalización de la partida",
+    "desc": "El tiempo de finalización de la partida, si llegó a completarse."
+  },
+  "seed": {
+    "name": "Semilla",
+    "hint": "El tipo de semilla de esa partida",
+    "desc": "El tipo de semilla de esa partida."
+  },
+  "structure": {
+    "name": "Estructura",
+    "hint": "El tipo de estructura del bastión de esa partida",
+    "desc": "El tipo de estructura del bastión de esa partida."
+  },
+  "elochange": {
+    "name": "Cambio de Elo",
+    "hint": "Cambio de Elo de esa partida",
+    "desc": "Cambio de Elo de esa partida."
+  },
+  "ago": {
+    "name": "Hace cuánto",
+    "hint": "Cuánto tiempo ha pasado desde que terminó esa partida",
+    "desc": "Cuánto tiempo ha pasado desde que terminó esa partida."
+  }
+}

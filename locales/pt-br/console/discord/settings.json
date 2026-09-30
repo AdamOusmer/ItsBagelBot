@@ -1,0 +1,11 @@
+{
+  "disconnectBody": "O Bagel para de publicar e esquece a qual servidor este canal está vinculado. Seus canais e cargos continuam exatamente como estão.",
+  "disconnectCta": "Desconectar",
+  "disconnectTitle": "Desconectar o Discord?",
+  "reconnectCta": "Autorizar novamente",
+  "setupCta": "Configurar este servidor",
+  "setupHelp": "Executa a configuração inicial novamente: cria o que falta, adota os cargos que você fixou e mantém o restante como está.",
+  "setupTitle": "Reconstruir o servidor",
+  "setupFirstRun": "Este servidor ainda não tem configurações salvas. A primeira configuração as grava.",
+  "dangerTitle": "Zona de perigo"
+}

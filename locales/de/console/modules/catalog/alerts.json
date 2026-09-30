@@ -1,0 +1,43 @@
+{
+  "label": "Chat-Benachrichtigungen",
+  "tagline": "Kündige Follows, Abos, Cheers, Raids und Werbepausen im Chat an.",
+  "description": "Der Bot postet eine Chat-Zeile bei Follows, Abos, Cheers oder Raids und kann Werbepausen ankündigen. Schalte jede Benachrichtigung ein oder aus und passe ihre Nachricht an. Neue Benachrichtigungen sind standardmäßig an, außer Werbepausen: Diese bleiben aus, bis du sie aktivierst. Eine Follow-Benachrichtigung wird pro Zuschauer höchstens einmal alle drei Tage ausgelöst, damit Entfolgen und erneutes Folgen deinen Chat nicht zuspammen können.",
+  "replies": {
+    "follow": {
+      "label": "Follow-Benachrichtigung",
+      "tagline": "Wenn jemand deinem Kanal folgt. Wird pro Zuschauer einmal alle drei Tage ausgelöst.",
+      "event": "bei einem Follow",
+      "defaultMessage": "Danke fürs Folgen, {user}!"
+    },
+    "sub": {
+      "label": "Abo-Benachrichtigung",
+      "tagline": "Wenn jemand abonniert oder das Abo erneuert.",
+      "event": "bei einem Abo",
+      "defaultMessage": "Willkommen in der Community, {user}! Danke fürs Abonnieren!"
+    },
+    "gift": {
+      "label": "Geschenkabo-Benachrichtigung",
+      "tagline": "Wenn jemand Abos verschenkt. Eine Zeile pro Schenkendem, nie pro Empfänger.",
+      "event": "bei Geschenkabos",
+      "defaultMessage": "{user} hat gerade Abos an die Community verschenkt: {count}! Danke!"
+    },
+    "cheer": {
+      "label": "Cheer-Benachrichtigung",
+      "tagline": "Wenn jemand Bits als Cheer sendet.",
+      "event": "bei einem Cheer",
+      "defaultMessage": "Danke für die Bits ({bits}), {user}!"
+    },
+    "raid": {
+      "label": "Raid-Benachrichtigung",
+      "tagline": "Wenn ein anderer Kanal deinen Kanal raidet.",
+      "event": "bei einem Raid",
+      "defaultMessage": "{user} raidet den Kanal! Mitgebrachte Zuschauer: {viewers}. Willkommen zusammen!"
+    },
+    "ads": {
+      "label": "Werbepausen-Benachrichtigung",
+      "tagline": "Wenn eine Werbepause beginnt. Standardmäßig aus.",
+      "event": "bei einer Werbepause",
+      "defaultMessage": "Werbung läuft. Dauer: {duration} Sek. Bleibt dran, wir sind gleich zurück!"
+    }
+  }
+}

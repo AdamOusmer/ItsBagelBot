@@ -1,0 +1,42 @@
+{
+  "label": "Etapas de publicação",
+  "stepOf": "Etapa {n} de {total}",
+  "next": "Avançar",
+  "back": "Voltar",
+  "rail": {
+    "kind": "Tipo",
+    "build": "Compilação",
+    "rollback": "Versão",
+    "prs": "Pull requests",
+    "changelog": "Histórico de alterações",
+    "review": "Revisão"
+  },
+  "title": {
+    "kind": "O que vamos publicar?",
+    "build": "Versão e commit",
+    "rollback": "Escolha a versão",
+    "prs": "Mescle os pull requests primeiro",
+    "changelog": "Escreva o histórico de alterações",
+    "review": "Revise e publique"
+  },
+  "body": {
+    "kind": "Cada tipo executa um conjunto fixo de etapas em ordem e para na primeira falha.",
+    "build": "O commit de main usado como base da compilação desta execução. Versões e hotfixes também gravam a tag de versão.",
+    "rollback": "O cluster fixa as imagens dessa versão e implanta cada serviço cuja referência fixada mudar. Sem compilação.",
+    "prs": "Os pull requests marcados são mesclados antes de qualquer compilação. Só é possível marcar PRs com verificações aprovadas ou em andamento.",
+    "changelog": "É publicado com as notas da versão. O inglês é obrigatório. O francês usa o inglês quando fica vazio.",
+    "review": "Confira o que esta execução faz e inicie-a. Nada é revertido automaticamente."
+  },
+  "stagesCount": "Etapas: {n}",
+  "picked": "PRs selecionados: {n}",
+  "pickedOne": "1 PR selecionado",
+  "pickedNone": "Nenhum PR selecionado. Nada será mesclado.",
+  "releasesEmpty": "Nenhuma versão anterior para reverter.",
+  "reviewKind": "Tipo",
+  "reviewPrs": "Mescla primeiro",
+  "reviewPrsNone": "Nada",
+  "reviewChangelog": "Título do histórico de alterações",
+  "eyebrow": "Nova implantação",
+  "close": "Cancelar",
+  "pending": "Ainda não alcançada"
+}

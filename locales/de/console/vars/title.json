@@ -1,0 +1,5 @@
+{
+  "name": "Stream-Titel",
+  "hint": "dein aktueller Stream-Titel oder {title:someone} für einen anderen Kanal (Schalter !title)",
+  "desc": "Der aktuelle Stream-Titel, derselbe wie bei !title. Funktioniert auch offline. {title:someone} liefert den Titel eines anderen Kanals. Richtet sich nach dem Schalter für !title."
+}

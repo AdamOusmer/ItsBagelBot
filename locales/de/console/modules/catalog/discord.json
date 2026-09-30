@@ -1,0 +1,5 @@
+{
+  "label": "Discord",
+  "tagline": "Ein Bot auf Twitch und Discord. Live-Start, Clips, Begrüßungen, Tickets und Sprachkanäle.",
+  "description": "Verbinde einen bestehenden Discord-Server oder erstelle einen mit Bagels Vorlage. Live-Start und Clips werden direkt von outgress gepostet. Sie warten nie auf sesame. Raids, große Abo-Geschenke und Abo-Meilensteine werden bei Aktivierung nach #announcements kopiert. Das Discord-Gateway (dingress) übernimmt Begrüßungen, durch Beitritt erstellte Sprachkanäle, Support-Tickets, Mitarbeiterprotokolle, Slash-Moderation und Krümelränge."
+}

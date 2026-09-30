@@ -1,0 +1,5 @@
+{
+  "name": "Ein gespeichertes Zitat",
+  "hint": "ein zufälliges gespeichertes Zitat oder {quote:12} für ein bestimmtes (Modul Zitate)",
+  "desc": "Ein zufälliges Zitat aus deiner Sammlung, genau wie von !quote ausgegeben. {quote:12} wählt ein bestimmtes Zitat; bei einer nicht vergebenen Nummer ist das Ergebnis leer. Zwei {quote} in einer Antwort sind zwei verschiedene Zitate. Benötigt das Modul Zitate."
+}

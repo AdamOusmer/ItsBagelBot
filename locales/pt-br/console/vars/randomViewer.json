@@ -1,0 +1,5 @@
+{
+  "name": "Um espectador aleatório",
+  "hint": "alguém no chat agora, escolhido ao acaso (nunca você nem o bot)",
+  "desc": "O nome de uma pessoa que a Twitch informa estar no chat agora, escolhida ao acaso, sem necessariamente ter dito algo. Nunca você nem o bot. Duas ocorrências em uma resposta são duas escolhas separadas. Logo após o bot reiniciar, antes de carregar quem está no chat, escolhe alguém que falou recentemente."
+}

@@ -1,0 +1,8 @@
+{
+  "running": "Em execução",
+  "waiting": "Aguardando",
+  "succeeded": "Concluída",
+  "failed": "Falhou",
+  "cancelled": "Cancelada",
+  "verify_failed": "Implantada, verificação falhou"
+}

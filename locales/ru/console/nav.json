@@ -1,0 +1,17 @@
+{
+  "songqueue": "Заказы песен",
+  "lockedBroadcaster": "Только стример",
+  "ariaMain": "Основная навигация",
+  "manage": "Управление",
+  "overview": "Обзор",
+  "commands": "Команды",
+  "modules": "Модули",
+  "discord": "Discord",
+  "counters": "Счётчики",
+  "channelpoints": "Баллы канала",
+  "timers": "Таймеры",
+  "billing": "Оплата",
+  "stats": "Статистика",
+  "status": "Состояние",
+  "settings": "Настройки"
+}

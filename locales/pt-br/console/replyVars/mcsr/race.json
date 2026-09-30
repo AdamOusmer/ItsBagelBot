@@ -1,0 +1,27 @@
+{
+  "leader": {
+    "name": "Líder",
+    "hint": "Quem ocupa o #1 nesta semana",
+    "desc": "Quem ocupa o #1 nesta semana."
+  },
+  "leadertime": {
+    "name": "Tempo do líder",
+    "hint": "O tempo do líder",
+    "desc": "O tempo do líder."
+  },
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador encontrado",
+    "desc": "O jogador encontrado."
+  },
+  "time": {
+    "name": "Tempo",
+    "hint": "O tempo do próprio jogador nesta semana",
+    "desc": "O tempo do próprio jogador nesta semana, quando houver."
+  },
+  "rank": {
+    "name": "Posição",
+    "hint": "A colocação do jogador nesta semana",
+    "desc": "A colocação do jogador nesta semana."
+  }
+}

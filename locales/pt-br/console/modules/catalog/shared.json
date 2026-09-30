@@ -1,0 +1,6 @@
+{
+  "linkedOnly": {
+    "label": "Consultar apenas minha conta vinculada",
+    "help": "Quando ativado, os espectadores não podem informar outro jogador: todos os comandos mostram sua conta vinculada (ou seu nome de usuário da Twitch se nenhuma estiver vinculada), e qualquer nome digitado é ignorado sem resposta no chat. Desativado por padrão."
+  }
+}

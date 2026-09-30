@@ -1,0 +1,9 @@
+{
+  "board": "Bagel-Rangliste: {personality:places}. {personality:standing}",
+  "board.empty": "Noch niemand hat den Bagel gefüttert. Sag \"feed the bagel\" und hol dir Platz eins.",
+  "board.none": "Dieser Kanal hat den Bagel noch nie gefüttert.",
+  "board.standing": "Dieser Kanal: Fütterungen: {personality:count}, Platz {personality:rank} von {personality:ranked}.",
+  "rank": "{personality:channel} hat den Bagel gefüttert. Anzahl: {personality:count}, Platz {personality:rank}, gelistete Kanäle: {personality:ranked}.",
+  "rank.none": "{personality:channel} hat den Bagel noch nie gefüttert. Sag \"feed the bagel\", um in die Rangliste zu kommen.",
+  "unavailable": "Der Bagel kann gerade nicht zählen, versuch es gleich noch mal."
+}

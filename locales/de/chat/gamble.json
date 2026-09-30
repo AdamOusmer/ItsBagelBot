@@ -1,0 +1,12 @@
+{
+  "broke": "@{gamble:user} dein Guthaben reicht nicht für diese Wette. Du hast {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} die Würfel brauchen eine Pause. Versuch es in {gamble:secs}s noch mal.",
+  "err": "@{gamble:user} das hat nicht geklappt, versuch es bitte noch mal.",
+  "lose": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} verloren. Neuer Stand: {gamble:balance}.",
+  "range": "@{gamble:user} diese Wette könnte das Punktelimit überschreiten.",
+  "max": "@{gamble:user} die Höchstwette beträgt {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} die Mindestwette beträgt {gamble:min} {gamble:points}.",
+  "usage": "Verwendung: !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} ich habe dich in diesem Kanal noch nicht gesehen. Bleib erst mal hier und verdiene etwas {gamble:points}!",
+  "win": "@{gamble:user} hat {gamble:roll} gewürfelt (nötig: höchstens {gamble:chance}) und {gamble:amount} {gamble:points} gewonnen. Neuer Stand: {gamble:balance}!"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Codificar texto para URL",
+  "hint": "codifica para URL el texto que pongas después de los dos puntos",
+  "desc": "Codifica tu propio texto para la parte de consulta de una URL. Reemplaza las palabras."
+}

@@ -1,0 +1,5 @@
+{
+  "label": "Pirámides y rachas de emoticonos",
+  "tagline": "Celebra las pirámides y rachas de emoticonos creadas por el chat.",
+  "description": "Observa cómo el chat construye pirámides de emoticonos (el mismo emoticono apilado 1, 2, 3 y de nuevo hasta 1) y rachas de emoticonos (una serie de mensajes con un solo emoticono), y deja que el bot las celebre al completarse. Totalmente automático: sin comandos ni configuración. Una pirámide solo cuenta si se construye correctamente, línea por línea, sin publicar nada más entre ellas."
+}

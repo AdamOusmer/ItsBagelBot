@@ -1,0 +1,13 @@
+{
+  "label": "Citas",
+  "tagline": "Guarda las mejores frases de la transmisión y recuérdalas en el chat.",
+  "description": "Mantén un libro de citas del canal. Alguien guarda una frase con !addquote the text (o !quote \"the text\") y el bot le asigna un número y la fecha de guardado. Cualquiera puede mostrar una con !quote para una elección aleatoria, !quote 12 para un número concreto o !quote ferret para una cita aleatoria que contenga esa palabra. El bot responde \"Cita #12: the text (2026-07-11)\". Elige abajo quién puede guardar citas y quién puede reescribirlas (!quote edit 12 the fixed text); por defecto, ambas acciones corresponden a los moderadores. Los moderadores eliminan un error con !quote remove 12; los números nunca se reutilizan, así que un número antiguo sigue apuntando a la misma cita. Las respuestas son texto fijo del sistema (traducido al idioma de tu consola).",
+  "commands": {
+    "quote": "Publica una cita guardada al azar (también !quotes).",
+    "quote_number": "Publica esa cita exacta.",
+    "quote_word": "Publica una cita aleatoria que contenga esa palabra.",
+    "addquote_text": "Guarda una cita nueva (también !quoteadd o !quote \"text\"; arriba se define quién puede guardar); se conserva su fecha de guardado.",
+    "quote_edit_number_text": "Reescribe una cita guardada sin cambiar su ubicación (arriba se define quién puede editar); se conservan su número y fecha.",
+    "quote_remove_number": "Elimina una cita; su número queda retirado."
+  }
+}

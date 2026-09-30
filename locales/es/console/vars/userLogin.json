@@ -1,0 +1,5 @@
+{
+  "name": "Nombre de inicio de sesión del espectador",
+  "hint": "su nombre de inicio de sesión en minúsculas, no su nombre visible",
+  "desc": "Su nombre de inicio de sesión en minúsculas, que puede diferir del nombre visible que muestra {user}."
+}

@@ -1,0 +1,17 @@
+{
+  "player": {
+    "name": "Spieler",
+    "hint": "Der ermittelte Spieler",
+    "desc": "Der ermittelte Spieler."
+  },
+  "time": {
+    "name": "Zeit",
+    "hint": "Die persönliche Bestzeit im angefragten Zeitraum",
+    "desc": "Die persönliche Bestzeit im angefragten Zeitraum."
+  },
+  "window": {
+    "name": "Zeitraum",
+    "hint": "Welcher Zeitraum geantwortet hat: täglich",
+    "desc": "Welcher Zeitraum geantwortet hat: täglich, wöchentlich, monatlich, insgesamt oder Ranked."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "roleBroadcaster": "Streamer",
+  "notifications": "Benachrichtigungen",
+  "logout": "Abmelden",
+  "dashboards": "Geteilte Dashboards",
+  "support": "Support",
+  "supportDiscordHint": "meist wenige Minuten",
+  "supportGithubHint": "Quellcode verfügbar",
+  "feedback": "Fehler oder Idee",
+  "enterprise": "Enterprise",
+  "reconnecting": "Verbindung wird wiederhergestellt",
+  "supportTitle": "Hilfe und Feedback"
+}

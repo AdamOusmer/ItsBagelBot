@@ -1,0 +1,39 @@
+{
+  "reply": {
+    "user": {
+      "name": "Quem resgatou",
+      "hint": "Quem resgatou a recompensa",
+      "desc": "Quem resgatou a recompensa."
+    },
+    "input": {
+      "name": "Texto do espectador",
+      "hint": "texto do espectador",
+      "desc": "O texto digitado no resgate (quando a recompensa pede um)."
+    },
+    "reward": {
+      "name": "Título da recompensa",
+      "hint": "O nome da recompensa resgatada",
+      "desc": "O nome da recompensa resgatada."
+    },
+    "cost": {
+      "name": "Custo em pontos",
+      "hint": "Quanto custa a recompensa",
+      "desc": "Quanto custa a recompensa."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "Nome do seu canal",
+      "desc": "Nome do seu canal."
+    },
+    "counter": {
+      "name": "Contador vinculado",
+      "hint": "O novo valor do contador vinculado",
+      "desc": "O novo valor do contador vinculado, quando a recompensa tem um. Use o escopo de comando para um total compartilhado entre todos os resgates desta recompensa."
+    },
+    "points": {
+      "name": "Pontos de fidelidade",
+      "hint": "Pontos de fidelidade concedidos pela recompensa (quando positivos)",
+      "desc": "Pontos de fidelidade concedidos pela recompensa (quando positivos)."
+    }
+  }
+}

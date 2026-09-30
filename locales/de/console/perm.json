@@ -1,0 +1,16 @@
+{
+  "everyone": "Alle",
+  "sub": "Abonnenten",
+  "vip": "VIPs",
+  "mod": "Moderatoren",
+  "lead_mod": "Leitende Moderatoren",
+  "broadcaster": "Kanalinhaber",
+  "badge": {
+    "everyone": "Alle",
+    "sub": "Abonnenten",
+    "vip": "VIPs",
+    "mod": "Mods",
+    "lead_mod": "Leitende Mods",
+    "broadcaster": "Kanalinhaber"
+  }
+}

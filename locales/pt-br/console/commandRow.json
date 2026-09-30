@@ -1,0 +1,18 @@
+{
+  "lockedTo": "Restrito ao usuário {id}",
+  "liveOnly": "Só funciona ao vivo",
+  "unsaved": "Não salvo",
+  "unsavedTitle": "Você tem alterações não salvas neste comando",
+  "also": "Também: {aliases}",
+  "cooldown": "Intervalo",
+  "uses": "Usos",
+  "toggleAria": "Ativar ou desativar !{name}",
+  "deleteAria": "Excluir !{name}",
+  "builtin": "Integrado",
+  "builtinTitle": "Comando integrado: só permite ativar ou desativar, sem resposta editável",
+  "failed": "Falhou",
+  "moreAliases": "Outros nomes alternativos ({count}): {aliases}",
+  "selected": "Selecionado",
+  "notSelected": "Não selecionado",
+  "perViewerCooldown": "Cada espectador espera {n}s entre seus próprios usos"
+}

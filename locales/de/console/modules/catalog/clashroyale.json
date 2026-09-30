@@ -1,0 +1,33 @@
+{
+  "label": "Clash Royale-Statistiken",
+  "tagline": "Clash Royale-Profile, Decks und Platzierungen auf dem Pfad der Legenden im Chat.",
+  "description": "Ein Befehl, vier Ansichten: !cr zeigt das Gesamtprofil eines Spielers (Level, Siege/Niederlagen, Siegquote, Drei-Kronen-Siege, Clan); !cr decks zeigt das aktuelle Kampfdeck mit durchschnittlichen Elixierkosten; !cr ranked zeigt den Stand auf dem Pfad der Legenden (bei älteren Konten ersatzweise frühere Liga-Saisons); !cr road zeigt den Stand auf dem Trophäenpfad und die Arena. Auch !crstats, !crdecks, !crranked und !crroad funktionieren. Verknüpfe unten dein Spieler-Tag. Clash Royale unterstützt keine Namenssuche, daher ist ein Tag wie #P2LQ0GR erforderlich. Zuschauer können auch beliebige Tags angeben, z. B. „!cr #P2LQ0GR“.",
+  "settings": {
+    "account": {
+      "label": "Verknüpftes Spieler-Tag",
+      "help": "Standardspieler für jeden Befehl. Clash Royale unterstützt keine Namenssuche, daher muss dies ein Spieler-Tag sein; lass es nur leer, wenn du immer eines eingibst.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Gesamtprofil: !cr, !cr stats oder !crstats.",
+      "defaultMessage": "{player} · Level {level} · {wins}S/{losses}N · {winrate}% Siegquote · Drei-Kronen-Siege: {crowns} · {clan}"
+    },
+    "decks": {
+      "tagline": "Das aktuelle Kampfdeck mit durchschnittlichen Elixierkosten (auch !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "Deck von {player} ({count}/8): {cards} · Ø Elixier {elixir}"
+    },
+    "ranked": {
+      "tagline": "Stand auf dem Pfad der Legenden (auch !crranked); frühere Liga-Saisons ergänzen ältere Datensätze.",
+      "event": "!cr ranked",
+      "defaultMessage": "{player} – Pfad der Legenden: Liga {league} · Trophäen: {trophies} · Rang #{rank} · Bestwert {besttrophies}"
+    },
+    "road": {
+      "tagline": "Stand auf dem Trophäenpfad und Arena (auch !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: Trophäen: {trophies} · Bestwert {besttrophies} · {arena}"
+    }
+  }
+}

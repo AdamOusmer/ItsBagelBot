@@ -1,0 +1,21 @@
+{
+  "label": "Pedidos de música",
+  "tagline": "!sr e uma recompensa de pontos do canal que adicionam músicas do Spotify à fila.",
+  "description": "Cadastre seu próprio aplicativo Spotify e conecte sua conta a esse aplicativo uma vez, depois deixe espectadores pedir músicas de duas formas: pelo comando !sr no chat (com o nível de permissão escolhido, de todos até somente você) e por uma recompensa de pontos do canal cujo texto é a busca da música: nome, \"artista - música\" ou link do Spotify. O bot anuncia o que toca, consulta links e nomes no Spotify e mantém uma música por espectador na lista de próximas músicas. !current lê diretamente seu player Spotify, então responde até para faixas que ninguém pediu. Moderadores gerenciam a fila com !sr next, remove e clear.",
+  "commands": {
+    "sr": "Mostre o que toca ou adicione uma faixa pelo nome, \"artista - música\" ou link do Spotify.",
+    "remove": "Retire seu pedido da fila ou, como moderador, remova uma posição.",
+    "skip": "Marque a faixa atual como tocada e passe à próxima (também !next).",
+    "clear": "Esvazie a fila.",
+    "srlist": "Mostre as próximas cinco músicas da fila (também !songlist).",
+    "current": "Informe o que seu Spotify toca agora (também !song, !np)."
+  },
+  "replies": {
+    "redeem": {
+      "label": "Resposta ao resgate",
+      "tagline": "O que o bot publica quando a recompensa da fila é resgatada.",
+      "event": "ao resgatar",
+      "defaultMessage": "@{user} adicionou {track} à fila, posição #{pos}."
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Uma citação salva",
+  "hint": "uma citação salva aleatória, ou {quote:12} para uma numerada (módulo Citações)",
+  "desc": "Uma citação aleatória do seu livro de citações, exatamente como !quote a exibe. {quote:12} escolhe uma numerada, e um número não usado retorna vazio. Dois {quote} em uma resposta são duas citações diferentes. Requer o módulo Citações."
+}

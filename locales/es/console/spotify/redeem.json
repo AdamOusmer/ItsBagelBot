@@ -1,0 +1,10 @@
+{
+  "enableLabel": "Aceptar canjes de recompensas",
+  "enableOff": "Se devuelven los puntos de los canjes y no se añade nada a la cola.",
+  "enableOn": "Los canjes añaden canciones a la cola ahora.",
+  "help": "Una recompensa personalizada cuyo texto introducido es la búsqueda de canción. Canjearla añade la canción a la cola.",
+  "liveOnlyOff": "El canje funciona incluso cuando no transmites.",
+  "liveOnlyOn": "El canje solo funciona mientras transmites en directo.",
+  "title": "Puntos del canal",
+  "liveOnlyDisabled": "Activa los canjes para cambiar esto."
+}

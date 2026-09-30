@@ -1,0 +1,22 @@
+{
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador vinculado",
+    "desc": "O jogador vinculado."
+  },
+  "nethers": {
+    "name": "Entradas no Nether",
+    "hint": "Entradas no Nether nesta sessão",
+    "desc": "Entradas no Nether nesta sessão."
+  },
+  "nether": {
+    "name": "Média até o Nether",
+    "hint": "Tempo parcial médio até o Nether",
+    "desc": "Tempo parcial médio até o Nether."
+  },
+  "nph": {
+    "name": "Entradas no Nether/hora",
+    "hint": "Ritmo de entradas no Nether",
+    "desc": "Ritmo de entradas no Nether."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "cancel": "Cancelar: devolver os pontos, sem entrar na fila",
+  "fulfill": "Concluir: a música entra na fila (padrão)",
+  "leave": "Deixar pendente para moderadores resolverem manualmente",
+  "title": "Após o resgate"
+}

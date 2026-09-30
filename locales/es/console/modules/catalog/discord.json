@@ -1,0 +1,5 @@
+{
+  "label": "Discord",
+  "tagline": "Un solo bot en Twitch y Discord. Directos, clips, bienvenidas, tickets y voz.",
+  "description": "Conecta un servidor de Discord existente o crea uno con la plantilla de Bagel. Los avisos de directos y los clips se publican directamente desde outgress. Nunca esperan a sesame. Las raids, las oleadas de suscripciones regaladas y los hitos de suscripción se copian en #announcements cuando los activas. El gateway de Discord (dingress) gestiona bienvenidas, canales de voz creados al entrar, tickets de soporte, registros del personal, moderación con comandos de barra y rangos de migas."
+}

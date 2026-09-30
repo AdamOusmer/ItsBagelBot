@@ -1,0 +1,5 @@
+{
+  "name": "Categoría de la transmisión",
+  "hint": "la categoría que transmites, o {game:someone} para otro canal (interruptor de !game)",
+  "desc": "La categoría que se está transmitiendo, la misma que muestra !game. También funciona sin transmitir. {game:someone} devuelve la de otro canal, útil para un comando de recomendación. Depende del interruptor de !game."
+}

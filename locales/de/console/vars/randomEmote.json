@@ -1,0 +1,5 @@
+{
+  "name": "Ein zufälliges Emote",
+  "hint": "ein zufällig aus diesen globalen Sets gewählter Emote-Code",
+  "desc": "Ein zufällig aus diesen Listen gezogener Emote-Code. Zwei davon in einer Antwort sind zwei getrennte Ziehungen. Wenn der Bot noch keine Codes geladen hat, ist das Ergebnis leer."
+}

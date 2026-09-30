@@ -1,0 +1,13 @@
+{
+  "label": "Pontos do canal",
+  "tagline": "Transforme resgates de pontos do canal em ações do bot.",
+  "description": "Crie recompensas personalizadas que espectadores resgatam com pontos do canal (criadas pelo bot na Twitch, com aparência nativa) e vincule cada uma a uma ação do bot, como enviar uma mensagem no chat. Escolha se cada resgate é concluído, devolvido ou deixado para um moderador. Gerencie as recompensas nesta página.",
+  "replies": {
+    "reply": {
+      "label": "Resposta da recompensa no chat",
+      "tagline": "O que o bot publica quando uma recompensa vinculada é resgatada.",
+      "event": "ao resgatar",
+      "defaultMessage": "{user} resgatou {reward}!"
+    }
+  }
+}

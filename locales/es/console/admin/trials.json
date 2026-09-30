@@ -1,0 +1,32 @@
+{
+  "eyebrow": "Observación",
+  "title": "Canales de prueba",
+  "description": "Procesa el chat de hasta {max} streamers no registrados, distribuidos entre hasta tres sockets de prueba. El envío a Twitch permanece bloqueado mientras están en una prueba.",
+  "degraded": "El estado de las pruebas no está disponible. Los controles pueden fallar hasta que Ingress se reconecte.",
+  "idLabel": "ID del streamer de Twitch",
+  "add": "Añadir prueba",
+  "remove": "Eliminar",
+  "on": "Activado",
+  "off": "Desactivado",
+  "toggleLabel": "Recepción del chat de prueba para {name}",
+  "note": "Usa el ID numérico de Twitch. Desactiva una prueba individual para pausar la recepción de su chat; seguirá contando para el límite de {max} plazas. El registro termina automáticamente una prueba.",
+  "count": "Canales de prueba: {count} / {max}",
+  "empty": "No hay canales de prueba configurados.",
+  "history": "Pruebas recientes",
+  "received": "Recibidos: {count}",
+  "decoded": "Decodificados: {count}",
+  "processed": "Procesados: {count}",
+  "failed": "Fallidos: {count}",
+  "retried": "Reintentados: {count}",
+  "blocked": "Acciones bloqueadas: {count}",
+  "latency": "Procesamiento medio: {duration}",
+  "state": {
+    "pending": "Pendiente",
+    "receiving": "Recibiendo",
+    "disabled": "Desactivado",
+    "stopping": "Deteniéndose",
+    "promoted": "Promovido",
+    "removed": "Eliminado",
+    "failed": "Error"
+  }
+}

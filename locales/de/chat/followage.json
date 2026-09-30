@@ -1,0 +1,6 @@
+{
+  "broadcaster": "@%s betreibt den Kanal.",
+  "followed": "Bisherige Follower-Dauer von @%s: %s.",
+  "not_following": "@%s folgt diesem Kanal nicht.",
+  "unavailable": "Die Follower-Dauer ist gerade nicht verfügbar."
+}

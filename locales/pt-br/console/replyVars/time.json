@@ -1,0 +1,51 @@
+{
+  "time": {
+    "time": {
+      "name": "Hora local",
+      "hint": "O horário",
+      "desc": "O horário, no fuso e formato configurados."
+    },
+    "date": {
+      "name": "Data local",
+      "hint": "A data de hoje no seu fuso",
+      "desc": "A data de hoje no seu fuso."
+    },
+    "timezone": {
+      "name": "Fuso horário",
+      "hint": "O nome do fuso configurado",
+      "desc": "O nome do fuso configurado."
+    },
+    "user": {
+      "name": "Quem perguntou",
+      "hint": "Quem perguntou a hora",
+      "desc": "Quem perguntou a hora."
+    }
+  },
+  "lookup": {
+    "time": {
+      "name": "Hora local",
+      "hint": "O horário no lugar consultado",
+      "desc": "O horário no lugar que um espectador consultou."
+    },
+    "date": {
+      "name": "Data local",
+      "hint": "A data de hoje no lugar consultado",
+      "desc": "A data de hoje no lugar que um espectador consultou."
+    },
+    "place": {
+      "name": "Lugar",
+      "hint": "O lugar que um espectador consultou",
+      "desc": "O nome normalizado do lugar identificado na consulta."
+    },
+    "timezone": {
+      "name": "Fuso horário",
+      "hint": "O nome do fuso do lugar consultado",
+      "desc": "O nome do fuso ou a diferença em relação ao UTC no lugar consultado."
+    },
+    "user": {
+      "name": "Quem perguntou",
+      "hint": "Quem perguntou a hora",
+      "desc": "Quem perguntou a hora."
+    }
+  }
+}

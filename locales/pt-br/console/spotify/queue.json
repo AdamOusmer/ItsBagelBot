@@ -1,0 +1,21 @@
+{
+  "askedBy": "pedido de",
+  "empty": "Nada na fila agora.",
+  "now": "Tocando agora",
+  "refresh": "Atualizar",
+  "title": "Fila",
+  "updated": "Atualizado {when}",
+  "refreshing": "Atualizando…",
+  "emptySr": "Espectadores adicionam músicas digitando !sr no chat.",
+  "emptyRedeem": "Espectadores adicionam músicas resgatando sua recompensa de pontos do canal.",
+  "emptyBoth": "Espectadores adicionam músicas com !sr no chat ou resgatando sua recompensa de pontos do canal.",
+  "emptyOff": "As duas formas de pedido estão desativadas. Ative uma para espectadores adicionarem músicas.",
+  "enableSr": "Ativar !sr",
+  "skip": "Pular",
+  "progressLabel": "Tempo decorrido: {elapsed} de {duration}",
+  "skipped": "Faixa atual pulada.",
+  "skipFailed": "Não foi possível pular a faixa. Tente novamente em instantes.",
+  "skipNoDevice": "Nenhum dispositivo Spotify ativo. Comece a tocar algo primeiro.",
+  "skipPremium": "Pular faixas requer Spotify Premium.",
+  "skipReauth": "O Spotify não aceita mais esta conexão. Reconecte e tente novamente."
+}

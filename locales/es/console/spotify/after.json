@@ -1,0 +1,6 @@
+{
+  "cancel": "Cancelar: devolver los puntos y no añadir la canción a la cola",
+  "fulfill": "Completar: la canción entra en la cola (predeterminado)",
+  "leave": "Dejar pendiente para que los moderadores lo resuelvan manualmente",
+  "title": "Después del canje"
+}

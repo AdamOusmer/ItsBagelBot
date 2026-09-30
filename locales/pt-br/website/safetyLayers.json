@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Moderação em camadas",
+  "title": "O que acontece antes de uma mensagem chegar ao chat.",
+  "juryTitle": "Vários classificadores precisam concordar.",
+  "juryDesc": "Classificadores independentes avaliam a mensagem em busca de sinais de spam e ódio. Ela só é removida quando eles concordam.",
+  "juryVerdict": "consenso",
+  "spam": "spam",
+  "hate": "ódio",
+  "gatesTitle": "Filtros estáticos cuidam do óbvio.",
+  "gatesDesc": "Verificações de frequência, formato e links vêm primeiro. São rápidas e previsíveis e detectam enxurradas e links nocivos conhecidos antes de análises mais pesadas.",
+  "gateRate": "frequência",
+  "gateShape": "formato",
+  "gateLink": "link",
+  "gatesPassed": "3 verificações aprovadas",
+  "networkTitle": "Uma raid alerta todos os canais protegidos.",
+  "networkDesc": "Um padrão de raid detectado em um canal é sinalizado para todos os canais cadastrados, para o segundo alvo já estar protegido.",
+  "networkAlert": "assinatura de raid",
+  "networkStatus": "rede protegida"
+}

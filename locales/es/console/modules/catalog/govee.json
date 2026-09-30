@@ -1,0 +1,13 @@
+{
+  "label": "Luces Govee",
+  "tagline": "Deja que los espectadores cambien el color de tus luces Govee con puntos del canal.",
+  "description": "Los espectadores canjean una recompensa de puntos del canal, escriben un color (un nombre como \"blue\" o un hexadecimal como #00ccff) y el bot enciende tu luz Govee y le asigna ese color. Solo en directo: los canjes fuera de la transmisión se reembolsan automáticamente. Para obtener tu clave de API de Govee: abre la aplicación Govee Home, toca Perfil (abajo a la derecha), toca el engranaje de ajustes (arriba a la derecha), toca \"Solicitar clave de API\", rellena el formulario breve y Govee te enviará una clave por correo en unos minutos. Luego, en esta página: pega la clave (la guardamos cifrada y nunca la volvemos a mostrar), elige la luz que quieres controlar y crea la recompensa.",
+  "replies": {
+    "reply": {
+      "label": "Respuesta de éxito",
+      "tagline": "Lo que publica el bot después de cambiar las luces.",
+      "event": "al canjear",
+      "defaultMessage": "¡@{user} cambió las luces a {color}!"
+    }
+  }
+}

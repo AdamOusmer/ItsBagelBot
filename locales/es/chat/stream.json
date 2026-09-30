@@ -1,0 +1,18 @@
+{
+  "commercial.ok": "@{commercial:user} inició un anuncio de {commercial:length}s.",
+  "commercial.usage": "Uso: !commercial [30|60|90|120|150|180]",
+  "game.current": "El juego actual es: {game:game}",
+  "game.not_found": "@{game:user} juego no encontrado: {game:game}",
+  "game.updated": "@{game:user} cambió el juego a: {game:game}",
+  "game.usage": "Uso: !setgame <game>",
+  "marker.ok": "@{marker:user} añadió un marcador al directo.",
+  "tags.current": "Etiquetas actuales: {tags:tags}",
+  "tags.none": "No hay etiquetas configuradas.",
+  "tags.updated": "@{tags:user} cambió las etiquetas a: {tags:tags}",
+  "tags.usage": "Uso: !tags <tag1, tag2, …> (máximo 10, 25 caracteres cada una)",
+  "title.current": "El título actual es: {title:title}",
+  "title.too_long": "@{title:user} ese título es demasiado largo (máximo 140 caracteres).",
+  "title.updated": "@{title:user} cambió el título a: {title:title}",
+  "title.usage": "Uso: !settitle <title>",
+  "unavailable": "No se pudo actualizar el directo ahora."
+}

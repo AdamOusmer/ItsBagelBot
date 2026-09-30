@@ -1,0 +1,18 @@
+{
+  "allowLabel": "Nur diese Kategorien ankündigen",
+  "allowPlaceholder": "Minecraft",
+  "allowTag": "Leer bedeutet, dass jede Kategorie angekündigt wird.",
+  "chipAdd": "Hinzufügen",
+  "chipEmpty": "Noch keine.",
+  "chipRemove": "{name} entfernen",
+  "clipsHelp": "Archiviere Clips von !clip (und EventSub-Clips) in #clips.",
+  "clipsLabel": "Clips",
+  "denyLabel": "Diese Kategorien nie ankündigen",
+  "denyPlaceholder": "Just Chatting",
+  "denyTag": "Eine ausgeschlossene Kategorie hat Vorrang vor der Positivliste.",
+  "liveHelp": "Postet in #now-live, wenn dein Stream beginnt. Beim Offlinegehen wird der Beitrag zu „Stream beendet.“ geändert.",
+  "liveLabel": "Streamstart",
+  "postsHelp": "Streamstart- und Clip-Beiträge werden direkt vom Outgress gepostet.",
+  "postsTitle": "Stream-Beiträge",
+  "chipRemoved": "{name} entfernt"
+}

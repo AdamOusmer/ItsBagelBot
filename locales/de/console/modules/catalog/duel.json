@@ -1,0 +1,59 @@
+{
+  "label": "Duelle",
+  "tagline": "Punkteduelle zwischen Zuschauern: offene Pot-Duelle und 1v1-Herausforderungen.",
+  "description": "Zwei Möglichkeiten, sich um Punkte zu duellieren. Ein Pot-Duell: Jemand gibt !duel <stake> ein, alle können innerhalb des Zeitfensters ihren Einsatz hinzufügen. Danach zieht der Bot einen Gewinner, gewichtet nach Einsatz, der den gesamten Pot erhält. Oder eine Herausforderung: !duel <user> <stake> nennt einen Gegner, der vor Ablauf des Zeitfensters !duel accept eingeben muss; gleiche Einsätze, fairer Münzwurf, der Gewinner erhält beide Einsätze. Bei Ablehnung, Abbruch oder ausbleibender Annahme werden alle hinterlegten Punkte zurückgegeben. Jede Bewegung läuft über die geschützte Punkteausgabe des Treuepunktedienstes, sodass niemand mehr setzen kann, als vorhanden ist. Wird auf der Treuepunkte-Seite aktiviert, verwendet denselben Punktnamen und bleibt aus, solange Treuepunkte aus sind.",
+  "settings": {
+    "minStake": {
+      "label": "Mindesteinsatz",
+      "placeholder": "1"
+    },
+    "maxStake": {
+      "label": "Höchsteinsatz",
+      "placeholder": "1000"
+    },
+    "potSeconds": {
+      "label": "Pot-Zeitfenster (Sekunden)",
+      "help": "Wie lange ein Pot-Duell Einsätze annimmt.",
+      "placeholder": "60"
+    },
+    "challengeSeconds": {
+      "label": "Annahmefrist (Sekunden)",
+      "help": "Wie lange der Herausgeforderte Zeit zum Annehmen hat.",
+      "placeholder": "120"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Pot-Duell eröffnet",
+      "tagline": "Wenn ein Pot-Duell startet und Einsätze angenommen werden.",
+      "event": "!duel 100",
+      "defaultMessage": "Pot-Duell ist LIVE! Einsatz von @{user}: {stake} {points}. Gib !duel <amount> ein, um teilzunehmen. Ziehung in {secs}s!"
+    },
+    "joined": {
+      "label": "Teilnahmebestätigung",
+      "tagline": "Wenn ein Zuschauer seinen Einsatz zu einem laufenden Pot hinzufügt.",
+      "event": "!duel 250",
+      "defaultMessage": "@{user} du bist mit {stake} dabei! Teilnahmen: {count}, im Pot: {pot} {points}."
+    },
+    "challenge": {
+      "label": "Herausforderung gesendet",
+      "tagline": "Wenn ein Zuschauer einen anderen mit gleichem Einsatz herausfordert.",
+      "event": "!duel @maya_live 500",
+      "defaultMessage": "@{user} fordert @{target} um {stake} {points} heraus! @{target}, gib innerhalb von {secs}s !duel accept ein. Wer gewinnt, erhält {pot}!"
+    },
+    "won": {
+      "label": "Ergebniszeile",
+      "tagline": "Wenn eine Herausforderung angenommen und entschieden wird.",
+      "event": "!duel accept",
+      "defaultMessage": "Die Klingen fallen: @{winner} besiegt @{loser} und erhält {pot} {points}!"
+    }
+  },
+  "commands": {
+    "duel": "Zeigt, was läuft: ein Pot (Teilnahmen, Summe, Sekunden) oder eine ausstehende Herausforderung.",
+    "duel_stake": "Eröffnet ein Pot-Duell oder tritt einem laufenden bei.",
+    "duel_user_stake": "Fordert jemanden mit gleichen Einsätzen heraus; wer gewinnt, erhält beide.",
+    "duel_accept": "Die herausgeforderte Person setzt denselben Betrag ein und entscheidet das Duell sofort.",
+    "duel_decline": "Lehnt eine Herausforderung ab; der ursprüngliche Einsatz wird zurückgegeben.",
+    "duel_cancel": "Bricht das laufende Duell mit vollständiger Punkterückgabe ab (Initiator oder Mod)."
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Palavras-gatilho",
+  "hint": "Requer o módulo Palavras-gatilho ativado.",
+  "desc": "Use {triggers:variable} em um comando personalizado para ler os valores públicos deste módulo. Requer o módulo Palavras-gatilho ativado. Adicionar uma variável não ativa o módulo. Módulos desativados deixam a variável visível no chat. Valores exclusivos de eventos ficam vazios quando o comando não tem evento correspondente; use |fallback para valores vazios. A prévia usa dados de exemplo e não confirma que seu módulo está ativado."
+}

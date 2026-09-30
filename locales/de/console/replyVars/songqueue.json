@@ -1,0 +1,24 @@
+{
+  "redeem": {
+    "user": {
+      "name": "Einlösende Person",
+      "hint": "Wer die Belohnung eingelöst hat",
+      "desc": "Wer die Belohnung eingelöst hat."
+    },
+    "track": {
+      "name": "Songtitel",
+      "hint": "Der Titel des eingereihten Songs",
+      "desc": "Der Titel des eingereihten Songs."
+    },
+    "input": {
+      "name": "Zuschauereingabe",
+      "hint": "Der vom Zuschauer eingegebene Text der Songanfrage",
+      "desc": "Der Songname, „artist - song“ oder Link, den der Zuschauer beim Einlösen eingegeben hat."
+    },
+    "pos": {
+      "name": "Warteschlangenposition",
+      "hint": "Die Position des Songs in der Warteschlange",
+      "desc": "Die Position des Songs in der Warteschlange."
+    }
+  }
+}

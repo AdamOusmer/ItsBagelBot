@@ -1,0 +1,23 @@
+{
+  "back": "Todos los módulos",
+  "bothNote": "Ambas vías comparten una lista de próximas canciones. Cada una puede estar activada mientras la otra está desactivada.",
+  "degraded": "No se pudo conectar con el servidor. Inténtalo de nuevo en un momento.",
+  "description": "Registra tu propia aplicación de Spotify, conecta tu cuenta a ella y deja que los espectadores pongan canciones en cola desde el chat o una recompensa de puntos del canal. Cada vía puede estar activada mientras la otra está desactivada.",
+  "eyebrow": "Peticiones de canciones",
+  "liveOnlyLabel": "Solo en directo",
+  "masterAria": "Activar o desactivar peticiones de canciones",
+  "masterFail": "No se pudo guardar el estado.",
+  "masterHintOff": "Las peticiones están en pausa. Ninguna vía añade canciones a la cola hasta que actives el módulo.",
+  "masterHintOn": "!sr y la recompensa están activos. Las peticiones se ponen en cola mientras transmites.",
+  "masterLabel": "Activar peticiones de canciones",
+  "saveChanges": "Guardar cambios",
+  "saving": "Guardando…",
+  "titleEm": "canciones",
+  "titlePre": "Peticiones de ",
+  "unsavedChanges": "Cambios sin guardar",
+  "saved": "Guardado",
+  "discardTitle": "¿Descartar los cambios?",
+  "discardBody": "Tienes cambios sin guardar en esta recompensa. ¿Descartarlos?",
+  "discard": "Descartar",
+  "keepEditing": "Seguir editando"
+}

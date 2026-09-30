@@ -1,0 +1,12 @@
+{
+  "errScope": "Twitch no concedió todos los permisos necesarios del bot. Vuelve a autorizarlo y aprueba todos los permisos solicitados.",
+  "okTitle": "Bot autorizado",
+  "okBody": "Se guardó el token de la cuenta del bot. Puedes cerrar esta pestaña.",
+  "failTitle": "Error de autorización",
+  "errState": "El enlace de autorización caducó o no era válido. Inicia de nuevo la autorización del bot.",
+  "errOauth": "Twitch rechazó la autorización. Inténtalo de nuevo.",
+  "errAccount": "Esa cuenta de Twitch no es la cuenta configurada para el bot.",
+  "errConfig": "La autorización del bot está desactivada hasta que se configure TWITCH_BOT_USER_ID.",
+  "errSave": "Twitch aprobó el bot, pero ItsBagelBot no pudo guardar su token. Revisa la configuración del bot y vuelve a autorizar el bot.",
+  "errGeneric": "Algo salió mal. Genera un enlace nuevo e inténtalo de nuevo."
+}

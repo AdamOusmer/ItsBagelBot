@@ -1,0 +1,17 @@
+{
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador encontrado",
+    "desc": "O jogador encontrado."
+  },
+  "time": {
+    "name": "Tempo",
+    "hint": "O recorde pessoal no período solicitado",
+    "desc": "O recorde pessoal no período solicitado."
+  },
+  "window": {
+    "name": "Período",
+    "hint": "Qual período respondeu: diário",
+    "desc": "Qual período respondeu: diário, semanal, mensal, histórico ou ranqueado."
+  }
+}

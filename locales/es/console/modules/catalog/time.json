@@ -1,0 +1,30 @@
+{
+  "label": "Hora local",
+  "tagline": "Los espectadores consultan tu hora con !time.",
+  "description": "Los espectadores escriben !time y el bot responde con tu hora local actual. También pueden preguntar por otro lugar: !time Tokyo, !time EST, !time UTC+2. Elige tu zona horaria abajo. La página sugiere la que indica tu navegador, calculada solo en tu dispositivo (no se lee ni almacena nada hasta que guardes). Elige un reloj de 12 o 24 horas y personaliza ambas respuestas.",
+  "settings": {
+    "timezone": {
+      "label": "Zona horaria",
+      "help": "Nombre de zona horaria IANA usado para mostrar {time} y {date}. La sugerencia viene de tu navegador y nunca se almacena hasta que la guardes.",
+      "placeholder": "America/Toronto"
+    },
+    "format": {
+      "label": "Formato del reloj",
+      "placeholder": "12",
+      "options": {
+        "12": "12 horas (2:30 PM)",
+        "24": "24 horas (14:30)"
+      }
+    }
+  },
+  "replies": {
+    "time": {
+      "tagline": "Tu hora local actual.",
+      "defaultMessage": "La hora actual del streamer es {time}."
+    },
+    "lookup": {
+      "tagline": "Hora en otro lugar.",
+      "defaultMessage": "La hora actual en {place} es {time}."
+    }
+  }
+}

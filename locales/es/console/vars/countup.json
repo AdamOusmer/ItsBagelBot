@@ -1,0 +1,5 @@
+{
+  "name": "Tiempo desde una fecha",
+  "hint": "cuánto tiempo ha pasado desde esa fecha",
+  "desc": "Cuánto tiempo ha pasado desde esa fecha, con el mismo formato que !uptime."
+}

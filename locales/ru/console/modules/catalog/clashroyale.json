@@ -1,0 +1,33 @@
+{
+  "label": "Статистика Clash Royale",
+  "tagline": "Профили, колоды и позиции в Path of Legends Clash Royale в чате.",
+  "description": "Одна команда, четыре варианта: !cr показывает профиль игрока за всё время (уровень, победы и поражения, долю побед, победы с тремя коронами, клан); !cr decks — текущую боевую колоду со средней стоимостью эликсира; !cr ranked — позицию в Path of Legends (для старых аккаунтов используются данные прежних сезонов лиг); !cr road — рекорд трофеев и арену. Также работают слитные формы !crstats, !crdecks, !crranked и !crroad. Привяжите тег игрока ниже. В Clash Royale нет поиска по имени, поэтому нужен тег вида #P2LQ0GR. Зрители могут указать любой тег, например «!cr #P2LQ0GR».",
+  "settings": {
+    "account": {
+      "label": "Привязанный тег игрока",
+      "help": "Игрок по умолчанию для всех команд. В Clash Royale нет поиска по имени, поэтому нужен тег игрока. Оставляйте пустым, только если всегда вводите тег.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Профиль за всё время: !cr, !cr stats или !crstats.",
+      "defaultMessage": "{player} · Уровень: {level} · Победы: {wins} / Поражения: {losses} · {winrate}% побед · С тремя коронами: {crowns} · {clan}"
+    },
+    "decks": {
+      "tagline": "Текущая боевая колода со средней стоимостью эликсира (также !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "Колода игрока {player} ({count}/8): {cards} · Средний эликсир: {elixir}"
+    },
+    "ranked": {
+      "tagline": "Позиция в Path of Legends (также !crranked); для старых записей используются прежние сезоны лиг.",
+      "event": "!cr ranked",
+      "defaultMessage": "{player} в Path of Legends: лига {league} · Трофеи: {trophies} · Место: #{rank} · Рекорд: {besttrophies}"
+    },
+    "road": {
+      "tagline": "Рекорд трофеев и арена (также !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: трофеи — {trophies} · Рекорд: {besttrophies} · {arena}"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Artista de la canción",
+  "hint": "solo el nombre del artista, la segunda mitad de {song}",
+  "desc": "El nombre del artista solo, la segunda mitad de {song}. Si no suena nada, devuelve un valor vacío. Requiere el módulo Solicitudes de canciones."
+}

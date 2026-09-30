@@ -1,0 +1,11 @@
+{
+  "p1Eyebrow": "Criptografia em trânsito e em repouso",
+  "p1Title": "Os dados do seu chat são criptografados.",
+  "p1Desc": "O tráfego entre todos os serviços internos usa TLS, e tudo armazenado em disco é criptografado.",
+  "p2Eyebrow": "Distribuído de propósito",
+  "p2Title": "Funciona em várias máquinas.",
+  "p2Desc": "Se uma parar, as outras continuam cuidando do seu chat.",
+  "p3Eyebrow": "Código-fonte disponível",
+  "p3Title": "Você pode ler o código.",
+  "p3Desc": "O código-fonte está no GitHub sob uma licença de código-fonte disponível. Audite, registre problemas e veja exatamente o que funciona no seu chat."
+}

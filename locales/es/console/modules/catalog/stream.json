@@ -1,0 +1,13 @@
+{
+  "label": "Gestión del directo",
+  "tagline": "Cambia el título, la categoría y las etiquetas, reproduce anuncios y añade marcadores desde el chat.",
+  "description": "Los moderadores principales editan el directo desde el chat como en Nightbot y StreamElements: !title / !settitle, !game / !setgame, !tags, !commercial / !ad y !marker. Cada comando se puede activar o desactivar en esta página. Vienen activados. Requiere renovar el consentimiento de Twitch para channel:manage:broadcast y channel:edit:commercial si te registraste antes de que existieran esos permisos.",
+  "commands": {
+    "title": "Muestra o establece el título del directo.",
+    "game": "Muestra o establece la categoría del directo.",
+    "tags": "Muestra o establece las etiquetas del directo.",
+    "commercial": "Reproduce un anuncio durante el directo (solo en directo).",
+    "marker": "Añade un marcador al directo (solo en directo).",
+    "cmd": "Lista comandos o añade/edita/elimina comandos personalizados."
+  }
+}

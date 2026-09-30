@@ -1,0 +1,9 @@
+{
+  "label": "Bot-Persönlichkeit",
+  "tagline": "Die eigene Stimme des Bots: reagiert auf Lob, Streicheln, Beleidigungen und Bagelfütterungen.",
+  "description": "Der Bot reagiert eigenständig auf den Chat: bedankt sich für Lob, steckt Beleidigungen weg, genießt Streicheleinheiten, zählt Bagelfütterungen, wirft Münzen, behält eine Stimmung für den Stream und erzählt einen Bagelfakt, wenn jemand ihn mit @ erwähnt. Zuschauer prüfen ihren Fütterungsrang mit !bagels und die Rangliste mit !bagelboard. Die Texte sind integriert, es gibt nichts einzurichten. Deaktiviere dies, damit der Bot ausschließlich auf Befehle reagiert.",
+  "commands": {
+    "bagels": "Zeige, wie viele Bagels du dem Bot gefüttert hast, und deinen Rang.",
+    "bagelboard": "Zeige die Bagelfütterungs-Rangliste des Kanals."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "label": "Fortnite-Statistiken",
+  "tagline": "Fortnite-BR-Statistiken und den täglichen Item-Shop im Chat anzeigen.",
+  "description": "Ein Befehl, vier Ansichten: !fn zeigt die gesamten Siege, Matches, Kills, K/D und Siegquote eines Spielers mit Solo/Duo/Squad-Aufschlüsselung; !fn season zeigt dasselbe für die aktuelle Saison (der Bot erkennt Saisonwechsel automatisch); !fn session zeigt Siege, Kills und K/D seit Streamstart und hält deinen Stand beim Livegehen fest; !fn store listet den heutigen Item-Shop auf. Auch !fnstats, !fnseason, !fnsession und !fnstore funktionieren. Verknüpfe unten deinen Epic-Anzeigenamen. Zuschauer können auch beliebige Spieler angeben, z. B. „!fn Ninja“; !fn session verfolgt immer dein verknüpftes Konto. Namensabfragen für PlayStation und Xbox werden noch nicht unterstützt.",
+  "settings": {
+    "account": {
+      "label": "Verknüpfter Kontoname",
+      "help": "Standardspieler für die Statistikbefehle. Leer lassen, um deinen Twitch-Benutzernamen zu verwenden.",
+      "placeholder": "Dein Epic-Anzeigename"
+    },
+    "accountType": {
+      "label": "Kontoplattform",
+      "help": "Derzeit lassen sich nur Epic-Anzeigenamen abfragen; PlayStation- und Xbox-Abfragen kommen später. Konsolenspieler: Euer Epic-Anzeigename funktioniert.",
+      "placeholder": "epic",
+      "options": {
+        "epic": "Epic Games",
+        "psn": "PlayStation (kommt später)",
+        "xbl": "Xbox Live (kommt später)"
+      }
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Gesamte Battle-Royale-Statistiken: !fn, !fn stats oder !fnstats.",
+      "defaultMessage": "{player} insgesamt: Siege {wins}, Matches {matches} · {winrate}% Siegquote · Kills {kills} · {kd} K/D · Solo {solowins}S / Duo {duowins}S / Squad {squadwins}S"
+    },
+    "season": {
+      "tagline": "Statistiken der aktuellen Saison (auch !fnseason); Saisonwechsel werden automatisch erkannt.",
+      "event": "!fn season",
+      "defaultMessage": "{player} diese Saison: Siege {wins}, Matches {matches} · {winrate}% Siegquote · Kills {kills} · {kd} K/D · Solo {solowins}S / Duo {duowins}S / Squad {squadwins}S"
+    },
+    "session": {
+      "tagline": "Siege, Kills und K/D seit Streamstart (auch !fnsession).",
+      "event": "!fn session",
+      "defaultMessage": "{player} dieser Stream: Siege {wins}, Matches {matches} · {winrate}% Siegquote · Kills {kills} · {kd} K/D"
+    },
+    "store": {
+      "tagline": "Heutige Item-Shop-Rotation (auch !fnstore).",
+      "event": "!fn store",
+      "defaultMessage": "Item-Shop {date}: {items}"
+    }
+  }
+}

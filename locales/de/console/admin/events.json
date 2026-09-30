@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Ingress-Lebenszyklus",
+  "titlePre": "Shard-",
+  "titleEm": "Lebenszyklus-Feed",
+  "description": "Eine Live-Ansicht ohne Speicherung von Shard-Verbindungen, Conduit-Bindungen und Trennungsgründen. Hier erscheinen nur Übergänge nach dem Öffnen dieser Seite; keine Chat- oder EventSub-Nutzdaten.",
+  "subject": "twitch.ingress.status.>",
+  "toneFilter": "Ereigniskategorie",
+  "searchPlaceholder": "Lebenszyklus-Meldung filtern…",
+  "pauseLabel": "Feed pausieren",
+  "pauseLabelBuffered": "Feed fortsetzen ({n} zurückgehalten)",
+  "clear": "Leeren",
+  "streaming": "Live",
+  "connecting": "Verbindung wird hergestellt…",
+  "reconnecting": "Verbindung wird wiederhergestellt…",
+  "paused": "Pausiert",
+  "upCount": "{n} verbunden",
+  "downCount": "{n} getrennt",
+  "listLabel": "Lebenszyklus-Ereignisse",
+  "idleBody": "Eine gesunde, stabile Flotte ist ruhig. Neue Shard-Übergänge zu verbunden, gebunden und getrennt erscheinen hier; dies ist kein gespeicherter Ereignisverlauf.",
+  "emptyMatch": "Keine Ereignisse passen zum Filter"
+}

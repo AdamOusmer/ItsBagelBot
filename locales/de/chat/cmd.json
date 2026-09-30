@@ -1,0 +1,11 @@
+{
+  "added": "@{user} der Befehl {command} wurde hinzugefügt",
+  "err.exists": "@{user} der Befehl {command} existiert bereits, nutze !cmd edit",
+  "err.missing_resp": "@{user} gib bitte eine Antwort für den Befehl an",
+  "err.not_found": "@{user} der Befehl {command} wurde nicht gefunden, nutze !cmd add",
+  "err.usage": "Verwendung: !cmd <add|edit|remove> <name> [response]",
+  "link": "@{user} hier findest du die Befehle von {channel}: {url}",
+  "page_off": "@{user} die Befehlsliste von {channel} ist nicht öffentlich.",
+  "modified": "@{user} der Befehl {command} wurde geändert",
+  "removed": "@{user} der Befehl {command} wurde entfernt"
+}

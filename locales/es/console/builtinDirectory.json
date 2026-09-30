@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Antigüedad de la cuenta",
+    "summary": "Muestra desde hace cuánto existe una cuenta de Twitch.",
+    "usage": [
+      "!accountage",
+      "!accountage <user>"
+    ]
+  },
+  "followage": {
+    "label": "Tiempo siguiendo",
+    "summary": "Muestra desde hace cuánto sigue un espectador al canal.",
+    "usage": [
+      "!followage",
+      "!followage <user>"
+    ]
+  },
+  "uptime": {
+    "label": "Duración del directo",
+    "summary": "Muestra cuánto tiempo lleva en directo la transmisión actual.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Clip",
+    "summary": "Crea un clip de los últimos momentos del directo y publica el enlace.",
+    "usage": [
+      "!clip",
+      "!clip <title>"
+    ]
+  },
+  "title": {
+    "label": "Título",
+    "summary": "Muestra o establece el título del directo.",
+    "usage": [
+      "!title",
+      "!title <title>",
+      "!settitle <title>"
+    ]
+  },
+  "game": {
+    "label": "Juego",
+    "summary": "Muestra o establece la categoría del directo.",
+    "usage": [
+      "!game",
+      "!game <name>",
+      "!setgame <name>"
+    ]
+  },
+  "tags": {
+    "label": "Etiquetas",
+    "summary": "Muestra o establece las etiquetas del directo.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Anuncio",
+    "summary": "Reproduce un anuncio durante el directo.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Marcador",
+    "summary": "Añade un marcador al directo.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

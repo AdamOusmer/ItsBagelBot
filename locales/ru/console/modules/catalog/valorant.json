@@ -1,0 +1,52 @@
+{
+  "label": "Статистика Valorant",
+  "tagline": "Ранги Valorant, история матчей, таблицы лидеров и ежедневный магазин в чате.",
+  "description": "Одна команда, пять вариантов: !val показывает соревновательные показатели игрока (ранг, RR, изменение RR за последнюю игру, максимальный ранг); !val matches — последние рейтинговые игры в виде агента и результата K/D/A; !val account — аккаунт по Riot ID и его уровень; !val lb — топ-10 любого регионального рейтинга на PC или консоли; !val shop — сегодняшние общие скины с ценами в VP и временем до обновления. Также работают слитные формы !valrank, !valmatches, !valaccount, !vallb и !valshop. Привяжите Riot ID ниже («Name#Tag»). Зрители могут указать любого игрока, например «!val Frosty#EUW1», и добавить шард или платформу в любом месте строки для этого запроса («!val eu Frosty#EUW1», «!val lb console ap»). Оставьте регион пустым, и бот определит шард по аккаунту.",
+  "settings": {
+    "account": {
+      "label": "Привязанный Riot ID",
+      "help": "Игрок по умолчанию для всех команд в формате «Name#Tag». В Valorant нет поиска только по имени, поэтому #tag обязателен.",
+      "placeholder": "Frosty#EUW1"
+    },
+    "region": {
+      "label": "Региональный шард",
+      "help": "na, eu, ap, kr, br или latam. Оставьте пустым, и бот определит шард по аккаунту.",
+      "placeholder": "eu"
+    },
+    "platform": {
+      "label": "Рейтинговая платформа",
+      "help": "Ранги и таблицы лидеров учитываются отдельно по платформам; пустое поле означает PC.",
+      "placeholder": "pc",
+      "options": {
+        "pc": "PC",
+        "console": "Консоль"
+      }
+    }
+  },
+  "replies": {
+    "rank": {
+      "tagline": "Соревновательные показатели: !val, !val rank или !valrank.",
+      "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · Максимум: {peaktier}"
+    },
+    "matches": {
+      "tagline": "Последние рейтинговые игры (также !valmatches).",
+      "event": "!val matches",
+      "defaultMessage": "Последние матчи игрока {player}, количество {count}: {matches}"
+    },
+    "account": {
+      "tagline": "Аккаунт по ID и его уровень (также !valaccount).",
+      "event": "!val account",
+      "defaultMessage": "{player} · Уровень аккаунта: {level}"
+    },
+    "board": {
+      "tagline": "Региональный топ-10 на PC или консоли (также !vallb).",
+      "event": "!val lb",
+      "defaultMessage": "{board}: {entries}"
+    },
+    "shop": {
+      "tagline": "Сегодняшние общие скины со временем до обновления (также !valshop).",
+      "event": "!val shop",
+      "defaultMessage": "Ежедневный ассортимент ({count}): {items} · До обновления: {reset}"
+    }
+  }
+}

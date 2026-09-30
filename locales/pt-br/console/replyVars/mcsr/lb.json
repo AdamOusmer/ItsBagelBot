@@ -1,0 +1,12 @@
+{
+  "board": {
+    "name": "Ranking",
+    "hint": "Qual ranking respondeu",
+    "desc": "Qual ranking respondeu."
+  },
+  "list": {
+    "name": "Top 5",
+    "hint": "As 5 primeiras posições",
+    "desc": "As 5 primeiras posições, já formatadas em uma linha."
+  }
+}

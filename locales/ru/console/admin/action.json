@@ -1,0 +1,15 @@
+{
+  "forbidden": "доступ запрещён",
+  "numericUserIdRequired": "требуется числовой ID пользователя",
+  "loginRequired": "требуется логин",
+  "invalidRole": "недопустимая роль",
+  "cannotRemoveMember": "нельзя удалить этого участника",
+  "userIdRequired": "требуется user_id",
+  "queryRequired": "требуется запрос",
+  "queryTooLong": "запрос слишком длинный",
+  "idRequired": "требуется ID",
+  "cannotGrantRole": "нельзя назначить роль {role}",
+  "countPositive": "количество должно быть положительным целым числом",
+  "laneDemoDisabled": "деморежим: изменения очередей отключены",
+  "laneFailed": "действие {verb} не выполнено: {error}"
+}

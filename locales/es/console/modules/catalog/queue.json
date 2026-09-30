@@ -1,0 +1,51 @@
+{
+  "label": "Cola para jugar",
+  "tagline": "Deja que los espectadores hagan cola para jugar contigo, por orden de llegada.",
+  "description": "Los espectadores escriben !join para entrar en la cola y !list para ver quién va después (los primeros 10). Gestiona la cola desde el chat con tus moderadores: !queue open y !queue close admiten o detienen nuevas incorporaciones, !queue next llama al siguiente jugador, !queue remove <user> retira a alguien y !queue clear la vacía. Los espectadores pueden salir en cualquier momento con !leave. Activa el módulo para habilitar los comandos; la cola se conserva al cerrar para que puedas jugar con todos los que ya esperan.",
+  "replies": {
+    "join": {
+      "label": "Confirmación de entrada",
+      "tagline": "Cuando un espectador entra en la cola.",
+      "defaultMessage": "@{user} entraste en la cola en la posición #{pos}."
+    },
+    "already": {
+      "label": "Ya en la cola",
+      "tagline": "Cuando un espectador que ya está en la cola vuelve a escribir !join.",
+      "defaultMessage": "@{user} ya estás en la cola en la posición #{pos}."
+    },
+    "leave": {
+      "label": "Confirmación de salida",
+      "tagline": "Cuando un espectador sale de la cola.",
+      "defaultMessage": "@{user} saliste de la cola."
+    },
+    "next": {
+      "label": "Siguiente jugador",
+      "tagline": "Cuando llamas al siguiente jugador.",
+      "event": "!queue next",
+      "defaultMessage": "¡@{target} te toca a continuación! (en espera: {count})"
+    },
+    "opened": {
+      "label": "Cola abierta",
+      "tagline": "Se anuncia al abrir la cola.",
+      "event": "!queue open",
+      "defaultMessage": "¡La cola está abierta! Escribe !join para entrar."
+    },
+    "closed": {
+      "label": "Cola cerrada",
+      "tagline": "Se anuncia al cerrar la cola.",
+      "event": "!queue close",
+      "defaultMessage": "La cola ya no admite nuevas incorporaciones."
+    }
+  },
+  "commands": {
+    "join": "Entra en la cola para jugar (también !queue join).",
+    "leave": "Sal de la cola (también !queue leave).",
+    "list": "Muestra los siguientes 10 jugadores en espera (también !queue list).",
+    "queue": "Muestra si la cola está abierta y cuántas personas esperan.",
+    "queue_open": "Empieza a admitir incorporaciones.",
+    "queue_close": "Deja de admitir incorporaciones; la cola se conserva.",
+    "queue_next": "Llama al siguiente jugador y lo anuncia.",
+    "queue_remove_user": "Retira a alguien de la cola.",
+    "queue_clear": "Vacía la cola."
+  }
+}

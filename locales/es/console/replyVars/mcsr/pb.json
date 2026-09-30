@@ -1,0 +1,17 @@
+{
+  "player": {
+    "name": "Jugador",
+    "hint": "El jugador identificado",
+    "desc": "El jugador identificado."
+  },
+  "time": {
+    "name": "Tiempo",
+    "hint": "La mejor marca personal para el período solicitado",
+    "desc": "La mejor marca personal para el período solicitado."
+  },
+  "window": {
+    "name": "Período",
+    "hint": "El período que respondió: diario",
+    "desc": "El período que respondió: diario, semanal, mensual, histórico o clasificatorio."
+  }
+}

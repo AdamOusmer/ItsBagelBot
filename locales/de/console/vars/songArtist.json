@@ -1,0 +1,5 @@
+{
+  "name": "Songinterpret",
+  "hint": "nur der Interpretenname, die zweite Hälfte von {song}",
+  "desc": "Nur der Interpretenname, die zweite Hälfte von {song}. Wenn nichts läuft, ist das Ergebnis leer. Benötigt das Modul Songwünsche."
+}

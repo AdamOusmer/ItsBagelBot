@@ -1,0 +1,5 @@
+{
+  "name": "Login do espectador",
+  "hint": "o login em minúsculas, não o nome de exibição",
+  "desc": "O login em minúsculas, que pode ser diferente do nome de exibição mostrado por {user}."
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Duración del directo",
+  "hint": "cuánto tiempo llevas en directo; vacío sin conexión (interruptor !uptime)",
+  "desc": "Cuánto tiempo lleva el directo, con el mismo formato que !uptime. Sin conexión devuelve un valor vacío, así que dale un valor predeterminado. {uptime:someone} hace lo mismo para otro canal. Sigue el interruptor de !uptime."
+}

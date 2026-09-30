@@ -1,0 +1,5 @@
+{
+  "name": "Alertas del chat",
+  "hint": "Requiere el módulo Alertas del chat activado.",
+  "desc": "Usa {alerts:variable} en un comando personalizado para leer los valores públicos de este módulo. Requiere el módulo Alertas del chat activado. Añadir una variable no activa su módulo. Los módulos desactivados dejan la variable visible en el chat. Los valores exclusivos de eventos quedan vacíos cuando el comando no tiene un evento correspondiente; usa |fallback para los valores vacíos. La vista previa usa datos de ejemplo y no confirma que tu módulo esté activado."
+}

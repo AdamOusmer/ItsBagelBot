@@ -1,0 +1,42 @@
+{
+  "label": "Bedwars-Statistiken",
+  "tagline": "Hypixel Bedwars-Statistiken, Urchin-Wertung und Sperrlisten-Tags im Chat.",
+  "description": "Zuschauerbefehle mit Daten von urchin.gg: tägliche, wöchentliche und monatliche Bedwars-Sitzungen, Gesamtstatistiken, Urchin-Sniper-Wertung und aktive Sperrlisten-Tags. Die Befehle verwenden standardmäßig dein verknüpftes Minecraft-Konto. Zuschauer können auch beliebige Spieler angeben, z. B. „!daily Technoblade“.",
+  "settings": {
+    "account": {
+      "label": "Verknüpftes Minecraft-Konto",
+      "help": "Standardspieler für jeden Befehl. Leer lassen, um deinen Twitch-Benutzernamen zu verwenden. Der Bot speichert die Konto-UUID, wenn Mojang es erlaubt, damit die Befehle nach einer Umbenennung weiter funktionieren.",
+      "placeholder": "Dein Minecraft-Benutzername"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Bedwars-Sitzung seit dem täglichen Zurücksetzen.",
+      "defaultMessage": "{player} heute: {wins}S {losses}N · Final-Kills: {finals} · Betten: {beds} · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Bedwars-Sitzung seit dem wöchentlichen Zurücksetzen.",
+      "defaultMessage": "{player} diese Woche: {wins}S {losses}N · Final-Kills: {finals} · Betten: {beds} · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Bedwars-Sitzung seit dem monatlichen Zurücksetzen.",
+      "defaultMessage": "{player} diesen Monat: {wins}S {losses}N · Final-Kills: {finals} · Betten: {beds} · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Gesamte Bedwars-Statistiken.",
+      "defaultMessage": "{player}: Sterne: {stars} · Siege: {wins} · Final-Kills: {finals} · {fkdr} FKDR · zerstörte Betten: {beds}"
+    },
+    "sniper": {
+      "tagline": "Urchin-Wertung (Cubelify-Overlay).",
+      "defaultMessage": "Urchin-Wertung von {player}: {score}"
+    },
+    "tags": {
+      "tagline": "Aktive Urchin-Sperrlisten-Tags.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Sperrlisten-Tags mit ihren Gründen.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

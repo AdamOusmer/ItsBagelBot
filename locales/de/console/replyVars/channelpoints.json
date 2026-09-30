@@ -1,0 +1,39 @@
+{
+  "reply": {
+    "user": {
+      "name": "Einlösende Person",
+      "hint": "Wer die Belohnung eingelöst hat",
+      "desc": "Wer die Belohnung eingelöst hat."
+    },
+    "input": {
+      "name": "Zuschauereingabe",
+      "hint": "Zuschauereingabe",
+      "desc": "Der bei der Einlösung eingegebene Text (wenn die Belohnung danach fragt)."
+    },
+    "reward": {
+      "name": "Belohnungstitel",
+      "hint": "Name der eingelösten Belohnung",
+      "desc": "Name der eingelösten Belohnung."
+    },
+    "cost": {
+      "name": "Punktekosten",
+      "hint": "Was die Belohnung kostet",
+      "desc": "Was die Belohnung kostet."
+    },
+    "channel": {
+      "name": "Kanal",
+      "hint": "Dein Kanalname",
+      "desc": "Dein Kanalname."
+    },
+    "counter": {
+      "name": "Verknüpfter Zähler",
+      "hint": "Neuer Wert des verknüpften Zählers",
+      "desc": "Neuer Wert des verknüpften Zählers, wenn die Belohnung einen hat. Verwende den Geltungsbereich „Befehl“ für einen gemeinsamen Gesamtwert aller Einlösungen dieser Belohnung."
+    },
+    "points": {
+      "name": "Treuepunkte",
+      "hint": "Von der Belohnung vergebene Treuepunkte (wenn positiv)",
+      "desc": "Von der Belohnung vergebene Treuepunkte (wenn positiv)."
+    }
+  }
+}

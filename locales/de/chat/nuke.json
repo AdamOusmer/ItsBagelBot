@@ -1,0 +1,7 @@
+{
+  "usage": "Verwendung: !nuke <phrase> [seconds]. Durchsucht die letzten 10m des Chats nach Nachrichten mit phrase",
+  "none": "Keine passenden aktuellen Nachrichten. Nichts entfernt.",
+  "actioned": "🚯 Chat-Timeouts verhängt: {count}, Dauer: {seconds}s",
+  "shielded": ", Budget überschritten, Shield Mode aktiviert",
+  "capped": ", Limit erreicht, für Shield Mode übrig: {count}"
+}

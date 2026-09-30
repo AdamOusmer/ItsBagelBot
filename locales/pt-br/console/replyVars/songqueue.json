@@ -1,0 +1,24 @@
+{
+  "redeem": {
+    "user": {
+      "name": "Autor do resgate",
+      "hint": "Quem resgatou a recompensa",
+      "desc": "Quem resgatou a recompensa."
+    },
+    "track": {
+      "name": "Título da faixa",
+      "hint": "O título da faixa na fila",
+      "desc": "O título da faixa na fila."
+    },
+    "input": {
+      "name": "Texto do espectador",
+      "hint": "O texto do pedido de música digitado pelo espectador",
+      "desc": "O nome da música, \"artista - música\" ou link que o espectador digitou no resgate."
+    },
+    "pos": {
+      "name": "Posição na fila",
+      "hint": "A posição da faixa na fila",
+      "desc": "A posição da faixa na fila."
+    }
+  }
+}

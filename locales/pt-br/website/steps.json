@@ -1,0 +1,12 @@
+{
+  "eyebrow": "Primeiros passos",
+  "title": "Um login na Twitch e já está funcionando.",
+  "s1Title": "Conecte seu canal.",
+  "s1Body": "Um clique pela Twitch. Sem chaves de API, e tudo leva cerca de dois minutos.",
+  "s2Title": "Deixe com sua cara.",
+  "s2Body": "Ative os módulos que quiser e escreva suas regras em frases simples.",
+  "s2Receipt": "módulos: 6 ativos",
+  "s3Title": "Entre ao vivo e respire.",
+  "s3Body": "Ele entra no chat em silêncio e começa a trabalhar. Você só precisa transmitir.",
+  "s3Receipt": "itsbagelbot entrou em #your_channel"
+}

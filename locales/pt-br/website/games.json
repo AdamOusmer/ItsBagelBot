@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Integrações com jogos",
+  "title": "Estatísticas no chat, sem trocar de janela.",
+  "mcTitle": "Estatísticas do Minecraft.",
+  "mcDesc": "Estatísticas do Hypixel Bedwars e Elo do MCSR Ranked direto no chat.",
+  "fnTitle": "Estatísticas e loja do Fortnite.",
+  "fnDesc": "Estatísticas gerais e da temporada, mais a loja diária de itens, a um comando de distância.",
+  "valTitle": "Estatísticas do Valorant.",
+  "valDesc": "Classificações, partidas recentes, rankings e a rotação diária da loja direto no chat.",
+  "crTitle": "Estatísticas do Clash Royale.",
+  "crDesc": "Perfis, decks de batalha e posição no Caminho das Lendas, a um comando de distância.",
+  "reqTitle": "Quer outro jogo?",
+  "reqDesc": "Estamos adicionando mais. Abra uma issue no GitHub e conte o que você joga.",
+  "mcCh": "minecraft · canal 01",
+  "fnCh": "fortnite · canal 02",
+  "valCh": "valorant · canal 03",
+  "crCh": "clash · canal 04",
+  "reqCh": "pedidos · aberto",
+  "legalShort": "ItsBagelBot não tem vínculo com nenhuma editora de jogos. Os avisos completos de marcas estão nos {terms}.",
+  "legalTermsLabel": "Termos de serviço"
+}

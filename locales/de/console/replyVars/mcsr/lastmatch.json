@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Spieler",
+    "hint": "Der ermittelte Spieler",
+    "desc": "Der ermittelte Spieler."
+  },
+  "opponent": {
+    "name": "Gegner",
+    "hint": "Der andere Spieler in diesem Match",
+    "desc": "Der andere Spieler in diesem Match."
+  },
+  "result": {
+    "name": "Ergebnis",
+    "hint": "Sieg",
+    "desc": "Sieg, Niederlage oder Unentschieden. Aufgegebene Matches und Matches durch Rangverfall werden ebenfalls gekennzeichnet."
+  },
+  "time": {
+    "name": "Zeit",
+    "hint": "Die Abschlusszeit des Matches",
+    "desc": "Die Abschlusszeit des Matches, sofern es abgeschlossen wurde."
+  },
+  "seed": {
+    "name": "Seed",
+    "hint": "Der Seed-Typ dieses Matches",
+    "desc": "Der Seed-Typ dieses Matches."
+  },
+  "structure": {
+    "name": "Struktur",
+    "hint": "Der Bastionstyp dieses Matches",
+    "desc": "Der Bastionstyp dieses Matches."
+  },
+  "elochange": {
+    "name": "Elo-Änderung",
+    "hint": "Elo-Änderung aus diesem Match",
+    "desc": "Elo-Änderung aus diesem Match."
+  },
+  "ago": {
+    "name": "Zeit seit Ende",
+    "hint": "Wie lange das Matchende zurückliegt",
+    "desc": "Wie lange das Matchende zurückliegt."
+  }
+}

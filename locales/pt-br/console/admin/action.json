@@ -1,0 +1,15 @@
+{
+  "forbidden": "acesso negado",
+  "numericUserIdRequired": "ID numérico de usuário obrigatório",
+  "loginRequired": "login obrigatório",
+  "invalidRole": "função inválida",
+  "cannotRemoveMember": "não é possível remover este membro",
+  "userIdRequired": "user_id obrigatório",
+  "queryRequired": "consulta obrigatória",
+  "queryTooLong": "consulta longa demais",
+  "idRequired": "ID obrigatório",
+  "cannotGrantRole": "não é possível conceder {role}",
+  "countPositive": "a contagem deve ser um número inteiro positivo",
+  "laneDemoDisabled": "modo de demonstração: alterações nas vias estão desativadas",
+  "laneFailed": "{verb} falhou: {error}"
+}

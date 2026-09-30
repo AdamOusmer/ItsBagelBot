@@ -1,0 +1,10 @@
+{
+  "working": "Procesando…",
+  "loading": "Cargando",
+  "saving": "Guardando…",
+  "saved": "Guardado",
+  "live": "En directo",
+  "failed": "Error",
+  "saveFailed": "No se pudo guardar",
+  "unsaved": "Cambios sin guardar"
+}

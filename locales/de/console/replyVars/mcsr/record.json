@@ -1,0 +1,27 @@
+{
+  "playera": {
+    "name": "Spieler A",
+    "hint": "Der zuerst eingegebene Spieler (oder du",
+    "desc": "Der zuerst eingegebene Spieler (oder du, wenn nur ein Name eingegeben wurde)."
+  },
+  "playerb": {
+    "name": "Spieler B",
+    "hint": "Der zweite eingegebene Spieler",
+    "desc": "Der zweite eingegebene Spieler."
+  },
+  "winsa": {
+    "name": "Siege A",
+    "hint": "Siege von Spieler A gegen Spieler B",
+    "desc": "Siege von Spieler A gegen Spieler B."
+  },
+  "winsb": {
+    "name": "Siege B",
+    "hint": "Siege von Spieler B gegen Spieler A",
+    "desc": "Siege von Spieler B gegen Spieler A."
+  },
+  "played": {
+    "name": "Gespielt",
+    "hint": "Gesamtzahl der Matches zwischen beiden",
+    "desc": "Gesamtzahl der Matches zwischen beiden."
+  }
+}

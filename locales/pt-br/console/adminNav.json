@@ -1,0 +1,18 @@
+{
+  "operate": "Operação",
+  "accounts": "Contas",
+  "access": "Acesso",
+  "overview": "Visão geral",
+  "shards": "Shards",
+  "lanes": "Vias",
+  "events": "Fluxo do Ingress",
+  "users": "Usuários",
+  "notifications": "Notificações",
+  "giveaways": "Sorteios",
+  "staff": "Equipe",
+  "audit": "Auditoria",
+  "secrets": "Segredos",
+  "counters": "Contadores do bot",
+  "trials": "Canais em teste",
+  "deploys": "Implantações"
+}

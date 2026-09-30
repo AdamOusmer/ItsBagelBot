@@ -1,0 +1,11 @@
+{
+  "disconnectBody": "Bagel postet nicht mehr und vergisst, mit welchem Server dieser Kanal verknüpft ist. Deine Kanäle und Rollen bleiben unverändert erhalten.",
+  "disconnectCta": "Trennen",
+  "disconnectTitle": "Discord trennen?",
+  "reconnectCta": "Erneut autorisieren",
+  "setupCta": "Diesen Server einrichten",
+  "setupHelp": "Führt die Einrichtung erneut aus: Erstellt Fehlendes, übernimmt deine festgelegten Rollen und lässt alles andere unverändert.",
+  "setupTitle": "Server neu einrichten",
+  "setupFirstRun": "Dieser Server hat noch keine gespeicherten Einstellungen. Die erste Einrichtung speichert sie.",
+  "dangerTitle": "Gefahrenbereich"
+}

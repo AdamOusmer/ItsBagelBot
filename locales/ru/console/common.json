@@ -1,0 +1,41 @@
+{
+  "loading": "Загрузка…",
+  "skipToContent": "Перейти к содержимому",
+  "breadcrumb": "Навигационная цепочка",
+  "appName": "ItsBagelBot",
+  "console": "Консоль",
+  "cancel": "Отмена",
+  "save": "Сохранить",
+  "delete": "Удалить",
+  "open": "Открыть",
+  "leave": "Выйти",
+  "copy": "Копировать",
+  "copied": "Скопировано",
+  "syncedToChat": "Синхронизировано с чатом",
+  "revoke": "Отозвать",
+  "read": "Прочитано",
+  "generate": "Создать ссылку",
+  "reconnect": "Подключить заново",
+  "done": "Готово",
+  "gotIt": "Понятно",
+  "retry": "Повторить",
+  "optional": "(необязательно)",
+  "selectTitle": "Выберите вариант",
+  "searchOptions": "Поиск вариантов…",
+  "searchClear": "Очистить поиск",
+  "selectNoMatch": "Нет вариантов по вашему запросу.",
+  "unit": {
+    "label": "Единица",
+    "seconds": "секунды",
+    "minutes": "минуты",
+    "hours": "часы"
+  },
+  "duration": {
+    "seconds": "{n} сек.",
+    "minutes": "{n} мин",
+    "hours": "{n} ч"
+  },
+  "newVersion": "Доступна новая версия",
+  "reload": "Перезагрузить",
+  "opensInNewTab": "(откроется в новой вкладке)"
+}

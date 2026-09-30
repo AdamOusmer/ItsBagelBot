@@ -1,0 +1,21 @@
+{
+  "cleared": "Se vació la cola.",
+  "closed": "La cola ya no admite nuevas incorporaciones.",
+  "err.usage": "Uso: !queue <open|close|next|list|remove|clear>; o !join / !leave / !list",
+  "join.already": "@{queue:user} ya estás en la cola en la posición #{queue:pos}.",
+  "join.closed": "@{queue:user} la cola está cerrada ahora.",
+  "join.ok": "@{queue:user} entraste en la cola en la posición #{queue:pos}.",
+  "leave.not_in": "@{queue:user} no estás en la cola.",
+  "leave.ok": "@{queue:user} saliste de la cola.",
+  "list": "A continuación: {queue:list}",
+  "list.empty": "La cola está vacía.",
+  "list.more": "A continuación: {queue:list} (+{queue:count} más)",
+  "next": "¡@{queue:target} te toca a continuación! (en espera: {queue:count})",
+  "next.empty": "La cola está vacía.",
+  "opened": "¡La cola está abierta! Escribe !join para entrar.",
+  "remove.not_found": "@{queue:target} no estaba en la cola.",
+  "remove.ok": "Se retiró a @{queue:target} de la cola.",
+  "remove.usage": "Uso: !queue remove <user>",
+  "status.closed": "La cola está cerrada. En espera para jugar: {queue:count}.",
+  "status.open": "La cola está abierta. En espera: {queue:count}. Escribe !join para entrar."
+}

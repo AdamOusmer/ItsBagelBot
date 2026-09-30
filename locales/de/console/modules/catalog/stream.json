@@ -1,0 +1,13 @@
+{
+  "label": "Stream-Verwaltung",
+  "tagline": "Lege Titel, Kategorie und Tags fest, starte Werbung und setze Markierungen im Chat.",
+  "description": "Leitende Moderatoren bearbeiten den laufenden Stream im Chat wie bei Nightbot und StreamElements: !title / !settitle, !game / !setgame, !tags, !commercial / !ad und !marker. Jeder Befehl kann auf dieser Seite umgeschaltet werden. Alle sind anfangs aktiviert. Erfordert eine erneute Twitch-Zustimmung für channel:manage:broadcast und channel:edit:commercial, wenn du dich vor Einführung dieser Rechte registriert hast.",
+  "commands": {
+    "title": "Stream-Titel anzeigen oder festlegen.",
+    "game": "Stream-Kategorie anzeigen oder festlegen.",
+    "tags": "Stream-Tags anzeigen oder festlegen.",
+    "commercial": "Werbeunterbrechung starten (nur live).",
+    "marker": "Stream-Markierung setzen (nur live).",
+    "cmd": "Befehle auflisten oder eigene hinzufügen/bearbeiten/entfernen."
+  }
+}

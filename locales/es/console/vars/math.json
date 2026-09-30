@@ -1,0 +1,5 @@
+{
+  "name": "Aritmética",
+  "hint": "evalúa una operación sencilla: + - * / y paréntesis",
+  "desc": "Calcula una operación sencilla. Números enteros, + - * / y paréntesis; nada más."
+}

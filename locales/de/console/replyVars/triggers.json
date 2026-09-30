@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "Chat-Teilnehmer",
+    "hint": "Die Person, deren Nachricht zur Regel passte",
+    "desc": "Die Person, deren Nachricht zur Regel passte."
+  }
+}

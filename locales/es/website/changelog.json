@@ -1,0 +1,14 @@
+{
+  "backToAll": "Todas las versiones",
+  "eyebrow": "Historial de cambios",
+  "title": "Novedades.",
+  "desc": "Lo que cambia para ti, versión a versión. Las versiones alfa, beta y preliminares llevan su etiqueta. Las notas completas están en GitHub.",
+  "metaTitle": "Historial de cambios - ItsBagelBot",
+  "metaDesc": "Novedades de ItsBagelBot: todas las versiones, ordenadas por versión y enlazadas a GitHub.",
+  "releaseLink": "Versión en GitHub",
+  "empty": "Aún no hay nada en el horno.",
+  "tag.alpha": "Alfa",
+  "tag.beta": "Beta",
+  "tag.prerelease": "Versión preliminar",
+  "tag.release": "Versión"
+}

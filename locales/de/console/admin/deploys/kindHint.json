@@ -1,0 +1,7 @@
+{
+  "release": "Eine neue Version taggen, jedes Image bauen, festlegen und jeden Dienst neu ausrollen.",
+  "hotfix": "Das aktuelle Tag auf einen späteren Commit verschieben, neu bauen, erneut festlegen und neu ausrollen.",
+  "bump": "Die gerade auf main gebauten Images festlegen. Nur Dienste mit geändertem Image werden neu ausgerollt.",
+  "rollback": "Die Images eines früheren Releases festlegen und neu ausrollen. Kein Build.",
+  "reapply": "Die bereits auf main festgelegten Images neu ausrollen. Kein Build, kein PR."
+}

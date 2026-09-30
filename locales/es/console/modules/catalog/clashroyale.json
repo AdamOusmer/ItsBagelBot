@@ -1,0 +1,33 @@
+{
+  "label": "Estadísticas de Clash Royale",
+  "tagline": "Perfiles, mazos y clasificación del Camino de Leyendas de Clash Royale en el chat.",
+  "description": "Un comando, cuatro vistas: !cr muestra el perfil histórico de un jugador (nivel, registro de victorias y derrotas, porcentaje de victorias, victorias de tres coronas, clan); !cr decks muestra su mazo de batalla actual con el coste medio de elixir; !cr ranked muestra su clasificación del Camino de Leyendas (usa temporadas antiguas de ligas para cuentas anteriores); !cr road muestra su registro del Camino de Trofeos y su arena. También funcionan las formas abreviadas !crstats, !crdecks, !crranked y !crroad. Vincula tu etiqueta de jugador abajo. Clash Royale no permite buscar por nombre, así que se necesita una etiqueta como #P2LQ0GR. Los espectadores también pueden indicar cualquier etiqueta, p. ej., \"!cr #P2LQ0GR\".",
+  "settings": {
+    "account": {
+      "label": "Etiqueta de jugador vinculada",
+      "help": "Jugador predeterminado para todos los comandos. Clash Royale no permite buscar por nombre, así que debe ser una etiqueta de jugador; déjalo vacío solo si siempre escribes una.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Perfil histórico: !cr, !cr stats o !crstats.",
+      "defaultMessage": "{player} · nivel {level} · {wins}V/{losses}D · {winrate}% victorias · tres coronas: {crowns} · {clan}"
+    },
+    "decks": {
+      "tagline": "El mazo de batalla actual con su elixir medio (también !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "Mazo de {player} ({count}/8): {cards} · elixir medio {elixir}"
+    },
+    "ranked": {
+      "tagline": "Clasificación del Camino de Leyendas (también !crranked); las temporadas antiguas de ligas completan los registros anteriores.",
+      "event": "!cr ranked",
+      "defaultMessage": "{player}, Camino de Leyendas: liga {league} · trofeos: {trophies} · puesto #{rank} · mejor marca {besttrophies}"
+    },
+    "road": {
+      "tagline": "Registro del Camino de Trofeos y arena (también !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: trofeos: {trophies} · mejor marca {besttrophies} · {arena}"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Argumente, URL-kodiert",
+  "hint": "alles nach dem Befehl, URL-kodiert für eine Datenquelle",
+  "desc": "Alles nach dem Befehl, so kodiert, dass es in eine Datenquellen-URL eingefügt werden kann."
+}

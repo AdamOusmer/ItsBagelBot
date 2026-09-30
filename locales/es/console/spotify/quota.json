@@ -1,0 +1,12 @@
+{
+  "everyone": "Todos",
+  "sub": "Suscriptores",
+  "vip": "VIP",
+  "mod": "Moderadores",
+  "help": "Cuántas canciones puede tener un espectador esperando en la cola. Deja un nivel vacío para que no tenga límite. Tú nunca tienes límite.",
+  "save": "Guardar límites",
+  "saveFailed": "No se pudieron guardar los límites.",
+  "saved": "Límites guardados.",
+  "title": "Límites por espectador",
+  "unlimited": "Sin límite"
+}

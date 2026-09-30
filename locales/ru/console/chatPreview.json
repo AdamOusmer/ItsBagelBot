@@ -1,0 +1,14 @@
+{
+  "rehearsal": "Репетиция чата",
+  "ariaPreview": "Предпросмотр чата",
+  "ariaTyping": "Бот печатает",
+  "runsVerb": "Этот ответ выполняет команду Twitch {verb}",
+  "announcement": "Объявление",
+  "addMessageAfter": "…добавьте сообщение после {verb}",
+  "shoutsOut": "Рекомендует канал",
+  "nameChannel": "…укажите канал после /shoutout",
+  "pinnedForStream": "Закреплено до конца трансляции",
+  "addActionAfterMe": "…добавьте действие после /me",
+  "nothingToSay": "…боту пока нечего сказать",
+  "unknownVar": "Неизвестная переменная"
+}

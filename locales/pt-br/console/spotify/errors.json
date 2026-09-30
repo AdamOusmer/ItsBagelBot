@@ -1,0 +1,11 @@
+{
+  "noApp": "Adicione seu aplicativo Spotify antes de conectar sua conta.",
+  "noToken": "O Spotify reutilizou seu consentimento, então não emitiu um novo token. Revogue este aplicativo na página da sua conta Spotify e conecte novamente.",
+  "oauth": "O Spotify recusou o login. Tente conectar novamente.",
+  "state": "O link de login expirou ou foi reutilizado. Inicie a conexão novamente.",
+  "store": "Não foi possível armazenar o token. Tente novamente em instantes.",
+  "titleRequired": "Dê um título à recompensa.",
+  "unconfigured": "Os pedidos de música ainda não estão configurados nesta implantação: falta a URL de retorno do Spotify. Peça ao operador para definir SPOTIFY_REDIRECT_URI.",
+  "cost": "Informe um número inteiro de pontos, no mínimo 1.",
+  "cooldown": "Informe um intervalo entre 0 segundos e 7 dias."
+}

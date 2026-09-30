@@ -1,0 +1,7 @@
+{
+  "release": "Etiquetar {version} en {sha}, compilar, fijar imágenes y desplegar {services}.",
+  "hotfix": "Mover {version} a {sha}, recompilar, volver a fijar imágenes y desplegar {services}.",
+  "bump": "Fijar las imágenes compiladas en {sha} y desplegar {services}.",
+  "rollback": "Fijar las imágenes de {version} y desplegar cada servicio cuya imagen fijada cambie.",
+  "reapply": "Desplegar las imágenes fijadas en main en {services}."
+}

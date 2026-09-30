@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Ciclo de vida do Ingress",
+  "titlePre": "Eventos do ciclo de vida dos ",
+  "titleEm": "shards",
+  "description": "Uma visão ao vivo, sem persistência, das conexões de shards, vínculos do Conduit e motivos de desconexão. Só aparecem transições após a abertura desta página; conteúdos de chat e EventSub não aparecem.",
+  "subject": "twitch.ingress.status.>",
+  "toneFilter": "Tom do evento",
+  "searchPlaceholder": "Filtrar mensagem do ciclo de vida…",
+  "pauseLabel": "Pausar o fluxo",
+  "pauseLabelBuffered": "Retomar o fluxo (retidos: {n})",
+  "clear": "Limpar",
+  "streaming": "Transmitindo",
+  "connecting": "Conectando…",
+  "reconnecting": "Reconectando…",
+  "paused": "Pausado",
+  "upCount": "Ativos: {n}",
+  "downCount": "Inativos: {n}",
+  "listLabel": "Eventos do ciclo de vida",
+  "idleBody": "Uma frota saudável e estável fica em silêncio. Novas transições de ativação, vínculo e desativação de shards aparecem aqui; não é um histórico armazenado de eventos.",
+  "emptyMatch": "Nenhum evento corresponde ao filtro"
+}

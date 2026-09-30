@@ -1,0 +1,21 @@
+{
+  "askedBy": "solicitud de",
+  "empty": "No hay nada en cola ahora.",
+  "now": "Sonando",
+  "refresh": "Actualizar",
+  "title": "Cola",
+  "updated": "Actualizado {when}",
+  "refreshing": "Actualizando…",
+  "emptySr": "Los espectadores añaden canciones escribiendo !sr en el chat.",
+  "emptyRedeem": "Los espectadores añaden canciones canjeando tu recompensa de puntos del canal.",
+  "emptyBoth": "Los espectadores añaden canciones con !sr en el chat o canjeando tu recompensa de puntos del canal.",
+  "emptyOff": "Ambas vías de solicitud están desactivadas. Activa una para que los espectadores puedan añadir canciones.",
+  "enableSr": "Activar !sr",
+  "skip": "Saltar",
+  "progressLabel": "Transcurrido: {elapsed} de {duration}",
+  "skipped": "Se saltó la canción actual.",
+  "skipFailed": "No se pudo saltar la canción. Vuelve a intentarlo en un momento.",
+  "skipNoDevice": "No hay ningún dispositivo de Spotify activo. Empieza a reproducir algo primero.",
+  "skipPremium": "Para saltar canciones hace falta Spotify Premium.",
+  "skipReauth": "Spotify ya no acepta esta conexión. Reconecta e inténtalo de nuevo."
+}

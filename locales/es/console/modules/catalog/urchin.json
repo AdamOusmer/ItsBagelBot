@@ -1,0 +1,42 @@
+{
+  "label": "Estadísticas de Bedwars",
+  "tagline": "Estadísticas de Hypixel Bedwars, puntuación de Urchin y etiquetas de lista de bloqueados en el chat.",
+  "description": "Comandos para espectadores con datos de urchin.gg: sesiones diarias, semanales y mensuales de Bedwars, estadísticas históricas, puntuación de sniper de Urchin y etiquetas activas de la lista de bloqueados. Los comandos usan tu cuenta vinculada de Minecraft por defecto; los espectadores también pueden indicar cualquier jugador, p. ej., \"!daily Technoblade\".",
+  "settings": {
+    "account": {
+      "label": "Cuenta de Minecraft vinculada",
+      "help": "Jugador predeterminado para todos los comandos. Déjalo vacío para usar tu nombre de usuario de Twitch. El bot guarda el UUID de la cuenta cuando Mojang lo permite, así que los comandos siguen funcionando después de un cambio de nombre.",
+      "placeholder": "Tu nombre de usuario de Minecraft"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Sesión de Bedwars desde el reinicio diario.",
+      "defaultMessage": "{player} hoy: {wins}V {losses}D · bajas finales: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Sesión de Bedwars desde el reinicio semanal.",
+      "defaultMessage": "{player} esta semana: {wins}V {losses}D · bajas finales: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Sesión de Bedwars desde el reinicio mensual.",
+      "defaultMessage": "{player} este mes: {wins}V {losses}D · bajas finales: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Estadísticas históricas de Bedwars.",
+      "defaultMessage": "{player}: estrellas: {stars} · victorias: {wins} · bajas finales: {finals} · {fkdr} FKDR · camas destruidas: {beds}"
+    },
+    "sniper": {
+      "tagline": "Puntuación de Urchin (superposición de Cubelify).",
+      "defaultMessage": "Puntuación de Urchin de {player}: {score}"
+    },
+    "tags": {
+      "tagline": "Etiquetas activas de la lista de bloqueados de Urchin.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Etiquetas de la lista de bloqueados con sus motivos.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

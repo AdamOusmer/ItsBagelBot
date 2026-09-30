@@ -1,0 +1,5 @@
+{
+  "name": "Tiempo hasta una fecha",
+  "hint": "cuánto falta hasta esa fecha (YYYY-MM-DD o una marca de tiempo completa)",
+  "desc": "Cuánto falta hasta esa fecha. Escríbela como YYYY-MM-DD o como una marca de tiempo completa. No devuelve nada cuando la fecha ya ha pasado."
+}

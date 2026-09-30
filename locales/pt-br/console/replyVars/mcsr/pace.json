@@ -1,0 +1,62 @@
+{
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador vinculado",
+    "desc": "O jogador vinculado."
+  },
+  "nethers": {
+    "name": "Entradas no Nether",
+    "hint": "Entradas no Nether nesta sessão",
+    "desc": "Entradas no Nether nesta sessão."
+  },
+  "nether": {
+    "name": "Média até o Nether",
+    "hint": "Tempo parcial médio até o Nether",
+    "desc": "Tempo parcial médio até o Nether."
+  },
+  "bastion": {
+    "name": "Média até o bastião",
+    "hint": "Tempo parcial médio até o bastião",
+    "desc": "Tempo parcial médio até o bastião."
+  },
+  "fortress": {
+    "name": "Média até a fortaleza do Nether",
+    "hint": "Tempo parcial médio até a fortaleza do Nether",
+    "desc": "Tempo parcial médio até a fortaleza do Nether."
+  },
+  "firststructure": {
+    "name": "Média até a primeira estrutura",
+    "hint": "Tempo parcial médio até a estrutura visitada primeiro",
+    "desc": "Tempo parcial médio até a estrutura visitada primeiro."
+  },
+  "secondstructure": {
+    "name": "Média até a segunda estrutura",
+    "hint": "Tempo parcial médio até a estrutura visitada em segundo lugar",
+    "desc": "Tempo parcial médio até a estrutura visitada em segundo lugar."
+  },
+  "firstportal": {
+    "name": "Média até o primeiro portal",
+    "hint": "Tempo parcial médio até o primeiro portal",
+    "desc": "Tempo parcial médio até o primeiro portal."
+  },
+  "stronghold": {
+    "name": "Média até a fortaleza do portal do End",
+    "hint": "Tempo parcial médio até a fortaleza do portal do End",
+    "desc": "Tempo parcial médio até a fortaleza do portal do End."
+  },
+  "end": {
+    "name": "Média até o End",
+    "hint": "Tempo parcial médio até a entrada no End",
+    "desc": "Tempo parcial médio até a entrada no End."
+  },
+  "finish": {
+    "name": "Média de conclusão",
+    "hint": "Tempo parcial médio de conclusão",
+    "desc": "Tempo parcial médio de conclusão."
+  },
+  "nph": {
+    "name": "Entradas no Nether/hora",
+    "hint": "Ritmo de entradas no Nether",
+    "desc": "Ritmo de entradas no Nether."
+  }
+}

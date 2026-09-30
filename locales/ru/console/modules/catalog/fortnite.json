@@ -1,0 +1,43 @@
+{
+  "label": "Статистика Fortnite",
+  "tagline": "Статистика Fortnite BR и ежедневный магазин предметов в чате.",
+  "description": "Одна команда, четыре варианта: !fn показывает победы, матчи, убийства, K/D и долю побед за всё время с разбивкой по одиночному, парному и командному режимам; !fn season — то же за текущий сезон (бот автоматически отслеживает смену сезонов); !fn session — победы, убийства и K/D с начала трансляции, фиксируя исходные данные в момент выхода в эфир; !fn store — содержимое сегодняшнего магазина предметов. Также работают слитные формы !fnstats, !fnseason, !fnsession и !fnstore. Привяжите отображаемое имя Epic ниже. Зрители могут указать любого игрока, например «!fn Ninja»; !fn session всегда отслеживает привязанный аккаунт. Поиск по именам PlayStation и Xbox пока не поддерживается.",
+  "settings": {
+    "account": {
+      "label": "Имя привязанного аккаунта",
+      "help": "Игрок по умолчанию для команд статистики. Оставьте пустым, чтобы использовать имя пользователя Twitch.",
+      "placeholder": "Ваше отображаемое имя Epic"
+    },
+    "accountType": {
+      "label": "Платформа аккаунта",
+      "help": "Сейчас работает только поиск по отображаемому имени Epic; поиск PlayStation и Xbox появится позже. Игрокам на консолях: ваше имя Epic работает.",
+      "placeholder": "epic",
+      "options": {
+        "epic": "Epic Games",
+        "psn": "PlayStation (позже)",
+        "xbl": "Xbox Live (позже)"
+      }
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Статистика Battle Royale за всё время: !fn, !fn stats или !fnstats.",
+      "defaultMessage": "{player} за всё время: победы — {wins}, матчи — {matches} · {winrate}% побед · Убийства: {kills} · {kd} K/D · Победы: соло — {solowins} / дуо — {duowins} / отряд — {squadwins}"
+    },
+    "season": {
+      "tagline": "Статистика текущего сезона (также !fnseason); смена сезонов отслеживается автоматически.",
+      "event": "!fn season",
+      "defaultMessage": "{player} в этом сезоне: победы — {wins}, матчи — {matches} · {winrate}% побед · Убийства: {kills} · {kd} K/D · Победы: соло — {solowins} / дуо — {duowins} / отряд — {squadwins}"
+    },
+    "session": {
+      "tagline": "Победы, убийства и K/D с начала трансляции (также !fnsession).",
+      "event": "!fn session",
+      "defaultMessage": "{player} за трансляцию: победы — {wins}, матчи — {matches} · {winrate}% побед · Убийства: {kills} · {kd} K/D"
+    },
+    "store": {
+      "tagline": "Сегодняшний ассортимент магазина (также !fnstore).",
+      "event": "!fn store",
+      "defaultMessage": "Магазин предметов {date}: {items}"
+    }
+  }
+}

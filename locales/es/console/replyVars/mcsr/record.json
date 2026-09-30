@@ -1,0 +1,27 @@
+{
+  "playera": {
+    "name": "Jugador A",
+    "hint": "El primer jugador escrito (o tú)",
+    "desc": "El primer jugador escrito (o tú, si se escribe un solo nombre)."
+  },
+  "playerb": {
+    "name": "Jugador B",
+    "hint": "El segundo jugador escrito",
+    "desc": "El segundo jugador escrito."
+  },
+  "winsa": {
+    "name": "Victorias A",
+    "hint": "Victorias del jugador A sobre el jugador B",
+    "desc": "Victorias del jugador A sobre el jugador B."
+  },
+  "winsb": {
+    "name": "Victorias B",
+    "hint": "Victorias del jugador B sobre el jugador A",
+    "desc": "Victorias del jugador B sobre el jugador A."
+  },
+  "played": {
+    "name": "Jugadas",
+    "hint": "Total de partidas entre ambos",
+    "desc": "Total de partidas entre ambos."
+  }
+}

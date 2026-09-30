@@ -1,0 +1,15 @@
+{
+  "forbidden": "nicht erlaubt",
+  "numericUserIdRequired": "numerische Nutzer-ID erforderlich",
+  "loginRequired": "Anmeldung erforderlich",
+  "invalidRole": "ungültige Rolle",
+  "cannotRemoveMember": "dieses Mitglied kann nicht entfernt werden",
+  "userIdRequired": "user_id erforderlich",
+  "queryRequired": "Suchanfrage erforderlich",
+  "queryTooLong": "Suchanfrage zu lang",
+  "idRequired": "ID erforderlich",
+  "cannotGrantRole": "{role} kann nicht vergeben werden",
+  "countPositive": "Anzahl muss eine positive ganze Zahl sein",
+  "laneDemoDisabled": "Demomodus: Änderungen an Verarbeitungskanälen sind deaktiviert",
+  "laneFailed": "{verb} fehlgeschlagen: {error}"
+}

@@ -1,0 +1,13 @@
+{
+  "enableLabel": "!sr erlauben",
+  "enableOff": "!sr ist aus: Der Befehl antwortet, aber nichts wird eingereiht.",
+  "enableOn": "!sr ist an: Der Chat kann gerade Songs einreihen.",
+  "help": "Zuschauer geben !sr mit einem Songnamen, \"artist - song\" oder Spotify-Link ein.",
+  "liveOnlyOff": "Zuschauer können auch Songs wünschen, wenn du offline bist.",
+  "liveOnlyOn": "Zuschauer können nur Songs wünschen, während du live bist.",
+  "permLabel": "Wer Songs einreihen darf",
+  "saveFailed": "Die Befehlseinstellungen konnten nicht gespeichert werden.",
+  "saved": "Befehlseinstellungen gespeichert.",
+  "title": "Chat-Befehl (!sr)",
+  "permOffHint": "Aktiviere !sr, um auszuwählen, wer Songs einreihen darf."
+}

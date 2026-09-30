@@ -1,0 +1,30 @@
+{
+  "label": "Ortszeit",
+  "tagline": "Zuschauer fragen mit !time nach deiner Uhrzeit.",
+  "description": "Zuschauer geben !time ein und der Bot antwortet mit deiner aktuellen Ortszeit. Sie können auch nach einem anderen Ort fragen: !time Tokyo, !time EST, !time UTC+2. Wähle unten deine Zeitzone. Die Seite schlägt die von deinem Browser gemeldete vor, nur auf deinem Gerät berechnet (nichts wird gelesen oder gespeichert, bevor du speicherst). Wähle eine 12- oder 24-Stunden-Uhr und passe beide Antworten an.",
+  "settings": {
+    "timezone": {
+      "label": "Zeitzone",
+      "help": "IANA-Zeitzonenname zur Anzeige von {time} und {date}. Der Vorschlag kommt von deinem Browser und wird erst gespeichert, wenn du speicherst.",
+      "placeholder": "America/Toronto"
+    },
+    "format": {
+      "label": "Uhrzeitformat",
+      "placeholder": "12",
+      "options": {
+        "12": "12 Stunden (2:30 PM)",
+        "24": "24 Stunden (14:30)"
+      }
+    }
+  },
+  "replies": {
+    "time": {
+      "tagline": "Deine aktuelle Ortszeit.",
+      "defaultMessage": "Beim Streamer ist es gerade {time}."
+    },
+    "lookup": {
+      "tagline": "Uhrzeit an einem anderen Ort.",
+      "defaultMessage": "In {place} ist es gerade {time}."
+    }
+  }
+}

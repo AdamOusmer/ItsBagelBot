@@ -1,0 +1,23 @@
+{
+  "back": "Todos os módulos",
+  "bothNote": "As duas formas compartilham uma lista de próximas músicas. Uma pode estar ativada enquanto a outra está desativada.",
+  "degraded": "Não foi possível acessar o backend. Tente novamente em instantes.",
+  "description": "Cadastre seu próprio aplicativo do Spotify, conecte sua conta a ele e deixe os espectadores enfileirarem faixas pelo chat ou por uma recompensa de pontos do canal. Uma forma pode estar ativada enquanto a outra está desativada.",
+  "eyebrow": "Pedidos de músicas",
+  "liveOnlyLabel": "Somente ao vivo",
+  "masterAria": "Ativar ou desativar pedidos de músicas",
+  "masterFail": "Não foi possível salvar a opção.",
+  "masterHintOff": "Os pedidos estão pausados. Nenhuma forma adiciona músicas à fila até você ativar o módulo.",
+  "masterHintOn": "!sr e a recompensa estão ativos. Os pedidos entram na fila durante sua transmissão.",
+  "masterLabel": "Ativar pedidos de músicas",
+  "saveChanges": "Salvar alterações",
+  "saving": "Salvando…",
+  "titleEm": "de músicas",
+  "titlePre": "Pedidos ",
+  "unsavedChanges": "Alterações não salvas",
+  "saved": "Salvo",
+  "discardTitle": "Descartar alterações?",
+  "discardBody": "Você tem alterações não salvas nesta recompensa. Deseja descartá-las?",
+  "discard": "Descartar",
+  "keepEditing": "Continuar editando"
+}

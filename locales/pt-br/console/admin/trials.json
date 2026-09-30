@@ -1,0 +1,32 @@
+{
+  "eyebrow": "Observação",
+  "title": "Canais em teste",
+  "description": "Processe o chat de canais não cadastrados, com limite de {max}, distribuídos em até três sockets de teste. O envio à Twitch permanece bloqueado enquanto estiverem em teste.",
+  "degraded": "O estado dos testes está indisponível. Os controles podem falhar até o Ingress reconectar.",
+  "idLabel": "ID do canal na Twitch",
+  "add": "Adicionar teste",
+  "remove": "Remover",
+  "on": "Ativado",
+  "off": "Desativado",
+  "toggleLabel": "Ingestão do chat de teste de {name}",
+  "note": "Use o ID numérico da Twitch. Desative um teste individual para pausar a ingestão do chat; ele continua contando no limite de vagas de {max}. O cadastro encerra o teste automaticamente.",
+  "count": "Canais em teste: {count} / {max}",
+  "empty": "Nenhum canal em teste configurado.",
+  "history": "Testes recentes",
+  "received": "Recebidos: {count}",
+  "decoded": "Decodificados: {count}",
+  "processed": "Processados: {count}",
+  "failed": "Falhas: {count}",
+  "retried": "Novas tentativas: {count}",
+  "blocked": "Ações bloqueadas: {count}",
+  "latency": "Tempo médio de processamento: {duration}",
+  "state": {
+    "pending": "Pendente",
+    "receiving": "Recebendo",
+    "disabled": "Desativado",
+    "stopping": "Encerrando",
+    "promoted": "Promovido",
+    "removed": "Removido",
+    "failed": "Falhou"
+  }
+}

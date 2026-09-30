@@ -1,0 +1,16 @@
+{
+  "everyone": "Todos",
+  "sub": "Suscriptores",
+  "vip": "VIP",
+  "mod": "Moderadores",
+  "lead_mod": "Moderadores principales",
+  "broadcaster": "Streamer",
+  "badge": {
+    "everyone": "Todos",
+    "sub": "Suscriptores",
+    "vip": "VIP",
+    "mod": "Moderadores",
+    "lead_mod": "Moderadores principales",
+    "broadcaster": "Streamer"
+  }
+}

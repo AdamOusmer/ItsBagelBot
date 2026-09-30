@@ -1,0 +1,21 @@
+{
+  "enable": "Zähler führen",
+  "nameLabel": "Zählername",
+  "nameHint": "Gib einen neuen Namen ein, um hier einen Zähler zu erstellen, oder einen vorhandenen, um ihn zu erhöhen.",
+  "errNameRequired": "Gib einen Zählernamen ein oder deaktiviere „Zähler führen“.",
+  "scopeLabel": "Wozu jede Einlösung zählt",
+  "scopeViewerReward": "Pro Zuschauer, pro Belohnung",
+  "scopeViewerRewardDesc": "Jeder Zuschauer hat seinen eigenen Zähler für diese Belohnung. Für die meisten Belohnungen geeignet.",
+  "scopeReward": "Pro Belohnung, alle Zuschauer",
+  "scopeRewardDesc": "Alle erhöhen eine gemeinsame Summe für diese Belohnung. Für Community-Ziele geeignet.",
+  "scopeViewer": "Pro Zuschauer",
+  "scopeViewerDesc": "Jeder Zuschauer hat einen Zähler, den alle Belohnungen mit diesem Zähler gemeinsam nutzen.",
+  "scopeChannel": "Ganzer Kanal",
+  "scopeChannelDesc": "Eine fortlaufende Summe für den gesamten Kanal.",
+  "tokenNote": "Verwende {counter} in der Chat-Antwort, um die neue Summe anzuzeigen.",
+  "pointsEnable": "Treuepunkte vergeben",
+  "pointsLabel": "Punkte pro Einlösung",
+  "pointsHint": "Verwende {points} in der Chat-Antwort, um die Anzahl anzuzeigen.",
+  "liveOnly": "Nur während meines Livestreams",
+  "liveOnlyHint": "Offline-Einlösungen antworten weiterhin im Chat, zählen aber nicht und vergeben keine Punkte."
+}

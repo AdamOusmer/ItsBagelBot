@@ -1,0 +1,12 @@
+{
+  "title": "Notificações",
+  "viewAll": "Ver todas →",
+  "empty": "Nada ainda.",
+  "read": "Lida",
+  "markFailed": "Não foi possível marcar como lida.",
+  "unread": "Não lidas: {count}",
+  "levelInfo": "Informação",
+  "levelSuccess": "Sucesso",
+  "levelWarning": "Aviso",
+  "levelCritical": "Crítico"
+}

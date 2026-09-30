@@ -1,0 +1,5 @@
+{
+  "name": "Tempo até uma data",
+  "hint": "quanto falta até essa data (YYYY-MM-DD ou data e hora completas)",
+  "desc": "Quanto falta até essa data. Escreva como YYYY-MM-DD ou como data e hora completas. Não retorna nada após a data passar."
+}

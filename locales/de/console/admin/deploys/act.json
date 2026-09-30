@@ -1,0 +1,7 @@
+{
+  "approve": "Genehmigen",
+  "resume": "Fortsetzen",
+  "retry": "Phase erneut versuchen",
+  "cancel": "Durchlauf abbrechen",
+  "rollback": "Auf {version} zurücksetzen"
+}

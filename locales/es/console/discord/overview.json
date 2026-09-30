@@ -1,0 +1,56 @@
+{
+  "modulesTitle": "Módulos",
+  "modulesHelp": "Todo lo que Bagel puede hacer en este servidor. Activa o desactiva uno aquí, o ábrelo para elegir su canal.",
+  "needsSetup": "Requiere configuración",
+  "needsSetupHint": "Módulos activados que aún necesitan un canal o un rol: {n}. Abre el que quieras y selecciona lo que falte.",
+  "configure": "Configurar",
+  "notSetUp": "Este servidor nunca se ha configurado. Ejecuta la configuración automática y Bagel creará los canales y roles que necesita.",
+  "botState": "Bot",
+  "modulesOn": "Módulos activados",
+  "tiles": {
+    "announcementsLive": {
+      "name": "Avisos de inicio de transmisión",
+      "help": "Una publicación en tu canal de avisos de inicio al comenzar la transmisión, que se edita cuando termina."
+    },
+    "announcementsClips": {
+      "name": "Publicaciones de clips",
+      "help": "Todos los clips de !clip y de Twitch llegan a tu canal de clips."
+    },
+    "welcome": {
+      "name": "Bienvenida",
+      "help": "Un mensaje integrado por cada nuevo miembro. Bagel nunca envía mensajes privados a quienes entran."
+    },
+    "goodbye": {
+      "name": "Despedida",
+      "help": "Una frase breve en el mismo canal cuando alguien se va."
+    },
+    "voiceHub": {
+      "name": "Salas de voz al entrar",
+      "help": "Al entrar en el canal central se crea una copia como sala personal con botones para bloquear y desbloquear."
+    },
+    "logs": {
+      "name": "Registros del equipo",
+      "help": "Entradas, salidas, ediciones, eliminaciones y moderación en un solo canal."
+    },
+    "levels": {
+      "name": "Migas y rangos",
+      "help": "XP del chat con tarjetas de rango y recompensa diaria. No hay nada que elegir."
+    },
+    "linkGuard": {
+      "name": "Protección contra enlaces",
+      "help": "Elimina enlaces de miembros que aún no tienen ningún rol."
+    },
+    "subscribers": {
+      "name": "Nivel de suscriptores",
+      "help": "Un rol de suscriptor y su área privada, creados durante la configuración."
+    },
+    "autoRole": {
+      "name": "Roles automáticos",
+      "help": "Todos los que entran reciben el rol de miembro."
+    },
+    "tickets": {
+      "name": "Tickets de soporte",
+      "help": "Un panel donde los miembros hacen clic para abrir un canal privado con tu equipo."
+    }
+  }
+}

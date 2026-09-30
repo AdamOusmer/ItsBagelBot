@@ -1,0 +1,5 @@
+{
+  "name": "Zuschauer-Anmeldename",
+  "hint": "der Anmeldename in Kleinbuchstaben, nicht der Anzeigename",
+  "desc": "Der Anmeldename in Kleinbuchstaben, der vom Anzeigenamen aus {user} abweichen kann."
+}

@@ -1,0 +1,6 @@
+{
+  "none": "keine",
+  "pending": "läuft",
+  "success": "bestanden",
+  "failure": "fehlgeschlagen"
+}

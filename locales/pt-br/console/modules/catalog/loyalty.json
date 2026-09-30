@@ -1,0 +1,14 @@
+{
+  "label": "Pontos de fidelidade",
+  "tagline": "Espectadores ganham a moeda do canal por inscrições, bits e tempo assistido.",
+  "description": "Dê à comunidade sua própria moeda: espectadores ganham pontos por se inscrever, renovar inscrições, presentear inscrições, enviar bits e simplesmente assistir (todos no chat ganham a cada 5 minutos enquanto você está ao vivo). Nomeie a moeda, ajuste cada taxa e deixe moderadores conceder pontos com !points set/add. Espectadores consultam o saldo com !points. Apostas e Duelos usam este registro e são ativados nesta página. Não funcionam com a moeda desativada. Combina com Contadores e recompensas de pontos do canal que concedem pontos.",
+  "commands": {
+    "points": "Consulte seu saldo e tempo assistido.",
+    "points_give_user_500": "Dê parte dos seus pontos a outro espectador.",
+    "leaderboard": "Mostre os maiores saldos do canal.",
+    "points_set_user_500": "Defina o saldo de um espectador.",
+    "points_add_user_500": "Conceda pontos a um espectador.",
+    "points_remove_user_500": "Remova pontos de um espectador.",
+    "counter": "Gerencie contadores (também na página Contadores)."
+  }
+}

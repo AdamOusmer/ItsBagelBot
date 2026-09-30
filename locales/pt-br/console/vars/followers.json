@@ -1,0 +1,5 @@
+{
+  "name": "Quantidade de seguidores",
+  "hint": "sua quantidade atual de seguidores",
+  "desc": "Sua quantidade atual de seguidores, diretamente da Twitch. Não recebe parâmetros; sempre conta seu próprio canal."
+}

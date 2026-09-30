@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "Participante del chat",
+    "hint": "La persona cuyo mensaje coincidió con la regla",
+    "desc": "La persona cuyo mensaje coincidió con la regla."
+  }
+}

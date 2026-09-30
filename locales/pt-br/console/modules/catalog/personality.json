@@ -1,0 +1,9 @@
+{
+  "label": "Personalidade do bot",
+  "tagline": "A voz do bot: reage a elogios, carinho, insultos e bagels recebidos.",
+  "description": "O bot reage ao chat por conta própria: agradece elogios, ignora insultos, gosta de carinho, conta bagels recebidos, joga cara ou coroa, mantém um humor durante a transmissão e conta uma curiosidade sobre bagels quando alguém o menciona com @. Espectadores podem consultar sua posição de alimentação com !bagels e o ranking com !bagelboard. As falas são integradas, sem nada para configurar. Desative para o bot responder apenas a comandos.",
+  "commands": {
+    "bagels": "Mostre quantos bagels você deu ao bot e sua posição.",
+    "bagelboard": "Mostre o ranking de alimentação de bagels do canal."
+  }
+}

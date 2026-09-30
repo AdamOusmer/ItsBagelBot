@@ -1,0 +1,11 @@
+{
+  "disconnectBody": "Bagel deja de publicar y olvida a qué servidor está vinculado este canal. Tus canales y roles se conservan exactamente como están.",
+  "disconnectCta": "Desconectar",
+  "disconnectTitle": "¿Desconectar Discord?",
+  "reconnectCta": "Volver a autorizar",
+  "setupCta": "Configurar este servidor",
+  "setupHelp": "Vuelve a ejecutar la configuración automática: crea lo que falte, adopta los roles que hayas fijado y conserva todo lo demás.",
+  "setupTitle": "Reconstruir el servidor",
+  "setupFirstRun": "Este servidor aún no tiene ajustes guardados. La primera configuración los guarda.",
+  "dangerTitle": "Zona de peligro"
+}

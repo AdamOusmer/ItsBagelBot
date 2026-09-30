@@ -1,0 +1,21 @@
+{
+  "askedBy": "gewünscht von",
+  "empty": "Gerade ist nichts eingereiht.",
+  "now": "Läuft gerade",
+  "refresh": "Aktualisieren",
+  "title": "Warteschlange",
+  "updated": "Aktualisiert: {when}",
+  "refreshing": "Wird aktualisiert…",
+  "emptySr": "Zuschauer fügen Songs hinzu, indem sie !sr im Chat eingeben.",
+  "emptyRedeem": "Zuschauer fügen Songs hinzu, indem sie deine Kanalpunkte-Belohnung einlösen.",
+  "emptyBoth": "Zuschauer fügen Songs mit !sr im Chat oder durch Einlösen deiner Kanalpunkte-Belohnung hinzu.",
+  "emptyOff": "Beide Wege für Songwünsche sind deaktiviert. Aktiviere einen, damit Zuschauer Songs hinzufügen können.",
+  "enableSr": "!sr aktivieren",
+  "skip": "Überspringen",
+  "progressLabel": "{elapsed} von {duration} verstrichen",
+  "skipped": "Aktueller Titel übersprungen.",
+  "skipFailed": "Der Titel konnte nicht übersprungen werden. Versuche es gleich noch mal.",
+  "skipNoDevice": "Kein aktives Spotify-Gerät. Starte zuerst eine Wiedergabe.",
+  "skipPremium": "Überspringen erfordert Spotify Premium.",
+  "skipReauth": "Spotify akzeptiert diese Verbindung nicht mehr. Verbinde sie erneut und versuche es noch mal."
+}

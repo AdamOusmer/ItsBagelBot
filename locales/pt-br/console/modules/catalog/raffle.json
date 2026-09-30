@@ -1,0 +1,47 @@
+{
+  "label": "Sorteio",
+  "tagline": "Sorteios com prazo em que o chat participa com !join.",
+  "description": "Abra um sorteio e os espectadores digitam !join para participar. Durante o sorteio, o bot publica lembretes do tempo restante a cada poucos minutos (você define a frequência) e sorteia automaticamente quando o tempo acaba. Os vencedores são escolhidos aleatoriamente entre todos os participantes, com chances iguais; cada participação conta uma vez, e o sorteio deixa um comprovante verificável. Quem vencer confirma com !claim em até 15 minutos. Você (e seus moderadores) também controla tudo pelo chat: !raffle open inicia um sorteio, !raffle draw encerra antes do prazo e anuncia, !raffle cancel encerra sem sortear. Quando este módulo e a Fila para jogar estão ativados, !join pertence ao sorteio e a fila fica acessível por !queue join.",
+  "replies": {
+    "joined": {
+      "label": "Confirmação de participação",
+      "tagline": "Quando um espectador entra no sorteio.",
+      "defaultMessage": "@{user}, você entrou! Participantes até agora: {count}. Boa sorte!"
+    },
+    "already": {
+      "label": "Já participa",
+      "tagline": "Quando um espectador que já participa digita !join novamente.",
+      "defaultMessage": "@{user}, você já está neste sorteio (participantes: {count})."
+    },
+    "noRaffle": {
+      "label": "Nenhum sorteio em andamento",
+      "tagline": "Quando alguém tenta entrar sem um sorteio aberto.",
+      "defaultMessage": "@{user}, nenhum sorteio está em andamento agora."
+    },
+    "opened": {
+      "label": "Sorteio aberto",
+      "tagline": "Quando um sorteio começa e as participações são abertas.",
+      "event": "!raffle open",
+      "defaultMessage": "Sorteio ABERTO! Digite !join para participar. Sorteio em {mins} min!"
+    },
+    "won": {
+      "label": "Resultado anunciado",
+      "tagline": "Quando um sorteio define quem venceu (manual ou por prazo).",
+      "event": "!raffle draw",
+      "defaultMessage": "{targets}, parabéns pela vitória no sorteio! Total de vencedores: {count}; participantes: {entrants}. Digite !claim em até {claim} min para confirmar o prêmio!"
+    },
+    "claimOk": {
+      "label": "Prêmio confirmado",
+      "tagline": "Quando quem venceu confirma com !claim.",
+      "defaultMessage": "@{user}, seu prêmio está confirmado. Aproveite!"
+    }
+  },
+  "commands": {
+    "winner": "Relembra quem venceu o último sorteio e quantas confirmações houve.",
+    "raffle": "Mostra se há um sorteio em andamento, as participações e o tempo restante.",
+    "raffle_open_minutes_winners_remind": "Inicia um sorteio (padrões: 10 min, 1 vencedor, lembretes a cada 5 min; remind 0 desativa os lembretes).",
+    "raffle_draw_winners": "Encerra agora e anuncia quem venceu.",
+    "raffle_close": "Igual a draw, com a quantidade de vencedores configurada.",
+    "raffle_cancel": "Encerra sem sortear."
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "label": "MCSR Ranked",
+  "tagline": "Ranked-Elo und Sitzungsstatistiken pro Stream für MCSR-Runner.",
+  "description": "Zuschauerbefehle über die MCSR Ranked API: !elo zeigt die aktuelle Wertung und Saisonbilanz; !session zeigt Elo sowie Siege/Niederlagen seit Stream-Beginn und hält deinen Stand beim Live-Start fest. !elo kann beliebige Spieler nennen (z. B. \"!elo Feinberg\"); !session verfolgt immer dein verknüpftes Konto. !lastmatch zeigt das letzte Match; !record vergleicht die direkte Bilanz zweier Spieler; !lb zeigt die Top 5 der Elo-, Phasenpunkte- oder Rekordrangliste; !race zeigt die Führung im Wochenrennen und deine eigene Zeit. !elo, !lastmatch, !record und !lb akzeptieren am Ende \"season:11\", um eine frühere Saison anzusehen. !pace, !nethers und !lastfort rufen Live-Speedrun-Zwischenzeiten von PaceMan.gg für dasselbe verknüpfte Konto ab. !pb zeigt eine persönliche Bestzeit: daily/weekly/monthly von PaceMan oder \"ranked\" für die Saisonbestzeit in MCSR Ranked; ein Spielername kann danach stehen oder allein für die PaceMan-Bestzeit aller Zeiten.",
+  "settings": {
+    "account": {
+      "label": "Verknüpftes Minecraft-Konto",
+      "help": "Standardspieler für alle Befehle. Leer lassen, um deinen Twitch-Nutzernamen zu verwenden. Der Bot speichert die Konto-UUID, wenn Mojang es zulässt, damit Ranked-Befehle nach einer Umbenennung weiter funktionieren. PaceMan verwendet weiterhin den Nutzernamen.",
+      "placeholder": "Dein Minecraft-Nutzername"
+    }
+  },
+  "replies": {
+    "elo": {
+      "tagline": "Aktuelle Elo, Rang und Saisonbilanz.",
+      "defaultMessage": "{player}: {elo} Elo · Rang #{rank} · {wins}S {losses}N diese Saison"
+    },
+    "session": {
+      "tagline": "Elo und Bilanz seit Stream-Beginn.",
+      "defaultMessage": "{player} in diesem Stream: {elochange} Elo (jetzt {elo}) · {wins}S {losses}N {draws}U · Matches: {matches}"
+    },
+    "pace": {
+      "tagline": "Durchschnittliche Zwischenzeiten der aktuellen Sitzung, von PaceMan.gg.",
+      "defaultMessage": "{player} in dieser Sitzung: Nether-Eintritte: {nethers} (Ø {nether}) · Bastion {bastion} · Festung {fortress} · fp {firstportal} · {nph} nph"
+    },
+    "nethers": {
+      "tagline": "Anzahl und Zwischenzeiten der Nether-Eintritte in der aktuellen Sitzung.",
+      "defaultMessage": "{player}: Nether-Eintritte in dieser Sitzung: {nethers} (Ø {nether}) · {nph} nph"
+    },
+    "lastfort": {
+      "tagline": "Zwischenzeiten des letzten Runs, der eine Festung oder Bastion erreicht hat.",
+      "defaultMessage": "{player}, letzte Festung: Nether {nether} · Bastion {bastion} · Festung {fortress} · fp {firstportal} · sh {stronghold} · Zeit seitdem: {ago}"
+    },
+    "lastmatch": {
+      "tagline": "Das letzte Match: Gegner, Ergebnis, Seed und Elo-Änderung.",
+      "defaultMessage": "{player} gegen {opponent}: {result} · {time} · {seed} {structure} · {elochange} Elo · Zeit seitdem: {ago}"
+    },
+    "record": {
+      "tagline": "Direkte Siege zwischen zwei Spielern.",
+      "event": "!record <player> [player2]",
+      "defaultMessage": "{playera} {winsa} - {winsb} {playerb} · gespielt: {played}"
+    },
+    "lb": {
+      "tagline": "Top 5 der Elo-, Phasenpunkte- oder Rekordrangliste.",
+      "event": "!lb [phase [predicted]|record] [country:xx]",
+      "defaultMessage": "{board}: {list}"
+    },
+    "race": {
+      "tagline": "Führung im Rennen dieser Woche und eigene Zeit des Spielers.",
+      "defaultMessage": "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
+    },
+    "pb": {
+      "tagline": "Persönliche Bestzeit: PaceMan täglich/wöchentlich/monatlich/gesamt oder die Saisonbestzeit in MCSR Ranked.",
+      "event": "!pb [daily|weekly|monthly|ranked] [player]",
+      "defaultMessage": "{player}: {time} ({window} PB)"
+    }
+  }
+}

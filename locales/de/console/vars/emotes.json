@@ -1,0 +1,5 @@
+{
+  "name": "Emote-Liste",
+  "hint": "alle globalen Emote-Codes eines Anbieters ({emotes:7tv}, {emotes:bttv} oder {emotes:ffz}), durch Leerzeichen getrennt",
+  "desc": "Die globalen Emote-Codes eines Anbieters (7TV, BetterTTV oder FrankerFaceZ), durch Leerzeichen getrennt. Dies sind die Emotes, die jeder Kanal hat, nicht die von dir hinzugefügten. Eine lange Liste wird auf eine Chat-Zeile gekürzt."
+}

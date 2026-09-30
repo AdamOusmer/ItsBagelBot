@@ -1,0 +1,6 @@
+{
+  "broadcaster": "@%s es quien transmite.",
+  "followed": "Tiempo que @%s lleva siguiendo el canal: %s.",
+  "not_following": "@%s no sigue este canal.",
+  "unavailable": "El tiempo siguiendo el canal no está disponible ahora."
+}

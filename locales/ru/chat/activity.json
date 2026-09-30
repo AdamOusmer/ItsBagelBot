@@ -1,0 +1,10 @@
+{
+  "command.answered": "!%s ответила @%s",
+  "event.follow": "Новый фолловер: %s",
+  "event.subscribe": "Новая подписка: %s (%s)",
+  "event.gift": "%s: подарены подписки, количество: %d",
+  "event.raid": "Рейд от %s; зрителей: %d",
+  "automod.ban_timeout": "выдан бан или временное ограничение чата",
+  "automod.deleted": "сообщение удалено",
+  "reward.redemption": "активация награды %s"
+}

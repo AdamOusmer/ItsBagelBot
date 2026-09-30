@@ -1,0 +1,12 @@
+{
+  "everyone": "Alle",
+  "sub": "Abonnenten",
+  "vip": "VIPs",
+  "mod": "Moderatoren",
+  "help": "Wie viele Songs ein Zuschauer gleichzeitig in der Warteschlange haben darf. Lasse eine Stufe leer, um kein Limit zu setzen. Für dich gilt nie ein Limit.",
+  "save": "Limits speichern",
+  "saveFailed": "Die Limits konnten nicht gespeichert werden.",
+  "saved": "Limits gespeichert.",
+  "title": "Limits pro Zuschauer",
+  "unlimited": "Kein Limit"
+}

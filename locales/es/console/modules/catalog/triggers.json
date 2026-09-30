@@ -1,0 +1,5 @@
+{
+  "label": "Palabras activadoras",
+  "tagline": "Responde automáticamente cuando aparece una palabra en el chat, sin necesidad de \"!\".",
+  "description": "Dale al bot una lista de palabras o frases y el mensaje que debe publicar cuando vea una en el chat normal, sin prefijo de comando. Cada regla vincula una frase con una respuesta: elige cómo debe coincidir la frase (palabra completa, contiene, mensaje exacto o empieza por; por defecto se busca la palabra completa, así que \"hi\" no se activa dentro de \"this\"), escribe la respuesta y activa o desactiva reglas individuales sin eliminarlas. Las respuestas admiten {user}, {random} y {choice:a,b,c}. Gana la primera regla que coincida, así que cada mensaje recibe como máximo una respuesta."
+}

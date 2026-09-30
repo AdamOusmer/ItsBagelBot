@@ -1,0 +1,51 @@
+{
+  "label": "Fila para jogar",
+  "tagline": "Deixe espectadores entrar na fila para jogar com você, por ordem de chegada.",
+  "description": "Espectadores digitam !join para entrar e !list para ver quem vem a seguir (os primeiros 10). Você e seus moderadores controlam a fila pelo chat: !queue open e !queue close aceitam ou interrompem novas entradas, !queue next chama o próximo jogador, !queue remove <user> retira alguém e !queue clear esvazia tudo. Espectadores podem sair a qualquer momento com !leave. Ative o módulo para habilitar os comandos; a fila é preservada ao fechar para você jogar com todos que já esperam.",
+  "replies": {
+    "join": {
+      "label": "Confirmação de entrada",
+      "tagline": "Quando um espectador entra na fila.",
+      "defaultMessage": "@{user} você entrou na fila na posição #{pos}."
+    },
+    "already": {
+      "label": "Já está na fila",
+      "tagline": "Quando alguém que já está na fila digita !join novamente.",
+      "defaultMessage": "@{user} você já está na fila na posição #{pos}."
+    },
+    "leave": {
+      "label": "Confirmação de saída",
+      "tagline": "Quando um espectador sai da fila.",
+      "defaultMessage": "@{user} você saiu da fila."
+    },
+    "next": {
+      "label": "Próximo jogador",
+      "tagline": "Quando você chama o próximo jogador.",
+      "event": "!queue next",
+      "defaultMessage": "@{target} é sua vez! (na espera: {count})"
+    },
+    "opened": {
+      "label": "Fila aberta",
+      "tagline": "Anunciado quando você abre a fila.",
+      "event": "!queue open",
+      "defaultMessage": "A fila está aberta! Digite !join para entrar."
+    },
+    "closed": {
+      "label": "Fila fechada",
+      "tagline": "Anunciado quando você fecha a fila.",
+      "event": "!queue close",
+      "defaultMessage": "A fila está fechada para novas entradas."
+    }
+  },
+  "commands": {
+    "join": "Entre na fila para jogar (também !queue join).",
+    "leave": "Saia da fila (também !queue leave).",
+    "list": "Mostre os próximos 10 jogadores na espera (também !queue list).",
+    "queue": "Mostre se a fila está aberta e quantas pessoas estão na espera.",
+    "queue_open": "Comece a aceitar entradas.",
+    "queue_close": "Pare de aceitar entradas; a fila é mantida.",
+    "queue_next": "Chame e anuncie o próximo jogador.",
+    "queue_remove_user": "Retire alguém da fila.",
+    "queue_clear": "Esvazie a fila."
+  }
+}

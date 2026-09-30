@@ -1,0 +1,10 @@
+{
+  "enableLabel": "Aceitar resgates de recompensa",
+  "enableOff": "Os pontos dos resgates são devolvidos e nada entra na fila.",
+  "enableOn": "Os resgates adicionam músicas à fila agora.",
+  "help": "Uma recompensa personalizada cujo texto digitado é a busca da música. O resgate adiciona a música à fila.",
+  "liveOnlyOff": "O resgate funciona mesmo quando você está offline.",
+  "liveOnlyOn": "O resgate só funciona enquanto você está ao vivo.",
+  "title": "Pontos do canal",
+  "liveOnlyDisabled": "Ative os resgates para alterar isto."
+}

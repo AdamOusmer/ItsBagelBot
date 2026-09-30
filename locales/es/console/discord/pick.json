@@ -1,0 +1,20 @@
+{
+  "addable": "Bagel aún no está en este servidor.",
+  "back": "Volver a mis servidores",
+  "cta": "Añadir Bagel aquí",
+  "description": "Estos son los servidores que posees o puedes gestionar. Elige uno y Discord te pedirá confirmación antes de que Bagel se una.",
+  "elsewhere": "Este servidor está vinculado a otro canal de Twitch. Pide al propietario de ese otro canal que lo desvincule primero.",
+  "elsewhereChip": "Vinculado a otro canal",
+  "emptyBody": "Bagel solo puede añadirse a un servidor del que seas propietario o en el que tengas el permiso Gestionar servidor. Pídeselo al propietario o crea primero tu propio servidor.",
+  "emptyTitle": "No hay servidores a los que podamos añadir Bagel",
+  "help": "Elegir un servidor te lleva a la pantalla de confirmación de Discord. Nada cambia hasta que aceptes allí.",
+  "mine": "Bagel ya está en este servidor.",
+  "privacy": "Pedimos a Discord tu lista de servidores para crear esta página. La lista se usa una sola vez, aquí, y nunca se almacena.",
+  "title": "Servidores que gestionas",
+  "titleEm": "servidor",
+  "titlePre": "Elige un",
+  "searchLabel": "Buscar un servidor",
+  "searchPh": "Buscar en tus servidores",
+  "noMatch": "Ningún servidor coincide con esa búsqueda.",
+  "missingHint": "¿Falta un servidor? Necesitas el permiso Gestionar servidor en él."
+}

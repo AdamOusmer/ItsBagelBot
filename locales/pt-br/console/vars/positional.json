@@ -1,0 +1,8 @@
+{
+  "name": "Número da palavra",
+  "hint": "palavra 1 digitada após o comando; {2} é a próxima, até {30}; {2:4} seleciona um intervalo",
+  "desc": "Palavra 1 digitada após o comando. {2} é a próxima, e assim por diante até {30}. Vazio quando essa palavra não foi digitada. {2:} pega da palavra até o final em um único texto; mude o número para começar em outra posição, {1:} pega tudo. {2:4} pega as palavras 2 a 4 do mesmo jeito, e {:2} é o mesmo intervalo começando na palavra 1 (as duas primeiras). Um fim além da última palavra digitada para nessa última palavra; um fim antes do início, como {4:2}, é deixado exatamente como escrito.",
+  "restHint": "da palavra 2 até o final, em um único texto",
+  "leadingHint": "as primeiras 2 palavras, em um único texto",
+  "boundedHint": "palavras 2 a 4, em um único texto"
+}

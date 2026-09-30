@@ -1,0 +1,7 @@
+{
+  "release": "Criar a tag de uma nova versão, compilar cada imagem, fixá-la e implantar todos os serviços.",
+  "hotfix": "Mover a tag atual para um commit posterior, recompilar, fixar novamente e implantar.",
+  "bump": "Fixar as imagens que main acabou de compilar. Só os serviços cuja imagem mudou são implantados.",
+  "rollback": "Fixar as imagens de uma versão anterior e implantar. Sem compilação.",
+  "reapply": "Implantar as referências já fixadas em main. Sem compilação, sem PR."
+}

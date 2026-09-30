@@ -1,0 +1,34 @@
+{
+  "stageOf": "Etapa {n} de {total}",
+  "follow": "Acompanhar ao vivo",
+  "about": {
+    "preflight": "Verifica se o cluster está acessível, se os manifestos passam na análise, se as verificações obrigatórias do destino passam e se todas as cargas de trabalho estão estáveis.",
+    "merge_prs": "Mescla cada pull request selecionado após a aprovação das verificações, atualizando primeiro os branches desatualizados.",
+    "changelog": "Abre e mescla um pull request que adiciona o arquivo de notas desta versão ao main.",
+    "tag": "Cria a tag da versão no commit das notas de versão. Qualquer conteúdo fora do main é recusado.",
+    "release": "Publica a versão no GitHub para a tag, usando os destaques do histórico de alterações como notas.",
+    "build": "Aguarda o fluxo de imagens no GitHub terminar e acompanha os jobs de build de cada imagem.",
+    "digests": "Consulta cada imagem gerada e verifica as duas arquiteturas, o commit correto e a proveniência.",
+    "pin_pr": "Abre e mescla um pull request que fixa os manifestos do main nos novos digests de imagem.",
+    "acl": "Aplica a configuração do NATS e aguarda até que todos os servidores NATS a recarreguem e estabilizem.",
+    "rollout": "Aplica a configuração compartilhada, depois atualiza um serviço por vez e aguarda seus pods antes do próximo.",
+    "verify": "Verifica se cada pod executa sua imagem fixada e se as páginas de status respondem. Uma falha oferece a opção de reverter."
+  },
+  "state": {
+    "pending": "Começa quando as etapas anteriores terminarem.",
+    "running": "Em execução agora.",
+    "waiting": "Pausado até que algo externo à execução esteja pronto.",
+    "succeeded": "Concluído.",
+    "failed": "Parou aqui. Nenhuma etapa posterior foi executada.",
+    "skipped": "Desnecessário para esta execução.",
+    "cancelled": "Cancelado antes de terminar."
+  },
+  "nowBuilding": "Gerando imagens",
+  "nowRolling": "Implantando",
+  "nowOf": "{n} de {total}",
+  "nowAllBuilt": "Todas as imagens foram geradas: {total}.",
+  "nowAllRolled": "Todos os serviços foram implantados: {total}.",
+  "pods": "Pods prontos: {done} de {total}",
+  "jobs": "Jobs concluídos: {done} de {total}",
+  "openJob": "Abrir job"
+}

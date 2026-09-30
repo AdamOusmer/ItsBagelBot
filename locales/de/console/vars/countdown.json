@@ -1,0 +1,5 @@
+{
+  "name": "Zeit bis zu einem Datum",
+  "hint": "wie lange es bis zu diesem Datum dauert (YYYY-MM-DD oder vollständiger Zeitstempel)",
+  "desc": "Wie lange es bis zu diesem Datum dauert. Schreibe es als YYYY-MM-DD oder vollständigen Zeitstempel. Keine Ausgabe, wenn das Datum vorbei ist."
+}

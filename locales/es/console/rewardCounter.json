@@ -1,0 +1,21 @@
+{
+  "enable": "Mantener un contador",
+  "nameLabel": "Nombre del contador",
+  "nameHint": "Escribe un nombre nuevo para crearlo aquí o el de un contador existente para incrementarlo.",
+  "errNameRequired": "Introduce un nombre de contador o desactiva Mantener un contador.",
+  "scopeLabel": "A qué recuento contribuye cada canje",
+  "scopeViewerReward": "Por espectador y recompensa",
+  "scopeViewerRewardDesc": "Cada espectador tiene su propio recuento para esta recompensa. La mejor opción para la mayoría de recompensas.",
+  "scopeReward": "Por recompensa, todos los espectadores",
+  "scopeRewardDesc": "Todos contribuyen a un único total compartido para esta recompensa. La mejor opción para objetivos comunitarios.",
+  "scopeViewer": "Por espectador",
+  "scopeViewerDesc": "Cada espectador tiene un recuento compartido entre todas las recompensas que usan este contador.",
+  "scopeChannel": "Todo el canal",
+  "scopeChannelDesc": "Un único total acumulado para todo el canal.",
+  "tokenNote": "Usa {counter} en la respuesta del chat para mostrar el nuevo total.",
+  "pointsEnable": "Dar puntos de fidelidad",
+  "pointsLabel": "Puntos por canje",
+  "pointsHint": "Usa {points} en la respuesta del chat para mostrar la cantidad.",
+  "liveOnly": "Solo mientras transmito en directo",
+  "liveOnlyHint": "Los canjes fuera del directo siguen respondiendo en el chat, pero no cuentan ni conceden puntos."
+}

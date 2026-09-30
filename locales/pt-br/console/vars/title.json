@@ -1,0 +1,5 @@
+{
+  "name": "Título da transmissão",
+  "hint": "seu título atual, ou {title:someone} para outro canal (controle de !title)",
+  "desc": "O título atual da transmissão, o mesmo mostrado por !title. Funciona offline também. {title:someone} retorna o de outro canal. Segue o controle de !title."
+}

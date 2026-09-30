@@ -1,0 +1,41 @@
+{
+  "join": {
+    "user": {
+      "name": "Teilnehmer",
+      "hint": "Wer der Warteschlange beigetreten ist",
+      "desc": "Wer der Warteschlange beigetreten ist."
+    },
+    "pos": {
+      "name": "Warteschlangenposition",
+      "hint": "Der Platz in der Warteschlange",
+      "desc": "Der Platz in der Warteschlange."
+    },
+    "channel": {
+      "name": "Kanal",
+      "hint": "Dein Kanalname",
+      "desc": "Dein Kanalname."
+    }
+  },
+  "next": {
+    "target": {
+      "name": "Nächster Spieler",
+      "hint": "Wer als Nächstes dran ist",
+      "desc": "Wer als Nächstes dran ist."
+    },
+    "count": {
+      "name": "Noch wartend",
+      "hint": "Wie viele Personen noch warten",
+      "desc": "Wie viele Personen noch warten."
+    },
+    "user": {
+      "name": "Ausführender Mod",
+      "hint": "Der Mod, der den nächsten Spieler aufgerufen hat",
+      "desc": "Der Mod, der !queue next ausgeführt hat."
+    },
+    "channel": {
+      "name": "Kanal",
+      "hint": "Dein Kanalname",
+      "desc": "Dein Kanalname."
+    }
+  }
+}

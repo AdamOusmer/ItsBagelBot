@@ -1,0 +1,5 @@
+{
+  "name": "Um emote aleatório",
+  "hint": "um código de emote escolhido ao acaso desses conjuntos globais",
+  "desc": "Um código de emote sorteado dessas listas. Duas ocorrências em uma resposta são duas escolhas separadas. Se o bot ainda não carregou nenhum código, retorna vazio."
+}

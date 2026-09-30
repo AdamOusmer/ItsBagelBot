@@ -1,0 +1,43 @@
+{
+  "label": "Estadísticas de Fortnite",
+  "tagline": "Estadísticas de Fortnite BR y tienda diaria de objetos en el chat.",
+  "description": "Un comando, cuatro vistas: !fn muestra las victorias, partidas, eliminaciones, K/D y porcentaje de victorias históricos de un jugador, con desglose individual/dúos/escuadrones; !fn season muestra lo mismo para la temporada actual (el bot detecta los cambios de temporada automáticamente); !fn session muestra victorias, eliminaciones y K/D desde el inicio de la transmisión, guardando una instantánea de tus estadísticas en cuanto empiezas a transmitir; !fn store muestra los objetos de la tienda de hoy. También funcionan las formas abreviadas !fnstats, !fnseason, !fnsession y !fnstore. Vincula tu nombre visible de Epic abajo. Los espectadores también pueden indicar cualquier jugador, p. ej., \"!fn Ninja\"; !fn session siempre sigue tu cuenta vinculada. Aún no se pueden buscar nombres de PlayStation ni Xbox.",
+  "settings": {
+    "account": {
+      "label": "Nombre de cuenta vinculada",
+      "help": "Jugador predeterminado para los comandos de estadísticas. Déjalo vacío para usar tu nombre de usuario de Twitch.",
+      "placeholder": "Tu nombre visible de Epic"
+    },
+    "accountType": {
+      "label": "Plataforma de la cuenta",
+      "help": "Ahora solo se resuelven nombres visibles de Epic; las búsquedas de PlayStation y Xbox llegarán más adelante. Si juegas en consola, tu nombre visible de Epic funciona.",
+      "placeholder": "epic",
+      "options": {
+        "epic": "Epic Games",
+        "psn": "PlayStation (más adelante)",
+        "xbl": "Xbox Live (más adelante)"
+      }
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Estadísticas históricas de Battle Royale: !fn, !fn stats o !fnstats.",
+      "defaultMessage": "{player}, histórico: victorias: {wins} · partidas: {matches} · {winrate}% victorias · eliminaciones: {kills} · {kd} K/D · individual {solowins}V / dúos {duowins}V / escuadrones {squadwins}V"
+    },
+    "season": {
+      "tagline": "Estadísticas de la temporada actual (también !fnseason); los cambios de temporada se detectan automáticamente.",
+      "event": "!fn season",
+      "defaultMessage": "{player}, esta temporada: victorias: {wins} · partidas: {matches} · {winrate}% victorias · eliminaciones: {kills} · {kd} K/D · individual {solowins}V / dúos {duowins}V / escuadrones {squadwins}V"
+    },
+    "session": {
+      "tagline": "Victorias, eliminaciones y K/D desde el inicio de la transmisión (también !fnsession).",
+      "event": "!fn session",
+      "defaultMessage": "{player}, esta transmisión: victorias: {wins} · partidas: {matches} · {winrate}% victorias · eliminaciones: {kills} · {kd} K/D"
+    },
+    "store": {
+      "tagline": "Rotación de la tienda de objetos de hoy (también !fnstore).",
+      "event": "!fn store",
+      "defaultMessage": "Tienda de objetos {date}: {items}"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Spielwarteschlange",
+  "hint": "Benötigt das aktivierte Modul Spielwarteschlange.",
+  "desc": "Verwende {queue:variable} in einem eigenen Befehl, um die öffentlichen Werte dieses Moduls zu lesen. Benötigt das aktivierte Modul Spielwarteschlange. Das Hinzufügen einer Variable aktiviert ihr Modul nicht. Bei deaktivierten Modulen bleibt die Variable im Chat sichtbar. Ereignisgebundene Werte sind leer, wenn der Befehl kein passendes Ereignis hat; verwende |fallback für leere Werte. Die Vorschau nutzt Beispieldaten und bestätigt nicht, dass dein Modul aktiviert ist."
+}
