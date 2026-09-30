@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { HTMLAttributes } from 'svelte/elements';
+  import type { ProgressTone } from '../lib/tone';
 
   export type StepState =
     | 'pending'
@@ -64,12 +65,12 @@
     cancelled: i18n.t('steps.cancelled'),
   };
 
-  const TONE: Record<StepState, 'neutral' | 'success' | 'warning' | 'error'> = {
+  const TONE: Record<StepState, ProgressTone> = {
     pending: 'neutral',
     running: 'neutral',
     waiting: 'warning',
     succeeded: 'success',
-    failed: 'error',
+    failed: 'danger',
     skipped: 'neutral',
     cancelled: 'neutral',
   };

@@ -158,7 +158,7 @@
               {#each data.commands as cmd (cmd.trigger)}
                 <tr>
                   <td>
-                    <Code tone="positive">{cmd.trigger}</Code>
+                    <Code tone="success">{cmd.trigger}</Code>
                     {#if cmd.aliases.length > 0}
                       <Text as="div" size="xs" tone="muted" mono>{cmd.aliases.join(' ')}</Text>
                     {/if}

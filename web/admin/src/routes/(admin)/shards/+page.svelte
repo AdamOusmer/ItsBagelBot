@@ -230,7 +230,7 @@
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       failed(p, t('admin.shards.scaleFailed'));
@@ -249,7 +249,7 @@
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       if (before) snap = before;

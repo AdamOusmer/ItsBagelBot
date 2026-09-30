@@ -278,11 +278,11 @@
     stripCheckoutParam();
 
     if (celebrateKind === 'gift') {
-      toast('ok', t('billing.toastGiftSent'));
+      toast('success', t('billing.toastGiftSent'));
       return;
     }
 
-    toast('ok', t('billing.toastPaymentReceived'));
+    toast('success', t('billing.toastPaymentReceived'));
     return isPaid ? undefined : watchActivation();
   });
 
@@ -306,7 +306,7 @@
     if (checkoutToasted) return;
     if (page.url.searchParams.get('checkout') !== 'cancelled') return;
     checkoutToasted = true;
-    toast('err', t('billing.toastCheckoutCancelled'));
+    toast('danger', t('billing.toastCheckoutCancelled'));
   });
 
   // svelte-ignore state_referenced_locally
@@ -321,7 +321,7 @@
     resuming = false;
     cancelling = false;
     cancelDialogOpen = false;
-    if (form.error) toast('err', String(form.error));
+    if (form.error) toast('danger', String(form.error));
     if (form.gift) {
       giftModalOpen = true;
       if ('recipient' in form) giftRecipient = String(form.recipient);
@@ -361,9 +361,9 @@
             <div class="prize-cell">
               {#if prize.confirmedStart || prize.plannedStart}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</Text>{/if}
               {#if prize.confirmedEnd || prize.plannedEnd}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</Text>{/if}
-              {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warn">{t('billing.prizeBillingPending')}</Text>{/if}
+              {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warning">{t('billing.prizeBillingPending')}</Text>{/if}
             </div>
-            {#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warn">{t('billing.prizeEmailMissing')}</Text>{/if}
+            {#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warning">{t('billing.prizeEmailMissing')}</Text>{/if}
           </article>
         {/each}
       </Card>

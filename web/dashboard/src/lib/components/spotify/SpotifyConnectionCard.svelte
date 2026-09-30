@@ -71,14 +71,14 @@
       }
       clientSecret = '';
       replacing = false;
-      toast('ok', t('spotify.app.saved'));
+      toast('success', t('spotify.app.saved'));
       await invalidateAll();
     };
   };
 
   async function copyRedirect() {
     const copied = await copyText(redirectUri);
-    toast(copied ? 'ok' : 'err', t(copied ? 'spotify.app.redirectCopied' : 'spotify.app.redirectCopyFailed'));
+    toast(copied ? 'success' : 'danger', t(copied ? 'spotify.app.redirectCopied' : 'spotify.app.redirectCopyFailed'));
   }
 </script>
 
@@ -87,7 +87,7 @@
 
   <div class="line">
     <span class="line-label"><Text as="span" size="sm" tone="muted">{t('spotify.connection.accountLabel')}</Text></span>
-    <Tag tone={needsReconnect ? 'error' : 'live'} mark={needsReconnect ? 'hollow' : 'solid'}>
+    <Tag tone={needsReconnect ? 'danger' : 'live'} mark={needsReconnect ? 'hollow' : 'solid'}>
       {needsReconnect ? t('spotify.connection.needsReconnectPill') : t('spotify.connection.connectedPill')}
     </Tag>
     <span class="line-actions">

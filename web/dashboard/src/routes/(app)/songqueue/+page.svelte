@@ -148,7 +148,7 @@
   function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
-      toast('err', t('spotify.connection.reconnect'));
+      toast('danger', t('spotify.connection.reconnect'));
       return;
     }
     failed(payload, fallbackKey);
@@ -169,7 +169,7 @@
         queueAt = Date.now();
       }
     } catch {
-      if (manual) toast('err', t('spotify.degraded'));
+      if (manual) toast('danger', t('spotify.degraded'));
     } finally {
       queueBusy = false;
       queueRefreshing = false;
@@ -196,12 +196,12 @@
       skipping = false;
       const payload = actionPayload<SongQueueActionOk & { code?: string }>(result);
       if (isOk(result, payload)) {
-        toast('ok', t('spotify.queue.skipped'));
+        toast('success', t('spotify.queue.skipped'));
         setTimeout(() => void refreshQueue(false), SKIP_REFRESH_MS);
         return;
       }
       const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
-      if (key) toast('err', t(key));
+      if (key) toast('danger', t(key));
       else reportFailure(payload, 'spotify.queue.skipFailed');
     };
   };
@@ -210,7 +210,7 @@
     const poll = setInterval(() => {
       if (!document.hidden) void refreshQueue(false);
     }, QUEUE_POLL_MS);
-    if (data.justConnected) toast('ok', t('spotify.connection.connectedToast'));
+    if (data.justConnected) toast('success', t('spotify.connection.connectedToast'));
     return () => clearInterval(poll);
   });
 
@@ -232,7 +232,7 @@
       }
       if (action === 'clearApp') app = { present: false, clientId: '' };
       connected = false;
-      toast('ok', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
+      toast('success', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
       await invalidateAll();
     };
   };
@@ -252,7 +252,7 @@
           reportFailure(payload, opts.failKey);
           return;
         }
-        if (opts.okKey) toast('ok', t(opts.okKey));
+        if (opts.okKey) toast('success', t(opts.okKey));
         await invalidateAll();
       };
     };
@@ -288,7 +288,7 @@
         reportFailure(payload, 'spotify.quota.saveFailed');
         return;
       }
-      toast('ok', t('spotify.quota.saved'));
+      toast('success', t('spotify.quota.saved'));
       await invalidateAll();
     };
   };
@@ -358,7 +358,7 @@
         reportFailure(payload, 'spotify.toast.saveFailed');
         return;
       }
-      toast('ok', t('spotify.toast.saved'));
+      toast('success', t('spotify.toast.saved'));
       await invalidateAll();
     };
   };
@@ -378,7 +378,7 @@
         return;
       }
       doClose();
-      toast('ok', t('spotify.toast.deleted'));
+      toast('success', t('spotify.toast.deleted'));
       await invalidateAll();
     };
   };

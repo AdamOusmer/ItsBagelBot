@@ -648,7 +648,7 @@ const REMAINING: {
     astro: AstroSaveStatus,
     props: { state: 'error', compact: true },
     html:
-      '<span class="bb-tag bb-tag--error" role="status">' +
+      '<span class="bb-tag bb-tag--danger" role="status">' +
       '<i class="bb-mark bb-mark--hollow" aria-hidden="true"></i></span>',
   },
   {
@@ -970,12 +970,12 @@ const PRIMITIVES: {
     html: "<span class=\"bb-text bb-text--xs bb-text--pale\">May 1</span>",
   },
   {
-    name: "Text|warn",
+    name: "Text|warning",
     svelte: SvelteText,
     astro: AstroText,
-    props: {"size":"xs","tone":"warn","as":"small"},
+    props: {"size":"xs","tone":"warning","as":"small"},
     slot: "Billing pending",
-    html: "<small class=\"bb-text bb-text--xs bb-text--warn\">Billing pending</small>",
+    html: "<small class=\"bb-text bb-text--xs bb-text--warning\">Billing pending</small>",
   },
   {
     name: "Eyebrow",

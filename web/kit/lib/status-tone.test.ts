@@ -7,8 +7,8 @@ import { statusTone, type StatusTone } from './status-tone';
 
 const TONES: Record<ConnKind, StatusTone> = {
   online: 'success',
-  degraded: 'error',
-  reauth_required: 'error',
+  degraded: 'danger',
+  reauth_required: 'danger',
   unavailable: 'neutral',
   auth_required: 'warning',
   disabled: 'warning',

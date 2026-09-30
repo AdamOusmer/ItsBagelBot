@@ -108,7 +108,7 @@
         color: var(--bb-white);
     }
 
-    .bb-switch-row--warn .bb-switch-row__label {
+    .bb-switch-row--warning .bb-switch-row__label {
         color: var(--bb-warn);
     }
 

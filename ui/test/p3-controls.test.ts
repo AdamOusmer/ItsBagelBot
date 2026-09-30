@@ -123,17 +123,17 @@ describe('SwitchRow', () => {
     name: 'status sits between the text and the switch, warn tones the label',
     svelte: SvelteSwitchRow,
     astro: AstroSwitchRow,
-    props: { label: 'Live only', control: 'end', tone: 'warn' },
+    props: { label: 'Live only', control: 'end', tone: 'warning' },
     slots: { status: '<em>Saved</em>' },
     html:
-      '<div class="bb-switch-row bb-switch-row--end bb-switch-row--warn"><span class="bb-switch-row__text">' +
+      '<div class="bb-switch-row bb-switch-row--end bb-switch-row--warning"><span class="bb-switch-row__text">' +
       '<span class="bb-switch-row__label">Live only</span></span><span class="bb-switch-row__status"><em>Saved</em></span>' +
       '<button type="button" class="bb-switch" role="switch" aria-checked="false" aria-label="Live only" data-state="off"></button></div>',
   });
 
   test('warn reads the warn token', async () => {
     expect(await css('elements/toggle.css')).toContain(
-      '.bb-switch-row--warn .bb-switch-row__label {\n        color: var(--bb-warn);',
+      '.bb-switch-row--warning .bb-switch-row__label {\n        color: var(--bb-warn);',
     );
   });
 });
@@ -296,9 +296,9 @@ describe('StatTile', () => {
     name: 'inline toned stat',
     svelte: SvelteStatTile,
     astro: AstroStatTile,
-    props: { label: 'Answered', value: '1,204', static: true, inline: true, tone: 'positive' },
+    props: { label: 'Answered', value: '1,204', static: true, inline: true, tone: 'success' },
     html:
-      '<div class="bb-stat bb-stat--static bb-stat--inline bb-stat--positive"><div class="bb-stat__head">' +
+      '<div class="bb-stat bb-stat--static bb-stat--inline bb-stat--success"><div class="bb-stat__head">' +
       '<span class="bb-stat__label">Answered</span></div><div class="bb-stat__value"><span>1,204</span></div></div>',
   });
 

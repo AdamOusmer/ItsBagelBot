@@ -67,8 +67,8 @@
     })
   );
 
-  const STATE_TONE: Partial<Record<TrialChannel['state'], 'positive' | 'danger'>> = {
-    receiving: 'positive',
+  const STATE_TONE: Partial<Record<TrialChannel['state'], 'success' | 'danger'>> = {
+    receiving: 'success',
     failed: 'danger'
   };
 

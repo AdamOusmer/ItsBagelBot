@@ -292,7 +292,7 @@ export class ImportSession {
       return 'failed';
     }
     this.commitResult = previous ? mergeRetry(previous, commit) : commit;
-    toast('ok', this.t(previous ? 'import.toastRetried' : 'import.toastApplied'));
+    toast('success', this.t(previous ? 'import.toastRetried' : 'import.toastApplied'));
     return 'ok';
   }
 

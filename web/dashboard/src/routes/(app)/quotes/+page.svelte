@@ -183,7 +183,7 @@
         failed(payload, wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed');
         return;
       }
-      toast('ok', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
+      toast('success', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -243,7 +243,7 @@
             inspector.reset();
             draft = null;
           }
-          toast('ok', t('quotes.toastDeleted'));
+          toast('success', t('quotes.toastDeleted'));
         }
         await invalidateAll();
         return;

@@ -82,8 +82,8 @@
   const WARNING = new Set(['needs_review', 'pending', 'uncertain', 'missing']);
   const DANGER = new Set(['incident', 'failed']);
 
-  function tone(value: string): 'positive' | 'warning' | 'danger' | 'neutral' {
-    if (POSITIVE.has(value)) return 'positive';
+  function tone(value: string): 'success' | 'warning' | 'danger' | 'neutral' {
+    if (POSITIVE.has(value)) return 'success';
     if (WARNING.has(value)) return 'warning';
     if (DANGER.has(value)) return 'danger';
     return 'neutral';
@@ -136,7 +136,7 @@
               {/if}
             </Cluster>
             {#if giveaway.status === 'frozen'}
-              <Text size="xs" tone="warn" role="status">{drawWarning}</Text>
+              <Text size="xs" tone="warning" role="status">{drawWarning}</Text>
               <form method="POST" action="?/draw" use:enhance={mutationSubmit}><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('draw')} /><Button type="submit" variant="primary" disabled={drawState.blocked}>{t('admin.giveaways.draw')}</Button></form>
             {/if}
           </Stack>

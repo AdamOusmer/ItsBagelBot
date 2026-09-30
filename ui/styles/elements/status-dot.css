@@ -18,7 +18,7 @@
     background: var(--bb-tan);
     box-shadow: 0 0 8px var(--bb-tan);
   }
-  .bb-status-dot.error {
+  .bb-status-dot.danger {
     background: var(--bb-status-danger);
     box-shadow: 0 0 8px var(--bb-status-danger);
   }

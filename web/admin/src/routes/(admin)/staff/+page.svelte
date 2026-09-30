@@ -160,7 +160,7 @@
         failed(p, t('admin.staff.saveFailed'));
         return;
       }
-      toast('ok', p!.action!.notice);
+      toast('success', p!.action!.notice);
       if (p?.staff) staff = p.staff;
       if (wasCreating && applied) {
         inspector.reset();
@@ -191,7 +191,7 @@
         after?.();
         const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
-          toast('ok', p.action.notice);
+          toast('success', p.action.notice);
           if (p.staff) staff = p.staff;
           return;
         }

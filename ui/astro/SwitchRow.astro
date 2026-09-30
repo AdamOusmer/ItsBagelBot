@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import type { SwitchRowTone } from '../lib/tone';
 
 import '../styles/elements/toggle.css';
 import Switch from './Switch.astro';
@@ -13,7 +14,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'hint' | 'hintId' 
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
-    tone?: 'warn';
+    tone?: SwitchRowTone;
     disabled?: boolean;
     pending?: boolean;
     type?: 'button' | 'submit';

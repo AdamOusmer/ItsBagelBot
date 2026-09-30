@@ -196,7 +196,7 @@
       const ok = p?.ok === true;
       if (begun) inspector.resolved(begun.requestId, { type: ok ? 'success' : 'error' });
       if (ok) {
-        toast('ok', p!.notice ?? t('admin.lanes.renamed'));
+        toast('success', p!.notice ?? t('admin.lanes.renamed'));
         return;
       }
       if (result && before) result.lanes = before;
@@ -217,7 +217,7 @@
         after();
         const p = actionPayload<LaneActionPayload>(r);
         if (p?.ok) {
-          toast('ok', p.notice ?? t('admin.lanes.done'));
+          toast('success', p.notice ?? t('admin.lanes.done'));
           pollLanes();
           return;
         }

@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/stat-tile.css';
   import type { Snippet } from 'svelte';
+  import type { StatTone } from '../lib/tone';
   import { countUp } from '../lib/count-up';
 
   type Own = {
@@ -14,7 +15,7 @@
     flat?: boolean;
     static?: boolean;
     inline?: boolean;
-    tone?: 'positive' | 'accent';
+    tone?: StatTone;
     class?: string;
     trail?: Snippet;
   };

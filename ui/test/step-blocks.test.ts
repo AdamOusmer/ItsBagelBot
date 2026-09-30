@@ -185,7 +185,7 @@ describe('LineSeries', () => {
   ];
   const series = [
     { key: 'production', label: 'Production' },
-    { key: 'trials', label: 'Trials', tone: 'tan', dashed: true },
+    { key: 'trials', label: 'Trials', tone: 'warm', dashed: true },
   ];
   const props = {
     points,
@@ -206,9 +206,9 @@ describe('LineSeries', () => {
   test('legend carries the latest value per series and the tone modifiers', () => {
     const html = svelte(SvelteLineSeries, props);
     expect(html).toContain(
-      '<div class="bb-line-series__key bb-line-series__key--green"><span class="bb-line-series__swatch" aria-hidden="true"></span><span>Production</span><strong>2 eps</strong></div>',
+      '<div class="bb-line-series__key bb-line-series__key--accent"><span class="bb-line-series__swatch" aria-hidden="true"></span><span>Production</span><strong>2 eps</strong></div>',
     );
-    expect(html).toContain('<div class="bb-line-series__key bb-line-series__key--tan bb-line-series__key--dashed">');
+    expect(html).toContain('<div class="bb-line-series__key bb-line-series__key--warm bb-line-series__key--dashed">');
     expect(html).toContain('<svg viewBox="0 0 800 260" role="img" aria-label="Throughput"><title>Throughput</title><desc>Recent minutes</desc>');
     expect(html).not.toContain('bb-line-series__empty');
     expect(html).not.toContain('bb-line-series__tooltip');

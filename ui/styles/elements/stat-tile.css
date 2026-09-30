@@ -124,7 +124,7 @@
         font-variant-numeric: tabular-nums;
     }
 
-    .bb-stat--positive .bb-stat__value {
+    .bb-stat--success .bb-stat__value {
         color: var(--bb-green-glow);
     }
 

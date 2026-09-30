@@ -36,7 +36,7 @@
     return async ({ result }) => {
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', failMessage);
+        toast('danger', failMessage);
       }
     };
   };

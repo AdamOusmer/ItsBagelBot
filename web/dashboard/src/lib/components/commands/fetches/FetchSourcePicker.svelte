@@ -373,7 +373,7 @@
       <div class="chosen">
         {#if pathPicked && path.length > 0}
           <Tag tone="bare">{t('fetches.builderPicked')}</Tag>
-          <Code tone="positive">{buildJsonPath(path)}</Code>
+          <Code tone="success">{buildJsonPath(path)}</Code>
           <Button variant="ghost" size="sm" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</Button>
         {:else}
           <Text as="span" size="xs" tone="muted">{t('fetches.builderWholeSelected')}</Text>

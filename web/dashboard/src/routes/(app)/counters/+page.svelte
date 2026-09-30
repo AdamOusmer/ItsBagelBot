@@ -257,7 +257,7 @@
         failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      toast('ok', t('counters.toastCreated'));
+      toast('success', t('counters.toastCreated'));
       if (applied) present(null, null);
       await invalidateAll();
     };
@@ -278,7 +278,7 @@
         failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      toast('ok', t('counters.toastSet'));
+      toast('success', t('counters.toastSet'));
       await invalidateAll();
     };
   };
@@ -300,7 +300,7 @@
     return async ({ result }) => {
       renaming = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastRenamed'));
+        toast('success', t('counters.toastRenamed'));
         clearSubFields();
         present(null, null);
         syncSelection(null);
@@ -320,7 +320,7 @@
       resetting = false;
       resetTarget = null;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastReset'));
+        toast('success', t('counters.toastReset'));
         await invalidateAll();
         return;
       }
@@ -356,7 +356,7 @@
     return async ({ result }) => {
       adding = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastAdded'));
+        toast('success', t('counters.toastAdded'));
         addUser = '';
         addCommand = '';
         addValue = '0';
@@ -365,7 +365,7 @@
         return;
       }
       const err = actionPayload(result)?.error;
-      toast('err', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
+      toast('danger', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
     };
   };
 
@@ -408,7 +408,7 @@
     const payload = await postSet(c.name, next, { viewerId: e.viewerId, command: e.command });
     entrySaving = null;
     if (payload?.ok) {
-      toast('ok', t('counters.toastSet'));
+      toast('success', t('counters.toastSet'));
       delete entryEdits[key];
       await invalidateAll();
     } else {
@@ -429,7 +429,7 @@
       entryDeleting = false;
       entryDeleteTarget = null;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastEntryRemoved'));
+        toast('success', t('counters.toastEntryRemoved'));
         await invalidateAll();
         return;
       }
@@ -452,7 +452,7 @@
     return async ({ result }) => {
       deleting = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastDeleted'));
+        toast('success', t('counters.toastDeleted'));
         if (data.selected && snapshot && data.selected === snapshot.name) {
           await goto('/counters', { noScroll: true });
         }

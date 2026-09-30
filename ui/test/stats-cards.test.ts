@@ -31,7 +31,7 @@ const raw = (html: string) => createRawSnippet(() => ({ render: () => html }));
 test('CounterCard: default contract has no rate footer or artwork', async () => {
   const html = await pair(CounterCard, AstroCounterCard, { label: 'Requests', value: '128.4' });
   expect(html).toBe(
-    '<article class="bb-counter-card bb-counter-card--green bb-counter-card--soft" aria-label="Requests">' +
+    '<article class="bb-counter-card bb-counter-card--accent bb-counter-card--soft" aria-label="Requests">' +
     '<div class="bb-counter-card__body"><div class="bb-counter-card__head"><p class="bb-counter-card__label">Requests</p><p class="bb-counter-card__period">All time</p></div>' +
     '<div class="bb-counter-card__measure"><strong class="bb-counter-card__value">128.4</strong></div></div></article>',
   );
@@ -40,9 +40,9 @@ test('CounterCard: default contract has no rate footer or artwork', async () => 
 test('CounterCard: solid tan, tilt, caller artwork and zero rate agree', async () => {
   const html = await pair(CounterCard, AstroCounterCard, {
     label: 'Requests', value: '128.4', unit: 'M', detail: '128,400,000 processed',
-    rate: '0', tone: 'tan', appearance: 'solid', tilt: 'right', class: 'featured', 'data-test': 'counter',
+    rate: '0', tone: 'warm', appearance: 'solid', tilt: 'right', class: 'featured', 'data-test': 'counter',
   }, { artwork: raw(artwork) }, { artwork });
-  expect(html).toContain('bb-counter-card--tan bb-counter-card--solid bb-counter-card--tilt-right featured');
+  expect(html).toContain('bb-counter-card--warm bb-counter-card--solid bb-counter-card--tilt-right featured');
   expect(html).toContain('<span class="bb-counter-card__rate">0<small>/s</small></span>');
   expect(html).toContain('<div class="bb-counter-card__artwork" aria-hidden="true"><i>Artwork</i></div>');
 });
@@ -51,9 +51,9 @@ test('CommunityCard: caller-owned cover artwork and lower content agree', async 
   const content = '<ol><li>Contributor</li></ol>';
   const html = await pair(CommunityCard, AstroCommunityCard, {
     title: 'Shared total', subtitle: 'Across all contributors', total: '82,416',
-    appearance: 'solid', tone: 'green', period: 'This year',
+    appearance: 'solid', tone: 'accent', period: 'This year',
   }, { artwork: raw(artwork), children: raw(content) }, { artwork, default: content });
-  expect(html).toContain('bb-community-card--green bb-community-card--solid');
+  expect(html).toContain('bb-community-card--accent bb-community-card--solid');
   expect(html).toContain('<div class="bb-community-card__body"><ol><li>Contributor</li></ol></div>');
   expect(html).toContain('<p class="bb-community-card__period">This year</p>');
 });

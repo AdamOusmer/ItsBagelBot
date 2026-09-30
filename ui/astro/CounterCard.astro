@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
+import type { CardTone } from '../lib/tone';
 import '../styles/elements/counter-card.css';
 
 interface Props extends Omit<HTMLAttributes<'article'>, 'label' | 'value' | 'unit' | 'detail' | 'rate' | 'rateUnit' | 'rateLabel' | 'period' | 'tone' | 'appearance' | 'tilt' | 'class'> {
@@ -14,7 +15,7 @@ interface Props extends Omit<HTMLAttributes<'article'>, 'label' | 'value' | 'uni
   rateUnit?: string;
   rateLabel?: string;
   period?: string;
-  tone?: 'green' | 'tan';
+  tone?: CardTone;
   appearance?: 'solid' | 'soft';
   tilt?: 'left' | 'right' | 'none';
   class?: string;
@@ -22,7 +23,7 @@ interface Props extends Omit<HTMLAttributes<'article'>, 'label' | 'value' | 'uni
 const { t } = uiI18n(Astro);
 const {
   label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
-  rateLabel = t('data.rightNow'), period = t('data.allTime'), tone = 'green',
+  rateLabel = t('data.rightNow'), period = t('data.allTime'), tone = 'accent',
   appearance = 'soft', tilt = 'none', class: cls = '', ...rest
 } = Astro.props;
 const classes = [

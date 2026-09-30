@@ -4,10 +4,11 @@
   import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/typography.css';
   import type { Snippet } from 'svelte';
+  import type { TextTone } from '../lib/tone';
 
   type Own = {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-    tone?: 'default' | 'muted' | 'muted-light' | 'muted-soft' | 'soft' | 'accent' | 'positive' | 'danger' | 'pale' | 'warn';
+    tone?: TextTone;
     mono?: boolean;
     truncate?: boolean;
     as?: 'p' | 'span' | 'small' | 'div' | 'li' | 'dd' | 'dt';

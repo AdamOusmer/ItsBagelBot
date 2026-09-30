@@ -110,10 +110,10 @@
       return;
     }
     if (payload?.duplicateTitle) {
-      toast('err', t('channelpoints.toastDuplicateTitle'));
+      toast('danger', t('channelpoints.toastDuplicateTitle'));
       return;
     }
-    toast('err', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? t(fallbackKey));
   }
 
   const saveSubmit: SubmitFunction = (input) => {
@@ -144,7 +144,7 @@
         failed(reply, 'channelpoints.toastSaveFailed');
         return;
       }
-      toast('ok', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
+      toast('success', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
       if (wasCreating && applied) doClose();
       await invalidateAll();
     };
@@ -178,7 +178,7 @@
         if (target) {
           rewards = rewards.filter((x) => x.id !== target.id);
           if (inspector.selectedId === target.id) doClose();
-          toast('ok', t('channelpoints.toastDeleted', { name: target.title }));
+          toast('success', t('channelpoints.toastDeleted', { name: target.title }));
         }
         await invalidateAll();
         return;

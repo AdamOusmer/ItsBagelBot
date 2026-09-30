@@ -160,7 +160,7 @@
           items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: was } : x));
           setStatus(m.def.id, 'error');
           timers.set(m.def.id, [setTimeout(() => (modStatus = { ...modStatus, [m.def.id]: 'idle' }), 4000)]);
-          toast('err', t('modules.couldNotToggle', { label: tModuleLabel(t, m.def) }));
+          toast('danger', t('modules.couldNotToggle', { label: tModuleLabel(t, m.def) }));
         }
       };
     };

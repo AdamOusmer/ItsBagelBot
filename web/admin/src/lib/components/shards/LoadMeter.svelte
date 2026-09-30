@@ -21,7 +21,7 @@
 
   const { t } = getI18n();
 
-  const RATE_TONE = { success: 'positive', warning: 'accent', error: 'danger', neutral: 'muted' } as const;
+  const RATE_TONE = { success: 'success', warning: 'accent', danger: 'danger', neutral: 'muted' } as const;
 
   const tone = $derived(loadTone(utilization, targetUtilization));
   const rate = $derived(

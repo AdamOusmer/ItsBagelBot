@@ -33,14 +33,14 @@
     animation: bb-toast-in 220ms var(--bb-ease-out-back);
   }
 
-  .bb-toast--ok {
+  .bb-toast--success {
     --toast-fg: var(--bb-green-glow);
     --toast-border: rgba(82, 183, 136, 0.45);
     color: var(--toast-fg);
     border-color: var(--toast-border);
   }
 
-  .bb-toast--err {
+  .bb-toast--danger {
     --toast-fg: var(--bb-status-danger);
     --toast-border: rgba(176, 90, 70, 0.45);
     color: var(--toast-fg);

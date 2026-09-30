@@ -105,7 +105,7 @@
 
   function applyResult(d: ActionResult) {
     if (!d.ok) {
-      if (d.error) toast('err', d.error);
+      if (d.error) toast('danger', d.error);
       return;
     }
     if (d.action === 'deleted') {
@@ -124,7 +124,7 @@
           : d.action === 'created'
             ? 'commands.toastCreated'
             : 'commands.toastUpdated';
-      toast('ok', t(key, { name: d.name ?? '' }));
+      toast('success', t(key, { name: d.name ?? '' }));
     }
   }
 
@@ -566,7 +566,7 @@
     }
     items = items.map((x) => (x.name === name ? before : x));
     flagError(name);
-    toast('err', payload?.error ?? t('commands.toastToggleFailed'));
+    toast('danger', payload?.error ?? t('commands.toastToggleFailed'));
   }
 
   const toggleSubmit =
@@ -603,7 +603,7 @@
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
           flagError(c.name);
-          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
         }
       };
     };
@@ -625,7 +625,7 @@
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
           flagError(c.name);
-          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
         }
       };
     };
@@ -665,10 +665,10 @@
       applyResult({ ...payload, silent: true });
       ackSaved(snapshot.name);
       const lostUses = usesCount(snapshot) > 0n && payload.restored !== true;
-      toast('ok', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
+      toast('success', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
     } else {
       flagError(snapshot.name);
-      toast('err', t('commands.toastCouldNotRestore', { name: snapshot.name }));
+      toast('danger', t('commands.toastCouldNotRestore', { name: snapshot.name }));
     }
   }
 
@@ -682,7 +682,7 @@
     draftVersion++;
 
     let undone = false;
-    toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
+    toast('success', t('commands.toastDeletedShort', { name: c.name }), {
       ttlMs: UNDO_TTL_MS,
       undoLabel: t('commands.undo'),
       onUndo: () => {
@@ -696,7 +696,7 @@
     const payload = await postAction('delete', body);
     if (!payload?.ok && !undone) {
       items = [...items.filter((x) => x.name !== snapshot.name), snapshot];
-      toast('err', payload?.error ?? t('commands.toastDeleteFailed', { name: c.name }));
+      toast('danger', payload?.error ?? t('commands.toastDeleteFailed', { name: c.name }));
     }
   }
 
@@ -757,9 +757,9 @@
     revertBulk(before, failedNames);
     for (const r of results) (r.ok ? ackSaved : flagError)(r.name);
     selected = failedNames;
-    if (!payload?.ok) toast('err', t('commands.bulkFailed'));
-    else if (doneCount > 0) toast('ok', t(BULK_DONE_KEYS[op], { count: numberFormat.format(doneCount) }));
-    if (payload?.ok && failedNames.size > 0) toast('err', t('commands.bulkPartial', { failed: numberFormat.format(failedNames.size) }));
+    if (!payload?.ok) toast('danger', t('commands.bulkFailed'));
+    else if (doneCount > 0) toast('success', t(BULK_DONE_KEYS[op], { count: numberFormat.format(doneCount) }));
+    if (payload?.ok && failedNames.size > 0) toast('danger', t('commands.bulkPartial', { failed: numberFormat.format(failedNames.size) }));
   }
 
   async function runBulk(op: BulkOp) {

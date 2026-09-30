@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
+  import type { SwitchRowTone } from '../lib/tone';
   import '../styles/elements/toggle.css';
   import Switch from './Switch.svelte';
 
@@ -13,7 +14,7 @@
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
-    tone?: 'warn';
+    tone?: SwitchRowTone;
     disabled?: boolean;
     pending?: boolean;
     type?: 'button' | 'submit';

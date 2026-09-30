@@ -32,7 +32,7 @@
 
   const TONE_DOT: Record<FeedEvent['tone'], StatusTone> = {
     up: 'success',
-    down: 'error',
+    down: 'danger',
     neutral: 'neutral'
   };
 
@@ -142,7 +142,7 @@
       {#snippet action()}
         <Cluster gap={3}>
           <Tag tone="live">{t('admin.events.upCount', { n: String(upCount) })}</Tag>
-          <Tag tone="error">{t('admin.events.downCount', { n: String(downCount) })}</Tag>
+          <Tag tone="danger">{t('admin.events.downCount', { n: String(downCount) })}</Tag>
           <Tag><StatusDot tone={statusTone} />{statusLabel}</Tag>
         </Cluster>
       {/snippet}

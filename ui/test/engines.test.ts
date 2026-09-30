@@ -110,9 +110,9 @@ describe('line-series geometry', () => {
   });
 
   test('series classes carry tone and dash modifiers', () => {
-    expect(seriesClass({ key: 'a', label: 'A' }, 'line')).toBe('bb-line-series__line bb-line-series__line--green');
-    expect(seriesClass({ key: 'b', label: 'B', tone: 'tan', dashed: true }, 'key')).toBe(
-      'bb-line-series__key bb-line-series__key--tan bb-line-series__key--dashed',
+    expect(seriesClass({ key: 'a', label: 'A' }, 'line')).toBe('bb-line-series__line bb-line-series__line--accent');
+    expect(seriesClass({ key: 'b', label: 'B', tone: 'warm', dashed: true }, 'key')).toBe(
+      'bb-line-series__key bb-line-series__key--warm bb-line-series__key--dashed',
     );
   });
 });

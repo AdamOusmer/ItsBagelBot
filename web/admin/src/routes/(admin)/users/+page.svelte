@@ -195,7 +195,7 @@
   let pending = $state<UserActionDef | null>(null);
 
   function applied(p: ActionPayload) {
-    toast('ok', p.action?.notice ?? '');
+    toast('success', p.action?.notice ?? '');
     if (p.lookup?.user) reconcile(p.lookup.user);
     if (p.subState) subState = p.subState;
     if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
@@ -300,7 +300,7 @@
       msgOpen = false;
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       failed(p, t('admin.users.sendFailed'));

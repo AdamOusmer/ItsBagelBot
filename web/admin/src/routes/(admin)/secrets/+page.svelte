@@ -78,7 +78,7 @@
       busy = false;
       const p = actionPayload<{ action?: { ok: boolean; notice: string }; error?: string }>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         close();
         bundle = null;
         await invalidateAll();

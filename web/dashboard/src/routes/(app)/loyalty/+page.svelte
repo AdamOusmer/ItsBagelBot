@@ -130,12 +130,12 @@
       busy = false;
       if (result.type === 'success') {
         markSave('saved', 4000);
-        toast('ok', t('loyalty.toastSaved'));
+        toast('success', t('loyalty.toastSaved'));
         await invalidateAll();
         return;
       }
       markSave('error', 4000);
-      toast('err', t('loyalty.toastSaveFailed'));
+      toast('danger', t('loyalty.toastSaveFailed'));
     };
   };
 

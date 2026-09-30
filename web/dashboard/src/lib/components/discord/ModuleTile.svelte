@@ -51,7 +51,7 @@
         return;
       }
       flipped = null;
-      toast('err', refusalTextOf(t, p, t('discord.toast.saveFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.saveFailed')));
     };
   };
 

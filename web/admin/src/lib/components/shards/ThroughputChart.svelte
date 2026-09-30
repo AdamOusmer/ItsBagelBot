@@ -19,7 +19,7 @@
   const readings = $derived(points.filter((point) => Number.isFinite(point.at)).toSorted((a, b) => a.at - b.at));
   const series = $derived<LineSeriesSpec[]>([
     { key: 'production', label: t('admin.shards.throughputProduction') },
-    ...(showTrials ? [{ key: 'trials', label: t('admin.shards.throughputTrials'), tone: 'tan' as const, dashed: true }] : [])
+    ...(showTrials ? [{ key: 'trials', label: t('admin.shards.throughputTrials'), tone: 'warm' as const, dashed: true }] : [])
   ]);
 
   function finiteRate(value: number | null | undefined): number | null { return value != null && Number.isFinite(value) && value >= 0 ? value : null; }

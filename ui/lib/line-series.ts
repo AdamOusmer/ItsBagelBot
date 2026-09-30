@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { SeriesTone } from './tone';
+
 type Millis = number;
 type Px = number;
 type SeriesKey = string;
@@ -8,7 +10,7 @@ type SeriesKeys = readonly SeriesKey[];
 
 export type LinePoint = { readonly at: number; readonly [key: string]: number | null };
 
-export type LineTone = 'green' | 'tan';
+export type LineTone = SeriesTone;
 
 export type LineSeriesSpec = { key: string; label: string; tone?: LineTone; dashed?: boolean };
 
@@ -83,7 +85,7 @@ export function clockTime(at: Millis): string {
 export function seriesClass(spec: LineSeriesSpec, part: string): string {
   const base = `bb-line-series__${part}`;
   const dashed = spec.dashed ? ` ${base}--dashed` : '';
-  return `${base} ${base}--${spec.tone ?? 'green'}${dashed}`;
+  return `${base} ${base}--${spec.tone ?? 'accent'}${dashed}`;
 }
 
 export function lineX(chart: LineChart, at: Millis): Px {

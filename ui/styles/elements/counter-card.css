@@ -19,17 +19,17 @@
     color: var(--counter-card-ink);
     font-family: var(--bb-font-display);
   }
-  .bb-counter-card--tan {
+  .bb-counter-card--warm {
     --counter-card-secondary: var(--bb-tan-light);
     border-color: var(--bb-border-strong);
     background: linear-gradient(140deg, rgba(var(--bb-tan-rgb), .16), transparent 85%), var(--bb-card-bg);
   }
-  .bb-counter-card--solid.bb-counter-card--green {
+  .bb-counter-card--solid.bb-counter-card--accent {
     background: var(--bb-green);
     border-color: var(--bb-green-light);
     box-shadow: 0 7px 0 rgba(var(--bb-green-light-rgb), .24);
   }
-  .bb-counter-card--solid.bb-counter-card--tan {
+  .bb-counter-card--solid.bb-counter-card--warm {
     --counter-card-ink: var(--bb-black);
     --counter-card-secondary: var(--bb-black);
     --counter-card-seam: rgba(var(--bb-black-rgb), .15);

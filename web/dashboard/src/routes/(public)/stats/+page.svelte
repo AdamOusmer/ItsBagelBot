@@ -205,7 +205,7 @@
       rate: (live.msg_rate_now ?? live.msg_rate) === null ? PENDING : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel'),
-      tone: 'green' as const,
+      tone: 'accent' as const,
       tilt: 'left' as const
     },
     {
@@ -216,7 +216,7 @@
       rate: (live.event_rate_now ?? live.event_rate) === null ? PENDING : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel'),
-      tone: 'tan' as const,
+      tone: 'warm' as const,
       tilt: 'right' as const
     }
   ]);
@@ -316,7 +316,7 @@
           aria-description={tile.rateLabel}
         >
           {#snippet artwork()}
-            <span aria-hidden="true"><Bolota name={tile.id} size={90} palette={friendPalettes[tile.tone === 'green' ? 1 : 0]} active gate /></span>
+            <span aria-hidden="true"><Bolota name={tile.id} size={90} palette={friendPalettes[tile.tone === 'accent' ? 1 : 0]} active gate /></span>
           {/snippet}
         </CounterCard>
       {/each}

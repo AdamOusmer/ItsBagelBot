@@ -83,8 +83,8 @@
     return t(`admin.giveaways.status${status[0].toUpperCase()}${status.slice(1)}`);
   }
 
-  const STATUS_TONE: Partial<Record<GiveawayWire['status'], 'positive' | 'warning'>> = {
-    complete: 'positive',
+  const STATUS_TONE: Partial<Record<GiveawayWire['status'], 'success' | 'warning'>> = {
+    complete: 'success',
     drawn: 'warning'
   };
 </script>
@@ -163,7 +163,7 @@
             </Stack>
           {/if}
           {#if preview.durationProtectionWarnings?.length || previewPending}
-            <div class="warning"><Card role="status"><Text size="sm" tone="warn">{t('admin.giveaways.protectionWarning')}</Text></Card></div>
+            <div class="warning"><Card role="status"><Text size="sm" tone="warning">{t('admin.giveaways.protectionWarning')}</Text></Card></div>
           {/if}
         {:else}
           <Text size="sm" tone="muted">{t('admin.giveaways.notLive')}</Text>

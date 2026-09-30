@@ -4,9 +4,10 @@
   import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/tags.css';
   import type { Snippet } from 'svelte';
+  import type { TagTone } from '../lib/tone';
 
   type Own = {
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+    tone?: TagTone;
     bare?: boolean;
     literal?: boolean;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';

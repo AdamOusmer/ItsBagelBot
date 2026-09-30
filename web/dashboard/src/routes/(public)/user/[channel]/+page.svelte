@@ -187,7 +187,7 @@
                   announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
                 >
                   <span class="row__trigger">
-                    <Code tone="positive">{row.trigger}</Code>
+                    <Code tone="success">{row.trigger}</Code>
                     {#if row.aliases.length}
                       <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
                     {/if}

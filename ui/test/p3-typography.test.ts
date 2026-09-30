@@ -86,8 +86,8 @@ describe('Text tones and truncate', () => {
     const source = css('elements/typography.css');
     expect(source).toContain('.bb-text--muted-light { color: var(--bb-muted-light); }');
     expect(source).toContain('.bb-text--muted-soft { color: var(--bb-muted-soft); }');
-    expect(source).toContain('.bb-text--positive { color: var(--bb-green-glow); }');
-    expect(source).toContain('.bb-text--warn { color: var(--bb-warn); }');
+    expect(source).toContain('.bb-text--success { color: var(--bb-green-glow); }');
+    expect(source).toContain('.bb-text--warning { color: var(--bb-warn); }');
     expect(source).not.toMatch(/#f2c879/i);
     expect(css('brand.css')).toContain('--bb-warn: #f2c879;');
   });
@@ -175,9 +175,9 @@ describe('Code options', () => {
     name: 'positive inline tone',
     svelte: SvelteCode,
     astro: AstroCode,
-    props: { tone: 'positive' },
+    props: { tone: 'success' },
     body: '{counter:target:deaths}',
-    html: '<code class="bb-code bb-code--positive">{counter:target:deaths}</code>',
+    html: '<code class="bb-code bb-code--success">{counter:target:deaths}</code>',
   });
 
   contract({

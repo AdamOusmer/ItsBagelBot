@@ -49,7 +49,7 @@
   let reconnecting = $state(false);
 
   const failToast = (message: string): SubmitFunction => () => async ({ result, update }) => {
-    if (result.type === 'failure' || result.type === 'error') toast('err', message);
+    if (result.type === 'failure' || result.type === 'error') toast('danger', message);
     await update({ reset: false });
   };
 

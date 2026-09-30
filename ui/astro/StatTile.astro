@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import type { StatTone } from '../lib/tone';
 import '../styles/elements/stat-tile.css';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'tone' | 'class'> {
@@ -12,7 +13,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' |
     flat?: boolean;
     static?: boolean;
     inline?: boolean;
-    tone?: 'positive' | 'accent';
+    tone?: StatTone;
     class?: string;
 }
 

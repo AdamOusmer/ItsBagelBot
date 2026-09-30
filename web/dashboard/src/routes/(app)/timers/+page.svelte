@@ -127,7 +127,7 @@
       const ok = result.type === 'success' && payload?.ok === true;
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (ok) {
-        toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
+        toast('success', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
         if (wasCreating && applied) {
           inspector.reset();
           draft = null;
@@ -172,7 +172,7 @@
       failed(res ?? undefined, 'timers.toastDeleteFailed');
       return;
     }
-    toast('ok', t('timers.toastDeleted'), {
+    toast('success', t('timers.toastDeleted'), {
       undoLabel: t('timers.undo'),
       onUndo: () => undoDelete(tmr)
     });

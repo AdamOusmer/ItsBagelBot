@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
+import type { CardTone } from '../lib/tone';
 import '../styles/elements/community-card.css';
 
 interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'subtitle' | 'total' | 'period' | 'tone' | 'appearance' | 'class'> {
@@ -10,13 +11,13 @@ interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'subtitle' | '
   subtitle?: string;
   total: string;
   period?: string;
-  tone?: 'green' | 'tan';
+  tone?: CardTone;
   appearance?: 'solid' | 'soft';
   class?: string;
 }
 const { t } = uiI18n(Astro);
 const {
-  title, subtitle = '', total, period = t('data.allTime'), tone = 'tan',
+  title, subtitle = '', total, period = t('data.allTime'), tone = 'warm',
   appearance = 'soft', class: cls = '', ...rest
 } = Astro.props;
 const classes = [

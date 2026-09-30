@@ -35,7 +35,7 @@
     saving: 'bb-tag--quiet',
     saved: 'bb-tag--alpha',
     live: 'bb-tag--live',
-    error: 'bb-tag--error',
+    error: 'bb-tag--danger',
   };
   const MARK: Record<SaveState, string> = {
     idle: '',

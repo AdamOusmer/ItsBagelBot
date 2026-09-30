@@ -21,7 +21,7 @@
       if (!res.ok) throw new Error(String(res.status));
     } catch {
       customCursor.set(prev);
-      toast('err', t('settings.cursorSaveError'));
+      toast('danger', t('settings.cursorSaveError'));
     } finally {
       pending = false;
     }

@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import '../styles/elements/status-dot.css';
-interface Props { tone: 'success' | 'warning' | 'error' | 'neutral'; flat?: boolean }
+import type { StatusDotTone } from '../lib/tone';
+interface Props { tone: StatusDotTone; flat?: boolean }
 const { tone, flat = false } = Astro.props;
 ---
 

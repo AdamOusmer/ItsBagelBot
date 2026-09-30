@@ -139,7 +139,7 @@
         return;
       }
       if (begun) upsert(begun.snapshot, wasCreating);
-      toast('ok', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
+      toast('success', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -161,7 +161,7 @@
         counters = counters.filter((c) => c.name !== target?.name);
         inspector.reset();
         draft = null;
-        toast('ok', t('admin.counters.deleted'));
+        toast('success', t('admin.counters.deleted'));
         return;
       }
       failed(p, t('admin.counters.deleteFailed'));

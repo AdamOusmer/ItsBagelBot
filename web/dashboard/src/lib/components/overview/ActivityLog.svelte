@@ -24,10 +24,10 @@
     queue: 'overview.kindQueue'
   };
 
-  type KindTone = 'positive' | 'danger' | 'warning' | 'info' | 'neutral';
+  type KindTone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
 
   const KIND_TONE: Record<ActivityKind, KindTone> = {
-    command: 'positive',
+    command: 'success',
     timer: 'warning',
     automod: 'danger',
     reward: 'warning',

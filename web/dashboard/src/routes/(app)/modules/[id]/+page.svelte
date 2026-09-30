@@ -107,7 +107,7 @@
     }
     if (payload?.conflict) {
       await reloadAfterConflict();
-      toast('err', t('modules.patchConflict'));
+      toast('danger', t('modules.patchConflict'));
       return 'conflict';
     }
     return 'failed';
@@ -134,7 +134,7 @@
       flagError('module');
       if (outcome === 'failed') {
         enabled = before;
-        toast('err', t('modules.couldNotToggle', { label: modLabel }));
+        toast('danger', t('modules.couldNotToggle', { label: modLabel }));
       }
     }
   }
@@ -151,7 +151,7 @@
       flagError(`setting:${key}`);
       if (outcome === 'failed') {
         config = { ...config, [key]: before };
-        toast('err', t('modules.saveFailed'));
+        toast('danger', t('modules.saveFailed'));
       }
     }
   }
@@ -182,7 +182,7 @@
       flagError(reply.key);
       if (outcome === 'failed') {
         config = { ...config, [key]: was ? 'on' : 'off' };
-        toast('err', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
+        toast('danger', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
       }
     }
   }
@@ -235,12 +235,12 @@
     if (outcome === 'saved') {
       ackSaved(r.key);
       // Save keeps the inspector open on the saved reply (now clean); no close.
-      toast('ok', t('modules.saved', { label: modLabel }));
+      toast('success', t('modules.saved', { label: modLabel }));
     } else {
       flagError(r.key);
       if (outcome === 'failed') {
         config = { ...config, [r.messageKey]: prev ?? '' };
-        toast('err', t('modules.saveFailed'));
+        toast('danger', t('modules.saveFailed'));
       }
     }
   }
@@ -383,10 +383,10 @@
         ruleIndex = next.length - 1;
         expanded = `rule:${next.length - 1}`;
       }
-      toast('ok', t('modules.saved', { label: modLabel }));
+      toast('success', t('modules.saved', { label: modLabel }));
     } else {
       flagError(key);
-      if (outcome === 'failed') toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') toast('danger', t('modules.saveFailed'));
     }
   }
 
@@ -411,10 +411,10 @@
     if (outcome === 'saved') {
       rules = next;
       if (expanded === `rule:${i}`) doClose();
-      toast('ok', t('modules.saved', { label: modLabel }));
+      toast('success', t('modules.saved', { label: modLabel }));
     } else {
       flagError(`rule:${i}`);
-      if (outcome === 'failed') toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') toast('danger', t('modules.saveFailed'));
     }
   }
 
@@ -427,7 +427,7 @@
       ackSaved(`rule:${i}`);
     } else {
       flagError(`rule:${i}`);
-      if (outcome === 'failed') toast('err', t('modules.couldNotToggle', { label: rules[i].phrase }));
+      if (outcome === 'failed') toast('danger', t('modules.couldNotToggle', { label: rules[i].phrase }));
     }
   }
 

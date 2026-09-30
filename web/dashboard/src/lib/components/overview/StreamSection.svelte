@@ -40,7 +40,7 @@
   const elapsed = $derived(formatDuration(minutesSince(meta.startedAt, now)));
   const sinceEnd = $derived(formatDuration(minutesSince(meta.endedAt, now)));
 
-  type Stat = { id: string; value: string; label: string; tone?: 'positive' | 'accent' };
+  type Stat = { id: string; value: string; label: string; tone?: 'success' | 'accent' };
 
   const stats = $derived.by<Stat[]>(() => [
     {
@@ -52,7 +52,7 @@
       id: 'answered',
       value: formatCounterValue(counters.answered, locale),
       label: t('overview.statAnswered'),
-      tone: 'positive'
+      tone: 'success'
     },
     {
       id: 'mod',

@@ -4,12 +4,13 @@
   import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/typography.css';
   import type { Snippet } from 'svelte';
+  import type { CodeTone } from '../lib/tone';
 
   type Own = {
     block?: boolean;
     wrap?: boolean;
     maxHeight?: string;
-    tone?: 'danger' | 'positive';
+    tone?: CodeTone;
     class?: string;
     children: Snippet;
   };

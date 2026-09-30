@@ -54,7 +54,7 @@
       pending = false;
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', t('loyalty.toastGameToggleFailed', { label: tModuleLabel(t, def) }));
+        toast('danger', t('loyalty.toastGameToggleFailed', { label: tModuleLabel(t, def) }));
       }
     };
   };

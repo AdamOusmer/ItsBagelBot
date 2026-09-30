@@ -118,7 +118,7 @@
     <SwitchRow
       control="end"
       bind:checked={draft.liveOnly}
-      tone={draft.liveOnly ? undefined : 'warn'}
+      tone={draft.liveOnly ? undefined : 'warning'}
       label={t('govee.liveOnlyLabel')}
       hint={draft.liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}
       hintId="govee-liveonly-desc"

@@ -64,8 +64,8 @@ export function barWidth(utilization: number): number {
 export function utilizationTone(
   utilization: number,
   targetUtilization: number
-): 'green' | 'warn' | 'err' {
-  if (utilization >= targetUtilization) return 'err';
-  if (utilization >= targetUtilization * 0.8) return 'warn';
-  return 'green';
+): 'success' | 'warning' | 'danger' {
+  if (utilization >= targetUtilization) return 'danger';
+  if (utilization >= targetUtilization * 0.8) return 'warning';
+  return 'success';
 }

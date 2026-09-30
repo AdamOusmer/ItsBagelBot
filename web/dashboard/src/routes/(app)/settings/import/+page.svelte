@@ -364,10 +364,10 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                     {#if session.collidedCommands.has(normalizeName(c.name))}
-                      <Tag tone="error">{t('import.alreadyExists')}</Tag>
+                      <Tag tone="danger">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
                 </div>
@@ -398,7 +398,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -428,7 +428,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>

@@ -134,7 +134,7 @@
         failed(p, t('admin.notifications.sendFailed'));
         return;
       }
-      toast('ok', p!.action!.notice ?? t('admin.notifications.sent'));
+      toast('success', p!.action!.notice ?? t('admin.notifications.sent'));
       if (applied) {
         inspector.reset();
         draft = null;
@@ -158,7 +158,7 @@
       if (result.type === 'success' && p?.action?.ok) {
         inspector.reset();
         draft = null;
-        toast('ok', p.action.notice ?? t('admin.notifications.retracted'));
+        toast('success', p.action.notice ?? t('admin.notifications.retracted'));
         return;
       }
       notifications = before;

@@ -18,7 +18,7 @@
       {#each view.shown as c (c.kind + c.name)}
         <li class="skipped-row">
           <Text as="span" size="sm" mono>{c.name}</Text>
-          <Tag tone="error">{t('import.alreadyExists')}</Tag>
+          <Tag tone="danger">{t('import.alreadyExists')}</Tag>
         </li>
       {/each}
     </ul>

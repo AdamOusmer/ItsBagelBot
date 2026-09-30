@@ -220,7 +220,7 @@
       } else {
         await update({ reset: false });
         actionBusy = false;
-        toast('err', t('overview.actionFailed'));
+        toast('danger', t('overview.actionFailed'));
       }
     };
   }

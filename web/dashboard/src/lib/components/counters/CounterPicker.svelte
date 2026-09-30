@@ -131,7 +131,7 @@
       </div>
       {#if countTarget}
         <div class="preview">
-          <Text as="span" size="xs"><Code tone="positive">{'{counter:target:'}{newName || 'name'}{'}'}</Code></Text>
+          <Text as="span" size="xs"><Code tone="success">{'{counter:target:'}{newName || 'name'}{'}'}</Code></Text>
         </div>
       {/if}
 

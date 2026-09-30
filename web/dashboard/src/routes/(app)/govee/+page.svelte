@@ -72,10 +72,10 @@
       return;
     }
     if (payload?.code === 'key_invalid') {
-      toast('err', t('govee.keyInvalid'));
+      toast('danger', t('govee.keyInvalid'));
       return;
     }
-    toast('err', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? t(fallbackKey));
   }
 
   const isOk = (result: { type: string }, payload: GoveeActionOk | undefined) =>
@@ -91,7 +91,7 @@
         failed(payload, 'govee.keySaveFailed');
         return;
       }
-      toast('ok', t('govee.keySaved'));
+      toast('success', t('govee.keySaved'));
       await invalidateAll();
     };
   };
@@ -111,7 +111,7 @@
       }
       keyPresent = false;
       doClose();
-      toast('ok', t('govee.keyRemoved'));
+      toast('success', t('govee.keyRemoved'));
       await invalidateAll();
     };
   };
@@ -192,7 +192,7 @@
         failed(payload, 'govee.toastSaveFailed');
         return;
       }
-      toast('ok', t('govee.toastSaved'));
+      toast('success', t('govee.toastSaved'));
       await invalidateAll();
     };
   };
@@ -213,7 +213,7 @@
         return;
       }
       if (target && selected?.device === target.device) doClose();
-      toast('ok', t('govee.toastDeleted'));
+      toast('success', t('govee.toastDeleted'));
       await invalidateAll();
     };
   };
