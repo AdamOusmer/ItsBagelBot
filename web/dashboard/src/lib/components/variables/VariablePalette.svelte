@@ -3,7 +3,15 @@
 	// Proprietary. No license granted. See LICENSE.md.
 
   import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
-  import { Chip, Heading, PickerOption, PickerPanel, SearchInput, Tag, Text, TextLink, rovingFocus } from '@bagel/ui/svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import { rovingFocus } from '@bagel/ui/svelte/actions';
   import { pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
   import ModuleVariablePicker from '$lib/components/commands/ModuleVariablePicker.svelte';

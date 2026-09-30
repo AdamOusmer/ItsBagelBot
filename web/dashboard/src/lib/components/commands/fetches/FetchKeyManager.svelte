@@ -1,16 +1,14 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    AlertBanner,
-    Button,
-    ConfirmDialog,
-    Icon,
-    IconButton,
-    Input,
-    Text,
-    Code
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
   import {
     getI18n,
     KEY_LABEL_MAX,

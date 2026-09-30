@@ -1,11 +1,33 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/ui/svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import { namespaceReplyTemplate } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SectionNav, SearchInput, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast } from '@bagel/ui/svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import SectionNav from '@bagel/ui/svelte/SectionNav.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';

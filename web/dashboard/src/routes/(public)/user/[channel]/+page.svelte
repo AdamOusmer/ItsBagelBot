@@ -1,7 +1,20 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, Code, CopySurface, EmptyState, Eyebrow, Heading, Icon, Label, LightField, SearchInput, SegmentedControl, Tag, Text } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { commandsHref } from '@bagel/kit/site-links';
   import Mark from '@bagel/ui/svelte/Mark.svelte';

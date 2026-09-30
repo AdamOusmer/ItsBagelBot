@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import { Chip, Text } from '@bagel/ui/svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
   import type { VariableChip } from '@bagel/kit/variables';
 

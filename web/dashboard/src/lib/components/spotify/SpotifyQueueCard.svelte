@@ -1,7 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Card, EmptyState, Heading, Text } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
   import type { QueueView } from '$lib/server/songqueue-view';
 

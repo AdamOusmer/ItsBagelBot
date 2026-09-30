@@ -8,23 +8,21 @@
     toastFailure,
     type Locale
   } from '@bagel/kit';
-  import {
-    Button,
-    ButtonLink,
-    Card,
-    Code,
-    Eyebrow,
-    Heading,
-    PageHead,
-    Text,
-    SectionNav,
-    ConfirmDialog,
-    EmptyState,
-    toast,
-    StatusDot,
-    Tag,
-    Switch
-  } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import SectionNav from '@bagel/ui/svelte/SectionNav.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';

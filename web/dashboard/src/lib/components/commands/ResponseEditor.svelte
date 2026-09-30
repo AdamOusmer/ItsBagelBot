@@ -4,7 +4,12 @@
   import { untrack } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
-  import { Button, Icon, IconButton, Text, TextLink, Textarea } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { RESPONSE_MAX, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';

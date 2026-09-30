@@ -14,7 +14,7 @@
     type RehearsedLine,
     type Seg
   } from '@bagel/kit';
-  import { Tag } from '@bagel/ui/svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
 
   const i18n = getI18n();
 

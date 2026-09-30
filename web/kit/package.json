@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "check": "bun scripts/gen-i18n-keys.mjs --check",
     "i18n:keys": "bun scripts/gen-i18n-keys.mjs",

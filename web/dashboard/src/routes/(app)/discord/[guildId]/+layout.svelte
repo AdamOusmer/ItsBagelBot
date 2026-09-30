@@ -1,7 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, ButtonLink, Card, Chip, Heading, Text } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, droppedPinNotice } from '@bagel/kit';
   import GuildHeader from '$lib/components/discord/GuildHeader.svelte';
   import GuildNav from '$lib/components/discord/GuildNav.svelte';

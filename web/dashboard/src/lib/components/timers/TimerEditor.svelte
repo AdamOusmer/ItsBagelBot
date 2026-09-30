@@ -1,7 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox, Field, Input, SwitchRow, Text } from '@bagel/ui/svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { DEFAULT_CHAT_LINES, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';

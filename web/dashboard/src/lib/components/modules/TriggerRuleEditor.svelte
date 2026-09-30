@@ -1,7 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Cluster, Field, Input, Select, focusFirstInvalid } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { getI18n, namespaceReplyTemplate } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';

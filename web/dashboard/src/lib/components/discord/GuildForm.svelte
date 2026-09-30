@@ -2,7 +2,13 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { AlertBanner, Button, Card, ConfirmDialog, Heading, SaveStatus, Text } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
   import type { Snippet } from 'svelte';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';

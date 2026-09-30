@@ -6,18 +6,16 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { copyText } from '@bagel/ui/lib/clipboard';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import {
-    AlertBanner,
-    Button,
-    ButtonLink,
-    Card,
-    Code,
-    Field,
-    Heading,
-    Tag,
-    Text,
-    toast
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     actionPayload,
     getI18n,

@@ -1,7 +1,16 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, AuroraBg, Button, Card, Heading, Label, LightField, PageHead, Text, TextLink } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit';
 
   let { data } = $props();

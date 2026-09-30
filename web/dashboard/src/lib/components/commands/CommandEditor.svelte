@@ -4,17 +4,15 @@
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Field,
-    Grid,
-    FieldError,
-    Input,
-    Select,
-    Text,
-    Scroller,
-    EditorFooter,
-    Switch
-  } from '@bagel/ui/svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import {
     PERMS,
     tPerm,
@@ -27,14 +25,14 @@
     translateValidationMessage,
     type CommandErrors
   } from '@bagel/kit';
-  import { Checkbox } from '@bagel/ui/svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import AliasChips from './AliasChips.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { nameConflict } from './name-conflict';
   import { draftRef, loadDraft, saveDraft, type BoardId, type CommandDraft } from './drafts';
-  import { focusFirstInvalid } from '@bagel/ui/svelte';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
 
   let {
     draft = $bindable<CommandDraft>(),

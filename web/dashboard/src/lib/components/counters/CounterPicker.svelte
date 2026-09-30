@@ -2,20 +2,18 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { deserialize } from '$app/forms';
-  import {
-    Button,
-    Chip,
-    Code,
-    FieldError,
-    Icon,
-    Input,
-    Label,
-    PickerOption,
-    PickerPanel,
-    Select,
-    Tag,
-    Text
-  } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type CounterScope } from '@bagel/kit';
 
   const { t } = getI18n();

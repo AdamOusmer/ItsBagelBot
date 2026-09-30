@@ -4,26 +4,24 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    PageHead,
-    PageToolbar,
-    Switch,
-    SwitchRow,
-    focusFirstInvalid,
-    AlertBanner,
-    Card,
-    ButtonLink,
-    Button,
-    Field,
-    Heading,
-    Input,
-    Table,
-    Text,
-    EmptyState,
-    SaveStatus,
-    DeckList,
-    toast
-  } from '@bagel/ui/svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Table from '@bagel/ui/svelte/Table.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     MasterToggle,
     getI18n,

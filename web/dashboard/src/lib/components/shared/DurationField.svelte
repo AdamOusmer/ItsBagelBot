@@ -2,7 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
-  import { Input, Select, Text } from '@bagel/ui/svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
 
   type Unit = 'seconds' | 'minutes' | 'hours';

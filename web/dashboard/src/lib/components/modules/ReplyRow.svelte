@@ -1,14 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    Heading,
-    Label,
-    ManagementRow,
-    SaveStatus,
-    Switch,
-    Text
-  } from '@bagel/ui/svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     getI18n,
     namespaceReplyTemplate,

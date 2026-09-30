@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import { getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';

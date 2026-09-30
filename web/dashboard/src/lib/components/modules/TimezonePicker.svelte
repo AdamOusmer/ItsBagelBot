@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   // Domain-specific ranking and accepted IANA aliases; presentation lives in ui.
-  import { Select } from '@bagel/ui/svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import { getI18n } from '@bagel/kit';
   import type { SelectOption } from '@bagel/ui/lib/select';
 

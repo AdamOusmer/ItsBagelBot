@@ -1,19 +1,17 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    AlertBanner,
-    Button,
-    ButtonLink,
-    Card,
-    Chip,
-    EmptyState,
-    Heading,
-    PageHead,
-    PageToolbar,
-    StatTile,
-    Text
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { MasterToggle, getI18n, guildBotState } from '@bagel/kit';
   import { DISCORD_SLUG_KEYS } from '$lib/discord-messages';
   import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';

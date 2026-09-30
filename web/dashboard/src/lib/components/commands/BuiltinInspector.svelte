@@ -4,15 +4,13 @@
   import { enhance } from '$app/forms';
   import { namespaceReplyTemplate } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Button,
-    Code,
-    Field,
-    Input,
-    Select,
-    SwitchRow,
-    Text
-  } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     PERMS,
     getI18n,

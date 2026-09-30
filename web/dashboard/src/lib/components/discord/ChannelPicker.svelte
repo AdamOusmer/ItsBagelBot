@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
-  import { Select, Text } from '@bagel/ui/svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';

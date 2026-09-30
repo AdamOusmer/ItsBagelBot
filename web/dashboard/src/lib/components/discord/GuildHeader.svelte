@@ -2,13 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { goto } from '$app/navigation';
-  import {
-    ButtonLink,
-    Heading,
-    SegmentedControl,
-    Select,
-    Text
-  } from '@bagel/ui/svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type GuildBotState } from '@bagel/kit';
   import DiscordStateTag from './DiscordStateTag.svelte';
   import GuildCrest from './GuildCrest.svelte';

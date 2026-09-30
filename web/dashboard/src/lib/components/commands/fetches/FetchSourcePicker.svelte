@@ -11,24 +11,22 @@
 
 <script lang="ts">
   import { deserialize } from '$app/forms';
-  import {
-    Button,
-    Chip,
-    Code,
-    Field,
-    FieldError,
-    Heading,
-    Icon,
-    Input,
-    Modal,
-    PickerOption,
-    PickerPanel,
-    Select,
-    Tag,
-    Text,
-    Textarea,
-    focusFirstInvalid
-  } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Modal from '@bagel/ui/svelte/Modal.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import {
     getI18n,
     slugifyName,

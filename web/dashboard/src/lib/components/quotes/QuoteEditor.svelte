@@ -1,7 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Field, Input, Text, Textarea } from '@bagel/ui/svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { getI18n } from '@bagel/kit';
 
   let {
