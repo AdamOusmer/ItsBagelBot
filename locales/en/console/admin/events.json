@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Ingress lifecycle",
+  "titlePre": "Shard ",
+  "titleEm": "lifecycle feed",
+  "description": "A live, non-persistent view of shard connections, Conduit bindings and disconnect reasons. Only transitions after this page opens appear here; chat and EventSub payloads do not.",
+  "subject": "twitch.ingress.status.>",
+  "toneFilter": "Event tone",
+  "searchPlaceholder": "Filter lifecycle message…",
+  "pauseLabel": "Pause the feed",
+  "pauseLabelBuffered": "Resume the feed ({n} held)",
+  "clear": "Clear",
+  "streaming": "Streaming",
+  "connecting": "Connecting…",
+  "reconnecting": "Reconnecting…",
+  "paused": "Paused",
+  "upCount": "{n} up",
+  "downCount": "{n} down",
+  "listLabel": "Lifecycle events",
+  "idleBody": "A healthy steady-state fleet is quiet. New shard up, bound and down transitions appear here; this is not stored event history.",
+  "emptyMatch": "No events match the filter"
+}

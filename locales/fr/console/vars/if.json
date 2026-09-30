@@ -1,0 +1,5 @@
+{
+  "name": "Dire une chose ou une autre",
+  "hint": "un texte ou l’autre: {if:nom:quand la variable contient quelque chose:sinon}, ou {if:nom=valeur:…:…} pour une correspondance exacte. Les variables ne fonctionnent pas dans les deux textes",
+  "desc": "Affiche le premier texte quand la variable que vous nommez contient quelque chose, le second sinon. Nommez-la sans accolades, et écrivez {if:game=Chess:…:…} pour tester une valeur exacte. Les variables ne fonctionnent pas dans les deux textes. Omettez le second et un test faux n’affiche rien du tout: si la ligne se vide, le bot passe la ligne au lieu d’envoyer un message vide."
+}

@@ -1,0 +1,17 @@
+{
+  "lockedTo": "Locked to user {id}",
+  "liveOnly": "Only runs while live",
+  "unsaved": "Unsaved",
+  "unsavedTitle": "You have unsaved edits for this command",
+  "also": "Also: {aliases}",
+  "cooldown": "Cooldown",
+  "uses": "Uses",
+  "toggleAria": "Toggle !{name}",
+  "deleteAria": "Delete !{name}",
+  "builtin": "Built-in",
+  "builtinTitle": "Built-in command: toggle only, no editable response",
+  "failed": "Failed",
+  "moreAliases": "{count} more alternate names: {aliases}",
+  "selected": "Selected",
+  "notSelected": "Not selected"
+}

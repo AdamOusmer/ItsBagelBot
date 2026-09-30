@@ -1,0 +1,12 @@
+{
+  "viewer": "Visionneuse de diagrammes",
+  "controls": "Commandes du diagramme",
+  "zoomOut": "Réduire",
+  "reset": "Réinitialiser la vue",
+  "zoomIn": "Agrandir",
+  "close": "Fermer (Échap)",
+  "hint": "glisser pour déplacer · défiler pour zoomer · Échap pour fermer",
+  "open": "Ouvrir le diagramme en plein écran",
+  "fullscreen": "Ouvrir en plein écran",
+  "expand": "Agrandir"
+}

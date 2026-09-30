@@ -1,0 +1,19 @@
+{
+  "closeEditor": "Close",
+  "costPts": "{n} points",
+  "create": "Create reward",
+  "defaultTitle": "Play a song request",
+  "edit": "Edit reward",
+  "inputHint": "Viewers type the song when redeeming, a name like",
+  "inputHintLink": "Or they paste a Spotify link.",
+  "inputHintPair": "or an \"artist - song\" pair like",
+  "noRewardBody": "Create the channel-points reward below. It appears in your Twitch points menu as soon as you save.",
+  "noRewardTitle": "No reward yet",
+  "notSetUp": "Not set up",
+  "previewTag": "Rehearsal",
+  "removeAria": "Delete the reward: {name}",
+  "rowHint": "Channel points",
+  "rowLabel": "Song request",
+  "thisReward": "Song request",
+  "previewUserSample": "Viewer99"
+}

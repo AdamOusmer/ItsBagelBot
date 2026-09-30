@@ -1,0 +1,5 @@
+{
+  "name": "Encoder un chemin d’URL",
+  "hint": "encode le texte pour un chemin d’URL, pas pour une requête",
+  "desc": "La même chose, pour la partie chemin d’une URL, où un espace n’est pas un plus."
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Une émote au hasard",
+  "hint": "un code d’émote choisi au hasard parmi ces ensembles globaux",
+  "desc": "Un code d’émote tiré au hasard dans ces listes. Deux dans une même réponse font deux tirages distincts. Si le bot n’a pas encore chargé de codes, la variable revient vide."
+}

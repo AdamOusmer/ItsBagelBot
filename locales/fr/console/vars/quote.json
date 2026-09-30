@@ -1,0 +1,5 @@
+{
+  "name": "Une citation enregistrée",
+  "hint": "une citation enregistrée au hasard, ou {quote:12} pour une citation précise (module Citations)",
+  "desc": "Une citation au hasard de votre recueil, formulée exactement comme !quote la dit. {quote:12} choisit une citation numérotée, et un numéro inutilisé ne renvoie rien. Deux {quote} dans une même réponse donnent deux citations différentes. Nécessite le module Citations."
+}

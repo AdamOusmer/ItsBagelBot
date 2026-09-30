@@ -1,0 +1,5 @@
+{
+  "name": "Time since a date",
+  "hint": "how long since that date",
+  "desc": "How long since that date, in the same wording as !uptime."
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Arithmetic",
+  "hint": "evaluates a small sum: + - * / and parentheses",
+  "desc": "Works out a small sum. Whole numbers, + - * / and parentheses; nothing else."
+}

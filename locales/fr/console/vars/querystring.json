@@ -1,0 +1,5 @@
+{
+  "name": "Arguments encodés pour une URL",
+  "hint": "tout le texte tapé après la commande, encodé pour une source de données",
+  "desc": "Tout le texte tapé après la commande, encodé pour être placé dans l’URL d’une source de données."
+}

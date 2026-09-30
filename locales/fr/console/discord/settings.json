@@ -1,0 +1,11 @@
+{
+  "disconnectBody": "Bagel arrête de publier et oublie à quel serveur cette chaîne est liée. Vos salons et vos rôles restent exactement tels quels.",
+  "disconnectCta": "Déconnecter",
+  "disconnectTitle": "Déconnecter Discord ?",
+  "reconnectCta": "Réautoriser",
+  "setupCta": "Configurer ce serveur",
+  "setupHelp": "Relance le remplissage : crée ce qui manque, reprend vos rôles épinglés et ne touche à rien d’autre.",
+  "setupTitle": "Reconstruire le serveur",
+  "setupFirstRun": "Ce serveur n’a pas encore de réglages enregistrés. La première préparation les écrit.",
+  "dangerTitle": "Zone sensible"
+}

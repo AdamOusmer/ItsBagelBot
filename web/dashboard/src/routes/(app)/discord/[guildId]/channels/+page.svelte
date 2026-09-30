@@ -23,14 +23,14 @@
   <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
-<GuildForm {draft} id="dc-channels-h" title={t('discord.channelsTitle')} hint={t('discord.channelsHelp')}>
-  <h3 class="group">{t('discord.groupAnnounce')}</h3>
+<GuildForm {draft} id="dc-channels-h" title={t('discord.channels.title')} hint={t('discord.channels.help')}>
+  <h3 class="group">{t('discord.channels.groupAnnounce')}</h3>
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="liveChannelId"
-    label={t('discord.liveChannelLabel')}
-    help={t('discord.liveChannelHelp')}
+    label={t('discord.channels.liveLabel')}
+    help={t('discord.channels.liveHelp')}
     options={textChannels}
     prefix="#"
   />
@@ -38,19 +38,19 @@
     {draft}
     invalid={draft.invalid}
     field="clipsChannelId"
-    label={t('discord.clipsChannelLabel')}
-    help={t('discord.clipsChannelHelp')}
+    label={t('discord.channels.clipsLabel')}
+    help={t('discord.channels.clipsHelp')}
     options={textChannels}
     prefix="#"
   />
 
-  <h3 class="group">{t('discord.groupCommunity')}</h3>
+  <h3 class="group">{t('discord.channels.groupCommunity')}</h3>
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="welcomeChannelId"
-    label={t('discord.welcomeChannelLabel')}
-    help={t('discord.welcomeChannelHelp')}
+    label={t('discord.channels.welcomeLabel')}
+    help={t('discord.channels.welcomeHelp')}
     options={textChannels}
     prefix="#"
   />
@@ -58,27 +58,27 @@
     {draft}
     invalid={draft.invalid}
     field="voiceHubId"
-    label={t('discord.voiceHubLabel')}
-    help={t('discord.voiceHubHelp')}
+    label={t('discord.channels.voiceHubLabel')}
+    help={t('discord.channels.voiceHubHelp')}
     options={voiceChannels}
   />
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="logChannelId"
-    label={t('discord.logChannelLabel')}
-    help={t('discord.logChannelHelp')}
+    label={t('discord.channels.logLabel')}
+    help={t('discord.channels.logHelp')}
     options={textChannels}
     prefix="#"
   />
 
-  <h3 class="group">{t('discord.groupSubs')}</h3>
+  <h3 class="group">{t('discord.channels.groupSubs')}</h3>
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="subsChannelId"
-    label={t('discord.subsChannelLabel')}
-    help={t('discord.subsChannelHelp')}
+    label={t('discord.channels.subsLabel')}
+    help={t('discord.channels.subsHelp')}
     options={textChannels}
     prefix="#"
   />
@@ -86,18 +86,18 @@
     {draft}
     invalid={draft.invalid}
     field="subsCategoryId"
-    label={t('discord.subsCategoryLabel')}
-    help={t('discord.subsCategoryHelp')}
+    label={t('discord.channels.subsCategoryLabel')}
+    help={t('discord.channels.subsCategoryHelp')}
     options={categories}
   />
 
-  <h3 class="group">{t('discord.groupVip')}</h3>
+  <h3 class="group">{t('discord.channels.groupVip')}</h3>
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="vipChannelId"
-    label={t('discord.vipChannelLabel')}
-    help={t('discord.vipChannelHelp')}
+    label={t('discord.channels.vipLabel')}
+    help={t('discord.channels.vipHelp')}
     options={textChannels}
     prefix="#"
   />
@@ -105,8 +105,8 @@
     {draft}
     invalid={draft.invalid}
     field="vipCategoryId"
-    label={t('discord.vipCategoryLabel')}
-    help={t('discord.vipCategoryHelp')}
+    label={t('discord.channels.vipCategoryLabel')}
+    help={t('discord.channels.vipCategoryHelp')}
     options={categories}
   />
 </GuildForm>

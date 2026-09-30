@@ -13,6 +13,7 @@ COPY internal/projection internal/projection
 COPY internal/watchtime internal/watchtime
 COPY internal/utils internal/utils
 COPY pkg pkg
+COPY locales locales
 COPY app/twitch/outgress app/twitch/outgress
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /outgress ./app/twitch/outgress
 

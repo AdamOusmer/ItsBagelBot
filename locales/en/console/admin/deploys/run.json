@@ -1,0 +1,34 @@
+{
+  "stageOf": "Stage {n} of {total}",
+  "follow": "Follow live",
+  "about": {
+    "preflight": "Checks the cluster is reachable, the manifests lint clean, required checks pass on the target and every workload is settled.",
+    "merge_prs": "Merges each picked pull request once its checks pass, updating stale branches first.",
+    "changelog": "Opens and merges a pull request that adds this version’s changelog file to main.",
+    "tag": "Creates the version tag on the changelog commit. Anything not on main is refused.",
+    "release": "Publishes the GitHub release for the tag, with the changelog highlights as notes.",
+    "build": "Waits for the image workflow on GitHub to finish and follows each image’s build jobs.",
+    "digests": "Looks up every built image and checks it has both architectures, the right commit and provenance.",
+    "pin_pr": "Opens and merges a pull request that pins main’s manifests to the new image digests.",
+    "acl": "Applies the NATS config and waits until every NATS server has reloaded it and gone quiet.",
+    "rollout": "Applies shared config, then rolls one service at a time and waits for its pods before the next.",
+    "verify": "Checks every pod runs its pinned image and the status pages answer. A miss offers a rollback."
+  },
+  "state": {
+    "pending": "Starts once the stages before it finish.",
+    "running": "Running now.",
+    "waiting": "Paused until something outside the run is ready.",
+    "succeeded": "Done.",
+    "failed": "Stopped here. Nothing after it ran.",
+    "skipped": "Not needed for this run.",
+    "cancelled": "Cancelled before it finished."
+  },
+  "nowBuilding": "Building",
+  "nowRolling": "Rolling out",
+  "nowOf": "{n} of {total}",
+  "nowAllBuilt": "All {total} images built",
+  "nowAllRolled": "All {total} services rolled out",
+  "pods": "{done} of {total} pods ready",
+  "jobs": "{done} of {total} jobs done",
+  "openJob": "Open job"
+}

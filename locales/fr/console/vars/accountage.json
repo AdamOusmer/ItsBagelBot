@@ -1,0 +1,5 @@
+{
+  "name": "Âge du compte",
+  "hint": "l’âge de leur compte Twitch (module Âge du compte)",
+  "desc": "L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte."
+}

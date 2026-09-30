@@ -42,7 +42,7 @@ export function fieldLabelOf(t: I18n['t'], field: string): string {
 
 export function refusalTextOf(t: I18n['t'], p: ActionPayload | undefined, fallback: string): string {
   if (p?.code === 'invalid' && p.fields?.length) {
-    return t('discord.errInvalidFields', { fields: p.fields.map((f) => fieldLabelOf(t, f)).join(', ') });
+    return t('discord.errors.invalidFields', { fields: p.fields.map((f) => fieldLabelOf(t, f)).join(', ') });
   }
   const key = p?.code ? DISCORD_CODE_KEYS[p.code] : undefined;
   if (key) return t(key);
@@ -109,7 +109,7 @@ export function createGuildDraft(init: DraftInit) {
   const invalidBanner = $derived(bannerFor(invalid));
   function bannerFor(map: RefusedFields): string {
     if (map.first !== '') return t('discord.invalidFieldBanner', { field: fieldLabel(map.first) });
-    if (map.unknown.length > 0) return t('discord.errInvalid');
+    if (map.unknown.length > 0) return t('discord.errors.invalid');
     return '';
   }
 
@@ -117,7 +117,7 @@ export function createGuildDraft(init: DraftInit) {
     markSave('saved', 4000);
     invalidFields = [];
     conflicted = false;
-    toast('ok', t('discord.toastSaved'));
+    toast('ok', t('discord.toast.saved'));
     await invalidateAll();
   }
 
@@ -125,7 +125,7 @@ export function createGuildDraft(init: DraftInit) {
     markSave('error', 4000);
     conflicted = p?.code === 'conflict';
     invalidFields = p?.code === 'invalid' ? (p.fields ?? []) : [];
-    toast('err', refusalText(p, t('discord.toastSaveFailed')));
+    toast('err', refusalText(p, t('discord.toast.saveFailed')));
     if (p?.code === 'invalid') await invalidateAll();
   }
 

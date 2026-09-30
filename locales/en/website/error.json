@@ -1,0 +1,16 @@
+{
+  "back": "Go back",
+  "home": "Back to home",
+  "aside": "The oven is still warm. Everything else is right where you left it.",
+  "404.metaTitle": "404: Page not found | ItsBagelBot",
+  "404.metaDesc": "This ItsBagelBot page could not be found.",
+  "404.eyebrow": "Lost in the crumbs",
+  "404.title": "This page wandered off.",
+  "404.desc": "We looked under every sesame seed, but the page you're after isn't here.",
+  "500.metaTitle": "500: Something went wrong | ItsBagelBot",
+  "500.metaDesc": "ItsBagelBot hit an unexpected error.",
+  "500.eyebrow": "A little overbaked",
+  "500.title": "Something went sideways.",
+  "500.desc": "A tray tipped over behind the scenes. Give us a moment, then try the page again.",
+  "500.action": "Back to safety"
+}

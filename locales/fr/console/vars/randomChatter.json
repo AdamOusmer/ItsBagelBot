@@ -1,0 +1,5 @@
+{
+  "name": "Un spectateur au hasard",
+  "hint": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
+  "desc": "Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien."
+}

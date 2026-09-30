@@ -1,0 +1,51 @@
+{
+  "time": {
+    "time": {
+      "name": "Heure locale",
+      "hint": "L'heure",
+      "desc": "L'heure, selon votre fuseau et votre format."
+    },
+    "date": {
+      "name": "Date locale",
+      "hint": "La date du jour dans votre fuseau",
+      "desc": "La date du jour dans votre fuseau."
+    },
+    "timezone": {
+      "name": "Fuseau horaire",
+      "hint": "Le nom du fuseau configuré",
+      "desc": "Le nom du fuseau configuré."
+    },
+    "user": {
+      "name": "Demandeur",
+      "hint": "Qui a demandé l'heure",
+      "desc": "Qui a demandé l'heure."
+    }
+  },
+  "lookup": {
+    "time": {
+      "name": "Heure locale",
+      "hint": "L'heure à l'endroit demandé",
+      "desc": "L'heure, à l'endroit qu'un viewer a demandé."
+    },
+    "date": {
+      "name": "Date locale",
+      "hint": "La date du jour à l'endroit demandé",
+      "desc": "La date du jour, à l'endroit qu'un viewer a demandé."
+    },
+    "place": {
+      "name": "Lieu",
+      "hint": "L'endroit qu'un viewer a demandé",
+      "desc": "Le nom du lieu normalisé résolu par la recherche."
+    },
+    "timezone": {
+      "name": "Fuseau horaire",
+      "hint": "Le fuseau horaire de l'endroit demandé",
+      "desc": "Le nom ou décalage du fuseau horaire à l'endroit demandé."
+    },
+    "user": {
+      "name": "Demandeur",
+      "hint": "Qui a demandé l'heure",
+      "desc": "Qui a demandé l'heure."
+    }
+  }
+}

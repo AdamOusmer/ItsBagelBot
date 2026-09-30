@@ -1,0 +1,41 @@
+{
+  "join": {
+    "user": {
+      "name": "Participant",
+      "hint": "Qui a rejoint la file",
+      "desc": "Qui a rejoint la file."
+    },
+    "pos": {
+      "name": "Position",
+      "hint": "Sa place dans la file",
+      "desc": "Sa place dans la file."
+    },
+    "channel": {
+      "name": "Chaîne",
+      "hint": "Le nom de votre chaîne",
+      "desc": "Le nom de votre chaîne."
+    }
+  },
+  "next": {
+    "target": {
+      "name": "Joueur suivant",
+      "hint": "La personne dont c’est le tour",
+      "desc": "La personne dont c’est le tour."
+    },
+    "count": {
+      "name": "Encore en attente",
+      "hint": "Combien de personnes restent dans la file",
+      "desc": "Combien de personnes restent dans la file."
+    },
+    "user": {
+      "name": "Invocateur",
+      "hint": "Le modérateur qui a fait avancer la file",
+      "desc": "Le modérateur qui a exécuté !queue next."
+    },
+    "channel": {
+      "name": "Chaîne",
+      "hint": "Le nom de votre chaîne",
+      "desc": "Le nom de votre chaîne."
+    }
+  }
+}

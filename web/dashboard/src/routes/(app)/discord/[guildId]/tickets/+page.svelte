@@ -66,20 +66,20 @@
   const panelColor = $derived(normalizeHex(draft.config.ticketPanelColor));
   const ticketsOn = $derived(alertOn(draft.config.ticketsEnabled));
 
-  const repostSubmit = $derived(draft.actionSubmit(t('discord.toastReposted'), t('discord.toastRepostFailed')));
+  const repostSubmit = $derived(draft.actionSubmit(t('discord.toast.reposted'), t('discord.toast.repostFailed')));
 </script>
 
 {#if layoutDown}
   <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
-<GuildForm {draft} id="dc-tickets-h" title={t('discord.ticketsTitle')} hint={t('discord.ticketsSectionHelp')}>
+<GuildForm {draft} id="dc-tickets-h" title={t('discord.tickets.title')} hint={t('discord.tickets.sectionHelp')}>
   <SwitchRow
     {draft}
     invalid={draft.invalid}
     field="ticketsEnabled"
-    label={t('discord.ticketsLabel')}
-    help={t('discord.ticketsHelp')}
+    label={t('discord.tickets.label')}
+    help={t('discord.tickets.help')}
     defaultOn
   />
 
@@ -87,8 +87,8 @@
     {draft}
     invalid={draft.invalid}
     field="ticketChannelId"
-    label={t('discord.ticketChannelLabel')}
-    help={t('discord.ticketChannelHelp')}
+    label={t('discord.tickets.channelLabel')}
+    help={t('discord.tickets.channelHelp')}
     options={textChannels}
     prefix="#"
   />
@@ -96,39 +96,39 @@
     {draft}
     invalid={draft.invalid}
     field="ticketCategoryId"
-    label={t('discord.ticketCategoryLabel')}
-    help={t('discord.ticketCategoryHelp')}
+    label={t('discord.tickets.categoryLabel')}
+    help={t('discord.tickets.categoryHelp')}
     options={categories}
   />
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="ticketArchiveCategoryId"
-    label={t('discord.ticketArchiveLabel')}
-    help={t('discord.ticketArchiveHelp')}
+    label={t('discord.tickets.archiveLabel')}
+    help={t('discord.tickets.archiveHelp')}
     options={categories}
   />
   <ChannelPicker
     {draft}
     invalid={draft.invalid}
     field="ticketLogChannelId"
-    label={t('discord.ticketLogLabel')}
-    help={t('discord.ticketLogHelp')}
+    label={t('discord.tickets.logLabel')}
+    help={t('discord.tickets.logHelp')}
     options={textChannels}
     prefix="#"
   />
 
   <fieldset class="setting-row stacked staff">
-    <legend><Text as="span" size="sm">{t('discord.staffRolesLabel')}</Text></legend>
-    <Text as="span" size="xs" tone="muted" id="dch-staff">{t('discord.staffRolesHelp')}</Text>
+    <legend><Text as="span" size="sm">{t('discord.tickets.staffRolesLabel')}</Text></legend>
+    <Text as="span" size="xs" tone="muted" id="dch-staff">{t('discord.tickets.staffRolesHelp')}</Text>
     {#if roles.length === 0}
-      <Text as="span" size="xs" tone="muted">{t('discord.staffRolesEmpty')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.tickets.staffRolesEmpty')}</Text>
     {:else}
       {#if missingStaff.length}
-        <Text as="span" size="xs" tone="muted" role="status">{t('discord.staffRoleMissingHelp')}</Text>
+        <Text as="span" size="xs" tone="muted" role="status">{t('discord.tickets.staffRoleMissingHelp')}</Text>
       {/if}
       {#if roles.length > 8}
-        <SearchInput bind:value={roleQuery} placeholder={t('discord.staffRolesFilterPh')} aria-label={t('discord.staffRolesFilterLabel')} clearLabel={t('common.searchClear')} autocomplete="off" fill />
+        <SearchInput bind:value={roleQuery} placeholder={t('discord.tickets.staffRolesFilterPh')} aria-label={t('discord.tickets.staffRolesFilterLabel')} clearLabel={t('common.searchClear')} autocomplete="off" fill />
       {/if}
       <div class="checks">
         {#each missingStaff as id (id)}
@@ -136,7 +136,7 @@
             class="check"
             aria-describedby="dch-staff"
             bind:checked={() => true, () => toggleStaffRole(id, false)}
-          ><Text as="span" size="sm" truncate>{t('discord.staffRoleMissing', { id })}</Text></Checkbox>
+          ><Text as="span" size="sm" truncate>{t('discord.tickets.staffRoleMissing', { id })}</Text></Checkbox>
         {/each}
         {#each visibleRoles as role (role.id)}
           <Checkbox
@@ -147,7 +147,7 @@
         {/each}
       </div>
       {#if visibleRoles.length === 0}
-        <Text as="span" size="xs" tone="muted">{t('discord.staffRolesNoMatch')}</Text>
+        <Text as="span" size="xs" tone="muted">{t('discord.tickets.staffRolesNoMatch')}</Text>
       {/if}
     {/if}
     <FieldNote invalid={draft.invalid} field="ticketStaffRoleIds" />
@@ -155,12 +155,12 @@
 
   <div class="setting-row">
     <span class="tr-text">
-      <Text as="span" size="sm">{t('discord.openLimitLabel')}</Text>
-      <Text as="span" size="xs" tone="muted">{t('discord.openLimitHelp')}</Text>
+      <Text as="span" size="sm">{t('discord.tickets.openLimitLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.tickets.openLimitHelp')}</Text>
     </span>
     <SegmentedControl
       options={LIMIT_OPTIONS}
-      label={t('discord.openLimitLabel')}
+      label={t('discord.tickets.openLimitLabel')}
       bind:value={() => String(ticketOpenLimitN(draft.config)), (v) => draft.set('ticketOpenLimit', v)}
     />
     <FieldNote invalid={draft.invalid} field="ticketOpenLimit" />
@@ -170,17 +170,17 @@
     {draft}
     invalid={draft.invalid}
     field="ticketTranscriptEnabled"
-    label={t('discord.transcriptLabel')}
-    help={t('discord.transcriptHelp')}
+    label={t('discord.tickets.transcriptLabel')}
+    help={t('discord.tickets.transcriptHelp')}
     defaultOn
   />
 
-  <h3 class="group">{t('discord.panelTitle')}</h3>
-  <Text size="sm" tone="muted" class="hint">{t('discord.panelHelp')}</Text>
+  <h3 class="group">{t('discord.tickets.panelTitle')}</h3>
+  <Text size="sm" tone="muted" class="hint">{t('discord.tickets.panelHelp')}</Text>
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-title">
-      <Text as="span" size="sm">{t('discord.panelTitleLabel')}</Text>
+      <Text as="span" size="sm">{t('discord.tickets.panelTitleLabel')}</Text>
       <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.title}</Text>
     </label>
     <Input
@@ -195,7 +195,7 @@
 
   <div class="setting-row stacked">
     <label class="tr-text" for="dc-panel-body">
-      <Text as="span" size="sm">{t('discord.panelBodyLabel')}</Text>
+      <Text as="span" size="sm">{t('discord.tickets.panelBodyLabel')}</Text>
       <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.body}</Text>
     </label>
     <Textarea
@@ -211,7 +211,7 @@
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-button">
-      <Text as="span" size="sm">{t('discord.panelButtonLabel')}</Text>
+      <Text as="span" size="sm">{t('discord.tickets.panelButtonLabel')}</Text>
       <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.button}</Text>
     </label>
     <Input
@@ -226,8 +226,8 @@
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-color">
-      <Text as="span" size="sm">{t('discord.panelColorLabel')}</Text>
-      <Text as="span" size="xs" tone="muted">{t('discord.panelColorHelp')}</Text>
+      <Text as="span" size="sm">{t('discord.tickets.panelColorLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.tickets.panelColorHelp')}</Text>
     </label>
     <span class="colors">
       {#each SWATCHES as swatch (swatch)}
@@ -235,7 +235,7 @@
           type="button"
           class="swatch {panelColor === swatch ? 'on' : ''}"
           style="background: {swatch}"
-          aria-label={t('discord.swatchLabel', { hex: swatch })}
+          aria-label={t('discord.tickets.swatchLabel', { hex: swatch })}
           aria-pressed={panelColor === swatch}
           onclick={() => draft.set('ticketPanelColor', swatch)}
         ></button>
@@ -251,24 +251,24 @@
   </div>
 
   <DiscordEmbedPreview
-    caption={t('discord.panelPreviewCaption')}
+    caption={t('discord.tickets.panelPreviewCaption')}
     title={panel.title}
     body={panel.body}
     button={panel.button}
     color={panel.color}
     limits={[
-      { label: t('discord.panelTitleLabel'), n: draft.config.ticketPanelTitle.length, max: TICKET_PANEL_TITLE_MAX },
-      { label: t('discord.panelBodyLabel'), n: draft.config.ticketPanelBody.length, max: TICKET_PANEL_BODY_MAX },
-      { label: t('discord.panelButtonLabel'), n: draft.config.ticketPanelButton.length, max: TICKET_PANEL_BUTTON_MAX }
+      { label: t('discord.tickets.panelTitleLabel'), n: draft.config.ticketPanelTitle.length, max: TICKET_PANEL_TITLE_MAX },
+      { label: t('discord.tickets.panelBodyLabel'), n: draft.config.ticketPanelBody.length, max: TICKET_PANEL_BODY_MAX },
+      { label: t('discord.tickets.panelButtonLabel'), n: draft.config.ticketPanelButton.length, max: TICKET_PANEL_BUTTON_MAX }
     ]}
   />
 
   {#snippet after()}
     <div class="repost">
-      <Text size="sm" tone="muted" class="hint">{t('discord.repostHelp')}</Text>
+      <Text size="sm" tone="muted" class="hint">{t('discord.tickets.repostHelp')}</Text>
       <form method="POST" action="?/repost" use:enhance={repostSubmit}>
         <Button variant="secondary" type="submit" loading={draft.busy} disabled={!ticketsOn}>
-          {t('discord.repostCta')}
+          {t('discord.tickets.repostCta')}
         </Button>
       </form>
     </div>

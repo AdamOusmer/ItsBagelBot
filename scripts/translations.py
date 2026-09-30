@@ -7,24 +7,24 @@ import re
 import sys
 
 from translation_checks import (
+    MANIFEST,
+    MAX_LEAVES,
+    TREE,
     CheckConfig,
     check as _check,
+    compare,
     content_coverage,
     flatten,
+    key_prefix,
     locale_codes as _locale_codes,
+    read_catalog,
     read_json,
+    status,
     translation_errors,
     unique_object,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOGS = {
-    'chat': 'internal/domain/i18n/locales',
-    'console': 'web/kit/lib/i18n/locales',
-    'website': 'web/marketing/src/i18n/locales',
-    'docs': 'web/docs/src/i18n/locales',
-}
-MANIFEST = 'internal/domain/i18n/locales.json'
 LOCALE_RE = re.compile(r'[a-z]{2,3}(?:-[a-z0-9]{2,4})?')
 
 
@@ -33,7 +33,7 @@ def locale_codes(root):
 
 
 def check(root, strict=(), show_missing=False):
-    return _check(CheckConfig(root, CATALOGS, MANIFEST, tuple(strict), show_missing, content_coverage))
+    return _check(CheckConfig(root, tuple(strict), show_missing, content_coverage))
 
 
 def _validate_scaffold(code, name, og_locale):
@@ -43,25 +43,51 @@ def _validate_scaffold(code, name, og_locale):
         raise ValueError('Supply the native language name and an Open Graph locale such as es_ES.')
 
 
-def _scaffold_files(root, code, name, og_locale):
-    contents = [{}, {'lang': {'name': name}}, {'lang.name': name, 'lang.ogLocale': og_locale}, {'lang.name': name}]
-    paths = [root / directory / f'{code}.json' for directory in CATALOGS.values()]
-    for path, content in zip(paths, contents):
-        path.write_text(json.dumps(content, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    return paths
+def _required_keys(name, og_locale):
+    return {
+        'console': {'lang.name': name},
+        'website': {'lang.name': name, 'lang.ogLocale': og_locale},
+        'docs': {'lang.name': name},
+    }
+
+
+def _prune(tree, prefix, wanted):
+    result = {}
+    for key, value in tree.items():
+        name = f'{prefix}.{key}' if prefix else key
+        kept = _prune(value, name, wanted) if isinstance(value, dict) else wanted.get(name)
+        if kept:
+            result[key] = kept
+    return result
+
+
+def scaffold_files(root, required):
+    files = {}
+    for surface, wanted in required.items():
+        english = read_catalog(root, 'en', surface)
+        for relative in sorted({english.keys[key][1] for key in wanted if key in english.keys}):
+            tree = read_json(root / english.path(relative))
+            files[f'{surface}/{relative}'] = _prune(tree, key_prefix(relative), wanted)
+    return files
 
 
 def scaffold(root, code, name, og_locale):
     _validate_scaffold(code, name, og_locale)
     codes = locale_codes(root)
-    paths = [root / directory / f'{code}.json' for directory in CATALOGS.values()]
-    if code in codes or any(path.exists() for path in paths):
-        raise ValueError(f'{code} already exists; no files changed. Edit its existing catalogs instead.')
-    _scaffold_files(root, code, name, og_locale)
+    folder = root / TREE / code
+    if code in codes or folder.exists():
+        raise ValueError(f'{code} already exists; no files changed. Edit its existing files in {TREE}/{code}/ instead.')
+    files = scaffold_files(root, _required_keys(name, og_locale))
+    for relative, content in files.items():
+        path = folder / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(content, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (root / MANIFEST).write_text(json.dumps(codes + [code], indent=2) + '\n', encoding='utf-8')
-    print(f'Created partial {code} catalogs and registered the locale. Missing text falls back to English.')
-    print('Translate values from the neighboring en.json files; do not copy untranslated English as completed work.')
-    print('Website guide/legal content and documentation have separate files; see TRANSLATIONS.md.')
+    print(f'Created {TREE}/{code}/ with {len(files)} starter files and registered the locale. Missing text falls back to English.')
+    print(f'Translate files from {TREE}/en/ into the same paths under {TREE}/{code}/. '
+          'Leave out text you have not translated yet instead of copying English.')
+    print(f'Run python3 scripts/translations.py status {code} to see what is left. '
+          'Guides, legal pages and documentation pages live elsewhere; see TRANSLATIONS.md.')
 
 
 def _parser():
@@ -70,11 +96,20 @@ def _parser():
     audit = commands.add_parser('check', help='validate catalogs and report coverage')
     audit.add_argument('--strict', action='append', default=[], metavar='LOCALE', help='require every English key for this locale; repeatable')
     audit.add_argument('--missing', action='store_true', help='list missing keys to translate')
-    new = commands.add_parser('new', help='create partial catalogs without overwriting existing work')
+    progress = commands.add_parser('status', help='list missing keys for one language, grouped by file')
+    progress.add_argument('locale')
+    progress.add_argument('--keys', action='store_true', help='also list each missing key under its file')
+    new = commands.add_parser('new', help='create a partial language without overwriting existing work')
     new.add_argument('locale')
-    new.add_argument('--name', required=True, help='native language name, e.g. Español')
-    new.add_argument('--og-locale', required=True, help='social-card locale, e.g. es_ES')
+    new.add_argument('name', nargs='?', help='native language name, e.g. Español')
+    new.add_argument('og_locale', nargs='?', metavar='og-locale', help='social-card locale, e.g. es_ES')
+    new.add_argument('--name', dest='name_option', help=argparse.SUPPRESS)
+    new.add_argument('--og-locale', dest='og_locale_option', help=argparse.SUPPRESS)
     return parser
+
+
+def scaffold_arguments(args):
+    return args.locale, args.name or args.name_option or '', args.og_locale or args.og_locale_option or ''
 
 
 def main():
@@ -82,7 +117,9 @@ def main():
     try:
         if args.command == 'check':
             return check(ROOT, args.strict, args.missing)
-        scaffold(ROOT, args.locale, args.name, args.og_locale)
+        if args.command == 'status':
+            return status(ROOT, args.locale, args.keys)
+        scaffold(ROOT, *scaffold_arguments(args))
         return 0
     except ValueError as exc:
         print(f'ERROR {exc}', file=sys.stderr)

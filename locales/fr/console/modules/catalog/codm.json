@@ -1,0 +1,22 @@
+{
+  "label": "Profil CODM",
+  "tagline": "Consultation de profil Call of Duty: Mobile Global dans le chat.",
+  "description": "Cherchez un profil CODM Global par UID ou pseudo exact avec !codm, !codmprofile ou !codmrank. Le profil en lecture seule inclut le niveau, le rang et la cote Multijoueur, le pays et l'identifiant court. Prend en charge l'édition CODM Global et n'inclut pas le KD, l'historique des parties ni les stats Battle Royale.",
+  "settings": {
+    "account": {
+      "label": "Compte CODM lié",
+      "help": "Profil par défaut de la commande. Si le champ est vide, saisissez un UID CODM ou un pseudo exact après !codm.",
+      "placeholder": "UID CODM ou pseudo exact"
+    },
+    "linkedOnly": {
+      "help": "Une fois activé, chaque recherche utilise votre compte CODM lié et ignore les noms fournis par les viewers. Liez d'abord un UID CODM ou un pseudo exact."
+    }
+  },
+  "replies": {
+    "profile": {
+      "tagline": "Profil CODM Global : !codm, !codmprofile ou !codmrank.",
+      "event": "!codm [UID/pseudo exact]",
+      "defaultMessage": "{player} · niveau {level} · multijoueur {rank} · score {rating} · {country}"
+    }
+  }
+}

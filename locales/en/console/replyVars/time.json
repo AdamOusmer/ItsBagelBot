@@ -1,0 +1,51 @@
+{
+  "time": {
+    "time": {
+      "name": "Local time",
+      "hint": "The clock",
+      "desc": "The clock, in your configured timezone and format."
+    },
+    "date": {
+      "name": "Local date",
+      "hint": "Today's date in your timezone",
+      "desc": "Today's date in your timezone."
+    },
+    "timezone": {
+      "name": "Timezone",
+      "hint": "The configured timezone name",
+      "desc": "The configured timezone name."
+    },
+    "user": {
+      "name": "Asker",
+      "hint": "Who asked for the time",
+      "desc": "Who asked for the time."
+    }
+  },
+  "lookup": {
+    "time": {
+      "name": "Local time",
+      "hint": "The clock at the looked-up place",
+      "desc": "The clock, at the place a viewer asked about."
+    },
+    "date": {
+      "name": "Local date",
+      "hint": "Today's date at the looked-up place",
+      "desc": "Today's date, at the place a viewer asked about."
+    },
+    "place": {
+      "name": "Place",
+      "hint": "The place a viewer asked about",
+      "desc": "The normalized place name the lookup resolved."
+    },
+    "timezone": {
+      "name": "Timezone",
+      "hint": "The looked-up place's timezone name",
+      "desc": "The timezone name or offset at the looked-up place."
+    },
+    "user": {
+      "name": "Asker",
+      "hint": "Who asked for the time",
+      "desc": "Who asked for the time."
+    }
+  }
+}

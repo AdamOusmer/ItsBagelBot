@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Game Integrations",
+  "title": "Stats in chat, no alt-tabbing.",
+  "mcTitle": "Minecraft Stats.",
+  "mcDesc": "Hypixel Bedwars stats and MCSR Ranked Elo, straight into chat.",
+  "fnTitle": "Fortnite Stats & Shop.",
+  "fnDesc": "Lifetime and season stats, plus the daily item shop, one command away.",
+  "valTitle": "Valorant Stats.",
+  "valDesc": "Ranks, recent matches, leaderboards and the daily shop rotation, straight into chat.",
+  "crTitle": "Clash Royale Stats.",
+  "crDesc": "Profiles, battle decks and Path of Legends standing, one command away.",
+  "reqTitle": "Want another game?",
+  "reqDesc": "We are adding more. Open an issue on GitHub and tell us what you play.",
+  "mcCh": "minecraft · ch 01",
+  "fnCh": "fortnite · ch 02",
+  "valCh": "valorant · ch 03",
+  "crCh": "clash · ch 04",
+  "reqCh": "requests · open",
+  "legalShort": "ItsBagelBot is not affiliated with any game publisher. Full trademark notices sit in the {terms}.",
+  "legalTermsLabel": "Terms of Service"
+}

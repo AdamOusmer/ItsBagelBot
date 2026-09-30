@@ -1,0 +1,7 @@
+{
+  "sharedPre": "Shared access to ",
+  "sharedPost": "'s dashboard ({sections})",
+  "viewingPre": "Viewing as ",
+  "viewingPost": " (admin {admin})",
+  "exit": "Exit"
+}

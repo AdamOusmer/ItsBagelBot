@@ -1,0 +1,10 @@
+{
+  "command.answered": "!%s answered @%s",
+  "event.follow": "%s followed",
+  "event.subscribe": "%s subscribed (%s)",
+  "event.gift": "%s gifted %d subs",
+  "event.raid": "%s raided with %d viewers",
+  "automod.ban_timeout": "ban/timeout issued",
+  "automod.deleted": "message deleted",
+  "reward.redemption": "redemption %s"
+}

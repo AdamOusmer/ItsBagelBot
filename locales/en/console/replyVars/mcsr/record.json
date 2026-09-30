@@ -1,0 +1,27 @@
+{
+  "playera": {
+    "name": "Player A",
+    "hint": "The first typed player (or you",
+    "desc": "The first typed player (or you, with one name typed)."
+  },
+  "playerb": {
+    "name": "Player B",
+    "hint": "The second typed player",
+    "desc": "The second typed player."
+  },
+  "winsa": {
+    "name": "Wins A",
+    "hint": "Player A's wins over player B",
+    "desc": "Player A's wins over player B."
+  },
+  "winsb": {
+    "name": "Wins B",
+    "hint": "Player B's wins over player A",
+    "desc": "Player B's wins over player A."
+  },
+  "played": {
+    "name": "Played",
+    "hint": "Total matches between the two",
+    "desc": "Total matches between the two."
+  }
+}

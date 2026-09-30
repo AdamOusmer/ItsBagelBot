@@ -1,0 +1,7 @@
+{
+  "release": "Tag a new version, build every image, pin it and roll every service.",
+  "hotfix": "Move the current tag to a later commit, rebuild, re-pin and roll.",
+  "bump": "Pin the images main just built. Only services whose image changed roll.",
+  "rollback": "Pin an earlier release’s images and roll. No build.",
+  "reapply": "Roll the pins already on main. No build, no PR."
+}

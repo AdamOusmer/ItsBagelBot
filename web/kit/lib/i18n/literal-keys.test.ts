@@ -4,7 +4,9 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import en from './locales/en.json';
+import { readConsoleTree } from './tree-fs';
+
+const en = readConsoleTree('en');
 
 const ROOTS = [
   join(import.meta.dir, '../../../dashboard/src'),

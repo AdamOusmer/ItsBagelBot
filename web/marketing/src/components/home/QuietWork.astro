@@ -19,7 +19,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 ---
 
 <Section size="page" class="qw" id="quiet-work" data-motion>
-    <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
+    <SectionHeading eyebrow={t('quietWork.eyebrow')} title={t('quietWork.title')} />
 
     <div class="qw__grid">
         <Card atmo hover class="qw__card qw__card--full" data-reveal>
@@ -28,17 +28,17 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
                 </span>
                 <span class="qw-song__meta">
-                    <span class="qw-song__now">{t('qw.songNow')}</span>
-                    <span class="qw-song__track">{t('qw.songTrack')}</span>
+                    <span class="qw-song__now">{t('quietWork.songNow')}</span>
+                    <span class="qw-song__track">{t('quietWork.songTrack')}</span>
                     <span class="qw-song__scrub"><i></i></span>
                 </span>
                 <span class="qw-song__req">
                     <span class="qw-song__cmd">!sr late night lo-fi</span>
-                    <span class="qw-song__ack">{t('qw.songAck')}</span>
+                    <span class="qw-song__ack">{t('quietWork.songAck')}</span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.songTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('qw.songDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.songTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('quietWork.songDesc')}</Text>
             <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/song-requests', lang)} label={t('rail.learnMore')} />
         </Card>
 
@@ -58,20 +58,20 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-govee__dot bb-layers">
                         {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                     </span>
-                    {t('qw.goveeReward')}
+                    {t('quietWork.goveeReward')}
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.goveeTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('qw.goveeDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.goveeTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('quietWork.goveeDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
             <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
-                <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
+                <span class="qw-cmd__out">{t('quietWork.cmdOut')}</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.cmdTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('qw.cmdDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.cmdTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('quietWork.cmdDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
@@ -80,19 +80,19 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 32%"></i><b class="qw-poll__pct">32%</b></span>
             </div>
             <Heading level={5} as="h3" variant="title" class="qw__title">
-                {t('qw.pollTitle')}
+                {t('quietWork.pollTitle')}
                 <Badge tone="incoming" mark="plus">{t('badge.incoming')}</Badge>
             </Heading>
-            <Text size="sm" tone="muted">{t('qw.pollDesc')}</Text>
+            <Text size="sm" tone="muted">{t('quietWork.pollDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
-                <span class="qw-win__label">{t('qw.winLabel')}</span>
+                <span class="qw-win__label">{t('quietWork.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.winTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('qw.winDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.winTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('quietWork.winDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
@@ -106,8 +106,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     </span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.beatTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('qw.beatDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.beatTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('quietWork.beatDesc')}</Text>
         </Card>
     </div>
 </Section>

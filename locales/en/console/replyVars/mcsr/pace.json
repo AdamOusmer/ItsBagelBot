@@ -1,0 +1,62 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The linked player",
+    "desc": "The linked player."
+  },
+  "nethers": {
+    "name": "Nethers",
+    "hint": "Nether entrances this session",
+    "desc": "Nether entrances this session."
+  },
+  "nether": {
+    "name": "Nether avg",
+    "hint": "Average nether split",
+    "desc": "Average nether split."
+  },
+  "bastion": {
+    "name": "Bastion avg",
+    "hint": "Average bastion split",
+    "desc": "Average bastion split."
+  },
+  "fortress": {
+    "name": "Fortress avg",
+    "hint": "Average fortress split",
+    "desc": "Average fortress split."
+  },
+  "firststructure": {
+    "name": "First structure avg",
+    "hint": "Average split for whichever structure was entered first",
+    "desc": "Average split for whichever structure was entered first."
+  },
+  "secondstructure": {
+    "name": "Second structure avg",
+    "hint": "Average split for whichever structure was entered second",
+    "desc": "Average split for whichever structure was entered second."
+  },
+  "firstportal": {
+    "name": "First portal avg",
+    "hint": "Average first-portal split",
+    "desc": "Average first-portal split."
+  },
+  "stronghold": {
+    "name": "Stronghold avg",
+    "hint": "Average stronghold split",
+    "desc": "Average stronghold split."
+  },
+  "end": {
+    "name": "End avg",
+    "hint": "Average end-enter split",
+    "desc": "Average end-enter split."
+  },
+  "finish": {
+    "name": "Finish avg",
+    "hint": "Average finish split",
+    "desc": "Average finish split."
+  },
+  "nph": {
+    "name": "Nethers/hour",
+    "hint": "Nether-entrance pace",
+    "desc": "Nether-entrance pace."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "label": "Alertes de chat",
+  "tagline": "Annoncez les follows, subs, cheers, raids et pauses pub dans le chat.",
+  "description": "Le bot poste une ligne dans le chat quand quelqu'un follow, s'abonne, cheer ou raid, et peut annoncer les pauses pub. Activez ou désactivez chaque alerte et personnalisez son message. Les nouvelles alertes arrivent activées, sauf l'alerte de pause pub qui reste éteinte jusqu'à ce que vous l'activiez. Une alerte de follow se déclenche au plus une fois par viewer tous les trois jours, donc unfollow puis refollow ne peut pas spammer le chat.",
+  "replies": {
+    "follow": {
+      "label": "Alerte de follow",
+      "tagline": "Quand quelqu'un follow votre chaîne. Une fois par viewer tous les trois jours.",
+      "event": "au follow",
+      "defaultMessage": "Merci de suivre la chaîne, {user} !"
+    },
+    "sub": {
+      "label": "Alerte d'abonnement",
+      "tagline": "Quand quelqu'un s'abonne ou se réabonne.",
+      "event": "à l'abonnement",
+      "defaultMessage": "Bienvenue dans la communauté, {user} ! Merci pour ton abonnement !"
+    },
+    "gift": {
+      "label": "Alerte de sub offert",
+      "tagline": "Quand quelqu'un offre des subs. Une ligne par offreur, jamais par destinataire.",
+      "event": "aux subs offerts",
+      "defaultMessage": "{user} vient d’offrir {count} abonnements à la communauté ! Merci !"
+    },
+    "cheer": {
+      "label": "Alerte de cheer",
+      "tagline": "Quand quelqu'un cheer des bits.",
+      "event": "au cheer",
+      "defaultMessage": "Merci pour les {bits} bits, {user} !"
+    },
+    "raid": {
+      "label": "Alerte de raid",
+      "tagline": "Quand une autre chaîne raid.",
+      "event": "au raid",
+      "defaultMessage": "{user} arrive en raid avec {viewers} spectateurs ! Bienvenue à tout le monde !"
+    },
+    "ads": {
+      "label": "Alerte de pause pub",
+      "tagline": "Quand une pause pub commence. Éteinte par défaut.",
+      "event": "à la pause pub",
+      "defaultMessage": "Pause publicitaire de {duration} secondes. On revient tout de suite !"
+    }
+  }
+}

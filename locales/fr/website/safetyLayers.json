@@ -1,0 +1,19 @@
+{
+  "eyebrow": "La modération, couche par couche",
+  "title": "Ce qui arrive à un message avant qu'il atteigne le chat.",
+  "juryTitle": "Plusieurs classificateurs doivent être d'accord.",
+  "juryDesc": "Des classificateurs indépendants notent chacun le message pour les signaux de spam et de haine. Il n'est retiré que lorsqu'ils s'accordent.",
+  "juryVerdict": "consensus",
+  "spam": "spam",
+  "hate": "haine",
+  "gatesTitle": "Des filtres statiques règlent l’évidence.",
+  "gatesDesc": "Les contrôles de débit, de format et de liens passent en premier. Rapides et prévisibles, ils arrêtent les rafales et les liens connus avant tout traitement plus lourd.",
+  "gateRate": "débit",
+  "gateShape": "format",
+  "gateLink": "lien",
+  "gatesPassed": "3 filtres franchis",
+  "networkTitle": "Un raid avertit chaque chaîne protégée.",
+  "networkDesc": "Un motif de raid repéré dans une chaîne est signalé à toutes les chaînes inscrites, donc la deuxième cible est déjà couverte.",
+  "networkAlert": "signature de raid",
+  "networkStatus": "réseau protégé"
+}

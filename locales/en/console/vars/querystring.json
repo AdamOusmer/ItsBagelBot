@@ -1,0 +1,5 @@
+{
+  "name": "Arguments, URL-encoded",
+  "hint": "everything typed after the command, URL-encoded for a data source",
+  "desc": "Everything typed after the command, encoded so it can be dropped into a data source URL."
+}

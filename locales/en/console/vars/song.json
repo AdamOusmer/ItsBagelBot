@@ -1,0 +1,5 @@
+{
+  "name": "Now playing",
+  "hint": "the track playing right now, or {song.title} / {song.artist} (Song requests)",
+  "desc": "The track playing on Spotify right now. {song.title} and {song.artist} give the two halves separately. Nothing playing comes back empty. Needs the Song requests module."
+}

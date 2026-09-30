@@ -1,0 +1,13 @@
+{
+  "preflight": "Contrôles préalables",
+  "merge_prs": "Fusion des PR",
+  "changelog": "Journal des modifications",
+  "tag": "Étiquette",
+  "release": "Publication GitHub",
+  "build": "Construction des images",
+  "digests": "Contrôle des empreintes",
+  "pin_pr": "PR d’épinglage",
+  "acl": "ACL NATS",
+  "rollout": "Redéploiement",
+  "verify": "Vérification"
+}

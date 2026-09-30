@@ -1,0 +1,21 @@
+{
+  "label": "Song Requests",
+  "tagline": "!sr and a channel-points reward that queue songs from Spotify.",
+  "description": "Register your own Spotify app and connect your account to it once, then let viewers queue music two ways: the !sr chat command (with a permission tier you pick, from everyone down to just you) and a channel-points reward whose typed input is the song query: a name, \"artist - song\", or a pasted Spotify link. The bot announces what is playing, resolves links and search names against Spotify, and keeps one song per viewer in the up-next list. !current reads your Spotify player directly, so it answers even for tracks nobody requested. Moderators manage the queue with !sr next, remove and clear.",
+  "commands": {
+    "sr": "Show now playing, or queue a track by name, \"artist - song\", or a Spotify link.",
+    "remove": "Take back your queued request, or drop a position as a mod.",
+    "skip": "Mark the current track played and promote the next (also !next).",
+    "clear": "Empty the queue.",
+    "srlist": "Show the next five songs in the queue (also !songlist).",
+    "current": "Say what your Spotify is playing right now (also !song, !np)."
+  },
+  "replies": {
+    "redeem": {
+      "label": "Redeem reply",
+      "tagline": "What the bot posts when the queue reward is redeemed.",
+      "event": "on redemption",
+      "defaultMessage": "@{user} queued {track}, position #{pos}."
+    }
+  }
+}

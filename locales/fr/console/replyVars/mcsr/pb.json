@@ -1,0 +1,17 @@
+{
+  "player": {
+    "name": "Joueur",
+    "hint": "Le joueur résolu",
+    "desc": "Le joueur résolu."
+  },
+  "time": {
+    "name": "Temps",
+    "hint": "Le record personnel pour la période demandée",
+    "desc": "Le record personnel pour la période demandée."
+  },
+  "window": {
+    "name": "Période",
+    "hint": "La période qui a répondu : quotidien",
+    "desc": "La période qui a répondu : quotidien, hebdomadaire, mensuel, de tous les temps ou classé."
+  }
+}

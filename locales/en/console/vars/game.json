@@ -1,0 +1,5 @@
+{
+  "name": "Stream category",
+  "hint": "the category you are streaming, or {game:someone} for another channel (!game toggle)",
+  "desc": "The category being streamed, the same one !game shows. It works offline too. {game:someone} gives another channel’s, which is what a shoutout command wants. Follows the !game toggle."
+}

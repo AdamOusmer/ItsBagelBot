@@ -1,0 +1,11 @@
+{
+  "title": "Admin",
+  "roleModerator": "Modérateur",
+  "roleAdmin": "Admin",
+  "roleOwner": "Propriétaire",
+  "close": "Fermer",
+  "unsaved": "Modifications non enregistrées",
+  "saving": "Enregistrement…",
+  "saved": "Enregistré",
+  "saveFailed": "Impossible d'enregistrer"
+}

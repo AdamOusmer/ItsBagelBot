@@ -1,0 +1,5 @@
+{
+  "name": "Nombre d’abonnés",
+  "hint": "votre nombre actuel d’abonnés",
+  "desc": "Votre nombre actuel d’abonnés, directement depuis Twitch. Ne prend aucun paramètre : elle compte toujours votre propre chaîne."
+}

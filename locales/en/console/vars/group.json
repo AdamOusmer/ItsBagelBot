@@ -1,0 +1,17 @@
+{
+  "who": {
+    "label": "Who"
+  },
+  "typed": {
+    "label": "What they typed"
+  },
+  "stream": {
+    "label": "Your stream"
+  },
+  "fun": {
+    "label": "Fun"
+  },
+  "data": {
+    "label": "Your data"
+  }
+}

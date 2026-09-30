@@ -1,0 +1,14 @@
+{
+  "backToAll": "All releases",
+  "eyebrow": "Changelog",
+  "title": "What's new.",
+  "desc": "What changed for you, release by release. Alpha, beta, and pre-release wear their tags. Full notes live on GitHub.",
+  "metaTitle": "Changelog - ItsBagelBot",
+  "metaDesc": "What's new in ItsBagelBot: every release, ordered by version and linked to GitHub.",
+  "releaseLink": "GitHub release",
+  "empty": "Nothing in the oven yet.",
+  "tag.alpha": "Alpha",
+  "tag.beta": "Beta",
+  "tag.prerelease": "Pre-release",
+  "tag.release": "Release"
+}

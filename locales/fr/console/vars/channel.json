@@ -1,0 +1,5 @@
+{
+  "name": "Nom de la chaîne",
+  "hint": "la chaîne où la commande est lancée",
+  "desc": "Le nom d’affichage de votre chaîne."
+}

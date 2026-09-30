@@ -1,0 +1,39 @@
+{
+  "reply": {
+    "user": {
+      "name": "Redeemer",
+      "hint": "Who redeemed the reward",
+      "desc": "Who redeemed the reward."
+    },
+    "input": {
+      "name": "Viewer input",
+      "hint": "viewer input",
+      "desc": "The text typed with the redemption (when the reward asks for one)."
+    },
+    "reward": {
+      "name": "Reward title",
+      "hint": "The name of the redeemed reward",
+      "desc": "The name of the redeemed reward."
+    },
+    "cost": {
+      "name": "Point cost",
+      "hint": "What the reward costs",
+      "desc": "What the reward costs."
+    },
+    "channel": {
+      "name": "Channel",
+      "hint": "Your channel name",
+      "desc": "Your channel name."
+    },
+    "counter": {
+      "name": "Bound counter",
+      "hint": "The bound counter's new value",
+      "desc": "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward."
+    },
+    "points": {
+      "name": "Loyalty points",
+      "hint": "Loyalty points the reward grants (when positive)",
+      "desc": "Loyalty points the reward grants (when positive)."
+    }
+  }
+}

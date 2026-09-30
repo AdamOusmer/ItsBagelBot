@@ -9,12 +9,14 @@ on:
     paths:
       - 'web/**'
       - 'ui/**'
+      - 'locales/**'
       - '.github/workflows/console-test.yml'
   push:
     branches: [ "main" ]
     paths:
       - 'web/**'
       - 'ui/**'
+      - 'locales/**'
       - '.github/workflows/console-test.yml'
 
 jobs:

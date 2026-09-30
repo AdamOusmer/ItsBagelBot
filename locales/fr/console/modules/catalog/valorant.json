@@ -1,0 +1,52 @@
+{
+  "label": "Stats Valorant",
+  "tagline": "Rangs Valorant, historique de matchs, classements et rotation boutique du jour dans le chat.",
+  "description": "Une commande, cinq regards : !val montre le standing compétitif d'un joueur (palier, RR, variation de RR de la dernière partie, palier max) ; !val matches liste ses parties classées récentes en résultats agent K/D/A ; !val account montre à qui un Riot ID correspond, avec le niveau de compte ; !val lb affiche le top 10 de n'importe quel classement régional, PC ou console ; !val shop montre la rotation mondiale de skins du jour avec les prix VP et le compte à rebours. Les formes compactes !valrank, !valmatches, !valaccount, !vallb et !valshop marchent aussi. Liez votre Riot ID ci-dessous (« Nom#Tag »). Les viewers peuvent aussi nommer n'importe quel joueur, ex. « !val Frosty#EUW1 », et ajouter un shard ou une ladder n'importe où dans la ligne pour cadrer cette recherche (« !val eu Frosty#EUW1 », « !val lb console ap »). Laissez la région vide et le bot détecte le shard depuis le compte lui-même.",
+  "settings": {
+    "account": {
+      "label": "Riot ID lié",
+      "help": "Joueur par défaut de chaque commande, au format « Nom#Tag ». Valorant n'a pas de recherche par nom seul, donc le #tag est obligatoire.",
+      "placeholder": "Frosty#EUW1"
+    },
+    "region": {
+      "label": "Shard de région",
+      "help": "na, eu, ap, kr, br ou latam. Laissez vide et le bot détecte le shard depuis le compte lui-même.",
+      "placeholder": "eu"
+    },
+    "platform": {
+      "label": "Ladder",
+      "help": "Les rangs et classements sont suivis comme des ladders séparés par plateforme ; vide signifie PC.",
+      "placeholder": "pc",
+      "options": {
+        "pc": "PC",
+        "console": "Console"
+      }
+    }
+  },
+  "replies": {
+    "rank": {
+      "tagline": "Standing compétitif : !val, !val rank ou !valrank.",
+      "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · meilleur rang {peaktier}"
+    },
+    "matches": {
+      "tagline": "Parties classées récentes (aussi !valmatches).",
+      "event": "!val matches",
+      "defaultMessage": "Les {count} derniers matchs de {player} : {matches}"
+    },
+    "account": {
+      "tagline": "À qui un ID correspond, avec le niveau de compte (aussi !valaccount).",
+      "event": "!val account",
+      "defaultMessage": "{player} · compte niveau {level}"
+    },
+    "board": {
+      "tagline": "Top 10 régional, PC ou console (aussi !vallb).",
+      "event": "!val lb",
+      "defaultMessage": "{board}: {entries}"
+    },
+    "shop": {
+      "tagline": "Rotation mondiale de skins du jour avec compte à rebours (aussi !valshop).",
+      "event": "!val shop",
+      "defaultMessage": "Rotation quotidienne ({count}) : {items} · renouvellement dans {reset}"
+    }
+  }
+}

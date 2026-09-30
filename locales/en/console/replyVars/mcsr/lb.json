@@ -1,0 +1,12 @@
+{
+  "board": {
+    "name": "Board",
+    "hint": "Which leaderboard answered",
+    "desc": "Which leaderboard answered."
+  },
+  "list": {
+    "name": "Top 5",
+    "hint": "The top 5 rows",
+    "desc": "The top 5 rows, pre-formatted as one line."
+  }
+}

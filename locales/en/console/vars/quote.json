@@ -1,0 +1,5 @@
+{
+  "name": "A saved quote",
+  "hint": "a random saved quote, or {quote:12} for a numbered one (Quotes module)",
+  "desc": "A random quote from your quote book, worded exactly as !quote says it. {quote:12} picks a numbered one, and a number nobody has used comes back empty. Two {quote} in one response are two different quotes. Needs the Quotes module."
+}

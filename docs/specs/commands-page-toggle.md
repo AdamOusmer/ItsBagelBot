@@ -168,7 +168,7 @@ Users service (schema, write-through, publisher) → projector (field + post-wri
 
 ## 8. i18n
 
-Console, [web/kit/lib/i18n/locales/{en,fr}.json](../../web/kit/lib/i18n/locales/en.json):
+Console, [locales/{en,fr}/console/settings.json](../../locales/en/console/settings.json):
 
 | Key | EN | FR |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ Console, [web/kit/lib/i18n/locales/{en,fr}.json](../../web/kit/lib/i18n/locales/
 | `settings.commandsPageHint` | Viewers can open {url}. Off: that link answers 404 and !commands stops sharing it. | Les spectateurs peuvent ouvrir {url}. Désactivée : ce lien répond 404 et !commands cesse de le partager. |
 | `settings.commandsPageDelayed` | Saved. The public link can take up to 6 minutes to catch up. | Enregistré. Le lien public peut mettre jusqu'à 6 minutes à se mettre à jour. |
 
-Chat, [internal/domain/i18n/locales/{en,fr}.json](../../internal/domain/i18n/locales/en.json):
+Chat, [locales/{en,fr}/chat/cmd.json](../../locales/en/chat/cmd.json):
 
 | Key | EN | FR |
 | --- | --- | --- |

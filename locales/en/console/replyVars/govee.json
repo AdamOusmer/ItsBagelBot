@@ -1,0 +1,19 @@
+{
+  "reply": {
+    "user": {
+      "name": "Redeemer",
+      "hint": "Who redeemed the reward",
+      "desc": "Who redeemed the reward."
+    },
+    "input": {
+      "name": "Viewer input",
+      "hint": "The colour text the viewer typed",
+      "desc": "The colour text the viewer typed with the redemption."
+    },
+    "color": {
+      "name": "Colour",
+      "hint": "The resolved colour name",
+      "desc": "The colour name the bot matched and set the lights to."
+    }
+  }
+}

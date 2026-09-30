@@ -1,0 +1,5 @@
+{
+  "name": "Calcul",
+  "hint": "calcule une petite opération: + - * / et parenthèses",
+  "desc": "Résout une petite opération. Nombres entiers, + - * / et parenthèses; rien d’autre."
+}

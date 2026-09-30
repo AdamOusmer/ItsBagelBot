@@ -1,0 +1,101 @@
+{
+  "stats": {
+    "player": {
+      "name": "Player",
+      "hint": "The linked account",
+      "desc": "The linked account."
+    },
+    "window": {
+      "name": "Window",
+      "hint": "Which stats window: lifetime or season",
+      "desc": "Which stats window: lifetime or season."
+    },
+    "wins": {
+      "name": "Wins",
+      "hint": "Total wins",
+      "desc": "Total wins."
+    },
+    "matches": {
+      "name": "Matches",
+      "hint": "Matches played",
+      "desc": "Matches played."
+    },
+    "kills": {
+      "name": "Kills",
+      "hint": "Total eliminations",
+      "desc": "Total eliminations."
+    },
+    "kd": {
+      "name": "K/D",
+      "hint": "Kill/death ratio",
+      "desc": "Kill/death ratio."
+    },
+    "winrate": {
+      "name": "Win rate %",
+      "hint": "Wins per hundred matches",
+      "desc": "Wins per hundred matches."
+    },
+    "solowins": {
+      "name": "Solo wins",
+      "hint": "Wins in solos",
+      "desc": "Wins in solos."
+    },
+    "solomatches": {
+      "name": "Solo matches",
+      "hint": "Matches played in solos",
+      "desc": "Matches played in solos."
+    },
+    "solokd": {
+      "name": "Solo K/D",
+      "hint": "Kill/death ratio in solos",
+      "desc": "Kill/death ratio in solos."
+    },
+    "duowins": {
+      "name": "Duo wins",
+      "hint": "Wins in duos",
+      "desc": "Wins in duos."
+    },
+    "duomatches": {
+      "name": "Duo matches",
+      "hint": "Matches played in duos",
+      "desc": "Matches played in duos."
+    },
+    "duokd": {
+      "name": "Duo K/D",
+      "hint": "Kill/death ratio in duos",
+      "desc": "Kill/death ratio in duos."
+    },
+    "squadwins": {
+      "name": "Squad wins",
+      "hint": "Wins in squads",
+      "desc": "Wins in squads."
+    },
+    "squadmatches": {
+      "name": "Squad matches",
+      "hint": "Matches played in squads",
+      "desc": "Matches played in squads."
+    },
+    "squadkd": {
+      "name": "Squad K/D",
+      "hint": "Kill/death ratio in squads",
+      "desc": "Kill/death ratio in squads."
+    }
+  },
+  "store": {
+    "date": {
+      "name": "Shop date",
+      "hint": "Today's shop date",
+      "desc": "Today's shop date."
+    },
+    "count": {
+      "name": "Item count",
+      "hint": "How many items are in the shop",
+      "desc": "How many items are in the shop."
+    },
+    "items": {
+      "name": "Item list",
+      "hint": "The featured items",
+      "desc": "The featured items."
+    }
+  }
+}

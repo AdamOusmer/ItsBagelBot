@@ -1,0 +1,5 @@
+{
+  "name": "En cours de lecture",
+  "hint": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",
+  "desc": "Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+}

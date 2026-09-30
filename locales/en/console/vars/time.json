@@ -1,0 +1,6 @@
+{
+  "name": "Your local time",
+  "hint": "your local time, on the clock face you set (Local time module); {time:Paris} for anywhere else, no module needed",
+  "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead (a city, a country, an abbreviation like EST or a UTC offset), and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty.",
+  "placeHint": "the time at a place you name, no module needed"
+}

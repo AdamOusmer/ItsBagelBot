@@ -1,0 +1,5 @@
+{
+  "revoked.body": "Twitch revoked the bot's authorization for your channel (this happens after a password change or if the app was disconnected). Chat replies and alerts are paused. Log in at {dashboard_url} and reconnect your Twitch account to bring the bot back.",
+  "revoked.chat": "The bot lost its Twitch authorization for this channel (password change or app disconnect). Log in at {dashboard_url} to reconnect it.",
+  "revoked.title": "Bot lost access to your channel"
+}

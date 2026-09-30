@@ -1,0 +1,18 @@
+{
+  "operate": "Exploitation",
+  "accounts": "Comptes",
+  "access": "Accès",
+  "overview": "Aperçu",
+  "shards": "Shards",
+  "lanes": "Files",
+  "events": "Flux d'entrée",
+  "users": "Utilisateurs",
+  "notifications": "Notifications",
+  "giveaways": "Tirages",
+  "staff": "Équipe",
+  "audit": "Audit",
+  "secrets": "Secrets",
+  "counters": "Compteurs du bot",
+  "trials": "Chaînes d'essai",
+  "deploys": "Déploiements"
+}

@@ -1,0 +1,7 @@
+{
+  "approve": "Approve",
+  "resume": "Resume",
+  "retry": "Retry stage",
+  "cancel": "Cancel run",
+  "rollback": "Roll back to {version}"
+}

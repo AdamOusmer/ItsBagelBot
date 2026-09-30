@@ -1,0 +1,22 @@
+{
+  "connectCta": "Connecter Spotify",
+  "connectHelp": "Connectez le compte Spotify dont la lecture recevra les morceaux. L'autorisation passe par votre application ci-dessus. Le refresh token est stocké chiffré et n'est jamais réaffiché.",
+  "connectNeedsApp": "Ajoutez d'abord votre application Spotify ci-dessus.",
+  "connectTitle": "Connecter Spotify",
+  "connectedHelp": "Votre compte Spotify est connecté. Le jeton est stocké chiffré côté serveur et n'est jamais réaffiché ici.",
+  "connectedPill": "Connecté",
+  "connectedToast": "Spotify connecté.",
+  "disconnect": "Déconnecter",
+  "disconnectTitle": "Déconnecter Spotify ?",
+  "disconnectBody": "Bagel n’aura plus accès à votre compte Spotify. Les demandes de chansons seront indisponibles jusqu’à la reconnexion.",
+  "disconnectFailed": "Impossible de déconnecter Spotify.",
+  "disconnectedToast": "Spotify déconnecté.",
+  "reconnect": "L'autorisation Spotify ne porte pas une permission nécessaire aux demandes de musiques.",
+  "reconnectCta": "Reconnecter Spotify",
+  "reconnectSpotify": "Reconnecter Spotify",
+  "scopeGap": "Il manque une permission à votre connexion Spotify pour les demandes de musique. Reconnectez-vous pour l'accorder.",
+  "title": "Connexion",
+  "accountLabel": "Compte",
+  "needsReconnectPill": "Reconnexion requise",
+  "grantRevoked": "Spotify n'accepte plus cette connexion, les demandes de chansons sont donc en pause. Reconnectez-vous pour les reprendre."
+}

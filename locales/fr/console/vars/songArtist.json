@@ -1,0 +1,5 @@
+{
+  "name": "Artiste de la chanson",
+  "hint": "seulement le nom de l’artiste, la seconde moitié de {song}",
+  "desc": "Le nom de l’artiste seul, la seconde moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+}

@@ -1,0 +1,13 @@
+{
+  "roleBroadcaster": "Diffuseur",
+  "notifications": "Notifications",
+  "logout": "Se déconnecter",
+  "dashboards": "Tableaux partagés",
+  "support": "Assistance",
+  "supportDiscordHint": "généralement quelques minutes",
+  "supportGithubHint": "source disponible",
+  "feedback": "Bug ou idée",
+  "enterprise": "Entreprise",
+  "reconnecting": "Reconnexion",
+  "supportTitle": "Aide et commentaires"
+}

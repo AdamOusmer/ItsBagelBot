@@ -1,0 +1,5 @@
+{
+  "name": "Channel name",
+  "hint": "the channel the command runs in",
+  "desc": "Your channel's display name."
+}

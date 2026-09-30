@@ -1,0 +1,5 @@
+{
+  "label": "Pyramides et séries d'emotes",
+  "tagline": "Célébrez les pyramides et les séries d'emotes construites par le chat.",
+  "description": "Regardez le chat construire des pyramides d'emotes (la même emote empilée 1, 2, 3 puis redescendue à 1) et des séries d'emotes (une suite de messages d'une seule emote), et laissez le bot applaudir quand elles aboutissent. Entièrement automatique : pas de commande, pas de réglage. Une pyramide ne compte que si elle est construite proprement, ligne par ligne, sans rien d'autre entre-temps."
+}

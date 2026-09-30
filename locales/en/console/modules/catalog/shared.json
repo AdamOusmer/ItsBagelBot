@@ -1,0 +1,6 @@
+{
+  "linkedOnly": {
+    "label": "Only look up my linked account",
+    "help": "When on, viewers cannot name another player: every command shows your linked account (or your Twitch username if none is linked) and any typed name is ignored without a chat reply. Off by default."
+  }
+}

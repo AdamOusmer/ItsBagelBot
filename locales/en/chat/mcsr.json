@@ -1,0 +1,22 @@
+{
+  "lastmatch.decay": "(decay)",
+  "lastmatch.draw": "drew",
+  "lastmatch.empty": "no matches found yet",
+  "lastmatch.forfeit": "(forfeit)",
+  "lastmatch.loss": "lost",
+  "lastmatch.win": "won",
+  "leaderboard.empty": "nobody on this leaderboard yet",
+  "pace.empty": "no pace tracked this session",
+  "pace.nofort": "no fortress pace tracked recently",
+  "pb.empty": "no personal best yet (%s)",
+  "pb.window.alltime": "all-time",
+  "pb.window.daily": "daily",
+  "pb.window.monthly": "monthly",
+  "pb.window.ranked": "ranked",
+  "pb.window.weekly": "weekly",
+  "race.empty": "no times submitted for this week's race yet",
+  "race.noplayer": "no time in this week's race yet",
+  "record.usage": "Usage: !record <player> [player2]",
+  "session.started": "session tracking just started (%s elo), ask again after a match!",
+  "unrated": "unrated"
+}

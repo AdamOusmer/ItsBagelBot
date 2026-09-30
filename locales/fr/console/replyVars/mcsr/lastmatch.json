@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Joueur",
+    "hint": "Le joueur résolu",
+    "desc": "Le joueur résolu."
+  },
+  "opponent": {
+    "name": "Adversaire",
+    "hint": "L'autre joueur de ce match",
+    "desc": "L'autre joueur de ce match."
+  },
+  "result": {
+    "name": "Résultat",
+    "hint": "Victoire",
+    "desc": "Victoire, défaite ou nul. Les forfaits et matchs de déclin sont aussi signalés."
+  },
+  "time": {
+    "name": "Temps",
+    "hint": "Le temps de fin du match",
+    "desc": "Le temps de fin du match, s'il y en a un."
+  },
+  "seed": {
+    "name": "Seed",
+    "hint": "Le type de seed de ce match",
+    "desc": "Le type de seed de ce match."
+  },
+  "structure": {
+    "name": "Structure",
+    "hint": "Le type de structure du bastion pour ce match",
+    "desc": "Le type de structure du bastion pour ce match."
+  },
+  "elochange": {
+    "name": "Variation Elo",
+    "hint": "Variation Elo de ce match",
+    "desc": "Variation Elo de ce match."
+  },
+  "ago": {
+    "name": "Il y a",
+    "hint": "Depuis quand ce match est terminé",
+    "desc": "Depuis quand ce match est terminé."
+  }
+}

@@ -20,11 +20,11 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) {
-        toast(p?.refused ? 'err' : 'ok', p?.refused ? t('discord.toastRefused') : t('discord.toastSetup'));
+        toast(p?.refused ? 'err' : 'ok', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
         await invalidateAll();
         return;
       }
-      toast('err', refusalTextOf(t, p, t('discord.toastSetupFailed')));
+      toast('err', refusalTextOf(t, p, t('discord.toast.setupFailed')));
     };
   };
 
@@ -34,35 +34,35 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) return;
-      toast('err', refusalTextOf(t, p, t('discord.toastDisconnectFailed')));
+      toast('err', refusalTextOf(t, p, t('discord.toast.disconnectFailed')));
     };
   };
 </script>
 
 <section class="block reveal" style="--i:1" aria-labelledby="dc-setup-h">
-  <Heading level={6} as="h2" variant="title" id="dc-setup-h" class="block-title">{t('discord.setupTitle')}</Heading>
+  <Heading level={6} as="h2" variant="title" id="dc-setup-h" class="block-title">{t('discord.settings.setupTitle')}</Heading>
   <Card>
-    <Text size="sm" tone="muted" class="hint">{t('discord.setupHelp')}</Text>
+    <Text size="sm" tone="muted" class="hint">{t('discord.settings.setupHelp')}</Text>
     <form method="POST" action="?/setup" use:enhance={setupSubmit}>
-      <Button variant="secondary" type="submit" loading={busy}>{t('discord.setupCta')}</Button>
+      <Button variant="secondary" type="submit" loading={busy}>{t('discord.settings.setupCta')}</Button>
     </form>
 
     {#if !data.found}
-      <Text size="sm" tone="muted" class="hint first-run">{t('discord.setupFirstRun')}</Text>
+      <Text size="sm" tone="muted" class="hint first-run">{t('discord.settings.setupFirstRun')}</Text>
     {/if}
   </Card>
 </section>
 
 <section class="block reveal" style="--i:2" aria-labelledby="dc-danger-h">
-  <Heading level={6} as="h2" variant="title" id="dc-danger-h" class="block-title">{t('discord.dangerTitle')}</Heading>
+  <Heading level={6} as="h2" variant="title" id="dc-danger-h" class="block-title">{t('discord.settings.dangerTitle')}</Heading>
   <Card>
-    <Text size="sm" tone="muted" class="hint">{t('discord.disconnectBody')}</Text>
+    <Text size="sm" tone="muted" class="hint">{t('discord.settings.disconnectBody')}</Text>
     <div class="row">
       <ButtonLink variant="ghost" href="/discord/connect" data-sveltekit-reload>
-        {t('discord.reconnectCta')}
+        {t('discord.settings.reconnectCta')}
       </ButtonLink>
       <Button variant="destructive" onclick={() => (disconnectOpen = true)}>
-        {t('discord.disconnectCta')}
+        {t('discord.settings.disconnectCta')}
       </Button>
     </div>
   </Card>
@@ -72,9 +72,9 @@
 
 <ConfirmDialog
   open={disconnectOpen}
-  title={t('discord.disconnectTitle')}
-  body={t('discord.disconnectBody')}
-  confirmLabel={t('discord.disconnectCta')}
+  title={t('discord.settings.disconnectTitle')}
+  body={t('discord.settings.disconnectBody')}
+  confirmLabel={t('discord.settings.disconnectCta')}
   cancelLabel={t('common.cancel')}
   danger
   {busy}

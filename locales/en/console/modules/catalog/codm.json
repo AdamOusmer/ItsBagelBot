@@ -1,0 +1,22 @@
+{
+  "label": "CODM Profile",
+  "tagline": "Call of Duty: Mobile Global profile lookups in chat.",
+  "description": "Look up a CODM Global profile by UID or exact nickname with !codm, !codmprofile or !codmrank. The read-only profile includes level, Multiplayer rank and rating, country and short ID. Supports the CODM Global edition and does not include KD, match history or Battle Royale stats.",
+  "settings": {
+    "account": {
+      "label": "Linked CODM account",
+      "help": "Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.",
+      "placeholder": "CODM UID or exact nickname"
+    },
+    "linkedOnly": {
+      "help": "When on, every lookup uses your linked CODM account and ignores viewer-supplied names. Link a CODM UID or exact nickname first."
+    }
+  },
+  "replies": {
+    "profile": {
+      "tagline": "CODM Global profile: !codm, !codmprofile or !codmrank.",
+      "event": "!codm [UID/exact nickname]",
+      "defaultMessage": "{player} · level {level} · MP {rank} · {rating} rating · {country}"
+    }
+  }
+}

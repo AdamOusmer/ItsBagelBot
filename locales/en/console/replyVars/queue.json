@@ -1,0 +1,41 @@
+{
+  "join": {
+    "user": {
+      "name": "Joiner",
+      "hint": "Who joined the queue",
+      "desc": "Who joined the queue."
+    },
+    "pos": {
+      "name": "Queue position",
+      "hint": "Their spot in line",
+      "desc": "Their spot in line."
+    },
+    "channel": {
+      "name": "Channel",
+      "hint": "Your channel name",
+      "desc": "Your channel name."
+    }
+  },
+  "next": {
+    "target": {
+      "name": "Next player",
+      "hint": "Who is up next",
+      "desc": "Who is up next."
+    },
+    "count": {
+      "name": "Still waiting",
+      "hint": "How many people remain in line",
+      "desc": "How many people remain in line."
+    },
+    "user": {
+      "name": "Invoker",
+      "hint": "The mod who pulled up the next player",
+      "desc": "The mod who ran !queue next."
+    },
+    "channel": {
+      "name": "Channel",
+      "hint": "Your channel name",
+      "desc": "Your channel name."
+    }
+  }
+}

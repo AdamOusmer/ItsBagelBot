@@ -1,0 +1,13 @@
+{
+  "enableLabel": "Allow !sr",
+  "enableOff": "!sr is off: the command answers but nothing queues.",
+  "enableOn": "!sr is on: chat can queue songs right now.",
+  "help": "Viewers type !sr with a song name, \"artist - song\", or a Spotify link.",
+  "liveOnlyOff": "Viewers can request songs even when you are offline.",
+  "liveOnlyOn": "Viewers can only request songs while you are live.",
+  "permLabel": "Who may queue",
+  "saveFailed": "Could not save the command settings.",
+  "saved": "Command settings saved.",
+  "title": "Chat command (!sr)",
+  "permOffHint": "Turn on !sr to choose who may queue."
+}

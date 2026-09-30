@@ -4,8 +4,10 @@
 package i18n
 
 import (
+	"ItsBagelBot/locales"
 	"ItsBagelBot/pkg/codec"
-	"embed"
+	"io/fs"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,58 +32,99 @@ const (
 	KeyBotBannedBody  = "bot.banned.body"
 )
 
-//go:embed locales.json locales/*.json
-var i18nFS embed.FS
+const (
+	manifestFile  = "manifest.json"
+	chatDir       = "chat"
+	rootNamespace = "index"
+)
 
-var supported = mustLoadManifest()
+var supported = mustLoadManifest(locales.FS)
 
-var catalog = mustLoadCatalogs()
+var catalog = mustLoadCatalogs(locales.FS)
 
-func mustLoadManifest() []string {
-	const name = "locales.json"
-	b, err := i18nFS.ReadFile(name)
+func mustLoadManifest(fsys fs.FS) []string {
+	b, err := fs.ReadFile(fsys, manifestFile)
 	if err != nil {
-		panic("i18n: cannot read " + name + ": " + err.Error())
+		panic("i18n: cannot read " + manifestFile + ": " + err.Error())
 	}
 	var codes []string
 	if err := codec.Unmarshal(b, &codes); err != nil {
-		panic("i18n: malformed " + name + ": " + err.Error())
+		panic("i18n: malformed " + manifestFile + ": " + err.Error())
 	}
 	sort.Strings(codes)
 	return codes
 }
 
-func mustLoadCatalogs() map[string]map[string]string {
-	entries, err := i18nFS.ReadDir("locales")
+type namespaceFile struct {
+	path   string
+	prefix string
+}
+
+func newNamespaceFile(dir fs.DirEntry, file fs.DirEntry) namespaceFile {
+	f := namespaceFile{path: path.Join(dir.Name(), chatDir, file.Name())}
+	if namespace := strings.TrimSuffix(file.Name(), ".json"); namespace != rootNamespace {
+		f.prefix = namespace + "."
+	}
+	return f
+}
+
+func (f namespaceFile) read(fsys fs.FS) map[string]string {
+	b, err := fs.ReadFile(fsys, f.path)
 	if err != nil {
-		panic("i18n: cannot read locales dir: " + err.Error())
+		panic("i18n: cannot read " + f.path + ": " + err.Error())
+	}
+	var entries map[string]string
+	if err := codec.Unmarshal(b, &entries); err != nil {
+		panic("i18n: malformed " + f.path + ": " + err.Error())
+	}
+	return entries
+}
+
+func (f namespaceFile) mergeInto(table, entries map[string]string) {
+	for key, tmpl := range entries {
+		full := f.prefix + key
+		if _, dup := table[full]; dup {
+			panic("i18n: duplicate key " + full + " in " + f.path)
+		}
+		table[full] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
+	}
+}
+
+func mustLoadCatalogs(fsys fs.FS) map[string]map[string]string {
+	entries, err := fs.ReadDir(fsys, ".")
+	if err != nil {
+		panic("i18n: cannot read locales root: " + err.Error())
 	}
 	out := make(map[string]map[string]string, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
+		if e.IsDir() && hasChatCatalog(fsys, e) {
+			out[e.Name()] = mustLoadCatalog(fsys, e)
 		}
-		locale := strings.TrimSuffix(e.Name(), ".json")
-		out[locale] = mustLoadCatalog(locale)
 	}
 	if _, ok := out[DefaultLocale]; !ok {
-		panic("i18n: missing required catalog locales/" + DefaultLocale + ".json")
+		panic("i18n: missing required catalog " + path.Join(DefaultLocale, chatDir))
 	}
 	return out
 }
 
-func mustLoadCatalog(locale string) map[string]string {
-	name := "locales/" + locale + ".json"
-	b, err := i18nFS.ReadFile(name)
+func hasChatCatalog(fsys fs.FS, locale fs.DirEntry) bool {
+	info, err := fs.Stat(fsys, path.Join(locale.Name(), chatDir))
+	return err == nil && info.IsDir()
+}
+
+func mustLoadCatalog(fsys fs.FS, locale fs.DirEntry) map[string]string {
+	dir := path.Join(locale.Name(), chatDir)
+	files, err := fs.ReadDir(fsys, dir)
 	if err != nil {
-		panic("i18n: cannot read " + name + ": " + err.Error())
+		panic("i18n: cannot read " + dir + ": " + err.Error())
 	}
-	var table map[string]string
-	if err := codec.Unmarshal(b, &table); err != nil {
-		panic("i18n: malformed " + name + ": " + err.Error())
-	}
-	for key, tmpl := range table {
-		table[key] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
+	table := make(map[string]string)
+	for _, f := range files {
+		if f.IsDir() || path.Ext(f.Name()) != ".json" {
+			continue
+		}
+		file := newNamespaceFile(locale, f)
+		file.mergeInto(table, file.read(fsys))
 	}
 	return table
 }
@@ -148,7 +191,7 @@ func T(locale, key string) string {
 // prefix.1, and so on. The English catalog defines both the copy and the size
 // of the set; a gap is a broken source catalog and fails at startup.
 func DefaultSeries(prefix string) []string {
-	count := defaultSeriesCount(prefix)
+	count := defaultSeriesCount(seriesPrefix(prefix))
 	if count == 0 {
 		panic("i18n: missing default series " + prefix)
 	}
@@ -163,10 +206,12 @@ func DefaultSeries(prefix string) []string {
 	return series
 }
 
-func defaultSeriesCount(prefix string) int {
+type seriesPrefix string
+
+func defaultSeriesCount(prefix seriesPrefix) int {
 	count := 0
 	for key := range catalog[DefaultLocale] {
-		suffix, ok := strings.CutPrefix(key, prefix+".")
+		suffix, ok := strings.CutPrefix(key, string(prefix)+".")
 		if !ok {
 			continue
 		}

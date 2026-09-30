@@ -1,0 +1,5 @@
+{
+  "name": "Fetched value",
+  "hint": "Insert a fetched value from a saved API definition",
+  "desc": "One value from a saved data source definition (Data sources page). Write {urlfetch:name} for the whole response, or add a dot path to reach one field inside a JSON response, such as {urlfetch:weather.forecast.current.temp_f}."
+}

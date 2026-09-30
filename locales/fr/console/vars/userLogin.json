@@ -1,0 +1,5 @@
+{
+  "name": "Identifiant du spectateur",
+  "hint": "son identifiant en minuscules, pas son nom d’affichage",
+  "desc": "Son identifiant en minuscules, qui peut différer du nom d’affichage montré par {user}."
+}

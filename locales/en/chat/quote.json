@@ -1,0 +1,12 @@
+{
+  "added": "@{quotes:user} quote #{quotes:num} added.",
+  "edit.usage": "Usage: !quote edit <number> <new text>",
+  "edited": "Quote #{quotes:num} updated.",
+  "err.usage": "Usage: !quote; !quote <number>; !quote <word>; !addquote <text>; !quote edit <number> <text>; !quote remove <number>",
+  "none": "No quotes saved yet. Add one with !addquote <text>.",
+  "not_found": "Quote #{quotes:num} doesn't exist.",
+  "remove.usage": "Usage: !quote remove <number>",
+  "removed": "Quote #{quotes:num} removed.",
+  "search.none": "No quote matching \"{quotes:term}\".",
+  "show": "Quote #{quotes:num}: {quotes:text} ({quotes:date})"
+}

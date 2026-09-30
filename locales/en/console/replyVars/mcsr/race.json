@@ -1,0 +1,27 @@
+{
+  "leader": {
+    "name": "Leader",
+    "hint": "This week's #1 holder",
+    "desc": "This week's #1 holder."
+  },
+  "leadertime": {
+    "name": "Leader time",
+    "hint": "The leader's time",
+    "desc": "The leader's time."
+  },
+  "player": {
+    "name": "Player",
+    "hint": "The resolved player",
+    "desc": "The resolved player."
+  },
+  "time": {
+    "name": "Time",
+    "hint": "The player's own time this week",
+    "desc": "The player's own time this week, when they have one."
+  },
+  "rank": {
+    "name": "Rank",
+    "hint": "The player's placement this week",
+    "desc": "The player's placement this week."
+  }
+}

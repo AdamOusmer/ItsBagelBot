@@ -1,0 +1,14 @@
+{
+  "backToAll": "Toutes les versions",
+  "eyebrow": "Journal",
+  "title": "Quoi de neuf.",
+  "desc": "Ce qui change pour vous, version par version. Alpha, bêta et préversion portent leur étiquette. Les notes complètes sont sur GitHub.",
+  "metaTitle": "Journal des versions - ItsBagelBot",
+  "metaDesc": "Les nouveautés d'ItsBagelBot : chaque version, ordonnée par numéro et liée à GitHub.",
+  "releaseLink": "Version GitHub",
+  "empty": "Rien dans le four pour l'instant.",
+  "tag.alpha": "Alpha",
+  "tag.beta": "Bêta",
+  "tag.prerelease": "Préversion",
+  "tag.release": "Version"
+}

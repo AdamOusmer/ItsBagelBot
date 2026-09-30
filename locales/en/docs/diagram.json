@@ -1,0 +1,12 @@
+{
+  "viewer": "Diagram viewer",
+  "controls": "Diagram controls",
+  "zoomOut": "Zoom out",
+  "reset": "Reset view",
+  "zoomIn": "Zoom in",
+  "close": "Close (Esc)",
+  "hint": "drag to pan · scroll to zoom · esc to close",
+  "open": "Open diagram in fullscreen viewer",
+  "fullscreen": "Open fullscreen",
+  "expand": "Expand"
+}

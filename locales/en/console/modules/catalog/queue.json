@@ -1,0 +1,51 @@
+{
+  "label": "Play Queue",
+  "tagline": "Let viewers line up to play with you, first come first served.",
+  "description": "Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.",
+  "replies": {
+    "join": {
+      "label": "Join confirmation",
+      "tagline": "When a viewer joins the line.",
+      "defaultMessage": "@{user} you joined the queue at position #{pos}."
+    },
+    "already": {
+      "label": "Already in queue",
+      "tagline": "When a viewer who is already in line types !join again.",
+      "defaultMessage": "@{user} you are already in the queue at position #{pos}."
+    },
+    "leave": {
+      "label": "Leave confirmation",
+      "tagline": "When a viewer steps out of the line.",
+      "defaultMessage": "@{user} you left the queue."
+    },
+    "next": {
+      "label": "Next player up",
+      "tagline": "When you pull up the next player.",
+      "event": "!queue next",
+      "defaultMessage": "@{target} you are up next! ({count} still waiting)"
+    },
+    "opened": {
+      "label": "Queue opened",
+      "tagline": "Announced when you open the queue.",
+      "event": "!queue open",
+      "defaultMessage": "The queue is now open! Type !join to get in line."
+    },
+    "closed": {
+      "label": "Queue closed",
+      "tagline": "Announced when you close the queue.",
+      "event": "!queue close",
+      "defaultMessage": "The queue is now closed to new joins."
+    }
+  },
+  "commands": {
+    "join": "Get in line to play (also !queue join).",
+    "leave": "Step out of the line (also !queue leave).",
+    "list": "Show the next 10 players waiting (also !queue list).",
+    "queue": "Show whether the queue is open and how many are waiting.",
+    "queue_open": "Start accepting joins.",
+    "queue_close": "Stop accepting joins; the line is kept.",
+    "queue_next": "Pull up the next player and announce them.",
+    "queue_remove_user": "Take someone out of the line.",
+    "queue_clear": "Empty the line."
+  }
+}

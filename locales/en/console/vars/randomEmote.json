@@ -1,0 +1,5 @@
+{
+  "name": "A random emote",
+  "hint": "one emote code picked at random from those global sets",
+  "desc": "One emote code drawn at random from those lists. Two of them in one response are two separate picks. If the bot has not loaded any codes yet, it comes back empty."
+}

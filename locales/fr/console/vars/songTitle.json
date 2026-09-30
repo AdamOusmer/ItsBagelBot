@@ -1,0 +1,5 @@
+{
+  "name": "Titre de la chanson",
+  "hint": "seulement le titre du morceau, la première moitié de {song}",
+  "desc": "Le titre du morceau seul, la première moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+}

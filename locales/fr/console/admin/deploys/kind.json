@@ -1,0 +1,7 @@
+{
+  "release": "Version",
+  "hotfix": "Correctif",
+  "bump": "Mise à jour",
+  "rollback": "Retour arrière",
+  "reapply": "Réappliquer"
+}

@@ -1,23 +1,22 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import en from './locales/en.json';
+import { flatCatalogs, type FlatTree } from '@bagel/kit/i18n/flat';
 
-const catalogs = import.meta.glob<Record<string, string>>('./locales/*.json', {
-  eager: true,
-  import: 'default'
-});
+const catalogs = flatCatalogs(
+  import.meta.glob<FlatTree>('../../../../locales/*/docs/**/*.json', { eager: true, import: 'default' }),
+  'docs',
+);
+const en = catalogs.en;
 
-const locales = Object.keys(catalogs)
-  .map((file) => file.slice('./locales/'.length, -'.json'.length))
-  .sort();
+const locales = Object.keys(catalogs).sort();
 
 export function docsI18n(routeLocale: string | undefined) {
   const locale = routeLocale && routeLocale !== 'root' ? routeLocale : 'en';
-  const catalog = catalogs[`./locales/${locale}.json`] ?? en;
+  const catalog = catalogs[locale] ?? en;
   return {
     locale,
-    t: (key: keyof typeof en) => catalog[key] ?? en[key],
+    t: (key: string) => catalog[key] ?? en[key],
     path: (path: string) => locale === 'en' ? path : `/${locale}${path}`
   };
 }

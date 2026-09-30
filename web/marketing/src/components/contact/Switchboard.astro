@@ -28,17 +28,17 @@ interface Line {
 const lines: Line[] = [
     {
         index: '01',
-        title: t('board.l1Title'),
-        note: t('board.l1Note'),
+        title: t('switchboard.l1Title'),
+        note: t('switchboard.l1Note'),
         href: SITE.discord,
-        hint: t('board.l1Hint'),
+        hint: t('switchboard.l1Hint'),
         external: true,
         tone: 'green',
     },
     {
         index: '02',
-        title: t('board.l2Title'),
-        note: t('board.l2Note'),
+        title: t('switchboard.l2Title'),
+        note: t('switchboard.l2Note'),
         href: `mailto:${SITE.supportEmail}`,
         hint: SITE.supportEmail,
         copy: SITE.supportEmail,
@@ -46,8 +46,8 @@ const lines: Line[] = [
     },
     {
         index: '03',
-        title: t('board.l3Title'),
-        note: t('board.l3Note'),
+        title: t('switchboard.l3Title'),
+        note: t('switchboard.l3Note'),
         href: `mailto:${SITE.enterpriseEmail}`,
         hint: SITE.enterpriseEmail,
         copy: SITE.enterpriseEmail,
@@ -55,10 +55,10 @@ const lines: Line[] = [
     },
     {
         index: '04',
-        title: t('board.l4Title'),
-        note: t('board.l4Note'),
+        title: t('switchboard.l4Title'),
+        note: t('switchboard.l4Note'),
         href: SITE.github,
-        hint: t('board.l4Hint'),
+        hint: t('switchboard.l4Hint'),
         external: true,
         tone: 'green',
     },
@@ -98,7 +98,7 @@ const lines: Line[] = [
                             tone="muted"
                             class="line__copy"
                             data-copy={line.copy}
-                            aria-label={`${t('board.copy')} ${line.copy}`}
+                            aria-label={`${t('switchboard.copy')} ${line.copy}`}
                         >
                             <span>{line.hint}</span>
                             <span class="line__copy-icon line__copy-icon--default" aria-hidden="true">
@@ -118,7 +118,7 @@ const lines: Line[] = [
     </div>
 
     <Text size="xs" mono tone="muted" class="board__note" data-reveal>
-        {t('board.note')}
+        {t('switchboard.note')}
     </Text>
 </section>
 

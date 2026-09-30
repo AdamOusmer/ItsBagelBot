@@ -1,0 +1,5 @@
+{
+  "name": "Un viewer au hasard",
+  "hint": "quelqu’un dans le chat en ce moment, choisi au hasard (jamais vous, jamais le bot)",
+  "desc": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard, pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment."
+}

@@ -30,25 +30,25 @@
   type RoleRow = { slot: PinnedSlot; field: keyof DiscordConfig; label: string; help: string };
 
   const staffRoles = $derived<RoleRow[]>([
-    { slot: 'owner', field: 'ownerRoleId', label: t('discord.ownerRoleLabel'), help: t('discord.ownerRoleHelp') },
-    { slot: 'leadMod', field: 'leadModRoleId', label: t('discord.leadModRoleLabel'), help: t('discord.leadModRoleHelp') },
-    { slot: 'mods', field: 'modsRoleId', label: t('discord.modsRoleLabel'), help: t('discord.modsRoleHelp') }
+    { slot: 'owner', field: 'ownerRoleId', label: t('discord.roles.ownerLabel'), help: t('discord.roles.ownerHelp') },
+    { slot: 'leadMod', field: 'leadModRoleId', label: t('discord.roles.leadModLabel'), help: t('discord.roles.leadModHelp') },
+    { slot: 'mods', field: 'modsRoleId', label: t('discord.roles.modsLabel'), help: t('discord.roles.modsHelp') }
   ]);
   const tierRoles = $derived<RoleRow[]>([
-    { slot: 'vip', field: 'vipRoleId', label: t('discord.vipRoleLabel'), help: t('discord.vipRoleHelp') },
+    { slot: 'vip', field: 'vipRoleId', label: t('discord.roles.vipLabel'), help: t('discord.roles.vipHelp') },
     {
       slot: 'subscriber',
       field: 'subscriberRoleId',
-      label: t('discord.subscriberRoleLabel'),
-      help: t('discord.subscriberRoleHelp')
+      label: t('discord.roles.subscriberLabel'),
+      help: t('discord.roles.subscriberHelp')
     },
     {
       slot: 'regulars',
       field: 'regularsRoleId',
-      label: t('discord.regularsRoleLabel'),
-      help: t('discord.regularsRoleHelp')
+      label: t('discord.roles.regularsLabel'),
+      help: t('discord.roles.regularsHelp')
     },
-    { slot: 'member', field: 'memberRoleId', label: t('discord.memberRoleLabel'), help: t('discord.memberRoleHelp') }
+    { slot: 'member', field: 'memberRoleId', label: t('discord.roles.memberLabel'), help: t('discord.roles.memberHelp') }
   ]);
 
   const pins = $derived(parsePinnedRoles(draft.config.pinnedRoles));
@@ -79,7 +79,7 @@
         aria-pressed={isPinned(row)}
         disabled={draft.config[row.field] === ''}
       >
-        {t('discord.pinnedChip')}
+        {t('discord.roles.pinnedChip')}
       </Chip>
       <span class="setting-picker">
         <Select
@@ -106,13 +106,13 @@
   <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
-<GuildForm {draft} id="dc-roles-h" title={t('discord.rolesTitle')} hint={t('discord.rolesHelp')}>
-  <h3 class="group">{t('discord.groupStaff')}</h3>
+<GuildForm {draft} id="dc-roles-h" title={t('discord.roles.title')} hint={t('discord.roles.help')}>
+  <h3 class="group">{t('discord.roles.groupStaff')}</h3>
   {#each staffRoles as row (row.slot)}
     {@render roleRow(row)}
   {/each}
 
-  <h3 class="group">{t('discord.groupTiers')}</h3>
+  <h3 class="group">{t('discord.roles.groupTiers')}</h3>
   {#each tierRoles as row (row.slot)}
     {@render roleRow(row)}
   {/each}
@@ -121,10 +121,10 @@
     {draft}
     invalid={draft.invalid}
     field="autoRoleEnabled"
-    label={t('discord.autoRoleLabel')}
-    help={t('discord.autoRoleHelp')}
+    label={t('discord.roles.autoLabel')}
+    help={t('discord.roles.autoHelp')}
     defaultOn
   />
 
-  <Text size="sm" tone="muted" class="hint">{t('discord.pinHelp')}</Text>
+  <Text size="sm" tone="muted" class="hint">{t('discord.roles.pinHelp')}</Text>
 </GuildForm>

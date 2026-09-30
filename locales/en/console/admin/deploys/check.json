@@ -1,0 +1,6 @@
+{
+  "none": "none",
+  "pending": "running",
+  "success": "passed",
+  "failure": "failed"
+}

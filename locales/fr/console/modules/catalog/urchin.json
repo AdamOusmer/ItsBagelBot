@@ -1,0 +1,42 @@
+{
+  "label": "Stats Bedwars",
+  "tagline": "Stats Hypixel Bedwars, score urchin et tags de blacklist dans le chat.",
+  "description": "Commandes viewers via urchin.gg : sessions Bedwars quotidiennes, hebdomadaires et mensuelles, stats à vie, le score sniper Urchin et les tags de blacklist actifs. Les commandes ciblent par défaut votre compte Minecraft lié ; les viewers peuvent aussi nommer n'importe quel joueur, par ex. « !daily Technoblade ».",
+  "settings": {
+    "account": {
+      "label": "Compte Minecraft lié",
+      "help": "Joueur par défaut de chaque commande. Laissez vide pour utiliser votre pseudo Twitch. Le bot stocke l'UUID du compte quand Mojang le permet, donc les commandes survivent à un changement de nom.",
+      "placeholder": "Votre pseudo Minecraft"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Session Bedwars depuis le reset quotidien.",
+      "defaultMessage": "{player} aujourd’hui : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Session Bedwars depuis le reset hebdomadaire.",
+      "defaultMessage": "{player} cette semaine : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Session Bedwars depuis le reset mensuel.",
+      "defaultMessage": "{player} ce mois-ci : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Stats Bedwars à vie.",
+      "defaultMessage": "{player} : {stars} étoiles · {wins} victoires · {finals} éliminations finales · {fkdr} FKDR · {beds} lits détruits"
+    },
+    "sniper": {
+      "tagline": "Score Urchin (overlay Cubelify).",
+      "defaultMessage": "Score Urchin de {player} : {score}"
+    },
+    "tags": {
+      "tagline": "Tags de blacklist Urchin actifs.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Tags de blacklist avec leurs raisons.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

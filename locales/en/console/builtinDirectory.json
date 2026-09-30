@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Account age",
+    "summary": "Shows how long a Twitch account has existed.",
+    "usage": [
+      "!accountage",
+      "!accountage <user>"
+    ]
+  },
+  "followage": {
+    "label": "Followage",
+    "summary": "Shows how long a viewer has followed the channel.",
+    "usage": [
+      "!followage",
+      "!followage <user>"
+    ]
+  },
+  "uptime": {
+    "label": "Uptime",
+    "summary": "Shows how long the current stream has been live.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Clip",
+    "summary": "Clips the last moments of the stream and posts the link.",
+    "usage": [
+      "!clip",
+      "!clip <title>"
+    ]
+  },
+  "title": {
+    "label": "Title",
+    "summary": "Show or set the stream title.",
+    "usage": [
+      "!title",
+      "!title <title>",
+      "!settitle <title>"
+    ]
+  },
+  "game": {
+    "label": "Game",
+    "summary": "Show or set the stream category.",
+    "usage": [
+      "!game",
+      "!game <name>",
+      "!setgame <name>"
+    ]
+  },
+  "tags": {
+    "label": "Tags",
+    "summary": "Show or set stream tags.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Commercial",
+    "summary": "Run a mid-roll commercial on the live stream.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Marker",
+    "summary": "Drop a stream marker on the live broadcast.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

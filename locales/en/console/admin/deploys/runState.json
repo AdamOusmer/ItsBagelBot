@@ -1,0 +1,8 @@
+{
+  "running": "Running",
+  "waiting": "Waiting",
+  "succeeded": "Succeeded",
+  "failed": "Failed",
+  "cancelled": "Cancelled",
+  "verify_failed": "Deployed, verify failed"
+}

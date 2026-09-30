@@ -1,0 +1,22 @@
+{
+  "notFoundEyebrow": "Lost in the crumbs",
+  "notFoundTitle": "This page wandered off.",
+  "notFoundDescription": "I looked under every sesame seed, but the page you're after isn't here.",
+  "accessEyebrow": "Behind the counter",
+  "accessTitle": "This one is staff only.",
+  "accessDescription": "Sign in with an account that has access to the {app}.",
+  "serverEyebrow": "A little overbaked",
+  "serverTitle": "Something went sideways.",
+  "serverDescription": "A tray tipped over behind the scenes. Give it a moment, then try the page again.",
+  "unexpectedEyebrow": "An unexpected detour",
+  "unexpectedTitle": "I hit a rough patch.",
+  "unexpectedDescription": "Something unexpected happened while loading this page.",
+  "aside": "The oven is still warm. Everything else is right where you left it.",
+  "backToDashboard": "Back to dashboard",
+  "backToApp": "Back to {app}",
+  "tryAgain": "Try again",
+  "signIn": "Sign in",
+  "goBack": "Go back",
+  "appDashboard": "dashboard",
+  "appAdmin": "admin console"
+}

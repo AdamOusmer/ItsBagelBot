@@ -23,6 +23,7 @@ COPY web/docs/package.json docs/package.json
 # Skip the static sites' toolchain. Their manifests are still copied: --frozen-lockfile fails without every member's package.json.
 RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
 COPY web/kit kit
+COPY locales /src/locales
 COPY web/admin admin
 RUN cd admin && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
 # Distroless bun aborts on dlopen of newrelic's Node/V8 addons, so strip them here; the runtime stage has no shell.

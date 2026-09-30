@@ -1,0 +1,4 @@
+{
+  "pyramid": "{emoteplay:user} vient de finir la pyramide {emoteplay:emote} ! ({emoteplay:height} de haut)",
+  "streak": "Série {emoteplay:emote} ×{emoteplay:count} !"
+}

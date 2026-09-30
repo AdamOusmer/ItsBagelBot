@@ -1,0 +1,5 @@
+{
+  "name": "Times used",
+  "hint": "how many times this command has been used, not counting this one; {uses} is the same thing (approximate)",
+  "desc": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. {uses} is the older spelling of the same value. The total is approximate: the bot batches its counting, so it can be up to a minute behind."
+}

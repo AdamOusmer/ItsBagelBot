@@ -32,21 +32,21 @@
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow={t('discord.eyebrow')} description={t('discord.pickDescription')}>
-    {t('discord.pickTitlePre')} <em>{t('discord.pickTitleEm')}</em>
+  <PageHead eyebrow={t('discord.eyebrow')} description={t('discord.pick.description')}>
+    {t('discord.pick.titlePre')} <em>{t('discord.pick.titleEm')}</em>
   </PageHead>
 
   <section class="block reveal" style="--i:0" aria-labelledby="dc-pick-h">
-    <Heading level={6} as="h2" variant="title" id="dc-pick-h">{t('discord.pickTitle')}</Heading>
+    <Heading level={6} as="h2" variant="title" id="dc-pick-h">{t('discord.pick.title')}</Heading>
     <Card>
       {#if total === 0}
-        <EmptyState title={t('discord.pickEmptyTitle')} body={t('discord.pickEmptyBody')}>
-          <ButtonLink variant="secondary" href="/discord">{t('discord.pickBack')}</ButtonLink>
+        <EmptyState title={t('discord.pick.emptyTitle')} body={t('discord.pick.emptyBody')}>
+          <ButtonLink variant="secondary" href="/discord">{t('discord.pick.back')}</ButtonLink>
         </EmptyState>
       {:else}
         <div class="pick">
-          <Text size="sm" tone="muted">{t('discord.pickHelp')}</Text>
-          <SearchInput bind:value={query} placeholder={t('discord.pickSearchPh')} aria-label={t('discord.pickSearchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
+          <Text size="sm" tone="muted">{t('discord.pick.help')}</Text>
+          <SearchInput bind:value={query} placeholder={t('discord.pick.searchPh')} aria-label={t('discord.pick.searchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
           <ul class="servers">
             {#each choices as c (c.guildId)}
               <ManagementRow
@@ -63,10 +63,10 @@
                       {t('discord.openCta')}
                     </ButtonLink>
                   {:else if c.badge === 'elsewhere'}
-                    <Chip disabled aria-disabled="true" title={t('discord.pickElsewhere')}>{t('discord.pickElsewhereChip')}</Chip>
+                    <Chip disabled aria-disabled="true" title={t('discord.pick.elsewhere')}>{t('discord.pick.elsewhereChip')}</Chip>
                   {:else}
                     <ButtonLink variant="primary" href={c.installURL} data-sveltekit-reload>
-                      {t('discord.pickCta')}
+                      {t('discord.pick.cta')}
                     </ButtonLink>
                   {/if}
                 {/snippet}
@@ -74,12 +74,12 @@
             {/each}
           </ul>
           {#if choices.length === 0}
-            <Text size="sm" tone="muted">{t('discord.pickNoMatch')}</Text>
+            <Text size="sm" tone="muted">{t('discord.pick.noMatch')}</Text>
           {/if}
-          <Text size="sm" tone="muted">{t('discord.pickMissingHint')}</Text>
+          <Text size="sm" tone="muted">{t('discord.pick.missingHint')}</Text>
           <div class="note">
             <Icon name="lock" size={13} />
-            <Text as="span" size="xs" tone="muted">{t('discord.pickPrivacy')}</Text>
+            <Text as="span" size="xs" tone="muted">{t('discord.pick.privacy')}</Text>
           </div>
         </div>
       {/if}

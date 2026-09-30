@@ -1,0 +1,5 @@
+{
+  "name": "Valeur récupérée",
+  "hint": "Insère une valeur récupérée depuis une définition d’API enregistrée",
+  "desc": "Une valeur d’une définition de source de données enregistrée (page Sources de données). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin en pointillés pour atteindre un champ précis d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}."
+}

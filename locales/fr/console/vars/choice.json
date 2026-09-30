@@ -1,0 +1,5 @@
+{
+  "name": "Choix aléatoire",
+  "hint": "choisit une des options séparées par des virgules au hasard",
+  "desc": "Choisit une option de votre liste séparée par des virgules. Remplacez les mots."
+}

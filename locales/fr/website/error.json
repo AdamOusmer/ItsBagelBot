@@ -1,0 +1,16 @@
+{
+  "back": "Retour",
+  "home": "Retour à l'accueil",
+  "aside": "Le four est encore chaud. Tout le reste est exactement où vous l'avez laissé.",
+  "404.metaTitle": "404 : page introuvable | ItsBagelBot",
+  "404.metaDesc": "Cette page d'ItsBagelBot est introuvable.",
+  "404.eyebrow": "Perdu dans les miettes",
+  "404.title": "Cette page s'est égarée.",
+  "404.desc": "Nous avons regardé sous chaque graine de sésame, mais la page que vous cherchez n'est pas là.",
+  "500.metaTitle": "500 : une erreur est survenue | ItsBagelBot",
+  "500.metaDesc": "ItsBagelBot a rencontré une erreur inattendue.",
+  "500.eyebrow": "Légèrement trop cuit",
+  "500.title": "Quelque chose a dérapé.",
+  "500.desc": "Un plateau s'est renversé en coulisses. Laissez-nous un instant, puis réessayez la page.",
+  "500.action": "Retour en terrain sûr"
+}

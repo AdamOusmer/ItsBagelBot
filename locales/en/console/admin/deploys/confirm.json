@@ -1,0 +1,7 @@
+{
+  "release": "Tag {version} at {sha}, build, pin and roll {services}.",
+  "hotfix": "Move {version} to {sha}, rebuild, re-pin and roll {services}.",
+  "bump": "Pin the images built at {sha} and roll {services}.",
+  "rollback": "Pin the {version} images and roll every service whose pin changes.",
+  "reapply": "Roll the pins on main to {services}."
+}

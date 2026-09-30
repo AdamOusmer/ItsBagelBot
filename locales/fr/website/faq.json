@@ -1,0 +1,14 @@
+{
+  "eyebrow": "FAQ",
+  "title": "Questions légitimes.",
+  "q1": "Le forfait gratuit est-il vraiment gratuit ?",
+  "a1": "Oui. Chaque fonctionnalité, et ça reste ainsi. Je l'ai construit parce que de bons outils ne devraient pas dépendre de votre budget.",
+  "q2": "Alors qu'est-ce que je paie réellement avec Premium ?",
+  "a2": "La priorité. Les messages Premium passent devant tout le monde, donc les commandes et la modération arrivent plus vite quand le chat est au plus fort. Ça garde aussi les serveurs en marche.",
+  "q3": "Puis-je annuler Premium à tout moment ?",
+  "a3": "Un clic depuis le tableau de bord. Vous gardez les avantages jusqu'à la fin de la période de facturation déjà payée.",
+  "q4": "Qu'est-ce qui est inclus dans Enterprise ?",
+  "a4": "Matériel dédié, gestion multi-streamers, conditions sur mesure et support technique direct. Écrivez à enterprise@itsbagelbot.com pour un devis.",
+  "q5": "ItsBagelBot est-il à code source disponible ?",
+  "a5": "Le code d'ItsBagelBot est sur GitHub sous une licence à source disponible, ce qui n'est pas la même chose qu'open source. Vous pouvez lire et auditer chaque ligne, mais la licence limite la redistribution et l'usage commercial."
+}

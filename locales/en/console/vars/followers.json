@@ -1,0 +1,5 @@
+{
+  "name": "Follower count",
+  "hint": "your current follower count",
+  "desc": "Your current follower count, straight from Twitch. Takes no payload; it always counts your own channel."
+}

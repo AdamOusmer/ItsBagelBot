@@ -1,0 +1,5 @@
+{
+  "name": "Stream title",
+  "hint": "your current stream title, or {title:someone} for another channel (!title toggle)",
+  "desc": "The current stream title, the same one !title shows. It works offline too. {title:someone} gives another channel’s. Follows the !title toggle."
+}

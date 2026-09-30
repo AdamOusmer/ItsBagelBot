@@ -1,0 +1,12 @@
+{
+  "everyone": "Everyone",
+  "sub": "Subscribers",
+  "vip": "VIPs",
+  "mod": "Moderators",
+  "help": "How many songs one viewer can have waiting in the queue. Leave a tier blank for no limit. You are never capped.",
+  "save": "Save limits",
+  "saveFailed": "Could not save the limits.",
+  "saved": "Limits saved.",
+  "title": "Per-viewer limits",
+  "unlimited": "No limit"
+}

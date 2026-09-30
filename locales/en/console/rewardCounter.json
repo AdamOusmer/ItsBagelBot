@@ -1,0 +1,21 @@
+{
+  "enable": "Keep a counter",
+  "nameLabel": "Counter name",
+  "nameHint": "Type a new name to create it here, or an existing counter to add to it.",
+  "errNameRequired": "Enter a counter name or turn off Keep a counter.",
+  "scopeLabel": "What each redemption counts toward",
+  "scopeViewerReward": "Per viewer, per reward",
+  "scopeViewerRewardDesc": "Each viewer gets their own tally for this reward. Best for most rewards.",
+  "scopeReward": "Per reward, all viewers",
+  "scopeRewardDesc": "Everyone adds to one shared total for this reward. Best for community goals.",
+  "scopeViewer": "Per viewer",
+  "scopeViewerDesc": "Each viewer gets one tally, shared across every reward that uses this counter.",
+  "scopeChannel": "Whole channel",
+  "scopeChannelDesc": "One running total for the whole channel.",
+  "tokenNote": "Use {counter} in the chat reply to show the new total.",
+  "pointsEnable": "Give loyalty points",
+  "pointsLabel": "Points per redemption",
+  "pointsHint": "Use {points} in the chat reply to show the amount.",
+  "liveOnly": "Only while I’m live",
+  "liveOnlyHint": "Offline redeems still reply in chat, but don’t count or grant points."
+}

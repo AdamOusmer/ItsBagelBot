@@ -1,0 +1,12 @@
+{
+  "errScope": "Twitch n’a pas accordé toutes les permissions requises. Autorisez à nouveau le bot et acceptez chaque permission demandée.",
+  "okTitle": "Bot autorisé",
+  "okBody": "Le jeton du compte du bot a été enregistré. Vous pouvez fermer cet onglet.",
+  "failTitle": "Échec de l’autorisation",
+  "errState": "Le lien d’autorisation a expiré ou est invalide. Relancez l’autorisation du bot.",
+  "errOauth": "Twitch a refusé l’autorisation. Réessayez.",
+  "errAccount": "Ce compte Twitch n’est pas le compte de bot configuré.",
+  "errConfig": "L’autorisation du bot est désactivée tant que TWITCH_BOT_USER_ID n’est pas configuré.",
+  "errSave": "Twitch a approuvé le bot, mais ItsBagelBot n’a pas pu enregistrer son jeton. Vérifiez la configuration du bot et autorisez-le à nouveau.",
+  "errGeneric": "Une erreur est survenue. Générez un nouveau lien et réessayez."
+}

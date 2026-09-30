@@ -1,0 +1,59 @@
+{
+  "label": "Duels",
+  "tagline": "Viewer-vs-viewer point duels: pot free-for-alls and 1v1 challenges.",
+  "description": "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake, and when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend, so nobody can wager what they do not have. Turned on from the Loyalty page; it uses the same currency name and stays off while loyalty is off.",
+  "settings": {
+    "minStake": {
+      "label": "Minimum stake",
+      "placeholder": "1"
+    },
+    "maxStake": {
+      "label": "Maximum stake",
+      "placeholder": "1000"
+    },
+    "potSeconds": {
+      "label": "Pot window (seconds)",
+      "help": "How long a pot duel accepts stakes.",
+      "placeholder": "60"
+    },
+    "challengeSeconds": {
+      "label": "Accept window (seconds)",
+      "help": "How long the challenged party has to accept.",
+      "placeholder": "120"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Pot duel opened",
+      "tagline": "When a pot duel starts and stakes open.",
+      "event": "!duel 100",
+      "defaultMessage": "Pot duel is LIVE! @{user} put up {stake} {points}. Type !duel <amount> to join. Drawing in {secs}s!"
+    },
+    "joined": {
+      "label": "Join confirmation",
+      "tagline": "When a viewer adds their stake to a running pot.",
+      "event": "!duel 250",
+      "defaultMessage": "@{user} you're in with {stake}! {count} in the duel, {pot} {points} in the pot."
+    },
+    "challenge": {
+      "label": "Challenge sent",
+      "tagline": "When a viewer challenges another to even stakes.",
+      "event": "!duel @maya_live 500",
+      "defaultMessage": "@{user} challenges @{target} for {stake} {points}! @{target}, type !duel accept within {secs}s. Winner takes {pot}!"
+    },
+    "won": {
+      "label": "Result line",
+      "tagline": "When a challenge is accepted and settled.",
+      "event": "!duel accept",
+      "defaultMessage": "The blades fall: @{winner} defeats @{loser} and takes {pot} {points}!"
+    }
+  },
+  "commands": {
+    "duel": "Show what runs: a pot (entrants, pool, seconds) or a pending challenge.",
+    "duel_stake": "Open a pot duel, or join one that is running.",
+    "duel_user_stake": "Challenge someone to even stakes; winner takes both.",
+    "duel_accept": "The challenged party matches the stake and settles it instantly.",
+    "duel_decline": "Refuse a challenge; the opener is refunded.",
+    "duel_cancel": "Tear the running duel down with full refunds (opener or mod)."
+  }
+}
