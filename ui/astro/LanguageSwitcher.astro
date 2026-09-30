@@ -3,47 +3,82 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import Icon from './Icon.astro';
 import { uiI18n } from './i18n';
+import { flagBody } from '../lib/flags';
 
 import '../styles/elements/nav.css';
 
+type LocaleChoice = { code: string; label: string; href?: string; current?: boolean; title?: string; flag?: string };
+
 interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'label' | 'action' | 'name' | 'fields' | 'class'> {
-  options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
+  options: { code: string; label: string; href?: string; current?: boolean; title?: string; flag?: string }[];
   label?: string;
   action?: string;
   name?: string;
   fields?: Record<string, string>;
+  variant?: 'compact' | 'field';
+  menuId: string;
   class?: string;
 }
 
 const { t } = uiI18n(Astro);
-const { options, label = t('nav.language'), action, name = 'locale', fields = {}, class: className = '', ...rest } = Astro.props;
+const {
+  options,
+  label = t('nav.language'),
+  action,
+  name = 'locale',
+  fields = {},
+  variant = 'compact',
+  menuId,
+  class: className = '',
+  ...rest
+} = Astro.props;
 
-const classes = ['bb-lang-switch', className || null]
+const current = options.find((option) => option.current) ?? options[0];
+const classes = ['bb-lang-switch', variant === 'field' ? 'bb-lang-switch--field' : null, className || null]
   .filter(Boolean)
   .join(' ');
+const optClass = (option: LocaleChoice) =>
+  option.current ? 'bb-lang-switch__opt is-active' : 'bb-lang-switch__opt';
+const currentFlag = flagBody(current?.flag);
+const Root = action ? 'form' : 'div';
 ---
 
-{action ? (
-<form method="POST" action={action} class={classes} role="group" aria-label={label} {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
+<Root method={action ? 'POST' : undefined} action={action} class={classes} data-bb-lang-switch="" {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
   <input type="hidden" name={field} value={fieldValue} />
-))}{options.map((option) => (
-  <button
-    type="submit"
-    name={name}
-    value={option.code}
-    class={`bb-lang-switch__opt ${option.current ? 'is-active' : ''}`}
-    aria-pressed={option.current ? 'true' : 'false'}
-    title={option.title}
-  >{option.label}</button>
-))}</form>
-) : (
-<div class={classes} role="group" aria-label={label} {...rest}>{options.map((option) => (
-  <a
-    class={`bb-lang-switch__opt ${option.current ? 'is-active' : ''}`}
-    href={option.href}
-    hreflang={option.code}
-    aria-current={option.current ? 'true' : undefined}
-  >{option.label}</a>
-))}</div>
-)}
+))}<button
+  type="button"
+  class="bb-lang-switch__trigger"
+  popovertarget={menuId}
+  aria-label={`${label}: ${current?.title ?? current?.label}`}
+><span class="bb-lang-switch__flag" aria-hidden="true">{currentFlag && <svg viewBox="0 0 512 512" set:html={currentFlag} />}</span><span class="bb-lang-switch__label">{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</span><Icon name="chevron" size={12} class="bb-lang-switch__chevron" /></button><ul class="bb-lang-switch__menu" id={menuId} popover="auto" role="list" aria-label={label}>{options.map((option) => {
+  const body = flagBody(option.flag);
+  const row = (
+    <Fragment><span class="bb-lang-switch__flag" aria-hidden="true">{body && <svg viewBox="0 0 512 512" set:html={body} />}</span><span class="bb-lang-switch__name" lang={option.code}>{option.title ?? option.label}</span><Icon name="check" size={14} class="bb-lang-switch__check" /></Fragment>
+  );
+  return (
+    <li>{action ? (
+      <button type="submit" name={name} value={option.code} class={optClass(option)} aria-pressed={option.current ? 'true' : 'false'}>{row}</button>
+    ) : (
+      <a class={optClass(option)} href={option.href} hreflang={option.code} aria-current={option.current ? 'true' : undefined}>{row}</a>
+    )}</li>
+  );
+})}</ul></Root>
+
+<script>
+  import { mountLangSwitch } from '../lib/lang-switch';
+
+  const mounted = new WeakSet<Element>();
+
+  function mountAll() {
+    for (const root of document.querySelectorAll<HTMLElement>('[data-bb-lang-switch]')) {
+      if (mounted.has(root)) continue;
+      mounted.add(root);
+      mountLangSwitch(root);
+    }
+  }
+
+  mountAll();
+  document.addEventListener('astro:page-load', mountAll);
+</script>

@@ -374,20 +374,25 @@ describe('LanguageSwitcher', () => {
     name: 'form mode posts the chosen code',
     svelte: SvelteLanguageSwitcher,
     astro: AstroLanguageSwitcher,
-    props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options },
+    props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options, menuId: 'lang' },
     html:
-      '<form method="POST" action="/lang" class="bb-lang-switch" role="group" aria-label="Language">' +
-      '<input type="hidden" name="next" value="/x">' +
-      '<button type="submit" name="to" value="en" class="bb-lang-switch__opt is-active" aria-pressed="true" title="English">EN</button>' +
-      '<button type="submit" name="to" value="fr" class="bb-lang-switch__opt " aria-pressed="false">FR</button></form>',
+      '<form method="POST" action="/lang" class="bb-lang-switch" data-bb-lang-switch><input type="hidden" name="next" value="/x">' +
+      '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label">EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
+      '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">' +
+      '<li><button type="submit" name="to" value="en" class="bb-lang-switch__opt is-active" aria-pressed="true"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="en">English</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
+      '<li><button type="submit" name="to" value="fr" class="bb-lang-switch__opt" aria-pressed="false"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="fr">FR</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
+      '</ul></form>',
   });
 
   test('svelte callback mode renders plain buttons', () => {
-    const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {} });
+    const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {}, menuId: 'lang' });
     expect(html).toBe(
-      '<div class="bb-lang-switch" role="group" aria-label="Language">' +
-        '<button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true" title="English">EN</button>' +
-        '<button type="button" class="bb-lang-switch__opt " aria-pressed="false">FR</button></div>',
+      '<div class="bb-lang-switch" data-bb-lang-switch>' +
+        '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label">EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
+        '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">' +
+        '<li><button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="en">English</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
+        '<li><button type="button" class="bb-lang-switch__opt" aria-pressed="false"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="fr">FR</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
+        '</ul></div>',
     );
   });
 });

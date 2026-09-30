@@ -141,7 +141,8 @@ export function localeOptions(
   locales: readonly Locale[],
   current: Locale,
   url: URL,
-): Array<{ code: Locale; href: string; label: string; current: boolean }> {
+  nameOf: (code: Locale) => string,
+): Array<{ code: Locale; href: string; label: string; title: string; flag?: string; current: boolean }> {
   return locales.map((code) => {
     const params = new URLSearchParams(url.search);
     params.set('lang', code);
@@ -149,7 +150,17 @@ export function localeOptions(
       code,
       href: `${url.pathname}?${params}`,
       label: code.toUpperCase(),
+      title: nameOf(code),
+      flag: localeFlag(code),
       current: code === current,
     };
   });
+}
+
+const FLAG_OVERRIDES: Readonly<Record<string, string>> = { en: 'gb' };
+
+/** Lowercase region code of the flag shown beside a locale: `pt-br` -> `br`, `es` -> `es`. */
+export function localeFlag(code: Locale): string | undefined {
+  if (Object.hasOwn(FLAG_OVERRIDES, code)) return FLAG_OVERRIDES[code];
+  return new Intl.Locale(code).maximize().region?.toLowerCase();
 }

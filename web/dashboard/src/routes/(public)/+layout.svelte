@@ -51,7 +51,9 @@
   const links = $derived(resolveSiteLinks(SITE_NAV, navContext));
   const columns = $derived(resolveSiteColumns(SITE_FOOTER, footerContext));
   const legal = $derived(resolveSiteLinks(SITE_LEGAL, footerContext));
-  const locales = $derived(localeOptions(LOCALES, locale, page.url));
+  const locales = $derived(
+    localeOptions(LOCALES, locale, page.url, (code) => page.data.localeNames?.[code] ?? code)
+  );
 </script>
 
 <Nav
@@ -77,7 +79,7 @@
   {#snippet mobileFooter()}
     <ButtonLink variant="ghost" block href={dashboardHref('/?install=1', langQuery)}>{t('public.nav.getApp')}</ButtonLink>
     <div class="menu-lang" data-sveltekit-preload-data="off">
-      <LanguageSwitcher options={locales} label={t('lang.switchAria')} />
+      <LanguageSwitcher options={locales} label={t('lang.switchAria')} variant="field" />
     </div>
   {/snippet}
 </Nav>

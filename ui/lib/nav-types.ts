@@ -33,6 +33,8 @@ export interface UiLocaleOption {
   code: string;
   href: string;
   label: string;
+  title?: string;
+  flag?: string;
   current?: boolean;
 }
 

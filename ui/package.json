@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@astrojs/compiler": "^4.0.0",
+    "@iconify-json/circle-flags": "1.2.11",
     "@iconify-json/lucide": "1.2.137",
     "@iconify-json/simple-icons": "1.2.98",
     "@types/bun": "1.4.2",
