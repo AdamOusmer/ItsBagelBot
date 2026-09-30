@@ -27,22 +27,22 @@
     [key: string]: unknown;
   } = $props();
 
-  const classes = $derived(['stats-page', `stats-page--${arrangement}`, className].filter(Boolean).join(' '));
+  const classes = $derived(['stats-layout', `stats-layout--${arrangement}`, className].filter(Boolean).join(' '));
 </script>
 
 <div class={classes} {...rest}>
   <AmbientSky position="fixed" stillStars progress={0.65} turn={24} />
-  <div class="stats-page__inner">
-    <header class="stats-page__header">
-      <div class="stats-page__heading">{@render heading()}</div>
-      {#if crowd}<div class="stats-page__crowd" aria-hidden="true">{@render crowd()}</div>{/if}
+  <div class="stats-layout__inner">
+    <header class="stats-layout__header">
+      <div class="stats-layout__heading">{@render heading()}</div>
+      {#if crowd}<div class="stats-layout__crowd" aria-hidden="true">{@render crowd()}</div>{/if}
     </header>
-    {#if notice}<div class="stats-page__notice">{@render notice()}</div>{/if}
-    <div class="stats-page__body">
-      <div class="stats-page__counters">{@render counters()}</div>
-      <div class="stats-page__ranking">{@render ranking()}</div>
-      <div class="stats-page__community">{@render community()}</div>
+    {#if notice}<div class="stats-layout__notice">{@render notice()}</div>{/if}
+    <div class="stats-layout__body">
+      <div class="stats-layout__counters">{@render counters()}</div>
+      <div class="stats-layout__ranking">{@render ranking()}</div>
+      <div class="stats-layout__community">{@render community()}</div>
     </div>
-    {#if footer}<div class="stats-page__footer">{@render footer()}</div>{/if}
+    {#if footer}<div class="stats-layout__footer">{@render footer()}</div>{/if}
   </div>
 </div>

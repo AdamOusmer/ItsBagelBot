@@ -5,7 +5,7 @@
 /* Stats-page compositions. Slots keep data, translated copy and figures in
    the consuming application; all placement belongs to the shared contract. */
 @layer bb.app {
-  .stats-page {
+  .stats-layout {
     --stats-gap: 24px;
     --ambient-ring-top: 390px;
     --ambient-ring-right: -230px;
@@ -19,14 +19,14 @@
     padding: calc(var(--nav-offset, var(--bb-nav-height)) + 56px) 24px 72px;
   }
 
-  .stats-page__inner {
+  .stats-layout__inner {
     position: relative;
     z-index: 1;
     width: min(100%, 1100px);
     margin-inline: auto;
   }
 
-  .stats-page__header {
+  .stats-layout__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -35,7 +35,7 @@
     margin-bottom: 42px;
   }
 
-  .stats-page__heading {
+  .stats-layout__heading {
     display: flex;
     min-width: 0;
     max-width: 100%;
@@ -44,7 +44,7 @@
     gap: 12px;
   }
 
-  .stats-page__title {
+  .stats-layout__title {
     max-width: 100%;
     font-family: var(--bb-font-display);
     font-size: clamp(48px, 6vw, 64px);
@@ -54,14 +54,14 @@
     overflow-wrap: anywhere;
   }
 
-  .stats-page__crowd {
+  .stats-layout__crowd {
     position: relative;
     flex: none;
     width: 330px;
     height: 148px;
   }
 
-  .stats-page__crowd > * {
+  .stats-layout__crowd > * {
     --crowd-order: 0;
     position: absolute;
     top: 0;
@@ -70,24 +70,24 @@
     height: 100px;
     filter: drop-shadow(0 8px 8px rgba(var(--bb-black-rgb), 0.28));
   }
-  .stats-page__crowd > :nth-child(2) { --crowd-order: 1; }
-  .stats-page__crowd > :nth-child(3) { --crowd-order: 2; top: 15px; }
-  .stats-page__crowd > :nth-child(4) { --crowd-order: 3; }
-  .stats-page__crowd > :nth-child(5) { --crowd-order: 4; top: -6px; }
-  .stats-page__crowd > :nth-child(6) { --crowd-order: 5; }
-  .stats-page__crowd > :nth-child(even) { top: 46px; }
-  .stats-page__crowd > * > :is(svg, img, canvas) { display: block; width: 100%; height: 100%; overflow: visible; }
+  .stats-layout__crowd > :nth-child(2) { --crowd-order: 1; }
+  .stats-layout__crowd > :nth-child(3) { --crowd-order: 2; top: 15px; }
+  .stats-layout__crowd > :nth-child(4) { --crowd-order: 3; }
+  .stats-layout__crowd > :nth-child(5) { --crowd-order: 4; top: -6px; }
+  .stats-layout__crowd > :nth-child(6) { --crowd-order: 5; }
+  .stats-layout__crowd > :nth-child(even) { top: 46px; }
+  .stats-layout__crowd > * > :is(svg, img, canvas) { display: block; width: 100%; height: 100%; overflow: visible; }
 
-  .stats-page__notice { margin-bottom: 24px; }
+  .stats-layout__notice { margin-bottom: 24px; }
 
-  .stats-page__body {
+  .stats-layout__body {
     display: grid;
     grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
     grid-template-areas: 'counters counters' 'ranking community';
     align-items: start;
     gap: 36px var(--stats-gap);
   }
-  .stats-page__counters {
+  .stats-layout__counters {
     grid-area: counters;
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -95,62 +95,62 @@
     padding: 4px 5px 10px;
     min-width: 0;
   }
-  .stats-page__ranking { grid-area: ranking; min-width: 0; }
-  .stats-page__community { grid-area: community; min-width: 0; }
-  .stats-page__footer { margin-top: 28px; }
+  .stats-layout__ranking { grid-area: ranking; min-width: 0; }
+  .stats-layout__community { grid-area: community; min-width: 0; }
+  .stats-layout__footer { margin-top: 28px; }
 
   /* Same anatomy, arranged around the quieter onboarding surfaces. */
-  .stats-page--onboarding .stats-page__header { margin-bottom: 52px; }
-  .stats-page--onboarding .stats-page__body {
+  .stats-layout--onboarding .stats-layout__header { margin-bottom: 52px; }
+  .stats-layout--onboarding .stats-layout__body {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     grid-template-areas: 'counters community' 'ranking ranking';
     row-gap: 32px;
   }
-  .stats-page--onboarding .stats-page__counters { grid-template-columns: minmax(0, 1fr); padding: 0; }
+  .stats-layout--onboarding .stats-layout__counters { grid-template-columns: minmax(0, 1fr); padding: 0; }
 
   /* Community leads, with the ranking alongside and the two counters below. */
-  .stats-page--gathering .stats-page__body {
+  .stats-layout--gathering .stats-layout__body {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
     grid-template-areas: 'community ranking' 'counters counters';
     row-gap: 32px;
   }
-  .stats-page--gathering .stats-page__counters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; }
-  .stats-page--gathering .stats-page__crowd { width: 370px; }
-  .stats-page--gathering .stats-page__crowd > * { left: calc(var(--crowd-order) * 52px); }
+  .stats-layout--gathering .stats-layout__counters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; }
+  .stats-layout--gathering .stats-layout__crowd { width: 370px; }
+  .stats-layout--gathering .stats-layout__crowd > * { left: calc(var(--crowd-order) * 52px); }
 
   @media (max-width: 900px) {
-    .stats-page { padding-inline: 28px; }
-    .stats-page__crowd { width: 290px; }
-    .stats-page__crowd > * { left: calc(var(--crowd-order) * 38px); }
-    .stats-page--gathering .stats-page__crowd { width: 300px; }
-    .stats-page--gathering .stats-page__crowd > * { left: calc(var(--crowd-order) * 40px); }
-    .stats-page__body { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
-    .stats-page--onboarding .stats-page__body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .stats-page--gathering .stats-page__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+    .stats-layout { padding-inline: 28px; }
+    .stats-layout__crowd { width: 290px; }
+    .stats-layout__crowd > * { left: calc(var(--crowd-order) * 38px); }
+    .stats-layout--gathering .stats-layout__crowd { width: 300px; }
+    .stats-layout--gathering .stats-layout__crowd > * { left: calc(var(--crowd-order) * 40px); }
+    .stats-layout__body { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+    .stats-layout--onboarding .stats-layout__body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stats-layout--gathering .stats-layout__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
   }
 
   @media (max-width: 650px) {
-    .stats-page { padding: calc(var(--nav-offset, var(--bb-nav-height)) + 28px) 18px 48px; }
-    .stats-page__header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px; }
-    .stats-page__title { font-size: 48px; }
-    .stats-page__crowd,
-    .stats-page--gathering .stats-page__crowd { width: 100%; height: 116px; align-self: center; }
-    .stats-page__crowd > *,
-    .stats-page--gathering .stats-page__crowd > * { left: calc(var(--crowd-order) * 17%); width: 70px; height: 70px; }
-    .stats-page__crowd > :last-child,
-    .stats-page--gathering .stats-page__crowd > :last-child { left: auto; right: 0; }
-    .stats-page__body,
-    .stats-page--onboarding .stats-page__body,
-    .stats-page--gathering .stats-page__body { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'counters' 'ranking' 'community'; gap: 28px; }
-    .stats-page--gathering .stats-page__body { grid-template-areas: 'community' 'ranking' 'counters'; }
-    .stats-page__counters,
-    .stats-page--gathering .stats-page__counters { grid-template-columns: minmax(0, 1fr); gap: 42px; padding-inline: 4px; }
-    .stats-page--onboarding .stats-page__counters { gap: 32px; }
+    .stats-layout { padding: calc(var(--nav-offset, var(--bb-nav-height)) + 28px) 18px 48px; }
+    .stats-layout__header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px; }
+    .stats-layout__title { font-size: 48px; }
+    .stats-layout__crowd,
+    .stats-layout--gathering .stats-layout__crowd { width: 100%; height: 116px; align-self: center; }
+    .stats-layout__crowd > *,
+    .stats-layout--gathering .stats-layout__crowd > * { left: calc(var(--crowd-order) * 17%); width: 70px; height: 70px; }
+    .stats-layout__crowd > :last-child,
+    .stats-layout--gathering .stats-layout__crowd > :last-child { left: auto; right: 0; }
+    .stats-layout__body,
+    .stats-layout--onboarding .stats-layout__body,
+    .stats-layout--gathering .stats-layout__body { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'counters' 'ranking' 'community'; gap: 28px; }
+    .stats-layout--gathering .stats-layout__body { grid-template-areas: 'community' 'ranking' 'counters'; }
+    .stats-layout__counters,
+    .stats-layout--gathering .stats-layout__counters { grid-template-columns: minmax(0, 1fr); gap: 42px; padding-inline: 4px; }
+    .stats-layout--onboarding .stats-layout__counters { gap: 32px; }
   }
 
   @media (max-width: 370px) {
-    .stats-page { padding-inline: 14px; }
-    .stats-page__crowd > *,
-    .stats-page--gathering .stats-page__crowd > * { width: 62px; height: 62px; }
+    .stats-layout { padding-inline: 14px; }
+    .stats-layout__crowd > *,
+    .stats-layout--gathering .stats-layout__crowd > * { width: 62px; height: 62px; }
   }
 }
