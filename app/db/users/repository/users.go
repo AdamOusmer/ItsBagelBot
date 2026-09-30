@@ -173,7 +173,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(userKeyPrefix, id), func(ctx context.Context) (UserView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) (UserView, error) {
+		return db.WithRead(ctx, func(ctx context.Context) (UserView, error) {
 
 			u, err := r.client.User.Query().
 				Where(user.IDEQ(id)).

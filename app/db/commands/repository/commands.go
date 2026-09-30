@@ -115,7 +115,7 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(commandsKeyPrefix, userID), func(ctx context.Context) ([]CommandView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) ([]CommandView, error) {
+		return db.WithRead(ctx, func(ctx context.Context) ([]CommandView, error) {
 
 			rows, err := r.client.Commands.Query().
 				Where(commands.UserIDEQ(userID)).

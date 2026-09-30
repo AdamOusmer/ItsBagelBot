@@ -460,7 +460,7 @@ func (r *Modules) persistedDTOs(ctx context.Context, landed []data.ModuleChanged
 }
 
 func (r *Modules) loadModuleViews(ctx context.Context, userID uint64) ([]ModuleView, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) ([]ModuleView, error) {
+	return db.WithRead(ctx, func(ctx context.Context) ([]ModuleView, error) {
 		rows, err := r.client.Modules.Query().Where(modules.UserIDEQ(userID)).All(ctx)
 		if err != nil {
 			return nil, err
