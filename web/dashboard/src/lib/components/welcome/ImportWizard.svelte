@@ -13,6 +13,7 @@
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
   import ImportFailed from '$lib/import/ImportFailed.svelte';
+  import ImportTimerChips from '$lib/import/ImportTimerChips.svelte';
   import ImportSkipped from '$lib/import/ImportSkipped.svelte';
   import { ImportSession } from '$lib/import/session.svelte';
   import {
@@ -645,7 +646,7 @@
                 <div class="row-body">
                   <Text as="span" size="sm" tone="muted">{tm.message}</Text>
                   <span class="chips">
-                    <Tag tone="bare">{t('import.everySeconds', { n: tm.interval_seconds })}</Tag>
+                    <ImportTimerChips timer={tm} {t} />
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}

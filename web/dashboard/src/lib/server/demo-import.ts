@@ -73,12 +73,14 @@ function demoTimers(): NonNullable<ImportManifest['timers']> {
     {
       message: 'Enjoying the stream? Hit follow so you catch the next raid!',
       interval_seconds: 900,
-      online_only: true
+      online_only: true,
+      min_chat_lines: 10,
+      chat_window_minutes: 5
     },
     {
       message: 'Lurkers welcome. Loyalty points tick up while you watch.',
       interval_seconds: 1200,
-      online_only: true
+      online_only: false
     }
   ];
 }
@@ -118,9 +120,9 @@ export function demoImportPreview(_source: ImportSource): PreviewResponse {
     },
     {
       severity: 'warn',
-      item_index: 0,
-      code: 'timer_online_only_widened',
-      message: 'Source marked this timer offline-capable; BagelBot timers run while live only.'
+      item_index: 1,
+      code: 'timer_offline_interval_dropped',
+      message: 'timer "lurkers" used a different interval while offline upstream; only the online interval was kept'
     }
   ];
   return {

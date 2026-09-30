@@ -11,7 +11,7 @@ import {
 } from './validate';
 import { emit, POSITIONAL_MAX, positional, slice } from './targets';
 import { createdFetchDefMessage } from './nightbot/fetchdefs';
-import type { ImportDiagnostic, ImportManifest, ManifestCommand, ManifestFetch } from './types';
+import type { ImportDiagnostic, ImportManifest, ManifestCommand, ManifestFetch, ManifestTimer } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
 
 const IF_TOKEN = /^\$[({]if\b/i;
@@ -306,6 +306,7 @@ interface BotTimer {
   onlineInterval: number;
   offlineEnabled: boolean | undefined;
   offlineInterval: number;
+  chatLines: number;
 }
 
 function decodeBotTimer(entry: unknown): BotTimer {
@@ -323,7 +324,8 @@ function readBotTimer(e: Record<string, unknown>): BotTimer {
     onlineEnabled: online.enabled,
     onlineInterval: online.interval,
     offlineEnabled: offline.enabled,
-    offlineInterval: offline.interval
+    offlineInterval: offline.interval,
+    chatLines: finiteNumber(e.chatLines)
   };
 }
 
@@ -342,6 +344,8 @@ function timerText(e: Record<string, unknown>): string {
   return e.messages.map((m) => flexText(m)).join('\n');
 }
 
+const SE_CHAT_LINE_WINDOW_MINUTES = 5;
+
 export const SE_CODE = {
   commandRegexSkipped: 'command_regex_skipped',
   commandDisabledSkipped: 'command_disabled_skipped',
@@ -356,6 +360,7 @@ export const SE_CODE = {
   timerDisabledSkipped: 'timer_disabled_skipped',
   timerUnparseable: 'timer_unparseable_skipped',
   timerOfflineOnlyWidened: 'timer_offline_only_widened',
+  timerOfflineIntervalDropped: 'timer_offline_interval_dropped',
   timerMessageTruncated: 'timer_message_truncated',
   timerLineDropped: 'timer_message_line_dropped',
   triggerInvalidSkipped: 'trigger_invalid_skipped',
@@ -738,10 +743,7 @@ function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
 function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
   const idx = timers.length;
   const window = timerWindow(t);
-  if (window.widened) {
-    diags.push(warnDiag(idx, SE_CODE.timerOfflineOnlyWidened,
-      `timer ${q(label)} runs only while offline upstream; timers here fire only while live, so it will run while live instead (widening)`));
-  }
+  diags.push(...windowDiags(window, { idx, label }));
 
   const { text, warns } = translateVariables(t.text);
   for (const tok of warns) {
@@ -753,11 +755,12 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   retitleResponseCodes(respDiags, TIMER_RETITLE);
   diags.push(...respDiags);
 
-  const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
+  const timer: ManifestTimer = {
     message: lines.join('\n'),
-    interval_seconds: window.seconds
+    interval_seconds: window.seconds,
+    online_only: window.onlineOnly,
+    ...chatLineGate(t)
   };
-  if (window.onlineOnly) timer.online_only = true;
   timers.push(timer);
 
   if (timer.message.trim() === '') {
@@ -765,12 +768,43 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   }
 }
 
-function timerWindow(t: BotTimer): { seconds: number; onlineOnly: boolean; widened: boolean } {
+interface TimerWindow {
+  seconds: number;
+  onlineOnly: boolean;
+  offlineOnlyWidened: boolean;
+  offlineIntervalDropped: boolean;
+}
+
+function timerWindow(t: BotTimer): TimerWindow {
   const clampNegative = (s: number): number => (s < 0 ? 0 : s);
-  if (flag(t.onlineEnabled)) {
-    return { seconds: clampNegative(t.onlineInterval * 60), onlineOnly: true, widened: false };
+  if (!flag(t.onlineEnabled)) {
+    return { seconds: clampNegative(t.offlineInterval * 60), onlineOnly: false, offlineOnlyWidened: true, offlineIntervalDropped: false };
   }
-  return { seconds: clampNegative(t.offlineInterval * 60), onlineOnly: false, widened: true };
+  const both = t.offlineEnabled === true;
+  return {
+    seconds: clampNegative(t.onlineInterval * 60),
+    onlineOnly: !both,
+    offlineOnlyWidened: false,
+    offlineIntervalDropped: both && t.offlineInterval !== t.onlineInterval
+  };
+}
+
+function windowDiags(window: TimerWindow, at: { idx: number; label: string }): ImportDiagnostic[] {
+  if (window.offlineOnlyWidened) {
+    return [warnDiag(at.idx, SE_CODE.timerOfflineOnlyWidened,
+      `timer ${q(at.label)} runs only while offline upstream; it will now also post while live (widening)`)];
+  }
+  if (window.offlineIntervalDropped) {
+    return [warnDiag(at.idx, SE_CODE.timerOfflineIntervalDropped,
+      `timer ${q(at.label)} used a different interval while offline upstream; only the online interval was kept`)];
+  }
+  return [];
+}
+
+function chatLineGate(t: BotTimer): Pick<ManifestTimer, 'min_chat_lines' | 'chat_window_minutes'> {
+  const lines = Math.trunc(t.chatLines);
+  if (lines <= 0) return {};
+  return { min_chat_lines: lines, chat_window_minutes: SE_CHAT_LINE_WINDOW_MINUTES };
 }
 
 function flag(p: boolean | undefined): boolean {

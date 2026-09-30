@@ -61,6 +61,9 @@ type timerDef struct {
 	MinChatLines int    `json:"minChatLines"`
 	MaxFires     int    `json:"maxFiresPerStream"`
 	EndsAt       string `json:"endsAt"`
+
+	ChatWindowMinutes int  `json:"chatWindowMinutes"`
+	AllowOffline      bool `json:"allowOffline"`
 }
 
 type timersConfig struct {
@@ -82,7 +85,9 @@ type ValkeyTimerStore struct {
 	keyspaceDB int
 	log        *zap.Logger
 
-	gatedCache *cache.Keyed[uint64, bool]
+	flagsCache *cache.Keyed[uint64, chatFlags]
+
+	rearmThrottle *cache.Keyed[uint64, bool]
 
 	now func() time.Time
 
@@ -123,7 +128,8 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
 		log:              log,
-		gatedCache:       cache.NewKeyed[uint64, bool](gatedCacheCapacity, gatedCacheTTL, gatedCacheKeyFn),
+		flagsCache:       cache.NewKeyed[uint64, chatFlags](gatedCacheCapacity, gatedCacheTTL, gatedCacheKeyFn),
+		rearmThrottle:    cache.NewKeyed[uint64, bool](gatedCacheCapacity, chatRearmInterval, gatedCacheKeyFn),
 		now:              time.Now,
 	}
 }
@@ -131,6 +137,8 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 const gatedCacheCapacity int64 = 4096
 
 const gatedCacheTTL = 10 * time.Minute
+
+const chatRearmInterval = time.Minute
 
 func gatedCacheKeyFn(broadcasterID uint64) string {
 	return strconv.FormatUint(broadcasterID, 10)
@@ -145,10 +153,6 @@ func (r timerRef) scheduleKey() string {
 	return cache.PairKey(timerKeyPrefix, r.broadcasterID, r.id)
 }
 
-func (r timerRef) markKey() string {
-	return cache.PairKey(timerAuxPrefix+"mark:", r.broadcasterID, r.id)
-}
-
 func (r timerRef) firesKey() string {
 	return cache.PairKey(timerAuxPrefix+"fires:", r.broadcasterID, r.id)
 }
@@ -158,17 +162,42 @@ type armedTimer struct {
 	def timerDef
 }
 
-func linesKey(broadcasterID uint64) string {
-	return cache.UserKey(timerAuxPrefix+"lines:", broadcasterID)
+func chatLog(broadcasterID uint64) pkg_valkey.RecentLog {
+	return pkg_valkey.RecentLog{
+		Key:  cache.UserKey(timerAuxPrefix+"chat:", broadcasterID),
+		Keep: maxGateLines,
+		TTL:  maxChatWindowMinutes * time.Minute,
+	}
 }
 
 func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
+	s.eachTimer(ctx, broadcasterID, func(at armedTimer) { s.armOne(ctx, at) })
+}
+
+func (s *ValkeyTimerStore) ArmOnline(ctx context.Context, broadcasterID uint64) {
+	s.eachTimer(ctx, broadcasterID, func(at armedTimer) {
+		if at.def.AllowOffline && at.ref.id != "" {
+			s.delAuxKey(ctx, at.ref, at.ref.firesKey())
+		}
+		s.armOne(ctx, at)
+	})
+}
+
+func (s *ValkeyTimerStore) armOffline(ctx context.Context, broadcasterID uint64) {
+	s.eachTimer(ctx, broadcasterID, func(at armedTimer) {
+		if at.def.AllowOffline {
+			s.armOne(ctx, at)
+		}
+	})
+}
+
+func (s *ValkeyTimerStore) eachTimer(ctx context.Context, broadcasterID uint64, step func(armedTimer)) {
 	cfg, ok := s.config(ctx, broadcasterID)
 	if !ok {
 		return
 	}
 	for _, td := range cfg.Timers {
-		s.armOne(ctx, armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td})
+		step(armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td})
 	}
 }
 
@@ -177,27 +206,27 @@ func (s *ValkeyTimerStore) armOne(ctx context.Context, at armedTimer) {
 		return
 	}
 	var fires int64
-	if clampFireCap(at.def.MaxFires) > 0 {
+	if clampCount(at.def.MaxFires, maxFireCap) > 0 {
 		fires = s.fireCount(ctx, at.ref)
 	}
 	if stopped(at.def, fires, s.now()) {
 		return
 	}
 	s.armJittered(ctx, at)
-	if isGated(at.def) {
-		s.seedWatermark(ctx, at)
-	}
 }
 
-func (s *ValkeyTimerStore) RearmIfLive(ctx context.Context, broadcasterID uint64) {
+func (s *ValkeyTimerStore) Rearm(ctx context.Context, broadcasterID uint64) {
 	if broadcasterID == 0 {
 		return
 	}
 	live, err := s.live.IsLive(ctx, broadcasterID)
-	if err != nil || !live {
-		return
+	switch {
+	case err != nil:
+	case live:
+		s.ArmAll(ctx, broadcasterID)
+	default:
+		s.armOffline(ctx, broadcasterID)
 	}
-	s.ArmAll(ctx, broadcasterID)
 }
 
 func (s *ValkeyTimerStore) StartReconciler(ctx context.Context) {
@@ -219,7 +248,7 @@ func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
 		return
 	}
 	for _, id := range s.liveBroadcasters(ctx) {
-		s.RearmIfLive(ctx, id)
+		s.Rearm(ctx, id)
 	}
 }
 
@@ -285,17 +314,21 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 		return
 	}
 	for _, td := range cfg.Timers {
-		if td.ID == "" {
-			continue
+		if td.ID != "" {
+			s.disarmOne(ctx, armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td})
 		}
-		ref := timerRef{broadcasterID: broadcasterID, id: td.ID}
-		s.delAuxKey(ctx, ref, ref.scheduleKey())
-		s.delAuxKey(ctx, ref, ref.markKey())
-		s.delAuxKey(ctx, ref, ref.firesKey())
-		s.badEndsAtWarned.Delete(ref)
-		s.blankFireWarned.Delete(ref)
 	}
-	s.delAuxKey(ctx, timerRef{broadcasterID: broadcasterID}, linesKey(broadcasterID))
+}
+
+func (s *ValkeyTimerStore) disarmOne(ctx context.Context, at armedTimer) {
+	s.delAuxKey(ctx, at.ref, at.ref.firesKey())
+	s.badEndsAtWarned.Delete(at.ref)
+	s.blankFireWarned.Delete(at.ref)
+	if at.def.AllowOffline {
+		s.armOne(ctx, at)
+		return
+	}
+	s.delAuxKey(ctx, at.ref, at.ref.scheduleKey())
 }
 
 func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, ref timerRef, key string) {
@@ -336,11 +369,11 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 		if err != nil || id == 0 {
 			return
 		}
-		s.gatedCache.Invalidate(id)
+		s.flagsCache.Invalidate(id)
 		go func() {
 			rctx, cancel := context.WithTimeout(context.Background(), rearmTimeout)
 			defer cancel()
-			s.RearmIfLive(rctx, id)
+			s.Rearm(rctx, id)
 		}()
 	})
 	if err != nil {
@@ -385,16 +418,19 @@ func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
 		return
 	}
 
-	live, err := s.live.IsLive(ctx, ref.broadcasterID)
-	if err != nil || !live {
-		return
-	}
-
 	at, ok := s.resolveArmed(ctx, ref)
-	if !ok {
+	if !ok || !s.mayTick(ctx, at) {
 		return
 	}
 	s.tick(ctx, at)
+}
+
+func (s *ValkeyTimerStore) mayTick(ctx context.Context, at armedTimer) bool {
+	if at.def.AllowOffline {
+		return true
+	}
+	live, err := s.live.IsLive(ctx, at.ref.broadcasterID)
+	return err == nil && live
 }
 
 func parseTimerKey(key string) (timerRef, bool) {
@@ -449,7 +485,7 @@ func (s *ValkeyTimerStore) fireBounded(at armedTimer) {
 func (s *ValkeyTimerStore) hasStopped(ctx context.Context, at armedTimer) bool {
 	s.warnUnparsableEndsAt(at)
 	var fires int64
-	if clampFireCap(at.def.MaxFires) > 0 {
+	if clampCount(at.def.MaxFires, maxFireCap) > 0 {
 		fires = s.fireCount(ctx, at.ref)
 	}
 	return stopped(at.def, fires, s.now())
@@ -473,17 +509,12 @@ func (s *ValkeyTimerStore) gateOpen(ctx context.Context, at armedTimer) bool {
 	if !isGated(at.def) {
 		return true
 	}
-	lines := s.linesCount(ctx, at.ref.broadcasterID)
-	mark := s.watermark(ctx, at.ref)
-	return gatePasses(at.def, lines, mark)
+	return gatePasses(at.def, s.recentLines(ctx, at))
 }
 
 func (s *ValkeyTimerStore) recordFire(ctx context.Context, at armedTimer) {
 	if _, err := pkg_valkey.Incr(ctx, s.client, at.ref.firesKey(), timerAuxTTL); err != nil {
 		s.log.Warn("timers: failed to record fire", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
-	}
-	if isGated(at.def) {
-		s.setWatermark(ctx, at)
 	}
 }
 
@@ -495,67 +526,81 @@ func (s *ValkeyTimerStore) fireCount(ctx context.Context, ref timerRef) int64 {
 	return n
 }
 
-func (s *ValkeyTimerStore) linesCount(ctx context.Context, broadcasterID uint64) int64 {
-	n, err := pkg_valkey.GetInt(ctx, s.client, linesKey(broadcasterID))
+func (s *ValkeyTimerStore) recentLines(ctx context.Context, at armedTimer) int64 {
+	since := s.now().Add(-chatWindow(at.def))
+	n, err := pkg_valkey.CountRecentSince(ctx, s.client, chatLog(at.ref.broadcasterID).Key, since)
 	if err != nil {
-		s.log.Warn("timers: failed to read chat line count", module.BIDField(broadcasterID), zap.Error(err))
+		s.log.Warn("timers: failed to read chat line count", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 	}
 	return n
 }
 
-func (s *ValkeyTimerStore) watermark(ctx context.Context, ref timerRef) int64 {
-	n, err := pkg_valkey.GetInt(ctx, s.client, ref.markKey())
-	if err != nil {
-		s.log.Warn("timers: failed to read gate watermark", module.BIDField(ref.broadcasterID), zap.String("timer_id", ref.id), zap.Error(err))
-	}
-	return n
-}
-
-func (s *ValkeyTimerStore) setWatermark(ctx context.Context, at armedTimer) {
-	lines := s.linesCount(ctx, at.ref.broadcasterID)
-	err := s.client.Do(ctx, s.client.B().Set().Key(at.ref.markKey()).
-		Value(strconv.FormatInt(lines, 10)).Ex(timerAuxTTL).Build()).Error()
-	if err != nil {
-		s.log.Warn("timers: failed to set gate watermark", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
-	}
-}
-
-func (s *ValkeyTimerStore) seedWatermark(ctx context.Context, at armedTimer) {
-	lines := s.linesCount(ctx, at.ref.broadcasterID)
-	err := s.client.Do(ctx, s.client.B().Set().Key(at.ref.markKey()).
-		Value(strconv.FormatInt(lines, 10)).Nx().Ex(timerAuxTTL).Build()).Error()
-	if err != nil && !valkey.IsValkeyNil(err) {
-		s.log.Warn("timers: failed to seed gate watermark", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
-	}
+type chatFlags struct {
+	gated   bool
+	offline bool
 }
 
 func (s *ValkeyTimerStore) CountChatLine(ctx context.Context, broadcasterID uint64) {
-	if broadcasterID == 0 || !s.hasGatedTimer(ctx, broadcasterID) {
+	if broadcasterID == 0 {
+		return
+	}
+	flags := s.chatFlags(ctx, broadcasterID)
+	if !flags.gated && !flags.offline {
 		return
 	}
 	go func() {
 		actx, cancel := context.WithTimeout(context.Background(), countChatLineTimeout)
 		defer cancel()
-		if _, err := pkg_valkey.Incr(actx, s.client, linesKey(broadcasterID), timerAuxTTL); err != nil {
-			s.log.Debug("timers: chat line count failed", module.BIDField(broadcasterID), zap.Error(err))
+		if flags.gated {
+			s.recordChatLine(actx, broadcasterID)
+		}
+		if flags.offline {
+			s.throttledRearm(actx, broadcasterID)
 		}
 	}()
 }
 
-func (s *ValkeyTimerStore) hasGatedTimer(ctx context.Context, broadcasterID uint64) bool {
-	gated, err := s.gatedCache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
+func (s *ValkeyTimerStore) recordChatLine(ctx context.Context, broadcasterID uint64) {
+	if err := pkg_valkey.RecordRecent(ctx, s.client, chatLog(broadcasterID), s.now()); err != nil {
+		s.log.Debug("timers: chat line count failed", module.BIDField(broadcasterID), zap.Error(err))
+	}
+}
+
+func (s *ValkeyTimerStore) throttledRearm(ctx context.Context, broadcasterID uint64) {
+	first := false
+	_, _ = s.rearmThrottle.GetOrLoad(ctx, broadcasterID, func(context.Context) (bool, error) {
+		first = true
+		return true, nil
+	})
+	if first {
+		s.Rearm(ctx, broadcasterID)
+	}
+}
+
+func (s *ValkeyTimerStore) chatFlags(ctx context.Context, broadcasterID uint64) chatFlags {
+	flags, err := s.flagsCache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (chatFlags, error) {
 		cfg, ok := s.config(ctx, broadcasterID)
 		if !ok {
-			return false, nil
+			return chatFlags{}, nil
 		}
-		for _, td := range cfg.Timers {
-			if td.Enabled && isGated(td) {
-				return true, nil
-			}
-		}
-		return false, nil
+		return flagsOf(cfg.Timers), nil
 	})
-	return err == nil && gated
+	if err != nil {
+		return chatFlags{}
+	}
+	return flags
+}
+
+func flagsOf(timers []timerDef) chatFlags {
+	var flags chatFlags
+	for _, td := range timers {
+		if !td.Enabled {
+			continue
+		}
+		flags.gated = flags.gated || isGated(td)
+		flags.offline = flags.offline || td.AllowOffline
+	}
+	return flags
 }
 
 const countChatLineTimeout = 5 * time.Second

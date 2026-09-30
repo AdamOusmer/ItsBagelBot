@@ -28,13 +28,14 @@ export const NB_CODE = {
   commandRegularWidened: 'command_regular_widened',
   timerUnparseable: 'timer_unparseable_skipped',
   timerDisabledSkipped: 'timer_disabled_skipped',
-  timerLinesIgnored: 'timer_line_gate_ignored',
   timerVariableUnmapped: 'timer_variable_unmapped',
   timerMessageTruncated: 'timer_message_truncated',
   timerLineDropped: 'timer_message_line_dropped',
   automodRegexSkipped: 'automod_term_regex_skipped',
   automodTermsCapped: 'automod_terms_capped'
 } as const;
+
+const NIGHTBOT_LINE_WINDOW_MINUTES = 5;
 
 const q = (s: string): string => JSON.stringify(s);
 
@@ -223,7 +224,6 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
     return null;
   }
 
-  reportLineGate(src, notes);
   const message = timerMessage(src, notes);
   if (message.trim() === '') {
     notes.state.diags.push(
@@ -234,19 +234,15 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
   return {
     message,
     interval_seconds: Math.max(0, Math.trunc(src.intervalMinutes * 60)),
-    online_only: true
+    online_only: true,
+    ...lineGateFields(src)
   };
 }
 
-function reportLineGate(src: NbTimer, notes: Notes): void {
-  if (src.lineGate <= 0) return;
-  notes.state.diags.push(
-    warnDiag(
-      notes.index,
-      NB_CODE.timerLinesIgnored,
-      `timer ${q(src.label)} also waited for ${src.lineGate} chat lines between posts; timers here are interval-only, so that gate is dropped`
-    )
-  );
+function lineGateFields(src: NbTimer): Pick<ManifestTimer, 'min_chat_lines' | 'chat_window_minutes'> {
+  const lines = Math.trunc(src.lineGate);
+  if (lines <= 0) return {};
+  return { min_chat_lines: lines, chat_window_minutes: NIGHTBOT_LINE_WINDOW_MINUTES };
 }
 
 function timerMessage(src: NbTimer, notes: Notes): string {

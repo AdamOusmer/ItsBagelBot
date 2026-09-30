@@ -34,7 +34,7 @@ const ENTRIES: {
   },
   {
     name: "streamelements parser",
-    budget: 9500,
+    budget: 9850,
     external: [],
     source: `import { parseStreamElements } from "../../lib/importer/streamelements";
              globalThis.x = parseStreamElements;`,

@@ -8,34 +8,23 @@ import (
 	"time"
 )
 
-func TestClampRanges(t *testing.T) {
-	fns := []struct {
+func TestClampCount(t *testing.T) {
+	const limit = 100
+	cases := []struct {
 		name string
-		fn   func(int) int
-		max  int
+		in   int
+		want int
 	}{
-		{"clampGateLines", clampGateLines, maxGateLines},
-		{"clampFireCap", clampFireCap, maxFireCap},
+		{"off", 0, 0},
+		{"in range", limit / 2, limit / 2},
+		{"negative floors to zero", -3, 0},
+		{"at ceiling", limit, limit},
+		{"above ceiling", limit + 50, limit},
 	}
-	for _, f := range fns {
-		t.Run(f.name, func(t *testing.T) {
-			cases := []struct {
-				name string
-				in   int
-				want int
-			}{
-				{"off", 0, 0},
-				{"in range", f.max / 2, f.max / 2},
-				{"negative floors to zero", -3, 0},
-				{"at ceiling", f.max, f.max},
-				{"above ceiling", f.max + 50, f.max},
-			}
-			for _, c := range cases {
-				t.Run(c.name, func(t *testing.T) {
-					if got := f.fn(c.in); got != c.want {
-						t.Fatalf("%s(%d) = %d, want %d", f.name, c.in, got, c.want)
-					}
-				})
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := clampCount(c.in, limit); got != c.want {
+				t.Fatalf("clampCount(%d, %d) = %d, want %d", c.in, limit, got, c.want)
 			}
 		})
 	}
@@ -55,24 +44,43 @@ func TestIsGated(t *testing.T) {
 
 func TestGatePasses(t *testing.T) {
 	cases := []struct {
-		name        string
-		minLines    int
-		lines, mark int64
-		want        bool
+		name     string
+		minLines int
+		lines    int64
+		want     bool
 	}{
-		{"no gate always passes", 0, 0, 0, true},
-		{"below threshold skips", 5, 2, 0, false},
-		{"exactly at threshold fires", 5, 5, 0, true},
-		{"above threshold fires", 5, 7, 0, true},
-		{"delta measured from the watermark, not raw count", 5, 12, 8, false},
-		{"delta past watermark passes", 5, 13, 8, true},
+		{"no gate always passes", 0, 0, true},
+		{"one short skips", 5, 4, false},
+		{"exactly at threshold fires", 5, 5, true},
+		{"above threshold fires", 5, 7, true},
+		{"threshold clamps to the ceiling", 500, maxGateLines, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			td := timerDef{MinChatLines: c.minLines}
-			if got := gatePasses(td, c.lines, c.mark); got != c.want {
-				t.Fatalf("gatePasses(minLines=%d, lines=%d, mark=%d) = %v, want %v",
-					c.minLines, c.lines, c.mark, got, c.want)
+			if got := gatePasses(td, c.lines); got != c.want {
+				t.Fatalf("gatePasses(minLines=%d, lines=%d) = %v, want %v", c.minLines, c.lines, got, c.want)
+			}
+		})
+	}
+}
+
+func TestChatWindow(t *testing.T) {
+	cases := []struct {
+		name    string
+		minutes int
+		want    time.Duration
+	}{
+		{"missing defaults", 0, 5 * time.Minute},
+		{"negative defaults", -3, 5 * time.Minute},
+		{"one minute", 1, time.Minute},
+		{"at ceiling", 60, time.Hour},
+		{"above ceiling clamps", 61, time.Hour},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := chatWindow(timerDef{ChatWindowMinutes: c.minutes}); got != c.want {
+				t.Fatalf("chatWindow(%d) = %s, want %s", c.minutes, got, c.want)
 			}
 		})
 	}
