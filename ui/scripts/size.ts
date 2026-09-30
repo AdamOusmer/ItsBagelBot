@@ -278,7 +278,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/popover", budget: 1230 }, // 964 B: bottom placement, touch areas (2026-09-29)
   { name: "elements/copy-surface", budget: 1620 }, // 1319 B
   { name: "elements/profile-menu", budget: 2010 }, // 1675 B: menu height cap, coarse-pointer targets (2026-09-29)
-  { name: "elements/notifications", budget: 1410 }, // 1133 B: coarse-pointer touch area (2026-09-29)
   { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
 ];
 
