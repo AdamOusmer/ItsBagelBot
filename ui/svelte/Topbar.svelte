@@ -3,16 +3,19 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
+  import { getUiI18n } from './i18n';
   import Brand from './Brand.svelte';
   import { mountClock } from '../lib/clock';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiCrumb } from '../lib/nav-types';
 
+  const i18n = getUiI18n();
   type Own = {
     brand: UiBrand;
     crumbs?: UiCrumb[];
-    crumbAriaLabel?: string;
+    crumbLabel?: string;
     clock?: boolean;
+    clockText?: string;
     railed?: boolean;
     actions?: Snippet;
     account?: Snippet;
@@ -22,8 +25,9 @@
   let {
     brand,
     crumbs = [],
-    crumbAriaLabel,
+    crumbLabel = i18n.t('nav.breadcrumb'),
     clock = true,
+    clockText = '',
     railed = false,
     actions,
     account,
@@ -49,7 +53,7 @@
     logoAlt={brand.logoAlt}
     size="sm"
     logoShape={brand.logoShape}
-  />{#if crumbs.length}<nav class="bb-topbar__crumb" aria-label={crumbAriaLabel}
+  />{#if crumbs.length}<nav class="bb-topbar__crumb" aria-label={crumbLabel}
       ><ol
         >{#each crumbs as crumb, i (crumb.label)}<li
             data-here={i === crumbs.length - 1 ? '' : undefined}
@@ -62,8 +66,7 @@
       bind:this={clockEl}
       class="bb-topbar__clock"
       aria-hidden="true"
-      data-clock=""
-    ></span>{/if}{#if account}<div
+      data-clock="">{clockText}</span>{/if}{#if account}<div
       class="bb-topbar__account"
       data-railed={railed ? '' : undefined}>{@render account()}</div
     >{/if}{#if actions}{@render actions()}{/if}</header

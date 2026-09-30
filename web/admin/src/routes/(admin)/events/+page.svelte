@@ -120,10 +120,10 @@
   </PageHead>
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <SegmentedControl options={TONES} bind:value={tone} label={t('admin.events.toneFilter')} />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
       </div>
@@ -139,7 +139,7 @@
 
   <Card>
     <CardHead title={t('admin.events.subject')}>
-      {#snippet action()}
+      {#snippet actions()}
         <Cluster gap={3}>
           <Tag tone="live">{t('admin.events.upCount', { n: String(upCount) })}</Tag>
           <Tag tone="danger">{t('admin.events.downCount', { n: String(downCount) })}</Tag>

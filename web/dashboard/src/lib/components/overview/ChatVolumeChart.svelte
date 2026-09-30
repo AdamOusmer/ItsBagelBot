@@ -26,7 +26,7 @@
     <AreaSeries
       values={volume.buckets}
       ticks={volume.commandTicks}
-      ariaLabel={t('overview.chatVolumeChartLabel')}
+      label={t('overview.chatVolumeChartLabel')}
     />
     <div class="ov-vol__legend">
       <span class="ov-vol__swatch" aria-hidden="true"></span>

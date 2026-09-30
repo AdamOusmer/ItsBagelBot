@@ -179,6 +179,7 @@ describe('Chip, Badge and Tag tones', () => {
     name: 'action chip carries no pressed state',
     svelte: SvelteChip,
     astro: AstroChip,
+    props: {},
     slot: 'go',
     html: '<button type="button" class="bb-chip">go</button>',
   });
@@ -373,7 +374,7 @@ describe('LanguageSwitcher', () => {
     name: 'form mode posts the chosen code',
     svelte: SvelteLanguageSwitcher,
     astro: AstroLanguageSwitcher,
-    props: { ariaLabel: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options },
+    props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options },
     html:
       '<form method="POST" action="/lang" class="bb-lang-switch" role="group" aria-label="Language">' +
       '<input type="hidden" name="next" value="/x">' +
@@ -382,7 +383,7 @@ describe('LanguageSwitcher', () => {
   });
 
   test('svelte callback mode renders plain buttons', () => {
-    const html = svelteHtml(SvelteLanguageSwitcher, { ariaLabel: 'Language', options, onselect: () => {} });
+    const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {} });
     expect(html).toBe(
       '<div class="bb-lang-switch" role="group" aria-label="Language">' +
         '<button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true" title="English">EN</button>' +

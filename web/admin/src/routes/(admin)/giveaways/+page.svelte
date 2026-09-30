@@ -173,7 +173,7 @@
   </div>
 
   <PageToolbar>
-    {#snippet lead()}<span>{t('admin.giveaways.history')}</span>{/snippet}
+    {#snippet leading()}<span>{t('admin.giveaways.history')}</span>{/snippet}
   </PageToolbar>
   <DeckList>
     {#if history.length === 0}

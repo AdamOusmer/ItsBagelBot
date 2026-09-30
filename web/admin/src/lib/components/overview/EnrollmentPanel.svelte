@@ -46,7 +46,7 @@
 
 <Card as="section">
   <CardHead title={t('admin.overview.enrollmentTitle')}>
-    {#snippet action()}
+    {#snippet actions()}
       <a class="bb-card-head__more" href="/users">{t('admin.overview.allUsers')}</a>
     {/snippet}
   </CardHead>
@@ -60,7 +60,7 @@
   </div>
 
   {#if values.length > 1}
-    <AreaSeries {values} ariaLabel={t('admin.overview.enrollmentChart', { days: String(days) })} />
+    <AreaSeries {values} label={t('admin.overview.enrollmentChart', { days: String(days) })} />
   {:else}
     <EmptyState title={t('admin.overview.enrollmentEmpty')} />
   {/if}

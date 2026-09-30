@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import { uiI18n } from './i18n';
 import '../styles/elements/line-series.css';
 import {
     clockTime,
@@ -14,10 +15,10 @@ import {
     type LineSeriesSpec,
 } from '../lib/line-series';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'points' | 'series' | 'ariaLabel' | 'description' | 'unit' | 'emptyLabel' | 'formatValue' | 'formatTime' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'points' | 'series' | 'label' | 'description' | 'unit' | 'emptyLabel' | 'formatValue' | 'formatTime' | 'class'> {
     points: readonly LinePoint[];
     series: readonly LineSeriesSpec[];
-    ariaLabel: string;
+    label: string;
     description?: string;
     unit?: string;
     emptyLabel?: string;
@@ -26,13 +27,14 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'points' | 'series' | 'ariaL
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
     points,
     series,
-    ariaLabel,
+    label,
     description = '',
     unit = '',
-    emptyLabel = '',
+    emptyLabel = t('data.empty'),
     formatValue = plainValue,
     formatTime = clockTime,
     class: className = '',
@@ -54,8 +56,8 @@ const classes = ['bb-line-series', className].filter(Boolean).join(' ');
         ))}
     </div>
     <div class="bb-line-series__plot">
-        <svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={ariaLabel}>
-            <title>{ariaLabel}</title>
+        <svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={label}>
+            <title>{label}</title>
             {description && <desc>{description}</desc>}
             {unit && <text class="bb-line-series__unit" x={chart.left} y="12">{unit}</text>}
             {chart.valueTicks.map((tick) => (

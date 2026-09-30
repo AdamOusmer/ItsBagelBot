@@ -180,7 +180,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {notifications.length === 1
@@ -191,7 +191,7 @@
         <Skeleton variant="pill" width="130px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openCompose}>{t('admin.notifications.compose')}</Button>
     {/snippet}
   </PageToolbar>

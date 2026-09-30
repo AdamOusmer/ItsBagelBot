@@ -15,7 +15,7 @@
   type Own = {
     values: readonly number[];
     ticks?: readonly number[];
-    ariaLabel: string;
+    label: string;
     height?: number;
     uid?: string;
     class?: string;
@@ -24,7 +24,7 @@
   let {
     values,
     ticks = [],
-    ariaLabel,
+    label,
     height = 178,
     uid,
     class: className = '',
@@ -43,7 +43,7 @@
   viewBox="0 0 {AREA_W} {AREA_H}"
   preserveAspectRatio="none"
   role="img"
-  aria-label={ariaLabel}
+  aria-label={label}
   {...rest}
 >
   <defs>

@@ -23,6 +23,12 @@ import SvelteInspectorSurface from '../svelte/InspectorSurface.svelte';
 import AstroInspectorSurface from '../astro/InspectorSurface.astro';
 import SvelteSkipLink from '../svelte/SkipLink.svelte';
 import AstroSkipLink from '../astro/SkipLink.astro';
+import SvelteRail from '../svelte/Rail.svelte';
+import AstroRail from '../astro/Rail.astro';
+import SvelteDock from '../svelte/Dock.svelte';
+import AstroDock from '../astro/Dock.astro';
+import SvelteLanguageSwitcher from '../svelte/LanguageSwitcher.svelte';
+import AstroLanguageSwitcher from '../astro/LanguageSwitcher.astro';
 import SvelteCopySurface from '../svelte/CopySurface.svelte';
 import AstroCopySurface from '../astro/CopySurface.astro';
 import SvelteProfileMenu from '../svelte/ProfileMenu.svelte';
@@ -241,7 +247,7 @@ describe('AlertBanner additions', () => {
     name: 'action link',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { tone: 'warm', placement: 'top', role: 'status', action: { label: 'Exit', href: '/admin' } },
+    props: { tone: 'warm', placement: 'top', role: 'status', cta: { label: 'Exit', href: '/admin' } },
     html:
       '<div class="bb-alert bb-alert--warm bb-alert--top" role="status"><span class="bb-alert__msg"></span>' +
       '<a class="bb-alert__action" href="/admin">Exit</a></div>',
@@ -251,7 +257,7 @@ describe('AlertBanner additions', () => {
     name: 'action through a POST form',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { tone: 'warm', placement: 'top', role: 'status', action: { label: 'Exit', formAction: '/auth/logout' } },
+    props: { tone: 'warm', placement: 'top', role: 'status', cta: { label: 'Exit', formAction: '/auth/logout' } },
     html:
       '<div class="bb-alert bb-alert--warm bb-alert--top" role="status"><span class="bb-alert__msg"></span>' +
       '<form method="POST" action="/auth/logout"><button type="submit" class="bb-alert__action">Exit</button></form></div>',
@@ -336,6 +342,34 @@ describe('SkipLink', () => {
     astro: AstroSkipLink,
     props: { href: '#main-content', label: 'Skip to content' },
     html: '<a class="bb-skip-link" href="#main-content">Skip to content</a>',
+  });
+});
+
+describe('catalog defaults', () => {
+  contract({
+    name: 'skip link falls back to the catalog label',
+    svelte: SvelteSkipLink,
+    astro: AstroSkipLink,
+    props: { href: '#main-content' },
+    html: '<a class="bb-skip-link" href="#main-content">Skip to content</a>',
+  });
+
+  contract({
+    name: 'language switcher falls back to the catalog label',
+    svelte: SvelteLanguageSwitcher,
+    astro: AstroLanguageSwitcher,
+    props: { options: [{ code: 'en', label: 'EN', href: '/', current: true }] },
+    html:
+      '<div class="bb-lang-switch" role="group" aria-label="Language">' +
+      '<a class="bb-lang-switch__opt is-active" href="/" hreflang="en" aria-current="true">EN</a></div>',
+  });
+
+  test.each([
+    ['Rail', SvelteRail, AstroRail, { brand: { title: 'Bagel' }, groups: [] }],
+    ['Dock', SvelteDock, AstroDock, { items: [] }],
+  ])('%s landmark is never unnamed', async (_name, svelte, astro, props) => {
+    expect(svelteHtml(svelte, props)).toContain('aria-label="Main navigation"');
+    expect(await astroHtml(astro, props)).toContain('aria-label="Main navigation"');
   });
 });
 

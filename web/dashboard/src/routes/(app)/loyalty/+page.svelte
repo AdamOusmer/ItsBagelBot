@@ -180,7 +180,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -190,7 +190,7 @@
         failMessage={t('loyalty.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <ButtonLink href="/counters" variant="ghost">{t('loyalty.countersLink')}</ButtonLink>
     {/snippet}
   </PageToolbar>

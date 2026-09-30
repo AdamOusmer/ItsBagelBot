@@ -298,7 +298,7 @@
     </div>
 
     <PageToolbar>
-      {#snippet lead()}
+      {#snippet leading()}
         <Cluster gap={2}>
           <StatusDot tone={conduitReady ? 'success' : 'warning'} />
           <Text as="span" size="xs" tone="muted" mono>
@@ -310,7 +310,7 @@
           {#if live}<Tag tone="live">{t('admin.shards.live')}</Tag>{/if}
         </Cluster>
       {/snippet}
-      {#snippet trail()}
+      {#snippet trailing()}
         {#if canScale}
           <Cluster gap={2} nowrap>
             <Label mono as="span">{t('admin.shards.autoscaleLabel')}</Label>

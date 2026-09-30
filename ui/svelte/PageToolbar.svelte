@@ -6,14 +6,14 @@
   import type { Snippet } from 'svelte';
 
   type Own = {
-    lead?: Snippet;
-    trail?: Snippet;
+    leading?: Snippet;
+    trailing?: Snippet;
     class?: string;
   };
 
   let {
-    lead,
-    trail,
+    leading,
+    trailing,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
@@ -22,5 +22,5 @@
 </script>
 
 <div class={classes} {...rest}
-  >{#if lead}{@render lead()}{/if}<div class="bb-toolbar__grow"></div>{#if trail}{@render trail()}{/if}</div
+  >{#if leading}{@render leading()}{/if}<div class="bb-toolbar__grow"></div>{#if trailing}{@render trailing()}{/if}</div
 >

@@ -5,5 +5,8 @@
   "main": "Main navigation",
   "menuOpen": "Open menu",
   "menuClose": "Close menu",
-  "menu": "Menu"
+  "menu": "Menu",
+  "previous": "Previous",
+  "next": "Next",
+  "pagination": "Pagination"
 }

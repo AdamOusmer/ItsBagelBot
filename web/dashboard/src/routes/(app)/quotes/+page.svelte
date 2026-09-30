@@ -274,7 +274,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -284,7 +284,7 @@
         failMessage={t('quotes.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-actions">
         <div class="toolbar-search">
           <SearchInput id="quotes-search" aria-label={t('quotes.searchLabel')} autocomplete="off"

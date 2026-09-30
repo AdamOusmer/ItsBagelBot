@@ -90,7 +90,7 @@
     {/if}
 
     <PageToolbar>
-      {#snippet lead()}
+      {#snippet leading()}
         <MasterToggle
           action="?/toggle"
           bind:enabled
@@ -100,7 +100,7 @@
           failMessage={t('discord.masterFail')}
         />
       {/snippet}
-      {#snippet trail()}
+      {#snippet trailing()}
         {#if data.templateURL}
           <ButtonLink variant="ghost" href={data.templateURL} target="_blank" rel="noopener noreferrer">
             {t('discord.createCta')}

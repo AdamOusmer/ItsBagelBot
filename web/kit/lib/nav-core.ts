@@ -42,7 +42,7 @@ export function resolveSection<D extends SectionDef>(
 export function navItems<D extends SectionDef>(opts: {
   sections: readonly D[];
   visible: (def: D) => boolean;
-  active: (def: D) => boolean;
+  current: (def: D) => boolean;
   children?: (def: D) => NavChild[] | undefined;
   t?: (key: MessageKey) => string;
 }): NavLink[] {
@@ -53,7 +53,7 @@ export function navItems<D extends SectionDef>(opts: {
       href: def.href,
       icon: def.icon,
       label: t(def.labelKey),
-      active: opts.active(def),
+      current: opts.current(def),
       ...(children ? { children } : {})
     };
   });

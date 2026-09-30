@@ -3,34 +3,37 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import { uiI18n } from './i18n';
+
 import '../styles/elements/shell.css';
 import Brand from './Brand.astro';
 import RailItem from './RailItem.astro';
 import type { UiBrand, UiNavGroup } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'aside'>, 'brand' | 'groups' | 'ariaLabel' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'aside'>, 'brand' | 'groups' | 'label' | 'class'> {
   brand: UiBrand;
   groups: UiNavGroup[];
-  ariaLabel?: string;
+  label?: string;
   class?: string;
 }
 
-const { brand, groups, ariaLabel, class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { brand, groups, label = t('nav.main'), class: className = '', ...rest } = Astro.props;
 
 const classes = ['bb-rail', className || null].filter(Boolean).join(' ');
 ---
 
-<aside class={classes} aria-label={ariaLabel} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} logoShape={brand.logoShape} /><span class="bb-rail__glide" aria-hidden="true"><span class="bb-rail__glide-edge"></span></span><div class="bb-rail__nav">{groups.map((group) => (
+<aside class={classes} aria-label={label} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} logoShape={brand.logoShape} /><span class="bb-rail__glide" aria-hidden="true"><span class="bb-rail__glide-edge"></span></span><div class="bb-rail__nav">{groups.map((group) => (
   <>{group.label && <div class="bb-rail__label">{group.label}</div>}<div class="bb-rail__group">{group.items.map((item) => (
     item.children && item.children.length ? (
       <>
-        <div class="bb-rail__row"><RailItem href={item.href} icon={item.icon} label={item.label} active={item.active} locked={item.locked} lockedHint={item.lockedHint} count={item.count} /><button class="bb-rail__chev" type="button" aria-expanded={!!item.active} aria-label={item.label}><svg viewBox="0 0 24 24" width="14" height="14"><polyline points="9 6 15 12 9 18"></polyline></svg></button></div>
-        <div class="bb-rail__subs" data-open={item.active ? '' : undefined}><div class="bb-rail__subs-inner">{item.children.map((child) => (
+        <div class="bb-rail__row"><RailItem href={item.href} icon={item.icon} label={item.label} current={item.current} locked={item.locked} lockedHint={item.lockedHint} count={item.count} /><button class="bb-rail__chev" type="button" aria-expanded={!!item.current} aria-label={item.label}><svg viewBox="0 0 24 24" width="14" height="14"><polyline points="9 6 15 12 9 18"></polyline></svg></button></div>
+        <div class="bb-rail__subs" data-open={item.current ? '' : undefined}><div class="bb-rail__subs-inner">{item.children.map((child) => (
           <a class="bb-rail__sub" href={child.href}><span class="bb-rail__sub-label">{child.label}</span>{child.count !== undefined && <span class="bb-rail__sub-count">{child.count}</span>}</a>
         ))}</div></div>
       </>
     ) : (
-      <RailItem href={item.href} icon={item.icon} label={item.label} active={item.active} locked={item.locked} lockedHint={item.lockedHint} count={item.count} />
+      <RailItem href={item.href} icon={item.icon} label={item.label} current={item.current} locked={item.locked} lockedHint={item.lockedHint} count={item.count} />
     )
   ))}</div></>
-))}</div><div class="bb-rail__spacer"></div><slot name="foot" /></aside>
+))}</div><div class="bb-rail__spacer"></div><slot name="footer" /></aside>

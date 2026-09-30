@@ -33,14 +33,14 @@
   >{#each items as item, i (item.href ?? item.label)}<NavLink
       href={item.locked ? undefined : item.href}
       label={item.label}
-      current={item.active}
+      current={item.current}
       disabled={item.locked}
       hint={item.locked ? item.lockedHint : undefined}
       block
-      >{#snippet icon()}<span
+      >{#snippet leading()}<span
           class="bb-nav-group__index"
-          data-active={item.active ? '' : undefined}>{pad(startIndex + i)}</span
-        >{#if item.icon}<Icon name={item.icon} />{/if}{/snippet}{#snippet trail()}{#if item.locked}<Icon
+          data-active={item.current ? '' : undefined}>{pad(startIndex + i)}</span
+        >{#if item.icon}<Icon name={item.icon} />{/if}{/snippet}{#snippet trailing()}{#if item.locked}<Icon
             name="lock"
             size={13}
           />{/if}{#if item.count !== undefined}<span class="bb-nav-group__count"

@@ -23,7 +23,7 @@
 
 <Card as="section">
   <CardHead title={t('admin.overview.auditTitle')}>
-    {#snippet action()}
+    {#snippet actions()}
       <a class="bb-card-head__more" href="/audit">{t('admin.overview.auditAll')}</a>
     {/snippet}
   </CardHead>

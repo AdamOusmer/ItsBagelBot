@@ -71,7 +71,7 @@ describe('admin nav registry', () => {
 
   test('the active section is marked in exactly one group', () => {
     const groups = adminNavGroups({ role: 'owner', section: 'secrets' });
-    const active = groups.flatMap((g) => g.items).filter((item) => item.active);
+    const active = groups.flatMap((g) => g.items).filter((item) => item.current);
     expect(active.map((item) => item.href)).toEqual(['/secrets']);
   });
 

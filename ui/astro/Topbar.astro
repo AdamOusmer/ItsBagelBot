@@ -4,23 +4,25 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
+import { uiI18n } from './i18n';
 import Brand from './Brand.astro';
 import type { UiBrand, UiCrumb } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'header'>, 'brand' | 'crumbs' | 'crumbAriaLabel' | 'clock' | 'clockText' | 'railed' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'header'>, 'brand' | 'crumbs' | 'crumbLabel' | 'clock' | 'clockText' | 'railed' | 'class'> {
   brand: UiBrand;
   crumbs?: UiCrumb[];
-  crumbAriaLabel?: string;
+  crumbLabel?: string;
   clock?: boolean;
   clockText?: string;
   railed?: boolean;
   class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
   brand,
   crumbs = [],
-  crumbAriaLabel,
+  crumbLabel = t('nav.breadcrumb'),
   clock = true,
   clockText = '',
   railed = false,
@@ -32,6 +34,6 @@ const classes = ['bb-topbar', className || null].filter(Boolean).join(' ');
 const hasAccount = Astro.slots.has('account');
 ---
 
-<header class={classes} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} />{crumbs.length > 0 && <nav class="bb-topbar__crumb" aria-label={crumbAriaLabel}><ol>{crumbs.map((crumb, i) => (
+<header class={classes} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} />{crumbs.length > 0 && <nav class="bb-topbar__crumb" aria-label={crumbLabel}><ol>{crumbs.map((crumb, i) => (
   <li data-here={i === crumbs.length - 1 ? '' : undefined}>{crumb.href ? <a href={crumb.href}>{crumb.label}</a> : <span aria-current="page">{crumb.label}</span>}</li>
 ))}</ol></nav>}<div class="bb-topbar__grow"></div>{clock && <span class="bb-topbar__clock" aria-hidden="true" data-clock>{clockText}</span>}{hasAccount && <div class="bb-topbar__account" data-railed={railed ? '' : undefined}><slot name="account" /></div>}<slot name="actions" /></header>

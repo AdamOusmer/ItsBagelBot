@@ -43,7 +43,7 @@ const classes = [
 <div class={classes} {...rest}>
   <div class="bb-stat__head">
     <span class="bb-stat__label">{label}</span>
-    <slot name="trail" />
+    <slot name="trailing" />
   </div>
   <div class="bb-stat__value"><span data-count-up={isStatic ? undefined : ''}>{value}</span>{unit && <small>{unit}</small>}</div>
   {delta !== undefined && <div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>}

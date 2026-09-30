@@ -150,7 +150,7 @@
 
       <Card dashed>
         <CardHead title={t('admin.secrets.genTitle')}>
-          {#snippet action()}
+          {#snippet actions()}
             <StatePill tone="free">{t('admin.secrets.genLocal')}</StatePill>
           {/snippet}
         </CardHead>

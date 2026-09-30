@@ -851,7 +851,7 @@
 <section class="screen active">
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
-    {#snippet trail()}
+    {#snippet trailing()}
       <dl class="deck-stats">
         <div class="ds-cell">
           <dt><Label mono as="span">{t('commands.statActive')}</Label></dt>
@@ -879,18 +879,18 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <div class="tb-lead">
         <SegmentedControl options={stateOptions} bind:value={stateValue.get, stateValue.set} label={t('commands.filterLabel')} />
         <div class="tb-select">
-          <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} aria-label={t('commands.permLabel')} />
+          <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} />
         </div>
         <div class="tb-select">
-          <Select fill bind:value={sortKey} options={sortOptions} label={t('commands.sortLabel')} aria-label={t('commands.sortLabel')} />
+          <Select fill bind:value={sortKey} options={sortOptions} label={t('commands.sortLabel')} />
         </div>
       </div>
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <span class="keys" aria-hidden="true"><Kbd>/</Kbd> {t('commands.keysSearch')} <Kbd>N</Kbd> {t('commands.keysNew')} <Kbd>Esc</Kbd> {t('commands.keysClear')}</span>
       <div class="toolbar-search">
         <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}

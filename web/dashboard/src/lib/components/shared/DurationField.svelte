@@ -90,7 +90,7 @@
         bind:value={unit}
         options={unitOptions}
         {disabled}
-        aria-label={t('common.unit.label')}
+        label={t('common.unit.label')}
         onchange={onUnit}
       />
     </span>

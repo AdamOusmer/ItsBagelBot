@@ -22,7 +22,7 @@ const board: UiNavGroup[] = [
   },
   {
     label: 'Ops',
-    items: [{ href: '/audit', label: 'Audit', icon: 'audit', active: true }],
+    items: [{ href: '/audit', label: 'Audit', icon: 'audit', current: true }],
   },
 ];
 

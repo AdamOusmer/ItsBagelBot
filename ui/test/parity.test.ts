@@ -741,7 +741,7 @@ const REMAINING: {
     name: 'TextLink: active external sized',
     svelte: SvelteTextLink,
     astro: AstroTextLink,
-    props: { href: 'https://example.test', label: 'X', active: true, external: true, size: '1rem' },
+    props: { href: 'https://example.test', label: 'X', current: true, external: true, size: '1rem' },
     html:
       '<a class="bb-text-link is-active" href="https://example.test" aria-label="X" ' +
       'aria-current="page" target="_blank" rel="noopener noreferrer" style="--text-link-size: 1rem;">' +
@@ -825,7 +825,7 @@ test('SaveStatus: idle renders nothing', () => {
 test('AreaSeries: fewer than two points draws no path', async () => {
   const SvelteAreaSeries = (await import('../svelte/AreaSeries.svelte')).default;
   const { body } = render(SvelteAreaSeries, {
-    props: { values: [4], ariaLabel: 'Chat volume' },
+    props: { values: [4], label: 'Chat volume' },
   });
   const html = normalise(body);
   expect(html).toContain('class="bb-area"');
@@ -1263,7 +1263,7 @@ const PRIMITIVES: {
     name: "AreaSeries",
     svelte: SvelteAreaSeries,
     astro: AstroAreaSeries,
-    props: {"values":[1,4,2],"ariaLabel":"Chat volume","uid":"p","ticks":[1]},
+    props: {"values":[1,4,2],"label":"Chat volume","uid":"p","ticks":[1]},
     html: "<svg class=\"bb-area\" style=\"height: 178px\" viewBox=\"0 0 640 178\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"Chat volume\"><defs><linearGradient id=\"bb-area-fill-p\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0%\" stop-color=\"var(--bb-green-glow)\" stop-opacity=\"0.3\"></stop><stop offset=\"100%\" stop-color=\"var(--bb-green-glow)\" stop-opacity=\"0.02\"></stop></linearGradient></defs><line x1=\"0\" y1=\"44\" x2=\"640\" y2=\"44\" class=\"bb-area__grid\"></line><line x1=\"0\" y1=\"94\" x2=\"640\" y2=\"94\" class=\"bb-area__grid\"></line><line x1=\"0\" y1=\"144\" x2=\"640\" y2=\"144\" class=\"bb-area__grid bb-area__grid--base\"></line><path d=\"M0,111 L320,12 L640,78 L640,144 L0,144 Z\" fill=\"url(#bb-area-fill-p)\"></path><path d=\"M0,111 L320,12 L640,78\" class=\"bb-area__line\"></path><g class=\"bb-area__ticks\"><line x1=\"320\" y1=\"150\" x2=\"320\" y2=\"160\"></line></g><circle cx=\"640\" cy=\"78\" r=\"3.5\" class=\"bb-area__dot\"></circle></svg>",
   },
   {

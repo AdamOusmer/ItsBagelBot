@@ -526,7 +526,7 @@
             {:else if current.kind === 'lang'}
               <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <div class="lang-row">
-                  <LanguageSwitcher ariaLabel={tr('lang.switchAria')} options={langOptions} onselect={(code) => setLang(code as Locale)} />
+                  <LanguageSwitcher label={tr('lang.switchAria')} options={langOptions} onSelect={(code) => setLang(code as Locale)} />
                 </div>
                 <div class="pref-row">
                   <div class="pref-text">

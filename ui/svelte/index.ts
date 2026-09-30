@@ -141,7 +141,7 @@ export { default as CopySurface } from './CopySurface.svelte';
 export { setUiI18n, getUiI18n } from './i18n';
 export type { UiI18n, UiLocale, UiMessageKey, UiOverride } from '../lib/i18n';
 export type { ButtonVariant, ButtonTone, ButtonSize } from '../lib/button';
-export type { AlertTone, AlertVariant, AlertPlacement, AlertAction } from '../lib/alert';
+export type { AlertTone, AlertVariant, AlertPlacement, AlertCta } from '../lib/alert';
 export type {
   Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
 } from '../lib/tone';

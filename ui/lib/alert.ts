@@ -5,7 +5,7 @@ export type AlertTone = 'neutral' | 'warm' | 'success' | 'warning' | 'danger';
 export type AlertVariant = 'banner' | 'callout';
 export type AlertPlacement = 'inline' | 'top';
 
-export type AlertAction = { label: string; href: string } | { label: string; formAction: string };
+export type AlertCta = { label: string; href: string } | { label: string; formAction: string };
 
 export interface AlertLook {
   tone?: AlertTone;

@@ -17,7 +17,7 @@
     inline?: boolean;
     tone?: StatTone;
     class?: string;
-    trail?: Snippet;
+    trailing?: Snippet;
   };
 
   let {
@@ -30,7 +30,7 @@
     inline = false,
     tone,
     class: className = '',
-    trail = undefined as Snippet | undefined,
+    trailing = undefined as Snippet | undefined,
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
@@ -50,7 +50,7 @@
 <div class={classes} {...rest}>
   <div class="bb-stat__head">
     <span class="bb-stat__label">{label}</span>
-    {#if trail}{@render trail()}{/if}
+    {#if trailing}{@render trailing()}{/if}
   </div>
   <div class="bb-stat__value">{#if isStatic}<span>{value}</span>{:else}<span data-count-up use:countUp={{ value }}>{value}</span>{/if}{#if unit}<small>{unit}</small>{/if}</div>
   {#if delta !== undefined}<div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>{/if}

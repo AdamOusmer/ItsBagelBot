@@ -21,8 +21,8 @@
     cta?: UiNavLink;
     locales?: UiLocaleOption[];
     localeLabel?: string;
-    ariaLabel: string;
-    menuLabels: { open: string; close: string; panel: string };
+    label?: string;
+    menuLabels?: { open?: string; close?: string; panel?: string };
     menuMeta?: string;
     menuId?: string;
     variant?: 'pill' | 'bar';
@@ -38,8 +38,8 @@
     cta,
     locales,
     localeLabel = i18n.t('nav.language'),
-    ariaLabel,
-    menuLabels,
+    label = i18n.t('nav.main'),
+    menuLabels = {},
     menuMeta,
     menuId = 'bb-mobile-menu',
     variant = 'pill',
@@ -51,6 +51,9 @@
   }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const classes = $derived(['bb-nav', className || null].filter(Boolean).join(' '));
+  const menuOpen = $derived(menuLabels.open ?? i18n.t('nav.menuOpen'));
+  const menuClose = $derived(menuLabels.close ?? i18n.t('nav.menuClose'));
+  const menuPanel = $derived(menuLabels.panel ?? i18n.t('nav.menu'));
 
   let navEl = $state<HTMLElement | null>(null);
 
@@ -67,7 +70,7 @@
       disposers.push(
         mountTopDownMenu(
           { toggle, menu: menuEl, curvePath },
-          { labels: { open: menuLabels.open, close: menuLabels.close } },
+          { labels: { open: menuOpen, close: menuClose } },
         ),
       );
     }
@@ -82,7 +85,7 @@
 <nav
   bind:this={navEl}
   class={classes}
-  aria-label={ariaLabel}
+  aria-label={label}
   data-variant={variant}
   {...rest}
   ><div class="bb-nav__inner"
@@ -101,14 +104,14 @@
           ><NavLink
             href={link.href}
             label={link.label}
-            current={link.active}
+            current={link.current}
             external={link.external}
           /></li
         >{/each}</ul
     ><div class="bb-nav__actions"
       >{#if locales && locales.length > 0}<LanguageSwitcher
           options={locales}
-          ariaLabel={localeLabel}
+          label={localeLabel}
         />{/if}{#if cta}<NavLink
           class="bb-nav__cta"
           variant="cta"
@@ -117,8 +120,8 @@
           external={cta.external}
         />{/if}{#if actions}{@render actions()}{/if}</div
     >{#if menu}<Hamburger
-        label={menuLabels.open}
-        closeLabel={menuLabels.close}
+        label={menuOpen}
+        closeLabel={menuClose}
         controls={menuId}
       />{/if}</div
   ></nav
@@ -126,7 +129,7 @@
     {links}
     {cta}
     id={menuId}
-    panelLabel={menuLabels.panel}
+    panelLabel={menuPanel}
     meta={menuMeta}
     footer={mobileFooter}
   />{/if}

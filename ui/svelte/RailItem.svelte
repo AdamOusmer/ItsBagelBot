@@ -10,7 +10,7 @@
     href?: string;
     icon?: IconName;
     label: string;
-    active?: boolean;
+    current?: boolean;
     locked?: boolean;
     lockedHint?: string;
     count?: string | number;
@@ -21,7 +21,7 @@
     href,
     icon,
     label,
-    active = false,
+    current = false,
     locked = false,
     lockedHint,
     count,
@@ -43,8 +43,8 @@
   <a
     class={classes}
     {href}
-    data-active={active ? '' : undefined}
-    aria-current={active ? 'page' : undefined}
+    data-active={current ? '' : undefined}
+    aria-current={current ? 'page' : undefined}
     {...rest}
     >{#if icon}<Icon name={icon} />{/if}<span class="bb-rail-item__label">{label}</span>{#if count !== undefined}<span
         class="bb-rail-item__count">{count}</span

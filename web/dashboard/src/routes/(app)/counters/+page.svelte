@@ -515,14 +515,14 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <SegmentedControl
         options={scopeOptions}
         bind:value={scopeLabelPicked}
         label={t('counters.filterAria')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>

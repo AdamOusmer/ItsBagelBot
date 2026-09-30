@@ -4,12 +4,13 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
+import SkipLink from './SkipLink.astro';
 import Topbar from './Topbar.astro';
 import Dock from './Dock.astro';
 import Rail from './Rail.astro';
 import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups' | 'dockItems' | 'rail' | 'offset' | 'skipLabel' | 'crumbAriaLabel' | 'dockAriaLabel' | 'railAriaLabel' | 'clock' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups' | 'dockItems' | 'rail' | 'offset' | 'skipLabel' | 'crumbLabel' | 'dockLabel' | 'railLabel' | 'clock' | 'class'> {
   brand: UiBrand;
   crumbs?: UiCrumb[];
   groups?: UiNavGroup[];
@@ -17,10 +18,10 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups
   rail?: boolean;
   offset?: boolean;
   stacked?: boolean;
-  skipLabel: string;
-  crumbAriaLabel?: string;
-  dockAriaLabel?: string;
-  railAriaLabel?: string;
+  skipLabel?: string;
+  crumbLabel?: string;
+  dockLabel?: string;
+  railLabel?: string;
   clock?: boolean;
   class?: string;
 }
@@ -34,9 +35,9 @@ const {
   offset = false,
   stacked = false,
   skipLabel,
-  crumbAriaLabel,
-  dockAriaLabel,
-  railAriaLabel,
+  crumbLabel,
+  dockLabel,
+  railLabel,
   clock = true,
   class: className = '',
   ...rest
@@ -49,4 +50,4 @@ const classes = ['bb-shell', offset ? 'bb-shell--offset' : null, stacked ? 'bb-s
 const items = dockItems.length ? dockItems : groups.flatMap((group) => group.items);
 ---
 
-<a class="bb-shell__skip" href="#main-content">{skipLabel}</a><slot name="banner" /><div class={classes} {...rest}>{rail && (<Rail brand={brand} groups={groups} ariaLabel={railAriaLabel}><Fragment slot="foot"><slot name="railFoot" /></Fragment></Rail>)}<div class="bb-shell__stage"><Topbar brand={brand} crumbs={crumbs} crumbAriaLabel={crumbAriaLabel} clock={clock} railed={rail}><Fragment slot="account"><slot name="account" /></Fragment><Fragment slot="actions"><slot name="topActions" /></Fragment></Topbar><main class="bb-shell__main" id="main-content" tabindex="-1"><div class="bb-shell__canvas"><slot /></div></main></div><div class="bb-shell__dock-slot"><Dock items={items} groups={groups} ariaLabel={dockAriaLabel} /></div></div>
+<SkipLink href="#main-content" label={skipLabel} /><slot name="banner" /><div class={classes} {...rest}>{rail && (<Rail brand={brand} groups={groups} label={railLabel}><Fragment slot="footer"><slot name="railFooter" /></Fragment></Rail>)}<div class="bb-shell__stage"><Topbar brand={brand} crumbs={crumbs} crumbLabel={crumbLabel} clock={clock} railed={rail}><Fragment slot="account"><slot name="account" /></Fragment><Fragment slot="actions"><slot name="topActions" /></Fragment></Topbar><main class="bb-shell__main" id="main-content" tabindex="-1"><div class="bb-shell__canvas"><slot /></div></main></div><div class="bb-shell__dock-slot"><Dock items={items} groups={groups} label={dockLabel} /></div></div>

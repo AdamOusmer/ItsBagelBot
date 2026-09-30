@@ -44,7 +44,7 @@ const brand = {
 
 const links = [
   { href: '/pricing', label: 'Pricing' },
-  { href: '/guides', label: 'Guides', active: true },
+  { href: '/guides', label: 'Guides', current: true },
   { href: 'https://stats.example.test', label: 'Stats', external: true },
 ];
 
@@ -59,7 +59,7 @@ const groups = [
   {
     label: 'Board',
     items: [
-      { href: '/', label: 'Overview', icon: 'overview' as const, active: true },
+      { href: '/', label: 'Overview', icon: 'overview' as const, current: true },
       {
         href: '/modules',
         label: 'Modules',
@@ -97,7 +97,7 @@ export const CASES: ParityCase[] = [
     name: 'LanguageSwitcher',
     svelte: SvelteLanguageSwitcher,
     astro: AstroLanguageSwitcher,
-    props: { options: locales, ariaLabel: 'Language' },
+    props: { options: locales, label: 'Language' },
   },
   {
     name: 'SocialRail',
@@ -108,7 +108,7 @@ export const CASES: ParityCase[] = [
         { label: 'Discord', href: 'https://discord.example.test', icon: 'discord' },
         { label: 'GitHub', href: 'https://github.example.test', icon: 'github' },
       ],
-      ariaLabel: 'Social links',
+      label: 'Social links',
     },
   },
   {
@@ -126,7 +126,7 @@ export const CASES: ParityCase[] = [
       links,
       cta,
       locales,
-      ariaLabel: 'Primary',
+      label: 'Primary',
       menuLabels: { open: 'Open menu', close: 'Close menu', panel: 'Menu' },
     },
   },
@@ -153,7 +153,7 @@ export const CASES: ParityCase[] = [
     name: 'RailItem',
     svelte: SvelteRailItem,
     astro: AstroRailItem,
-    props: { href: '/commands', label: 'Commands', icon: 'commands', active: true, count: 4 },
+    props: { href: '/commands', label: 'Commands', icon: 'commands', current: true, count: 4 },
   },
   {
     name: 'RailItemLocked',
@@ -165,7 +165,7 @@ export const CASES: ParityCase[] = [
     name: 'Rail',
     svelte: SvelteRail,
     astro: AstroRail,
-    props: { brand, groups, ariaLabel: 'Board sections' },
+    props: { brand, groups, label: 'Board sections' },
   },
   {
     name: 'Topbar',
@@ -174,20 +174,20 @@ export const CASES: ParityCase[] = [
     props: {
       brand,
       crumbs: [{ label: 'Board', href: '/' }, { label: 'Commands' }],
-      crumbAriaLabel: 'Breadcrumb',
+      crumbLabel: 'Breadcrumb',
     },
   },
   {
     name: 'Dock',
     svelte: SvelteDock,
     astro: AstroDock,
-    props: { groups, ariaLabel: 'Main navigation', fallbackIcon: 'list' },
+    props: { groups, label: 'Main navigation', fallbackIcon: 'list' },
   },
   {
     name: 'DockFlat',
     svelte: SvelteDock,
     astro: AstroDock,
-    props: { items: groups[0].items, ariaLabel: 'Main navigation' },
+    props: { items: groups[0].items, label: 'Main navigation' },
   },
   {
     name: 'PageHead',

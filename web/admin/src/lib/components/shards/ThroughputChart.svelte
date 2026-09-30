@@ -38,7 +38,7 @@
     <LineSeries
       {points}
       {series}
-      ariaLabel={t('admin.shards.throughputHistory')}
+      label={t('admin.shards.throughputHistory')}
       description={t('admin.shards.throughputHistoryHint')}
       unit={t('admin.shards.eps')}
       emptyLabel={t('admin.shards.throughputSampling')}

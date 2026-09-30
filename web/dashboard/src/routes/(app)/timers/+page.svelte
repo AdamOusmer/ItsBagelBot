@@ -196,7 +196,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -206,7 +206,7 @@
         failMessage={t('timers.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew} disabled={creating}>
         {t('timers.newTimer')}
       </Button>

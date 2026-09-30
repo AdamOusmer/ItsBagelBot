@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
+  import SkipLink from './SkipLink.svelte';
   import Topbar from './Topbar.svelte';
   import Dock from './Dock.svelte';
   import Rail from './Rail.svelte';
@@ -17,15 +18,15 @@
     rail?: boolean;
     offset?: boolean;
     stacked?: boolean;
-    skipLabel: string;
-    crumbAriaLabel?: string;
-    dockAriaLabel?: string;
-    railAriaLabel?: string;
+    skipLabel?: string;
+    crumbLabel?: string;
+    dockLabel?: string;
+    railLabel?: string;
     clock?: boolean;
     banner?: Snippet;
     topActions?: Snippet;
     account?: Snippet;
-    railFoot?: Snippet;
+    railFooter?: Snippet;
     children: Snippet;
     class?: string;
   };
@@ -39,14 +40,14 @@
     offset = false,
     stacked = false,
     skipLabel,
-    crumbAriaLabel,
-    dockAriaLabel,
-    railAriaLabel,
+    crumbLabel,
+    dockLabel,
+    railLabel,
     clock = true,
     banner,
     topActions,
     account,
-    railFoot,
+    railFooter,
     children,
     class: className = '',
     ...rest
@@ -76,19 +77,19 @@
   }
 </script>
 
-<a class="bb-shell__skip" href="#main-content" onclick={skipToMain}>{skipLabel}</a>
+<SkipLink href="#main-content" label={skipLabel} onclick={skipToMain} />
 
 {#if banner}{@render banner()}{/if}
 
 <div class={classes} {...rest}>
   {#if rail}
-    <Rail {brand} {groups} foot={railFoot} ariaLabel={railAriaLabel} />
+    <Rail {brand} {groups} footer={railFooter} label={railLabel} />
   {/if}
   <div class="bb-shell__stage">
     <Topbar
       {brand}
       {crumbs}
-      {crumbAriaLabel}
+      {crumbLabel}
       {clock}
       railed={rail}
       actions={topActions}
@@ -99,6 +100,6 @@
     </main>
   </div>
   <div class="bb-shell__dock-slot">
-    <Dock {items} {groups} ariaLabel={dockAriaLabel} />
+    <Dock {items} {groups} label={dockLabel} />
   </div>
 </div>

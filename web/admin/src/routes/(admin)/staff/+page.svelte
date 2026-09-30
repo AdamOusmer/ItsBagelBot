@@ -215,7 +215,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {roster.length === 1
@@ -226,7 +226,7 @@
         <Skeleton variant="pill" width="110px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew}>{t('admin.staff.add')}</Button>
     {/snippet}
   </PageToolbar>

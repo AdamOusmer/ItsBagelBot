@@ -200,7 +200,7 @@ const ENTRIES: {
   },
   {
     name: "i18n",
-    budget: 1410, // 1132 B: lookup plus the en and fr catalogs, both bundled; +150 B platform, +10%
+    budget: 1750, // 1443 B: lookup plus the en and fr catalogs, both bundled (nav gained previous, next, pagination); +150 B platform, +10%
     external: [],
     source: `import { createUiI18n, uiText, resolveUiLocale } from "../../lib/i18n";
              globalThis.x = [createUiI18n, uiText, resolveUiLocale];`,

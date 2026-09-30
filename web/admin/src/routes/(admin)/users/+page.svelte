@@ -318,7 +318,7 @@
   </PageHead>
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if dir}
         <Text as="span" size="sm" tone="muted">
           {t('admin.users.stats', {
@@ -331,7 +331,7 @@
         <Skeleton variant="pill" width="220px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <form
         class="searchbar"
         onsubmit={(e) => {

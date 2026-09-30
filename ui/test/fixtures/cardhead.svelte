@@ -6,4 +6,4 @@
   let { title = 'Recent', withAction = false }: { title?: string; withAction?: boolean } = $props();
 </script>
 
-{#if withAction}<CardHead {title}>{#snippet action()}<a class="bb-card-head__more" href="/x">All</a>{/snippet}</CardHead>{:else}<CardHead {title} />{/if}
+{#if withAction}<CardHead {title}>{#snippet actions()}<a class="bb-card-head__more" href="/x">All</a>{/snippet}</CardHead>{:else}<CardHead {title} />{/if}

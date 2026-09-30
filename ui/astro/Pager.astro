@@ -4,9 +4,10 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/pager.css';
+import { uiI18n } from './i18n';
 import ButtonLink from './ButtonLink.astro';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'prevHref' | 'nextHref' | 'hasPrev' | 'hasNext' | 'prevLabel' | 'nextLabel' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'label' | 'prevHref' | 'nextHref' | 'hasPrev' | 'hasNext' | 'prevLabel' | 'nextLabel' | 'navLabel' | 'class'> {
     label: string;
     prevHref: string;
     nextHref: string;
@@ -14,17 +15,20 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'prevHref' | 'next
     hasNext?: boolean;
     prevLabel?: string;
     nextLabel?: string;
+    navLabel?: string;
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
     label,
     prevHref,
     nextHref,
     hasPrev = true,
     hasNext = true,
-    prevLabel = 'Previous',
-    nextLabel = 'Next',
+    prevLabel = t('nav.previous'),
+    nextLabel = t('nav.next'),
+    navLabel = t('nav.pagination'),
     class: className = '',
     ...rest
 } = Astro.props;
@@ -32,4 +36,4 @@ const {
 const classes = ['bb-pager', className || null].filter(Boolean).join(' ');
 ---
 
-<div class={classes} {...rest}><ButtonLink variant="ghost" href={prevHref} disabled={!hasPrev}>{prevLabel}</ButtonLink><span class="bb-pager__label">{label}</span><ButtonLink variant="ghost" href={nextHref} disabled={!hasNext}>{nextLabel}</ButtonLink></div>
+<nav class={classes} aria-label={navLabel} {...rest}><ButtonLink variant="ghost" href={prevHref} disabled={!hasPrev}>{prevLabel}</ButtonLink><span class="bb-pager__label" aria-current="page">{label}</span><ButtonLink variant="ghost" href={nextHref} disabled={!hasNext}>{nextLabel}</ButtonLink></nav>

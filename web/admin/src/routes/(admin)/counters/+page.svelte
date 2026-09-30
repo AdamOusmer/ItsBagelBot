@@ -179,7 +179,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {rows.length === 1
@@ -190,7 +190,7 @@
         <Skeleton variant="pill" width="110px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew}>{t('admin.counters.add')}</Button>
     {/snippet}
   </PageToolbar>

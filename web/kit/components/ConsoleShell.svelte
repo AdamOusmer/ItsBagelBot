@@ -35,9 +35,9 @@
   {offset}
   {stacked}
   skipLabel={t('common.skipToContent')}
-  crumbAriaLabel={t('common.breadcrumb')}
-  dockAriaLabel={t('nav.ariaMain')}
-  railAriaLabel={t('nav.ariaMain')}
+  crumbLabel={t('common.breadcrumb')}
+  dockLabel={t('nav.ariaMain')}
+  railLabel={t('nav.ariaMain')}
   {banner}
   {topActions}
 >
@@ -53,7 +53,7 @@
       />
     {/if}
   {/snippet}
-  {#snippet railFoot()}
+  {#snippet railFooter()}
     <AccountFoot
       name={accountName}
       role={accountRole}

@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/elements/line-series.css';
   import {
     clockTime,
@@ -19,10 +20,11 @@
     type LineSeriesSpec,
   } from '../lib/line-series';
 
+  const i18n = getUiI18n();
   type Own = {
     points: readonly LinePoint[];
     series: readonly LineSeriesSpec[];
-    ariaLabel: string;
+    label: string;
     description?: string;
     unit?: string;
     emptyLabel?: string;
@@ -34,10 +36,10 @@
   let {
     points,
     series,
-    ariaLabel,
+    label,
     description = '',
     unit = '',
-    emptyLabel = '',
+    emptyLabel = i18n.t('data.empty'),
     formatValue = plainValue,
     formatTime = clockTime,
     class: className = '',
@@ -74,11 +76,11 @@
     <svg
       viewBox="0 0 {chart.width} {chart.height}"
       role="img"
-      aria-label={ariaLabel}
+      aria-label={label}
       onpointermove={inspect}
       onpointerleave={() => (hoveredAt = null)}
     >
-      <title>{ariaLabel}</title>
+      <title>{label}</title>
       {#if description}<desc>{description}</desc>{/if}
       {#if unit}<text class="bb-line-series__unit" x={chart.left} y="12">{unit}</text>{/if}
       {#each chart.valueTicks as tick (tick.value)}

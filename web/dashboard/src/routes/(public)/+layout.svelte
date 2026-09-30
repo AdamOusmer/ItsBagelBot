@@ -62,7 +62,7 @@
   cta={{ href: dashboardHref('/auth/login', langQuery), label: t('public.nav.cta') }}
   {locales}
   localeLabel={t('lang.switchAria')}
-  ariaLabel={t('public.nav.aria')}
+  label={t('public.nav.aria')}
   menuLabels={{
     open: t('public.nav.menuOpen'),
     close: t('public.nav.menuClose'),
@@ -74,7 +74,7 @@
   {#snippet mobileFooter()}
     <ButtonLink variant="ghost" block href={dashboardHref('/?install=1', langQuery)}>{t('public.nav.getApp')}</ButtonLink>
     <div class="menu-lang" data-sveltekit-preload-data="off">
-      <LanguageSwitcher options={locales} ariaLabel={t('lang.switchAria')} />
+      <LanguageSwitcher options={locales} label={t('lang.switchAria')} />
     </div>
   {/snippet}
 </Nav>

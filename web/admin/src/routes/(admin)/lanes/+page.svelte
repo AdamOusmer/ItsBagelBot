@@ -247,7 +247,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if result}
         <Cluster gap={2}>
           <Text as="span" size="xs" tone="muted" mono>
@@ -263,7 +263,7 @@
         <Skeleton variant="pill" width="220px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.lanes.searchPlaceholder')} />
       </div>

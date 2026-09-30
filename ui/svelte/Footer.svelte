@@ -57,7 +57,7 @@
           ><p class="bb-footer__col-title">{column.title}</p>{#each column.links as link (link.href)}<NavLink
               href={link.href}
               label={link.label}
-              current={link.active}
+              current={link.current}
               external={link.external}
             />{/each}</div
         >{/each}</div
@@ -69,7 +69,7 @@
       >{#each legal as link (link.href)}<NavLink
           href={link.href}
           label={link.label}
-          current={link.active}
+          current={link.current}
           external={link.external}
         />{/each}</div
     ></div

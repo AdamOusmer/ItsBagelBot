@@ -19,7 +19,7 @@ export function dockGroups(groups: UiNavGroup[], homeHref = '/'): UiNavGroup[] {
 }
 
 export function groupActive(group: UiNavGroup): boolean {
-  return group.items.some((i) => i.active);
+  return group.items.some((i) => i.current);
 }
 
 export function groupCount(group: UiNavGroup): number | undefined {

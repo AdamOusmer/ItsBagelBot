@@ -190,7 +190,7 @@ describe('LineSeries', () => {
   const props = {
     points,
     series,
-    ariaLabel: 'Throughput',
+    label: 'Throughput',
     description: 'Recent minutes',
     unit: 'eps',
     emptyLabel: 'Sampling',

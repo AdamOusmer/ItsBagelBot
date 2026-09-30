@@ -39,7 +39,7 @@
 
 <Card>
   <CardHead title={service.label}>
-    {#snippet action()}
+    {#snippet actions()}
       <StatePill tone={scoped ? 'free' : 'banned'}>
         {scoped ? t('admin.secrets.tokenScoped') : t('admin.secrets.tokenMissing')}
       </StatePill>

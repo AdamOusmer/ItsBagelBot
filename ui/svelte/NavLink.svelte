@@ -16,8 +16,8 @@
     disabled?: boolean;
     hint?: string;
     class?: string;
-    icon?: Snippet;
-    trail?: Snippet;
+    leading?: Snippet;
+    trailing?: Snippet;
     children?: Snippet;
   };
 
@@ -31,8 +31,8 @@
     disabled = false,
     hint,
     class: className = '',
-    icon,
-    trail,
+    leading,
+    trailing,
     children,
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
@@ -52,9 +52,9 @@
 
 {#if disabled}
   <span class={classes} aria-disabled="true" {...rest}
-    >{#if icon}{@render icon()}{/if}<span class="bb-nav-link__label"
+    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label"
       >{#if children}{@render children()}{:else}{label}{/if}</span
-    >{#if trail}{@render trail()}{/if}{#if hint}<span class="bb-nav-link__hint"
+    >{#if trailing}{@render trailing()}{/if}{#if hint}<span class="bb-nav-link__hint"
       >{hint}</span
     >{/if}</span
   >
@@ -66,8 +66,8 @@
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-    >{#if icon}{@render icon()}{/if}<span class="bb-nav-link__label"
+    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label"
       >{#if children}{@render children()}{:else}{label}{/if}</span
-    >{#if trail}{@render trail()}{/if}</a
+    >{#if trailing}{@render trailing()}{/if}</a
   >
 {/if}

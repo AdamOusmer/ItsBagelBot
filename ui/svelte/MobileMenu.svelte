@@ -2,16 +2,18 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/elements/nav.css';
   import NavLink from './NavLink.svelte';
   import type { Snippet } from 'svelte';
   import type { UiNavLink } from '../lib/nav-types';
 
+  const i18n = getUiI18n();
   type Own = {
     links: UiNavLink[];
     cta?: UiNavLink;
     id?: string;
-    panelLabel: string;
+    panelLabel?: string;
     meta?: string;
     footer?: Snippet;
     class?: string;
@@ -21,7 +23,7 @@
     links,
     cta,
     id = 'bb-mobile-menu',
-    panelLabel,
+    panelLabel = i18n.t('nav.menu'),
     meta,
     footer,
     class: className = '',
@@ -54,7 +56,7 @@
             class="bb-mobile-menu__link"
             href={link.href}
             label={link.label}
-            current={link.active}
+            current={link.current}
             external={link.external}
             block
           /></li

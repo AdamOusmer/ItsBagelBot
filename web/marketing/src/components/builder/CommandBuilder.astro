@@ -67,7 +67,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
                 <div class="f-name" data-command-fields>
                     <Field label={ui.nameLabel} for="cb-name" hint={ui.nameHint} hintId="cb-name-hint">
                         <Input id="cb-name" value="welcome" fill maxlength={LIMITS.nameMax} data-name aria-describedby="cb-name-hint">
-                            <span slot="icon" class="f-name__prefix" aria-hidden="true">!</span>
+                            <span slot="leading" class="f-name__prefix" aria-hidden="true">!</span>
                         </Input>
                     </Field>
                 </div>
