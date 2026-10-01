@@ -59,7 +59,7 @@ function boxesOf(skip) {
 function fitOverflow(el) {
     const box = el.parentElement.closest('[data-fit-box]') ?? el.parentElement;
     const x = el.scrollWidth - box.clientWidth;
-    if (x > 1) return `overflows x by ${x}px`;
+    if (x > 1) return `overflows x by ${x}px (ratio ${el.style.getPropertyValue('--bb-fit') || '1'}, text ${el.scrollWidth}, box ${box.clientWidth})`;
     if (el.dataset.fit !== 'block') return null;
     const style = getComputedStyle(box);
     const contentBottom = box.getBoundingClientRect().bottom - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
@@ -91,48 +91,81 @@ function measure({ skip, minRatio }) {
     return { boxes: boxesOf(skip), fitProblems: fitProblemsOf(minRatio) };
 }
 
-function ignoresY(page, path, mainIndex) {
-    if (page === '/' || mainIndex === null) return false;
+function topLevelIndex(path) {
     const top = path.split('>')[0];
-    return Number(top.slice(top.lastIndexOf(':') + 1)) > mainIndex;
+    return Number(top.slice(top.lastIndexOf(':') + 1));
 }
 
-function differingDims(page, path, english, other, mainIndex) {
+// Prose pages grow with their content, so boxes after <main> may sit lower without moving.
+function mainIndexOf(page, english) {
+    if (page === '/') return null;
+    const main = Object.keys(english).find((path) => /^main(\.[^:>]*)?:\d+$/.test(path));
+    return main ? topLevelIndex(main) : null;
+}
+
+function differingDims(path, { english, other, mainIndex }) {
     const a = english[path];
     const b = other[path];
     if (!b) return ['missing'];
-    return ['x', 'y', 'w', 'h'].filter((dim, i) => {
-        if (dim === 'y' && ignoresY(page, path, mainIndex)) return false;
-        return Math.abs(a[i] - b[i]) > TOLERANCE_PX;
-    });
+    const ignoresY = mainIndex !== null && topLevelIndex(path) > mainIndex;
+    return ['x', 'y', 'w', 'h'].filter((dim, i) => !(dim === 'y' && ignoresY) && Math.abs(a[i] - b[i]) > TOLERANCE_PX);
+}
+
+function nearestKnownAncestor(path, known) {
+    let ancestor = path;
+    while (ancestor.includes('>')) {
+        ancestor = ancestor.slice(0, ancestor.lastIndexOf('>'));
+        if (known[ancestor]) return ancestor;
+    }
+    return null;
+}
+
+function describeDifference(path, dims, english, other) {
+    const was = english[path].join(',');
+    const now = other[path]?.join(',') ?? 'missing';
+    return `[${dims.join('')}] ${path.split('>').slice(-4).join('>')} en=${was} vs ${now}`;
 }
 
 function topMostDifferences(page, english, other) {
-    const main = Object.keys(english).find((path) => /^main(\.[^:>]*)?:\d+$/.test(path));
-    const mainIndex = main ? Number(main.slice(main.lastIndexOf(':') + 1)) : null;
-    const differs = new Map();
-    const dimsOf = (path) => {
-        if (!differs.has(path)) differs.set(path, differingDims(page, path, english, other, mainIndex));
-        return differs.get(path);
-    };
+    const context = { english, other, mainIndex: mainIndexOf(page, english) };
+    const dims = new Map(Object.keys(english).map((path) => [path, differingDims(path, context)]));
     const report = [];
-    for (const path of Object.keys(english)) {
-        const dims = dimsOf(path);
-        if (dims.length === 0) continue;
-        let ancestor = path;
-        let ancestorDiffers = false;
-        while (ancestor.includes('>')) {
-            ancestor = ancestor.slice(0, ancestor.lastIndexOf('>'));
-            if (!english[ancestor]) continue;
-            ancestorDiffers = dimsOf(ancestor).length > 0;
-            break;
-        }
-        if (ancestorDiffers) continue;
-        const was = english[path].join(',');
-        const now = other[path]?.join(',') ?? 'missing';
-        report.push(`[${dims.join('')}] ${path.split('>').slice(-4).join('>')} en=${was} vs ${now}`);
+    for (const [path, changed] of dims) {
+        if (changed.length === 0) continue;
+        const ancestor = nearestKnownAncestor(path, english);
+        if (ancestor && dims.get(ancestor).length > 0) continue;
+        report.push(describeDifference(path, changed, english, other));
     }
     return report;
+}
+
+async function snapshotLocale(page, locale, path) {
+    await page.goto(localeUrl(locale, path), { waitUntil: 'networkidle' });
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(250);
+    return page.evaluate(measure, { skip: SKIP, minRatio: MIN_FIT_RATIO });
+}
+
+async function checkPage(page, path) {
+    const failures = [];
+    const snapshots = {};
+    for (const locale of LOCALES) {
+        const { boxes, fitProblems } = await snapshotLocale(page, locale, path);
+        snapshots[locale] = boxes;
+        failures.push(...fitProblems.map((problem) => `${locale} ${path} fit ${problem}`));
+    }
+    for (const locale of LOCALES.filter((code) => code !== 'en')) {
+        const lines = topMostDifferences(path, snapshots.en, snapshots[locale]);
+        failures.push(...lines.map((line) => `${locale} ${path} ${line}`));
+    }
+    return failures;
+}
+
+function summary(failures) {
+    const shown = failures.slice(0, REPORT_LIMIT);
+    if (failures.length > REPORT_LIMIT) shown.push(`... and ${failures.length - REPORT_LIMIT} more`);
+    return shown.join('\n');
 }
 
 test.describe('locale-stable layout', () => {
@@ -143,30 +176,9 @@ test.describe('locale-stable layout', () => {
             const page = await context.newPage();
             await page.addInitScript({ content: PAGE_HELPERS_SOURCE });
             const failures = [];
-
-            for (const path of PAGES) {
-                const snapshots = {};
-                for (const locale of LOCALES) {
-                    await page.goto(localeUrl(locale, path), { waitUntil: 'networkidle' });
-                    await page.evaluate(() => document.fonts.ready);
-                    await page.evaluate(() => window.scrollTo(0, 0));
-                    await page.waitForTimeout(250);
-                    const { boxes, fitProblems } = await page.evaluate(measure, { skip: SKIP, minRatio: MIN_FIT_RATIO });
-                    snapshots[locale] = boxes;
-                    for (const problem of fitProblems) failures.push(`${locale} ${path} fit ${problem}`);
-                }
-                for (const locale of LOCALES) {
-                    if (locale === 'en') continue;
-                    for (const line of topMostDifferences(path, snapshots.en, snapshots[locale])) {
-                        failures.push(`${locale} ${path} ${line}`);
-                    }
-                }
-            }
-
+            for (const path of PAGES) failures.push(...(await checkPage(page, path)));
             await context.close();
-            const shown = failures.slice(0, REPORT_LIMIT);
-            if (failures.length > REPORT_LIMIT) shown.push(`... and ${failures.length - REPORT_LIMIT} more`);
-            expect(failures, shown.join('\n')).toEqual([]);
+            expect(failures, summary(failures)).toEqual([]);
         });
     }
 });
