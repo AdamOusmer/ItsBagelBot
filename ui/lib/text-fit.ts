@@ -16,7 +16,7 @@ const PROPERTY = '--bb-fit';
 const FLOOR = 0.5;
 const LINE_SAFETY = 0.99;
 // Inherited px letter-spacing does not scale with the ratio, so one linear pass can still overflow.
-const LINE_PASSES = 3;
+const LINE_PASSES = 8;
 const BLOCK_STEPS = 6;
 
 // Scroll metrics miss overflow into padding and count glyph ink past tight line boxes, so compare edges.
