@@ -106,6 +106,7 @@
             label={link.label}
             current={link.current}
             external={link.external}
+            data-astro-prefetch={link.current || link.external ? undefined : 'hover'}
           /></li
         >{/each}</ul
     ><div class="bb-nav__actions"
