@@ -23,8 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const recheckKeyPrefix = "live:recheck:"
-
 const liveCacheCapacity int64 = 4096
 
 type LiveConfig struct {
@@ -34,6 +32,7 @@ type LiveConfig struct {
 	OutgressSystemSubject string
 	CacheInvalidatePrefix string
 	KeyspaceDB            int
+	OfflineConfirmDelays  []time.Duration
 	Log                   *zap.Logger
 }
 
@@ -53,6 +52,9 @@ type ValkeyLiveStore struct {
 func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, cfg LiveConfig) *ValkeyLiveStore {
 	if cfg.CacheTTL <= 0 {
 		cfg.CacheTTL = 30 * time.Second
+	}
+	if len(cfg.OfflineConfirmDelays) == 0 {
+		cfg.OfflineConfirmDelays = defaultOfflineConfirmDelays
 	}
 	log := cfg.Log
 	if log == nil {
@@ -81,16 +83,18 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 			return false, err
 		}
 
+		id := strconv.FormatUint(broadcasterID, 10)
 		reply, err := bus.RequestJSONTimeout[projectorrpc.LiveReply](
 			ctx, s.nc, s.cfg.ProjectorLiveSubject,
-			projectorrpc.LiveRequest{BroadcasterID: strconv.FormatUint(broadcasterID, 10)},
+			projectorrpc.LiveRequest{BroadcasterID: id},
 			s.rpcTimeout,
 		)
-		if err != nil {
-			return false, nil
-		}
-		if reply.Live {
+		switch {
+		case err != nil:
+		case reply.Live:
 			_, _ = s.setLiveKey(ctx, broadcasterID, livekey.VersionNow())
+		case reply.Known:
+			s.claimRecheck(ctx, recheckClaim{key: demandRecheckKeyPrefix + id, window: demandRecheckWindow, broadcasterID: id})
 		}
 		return reply.Live, nil
 	})
@@ -109,11 +113,11 @@ func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, ver
 func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
 	s.cache.Invalidate(broadcasterID)
 	applied, err := clearLiveKey(ctx, s.client, broadcasterID, version)
-	if err != nil || !applied {
-		return false, err
+	if applied {
+		s.armOfflineConfirm(ctx, broadcasterID)
+		s.broadcast(broadcasterID)
 	}
-	s.broadcast(broadcasterID)
-	return true, nil
+	return applied, err
 }
 
 func (s *ValkeyLiveStore) setLiveKey(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
@@ -200,23 +204,23 @@ func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
 }
 
 func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
-	if !strings.HasPrefix(key, livekey.KeyPrefix) || strings.HasPrefix(key, recheckKeyPrefix) {
+	suffix, ok := strings.CutPrefix(key, livekey.KeyPrefix)
+	if !ok {
 		return
 	}
-	idStr := strings.TrimPrefix(key, livekey.KeyPrefix)
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil || id == 0 {
+	id := suffix
+	staged, confirmation := strings.CutPrefix(key, offlineConfirmKeyPrefix)
+	if confirmation {
+		_, id, _ = strings.Cut(staged, ":")
+	}
+	broadcasterID, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || broadcasterID == 0 {
 		return
 	}
-
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(recheckKeyPrefix+idStr).Value("1").Nx().ExSeconds(10).Build()).ToString()
-	if err != nil || got != "OK" {
+	if confirmation && s.liveKeyExists(ctx, broadcasterID) {
 		return
 	}
-
-	if err := s.requestRecheck(ctx, idStr); err != nil {
-		s.log.Warn("live: failed to publish re-check", zap.String("broadcaster_id", idStr), zap.Error(err))
-	}
+	s.claimRecheck(ctx, recheckClaim{key: recheckKeyPrefix + suffix, window: expiryRecheckWindow, broadcasterID: id})
 }
 
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {
