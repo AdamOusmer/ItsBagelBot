@@ -277,6 +277,7 @@
         class="bb-profile-rail__account bb-profile-rail__account--btn"
         class:bb-profile-rail__open={open}
         type="button"
+        title={trigger}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={open ? accountMenuId : undefined}

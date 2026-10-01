@@ -147,11 +147,11 @@
     flex: 1;
   }
 
-  @media (max-width: 560px) {
-    .bb-alert--stack {
-      flex-wrap: wrap;
-    }
+  .bb-alert--stack {
+    flex-wrap: wrap;
+  }
 
+  @media (max-width: 560px) {
     .bb-alert--stack .bb-alert__msg {
       flex-basis: 100%;
     }

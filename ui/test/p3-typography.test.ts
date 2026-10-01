@@ -233,10 +233,11 @@ describe('AlertBanner options', () => {
     html: '<div class="bb-alert bb-alert--danger bb-alert--stack" role="note"><span class="bb-alert__msg">Two conflicts.</span></div>',
   });
 
-  test('stack gives the message its own row on phones so the action drops below it', () => {
+  test('stack wraps the action below the message whenever it does not fit, and always on phones', () => {
     const source = css('elements/alert.css');
+    expect(source).toMatch(/\n  \.bb-alert--stack \{\s*flex-wrap: wrap;\s*\}/);
     expect(source).toMatch(
-      /@media \(max-width: 560px\) \{\s*\.bb-alert--stack \{\s*flex-wrap: wrap;\s*\}\s*\.bb-alert--stack \.bb-alert__msg \{\s*flex-basis: 100%;/,
+      /@media \(max-width: 560px\) \{\s*\.bb-alert--stack \.bb-alert__msg \{\s*flex-basis: 100%;/,
     );
   });
 });

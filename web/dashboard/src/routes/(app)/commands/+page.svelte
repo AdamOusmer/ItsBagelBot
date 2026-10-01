@@ -1088,10 +1088,10 @@
     border-top: 1px solid var(--bb-border);
     border-bottom: 1px solid var(--bb-border);
   }
-  .ds-cell { white-space: nowrap; }
+  .ds-cell { min-width: 0; }
   .ds-rule { width: 1px; align-self: stretch; background: var(--bb-border); }
   .deck-stats dt { margin-bottom: 6px; }
-  .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
+  .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
   .deck-stats .big {
     font-family: var(--bb-font-display);
     font-weight: 800;
@@ -1105,8 +1105,8 @@
   .list { container-type: inline-size; }
   .main-col { min-width: 0; }
 
-  .tb-lead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-  .tb-select { width: 168px; }
+  .tb-lead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; max-width: 100%; }
+  .tb-select { min-width: 168px; }
   .public-page { margin-top: 10px; }
 
   .create-hint {

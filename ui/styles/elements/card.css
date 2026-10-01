@@ -95,12 +95,17 @@
   .bb-card__label {
     position: absolute;
     top: 12px;
+    left: 12px;
     right: 16px;
     z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
     font-family: var(--bb-font-mono);
     font-size: 0.7rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
+    text-overflow: ellipsis;
+    text-align: right;
     white-space: nowrap;
     color: rgba(var(--bb-tan-rgb), 0.4);
   }
