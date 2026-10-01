@@ -60,6 +60,7 @@ const steps = [
         max-width: var(--bb-content-hero);
         margin: 0 auto;
         z-index: 3;
+        scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     .steps__list {
@@ -140,7 +141,7 @@ const steps = [
     .step__receipt {
         display: inline-block;
         font-family: var(--bb-font-mono);
-        font-size: 0.7rem;
+        font-size: var(--bb-text-xs);
         letter-spacing: 0.05em;
         color: var(--bb-green-glow);
         background: rgba(var(--bb-green-glow-rgb), 0.06);

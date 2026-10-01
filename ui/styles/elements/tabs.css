@@ -104,6 +104,8 @@
         outline-offset: 2px;
     }
 
+    @media (pointer: coarse) { .bb-tab { min-height: 44px; } }
+
     .bb-tabs--vertical {
         display: flex;
         flex-direction: column;

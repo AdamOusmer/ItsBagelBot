@@ -184,6 +184,8 @@
   .bb-link--arrow {
     display: inline-flex;
     align-items: center;
+    width: fit-content;
+    max-width: 100%;
     gap: 10px;
     padding: 6px 2px 10px;
     margin-bottom: -1px;
@@ -192,7 +194,7 @@
     background-size: 0 1px;
     color: var(--bb-muted);
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     line-height: 1;
@@ -295,6 +297,13 @@
   .bb-link--touch {
     min-height: 44px;
     margin-block: -8px;
+  }
+
+  @media (pointer: coarse) {
+    .bb-link--arrow {
+      min-height: 44px;
+      margin-block: -8px;
+    }
   }
 
   .bb-link--quiet:focus-visible {

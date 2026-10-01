@@ -129,6 +129,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         max-width: var(--bb-content-max);
         margin: 0 auto;
         z-index: 3;
+        scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     .games__grid {
@@ -236,8 +237,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
     .games-fn__rarity {
         color: var(--bb-green-glow);
-        font-size: 0.66rem;
-        letter-spacing: 0.14em;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
     }
 
@@ -246,7 +247,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         align-items: center;
         gap: 5px;
         color: var(--bb-muted);
-        font-size: 0.7rem;
+        font-size: 0.75rem;
     }
 
     .games-val__line,

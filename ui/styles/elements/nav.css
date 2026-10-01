@@ -630,6 +630,10 @@
     .bb-lang-switch__opt {
       min-height: 44px;
     }
+
+    .bb-lang-switch--field .bb-lang-switch__trigger {
+      min-height: 44px;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

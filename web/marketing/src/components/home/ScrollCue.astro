@@ -137,6 +137,18 @@ const t = useTranslations(lang);
         }
     }
 
+    @media (max-width: 380px) and (max-height: 700px) {
+        .cue {
+            --cue-rail: 18px;
+            --cue-gap: 0px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+        }
+
+        .cue__label {
+            display: none;
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .cue__inner {
             opacity: 1;

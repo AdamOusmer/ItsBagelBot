@@ -47,6 +47,13 @@ const titleWords = t('finale.title').split(' ');
         text-align: center;
         z-index: 3;
         border-top: 1px solid var(--bb-border);
+        scroll-margin-top: calc(var(--nav-offset) + 16px);
+    }
+
+    @media (max-width: 1023px) {
+        .finale {
+            padding: clamp(80px, 14vh, 180px) 24px clamp(80px, 14vh, 180px);
+        }
     }
 
     .finale__glow {

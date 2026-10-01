@@ -76,4 +76,9 @@
     }
 
     .bb-field .bb-input { width: 100%; box-sizing: border-box; }
+
+    @media (pointer: coarse) {
+        .bb-input { min-height: 44px; font-size: 16px; }
+        .bb-input input { font-size: 16px; }
+    }
 }
