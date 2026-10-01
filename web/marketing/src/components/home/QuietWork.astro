@@ -69,7 +69,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
             <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
-                <span class="qw-cmd__out">{t('quietWork.cmdOut')}</span>
+                <span class="qw-cmd__out"><span data-fit>{t('quietWork.cmdOut')}</span></span>
             </div>
             <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.cmdTitle')}</span></span></Heading>
             <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.cmdDesc')}</span></Text>
@@ -448,6 +448,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     .qw-cmd__out {
+        display: block;
+        height: 1lh;
+        white-space: nowrap;
         color: var(--bb-green-glow);
         opacity: 0;
         animation: qwCmdOut 5.4s ease-in-out infinite;

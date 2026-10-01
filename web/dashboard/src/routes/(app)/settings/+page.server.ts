@@ -88,7 +88,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       received: d.demoDelegationReceived,
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
-      savedLocale: d.demoSavedLocale,
+      savedLocale: locals.locale,
       commandsPage: true,
       twitchConnected: true as boolean | null,
       degraded: false,

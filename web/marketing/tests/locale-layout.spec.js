@@ -27,47 +27,68 @@ function localeUrl(locale, path) {
     return `${prefix}${path === '/' ? '/' : `${path}/`}`;
 }
 
-function measure({ skip, minRatio }) {
-    const pathOf = (el) => {
-        const parts = [];
-        for (let node = el; node && node !== document.body; node = node.parentElement) {
-            const index = Array.prototype.indexOf.call(node.parentElement.children, node) + 1;
-            const kept = Array.from(node.classList).filter((c) => !/^(is-|astro-|data-)/.test(c)).slice(0, 2);
-            parts.unshift(`${node.tagName.toLowerCase()}${kept.length ? `.${kept.join('.')}` : ''}:${index}`);
-        }
-        return parts.join('>');
-    };
+// These run inside the page: page.evaluate serializes one function, so they are installed as an init script.
+function pathOf(el) {
+    const parts = [];
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+        const index = Array.prototype.indexOf.call(node.parentElement.children, node) + 1;
+        const kept = Array.from(node.classList).filter((c) => !/^(is-|astro-|data-)/.test(c)).slice(0, 2);
+        parts.unshift(`${node.tagName.toLowerCase()}${kept.length ? `.${kept.join('.')}` : ''}:${index}`);
+    }
+    return parts.join('>');
+}
 
-    const hugs = (el) =>
-        el.children.length > 0 && Array.from(el.children).every((child) => child.hasAttribute('data-fit') || hugs(child));
+function hugsText(el) {
+    return el.children.length > 0 && Array.from(el.children).every((child) => child.hasAttribute('data-fit') || hugsText(child));
+}
 
+function hasSize(rect) {
+    return rect.width > 0 || rect.height > 0;
+}
+
+function boxesOf(skip) {
     const boxes = {};
     for (const el of document.body.querySelectorAll('*')) {
-        if (el.matches(skip) || hugs(el)) continue;
+        if (el.matches(skip) || hugsText(el)) continue;
         const r = el.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) continue;
-        boxes[pathOf(el)] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+        if (hasSize(r)) boxes[pathOf(el)] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
     }
+    return boxes;
+}
 
-    const fitProblems = [];
+function fitOverflow(el) {
+    const box = el.parentElement.closest('[data-fit-box]') ?? el.parentElement;
+    const x = el.scrollWidth - box.clientWidth;
+    if (x > 1) return `overflows x by ${x}px`;
+    if (el.dataset.fit !== 'block') return null;
+    const style = getComputedStyle(box);
+    const contentBottom = box.getBoundingClientRect().bottom - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
+    const y = Math.round(el.getBoundingClientRect().bottom - contentBottom);
+    return y > 1 ? `overflows y by ${y}px` : null;
+}
+
+function fitProblemOf(el, minRatio) {
+    if (!el.hasAttribute('data-fit-ready')) return 'not fitted';
+    const ratio = parseFloat(getComputedStyle(el).getPropertyValue('--bb-fit'));
+    if (ratio < minRatio) return `ratio ${ratio.toFixed(2)}`;
+    return hasSize(el.getBoundingClientRect()) ? fitOverflow(el) : null;
+}
+
+function fitProblemsOf(minRatio) {
+    const problems = [];
     for (const el of document.querySelectorAll('[data-fit]')) {
-        const where = `${pathOf(el)} "${(el.textContent ?? '').trim().slice(0, 40)}"`;
-        if (!el.hasAttribute('data-fit-ready')) {
-            fitProblems.push(`not fitted: ${where}`);
-            continue;
-        }
-        const ratio = parseFloat(getComputedStyle(el).getPropertyValue('--bb-fit'));
-        if (!Number.isNaN(ratio) && ratio < minRatio) fitProblems.push(`ratio ${ratio.toFixed(2)}: ${where}`);
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) continue;
-        const box = el.parentElement.closest('[data-fit-box]') ?? el.parentElement;
-        if (el.scrollWidth > box.clientWidth + 1) fitProblems.push(`overflows x by ${el.scrollWidth - box.clientWidth}px: ${where}`);
-        if (el.dataset.fit !== 'block') continue;
-        const style = getComputedStyle(box);
-        const contentBottom = box.getBoundingClientRect().bottom - parseFloat(style.paddingBottom) - parseFloat(style.borderBottomWidth);
-        if (r.bottom > contentBottom + 1) fitProblems.push(`overflows y by ${Math.round(r.bottom - contentBottom)}px: ${where}`);
+        const problem = fitProblemOf(el, minRatio);
+        if (problem) problems.push(`${problem}: ${pathOf(el)} "${(el.textContent ?? '').trim().slice(0, 40)}"`);
     }
-    return { boxes, fitProblems };
+    return problems;
+}
+
+const PAGE_HELPERS = [pathOf, hugsText, hasSize, boxesOf, fitOverflow, fitProblemOf, fitProblemsOf];
+const PAGE_HELPERS_SOURCE = `${PAGE_HELPERS.map(String).join('\n')}\nwindow.__localeLayout = { boxesOf, fitProblemsOf };`;
+
+function measure({ skip, minRatio }) {
+    const { boxesOf, fitProblemsOf } = window.__localeLayout;
+    return { boxes: boxesOf(skip), fitProblems: fitProblemsOf(minRatio) };
 }
 
 function ignoresY(page, path, mainIndex) {
@@ -120,6 +141,7 @@ test.describe('locale-stable layout', () => {
             test.setTimeout(300_000);
             const context = await browser.newContext({ viewport, reducedMotion: 'reduce', deviceScaleFactor: 1 });
             const page = await context.newPage();
+            await page.addInitScript({ content: PAGE_HELPERS_SOURCE });
             const failures = [];
 
             for (const path of PAGES) {

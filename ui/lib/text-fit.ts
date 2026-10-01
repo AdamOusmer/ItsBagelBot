@@ -106,45 +106,51 @@ function collect(root: ParentNode): FitTarget[] {
     return found.map(targetOf).filter((target): target is FitTarget => target !== null);
 }
 
+type FitRegistry = {
+    targets: FitTarget[];
+    active: boolean;
+};
+
+function addedTargets(records: MutationRecord[], known: Set<HTMLElement>): FitTarget[] {
+    return records
+        .flatMap((record) => Array.from(record.addedNodes))
+        .filter((node): node is HTMLElement => node instanceof HTMLElement)
+        .flatMap(collect)
+        .filter((target) => !known.has(target.el) && known.add(target.el));
+}
+
+function touchedTargets(records: MutationRecord[], targets: readonly FitTarget[]): FitTarget[] {
+    const touched = new Set(records.map((record) => (record.target as Element).closest?.(SELECTOR)));
+    return targets.filter((target) => touched.has(target.el));
+}
+
 export function mountTextFit(root: ParentNode = document): () => void {
-    let targets = collect(root);
-    let active = true;
-    const resizer = new ResizeObserver(() => {
-        if (active) fitAll(targets);
-    });
+    const registry: FitRegistry = { targets: [], active: true };
     const refit = () => {
-        if (active) fitAll(targets);
+        if (registry.active) fitAll(registry.targets);
     };
+    const resizer = new ResizeObserver(refit);
     const watch = (added: FitTarget[]) => {
-        targets = targets.concat(added);
+        registry.targets = registry.targets.concat(added);
         for (const box of new Set(added.map((target) => target.box))) resizer.observe(box);
         fitAll(added);
     };
-    watch(targets.splice(0));
-
-    const adder = new MutationObserver((records) => {
-        if (!active) return;
-        const known = new Set(targets.map((target) => target.el));
-        const added = records
-            .flatMap((record) => Array.from(record.addedNodes))
-            .filter((node): node is HTMLElement => node instanceof HTMLElement)
-            .flatMap(collect)
-            .filter((target) => !known.has(target.el) && known.add(target.el));
-        const touched = new Set(
-            records
-                .map((record) => (record.target as Element).closest?.(SELECTOR))
-                .filter((el): el is HTMLElement => el instanceof HTMLElement),
-        );
-        const retouched = targets.filter((target) => touched.has(target.el));
+    const onMutations = (records: MutationRecord[]) => {
+        if (!registry.active) return;
+        const retouched = touchedTargets(records, registry.targets);
         if (retouched.length) fitAll(retouched);
+        const added = addedTargets(records, new Set(registry.targets.map((target) => target.el)));
         if (added.length) watch(added);
-    });
+    };
+
+    watch(collect(root));
+    const adder = new MutationObserver(onMutations);
     adder.observe(root, { childList: true, subtree: true });
     void document.fonts.ready.then(refit);
     document.fonts.addEventListener('loadingdone', refit);
 
     return () => {
-        active = false;
+        registry.active = false;
         resizer.disconnect();
         adder.disconnect();
         document.fonts.removeEventListener('loadingdone', refit);

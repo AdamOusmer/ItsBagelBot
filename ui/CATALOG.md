@@ -27,7 +27,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Lead** | `as`: 'p' \| 'div' | svelte + astro | stable | `styles/elements/typography.css` |
 | **SectionHeading** | `eyebrow`: string<br>`title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`align`: 'center' \| 'left'<br>`badge`: Snippet | svelte + astro | stable | `styles/elements/section-heading.css` |
 | **Text** | `size`: 'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'<br>`tone`: TextTone<br>`mono`: boolean<br>`truncate`: boolean<br>`as`: 'p' \| 'span' \| 'small' \| 'div' \| 'li' \| 'dd' \| 'dt' | svelte + astro | stable | `styles/elements/typography.css` |
-| **TextLink** | `href*`: string<br>`label`: string<br>`variant`: 'roll' \| 'arrow' \| 'inline' \| 'quiet'<br>`tone`: 'go' \| 'lead'<br>`prose`: boolean<br>`icon`: IconName<br>`current`: boolean<br>`external`: boolean<br>`size`: string<br>`touch`: boolean | svelte + astro | stable | `styles/elements/text-link.css` |
+| **TextLink** | `href*`: string<br>`label`: string<br>`variant`: 'roll' \| 'arrow' \| 'inline' \| 'quiet'<br>`tone`: 'go' \| 'lead'<br>`prose`: boolean<br>`icon`: IconName<br>`current`: boolean<br>`external`: boolean<br>`size`: string<br>`touch`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/text-link.css` |
 | **VisuallyHidden** | `focusable`: boolean<br>`as`: 'span' \| 'div' \| 'p' \| 'a' | svelte + astro | stable | `styles/elements/typography.css` |
 
 ## Layout

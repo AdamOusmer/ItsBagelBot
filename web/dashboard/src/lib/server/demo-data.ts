@@ -97,7 +97,6 @@ export const demoDelegationGiven = [
 
 export const demoDelegationReceived = [{ owner_user_id: '42', owner_login: 'ferret_king', sections: ['commands'] }];
 
-export const demoSavedLocale = DEFAULT_LOCALE;
 
 let demoBillingState: BillingState = {
   active: false,
