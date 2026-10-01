@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -26,18 +27,14 @@ func readTree(t *testing.T, fsys fs.FS, dir ports.FilePath) ports.Files {
 		files[ports.FilePath(p)] = b
 		return err
 	})
-	if err != nil {
-		t.Fatalf("read %s: %v", dir, err)
-	}
+	require.NoError(t, err, "read %s", dir)
 	return files
 }
 
 func buildDir(t *testing.T, fsys fs.FS, root ports.FilePath) ports.Objects {
 	t.Helper()
 	objs, err := build(ports.BuildSpec{Files: readTree(t, fsys, root), Root: root})
-	if err != nil {
-		t.Fatalf("build %s: %v", root, err)
-	}
+	require.NoError(t, err, "build %s", root)
 	return objs
 }
 
@@ -71,7 +68,7 @@ func find(t *testing.T, objs ports.Objects, ref ports.ObjectRef) *unstructured.U
 			return o
 		}
 	}
-	t.Fatalf("no %s in fixture", refString(ref))
+	require.FailNow(t, "ref missing from fixture", "%s", refString(ref))
 	return nil
 }
 

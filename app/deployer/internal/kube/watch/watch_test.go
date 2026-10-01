@@ -8,9 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,9 +40,11 @@ func TestReachable(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			err := newWatcher(c.cs, testCfg, http.DefaultClient).Reachable(context.Background())
-			if (err != nil) != c.wantErr {
-				t.Fatalf("Reachable() = %v, want error %v", err, c.wantErr)
+			if c.wantErr {
+				assert.Error(t, err)
+				return
 			}
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -102,16 +105,16 @@ func TestSettled(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got, err := testWatcher(c.obj).Settled(context.Background(), []ports.WorkloadRef{c.ref})
-			if !errors.Is(err, c.wantErr) {
-				t.Fatalf("Settled() error = %v, want %v", err, c.wantErr)
+			if c.wantErr != nil {
+				assert.ErrorIs(t, err, c.wantErr)
+				return
 			}
+			require.NoError(t, err)
 			var want []ports.Unsettled
 			if c.want != "" {
 				want = []ports.Unsettled{{Workload: c.ref, Reason: c.want}}
 			}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("Settled() = %+v, want %+v", got, want)
-			}
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -131,17 +134,13 @@ func TestLiveImages(t *testing.T) {
 	gossipRef := ports.WorkloadRef{Kind: kindDeployment, Namespace: "app", Name: "gossip"}
 	digestRef := ports.WorkloadRef{Kind: kindCronJob, Namespace: "db", Name: "notifications-digest"}
 	got, err := testWatcher(gossip, digest).LiveImages(context.Background(), []ports.WorkloadRef{gossipRef, digestRef})
-	if err != nil {
-		t.Fatalf("LiveImages() error = %v", err)
-	}
-	want := []ports.LiveImage{
+
+	require.NoError(t, err)
+	assert.Equal(t, []ports.LiveImage{
 		{Workload: gossipRef, Container: "gossip", Image: testRepo + "/gossip:v0.2.0-beta@sha256:aa"},
 		{Workload: gossipRef, Container: "warp", Image: testRepo + "/warp:v0.2.2-beta@sha256:bb"},
 		{Workload: digestRef, Container: "digest", Image: testRepo + "/notifications:v0.2.0-beta@sha256:cc"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("LiveImages() = %+v, want %+v", got, want)
-	}
+	}, got)
 }
 
 func TestVerifyImageIDs(t *testing.T) {
@@ -169,16 +168,12 @@ func TestVerifyImageIDs(t *testing.T) {
 		current.obj(), stale.obj(), starting.obj(), leaving.obj(), stranger.obj(),
 	)
 	got, err := w.VerifyImageIDs(context.Background(), []ports.WorkloadRef{users}, ports.Pins{"users": "sha256:new"})
-	if err != nil {
-		t.Fatalf("VerifyImageIDs() error = %v", err)
-	}
-	want := []ports.Mismatch{
+
+	require.NoError(t, err)
+	assert.Equal(t, []ports.Mismatch{
 		{Workload: users, Pod: "users-b", Container: "users", Want: "sha256:new", Got: "sha256:old"},
 		{Workload: users, Pod: "users-c", Container: "users", Want: "sha256:new", Got: ""},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("VerifyImageIDs() = %+v, want %+v", got, want)
-	}
+	}, got)
 }
 
 func TestImageNameAndDigest(t *testing.T) {
@@ -194,10 +189,7 @@ func TestImageNameAndDigest(t *testing.T) {
 		{in: "docker.io/natsio/nats-server-config-reloader:0.16.0"},
 	}
 	for _, c := range cases {
-		got := [2]string{string(repo.name(c.in)), string(digestOf(c.in))}
-		if want := [2]string{string(c.wantName), string(c.wantDigest)}; got != want {
-			t.Errorf("%s: (name, digest) = %v, want %v", c.in, got, want)
-		}
+		assert.Equal(t, [2]string{string(c.wantName), string(c.wantDigest)}, [2]string{string(repo.name(c.in)), string(digestOf(c.in))}, c.in)
 	}
 }
 
@@ -213,11 +205,9 @@ func TestProbe(t *testing.T) {
 	cases := map[string]int{"/ok": http.StatusOK, "/moved": http.StatusFound, "/boom": http.StatusInternalServerError}
 	for path, want := range cases {
 		got, err := w.Probe(context.Background(), ports.URL(srv.URL+path))
-		if err != nil || got != want {
-			t.Errorf("Probe(%s) = %d, %v; want %d", path, got, err, want)
-		}
+		require.NoError(t, err, path)
+		assert.Equal(t, want, got, path)
 	}
-	if _, err := w.Probe(context.Background(), "http://127.0.0.1:1/unreachable"); err == nil {
-		t.Error("Probe(closed port) succeeded, want error")
-	}
+	_, err := w.Probe(context.Background(), "http://127.0.0.1:1/unreachable")
+	assert.Error(t, err, "closed port")
 }

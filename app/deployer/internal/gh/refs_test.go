@@ -27,25 +27,34 @@ const (
 var tagObject = reply(http.StatusOK, `{"sha":"t1","object":{"sha":"c1","type":"commit"}}`)
 
 func TestLatestTag(t *testing.T) {
-	c, _, _ := newClient(t, routes{
-		"GET /repos/o/r/git/matching-refs/tags/v": reply(http.StatusOK, `[
-			{"ref":"refs/tags/v0.9.0-beta","object":{"sha":"c9","type":"commit"}},
-			{"ref":"refs/tags/v0.10.0-beta","object":{"sha":"t1","type":"tag"}},
-			{"ref":"refs/tags/v1.0.0-rc1","object":{"sha":"cr","type":"commit"}},
-			{"ref":"refs/tags/v0.2.0-beta","object":{"sha":"c2","type":"commit"}}]`),
-		tagObjPath: tagObject,
-	})
-	got, err := c.LatestTag(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, ports.TagRef{Name: "v0.10.0-beta", CommitSHA: "c1", ObjectSHA: "t1"}, got)
-}
-
-func TestLatestTagNone(t *testing.T) {
-	c, _, _ := newClient(t, routes{
-		"GET /repos/o/r/git/matching-refs/tags/v": reply(http.StatusOK, `[{"ref":"refs/tags/v1","object":{"sha":"c","type":"commit"}}]`),
-	})
-	_, err := c.LatestTag(t.Context())
-	assert.ErrorIs(t, err, ports.ErrNotFound)
+	const matching = "GET /repos/o/r/git/matching-refs/tags/v"
+	cases := []struct {
+		name string
+		rt   routes
+		want tagOutcome
+	}{
+		{
+			name: "picks the highest beta by version and peels it to its commit",
+			rt: routes{matching: reply(http.StatusOK, `[
+				{"ref":"refs/tags/v0.9.0-beta","object":{"sha":"c9","type":"commit"}},
+				{"ref":"refs/tags/v0.10.0-beta","object":{"sha":"t1","type":"tag"}},
+				{"ref":"refs/tags/v1.0.0-rc1","object":{"sha":"cr","type":"commit"}},
+				{"ref":"refs/tags/v0.2.0-beta","object":{"sha":"c2","type":"commit"}}]`), tagObjPath: tagObject},
+			want: tagOutcome{Ref: ports.TagRef{Name: "v0.10.0-beta", CommitSHA: "c1", ObjectSHA: "t1"}},
+		},
+		{
+			name: "no beta tag is not found",
+			rt:   routes{matching: reply(http.StatusOK, `[{"ref":"refs/tags/v1","object":{"sha":"c","type":"commit"}}]`)},
+			want: tagOutcome{Kind: ports.ErrNotFound},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, _ := newClient(t, tc.rt)
+			got, err := c.LatestTag(t.Context())
+			assert.Equal(t, tc.want, tagOutcome{Ref: got, Kind: kindOf(err)})
+		})
+	}
 }
 
 type tagOutcome struct {

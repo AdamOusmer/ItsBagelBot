@@ -4,11 +4,12 @@
 package apply
 
 import (
-	"errors"
 	"maps"
 	"os"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 )
@@ -67,12 +68,12 @@ func TestBuild(t *testing.T) {
 			}
 			maps.Copy(files, tc.extra)
 			objs, err := build(ports.BuildSpec{Files: files, Root: tc.root})
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+				return
 			}
-			if got := refs(objs, tc.kinds); tc.wantErr == nil && !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("objects = %q, want %q", got, tc.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, refs(objs, tc.kinds))
 		})
 	}
 }
@@ -81,9 +82,7 @@ func TestRepoManifests(t *testing.T) {
 	repo := os.DirFS("../../../../..")
 	for _, root := range []ports.FilePath{"deploy/k8s", "deploy/messaging", "deploy/db"} {
 		t.Run(string(root), func(t *testing.T) {
-			if findings := lint(buildDir(t, repo, root)); len(findings) > 0 {
-				t.Fatalf("lint findings: %+v", findings)
-			}
+			assert.Empty(t, lint(buildDir(t, repo, root)))
 		})
 	}
 }

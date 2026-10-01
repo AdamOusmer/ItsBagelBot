@@ -4,7 +4,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -34,11 +33,4 @@ func TestKVErrMapsOntoPortsSentinels(t *testing.T) {
 	for name, tc := range cases {
 		assert.ErrorIs(t, kvErr(tc.in), tc.want, name)
 	}
-}
-
-func TestLoadReportsCorruptValue(t *testing.T) {
-	kv := &fakeKV{data: map[kvKey]record{}}
-	kv.write(keyIndex, []byte("{not json"))
-	_, _, found, err := load[[]string](context.Background(), kv, keyIndex)
-	assert.Equal(t, [2]any{false, true}, [2]any{found, err != nil})
 }

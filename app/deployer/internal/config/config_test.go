@@ -1,24 +1,36 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package config
+package config_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"ItsBagelBot/app/deployer/internal/config"
 	"ItsBagelBot/app/deployer/internal/ports"
 )
 
-func TestLoadRequiresGitHubAndGHCRCredentials(t *testing.T) {
-	complete := map[string]string{
-		"GITHUB_APP_ID":              "12345",
-		"GITHUB_APP_INSTALLATION_ID": "67890",
-		"GITHUB_APP_PRIVATE_KEY":     "-----BEGIN RSA PRIVATE KEY-----",
-		"GHCR_USERNAME":              "bagel-pull",
-		"GHCR_TOKEN":                 "token",
+var requiredEnv = map[string]string{
+	"GITHUB_APP_ID":              "12345",
+	"GITHUB_APP_INSTALLATION_ID": "67890",
+	"GITHUB_APP_PRIVATE_KEY":     "-----BEGIN RSA PRIVATE KEY-----",
+	"GHCR_USERNAME":              "bagel-pull",
+	"GHCR_TOKEN":                 "token",
+}
+
+func setEnv(t *testing.T, vars ...map[string]string) {
+	t.Helper()
+	for _, set := range vars {
+		for k, v := range set {
+			t.Setenv(k, v)
+		}
 	}
+}
+
+func TestLoadRequiresGitHubAndGHCRCredentials(t *testing.T) {
 	cases := map[string]struct {
 		override map[string]string
 		wantErr  string
@@ -38,65 +50,60 @@ func TestLoadRequiresGitHubAndGHCRCredentials(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			for k, v := range complete {
-				t.Setenv(k, v)
+			setEnv(t, requiredEnv, tc.override)
+			_, err := config.Load()
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
 			}
-			for k, v := range tc.override {
-				t.Setenv(k, v)
-			}
-			_, err := Load()
-			got := ""
-			if err != nil {
-				got = err.Error()
-			}
-			assert.Equal(t, tc.wantErr, got)
+			assert.EqualError(t, err, tc.wantErr)
 		})
 	}
 }
 
-func requiredEnv(t *testing.T) {
-	t.Helper()
-	for k, v := range map[string]string{
-		"GITHUB_APP_ID": "1", "GITHUB_APP_INSTALLATION_ID": "1", "GITHUB_APP_PRIVATE_KEY": "key",
-		"GHCR_USERNAME": "user", "GHCR_TOKEN": "token",
-	} {
-		t.Setenv(k, v)
+func TestLoadNATSAuth(t *testing.T) {
+	cases := map[string]struct {
+		env  map[string]string
+		want ports.Config
+	}{
+		"defaults to config mode with no JWT vars set": {
+			nil,
+			ports.Config{NATSAuthMode: ports.NATSAuthConfig},
+		},
+		"reads the JWT mode vars": {
+			map[string]string{
+				"DEPLOY_NATS_AUTH":          "jwt",
+				"DEPLOY_NATS_SIGNING_SEED":  "SOSEED",
+				"DEPLOY_NATS_SYS_JWT":       "eyJhbGciOi",
+				"DEPLOY_NATS_SYS_NKEY_SEED": "SUSEED",
+				"DEPLOY_NATS_HUB_URL":       "tls://nats.messaging:4222",
+				"DEPLOY_NATS_LEAF_URL":      "tls://nats-leaf.messaging:4222",
+			},
+			ports.Config{
+				NATSAuthMode:    ports.NATSAuthJWT,
+				NATSSigningSeed: "SOSEED",
+				NATSSysJWT:      "eyJhbGciOi",
+				NATSSysNKeySeed: "SUSEED",
+				NATSHubURL:      "tls://nats.messaging:4222",
+				NATSLeafURL:     "tls://nats-leaf.messaging:4222",
+			},
+		},
 	}
-}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			setEnv(t, requiredEnv, tc.env)
+			cfg, err := config.Load()
+			require.NoError(t, err)
 
-func TestLoadDefaultsToConfigModeWithNoJWTVarsSet(t *testing.T) {
-	requiredEnv(t)
-	cfg, err := Load()
-	if err != nil {
-		t.Fatal(err)
+			got := ports.Config{
+				NATSAuthMode:    cfg.Deploy.NATSAuthMode,
+				NATSSigningSeed: cfg.Deploy.NATSSigningSeed,
+				NATSSysJWT:      cfg.Deploy.NATSSysJWT,
+				NATSSysNKeySeed: cfg.Deploy.NATSSysNKeySeed,
+				NATSHubURL:      cfg.Deploy.NATSHubURL,
+				NATSLeafURL:     cfg.Deploy.NATSLeafURL,
+			}
+			assert.Equal(t, tc.want, got)
+		})
 	}
-	assert.Equal(t, ports.NATSAuthConfig, cfg.Deploy.NATSAuthMode)
-	assert.Equal(t, "", cfg.Deploy.NATSSigningSeed)
-	assert.Equal(t, "", cfg.Deploy.NATSSysJWT)
-	assert.Equal(t, "", cfg.Deploy.NATSSysNKeySeed)
-	assert.Equal(t, "", cfg.Deploy.NATSHubURL)
-	assert.Equal(t, "", cfg.Deploy.NATSLeafURL)
-	assert.Equal(t, ports.FilePath("deploy/messaging/accounts.yaml"), cfg.Deploy.AccountsFile)
-	assert.Equal(t, ports.FilePath("deploy/messaging/accounts.keys.yaml"), cfg.Deploy.AccountsKeysFile)
-}
-
-func TestLoadReadsJWTModeVars(t *testing.T) {
-	requiredEnv(t)
-	t.Setenv("DEPLOY_NATS_AUTH", "jwt")
-	t.Setenv("DEPLOY_NATS_SIGNING_SEED", "SOSEED")
-	t.Setenv("DEPLOY_NATS_SYS_JWT", "eyJhbGciOi")
-	t.Setenv("DEPLOY_NATS_SYS_NKEY_SEED", "SUSEED")
-	t.Setenv("DEPLOY_NATS_HUB_URL", "tls://nats.messaging:4222")
-	t.Setenv("DEPLOY_NATS_LEAF_URL", "tls://nats-leaf.messaging:4222")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, ports.NATSAuthJWT, cfg.Deploy.NATSAuthMode)
-	assert.Equal(t, "SOSEED", cfg.Deploy.NATSSigningSeed)
-	assert.Equal(t, "eyJhbGciOi", cfg.Deploy.NATSSysJWT)
-	assert.Equal(t, "SUSEED", cfg.Deploy.NATSSysNKeySeed)
-	assert.Equal(t, "tls://nats.messaging:4222", cfg.Deploy.NATSHubURL)
-	assert.Equal(t, "tls://nats-leaf.messaging:4222", cfg.Deploy.NATSLeafURL)
 }

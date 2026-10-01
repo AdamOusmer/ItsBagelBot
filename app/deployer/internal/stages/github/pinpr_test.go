@@ -4,9 +4,10 @@
 package github
 
 import (
-	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -117,9 +118,7 @@ func TestPinPRStage(t *testing.T) {
 			f := newFixture(t, run)
 			f.gh.commitMain("c1", loadManifests(t))
 			done, err := f.runStage(t, deploy.StagePinPR)
-			if got := f.pinResult(t, done, err); !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("result = %+v\nwant %+v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, f.pinResult(t, done, err))
 		})
 	}
 }
@@ -154,10 +153,8 @@ func TestPinPRRollback(t *testing.T) {
 			noWarp := slices.DeleteFunc(manifestImages(t), func(img deploy.ImageName) bool { return img == "warp" })
 			f.publish(noWarp, "v0.2.1-beta", "old")
 			done, err := f.runStage(t, deploy.StagePinPR)
-			got := f.pinResult(t, done, err)
-			if n := len(f.sink.View().Outputs.Digests); !reflect.DeepEqual(got, tc.want) || n != tc.pinned {
-				t.Errorf("result = %+v (%d digests)\nwant %+v (%d digests)", got, n, tc.want, tc.pinned)
-			}
+			assert.Equal(t, tc.want, f.pinResult(t, done, err))
+			assert.Len(t, f.sink.View().Outputs.Digests, tc.pinned)
 		})
 	}
 }

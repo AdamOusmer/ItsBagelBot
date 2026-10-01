@@ -4,8 +4,10 @@
 package github
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -27,13 +29,11 @@ func releaseFixture(t *testing.T) (*fixture, map[deploy.ImageName]deploy.ImagePi
 
 func TestDigestsReleaseResolvesEveryImage(t *testing.T) {
 	f, pins := releaseFixture(t)
-	if _, err := f.runStage(t, deploy.StageDigests); err != nil {
-		t.Fatal(err)
-	}
-	got := f.sink.View().Outputs.Digests
-	if len(got) != 18 || !reflect.DeepEqual(got, pins) {
-		t.Errorf("digests = %v, want the 18 published pins %v", got, pins)
-	}
+	_, err := f.runStage(t, deploy.StageDigests)
+
+	require.NoError(t, err)
+	assert.Len(t, pins, 18)
+	assert.Equal(t, pins, f.sink.View().Outputs.Digests)
 }
 
 func TestDigestsRefusals(t *testing.T) {
@@ -66,15 +66,11 @@ func TestDigestsRefusals(t *testing.T) {
 			f, _ := releaseFixture(t)
 			tc.spoil(f)
 			_, err := f.runStage(t, deploy.StageDigests)
-			fl, _ := ports.AsFail(err)
-			if fl == nil {
-				t.Fatalf("err = %v, want a refusal", err)
-			}
-			got := deploy.Failure{Code: fl.Code, Message: fl.Message, LogTail: fl.LogTail}
-			want := deploy.Failure{Code: deploy.FailDigestRefused, Message: "1 of 18 images refused", LogTail: []string{tc.want}}
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("failure = %+v, want %+v", got, want)
-			}
+			fl, ok := ports.AsFail(err)
+			require.True(t, ok, "err = %v, want a refusal", err)
+			assert.Equal(t,
+				deploy.Failure{Code: deploy.FailDigestRefused, Message: "1 of 18 images refused", LogTail: []string{tc.want}},
+				deploy.Failure{Code: fl.Code, Message: fl.Message, LogTail: fl.LogTail})
 		})
 	}
 }
@@ -117,9 +113,7 @@ func TestDigestsBump(t *testing.T) {
 
 			_, err := f.runStage(t, deploy.StageDigests)
 			got := bumpResult{Code: outcome(t, err), Images: sortedImages(f.sink.View().Outputs.Digests)}
-			if want := (bumpResult{Code: tc.code, Images: tc.want}); !reflect.DeepEqual(got, want) {
-				t.Errorf("result = %+v, want %+v", got, want)
-			}
+			assert.Equal(t, bumpResult{Code: tc.code, Images: tc.want}, got)
 		})
 	}
 }
@@ -134,7 +128,6 @@ func TestMainTagPicksTheNewestBuildOfTheCommit(t *testing.T) {
 		"users": {"main-900-000000000000", "main-100-abcdef123456", "main-200-abcdef123456", "main-20-abcdef123456", "latest"},
 	}}
 	tag, err := mainTag(t.Context(), reg, "users", "abcdef1234567890")
-	if err != nil || tag != "main-200-abcdef123456" {
-		t.Errorf("mainTag = %q, %v; want main-200-abcdef123456", tag, err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, deploy.Tag("main-200-abcdef123456"), tag)
 }

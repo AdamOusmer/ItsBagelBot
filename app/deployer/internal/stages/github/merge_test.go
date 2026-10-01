@@ -5,8 +5,9 @@ package github
 
 import (
 	"errors"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/app/deployer/internal/stage"
@@ -45,127 +46,106 @@ type mergeResult struct {
 	Calls  []string
 	Target deploy.SHA
 	Merged []int
+	Tail   []string
+}
+
+func withOpenPR(edit func(*fakePR), checks ...ports.CheckSummary) func(*fixture) {
+	return func(f *fixture) {
+		f.sink.run.PRs, f.sink.run.TargetSHA = []int{5}, "base"
+		pr := openPR(5, "h5")
+		if edit != nil {
+			edit(&pr)
+		}
+		f.gh.addPR(pr)
+		f.gh.branches["feat/x"] = "h5"
+		f.gh.checks["h5"] = checks
+	}
+}
+
+func withMergedPR(target, mergeSHA deploy.SHA) func(*fixture) {
+	return func(f *fixture) {
+		f.sink.run.PRs, f.sink.run.TargetSHA = []int{5}, target
+		f.gh.commitMain("c1", nil)
+		f.gh.commitMain("c2", nil)
+		pr := openPR(5, "h5")
+		pr.Open, pr.Merged, pr.MergeSHA = false, true, mergeSHA
+		f.gh.addPR(pr)
+	}
 }
 
 func TestMergePRs(t *testing.T) {
 	green := ports.CheckSummary{State: deploy.ChecksSuccess, CodeScene: deploy.ChecksSuccess}
+	merged := mergeResult{Calls: []string{"merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}}
 	cases := []struct {
-		name   string
-		pr     func(fakePR) fakePR
-		checks []ports.CheckSummary
-		want   mergeResult
+		name  string
+		setup func(*fixture)
+		want  mergeResult
 	}{
+		{"merges when green and deletes the branch", withOpenPR(nil), merged},
 		{
-			name: "merges when green and deletes the branch",
-			want: mergeResult{Calls: []string{"merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}},
+			"brings a behind branch up to date first",
+			withOpenPR(func(p *fakePR) { p.behind, p.Behind = 1, true }),
+			mergeResult{Calls: []string{"update-branch #5", "merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}},
 		},
 		{
-			name: "brings a behind branch up to date first",
-			pr:   func(p fakePR) fakePR { p.behind, p.Behind = 1, true; return p },
-			want: mergeResult{Calls: []string{"update-branch #5", "merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}},
+			"waits for CodeScene",
+			withOpenPR(nil, ports.CheckSummary{State: deploy.ChecksSuccess, CodeScene: deploy.ChecksPending}, green),
+			merged,
 		},
 		{
-			name:   "waits for CodeScene",
-			checks: []ports.CheckSummary{{State: deploy.ChecksSuccess, CodeScene: deploy.ChecksPending}, green},
-			want:   mergeResult{Calls: []string{"merge #5", "delete feat/x"}, Target: "merge5", Merged: []int{5}},
+			"stops after the update-branch limit",
+			withOpenPR(func(p *fakePR) { p.behind, p.Behind = 99, true }),
+			mergeResult{Code: deploy.FailBehindLimit, Calls: []string{"update-branch #5", "update-branch #5", "update-branch #5"}, Target: "base"},
 		},
 		{
-			name: "stops after the update-branch limit",
-			pr:   func(p fakePR) fakePR { p.behind, p.Behind = 99, true; return p },
-			want: mergeResult{Code: deploy.FailBehindLimit, Calls: []string{"update-branch #5", "update-branch #5", "update-branch #5"}, Target: "base"},
+			"fails on a red required check",
+			withOpenPR(nil, ports.CheckSummary{State: deploy.ChecksFailure, CodeScene: deploy.ChecksSuccess}),
+			mergeResult{Code: deploy.FailChecksFailed, Target: "base"},
 		},
 		{
-			name:   "fails on a red required check",
-			checks: []ports.CheckSummary{{State: deploy.ChecksFailure, CodeScene: deploy.ChecksSuccess}},
-			want:   mergeResult{Code: deploy.FailChecksFailed, Target: "base"},
+			"failure names the red checks with their links and summaries",
+			withOpenPR(nil, ports.CheckSummary{State: deploy.ChecksFailure, CodeScene: deploy.ChecksFailure, Checks: []ports.Check{
+				{Name: "go test", State: deploy.ChecksFailure, URL: "https://ci/1"},
+				{Name: "lint", State: deploy.ChecksSuccess, URL: "https://ci/2"},
+				{Name: "CodeScene Code Health Review (main)", State: deploy.ChecksFailure, URL: "https://ci/3",
+					Summary: "Code Health 9.1\nBumpy Road: merge.go run\n"},
+			}}),
+			mergeResult{Code: deploy.FailChecksFailed, Target: "base", Tail: []string{
+				"go test: https://ci/1", "CodeScene Code Health Review (main): https://ci/3",
+				"Code Health 9.1", "Bumpy Road: merge.go run",
+			}},
+		},
+		{"refuses a draft", withOpenPR(func(p *fakePR) { p.Draft = true }), mergeResult{Code: deploy.FailNotMergeable, Target: "base"}},
+		{
+			"refuses a conflicted PR",
+			withOpenPR(func(p *fakePR) { p.Mergeable = ptr(false) }),
+			mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
 		},
 		{
-			name: "refuses a draft",
-			pr:   func(p fakePR) fakePR { p.Draft = true; return p },
-			want: mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
+			"merge ahead of the target moves it",
+			withMergedPR("base", "c2"),
+			mergeResult{Done: true, Target: "c2", Merged: []int{5}},
 		},
 		{
-			name: "refuses a conflicted PR",
-			pr:   func(p fakePR) fakePR { p.Mergeable = ptr(false); return p },
-			want: mergeResult{Code: deploy.FailNotMergeable, Target: "base"},
+			"merge behind the target leaves it",
+			withMergedPR("c2", "c1"),
+			mergeResult{Done: true, Target: "c2", Merged: []int{5}},
 		},
+		{"skips when the run has no PRs", func(*fixture) {}, mergeResult{Code: "skipped"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			run := newRun(deploy.KindBump)
-			run.PRs, run.TargetSHA = []int{5}, "base"
-			f := newFixture(t, run)
-			pr := openPR(5, "h5")
-			if tc.pr != nil {
-				pr = tc.pr(pr)
-			}
-			f.gh.addPR(pr)
-			f.gh.branches["feat/x"] = "h5"
-			f.gh.checks["h5"] = tc.checks
+			f := newFixture(t, newRun(deploy.KindBump))
+			tc.setup(f)
+
 			done, err := f.runStage(t, deploy.StageMergePRs)
-			got := f.sink.View()
-			res := mergeResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Target: got.TargetSHA, Merged: got.Outputs.MergedPRs}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
+
+			run := f.sink.View()
+			res := mergeResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Target: run.TargetSHA, Merged: run.Outputs.MergedPRs}
+			if fl, ok := ports.AsFail(err); ok {
+				res.Tail = fl.LogTail
 			}
+			assert.Equal(t, tc.want, res)
 		})
-	}
-}
-
-func TestMergePRsDone(t *testing.T) {
-	cases := []struct {
-		name     string
-		target   deploy.SHA
-		mergeSHA deploy.SHA
-		want     mergeResult
-	}{
-		{"merge ahead of the target moves it", "base", "c2", mergeResult{Done: true, Target: "c2", Merged: []int{5}}},
-		{"merge behind the target leaves it", "c2", "c1", mergeResult{Done: true, Target: "c2", Merged: []int{5}}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			run := newRun(deploy.KindBump)
-			run.PRs, run.TargetSHA = []int{5}, tc.target
-			f := newFixture(t, run)
-			f.gh.commitMain("c1", nil)
-			f.gh.commitMain("c2", nil)
-			pr := openPR(5, "h5")
-			pr.Open, pr.Merged, pr.MergeSHA = false, true, tc.mergeSHA
-			f.gh.addPR(pr)
-			done, err := f.runStage(t, deploy.StageMergePRs)
-			got := f.sink.View()
-			res := mergeResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Target: got.TargetSHA, Merged: got.Outputs.MergedPRs}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
-			}
-		})
-	}
-}
-
-func TestMergePRsSkipsWithoutPRs(t *testing.T) {
-	f := newFixture(t, newRun(deploy.KindBump))
-	_, err := f.runStage(t, deploy.StageMergePRs)
-	if code := outcome(t, err); code != "skipped" {
-		t.Errorf("outcome = %q, want skipped", code)
-	}
-}
-
-func TestMergePRsFailureNamesTheRedChecks(t *testing.T) {
-	run := newRun(deploy.KindBump)
-	run.PRs = []int{5}
-	f := newFixture(t, run)
-	f.gh.addPR(openPR(5, "h5"))
-	f.gh.checks["h5"] = []ports.CheckSummary{{State: deploy.ChecksFailure, CodeScene: deploy.ChecksFailure, Checks: []ports.Check{
-		{Name: "go test", State: deploy.ChecksFailure, URL: "https://ci/1"},
-		{Name: "lint", State: deploy.ChecksSuccess, URL: "https://ci/2"},
-		{Name: "CodeScene Code Health Review (main)", State: deploy.ChecksFailure, URL: "https://ci/3",
-			Summary: "Code Health 9.1\nBumpy Road: merge.go run\n"},
-	}}}
-	_, err := f.runStage(t, deploy.StageMergePRs)
-	fl, _ := ports.AsFail(err)
-	want := []string{"go test: https://ci/1", "CodeScene Code Health Review (main): https://ci/3",
-		"Code Health 9.1", "Bumpy Road: merge.go run"}
-	if fl == nil || !reflect.DeepEqual(fl.LogTail, want) {
-		t.Errorf("failure = %+v, want log tail %v", fl, want)
 	}
 }

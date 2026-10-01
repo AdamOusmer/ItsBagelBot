@@ -5,11 +5,12 @@ package cluster
 
 import (
 	"context"
-	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -23,9 +24,7 @@ func TestOrder(t *testing.T) {
 		"console-dashboard", "console-admin",
 		"deployer",
 	}
-	if got := Order(); !slices.Equal(got, want) {
-		t.Fatalf("Order() = %v, want %v", got, want)
-	}
+	assert.Equal(t, want, Order())
 }
 
 func TestSequence(t *testing.T) {
@@ -53,9 +52,7 @@ func TestSequence(t *testing.T) {
 			for _, u := range arrange(tc.build).units {
 				got = append(got, u.name)
 			}
-			if !slices.Equal(got, tc.want) {
-				t.Fatalf("rollout order = %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -154,9 +151,7 @@ func TestRolloutRun(t *testing.T) {
 			err := rollout{}.Run(context.Background(), h.rc(deploy.StageRollout))
 			got := outcome{Applied: h.applier.applied, Waited: h.watcher.waited, Err: errCode(err),
 				Rows: h.sink.rows(deploy.StageRollout)}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("rollout =\n%+v\nwant\n%+v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -186,9 +181,7 @@ func TestRolloutResumedCancel(t *testing.T) {
 			h.sink.cancel()
 			err := rollout{}.Run(context.Background(), h.rc(deploy.StageRollout))
 			got := outcome{Applied: h.applier.applied, Waited: h.watcher.waited, Err: errCode(err)}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("resumed cancel = %+v, want %+v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -235,9 +228,8 @@ func TestRolloutDone(t *testing.T) {
 				})
 			}
 			done, err := rollout{}.Done(context.Background(), h.rc(deploy.StageRollout))
-			if err != nil || done != tc.want {
-				t.Fatalf("Done() = %v, %v; want %v", done, err, tc.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, done)
 		})
 	}
 }
@@ -246,14 +238,16 @@ func TestACL(t *testing.T) {
 	messaging := ports.Objects{
 		object(ports.ObjectRef{Kind: kindConfigMap, Namespace: nsMessaging, Name: "nats-config"}),
 		object(ports.ObjectRef{Kind: "Certificate", Namespace: nsMessaging, Name: "nats-cert"}),
+		object(ports.ObjectRef{Kind: "DopplerSecret", Namespace: nsMessaging, Name: "nats-doppler"}),
 	}
+	managedOnly := [][]string{{"ConfigMap/nats-config"}}
 	fresh := ports.NATSServer{Pod: "nats-0", Node: "node1", ConfigLoaded: t0.Add(time.Second)}
 	stale := ports.NATSServer{Pod: "nats-leaf-x", Node: "node2", ConfigLoaded: t0.Add(-time.Hour)}
 	restless := ports.NATSServer{Pod: "nats-leaf-z", Node: "node3", ConfigLoaded: t0.Add(time.Hour)}
 	type outcome struct {
 		Err       string
 		Message   string
-		Applied   int
+		Applied   [][]string
 		Changed   bool
 		AppliedAt bool
 		Rows      map[string]string
@@ -266,32 +260,32 @@ func TestACL(t *testing.T) {
 	}{
 		{
 			name: "live config already matching git applies and waits on no reload",
-			want: outcome{Applied: 1, Rows: map[string]string{"reload": "skipped 0/0"}},
+			want: outcome{Applied: managedOnly, Rows: map[string]string{"reload": "skipped 0/0"}},
 		},
 		{
 			name:    "an apply that changes nothing the servers load waits on no reload",
 			changed: []ports.ObjectRef{{Kind: "Service"}},
-			want:    outcome{Applied: 1, Changed: true, Rows: map[string]string{"reload": "skipped 0/0"}},
+			want:    outcome{Applied: managedOnly, Changed: true, Rows: map[string]string{"reload": "skipped 0/0"}},
 		},
 		{
 			name:    "every server reloaded after the apply and stayed quiet",
 			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
 			servers: []ports.NATSServer{fresh, {Pod: "nats-leaf-y", Node: "node2", ConfigLoaded: t0.Add(2 * time.Second)}},
-			want: outcome{Applied: 1, Changed: true, AppliedAt: true,
+			want: outcome{Applied: managedOnly, Changed: true, AppliedAt: true,
 				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-y": "succeeded 1/1"}},
 		},
 		{
 			name:    "a server that never reloads times the stage out",
 			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
 			servers: []ports.NATSServer{fresh, stale},
-			want: outcome{Err: "timeout", Message: "1 of 2 NATS servers reloaded", Applied: 1, Changed: true, AppliedAt: true,
+			want: outcome{Err: "timeout", Message: "1 of 2 NATS servers reloaded", Applied: managedOnly, Changed: true, AppliedAt: true,
 				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-x": "running 0/1"}},
 		},
 		{
 			name:    "a server still reloading holds the stage until it times out",
 			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
 			servers: []ports.NATSServer{fresh, restless},
-			want: outcome{Err: "timeout", Message: "NATS servers reloaded but did not stay quiet", Applied: 1, Changed: true, AppliedAt: true,
+			want: outcome{Err: "timeout", Message: "NATS servers reloaded but did not stay quiet", Applied: managedOnly, Changed: true, AppliedAt: true,
 				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-z": "succeeded 1/1"}},
 		},
 	}
@@ -303,14 +297,9 @@ func TestACL(t *testing.T) {
 			h.applier.changed, h.watcher.servers = tc.changed, tc.servers
 			err := acl{}.Run(context.Background(), h.rc(deploy.StageACL))
 			out := h.sink.View().Outputs
-			got := outcome{Err: errCode(err), Applied: len(h.applier.applied), Changed: out.MessagingChanged,
-				AppliedAt: out.ACLAppliedAt != nil, Rows: h.sink.rows(deploy.StageACL)}
-			if f, ok := ports.AsFail(err); ok && strings.HasPrefix(f.Message, tc.want.Message) {
-				got.Message = tc.want.Message
-			}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("acl =\n%+v\nwant\n%+v", got, tc.want)
-			}
+			got := outcome{Err: errCode(err), Message: failMessage(err, tc.want.Message), Applied: h.applier.applied,
+				Changed: out.MessagingChanged, AppliedAt: out.ACLAppliedAt != nil, Rows: h.sink.rows(deploy.StageACL)}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -331,25 +320,21 @@ func TestACLDoneWaitsForQuiet(t *testing.T) {
 			_ = h.sink.Update(context.Background(), func(r *deploy.Run) { r.Outputs.ACLAppliedAt = &at })
 			h.watcher.servers = []ports.NATSServer{{Pod: "nats-0", ConfigLoaded: t0.Add(tc.loaded)}}
 			done, err := acl{}.Done(context.Background(), h.rc(deploy.StageACL))
-			if err != nil || done != tc.want {
-				t.Fatalf("Done() = %v, %v; want %v", done, err, tc.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, done)
 		})
 	}
 }
 
-func TestACLAppliesManagedObjectsOnly(t *testing.T) {
-	h := newHarness(deploy.KindRelease)
-	h.applier.builds["deploy/messaging"] = ports.Objects{
-		object(ports.ObjectRef{Kind: kindConfigMap, Namespace: nsMessaging, Name: "nats-config"}),
-		object(ports.ObjectRef{Kind: "Certificate", Namespace: nsMessaging, Name: "nats-cert"}),
-		object(ports.ObjectRef{Kind: "DopplerSecret", Namespace: nsMessaging, Name: "nats-doppler"}),
+func failMessage(err error, prefix string) string {
+	f, ok := ports.AsFail(err)
+	switch {
+	case !ok:
+		return ""
+	case strings.HasPrefix(f.Message, prefix):
+		return prefix
 	}
-	_ = acl{}.Run(context.Background(), h.rc(deploy.StageACL))
-	want := [][]string{{"ConfigMap/nats-config"}}
-	if !reflect.DeepEqual(h.applier.applied, want) {
-		t.Fatalf("applied %v, want %v", h.applier.applied, want)
-	}
+	return f.Message
 }
 
 func verifyBuild() ports.Objects {
@@ -375,9 +360,7 @@ func TestProbeURLs(t *testing.T) {
 		"https://health.itsbagelbot.com/discord",
 		"https://health.itsbagelbot.com/db",
 	}
-	if got := probeURLs(objs, dbRoutes()); !slices.Equal(got, want) {
-		t.Fatalf("probeURLs = %v, want %v", got, want)
-	}
+	assert.Equal(t, want, probeURLs(objs, dbRoutes()))
 }
 
 func TestVerify(t *testing.T) {
@@ -445,9 +428,7 @@ func TestVerify(t *testing.T) {
 			if f, ok := ports.AsFail(err); ok {
 				got.Actions, got.LogTail = f.Actions, f.LogTail
 			}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("verify =\n%+v\nwant\n%+v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

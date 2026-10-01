@@ -14,6 +14,8 @@ import (
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nkeys"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 )
@@ -40,46 +42,41 @@ type opChain struct {
 	opJWT  string
 	sysKp  nkeys.KeyPair
 	sysPub string
-	sysJWT string
+}
+
+func publicKey(t *testing.T, kp nkeys.KeyPair) string {
+	t.Helper()
+	pub, err := kp.PublicKey()
+	require.NoError(t, err)
+	return pub
+}
+
+func accountJWT(t *testing.T, signer nkeys.KeyPair, pub, name string, edit func(*jwt.AccountClaims)) string {
+	t.Helper()
+	claims := jwt.NewAccountClaims(pub)
+	claims.Name = name
+	if edit != nil {
+		edit(claims)
+	}
+	token, err := claims.Encode(signer)
+	require.NoError(t, err)
+	return token
 }
 
 func buildOpChain(t *testing.T) opChain {
 	t.Helper()
 	opKp, err := nkeys.CreateOperator()
-	if err != nil {
-		t.Fatal(err)
-	}
-	opPub, err := opKp.PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oc := jwt.NewOperatorClaims(opPub)
-	opJWT, err := oc.Encode(opKp)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	opJWT, err := jwt.NewOperatorClaims(publicKey(t, opKp)).Encode(opKp)
+	require.NoError(t, err)
 	sysKp, err := nkeys.CreateAccount()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sysPub, err := sysKp.PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sysAC := jwt.NewAccountClaims(sysPub)
-	sysAC.Name = "SYS"
-	sysJWT, err := sysAC.Encode(opKp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return opChain{opKp: opKp, opJWT: opJWT, sysKp: sysKp, sysPub: sysPub, sysJWT: sysJWT}
+	require.NoError(t, err)
+	return opChain{opKp: opKp, opJWT: opJWT, sysKp: sysKp, sysPub: publicKey(t, sysKp)}
 }
 
-func writeJWTFile(t *testing.T, dir, pub, token string) {
+func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, pub+".jwt"), []byte(token), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 type nodeSpec struct {
@@ -94,65 +91,47 @@ func startNode(t *testing.T, chain opChain, spec nodeSpec) *server.Server {
 	if spec.seedDir != "" {
 		copyDir(t, spec.seedDir, dir)
 	}
-	cfgText := fmt.Sprintf(clusterConfigTmpl, spec.name, chain.opJWT, chain.sysPub, dir, spec.routes)
 	cfgPath := filepath.Join(t.TempDir(), spec.name+".conf")
-	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, cfgPath, fmt.Sprintf(clusterConfigTmpl, spec.name, chain.opJWT, chain.sysPub, dir, spec.routes))
 	opts, err := server.ProcessConfigFile(cfgPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	opts.NoLog, opts.NoSigs = true, true
 	srv, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	srv.Start()
 	t.Cleanup(srv.Shutdown)
-	if !srv.ReadyForConnections(5 * time.Second) {
-		t.Fatalf("server %s never became ready", spec.name)
-	}
+	require.True(t, srv.ReadyForConnections(5*time.Second), "server %s never became ready", spec.name)
 	return srv
 }
 
 func copyDir(t *testing.T, src, dst string) {
 	t.Helper()
 	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, e := range entries {
 		data, err := os.ReadFile(filepath.Join(src, e.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), data, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
+		writeFile(t, filepath.Join(dst, e.Name()), string(data))
 	}
 }
 
 // Route pooling means NumRoutes() is a multiple of peer count, not the peer
 // count itself, so "at least one route per peer" is what formation means.
-func waitClustered(t *testing.T, servers ...*server.Server) {
+func converged(s *server.Server, peers int, accountPub string) bool {
+	_, err := s.LookupAccount(accountPub)
+	return s.NumRoutes() >= peers && err == nil
+}
+
+func waitConverged(t *testing.T, accountPub string, servers ...*server.Server) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		formed := true
+	require.Eventually(t, func() bool {
 		for _, s := range servers {
-			if s.NumRoutes() < len(servers)-1 {
-				formed = false
+			if !converged(s, len(servers)-1, accountPub) {
+				return false
 			}
 		}
-		if formed {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("cluster did not form in time")
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+		return true
+	}, 10*time.Second, 50*time.Millisecond, "cluster did not form and sync the account in time")
 }
 
 func clearNATSTLSEnv(t *testing.T) {
@@ -162,140 +141,69 @@ func clearNATSTLSEnv(t *testing.T) {
 	t.Setenv("NATS_CLIENT_KEY_FILE", "")
 }
 
-func seedTestAccount(t *testing.T, chain opChain) (pub, token string) {
-	t.Helper()
-	testKp, err := nkeys.CreateAccount()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testPub, err := testKp.PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testAC := jwt.NewAccountClaims(testPub)
-	testAC.Name = "TESTACC"
-	testJWT, err := testAC.Encode(chain.opKp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return testPub, testJWT
-}
-
-// startCluster boots 3 clustered nodes, seeding the test account onto the
-// first so the full resolver can sync it to the other two before any test runs.
-func startCluster(t *testing.T, chain opChain, seedPub, seedJWT string) *server.Server {
+func startCluster(t *testing.T, chain opChain, accountPub, accountToken string) *server.Server {
 	t.Helper()
 	seed := t.TempDir()
-	writeJWTFile(t, seed, seedPub, seedJWT)
+	writeFile(t, filepath.Join(seed, accountPub+".jwt"), accountToken)
 
 	srvA := startNode(t, chain, nodeSpec{name: "srv-A", seedDir: seed})
 	route := fmt.Sprintf("routes: [nats-route://127.0.0.1:%d]", srvA.ClusterAddr().Port)
 	srvB := startNode(t, chain, nodeSpec{name: "srv-B", routes: route})
 	srvC := startNode(t, chain, nodeSpec{name: "srv-C", routes: route})
-	waitClustered(t, srvA, srvB, srvC)
-	time.Sleep(500 * time.Millisecond) // let the full resolver sync the seeded account onto B and C
+	waitConverged(t, accountPub, srvA, srvB, srvC)
 	return srvA
 }
 
 func connectAdapter(t *testing.T, url string, chain opChain) *Adapter {
 	t.Helper()
 	sysUserKp, err := nkeys.CreateUser()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sysUserPub, err := sysUserKp.PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	sysUserSeed, err := sysUserKp.Seed()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sysUC := jwt.NewUserClaims(sysUserPub)
-	sysUserJWT, err := sysUC.Encode(chain.sysKp)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	sysUserJWT, err := jwt.NewUserClaims(publicKey(t, sysUserKp)).Encode(chain.sysKp)
+	require.NoError(t, err)
 
 	adapter, err := New(Config{HubURL: url, LeafURL: url, SysJWT: sysUserJWT, SysSeed: string(sysUserSeed)})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
+	require.NoError(t, err)
+	t.Cleanup(adapter.Close)
 	return adapter
 }
 
-func checkServersCount(t *testing.T, adapter *Adapter) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	names, err := adapter.Servers(ctx, ports.ClusterHub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 3 {
-		t.Fatalf("Servers() = %v, want 3 names", names)
-	}
-}
-
-func checkPushReplies(t *testing.T, replies []ports.ClaimsReply) {
-	t.Helper()
-	if len(replies) != 3 {
-		t.Fatalf("Push() replies = %+v, want 3", replies)
-	}
-	for _, r := range replies {
-		if r.Code != 200 {
-			t.Fatalf("reply from %s: code = %d, want 200 (%s)", r.Server, r.Code, r.Message)
-		}
-		if r.Server == "" {
-			t.Fatal("reply carries no server name")
-		}
-	}
-}
-
-func checkPushAndLookup(t *testing.T, adapter *Adapter, chain opChain, testPub string) {
-	t.Helper()
-	testAC := jwt.NewAccountClaims(testPub)
-	testAC.Name = "TESTACC"
-	testAC.Exports = jwt.Exports{{Subject: "svc.>", Type: jwt.Service}}
-	pushJWT, err := testAC.Encode(chain.opKp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	replies, err := adapter.Push(ctx, ports.ClusterHub, pushJWT, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	checkPushReplies(t, replies)
-
-	lookupCtx, lookupCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer lookupCancel()
-	live, err := adapter.Lookup(lookupCtx, ports.ClusterHub, testPub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decoded, err := jwt.DecodeAccountClaims(live)
-	if err != nil {
-		t.Fatalf("Lookup() returned an undecodable JWT: %v", err)
-	}
-	if len(decoded.Exports) != 1 {
-		t.Fatalf("Lookup() claims = %+v, want the pushed export", decoded)
-	}
-}
-
-// TestAdapterAgainstEmbeddedCluster runs a real 3 node operator-mode NATS
-// cluster with the full resolver and drives Servers/Lookup/Push through it.
 func TestAdapterAgainstEmbeddedCluster(t *testing.T) {
 	clearNATSTLSEnv(t)
 	chain := buildOpChain(t)
-	testPub, testJWT := seedTestAccount(t, chain)
-	srvA := startCluster(t, chain, testPub, testJWT)
-
+	accountKp, err := nkeys.CreateAccount()
+	require.NoError(t, err)
+	accountPub := publicKey(t, accountKp)
+	srvA := startCluster(t, chain, accountPub, accountJWT(t, chain.opKp, accountPub, "TESTACC", nil))
 	adapter := connectAdapter(t, srvA.ClientURL(), chain)
-	defer adapter.Close()
 
-	t.Run("Servers counts every node in the cluster", func(t *testing.T) { checkServersCount(t, adapter) })
-	t.Run("Push reaches every server with code 200", func(t *testing.T) { checkPushAndLookup(t, adapter, chain, testPub) })
+	t.Run("Servers counts every node in the cluster", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		names, err := adapter.Servers(ctx, ports.ClusterHub)
+		require.NoError(t, err)
+		assert.Len(t, names, 3)
+	})
+
+	t.Run("Push reaches every server with code 200 and Lookup returns the pushed claims", func(t *testing.T) {
+		pushJWT := accountJWT(t, chain.opKp, accountPub, "TESTACC", func(c *jwt.AccountClaims) {
+			c.Exports = jwt.Exports{{Subject: "svc.>", Type: jwt.Service}}
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		replies, err := adapter.Push(ctx, ports.ClusterHub, pushJWT, 3)
+		require.NoError(t, err)
+		require.Len(t, replies, 3)
+		for _, r := range replies {
+			assert.Equal(t, 200, r.Code, "reply from %s: %s", r.Server, r.Message)
+			assert.NotEmpty(t, r.Server)
+		}
+
+		live, err := adapter.Lookup(ctx, ports.ClusterHub, accountPub)
+		require.NoError(t, err)
+		decoded, err := jwt.DecodeAccountClaims(live)
+		require.NoError(t, err)
+		assert.Len(t, decoded.Exports, 1, "Lookup returns the pushed export")
+	})
 }

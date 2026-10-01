@@ -4,9 +4,9 @@
 package apply
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -83,9 +83,7 @@ func TestLint(t *testing.T) {
 			for _, f := range lint(objs) {
 				got = append(got, refString(f.Object))
 			}
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("findings = %q, want %q", got, tc.want)
-			}
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

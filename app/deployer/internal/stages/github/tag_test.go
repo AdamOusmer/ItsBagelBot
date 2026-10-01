@@ -4,8 +4,10 @@
 package github
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -57,9 +59,7 @@ func TestTagStage(t *testing.T) {
 			}
 			done, err := f.runStage(t, deploy.StageTag)
 			res := tagResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, TagAt: f.sink.View().Outputs.TagSHA}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
-			}
+			assert.Equal(t, tc.want, res)
 		})
 	}
 }
@@ -77,9 +77,7 @@ func TestReleaseStage(t *testing.T) {
 	entry.Highlights["en"] = []string{"First.", "Second <b> & more."}
 	entry.Date = "2026-09-23"
 	body, err := newChangelogFile(testConfig(), "v0.2.3-beta", entry).render()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	const url = "https://github.test/releases/tag/v0.2.3-beta"
 	cases := []struct {
 		name     string
@@ -106,9 +104,7 @@ func TestReleaseStage(t *testing.T) {
 			}
 			done, err := f.runStage(t, deploy.StageRelease)
 			res := releaseResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Notes: f.gh.notes["v0.2.3-beta"], URL: f.sink.View().Outputs.ReleaseURL}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
-			}
+			assert.Equal(t, tc.want, res)
 		})
 	}
 }

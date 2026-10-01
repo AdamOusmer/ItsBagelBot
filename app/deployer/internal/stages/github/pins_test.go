@@ -4,14 +4,15 @@
 package github
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -40,9 +41,7 @@ func TestParsePinsGolden(t *testing.T) {
 func TestRewritePinsGolden(t *testing.T) {
 	files := loadManifests(t)
 	changed, err := RewritePins(files, testRepo, goldenPins(ParsePins(files, testRepo)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var b strings.Builder
 	for _, p := range sortedPaths(changed) {
 		lineDiff(&b, p, files[p], changed[p])
@@ -67,18 +66,12 @@ func assertGolden(t *testing.T, name, got string) {
 	t.Helper()
 	path := filepath.Join("testdata", name)
 	if *writeGolden {
-		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
 		return
 	}
 	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("%v (regenerate with -github.write-golden)", err)
-	}
-	if got != string(want) {
-		t.Errorf("%s differs from the output; if the change is intended, regenerate with -github.write-golden and review the diff\ngot:\n%s", name, got)
-	}
+	require.NoError(t, err, "regenerate with -github.write-golden")
+	assert.Equal(t, string(want), got, "%s differs from the output; if the change is intended, regenerate with -github.write-golden and review the diff", name)
 }
 
 func TestRewritePinsProperties(t *testing.T) {
@@ -86,21 +79,16 @@ func TestRewritePinsProperties(t *testing.T) {
 	lines := ParsePins(files, testRepo)
 	pins := goldenPins(lines)
 	changed, err := RewritePins(files, testRepo, pins)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	after := overlay(files, changed)
 	again, err := RewritePins(after, testRepo, pins)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	readBack := pinsByImage(ParsePins(after, testRepo))
 	delete(readBack, "warp")
-	got := rewriteFacts{Files: len(changed), Again: len(again), Pins: readBack, Untouched: changed["deploy/k8s/priorityclasses.yaml"] == nil}
-	want := rewriteFacts{Files: 15, Again: 0, Pins: pins, Untouched: true}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("rewrite facts = %+v, want %+v", got, want)
-	}
+
+	assert.Equal(t,
+		rewriteFacts{Files: 15, Again: 0, Pins: pins, Untouched: true},
+		rewriteFacts{Files: len(changed), Again: len(again), Pins: readBack, Untouched: changed["deploy/k8s/priorityclasses.yaml"] == nil})
 }
 
 type rewriteFacts struct {
@@ -127,9 +115,7 @@ func TestRewritePinsRefusesMalformedPins(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := RewritePins(files, testRepo, map[deploy.ImageName]deploy.ImagePin{"users": tc.pin})
-			if !errors.Is(err, ports.ErrInvalid) {
-				t.Errorf("err = %v, want ErrInvalid", err)
-			}
+			assert.ErrorIs(t, err, ports.ErrInvalid)
 		})
 	}
 }
@@ -154,9 +140,7 @@ func TestParsePinsLineShapes(t *testing.T) {
 		{File: "deploy/k8s/web.yaml", Line: 6, Image: "web", Pin: deploy.ImagePin{Tag: "v1", Digest: deploy.Digest(d)}, Kind: "Deployment", Workload: "web"},
 		{File: "deploy/k8s/web.yaml", Line: 7, Image: "web-sidecar", Pin: deploy.ImagePin{Tag: "v1", Digest: deploy.Digest(d)}, Kind: "Deployment", Workload: "web"},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("ParsePins =\n%+v\nwant\n%+v", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestServicesForManifests(t *testing.T) {
@@ -177,9 +161,7 @@ func TestServicesForManifests(t *testing.T) {
 			if tc.images != nil {
 				images = pinSet(tc.images...)
 			}
-			if got := servicesFor(lines, images); !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("servicesFor = %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, servicesFor(lines, images))
 		})
 	}
 }
