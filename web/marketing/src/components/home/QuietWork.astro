@@ -34,12 +34,12 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 </span>
                 <span class="qw-song__req">
                     <span class="qw-song__cmd">!sr late night lo-fi</span>
-                    <span class="qw-song__ack">{t('quietWork.songAck')}</span>
+                    <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.songTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('quietWork.songDesc')}</Text>
-            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/song-requests', lang)} label={t('rail.learnMore')} />
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.songTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.songDesc')}</span></Text>
+            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/song-requests', lang)}><span class="qw__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
@@ -58,12 +58,12 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-govee__dot bb-layers">
                         {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                     </span>
-                    {t('quietWork.goveeReward')}
+                    <span class="qw-govee__redeem-text"><span data-fit>{t('quietWork.goveeReward')}</span></span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.goveeTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('quietWork.goveeDesc')}</Text>
-            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/govee', lang)} label={t('rail.learnMore')} />
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.goveeTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.goveeDesc')}</span></Text>
+            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/govee', lang)}><span class="qw__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
@@ -71,8 +71,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
                 <span class="qw-cmd__out">{t('quietWork.cmdOut')}</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.cmdTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('quietWork.cmdDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.cmdTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.cmdDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
@@ -81,19 +81,19 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 32%"></i><b class="qw-poll__pct">32%</b></span>
             </div>
             <Heading level={5} as="h3" variant="title" class="qw__title">
-                {t('quietWork.pollTitle')}
-                <Badge tone="incoming" mark="plus">{t('badge.incoming')}</Badge>
+                <span class="qw__title-text"><span data-fit="block">{t('quietWork.pollTitle')}</span></span>
+                <Badge tone="incoming" mark="plus" class="qw__badge"><span class="qw__badge-label"><span data-fit>{t('badge.incoming')}</span></span></Badge>
             </Heading>
-            <Text size="sm" tone="muted">{t('quietWork.pollDesc')}</Text>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.pollDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
-                <span class="qw-win__label">{t('quietWork.winLabel')}</span>
+                <span class="qw-win__label"><span data-fit>{t('quietWork.winLabel')}</span></span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.winTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('quietWork.winDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.winTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.winDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
@@ -107,14 +107,16 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     </span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.beatTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('quietWork.beatDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.beatTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.beatDesc')}</span></Text>
         </Card>
     </div>
 </Section>
 
 <style>
     .qw {
+        --section-heading-lines: 2;
+        --section-heading-lines-phone: 3;
         position: relative;
         padding-inline: 24px;
         max-width: var(--bb-content-max);
@@ -141,6 +143,10 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
     .qw__card--full { grid-column: 1 / -1; }
 
+    @media (min-width: 720px) {
+        .qw__card--full { --qw-title-lines: 1; --qw-desc-lines: 2; }
+    }
+
     .qw__title {
         display: flex;
         flex-direction: column;
@@ -149,7 +155,31 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         margin: 0 0 8px;
     }
 
+    .qw__title-text {
+        display: block;
+        align-self: stretch;
+        height: calc(var(--qw-title-lines, 2) * 1lh);
+    }
+
+    .qw__desc {
+        height: calc(var(--qw-desc-lines, 3) * 1lh);
+    }
+
+    .qw__badge {
+        width: 180px;
+    }
+
+    .qw__badge-label {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
     .qw__more { margin-top: 14px; align-self: flex-start; }
+
+    .qw__more-box {
+        display: block;
+        width: 136px;
+    }
 
     .qw__demo {
         display: flex;
@@ -269,9 +299,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     .qw-song__ack {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        display: block;
+        width: 100px;
         font-size: 0.68rem;
         color: var(--bb-green-glow);
         opacity: 0;
@@ -331,9 +360,15 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        width: min(280px, calc(100% - 60px));
         color: var(--bb-muted);
         opacity: 0;
         animation: qwGoveeRedeem 9s ease-in-out infinite;
+    }
+
+    .qw-govee__redeem-text {
+        flex: 1 1 0;
+        min-width: 0;
     }
 
     .qw-govee__dot {
@@ -464,6 +499,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     .qw__demo--win { align-items: flex-start; gap: 4px; }
 
     .qw-win__label {
+        align-self: stretch;
         font-size: 0.62rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;

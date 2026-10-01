@@ -50,7 +50,7 @@ const tocItems = sections.map((section) => ({
                 return (
                     <div class="lshell__block" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                         <Heading level={4} as="h2" class="lshell__heading">{section.heading}</Heading>
-                        <AlertBanner tone="success" role="note" class="lshell__plain" variant="callout"><Tag tone="live" bare class="lshell__plain-tag">{labels.plain}</Tag>{section.plain}</AlertBanner>
+                        <AlertBanner tone="success" role="note" class="lshell__plain" variant="callout"><Tag tone="live" bare class="lshell__plain-tag"><span data-fit>{labels.plain}</span></Tag>{section.plain}</AlertBanner>
                         <Content />
                     </div>
                 );
@@ -105,7 +105,11 @@ const tocItems = sections.map((section) => ({
 
     .lshell__plain { margin: 0 0 16px; }
 
-    .lshell__plain-tag { margin-right: 8px; }
+    .lshell__plain-tag {
+        display: flex;
+        width: min(12rem, 100%);
+        margin-bottom: 6px;
+    }
 
     .lshell__block:first-of-type .lshell__heading { margin-top: 0; }
 

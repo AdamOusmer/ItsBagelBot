@@ -6,6 +6,7 @@ import { SITE } from '@bagel/kit/site-links';
 import { docsI18n, docsLocaleOptions } from '../i18n/ui';
 
 import Nav from '@bagel/ui/astro/Nav.astro';
+import '@bagel/ui/styles/elements/fit.css';
 import Search from '@astrojs/starlight/components/Search.astro';
 import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
 
@@ -37,3 +38,24 @@ const isActive = (href: string) => path === href || path.startsWith(href);
     <ThemeSelect />
   </Fragment>
 </Nav>
+
+<script>
+  import { mountTextFit } from '@bagel/ui/lib/text-fit';
+
+  let disposeTextFit: (() => void) | null = null;
+
+  function teardownTextFit() {
+    disposeTextFit?.();
+    disposeTextFit = null;
+  }
+
+  function setupTextFit() {
+    teardownTextFit();
+    disposeTextFit = mountTextFit(document);
+  }
+
+  setupTextFit();
+  document.addEventListener('astro:page-load', setupTextFit);
+  document.addEventListener('astro:before-swap', teardownTextFit);
+  window.addEventListener('pagehide', teardownTextFit);
+</script>

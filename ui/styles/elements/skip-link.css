@@ -10,7 +10,10 @@
     top: var(--bb-space-3);
     z-index: var(--bb-z-skip);
     transform: translateY(-72px);
+    width: 208px;
     padding: 10px var(--bb-space-4);
+    text-align: center;
+    white-space: nowrap;
     border: 1px solid var(--bb-tan);
     border-radius: var(--bb-radius-sm);
     background: var(--bb-card-bg);

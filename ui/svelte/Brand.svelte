@@ -12,6 +12,7 @@
     logoAlt?: string;
     size?: 'sm' | 'md' | 'lg';
     logoShape?: 'square' | 'circle';
+    fit?: boolean;
     class?: string;
   };
 
@@ -23,6 +24,7 @@
     logoAlt = '',
     size = 'md',
     logoShape = 'square',
+    fit = false,
     class: className = '',
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
@@ -40,7 +42,7 @@
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"
       ><span class="bb-brand__name">{title}</span>{#if sub}<span
-          class="bb-brand__sub">{sub}</span
+          class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span
         >{/if}</span
     ></a
   >
@@ -50,7 +52,7 @@
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"
       ><span class="bb-brand__name">{title}</span>{#if sub}<span
-          class="bb-brand__sub">{sub}</span
+          class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span
         >{/if}</span
     ></div
   >

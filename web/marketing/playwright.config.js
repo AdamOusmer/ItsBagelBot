@@ -12,7 +12,8 @@ export default defineConfig({
     use: {
         baseURL: 'http://localhost:4399',
     },
-    webServer: {
+    // LOCALE_LAYOUT_BASE points the specs at a server that is already running, so none is started here.
+    webServer: process.env.LOCALE_LAYOUT_BASE ? undefined : {
         command: 'bun --bun astro preview --port 4399 --ignore-lock',
         url: 'http://localhost:4399',
         reuseExistingServer: false,

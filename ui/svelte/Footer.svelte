@@ -36,8 +36,8 @@
 
 {#if colophon}{@render colophon()}{/if}<footer class={classes} {...rest}
   >{#if signoff}<div class="bb-footer__signoff" data-reveal
-      ><p class="bb-footer__signoff-line">{signoff.line}</p>{#if signoff.sub}<p
-          class="bb-footer__signoff-sub">{signoff.sub}</p
+      ><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{#if signoff.sub}<p
+          class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p
         >{/if}</div
     >{/if}<div class="bb-footer__top"
     ><Brand
@@ -48,29 +48,32 @@
       logoSrc={brand.logoSrc}
       logoAlt={brand.logoAlt}
       size="lg"
+      fit
       data-reveal
     /><div class="bb-footer__cols"
       >{#each columns as column, i (column.title)}<div
           class="bb-footer__col"
           data-reveal
           style="--reveal-i: {i + 1}"
-          ><p class="bb-footer__col-title">{column.title}</p>{#each column.links as link (link.href)}<NavLink
+          ><p class="bb-footer__col-title"><span data-fit>{column.title}</span></p>{#each column.links as link (link.href)}<NavLink
               href={link.href}
               label={link.label}
               current={link.current}
               external={link.external}
+              fit
             />{/each}</div
         >{/each}</div
     ></div
   ><div class="bb-footer__bottom"
-    ><span class="bb-footer__copy">{copyright}</span><span class="bb-footer__note"
-      >{note}</span
+    ><span class="bb-footer__copy"><span data-fit>{copyright}</span></span><span class="bb-footer__note"
+      >{#if note}<span data-fit="block">{note}</span>{/if}</span
     ><div class="bb-footer__legal"
       >{#each legal as link (link.href)}<NavLink
           href={link.href}
           label={link.label}
           current={link.current}
           external={link.external}
+          fit
         />{/each}</div
     ></div
   ></footer

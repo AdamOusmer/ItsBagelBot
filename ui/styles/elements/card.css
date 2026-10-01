@@ -96,6 +96,8 @@
     position: absolute;
     top: 12px;
     right: 16px;
+    left: 16px;
+    text-align: right;
     z-index: 1;
     font-family: var(--bb-font-mono);
     font-size: 0.7rem;

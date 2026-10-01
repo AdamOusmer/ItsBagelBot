@@ -48,7 +48,7 @@ const {
 } = Astro.props;
 ---
 
-<PageHero eyebrow={eyebrow} title={title} description={lead} />
+<PageHero eyebrow={eyebrow} title={title} description={lead} style="--page-hero-title-lines: 3" />
 
 <Section class="flhow">
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
@@ -57,8 +57,8 @@ const {
             <li>
                 <Card atmo hover class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
                     <Eyebrow aria-hidden="true">{String(i + 1).padStart(2, '0')}</Eyebrow>
-                    <Heading level={5} as="h3" class="flhow__title">{step.title}</Heading>
-                    <Text size="sm" tone="muted">{step.desc}</Text>
+                    <Heading level={5} as="h3" class="flhow__title"><span data-fit="block">{step.title}</span></Heading>
+                    <Text size="sm" tone="muted" class="flhow__desc"><span data-fit="block">{step.desc}</span></Text>
                 </Card>
             </li>
         ))}
@@ -70,12 +70,12 @@ const {
     <dl class="fllist__list">
         {listItems.map((item, i) => (
             <div class="fllist__row" data-reveal style={`--reveal-i: ${i}`}>
-                <Text as="dt" size="sm" mono tone="accent" class="fllist__name">{item.name}</Text>
-                <Text as="dd" size="sm" tone="muted">{item.desc}</Text>
+                <Text as="dt" size="sm" mono tone="accent" class="fllist__name"><span data-fit>{item.name}</span></Text>
+                <Text as="dd" size="sm" tone="muted" class="fllist__desc"><span data-fit="block">{item.desc}</span></Text>
             </div>
         ))}
     </dl>
-    {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal>{listNote}</Text>}
+    {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal><span data-fit="block">{listNote}</span></Text>}
 </Section>
 
 <Faq eyebrow={faqEyebrow} title={faqTitle} items={faqItems} />
@@ -83,10 +83,10 @@ const {
 <Section class="flcta">
     <SectionHeading title={ctaTitle} class="flcta__title" />
     <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
-        <ButtonLink href={ctaPrimary.href}>{ctaPrimary.label}</ButtonLink>
-        {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href}>{ctaSecondary.label}</ButtonLink>}
+        <ButtonLink href={ctaPrimary.href} class="flcta__btn"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
+        {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><span data-fit>{ctaSecondary.label}</span></ButtonLink>}
     </Cluster>
-    {legal && <Text size="xs" mono tone="muted" class="flcta__legal">{legal}</Text>}
+    {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><span data-fit="block">{legal}</span></Text>}
 </Section>
 
 <style>
@@ -102,7 +102,12 @@ const {
 
     .flhow__card { height: 100%; }
 
-    .flhow__title { margin: 10px 0 8px; }
+    .flhow__title {
+        height: calc(2 * 1lh);
+        margin: 10px 0 8px;
+    }
+
+    .flhow__desc { height: calc(5 * 1lh); }
 
     .fllist__list {
         max-width: var(--bb-content-hero);
@@ -118,12 +123,19 @@ const {
     }
 
     .fllist__name {
-        flex-shrink: 0;
-        min-width: 13ch;
+        flex: 0 0 24ch;
+        min-width: 0;
+    }
+
+    .fllist__desc {
+        flex: 1 1 0;
+        min-width: 0;
+        height: calc(2 * 1lh);
     }
 
     .fllist__note {
         max-width: var(--bb-content-hero);
+        height: calc(2 * 1lh);
         margin: 20px auto 0;
         text-align: center;
     }
@@ -133,11 +145,18 @@ const {
         text-align: center;
     }
 
-    .flcta__title { margin-bottom: 24px; }
+    .flcta__title {
+        --section-heading-lines: 2;
+        --section-heading-lines-phone: 4;
+        margin-bottom: 24px;
+    }
+
+    .flcta__btn { --btn-w: 18rem; --btn-justify: safe center; }
 
     .flcta__actions { --reveal-i: 2; }
 
     .flcta__legal {
+        height: calc(2 * 1lh);
         margin: 32px auto 0;
         opacity: 0.75;
     }
@@ -145,5 +164,20 @@ const {
     @media (max-width: 860px) {
         .flhow,
         .fllist { padding-inline: var(--bb-space-5); }
+    }
+
+    @media (max-width: 640px) {
+        .fllist__row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+        }
+
+        .fllist__name { flex-basis: auto; }
+
+        .fllist__desc {
+            flex-basis: auto;
+            height: calc(3 * 1lh);
+        }
     }
 </style>

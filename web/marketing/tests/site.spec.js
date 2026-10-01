@@ -310,7 +310,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
         await page.waitForFunction(() => {
-            const title = document.querySelector('.bb-page-hero__title');
+            const title = document.querySelector('.bb-page-hero__title [data-decode]');
             return Boolean(
                 title &&
                 title.dataset.decode &&

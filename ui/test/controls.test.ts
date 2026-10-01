@@ -304,9 +304,9 @@ contract({
   },
   html:
     '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source">' +
-    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all">All<span class="bb-tab__count">12</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain">Plain</button></div>',
+    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all"><span data-fit>All</span><span class="bb-tab__count">12</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod"><span data-fit>Modules</span><span class="bb-tab__count">0</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain"><span data-fit>Plain</span></button></div>',
 });
 
 describe('SwitchRow', () => {
@@ -377,7 +377,7 @@ describe('LanguageSwitcher', () => {
     props: { label: 'Language', action: '/lang', name: 'to', fields: { next: '/x' }, options, menuId: 'lang' },
     html:
       '<form method="POST" action="/lang" class="bb-lang-switch" data-bb-lang-switch><input type="hidden" name="next" value="/x">' +
-      '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label">EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
+      '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label" data-fit>EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
       '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">' +
       '<li><button type="submit" name="to" value="en" class="bb-lang-switch__opt is-active" aria-pressed="true"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="en">English</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
       '<li><button type="submit" name="to" value="fr" class="bb-lang-switch__opt" aria-pressed="false"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="fr">FR</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
@@ -388,7 +388,7 @@ describe('LanguageSwitcher', () => {
     const html = svelteHtml(SvelteLanguageSwitcher, { label: 'Language', options, onSelect: () => {}, menuId: 'lang' });
     expect(html).toBe(
       '<div class="bb-lang-switch" data-bb-lang-switch>' +
-        '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label">EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
+        '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label" data-fit>EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
         '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">' +
         '<li><button type="button" class="bb-lang-switch__opt is-active" aria-pressed="true"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="en">English</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +
         '<li><button type="button" class="bb-lang-switch__opt" aria-pressed="false"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="fr">FR</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></button></li>' +

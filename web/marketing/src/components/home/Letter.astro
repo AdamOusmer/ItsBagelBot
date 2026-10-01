@@ -13,29 +13,23 @@ const t = useTranslations(lang);
     <div class="letter__paper" data-reveal>
         <Text as="div" size="xs" mono tone="muted" class="letter__meta">
             <span>notes.txt</span>
-            <span>{t('letter.meta2')}</span>
+            <span class="letter__meta2"><span data-fit>{t('letter.meta2')}</span></span>
         </Text>
 
-        <Text class="letter__line">
-            {t('letter.line1')}
-        </Text>
+        <Text class="letter__line letter__line--1"><span data-fit="block" data-fit-group="letter">{t('letter.line1')}</span></Text>
 
-        <Text class="letter__line">
-            {t('letter.line2')}
-        </Text>
+        <Text class="letter__line letter__line--2"><span data-fit="block" data-fit-group="letter">{t('letter.line2')}</span></Text>
 
-        <Text class="letter__line">
-            {t('letter.line3')}
-        </Text>
+        <Text class="letter__line letter__line--3"><span data-fit="block" data-fit-group="letter">{t('letter.line3')}</span></Text>
 
         <div class="letter__sign">
-            <span class="letter__signature">{t('letter.signature')}</span>
+            <span class="letter__signature"><span class="letter__signature-text" data-fit>{t('letter.signature')}</span></span>
             <button type="button" class="letter__stamp" data-letter-stamp aria-label={t('letter.stampAria')}>
                 🥯
             </button>
         </div>
 
-        <Text as="span" size="xs" mono tone="muted" class="letter__ps">{t('letter.ps')}</Text>
+        <Text as="span" size="xs" mono tone="muted" class="letter__ps"><span data-fit>{t('letter.ps')}</span></Text>
     </div>
 </section>
 
@@ -101,7 +95,13 @@ const t = useTranslations(lang);
         margin-bottom: 26px;
     }
 
+    .letter__meta2 {
+        width: 120px;
+        text-align: right;
+    }
+
     .letter__line {
+        height: calc(var(--letter-lines, 4) * 1lh);
         line-height: 1.8;
         color: rgba(var(--bb-white-rgb), 0.82);
         margin: 0 0 20px;
@@ -116,7 +116,8 @@ const t = useTranslations(lang);
     }
 
     .letter__signature {
-        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
         font-family: var(--bb-font-hand);
         font-size: clamp(1.5rem, 3.4vw, 1.9rem);
         font-weight: 600;
@@ -124,7 +125,11 @@ const t = useTranslations(lang);
         line-height: 1;
     }
 
-    .letter__signature::after {
+    .letter__signature-text {
+        position: relative;
+    }
+
+    .letter__signature-text::after {
         content: "";
         position: absolute;
         left: 0;
@@ -138,7 +143,7 @@ const t = useTranslations(lang);
         transition: transform 900ms var(--bb-ease-out-expo) 600ms;
     }
 
-    .letter__paper.is-revealed .letter__signature::after {
+    .letter__paper.is-revealed .letter__signature-text::after {
         transform: scaleX(1);
     }
 
@@ -184,9 +189,15 @@ const t = useTranslations(lang);
         opacity: 0.7;
     }
 
+    @media (max-width: 600px) {
+        .letter__line--1 { --letter-lines: 6; }
+        .letter__line--2,
+        .letter__line--3 { --letter-lines: 5; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .letter__paper { rotate: 0deg; transition: none; }
-        .letter__signature::after { transform: scaleX(1); transition: none; }
+        .letter__signature-text::after { transform: scaleX(1); transition: none; }
         .letter__stamp { transition: none; }
         .letter__stamp.is-stamped { animation: none; }
     }

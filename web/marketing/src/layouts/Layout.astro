@@ -5,6 +5,7 @@
 import { SITE } from '@bagel/kit/site-links';
 
 import '../styles/style.css';
+import '@bagel/ui/styles/elements/fit.css';
 import '../lib/contentGuards';
 
 import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
@@ -294,8 +295,8 @@ const contentSecurityPolicy = [
     >
         {isHome && <section class="colophon" slot="colophon">
             <div class="colophon__owner" id="about">
-                <Text size="xs" class="colophon__line">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</Text>
-                <Text>{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</Text>
+                <Text size="xs" class="colophon__line"><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></Text>
+                <Text class="colophon__key"><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></Text>
             </div>
         </section>}
     </Footer>
@@ -309,6 +310,27 @@ const contentSecurityPolicy = [
         import '../script/interactions.js';
         import '../script/decode.js';
         import '../script/easter-egg';
+    </script>
+
+    <script>
+        import { mountTextFit } from '@bagel/ui/lib/text-fit';
+
+        let disposeTextFit: (() => void) | null = null;
+
+        function teardownTextFit() {
+            disposeTextFit?.();
+            disposeTextFit = null;
+        }
+
+        function setupTextFit() {
+            teardownTextFit();
+            disposeTextFit = mountTextFit(document);
+        }
+
+        setupTextFit();
+        document.addEventListener('astro:page-load', setupTextFit);
+        document.addEventListener('astro:before-swap', teardownTextFit);
+        window.addEventListener('pagehide', teardownTextFit);
     </script>
 
 </body>
@@ -334,6 +356,17 @@ const contentSecurityPolicy = [
     }
 
     .colophon__line {
+        height: calc(var(--colophon-lines, 1) * 1lh);
         margin: 0 0 var(--bb-space-2);
+    }
+
+    .colophon__key {
+        height: calc(var(--colophon-lines, 1) * 1lh);
+    }
+
+    @media (max-width: 640px) {
+        .colophon__owner {
+            --colophon-lines: 2;
+        }
     }
 </style>

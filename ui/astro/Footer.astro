@@ -32,10 +32,10 @@ const {
 const classes = ['bb-footer', className || null].filter(Boolean).join(' ');
 ---
 
-<slot name="colophon" /><footer class={classes} {...rest}>{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line">{signoff.line}</p>{signoff.sub && <p class="bb-footer__signoff-sub">{signoff.sub}</p>}</div>}<div class="bb-footer__top"><Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" data-reveal /><div class="bb-footer__cols">{columns.map((column, i) => (
-  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><p class="bb-footer__col-title">{column.title}</p>{column.links.map((link) => (
-    <NavLink href={link.href} label={link.label} current={link.current} external={link.external} />
+<slot name="colophon" /><footer class={classes} {...rest}>{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__top"><Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" fit data-reveal /><div class="bb-footer__cols">{columns.map((column, i) => (
+  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><p class="bb-footer__col-title"><span data-fit>{column.title}</span></p>{column.links.map((link) => (
+    <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit />
   ))}</div>
-))}</div></div><div class="bb-footer__bottom"><span class="bb-footer__copy">{copyright}</span><span class="bb-footer__note">{note}</span><div class="bb-footer__legal">{legal.map((link) => (
-  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} />
+))}</div></div><div class="bb-footer__bottom"><span class="bb-footer__copy"><span data-fit>{copyright}</span></span><span class="bb-footer__note">{note && <span data-fit="block">{note}</span>}</span><div class="bb-footer__legal">{legal.map((link) => (
+  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit />
 ))}</div></div></footer>

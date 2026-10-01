@@ -145,6 +145,11 @@
 
   .bb-alert__msg {
     flex: 1;
+    min-width: 0;
+  }
+
+  .bb-alert--callout .bb-alert__msg {
+    display: block;
   }
 
   @media (max-width: 560px) {
