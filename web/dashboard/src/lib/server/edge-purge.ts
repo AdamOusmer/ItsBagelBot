@@ -17,7 +17,7 @@ const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
 const pending = new Set<string>();
 
-export async function purgeEdge(urls: string[]): Promise<boolean> {
+async function purgeRequest(body: Record<string, unknown>): Promise<boolean> {
   if (DEMO) return true;
 
   const zoneId = env.CF_ZONE_ID;
@@ -33,7 +33,7 @@ export async function purgeEdge(urls: string[]): Promise<boolean> {
         authorization: `Bearer ${token}`,
         'content-type': 'application/json'
       },
-      body: JSON.stringify({ files: urls }),
+      body: JSON.stringify(body),
       signal: controller.signal
     });
     return res.ok;
@@ -42,6 +42,14 @@ export async function purgeEdge(urls: string[]): Promise<boolean> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function purgeEdge(urls: string[]): Promise<boolean> {
+  return purgeRequest({ files: urls });
+}
+
+export async function purgeEdgeByTag(tag: string): Promise<boolean> {
+  return purgeRequest({ tags: [tag] });
 }
 
 export function channelPageUrls(login: string): string[] {

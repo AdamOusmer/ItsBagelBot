@@ -20,7 +20,7 @@ mock.module('./services', () => ({
   }
 }));
 
-const { purgeEdge, schedulePurgeChannel, channelPageUrls } = await import('./edge-purge');
+const { purgeEdge, purgeEdgeByTag, schedulePurgeChannel, channelPageUrls } = await import('./edge-purge');
 
 const originalFetch = global.fetch;
 
@@ -64,6 +64,44 @@ describe('purgeEdge', () => {
 
     expect(await purgeEdge(['https://commands.itsbagelbot.com/user/foo'])).toBe(false);
   }, 6000);
+});
+
+describe('purgeEdgeByTag', () => {
+  beforeEach(() => {
+    setEnv({ CF_ZONE_ID: 'zone1', CF_CACHE_PURGE_TOKEN: 'token1' });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  test('unset zone/token returns false without a network call', async () => {
+    setEnv({});
+    const fetchSpy = mock(() => Promise.resolve(new Response(null, { status: 200 })));
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    expect(await purgeEdgeByTag('dashboard-edge-shell')).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('sends the tag purge request with the zone URL, bearer auth, and a tags body', async () => {
+    const fetchSpy = mock((url: string, opts: { headers: Record<string, string>; body: string }) => {
+      expect(url).toBe('https://api.cloudflare.com/client/v4/zones/zone1/purge_cache');
+      expect(opts.headers.authorization).toBe('Bearer token1');
+      expect(JSON.parse(opts.body)).toEqual({ tags: ['dashboard-edge-shell'] });
+      return Promise.resolve(new Response(null, { status: 200 }));
+    });
+    global.fetch = fetchSpy as unknown as typeof fetch;
+
+    expect(await purgeEdgeByTag('dashboard-edge-shell')).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('a non-2xx reply returns false', async () => {
+    global.fetch = mock(() => Promise.resolve(new Response(null, { status: 500 }))) as unknown as typeof fetch;
+
+    expect(await purgeEdgeByTag('dashboard-edge-shell')).toBe(false);
+  });
 });
 
 describe('schedulePurgeChannel', () => {
