@@ -42,13 +42,13 @@ func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) p
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Error: "bad request"}
 	}
 
-	live, known, err := l.store.GetStreamLive(ctx, id)
+	state, err := l.store.GetStreamLive(ctx, id)
 	if err != nil {
 		log.Warn("live rpc: store read failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: false, Known: false}
 	}
-	if known {
-		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: live, Known: true}
+	if state.Known {
+		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: state.Live, Known: true, Version: state.Version}
 	}
 
 	l.escalate(ctx, req.BroadcasterID)

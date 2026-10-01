@@ -210,3 +210,23 @@ func TestNewerOnlineAfterOfflineStartsCleanSession(t *testing.T) {
 	assert.Equal(t, []string{"clear:1000", "disarm", "set:5000", "greets", "arm"}, got)
 	assert.True(t, fx.live.isLive)
 }
+
+func TestStaleOfflineLosingToNewerOnlineIsIgnored(t *testing.T) {
+	fx := newLiveFixture()
+
+	runLifecycle(t, fx.m, "stream.online", "1970-01-01T00:00:02Z")
+	waitForLog(t, fx.log, 3)
+	fx.log.reset()
+
+	runLifecycle(t, fx.m, "stream.offline", "1970-01-01T00:00:01Z")
+
+	assert.Eventually(t, func() bool {
+		fx.live.mu.Lock()
+		defer fx.live.mu.Unlock()
+		return len(fx.live.clearCalls) == 1
+	}, time.Second, time.Millisecond, "stale offline never reached the store")
+
+	assert.Never(t, func() bool { return len(fx.log.snapshot()) > 0 }, 200*time.Millisecond, 5*time.Millisecond,
+		"a superseded offline must not disarm a live stream's timers")
+	assert.True(t, fx.live.isLive)
+}
