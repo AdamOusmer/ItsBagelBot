@@ -30,7 +30,7 @@
     display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .bb-profile-rail__who { line-height: 1.2; min-width: 0; flex: 1; display: block; }
   .bb-profile-rail__who b { font-size: 13px; font-weight: 600; color: var(--bb-white); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bb-profile-rail__who span { display: block; font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--bb-tan); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bb-profile-rail__who span { font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--bb-tan); }
 
   .bb-profile-rail__chev { flex: none; display: flex; color: var(--bb-muted); }
   .bb-profile-rail__chev svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-90deg); transition: transform var(--bb-dur-base) var(--bb-ease-out-expo); }
@@ -128,7 +128,7 @@
   }
   .bb-profile-topbar__op-id { display: none; flex-direction: column; line-height: 1; text-align: left; }
   .bb-profile-topbar__op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bb-profile-topbar__op-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.02em; color: var(--bb-tan); margin-top: 3px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bb-profile-topbar__op-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.02em; color: var(--bb-tan); margin-top: 3px; }
 
   .bb-profile-topbar__op-menu {
     position: absolute;

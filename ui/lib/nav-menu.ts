@@ -15,6 +15,7 @@ export interface TopDownMenuOptions {
   initialHeight?: number;
   initialOffset?: number;
   offsetStep?: number;
+  breakpoint?: string;
   labels?: { open: string; close: string };
 }
 
@@ -23,6 +24,7 @@ const DEFAULTS = {
   initialHeight: 96,
   initialOffset: -34,
   offsetStep: -8,
+  breakpoint: '(max-width: 1023px)',
 } as const;
 
 const PANEL_EASE = bezier(0.33, 1, 0.68, 1);
@@ -70,6 +72,7 @@ export function mountTopDownMenu(
 ): () => void {
   const { toggle, menu, curvePath } = elements;
   const config = { ...DEFAULTS, ...options };
+  const compact = window.matchMedia(config.breakpoint);
   const items = Array.from(menu.querySelectorAll<HTMLElement>(ITEM_SELECTOR));
 
   let stops: (() => void)[] = [];
@@ -139,7 +142,7 @@ export function mountTopDownMenu(
   };
 
   const setOpen = (next: boolean, animated = true) => {
-    const target = next && toggle.getClientRects().length > 0;
+    const target = next && compact.matches;
     if (target === open && animated) return;
 
     stopAll();
@@ -164,10 +167,9 @@ export function mountTopDownMenu(
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && open) setOpen(false);
   };
-  const onToggleBox = () => {
-    if (open && toggle.getClientRects().length === 0) setOpen(false, false);
+  const onViewport = (event: MediaQueryListEvent) => {
+    if (!event.matches) setOpen(false, false);
   };
-  const toggleBox = new ResizeObserver(onToggleBox);
   const onResize = () => renderPath(menu, curvePath, open ? 1 : 0, config);
   const onPageHide = () => setOpen(false, false);
 
@@ -180,7 +182,7 @@ export function mountTopDownMenu(
   for (const link of links) link.addEventListener('click', onLink);
   menu.addEventListener('click', onScrim);
   document.addEventListener('keydown', onKey);
-  toggleBox.observe(toggle);
+  compact.addEventListener('change', onViewport);
   window.addEventListener('resize', onResize, { passive: true });
   window.addEventListener('pagehide', onPageHide);
 
@@ -190,7 +192,7 @@ export function mountTopDownMenu(
     for (const link of links) link.removeEventListener('click', onLink);
     menu.removeEventListener('click', onScrim);
     document.removeEventListener('keydown', onKey);
-    toggleBox.disconnect();
+    compact.removeEventListener('change', onViewport);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', onPageHide);
   };

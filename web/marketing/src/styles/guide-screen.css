@@ -21,12 +21,6 @@
     min-width: 0;
 }
 
-.dframe__account {
-    max-width: 100%;
-    white-space: normal;
-    line-height: 1.4;
-}
-
 .dframe__screen--panel {
     display: block;
     width: auto;

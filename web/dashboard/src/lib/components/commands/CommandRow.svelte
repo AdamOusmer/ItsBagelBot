@@ -267,7 +267,7 @@
     .aliases .more { display: none; }
     .resp { grid-area: resp; -webkit-line-clamp: 2; line-clamp: 2; }
     .m-perm { grid-area: perm; }
-    .m-uses { grid-area: uses; min-width: 130px; }
+    .m-uses { grid-area: uses; width: 130px; }
     .u-track { display: none; }
     .state { display: none; }
     .state-compact { display: inline-flex; }

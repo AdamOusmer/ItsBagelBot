@@ -10,7 +10,7 @@
         border-bottom: 1px solid var(--bb-border);
     }
 
-    .bb-tabs--wrap { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+    .bb-tabs--wrap { display: flex; flex-wrap: wrap; }
 
     @media (max-width: 760px) {
         .bb-tabs--wrap {
