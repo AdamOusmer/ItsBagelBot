@@ -293,6 +293,17 @@
     }
   }
 
+  @media (pointer: coarse) {
+    .bb-btn:not(.bb-btn--sm) {
+      --btn-min-h: 44px;
+    }
+
+    .bb-btn--icon:not(.bb-btn--sm) {
+      width: 44px;
+      height: 44px;
+    }
+  }
+
 }
 
 @keyframes bb-btn-spin {

@@ -175,6 +175,15 @@
     .bb-check__input:disabled + .bb-check__box { opacity: 0.55; }
     .bb-check:has(:disabled) { cursor: not-allowed; opacity: 0.55; }
 
+    @media (pointer: coarse) {
+        .bb-input select,
+        .bb-input textarea,
+        .bb-input.bb-input--mono :is(input, textarea),
+        .bb-check {
+            font-size: 16px;
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .bb-check__box,
         .bb-check__box::after { transition: none; }

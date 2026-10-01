@@ -168,6 +168,7 @@ const t = useTranslations(lang);
 
     header {
         height: 100vh;
+        height: 100svh;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -427,7 +428,8 @@ const t = useTranslations(lang);
 
     @media (max-width: 900px) {
         header {
-            padding: clamp(72px, 10vh, 92px) 24px 28px;
+            --hero-pad-top: clamp(72px, 10vh, 92px);
+            padding: var(--hero-pad-top) 24px calc(var(--hero-pad-top) + 20px);
         }
 
         .header-material {
@@ -484,13 +486,15 @@ const t = useTranslations(lang);
 
         .migrate {
             margin-top: 14px;
+            max-width: min(100%, 300px);
             text-wrap: balance;
         }
     }
 
     @media (max-width: 480px) {
         header {
-            padding: clamp(68px, 10vh, 84px) 18px 20px;
+            --hero-pad-top: clamp(68px, 10vh, 84px);
+            padding: var(--hero-pad-top) 18px calc(var(--hero-pad-top) + 20px);
         }
 
         .bg-ring {
@@ -613,7 +617,14 @@ const t = useTranslations(lang);
         }
     }
 
+    @media (min-width: 901px) and (max-width: 1180px) {
+        .split {
+            gap: 36px;
+        }
 
-
+        .split h1 {
+            font-size: clamp(2.7rem, min(5vw, 10vh), 4.6rem);
+        }
+    }
 
 </style>

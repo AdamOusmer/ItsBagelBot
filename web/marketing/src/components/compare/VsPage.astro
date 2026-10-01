@@ -31,6 +31,7 @@ const title = `ItsBagelBot vs ${competitor}`;
 ---
 
 <PageHero
+    class="vs-hero"
     eyebrow="Comparison"
     title={title}
     description={intro}
@@ -86,11 +87,20 @@ const title = `ItsBagelBot vs ${competitor}`;
     }
 
     .vs__table {
+        --tbl-head-size: var(--bb-text-xs);
+        --tbl-fade-bg: var(--bb-black);
+
         max-width: 900px;
         margin: 0 auto;
     }
 
     .vs__feature { white-space: nowrap; }
+
+    @media (max-width: 480px) {
+        :global(.vs-hero) {
+            --page-hero-title-size: 6.6vw;
+        }
+    }
 
     .vs__subtitle {
         text-align: center;
