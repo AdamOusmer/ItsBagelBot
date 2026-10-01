@@ -5,8 +5,12 @@ package rpc
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"syscall"
 	"testing"
 
 	"ItsBagelBot/pkg/codec"
@@ -32,6 +36,37 @@ func TestFailClassifies(t *testing.T) {
 	for name, tc := range cases {
 		if got := Fail(tc.err, rules...); got != tc.want {
 			t.Errorf("%s: Fail = %+v, want %+v", name, got, tc.want)
+		}
+	}
+}
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return false }
+
+func TestFailClassifiesConnectionErrors(t *testing.T) {
+	rules := []Rule{Is(io.ErrUnexpectedEOF, CodeConflict)}
+	cases := map[string]struct {
+		err   error
+		rules []Rule
+		want  Code
+	}{
+		"bad conn":         {driver.ErrBadConn, nil, CodeUnavailable},
+		"wrapped bad conn": {fmt.Errorf("query: %w", driver.ErrBadConn), nil, CodeUnavailable},
+		"unexpected eof":   {fmt.Errorf("read: %w", io.ErrUnexpectedEOF), nil, CodeUnavailable},
+		"conn reset":       {fmt.Errorf("read: %w", syscall.ECONNRESET), nil, CodeUnavailable},
+		"broken pipe":      {fmt.Errorf("write: %w", syscall.EPIPE), nil, CodeUnavailable},
+		"op error":         {fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: errors.New("refused")}), nil, CodeUnavailable},
+		"net timeout":      {fmt.Errorf("wait: %w", timeoutError{}), nil, CodeUnavailable},
+		"plain":            {errors.New("boom"), nil, CodeInternal},
+		"plain eof":        {io.EOF, nil, CodeInternal},
+		"rule wins":        {fmt.Errorf("read: %w", io.ErrUnexpectedEOF), rules, CodeConflict},
+	}
+	for name, tc := range cases {
+		if got := Fail(tc.err, tc.rules...).Code; got != tc.want {
+			t.Errorf("%s: code = %q, want %q", name, got, tc.want)
 		}
 	}
 }

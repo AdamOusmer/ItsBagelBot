@@ -89,6 +89,7 @@ func newMySQLConfig(cfg Config) *mysql.Config {
 	mc.InterpolateParams = true
 
 	mc.Timeout = dialTimeout
+	mc.DialFunc = newRetryDialer().DialContext
 	// Never remove: the NLB drops idle flows without a RST, so a query would block forever.
 	mc.ReadTimeout = readTimeout
 	mc.WriteTimeout = writeTimeout

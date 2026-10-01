@@ -39,6 +39,8 @@ const (
 type enrollment struct {
 	broadcasterID string
 	conduitID     string
+	// priorState must be read before this attempt's "pending" write clobbers it.
+	priorState string
 }
 
 func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message) error {
@@ -205,6 +207,7 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 		if w.skipFreshEnroll(ctx, e, "enable") || w.skipRevokedEnroll(ctx, e, "enable") {
 			return nil
 		}
+		e.priorState = w.priorSubState(ctx, e.broadcasterID)
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		err := retryTransient(ctx, func() error {
@@ -212,6 +215,7 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 		})
 		if err == nil {
 			w.recordEnrollSuccess(ctx, e)
+			w.recoverActiveFlag(ctx, e)
 			w.log.Info("eventsub subscriptions created", zap.String("broadcaster_id", e.broadcasterID))
 			w.seedLiveStatus(ctx, e.broadcasterID)
 			return nil
@@ -222,12 +226,26 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 	})
 }
 
+func (w *Worker) priorSubState(ctx context.Context, broadcasterID string) string {
+	ch, found, err := w.registry.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return ""
+	}
+	return ch.SubState
+}
+
+func (w *Worker) recoverActiveFlag(ctx context.Context, e enrollment) {
+	if blockedState(e.priorState) {
+		w.setChannelActive(ctx, e.broadcasterID, true)
+	}
+}
+
 func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op string, err error) {
 	switch {
 	case isChatBanned(err):
-		_ = w.blockChannel(ctx, e.broadcasterID, blockBanned.because(op+": "+err.Error()))
+		_ = w.blockChannelFrom(ctx, e.broadcasterID, blockBanned.because(op+": "+err.Error()), e.priorState)
 	case isAuthRevoked(err):
-		_ = w.blockChannel(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()))
+		_ = w.blockChannelFrom(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()), e.priorState)
 	default:
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error(op+": eventsubs not fully accepted, marked failing",
@@ -259,6 +277,7 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 		if w.skipFreshEnroll(ctx, e, "reconnect") || w.skipRevokedEnroll(ctx, e, "reconnect") {
 			return nil
 		}
+		e.priorState = w.priorSubState(ctx, e.broadcasterID)
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		if derr := w.disableEventSubs(ctx, e); derr != nil {
@@ -272,6 +291,7 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 		})
 		if err == nil {
 			w.recordEnrollSuccess(ctx, e)
+			w.recoverActiveFlag(ctx, e)
 			w.log.Info("reconnect: all eventsubs accepted",
 				zap.String("broadcaster_id", e.broadcasterID))
 			w.seedLiveStatus(ctx, e.broadcasterID)

@@ -5,9 +5,12 @@ package tokenstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -44,13 +47,35 @@ func (s *Store) Load(ctx context.Context) (Loaded, error) {
 		return Loaded{}, fmt.Errorf("tokens get rpc: %w", err)
 	}
 	if r.Error != "" {
-		return Loaded{}, fmt.Errorf("tokens get: %s", r.Error)
+		return Loaded{}, bus.RPCReplyError{Subject: s.prefix + ".get", Message: r.Error}
 	}
 	return Loaded{
 		AccessToken:          r.AccessToken,
 		AccessTokenExpiresAt: r.AccessTokenExpiresAt,
 		RefreshToken:         r.RefreshToken,
 	}, nil
+}
+
+func Unavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	var refused bus.RPCReplyError
+	if !errors.As(err, &refused) {
+		return true
+	}
+	return !tokenNotFound(refused)
+}
+
+func tokenNotFound(refused bus.RPCReplyError) bool {
+	if refused.Code == domainrpc.CodeNotFound {
+		return true
+	}
+	return refused.Code == "" && legacyNotFoundMessage(refused.Message)
+}
+
+func legacyNotFoundMessage(message string) bool {
+	return strings.Contains(message, "not found")
 }
 
 func (s *Store) Save(ctx context.Context, accessToken, refreshToken string, expiresAt *time.Time) error {

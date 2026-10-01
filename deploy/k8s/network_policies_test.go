@@ -173,7 +173,7 @@ func TestHeatWaveEgressAllowlist(t *testing.T) {
 		}
 		got = append(got, to.IPBlock.CIDR)
 	}
-	want := sorted("10.0.0.0/16", "204.216.107.73/32")
+	want := sorted("204.216.107.73/32")
 	if !slices.Equal(sorted(got...), want) {
 		t.Fatalf("HeatWave egress CIDRs = %v, want %v", got, want)
 	}

@@ -6,6 +6,7 @@ package worker
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
@@ -90,5 +91,13 @@ func (w *Worker) notifyGrantDead(ctx context.Context, broadcasterID string, stat
 	if state != manage.GrantDead || w.reauth == nil {
 		return
 	}
-	w.reauth.Notify(ctx, broadcasterID, noticeGrantDead)
+	w.reauth.Notify(ctx, broadcasterID, noticeGrantDead, w.grantEpisode(ctx, broadcasterID))
+}
+
+func (w *Worker) grantEpisode(ctx context.Context, broadcasterID string) time.Time {
+	ch, found, err := w.grants.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return time.Time{}
+	}
+	return ch.GrantCheckedAt
 }

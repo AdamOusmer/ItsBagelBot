@@ -101,7 +101,6 @@ spec:
         - port: 443
           protocol: UDP
 ---
-# 10.0.0.0/16 stays for a DB_ADDR rollback to the direct VCN path; removing it breaks that rollback.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -117,8 +116,6 @@ spec:
     - Egress
   egress:
     - to:
-        - ipBlock:
-            cidr: 10.0.0.0/16
         - ipBlock:
             cidr: 204.216.107.73/32
       ports:

@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -55,14 +56,18 @@ func TestTimedConnectorLogsSuccessfulConnect(t *testing.T) {
 	fields := entries[0].ContextMap()
 	require.Equal(t, testDBAddr, fields["addr"])
 	require.Contains(t, fields, "elapsed")
+	require.Equal(t, true, fields["no_deadline"])
+	require.NotContains(t, fields, "budget")
 }
 
 func TestTimedConnectorLogsFailedConnect(t *testing.T) {
 	logs := observeLogs(t)
 	failure := errors.New("dial refused")
 	inner := &fakeConnector{err: failure}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-	_, err := timedConnector{Connector: inner, addr: testDBAddr}.Connect(context.Background())
+	_, err := timedConnector{Connector: inner, addr: testDBAddr}.Connect(ctx)
 
 	require.ErrorIs(t, err, failure)
 	require.Equal(t, 1, inner.calls)
@@ -70,7 +75,13 @@ func TestTimedConnectorLogsFailedConnect(t *testing.T) {
 	entries := logs.All()
 	require.Len(t, entries, 1)
 	require.Equal(t, zapcore.WarnLevel, entries[0].Level)
-	require.Contains(t, entries[0].ContextMap(), "elapsed")
+	fields := entries[0].ContextMap()
+	require.Contains(t, fields, "elapsed")
+	require.NotContains(t, fields, "no_deadline")
+	budget, ok := fields["budget"].(time.Duration)
+	require.True(t, ok)
+	require.Greater(t, budget, 2*time.Second)
+	require.LessOrEqual(t, budget, 3*time.Second)
 }
 
 func TestDatastoreSegmentBuilderTargets(t *testing.T) {

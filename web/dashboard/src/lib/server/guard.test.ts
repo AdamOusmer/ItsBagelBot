@@ -58,10 +58,10 @@ describe('ghost-session gate', () => {
     expect([out.redirected, out.wiped, out.locals.accountState]).toEqual(['/login?e=signedout', true, { ghost: true }]);
   });
 
-  test('an uncoded refusal still clears, matching the pre-code behaviour', async () => {
-    accountReply = async () => { throw new RpcError('no such user'); };
+  test('an uncoded refusal keeps the session', async () => {
+    accountReply = async () => { throw new RpcError('db stalled'); };
     const out = await run();
-    expect([out.redirected, out.wiped]).toEqual(['/login?e=signedout', true]);
+    expect([out.redirected, out.wiped, 'accountState' in out.locals]).toEqual([null, false, false]);
   });
 
   test.each(['internal', 'unavailable', 'invalid'] as const)('%s keeps the session and lets the layout retry', async (code) => {

@@ -195,6 +195,7 @@ func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
 	require.Equal(t, dialTimeout, mc.Timeout)
 	require.Equal(t, readTimeout, mc.ReadTimeout)
 	require.Equal(t, writeTimeout, mc.WriteTimeout)
+	require.NotNil(t, mc.DialFunc)
 }
 
 func captureGlobalLogs(t *testing.T) *observer.ObservedLogs {

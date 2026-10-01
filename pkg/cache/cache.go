@@ -11,6 +11,6 @@ type Cache[V any] = Keyed[string, V]
 
 func identityKey(key string) string { return key }
 
-func New[V any](capacity int64, ttl time.Duration) *Cache[V] {
-	return NewKeyed[string, V](capacity, ttl, identityKey)
+func New[V any](capacity int64, ttl time.Duration, opts ...Option) *Cache[V] {
+	return NewKeyed[string, V](capacity, ttl, identityKey, opts...)
 }

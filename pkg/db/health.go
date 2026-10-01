@@ -19,12 +19,19 @@ func HealthCheck(name string, pool *sql.DB) health.Check {
 	return health.Check{
 		Name: name,
 		Probe: func(ctx context.Context) error {
-			ctx, cancel := context.WithTimeout(ctx, healthPingTimeout)
-			defer cancel()
-			if err := pool.PingContext(ctx); err != nil {
-				return fmt.Errorf("db: ping failed: %w", err)
+			if k, ok := keepAliveFor(pool); ok {
+				return k.status()
 			}
-			return nil
+			return pingHealth(ctx, pool)
 		},
 	}
+}
+
+func pingHealth(ctx context.Context, pool *sql.DB) error {
+	ctx, cancel := context.WithTimeout(ctx, healthPingTimeout)
+	defer cancel()
+	if err := pool.PingContext(ctx); err != nil {
+		return fmt.Errorf("db: ping failed: %w", err)
+	}
+	return nil
 }
