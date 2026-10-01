@@ -62,6 +62,9 @@ func SubscribeTickets(rest ticketREST, deps TicketDeps, wire Wiring) error {
 }
 
 func (h *ticketRPC) add(ctx context.Context, req discordoutgress.TicketMemberAddRequest) discordoutgress.TicketMemberAddReply {
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.TicketMemberAddReply{Error: err.Error(), Code: codeFor(err)}
+	}
 	err := h.rest.SetChannelOverwrite(ctx, discapi.ChannelOverwrite{
 		ChannelID: req.ChannelID,
 		Overwrite: discapi.PermissionOverwrite{
@@ -144,6 +147,9 @@ func (h *ticketRPC) claim(ctx context.Context, req discordoutgress.TicketClaimRe
 	if req.MessageID == "" {
 		return discordoutgress.TicketClaimReply{}
 	}
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.TicketClaimReply{Error: err.Error(), Code: codeFor(err)}
+	}
 	err := h.rest.EditMessage(ctx,
 		discapi.Message{ChannelID: req.ChannelID, ID: req.MessageID},
 		discapi.MessagePatch{Content: req.Content, Embeds: []ddiscord.Embed{req.Embed}})
@@ -165,6 +171,9 @@ func (h *ticketRPC) note(ctx context.Context, channelID, note string) {
 
 // Page the transcript before disposing of the channel: a deleted channel has no history.
 func (h *ticketRPC) close(ctx context.Context, req discordoutgress.TicketCloseRequest) discordoutgress.TicketCloseReply {
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.TicketCloseReply{Error: err.Error(), Code: codeFor(err)}
+	}
 	body, count, truncated := h.transcript(ctx, req)
 	archived, err := h.disposeChannel(ctx, req)
 	h.postSummary(ctx, summaryPost{req: req, body: body, count: count})

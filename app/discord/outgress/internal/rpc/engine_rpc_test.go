@@ -107,7 +107,7 @@ func TestHandleCreateReturnsTheChannelID(t *testing.T) {
 func TestHandlePurgeBelowMinimumStillReportsCount(t *testing.T) {
 	rest := &fakeEngineREST{listed: []discapi.Snowflake{{ID: "m1"}}}
 	h := &engineRPC{rest: rest, log: zap.NewNop()}
-	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{ChannelID: "c1", Count: 50})
+	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{GuildID: "g1", ChannelID: "c1", Count: 50})
 	if reply.Deleted != 1 {
 		t.Fatalf("deleted = %d, want 1 (below Discord's 2-message minimum, no bulk-delete call)", reply.Deleted)
 	}
@@ -119,7 +119,7 @@ func TestHandlePurgeBelowMinimumStillReportsCount(t *testing.T) {
 func TestHandlePurgeBulkDeletes(t *testing.T) {
 	rest := &fakeEngineREST{listed: []discapi.Snowflake{{ID: "m1"}, {ID: "m2"}, {ID: "m3"}}}
 	h := &engineRPC{rest: rest, log: zap.NewNop()}
-	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{ChannelID: "c1", Count: 50})
+	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{GuildID: "g1", ChannelID: "c1", Count: 50})
 	if reply.Deleted != 3 {
 		t.Fatalf("deleted = %d, want 3", reply.Deleted)
 	}

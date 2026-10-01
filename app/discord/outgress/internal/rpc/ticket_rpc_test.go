@@ -75,7 +75,7 @@ func TestTicketClaimEditsTheCardAndPostsTheNote(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
 	reply := h.claim(context.Background(), discordoutgress.TicketClaimRequest{
-		ChannelID: "c1", MessageID: "m1", Content: "<@u1>", Note: "Mod claimed this ticket.",
+		GuildID: "g1", ChannelID: "c1", MessageID: "m1", Content: "<@u1>", Note: "Mod claimed this ticket.",
 		Embed: ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: "<@u1>", ClaimedBy: "Mod"}),
 	})
 
@@ -116,7 +116,7 @@ func TestTicketClaimWithoutACardIsANoOp(t *testing.T) {
 func TestTicketAddWritesOneOverwrite(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
-	reply := h.add(context.Background(), discordoutgress.TicketMemberAddRequest{ChannelID: "c1", UserID: "u2"})
+	reply := h.add(context.Background(), discordoutgress.TicketMemberAddRequest{GuildID: "g1", ChannelID: "c1", UserID: "u2"})
 
 	if reply.Error != "" {
 		t.Fatalf("reply = %+v", reply)

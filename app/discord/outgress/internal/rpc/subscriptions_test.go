@@ -33,7 +33,7 @@ func requestRPC(t *testing.T, wire Wiring, verb, body string) []byte {
 
 func TestSubscribeEngineRoutesRequestsToDiscord(t *testing.T) {
 	wire := rpcWiring(t)
-	tr := &scriptedTransport{channelGuilds: map[string]string{"live1": "g1", "live2": "g2"}, reply: func(call recordedCall) (int, string) {
+	tr := &scriptedTransport{channelGuilds: map[string]string{"live1": "g1", "live2": "g2", "old1": "g1", "c1": "g1"}, reply: func(call recordedCall) (int, string) {
 		switch call.path {
 		case "/channels/c1/messages":
 			if call.method == http.MethodGet {
@@ -55,14 +55,14 @@ func TestSubscribeEngineRoutesRequestsToDiscord(t *testing.T) {
 		{verb: "channel.create", request: `{"guild_id":"g1","name":"voice","type":2,"parent_id":"cat1","topic":"Welcome","overwrites":[{"id":"u1","type":1,"allow":"1024","deny":"0"}]}`,
 			reply: `{"channel_id":"new1"}`, method: http.MethodPost, path: "/guilds/g1/channels",
 			body: `{"name":"voice","type":2,"parent_id":"cat1","topic":"Welcome","permission_overwrites":[{"id":"u1","type":1,"allow":"1024","deny":"0"}]}`},
-		{verb: "channel.delete", request: `{"channel_id":"old1"}`, reply: `{}`, method: http.MethodDelete, path: "/channels/old1"},
-		{verb: "channel.modify", request: `{"channel_id":"c1","name":"renamed","user_limit":4,"overwrites":[]}`, reply: `{}`,
+		{verb: "channel.delete", request: `{"guild_id":"g1","channel_id":"old1"}`, reply: `{}`, method: http.MethodDelete, path: "/channels/old1"},
+		{verb: "channel.modify", request: `{"guild_id":"g1","channel_id":"c1","name":"renamed","user_limit":4,"overwrites":[]}`, reply: `{}`,
 			method: http.MethodPatch, path: "/channels/c1", body: `{"name":"renamed","user_limit":4,"permission_overwrites":[]}`},
 		{verb: "member.move", request: `{"guild_id":"g1","user_id":"u1","channel_id":"voice1"}`, reply: `{}`,
 			method: http.MethodPatch, path: "/guilds/g1/members/u1", body: `{"channel_id":"voice1"}`},
 		{verb: "member.move", request: `{"guild_id":"g1","user_id":"u1","channel_id":""}`, reply: `{}`,
 			method: http.MethodPatch, path: "/guilds/g1/members/u1", body: `{"channel_id":null}`},
-		{verb: "channel.purge", request: `{"channel_id":"c1","count":50}`, reply: `{"deleted":2}`,
+		{verb: "channel.purge", request: `{"guild_id":"g1","channel_id":"c1","count":50}`, reply: `{"deleted":2}`,
 			method: http.MethodPost, path: "/channels/c1/messages/bulk-delete", body: `{"messages":["m1","m2"]}`},
 		{verb: "live.online", request: `{"guild_id":"g1","channel_id":"live1","embed":{"title":"Live now","url":"https://twitch.tv/bagel","color":7}}`, reply: `{}`,
 			method: http.MethodPost, path: "/channels/live1/messages", body: `{"embeds":[{"title":"Live now","url":"https://twitch.tv/bagel","color":7}]}`},
