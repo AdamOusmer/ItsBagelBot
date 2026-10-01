@@ -42,5 +42,5 @@ const clipId = `${id}-clip`;
   style={`--menu-clip:url(#${clipId})`}
   {...rest}
 ><svg class="bb-mobile-menu__curve" aria-hidden="true" focusable="false"><defs><clipPath id={clipId} clipPathUnits="userSpaceOnUse"><path class="bb-mobile-menu__curve-path" data-menu-curve-path d=""></path></clipPath></defs></svg><div class="bb-mobile-menu__panel" role="dialog" aria-label={panelLabel} aria-modal="true"><ul class="bb-mobile-menu__links">{links.map((link) => (
-  <li data-menu-item><NavLink class="bb-mobile-menu__link" href={link.href} label={link.label} current={link.current} external={link.external} block /></li>
+  <li data-menu-item><NavLink class="bb-mobile-menu__link" href={link.href} label={link.label} current={link.current} external={link.external} block data-astro-prefetch={link.current || link.external ? undefined : 'viewport'} /></li>
 ))}</ul><div class="bb-mobile-menu__footer" data-menu-footer>{cta && <NavLink class="bb-mobile-menu__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} block />}<slot name="footer" />{meta && <span class="bb-mobile-menu__meta">{meta}</span>}</div></div></div>

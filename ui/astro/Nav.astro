@@ -51,7 +51,7 @@ const menuPanel = menuLabels.panel ?? t('nav.menu');
 ---
 
 <nav class={classes} aria-label={label} data-variant={variant} {...rest}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
-  <li><NavLink href={link.href} label={link.label} current={link.current} external={link.external} /></li>
+  <li><NavLink href={link.href} label={link.label} current={link.current} external={link.external} data-astro-prefetch={link.current || link.external ? undefined : 'hover'} /></li>
 ))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} label={localeLabel} menuId={`${menuId}-lang`} />}{cta && <NavLink class="bb-nav__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} />}<slot name="actions" /></div>{menu && <Hamburger label={menuOpen} closeLabel={menuClose} controls={menuId} />}</div></nav>{menu && <MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuPanel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>}
 
 <script>

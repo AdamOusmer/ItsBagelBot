@@ -59,6 +59,7 @@
             current={link.current}
             external={link.external}
             block
+            data-astro-prefetch={link.current || link.external ? undefined : 'viewport'}
           /></li
         >{/each}</ul
     ><div class="bb-mobile-menu__footer" data-menu-footer
