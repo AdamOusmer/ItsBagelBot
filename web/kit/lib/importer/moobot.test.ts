@@ -228,9 +228,11 @@ describe('<counter> remapping onto {count}', () => {
     expect(manifest.commands![0].responses![0]).toBe('Death count: {count}');
   });
 
+  const remapWarns = (text: string, counter?: number) =>
+    parseMoobot(exportWithCounter(text, counter)).diagnostics.filter((d) => d.code === 'command_count_remapped');
+
   test('warns once, naming the old value, when the export carries one', () => {
-    const { diagnostics } = parseMoobot(exportWithCounter('<counter> deaths', 87));
-    const warns = diagnostics.filter((d) => d.code === 'command_count_remapped');
+    const warns = remapWarns('<counter> deaths', 87);
     expect(warns).toHaveLength(1);
     expect(warns[0].severity).toBe('warn');
     expect(warns[0].item_index).toBe(0);
@@ -239,20 +241,16 @@ describe('<counter> remapping onto {count}', () => {
   });
 
   test('warns without an old-value clause when the export carries none', () => {
-    const { diagnostics } = parseMoobot(exportWithCounter('<counter> deaths'));
-    const warns = diagnostics.filter((d) => d.code === 'command_count_remapped');
+    const warns = remapWarns('<counter> deaths');
     expect(warns).toHaveLength(1);
     expect(warns[0].message).not.toMatch(/\d/);
   });
 
-  test('a response naming <counter> twice still warns once', () => {
-    const { diagnostics } = parseMoobot(exportWithCounter('<counter> then <counter> again'));
-    expect(diagnostics.filter((d) => d.code === 'command_count_remapped')).toHaveLength(1);
-  });
-
-  test('a response with no <counter> tag never warns', () => {
-    const { diagnostics } = parseMoobot(exportWithCounter('no counters here', 12));
-    expect(diagnostics.filter((d) => d.code === 'command_count_remapped')).toHaveLength(0);
+  test.each([
+    ['a response naming <counter> twice still warns once', '<counter> then <counter> again', undefined, 1],
+    ['a response with no <counter> tag never warns', 'no counters here', 12, 0]
+  ] as [string, string, number | undefined, number][])('%s', (_name, text, counter, warns) => {
+    expect(remapWarns(text, counter)).toHaveLength(warns);
   });
 });
 

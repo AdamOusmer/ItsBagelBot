@@ -9,6 +9,7 @@ const TONES: Record<ConnKind, StatusTone> = {
   online: 'success',
   degraded: 'danger',
   reauth_required: 'danger',
+  bot_banned: 'danger',
   unavailable: 'neutral',
   auth_required: 'warning',
   disabled: 'warning',
@@ -17,14 +18,7 @@ const TONES: Record<ConnKind, StatusTone> = {
 };
 
 describe('statusTone', () => {
-  it('maps every connection kind to its tone', () => {
-    for (const [kind, tone] of Object.entries(TONES)) {
-      expect(statusTone(kind as ConnKind)).toBe(tone);
-    }
-  });
-
-  it('keeps success for the one healthy state only', () => {
-    const successes = Object.entries(TONES).filter(([, tone]) => tone === 'success');
-    expect(successes).toEqual([['online', 'success']]);
+  it.each(Object.entries(TONES) as [ConnKind, StatusTone][])('%s reads as %s', (kind, tone) => {
+    expect(statusTone(kind)).toBe(tone);
   });
 });

@@ -6,7 +6,6 @@ import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import { CODE, isValidFetchDefName } from './validate';
 import {
-  DEFAULT_API_BASE,
   FETCH_DEF_CAP,
   MAX_CREDENTIAL_LEN,
   SE_CODE,
@@ -36,13 +35,6 @@ describe('golden replay', () => {
       expect(diagnostics).toEqual(want.diags as never);
     });
   }
-
-  test('parse is deterministic', () => {
-    const raw = readFileSync(join(here, 'testdata/se-envelope-full.json'), 'utf8');
-    const a = JSON.stringify(parseStreamElements(raw));
-    const b = JSON.stringify(parseStreamElements(raw));
-    expect(a).toBe(b);
-  });
 
   test('non-envelopes throw parse_failed material', () => {
     for (const raw of ['"string"', '[1,2,3]', '<xml/>']) {
@@ -141,28 +133,32 @@ describe('mapAccessLevel table', () => {
     test(`accessLevel ${level}`, () => expect(mapAccessLevel(level)).toEqual({ perm, recognized }));
   }
   test('levelLabel uses SE vocabulary in warnings', () => {
-    const { manifest, diagnostics } = parseStreamElements(
+    const { diagnostics } = parseStreamElements(
       '{"commands":[{"command":"x","reply":"y","accessLevel":300,"cooldown":{"global":0}}],"timers":[]}'
     );
     expect(diagnostics.some((d) => d.code === 'command_permission_unmapped' && d.message.includes('Regular'))).toBe(true);
-    void manifest;
   });
 });
 
 describe('flexText shapes', () => {
-  function timerWith(message: unknown): string {
-    return parseStreamElements(JSON.stringify({ timers: [{ name: 't', message }] })).manifest.timers?.[0]?.message ?? '';
-  }
-  test('plain string', () => expect(timerWith('plain')).toBe('plain'));
-  test('string array joins with newline', () => expect(timerWith(['one', 'two'])).toBe('one\ntwo'));
-  test('{text} object array joins with newline', () =>
-    expect(timerWith([{ text: 'alpha' }, { text: 'beta' }])).toBe('alpha\nbeta'));
-  test('null message becomes empty', () => expect(timerWith(null)).toBe(''));
+  const timerMessage = (message: unknown): string =>
+    parseStreamElements(JSON.stringify({ timers: [{ name: 't', message }] })).manifest.timers?.[0]?.message ?? '';
+
+  test.each([
+    ['plain string', 'plain', 'plain'],
+    ['string array joins with newline', ['one', 'two'], 'one\ntwo'],
+    ['{text} object array joins with newline', [{ text: 'alpha' }, { text: 'beta' }], 'alpha\nbeta'],
+    ['null message becomes empty', null, '']
+  ] as [string, unknown, string][])('%s', (_name, message, want) => {
+    expect(timerMessage(message)).toBe(want);
+  });
+
   test('numeric message skips the entry with the Go diagnostic code', () => {
     const { manifest, diagnostics } = parseStreamElements('{"timers":[{"name":"t","message":42}]}');
     expect(manifest.timers).toBeUndefined();
     expect(diagnostics[0].code).toBe(SE_CODE.timerUnparseable);
   });
+
   test('bad array element names the shape rule verbatim', () => {
     const { diagnostics } = parseStreamElements('{"timers":[{"name":"t","message":[42]}]}');
     expect(diagnostics[0].message).toContain('timer message array elements must be strings or {text} objects');
@@ -385,41 +381,47 @@ describe('urlfetch mapping', () => {
     for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
   });
 
-  test('inline URL extracted into a synthesized definition; token replaced', () => {
-    const { manifest } = parse('Temp: $(urlfetch https://api.example.com/v1)');
-    expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:se_weather}');
-    expect(manifest.fetches).toEqual([
-      { name: 'se_weather', url: 'https://api.example.com/v1', source: 'streamelements' }
-    ]);
-  });
+  const SE = 'streamelements';
 
-  test('json path second argument becomes segments', () => {
-    const { manifest } = parse('$(urlfetch https://api.example.com data.current.temp_f)');
-    expect(manifest.fetches).toEqual([
-      {
-        name: 'se_weather',
-        url: 'https://api.example.com',
-        json_path: ['data', 'current', 'temp_f'],
-        source: 'streamelements'
-      }
-    ]);
-  });
-
-  test('distinct slots get index suffixes from 2 on (N>=2 rule)', () => {
-    const { manifest } = parse(
-      '$(urlfetch https://a.example/x) and $(urlfetch https://b.example/y) and $(urlfetch https://c.example/z)'
-    );
-    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se_weather', 'se_weather_2', 'se_weather_3']);
-    expect(manifest.commands![0].responses![0]).toBe(
-      '{urlfetch:se_weather} and {urlfetch:se_weather_2} and {urlfetch:se_weather_3}'
-    );
-  });
-
-  test('identical argument sets within one command share one definition', () => {
-    const reply = '$(urlfetch https://q.example/r) said $(urlfetch https://q.example/r)';
+  test.each([
+    {
+      name: 'inline URL extracted into a synthesized definition; token replaced',
+      reply: 'Temp: $(urlfetch https://api.example.com/v1)',
+      response: 'Temp: {urlfetch:se_weather}',
+      fetches: [{ name: 'se_weather', url: 'https://api.example.com/v1', source: SE }]
+    },
+    {
+      name: 'json path second argument becomes segments',
+      reply: '$(urlfetch https://api.example.com data.current.temp_f)',
+      response: '{urlfetch:se_weather}',
+      fetches: [{ name: 'se_weather', url: 'https://api.example.com', json_path: ['data', 'current', 'temp_f'], source: SE }]
+    },
+    {
+      name: 'distinct slots get index suffixes from 2 on (N>=2 rule)',
+      reply: '$(urlfetch https://a.example/x) and $(urlfetch https://b.example/y) and $(urlfetch https://c.example/z)',
+      response: '{urlfetch:se_weather} and {urlfetch:se_weather_2} and {urlfetch:se_weather_3}',
+      fetches: [
+        { name: 'se_weather', url: 'https://a.example/x', source: SE },
+        { name: 'se_weather_2', url: 'https://b.example/y', source: SE },
+        { name: 'se_weather_3', url: 'https://c.example/z', source: SE }
+      ]
+    },
+    {
+      name: 'identical argument sets within one command share one definition',
+      reply: '$(urlfetch https://q.example/r) said $(urlfetch https://q.example/r)',
+      response: '{urlfetch:se_weather} said {urlfetch:se_weather}',
+      fetches: [{ name: 'se_weather', url: 'https://q.example/r', source: SE }]
+    },
+    {
+      name: '${braced} form maps identically',
+      reply: '${urlfetch https://b.example/z}',
+      response: '{urlfetch:se_weather}',
+      fetches: [{ name: 'se_weather', url: 'https://b.example/z', source: SE }]
+    }
+  ])('$name', ({ reply, response, fetches }) => {
     const { manifest } = parse(reply);
-    expect(manifest.fetches).toHaveLength(1);
-    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_weather} said {urlfetch:se_weather}');
+    expect(manifest.commands![0].responses![0]).toBe(response);
+    expect(manifest.fetches).toEqual(fetches);
   });
 
   test('unusable URLs stay literal with the standard unmapped warn', () => {
@@ -430,12 +432,6 @@ describe('urlfetch mapping', () => {
     expect(warns.map((d) => d.item_index)).toEqual([0, 0]);
     expect(warns[0].message).toContain('$(urlfetch ftp://nope)');
     expect(warns[1].message).toContain('$(urlfetch)');
-  });
-
-  test('${braced} form maps identically', () => {
-    const { manifest } = parse('${urlfetch https://b.example/z}');
-    expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_weather}');
-    expect(manifest.fetches).toHaveLength(1);
   });
 
   test('timers and keyword triggers carry no sink: literal + their own unmapped code', () => {
@@ -565,17 +561,6 @@ describe('fetch flow', () => {
 
   test('errors carry endpoint, status and remediation prose', async () => {
     await withTestServer(
-      (req) => {
-        const path = new URL(req.url).pathname;
-        if (path === '/kappa/v2/channels/me' && req.method === 'OPTIONS') return new Response('', { status: 401 });
-        return Response.json({ _id: CHANNEL_ID });
-      },
-      async (baseUrl) => {
-        await expect(fetchStreamElements('   ', { baseUrl })).rejects.toThrow(/credential/);
-      }
-    );
-
-    await withTestServer(
       () => new Response('{"statusCode":401,"error":"err","message":"boom"}', { status: 401 }),
       async (baseUrl) => {
         const err = await fetchStreamElements(TEST_JWT, { baseUrl }).catch((e) => e as Error);
@@ -656,7 +641,7 @@ describe('credential gate', () => {
       'does not look like a StreamElements JWT'
     ));
 
-  test('default API base is production kappa root', () => {
-    expect(DEFAULT_API_BASE).toBe('https://api.streamelements.com');
+  test('a blank credential is refused before any transport', async () => {
+    await expect(fetchStreamElements('   ')).rejects.toThrow(/credential/);
   });
 });

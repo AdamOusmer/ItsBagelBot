@@ -153,18 +153,12 @@ describe('ValkeyRateLimiter', () => {
 describe('clientIp', () => {
   const fallback = () => '10.0.0.1';
 
-  test('prefers Cf-Connecting-Ip', () => {
-    const h = new Headers({ 'cf-connecting-ip': '1.2.3.4', 'x-forwarded-for': '5.6.7.8' });
-    expect(clientIp(h, fallback)).toBe('1.2.3.4');
-  });
-
-  test('falls back to first X-Forwarded-For hop', () => {
-    const h = new Headers({ 'x-forwarded-for': ' 5.6.7.8 , 9.9.9.9' });
-    expect(clientIp(h, fallback)).toBe('5.6.7.8');
-  });
-
-  test('uses the socket address when no proxy headers exist', () => {
-    expect(clientIp(new Headers(), fallback)).toBe('10.0.0.1');
+  test.each([
+    ['prefers Cf-Connecting-Ip', { 'cf-connecting-ip': '1.2.3.4', 'x-forwarded-for': '5.6.7.8' }, '1.2.3.4'],
+    ['falls back to first X-Forwarded-For hop', { 'x-forwarded-for': ' 5.6.7.8 , 9.9.9.9' }, '5.6.7.8'],
+    ['uses the socket address when no proxy headers exist', {}, '10.0.0.1']
+  ] as [string, Record<string, string>, string][])('%s', (_name, headers, want) => {
+    expect(clientIp(new Headers(headers), fallback)).toBe(want);
   });
 
   test('never throws when the fallback does', () => {

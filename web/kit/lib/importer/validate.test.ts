@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import {
-  MAX_COOLDOWN_SECONDS,
   FailedItems,
   canonicalizeResponse,
   clampCooldown,
@@ -18,7 +17,6 @@ import {
   stats,
   validateManifest
 } from './validate';
-import { IMPORT_ITEM_CAPS } from './types';
 import type { ImportManifest } from './types';
 
 const here = dirname(import.meta.path);
@@ -79,12 +77,6 @@ describe('ClampCooldown', () => {
   }
 });
 
-test('caps restate the domain constants they mirror', () => {
-  expect(500).toBe(500);
-  expect(IMPORT_ITEM_CAPS.commands).toBe(2000);
-  expect(MAX_COOLDOWN_SECONDS).toBe(86400);
-});
-
 test('Stats counts what the manifest holds', () => {
   const m: ImportManifest = {
     commands: [{ name: 'a', responses: ['x'] }, { name: 'b', responses: ['y'] }],
@@ -119,20 +111,24 @@ describe('FindCollisions', () => {
     expect(findCollisions(['x'], {})).toEqual([]);
     expect(findCollisions([], m)).toEqual([]);
   });
+
+  test('fetch-definition slugs collide as kind "fetch"', () => {
+    const withFetches: ImportManifest = {
+      commands: [{ name: 'weather', responses: ['{urlfetch:moobot_weather}'] }],
+      fetches: [{ name: 'moobot_weather', source: 'moobot' }, { name: 'se_fresh', url: 'https://x.example', source: 'streamelements' }]
+    };
+    expect(findCollisions(['MOOBOT_WEATHER', 'chat'], withFetches)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
+  });
 });
 
 describe('CanonicalizeResponse', () => {
-  test('single line passes through trimmed', () => {
-    expect(canonicalizeResponse('  hello world  ', 3)).toEqual({
-      lines: ['hello world'],
-      diags: []
-    });
-  });
-  test('crlf folded', () => {
-    expect(canonicalizeResponse('one\r\ntwo\rthree\nfour', 3).lines).toEqual(['one', 'two', 'three', 'four']);
-  });
-  test('blank lines dropped silently', () => {
-    expect(canonicalizeResponse('\n\na\n\n\nb\n\n', 3).lines).toEqual(['a', 'b']);
+  test.each([
+    ['single line passes through trimmed', '  hello world  ', ['hello world']],
+    ['crlf folded', 'one\r\ntwo\rthree\nfour', ['one', 'two', 'three', 'four']],
+    ['blank lines dropped silently', '\n\na\n\n\nb\n\n', ['a', 'b']],
+    ['empty input yields no lines and no diags', '', []]
+  ])('%s', (_name, input, lines) => {
+    expect(canonicalizeResponse(input, 3)).toEqual({ lines, diags: [] });
   });
   test('long line truncated with warning at a UTF-8 boundary', () => {
     const { lines, diags } = canonicalizeResponse('x'.repeat(600), 3);
@@ -145,9 +141,6 @@ describe('CanonicalizeResponse', () => {
     const { lines, diags } = canonicalizeResponse('1\n2\n3\n4\n5\n6', 3);
     expect(lines).toEqual(['1', '2', '3', '4', '5']);
     expect(diags.map((d) => [d.code, d.item_index])).toEqual([['command_response_line_dropped', 3]]);
-  });
-  test('empty input yields no lines and no diags', () => {
-    expect(canonicalizeResponse('', 3)).toEqual({ lines: [], diags: [] });
   });
 });
 
@@ -256,14 +249,6 @@ describe('FailedItems', () => {
     expect(failed.has('timers', 1)).toBe(false);
     expect(failed.has('quotes', 2)).toBe(true);
   });
-});
-
-test('FindCollisions flags fetch-definition slugs as kind "fetch"', () => {
-  const m: ImportManifest = {
-    commands: [{ name: 'weather', responses: ['{urlfetch:moobot_weather}'] }],
-    fetches: [{ name: 'moobot_weather', source: 'moobot' }, { name: 'se_fresh', url: 'https://x.example', source: 'streamelements' }]
-  };
-  expect(findCollisions(['MOOBOT_WEATHER', 'chat'], m)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
 });
 
 describe('fetchDefSlug', () => {

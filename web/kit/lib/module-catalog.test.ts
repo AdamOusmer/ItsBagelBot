@@ -4,6 +4,129 @@
 import { describe, expect, test } from 'bun:test';
 import { MOD, MODULE_CATALOG, catalogIndexable, moduleDef, moduleDelegateSections } from './types';
 
+type Def = NonNullable<ReturnType<typeof moduleDef>>;
+
+const policyOf = (def: Def) => ({
+  label: def.label,
+  category: def.category,
+  href: def.href,
+  defaultEnabled: def.defaultEnabled,
+  toggleable: def.toggleable !== false,
+  listed: !def.hidden,
+  delegates: moduleDelegateSections(def),
+  settings: def.settings,
+  replies: def.replies,
+  commands: def.commands?.map(({ trigger, perm, aliases }) => ({ trigger, perm, aliases }))
+});
+
+interface PolicyRow {
+  name: string;
+  id: Parameters<typeof moduleDef>[0];
+  want: Partial<ReturnType<typeof policyOf>>;
+}
+
+const POLICY_ROWS: PolicyRow[] = [
+  {
+    name: 'stream management is a Channel tile on /commands with no master switch',
+    id: 'stream',
+    want: { href: '/commands', toggleable: false, defaultEnabled: true, category: 'Channel', delegates: ['commands'] }
+  },
+  {
+    name: 'stream management ships the Nightbot command set at lead_mod',
+    id: 'stream',
+    want: {
+      commands: [
+        { trigger: '!title', perm: 'lead_mod', aliases: ['!settitle'] },
+        { trigger: '!game' },
+        { trigger: '!tags' },
+        { trigger: '!commercial' },
+        { trigger: '!marker' },
+        { trigger: '!cmd' }
+      ]
+    }
+  },
+  {
+    name: 'folds counters into Modules delegation without an enable switch',
+    id: 'counters',
+    want: { href: '/counters', toggleable: false, delegates: ['modules'] }
+  },
+  {
+    name: 'emoteplay is a toggle-only opt-in module keyed by its sesame name',
+    id: 'emoteplay',
+    want: { href: undefined, listed: true, toggleable: true, defaultEnabled: false, replies: [] }
+  },
+  {
+    name: 'personality is a default-on Chat toggle with nothing to configure',
+    id: 'personality',
+    want: { category: 'Chat', defaultEnabled: true, toggleable: true, href: undefined, listed: true, replies: [], settings: undefined }
+  },
+  {
+    name: 'personality owns !bagels and !bagelboard with their aliases',
+    id: 'personality',
+    want: {
+      commands: [
+        { trigger: '!bagels', aliases: ['!fed', '!bagelcount'], perm: undefined },
+        { trigger: '!bagelboard', aliases: ['!feedboard', '!bagellb'], perm: undefined }
+      ]
+    }
+  },
+  {
+    name: 'CODM is a generic Stats profile module with the shared account settings',
+    id: 'codm',
+    want: {
+      label: 'CODM Profile',
+      category: 'Stats',
+      defaultEnabled: false,
+      replies: [
+        {
+          key: 'profile',
+          label: '!codm',
+          command: 'codm',
+          event: '!codm [UID/exact nickname]',
+          enableKey: 'profileEnabled',
+          messageKey: 'profileMessage',
+          defaultMessage: '{codm:player} · level {codm:level} · MP {codm:rank} · {codm:rating} rating · {codm:country}',
+          previewArgs: 'iFerg',
+          tokens: [
+            { name: 'codm:player', sample: 'iFerg' },
+            { name: 'codm:level', sample: '414' },
+            { name: 'codm:rank', sample: 'Master I' },
+            { name: 'codm:rankclass', sample: '21' },
+            { name: 'codm:rating', sample: '4590' },
+            { name: 'codm:country', sample: 'US' },
+            { name: 'codm:shortid', sample: 'IFERG' }
+          ]
+        }
+      ],
+      settings: [
+        { key: 'account', help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.' },
+        { key: 'linkedOnly' }
+      ]
+    }
+  },
+  { name: 'govee shares Gear with Song Requests and Discord', id: 'govee', want: { category: 'Gear' } },
+  {
+    name: 'songqueue shares Gear and is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current',
+    id: 'songqueue',
+    want: {
+      category: 'Gear',
+      href: '/songqueue',
+      commands: [
+        { trigger: '!sr' },
+        { trigger: '!remove' },
+        { trigger: '!skip' },
+        { trigger: '!clear' },
+        { trigger: '!srlist' },
+        { trigger: '!current' }
+      ]
+    }
+  },
+  { name: 'songqueue opens for modules and channel-points delegates', id: 'songqueue', want: { delegates: ['modules', 'channelpoints'] } },
+  { name: 'discord shares Gear and delegates on its own grant, not modules', id: 'discord', want: { category: 'Gear', href: '/discord', delegates: ['discord'] } },
+  { name: 'AutoMod stays a visible Moderation row', id: 'automod', want: { listed: true, category: 'Moderation' } },
+  { name: 'loyalty owns the /loyalty page', id: 'loyalty', want: { href: '/loyalty' } }
+];
+
 describe('module catalog', () => {
   test('has unique ids', () => {
     const ids = MODULE_CATALOG.map((def) => def.id);
@@ -24,156 +147,21 @@ describe('module catalog', () => {
     expect(missing).toEqual([]);
   });
 
-  test('stream management is a Channel tile on /commands with no master switch', () => {
-    const def = moduleDef('stream');
-    expect(def).toBeDefined();
-    expect(def?.href).toBe('/commands');
-    expect(def?.toggleable).toBe(false);
-    expect(def?.defaultEnabled).toBe(true);
-    expect(def?.category).toBe('Channel');
-    expect(moduleDelegateSections(def!)).toEqual(['commands']);
-  });
-
-  test('stream management ships the Nightbot command set at lead_mod', () => {
-    const commands = moduleDef('stream')?.commands;
-    expect(commands?.map((c) => c.trigger)).toEqual([
-      '!title',
-      '!game',
-      '!tags',
-      '!commercial',
-      '!marker',
-      '!cmd'
-    ]);
-    const title = commands?.find((c) => c.trigger === '!title');
-    expect(title?.perm).toBe('lead_mod');
-    expect(title?.aliases).toEqual(['!settitle']);
-  });
-
-  test('folds counters into Modules delegation without an enable switch', () => {
-    const counters = moduleDef('counters');
-    expect(counters).toBeDefined();
-    expect(counters?.href).toBe('/counters');
-    expect(counters?.toggleable).toBe(false);
-    expect(moduleDelegateSections(counters!)).toEqual(['modules']);
-  });
-
-  test('emoteplay is a toggle-only opt-in module keyed by its sesame name', () => {
-    const def = moduleDef('emoteplay');
-    expect(def).toBeDefined();
-    expect(def?.href).toBeUndefined();
-    expect(def?.hidden).toBeFalsy();
-    expect(def?.toggleable).not.toBe(false);
-    expect(def?.defaultEnabled).toBe(false);
-    expect(def?.replies).toHaveLength(0);
-  });
-
-  test('personality is a default-on Chat toggle with nothing to configure', () => {
-    const def = moduleDef('personality');
-    expect(def).toBeDefined();
-    expect(def?.category).toBe('Chat');
-    expect(def?.defaultEnabled).toBe(true);
-    expect(def?.toggleable).not.toBe(false);
-    expect(def?.href).toBeUndefined();
-    expect(def?.hidden).toBeFalsy();
-    expect(def?.replies).toHaveLength(0);
-    expect(def?.settings).toBeUndefined();
-  });
-
-  test('personality owns !bagels and !bagelboard with their aliases', () => {
-    const commands = moduleDef('personality')?.commands;
-    expect(commands?.map((c) => c.trigger)).toEqual(['!bagels', '!bagelboard']);
-    expect(commands?.[0].aliases).toEqual(['!fed', '!bagelcount']);
-    expect(commands?.[1].aliases).toEqual(['!feedboard', '!bagellb']);
-    expect(commands?.every((c) => c.perm === undefined)).toBe(true);
-  });
-
-  test('CODM is a generic Stats profile module with the shared account settings', () => {
-    const def = moduleDef('codm');
-    expect(def).toBeDefined();
-    if (!def) throw new Error('CODM module missing');
-    expect(def.label).toBe('CODM Profile');
-    expect(def.category).toBe('Stats');
-    expect(def.defaultEnabled).toBe(false);
-    expect(def.replies).toHaveLength(1);
-
-    const profile = def.replies[0];
-    expect(profile).toMatchObject({
-      key: 'profile',
-      label: '!codm',
-      command: 'codm',
-      event: '!codm [UID/exact nickname]',
-      enableKey: 'profileEnabled',
-      messageKey: 'profileMessage',
-      defaultMessage: '{codm:player} · level {codm:level} · MP {codm:rank} · {codm:rating} rating · {codm:country}',
-      previewArgs: 'iFerg',
-      tokens: [
-        { name: 'codm:player', sample: 'iFerg' },
-        { name: 'codm:level', sample: '414' },
-        { name: 'codm:rank', sample: 'Master I' },
-        { name: 'codm:rankclass', sample: '21' },
-        { name: 'codm:rating', sample: '4590' },
-        { name: 'codm:country', sample: 'US' },
-        { name: 'codm:shortid', sample: 'IFERG' }
-      ]
-    });
-    expect(def.settings![0]).toMatchObject({
-      key: 'account',
-      help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.'
-    });
-    expect(profile.tokens?.find((tk) => tk.name === 'codm:player')?.sample).toBe(profile.previewArgs);
-    expect(def.settings!.map((field) => field.key)).toEqual(['account', 'linkedOnly']);
-  });
-
-  test('govee shares Gear with Song Requests and Discord', () => {
-    expect(moduleDef('govee')?.category).toBe('Gear');
-    expect(moduleDef('songqueue')?.category).toBe('Gear');
-    expect(moduleDef('discord')?.category).toBe('Gear');
-    expect(moduleDef('discord')?.href).toBe('/discord');
+  test.each(POLICY_ROWS)('$name', ({ id, want }) => {
+    expect(policyOf(moduleDef(id)!)).toMatchObject(want);
   });
 
   test('a sectioned module is kept out of the modules grid', () => {
-    const discord = moduleDef('discord');
-    expect(discord?.section).toBe(true);
-    expect(discord && catalogIndexable(discord)).toBe(false);
-    expect(discord?.hidden).toBeUndefined();
+    const discord = moduleDef('discord')!;
+    expect(discord.section).toBe(true);
+    expect(catalogIndexable(discord)).toBe(false);
+    expect(discord.hidden).toBeUndefined();
   });
 
   test('every other listed module still indexes', () => {
     const listed = MODULE_CATALOG.filter((d) => !d.hidden && !d.parent && !d.section);
     expect(listed.length).toBeGreaterThan(0);
     expect(listed.every(catalogIndexable)).toBe(true);
-  });
-
-  test('discord delegates on its own grant, not modules', () => {
-    const discord = moduleDef('discord');
-    expect(discord).toBeDefined();
-    expect(moduleDelegateSections(discord!)).toEqual(['discord']);
-  });
-
-  test('AutoMod stays a visible Moderation row', () => {
-    const def = moduleDef('automod');
-    expect(def?.hidden).toBeFalsy();
-    expect(def?.category).toBe('Moderation');
-  });
-
-  test('songqueue is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current', () => {
-    const def = moduleDef('songqueue');
-    expect(def).toBeDefined();
-    expect(def?.href).toBe('/songqueue');
-    expect(def?.commands?.map((c) => c.trigger)).toEqual([
-      '!sr',
-      '!remove',
-      '!skip',
-      '!clear',
-      '!srlist',
-      '!current'
-    ]);
-  });
-
-  test('songqueue opens for modules and channel-points delegates', () => {
-    const def = moduleDef('songqueue');
-    expect(def).toBeDefined();
-    expect(moduleDelegateSections(def!)).toEqual(['modules', 'channelpoints']);
   });
 
   test('gamble and duels nest under loyalty with no second currency name', () => {
@@ -183,6 +171,5 @@ describe('module catalog', () => {
       expect(def?.href).toBeUndefined();
       expect(def?.settings?.some((s) => s.key === 'pointsName')).toBe(false);
     }
-    expect(moduleDef('loyalty')?.href).toBe('/loyalty');
   });
 });

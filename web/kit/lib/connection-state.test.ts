@@ -6,85 +6,28 @@ import { connectionUiState, type ConnSignals, type SubState } from './connection
 
 const base: ConnSignals = { grant: true, active: true, status: 'vip', sub: 'ok' };
 
+type Row = [name: string, patch: Partial<ConnSignals>, want: Partial<ReturnType<typeof connectionUiState>>];
+
+const ROWS: Row[] = [
+	['online only when grant + active + sub ok', {}, { kind: 'online', live: true, showEnable: false }],
+	['pending reads as connecting, never online, and cannot be managed mid-enrollment', { sub: 'pending' }, { kind: 'connecting', live: false, showEnable: false, canManage: false }],
+	['unenrolled reads as connecting, never online, and cannot be managed mid-enrollment', { sub: 'unenrolled' }, { kind: 'connecting', live: false, showEnable: false, canManage: false }],
+	['failing reads as degraded, never online', { sub: 'failing' }, { kind: 'degraded', live: false, showEnable: false }],
+	['an unknown sub reads as sub_unknown, never online', { sub: 'unknown' }, { kind: 'sub_unknown', live: false, showEnable: false }],
+	['revoked → reauth_required (reconnect via settings, no enable, no retry)', { sub: 'revoked' }, { kind: 'reauth_required', showConnect: true, showEnable: false, canRetry: false, live: false }],
+	['chat_banned → bot_banned (enable after the unban, no reconnect, no restart)', { sub: 'chat_banned' }, { kind: 'bot_banned', showEnable: true, showConnect: false, canManage: false, canRetry: false, live: false }],
+	['a revoked sub outranks the active flag outgress cleared', { active: false, sub: 'revoked' }, { kind: 'reauth_required' }],
+	['a chat ban outranks the active flag outgress cleared', { active: false, sub: 'chat_banned' }, { kind: 'bot_banned' }],
+	['an unenrolled sub outranks the active flag outgress cleared', { active: false, sub: 'unenrolled' }, { kind: 'disabled' }],
+	['a down grant read is unavailable, not a definite state', { grant: 'unknown' }, { kind: 'unavailable' }],
+	['a down active read is unavailable and retryable, never live or enable-able', { active: 'unknown' }, { kind: 'unavailable', canRetry: true, live: false, showEnable: false }],
+	['no grant → auth_required (connect via settings, not enable)', { grant: false }, { kind: 'auth_required', showConnect: true, showEnable: false }],
+	['grant present but inactive → disabled (enable form shown)', { active: false }, { kind: 'disabled', showEnable: true, canManage: false }]
+];
+
 describe('connectionUiState', () => {
-	test('online only when grant + active + sub ok', () => {
-		expect(connectionUiState(base).kind).toBe('online');
-		expect(connectionUiState(base).live).toBe(true);
-	});
-
-	test('pending / unenrolled / failing / revoked / unknown never read as online', () => {
-		const notOnline: SubState[] = ['pending', 'unenrolled', 'failing', 'revoked', 'unknown'];
-		for (const sub of notOnline) {
-			const r = connectionUiState({ ...base, sub });
-			expect(r.kind).not.toBe('online');
-			expect(r.live).toBe(false);
-		}
-	});
-
-	test('pending / unenrolled map to connecting, failing to degraded', () => {
-		expect(connectionUiState({ ...base, sub: 'pending' }).kind).toBe('connecting');
-		expect(connectionUiState({ ...base, sub: 'unenrolled' }).kind).toBe('connecting');
-		expect(connectionUiState({ ...base, sub: 'failing' }).kind).toBe('degraded');
-		expect(connectionUiState({ ...base, sub: 'unknown' }).kind).toBe('sub_unknown');
-	});
-
-	test('revoked → reauth_required (reconnect via settings, no enable, no retry)', () => {
-		const r = connectionUiState({ ...base, sub: 'revoked' });
-		expect(r.kind).toBe('reauth_required');
-		expect(r.showConnect).toBe(true);
-		expect(r.showEnable).toBe(false);
-		expect(r.canRetry).toBe(false);
-		expect(r.live).toBe(false);
-	});
-
-	test('chat_banned → bot_banned (enable after the unban, no reconnect, no restart)', () => {
-		const r = connectionUiState({ ...base, sub: 'chat_banned' });
-		expect(r.kind).toBe('bot_banned');
-		expect(r.showEnable).toBe(true);
-		expect(r.showConnect).toBe(false);
-		expect(r.canManage).toBe(false);
-		expect(r.canRetry).toBe(false);
-		expect(r.live).toBe(false);
-	});
-
-	test('a blocked state outranks the active flag outgress cleared', () => {
-		expect(connectionUiState({ ...base, active: false, sub: 'revoked' }).kind).toBe('reauth_required');
-		expect(connectionUiState({ ...base, active: false, sub: 'chat_banned' }).kind).toBe('bot_banned');
-		expect(connectionUiState({ ...base, active: false, sub: 'unenrolled' }).kind).toBe('disabled');
-	});
-
-	test('a down core read is unavailable, not a definite state', () => {
-		expect(connectionUiState({ ...base, grant: 'unknown' }).kind).toBe('unavailable');
-		expect(connectionUiState({ ...base, active: 'unknown' }).kind).toBe('unavailable');
-		const u = connectionUiState({ ...base, active: 'unknown' });
-		expect(u.canRetry).toBe(true);
-		expect(u.live).toBe(false);
-		expect(u.showEnable).toBe(false);
-	});
-
-	test('no grant → auth_required (connect via settings, not enable)', () => {
-		const r = connectionUiState({ ...base, grant: false });
-		expect(r.kind).toBe('auth_required');
-		expect(r.showConnect).toBe(true);
-		expect(r.showEnable).toBe(false);
-	});
-
-	test('grant present but inactive → disabled (enable form shown)', () => {
-		const r = connectionUiState({ ...base, active: false });
-		expect(r.kind).toBe('disabled');
-		expect(r.showEnable).toBe(true);
-		expect(r.canManage).toBe(false);
-	});
-
-	test('enable is never offered while a channel is active or in flight', () => {
-		for (const sub of ['ok', 'pending', 'unenrolled', 'failing', 'revoked', 'unknown'] as SubState[]) {
-			expect(connectionUiState({ ...base, sub }).showEnable).toBe(false);
-		}
-	});
-
-	test('management actions are unavailable while an enrollment is in flight', () => {
-		expect(connectionUiState({ ...base, sub: 'pending' }).canManage).toBe(false);
-		expect(connectionUiState({ ...base, sub: 'unenrolled' }).canManage).toBe(false);
+	test.each(ROWS)('%s', (_name, patch, want) => {
+		expect(connectionUiState({ ...base, ...patch })).toMatchObject(want);
 	});
 
 	test('every signal permutation resolves to exactly one kind', () => {

@@ -6,6 +6,12 @@ import { SwrCache, type SwrCacheOptions } from './cache';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
+function gate() {
+  let release!: () => void;
+  const opened = new Promise<void>((r) => (release = r));
+  return { opened, release };
+}
+
 function make(opts: SwrCacheOptions = {}) {
   let t = 0;
   const cache = new SwrCache({ ...opts, now: () => t });
@@ -42,11 +48,10 @@ describe('SwrCache', () => {
   test('single-flight survives entry expiry mid-flight', async () => {
     const { cache, advance } = make();
     let loads = 0;
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const load = async () => {
       loads++;
-      await gate;
+      await opened;
       return loads;
     };
     const first = cache.getOrLoad('k', { freshMs: 1 }, load);
@@ -60,10 +65,9 @@ describe('SwrCache', () => {
 
   test('invalidation mid-flight dooms the commit (generation check)', async () => {
     const cache = new SwrCache();
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const slowLoad = async () => {
-      await gate;
+      await opened;
       return 'old';
     };
     const inFlight = cache.getOrLoad('k', 1000, slowLoad);
@@ -76,10 +80,9 @@ describe('SwrCache', () => {
 
   test('reader arriving after invalidation does not coalesce onto the doomed load', async () => {
     const cache = new SwrCache();
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const doomed = cache.getOrLoad('k', 1000, async () => {
-      await gate;
+      await opened;
       return 'pre-invalidation';
     });
     cache.invalidate('k');
@@ -91,10 +94,9 @@ describe('SwrCache', () => {
 
   test('set() beats an older in-flight load', async () => {
     const cache = new SwrCache();
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const inFlight = cache.getOrLoad('k', 1000, async () => {
-      await gate;
+      await opened;
       return 'loader';
     });
     cache.set('k', 'optimistic', 1000);
@@ -117,18 +119,16 @@ describe('SwrCache', () => {
   });
 
   test('stale-if-error serves last known value when the loader fails', async () => {
-    const cache = new SwrCache();
     const masked: string[] = [];
-    const { cache: observed, advance } = make({ onMaskedError: (_e, key) => masked.push(key) });
+    const { cache, advance } = make({ onMaskedError: (_e, key) => masked.push(key) });
     const policy = { freshMs: 5, swrMs: 0, staleIfErrorMs: 10_000 };
-    expect(await observed.getOrLoad('k', policy, async () => 'known')).toBe('known');
+    expect(await cache.getOrLoad('k', policy, async () => 'known')).toBe('known');
     advance(15);
-    const v = await observed.getOrLoad('k', policy, async () => {
+    const v = await cache.getOrLoad('k', policy, async () => {
       throw new Error('rpc down');
     });
     expect(v).toBe('known');
     expect(masked).toEqual(['k']);
-    void cache;
   });
 
   test('loader failure with no stale value propagates and caches nothing', async () => {
@@ -146,10 +146,9 @@ describe('SwrCache', () => {
     cache.set('commands:1', ['a'], 1000);
     cache.set('commands:2', ['b'], 1000);
     cache.set('modules:1', ['m'], 1000);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const inFlight = cache.getOrLoad('commands:3', 1000, async () => {
-      await gate;
+      await opened;
       return ['c'];
     });
     cache.invalidate('commands:');
@@ -163,10 +162,9 @@ describe('SwrCache', () => {
   test('clear() dooms everything (gap flush)', async () => {
     const cache = new SwrCache();
     cache.set('a', 1, 60_000);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
+    const { opened, release } = gate();
     const inFlight = cache.getOrLoad('b', 60_000, async () => {
-      await gate;
+      await opened;
       return 'pre-gap';
     });
     cache.clear();

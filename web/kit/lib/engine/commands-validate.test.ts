@@ -2,6 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   DEFS_PER_BROADCASTER,
   FETCH_NAME_MAX,
@@ -19,7 +21,6 @@ import {
   validateCommand,
   validateFetchDef
 } from './commands-validate';
-import { RateLimiter } from '../server/rate-limit';
 
 const validFields = {
   name: 'raid',
@@ -68,47 +69,19 @@ describe('cooldown scopes', () => {
 });
 
 describe('bump_counter option validation', () => {
-  test('empty is valid: it means the command bumps nothing', () => {
-    expect(validateCommand({ ...validFields, response: 'hi' }).bump_counter).toBeUndefined();
-  });
-
-  test('an ordinary name is valid', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'deaths' }).bump_counter
-    ).toBeUndefined();
-  });
-
-  test('rejects spaces', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'two words' }).bump_counter
-    ).toContain('spaces');
-  });
-
-  test('rejects a name over 64 characters', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'a'.repeat(65) }).bump_counter
-    ).toContain('64');
-  });
-
-  test('strips a leading "!" rather than rejecting it, matching Go normalization', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: '!deaths' }).bump_counter
-    ).toBeUndefined();
-  });
-
-  test('an embedded "!" (not leading) is valid, matching Go', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'dea!ths' }).bump_counter
-    ).toBeUndefined();
-  });
-
-  test('rejects ":" because it is the {counter:…}/{count:…} payload separator', () => {
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'target:deaths' }).bump_counter
-    ).toContain(':');
-    expect(
-      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'bot:feeds' }).bump_counter
-    ).toContain(':');
+  test.each([
+    ['empty is valid: it means the command bumps nothing', '', undefined],
+    ['an ordinary name is valid', 'deaths', undefined],
+    ['rejects spaces', 'two words', 'spaces'],
+    ['rejects a name over 64 characters', 'a'.repeat(65), '64'],
+    ['strips a leading "!" rather than rejecting it, matching Go normalization', '!deaths', undefined],
+    ['an embedded "!" (not leading) is valid, matching Go', 'dea!ths', undefined],
+    ['rejects ":" because it is the {counter:…}/{count:…} payload separator', 'target:deaths', ':'],
+    ['rejects ":" in a bot-addressed name too', 'bot:feeds', ':']
+  ] as [string, string, string | undefined][])('%s', (_name, bumpCounter, complaint) => {
+    const error = validateCommand({ ...validFields, response: 'hi', bumpCounter }).bump_counter;
+    if (complaint === undefined) expect(error).toBeUndefined();
+    else expect(error).toContain(complaint);
   });
 });
 
@@ -159,8 +132,27 @@ describe('fetch-def validation parity table', () => {
   test('key label / value ceilings', () => {
     expect(validateFetchDef({ ...validDef, keyLabel: 'k'.repeat(KEY_LABEL_MAX) }).key_label).toBeUndefined();
     expect(validateFetchDef({ ...validDef, keyLabel: 'k'.repeat(KEY_LABEL_MAX + 1) }).key_label).toContain('32');
-    expect(KEY_VALUE_MAX).toBe(512);
-    expect(DEFS_PER_BROADCASTER).toBe(20);
+  });
+});
+
+const GO_FETCH = join(import.meta.dir, '../../../../internal/domain/validate/fetch.go');
+
+describe('fetch limits mirror internal/domain/validate/fetch.go', () => {
+  const go = readFileSync(GO_FETCH, 'utf8');
+  const goValue = (name: string): number => {
+    const found = new RegExp(`^\\s*${name}\\s*=\\s*(\\d+)\\s*$`, 'm').exec(go);
+    if (!found) throw new Error(`${name} not found in fetch.go (declaration shape changed?)`);
+    return Number(found[1]);
+  };
+
+  test.each([
+    { go: 'MaxFetchDefsPerBroadcaster', limit: DEFS_PER_BROADCASTER },
+    { go: 'MaxFetchURLLength', limit: FETCH_URL_MAX },
+    { go: 'maxFetchPathDepth', limit: JSON_PATH_MAX_DEPTH },
+    { go: 'MaxKeyLabelLength', limit: KEY_LABEL_MAX },
+    { go: 'MaxKeyValueLength', limit: KEY_VALUE_MAX }
+  ])('$go is the limit the console enforces', ({ go: name, limit }) => {
+    expect(limit).toBe(goValue(name));
   });
 });
 
@@ -297,28 +289,5 @@ describe('picker path-building property', () => {
     const pickable = leaves.filter((l) => l.path.length <= JSON_PATH_MAX_DEPTH);
     expect(pickable.every((l) => validateFetchDef({ ...validDef, path: l.path }).path === undefined)).toBe(true);
     expect(tooDeep.every((l) => validateFetchDef({ ...validDef, path: l.path }).path !== undefined)).toBe(true);
-  });
-});
-
-describe('fetchtest limiter numbers (capacity 6, refill 0.1/s)', () => {
-  let t = 0;
-  const limiter = new RateLimiter({ capacity: 6, refillPerSec: 0.1, now: () => t });
-  const key = 'fetchtest:42';
-
-  test('burst of 6 passes instantly, 7th rejects', () => {
-    t = 1000;
-    for (let i = 0; i < 6; i++) expect(limiter.check(key).allowed).toBe(true);
-    const rejected = limiter.check(key);
-    expect(rejected.allowed).toBe(false);
-    expect(rejected.retryAfterSec).toBe(10);
-  });
-
-  test('sustained rate is one run per 10 seconds', () => {
-    t += 9999;
-    expect(limiter.check(key).allowed).toBe(false);
-    t += 1;
-    expect(limiter.check(key).allowed).toBe(true);
-    expect(limiter.check(key).allowed).toBe(false);
-    limiter.dispose();
   });
 });

@@ -74,8 +74,7 @@ describe('shared rate windows', () => {
   });
 
   test('now and avg use the windows ingress uses', () => {
-    expect(RATE_NOW_SECONDS).toBe(10);
-    expect(RATE_AVG_SECONDS).toBe(60);
+    expect([RATE_NOW_SECONDS, RATE_AVG_SECONDS]).toEqual([10, 60]);
   });
 
   test('a burst shows in the now window while the minute average stays low', () => {

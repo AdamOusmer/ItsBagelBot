@@ -30,15 +30,13 @@ describe('admin nav registry', () => {
     }
   });
 
-  test('sub-routes resolve to their owning section', () => {
-    expect(adminSectionForPath('/users/12345')).toBe('users');
-    expect(adminSectionForPath('/events/stream')).toBe('events');
-    expect(adminSectionForPath('/deploys/abc123/stream')).toBe('deploys');
-  });
-
-  test('/analytics is gone and falls back to the overview', () => {
-    expect(ADMIN_SECTIONS.some((def) => def.href === '/analytics')).toBe(false);
-    expect(adminSectionForPath('/analytics')).toBe('overview');
+  test.each<[string, ReturnType<typeof adminSectionForPath>]>([
+    ['/users/12345', 'users'],
+    ['/events/stream', 'events'],
+    ['/deploys/abc123/stream', 'deploys'],
+    ['/analytics', 'overview']
+  ])('%s resolves to the %s section', (path, section) => {
+    expect(adminSectionForPath(path)).toBe(section);
   });
 
   test('minRole hides Access rows from the roles their routes bounce', () => {
@@ -75,20 +73,15 @@ describe('admin nav registry', () => {
     expect(active.map((item) => item.href)).toEqual(['/secrets']);
   });
 
-  test('every label key is a real English leaf', () => {
+  test('every label key is a real English leaf, and the breadcrumb key is the section label', () => {
     for (const def of ADMIN_SECTIONS) {
       expect(typeof leaf(def.labelKey)).toBe('string');
+      expect(adminSectionLabelKey(def.id)).toBe(def.labelKey);
     }
     for (const role of ROLES) {
       for (const group of adminNavGroups({ role, section: 'overview' })) {
         expect(typeof leaf(group.label ?? '')).toBe('string');
       }
-    }
-  });
-
-  test('the breadcrumb key of every section is that section label', () => {
-    for (const def of ADMIN_SECTIONS) {
-      expect(adminSectionLabelKey(def.id)).toBe(def.labelKey);
     }
   });
 });

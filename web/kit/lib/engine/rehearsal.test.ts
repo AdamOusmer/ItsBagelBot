@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, timerOwns, type Seg, type Token } from './rehearsal';
+import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, timerOwns, type Seg, type SegKind, type Token } from './rehearsal';
 
 function textOf(segments: Seg[]): string {
   return segments.map((s) => s.text).join('');
@@ -42,50 +42,110 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 });
 
+type Overrides = Parameters<typeof rehearseCommand>[1];
+
+const commandText = (template: string, overrides?: Overrides) =>
+  textOf(rehearseCommand(template, overrides)[0].segments);
+
+const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: Overrides][] = [
+  ['positional words come from the {args} sample, so the two agree', '{1} / {2} / {2:} / {1:}', 'ferret_king / good / good luck / ferret_king good luck'],
+  ['an override of {args} moves the positional samples with it', '{1} then {2:}', 'alex then two three', { args: 'alex two three' }],
+  ['a word past the end renders its fallback, or nothing', '[{9}] {9|nobody}', '[] nobody'],
+  ['{n:m} is a real slice; {:m} anchors it at word 1', '{1:2} / {:2}', 'ferret_king good / ferret_king good'],
+  ['{sender}/{target} are aliases; an override of the canonical covers them', '{sender} waves at {target}', 'maya_live waves at alex', { user: 'maya_live', touser: 'alex' }],
+  ['resolves dynamic tokens deterministically', '{random} {random:10-20} {choice:a,b,c}', '57 15 a'],
+  ['invalid random ranges stay literal, like ParseDynamic ok=false', '{random:5-1} {random:x-y}', '{random:5-1} {random:x-y}'],
+  ['a conditional picks a branch from the sample of the token it names', '{if:touser:hi you:hi everyone} - {touser}', 'hi you - ferret_king'],
+  ['a conditional on a missing word tests emptiness', '{if:9:word nine:no ninth word}', 'no ninth word'],
+  ['a conditional equality is true on a match', '{if:command=hug:hugs:waves}', 'hugs'],
+  ['a conditional equality is case-sensitive', '{if:command=HUG:hugs:waves}', 'waves'],
+  ['a conditional on a counter tests emptiness', '{if:count:deaths:some deaths:none}', 'some deaths'],
+  ['a conditional on a counter supports equality', '{if:count:deaths=42:exactly 42:something else}', 'exactly 42'],
+  ['a branch is literal text: no token expands inside it', '{if:user:hi {user}}', 'hi {user}'],
+  ['a present value ignores its fallback', 'hi {user|everyone}', 'hi sesame_sam'],
+  ['the pure scope answers first, so a sample cannot shadow the dice', '{random}', '57', { random: 'nope' }],
+  ['the utility scope computes {math:…} for real', 'that is {math:(1+2)*3} bagels', 'that is 9 bagels'],
+  ['a refused expression renders its fallback, like chat', '{math:1/0|no idea}', 'no idea'],
+  ['the URL encoders show the bytes the request will carry', '{queryescape:a b&c} {pathescape:a b&c}', 'a+b%26c a%20b&c'],
+  ['{querystring} is the args sample, URL-encoded', '?q={querystring}', '?q=bagel+%26+lox', { args: 'bagel & lox' }],
+  ['{repeat:…} repeats within its cap', '{repeat:3:yay}', 'yay yay yay'],
+  ['{repeat:…} past its cap renders the fallback', '{repeat:21:x|too many}', 'too many'],
+  ['{countdown} shows a fixed sample', '{countdown:2026-12-25}', '3 days, 4 hours'],
+  ['{countup} shows a fixed sample', '{countup:2020-01-01T00:00:00Z}', '3 days, 4 hours'],
+  ['a bad countdown date renders its fallback', '{countdown:next tuesday|soon}', 'soon'],
+  ['a named viewer previews the same stand-in as the bare form', '{points:alex} vs {points}', '1280 vs 1280'],
+  ['the message scope still answers first for the names it owns', '{user} has {points}', 'sesame_sam has 1280'],
+  ['two chatter draws preview as the same name', '{random.chatter} and {random.chatter}', 'maya_live and maya_live'],
+  ['a named channel previews with the same stand-in', 'go watch {game:@Pokimane}', 'go watch Just Chatting'],
+  ['bare {channel} is still the display name', '{channel} plays {game}', 'bagel_bakery plays Just Chatting'],
+  ['two emote draws preview as the same code', '{random.emote} {random.emote}', 'KEKW KEKW'],
+  ['the song halves preview as the halves of the whole', '{song.title}: {song.artist}', 'Everything In Its Right Place: Radiohead'],
+  ['a numbered quote previews the same stand-in as the random draw', '{quote:7}', 'Quote #12: bagels are just savoury donuts (2026-01-31)'],
+  ['{count:name} previews like {counter:name}', '{counter:deaths} deaths, {count:Deaths} today', '42 deaths, 42 today'],
+  ['bare {count} is the {uses} alias, not a counter read', '{count}', '317'],
+  ['a bot-addressed counter read resolves', '{count:bot:feeds}', '42'],
+  ['a target-addressed read previews like the bump', '{count:target:shutups}', '42']
+];
+
+const COMMAND_RESOLVED: [name: string, template: string, want: string][] = [
+  ['the viewer lookups preview with a stand-in', '{followage} / {accountage} / {points} {pointsname} / {watchtime}', '3 months / 4 years, 2 months / 1280 bagels / 2 hours, 30 minutes'],
+  ['the room previews with a stand-in', '{chatters} here, hi {random.chatter}', '37 here, hi maya_live'],
+  ['the command run count previews with a stand-in', 'hugged {uses} times', 'hugged 317 times'],
+  ['the channel facts preview with a stand-in', '{title} / {game} / {channel.viewers} / {uptime}', 'bagel baking and chill / Just Chatting / 128 / 2 hours, 15 minutes'],
+  ['each provider list previews with its own stand-in', '{7tvemotes} / {bttvemotes} / {ffzemotes}', 'PagMan Clap peepoHappy / KEKW monkaS catJAM / LUL ZULUL AYAYA'],
+  ['the module facts preview with a stand-in', '{quote} / {time} / {song}', 'Quote #12: bagels are just savoury donuts (2026-01-31) / 3:04 PM / Everything In Its Right Place by Radiohead'],
+  ['{time:<place>} previews a value, not the literal span', '{time} in {touser}, {time:Paris} in Paris', '3:04 PM in ferret_king, 11:04 PM in Paris']
+];
+
+const COMMAND_SAMPLED: [name: string, template: string, want: string, samples: number][] = [
+  ['substitutes exactly the expandCommand token set', '{user} {target} {args} {channel}', 'sesame_sam ferret_king ferret_king good luck bagel_bakery', 4],
+  ['the identity tokens substitute too', '{userid} {user.login} !{command}', '48291057 sesame_sam !hug', 3],
+  ['a span that only looks like a word number stays literal', '{0} {31} {01} {+1} {2:1}', '{0} {31} {01} {+1} {2:1}', 0]
+];
+
+const LITERAL_SPANS: [name: string, spans: string[]][] = [
+  ['a cond naming something no scope owns keeps the whole span', ['{if:missing:x}', '{if:missing:x:y}', '{if}', '{if:user}']],
+  ['a fallback never rescues a name no scope owns', ['{typo|rescued}']],
+  ['an identity token with a payload stays literal, like Message.Get', ['{user:bob}']],
+  ['a span that addresses nobody stays literal, like refOf', ['{points:}', '{followage:}', '{pointsname:alex}']],
+  ['the chatter tokens take no payload', ['{chatters:5}', '{random.chatter:mods}', '{chatter}']],
+  ['the uses token takes no payload', ['{uses:hug}']],
+  ['a channel span addressing nobody stays literal', ['{title:}', '{channel.viewers:pokimane}', '{channel.followers}']],
+  ['no emote token takes a payload', ['{7tvemotes:100}', '{random.emote:7tv}', '{twitchemotes}']],
+  ['a payload the Go scope refuses stays literal', ['{quote:}', '{quote:seven}', '{quote:0}', '{time:}', '{song:2}']],
+  ['a degenerate counter payload stays literal', ['{count:}', '{count:target:}']]
+];
+
+const LINE_CASES: [name: string, template: string, want: string[]][] = [
+  ['a line a false conditional empties is dropped, its siblings are not', 'hi {user}\n{if:9: and word nine}\nlast line', ['hi sesame_sam', 'last line']],
+  ['an emptied line does not eat a slot in the 5-message cap', 'one\n{if:9:two}\nthree\nfour\nfive', ['one', 'three', 'four', 'five']]
+];
+
 describe('rehearseCommand', () => {
-  test('substitutes exactly the expandCommand token set', () => {
-    const [line] = rehearseCommand('{user} {target} {args} {channel}');
-    expect(textOf(line.segments)).toBe(
-      'sesame_sam ferret_king ferret_king good luck bagel_bakery'
-    );
-    expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(4);
+  test.each(COMMAND_TEXT)('%s', (_name, template, want, ...overrides) => {
+    expect(commandText(template, overrides[0])).toBe(want);
   });
 
-  test('the identity tokens substitute too', () => {
-    const [line] = rehearseCommand('{userid} {user.login} !{command}');
-    expect(textOf(line.segments)).toBe('48291057 sesame_sam !hug');
-    expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(3);
+  test.each(COMMAND_SAMPLED)('%s', (_name, template, want, samples) => {
+    const [line] = rehearseCommand(template);
+    expect(textOf(line.segments)).toBe(want);
+    expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(samples);
   });
 
-  test('positional words come from the {args} sample, so the two agree', () => {
-    const [line] = rehearseCommand('{1} / {2} / {2:} / {1:}');
-    expect(textOf(line.segments)).toBe('ferret_king / good / good luck / ferret_king good luck');
+  test.each(COMMAND_RESOLVED)('%s', (_name, template, want) => {
+    const [line] = rehearseCommand(template);
+    expect(textOf(line.segments)).toBe(want);
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
   });
 
-  test('an override of {args} moves the positional samples with it', () => {
-    const [line] = rehearseCommand('{1} then {2:}', { args: 'alex two three' });
-    expect(textOf(line.segments)).toBe('alex then two three');
+  test.each(LITERAL_SPANS)('%s', (_name, spans) => {
+    for (const span of spans) {
+      expect(rehearseCommand(span)[0].segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
   });
 
-  test('a word past the end renders its fallback, or nothing', () => {
-    const [line] = rehearseCommand('[{9}] {9|nobody}');
-    expect(textOf(line.segments)).toBe('[] nobody');
-  });
-
-  test('a span that only looks like a word number stays literal', () => {
-    const [line] = rehearseCommand('{0} {31} {01} {+1} {2:1}');
-    expect(textOf(line.segments)).toBe('{0} {31} {01} {+1} {2:1}');
-    expect(line.segments.every((s) => s.kind !== 'sample')).toBe(true);
-  });
-
-  test('{n:m} is a real slice; {:m} anchors it at word 1', () => {
-    const [line] = rehearseCommand('{1:2} / {:2}');
-    expect(textOf(line.segments)).toBe('ferret_king good / ferret_king good');
-  });
-
-  test('{sender}/{target} are aliases; an override of the canonical covers them', () => {
-    const [line] = rehearseCommand('{sender} waves at {target}', { user: 'maya_live', touser: 'alex' });
-    expect(textOf(line.segments)).toBe('maya_live waves at alex');
+  test.each(LINE_CASES)('%s', (_name, template, want) => {
+    expect(rehearseCommand(template).map((line) => textOf(line.segments))).toEqual(want);
   });
 
   test('alert-only tokens do NOT expand in a command (the bot leaves them literal)', () => {
@@ -93,78 +153,17 @@ describe('rehearseCommand', () => {
     expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
   });
 
-  test('resolves dynamic tokens deterministically', () => {
-    const [line] = rehearseCommand('{random} {random:10-20} {choice:a,b,c}');
-    expect(textOf(line.segments)).toBe('57 15 a');
-  });
-
-  test('invalid random ranges stay literal, like ParseDynamic ok=false', () => {
-    const [line] = rehearseCommand('{random:5-1} {random:x-y}');
-    expect(textOf(line.segments)).toBe('{random:5-1} {random:x-y}');
-  });
-
-  test('counters resolve with engine normalization; only an empty name stays literal', () => {
-    const [line] = rehearseCommand('{counter:Deaths} {counter:bot:feeds} {counter:}');
-    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'sample', 'plain', 'unknown']);
-    expect(textOf(line.segments)).toBe('42 42 {counter:}');
-  });
-
-  test('target-addressed counters rehearse like the engine (issue #479)', () => {
-    const [line] = rehearseCommand('{counter:target:shutups} {counter:target:} {counter:target:bot:x}');
-    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'unknown', 'plain', 'sample']);
-    expect(textOf(line.segments)).toBe('42 {counter:target:} 42');
+  test.each([
+    ['counters resolve with engine normalization; only an empty name stays literal', '{counter:Deaths} {counter:bot:feeds} {counter:}', ['sample', 'plain', 'sample', 'plain', 'unknown'], '42 42 {counter:}'],
+    ['target-addressed counters rehearse like the engine (issue #479)', '{counter:target:shutups} {counter:target:} {counter:target:bot:x}', ['sample', 'plain', 'unknown', 'plain', 'sample'], '42 {counter:target:} 42']
+  ] as [string, string, SegKind[], string][])('%s', (_name, template, kinds, want) => {
+    const [line] = rehearseCommand(template);
+    expect(line.segments.map((s) => s.kind)).toEqual(kinds);
+    expect(textOf(line.segments)).toBe(want);
   });
 
   test('caps at 5 messages, one per line, like emitCommand', () => {
     expect(rehearseCommand('a\nb\nc\nd\ne\nf')).toHaveLength(5);
-  });
-
-  test('a conditional picks a branch from the sample of the token it names', () => {
-    const [line] = rehearseCommand('{if:touser:hi you:hi everyone} - {touser}');
-    expect(textOf(line.segments)).toBe('hi you - ferret_king');
-  });
-
-  test('a conditional tests emptiness, and equality with "="', () => {
-    const cases: [string, string][] = [
-      ['{if:9:word nine:no ninth word}', 'no ninth word'],
-      ['{if:command=hug:hugs:waves}', 'hugs'],
-      ['{if:command=HUG:hugs:waves}', 'waves'],
-      ['{if:count:deaths:some deaths:none}', 'some deaths'],
-      ['{if:count:deaths=42:exactly 42:something else}', 'exactly 42']
-    ];
-    for (const [template, want] of cases) {
-      const [line] = rehearseCommand(template);
-      expect(textOf(line.segments)).toBe(want);
-    }
-  });
-
-  test('a cond naming something no scope owns keeps the whole span', () => {
-    for (const span of ['{if:missing:x}', '{if:missing:x:y}', '{if}', '{if:user}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-
-  test('a branch is literal text: no token expands inside it', () => {
-    const [line] = rehearseCommand('{if:user:hi {user}}');
-    expect(textOf(line.segments)).toBe('hi {user}');
-  });
-
-  test('a line a false conditional empties is dropped, its siblings are not', () => {
-    const lines = rehearseCommand('hi {user}\n{if:9: and word nine}\nlast line');
-    expect(lines).toHaveLength(2);
-    expect(textOf(lines[0].segments)).toBe('hi sesame_sam');
-    expect(textOf(lines[1].segments)).toBe('last line');
-  });
-
-  test('an emptied line does not eat a slot in the 5-message cap', () => {
-    const lines = rehearseCommand('one\n{if:9:two}\nthree\nfour\nfive');
-    expect(lines.map((line) => textOf(line.segments))).toEqual([
-      'one',
-      'three',
-      'four',
-      'five'
-    ]);
   });
 
   test('routes each line its own slash verb', () => {
@@ -194,250 +193,16 @@ describe('rehearseCommand', () => {
     expect(line.mode).toBe('pin');
     expect(textOf(line.segments)).toBe('read the rules');
   });
-});
 
-describe('scope chain (engine/scope mirror)', () => {
   test('the pipe fallback renders when a token resolves to empty', () => {
     const [line] = rehearseCommand('shout out to {args|everyone}', { args: '' });
     expect(textOf(line.segments)).toBe('shout out to everyone');
     expect(line.segments.at(-1)?.kind).toBe('sample');
   });
 
-  test('a present value ignores its fallback', () => {
-    const [line] = rehearseCommand('hi {user|everyone}');
-    expect(textOf(line.segments)).toBe('hi sesame_sam');
-  });
-
-  test('a fallback never rescues a name no scope owns', () => {
-    const [line] = rehearseCommand('{typo|rescued}');
-    expect(line.segments).toEqual([{ text: '{typo|rescued}', kind: 'unknown' }]);
-  });
-
-  test('an identity token with a payload stays literal, like Message.Get', () => {
-    const [line] = rehearseCommand('{user:bob}');
-    expect(line.segments).toEqual([{ text: '{user:bob}', kind: 'unknown' }]);
-  });
-
-  test('the pure scope answers first, so a sample cannot shadow the dice', () => {
-    const [line] = rehearseCommand('{random}', { random: 'nope' });
-    expect(textOf(line.segments)).toBe('57');
-  });
-
-  test('the utility scope computes {math:…} for real', () => {
-    const [line] = rehearseCommand('that is {math:(1+2)*3} bagels');
-    expect(textOf(line.segments)).toBe('that is 9 bagels');
-  });
-
-  test('a refused expression renders its fallback, like chat', () => {
-    const [line] = rehearseCommand('{math:1/0|no idea}');
-    expect(textOf(line.segments)).toBe('no idea');
-  });
-
-  test('the URL encoders show the bytes the request will carry', () => {
-    const [line] = rehearseCommand('{queryescape:a b&c} {pathescape:a b&c}');
-    expect(textOf(line.segments)).toBe('a+b%26c a%20b&c');
-  });
-
-  test('{querystring} is the args sample, URL-encoded', () => {
-    const [line] = rehearseCommand('?q={querystring}', { args: 'bagel & lox' });
-    expect(textOf(line.segments)).toBe('?q=bagel+%26+lox');
-  });
-
-  test('{repeat:…} honours both caps', () => {
-    expect(textOf(rehearseCommand('{repeat:3:yay}')[0].segments)).toBe('yay yay yay');
-    expect(textOf(rehearseCommand('{repeat:21:x|too many}')[0].segments)).toBe('too many');
-  });
-
-  test('the clock tokens show a fixed sample, and nothing for a bad date', () => {
-    expect(textOf(rehearseCommand('{countdown:2026-12-25}')[0].segments)).toBe('3 days, 4 hours');
-    expect(textOf(rehearseCommand('{countup:2020-01-01T00:00:00Z}')[0].segments)).toBe('3 days, 4 hours');
-    expect(textOf(rehearseCommand('{countdown:next tuesday|soon}')[0].segments)).toBe('soon');
-  });
-
   test('a utility with no payload stays literal', () => {
     const [line] = rehearseCommand('{math} {repeat}');
     expect(line.segments.filter((s) => s.kind === 'unknown').length).toBe(2);
-  });
-
-  test('a module reply mounts no utility scope either', () => {
-    const [line] = rehearseReply('{math:1+1}', {});
-    expect(line.segments).toEqual([{ text: '{math:1+1}', kind: 'unknown' }]);
-  });
-
-  test('a module reply mounts no message or counter scope', () => {
-    const [line] = rehearseReply('{args} {counter:deaths}', {});
-    expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
-  });
-});
-
-describe('viewer scope (engine/scope/viewer.go mirror)', () => {
-  test('the viewer lookups preview with a stand-in', () => {
-    const [line] = rehearseCommand('{followage} / {accountage} / {points} {pointsname} / {watchtime}');
-    expect(textOf(line.segments)).toBe('3 months / 4 years, 2 months / 1280 bagels / 2 hours, 30 minutes');
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('a named viewer previews the same stand-in as the bare form', () => {
-    const [line] = rehearseCommand('{points:alex} vs {points}');
-    expect(textOf(line.segments)).toBe('1280 vs 1280');
-  });
-
-  test('a span that addresses nobody stays literal, like refOf', () => {
-    for (const span of ['{points:}', '{followage:}', '{pointsname:alex}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-
-  test('the message scope still answers first for the names it owns', () => {
-    const [line] = rehearseCommand('{user} has {points}');
-    expect(textOf(line.segments)).toBe('sesame_sam has 1280');
-  });
-});
-
-describe('chatter scope (engine/scope/chatters.go mirror)', () => {
-  test('the room previews with a stand-in', () => {
-    const [line] = rehearseCommand('{chatters} here, hi {random.chatter}');
-    expect(textOf(line.segments)).toBe('37 here, hi maya_live');
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('two draws preview as the same name', () => {
-    const [line] = rehearseCommand('{random.chatter} and {random.chatter}');
-    expect(textOf(line.segments)).toBe('maya_live and maya_live');
-  });
-
-  test('neither token takes a payload', () => {
-    for (const span of ['{chatters:5}', '{random.chatter:mods}', '{chatter}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-});
-
-describe('uses scope (engine/scope/uses.go mirror)', () => {
-  test('the command run count previews with a stand-in', () => {
-    const [line] = rehearseCommand('hugged {uses} times');
-    expect(textOf(line.segments)).toBe('hugged 317 times');
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('the token takes no payload', () => {
-    const [line] = rehearseCommand('{uses:hug}');
-    expect(line.segments).toEqual([{ text: '{uses:hug}', kind: 'unknown' }]);
-  });
-
-  test('a module reply has no use count, so it stays literal there', () => {
-    const [line] = rehearseReply('{uses}', {});
-    expect(line.segments).toEqual([{ text: '{uses}', kind: 'unknown' }]);
-  });
-});
-
-describe('channel scope (engine/scope/channel.go mirror)', () => {
-  test('the channel facts preview with a stand-in', () => {
-    const [line] = rehearseCommand('{title} / {game} / {channel.viewers} / {uptime}');
-    expect(textOf(line.segments)).toBe(
-      'bagel baking and chill / Just Chatting / 128 / 2 hours, 15 minutes'
-    );
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('a named channel previews with the same stand-in', () => {
-    const [line] = rehearseCommand('go watch {game:@Pokimane}');
-    expect(textOf(line.segments)).toBe('go watch Just Chatting');
-  });
-
-  test('bare {channel} is still the display name', () => {
-    const [line] = rehearseCommand('{channel} plays {game}');
-    expect(textOf(line.segments)).toBe('bagel_bakery plays Just Chatting');
-  });
-
-  test('a span addressing nobody stays literal', () => {
-    for (const span of ['{title:}', '{channel.viewers:pokimane}', '{channel.followers}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-});
-
-describe('emote scope (engine/scope/emotes.go mirror)', () => {
-  test('each provider list previews with its own stand-in', () => {
-    const [line] = rehearseCommand('{7tvemotes} / {bttvemotes} / {ffzemotes}');
-    expect(textOf(line.segments)).toBe(
-      'PagMan Clap peepoHappy / KEKW monkaS catJAM / LUL ZULUL AYAYA'
-    );
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('two draws preview as the same code', () => {
-    const [line] = rehearseCommand('{random.emote} {random.emote}');
-    expect(textOf(line.segments)).toBe('KEKW KEKW');
-  });
-
-  test('none of them takes a payload', () => {
-    for (const span of ['{7tvemotes:100}', '{random.emote:7tv}', '{twitchemotes}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-});
-
-describe('module scope (engine/scope/modules.go mirror)', () => {
-  test('the module facts preview with a stand-in', () => {
-    const [line] = rehearseCommand('{quote} / {time} / {song}');
-    expect(textOf(line.segments)).toBe(
-      'Quote #12: bagels are just savoury donuts (2026-01-31) / 3:04 PM / Everything In Its Right Place by Radiohead'
-    );
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-
-  test('the song halves preview as the halves of the whole', () => {
-    const [line] = rehearseCommand('{song.title}: {song.artist}');
-    expect(textOf(line.segments)).toBe('Everything In Its Right Place: Radiohead');
-  });
-
-  test('a numbered quote previews the same stand-in as the random draw', () => {
-    const [line] = rehearseCommand('{quote:7}');
-    expect(textOf(line.segments)).toBe('Quote #12: bagels are just savoury donuts (2026-01-31)');
-  });
-
-  test('a payload the Go scope refuses stays literal', () => {
-    for (const span of ['{quote:}', '{quote:seven}', '{quote:0}', '{time:}', '{song:2}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-  });
-
-  test('{time:<place>} previews a value, not the literal span', () => {
-    const [line] = rehearseCommand('{time} in {touser}, {time:Paris} in Paris');
-    expect(textOf(line.segments)).toBe('3:04 PM in ferret_king, 11:04 PM in Paris');
-    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
-  });
-});
-
-describe('read-only counters (engine/scope/store.go mirror)', () => {
-  test('{count:name} previews like {counter:name}', () => {
-    const [line] = rehearseCommand('{counter:deaths} deaths, {count:Deaths} today');
-    expect(textOf(line.segments)).toBe('42 deaths, 42 today');
-  });
-
-  test('bare {count} is the {uses} alias, not a counter read', () => {
-    const [line] = rehearseCommand('{count}');
-    expect(textOf(line.segments)).toBe('317');
-  });
-
-  test('a degenerate counter payload stays literal; a named one (bot: included) resolves', () => {
-    for (const span of ['{count:}', '{count:target:}']) {
-      const [line] = rehearseCommand(span);
-      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
-    }
-    const [line] = rehearseCommand('{count:bot:feeds}');
-    expect(textOf(line.segments)).toBe('42');
-  });
-
-  test('a target-addressed read previews like the bump', () => {
-    const [line] = rehearseCommand('{count:target:shutups}');
-    expect(textOf(line.segments)).toBe('42');
   });
 });
 
@@ -479,6 +244,18 @@ describe('rehearseReply', () => {
     const [line] = rehearseReply('/me thanks {user} warmly', { user: 'sam' });
     expect(line.mode).toBe('me');
     expect(textOf(line.segments)).toBe('thanks sam warmly');
+  });
+
+  test.each([
+    ['a module reply mounts no utility scope either', '{math:1+1}'],
+    ['a module reply has no use count, so it stays literal there', '{uses}']
+  ])('%s', (_name, span) => {
+    expect(rehearseReply(span, {})[0].segments).toEqual([{ text: span, kind: 'unknown' }]);
+  });
+
+  test('a module reply mounts no message or counter scope', () => {
+    const [line] = rehearseReply('{args} {counter:deaths}', {});
+    expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
   });
 
   test('is a single message: no multi-line fan-out', () => {

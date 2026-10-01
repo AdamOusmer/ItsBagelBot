@@ -35,11 +35,6 @@ describe('custom-command chip strip (chipsFor(\'custom\'))', () => {
 });
 
 describe('pinned chips (was engine/common-tokens.ts\'s five-head cap)', () => {
-  test('at most six pinned chips on the custom surface', () => {
-    const pinned = chipsFor('custom').filter((c) => c.pinned);
-    expect(pinned.length).toBeLessThanOrEqual(6);
-  });
-
   test('pinned chips are exactly user, args, touser, random, uptime, if', () => {
     const pinned = chipsFor('custom')
       .filter((c) => c.pinned)

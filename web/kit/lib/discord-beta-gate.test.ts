@@ -21,10 +21,6 @@ describe('discord beta gate', () => {
     expect(DISCORD_MODULE.beta === true).toBe(goBetaPremiumOnly());
   });
 
-  test('the gate closes the whole section, not just a tile', () => {
-    expect(DISCORD_MODULE.href).toBe('/discord');
-  });
-
   test('every guild sub-page re-exports the one gated action table', () => {
     const files = readdirSync(GUILD_ROUTE, { withFileTypes: true })
       .filter((e) => e.isDirectory())

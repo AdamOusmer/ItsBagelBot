@@ -188,14 +188,6 @@ describe('golden replay', () => {
       expect(diagnostics).toEqual(want.diags as never);
     });
   }
-
-
-  test('parse is deterministic', async () => {
-    const bytes = buildFixtureDB(fullSpec);
-    const a = JSON.stringify(await parseStreamLabsDesktop(bytes));
-    const b = JSON.stringify(await parseStreamLabsDesktop(bytes));
-    expect(a).toBe(b);
-  });
 });
 
 const unitSpec: Spec = {

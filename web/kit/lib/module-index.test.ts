@@ -105,10 +105,7 @@ describe('module index filters', () => {
 describe('module command chips', () => {
   test('caps at three and reports the overflow', () => {
     const song = moduleDef('songqueue')!;
-    const { chips, extra } = moduleCommandChips(song, 3);
-    expect(chips[0]).toBe('!sr');
-    expect(chips.length).toBeLessThanOrEqual(3);
-    expect(chips.length + extra).toBeGreaterThanOrEqual(chips.length);
+    expect(moduleCommandChips(song, 3)).toEqual({ chips: ['!sr', '!remove', '!skip'], extra: 3 });
   });
 
   test('promotes a reply command when the module has no command list', () => {
