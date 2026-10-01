@@ -8,6 +8,7 @@ type FitTarget = {
     box: HTMLElement;
     block: boolean;
     group: string | undefined;
+    tracking: number;
 };
 
 const SELECTOR = '[data-fit]';
@@ -15,7 +16,7 @@ const BOX_SELECTOR = '[data-fit-box]';
 const PROPERTY = '--bb-fit';
 const FLOOR = 0.5;
 const LINE_SAFETY = 0.99;
-// Inherited px letter-spacing does not scale with the ratio, so one linear pass can still overflow.
+// Rounding can leave a pixel after the linear estimate, so the pass repeats until the label fits.
 const LINE_PASSES = 8;
 const BLOCK_STEPS = 6;
 
@@ -47,33 +48,41 @@ export function groupMin(items: readonly { group: string | undefined; ratio: num
     return items.map(({ group, ratio }) => (group === undefined ? ratio : smallest.get(group) ?? ratio));
 }
 
-function setRatio(el: HTMLElement, ratio: number): void {
-    if (ratio >= 1) el.style.removeProperty(PROPERTY);
-    else el.style.setProperty(PROPERTY, String(ratio));
+// Inherited letter-spacing computes to px, so it is scaled here or it would not shrink with the glyphs.
+function setRatio({ el, tracking }: FitTarget, ratio: number): void {
+    if (ratio >= 1) {
+        el.style.removeProperty(PROPERTY);
+        el.style.removeProperty('letter-spacing');
+        return;
+    }
+    el.style.setProperty(PROPERTY, String(ratio));
+    if (tracking) el.style.letterSpacing = `${tracking * ratio}px`;
 }
 
 function fits(el: HTMLElement, box: HTMLElement): boolean {
     return measureDeficit(el, box, 'y') <= 0 && measureDeficit(el, box, 'x') <= 0;
 }
 
-function lineRatio({ el, box }: FitTarget): number {
+function lineRatio(target: FitTarget): number {
+    const { el, box } = target;
     let ratio = 1;
     for (let pass = 0; pass < LINE_PASSES && ratio > FLOOR; pass++) {
         const deficit = measureDeficit(el, box, 'x');
         if (deficit <= 0) break;
         ratio = Math.max(FLOOR, ratio * fitRatio({ needed: el.getBoundingClientRect().width, deficit }));
-        setRatio(el, ratio);
+        setRatio(target, ratio);
     }
     return ratio;
 }
 
-function blockRatio({ el, box }: FitTarget): number {
+function blockRatio(target: FitTarget): number {
+    const { el, box } = target;
     if (fits(el, box)) return 1;
     let low = FLOOR;
     let high = 1;
     for (let step = 0; step < BLOCK_STEPS; step++) {
         const mid = (low + high) / 2;
-        setRatio(el, mid);
+        setRatio(target, mid);
         if (fits(el, box)) low = mid;
         else high = mid;
     }
@@ -82,22 +91,22 @@ function blockRatio({ el, box }: FitTarget): number {
 
 function fitAll(targets: readonly FitTarget[]): void {
     const ratios = targets.map((target) => {
-        setRatio(target.el, 1);
+        setRatio(target, 1);
+        target.tracking = parseFloat(getComputedStyle(target.el).letterSpacing) || 0;
         const ratio = target.block ? blockRatio(target) : lineRatio(target);
-        setRatio(target.el, ratio);
+        setRatio(target, ratio);
         return { group: target.group, ratio };
     });
     groupMin(ratios).forEach((ratio, i) => {
-        const { el } = targets[i];
-        setRatio(el, ratio);
-        el.dataset.fitReady = '';
+        setRatio(targets[i], ratio);
+        targets[i].el.dataset.fitReady = '';
     });
 }
 
 function targetOf(el: HTMLElement): FitTarget | null {
     const box = el.parentElement?.closest<HTMLElement>(BOX_SELECTOR) ?? el.parentElement;
     if (!box) return null;
-    return { el, box, block: el.dataset.fit === 'block', group: el.dataset.fitGroup || undefined };
+    return { el, box, block: el.dataset.fit === 'block', group: el.dataset.fitGroup || undefined, tracking: 0 };
 }
 
 function collect(root: ParentNode): FitTarget[] {
