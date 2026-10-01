@@ -74,21 +74,34 @@ func (h *engineRPC) handleCreate(ctx context.Context, req discordoutgress.Channe
 	return discordoutgress.ChannelCreateReply{ChannelID: got.ID}
 }
 
-func (h *engineRPC) handleDelete(ctx context.Context, req discordoutgress.ChannelDeleteRequest) discordoutgress.ChannelDeleteReply {
-	if err := h.rest.DeleteChannel(ctx, discapi.Snowflake{ID: req.ChannelID}); err != nil {
-		return discordoutgress.ChannelDeleteReply{Error: err.Error()}
+type channelScope struct {
+	guildID   string
+	channelID string
+}
+
+func (h *engineRPC) inGuild(ctx context.Context, scope channelScope, act func() error) string {
+	if err := discapi.RequireGuildChannel(ctx, h.rest, scope.guildID, scope.channelID); err != nil {
+		return err.Error()
 	}
-	return discordoutgress.ChannelDeleteReply{}
+	if err := act(); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func (h *engineRPC) handleDelete(ctx context.Context, req discordoutgress.ChannelDeleteRequest) discordoutgress.ChannelDeleteReply {
+	return discordoutgress.ChannelDeleteReply{Error: h.inGuild(ctx, channelScope{req.GuildID, req.ChannelID}, func() error {
+		return h.rest.DeleteChannel(ctx, discapi.Snowflake{ID: req.ChannelID})
+	})}
 }
 
 func (h *engineRPC) handleModify(ctx context.Context, req discordoutgress.ChannelModifyRequest) discordoutgress.ChannelModifyReply {
-	err := h.rest.ModifyChannel(ctx, discapi.ChannelPatch{
+	patch := discapi.ChannelPatch{
 		ID: req.ChannelID, Name: req.Name, UserLimit: req.UserLimit, PermissionOverwrites: req.Overwrites,
-	})
-	if err != nil {
-		return discordoutgress.ChannelModifyReply{Error: err.Error()}
 	}
-	return discordoutgress.ChannelModifyReply{}
+	return discordoutgress.ChannelModifyReply{Error: h.inGuild(ctx, channelScope{req.GuildID, req.ChannelID}, func() error {
+		return h.rest.ModifyChannel(ctx, patch)
+	})}
 }
 
 func (h *engineRPC) handleMove(ctx context.Context, req discordoutgress.MemberMoveRequest) discordoutgress.MemberMoveReply {
@@ -100,6 +113,9 @@ func (h *engineRPC) handleMove(ctx context.Context, req discordoutgress.MemberMo
 }
 
 func (h *engineRPC) handlePurge(ctx context.Context, req discordoutgress.PurgeRequest) discordoutgress.PurgeReply {
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.PurgeReply{Error: err.Error()}
+	}
 	msgs, err := h.rest.ListMessages(ctx, discapi.MessageQuery{ChannelID: req.ChannelID, Limit: req.Count})
 	if err != nil {
 		return discordoutgress.PurgeReply{Error: err.Error()}

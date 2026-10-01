@@ -392,7 +392,12 @@ func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 
 			reply := h.close(context.Background(), req)
 
-			require.Equal(t, 0, tr.indexOf(http.MethodGet, "/channels/c1/messages"), "history must be read before disposing the channel")
+			historyIdx := tr.indexOf(http.MethodGet, "/channels/c1/messages")
+			disposeIdx := tr.indexOf(http.MethodDelete, "/channels/c1")
+			if disposeIdx < 0 {
+				disposeIdx = tr.indexOf(http.MethodPatch, "/channels/c1")
+			}
+			require.Greater(t, disposeIdx, historyIdx, "history must be read before disposing the channel")
 			require.Equal(t, tc.wantCode, reply.Code)
 			require.Equal(t, tc.wantCode != outgressrpc.CodeOK, reply.Error != "")
 			require.True(t, reply.Truncated)

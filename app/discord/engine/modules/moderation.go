@@ -121,7 +121,7 @@ func (h moderationModule) purge(ctx context.Context, c *module.Context, emit mod
 	}
 	n := decode.OptionIntFrom(in.Data.Options, "count")
 	n = clampPurgeCount(n)
-	reply, err := h.purgeRPC.Purge(ctx, discordoutgress.PurgeRequest{ChannelID: in.ChannelID, Count: n})
+	reply, err := h.purgeRPC.Purge(ctx, discordoutgress.PurgeRequest{GuildID: in.GuildID, ChannelID: in.ChannelID, Count: n})
 	if err != nil {
 		h.log.Warn("purge rpc failed", zap.Error(err))
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Purge failed.", true))
