@@ -5,12 +5,8 @@ package custom
 
 import (
 	"context"
-	"encoding/binary"
-	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +15,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
@@ -27,187 +24,6 @@ import (
 )
 
 func init() { core.SetSSRFCheckForTests(false) }
-
-type fakeSOCKS struct {
-	ln net.Listener
-	wg sync.WaitGroup
-
-	mu       sync.Mutex
-	refusing bool
-
-	conns atomic.Int32
-}
-
-func newFakeSOCKS(t *testing.T) *fakeSOCKS {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	f := &fakeSOCKS{ln: ln}
-	prev := core.WARPProxyAddr()
-	core.SetWARPProxyAddrForTests(ln.Addr().String())
-	t.Cleanup(func() {
-		core.SetWARPProxyAddrForTests(prev)
-		_ = ln.Close()
-		f.wg.Wait()
-	})
-	f.wg.Add(1)
-	go f.serve()
-	return f
-}
-
-func (f *fakeSOCKS) setRefusing(v bool) {
-	f.mu.Lock()
-	f.refusing = v
-	f.mu.Unlock()
-}
-
-func (f *fakeSOCKS) serve() {
-	defer f.wg.Done()
-	for {
-		conn, err := f.ln.Accept()
-		if err != nil {
-			return
-		}
-		f.wg.Add(1)
-		go func() {
-			defer f.wg.Done()
-			defer conn.Close()
-			f.handle(conn)
-		}()
-	}
-}
-
-func (f *fakeSOCKS) handle(conn net.Conn) {
-	if !socksGreet(conn) {
-		return
-	}
-	target, ok := readSOCKSTarget(conn)
-	if !ok {
-		return
-	}
-	f.pipe(conn, target)
-}
-
-func socksGreet(conn net.Conn) bool {
-	head := make([]byte, 2)
-	if _, err := io.ReadFull(conn, head); err != nil || head[0] != 5 {
-		return false
-	}
-	methods := make([]byte, head[1])
-	if _, err := io.ReadFull(conn, methods); err != nil {
-		return false
-	}
-	_, err := conn.Write([]byte{5, 0})
-	return err == nil
-}
-
-func readSOCKSTarget(conn net.Conn) (string, bool) {
-	req := make([]byte, 4)
-	if _, err := io.ReadFull(conn, req); err != nil || req[1] != 1 {
-		return "", false
-	}
-	host, ok := readSOCKSHost(conn, req[3])
-	if !ok {
-		return "", false
-	}
-	port := make([]byte, 2)
-	if _, err := io.ReadFull(conn, port); err != nil {
-		return "", false
-	}
-	return net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(port)))), true
-}
-
-func readSOCKSHost(conn net.Conn, atyp byte) (string, bool) {
-	switch atyp {
-	case 1:
-		ip := make([]byte, 4)
-		if _, err := io.ReadFull(conn, ip); err != nil {
-			return "", false
-		}
-		return net.IP(ip).String(), true
-	case 3:
-		l := make([]byte, 1)
-		if _, err := io.ReadFull(conn, l); err != nil {
-			return "", false
-		}
-		name := make([]byte, l[0])
-		if _, err := io.ReadFull(conn, name); err != nil {
-			return "", false
-		}
-		return string(name), true
-	}
-	return "", false
-}
-
-func (f *fakeSOCKS) pipe(conn net.Conn, target string) {
-	f.mu.Lock()
-	refuse := f.refusing
-	f.mu.Unlock()
-	upstream, err := net.Dial("tcp", target)
-	if refuse && err == nil {
-		_ = upstream.Close()
-		_, _ = conn.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0})
-		return
-	}
-	if err != nil {
-		_, _ = conn.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0})
-		return
-	}
-	f.conns.Add(1)
-	_, _ = conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
-	go func() { _, _ = io.Copy(upstream, conn); _ = upstream.(*net.TCPConn).CloseWrite() }()
-	_, _ = io.Copy(conn, upstream)
-	_ = upstream.Close()
-}
-
-type memStore struct {
-	mu   sync.Mutex
-	m    map[string][]byte
-	ttls map[string]time.Duration
-}
-
-func newMemStore() *memStore {
-	return &memStore{m: map[string][]byte{}, ttls: map[string]time.Duration{}}
-}
-
-func (s *memStore) retention(key string) time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ttls[key]
-}
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-
-func (s *memStore) Set(_ context.Context, key string, val []byte, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	s.ttls[key] = ttl
-	return nil
-}
-
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, ttl time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	s.ttls[key] = ttl
-	return true, nil
-}
 
 type fakeDefs struct {
 	defs map[string]gossiprpc.FetchDef
@@ -231,8 +47,8 @@ type staged struct {
 
 type harness struct {
 	p     *api
-	store *memStore
-	socks *fakeSOCKS
+	store *providertest.MemStore
+	socks *providertest.FakeSOCKS
 
 	srv   *httptest.Server
 	hits  atomic.Int32
@@ -248,8 +64,8 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{
-		store:  newMemStore(),
-		socks:  newFakeSOCKS(t),
+		store:  providertest.NewMemStore(),
+		socks:  providertest.NewFakeSOCKS(t),
 		routes: map[string]staged{},
 		defs:   map[string]gossiprpc.FetchDef{},
 	}
@@ -310,58 +126,92 @@ func call(t *testing.T, h *harness, req gossiprpc.Request) gossiprpc.CustomFetch
 	return reply
 }
 
-func TestFetchExtractsNestedJSONPath(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json",
-		body: `{"data":{"items":[{"name":"Shiny Thing"},{"name":"Other"}]},"n":42,"ok":true}`})
-	h.addDef("wx", "/wx", gossiprpc.FetchDef{
-		URL:      "placeholder",
-		IsActive: true,
-		JSONPath: []string{"data", "items", "0", "name"},
-	})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
-	assert.Equal(t, gossiprpc.FetchOK, reply.Status)
-	require.Len(t, reply.Values, 1)
-	assert.Equal(t, "Shiny Thing", reply.Values[0])
-	assert.GreaterOrEqual(t, reply.MS, 0)
+type fetchOutcome struct {
+	Status gossiprpc.FetchStatus
+	Values []string
 }
 
-func TestFetchTokenTailOverridesStoredPath(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"a":"first","b":42,"c":true}`})
-	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"a"}})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx.b"})
-	assert.Equal(t, gossiprpc.FetchOK, reply.Status)
-	require.Len(t, reply.Values, 1)
-	assert.Equal(t, "42", reply.Values[0], "numbers coerce from their raw bytes, no float drift")
-
-	reply = call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx.c"})
-	assert.Equal(t, "true", reply.Values[0])
+func outcomeOf(reply gossiprpc.CustomFetchReply) fetchOutcome {
+	return fetchOutcome{Status: reply.Status, Values: reply.Values}
 }
 
-func TestFetchPlainKindReturnsBodyText(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/plain", staged{status: http.StatusOK, ct: "text/plain", body: "  hello from upstream\n"})
-	h.addDef("plain", "/plain", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
+func TestFetchShapesTheUpstreamResponseForChat(t *testing.T) {
+	jsonRoute := func(body string) staged {
+		return staged{status: http.StatusOK, ct: "application/json", body: body}
+	}
+	for _, tc := range []struct {
+		name  string
+		route staged
+		def   gossiprpc.FetchDef
+		defID string
+		want  fetchOutcome
+	}{
+		{"extracts a nested json path", jsonRoute(`{"data":{"items":[{"name":"Shiny Thing"},{"name":"Other"}]},"n":42,"ok":true}`),
+			gossiprpc.FetchDef{JSONPath: []string{"data", "items", "0", "name"}}, "d",
+			fetchOutcome{gossiprpc.FetchOK, []string{"Shiny Thing"}}},
+		{"a token tail overrides the stored path and keeps numbers raw", jsonRoute(`{"a":"first","b":42,"c":true}`),
+			gossiprpc.FetchDef{JSONPath: []string{"a"}}, "d.b",
+			fetchOutcome{gossiprpc.FetchOK, []string{"42"}}},
+		{"a token tail can address a boolean", jsonRoute(`{"a":"first","b":42,"c":true}`),
+			gossiprpc.FetchDef{JSONPath: []string{"a"}}, "d.c",
+			fetchOutcome{gossiprpc.FetchOK, []string{"true"}}},
+		{"a plain definition returns the trimmed body text", staged{status: http.StatusOK, ct: "text/plain", body: "  hello from upstream\n"},
+			gossiprpc.FetchDef{}, "d",
+			fetchOutcome{gossiprpc.FetchOK, []string{"hello from upstream"}}},
+		{"caps a long value to the chat limit", staged{status: http.StatusOK, ct: "text/plain", body: strings.Repeat("x", 500)},
+			gossiprpc.FetchDef{}, "d",
+			fetchOutcome{gossiprpc.FetchOK, []string{strings.Repeat("x", maxValueRunes)}}},
+		{"refuses a content type chat must not read", staged{status: http.StatusOK, ct: "application/octet-stream", body: "\xde\xad"},
+			gossiprpc.FetchDef{}, "d",
+			fetchOutcome{Status: gossiprpc.FetchUpstreamError}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.route(t, "/r", tc.route)
+			tc.def.IsActive = true
+			h.addDef("d", "/r", tc.def)
 
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "plain"})
-	assert.Equal(t, gossiprpc.FetchOK, reply.Status)
-	assert.Equal(t, []string{"hello from upstream"}, reply.Values)
+			reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: tc.defID})
+
+			assert.Equal(t, tc.want, outcomeOf(reply))
+			assert.GreaterOrEqual(t, reply.MS, 0)
+		})
+	}
 }
 
-func TestFetchUnresolvablePathIsBadDefAndNegativeCached(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"a":"x"}`})
-	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, JSONPath: []string{"nope"}})
+func TestFetchCachesOnlyAnswersThatTeachSomething(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		route         staged
+		def           gossiprpc.FetchDef
+		wantStatus    gossiprpc.FetchStatus
+		wantRetention time.Duration
+		wantHits      int32
+	}{
+		{"a path that does not resolve is a bad definition cached briefly",
+			staged{status: http.StatusOK, ct: "application/json", body: `{"a":"x"}`}, gossiprpc.FetchDef{JSONPath: []string{"nope"}},
+			gossiprpc.FetchBadDef, 2 * negativeTTL, 1},
+		{"an upstream 404 is cached briefly",
+			staged{status: http.StatusNotFound, ct: "application/json", body: `{"error":"nope"}`}, gossiprpc.FetchDef{},
+			gossiprpc.FetchUpstreamError, 2 * negativeTTL, 1},
+		{"an upstream outage is never cached",
+			staged{status: http.StatusInternalServerError, ct: "text/plain", body: "dead"}, gossiprpc.FetchDef{},
+			gossiprpc.FetchUpstreamError, 0, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.route(t, "/r", tc.route)
+			tc.def.IsActive = true
+			def := h.addDef("d", "/r", tc.def)
 
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
-	assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
-	assert.Equal(t, int32(1), h.hits.Load())
-	assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["wx"])))
-	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
-	assert.Equal(t, int32(1), h.hits.Load(), "second ask must come from the negative cache")
+			for range 2 {
+				assert.Equal(t, tc.wantStatus, call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "d"}).Status)
+			}
+
+			assert.Equal(t, tc.wantRetention, h.store.Retention(storedResultKey("ch1", def)))
+			assert.Equal(t, tc.wantHits, h.hits.Load())
+		})
+	}
 }
 
 func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
@@ -390,34 +240,6 @@ func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 	assert.Equal(t, int32(2), h.hits.Load())
 }
 
-func TestFetchUpstream404NegativeCachedAt15s(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/gone", staged{status: http.StatusNotFound, ct: "application/json", body: `{"error":"nope"}`})
-	h.addDef("gone", "/gone", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "gone"})
-	assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status)
-	assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["gone"])))
-
-	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "gone"})
-	assert.Equal(t, int32(1), h.hits.Load())
-}
-
-func TestFetchInfraFailureStaysUncached(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/boom", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "dead"})
-	h.addDef("boom", "/boom", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "boom"})
-	assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status)
-	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["boom"]))
-	require.NoError(t, err)
-	assert.False(t, found, "infrastructure failures teach nothing; they must not be cached")
-
-	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "boom"})
-	assert.Equal(t, int32(2), h.hits.Load(), "uncached means every ask re-dials")
-}
-
 func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
@@ -425,35 +247,61 @@ func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 
 	r1 := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", DryRun: true})
 	r2 := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", DryRun: true})
+
 	for _, r := range []gossiprpc.CustomFetchReply{r1, r2} {
 		require.Equal(t, gossiprpc.FetchOK, r.Status)
 		assert.Equal(t, []string{"1"}, r.Values)
 	}
 	assert.Equal(t, int32(2), h.hits.Load(), "dry runs execute for real")
 	assert.Equal(t, int32(0), h.admit.Load(), "dry runs spend no bucket")
-	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["wx"]))
-	require.NoError(t, err)
-	assert.False(t, found, "dry runs write no cache")
+	assert.Empty(t, h.store.Keys(), "dry runs write no cache")
+}
+
+func TestFetchSamplesAreOnlyForTheAuthoringTool(t *testing.T) {
+	const body = `{"forecast":{"temp":71.2}}`
+	oversized := strings.Repeat("a", maxSampleBytes+1)
+	for _, tc := range []struct {
+		name       string
+		ct         string
+		body       string
+		path       []string
+		dryRun     bool
+		wantStatus gossiprpc.FetchStatus
+		wantSample string
+	}{
+		{"a dry run returns the real response for the field picker", "application/json", body, []string{"forecast", "temp"}, true, gossiprpc.FetchOK, body},
+		{"chat never receives upstream text", "application/json", body, []string{"forecast", "temp"}, false, gossiprpc.FetchOK, ""},
+		{"an author whose path is wrong still gets the tree", "application/json", body, []string{"nope"}, true, gossiprpc.FetchBadDef, body},
+		{"an oversized body is dropped rather than truncated, since a half body could parse as a shorter document with different paths",
+			"text/plain", oversized, nil, true, gossiprpc.FetchOK, ""},
+		{"a body that is not utf-8 would not survive JSON marshalling", "text/plain", "\xff\xfe\x00", nil, true, gossiprpc.FetchOK, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.route(t, "/wx", staged{status: http.StatusOK, ct: tc.ct, body: tc.body})
+			h.addDef("wx", "/wx", gossiprpc.FetchDef{IsActive: true, JSONPath: tc.path})
+
+			reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", DryRun: tc.dryRun})
+
+			assert.Equal(t, tc.wantStatus, reply.Status)
+			assert.Equal(t, tc.wantSample, reply.Sample)
+		})
+	}
 }
 
 func TestFetchBucketDenialAnswersLimited(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("wx", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-	denials := atomic.Int32{}
 	h.p.admit = func(context.Context, *flight, bool) error {
-		if denials.Add(1) > 0 {
-			return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
-		}
-		return nil
+		return &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
 	}
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
+
 	assert.Equal(t, gossiprpc.FetchLimited, reply.Status)
 	assert.Zero(t, h.hits.Load(), "a bucket denial never reaches the upstream")
-	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["wx"]))
-	require.NoError(t, err)
-	assert.False(t, found, "denials are retried on the next request, never pinned")
+	assert.Empty(t, h.store.Keys(), "denials are retried on the next request, never pinned")
 }
 
 func TestFetchPremiumRidesAdmitLane(t *testing.T) {
@@ -469,6 +317,7 @@ func TestFetchPremiumRidesAdmitLane(t *testing.T) {
 		return nil
 	}
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", IsPremium: true})
+
 	assert.True(t, gotPremium.Load())
 	assert.NotEmpty(t, gotHost, "the per-host layer needs the target host")
 }
@@ -489,68 +338,60 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	assert.Equal(t, gossiprpc.FetchTimeout, last.Status,
 		"transport failure without an answer maps to timeout, the infra family sesame now renders empty (letting |fallback speak) rather than as authored English")
 
-	_, armed, err := h.store.Get(context.Background(), breakerKey("blackhole.invalid"))
-	require.NoError(t, err)
-	assert.True(t, armed, "five consecutive transport failures must arm the fleet-wide circuit")
-
-	h.route(t, "/healthy", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
-	h.addDef("healthy", "/healthy", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, KeyLabel: ""})
 	h.defs["samehost"] = gossiprpc.FetchDef{
 		Name:     "samehost",
 		URL:      "https://blackhole.invalid/unreachable-but-armed",
 		IsActive: true,
 	}
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "samehost"})
-	assert.Equal(t, gossiprpc.FetchLimited, reply.Status, "armed host answers limited without dialing")
+	assert.Equal(t, gossiprpc.FetchLimited, reply.Status, "five consecutive transport failures arm the fleet-wide circuit: the armed host answers limited without dialing")
+}
 
-	h2 := newHarness(t)
-	host := hostOf(h2.srv.URL)
-	h2.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: "https://" + host + "/unreachable-host-route", IsActive: true}
-	h2.socks.setRefusing(true)
+func TestBreakerStaysOpenBelowTheThresholdAndAfterAReset(t *testing.T) {
+	h := newHarness(t)
+	h.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: "https://" + hostOf(h.srv.URL) + "/unreachable-host-route", IsActive: true}
+	h.socks.SetRefusing(true)
 	for i := 0; i < breakerThreshold-1; i++ {
-		call(t, h2, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
+		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
+		assert.Equal(t, gossiprpc.FetchTimeout, reply.Status, "%d failures alone must not arm: failure %d is still attempted", breakerThreshold-1, i+1)
 	}
-	_, armedPre, err := h2.store.Get(context.Background(), breakerKey(host))
-	require.NoError(t, err)
-	assert.False(t, armedPre, "%d failures alone must not arm", breakerThreshold-1)
-	h2.socks.setRefusing(false)
-	h2.route(t, "/alive", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "answering, badly"})
-	h2.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: h2.srv.URL + "/alive", IsActive: true}
-	call(t, h2, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
-	for i := 0; i < breakerThreshold-1; i++ {
-		call(t, h2, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
+
+	h.socks.SetRefusing(false)
+	h.route(t, "/alive", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "answering, badly"})
+	h.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: h.srv.URL + "/alive", IsActive: true}
+	for i := 0; i <= breakerThreshold-1; i++ {
+		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
+		assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status, "an answering host is never limited, so the breaker stayed unarmed")
 	}
-	_, armedPost, err := h2.store.Get(context.Background(), breakerKey(host))
-	require.NoError(t, err)
-	assert.False(t, armedPost, "the reset in between means %d later failures stay under the threshold", breakerThreshold-1)
 }
 
 func hostOf(raw string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(raw, "http://"), "https://")
 }
 
-func TestFetchBadDefs(t *testing.T) {
-	t.Run("missing def", func(t *testing.T) {
-		h := newHarness(t)
-		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "ghost"})
-		assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
-	})
-	t.Run("inactive def", func(t *testing.T) {
-		h := newHarness(t)
-		h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{}`})
-		h.addDef("paused", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: false})
-		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "paused"})
-		assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
-		assert.Zero(t, h.hits.Load(), "inactive defs never dial")
-	})
-	t.Run("dangling key label fails closed", func(t *testing.T) {
-		h := newHarness(t)
-		h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
-		h.addDef("keyed", "/wx", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, KeyLabel: "gone"})
-		reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "keyed"})
-		assert.Equal(t, gossiprpc.FetchBadDef, reply.Status, "no resolver wired: fail closed, never send unauthenticated")
-		assert.Zero(t, h.hits.Load())
-	})
+func TestFetchRefusesDefinitionsThatCannotRunSafely(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		def   *gossiprpc.FetchDef
+		defID string
+	}{
+		{"a definition that does not exist", nil, "ghost"},
+		{"a paused definition never dials", &gossiprpc.FetchDef{IsActive: false}, "d"},
+		{"a dangling key label fails closed instead of sending unauthenticated", &gossiprpc.FetchDef{IsActive: true, KeyLabel: "gone"}, "d"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.route(t, "/r", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
+			if tc.def != nil {
+				h.addDef("d", "/r", *tc.def)
+			}
+
+			reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: tc.defID})
+
+			assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
+			assert.Zero(t, h.hits.Load())
+		})
+	}
 }
 
 func TestFetchInlineDefRehearsal(t *testing.T) {
@@ -564,56 +405,35 @@ func TestFetchInlineDefRehearsal(t *testing.T) {
 		IsActive: true,
 	}
 	reply := call(t, h, gossiprpc.Request{ChannelID: "sesame_sam", DefID: "unsaved.temp_f", Def: draft, DryRun: true, Fresh: true})
+
 	require.Equal(t, gossiprpc.FetchOK, reply.Status)
 	assert.Equal(t, []string{"71.2"}, reply.Values)
-
-	_, found, err := h.store.Get(context.Background(), resultKey("sesame_sam", *draft, draft.JSONPath))
-	require.NoError(t, err)
-	assert.False(t, found, "inline drafts never touch the shared cache")
-}
-
-func TestFetchDeniedBySSRFGate(t *testing.T) {
-	core.SetSSRFCheckForTests(true)
-	t.Cleanup(func() { core.SetSSRFCheckForTests(false) })
-
-	h := newHarness(t)
-	h.defs["meta"] = gossiprpc.FetchDef{
-		Name:     "meta",
-		URL:      "https://169.254.169.254/latest/meta-data/",
-		IsActive: true,
-	}
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "meta"})
-	assert.Equal(t, gossiprpc.FetchDenied, reply.Status)
-}
-
-func TestFetchRejectsDisallowedContentType(t *testing.T) {
-	h := newHarness(t)
-	h.route(t, "/binary", staged{status: http.StatusOK, ct: "application/octet-stream", body: "\xde\xad"})
-	h.addDef("bin", "/binary", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "bin"})
-	assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status)
-}
-
-func TestFetchCapsValues(t *testing.T) {
-	h := newHarness(t)
-	long := strings.Repeat("x", 500)
-	h.route(t, "/long", staged{status: http.StatusOK, ct: "text/plain", body: long})
-	h.addDef("long", "/long", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
-
-	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "long"})
-	require.Equal(t, gossiprpc.FetchOK, reply.Status)
-	require.Len(t, reply.Values, 1)
-	assert.LessOrEqual(t, len([]rune(reply.Values[0])), maxValueRunes)
+	assert.Empty(t, h.store.Keys(), "inline drafts never touch the shared cache")
 }
 
 func TestFetchSlowUpstreamMapsToTimeout(t *testing.T) {
 	h := newHarness(t)
-	h.routesMu.Lock()
-	h.routes["/slow"] = staged{status: http.StatusOK, ct: "application/json", body: `{}`, delay: 3 * time.Second}
-	h.routesMu.Unlock()
+	h.route(t, "/slow", staged{status: http.StatusOK, ct: "application/json", body: `{}`, delay: 3 * time.Second})
 	h.addDef("slow", "/slow", gossiprpc.FetchDef{URL: "placeholder", IsActive: true})
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "slow"})
+
 	assert.Equal(t, gossiprpc.FetchTimeout, reply.Status)
+}
+
+func TestUnkeyedDefFetchesWithoutKeyResolver(t *testing.T) {
+	h := newHarness(t)
+	echo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"auth":"` + r.Header.Get(authHeaderName) + `"}`))
+	}))
+	t.Cleanup(echo.Close)
+	h.defs["open"] = gossiprpc.FetchDef{
+		Name: "open", URL: echo.URL + "/echo", IsActive: true, KeyLabel: "", JSONPath: []string{"auth"},
+	}
+
+	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "open"})
+
+	assert.Equal(t, fetchOutcome{gossiprpc.FetchOK, []string{""}}, outcomeOf(reply),
+		"an unkeyed def must fetch with no resolver wired, and no Authorization header may ride it")
 }

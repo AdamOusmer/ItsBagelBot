@@ -1,37 +1,42 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package urchin
+package urchin_test
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-const batchWindow = 15 * time.Millisecond
+const (
+	uuidA = "069a79f444e94726a5befca90e38aaf5"
+	uuidB = "b71e0c9d1f2d4c8eab12cd34ef56ab78"
 
-func newBatchProvider(t *testing.T, handler http.Handler) provider.Provider {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL, APIKey: "test-key", BatchWindow: batchWindow},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	dashedUpperUUIDA   = "069A79F4-44E9-4726-A5BE-FCA90E38AAF5"
+	batchCeiling       = 100
+	batchPlayersPath   = "/v3/players"
+	cubelifyPath       = "/v3/cubelify"
+	playerTagsPath     = "/v3/player/tags"
+	unexpectedCallText = "unexpected upstream call %s %s"
+)
+
+type batchTag struct {
+	TagType string `json:"tag_type"`
+	Reason  string `json:"reason"`
+	AddedOn int64  `json:"added_on"`
 }
 
 type batchRecorder struct {
@@ -41,27 +46,27 @@ type batchRecorder struct {
 }
 
 func (r *batchRecorder) handle(w http.ResponseWriter, req *http.Request) bool {
-	if req.Method != http.MethodPost || req.URL.Path != "/v3/players" {
+	if req.Method != http.MethodPost || req.URL.Path != batchPlayersPath {
 		return false
 	}
-	var br batchRequest
-	_ = codec.Unmarshal(readAllBody(req), &br)
+	body, _ := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	var posted struct {
+		UUIDs []string `json:"uuids"`
+	}
+	_ = codec.Unmarshal(body, &posted)
+
 	r.mu.Lock()
-	r.batches = append(r.batches, br.UUIDs)
+	r.batches = append(r.batches, posted.UUIDs)
 	players := make(map[string][]batchTag, len(r.players))
 	for k, v := range r.players {
 		players[k] = v
 	}
 	r.mu.Unlock()
-	payload, _ := codec.Marshal(batchResponse{Players: players})
+
+	payload, _ := codec.Marshal(map[string]any{"players": players})
 	_, _ = w.Write(payload)
 	return true
-}
-
-func readAllBody(req *http.Request) []byte {
-	b, _ := io.ReadAll(req.Body)
-	_ = req.Body.Close()
-	return b
 }
 
 func (r *batchRecorder) all() [][]string {
@@ -72,36 +77,30 @@ func (r *batchRecorder) all() [][]string {
 
 func (r *batchRecorder) count() int { return len(r.all()) }
 
-func flattenBatches(batches [][]string) []string {
-	var out []string
-	for _, b := range batches {
-		out = append(out, b...)
-	}
-	return out
+func (r *batchRecorder) stubs(t *testing.T) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if !r.handle(w, req) {
+			t.Errorf(unexpectedCallText, req.Method, req.URL.Path)
+		}
+	})
 }
 
-const (
-	uuidA = "069a79f444e94726a5befca90e38aaf5"
-	uuidB = "b71e0c9d1f2d4c8eab12cd34ef56ab78"
-)
+func canonicalTestUUID(i int) string { return fmt.Sprintf("%032x", i) }
 
-func TestCanonicalUUID(t *testing.T) {
-	for _, tc := range []struct {
-		in   string
-		want string
-		ok   bool
-	}{
-		{uuidA, uuidA, true},
-		{"069A79F4-44E9-4726-A5BE-FCA90E38AAF5", uuidA, true},
-		{"069a79f4-44e9-4726-a5be-fca90e38aaf5", uuidA, true},
-		{"Techno", "", false},
-		{"069a79f444e94726a5befca90e38aaf", "", false},
-		{"zzza79f444e94726a5befca90e38aaf5", "", false},
-	} {
-		got, ok := canonicalUUID(account(tc.in))
-		assert.Equal(t, tc.ok, ok, tc.in)
-		assert.Equal(t, tc.want, got, tc.in)
+func queryTagsTogether(t *testing.T, p provider.Provider, accounts []string) []gossiprpc.UrchinTagsReply {
+	t.Helper()
+	var wg sync.WaitGroup
+	replies := make([]gossiprpc.UrchinTagsReply, len(accounts))
+	for i, account := range accounts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			replies[i] = providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: account})
+		}()
 	}
+	wg.Wait()
+	return replies
 }
 
 func TestBatchAggregatesDistinctPlayers(t *testing.T) {
@@ -109,56 +108,30 @@ func TestBatchAggregatesDistinctPlayers(t *testing.T) {
 		uuidA: {{TagType: "blatant_cheater", Reason: "Fly / Killaura", AddedOn: 1700000000000}},
 		uuidB: {},
 	}}
-	p := newBatchProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if rec.handle(w, r) {
-			return
-		}
-		t.Errorf("unexpected upstream call %s %s", r.Method, r.URL.Path)
-	}))
-	h := endpoint(t, p, "tags")
+	p := newProvider(t, rec.stubs(t))
 
-	var wg sync.WaitGroup
-	replies := make([]gossiprpc.UrchinTagsReply, 2)
-	for i, acct := range []string{"069A79F4-44E9-4726-A5BE-FCA90E38AAF5", uuidB} {
-		wg.Add(1)
-		go func(i int, acct string) {
-			defer wg.Done()
-			replies[i] = asReply[gossiprpc.UrchinTagsReply](t, h(context.Background(), gossiprpc.Request{Account: acct}))
-		}(i, acct)
-	}
-	wg.Wait()
+	replies := queryTagsTogether(t, p, []string{dashedUpperUUIDA, uuidB})
 
 	require.Equal(t, 1, rec.count(), "distinct players in one window must share one batch POST")
 	assert.Equal(t, []string{uuidA, uuidB}, rec.all()[0], "batch body carries canonical undashed uuids")
-
-	require.Empty(t, replies[0].Error)
-	require.Len(t, replies[0].Tags, 1)
-	assert.Equal(t, gossiprpc.UrchinTag{Type: "blatant_cheater", Reason: "Fly / Killaura", AddedOn: 1700000000}, replies[0].Tags[0])
-	assert.Equal(t, "069A79F4-44E9-4726-A5BE-FCA90E38AAF5", replies[0].Player)
-
-	require.Empty(t, replies[1].Error)
+	assert.Equal(t, gossiprpc.UrchinTagsReply{
+		Player: dashedUpperUUIDA,
+		Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "Fly / Killaura", AddedOn: 1700000000}},
+	}, replies[0])
+	assert.Empty(t, replies[1].Error)
 	assert.Empty(t, replies[1].Tags)
 }
 
 func TestBatchDedupsIdenticalPlayer(t *testing.T) {
-	rec := &batchRecorder{players: map[string][]batchTag{
-		uuidA: {{TagType: "sniper"}},
-	}}
-	p := newBatchProvider(t, rec.stubs(t))
-	h := endpoint(t, p, "tags")
-
-	const callers = 8
-	var wg sync.WaitGroup
-	replies := make([]gossiprpc.UrchinTagsReply, callers)
-	spellings := []string{uuidA, "069A79F4-44E9-4726-A5BE-FCA90E38AAF5", "069A79F444E94726A5BEFCA90E38AAF5"}
-	for i := range replies {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			replies[i] = asReply[gossiprpc.UrchinTagsReply](t, h(context.Background(), gossiprpc.Request{Account: spellings[i%len(spellings)]}))
-		}(i)
+	rec := &batchRecorder{players: map[string][]batchTag{uuidA: {{TagType: "sniper"}}}}
+	p := newProvider(t, rec.stubs(t))
+	spellings := []string{uuidA, dashedUpperUUIDA, "069A79F444E94726A5BEFCA90E38AAF5"}
+	accounts := make([]string, 8)
+	for i := range accounts {
+		accounts[i] = spellings[i%len(spellings)]
 	}
-	wg.Wait()
+
+	replies := queryTagsTogether(t, p, accounts)
 
 	require.Equal(t, 1, rec.count())
 	assert.Equal(t, []string{uuidA}, rec.all()[0], "duplicate queries must collapse to one batch line")
@@ -173,26 +146,23 @@ func TestBatchHydratesSharedPlayertagsCache(t *testing.T) {
 		uuidA: {{TagType: "cheater", Reason: "bhop"}},
 	}}
 	cubelifyHits := 0
-	p := newBatchProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if rec.handle(w, r) {
 			return
 		}
-		switch r.URL.Path {
-		case "/v3/cubelify":
-			cubelifyHits++
-			assert.Equal(t, uuidA, r.URL.Query().Get("uuid"), "cubelify must receive the canonical uuid")
-			_, _ = w.Write([]byte(`{"score":{"value":7.5,"mode":"warn"},"tags":[]}`))
-		default:
-			t.Errorf("unexpected upstream call %s %s", r.Method, r.URL.Path)
+		if r.URL.Path != cubelifyPath {
+			t.Errorf(unexpectedCallText, r.Method, r.URL.Path)
+			return
 		}
+		cubelifyHits++
+		assert.Equal(t, uuidA, r.URL.Query().Get("uuid"), "cubelify must receive the canonical uuid")
+		_, _ = w.Write([]byte(`{"score":{"value":7.5,"mode":"warn"},"tags":[]}`))
 	}))
 
-	reply := asReply[gossiprpc.UrchinTagsReply](t,
-		endpoint(t, p, "tags")(context.Background(), gossiprpc.Request{Account: uuidA}))
-	require.Empty(t, reply.Error)
+	tags := providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: uuidA})
+	require.Empty(t, tags.Error)
 
-	sniped := asReply[gossiprpc.UrchinSniperReply](t,
-		endpoint(t, p, "sniper")(context.Background(), gossiprpc.Request{Account: "069A79F4-44E9-4726-A5BE-FCA90E38AAF5"}))
+	sniped := providertest.Call[gossiprpc.UrchinSniperReply](t, p, "sniper", gossiprpc.Request{Account: dashedUpperUUIDA})
 	require.Empty(t, sniped.Error)
 	assert.Equal(t, 7.5, sniped.Score)
 	assert.Equal(t, 1, cubelifyHits, "the uuid hop must be served by the hydrated batch entry")
@@ -200,55 +170,34 @@ func TestBatchHydratesSharedPlayertagsCache(t *testing.T) {
 }
 
 func TestBatchNegativeCachesMissingPlayers(t *testing.T) {
-	rec := &batchRecorder{players: map[string][]batchTag{
-		uuidA: {},
-	}}
-	p := newBatchProvider(t, rec.stubs(t))
-	tagsH := endpoint(t, p, "tags")
-	sniperH := endpoint(t, p, "sniper")
+	rec := &batchRecorder{players: map[string][]batchTag{uuidA: {}}}
+	p := newProvider(t, rec.stubs(t))
 
-	first := asReply[gossiprpc.UrchinTagsReply](t,
-		tagsH(context.Background(), gossiprpc.Request{Account: uuidB}))
-	assert.Equal(t, "player not found", first.Error)
-
-	second := asReply[gossiprpc.UrchinTagsReply](t,
-		tagsH(context.Background(), gossiprpc.Request{Account: uuidB}))
-	assert.Equal(t, "player not found", second.Error)
-
-	sniped := asReply[gossiprpc.UrchinSniperReply](t,
-		sniperH(context.Background(), gossiprpc.Request{Account: uuidB}))
-	assert.Equal(t, "player not found", sniped.Error)
-
+	for _, endpoint := range []string{"tags", "tags", "sniper"} {
+		res := providertest.Endpoint(t, p, endpoint)(context.Background(), gossiprpc.Request{Account: uuidB})
+		assert.Equal(t, "player not found", providertest.ErrorOf(t, res), endpoint)
+	}
 	assert.Equal(t, 1, rec.count(), "absent players must be answered from the negative cache")
 }
 
 func TestBatchCapsAt100PerRequest(t *testing.T) {
 	const total = 150
-	rec := &batchRecorder{}
-	players := make(map[string][]batchTag, total)
+	rec := &batchRecorder{players: make(map[string][]batchTag, total)}
 	for i := range total {
-		players[canonicalTestUUID(i)] = nil
+		rec.players[canonicalTestUUID(i)] = nil
 	}
-	rec.players = players
-
-	p := newBatchProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !rec.handle(w, r) {
-			t.Errorf("unexpected upstream call %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	h := endpoint(t, p, "tags")
+	p := newProvider(t, rec.stubs(t))
 
 	errs := make([]string, total)
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for i := range total {
 		wg.Add(1)
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			<-start
-			errs[i] = asReply[gossiprpc.UrchinTagsReply](t,
-				h(context.Background(), gossiprpc.Request{Account: canonicalTestUUID(i)})).Error
-		}(i)
+			errs[i] = providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: canonicalTestUUID(i)}).Error
+		}()
 	}
 	close(start)
 	wg.Wait()
@@ -256,25 +205,23 @@ func TestBatchCapsAt100PerRequest(t *testing.T) {
 	batches := rec.all()
 	require.GreaterOrEqual(t, len(batches), 2, "%d players cannot fit one request", total)
 	for i, b := range batches {
-		assert.LessOrEqual(t, len(b), batchLimit, "batch %d exceeds Coral's ceiling", i)
+		assert.LessOrEqual(t, len(b), batchCeiling, "batch %d exceeds Coral's ceiling", i)
 	}
-	flat := flattenBatches(batches)
+	flat := slices.Concat(batches...)
 	slices.Sort(flat)
 	want := make([]string, 0, total)
 	for i := range total {
 		want = append(want, canonicalTestUUID(i))
 	}
 	assert.Equal(t, want, flat, "every queried player must be covered by the drained batches")
-	for i, e := range errs {
-		assert.Empty(t, e, "caller %d", i)
-	}
+	assert.Equal(t, make([]string, total), errs)
 }
 
 func TestBatchInfraFailureIsNotCached(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{uuidA: {}}}
 	var mu sync.Mutex
 	healthy := false
-	p := newBatchProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		ok := healthy
 		mu.Unlock()
@@ -284,54 +231,51 @@ func TestBatchInfraFailureIsNotCached(t *testing.T) {
 			return
 		}
 		if !rec.handle(w, r) {
-			t.Errorf("unexpected upstream call %s %s", r.Method, r.URL.Path)
+			t.Errorf(unexpectedCallText, r.Method, r.URL.Path)
 		}
 	}))
-	h := endpoint(t, p, "tags")
 
-	failed := asReply[gossiprpc.UrchinTagsReply](t, h(context.Background(), gossiprpc.Request{Account: uuidA}))
+	failed := providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: uuidA})
 	assert.Equal(t, "tags lookup failed", failed.Error)
 
 	mu.Lock()
 	healthy = true
 	mu.Unlock()
-	retried := asReply[gossiprpc.UrchinTagsReply](t, h(context.Background(), gossiprpc.Request{Account: uuidA}))
+	retried := providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: uuidA})
 	require.Empty(t, retried.Error)
 
 	assert.Equal(t, 1, rec.count(), "the failed wave must POST again once the upstream recovers")
 }
 
-func TestUsernameLookupsSkipBatcher(t *testing.T) {
-	rec := &batchRecorder{}
-	tagsHits := 0
-	p := newBatchProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			rec.handle(w, r)
-			t.Error("username lookup must not reach the batch endpoint")
-			return
-		}
-		require.Equal(t, "/v3/player/tags", r.URL.Path)
-		tagsHits++
-		_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Techno","tags":[]}`))
-	}))
+func TestOnlyCanonicalUUIDsAreBatched(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		account string
+		batched bool
+	}{
+		{"a username goes straight to the tags endpoint", "Techno", false},
+		{"a 31 digit hex string is a username", "069a79f444e94726a5befca90e38aaf", false},
+		{"a 32 character string with a non-hex digit is a username", "zzza79f444e94726a5befca90e38aaf5", false},
+		{"an undashed uuid is batched", uuidA, true},
+		{"a dashed uuid is batched", "069a79f4-44e9-4726-a5be-fca90e38aaf5", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &batchRecorder{players: map[string][]batchTag{uuidA: {}}}
+			tagsHits := 0
+			p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if rec.handle(w, r) {
+					return
+				}
+				require.Equal(t, playerTagsPath, r.URL.Path)
+				tagsHits++
+				_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Techno","tags":[]}`))
+			}))
 
-	reply := asReply[gossiprpc.UrchinTagsReply](t,
-		endpoint(t, p, "tags")(context.Background(), gossiprpc.Request{Account: "Techno"}))
-	require.Empty(t, reply.Error)
-	assert.Equal(t, 1, tagsHits)
-	assert.Zero(t, rec.count())
+			reply := providertest.Call[gossiprpc.UrchinTagsReply](t, p, "tags", gossiprpc.Request{Account: tc.account})
+
+			require.Empty(t, reply.Error)
+			assert.Equal(t, tc.batched, rec.count() == 1)
+			assert.Equal(t, !tc.batched, tagsHits == 1)
+		})
+	}
 }
-
-func (r *batchRecorder) stubs(t *testing.T) http.Handler {
-	t.Helper()
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if r.handle(w, req) {
-			return
-		}
-		t.Errorf("unexpected upstream call %s %s", req.Method, req.URL.Path)
-	})
-}
-
-func canonicalTestUUID(i int) string { return fmt.Sprintf("%032x", i) }
-
-func init() { core.SetSSRFCheckForTests(false) }

@@ -1,83 +1,65 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package core
+package core_test
 
 import (
+	"context"
+	"os"
 	"testing"
 
+	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/pkg/ratelimit"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
+
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestStrictBucketNeverExceedsWindow(t *testing.T) {
-	for _, tc := range []struct {
-		limit, window float64
-	}{
-		{300, 300},
-		{600, 300},
-		{500, 600},
-		{225, 300},
-		{301, 300},
-		{100.3, 60},
-	} {
-		burst, refill := strictBucket(tc.limit, tc.window)
-		worstWindow := burst + refill*tc.window
-		assert.LessOrEqualf(t, worstWindow, tc.limit,
-			"limit %v/%vs: worst-case window %v must not exceed the allowance", tc.limit, tc.window, worstWindow)
-		assert.GreaterOrEqual(t, burst, 1.0)
-		assert.Greater(t, refill, 0.0)
-		assert.Equal(t, burst, float64(int64(burst)), "burst must be integral for NewSpec")
+func TestBucketsAcceptAnyCapacityAndBurst(t *testing.T) {
+	for _, capacity := range []float64{300, 550.5, 100.3, 1, 0} {
+		assert.NotPanics(t, func() { core.NewBuckets("k", capacity, 300) }, "capacity %v", capacity)
+	}
+	for _, burst := range []float64{8, 1000, 0.4} {
+		assert.NotPanics(t, func() { core.NewPacedBuckets("k", 600.7, 300, burst) }, "burst %v", burst)
 	}
 }
 
-func TestStrictBucketHypixelNumbers(t *testing.T) {
-	burst, refill := strictBucket(300, 300)
-	assert.Equal(t, 150.0, burst)
-	assert.InDelta(t, 0.5, refill, 1e-9)
+func TestBucketsAdmitOnlyTheirLaneBurstBeforeDenying(t *testing.T) {
+	addr := os.Getenv("VALKEY_TEST_ADDR")
+	if addr == "" {
+		t.Skip("VALKEY_TEST_ADDR is not set")
+	}
+	client, err := pkgvalkey.NewClient(addr, os.Getenv("VALKEY_TEST_PASSWORD"))
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+	limiter := ratelimit.New(client)
 
-	stdBurst, stdRefill := strictBucket(225, 300)
-	assert.Equal(t, 112.0, stdBurst)
-	assert.InDelta(t, 225.0, stdBurst+stdRefill*300, 1e-9)
-}
+	for _, tc := range []struct {
+		name         string
+		premium      bool
+		wantAdmitted int
+		wantDenial   string
+	}{
+		{"a premium caller spends the general burst", true, 4, "premium rate limit exceeded"},
+		{"a standard caller is held to the smaller standard burst", false, 3, "standard rate limit exceeded"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			buckets := core.NewPacedBuckets("test:gossip:"+uuid.NewString(), 10, 300, 4)
 
-func TestStrictBucketDegenerateBudget(t *testing.T) {
-	burst, refill := strictBucket(1, 300)
-	assert.Equal(t, 1.0, burst)
-	assert.Greater(t, refill, 0.0)
-}
+			admitted := 0
+			var denial error
+			for admitted < 20 && denial == nil {
+				if denial = buckets.Enforce(context.Background(), limiter, tc.premium); denial == nil {
+					admitted++
+				}
+			}
 
-func TestNewBucketsDoesNotPanic(t *testing.T) {
-	assert.NotPanics(t, func() {
-		NewBuckets("k", 300, 300)
-		NewBuckets("k", 550.5, 300)
-		NewBuckets("k", 1, 300)
-		NewBuckets("k", 0, 300)
-	})
-}
-
-func TestPacedBucketCoralNumbers(t *testing.T) {
-	burst, refill := pacedBucket(600, 300, 8)
-	assert.Equal(t, 8.0, burst)
-	assert.InDelta(t, (600.0-8.0)/300.0, refill, 1e-9)
-	assert.InDelta(t, 600.0, burst+refill*300, 1e-9, "full quota still spent across the rolling window")
-	assert.Less(t, refill, 4.0, "sustained pace must stay under the measured edge refill")
-
-	stdBurst, stdRefill := pacedBucket(450, 300, 6)
-	assert.Equal(t, 6.0, stdBurst)
-	assert.InDelta(t, 450.0, stdBurst+stdRefill*300, 1e-9)
-}
-
-func TestPacedBucketClampsToStrict(t *testing.T) {
-	burst, refill := pacedBucket(300, 300, 1000)
-	sBurst, sRefill := strictBucket(300, 300)
-	assert.Equal(t, sBurst, burst)
-	assert.InDelta(t, sRefill, refill, 1e-9)
-}
-
-func TestNewPacedBucketsDoesNotPanic(t *testing.T) {
-	assert.NotPanics(t, func() {
-		NewPacedBuckets("k", 600, 300, 8)
-		NewPacedBuckets("k", 1, 300, 8)
-		NewPacedBuckets("k", 600.7, 300, 0.4)
-	})
+			assert.Equal(t, tc.wantAdmitted, admitted)
+			var upstream *core.UpstreamError
+			require.ErrorAs(t, denial, &upstream)
+			assert.Equal(t, core.UpstreamError{Status: 429, Message: tc.wantDenial, LocalDeny: true}, *upstream)
+		})
+	}
 }

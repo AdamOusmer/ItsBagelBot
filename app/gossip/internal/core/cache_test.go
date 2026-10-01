@@ -1,475 +1,462 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package core
+package core_test
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/app/gossip/internal/providertest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
+type (
+	admitFunc func(context.Context) error
+	fetchFunc func(context.Context) (string, error)
+)
+
+type cacheFlavor struct {
+	name  string
+	get   func(c *core.Cache, key string, admit admitFunc, fetch fetchFunc) (string, error)
+	entry func(value string, fresh bool) string
 }
 
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
+const farFutureMS = 4102444800000
 
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-
-func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	return nil
-}
-
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
+func stamp(fresh bool) int64 {
+	if fresh {
+		return farFutureMS
 	}
-	s.m[key] = []byte("1")
-	return true, nil
+	return 1
 }
 
-type payload struct {
-	Name string `json:"name"`
-	N    int    `json:"n"`
-}
-
-func TestCachedMissFillsThenHits(t *testing.T) {
-	c := NewCache(newMemStore())
-	var fetches atomic.Int32
-	fetch := func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{Name: "x", N: 7}, nil
+var (
+	typedFlavor = cacheFlavor{
+		name: "typed",
+		get: func(c *core.Cache, key string, admit admitFunc, fetch fetchFunc) (string, error) {
+			return core.Cached(context.Background(), c, key, time.Minute, time.Minute, admit, fetch)
+		},
+		entry: func(value string, fresh bool) string {
+			return fmt.Sprintf(`{"v":%q,"f":%d}`, value, stamp(fresh))
+		},
 	}
-
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, fetch)
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "x", N: 7}, got)
-
-	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, fetch)
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "x", N: 7}, got)
-	assert.Equal(t, int32(1), fetches.Load(), "second read must come from cache")
-}
-
-func TestCachedAdmitSkippedOnHit(t *testing.T) {
-	c := NewCache(newMemStore())
-	ctx := context.Background()
-	fill := func(context.Context) (payload, error) { return payload{Name: "x", N: 1}, nil }
-
-	_, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill)
-	require.NoError(t, err)
-
-	got, err := Cached(ctx, c, "k", time.Minute, time.Minute, func(context.Context) error {
-		t.Error("a hit must not spend budget")
-		return nil
-	}, fill)
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "x", N: 1}, got)
-}
-
-func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
-	c := NewCache(newMemStore())
-	ctx := context.Background()
-	denied := &UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
-
-	const perLane = 4
-	var fetches atomic.Int32
-	release := make(chan struct{})
-	fill := func(context.Context) (payload, error) {
-		<-release
-		fetches.Add(1)
-		return payload{Name: "x", N: 1}, nil
+	bytesFlavor = cacheFlavor{
+		name: "bytes",
+		get: func(c *core.Cache, key string, admit admitFunc, fetch fetchFunc) (string, error) {
+			b, err := core.CachedBytes(context.Background(), c, key, admit,
+				func(ctx context.Context) ([]byte, time.Duration, error) {
+					v, ferr := fetch(ctx)
+					return []byte(v), time.Minute, ferr
+				})
+			return string(b), err
+		},
+		entry: func(value string, fresh bool) string {
+			return fmt.Sprintf(`{"gw2":%d,"p":%s}`, stamp(fresh), value)
+		},
 	}
+	flavors = []cacheFlavor{typedFlavor, bytesFlavor}
+)
 
-	premium, standard := make([]error, perLane), make([]error, perLane)
-	var admitted, wg sync.WaitGroup
-	admitted.Add(2 * perLane)
-	fire := func(out []error, verdict error) {
-		for i := range out {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				admit := func(context.Context) error {
-					admitted.Done()
-					return verdict
-				}
-				_, out[i] = Cached(ctx, c, "k", time.Minute, time.Minute, admit, fill)
-			}(i)
+func eachFlavor(t *testing.T, run func(t *testing.T, f cacheFlavor)) {
+	t.Helper()
+	for _, f := range flavors {
+		t.Run(f.name, func(t *testing.T) { run(t, f) })
+	}
+}
+
+func fetchOf(calls *atomic.Int32, value string, err error) fetchFunc {
+	return func(context.Context) (string, error) {
+		calls.Add(1)
+		return value, err
+	}
+}
+
+func seed(t *testing.T, store *providertest.MemStore, raw string) {
+	t.Helper()
+	require.NoError(t, store.Set(context.Background(), "k", []byte(raw), time.Minute))
+}
+
+func TestCacheFillsOnMissThenServesFromTheStore(t *testing.T) {
+	eachFlavor(t, func(t *testing.T, f cacheFlavor) {
+		c := core.NewCache(providertest.NewMemStore())
+		var fetches atomic.Int32
+
+		got, err := f.get(c, "k", nil, fetchOf(&fetches, "first", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "first", got)
+
+		got, err = f.get(c, "k", nil, fetchOf(&fetches, "second", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "first", got)
+		assert.EqualValues(t, 1, fetches.Load())
+	})
+}
+
+func TestCacheDoesNotStoreAFailedFetch(t *testing.T) {
+	eachFlavor(t, func(t *testing.T, f cacheFlavor) {
+		c := core.NewCache(providertest.NewMemStore())
+		var fetches atomic.Int32
+		boom := errors.New("boom")
+
+		_, err := f.get(c, "k", nil, fetchOf(&fetches, "", boom))
+		require.ErrorIs(t, err, boom)
+
+		got, err := f.get(c, "k", nil, fetchOf(&fetches, "ok", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "ok", got)
+		assert.EqualValues(t, 2, fetches.Load())
+	})
+}
+
+func TestCacheEntriesAreSharedAcrossReplicas(t *testing.T) {
+	eachFlavor(t, func(t *testing.T, f cacheFlavor) {
+		store := providertest.NewMemStore()
+		var fetches atomic.Int32
+
+		_, err := f.get(core.NewCache(store), "k", nil, fetchOf(&fetches, "x", nil))
+		require.NoError(t, err)
+		got, err := f.get(core.NewCache(store), "k", nil, fetchOf(&fetches, "y", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "x", got)
+		assert.EqualValues(t, 1, fetches.Load())
+	})
+}
+
+func TestCacheServesStoredEntriesInThePersistedFormat(t *testing.T) {
+	eachFlavor(t, func(t *testing.T, f cacheFlavor) {
+		store := providertest.NewMemStore()
+		seed(t, store, f.entry(`"stored"`, true))
+		var fetches atomic.Int32
+
+		got, err := f.get(core.NewCache(store), "k", nil, fetchOf(&fetches, "fetched", nil))
+		require.NoError(t, err)
+		assert.Contains(t, got, "stored")
+		assert.Zero(t, fetches.Load())
+	})
+}
+
+func TestCacheRepairsUnreadableEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		flavor cacheFlavor
+		raw    string
+	}{
+		{"typed: poisoned json", typedFlavor, "{not json"},
+		{"typed: pre-envelope format", typedFlavor, `{"name":"old-format","n":42}`},
+		{"bytes: empty value", bytesFlavor, ""},
+		{"bytes: empty object", bytesFlavor, "{}"},
+		{"bytes: truncated marker", bytesFlavor, `{"gw2":`},
+		{"bytes: stamp without payload", bytesFlavor, `{"gw2":123}`},
+		{"bytes: payload without stamp", bytesFlavor, `{"gw2":,"p":{}}`},
+		{"bytes: stamp without value", bytesFlavor, `{"gw2":123,"p":}`},
+		{"bytes: pre-marker format", bytesFlavor, `{"player":"old-format"}`},
+		{"bytes: retired marker", bytesFlavor, `{"gw1":{"a":1}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := providertest.NewMemStore()
+			seed(t, store, tc.raw)
+			c := core.NewCache(store)
+			var fetches atomic.Int32
+
+			got, err := tc.flavor.get(c, "k", nil, fetchOf(&fetches, `"fresh"`, nil))
+			require.NoError(t, err)
+			assert.Contains(t, got, "fresh")
+
+			got, err = tc.flavor.get(c, "k", nil, fetchOf(&fetches, `"again"`, nil))
+			require.NoError(t, err)
+			assert.Contains(t, got, "fresh", "the repaired entry must be served without another fetch")
+			assert.EqualValues(t, 1, fetches.Load())
+		})
+	}
+}
+
+func TestCacheRevalidatesAStaleEntryOnceFleetWide(t *testing.T) {
+	eachFlavor(t, func(t *testing.T, f cacheFlavor) {
+		store := providertest.NewMemStore()
+		seed(t, store, f.entry(`"old"`, false))
+		podA, podB := core.NewCache(store), core.NewCache(store)
+		var fetches atomic.Int32
+		release := make(chan struct{})
+		refetch := func(context.Context) (string, error) {
+			<-release
+			fetches.Add(1)
+			return `"new"`, nil
 		}
-	}
-	fire(premium, nil)
-	fire(standard, denied)
 
-	admitted.Wait()
-	close(release)
-	wg.Wait()
+		for _, pod := range []*core.Cache{podA, podB} {
+			got, err := f.get(pod, "k", nil, refetch)
+			require.NoError(t, err)
+			assert.Contains(t, got, "old", "a stale read serves the stored value instead of blocking on the refetch")
+		}
+		close(release)
 
-	for i, err := range premium {
-		assert.NoError(t, err, "premium caller %d must not inherit the standard lane's denial", i)
-	}
-	for i, err := range standard {
-		assert.ErrorIs(t, err, denied, "standard caller %d must be denied by its own lane", i)
-	}
-	assert.Equal(t, int32(1), fetches.Load(), "the flight must still cost one upstream call")
+		require.Eventually(t, func() bool {
+			got, err := f.get(podA, "k", nil, refetch)
+			return err == nil && got == `"new"`
+		}, time.Second, 10*time.Millisecond)
+		assert.EqualValues(t, 1, fetches.Load(), "exactly one fleet-wide refresh")
+	})
 }
 
-func TestCachedErrorNotCached(t *testing.T) {
-	c := NewCache(newMemStore())
+type namedFlavor struct {
+	name   string
+	flavor cacheFlavor
+}
+
+func protectedRows(typed, bytes string) []namedFlavor {
+	return []namedFlavor{{typed, typedFlavor}, {bytes, bytesFlavor}}
+}
+
+func TestAdmitIsSkippedOnAFreshHit(t *testing.T) {
+	for _, row := range protectedRows("TestCachedAdmitSkippedOnHit", "TestCachedBytesAdmitSkippedOnFreshHit") {
+		t.Run(row.name, func(t *testing.T) {
+			c := core.NewCache(providertest.NewMemStore())
+			var fetches atomic.Int32
+			_, err := row.flavor.get(c, "k", nil, fetchOf(&fetches, `"x"`, nil))
+			require.NoError(t, err)
+
+			got, err := row.flavor.get(c, "k", func(context.Context) error {
+				t.Error("a fresh hit must not spend budget")
+				return nil
+			}, fetchOf(&fetches, `"y"`, nil))
+			require.NoError(t, err)
+			assert.Contains(t, got, "x")
+		})
+	}
+}
+
+func TestAdmitDenialIsNotCached(t *testing.T) {
+	for _, row := range protectedRows("typed admit denial is not cached", "TestCachedBytesAdmitDenialIsNotCached") {
+		t.Run(row.name, func(t *testing.T) {
+			c := core.NewCache(providertest.NewMemStore())
+			var fetches atomic.Int32
+			denied := &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+
+			_, err := row.flavor.get(c, "k", func(context.Context) error { return denied }, fetchOf(&fetches, `"x"`, nil))
+			require.ErrorIs(t, err, denied)
+			assert.Zero(t, fetches.Load(), "a denied caller must never reach the upstream")
+
+			got, err := row.flavor.get(c, "k", nil, fetchOf(&fetches, `"x"`, nil))
+			require.NoError(t, err)
+			assert.Contains(t, got, "x", "a denial must not poison the key")
+		})
+	}
+}
+
+func TestAdmitIsPerCallerUnderOneFlight(t *testing.T) {
+	for _, row := range protectedRows("TestCachedAdmitIsPerCallerUnderOneFlight", "TestCachedBytesAdmitIsPerCallerUnderOneFlight") {
+		t.Run(row.name, func(t *testing.T) {
+			c := core.NewCache(providertest.NewMemStore())
+			denied := &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true}
+
+			const perLane = 4
+			var fetches atomic.Int32
+			release := make(chan struct{})
+			fill := func(context.Context) (string, error) {
+				<-release
+				fetches.Add(1)
+				return `"x"`, nil
+			}
+
+			type outcome struct {
+				body string
+				err  error
+			}
+			premium, standard := make([]outcome, perLane), make([]outcome, perLane)
+			var admitted, wg sync.WaitGroup
+			admitted.Add(2 * perLane)
+			fire := func(out []outcome, verdict error) {
+				for i := range out {
+					wg.Add(1)
+					go func(i int) {
+						defer wg.Done()
+						admit := func(context.Context) error {
+							admitted.Done()
+							return verdict
+						}
+						body, err := row.flavor.get(c, "k", admit, fill)
+						out[i] = outcome{body, err}
+					}(i)
+				}
+			}
+			fire(premium, nil)
+			fire(standard, denied)
+
+			admitted.Wait()
+			close(release)
+			wg.Wait()
+
+			for i, got := range premium {
+				require.NoError(t, got.err, "premium caller %d must not inherit the standard lane's denial", i)
+				assert.Contains(t, got.body, "x")
+			}
+			for i, got := range standard {
+				assert.ErrorIs(t, got.err, denied, "standard caller %d must be denied by its own lane", i)
+			}
+			assert.EqualValues(t, 1, fetches.Load(), "the flight must still cost one upstream call")
+		})
+	}
+}
+
+func TestCachedStoresUpstreamAbsenceButNeverThrottling(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		err         *core.UpstreamError
+		wantFetches int32
+	}{
+		{"serves a 404 from the shared negative cache", &core.UpstreamError{Status: 404, Message: "player not found"}, 1},
+		{"serves a 400 from the shared negative cache", &core.UpstreamError{Status: 400, Message: "bad name"}, 1},
+		{"retries a 429 instead of caching it", &core.UpstreamError{Status: 429, Message: "busy"}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := providertest.NewMemStore()
+			var fetches atomic.Int32
+			fetch := func(context.Context) (string, error) {
+				fetches.Add(1)
+				return "", tc.err
+			}
+
+			for _, replica := range []*core.Cache{core.NewCache(store), core.NewCache(store)} {
+				_, err := typedFlavor.get(replica, "k", nil, fetch)
+				var ue *core.UpstreamError
+				require.ErrorAs(t, err, &ue)
+				assert.Equal(t, tc.err.Status, ue.Status)
+				assert.Equal(t, tc.err.Message, ue.Message)
+			}
+			assert.Equal(t, tc.wantFetches, fetches.Load())
+		})
+	}
+}
+
+func TestCachedNegativeIsNotRevalidated(t *testing.T) {
+	c := core.NewCache(providertest.NewMemStore())
 	var fetches atomic.Int32
-	boom := errors.New("boom")
+	fetch := fetchOf(&fetches, "", &core.UpstreamError{Status: 404, Message: "player not found"})
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{}, boom
-	})
-	require.ErrorIs(t, err, boom)
-
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{Name: "ok"}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "ok", got.Name)
-	assert.Equal(t, int32(2), fetches.Load(), "a failed fetch must be retried, never cached")
+	for range 3 {
+		_, err := typedFlavor.get(c, "k", nil, fetch)
+		require.Error(t, err)
+	}
+	assert.Never(t, func() bool { return fetches.Load() > 1 }, 50*time.Millisecond, 5*time.Millisecond,
+		"a cached negative must not be refetched")
 }
 
-func TestCachedNegativeCache(t *testing.T) {
-	c := NewCache(newMemStore())
-	var fetches atomic.Int32
-	notFound := &UpstreamError{Status: 404, Message: "player not found"}
-
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{}, notFound
-	})
-	assert.Equal(t, notFound, err)
-
-	_, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{}, notFound
-	})
-	assert.Equal(t, notFound, err)
-	assert.Equal(t, int32(1), fetches.Load(), "a 404 fetch must be negatively cached")
-}
-
-func TestCachedPoisonEntryRefetched(t *testing.T) {
-	st := newMemStore()
-	require.NoError(t, st.Set(context.Background(), "k", []byte("{not json"), time.Minute))
-	c := NewCache(st)
-
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		return payload{Name: "fresh"}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "fresh", got.Name)
-}
-
-func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
-	st := newMemStore()
-	require.NoError(t, st.Set(context.Background(), "k", []byte(`{"name":"old-format","n":42}`), time.Minute))
-	c := NewCache(st)
-
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		return payload{Name: "fresh", N: 7}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "fresh", N: 7}, got)
-
-	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		t.Error("must not refetch a repaired entry")
-		return payload{}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "fresh", got.Name)
-}
-
-func TestCachedZeroValueSuccessRoundTrips(t *testing.T) {
-	c := NewCache(newMemStore())
+func TestCachedStoresAnEmptySuccess(t *testing.T) {
+	c := core.NewCache(providertest.NewMemStore())
 	var fetches atomic.Int32
 
 	for range 2 {
-		v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (string, error) {
-			fetches.Add(1)
-			return "", nil
-		})
+		got, err := typedFlavor.get(c, "k", nil, fetchOf(&fetches, "", nil))
 		require.NoError(t, err)
-		assert.Empty(t, v)
+		assert.Empty(t, got)
 	}
-	assert.Equal(t, int32(1), fetches.Load(), "empty-string success must be served from cache")
+	assert.EqualValues(t, 1, fetches.Load(), "an empty-string success must be served from the cache")
 }
 
-func TestCachedRateLimitNotCached(t *testing.T) {
-	c := NewCache(newMemStore())
+func TestCachedRefreshesAnEntryWithoutAFreshnessStamp(t *testing.T) {
+	store := providertest.NewMemStore()
+	seed(t, store, `{"v":"old"}`)
+	c := core.NewCache(store)
 	var fetches atomic.Int32
-	busy := &UpstreamError{Status: 429, Message: "busy"}
+	fetch := fetchOf(&fetches, "new", nil)
 
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{}, busy
-	})
-	assert.Equal(t, busy, err)
-
-	got, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{Name: "recovered"}, nil
-	})
+	got, err := typedFlavor.get(c, "k", nil, fetch)
 	require.NoError(t, err)
-	assert.Equal(t, "recovered", got.Name)
-	assert.Equal(t, int32(2), fetches.Load(), "a 429 must be retried, never cached")
+	assert.Equal(t, "old", got, "the legacy value is still served, not discarded")
+
+	require.Eventually(t, func() bool {
+		v, gerr := typedFlavor.get(c, "k", nil, fetch)
+		return gerr == nil && v == "new"
+	}, time.Second, 10*time.Millisecond)
+	assert.EqualValues(t, 1, fetches.Load())
 }
 
-func TestCachedNegativeSharedAcrossInstances(t *testing.T) {
-	st := newMemStore()
-	notFound := &UpstreamError{Status: 404, Message: "player not found"}
+func TestStoreCachedHydratesTheCache(t *testing.T) {
+	notFound := &core.UpstreamError{Status: 404, Message: "player not found"}
+	for _, tc := range []struct {
+		name        string
+		req         core.StoreRequest[string]
+		want        string
+		wantErr     error
+		wantFetches int32
+	}{
+		{"serves a hydrated value as a hit", core.StoreRequest[string]{Value: "hydrated"}, "hydrated", nil, 0},
+		{"serves a hydrated absence as a hit", core.StoreRequest[string]{Err: notFound}, "", notFound, 0},
+		{"stores nothing for an infrastructure failure", core.StoreRequest[string]{Err: errors.New("exploded")}, "fetched", nil, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := core.NewCache(providertest.NewMemStore())
+			tc.req.Key, tc.req.TTL, tc.req.NegativeTTL = "k", time.Minute, time.Minute
+			core.StoreCached(context.Background(), c, tc.req)
+			var fetches atomic.Int32
 
-	_, err := Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		return payload{}, notFound
-	})
-	assert.Equal(t, notFound, err)
-
-	_, err = Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		t.Error("second replica must serve the negative from the shared store")
-		return payload{}, nil
-	})
-	var ue *UpstreamError
-	require.ErrorAs(t, err, &ue)
-	assert.Equal(t, 404, ue.Status)
-	assert.Equal(t, "player not found", ue.Message)
-}
-
-func TestCachedSingleflightCollapses(t *testing.T) {
-	c := NewCache(newMemStore())
-	var fetches atomic.Int32
-	release := make(chan struct{})
-
-	var wg sync.WaitGroup
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, _ = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-				fetches.Add(1)
-				<-release
-				return payload{Name: "one"}, nil
-			})
-		}()
+			got, err := typedFlavor.get(c, "k", nil, fetchOf(&fetches, "fetched", nil))
+			assert.Equal(t, tc.wantErr, err)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantFetches, fetches.Load())
+		})
 	}
-	time.Sleep(50 * time.Millisecond)
-	close(release)
-	wg.Wait()
-
-	assert.Equal(t, int32(1), fetches.Load(), "concurrent misses must share one fetch")
 }
 
-func TestSnapshotRoundTrip(t *testing.T) {
-	c := NewCache(newMemStore())
-	require.NoError(t, c.SetJSON(context.Background(), "snap", payload{Name: "s", N: 3}, time.Hour))
+func TestSnapshotsRoundTripThroughTheCache(t *testing.T) {
+	c := core.NewCache(providertest.NewMemStore())
+	type snapshot struct {
+		Name string `json:"name"`
+		N    int    `json:"n"`
+	}
+	require.NoError(t, c.SetJSON(context.Background(), "snap", snapshot{Name: "s", N: 3}, time.Hour))
 
-	var got payload
+	var got snapshot
 	ok, err := c.GetJSON(context.Background(), "snap", &got)
 	require.NoError(t, err)
 	require.True(t, ok)
-	assert.Equal(t, payload{Name: "s", N: 3}, got)
+	assert.Equal(t, snapshot{Name: "s", N: 3}, got)
 
 	ok, err = c.GetJSON(context.Background(), "missing", &got)
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
 
-func TestKey(t *testing.T) {
-	assert.Equal(t, "gossip:urchin:daily:techno", Key("urchin", "daily", "techno"))
-}
+func TestCacheKeyFormats(t *testing.T) {
+	assert.Equal(t, "gossip:urchin:daily:techno", core.Key("urchin", "daily", "techno"))
 
-func TestCachedStaleServedThenRevalidated(t *testing.T) {
-	c := NewCache(newMemStore())
-	ctx := context.Background()
-	var fetches atomic.Int32
-
-	fill := func(n int) func(context.Context) (payload, error) {
-		return func(context.Context) (payload, error) {
-			fetches.Add(1)
-			return payload{Name: "x", N: n}, nil
-		}
-	}
-
-	got, err := Cached(ctx, c, "k", 20*time.Millisecond, time.Minute, nil, fill(1))
-	require.NoError(t, err)
-	require.Equal(t, 1, got.N)
-	time.Sleep(40 * time.Millisecond)
-
-	got, err = Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill(2))
-	require.NoError(t, err)
-	assert.Equal(t, 1, got.N, "a stale read must serve the stored value, not block on the refetch")
-
-	require.Eventually(t, func() bool {
-		v, gerr := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill(2))
-		return gerr == nil && v.N == 2
-	}, time.Second, 10*time.Millisecond)
-	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one revalidation")
-}
-
-func TestCachedStaleRefreshClaimedOnceFleetWide(t *testing.T) {
-	st := newMemStore()
-	podA, podB := NewCache(st), NewCache(st)
-	ctx := context.Background()
-	var fetches atomic.Int32
-
-	_, err := Cached(ctx, podA, "k", 20*time.Millisecond, time.Minute, nil,
-		func(context.Context) (payload, error) {
-			fetches.Add(1)
-			return payload{Name: "x", N: 1}, nil
-		})
-	require.NoError(t, err)
-	time.Sleep(40 * time.Millisecond)
-
-	release := make(chan struct{})
-	refetch := func(context.Context) (payload, error) {
-		<-release
-		fetches.Add(1)
-		return payload{Name: "x", N: 2}, nil
-	}
-	for _, pod := range []*Cache{podA, podB} {
-		got, gerr := Cached(ctx, pod, "k", time.Minute, time.Minute, nil, refetch)
-		require.NoError(t, gerr)
-		assert.Equal(t, 1, got.N, "stale read must serve the old value")
-	}
-	close(release)
-
-	require.Eventually(t, func() bool {
-		v, gerr := Cached(ctx, podA, "k", time.Minute, time.Minute, nil, refetch)
-		return gerr == nil && v.N == 2
-	}, time.Second, 10*time.Millisecond)
-	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one fleet-wide refresh")
-}
-
-func TestCachedNegativeIsNotRevalidated(t *testing.T) {
-	c := NewCache(newMemStore())
-	ctx := context.Background()
-	missing := &UpstreamError{Status: 404, Message: "player not found"}
-	var fetches atomic.Int32
-
-	fetch := func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{}, missing
-	}
-
-	for range 3 {
-		_, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fetch)
-		var ue *UpstreamError
-		require.ErrorAs(t, err, &ue)
-		assert.Equal(t, 404, ue.Status)
-		assert.Equal(t, "player not found", ue.Message)
-	}
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, int32(1), fetches.Load(), "a cached negative must not be refetched")
-}
-
-func TestCachedLegacyEntryWithoutStampRefreshes(t *testing.T) {
-	st := newMemStore()
-	ctx := context.Background()
-	require.NoError(t, st.Set(ctx, "k", []byte(`{"v":{"name":"old","n":1}}`), time.Minute))
-	c := NewCache(st)
-	var fetches atomic.Int32
-
-	got, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil,
-		func(context.Context) (payload, error) {
-			fetches.Add(1)
-			return payload{Name: "new", N: 2}, nil
-		})
-	require.NoError(t, err)
-	assert.Equal(t, "old", got.Name, "the legacy value is still served, not discarded")
-
-	require.Eventually(t, func() bool {
-		v, gerr := Cached(ctx, c, "k", time.Minute, time.Minute, nil,
-			func(context.Context) (payload, error) { return payload{Name: "new", N: 2}, nil })
-		return gerr == nil && v.Name == "new"
-	}, time.Second, 10*time.Millisecond)
-	assert.Equal(t, int32(1), fetches.Load())
-}
-
-func TestStoreCachedValueIsServedAsHit(t *testing.T) {
-	c := NewCache(newMemStore())
-	StoreCached(context.Background(), c, StoreRequest[payload]{
-		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
-		Value: payload{Name: "hydrated", N: 7},
-	})
-
-	v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		t.Error("a hydrated entry must be served without a fetch")
-		return payload{}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "hydrated", N: 7}, v)
-}
-
-func TestStoreCachedNegativeIsServedAsHit(t *testing.T) {
-	c := NewCache(newMemStore())
-	notFound := &UpstreamError{Status: 404, Message: "player not found"}
-	StoreCached(context.Background(), c, StoreRequest[payload]{
-		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
-		Err: notFound,
-	})
-
-	_, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		t.Error("a hydrated negative must be served without a fetch")
-		return payload{}, nil
-	})
-	assert.Equal(t, notFound, err)
-}
-
-func TestStoreCachedInfraFailureStoresNothing(t *testing.T) {
-	c := NewCache(newMemStore())
-	StoreCached(context.Background(), c, StoreRequest[payload]{
-		Key: "k", TTL: time.Minute, NegativeTTL: time.Minute,
-		Err: errors.New("upstream exploded"),
-	})
-
-	var fetches atomic.Int32
-	v, err := Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
-		fetches.Add(1)
-		return payload{Name: "fetched"}, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, payload{Name: "fetched"}, v)
-	assert.Equal(t, int32(1), fetches.Load(), "an infra failure must leave the key uncached")
-}
-
-func TestCacheID(t *testing.T) {
-	cases := []struct {
+	for _, tc := range []struct {
 		parts []string
 		want  string
 	}{
-		{parts: []string{"  FrOsTy  ", "6"}, want: "frosty:6"},
-		{parts: []string{"0", " Ca ", "predicted"}, want: "0:ca:predicted"},
-		{parts: []string{"", "kr", "pc"}, want: ":kr:pc"},
-		{parts: []string{"solo"}, want: "solo"},
+		{[]string{"  FrOsTy  ", "6"}, "frosty:6"},
+		{[]string{"0", " Ca ", "predicted"}, "0:ca:predicted"},
+		{[]string{"", "kr", "pc"}, ":kr:pc"},
+		{[]string{"solo"}, "solo"},
+	} {
+		assert.Equal(t, tc.want, core.CacheID(tc.parts...), "parts %q", tc.parts)
 	}
-	for _, c := range cases {
-		assert.Equal(t, c.want, CacheID(c.parts...), "parts %q", c.parts)
+}
+
+func BenchmarkCachedBytesHit(b *testing.B) {
+	c := core.NewCache(providertest.NewMemStore())
+	ctx := context.Background()
+	_, err := core.CachedBytes(ctx, c, "k", nil, func(context.Context) ([]byte, time.Duration, error) {
+		return []byte(`{"player":"Techno","wins":5,"losses":2}`), time.Hour, nil
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := core.CachedBytes(ctx, c, "k", nil, nil); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
