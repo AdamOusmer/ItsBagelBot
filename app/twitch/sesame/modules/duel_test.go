@@ -7,10 +7,12 @@ import (
 	"context"
 	"testing"
 
-	"ItsBagelBot/app/twitch/sesame/engine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/module"
 )
 
 type fakeDuel struct {
@@ -71,265 +73,133 @@ func duelDeps(f *fakeDuel) engine.Deps {
 	return engine.Deps{Duel: f, Log: zap.NewNop()}
 }
 
-func TestDuelStatusNone(t *testing.T) {
-	m := Duel(duelDeps(&fakeDuel{}))
-	out := runGames(t, m, gamesCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No duel running")
+type duelCalls struct {
+	open         engine.DuelOpenSpec
+	joinLogin    string
+	joinStake    int64
+	acceptLogin  string
+	declineLogin string
+	cancelLogin  string
+	cancelMod    bool
+	cancelCalled bool
 }
 
-func TestDuelStatusPot(t *testing.T) {
-	f := &fakeDuel{statusRes: engine.DuelStatus{
-		Open: true, Kind: engine.DuelPot, Opener: "opener",
-		Pot: 700, Entrants: 4, Stake: 100, SecondsLeft: 42,
-	}}
-	m := Duel(duelDeps(f))
-	out := runGames(t, m, gamesCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "4 in")
-	assert.Contains(t, out[0].Text, "700 points in the pot")
-	assert.Contains(t, out[0].Text, "~42s")
+func (f *fakeDuel) calls() duelCalls {
+	return duelCalls{f.openSpec, f.joinLogin, f.joinStake, f.acceptLogin, f.declineLogin, f.cancelLogin, f.cancelMod, f.cancelCalled}
 }
 
-func TestDuelStatusChallenge(t *testing.T) {
-	f := &fakeDuel{statusRes: engine.DuelStatus{
-		Open: true, Kind: engine.DuelChallenge, Opener: "maya",
-		Challenged: "crust", Stake: 500, SecondsLeft: 30,
-	}}
-	m := Duel(duelDeps(f))
-	out := runGames(t, m, gamesCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@maya vs @crust")
-	assert.Contains(t, out[0].Text, "500 points each")
+var (
+	potStatus       = engine.DuelStatus{Open: true, Kind: engine.DuelPot, Opener: "opener", Pot: 700, Entrants: 4, Stake: 100, SecondsLeft: 42}
+	challengeStatus = engine.DuelStatus{Open: true, Kind: engine.DuelChallenge, Opener: "maya", Challenged: "crust", Stake: 500, SecondsLeft: 30}
+	unpaidAccept    = engine.DuelAcceptResult{Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800}
+)
+
+type duelCase struct {
+	name     string
+	who      string
+	mod      bool
+	text     string
+	config   string
+	fake     fakeDuel
+	contains []string
+	calls    duelCalls
 }
 
-func TestDuelJoinRunningPot(t *testing.T) {
-	f := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 3, Pot: 450}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("bob", ""), "150")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@bob you're in with 150")
-	assert.Contains(t, out[0].Text, "3 in the duel")
-	assert.Contains(t, out[0].Text, "450 points")
-	assert.Equal(t, "bob", f.joinLogin)
-	assert.Equal(t, int64(150), f.joinStake)
-	assert.Equal(t, engine.DuelOpenSpec{}, f.openSpec, "a join must not reach Open")
+var duelCases = []duelCase{
+	{name: "status reports no duel running", who: "alice", text: "!duel", contains: []string{"No duel running"}},
+	{name: "status describes a running pot", who: "alice", text: "!duel", fake: fakeDuel{statusRes: potStatus},
+		contains: []string{"4 in", "700 points in the pot", "~42s"}},
+	{name: "status describes a pending challenge", who: "alice", text: "!duel", fake: fakeDuel{statusRes: challengeStatus},
+		contains: []string{"@maya vs @crust", "500 points each"}},
+	{name: "a stake joins the running pot", who: "bob", text: "!duel 150",
+		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 3, Pot: 450}},
+		contains: []string{"@bob you're in with 150", "3 in the duel", "450 points"}, calls: duelCalls{joinLogin: "bob", joinStake: 150}},
+	{name: "a stake opens a pot duel when idle", who: "bob", text: "!duel 250", fake: fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"Pot duel is LIVE", "250 points"},
+		calls:    duelCalls{joinLogin: "bob", joinStake: 250, open: engine.DuelOpenSpec{Kind: engine.DuelPot, Opener: "bob", Stake: 250}}},
+	{name: "a stake under the minimum is refused", who: "bob", text: "!duel 5", config: `{"minStake":10,"maxStake":900}`,
+		contains: []string{"minimum stake is 10"}},
+	{name: "a stake over the maximum is refused", who: "bob", text: "!duel 1000", config: `{"minStake":10,"maxStake":900}`,
+		contains: []string{"max stake is 900"}},
+	{name: "a non numeric stake prints usage", who: "bob", text: "!duel lots", config: `{"minStake":10,"maxStake":900}`,
+		contains: []string{"!duel <amount>"}},
+	{name: "a stake is blocked while a challenge is pending", who: "bob", text: "!duel 100",
+		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, ChallengePending: true}},
+		contains: []string{"head-to-head challenge is pending"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
+	{name: "a short wallet cannot join", who: "bob", text: "!duel 100", fake: fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Short: true}},
+		contains: []string{"don't have enough"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
+	{name: "an unseen viewer cannot join", who: "bob", text: "!duel 100", fake: fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Unknown: true}},
+		contains: []string{"haven't seen"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
+	{name: "joining twice is refused", who: "bob", text: "!duel 100",
+		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Already: true, Entrants: 2, Pot: 300}},
+		contains: []string{"already in this duel"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
+	{name: "a challenge names the doubled pot", who: "maya", text: "!duel @crust 400", fake: fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"@maya challenges @crust for 400 points", "Winner takes 800"},
+		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: "maya", Challenged: "crust", Stake: 400}}},
+	{name: "a targetless challenge never reaches the store", who: "maya", text: "!duel @ 400", contains: []string{"!duel <amount>"}},
+	{name: "dueling yourself is refused", who: "maya", text: "!duel maya 400", contains: []string{"can't duel yourself"}},
+	{name: "accepting a clean win names the winner", who: "crust", text: "!duel accept",
+		fake:     fakeDuel{acceptRes: engine.DuelAcceptResult{Found: true, Accepted: true, Winner: "crust", Loser: "maya", Pot: 800, Stake: 400}},
+		contains: []string{"@crust defeats @maya", "takes 800 points"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "accepting with an unpaid payout says it is landing", who: "crust", text: "!duel accept", fake: fakeDuel{acceptRes: unpaidAccept},
+		contains: []string{"@crust takes the 800 points", "Payout is landing"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "accepting with no challenge waiting", who: "crust", text: "!duel accept", contains: []string{"no challenge is waiting"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "only the challenged party may accept", who: "crust", text: "!duel accept", fake: fakeDuel{acceptRes: engine.DuelAcceptResult{Found: true, WrongUser: true}},
+		contains: []string{"only the challenged party"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "a short wallet cannot cover the accepted stake", who: "crust", text: "!duel accept", fake: fakeDuel{acceptRes: engine.DuelAcceptResult{Found: true, Short: true}},
+		contains: []string{"can't cover the stake"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "an unseen viewer cannot accept", who: "crust", text: "!duel accept", fake: fakeDuel{acceptRes: engine.DuelAcceptResult{Found: true, Unknown: true}},
+		contains: []string{"haven't seen"}, calls: duelCalls{acceptLogin: "crust"}},
+	{name: "declining refunds the opener", who: "crust", text: "!duel decline",
+		fake:     fakeDuel{declineRes: engine.DuelDeclineResult{Found: true, Declined: true, Opener: "maya", Refund: 400}},
+		contains: []string{"@crust declined the challenge", "@maya's 400 points are back"}, calls: duelCalls{declineLogin: "crust"}},
+	{name: "a plain viewer cannot cancel", who: "randy", text: "!duel cancel", fake: fakeDuel{cancelRes: engine.DuelCancelResult{Found: true}},
+		contains: []string{"only the opener or a moderator"}, calls: duelCalls{cancelLogin: "randy", cancelCalled: true}},
+	{name: "a moderator cancel carries the role to the store", who: "mod_kim", mod: true, text: "!duel cancel",
+		fake:     fakeDuel{cancelRes: engine.DuelCancelResult{Cancelled: true, Refunded: 3, Total: 1500}},
+		contains: []string{"Duel cancelled", "3 refunded, 1500 points returned"}, calls: duelCalls{cancelLogin: "mod_kim", cancelMod: true, cancelCalled: true}},
+	{name: "cancelling with nothing running reports it", who: "mod_kim", mod: true, text: "!duel cancel",
+		contains: []string{"No duel running"}, calls: duelCalls{cancelLogin: "mod_kim", cancelMod: true, cancelCalled: true}},
 }
 
-func TestDuelStakeOpensWhenIdle(t *testing.T) {
-	f := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("bob", ""), "250")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "Pot duel is LIVE")
-	assert.Contains(t, out[0].Text, "250 points")
-
-	assert.Equal(t, engine.DuelPot, f.openSpec.Kind)
-	assert.Equal(t, "bob", f.openSpec.Opener)
-	assert.Equal(t, int64(250), f.openSpec.Stake)
-	assert.Empty(t, f.openSpec.Challenged)
-}
-
-func TestDuelStakeLimitsAndUsage(t *testing.T) {
-	f := &fakeDuel{}
-	m := Duel(duelDeps(f))
-	ctx := gamesCtx("bob", `{"minStake":10,"maxStake":900}`)
-
-	out := runGames(t, m, ctx, "5")
-	assert.Contains(t, out[0].Text, "minimum stake is 10")
-
-	out = runGames(t, m, ctx, "1000")
-	assert.Contains(t, out[0].Text, "max stake is 900")
-
-	out = runGames(t, m, ctx, "lots")
-	assert.Contains(t, out[0].Text, "!duel <amount>")
-
-	assert.Empty(t, f.joinLogin, "refused stakes never reach the store")
-}
-
-func TestDuelJoinBlockedByChallenge(t *testing.T) {
-	f := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, ChallengePending: true}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("bob", ""), "100")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "head-to-head challenge is pending")
-}
-
-func TestDuelJoinRefusals(t *testing.T) {
-	cases := []struct {
-		name string
-		res  engine.DuelJoinResult
-		want string
-	}{
-		{"short", engine.DuelJoinResult{Open: true, Short: true}, "don't have enough"},
-		{"unknown", engine.DuelJoinResult{Open: true, Unknown: true}, "haven't seen"},
-		{"already", engine.DuelJoinResult{Open: true, Already: true, Entrants: 2, Pot: 300}, "already in this duel"},
-	}
+func TestDuelChat(t *testing.T) {
+	cases := duelCases
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := Duel(duelDeps(&fakeDuel{joinRes: tc.res}))
-			out := runGames(t, m, gamesCtx("bob", ""), "100")
+			fake := tc.fake
+			c := chatCtx("42", tc.who)
+			if tc.mod {
+				c = chatCtx("42", tc.who, "moderator")
+			}
+			out := runChat(t, Duel(duelDeps(&fake)), withConfig(c, tc.config), tc.text)
 			require.Len(t, out, 1)
-			assert.Contains(t, out[0].Text, tc.want)
-		})
-	}
-}
-
-func TestDuelChallengeSent(t *testing.T) {
-	f := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("maya", ""), "@crust 400")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@maya challenges @crust for 400 points")
-	assert.Contains(t, out[0].Text, "Winner takes 800", "the reply names the doubled pot")
-
-	assert.Equal(t, engine.DuelChallenge, f.openSpec.Kind)
-	assert.Equal(t, "maya", f.openSpec.Opener)
-	assert.Equal(t, "crust", f.openSpec.Challenged, "the @ prefix is stripped before the store sees it")
-	assert.Equal(t, int64(400), f.openSpec.Stake)
-}
-
-func TestDuelChallengeEmptyTarget(t *testing.T) {
-	f := &fakeDuel{}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("maya", ""), "@ 400")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "!duel <amount>")
-	assert.Empty(t, f.openSpec.Kind, "a targetless challenge never reaches the store")
-}
-
-func TestDuelAcceptUnpaid(t *testing.T) {
-	f := &fakeDuel{acceptRes: engine.DuelAcceptResult{
-		Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800,
-	}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("crust", ""), "accept")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@crust takes the 800 points")
-	assert.Contains(t, out[0].Text, "Payout is landing")
-}
-
-func TestDuelChallengeSelf(t *testing.T) {
-	f := &fakeDuel{}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("maya", ""), "maya 400")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "can't duel yourself")
-	assert.Empty(t, f.openSpec.Kind, "a self-duel never reaches the store")
-}
-
-func TestDuelAcceptOutcomes(t *testing.T) {
-	cases := []struct {
-		name string
-		res  engine.DuelAcceptResult
-		want []string
-	}{
-		{
-			name: "clean win",
-			res:  engine.DuelAcceptResult{Found: true, Accepted: true, Winner: "crust", Loser: "maya", Pot: 800, Stake: 400},
-			want: []string{"@crust defeats @maya", "takes 800 points"},
-		},
-		{
-			name: "unpaid payout",
-			res:  engine.DuelAcceptResult{Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800},
-			want: []string{"@crust takes the 800 points", "Payout is landing"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			f := &fakeDuel{acceptRes: tc.res}
-			m := Duel(duelDeps(f))
-			out := runGames(t, m, gamesCtx("crust", ""), "accept")
-			require.Len(t, out, 1)
-			assert.Equal(t, "crust", f.acceptLogin)
-			for _, want := range tc.want {
+			for _, want := range tc.contains {
 				assert.Contains(t, out[0].Text, want)
 			}
+			assert.Equal(t, tc.calls, fake.calls())
 		})
 	}
 }
 
-func TestDuelAcceptRefusals(t *testing.T) {
+func TestGamesStaySilentWhenUnavailable(t *testing.T) {
 	cases := []struct {
 		name string
-		res  engine.DuelAcceptResult
-		want string
+		m    module.Module
+		text string
 	}{
-		{"none", engine.DuelAcceptResult{}, "no challenge is waiting"},
-		{"notYou", engine.DuelAcceptResult{Found: true, WrongUser: true}, "only the challenged party"},
-		{"short", engine.DuelAcceptResult{Found: true, Short: true}, "can't cover the stake"},
-		{"unknown", engine.DuelAcceptResult{Found: true, Unknown: true}, "haven't seen"},
+		{"gamble without a loyalty store", Gamble(engine.Deps{Log: zap.NewNop()}), "!gamble all"},
+		{"duel without a duel store", Duel(engine.Deps{Log: zap.NewNop()}), "!duel"},
+		{"duel while loyalty is off", Duel(gamblelessDuelDeps()), "!duel"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := Duel(duelDeps(&fakeDuel{acceptRes: tc.res}))
-			out := runGames(t, m, gamesCtx("crust", ""), "accept")
-			require.Len(t, out, 1)
-			assert.Contains(t, out[0].Text, tc.want)
+			assert.Empty(t, runChat(t, tc.m, chatCtx("42", "x"), tc.text))
 		})
 	}
 }
 
-func TestDuelDeclineRefundsOpener(t *testing.T) {
-	f := &fakeDuel{declineRes: engine.DuelDeclineResult{
-		Found: true, Declined: true, Opener: "maya", Refund: 400,
-	}}
-	m := Duel(duelDeps(f))
-
-	out := runGames(t, m, gamesCtx("crust", ""), "decline")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@crust declined the challenge")
-	assert.Contains(t, out[0].Text, "@maya's 400 points are back")
-	assert.Equal(t, "crust", f.declineLogin)
-}
-
-func TestDuelCancelAuthorization(t *testing.T) {
-	t.Run("denied viewer", func(t *testing.T) {
-		f := &fakeDuel{cancelRes: engine.DuelCancelResult{Found: true}}
-		m := Duel(duelDeps(f))
-		out := runGames(t, m, queueCtx("randy", ""), "cancel")
-		require.Len(t, out, 1)
-		assert.Contains(t, out[0].Text, "only the opener or a moderator")
-	})
-	t.Run("moderator passes the flag through", func(t *testing.T) {
-		f := &fakeDuel{cancelRes: engine.DuelCancelResult{
-			Cancelled: true, Refunded: 3, Total: 1500,
-		}}
-		m := Duel(duelDeps(f))
-		out := runGames(t, m, queueCtx("mod_kim", "moderator"), "cancel")
-		require.Len(t, out, 1)
-		assert.True(t, f.cancelMod, "the chatter's moderator role rides to the store")
-		assert.Contains(t, out[0].Text, "Duel cancelled")
-		assert.Contains(t, out[0].Text, "3 refunded, 1500 points returned")
-	})
-	t.Run("nothing running", func(t *testing.T) {
-		f := &fakeDuel{}
-		m := Duel(duelDeps(f))
-		out := runGames(t, m, queueCtx("mod_kim", "moderator"), "cancel")
-		require.Len(t, out, 1)
-		assert.Contains(t, out[0].Text, "No duel running")
-		assert.True(t, f.cancelCalled, "the module asks the store; the store's not-found drives the reply")
-	})
-}
-
-func TestGambleAndDuelInertWithoutStores(t *testing.T) {
-	var col collector
-	gm := Gamble(engine.Deps{Log: zap.NewNop()})
-	dm := Duel(engine.Deps{Log: zap.NewNop()})
-	require.NoError(t, findCmd(t, gm, "gamble").Run(context.Background(), gamesCtx("x", ""), "all", col.emit))
-	require.NoError(t, findCmd(t, dm, "duel").Run(context.Background(), gamesCtx("x", ""), "", col.emit))
-	assert.Empty(t, col.out, "nil stores leave both modules silent, not panicking")
-}
-
-func TestDuelInertWhenLoyaltyOff(t *testing.T) {
-	m := Duel(engine.Deps{Duel: &fakeDuel{}, Proj: loyaltyProj{on: false}, Log: zap.NewNop()})
-	out := runGames(t, m, gamesCtx("alice", ""), "")
-	assert.Empty(t, out, "an enabled duel row still stays silent while loyalty is off")
+func gamblelessDuelDeps() engine.Deps {
+	d := duelDeps(&fakeDuel{})
+	d.Proj = &fakeProj{modules: loyaltyView(false, `{}`)}
+	return d
 }

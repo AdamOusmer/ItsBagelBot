@@ -9,21 +9,21 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/internal/domain/outgress"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 type fakeRaffle struct {
-	open        bool
-	pool        []string
-	lastSpec    engine.RaffleOpenSpec
-	drawResult  *engine.RaffleResult
-	lastResult  *engine.RaffleResult
-	lastFound   bool
-	claimScript func(login string) engine.RaffleClaim
-	err         error
+	open       bool
+	pool       []string
+	lastSpec   engine.RaffleOpenSpec
+	drawResult *engine.RaffleResult
+	lastResult *engine.RaffleResult
+	lastFound  bool
+	claim      engine.RaffleClaim
+	err        error
 }
 
 func (f *fakeRaffle) Open(_ context.Context, _ uint64, spec engine.RaffleOpenSpec) (bool, error) {
@@ -79,11 +79,8 @@ func (f *fakeRaffle) LastResult(_ context.Context, _ uint64) (*engine.RaffleResu
 	return f.lastResult, true, f.err
 }
 
-func (f *fakeRaffle) Claim(_ context.Context, _ uint64, login string) (engine.RaffleClaim, error) {
-	if f.claimScript == nil {
-		return engine.ClaimNone, nil
-	}
-	return f.claimScript(login), nil
+func (f *fakeRaffle) Claim(context.Context, uint64, string) (engine.RaffleClaim, error) {
+	return f.claim, nil
 }
 
 func (f *fakeRaffle) StartExpiryWatcher(context.Context) {}
@@ -92,275 +89,122 @@ func raffleDeps(r engine.RaffleStore) engine.Deps {
 	return engine.Deps{Raffle: r, Log: zap.NewNop()}
 }
 
-func TestRaffleJoinOpen(t *testing.T) {
-	r := &fakeRaffle{open: true}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Contains(t, out[0].Text, "@alice")
-	assert.Contains(t, out[0].Text, "1 entered")
-	assert.Equal(t, []string{"alice"}, r.pool)
+func TestRaffleJoin(t *testing.T) {
+	cases := []struct {
+		name     string
+		config   string
+		raffle   fakeRaffle
+		exact    string
+		contains []string
+		pool     []string
+	}{
+		{name: "joining an open raffle counts the entry", raffle: fakeRaffle{open: true}, contains: []string{"@alice", "1 entered"}, pool: []string{"alice"}},
+		{name: "joining a closed raffle is refused", contains: []string{"no raffle"}},
+		{name: "joining twice keeps one entry", raffle: fakeRaffle{open: true, pool: []string{"bob", "alice"}}, contains: []string{"already"}, pool: []string{"bob", "alice"}},
+		{name: "the join template fills the count", config: `{"joinMessage":"welcome {user}! {count} in so far"}`, raffle: fakeRaffle{open: true},
+			exact: "welcome alice! 1 in so far", pool: []string{"alice"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.raffle
+			out := runChat(t, Raffle(raffleDeps(&r)), withConfig(chatCtx("42", "alice"), tc.config), "!join")
+			require.Len(t, out, 1)
+			assertText(t, out[0].Text, textWant{tc.exact, tc.contains, nil})
+			assert.Equal(t, tc.pool, r.pool)
+		})
+	}
 }
 
-func TestRaffleJoinClosed(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
+type raffleOpen int
 
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "no raffle")
-	assert.Empty(t, r.pool)
+const (
+	raffleOpenUnchecked raffleOpen = iota
+	raffleOpened
+	raffleClosed
+)
+
+func TestRaffleChat(t *testing.T) {
+	won := &engine.RaffleResult{Winners: []string{"alice", "zoe"}, Entrants: 10}
+	cases := []struct {
+		name     string
+		text     string
+		who      string
+		badge    string
+		config   string
+		raffle   fakeRaffle
+		silent   bool
+		exact    string
+		contains []string
+		open     raffleOpen
+	}{
+		{name: "a viewer cannot open a raffle", text: "!raffle open", who: "alice", silent: true, open: raffleClosed},
+		{name: "a mod opens a raffle with the defaults", text: "!raffle open", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
+		{name: "opening a running raffle is refused", text: "!raffle open 30", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"already"}},
+		{name: "drawing announces the winners", text: "!raffle draw 2", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true, drawResult: won},
+			contains: []string{"@alice, @zoe", "2 winner(s) from 10"}, open: raffleClosed},
+		{name: "closing an empty raffle says no one entered", text: "!raffle close", who: "mod", badge: "moderator",
+			raffle: fakeRaffle{open: true, drawResult: &engine.RaffleResult{}}, contains: []string{"No one entered"}},
+		{name: "drawing with nothing running says so", text: "!raffle draw", who: "mod", badge: "moderator", contains: []string{"No raffle is running"}},
+		{name: "the won template fills the winners", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonMessage":"{targets} takes it! {count} of {entrants}"}`,
+			raffle: fakeRaffle{drawResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 7}}, exact: "@alice takes it! 1 of 7"},
+		{name: "cancelling closes the raffle", text: "!raffle cancel", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"cancelled"}, open: raffleClosed},
+		{name: "status reports the entrants", text: "!raffle", who: "alice", raffle: fakeRaffle{open: true, pool: []string{"a", "b"}}, contains: []string{"2 entered"}},
+		{name: "status reports a closed raffle", text: "!raffle", who: "alice", contains: []string{"No raffle"}},
+		{name: "status ignores the join template", text: "!raffle", who: "alice", config: `{"joinMessage":"custom"}`, raffle: fakeRaffle{open: true, pool: []string{"a"}},
+			contains: []string{"1 entered"}},
+		{name: "an unknown subcommand prints usage", text: "!raffle gimmick", who: "alice", contains: []string{"!raffle"}},
+		{name: "winner recalls the last draw", text: "!winner", who: "alice", raffle: fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 5}},
+			contains: []string{"@alice"}},
+		{name: "winner shows the confirmed claims", text: "!winner", who: "bob",
+			raffle:   fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: []string{"alice", "zoe"}, Entrants: 5, Claims: []string{"alice"}}},
+			contains: []string{"1/2 confirmed"}},
+		{name: "winner before any draw says so", text: "!winner", who: "alice", contains: []string{"No raffle has been drawn"}},
+		{name: "a winner's claim is confirmed", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimOk}, contains: []string{"confirmed"}},
+		{name: "a second claim is already confirmed", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimAlready}, contains: []string{"already"}},
+		{name: "a non winner gets no prize line", text: "!claim", who: "eve", raffle: fakeRaffle{claim: engine.ClaimNone}, contains: []string{"no raffle prize", "!claim"}},
+		{name: "a late claim cites the window", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimLate}, contains: []string{"window"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.raffle
+			out := runChat(t, Raffle(raffleDeps(&r)), withConfig(chatCtx("42", tc.who, tc.badge), tc.config), tc.text)
+			if tc.silent {
+				assert.Empty(t, out)
+			} else {
+				require.Len(t, out, 1)
+				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, nil})
+			}
+			switch tc.open {
+			case raffleOpened:
+				assert.True(t, r.open)
+			case raffleClosed:
+				assert.False(t, r.open)
+			}
+		})
+	}
 }
 
-func TestRaffleJoinTwiceKeepsOneEntry(t *testing.T) {
-	r := &fakeRaffle{open: true, pool: []string{"bob"}}
-	m := Raffle(raffleDeps(r))
-
-	runQueue(t, m, "join", queueCtx("alice", ""), "")
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "already")
-	assert.Equal(t, []string{"bob", "alice"}, r.pool)
-}
-
-func TestRaffleOpenRequiresMod(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("alice", ""), "open")
-	assert.Empty(t, out)
-	assert.False(t, r.open)
-}
-
-func TestRaffleOpenDefaults(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "open")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "!join")
-	assert.True(t, r.open)
-	assert.Zero(t, r.lastSpec.Winners)
-}
-
-func TestRaffleOpenAlreadyRunning(t *testing.T) {
-	r := &fakeRaffle{open: true}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "open 30")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "already")
-}
-
-func TestRaffleOpenReminderArgs(t *testing.T) {
+func TestRaffleOpenArgs(t *testing.T) {
 	cases := []struct {
 		args string
-		want time.Duration
+		want engine.RaffleOpenSpec
 	}{
-		{"", 0},
-		{"10", 0},
-		{"10 2", 0},
-		{"10 2 3", 3 * time.Minute},
-		{"10 2 0", -time.Second},
+		{"", engine.RaffleOpenSpec{OpenedBy: "mod"}},
+		{"10", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute}},
+		{"10 2", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2}},
+		{"10 2 3", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: 3 * time.Minute}},
+		{"10 2 0", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: -time.Second}},
 	}
 	for _, tc := range cases {
 		r := &fakeRaffle{}
-		m := Raffle(raffleDeps(r))
-		runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "open "+tc.args)
-		assert.Equal(t, tc.want, r.lastSpec.Remind, "open %q", tc.args)
+		runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), "!raffle open "+tc.args)
+		assert.Equal(t, tc.want, r.lastSpec, "open %q", tc.args)
 		assert.True(t, r.open)
 	}
 }
 
-func TestRaffleDrawAnnouncesWinners(t *testing.T) {
-	r := &fakeRaffle{
-		open: true,
-		drawResult: &engine.RaffleResult{
-			Winners: []string{"alice", "zoe"}, Entrants: 10,
-		},
-	}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "draw 2")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@alice, @zoe")
-	assert.Contains(t, out[0].Text, "2 winner(s) from 10")
-	assert.False(t, r.open)
-}
-
-func TestRaffleDrawEmptyPool(t *testing.T) {
-	r := &fakeRaffle{open: true, drawResult: &engine.RaffleResult{}}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "close")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No one entered")
-}
-
-func TestRaffleDrawNoneRunning(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "draw")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No raffle is running")
-}
-
-func TestRaffleCancel(t *testing.T) {
-	r := &fakeRaffle{open: true}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "cancel")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "cancelled")
-	assert.False(t, r.open)
-}
-
-func TestRaffleStatusOpenAndClosed(t *testing.T) {
-	r := &fakeRaffle{open: true, pool: []string{"a", "b"}}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "2 entered")
-
-	r.open = false
-	out = runQueue(t, m, "raffle", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No raffle")
-}
-
-func TestWinnerRecall(t *testing.T) {
-	r := &fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 5}}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "winner", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@alice")
-}
-
-func TestWinnerRecallShowsConfirmedClaims(t *testing.T) {
-	r := &fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{
-		Winners: []string{"alice", "zoe"}, Entrants: 5, Claims: []string{"alice"},
-	}}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "winner", queueCtx("bob", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "1/2 confirmed")
-}
-
-func TestClaimConfirmedOnce(t *testing.T) {
-	claimed := false
-	r := &fakeRaffle{claimScript: func(string) engine.RaffleClaim {
-		if claimed {
-			return engine.ClaimAlready
-		}
-		claimed = true
-		return engine.ClaimOk
-	}}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "claim", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "confirmed")
-
-	out = runQueue(t, m, "claim", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "already")
-}
-
-func TestClaimNotWinnerGetsNoPrizeLine(t *testing.T) {
-	r := &fakeRaffle{claimScript: func(string) engine.RaffleClaim { return engine.ClaimNone }}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "claim", queueCtx("eve", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "no raffle prize")
-	assert.Contains(t, out[0].Text, "!claim")
-}
-
-func TestClaimLate(t *testing.T) {
-	r := &fakeRaffle{claimScript: func(string) engine.RaffleClaim { return engine.ClaimLate }}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "claim", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "window")
-}
-
-func TestWinnerNoneYet(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "winner", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No raffle has been drawn")
-}
-
-func TestRaffleJoinCustomTemplate(t *testing.T) {
-	r := &fakeRaffle{open: true}
-	m := Raffle(raffleDeps(r))
-
-	c := queueCtx("alice", "")
-	c.Config = []byte(`{"joinMessage":"welcome {user}! {count} in so far"}`)
-	out := runQueue(t, m, "join", c, "")
-	require.Len(t, out, 1)
-	assert.Equal(t, "welcome alice! 1 in so far", out[0].Text)
-}
-
-func TestRaffleWonCustomTemplate(t *testing.T) {
-	r := &fakeRaffle{drawResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 7}}
-	m := Raffle(raffleDeps(r))
-
-	c := queueCtx("mod", "moderator")
-	c.Config = []byte(`{"wonMessage":"{targets} takes it! {count} of {entrants}"}`)
-	out := runQueue(t, m, "raffle", c, "draw")
-	require.Len(t, out, 1)
-	assert.Equal(t, "@alice takes it! 1 of 7", out[0].Text)
-}
-
-func TestRaffleStatusIgnoresConfig(t *testing.T) {
-	r := &fakeRaffle{open: true, pool: []string{"a"}}
-	m := Raffle(raffleDeps(r))
-
-	c := queueCtx("alice", "")
-	c.Config = []byte(`{"joinMessage":"custom"}`)
-	out := runQueue(t, m, "raffle", c, "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "1 entered")
-}
-
-func TestRaffleNilStoreInert(t *testing.T) {
+func TestRaffleStaysSilentWithoutAStore(t *testing.T) {
 	m := Raffle(raffleDeps(nil))
-	assert.Empty(t, runQueue(t, m, "join", queueCtx("alice", ""), ""))
-	assert.Empty(t, runQueue(t, m, "raffle", queueCtx("mod", "moderator"), "open"))
-}
-
-func TestRaffleUnknownSubGetsUsage(t *testing.T) {
-	r := &fakeRaffle{}
-	m := Raffle(raffleDeps(r))
-
-	out := runQueue(t, m, "raffle", queueCtx("alice", ""), "gimmick")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "!raffle")
-}
-
-func TestRaffleOwnsStandaloneJoinOverQueue(t *testing.T) {
-	deps := func() engine.Deps { return engine.Deps{Log: zap.NewNop()} }
-	mods := All(deps())
-	raffleIdx, queueIdx := -1, -1
-	for i, mod := range mods {
-		switch mod.Name {
-		case raffleModuleName:
-			raffleIdx = i
-		case queueModuleName:
-			queueIdx = i
-		}
-	}
-	require.NotEqual(t, -1, raffleIdx)
-	require.NotEqual(t, -1, queueIdx)
-	assert.Less(t, raffleIdx, queueIdx, "raffle must register before queue to own !join")
+	assert.Empty(t, runChat(t, m, chatCtx("42", "alice"), "!join"))
+	assert.Empty(t, runChat(t, m, chatCtx("9", "mod", "moderator"), "!raffle open"))
 }

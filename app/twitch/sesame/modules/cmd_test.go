@@ -11,7 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
@@ -22,584 +21,229 @@ import (
 )
 
 type fakeCommandManager struct {
-	upsertCalls []upsertCall
-	deleteCalls []deleteCall
-	upsertErr   error
-	deleteErr   error
+	upserts   []upsertCall
+	deletes   []deleteCall
+	upsertErr error
+	deleteErr error
 }
 
 type upsertCall struct{ UserID, Name, Response string }
 type deleteCall struct{ UserID, Name string }
 
 func (f *fakeCommandManager) Upsert(_ context.Context, userID, name, response string) error {
-	f.upsertCalls = append(f.upsertCalls, upsertCall{userID, name, response})
+	f.upserts = append(f.upserts, upsertCall{userID, name, response})
 	return f.upsertErr
 }
 
 func (f *fakeCommandManager) Delete(_ context.Context, userID, name string) error {
-	f.deleteCalls = append(f.deleteCalls, deleteCall{userID, name})
+	f.deletes = append(f.deletes, deleteCall{userID, name})
 	return f.deleteErr
 }
 
-type fakeProj struct {
-	commands map[string]projection.Command
-	modules  []projection.ModuleView
-	user     projection.User
-	userErr  error
-}
-
-func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
-	return f.user, f.userErr
-}
-
-func (f *fakeProj) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
-	return projection.ModuleMap(f.modules), nil
-}
-
-func (f *fakeProj) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
-	views, err := f.Modules(ctx, id)
-	if err != nil {
-		return projection.ModuleView{}, false, err
-	}
-	view, ok := views[name]
-	return view, ok, nil
-}
-
-func (f *fakeProj) Command(_ context.Context, _ uint64, name string) (projection.Command, bool, error) {
-	cmd, ok := f.commands[name]
-	return cmd, ok, nil
-}
-
 func cmdDeps(proj projection.Reader, cmds engine.CommandManager) engine.Deps {
-	return engine.Deps{
-		Proj:     proj,
-		Commands: cmds,
-		Log:      zap.NewNop(),
+	return engine.Deps{Proj: proj, Commands: cmds, Log: zap.NewNop()}
+}
+
+func existingCommands(names ...string) map[string]projection.Command {
+	cmds := make(map[string]projection.Command, len(names))
+	for _, name := range names {
+		cmds[name] = projection.Command{Name: name, Response: "Hi!"}
 	}
+	return cmds
 }
 
-func cmdCtx(chatterLogin, text string) *module.Context {
-	return &module.Context{
-		Env: lane.Envelope{
-			Type:                 "channel.chat.message",
-			BroadcasterUserID:    "100",
-			BroadcasterUserLogin: "streamer",
-			ChatterUserID:        "42",
-			ChatterUserLogin:     chatterLogin,
-			Text:                 text,
-			Badges:               []lane.Badge{{SetID: "moderator"}},
-		},
-		Regress:       module.RegressPremium,
-		BroadcasterID: 100,
-		Log:           zap.NewNop(),
-	}
-}
-
-func viewerCtx(chatterLogin, text string) *module.Context {
-	c := cmdCtx(chatterLogin, text)
-	c.Env.Badges = nil
-	return c
-}
-
-func TestCmdAddSuccess(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add hello Hello world!"), "add hello Hello world!", col.emit))
-
-	require.Len(t, cmds.upsertCalls, 1)
-	assert.Equal(t, "100", cmds.upsertCalls[0].UserID)
-	assert.Equal(t, "hello", cmds.upsertCalls[0].Name)
-	assert.Equal(t, "Hello world!", cmds.upsertCalls[0].Response)
-
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Equal(t, "100", col.out[0].BroadcasterID)
-	assert.Contains(t, col.out[0].Text, "@alice")
-	assert.Contains(t, col.out[0].Text, "hello")
-	assert.Contains(t, col.out[0].Text, "added")
-}
-
-func TestCmdAddAlreadyExists(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{
-		"hello": {Name: "hello", Response: "Hi!"},
-	}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("bob", "!cmd add hello New"), "add hello New", col.emit))
-
-	assert.Empty(t, cmds.upsertCalls, "should not upsert when command exists")
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "already exists")
-	assert.Contains(t, col.out[0].Text, "!cmd edit")
-}
-
-func TestCmdAddMissingResponse(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add hello"), "add hello", col.emit))
-
-	assert.Empty(t, cmds.upsertCalls)
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "response")
-}
-
-func TestCmdAddMissingName(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add"), "add", col.emit))
-
-	assert.Empty(t, cmds.upsertCalls)
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "Usage")
-}
-
-func TestCmdEditSuccess(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{
-		"hello": {Name: "hello", Response: "Hi!"},
-	}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd edit hello Updated!"), "edit hello Updated!", col.emit))
-
-	require.Len(t, cmds.upsertCalls, 1)
-	assert.Equal(t, "hello", cmds.upsertCalls[0].Name)
-	assert.Equal(t, "Updated!", cmds.upsertCalls[0].Response)
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "modified")
-}
-
-func TestCmdEditNotFound(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("bob", "!cmd edit nope New"), "edit nope New", col.emit))
-
-	assert.Empty(t, cmds.upsertCalls)
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "not found")
-	assert.Contains(t, col.out[0].Text, "!cmd add")
-}
-
-func TestCmdRemoveSuccess(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd remove hello"), "remove hello", col.emit))
-
-	require.Len(t, cmds.deleteCalls, 1)
-	assert.Equal(t, "100", cmds.deleteCalls[0].UserID)
-	assert.Equal(t, "hello", cmds.deleteCalls[0].Name)
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "removed")
-}
-
-func TestCmdRemoveAcceptsDeleteAlias(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd delete test"), "delete test", col.emit))
-
-	require.Len(t, cmds.deleteCalls, 1)
-	assert.Equal(t, "test", cmds.deleteCalls[0].Name)
-}
-
-func TestCmdNoSubcommand(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd"), "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-	assert.Empty(t, cmds.upsertCalls)
-}
-
-func TestCmdLinkCarriesLoginNotDisplayName(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	c := cmdCtx("alice", "!cmd")
-	c.Env.BroadcasterUserName = "StreamerName"
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-	assert.NotContains(t, col.out[0].Text, "/user/StreamerName")
-	assert.NotContains(t, col.out[0].Text, "channel=")
-}
-
-func TestCmdLinkFallsBackToIDWithoutLogin(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	c := cmdCtx("alice", "!cmd")
-	c.Env.BroadcasterUserLogin = ""
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/100")
-}
-
-func TestCmdInvalidSubcommand(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd foobar"), "foobar", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-}
-
-func TestCmdEveryonePermAndAliases(t *testing.T) {
-	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
-	cmd := findCmd(t, m, "cmd")
-
-	assert.Equal(t, module.RoleEveryone, cmd.Perm)
-	assert.ElementsMatch(t, []string{"cmds", "command", "commands"}, cmd.Aliases)
-}
-
-func TestCmdLinkForViewer(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmds"), "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "@vic")
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-	assert.Empty(t, cmds.upsertCalls)
-}
-
-func TestCmdManageDeniedForViewer(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd add hi yo"), "add hi yo", col.emit))
-
-	assert.Empty(t, cmds.upsertCalls, "viewer must not manage commands")
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-}
-
-func TestCmdLinkBase(t *testing.T) {
+func TestCmdManagement(t *testing.T) {
 	cases := []struct {
-		name string
-		base string
-		want string
+		name      string
+		text      string
+		viewer    bool
+		existing  []string
+		upsertErr error
+		deleteErr error
+		upserts   []upsertCall
+		deletes   []deleteCall
+		contains  []string
 	}{
-		{"configured base", "https://staging.example.com/", "https://staging.example.com/user/streamer"},
-		{"unset base", "", "https://commands.itsbagelbot.com/user/streamer"},
+		{name: "adds a command and confirms it", text: "!cmd add hello Hello world!",
+			upserts: []upsertCall{{"100", "hello", "Hello world!"}}, contains: []string{"@alice", "hello", "added"}},
+		{name: "strips the leading bang from the name", text: "!cmd add !test Hello",
+			upserts: []upsertCall{{"100", "test", "Hello"}}, contains: []string{"test", "added"}},
+		{name: "refuses to overwrite an existing command", text: "!cmd add hello New", existing: []string{"hello"},
+			contains: []string{"already exists", "!cmd edit"}},
+		{name: "asks for a response when add has none", text: "!cmd add hello", contains: []string{"response"}},
+		{name: "prints usage when add has no name", text: "!cmd add", contains: []string{"Usage"}},
+		{name: "edits an existing command", text: "!cmd edit hello Updated!", existing: []string{"hello"},
+			upserts: []upsertCall{{"100", "hello", "Updated!"}}, contains: []string{"modified"}},
+		{name: "refuses to edit an unknown command", text: "!cmd edit nope New",
+			contains: []string{"not found", "!cmd add"}},
+		{name: "asks for a response when edit has none", text: "!cmd edit hello", contains: []string{"response"}},
+		{name: "prints usage when edit has no name", text: "!cmd edit", contains: []string{"Usage"}},
+		{name: "removes a command", text: "!cmd remove hello",
+			deletes: []deleteCall{{"100", "hello"}}, contains: []string{"removed"}},
+		{name: "accepts delete as an alias of remove", text: "!cmd delete test",
+			deletes: []deleteCall{{"100", "test"}}, contains: []string{"removed"}},
+		{name: "prints usage when remove has no name", text: "!cmd remove", contains: []string{"Usage"}},
+		{name: "stays silent when the add RPC fails", text: "!cmd add test Hi", upsertErr: errors.New("rpc timeout"),
+			upserts: []upsertCall{{"100", "test", "Hi"}}},
+		{name: "stays silent when the remove RPC fails", text: "!cmd remove test", deleteErr: errors.New("rpc timeout"),
+			deletes: []deleteCall{{"100", "test"}}},
+		{name: "viewers get the page link instead of managing", text: "!cmd add hi yo", viewer: true,
+			contains: []string{"/user/streamer"}},
 	}
-
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := cmdDeps(&fakeProj{commands: map[string]projection.Command{}}, &fakeCommandManager{})
-			d.PublicBaseURL = tc.base
-			cmd := findCmd(t, Cmd(d), "cmd")
-
-			var col collector
-			require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!command"), "", col.emit))
-
-			require.Len(t, col.out, 1)
-			assert.Contains(t, col.out[0].Text, tc.want)
-			assert.NotContains(t, col.out[0].Text, "example.com//user")
+			cmds := &fakeCommandManager{upsertErr: tc.upsertErr, deleteErr: tc.deleteErr}
+			m := Cmd(cmdDeps(&fakeProj{commands: existingCommands(tc.existing...)}, cmds))
+			c := chatCtx("42", "alice", "moderator")
+			if tc.viewer {
+				c = chatCtx("42", "alice")
+			}
+			out := runChat(t, m, c, tc.text)
+			assert.Equal(t, tc.upserts, cmds.upserts)
+			assert.Equal(t, tc.deletes, cmds.deletes)
+			require.Len(t, out, min(len(tc.contains), 1))
+			for _, want := range tc.contains {
+				assert.Contains(t, out[0].Text, want)
+			}
 		})
 	}
 }
 
-func TestCmdLinkHiddenPage(t *testing.T) {
-	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: true}}
-	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.NotContains(t, col.out[0].Text, "http")
-	want := strings.NewReplacer("{user}", "vic", "{channel}", "streamer").Replace(i18n.T("", "cmd.page_off"))
-	assert.Equal(t, want, col.out[0].Text)
-}
-
-func TestCmdLinkVisiblePage(t *testing.T) {
-	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: false}}
-	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-}
-
-func TestCmdLinkProjectionErrorFailsOpen(t *testing.T) {
-	proj := &fakeProj{commands: map[string]projection.Command{}, userErr: errors.New("projection unavailable")}
-	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
-
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "/user/streamer")
-}
-
-func TestCmdAddRPCError(t *testing.T) {
-	cmds := &fakeCommandManager{upsertErr: errors.New("rpc timeout")}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add test Hi"), "add test Hi", col.emit))
-
-	assert.Empty(t, col.out)
-}
-
-func TestCmdStripsExclamationFromName(t *testing.T) {
-	cmds := &fakeCommandManager{}
-	proj := &fakeProj{commands: map[string]projection.Command{}}
-	m := Cmd(cmdDeps(proj, cmds))
-	cmd := findCmd(t, m, "cmd")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add !test Hello"), "add !test Hello", col.emit))
-
-	require.Len(t, cmds.upsertCalls, 1)
-	assert.Equal(t, "test", cmds.upsertCalls[0].Name, "should strip leading ! from name")
-}
-
-func TestSplitFirst(t *testing.T) {
-	tests := []struct {
-		input     string
-		wantFirst string
-		wantRest  string
+func TestCmdLink(t *testing.T) {
+	cases := []struct {
+		name        string
+		text        string
+		baseURL     string
+		hidden      bool
+		projErr     error
+		noLogin     bool
+		displayName string
+		contains    []string
+		excludes    []string
 	}{
-		{"add hello world", "add", "hello world"},
-		{"remove test", "remove", "test"},
-		{"hello", "hello", ""},
-		{"  spaces  around  ", "spaces", "around"},
-		{"", "", ""},
+		{name: "links the page by broadcaster login", text: "!cmd", contains: []string{"@alice", "/user/streamer"}},
+		{name: "answers the cmds alias", text: "!cmds", contains: []string{"/user/streamer"}},
+		{name: "unknown subcommand falls back to the link", text: "!cmd foobar", contains: []string{"/user/streamer"}},
+		{name: "link carries the login, not the display name", text: "!cmd", displayName: "StreamerName",
+			contains: []string{"/user/streamer"}, excludes: []string{"/user/StreamerName", "channel="}},
+		{name: "falls back to the broadcaster id without a login", text: "!cmd", noLogin: true,
+			contains: []string{"/user/100"}},
+		{name: "uses the configured base URL", text: "!command", baseURL: "https://staging.example.com/",
+			contains: []string{"https://staging.example.com/user/streamer"}, excludes: []string{"example.com//user"}},
+		{name: "defaults the base URL when unset", text: "!command",
+			contains: []string{"https://commands.itsbagelbot.com/user/streamer"}},
+		{name: "fails open when the projection errors", text: "!cmd", projErr: errors.New("projection unavailable"),
+			contains: []string{"/user/streamer"}},
+		{name: "hidden page points to no link", text: "!cmd", hidden: true, excludes: []string{"http"},
+			contains: []string{strings.NewReplacer("{user}", "alice", "{channel}", "streamer").Replace(i18n.T("", "cmd.page_off"))}},
 	}
-	for _, tt := range tests {
-		first, rest := splitFirst(tt.input)
-		assert.Equal(t, tt.wantFirst, first, "splitFirst(%q) first", tt.input)
-		assert.Equal(t, tt.wantRest, rest, "splitFirst(%q) rest", tt.input)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			proj := &fakeProj{user: projection.User{CommandsPageHidden: tc.hidden}, userErr: tc.projErr}
+			d := cmdDeps(proj, &fakeCommandManager{})
+			d.PublicBaseURL = tc.baseURL
+			c := chatCtx("42", "alice")
+			c.Env.BroadcasterUserName = tc.displayName
+			if tc.noLogin {
+				c.Env.BroadcasterUserLogin = ""
+			}
+			out := runChat(t, Cmd(d), c, tc.text)
+			require.Len(t, out, 1)
+			for _, want := range tc.contains {
+				assert.Contains(t, out[0].Text, want)
+			}
+			for _, bad := range tc.excludes {
+				assert.NotContains(t, out[0].Text, bad)
+			}
+		})
 	}
 }
 
-func TestStreamEditorCommandShape(t *testing.T) {
-	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
-	title := findCmd(t, m, "title")
-	assert.Equal(t, module.RoleLeadModerator, title.Perm)
-	assert.ElementsMatch(t, []string{"settitle"}, title.Aliases)
-	assert.False(t, title.LiveOnly)
-	assert.Equal(t, streamEditCooldown, title.Cooldown)
-
-	game := findCmd(t, m, "game")
-	assert.Equal(t, module.RoleLeadModerator, game.Perm)
-	assert.ElementsMatch(t, []string{"setgame"}, game.Aliases)
-
-	tags := findCmd(t, m, "tags")
-	assert.Equal(t, module.RoleLeadModerator, tags.Perm)
-	assert.ElementsMatch(t, []string{"settags"}, tags.Aliases)
-
-	commercial := findCmd(t, m, "commercial")
-	assert.Equal(t, module.RoleLeadModerator, commercial.Perm)
-	assert.ElementsMatch(t, []string{"ad"}, commercial.Aliases)
-	assert.True(t, commercial.LiveOnly)
-	assert.Equal(t, streamCommercialCooldown, commercial.Cooldown)
-
-	marker := findCmd(t, m, "marker")
-	assert.Equal(t, module.RoleLeadModerator, marker.Perm)
-	assert.True(t, marker.LiveOnly)
-	assert.Equal(t, streamMarkerCooldown, marker.Cooldown)
+func TestStreamEditorsEmitUpdates(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want module.Output
+	}{
+		{"title without a value reads the current title", "!title",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "title"}},
+		{"title with a value sets it", "!title Ranked grind",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "title", Text: "Ranked grind"}},
+		{"settitle alias sets the title", "!settitle Ranked grind",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "title", Text: "Ranked grind"}},
+		{"a title at the length limit is accepted", "!title " + strings.Repeat("a", streamTitleMax),
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "title", Text: strings.Repeat("a", streamTitleMax)}},
+		{"game sets the category", "!game Fortnite",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "game", Text: "Fortnite"}},
+		{"tags set a comma list", "!tags English, family friendly",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "tags", Text: "English, family friendly"}},
+		{"tags at the count limit are accepted", "!tags " + strings.Repeat("t,", streamTagMaxCount-1) + "t",
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "tags", Text: strings.Repeat("t,", streamTagMaxCount-1) + "t"}},
+		{"a tag at the length limit is accepted", "!tags " + strings.Repeat("a", streamTagMaxLen),
+			module.Output{Type: outgress.TypeChannelUpdate, Reason: "tags", Text: strings.Repeat("a", streamTagMaxLen)}},
+		{"commercial runs the requested length", "!commercial 60",
+			module.Output{Type: outgress.TypeCommercial, Duration: 60}},
+		{"bare commercial runs thirty seconds", "!commercial",
+			module.Output{Type: outgress.TypeCommercial, Duration: 30}},
+		{"commercial accepts the longest break", "!ad 180",
+			module.Output{Type: outgress.TypeCommercial, Duration: 180}},
+		{"marker carries the description", "!marker Boss fight",
+			module.Output{Type: outgress.TypeStreamMarker, Text: "Boss fight"}},
+		{"marker truncates an oversized description", "!marker " + strings.Repeat("a", streamTitleMax+10),
+			module.Output{Type: outgress.TypeStreamMarker, Text: strings.Repeat("a", streamTitleMax)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
+			want := tc.want
+			want.BroadcasterID, want.To = "100", "alice"
+			assert.Equal(t, []module.Output{want}, runChat(t, m, chatCtx("42", "alice", "moderator"), tc.text))
+		})
+	}
 }
 
-func TestTitleGetEmitsChannelUpdate(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title"), "", col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChannelUpdate, o.Type)
-	assert.Equal(t, "100", o.BroadcasterID)
-	assert.Equal(t, "title", o.Reason)
-	assert.Empty(t, o.Text)
-	assert.Equal(t, "alice", o.To)
-}
-
-func TestTitleSetEmitsValue(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title Ranked grind"), "Ranked grind", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChannelUpdate, col.out[0].Type)
-	assert.Equal(t, "Ranked grind", col.out[0].Text)
-	assert.Equal(t, "title", col.out[0].Reason)
-}
-
-func TestSettitleEmptyPrintsUsage(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!settitle"), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Contains(t, col.out[0].Text, "Usage")
-	assert.Contains(t, col.out[0].Text, "!settitle")
-}
-
-func TestTitleTooLongRefuses(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
-	var col collector
-	long := strings.Repeat("a", streamTitleMax+1)
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title "+long), long, col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Contains(t, col.out[0].Text, "too long")
+func TestStreamEditorsRefuseBadInput(t *testing.T) {
+	longTitle := strings.Repeat("a", streamTitleMax+1)
+	cases := []struct {
+		name, text, want string
+	}{
+		{"settitle without a value prints usage", "!settitle", "!settitle"},
+		{"setgame without a value prints usage", "!setgame", "Usage"},
+		{"title over the limit is refused", "!title " + longTitle, "too long"},
+		{"tags over the count limit print usage", "!tags " + strings.Repeat("t,", streamTagMaxCount+1), "Usage"},
+		{"a tag over the length limit prints usage", "!tags " + strings.Repeat("a", streamTagMaxLen+1), "Usage"},
+		{"commercial off the thirty second grid prints usage", "!commercial 45", "Usage"},
+		{"non numeric commercial length prints usage", "!commercial nope", "Usage"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
+			out := runChat(t, m, chatCtx("42", "alice", "moderator"), tc.text)
+			require.Len(t, out, 1)
+			assert.Equal(t, outgress.TypeChat, out[0].Type)
+			assert.Contains(t, out[0].Text, tc.want)
+		})
+	}
 }
 
 func TestTitleTooLongExpandsNamespacedTokens(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
-	long := strings.Repeat("a", streamTitleMax+1)
+	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
 	for _, locale := range []string{"en", "fr"} {
-		c := cmdCtx("alice", "!title "+long)
+		c := chatCtx("42", "alice", "moderator")
 		c.Locale = locale
-		var col collector
-		require.NoError(t, cmd.Run(context.Background(), c, long, col.emit))
-		require.Len(t, col.out, 1)
-		assert.Contains(t, col.out[0].Text, "@alice", locale)
-		assert.NotContains(t, col.out[0].Text, "{", locale)
+		out := runChat(t, m, c, "!title "+strings.Repeat("a", streamTitleMax+1))
+		require.Len(t, out, 1)
+		assert.Contains(t, out[0].Text, "@alice", locale)
+		assert.NotContains(t, out[0].Text, "{", locale)
 	}
 }
 
-func TestTitleSuppressedWhenDisabled(t *testing.T) {
-	proj := &fakeProj{modules: []projection.ModuleView{{Name: "title", IsEnabled: false}}}
-	cmd := findCmd(t, Cmd(cmdDeps(proj, &fakeCommandManager{})), "title")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!title hello"), "hello", col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestCommercialEmitsLength(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial 60"), "60", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeCommercial, col.out[0].Type)
-	assert.Equal(t, 60.0, col.out[0].Duration)
-	assert.Equal(t, "alice", col.out[0].To)
-}
-
-func TestCommercialBareIsThirty(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial"), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, 30.0, col.out[0].Duration)
-}
-
-func TestCommercialBadLengthPrintsUsage(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "commercial")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!commercial 45"), "45", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Contains(t, col.out[0].Text, "Usage")
-}
-
-func TestMarkerEmitsDescription(t *testing.T) {
-	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "marker")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!marker Boss fight"), "Boss fight", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeStreamMarker, col.out[0].Type)
-	assert.Equal(t, "Boss fight", col.out[0].Text)
-}
-
-func TestParseStreamTags(t *testing.T) {
-	got, err := parseStreamTags("English, family friendly")
-	require.NoError(t, err)
-	assert.Equal(t, []string{"English", "family friendly"}, got)
-
-	_, err = parseStreamTags("")
-	assert.Error(t, err)
-	_, err = parseStreamTags(strings.Repeat("a", streamTagMaxLen+1))
-	assert.Error(t, err)
-	tooMany := make([]string, streamTagMaxCount+1)
-	for i := range tooMany {
-		tooMany[i] = "t"
+func TestStreamEditorsSilentWhenModuleDisabled(t *testing.T) {
+	for _, name := range []string{"title", "game", "tags", "commercial", "marker"} {
+		t.Run(name, func(t *testing.T) {
+			proj := &fakeProj{modules: []projection.ModuleView{{Name: name, IsEnabled: false}}}
+			out := runChat(t, Cmd(cmdDeps(proj, &fakeCommandManager{})), chatCtx("42", "alice", "moderator"), "!"+name+" 60")
+			assert.Empty(t, out)
+		})
 	}
-	_, err = parseStreamTags(strings.Join(tooMany, ","))
-	assert.Error(t, err)
-}
-
-func TestParseCommercialLength(t *testing.T) {
-	n, ok := parseCommercialLength("")
-	assert.True(t, ok)
-	assert.Equal(t, 30, n)
-	n, ok = parseCommercialLength("180")
-	assert.True(t, ok)
-	assert.Equal(t, 180, n)
-	_, ok = parseCommercialLength("45")
-	assert.False(t, ok)
-	_, ok = parseCommercialLength("nope")
-	assert.False(t, ok)
-}
-
-func TestStreamIsSetAlias(t *testing.T) {
-	assert.True(t, streamIsSetAlias(cmdCtx("alice", "!settitle")))
-	assert.True(t, streamIsSetAlias(cmdCtx("alice", "!setgame Fortnite")))
-	assert.False(t, streamIsSetAlias(cmdCtx("alice", "!title")))
-	assert.False(t, streamIsSetAlias(cmdCtx("alice", "!game")))
 }

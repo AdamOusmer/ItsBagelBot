@@ -4,13 +4,11 @@
 package modules
 
 import (
-	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
@@ -20,208 +18,162 @@ import (
 	"go.uber.org/zap"
 )
 
-const goveeRedeemJSON = `{"id":"redeem-1","broadcaster_user_id":"2","broadcaster_user_login":"streamer","user_id":"9","user_name":"CoolViewer","user_login":"coolviewer","user_input":"blue","reward":{"id":"rw-1","title":"Colour my lights","cost":500}}`
-
 const goveeCfg = `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159"}`
 
-func goveeHandler(t *testing.T, d engine.Deps) module.EventHandler {
+func goveePayload(rewardID, input string) string {
+	return fmt.Sprintf(`{"id":"redeem-1","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":%q,"reward":{"id":%q,"title":"Colour my lights","cost":500}}`, input, rewardID)
+}
+
+func goveeGossip(err error) *fakeGossip {
+	return &fakeGossip{err: err, replies: map[string]any{"govee.control": gossiprpc.GoveeControlReply{OK: true}}}
+}
+
+func runGovee(t *testing.T, d engine.Deps, c *module.Context) []module.Output {
 	t.Helper()
-	if d.Log == nil {
-		d.Log = zap.NewNop()
+	d.Log = zap.NewNop()
+	return runEvent(t, Govee(d), c)
+}
+
+func outputKinds(out []module.Output) []string {
+	var kinds []string
+	for _, o := range out {
+		if o.Type == outgress.TypeRedemptionUpdate {
+			kinds = append(kinds, "update:"+o.Status)
+			continue
+		}
+		kinds = append(kinds, string(o.Type))
 	}
-	m := Govee(d)
-	assert.Equal(t, "govee", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	h := m.Events[redemptionAddType]
-	require.NotNil(t, h, "govee must handle %s", redemptionAddType)
-	return h
+	return kinds
 }
 
-func goveeCtx(payload, config string) *module.Context {
-	c := &module.Context{
-		Env:           lane.Envelope{Type: redemptionAddType, Event: []byte(payload)},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
+func TestGoveeRedemptions(t *testing.T) {
+	const (
+		fulfilled = "update:" + outgress.RedemptionFulfilled
+		canceled  = "update:" + outgress.RedemptionCanceled
+		chat      = string(outgress.TypeChat)
+	)
+	blue := gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0x0066FF}
+	cases := []struct {
+		name    string
+		config  string
+		payload string
+		live    liveState
+		gossip  error
+		kinds   []string
+		chat    string
+		call    *gossiprpc.Request
+	}{
+		{name: "an unconfigured light does nothing", config: `{"rewardId":"rw-1"}`, live: liveOnline},
+		{name: "an unrelated reward never drives the lights", live: liveOnline, payload: goveePayload("other", "blue"), config: goveeCfg},
+		{name: "offline refunds without calling gossip", live: liveOffline, config: goveeCfg, kinds: []string{chat, canceled}, chat: "refunded"},
+		{name: "an unconfirmed live state refunds instead of driving lights", live: liveBroken, config: goveeCfg, kinds: []string{chat, canceled}, chat: "refunded"},
+		{name: "an unknown colour refunds before gossip", live: liveOnline, payload: goveePayload("rw-1", "chartreuseish"), config: goveeCfg,
+			kinds: []string{chat, canceled}, chat: "refunded"},
+		{name: "a known colour drives the light and fulfills", live: liveOnline, config: goveeCfg, kinds: []string{chat, fulfilled}, chat: "@CoolViewer", call: &blue},
+		{name: "allowOffline drives the light while offline", live: liveOffline,
+			config: `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOffline":true}`, kinds: []string{chat, fulfilled}, call: &blue},
+		{name: "a gossip failure refunds with the provider reason", live: liveOnline, gossip: bus.RPCReplyError{Message: "too many light changes, slow down"},
+			config: goveeCfg, kinds: []string{chat, canceled}, chat: "too many light changes", call: &blue},
+		{name: "the leave policy chats without resolving the redemption", live: liveOnline,
+			config: `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","onRedeem":"leave"}`, kinds: []string{chat}, call: &blue},
+		{name: "off powers the light off when allowed", live: liveOnline, payload: goveePayload("rw-1", "off"),
+			config: `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOff":true}`, kinds: []string{chat, fulfilled},
+			call: &gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", PowerOff: true}},
+		{name: "off refunds when the action is disabled", live: liveOnline, payload: goveePayload("rw-1", "off"), config: goveeCfg,
+			kinds: []string{chat, canceled}, chat: "refunded"},
+		{name: "a custom reply fills the redemption tokens", live: liveOnline,
+			config: `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":"{user} painted the room {color}"}`,
+			kinds:  []string{chat, fulfilled}, chat: "CoolViewer painted the room blue", call: &blue},
+		{name: "a multi binding config drives the redeemed reward's light", live: liveOnline, payload: goveePayload("rw-2", "red"),
+			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`,
+			kinds:  []string{chat, fulfilled}, call: &gossiprpc.Request{ChannelID: "2", Device: "BB:BB:BB", SKU: "H2", ColorRGB: 0xFF0000}},
+		{name: "a multi binding config ignores an unbound reward", live: liveOnline, payload: goveePayload("other", "red"),
+			config: `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`},
 	}
-	if config != "" {
-		c.Config = []byte(config)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := goveeGossip(tc.gossip)
+			payload := tc.payload
+			if payload == "" {
+				payload = goveePayload("rw-1", "blue")
+			}
+			out := runGovee(t, engine.Deps{Live: tc.live.store(), Gossip: gw}, eventCtx(eventInput{redemptionAddType, payload, tc.config}))
+			assert.Equal(t, tc.kinds, outputKinds(out))
+			if tc.chat != "" {
+				require.NotEmpty(t, out)
+				assert.Contains(t, out[0].Text, tc.chat)
+			}
+			if tc.call == nil {
+				assert.Empty(t, gw.calls, "no light may be driven")
+				return
+			}
+			require.Len(t, gw.calls, 1)
+			assert.Equal(t, "govee", gw.calls[0].provider)
+			assert.Equal(t, "control", gw.calls[0].endpoint)
+			assert.Equal(t, *tc.call, gw.calls[0].req)
+		})
 	}
-	return c
 }
 
-func okGossip() *fakeGossip {
-	return &fakeGossip{replies: map[string]any{"govee.control": gossiprpc.GoveeControlReply{OK: true}}}
+func TestGoveeReplyTemplates(t *testing.T) {
+	cases := []struct{ template, want string }{
+		{"{choice:only} light, @{user}", "only light, @CoolViewer"},
+		{"[{choice:}]", "[]"},
+		{"{choice}", "{choice}"},
+		{"{random:7-7}", "7"},
+		{"{unknown}", "{unknown}"},
+		{"@{user} set the lights to {color}!", "@CoolViewer set the lights to blue!"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.template, func(t *testing.T) {
+			cfg := fmt.Sprintf(`{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":%q}`, tc.template)
+			d := engine.Deps{Live: &fakeLive{live: true}, Gossip: goveeGossip(nil)}
+			out := runGovee(t, d, eventCtx(eventInput{redemptionAddType, goveePayload("rw-1", "blue"), cfg}))
+			require.NotEmpty(t, out)
+			assert.Equal(t, tc.want, out[0].Text)
+		})
+	}
 }
 
-func TestGoveeUnconfiguredNoop(t *testing.T) {
-	var col collector
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: okGossip()}
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, `{"rewardId":"rw-1"}`), col.emit))
-	assert.Empty(t, col.out)
-}
-
-func TestGoveeUnmatchedRewardNoop(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"rewardId":"other","device":"AB:CD:EF","sku":"H6159"}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
-	assert.Empty(t, col.out)
-	assert.Empty(t, gw.calls, "must not drive lights for an unrelated reward")
-}
-
-func TestGoveeOfflineRefundsWithoutCallingGossip(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "offline must not reach gossip")
-	assertRefund(t, col.out)
-}
-
-func TestGoveeLiveCheckErrorRefunds(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{err: errors.New("live store unavailable")}, Gossip: gw}
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "an unconfirmed live state must refund, not drive lights")
-	assertRefund(t, col.out)
-}
-
-func TestGoveeUnknownColourRefunds(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	payload := `{"id":"redeem-1","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"chartreuseish","reward":{"id":"rw-1","title":"x","cost":1}}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "a bad colour must refund before gossip")
-	assertRefund(t, col.out)
-}
-
-func TestGoveeSuccessDrivesLightsAndFulfills(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "govee", call.provider)
-	assert.Equal(t, "control", call.endpoint)
-	assert.Equal(t, "2", call.req.ChannelID, "broadcaster id scopes the stored key")
-	assert.Equal(t, "AB:CD:EF", call.req.Device)
-	assert.Equal(t, "H6159", call.req.SKU)
-	assert.Equal(t, 0x0066FF, call.req.ColorRGB, "blue -> packed rgb")
-
-	require.Len(t, col.out, 2)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Contains(t, col.out[0].Text, "@CoolViewer")
-	upd := col.out[1]
-	assert.Equal(t, outgress.TypeRedemptionUpdate, upd.Type)
-	assert.Equal(t, "redeem-1", upd.RedemptionID)
-	assert.Equal(t, outgress.RedemptionFulfilled, upd.Status)
-}
-
-func TestGoveeAllowOfflineDrivesLightsWhileOffline(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
-	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOffline":true}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "control", call.endpoint, "allowOffline must reach gossip even when offline")
-	require.Len(t, col.out, 2)
-	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
-}
-
-func TestGoveeGossipFailureRefunds(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	gw.err = bus.RPCReplyError{Message: "too many light changes, slow down"}
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, goveeCfg), col.emit))
-	require.Len(t, col.out, 2)
-	assert.Contains(t, col.out[0].Text, "too many light changes")
-	assert.Equal(t, outgress.RedemptionCanceled, col.out[1].Status)
-}
-
-func TestGoveeSuccessLeavePolicyEmitsNoUpdate(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","onRedeem":"leave"}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
-	require.Len(t, col.out, 1, "leave policy chats but leaves the redemption for a mod")
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-}
-
-func TestGoveeOffActionPowersOffWhenAllowed(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOff":true}`
-	payload := `{"id":"redeem-2","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "control", call.endpoint)
-	assert.True(t, call.req.PowerOff, "off input must power the light off")
-	assert.Equal(t, 0, call.req.ColorRGB, "an off action carries no colour")
-	require.Len(t, col.out, 2)
-	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
-}
-
-func TestGoveeOffInputRefundsWhenNotAllowed(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	payload := `{"id":"redeem-3","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
-	assert.Empty(t, gw.calls, "off must not reach gossip when the action is disabled")
-	assertRefund(t, col.out)
-}
-
-func TestGoveeCustomReplyTemplate(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","replyMessage":"{user} painted the room {color}"}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
-	require.Len(t, col.out, 2)
-	assert.Equal(t, "CoolViewer painted the room blue", col.out[0].Text, "template tokens fill from the redemption")
-}
-
-func TestGoveeMultiBindingDrivesMatchingLight(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`
-	payload := `{"id":"redeem-9","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"red","reward":{"id":"rw-2","title":"x","cost":1}}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "BB:BB:BB", call.req.Device, "the redeemed reward's light must be driven")
-	assert.Equal(t, "H2", call.req.SKU)
-	require.Len(t, col.out, 2)
-	assert.Equal(t, outgress.RedemptionFulfilled, col.out[1].Status)
-}
-
-func TestGoveeMultiBindingUnmatchedRewardNoop(t *testing.T) {
-	var col collector
-	gw := okGossip()
-	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"}]}`
-	payload := `{"id":"redeem-x","broadcaster_user_id":"2","user_name":"V","user_login":"v","user_input":"red","reward":{"id":"other","title":"x","cost":1}}`
-	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
-	assert.Empty(t, gw.calls, "a reward bound to no light must no-op")
-	assert.Empty(t, col.out)
-}
-
-func assertRefund(t *testing.T, out []module.Output) {
-	t.Helper()
-	require.Len(t, out, 2)
-	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Contains(t, out[0].Text, "refunded")
-	assert.Equal(t, outgress.TypeRedemptionUpdate, out[1].Type)
-	assert.Equal(t, outgress.RedemptionCanceled, out[1].Status)
+func TestGoveeColourInput(t *testing.T) {
+	cases := []struct {
+		input string
+		rgb   int
+		ok    bool
+	}{
+		{"red", 0xFF0000, true},
+		{"BLUE", 0x0066FF, true},
+		{" green ", 0x00C000, true},
+		{"magenta", 0xFF00FF, true},
+		{"white", 0xFFFFFF, true},
+		{"#00ccff", 0x00CCFF, true},
+		{"00ccff", 0x00CCFF, true},
+		{"#FFF", 0xFFFFFF, true},
+		{"f80", 0xFF8800, true},
+		{"#000000", 0x000000, true},
+		{"", 0, false},
+		{"   ", 0, false},
+		{"notacolor", 0, false},
+		{"#12", 0, false},
+		{"12345", 0, false},
+		{"#gggggg", 0, false},
+		{"#1234567", 0, false},
+		{"rgb(1,2,3)", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%q", tc.input), func(t *testing.T) {
+			gw := goveeGossip(nil)
+			d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
+			out := runGovee(t, d, eventCtx(eventInput{redemptionAddType, goveePayload("rw-1", tc.input), goveeCfg}))
+			if !tc.ok {
+				assertRefund(t, out)
+				assert.Empty(t, gw.calls, "a bad colour must refund before gossip")
+				return
+			}
+			require.Len(t, gw.calls, 1)
+			assert.Equal(t, tc.rgb, gw.calls[0].req.ColorRGB)
+			assert.False(t, gw.calls[0].req.PowerOff)
+			assert.Equal(t, []string{"chat", "update:" + outgress.RedemptionFulfilled}, outputKinds(out))
+		})
+	}
 }

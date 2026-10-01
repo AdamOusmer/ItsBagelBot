@@ -4,33 +4,25 @@
 package modules
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
-	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func fortniteCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
-	t.Helper()
-	return optInCmd(t, Fortnite(gossipDeps(gw)), "fortnite", name)
+func fortniteChat(text, config string) gossipChat {
+	return gossipChat{module: "fortnite", text: text, config: config}
 }
 
-func fortniteStatsReply() gossiprpc.FortniteStatsReply {
+func fortniteStatsReply(window string) gossiprpc.FortniteStatsReply {
 	return gossiprpc.FortniteStatsReply{
 		Player:  "Ninja",
-		Window:  "lifetime",
+		Window:  window,
 		Overall: gossiprpc.FortniteModeStats{Wins: 301, Matches: 6232, Kills: 21679, KD: 3.66, WinRate: 4.83},
 		Solo:    gossiprpc.FortniteModeStats{Wins: 120, Matches: 2400, KD: 3.2},
 		Duo:     gossiprpc.FortniteModeStats{Wins: 90, Matches: 1900, KD: 3.8},
@@ -38,294 +30,131 @@ func fortniteStatsReply() gossiprpc.FortniteStatsReply {
 	}
 }
 
-func TestFnstatsDefaultTemplate(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
-	cmd := fortniteCmd(t, gw, "fnstats")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Equal(t, "2", col.out[0].BroadcasterID)
-	assert.Equal(t,
-		"Ninja all time: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
-		col.out[0].Text)
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "streamer", call.req.Account)
-	assert.Empty(t, call.req.AccountType)
-	assert.Equal(t, "lifetime", call.req.TimeWindow)
+func fortniteStatsCall(account, accountType, window string) *gossipCall {
+	return &gossipCall{"fortnite.stats", gossiprpc.Request{Account: account, AccountType: accountType, TimeWindow: window}}
 }
 
-func TestSeasonDefaultTemplate(t *testing.T) {
-	reply := fortniteStatsReply()
-	reply.Window = "season"
-	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": reply}}
-	cmd := fortniteCmd(t, gw, "fnseason")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t,
-		"Ninja this season: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
-		col.out[0].Text)
-	assert.Equal(t, "season", gw.lastCall(t).req.TimeWindow)
+func TestFortniteReplies(t *testing.T) {
+	lifetime := map[string]any{"fortnite.stats": fortniteStatsReply("lifetime")}
+	session := func(reply gossiprpc.FortniteSessionReply) map[string]any {
+		return map[string]any{"fortnite.session": reply}
+	}
+	const linkedPSN = `{"account":"LinkedAcc","accountType":"psn"}`
+	sessionCall := &gossipCall{"fortnite.session", gossiprpc.Request{Account: "Ninja", ChannelID: "2"}}
+	runGossipCases(t, []gossipCase{
+		{name: "fnstats default template", chat: fortniteChat("!fnstats", ""), replies: lifetime,
+			exact: "Ninja all time: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
+			call:  fortniteStatsCall("streamer", "", "lifetime")},
+		{name: "fnseason default template", chat: fortniteChat("!fnseason", ""), replies: map[string]any{"fortnite.stats": fortniteStatsReply("season")},
+			exact: "Ninja this season: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
+			call:  fortniteStatsCall("streamer", "", "season")},
+		{name: "the linked account and type pass through", chat: fortniteChat("!fnstats", linkedPSN), replies: lifetime,
+			contains: []string{"Ninja"}, call: fortniteStatsCall("LinkedAcc", "psn", "lifetime")},
+		{name: "a typed player beats the linked account but keeps its type", chat: fortniteChat("!fnstats @SomePlayer extra", linkedPSN), replies: lifetime,
+			contains: []string{"Ninja"}, call: fortniteStatsCall("SomePlayer", "psn", "lifetime")},
+		{name: "linkedOnly ignores the typed player", chat: fortniteChat("!fnstats @SomePlayer", `{"account":"LinkedAcc","accountType":"psn","linkedOnly":"on"}`), replies: lifetime,
+			contains: []string{"Ninja"}, call: fortniteStatsCall("LinkedAcc", "psn", "lifetime")},
+		{name: "linkedOnly without a linked account falls back to the broadcaster", chat: fortniteChat("!fnstats Other", `{"linkedOnly":"on"}`), replies: lifetime,
+			contains: []string{"Ninja"}, call: fortniteStatsCall("streamer", "", "lifetime")},
+		{name: "a reply error chats the typed player", chat: fortniteChat("!fnstats Ghosty", ""), err: bus.RPCReplyError{Message: "player not found"},
+			exact: "Ghosty: player not found"},
+		{name: "fnsession default template", chat: fortniteChat("!fnsession", `{"account":"Ninja"}`),
+			replies: session(gossiprpc.FortniteSessionReply{Player: "Ninja", Wins: 3, Matches: 12, Kills: 48, KD: 5.33, WinRate: 25.0, HasSnapshot: true}),
+			exact:   "Ninja this stream: 3 wins in 12 matches · 25% WR · 48 kills · 5.33 K/D", call: sessionCall},
+		{name: "fnsession ignores a typed player", chat: fortniteChat("!fnsession SomeoneElse", `{"account":"Ninja"}`),
+			replies:  session(gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}),
+			contains: []string{"Ninja"}, call: sessionCall},
+		{name: "fnsession without a snapshot says tracking just started", chat: fortniteChat("!fnsession", ""),
+			replies: session(gossiprpc.FortniteSessionReply{Player: "Ninja"}), contains: []string{"session tracking just started"}},
+		{name: "fnstore default template", chat: fortniteChat("!fnstore", ""),
+			replies: map[string]any{"fortnite.shop": gossiprpc.FortniteShopReply{
+				Date: "2026-07-09", Count: 3,
+				Entries: []gossiprpc.FortniteShopEntry{{Name: "Peely Bundle", Price: 2800}, {Name: "Renegade Raider", Price: 1200}, {Name: "Free Hat"}},
+			}},
+			exact: "Item Shop 2026-07-09: Peely Bundle (2800), Renegade Raider (1200), Free Hat"},
+	})
 }
 
-func TestFnstatsConfigPassthrough(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
-	cmd := fortniteCmd(t, gw, "fnstats")
-
-	var col collector
-	cfg := `{"account":"LinkedAcc","accountType":"psn"}`
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "", col.emit))
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "LinkedAcc", call.req.Account)
-	assert.Equal(t, "psn", call.req.AccountType)
-	assert.Equal(t, "lifetime", call.req.TimeWindow)
-
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer extra", col.emit))
-	call = gw.lastCall(t)
-	assert.Equal(t, "SomePlayer", call.req.Account)
-	assert.Equal(t, "psn", call.req.AccountType)
-
-	cfg = `{"account":"LinkedAcc","accountType":"psn","linkedOnly":"on"}`
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer", col.emit))
-	call = gw.lastCall(t)
-	assert.Equal(t, "LinkedAcc", call.req.Account)
-	assert.Equal(t, "psn", call.req.AccountType)
+func TestFortniteDispatch(t *testing.T) {
+	shop := gossiprpc.FortniteShopReply{Date: "2026-07-10"}
+	session := gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}
+	routes := []struct {
+		name, text string
+		replies    map[string]any
+		call       *gossipCall
+		route      string
+	}{
+		{"a bare fn is all time stats", "!fn", map[string]any{"fortnite.stats": fortniteStatsReply("lifetime")}, fortniteStatsCall("streamer", "", "lifetime"), ""},
+		{"a player argument is stats", "!fn @SomePlayer extra", map[string]any{"fortnite.stats": fortniteStatsReply("lifetime")}, fortniteStatsCall("SomePlayer", "", "lifetime"), ""},
+		{"season subcommand", "!fn season", map[string]any{"fortnite.stats": fortniteStatsReply("season")}, fortniteStatsCall("streamer", "", "season"), ""},
+		{"season with a player", "!fn season OtherGuy", map[string]any{"fortnite.stats": fortniteStatsReply("season")}, fortniteStatsCall("OtherGuy", "", "season"), ""},
+		{"session subcommand", "!fn session", map[string]any{"fortnite.session": session}, nil, "fortnite.session"},
+		{"store subcommand", "!fn store", map[string]any{"fortnite.shop": shop}, nil, "fortnite.shop"},
+		{"the shop alias is case insensitive", "!fn SHOP", map[string]any{"fortnite.shop": shop}, nil, "fortnite.shop"},
+	}
+	var cases []gossipCase
+	for _, r := range routes {
+		cases = append(cases, gossipCase{name: r.name, chat: fortniteChat(r.text, ""), replies: r.replies, call: r.call, route: r.route})
+	}
+	runGossipCases(t, cases)
 }
 
-func TestFortniteDisabledStaysSilent(t *testing.T) {
-	cases := []struct{ name, config string }{
+func TestFortniteDisabledCommandsStaySilent(t *testing.T) {
+	var cases []gossipCase
+	for _, tc := range []struct{ trigger, config string }{
 		{"fn", `{"statsEnabled":"off"}`},
 		{"fnstats", `{"statsEnabled":"off"}`},
 		{"fnseason", `{"seasonEnabled":"off"}`},
 		{"fnsession", `{"sessionEnabled":"off"}`},
 		{"fnstore", `{"storeEnabled":"off"}`},
+	} {
+		cases = append(cases, gossipCase{name: tc.trigger, chat: fortniteChat("!"+tc.trigger, tc.config), silent: true})
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			gw := &fakeGossip{}
-			cmd := fortniteCmd(t, gw, tc.name)
-
-			var col collector
-			require.NoError(t, cmd.Run(context.Background(), urchinCtx(tc.config), "", col.emit))
-			assert.Empty(t, col.out)
-			gw.mu.Lock()
-			assert.Empty(t, gw.calls)
-			gw.mu.Unlock()
-		})
-	}
+	runGossipCases(t, cases)
 }
 
-func TestFnDispatch(t *testing.T) {
-	seasonReply := fortniteStatsReply()
-	seasonReply.Window = "season"
-
+func TestFortniteStoreBudgetsLongListings(t *testing.T) {
+	var many []gossiprpc.FortniteShopEntry
+	for i := range 60 {
+		many = append(many, gossiprpc.FortniteShopEntry{Name: "Some Cosmetic Item " + strconv.Itoa(i), Price: 1200})
+	}
+	huge := gossiprpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
 	cases := []struct {
-		name, args      string
-		endpoint        string
-		window, account string
-		replyValue      any
+		name     string
+		entries  []gossiprpc.FortniteShopEntry
+		contains []string
+		maxLen   int
 	}{
-		{"bare is all-time stats", "", "stats", "lifetime", "streamer", fortniteStatsReply()},
-		{"player arg is stats", "@SomePlayer extra", "stats", "lifetime", "SomePlayer", fortniteStatsReply()},
-		{"season subcommand", "season", "stats", "season", "streamer", seasonReply},
-		{"season with player", "season OtherGuy", "stats", "season", "OtherGuy", seasonReply},
-		{"session subcommand", "session", "session", "", "", gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}},
-		{"store subcommand", "store", "shop", "", "", gossiprpc.FortniteShopReply{Date: "2026-07-10"}},
-		{"shop alias, any case", "SHOP", "shop", "", "", gossiprpc.FortniteShopReply{Date: "2026-07-10"}},
+		{"an empty shop says so", nil, []string{"empty today"}, 0},
+		{"a long listing is cut to the budget with a remainder", many, []string{"Item Shop 2026-07-09: Some Cosmetic Item 0 (1200), ", " more"}, len("Item Shop 2026-07-09: ") + fortniteShopBudget + len(" +99 more")},
+		{"one oversized entry is still shown", []gossiprpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}}, []string{huge.Name, "+1 more"}, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gw := &fakeGossip{replies: map[string]any{"fortnite." + tc.endpoint: tc.replyValue}}
-			cmd := fortniteCmd(t, gw, "fn")
-
-			var col collector
-			require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), tc.args, col.emit))
-			require.Len(t, col.out, 1)
-
-			call := gw.lastCall(t)
-			assert.Equal(t, tc.endpoint, call.endpoint)
-			if tc.endpoint == "stats" {
-				assert.Equal(t, tc.window, call.req.TimeWindow)
-				assert.Equal(t, tc.account, call.req.Account)
+			gw := &fakeGossip{replies: map[string]any{"fortnite.shop": gossiprpc.FortniteShopReply{Date: "2026-07-09", Count: len(tc.entries), Entries: tc.entries}}}
+			out := runChat(t, Fortnite(gossipDeps(gw)), gameCtx(""), "!fnstore")
+			require.Len(t, out, 1)
+			for _, want := range tc.contains {
+				assert.Contains(t, out[0].Text, want)
+			}
+			if tc.maxLen > 0 {
+				assert.LessOrEqual(t, len(out[0].Text), tc.maxLen)
 			}
 		})
 	}
 }
 
-func TestFnstatsReplyErrorChats(t *testing.T) {
-	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
-	cmd := fortniteCmd(t, gw, "fnstats")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "Ghosty", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Ghosty: player not found", col.out[0].Text)
-}
-
-func runFnSession(t *testing.T, reply gossiprpc.FortniteSessionReply, cfg, arg string) (*fakeGossip, collector) {
-	t.Helper()
-	gw := &fakeGossip{replies: map[string]any{"fortnite.session": reply}}
-	var col collector
-	require.NoError(t, fortniteCmd(t, gw, "fnsession").Run(context.Background(), urchinCtx(cfg), arg, col.emit))
-	return gw, col
-}
-
-func TestFnSessionDefaultTemplate(t *testing.T) {
-	gw, col := runFnSession(t, gossiprpc.FortniteSessionReply{
-		Player: "Ninja", Wins: 3, Matches: 12, Kills: 48, KD: 5.33, WinRate: 25.0, HasSnapshot: true,
-	}, `{"account":"Ninja"}`, "")
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Ninja this stream: 3 wins in 12 matches · 25% WR · 48 kills · 5.33 K/D", col.out[0].Text)
-
-	call := gw.lastCall(t)
-	assert.Equal(t, "session", call.endpoint)
-	assert.Equal(t, "2", call.req.ChannelID)
-	assert.Equal(t, "Ninja", call.req.Account)
-}
-
-func TestFnSessionIgnoresArgument(t *testing.T) {
-	gw, _ := runFnSession(t,
-		gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}, `{"account":"Ninja"}`, "SomeoneElse")
-	assert.Equal(t, "Ninja", gw.lastCall(t).req.Account)
-}
-
-func TestFnSessionWithoutSnapshot(t *testing.T) {
-	_, col := runFnSession(t, gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: false}, "", "")
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "session tracking just started")
-}
-
-func fortniteOnlineHandler(t *testing.T, gw engine.GossipCaller) module.EventHandler {
-	t.Helper()
-	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.online"]
-	require.NotNil(t, h, "fortnite must handle stream.online")
-	return h
-}
-
-func fortniteOnlineCtx(cfg string) *module.Context {
-	return &module.Context{
-		Env:           lane.Envelope{Type: "stream.online", BroadcasterUserID: "2", BroadcasterUserLogin: "streamer"},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-		Config:        []byte(cfg),
-	}
-}
-
-func TestFnStreamOnlineSnapshots(t *testing.T) {
-	done := make(chan struct{})
-	gw := &fakeGossip{
-		replies: map[string]any{"fortnite.session_start": gossiprpc.FortniteSnapshotReply{Player: "Ninja"}},
-		done:    done,
-	}
-	h := fortniteOnlineHandler(t, gw)
-
-	var col collector
-	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","accountType":"epic"}`), col.emit))
-	assert.Empty(t, col.out, "snapshot handler must not chat")
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream.online never called gossip")
-	}
-	call := gw.lastCall(t)
-	assert.Equal(t, "fortnite", call.provider)
-	assert.Equal(t, "session_start", call.endpoint)
-	assert.Equal(t, "Ninja", call.req.Account)
-	assert.Equal(t, "epic", call.req.AccountType)
-	assert.Equal(t, "2", call.req.ChannelID)
-}
-
-func TestFnStreamOnlineSkipsWhenSessionOff(t *testing.T) {
-	gw := &fakeGossip{}
-	h := fortniteOnlineHandler(t, gw)
-
-	var col collector
-	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","sessionEnabled":"off"}`), col.emit))
-	gw.mu.Lock()
-	assert.Empty(t, gw.calls)
-	gw.mu.Unlock()
-}
-
-func TestStoreDefaultTemplate(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"fortnite.shop": gossiprpc.FortniteShopReply{
-		Date:  "2026-07-09",
-		Count: 3,
-		Entries: []gossiprpc.FortniteShopEntry{
-			{Name: "Peely Bundle", Price: 2800},
-			{Name: "Renegade Raider", Price: 1200},
-			{Name: "Free Hat"},
-		},
-	}}}
-	cmd := fortniteCmd(t, gw, "fnstore")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t,
-		"Item Shop 2026-07-09: Peely Bundle (2800), Renegade Raider (1200), Free Hat",
-		col.out[0].Text)
-}
-
-func TestFormatShopEntriesBudget(t *testing.T) {
-	assert.Equal(t, "empty today", formatShopEntries("en", nil))
-
-	var entries []gossiprpc.FortniteShopEntry
-	for i := 0; i < 60; i++ {
-		entries = append(entries, gossiprpc.FortniteShopEntry{
-			Name: "Some Cosmetic Item " + strconv.Itoa(i), Price: 1200,
-		})
-	}
-	got := formatShopEntries("en", entries)
-	assert.LessOrEqual(t, len(got), fortniteShopBudget+len(" +99 more"))
-	assert.Contains(t, got, " more")
-	assert.True(t, strings.HasPrefix(got, "Some Cosmetic Item 0 (1200), "))
-
-	huge := gossiprpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
-	got = formatShopEntries("en", []gossiprpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
-	assert.True(t, strings.HasPrefix(got, huge.Name))
-	assert.Contains(t, got, "+1 more")
-}
-
-func TestFnStreamOfflineClearsBaseline(t *testing.T) {
-	done := make(chan struct{})
-	gw := &fakeGossip{
-		replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}},
-		done:    done,
-	}
-	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]
-	require.NotNil(t, h, "fortnite must handle stream.offline")
-
-	var col collector
-	cfg := `{"sessionEnabled":true,"account":"Ninja","accountType":"epic"}`
-	require.NoError(t, h(context.Background(), fortniteOnlineCtx(cfg), col.emit))
-	assert.Empty(t, col.out, "offline handler must not chat")
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream.offline never called gossip")
-	}
-	call := gw.lastCall(t)
-	assert.Equal(t, "fortnite", call.provider)
-	assert.Equal(t, "session_end", call.endpoint)
-	assert.Equal(t, "2", call.req.ChannelID)
-	assert.Empty(t, call.req.Account, "the clear is channel-scoped, not account-scoped")
-}
-
-func TestFnStreamOfflineSkipsWhenSessionOff(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}}}
-	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]
-	require.NotNil(t, h)
-
-	var col collector
-	require.NoError(t, h(context.Background(), fortniteOnlineCtx(`{"account":"Ninja","sessionEnabled":"off"}`), col.emit))
-	gw.mu.Lock()
-	assert.Empty(t, gw.calls)
-	gw.mu.Unlock()
+func TestFortniteSessionSnapshots(t *testing.T) {
+	runSnapshotCases(t, []snapshotCase{
+		{name: "stream online stores the session baseline", module: "fortnite", event: "stream.online",
+			config:  `{"account":"Ninja","accountType":"epic"}`,
+			replies: map[string]any{"fortnite.session_start": gossiprpc.FortniteSnapshotReply{Player: "Ninja"}},
+			call:    &gossipCall{"fortnite.session_start", gossiprpc.Request{Account: "Ninja", AccountType: "epic", ChannelID: "2"}}},
+		{name: "stream online skips when sessions are off", module: "fortnite", event: "stream.online", config: `{"account":"Ninja","sessionEnabled":"off"}`},
+		{name: "stream offline clears the channel baseline", module: "fortnite", event: "stream.offline",
+			config:  `{"sessionEnabled":true,"account":"Ninja","accountType":"epic"}`,
+			replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}},
+			call:    &gossipCall{"fortnite.session_end", gossiprpc.Request{ChannelID: "2"}}},
+		{name: "stream offline skips when sessions are off", module: "fortnite", event: "stream.offline", config: `{"account":"Ninja","sessionEnabled":"off"}`},
+	})
 }

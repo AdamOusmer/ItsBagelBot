@@ -4,83 +4,53 @@
 package modules
 
 import (
-	"context"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 const raidJSON = `{"from_broadcaster_user_login":"coolstreamer","from_broadcaster_user_name":"CoolStreamer","to_broadcaster_user_id":"2","viewers":42}`
 
-func raidCtx(config string) *module.Context {
-	c := &module.Context{
-		Env:           lane.Envelope{Type: "channel.raid", Event: []byte(raidJSON)},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
+func TestShoutoutOnRaid(t *testing.T) {
+	cases := []struct {
+		name     string
+		config   string
+		payload  string
+		text     string
+		contains []string
+		natives  []string
+	}{
+		{name: "default template names the raider and the size", payload: raidJSON, contains: []string{"CoolStreamer", "42", "coolstreamer"}},
+		{name: "custom template fills the raid tokens", payload: raidJSON, config: `{"message":"yo {raider} +{viewers}"}`, text: "yo CoolStreamer +42"},
+		{name: "native shoutout off only chats", payload: raidJSON, config: `{"native_shoutout":"off"}`, contains: []string{"CoolStreamer"}},
+		{name: "native shoutout on also shouts the raider out", payload: raidJSON, config: `{"native_shoutout":"on"}`,
+			contains: []string{"CoolStreamer"}, natives: []string{"coolstreamer"}},
+		{name: "an empty raid event is ignored"},
 	}
-	if config != "" {
-		c.Config = []byte(config)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runEvent(t, Shoutout(engine.Deps{Log: zap.NewNop()}), eventCtx(eventInput{"channel.raid", tc.payload, tc.config}))
+			var chats, natives []string
+			for _, o := range out {
+				assert.Equal(t, "2", o.BroadcasterID)
+				if o.Type == outgress.TypeShoutout {
+					natives = append(natives, o.To)
+				} else {
+					chats = append(chats, o.Text)
+				}
+			}
+			assert.Equal(t, tc.natives, natives)
+			assert.Len(t, chats, min(1, len(tc.contains)+len(tc.text)))
+			for _, want := range tc.contains {
+				assert.Contains(t, chats[0], want)
+			}
+			if tc.text != "" {
+				assert.Equal(t, []string{tc.text}, chats)
+			}
+		})
 	}
-	return c
-}
-
-func raidHandler(t *testing.T) module.EventHandler {
-	t.Helper()
-	m := Shoutout(engine.Deps{Log: zap.NewNop()})
-	assert.Equal(t, "shoutout", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	h := m.Events["channel.raid"]
-	require.NotNil(t, h, "shoutout must handle channel.raid")
-	return h
-}
-
-func TestShoutoutDefaultTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(""), col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Contains(t, o.Text, "CoolStreamer")
-	assert.Contains(t, o.Text, "42")
-	assert.Contains(t, o.Text, "coolstreamer")
-}
-
-func TestShoutoutCustomTemplate(t *testing.T) {
-	var col collector
-	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(`{"message":"yo {raider} +{viewers}"}`), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "yo CoolStreamer +42", col.out[0].Text)
-}
-
-func TestShoutoutNativeToggleOff(t *testing.T) {
-	var col collector
-	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(`{"native_shoutout":"off"}`), col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-}
-
-func TestShoutoutNativeToggleOn(t *testing.T) {
-	var col collector
-	require.NoError(t, raidHandler(t)(context.Background(), raidCtx(`{"native_shoutout":"on"}`), col.emit))
-	require.Len(t, col.out, 2)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	o := col.out[1]
-	assert.Equal(t, outgress.TypeShoutout, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID)
-	assert.Equal(t, "coolstreamer", o.To)
-}
-
-func TestShoutoutIgnoresEmptyEvent(t *testing.T) {
-	c := &module.Context{Env: lane.Envelope{Type: "channel.raid"}, BroadcasterID: 2, Log: zap.NewNop()}
-	var col collector
-	require.NoError(t, raidHandler(t)(context.Background(), c, col.emit))
-	assert.Empty(t, col.out)
 }

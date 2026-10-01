@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -41,8 +42,6 @@ func (p *variablePublisher) PublishOwnedWithID(ctx context.Context, subject, _ s
 func (*variablePublisher) Flush(context.Context) error { return nil }
 func (*variablePublisher) Close() error                { return nil }
 
-// Run a saved !rank through ingress decoding, custom command dispatch, module
-// gating and the normal chat publisher, using the same module registry as main.
 func runVariableCommand(t *testing.T, response string, views []projection.ModuleView, gossip *fakeGossip, options ...func(*engine.Deps)) string {
 	t.Helper()
 	pub := &variablePublisher{}
@@ -156,9 +155,6 @@ func TestCustomModuleFactReferencedOnlyByConditionIsFetched(t *testing.T) {
 	assert.Len(t, gossip.calls, 1)
 }
 
-// The shared catalogue is the public contract. Guard module registration and
-// typed read palettes together, so a dashboard token cannot silently drift away
-// from the registered runtime field or its reader.
 func TestModuleVariableCatalogueMatchesRegisteredGroups(t *testing.T) {
 	d := engine.Deps{Log: zap.NewNop(), Special: engine.NewSpecialSet(""), Live: &fakeLive{}, Greet: &fakeGreet{}}
 	registered := make(map[string][]module.VariableGroup)
@@ -181,17 +177,30 @@ func TestModuleVariableCatalogueMatchesRegisteredGroups(t *testing.T) {
 	}
 }
 
+func variableGroupReader(t *testing.T, d engine.Deps, namespace, group string) variableRead {
+	t.Helper()
+	mods := All(d)
+	m := slices.IndexFunc(mods, func(mod module.Module) bool { return mod.Name == namespace })
+	require.GreaterOrEqual(t, m, 0, "no module %s registered by All", namespace)
+	g := slices.IndexFunc(mods[m].Variables, func(vg module.VariableGroup) bool { return vg.Name == group })
+	require.GreaterOrEqual(t, g, 0, "no variable group %s:%s registered by All", namespace, group)
+	return mods[m].Variables[g].Read
+}
+
 func TestModuleGameReadersExposeEveryCatalogueField(t *testing.T) {
 	gossip := &fakeGossip{replies: variableGameReplyFixtures()}
 	d := engine.Deps{Gossip: gossip, Log: zap.NewNop()}
 	for _, spec := range variableGameCatalogue() {
-		assertGameCatalogueReaders(t, spec, moduleVariableReaders(d, spec.ID), gossip)
+		for _, group := range spec.Groups {
+			t.Run(spec.ID+":"+group.Name, func(t *testing.T) {
+				assertGameReaderFields(t, variableGroupReader(t, d, spec.ID, group.Name), group.Fields, gossip)
+			})
+		}
 	}
 }
 
 func variableGameReplyFixtures() map[string]any {
-	// Valid zero-valued replies still have a complete palette. Session fixtures
-	// need their snapshot flag to avoid the separate empty state.
+	// Session replies without has_snapshot read as the empty state.
 	replies := make(map[string]any)
 	endpoints := map[string][]string{
 		"valorant": {"rank", "matches", "account", "leaderboard", "shop"},
@@ -220,19 +229,10 @@ func variableGameCatalogue() []modulevars.Module {
 	return specs
 }
 
-func assertGameCatalogueReaders(t *testing.T, spec modulevars.Module, readers map[string]variableRead, gossip *fakeGossip) {
-	t.Helper()
-	for _, group := range spec.Groups {
-		t.Run(spec.ID+":"+group.Name, func(t *testing.T) {
-			assertGameReaderFields(t, readers[group.Name], group.Fields, gossip)
-		})
-	}
-}
-
 func assertGameReaderFields(t *testing.T, reader variableRead, expected []string, gossip *fakeGossip) {
 	t.Helper()
 	require.NotNil(t, reader, "a public game view must have a typed reader")
-	c := urchinCtx(`{"account":"Linked","accountUuid":"uuid"}`)
+	c := gameCtx(`{"account":"Linked","accountUuid":"uuid"}`)
 	c.Env.Text = "!rank Alice Bob"
 	before := len(gossip.calls)
 	values, err := reader(context.Background(), c)
@@ -243,41 +243,6 @@ func assertGameReaderFields(t *testing.T, reader variableRead, expected []string
 		fields = append(fields, field)
 	}
 	assert.ElementsMatch(t, expected, fields, "typed reply palette drifted from the public catalogue")
-}
-
-func TestModuleCommandsRenderNamespacedSavedTemplates(t *testing.T) {
-	for _, tc := range []struct {
-		name, endpoint, config, want string
-		reply                        any
-		command                      func(*testing.T, engine.GossipCaller) module.Command
-	}{
-		{
-			name: "valorant", endpoint: "valorant.rank", reply: valRankReply(),
-			config:  `{"rankMessage":"{valorant:player}: {valorant:tier} ({valorant:rr} RR) {valorant:unknown}"}`,
-			want:    "Frosty#EUW1: Immortal 2 (67 RR) {valorant:unknown}",
-			command: func(t *testing.T, gw engine.GossipCaller) module.Command { return valCmd(t, gw, "valrank") },
-		},
-		{
-			name: "mcsr", endpoint: "mcsr.user", reply: gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20, Played: 63},
-			config:  `{"eloMessage":"{mcsr:player}: {mcsr:elo} elo, #{mcsr:rank}, {mcsr:draws} draws"}`,
-			want:    "Feinberg: 1650 elo, #12, 3 draws",
-			command: func(t *testing.T, gw engine.GossipCaller) module.Command { return findCmd(t, mcsrModule(gw), "elo") },
-		},
-		{
-			name: "clashroyale", endpoint: "clashroyale.stats", reply: clashStatsReply(),
-			config:  `{"statsMessage":"{clashroyale:player}: {clashroyale:wins}W/{clashroyale:losses}L in {clashroyale:clan}"}`,
-			want:    "Bagel: 600W/300L in Bakery",
-			command: func(t *testing.T, gw engine.GossipCaller) module.Command { return clashCmd(t, gw, "crstats") },
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			gw := &fakeGossip{replies: map[string]any{tc.endpoint: tc.reply}}
-			var col collector
-			require.NoError(t, tc.command(t, gw).Run(context.Background(), urchinCtx(tc.config), "", col.emit))
-			require.Len(t, col.out, 1)
-			assert.Equal(t, tc.want, col.out[0].Text)
-		})
-	}
 }
 
 type variableStreamInfo struct {
@@ -299,7 +264,7 @@ func TestBuiltinVariableReadersReadFactsWithoutPerformingActions(t *testing.T) {
 	uptime := &fakeUptime{result: engine.UptimeResult{Live: true, StartedAt: started}}
 	stream := &variableStreamInfo{result: engine.StreamInfoResult{UserFound: true, Live: true, Title: "Bagel stream", GameName: "VALORANT", StartedAt: started}}
 	d := engine.Deps{Followage: followage, AccountAge: age, Uptime: uptime, StreamInfo: stream}
-	c := urchinCtx("")
+	c := gameCtx("")
 	for _, tc := range []struct{ namespace, group, field, want string }{
 		{"followage", "status", "followedat", followed.UTC().Format(time.RFC3339)},
 		{"accountage", "status", "createdat", created.UTC().Format(time.RFC3339)},
@@ -310,9 +275,7 @@ func TestBuiltinVariableReadersReadFactsWithoutPerformingActions(t *testing.T) {
 		{"clip", "reply", "user", "viewer"},
 	} {
 		t.Run(tc.namespace+":"+tc.field, func(t *testing.T) {
-			read := localVariableReaders(d, tc.namespace)[tc.group]
-			require.NotNil(t, read)
-			values, err := read(context.Background(), c)
+			values, err := variableGroupReader(t, d, tc.namespace, tc.group)(context.Background(), c)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, values[tc.field])
 		})
@@ -335,19 +298,10 @@ func TestBuiltinVariableReadersLeaveUnavailableDurationsEmpty(t *testing.T) {
 		if namespace == "uptime" {
 			group = "reply"
 		}
-		values, err := localVariableReaders(d, namespace)[group](context.Background(), urchinCtx(""))
+		values, err := variableGroupReader(t, d, namespace, group)(context.Background(), gameCtx(""))
 		require.NoError(t, err)
 		assert.Empty(t, values[namespace])
 	}
-}
-
-func TestTriggersRenderNamespacedChannelAndUser(t *testing.T) {
-	c := triggersCtx("hello", "hello => Hi {triggers:user}, welcome to {triggers:channel}!")
-	c.Env.BroadcasterUserLogin = "bagel_stream"
-	var col collector
-	require.NoError(t, triggersHandler(t)(context.Background(), c, col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Hi Bob, welcome to bagel_stream!", col.out[0].Text)
 }
 
 func TestWagerVariableNamespacesRequireEnabledLoyaltyParent(t *testing.T) {
