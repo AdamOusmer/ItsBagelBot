@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 
 	"go.uber.org/zap"
 )
@@ -32,6 +33,13 @@ const (
 const srAddCooldown = 5 * time.Second
 
 const currentCooldown = 5 * time.Second
+
+// Per pod, and any of the 3 sesame pods may render {song}: keep 3x the call rate well under the shared 30-per-60s Spotify bucket.
+const songVariableCacheTTL = 10 * time.Second
+const songVariableCacheCapacity int64 = 1024
+
+const spotifyWarnWindow = time.Minute
+const spotifyWarnCapacity int64 = 2048
 
 type songqueueConfig struct {
 	MaxDepth       int              `json:"maxDepth"`
@@ -67,31 +75,38 @@ type songqueueRedeem struct {
 
 func SongQueue(d engine.Deps) module.Module {
 	log := songQueueLog(d)
+	warn := newSpotifyWarnThrottle()
 
 	m := module.NewModule(songqueueModuleName, module.KindOptIn)
 	m.Command("sr").Everyone().Cooldown(srAddCooldown).
 		Aliases("songrequest", "songreq").
-		Run(songQueueDispatch(d, log))
+		Run(songQueueDispatch(d, log, warn))
 
 	m.Command("song").Everyone().Cooldown(currentCooldown).
 		Aliases("current", "nowplaying", "np").
-		Run(songQueueView(d, log))
+		Run(songQueueView(d, log, warn))
 
 	m.Command("skip").Mod().
 		Aliases("next").
-		Run(songQueueSkip(d, log))
+		Run(songQueueSkip(d, log, warn))
 
 	m.Command("clear").Mod().
-		Run(songQueueClear(d, log))
+		Run(songQueueClear(d, log, warn))
 	m.Command("remove").Everyone().
-		Run(songQueueRemove(d, log))
+		Run(songQueueRemove(d, log, warn))
 	m.Command("srlist").Everyone().Cooldown(currentCooldown).
 		Aliases("songlist").
-		Run(songQueueList(d, log))
+		Run(songQueueList(d, log, warn))
 
-	m.On(redemptionAddType, songqueueRedemption(d, log))
+	m.On(redemptionAddType, songqueueRedemption(d, log, warn))
 	return m.Build()
 }
+
+func newSpotifyWarnThrottle() *cache.Keyed[string, bool] {
+	return cache.NewKeyed[string, bool](spotifyWarnCapacity, spotifyWarnWindow, spotifyWarnKey)
+}
+
+func spotifyWarnKey(key string) string { return key }
 
 func songQueueLog(d engine.Deps) *zap.Logger {
 	if d.Log == nil {
@@ -107,14 +122,15 @@ type songQueueCmd struct {
 	live     engine.IsLiveChecker
 	cfg      songqueueConfig
 	log      *zap.Logger
+	warn     *cache.Keyed[string, bool]
 	maxDepth int
 }
 
-func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc songQueueCmd, ok bool) {
+func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger, warn *cache.Keyed[string, bool]) (qc songQueueCmd, ok bool) {
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{chatReplier: newChatReplier(c), store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log}
+	qc = songQueueCmd{chatReplier: newChatReplier(c), store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log, warn: warn}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -137,9 +153,9 @@ var songQueueActions = map[string]songQueueAction{
 	"clear":   (*songQueueCmd).actClear,
 }
 
-func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
+func songQueueView(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -176,7 +192,7 @@ func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack,
 		return nil, ""
 	}
 	reply, err := engine.SpotifyNowPlaying(ctx, qc.gossip, qc.c.BroadcasterID)
-	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+	if reason := qc.spotifyFailureMessage(ctx, reply.Error, err); reason != "" {
 		return nil, reason
 	}
 	if err != nil {
@@ -253,9 +269,26 @@ func (qc songQueueCmd) syncPlaying(ctx context.Context, trackID string) {
 	}
 }
 
-func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
+type playerSnapshot struct {
+	track *gossiprpc.SpotifyTrack
+}
+
+func songVariableCacheKey(broadcasterID uint64) string { return strconv.FormatUint(broadcasterID, 10) }
+
+func (qc songQueueCmd) cachedReadPlayer(ctx context.Context, players *cache.Keyed[uint64, playerSnapshot]) (*gossiprpc.SpotifyTrack, string) {
+	if snap, ok := players.Get(qc.c.BroadcasterID); ok {
+		return snap.track, ""
+	}
+	player, failure := qc.readPlayer(ctx)
+	if failure == "" {
+		players.Set(qc.c.BroadcasterID, playerSnapshot{track: player.track})
+	}
+	return player.track, failure
+}
+
+func songQueueSkip(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -263,9 +296,9 @@ func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
-func songQueueClear(d engine.Deps, log *zap.Logger) module.RunFunc {
+func songQueueClear(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -273,9 +306,9 @@ func songQueueClear(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
-func songQueueRemove(d engine.Deps, log *zap.Logger) module.RunFunc {
+func songQueueRemove(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -283,9 +316,9 @@ func songQueueRemove(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
-func songQueueList(d engine.Deps, log *zap.Logger) module.RunFunc {
+func songQueueList(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -293,9 +326,9 @@ func songQueueList(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
-func songQueueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
+func songQueueDispatch(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		qc, ok := newSongQueueCmd(d, c, log)
+		qc, ok := newSongQueueCmd(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -440,7 +473,7 @@ func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string 
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "queue"},
 		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10), TrackID: trackID}, &reply)
-	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+	if reason := qc.spotifyFailureMessage(ctx, reply.Error, err); reason != "" {
 		return reason
 	}
 	if err != nil {
@@ -458,7 +491,7 @@ func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "next"},
 		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
-	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+	if reason := qc.spotifyFailureMessage(ctx, reply.Error, err); reason != "" {
 		return reason
 	}
 	if err != nil {
@@ -500,7 +533,7 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 			Query:     query,
 			Limit:     1,
 		}, &reply)
-	switch reason := qc.spotifyFailureMessage(reply.Error, err); {
+	switch reason := qc.spotifyFailureMessage(ctx, reply.Error, err); {
 	case reason != "":
 		return nil, reason
 	case err != nil:
@@ -516,7 +549,7 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 // GossipRPC returns provider refusals as RPCReplyError before decoding the
 // typed reply. Only exact, fixed messages from the Spotify provider may reach
 // chat: arbitrary RPC text can include credentials, URLs or internal details.
-func (qc songQueueCmd) spotifyFailureMessage(replyError string, err error) string {
+func (qc songQueueCmd) spotifyFailureMessage(ctx context.Context, replyError string, err error) string {
 	message := replyError
 	if message == "" {
 		var re bus.RPCReplyError
@@ -547,9 +580,17 @@ func (qc songQueueCmd) spotifyFailureMessage(replyError string, err error) strin
 		"track search failed":
 		return message
 	default:
-		qc.log.Warn("songqueue: spotify rpc refused", qc.c.BID(), zap.String("reason", message), zap.Error(err))
+		qc.warnSpotifyRefusal(ctx, message, err)
 		return qc.render("", "songqueue.err.upstream")
 	}
+}
+
+func (qc songQueueCmd) warnSpotifyRefusal(ctx context.Context, reason string, err error) {
+	key := strconv.FormatUint(qc.c.BroadcasterID, 10) + "|" + reason
+	_, _ = qc.warn.GetOrLoad(ctx, key, func(context.Context) (bool, error) {
+		qc.log.Warn("songqueue: spotify rpc refused", qc.c.BID(), zap.String("reason", reason), zap.Error(err))
+		return true, nil
+	})
 }
 
 func (qc songQueueCmd) entry(t gossiprpc.SpotifyTrack) engine.SongEntry {

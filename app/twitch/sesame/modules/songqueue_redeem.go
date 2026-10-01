@@ -12,14 +12,15 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
 
-func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
+func songqueueRedemption(d engine.Deps, log *zap.Logger, warn *cache.Keyed[string, bool]) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
-		qc, cfg, ev, ok := decodeSongqueueRedemption(d, c, log)
+		qc, cfg, ev, ok := decodeSongqueueRedemption(d, c, log, warn)
 		if !ok {
 			return nil
 		}
@@ -36,9 +37,9 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 	}
 }
 
-func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger) (songQueueCmd, songqueueRedeem, redemptionEvent, bool) {
+func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger, warn *cache.Keyed[string, bool]) (songQueueCmd, songqueueRedeem, redemptionEvent, bool) {
 	var none songQueueCmd
-	qc, ok := newSongQueueCmd(d, c, log)
+	qc, ok := newSongQueueCmd(d, c, log, warn)
 	if !ok {
 		return none, songqueueRedeem{}, redemptionEvent{}, false
 	}
