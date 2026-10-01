@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"strconv"
 	"strings"
@@ -92,11 +93,11 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 		switch {
 		case err != nil:
 		case reply.Live:
-			_, _ = s.setLiveKey(ctx, broadcasterID, livekey.VersionNow())
+			return s.setLiveKey(ctx, broadcasterID, cmp.Or(reply.Version, livekey.VersionNow()))
 		case reply.Known:
 			s.claimRecheck(ctx, recheckClaim{key: demandRecheckKeyPrefix + id, window: demandRecheckWindow, broadcasterID: id})
 		}
-		return reply.Live, nil
+		return false, nil
 	})
 }
 

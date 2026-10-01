@@ -266,3 +266,33 @@ func TestColdReadOfProjectedLiveState(t *testing.T) {
 		})
 	}
 }
+
+func TestColdReadRestoresOnlyAtTheProjectedVersion(t *testing.T) {
+	projected := livekey.VersionNow() - 5000
+	tests := []struct {
+		name     string
+		cleared  int64
+		wantLive bool
+	}{
+		{name: "a clear newer than the projected live stays cleared", cleared: projected + 1000},
+		{name: "a clear older than the projected live is restored", cleared: projected - 1000, wantLive: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nc := liveRPCResponder(t, func() projectorrpc.LiveReply {
+				return projectorrpc.LiveReply{Live: true, Known: true, Version: projected}
+			})
+			f := newRecheckFixture(t, nc, time.Minute, time.Hour)
+			ctx := context.Background()
+			applied, err := f.store.ClearLive(ctx, f.id, tt.cleared)
+			require.NoError(t, err)
+			require.True(t, applied)
+
+			live, err := f.store.IsLive(ctx, f.id)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantLive, live)
+			assert.Equal(t, tt.wantLive, f.exists(t, liveKey(f.id)))
+		})
+	}
+}

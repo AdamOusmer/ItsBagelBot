@@ -41,8 +41,9 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 2. `foldEvent` decodes and validates before mutation. Invalid payloads are logged and acknowledged; storage failures return errors for redelivery.
 3. Store writes precede invalidation fan-out. Account incarnation/revision protections live in the shared projection store; don't replace them with unconditional hash overwrites.
 4. A cold dashboard read calls the owning service over NATS and returns that section; `EnsureAsync` repairs missing settings sections off the foreground path.
-5. A go-live event synchronously writes live state and invalidates readers, then triggers full `RefreshAsync`, token warming, and best-effort counter-baseline capture. The current Projector handler calls `SetStreamLive` without the ingress receipt version; do not assume every lifecycle writer has the same ordering protection.
-6. `HandleCounterBumps` updates bounded live counter views; missing views seed from Loyalty. `SeedBoards` initializes processed-message/event rankings at startup and retries unavailable reads.
+5. A go-live event synchronously writes live state and invalidates readers, then triggers full `RefreshAsync`, token warming, and best-effort counter-baseline capture. `SetStreamLive` folds the projected flag under the ingress receipt version: an older event is refused and runs none of those side effects, and the fold reports the prior state used for the go-live edge.
+6. Live reads (`rpc/live.go`, `rpc/streaminfo.go`) return the newer of the projected flag and Sesame's versioned `live:<id>` key, so a Helix verdict that restores or clears the key is visible without Projector writing that key. Projector never writes `live:<id>`: a projected flag must not admit watchtime.
+7. `HandleCounterBumps` updates bounded live counter views; missing views seed from Loyalty. `SeedBoards` initializes processed-message/event rankings at startup and retries unavailable reads.
 
 ## Editing rules and pitfalls
 
