@@ -3,6 +3,7 @@
 
 import { createSmoothScroll } from '@bagel/ui/lib/lenis';
 import { subscribe, wake } from '@bagel/ui/lib/raf-loop';
+import { getLangSwitchScrollY } from '../i18n/route-transition';
 
 function applyVirtualScrollAssist(data) {
     const assist = window.__encryptionScrollAssist;
@@ -123,7 +124,33 @@ function jumpToPageTop() {
     updateHeroProgress();
 }
 
+function clampScroll(top) {
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    return Math.min(Math.max(0, top), max);
+}
+
+function restoreRouteScroll(top) {
+    const clamped = clampScroll(top);
+    scrollController.resize?.();
+    scrollController.scrollTo(clamped, {immediate: true, force: true});
+    window.scrollTo({left: 0, top: clamped, behavior: 'instant'});
+    stampCurrentHistoryPosition(0, clamped);
+    updateViewportHeight();
+    updateHeroProgress();
+}
+
 function resetRouteScroll() {
+    const langSwitchScrollY = getLangSwitchScrollY();
+    if (langSwitchScrollY !== null) {
+        restoreRouteScroll(langSwitchScrollY);
+
+        requestAnimationFrame(() => {
+            restoreRouteScroll(langSwitchScrollY);
+            scrollController.resize?.();
+        });
+        return;
+    }
+
     jumpToPageTop();
 
     requestAnimationFrame(() => {

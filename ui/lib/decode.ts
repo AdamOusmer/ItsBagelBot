@@ -19,6 +19,7 @@ export type ScrambleOptions = {
 
 export type DecodeOptions = ScrambleOptions & {
     threshold?: number;
+    instant?: boolean;
 };
 
 const lengthDuration = (length: number): number =>
@@ -64,7 +65,7 @@ export function decode(
 }
 
 export function observeDecode(root: ParentNode, options: DecodeOptions = {}): () => void {
-    const { threshold = DEFAULT_THRESHOLD, ...scramble } = options;
+    const { threshold = DEFAULT_THRESHOLD, instant, ...scramble } = options;
     const self =
         root instanceof Element && root.matches(SELECTOR) ? [root as HTMLElement] : [];
     const targets = [...self, ...Array.from(root.querySelectorAll<HTMLElement>(SELECTOR))];
@@ -79,7 +80,7 @@ export function observeDecode(root: ParentNode, options: DecodeOptions = {}): ()
         targets.map((el) => [el, el.dataset.decode?.length ? el.dataset.decode : (el.textContent ?? '')]),
     );
 
-    if (typeof IntersectionObserver === 'undefined') {
+    if (instant || typeof IntersectionObserver === 'undefined') {
         for (const el of targets) el.textContent = source.get(el) ?? '';
         return stopAll;
     }
