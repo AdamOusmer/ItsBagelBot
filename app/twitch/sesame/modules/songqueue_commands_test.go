@@ -71,6 +71,24 @@ func TestCurrentCreditsOnlyTheMatchingRequester(t *testing.T) {
 	assert.NotContains(t, text, "alice", "a broadcaster-started track has no requester to credit")
 }
 
+func TestSongDegradesToNowPlayingWhenGossipLacksPlayerQueue(t *testing.T) {
+	g := &fakeGossip{replies: map[string]any{
+		"spotify.playerqueue": gossiprpc.SpotifyQueueReply{Error: "unknown endpoint"},
+		"spotify.nowplaying":  playing(srTrack("t9", "Unrequested", "Some Artist")),
+	}}
+	m := SongQueue(songDeps(&fakeSongQueue{}, g))
+
+	out := runSong(t, m, songCtx("42", "alice"))
+
+	require.Len(t, g.calls, 2)
+	assert.Equal(t, "playerqueue", g.calls[0].endpoint, "an old gossip is asked for the queue snapshot first")
+	assert.Equal(t, "nowplaying", g.calls[1].endpoint, "the queue read's unknown-endpoint error falls back to the live player")
+
+	text := chatText(t, out)
+	assert.Contains(t, text, "Unrequested")
+	assert.Contains(t, text, "Some Artist")
+}
+
 func TestCurrentSurfacesProviderReason(t *testing.T) {
 	g := nowPlayingGossip(gossiprpc.SpotifyNowPlayingReply{Error: "no Spotify app set up for this channel"})
 	m := SongQueue(songDeps(&fakeSongQueue{}, g))
