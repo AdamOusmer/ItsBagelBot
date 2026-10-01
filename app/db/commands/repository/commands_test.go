@@ -106,6 +106,31 @@ func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
 	assert.True(t, dto.Deleted)
 }
 
+func TestRestoreOntoLiveCommandLeavesItUntouched(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Upsert(1001, spec("!hello", "live wording", false, 5)))
+	repo.Close(ctx)
+
+	before := pub.On(data.SubjectCommandChanged)
+
+	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
+	defer repo2.Close(ctx)
+
+	restored, err := repo2.Restore(ctx, 1001, spec("!hello", "restored wording", true, 99), 42)
+	require.NoError(t, err)
+	assert.False(t, restored)
+
+	row := client.Commands.Query().OnlyX(ctx)
+	assert.Equal(t, "live wording", row.Response)
+	assert.False(t, row.StreamOnlineOnly)
+	assert.Equal(t, uint(5), row.Cooldown)
+	assert.Equal(t, int64(0), row.Uses)
+
+	assert.Len(t, pub.On(data.SubjectCommandChanged), len(before))
+}
+
 func TestRenameUpdatesRowInPlace(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
