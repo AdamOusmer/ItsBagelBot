@@ -62,7 +62,7 @@
   }
 
   .bb-nav__inner .bb-nav-link {
-    --bb-nav-link-size: 0.7rem;
+    --bb-nav-link-size: 0.78rem;
     --bb-nav-link-rest: rgba(var(--bb-white-rgb), 0.5);
   }
 
@@ -84,6 +84,11 @@
     --bb-nav-link-transform: uppercase;
     --bb-nav-link-radius: var(--bb-radius-pill);
     --bb-nav-link-rest: var(--bb-white);
+  }
+
+  .bb-nav__inner .bb-nav__cta {
+    --bb-nav-link-size: 0.8rem;
+    --bb-nav-link-pad: 11px 18px 11px 15px;
   }
 
   .bb-nav__brand {
@@ -289,7 +294,7 @@
     gap: 8px;
   }
 
-  .bb-mobile-menu__link {
+  .bb-mobile-menu .bb-mobile-menu__link {
     --bb-nav-link-family: var(--bb-font-display);
     --bb-nav-link-size: 2.45rem;
     --bb-nav-link-weight: 700;
@@ -317,7 +322,10 @@
     border-top: 1px solid rgba(var(--bb-tan-rgb), 0.15);
   }
 
-  .bb-mobile-menu__cta {
+  .bb-mobile-menu .bb-mobile-menu__cta {
+    --bb-nav-link-size: 0.9rem;
+    --bb-nav-link-pad: 16px 20px;
+
     justify-content: center;
   }
 
@@ -347,7 +355,7 @@
       padding: 32px 24px 28px;
     }
 
-    .bb-mobile-menu__link {
+    .bb-mobile-menu .bb-mobile-menu__link {
       --bb-nav-link-size: 2.2rem;
     }
 
@@ -361,7 +369,7 @@
       padding: 28px 20px 24px;
     }
 
-    .bb-mobile-menu__link {
+    .bb-mobile-menu .bb-mobile-menu__link {
       --bb-nav-link-size: 2rem;
     }
   }
