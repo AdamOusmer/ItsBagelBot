@@ -139,7 +139,15 @@ function restoreRouteScroll(top) {
     updateHeroProgress();
 }
 
+// The swap replaces the root's inline style, so the cached values no longer match what is on the page.
+function forgetHeroState() {
+    lastHeroProgress = -1;
+    lastHeroUiHidden = null;
+    lastHeroComplete = null;
+}
+
 function resetRouteScroll() {
+    forgetHeroState();
     const langSwitchScrollY = getLangSwitchScrollY();
     if (langSwitchScrollY !== null) {
         restoreRouteScroll(langSwitchScrollY);
