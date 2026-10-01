@@ -65,8 +65,12 @@ const t = useTranslations(lang);
                     { text: t('hero.title3'), cls: 'green' },
                 ].map((line) => (
                     <span class:list={['line', line.cls]} aria-hidden="true" data-hero-line>
-                        {Array.from(line.text).map((glyph) => (
-                            <span class="glyph" data-hero-glyph>{glyph === ' ' ? ' ' : glyph}</span>
+                        {line.text.split(' ').map((word) => (
+                            <span class="word">
+                                {Array.from(word).map((glyph) => (
+                                    <span class="glyph" data-hero-glyph>{glyph}</span>
+                                ))}
+                            </span>
                         ))}
                     </span>
                 ))}
@@ -320,11 +324,11 @@ const t = useTranslations(lang);
     }
 
     h1 .line {
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        padding-block: 0.12em;
-        margin-block: -0.12em;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: center;
+        column-gap: 0.31em;
     }
 
     h1 .line.tan {
@@ -333,6 +337,22 @@ const t = useTranslations(lang);
 
     h1 .line.green {
         color: var(--bb-green-glow);
+    }
+
+    h1 .word {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        padding-block: 0.12em;
+        margin-block: -0.12em;
+    }
+
+    h1 .word:last-child {
+        padding-inline-end: 0.5em;
+        margin-inline-end: -0.5em;
     }
 
     h1 .glyph {
@@ -447,7 +467,7 @@ const t = useTranslations(lang);
         }
 
         h1 {
-            font-size: clamp(1.9rem, min(9vw, 8.4vh), 4.2rem);
+            font-size: clamp(1.9rem, min(9vw, 6.2vh), 4.2rem);
             line-height: 0.96;
             margin-bottom: 18px;
         }
@@ -570,7 +590,7 @@ const t = useTranslations(lang);
 
         .split {
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px);
             gap: 56px;
             align-items: end;
             width: 100%;
@@ -579,6 +599,10 @@ const t = useTranslations(lang);
         .split h1 {
             margin-bottom: 0;
             font-size: clamp(3rem, min(6.1vw, 13vh), 5.5rem);
+        }
+
+        .split h1 .line {
+            justify-content: flex-start;
         }
 
         .aside {

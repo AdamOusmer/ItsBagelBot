@@ -85,9 +85,12 @@
     font-weight: 700;
     font-size: var(--bb-text-sm);
     color: var(--bb-white);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .light-name.unset { color: var(--bb-muted); }
 

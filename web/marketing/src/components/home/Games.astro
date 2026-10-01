@@ -182,10 +182,11 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         border-right: 1px solid color-mix(in srgb, var(--bb-tan-light) 60%, transparent);
         white-space: nowrap;
         overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .games-mc__line--bw {
-        animation: gamesTypeMcBw 12s steps(17) infinite;
+        animation: gamesTypeMcBw 12s steps(18) infinite;
     }
 
     .games-mc__line--mcsr {
@@ -258,6 +259,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         border-right: 1px solid color-mix(in srgb, var(--bb-tan-light) 60%, transparent);
         white-space: nowrap;
         overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .games-val__stats,
@@ -280,8 +282,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
     @keyframes gamesTypeMcBw {
         0%, 4% { width: 0; opacity: 1; }
-        13%, 42% { width: 17ch; opacity: 1; }
-        47%, 100% { width: 17ch; opacity: 0; }
+        13%, 42% { width: 18ch; opacity: 1; }
+        47%, 100% { width: 18ch; opacity: 0; }
     }
 
     @keyframes gamesFadeMcBw {
@@ -344,7 +346,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             animation: none;
             border-right: none;
         }
-        .games-mc__line--bw { width: 17ch; opacity: 1; }
+        .games-mc__line--bw { width: 18ch; opacity: 1; }
         .games-mc__stats--bw {
             animation: none;
             opacity: 1;

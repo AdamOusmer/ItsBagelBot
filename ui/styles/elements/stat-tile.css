@@ -6,7 +6,7 @@
 @layer bb.elements {
     .bb-stat-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: calc(14px * var(--d));
     }
 
@@ -48,6 +48,8 @@
         color: var(--bb-white);
         margin-top: 8px;
         line-height: 1;
+        overflow-wrap: anywhere;
+        hyphens: auto;
     }
 
     .bb-stat__value small {
@@ -80,11 +82,11 @@
     }
 
     @media (max-width: 1100px) {
-        .bb-stat-grid { grid-template-columns: repeat(2, 1fr); }
+        .bb-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     @media (max-width: 760px) {
-        .bb-stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+        .bb-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .bb-stat { padding: 16px; }
         .bb-stat__value { font-size: clamp(24px, 7vw, 34px); }
     }

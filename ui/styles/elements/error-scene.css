@@ -141,6 +141,8 @@
     font-weight: 800;
     line-height: 0.98;
     letter-spacing: -0.035em;
+    overflow-wrap: anywhere;
+    hyphens: auto;
     text-shadow: 0 3px 18px rgba(var(--bb-shadow-rgb), 0.9), 0 0 38px rgba(var(--bb-tan-rgb), 0.16);
     opacity: 0;
     animation: bb-error-rise 780ms 260ms var(--bb-ease-out-expo) forwards;
