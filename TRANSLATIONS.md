@@ -96,10 +96,10 @@ From the repository root, with Python 3 installed and no other dependencies:
 ```sh
 python3 scripts/translations.py check
 python3 scripts/translations.py check --missing
-python3 scripts/translations.py check --strict fr
+python3 scripts/translations.py check --strict fr --strict-catalogs all
 ```
 
-`check` validates every file under `locales/` and prints coverage by language and surface. `--missing` lists each missing key with its file. `--strict fr` also requires complete French files, documentation pages, and legal files, as CI does. New languages may stay partial and fall back to English. These counts measure entries and files, not linguistic quality; a file being present does not establish a faithful translation.
+`check` validates every file under `locales/` and prints coverage by language and surface. `--missing` lists each missing key with its file. `--strict-catalogs all` requires every string catalog (console, chat, website, docs strings, and the `ui/locales` catalog) to be complete for every live language, as CI does; `--strict fr` additionally requires French documentation pages and legal documents, since French is the only language with those translated so far. Pass a specific code, such as `--strict-catalogs es`, to check just that one. New languages may stay partial and fall back to English. These counts measure entries and files, not linguistic quality; a file being present does not establish a faithful translation.
 
 ## What the checks enforce
 
@@ -142,13 +142,13 @@ Release files identify a version with `tag`, `version`, `date`, and `github`; le
 
 ## For developers
 
-Keep English and French complete when introducing new product copy. Add each string to the English file for its feature and the matching French file, and split a file into a folder before it passes 150 keys. A translation-only change to French does not require regenerating the English key types.
+Keep every live language's string catalogs complete when introducing new product copy. Add each string to the English file for its feature and the matching file in every other language listed in `locales/manifest.json`, and split a file into a folder before it passes 150 keys. French also needs its documentation pages and legal documents kept current; the other languages' long-form content falls back to English until someone translates it. A translation-only change to one language does not require regenerating the English key types.
 
 Run the checks for the surface you change:
 
 ```sh
 # Translation files, all surfaces
-python3 scripts/translations.py check --strict fr
+python3 scripts/translations.py check --strict fr --strict-catalogs all
 # Chat replies and notification catalogs
 go test ./internal/domain/i18n ./app/twitch/sesame/modules ./app/twitch/sesame/engine
 # Console catalog shape and generated English key types

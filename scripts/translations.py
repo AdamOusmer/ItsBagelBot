@@ -32,8 +32,16 @@ def locale_codes(root):
     return _locale_codes(root, MANIFEST)
 
 
-def check(root, strict=(), show_missing=False):
-    return _check(CheckConfig(root, tuple(strict), show_missing, content_coverage))
+def _expand_locales(root, codes):
+    if 'all' not in codes:
+        return tuple(codes)
+    return tuple(sorted({code for code in codes if code != 'all'} |
+                        {code for code in locale_codes(root) if code != 'en'}))
+
+
+def check(root, strict=(), show_missing=False, strict_catalogs=()):
+    return _check(CheckConfig(root, _expand_locales(root, strict), show_missing, content_coverage,
+                               _expand_locales(root, strict_catalogs)))
 
 
 def _validate_scaffold(code, name, og_locale):
@@ -94,7 +102,8 @@ def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     audit = commands.add_parser('check', help='validate catalogs and report coverage')
-    audit.add_argument('--strict', action='append', default=[], metavar='LOCALE', help='require every English key for this locale; repeatable')
+    audit.add_argument('--strict', action='append', default=[], metavar='LOCALE', help='require every English key, docs pages, and legal documents for this locale; repeatable, or pass "all" for every non-English locale in the manifest')
+    audit.add_argument('--strict-catalogs', action='append', default=[], metavar='LOCALE', help='require every English key (all surfaces, including ui) for this locale, without requiring docs pages or legal documents; repeatable, or pass "all" for every non-English locale in the manifest')
     audit.add_argument('--missing', action='store_true', help='list missing keys to translate')
     progress = commands.add_parser('status', help='list missing keys for one language, grouped by file')
     progress.add_argument('locale')
@@ -116,7 +125,7 @@ def main():
     args = _parser().parse_args()
     try:
         if args.command == 'check':
-            return check(ROOT, args.strict, args.missing)
+            return check(ROOT, args.strict, args.missing, args.strict_catalogs)
         if args.command == 'status':
             return status(ROOT, args.locale, args.keys)
         scaffold(ROOT, *scaffold_arguments(args))
