@@ -12,8 +12,6 @@ import AstroCommunityCard from '../astro/CommunityCard.astro';
 import RankingCard from '../svelte/RankingCard.svelte';
 import AstroRankingCard from '../astro/RankingCard.astro';
 
-// Components are opaque to tsc; the framework compilers in loaders.ts and
-// svelte-check validate their props. Both renderers run for every contract.
 async function pair(
   svelte: any, astro: any, props: Record<string, unknown>,
   snippets: Record<string, unknown> = {}, slots: Record<string, string> = {},

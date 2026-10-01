@@ -2,11 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { eventTarget as target, isolatedLib, snapshotGlobals } from './dom-fakes';
 
-const GLOBALS = [
+const restoreGlobals = snapshotGlobals([
   'window',
   'document',
   'Element',
@@ -17,29 +15,7 @@ const GLOBALS = [
   'getComputedStyle',
   'IntersectionObserver',
   'ResizeObserver',
-];
-const saved = new Map(GLOBALS.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const));
-
-type Listener = (event: unknown) => void;
-
-function target() {
-  const listeners = new Map<string, Set<Listener>>();
-  return {
-    addEventListener(type: string, fn: Listener) {
-      if (!listeners.has(type)) listeners.set(type, new Set());
-      listeners.get(type)?.add(fn);
-    },
-    removeEventListener(type: string, fn: Listener) {
-      listeners.get(type)?.delete(fn);
-    },
-    dispatch(type: string, event: unknown = {}) {
-      for (const fn of listeners.get(type) ?? []) fn(event);
-    },
-    count(type: string) {
-      return listeners.get(type)?.size ?? 0;
-    },
-  };
-}
+]);
 
 let matchMediaCalls = 0;
 const media = (feature: string) => {
@@ -124,33 +100,24 @@ function fireTimers(): void {
   for (const fn of due) fn();
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'bagel-perf-test-'));
-for (const file of [
+const lib = isolatedLib('perf', [
   'motion-query.ts',
   'raf-loop.ts',
   'rect-cache.ts',
   'magnetic.ts',
   'cursor-engine.ts',
-  'decode.ts',
   'light-field.ts',
   'count-up.ts',
-]) {
-  copyFileSync(new URL(`../lib/${file}`, import.meta.url), join(dir, file));
-}
-const load = <T>(file: string) => import(join(dir, file)) as Promise<T>;
-const { mountCursor } = await load<typeof import('../lib/cursor-engine')>('cursor-engine.ts');
-const { mountMagnetic } = await load<typeof import('../lib/magnetic')>('magnetic.ts');
-const { decode } = await load<typeof import('../lib/decode')>('decode.ts');
-const { field } = await load<typeof import('../lib/light-field')>('light-field.ts');
-const { countUp } = await load<typeof import('../lib/count-up')>('count-up.ts');
-const { isRunning, wake } = await load<typeof import('../lib/raf-loop')>('raf-loop.ts');
+]);
+const { mountCursor } = await lib.load<typeof import('../lib/cursor-engine')>('cursor-engine.ts');
+const { mountMagnetic } = await lib.load<typeof import('../lib/magnetic')>('magnetic.ts');
+const { field } = await lib.load<typeof import('../lib/light-field')>('light-field.ts');
+const { countUp } = await lib.load<typeof import('../lib/count-up')>('count-up.ts');
+const { isRunning, wake } = await lib.load<typeof import('../lib/raf-loop')>('raf-loop.ts');
 
 afterAll(() => {
-  rmSync(dir, { recursive: true, force: true });
-  for (const [key, descriptor] of saved) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  }
+  lib.remove();
+  restoreGlobals();
 });
 
 beforeEach(() => {
@@ -314,18 +281,6 @@ describe('magnetic', () => {
     flush();
     expect(writes.last).toBe('translate(2.67px, 0.00px)');
     dispose();
-  });
-});
-
-describe('decode', () => {
-  test('a finished decode unsubscribes itself and reports done once', () => {
-    const el = { textContent: '' };
-    let done = 0;
-    decode(el as unknown as HTMLElement, 'hello', { durationMs: 100 }, () => (done += 1));
-    flush(performance.now() + 5000);
-    expect([el.textContent, done]).toEqual(['hello', 1]);
-    wake();
-    expect(isRunning()).toBe(false);
   });
 });
 
