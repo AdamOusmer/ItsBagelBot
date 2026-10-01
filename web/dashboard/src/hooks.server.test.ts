@@ -31,10 +31,12 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
   warmRateLimiter: () => {}
 }));
 mock.module('@bagel/kit/server/session-revocation', () => ({ warmSessionRevocation: () => {} }));
+mock.module('@bagel/kit/server/logger', () => ({ logger: { error: () => {} } }));
 mock.module('$lib/server/services', () => ({ startInvalidationListener: () => {} }));
 mock.module('$lib/server/config-sanity', () => ({ assertConfigSane: () => {} }));
+mock.module('$lib/server/edge-purge', () => ({ purgeEdgeByTag: async () => true }));
 
-const { EDGE_CACHE, applyEdgeCache, edgeCacheHeaders } = await import('./hooks.server');
+const { DEPLOY_CACHE_TAG, EDGE_CACHE, applyEdgeCache, edgeCacheHeaders } = await import('./hooks.server');
 
 type Event = Parameters<typeof edgeCacheHeaders>[0];
 
@@ -102,7 +104,8 @@ describe('edgeCacheHeaders', () => {
     const headers = edgeCacheHeaders(makeEvent({ routeId: CHANNEL }), htmlResponse(200));
     expect(headers).toEqual({
       'Cache-Control': 'public, max-age=0',
-      'CDN-Cache-Control': 'max-age=300, stale-while-revalidate=3600, stale-if-error=86400'
+      'CDN-Cache-Control': 'max-age=300, stale-while-revalidate=3600, stale-if-error=86400',
+      'Cache-Tag': DEPLOY_CACHE_TAG
     });
     expect(JSON.stringify(headers)).not.toContain('s-maxage');
   });
@@ -130,6 +133,11 @@ describe('edgeCacheHeaders', () => {
     const res = new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
     expect(edgeCacheHeaders(makeEvent({ routeId: CHANNEL }), res)).toBeNull();
   });
+
+  test('a garbage session cookie carries a delete Set-Cookie: never cached, even with locals.session null', () => {
+    const res = htmlResponse(200, { 'set-cookie': 'bagel_session=; Max-Age=0; Path=/' });
+    expect(edgeCacheHeaders(makeEvent({ routeId: CHANNEL }), res)).toBeNull();
+  });
 });
 
 describe('applyEdgeCache', () => {
@@ -138,6 +146,7 @@ describe('applyEdgeCache', () => {
     applyEdgeCache(makeEvent({ routeId: CHANNEL }), res);
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=0');
     expect(res.headers.get('CDN-Cache-Control')).toContain('stale-while-revalidate=3600');
+    expect(res.headers.get('Cache-Tag')).toBe(DEPLOY_CACHE_TAG);
     expect(res.headers.get('Vary')).toBe('Accept-Language');
   });
 
@@ -150,6 +159,13 @@ describe('applyEdgeCache', () => {
   test('leaves an uncacheable response untouched', () => {
     const res = htmlResponse(200);
     applyEdgeCache(makeEvent({ routeId: CHANNEL, localeCookie: 'en' }), res);
+    expect(res.headers.get('CDN-Cache-Control')).toBeNull();
+    expect(res.headers.get('Vary')).toBeNull();
+  });
+
+  test('a response with Set-Cookie is left uncached', () => {
+    const res = htmlResponse(200, { 'set-cookie': 'bagel_session=; Max-Age=0; Path=/' });
+    applyEdgeCache(makeEvent({ routeId: CHANNEL }), res);
     expect(res.headers.get('CDN-Cache-Control')).toBeNull();
     expect(res.headers.get('Vary')).toBeNull();
   });
