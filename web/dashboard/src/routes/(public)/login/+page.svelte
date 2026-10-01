@@ -256,6 +256,13 @@
     display: contents;
   }
 
+  .aside {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+  }
+
   .bg {
     position: absolute;
     inset: 0;

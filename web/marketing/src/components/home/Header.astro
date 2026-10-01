@@ -204,6 +204,13 @@ const t = useTranslations(lang);
         display: contents;
     }
 
+    .aside {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 100%;
+    }
+
     .starfield {
         display: var(--hero-decor-display, block);
         position: absolute;
@@ -373,7 +380,8 @@ const t = useTranslations(lang);
     .hero-actions {
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
+        max-width: 100%;
     }
 
     .hero-cta {
@@ -476,6 +484,7 @@ const t = useTranslations(lang);
 
         .migrate {
             margin-top: 14px;
+            text-wrap: balance;
         }
     }
 
@@ -589,6 +598,10 @@ const t = useTranslations(lang);
             justify-content: flex-start;
             margin-top: 0;
             text-align: left;
+        }
+
+        .hero-actions {
+            align-items: flex-start;
         }
 
         .hero-cta {
