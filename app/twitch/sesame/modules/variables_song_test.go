@@ -7,13 +7,16 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type variableSnapshotStore struct {
@@ -125,4 +128,50 @@ func TestSongVariablesReadThePlayerOncePerRender(t *testing.T) {
 			assert.Equal(t, "t1", store.current.TrackID, "the finished request must not be credited")
 		})
 	}
+}
+
+func newVariableSongQueueCmd(t *testing.T, store engine.SongQueueStore, gossip engine.GossipCaller) songQueueCmd {
+	t.Helper()
+	qc, ok := newSongQueueCmd(engine.Deps{SongQueue: store, Gossip: gossip}, urchinCtx(""), zap.NewNop(), newSpotifyWarnThrottle())
+	require.True(t, ok)
+	return qc
+}
+
+func TestSongVariablesCacheExpiresAfterTTL(t *testing.T) {
+	human := srTrack("t1", "Human", "The Killers")
+	gossip := &fakeGossip{replies: map[string]any{"spotify.playerqueue": gossiprpc.SpotifyQueueReply{Current: &human}}}
+	qc := newVariableSongQueueCmd(t, advancedSongQueue(), gossip)
+	const tinyTTL = 20 * time.Millisecond
+	players := cache.NewKeyed[uint64, playerSnapshot](songVariableCacheCapacity, tinyTTL, songVariableCacheKey)
+	ctx := context.Background()
+
+	track, failure := qc.cachedReadPlayer(ctx, players)
+	require.Empty(t, failure)
+	require.NotNil(t, track)
+	require.Len(t, gossip.calls, 1)
+
+	track, failure = qc.cachedReadPlayer(ctx, players)
+	require.Empty(t, failure)
+	require.NotNil(t, track)
+	assert.Len(t, gossip.calls, 1, "a repeated render within the TTL window must reuse the cached read")
+
+	time.Sleep(tinyTTL * 5)
+	_, failure = qc.cachedReadPlayer(ctx, players)
+	require.Empty(t, failure)
+	assert.Len(t, gossip.calls, 2, "a render after the TTL window must issue a fresh call")
+}
+
+func TestSongVariablesCacheSkipsErrorResults(t *testing.T) {
+	gossip := &fakeGossip{err: errors.New("boom")}
+	qc := newVariableSongQueueCmd(t, advancedSongQueue(), gossip)
+	players := cache.NewKeyed[uint64, playerSnapshot](songVariableCacheCapacity, songVariableCacheTTL, songVariableCacheKey)
+	ctx := context.Background()
+
+	_, failure := qc.cachedReadPlayer(ctx, players)
+	require.NotEmpty(t, failure)
+	firstCalls := len(gossip.calls)
+
+	_, failure = qc.cachedReadPlayer(ctx, players)
+	require.NotEmpty(t, failure)
+	assert.Greater(t, len(gossip.calls), firstCalls, "a failed read must not be cached; the next render must retry")
 }

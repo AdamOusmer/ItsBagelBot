@@ -167,6 +167,21 @@ func loggedRefusal(logs *observer.ObservedLogs, reason string) bool {
 	return false
 }
 
+func TestSongQueueSpotifyRefusalWarnIsThrottledPerMinute(t *testing.T) {
+	const reason = "mystery refusal"
+	gossip := nowPlayingGossip(gossiprpc.SpotifyNowPlayingReply{Error: reason})
+	core, logs := observer.New(zap.WarnLevel)
+	deps := songDeps(&fakeSongQueue{}, gossip)
+	deps.Log = zap.New(core)
+	m := SongQueue(deps)
+	c := songCtx("42", "alice")
+	for i := 0; i < 3; i++ {
+		runSong(t, m, c)
+	}
+	assert.Len(t, logs.FilterField(zap.String("reason", reason)).All(), 1,
+		"a refused reason must warn at most once per broadcaster per minute")
+}
+
 func TestSongQueueGenericRepliesExpandPlaceholders(t *testing.T) {
 	transport := errors.New("connection reset")
 	for _, locale := range []string{"en", "fr"} {
