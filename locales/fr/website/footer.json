@@ -18,5 +18,11 @@
   "privacy": "Politique de confidentialité",
   "terms": "Conditions d'utilisation",
   "creatorTerms": "Codes de créateur",
-  "changelog": "Journal des versions"
+  "changelog": "Journal des versions",
+  "songRequests": "Demandes de chansons",
+  "govee": "Lumières Govee",
+  "import": "Import",
+  "compare": "Comparer",
+  "vsNightbot": "vs Nightbot",
+  "vsStreamelements": "vs StreamElements"
 }

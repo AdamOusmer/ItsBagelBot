@@ -34,7 +34,7 @@
   "faqQ2": "Faut-il un overlay ou quelque chose sur mon PC de jeu ?",
   "faqA2": "Non. C'est une commande de chat. Le bot récupère les stats depuis des services publics de données Valorant sur ses propres serveurs ; rien n'est installé ni capturé sur votre machine.",
   "faqQ3": "Est-ce gratuit ?",
-  "faqA3": "Oui. Les stats de jeu font partie du forfait gratuit, pour toujours. Premium n'achète que la priorité des messages, jamais des fonctionnalités.",
+  "faqA3": "Oui. Les stats de jeu font partie du forfait gratuit, pour toujours.",
   "faqQ4": "Comment éviter que le chat en abuse ?",
   "faqA4": "Chaque commande a un délai, et le module entier est optionnel : il ne répond que dans les chaînes qui l'ont activé.",
   "ctaTitle": "Laissez le chat vérifier le rang lui-même.",

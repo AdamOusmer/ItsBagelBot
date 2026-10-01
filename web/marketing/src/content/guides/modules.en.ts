@@ -36,10 +36,10 @@ const modules = [
   },
   {
     name: 'Timers',
-    tagline: 'Post repeating chat messages on a schedule while you are live.',
+    tagline: 'Post repeating chat messages on a schedule, while live or offline too.',
     cat: 'Chat',
     start: 'Off by default',
-    needs: 'A live stream. Timers stay quiet when you are offline.',
+    needs: 'A live stream by default. Switch a timer to post offline and it keeps going between streams.',
   },
   {
     name: 'Emote Pyramids & Streaks',
@@ -133,7 +133,7 @@ const modules = [
     tagline: 'Let viewers recolour your Govee lights with channel points.',
     cat: 'Gear',
     start: 'Off by default',
-    needs: 'A Govee API key and a channel-point reward. Works while you are live.',
+    needs: 'A Govee API key and a channel-point reward. Works while you are live unless you switch off Live only.',
   },
   {
     name: 'Discord',
@@ -557,8 +557,8 @@ const guide: GuideContent = {
           tone: 'warn',
           html: `
                 <b>Watch out</b>
-                Lights only answer while you are live. A redemption that lands off stream is refunded
-                automatically, so nobody pays for a dark room.`,
+                Lights only answer while you are live unless you switch off Live only on the Govee page.
+                A redemption that lands off stream is refunded automatically, so nobody pays for a dark room.`,
         },
         {
           kind: 'prose',

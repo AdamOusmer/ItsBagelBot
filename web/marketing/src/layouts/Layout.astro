@@ -150,7 +150,7 @@ const isActive = (href: string) =>
 const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
 const navContext = {
-    path: (path: string) => localizePath(path, lang),
+    path: (path: string, englishOnly?: boolean) => localizePath(path, englishOnly ? defaultLang : lang),
     label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
     langQuery,
     isActive,

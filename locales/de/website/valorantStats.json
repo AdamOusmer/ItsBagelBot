@@ -34,7 +34,7 @@
   "faqQ2": "Braucht es ein Overlay oder etwas auf meinem Gaming-PC?",
   "faqA2": "Nein. Es ist ein Chat-Befehl. Der Bot ruft Statistiken von öffentlichen Valorant-Datendiensten auf seinen eigenen Servern ab; auf deinem Rechner wird nichts installiert oder erfasst.",
   "faqQ3": "Ist das kostenlos?",
-  "faqA3": "Ja. Spielstatistiken sind dauerhaft Teil des kostenlosen Tarifs. Premium bietet nur Nachrichtenpriorität, nie zusätzliche Funktionen.",
+  "faqA3": "Ja. Spielstatistiken gehören zum kostenlosen Tarif, für immer.",
   "faqQ4": "Kann ich verhindern, dass der Chat damit spammt?",
   "faqA4": "Jeder Befehl hat eine Abklingzeit und das gesamte Modul ist optional. Es antwortet daher nur in Kanälen, die es aktiviert haben.",
   "ctaTitle": "Lass den Chat den Rang selbst prüfen.",
