@@ -4,7 +4,7 @@
     "description": "Visual guides for ItsBagelBot: set up the bot, learn the dashboard, and write custom commands with variables and live data.",
     "eyebrow": "Guides",
     "heading": "Learn the bot.",
-    "lead": "Every guide here works on the free plan, and each one runs ten minutes or less."
+    "lead": "Every guide here works on the free plan, except the parts marked Premium beta, and each one runs ten minutes or less."
   },
   "readCta": "Read the guide",
   "tool": {

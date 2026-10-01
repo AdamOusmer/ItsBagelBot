@@ -63,6 +63,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             </div>
             <Heading level={5} as="h3" variant="title" class="qw__title">{t('quietWork.goveeTitle')}</Heading>
             <Text size="sm" tone="muted">{t('quietWork.goveeDesc')}</Text>
+            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/govee', lang)} label={t('rail.learnMore')} />
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">

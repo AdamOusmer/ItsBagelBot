@@ -34,7 +34,7 @@
   "faqQ2": "Does it need an overlay or anything on my gaming PC?",
   "faqA2": "No. It is a chat command. The bot fetches stats from public Valorant data services on its own servers; nothing is installed or captured on your machine.",
   "faqQ3": "Is it free?",
-  "faqA3": "Yes. Game stats are part of the free tier, forever. Premium only buys message priority, never features.",
+  "faqA3": "Yes. Game stats are part of the free tier, forever.",
   "faqQ4": "Can I keep chat from spamming it?",
   "faqA4": "Every command has a cooldown, and the whole module is opt-in, so it only answers in channels that turned it on.",
   "ctaTitle": "Let chat check the rank themselves.",

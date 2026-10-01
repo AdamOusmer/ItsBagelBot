@@ -18,5 +18,5 @@
   "winTitle": "Todas las participaciones tienen la misma probabilidad.",
   "winDesc": "El sorteo es aleatorio y el resultado queda registrado.",
   "beatTitle": "Sigue en el chat cuando estás desconectado.",
-  "beatDesc": "Los comandos, la moderación y los temporizadores siguen funcionando entre directos."
+  "beatDesc": "Los comandos siguen respondiendo entre directos, y cualquier temporizador que configures para publicar sin conexión sigue publicando."
 }

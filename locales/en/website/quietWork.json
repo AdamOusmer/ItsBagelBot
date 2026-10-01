@@ -18,5 +18,5 @@
   "winTitle": "Every entry gets the same odds.",
   "winDesc": "The draw is random and the result is logged.",
   "beatTitle": "It stays in chat when you're offline.",
-  "beatDesc": "Commands, moderation and timers keep running between streams."
+  "beatDesc": "Commands keep answering between streams, and any timer you set to post offline keeps posting."
 }

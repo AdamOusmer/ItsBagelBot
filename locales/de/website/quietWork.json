@@ -18,5 +18,5 @@
   "winTitle": "Jede Teilnahme hat dieselben Chancen.",
   "winDesc": "Die Auslosung ist zufällig und das Ergebnis wird protokolliert.",
   "beatTitle": "Er bleibt im Chat, wenn du offline bist.",
-  "beatDesc": "Befehle, Moderation und Timer laufen zwischen Streams weiter."
+  "beatDesc": "Befehle antworten auch zwischen den Streams, und jeder Timer, den du auf offline stellst, postet weiter."
 }

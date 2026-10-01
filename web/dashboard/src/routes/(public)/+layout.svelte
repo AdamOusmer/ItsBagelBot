@@ -27,7 +27,7 @@
 
   const { t, locale } = getI18n();
 
-  const webPath = $derived((path: string) => webHref(locale, path));
+  const webPath = $derived((path: string, englishOnly?: boolean) => webHref(englishOnly ? 'en' : locale, path));
 
   const langQuery = $derived(locale === 'en' ? '' : `?lang=${locale}`);
 

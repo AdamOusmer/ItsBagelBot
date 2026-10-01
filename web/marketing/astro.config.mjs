@@ -15,6 +15,7 @@ export default defineConfig({
   compressHTML: true,
   integrations: [
     sitemap({
+      filter: (page) => !/\/changelog\/v[^/]+\/$/.test(page),
       i18n: {
         defaultLocale,
         locales: Object.fromEntries(locales.map((l) => [l, l])),

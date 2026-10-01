@@ -18,5 +18,5 @@
   "winTitle": "Cada inscrição tem a mesma chance.",
   "winDesc": "O sorteio é aleatório e o resultado é registrado.",
   "beatTitle": "Ele fica no chat quando você está offline.",
-  "beatDesc": "Comandos, moderação e timers continuam funcionando entre transmissões."
+  "beatDesc": "Os comandos continuam respondendo entre as lives, e qualquer timer configurado para postar offline continua postando."
 }

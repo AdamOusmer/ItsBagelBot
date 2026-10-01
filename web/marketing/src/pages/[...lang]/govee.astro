@@ -1,0 +1,49 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+
+export const getStaticPaths = localeStaticPaths;
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')}>
+    <FeatureLanding
+        eyebrow={t('govee.eyebrow')}
+        title={t('govee.title')}
+        lead={t('govee.lead')}
+        howEyebrow={t('govee.howEyebrow')}
+        howTitle={t('govee.howTitle')}
+        steps={[
+            { title: t('govee.step1Title'), desc: t('govee.step1Desc') },
+            { title: t('govee.step2Title'), desc: t('govee.step2Desc') },
+            { title: t('govee.step3Title'), desc: t('govee.step3Desc') },
+        ]}
+        listEyebrow={t('govee.listEyebrow')}
+        listTitle={t('govee.listTitle')}
+        listItems={[
+            { name: t('govee.item1Name'), desc: t('govee.item1Desc') },
+            { name: t('govee.item2Name'), desc: t('govee.item2Desc') },
+            { name: t('govee.item3Name'), desc: t('govee.item3Desc') },
+            { name: t('govee.item4Name'), desc: t('govee.item4Desc') },
+        ]}
+        listNote={t('govee.listNote')}
+        faqEyebrow={t('govee.faqEyebrow')}
+        faqTitle={t('govee.faqTitle')}
+        faqItems={[
+            { question: t('govee.faqQ1'), answer: t('govee.faqA1') },
+            { question: t('govee.faqQ2'), answer: t('govee.faqA2') },
+            { question: t('govee.faqQ3'), answer: t('govee.faqA3') },
+            { question: t('govee.faqQ4'), answer: t('govee.faqA4') },
+            { question: t('govee.faqQ5'), answer: t('govee.faqA5') },
+        ]}
+        ctaTitle={t('govee.ctaTitle')}
+        ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
+        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('govee.ctaGuide') }}
+    />
+</Layout>
