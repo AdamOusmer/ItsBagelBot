@@ -495,7 +495,7 @@ describe('ProfileMenu', () => {
     const html = normalise(
       render(SvelteProfileMenu, { props: { ...base, variant: 'rail', links: [{ href: '/c/alpha', label: 'Alpha' }] } }).body,
     );
-    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" title="Mavey · Owner" aria-expanded="false" aria-haspopup="menu">');
+    expect(html).toContain('<button class="bb-profile-rail__account bb-profile-rail__account--btn" type="button" aria-expanded="false" aria-haspopup="menu">');
     expect(html).toContain(`<span class="bb-profile-rail__chev" aria-hidden="true">${icon('chevron', 14)}</span>`);
   });
 });

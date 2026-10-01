@@ -714,17 +714,12 @@
     /* A rail uses this dock as its phone navigation. Keep destination names
        visible on touch, where the rail and hover labels are unavailable. */
     .bb-shell--railed .bb-dock-item,
-    .bb-shell--railed .bb-dock-item[data-active] { flex: 1; padding-inline: 3px; }
+    .bb-shell--railed .bb-dock-item[data-active] { flex: 1; }
     .bb-shell--railed .bb-dock-item__label {
-      display: -webkit-box;
+      display: block;
       width: 100%;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-      overflow: hidden;
       white-space: normal;
       overflow-wrap: anywhere;
-      hyphens: auto;
       text-align: center;
       font-size: 10px;
       line-height: 1.2;

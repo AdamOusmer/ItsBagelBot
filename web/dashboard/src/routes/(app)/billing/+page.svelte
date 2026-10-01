@@ -798,7 +798,7 @@
   .plan-amt {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    font-size: clamp(2rem, 9vw, 3rem);
+    font-size: 3rem;
     line-height: 1;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);

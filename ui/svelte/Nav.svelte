@@ -11,7 +11,6 @@
   import MobileMenu from './MobileMenu.svelte';
   import LanguageSwitcher from './LanguageSwitcher.svelte';
   import { mountHomeLogo, mountTopDownMenu } from '../lib/nav-menu';
-  import { mountNavFit, navFitElements } from '../lib/nav-fit';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
@@ -76,9 +75,6 @@
       );
     }
     if (logo) disposers.push(mountHomeLogo(logo));
-
-    const fit = navEl && navFitElements(navEl);
-    if (fit) disposers.push(mountNavFit(fit));
 
     return () => {
       for (const dispose of disposers) dispose();

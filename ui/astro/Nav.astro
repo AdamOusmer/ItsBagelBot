@@ -56,7 +56,6 @@ const menuPanel = menuLabels.panel ?? t('nav.menu');
 
 <script>
   import { mountTopDownMenu, mountHomeLogo } from '../lib/nav-menu';
-  import { mountNavFit, navFitElements } from '../lib/nav-fit';
 
   let disposers: (() => void)[] = [];
 
@@ -84,41 +83,13 @@ const menuPanel = menuLabels.panel ?? t('nav.menu');
     disposers.push(mountHomeLogo(logo));
   }
 
-  function mountFit(): void {
-    const bar = document.querySelector<HTMLElement>('.bb-nav');
-    if (!bar || bar.dataset.fitReady === '1') return;
-    const elements = navFitElements(bar);
-    if (!elements) return;
-    bar.dataset.fitReady = '1';
-    disposers.push(mountNavFit(elements));
-  }
-
   function mount(): void {
     mountMenu();
     mountLogo();
-    mountFit();
-  }
-
-  function carryFit(event: Event): void {
-    const collapsed = document.querySelector<HTMLElement>('.bb-nav')?.dataset.navCollapsed;
-    const next = (event as Event & { newDocument?: Document }).newDocument?.querySelector<HTMLElement>('.bb-nav');
-    if (collapsed && next) next.dataset.navCollapsed = collapsed;
-    unmount();
-  }
-
-  function release(): void {
-    unmount();
-    for (const el of document.querySelectorAll<HTMLElement>('[data-menu-toggle], [data-home-logo], .bb-nav')) {
-      delete el.dataset.ready;
-      delete el.dataset.fitReady;
-    }
   }
 
   mount();
   document.addEventListener('astro:page-load', mount);
-  document.addEventListener('astro:before-swap', carryFit);
-  window.addEventListener('pagehide', release);
-  window.addEventListener('pageshow', (event) => {
-    if (event.persisted) mount();
-  });
+  document.addEventListener('astro:before-swap', unmount);
+  window.addEventListener('pagehide', unmount);
 </script>

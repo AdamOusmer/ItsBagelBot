@@ -21,9 +21,7 @@
   }
 
   .bb-page-head__trail {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%;
+    flex: none;
   }
 
   .bb-page-head__eyebrow {
@@ -44,8 +42,6 @@
     letter-spacing: -0.01em;
     color: var(--bb-white);
     margin: 0;
-    overflow-wrap: anywhere;
-    hyphens: auto;
   }
 
   .bb-page-head h1 em {
@@ -86,18 +82,18 @@
   .bb-toolbar {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 12px;
-    min-width: 0;
     margin-bottom: 18px;
-  }
-
-  .bb-toolbar > * {
-    min-width: 0;
   }
 
   .bb-toolbar__grow {
     flex: 1;
+  }
+
+  @media (max-width: 600px) {
+    .bb-toolbar {
+      flex-wrap: wrap;
+    }
   }
 
   .bb-scroller {
