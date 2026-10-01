@@ -80,6 +80,7 @@
           >{:else}<a
             class={optClass(option)}
             href={option.href}
+            data-astro-prefetch={option.current ? undefined : 'viewport'}
             hreflang={option.code}
             aria-current={option.current ? 'true' : undefined}>{@render row(option)}</a
           >{/if}</li

@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { observeDecode } from '@bagel/ui/lib/decode';
+import { getLangSwitchScrollY } from '../i18n/route-transition';
 
 let dispose = null;
 
@@ -12,7 +13,7 @@ function teardown() {
 
 function setup() {
     teardown();
-    dispose = observeDecode(document);
+    dispose = observeDecode(document, {instant: getLangSwitchScrollY() !== null});
 }
 
 setup();

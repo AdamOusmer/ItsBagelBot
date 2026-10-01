@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { observeReveal } from '@bagel/ui/lib/reveal';
+import { getLangSwitchScrollY } from '../i18n/route-transition';
 
 let dispose = null;
 
@@ -12,7 +13,7 @@ function teardown() {
 
 function setup() {
     teardown();
-    dispose = observeReveal(document);
+    dispose = observeReveal(document, {instant: getLangSwitchScrollY() !== null});
 }
 
 setup();
