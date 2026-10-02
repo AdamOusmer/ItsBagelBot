@@ -4,13 +4,16 @@
 package twitch
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"strconv"
+
+	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/pkg/codec"
 )
 
 type StreamStatus struct {
 	BroadcasterID uint64
 	Live          bool
+	Version       int64
 }
 
 type eventSubEnvelope struct {
@@ -21,6 +24,7 @@ type eventSubEnvelope struct {
 	Event struct {
 		BroadcasterUserID string `json:"broadcaster_user_id"`
 	} `json:"event"`
+	ReceivedAt string `json:"received_at"`
 }
 
 func (e eventSubEnvelope) effectiveType() string {
@@ -49,5 +53,6 @@ func DecodeStreamStatus(raw []byte) (StreamStatus, bool) {
 	return StreamStatus{
 		BroadcasterID: id,
 		Live:          et == "stream.online",
+		Version:       lane.Envelope{ReceivedAt: env.ReceivedAt}.EventVersion(),
 	}, true
 }

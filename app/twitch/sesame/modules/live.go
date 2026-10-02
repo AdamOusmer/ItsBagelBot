@@ -70,8 +70,12 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 		seqOrGo(d.Seq, id, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
 			defer cancel()
-			if _, err := d.Live.ClearLive(wctx, id, version); err != nil {
+			applied, err := d.Live.ClearLive(wctx, id, version)
+			if err != nil {
 				log.Warn("live: failed to clear live", module.BIDField(id), zap.Error(err))
+			}
+			if !applied {
+				return
 			}
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)

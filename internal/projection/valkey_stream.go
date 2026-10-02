@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 
@@ -25,6 +26,9 @@ const (
 	streamCtrMessagesField  = "streamctr:messages"
 	streamCtrAnsweredField  = "streamctr:answered"
 	streamCtrModActionField = "streamctr:mod_actions"
+
+	streamLiveField        = "live"
+	streamLiveVersionField = "live_ver"
 )
 
 func streamUserKey(userID string) (string, error) {
@@ -35,34 +39,81 @@ func streamUserKey(userID string) (string, error) {
 	return cache.UserKey(settingsKeyPrefix, id), nil
 }
 
-func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (live bool, known bool, err error) {
+type StreamLive struct {
+	Live    bool
+	Known   bool
+	Version int64
+}
+
+type StreamLiveFold struct {
+	Applied bool
+	WasLive bool
+}
+
+type optionalInts struct {
+	err error
+}
+
+func (o *optionalInts) read(res valkey.ValkeyResult) (value int64, present bool) {
+	text, err := res.ToString()
+	switch {
+	case valkey.IsValkeyNil(err):
+		return 0, false
+	case err != nil:
+		o.err = err
+		return 0, false
+	}
+	value, _ = strconv.ParseInt(text, 10, 64)
+	return value, true
+}
+
+// Newest version wins between the projected flag and the live key; either alone can be stale.
+func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (StreamLive, error) {
 	defer segment(ctx, "HGET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hget().Key(key).Field("live").Build()).ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, false, nil
-		}
-		return false, false, err
+	res := v.client.DoMulti(ctx,
+		v.client.B().Hget().Key(key).Field(streamLiveField).Build(),
+		v.client.B().Hget().Key(key).Field(streamLiveVersionField).Build(),
+		v.client.B().Get().Key(livekey.Key(userID)).Build(),
+		v.client.B().Get().Key(livekey.VerKey(userID)).Build(),
+	)
+
+	var ints optionalInts
+	projectedLive, projectedKnown := ints.read(res[0])
+	projectedVersion, _ := ints.read(res[1])
+	_, confirmedLive := ints.read(res[2])
+	confirmedVersion, _ := ints.read(res[3])
+	if ints.err != nil {
+		return StreamLive{}, ints.err
 	}
-	return res == "1", true, nil
+
+	if confirmedVersion > projectedVersion {
+		return StreamLive{Live: confirmedLive, Known: true, Version: confirmedVersion}, nil
+	}
+	return StreamLive{Live: projectedLive == 1, Known: projectedKnown, Version: projectedVersion}, nil
 }
 
-func (v *Store) SetStreamLive(ctx context.Context, userID uint64, live bool) error {
+var foldStreamLiveScript = valkey.NewLuaScript(`local cur = tonumber(redis.call('HGET', KEYS[1], 'live_ver'))
+if cur and cur > tonumber(ARGV[2]) then return -1 end
+local was = redis.call('HGET', KEYS[1], 'live')
+redis.call('HSET', KEYS[1], 'live', ARGV[1], 'live_ver', ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[3], 'NX')
+redis.call('EXPIRE', KEYS[1], ARGV[3], 'GT')
+if was == '1' then return 1 end
+return 0`)
 
-	defer segment(ctx, "HSET")()
+func (v *Store) SetStreamLive(ctx context.Context, userID uint64, next StreamLive) (StreamLiveFold, error) {
+	defer segment(ctx, "EVALSHA")()
 
-	key := cache.UserKey(settingsKeyPrefix, userID)
-
-	return v.pipelineWithTTL(ctx, key, DefaultTTL,
-		v.client.B().Hset().
-			Key(key).
-			FieldValue().
-			FieldValue("live", utils.BoolField(live)).
-			Build(),
-	)
+	prior, err := foldStreamLiveScript.Exec(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, userID)}, []string{
+		utils.BoolField(next.Live), strconv.FormatInt(next.Version, 10), strconv.FormatInt(int64(DefaultTTL/time.Second), 10),
+	}).AsInt64()
+	if err != nil {
+		return StreamLiveFold{}, err
+	}
+	return StreamLiveFold{Applied: prior >= 0, WasLive: prior == 1}, nil
 }
 
 type StreamInfo struct {
