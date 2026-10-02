@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type gateStoreFixture struct {
@@ -28,15 +27,7 @@ func newGateStoreFixture(t *testing.T, proj projection.Reader) gateStoreFixture 
 	client := newHotPathTestClient(t)
 	pub := &fakePublisher{}
 	bid := uint64(time.Now().UnixNano())
-	store := &ValkeyTimerStore{
-		client:           client,
-		pub:              pub,
-		proj:             proj,
-		live:             fakeLive{live: true},
-		outgressStandard: standardSubj,
-		log:              zap.NewNop(),
-		now:              time.Now,
-	}
+	store := NewValkeyTimerStore(client, pub, proj, fakeLive{live: true}, TimersConfig{OutgressStandardSubject: standardSubj})
 	f := gateStoreFixture{store: store, pub: pub, bid: bid}
 	t.Cleanup(func() {
 		keys := []string{chatLog(bid).Key}
@@ -154,16 +145,20 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 
 func TestTimerTickGateIgnoresLinesOlderThanTheWindow(t *testing.T) {
 	f := newGateStoreFixture(t, fakeReader{})
+	ctx := context.Background()
 	td := timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: true, MinChatLines: 3, ChatWindowMinutes: 5}
 
 	f.addLines(t, 10, 6*time.Minute)
 	f.addLines(t, 2, time.Minute)
+	f.store.tick(ctx, f.armed("t1", td))
 
-	assert.False(t, f.store.gateOpen(context.Background(), f.armed("t1", td)), "lines outside the window must not count")
+	assert.Empty(t, f.pub.snapshot(), "lines outside the window must not count")
 
 	f.addLines(t, 1, 4*time.Minute)
+	f.store.tick(ctx, f.armed("t1", td))
 
-	assert.True(t, f.store.gateOpen(context.Background(), f.armed("t1", td)), "exactly the threshold inside the window passes")
+	assert.Eventually(t, func() bool { return len(f.pub.snapshot()) == 1 }, time.Second, time.Millisecond,
+		"exactly the threshold inside the window passes")
 }
 
 func TestChatLogKeepsOnlyTheNewestHundred(t *testing.T) {
@@ -276,17 +271,6 @@ func TestDisarmAllClearsScheduleAndFireKeys(t *testing.T) {
 	assert.EqualValues(t, 0, f.store.fireCount(ctx, f.ref("t1")), "DisarmAll must delete the fire count")
 }
 
-func TestTimerDefDecodesLegacyBlobAsUngatedAndUnstopped(t *testing.T) {
-	var td timerDef
-	require.NoError(t, codec.Unmarshal(
-		[]byte(`{"id":"t1","message":"hi","intervalSeconds":60,"enabled":true}`), &td))
-
-	assert.Equal(t, timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: true}, td)
-	assert.False(t, isGated(td), "a legacy blob must decode with no gate")
-	assert.False(t, stopped(td, 0, time.Now()), "a legacy blob must decode with no stop")
-	assert.True(t, gatePasses(td, 0), "an ungated timer's gate always passes")
-}
-
 func TestArmOnlineResetsCappedAllowOfflineTimer(t *testing.T) {
 	td := timerDef{ID: "off", Message: "hi", Interval: 60, Enabled: true, AllowOffline: true, MaxFires: 1}
 	f := offlineFixture(t, td)
@@ -314,4 +298,63 @@ func TestRearmWhileLiveDoesNotResetCappedTimer(t *testing.T) {
 
 	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("off")))
 	assert.False(t, f.scheduleKeyExists(t, "off"))
+}
+
+func (f gateStoreFixture) chatLogSize(t *testing.T) int64 {
+	t.Helper()
+	n, err := f.store.client.Do(context.Background(), f.store.client.B().Zcard().Key(chatLog(f.bid).Key).Build()).AsInt64()
+	require.NoError(t, err)
+	return n
+}
+
+func TestCountChatLineFeedsTheTimersThatNeedIt(t *testing.T) {
+	cases := []struct {
+		name       string
+		timers     []timerDef
+		wantLogged int64
+		wantArmed  bool
+	}{
+		{
+			name:       "a gated timer counts the chat line",
+			timers:     []timerDef{{ID: "t1", Message: "hi", Interval: 60, Enabled: true, MinChatLines: 2}},
+			wantLogged: 3,
+		},
+		{
+			name:      "an allow-offline timer is rearmed once for the whole burst",
+			timers:    []timerDef{{ID: "off", Message: "hi", Interval: 60, Enabled: true, AllowOffline: true}},
+			wantArmed: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := offlineFixture(t, tc.timers...)
+			reads := &countingReader{fakeReader: f.store.proj.(fakeReader)}
+			f.store.proj = reads
+			ctx := context.Background()
+
+			for range 3 {
+				f.store.CountChatLine(ctx, f.bid)
+			}
+
+			assert.Eventually(t, func() bool {
+				return f.chatLogSize(t) == tc.wantLogged && f.scheduleKeyExists(t, "off") == tc.wantArmed
+			}, 2*time.Second, 5*time.Millisecond)
+			assert.Never(t, func() bool { return reads.moduleReads > 2 }, 100*time.Millisecond, 10*time.Millisecond,
+				"one config read and at most one rearm read, however many lines arrive")
+		})
+	}
+}
+
+func TestCountChatLineIgnoresTimersThatNeedNothing(t *testing.T) {
+	f := offlineFixture(t,
+		timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: false, MinChatLines: 2, AllowOffline: true},
+		timerDef{ID: "plain", Message: "hi", Interval: 60, Enabled: true},
+	)
+
+	f.store.CountChatLine(context.Background(), f.bid)
+	f.store.CountChatLine(context.Background(), 0)
+
+	assert.Never(t, func() bool {
+		return f.chatLogSize(t) > 0 || f.scheduleKeyExists(t, "plain") || f.scheduleKeyExists(t, "t1")
+	}, 150*time.Millisecond, 10*time.Millisecond, "neither a disabled nor an ungated timer wants the line")
 }

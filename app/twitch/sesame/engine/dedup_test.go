@@ -11,12 +11,67 @@ import (
 
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+func usedCounts(t *testing.T, pub *rawPublisher) []int64 {
+	t.Helper()
+	var counts []int64
+	for _, payload := range pub.payloads[data.SubjectCommandUsed] {
+		var dto data.CommandUsedDTO
+		require.NoError(t, codec.Unmarshal(payload, &dto))
+		counts = append(counts, dto.Count)
+	}
+	return counts
+}
+
+func TestEventDedupGuardsOnlyTheEffectsThatCount(t *testing.T) {
+	cases := []struct {
+		name       string
+		text       string
+		reader     fakeReader
+		wantKey    string
+		wantCounts []int64
+	}{
+		{
+			name:       "a replayed command counts its use once",
+			text:       "!foo",
+			reader:     fakeReader{cmd: projection.Command{Name: "foo", Response: "hi", IsActive: true}, cmdFound: true},
+			wantKey:    "m1:" + effectUse,
+			wantCounts: []int64{1},
+		},
+		{name: "a plain chat message never consults the store", text: "just chatting, not a command"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newRecordingStore()
+			pub := &rawPublisher{}
+			d := Deps{
+				Proj: tc.reader, Live: liveAlways{}, Cooldown: NoopCooldown{},
+				Pub: pub, Log: zap.NewNop(),
+				Dedup: NewEventDedup(store, "sesame:seen:", time.Minute, zap.NewNop()),
+			}
+			p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
+				OutgressPremium: premiumSubj, OutgressStandard: standardSubj, CountUses: true,
+			})
+
+			require.NoError(t, p.Process(commandMsg(t, "m1", tc.text)))
+			require.NoError(t, p.Process(commandMsg(t, "m1", tc.text)))
+			p.Close()
+
+			assert.Equal(t, tc.wantCounts, usedCounts(t, pub))
+			if tc.wantKey == "" {
+				assert.Empty(t, store.keys())
+				return
+			}
+			assert.Contains(t, store.keys(), tc.wantKey)
+		})
+	}
+}
 
 type recordingStore struct {
 	mu     sync.Mutex
@@ -48,67 +103,4 @@ func (r *recordingStore) keys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]string(nil), r.seen...)
-}
-
-func usedCount(t *testing.T, pub *rawPublisher) int64 {
-	t.Helper()
-	msgs := pub.payloads[data.SubjectCommandUsed]
-	require.Len(t, msgs, 1, "expected exactly one summed command-use publish")
-	var dto data.CommandUsedDTO
-	require.NoError(t, codec.Unmarshal(msgs[0], &dto))
-	return dto.Count
-}
-
-func commandMsg(t *testing.T, msgID, text string) *bus.Message {
-	t.Helper()
-	body, err := codec.Marshal(map[string]any{
-		"type":                chatType,
-		"lane":                "standard",
-		"msg_id":              msgID,
-		"broadcaster_user_id": "123",
-		"chatter_user_id":     "999",
-		"text":                text,
-	})
-	require.NoError(t, err)
-	return bus.NewMessage("uuid-"+msgID, body)
-}
-
-func TestGuardedHandlerDedupsReplay(t *testing.T) {
-	store := newRecordingStore()
-	pub := &rawPublisher{}
-	reader := fakeReader{cmd: projection.Command{Name: "foo", Response: "hi", IsActive: true}, cmdFound: true}
-
-	d := Deps{
-		Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{},
-		Pub: pub, Log: zap.NewNop(),
-		Dedup: NewEventDedup(store, "sesame:seen:", time.Minute, zap.NewNop()),
-	}
-	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
-		OutgressPremium: premiumSubj, OutgressStandard: standardSubj, CountUses: true,
-	})
-
-	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo")))
-	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo")))
-	p.Close()
-
-	require.Contains(t, store.keys(), "m1:"+effectUse, "the use-counter effect should consult the guard")
-	require.Equal(t, int64(1), usedCount(t, pub), "a replayed command must count once, not twice")
-}
-
-func TestFirehoseSkipsGuard(t *testing.T) {
-	store := newRecordingStore()
-	pub := &rawPublisher{}
-
-	d := Deps{
-		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
-		Pub: pub, Log: zap.NewNop(),
-		Dedup: NewEventDedup(store, "sesame:seen:", time.Minute, zap.NewNop()),
-	}
-	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{
-		OutgressPremium: premiumSubj, OutgressStandard: standardSubj, CountUses: true,
-	})
-	defer p.Close()
-
-	require.NoError(t, p.Process(commandMsg(t, "m2", "just chatting, not a command")))
-	require.Empty(t, store.keys(), "a plain-chat firehose message must not consult the dedup store")
 }

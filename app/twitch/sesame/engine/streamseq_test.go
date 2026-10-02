@@ -4,6 +4,9 @@
 package engine
 
 import (
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,7 +19,7 @@ type seqRecorder struct {
 	ran []string
 }
 
-func (r *seqRecorder) record(name string) {
+func (r *seqRecorder) noteRan(name string) {
 	r.mu.Lock()
 	r.ran = append(r.ran, name)
 	r.mu.Unlock()
@@ -28,50 +31,41 @@ func (r *seqRecorder) names() []string {
 	return append([]string(nil), r.ran...)
 }
 
-func TestSequencerRunsPerBroadcasterInArrivalOrder(t *testing.T) {
-	s := NewSequencer()
-	rec := &seqRecorder{}
-	for i := range 20 {
-		name := "task" + string(rune('a'+i))
-		s.Do(7, func() { rec.record(name) })
-	}
-	assert.Eventually(t, func() bool { return len(rec.names()) == 20 }, time.Second, time.Millisecond)
-	want := make([]string, 0, 20)
-	for i := range 20 {
-		want = append(want, "task"+string(rune('a'+i)))
-	}
-	assert.Equal(t, want, rec.names(), "tasks must run strictly in enqueue order")
+func (r *seqRecorder) namesFor(broadcaster uint64) []string {
+	prefix := strconv.FormatUint(broadcaster, 10) + ":"
+	return slices.DeleteFunc(r.names(), func(name string) bool { return !strings.HasPrefix(name, prefix) })
 }
 
-func TestSequencerKeepsBroadcasterQueuesIndependent(t *testing.T) {
-	s := NewSequencer()
-	rec := &seqRecorder{}
-	var wg sync.WaitGroup
-	for _, id := range []uint64{1, 2, 3, 4} {
-		for i := range 10 {
-			wg.Add(1)
-			s.Do(id, func() {
-				rec.record(string(rune('a'+id-1)) + string(rune('a'+i)))
-				wg.Done()
-			})
-		}
+type numberedRun struct {
+	seq *Sequencer
+	rec *seqRecorder
+	wg  sync.WaitGroup
+}
+
+func (r *numberedRun) enqueue(broadcaster uint64, count int) []string {
+	want := make([]string, count)
+	for i := range count {
+		name := strconv.FormatUint(broadcaster, 10) + ":" + strconv.Itoa(i)
+		want[i] = name
+		r.wg.Add(1)
+		r.seq.Do(broadcaster, func() {
+			r.rec.noteRan(name)
+			r.wg.Done()
+		})
 	}
-	wg.Wait()
-	names := rec.names()
-	assert.Len(t, names, 40)
+	return want
+}
+
+func TestSequencerRunsEachBroadcasterInArrivalOrder(t *testing.T) {
+	run := &numberedRun{seq: NewSequencer(), rec: &seqRecorder{}}
+	want := map[uint64][]string{}
 	for _, id := range []uint64{1, 2, 3, 4} {
-		prefix := string(rune('a' + id - 1))
-		var got []string
-		for _, n := range names {
-			if len(n) == 2 && n[0] == prefix[0] {
-				got = append(got, n[1:])
-			}
-		}
-		want := make([]string, 0, 10)
-		for i := range 10 {
-			want = append(want, string(rune('a'+i)))
-		}
-		assert.Equal(t, want, got, "broadcaster %d lost ordering", id)
+		want[id] = run.enqueue(id, 20)
+	}
+	run.wg.Wait()
+
+	for id, names := range want {
+		assert.Equal(t, names, run.rec.namesFor(id), "broadcaster %d lost ordering", id)
 	}
 }
 
@@ -80,10 +74,10 @@ func TestSequencerWaitsForSlowTaskBeforeStartingNext(t *testing.T) {
 	rec := &seqRecorder{}
 	release := make(chan struct{})
 	s.Do(9, func() {
-		rec.record("slow")
+		rec.noteRan("slow")
 		<-release
 	})
-	s.Do(9, func() { rec.record("after") })
+	s.Do(9, func() { rec.noteRan("after") })
 	assert.Never(t, func() bool { return len(rec.names()) > 1 }, 50*time.Millisecond, 5*time.Millisecond,
 		"task ran before its predecessor completed")
 	close(release)
@@ -94,14 +88,14 @@ func TestSequencerWaitsForSlowTaskBeforeStartingNext(t *testing.T) {
 func TestSequencerRespawnsPumpAfterIdle(t *testing.T) {
 	s := NewSequencer()
 	rec := &seqRecorder{}
-	s.Do(5, func() { rec.record("first") })
+	s.Do(5, func() { rec.noteRan("first") })
 	assert.Eventually(t, func() bool { return len(rec.names()) == 1 }, time.Second, time.Millisecond)
 	assert.Eventually(t, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		return len(s.seqs) == 0
 	}, time.Second, time.Millisecond, "drained queue must be reaped")
-	s.Do(5, func() { rec.record("second") })
+	s.Do(5, func() { rec.noteRan("second") })
 	assert.Eventually(t, func() bool { return len(rec.names()) == 2 }, time.Second, time.Millisecond)
 	assert.Equal(t, []string{"first", "second"}, rec.names())
 }
@@ -110,10 +104,10 @@ func TestSequencerIgnoresZeroIDAndNilTask(t *testing.T) {
 	s := NewSequencer()
 	rec := &seqRecorder{}
 	assert.NotPanics(t, func() {
-		s.Do(0, func() { rec.record("zero-id") })
+		s.Do(0, func() { rec.noteRan("zero-id") })
 		s.Do(3, nil)
 	})
-	s.Do(3, func() { rec.record("real") })
+	s.Do(3, func() { rec.noteRan("real") })
 	assert.Eventually(t, func() bool { return len(rec.names()) == 1 }, time.Second, time.Millisecond)
 	assert.Equal(t, []string{"real"}, rec.names())
 }
@@ -126,7 +120,7 @@ func TestSequencerConcurrentDoIsSafe(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			s.Do(uint64(1+i%4), func() { rec.record("t") })
+			s.Do(uint64(1+i%4), func() { rec.noteRan("t") })
 		}(i)
 	}
 	wg.Wait()

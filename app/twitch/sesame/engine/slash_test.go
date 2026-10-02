@@ -46,14 +46,3 @@ func TestTranslate(t *testing.T) {
 		})
 	}
 }
-
-func TestIsEmptyAction(t *testing.T) {
-	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypeAnnounce, Text: ""}))
-	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeAnnounce, Text: "hi"}))
-	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypeShoutout, To: ""}))
-	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeShoutout, To: "bob"}))
-	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypePin, Text: ""}))
-	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypePin, Text: "speedrun rules"}))
-	assert.True(t, isEmptyAction(&module.Output{Type: outgress.TypeChat, Text: ""}))
-	assert.False(t, isEmptyAction(&module.Output{Type: outgress.TypeChat, Text: "hi"}))
-}

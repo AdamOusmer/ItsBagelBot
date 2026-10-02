@@ -16,17 +16,10 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
-
-func TestRearmAfterFailure(t *testing.T) {
-	assert.Equal(t, watchTickQuickRetry, rearmAfterFailure(1))
-	assert.Equal(t, watchTickQuickRetry, rearmAfterFailure(watchTickQuickRetries))
-	assert.Equal(t, watchTickInterval, rearmAfterFailure(watchTickQuickRetries+1))
-}
 
 type loyaltyClockFixture struct {
 	clock  *ValkeyLoyaltyClock

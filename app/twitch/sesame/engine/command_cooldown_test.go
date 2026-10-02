@@ -4,16 +4,18 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,23 +92,15 @@ type invocation struct {
 	runs    bool
 }
 
-func (i invocation) context() *module.Context {
-	channel := i.channel
-	if channel == 0 {
-		channel = 123
-	}
-	text := i.text
-	if text == "" {
-		text = "!hello"
-	}
-	env := lane.Envelope{
+func (i invocation) envelope() lane.Envelope {
+	return lane.Envelope{
 		Type:              chatType,
-		Text:              text,
-		BroadcasterUserID: strconv.FormatUint(channel, 10),
+		Lane:              "standard",
+		Text:              cmp.Or(i.text, "!hello"),
+		BroadcasterUserID: strconv.FormatUint(cmp.Or(i.channel, 123), 10),
 		ChatterUserID:     i.viewer,
 		ChatterUserLogin:  "viewer" + i.viewer,
 	}
-	return &module.Context{Env: env, BroadcasterID: channel, Log: zap.NewNop()}
 }
 
 func TestCommandCooldownScopes(t *testing.T) {
@@ -178,9 +172,9 @@ func TestCommandCooldownScopes(t *testing.T) {
 			p := cooldownPipeline(cooldownCommand(tc.global, tc.perUser), store)
 			for i, step := range tc.steps {
 				store.elapse(step.after)
-				got, err := dispatch(t, p, step.context())
+				got, err := runChat(t, p, step.envelope())
 				require.NoError(t, err)
-				assert.Equal(t, step.runs, len(got) == 1, "step %d: viewer %s ran %q", i, step.viewer, step.context().Env.Text)
+				assert.Equal(t, step.runs, len(got) == 1, "step %d: viewer %s ran %q", i, step.viewer, step.envelope().Text)
 			}
 		})
 	}
@@ -190,10 +184,10 @@ func TestCommandCooldownRejectionClaimsNothing(t *testing.T) {
 	store := newWindowStore()
 	p := cooldownPipeline(cooldownCommand(5, 60), store)
 
-	_, err := dispatch(t, p, invocation{viewer: "1"}.context())
+	_, err := runChat(t, p, invocation{viewer: "1"}.envelope())
 	require.NoError(t, err)
 	store.elapse(5 * time.Second)
-	got, err := dispatch(t, p, invocation{viewer: "1"}.context())
+	got, err := runChat(t, p, invocation{viewer: "1"}.envelope())
 	require.NoError(t, err)
 	require.Empty(t, got)
 
@@ -243,22 +237,23 @@ func TestValkeyCommandCooldownAcrossReplicas(t *testing.T) {
 	t.Cleanup(func() {
 		keys := []string{CommandCooldownKey(channel, "hello")}
 		for v := range 3 {
-			keys = append(keys, gateRule{name: "hello"}.viewerCooldownKey(invocation{channel: channel, viewer: strconv.Itoa(v)}.context()))
+			viewerCtx := &module.Context{Env: invocation{channel: channel, viewer: strconv.Itoa(v)}.envelope(), BroadcasterID: channel}
+			keys = append(keys, gateRule{name: "hello"}.viewerCooldownKey(viewerCtx))
 		}
 		client.Do(ctx, client.B().Del().Key(keys...).Build())
 	})
 
-	var ran atomic.Int32
 	var wg sync.WaitGroup
 	for i := range 40 {
 		wg.Go(func() {
-			text := []string{"!hello", "!hi"}[i%2]
-			got, err := dispatch(t, replicas[i%2], invocation{channel: channel, viewer: strconv.Itoa(i % 3), text: text}.context())
+			env := invocation{channel: channel, viewer: strconv.Itoa(i % 3), text: []string{"!hello", "!hi"}[i%2]}.envelope()
+			body, err := codec.Marshal(env)
 			assert.NoError(t, err)
-			ran.Add(int32(len(got)))
+			assert.NoError(t, replicas[i%2].Process(bus.NewMessage("uuid-cooldown", body)))
 		})
 	}
 	wg.Wait()
 
-	assert.Equal(t, int32(1), ran.Load(), "one invocation wins the shared window across replicas and aliases")
+	published := len(replicas[0].pub.(*fakePublisher).snapshot()) + len(replicas[1].pub.(*fakePublisher).snapshot())
+	assert.Equal(t, 1, published, "one invocation wins the shared window across replicas and aliases")
 }
