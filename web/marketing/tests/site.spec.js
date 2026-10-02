@@ -285,6 +285,17 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"][aria-current="page"]')).toHaveCount(1);
     });
 
+    test('nav button marker is turned a quarter into a diamond', async ({ page }) => {
+        await page.goto('/');
+        const turn = await page.locator('.bb-nav a.bb-nav__cta').evaluate((el) => {
+            const style = getComputedStyle(el, '::before');
+            const matrix = new DOMMatrix(style.transform === 'none' ? undefined : style.transform);
+            const extra = style.rotate === 'none' ? 0 : parseFloat(style.rotate);
+            return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI + extra);
+        });
+        expect(turn).toBe(45);
+    });
+
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
