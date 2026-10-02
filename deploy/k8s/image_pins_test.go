@@ -6,6 +6,8 @@ package k8s
 import (
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var firstPartyImage = regexp.MustCompile(`(?m)^\s*(?:-\s+)?image:\s*["']?ghcr\.io/adamousmer/itsbagelbot/` +
@@ -13,28 +15,17 @@ var firstPartyImage = regexp.MustCompile(`(?m)^\s*(?:-\s+)?image:\s*["']?ghcr\.i
 
 var awaitingFirstPin = map[string]string{}
 
-type pinnedImage struct {
-	file   string
-	image  string
-	pinned bool
-}
-
 func TestFirstPartyImagesArePinnedByDigest(t *testing.T) {
 	for _, filename := range manifestFilenames(t) {
-		body := sourceFile{name: filename}.read(t)
-		for _, match := range firstPartyImage.FindAllStringSubmatch(body, -1) {
-			checkPin(t, pinnedImage{file: filename, image: match[1], pinned: match[3] != ""})
-		}
-	}
-}
+		for _, match := range firstPartyImage.FindAllStringSubmatch(readText(t, filename), -1) {
+			image, pinned := match[1], match[3] != ""
+			_, awaiting := awaitingFirstPin[image]
 
-func checkPin(t *testing.T, p pinnedImage) {
-	t.Helper()
-	_, awaiting := awaitingFirstPin[p.image]
-	switch {
-	case p.pinned && awaiting:
-		t.Errorf("%s now pins %s by digest; drop it from awaitingFirstPin and remove its TODO", p.file, p.image)
-	case !p.pinned && !awaiting:
-		t.Errorf("%s runs %s without a digest; the pin PR stage only rewrites tag@digest lines, so it would never move", p.file, p.image)
+			if pinned {
+				assert.False(t, awaiting, "%s now pins %s by digest; drop it from awaitingFirstPin and remove its TODO", filename, image)
+			} else {
+				assert.True(t, awaiting, "%s runs %s without a digest; the pin PR stage only rewrites tag@digest lines, so it would never move", filename, image)
+			}
+		}
 	}
 }

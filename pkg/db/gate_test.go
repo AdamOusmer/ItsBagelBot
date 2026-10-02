@@ -5,65 +5,45 @@ package db
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-const gateWaitBudget = 250 * time.Millisecond
-
-func TestAcquireFastPathDoesNotBlock(t *testing.T) {
-	slots := newGate(1)
-
-	done := make(chan struct{})
+func TestQueryGateBoundsConcurrentCallers(t *testing.T) {
+	t.Setenv("DB_QUERY_CONCURRENCY", "1")
+	held, release := make(chan struct{}), make(chan struct{})
+	holderDone := make(chan error, 1)
 	go func() {
-		defer close(done)
-		release, err := acquireFrom(context.Background(), slots)
-		require.NoError(t, err)
-		release()
+		holderDone <- WithExec(context.Background(), func(context.Context) error {
+			close(held)
+			<-release
+			return nil
+		})
 	}()
-
-	select {
-	case <-done:
-	case <-time.After(gateWaitBudget):
-		t.Fatal("acquire blocked on an empty gate")
-	}
-}
-
-func TestAcquireSlowPathHonoursDeadline(t *testing.T) {
-	slots := newGate(1)
-
-	release, err := acquireFrom(context.Background(), slots)
-	require.NoError(t, err)
-	defer release()
+	<-held
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-
-	blocked, err := acquireFrom(ctx, slots)
-	require.Nil(t, blocked)
+	err := WithExec(ctx, func(context.Context) error {
+		t.Error("query ran while the gate was full")
+		return nil
+	})
 	require.ErrorContains(t, err, "db concurrency gate")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-}
 
-func TestReleaseReturnsTheSlot(t *testing.T) {
-	slots := newGate(1)
+	close(release)
+	require.NoError(t, <-holderDone)
 
-	release, err := acquireFrom(context.Background(), slots)
+	got, err := WithQuery(context.Background(), func(context.Context) (int, error) { return 7, nil })
 	require.NoError(t, err)
-	release()
+	require.Equal(t, 7, got, "released slot must admit the next caller")
 
-	ctx, cancel := context.WithTimeout(context.Background(), gateWaitBudget)
-	defer cancel()
-
-	again, err := acquireFrom(ctx, slots)
-	require.NoError(t, err)
-	again()
-}
-
-func TestNewGateFallsBackOnNonPositiveSize(t *testing.T) {
-	require.Equal(t, defaultMaxConns, cap(newGate(0)))
-	require.Equal(t, defaultMaxConns, cap(newGate(-1)))
-	require.Equal(t, 3, cap(newGate(3)))
+	failure := errors.New("query failed")
+	_, err = WithQuery(context.Background(), func(context.Context) (int, error) { return 0, failure })
+	require.ErrorIs(t, err, failure)
+	_, err = WithQuery(context.Background(), func(context.Context) (int, error) { return 8, nil })
+	require.NoError(t, err, "failed query must still release its slot")
 }

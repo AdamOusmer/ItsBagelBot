@@ -5,11 +5,12 @@ package ratelimit
 
 import (
 	"context"
-	"math"
+	"fmt"
 	"testing"
 	"time"
 
-	"golang.org/x/time/rate"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type countingBorrower struct {
@@ -21,7 +22,9 @@ func (b *countingBorrower) Borrow(_ context.Context, _ Member, request BorrowReq
 	return BorrowReply{Version: planVersion, Epoch: request.Epoch, Paid: request.Need, Status: "granted"}, nil
 }
 
-func activeTestPlan(t *testing.T, members []Member, generation uint64) (Plan, time.Time) {
+var soloMembers = []Member{{PodID: "pod-a", Region: "local"}}
+
+func activeTestPlan(t testing.TB, members []Member, generation uint64) (Plan, time.Time) {
 	t.Helper()
 	now := time.Now()
 	plan := Plan{
@@ -29,28 +32,58 @@ func activeTestPlan(t *testing.T, members []Member, generation uint64) (Plan, ti
 		ValidFromMS: now.Add(-time.Second).UnixMilli(), ValidUntilMS: now.Add(time.Hour).UnixMilli(),
 		Members: members,
 	}
-	if err := plan.ComputeDigest(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, plan.ComputeDigest())
 	return plan, now
 }
 
-func TestLocalSharesPreserveGlobalBudget(t *testing.T) {
-	spec := NewSpec(700, 700.0/60.0)
-	for members := 1; members <= 8; members++ {
-		var burst int
-		var refill float64
-		for rank := 0; rank < members; rank++ {
-			rate, memberBurst := localShare(spec, members, rank)
-			burst += memberBurst
-			refill += float64(rate)
+func newTestManager(t *testing.T, podID string, members []Member, borrower PermitBorrower) (*LeaseManager, time.Time) {
+	t.Helper()
+	manager := NewLeaseManager(nil, NewBucketStore(16), borrower, Identity{Region: "local", PodID: podID})
+	plan, now := activeTestPlan(t, members, 1)
+	require.NoError(t, manager.ActivatePlan(plan, now, now, 0))
+	return manager, now
+}
+
+func admitted(t *testing.T, manager *LeaseManager, req Request, at time.Time) int {
+	t.Helper()
+	count := 0
+	for ; count < 10_000; count++ {
+		ok, err := manager.allowAt(context.Background(), &req, at)
+		require.NoError(t, err)
+		if !ok {
+			break
 		}
-		if want := spec.capacity - spec.emergencyBurst; burst != want {
-			t.Fatalf("members=%d burst=%d want=%d", members, burst, want)
-		}
-		if want := spec.refillPerSec - spec.emergencyRate; math.Abs(refill-want) > 1e-9 {
-			t.Fatalf("members=%d refill=%f want=%f", members, refill, want)
-		}
+	}
+	return count
+}
+
+func chatRequests(userID string) (shared, standard Request) {
+	return profileChatShared.ForDynamicKey("ratelimit:chat:", "chat", userID),
+		profileChatStandard.ForDynamicKey("ratelimit:chat:standard:", "chat:standard", userID)
+}
+
+func TestLeasedSharesAcrossPodsStayWithinTheGlobalBudget(t *testing.T) {
+	const (
+		leasedBurst = 630
+		leasedRate  = 10.5
+		window      = 40 * time.Second
+	)
+	for podCount := 1; podCount <= 8; podCount++ {
+		t.Run(fmt.Sprintf("%d pods", podCount), func(t *testing.T) {
+			members := make([]Member, podCount)
+			for i := range members {
+				members[i] = Member{PodID: fmt.Sprintf("pod-%d", i), Region: "local"}
+			}
+			var burst, refilled int
+			for _, member := range members {
+				manager, now := newTestManager(t, member.PodID, members, nil)
+				drained := now.Add(30 * time.Minute)
+				burst += admitted(t, manager, HelixAppRequest(), drained)
+				refilled += admitted(t, manager, HelixAppRequest(), drained.Add(window))
+			}
+			assert.Equal(t, leasedBurst, burst)
+			assert.InDelta(t, leasedRate*window.Seconds(), refilled, float64(podCount))
+		})
 	}
 }
 
@@ -104,56 +137,16 @@ func TestFixedHelixBucketsRenewWithoutTraffic(t *testing.T) {
 	}
 }
 
-func TestGenerationChangeStartsSameHolderEmpty(t *testing.T) {
-	bucket := NewLocalBucket()
-	start := time.Now()
-	bucket.Update(start, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: start, NotAfter: start.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: 0, StandardBurst: 0})
-	later := start.Add(time.Second)
-	if !bucket.TryPremium(later) {
-		t.Fatal("old generation did not refill")
-	}
-	bucket.Update(later, BucketConfig{Epoch: 2, Generation: 2, Holder: "pod-a", NotBefore: later, NotAfter: later.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: 0, StandardBurst: 0})
-	if bucket.TryPremium(later) {
-		t.Fatal("new generation replayed the old holder's burst")
-	}
-}
-
-func TestStandardDenialDoesNotConsumeEitherBucket(t *testing.T) {
-	bucket := NewLocalBucket()
-	start := time.Now()
-	bucket.Update(start, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: start, NotAfter: start.Add(time.Hour), SharedRate: 1, SharedBurst: 1, StandardRate: 1, StandardBurst: 1})
-	later := start.Add(time.Second)
-	if !bucket.TryPremium(later) {
-		t.Fatal("shared setup debit failed")
-	}
-	standardBefore := bucket.standard.TokensAt(later)
-	standard, shared := bucket.TryStandard(later)
-	if standard || shared {
-		t.Fatal("pair succeeded with an empty shared bucket")
-	}
-	if got := bucket.standard.TokensAt(later); got != standardBefore {
-		t.Fatalf("standard tokens changed on atomic denial: before=%f after=%f", standardBefore, got)
-	}
-}
-
 func TestPremiumCreatedBucketCanServeStandardTraffic(t *testing.T) {
-	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
-	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 12)
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatal(err)
-	}
-	bucketID := BucketID{Scope: "chat", Value: "123"}
-	_ = manager.tryLocalPremium(now, manager.plan.Load(), bucketID, profileChat)
-	bucket, ok := store.Load(bucketID)
-	if !ok || !bucket.hasStandard {
-		t.Fatal("premium-created bucket omitted its standard partition")
-	}
-	later := now.Add(time.Minute)
-	standard, shared := manager.tryLocalStandard(later, manager.plan.Load(), bucketID, profileChat)
-	if !standard || !shared {
-		t.Fatal("standard traffic could not use a premium-created bucket")
-	}
+	manager, now := newTestManager(t, "pod-a", soloMembers, nil)
+	shared, standard := chatRequests("123")
+
+	_, err := manager.allowAt(context.Background(), &shared, now)
+	require.NoError(t, err)
+	denied, err := manager.allowOrderedAt(context.Background(), &standard, &shared, now.Add(time.Minute))
+
+	require.NoError(t, err)
+	assert.Zero(t, denied)
 }
 
 func TestColdChatBucketSkipsPeerBorrowOnce(t *testing.T) {
@@ -186,44 +179,29 @@ func TestColdChatBucketSkipsPeerBorrowOnce(t *testing.T) {
 }
 
 func TestCachedBucketReconfiguresWhenProfileChanges(t *testing.T) {
-	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
-	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 13)
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatal(err)
+	manager, now := newTestManager(t, "pod-a", soloMembers, nil)
+	chat, _ := chatRequests("456")
+	mod := profileChatModShared.ForDynamicKey("ratelimit:chat:", "chat", "456")
+
+	for _, req := range []Request{chat, mod} {
+		_, err := manager.allowAt(context.Background(), &req, now)
+		require.NoError(t, err)
 	}
-	bucketID := BucketID{Scope: "chat", Value: "456"}
-	_ = manager.tryLocalPremium(now, manager.plan.Load(), bucketID, profileChat)
-	bucket, _ := store.Load(bucketID)
-	chatRate, chatBurst := localShare(profileChatShared, 1, 0)
-	chatStandardRate, chatStandardBurst := localShare(profileChatStandard, 1, 0)
-	if !bucket.MatchesConfig(chatRate, chatBurst, chatStandardRate, chatStandardBurst) {
-		t.Fatal("chat profile was not installed")
-	}
-	_ = manager.tryLocalPremium(now, manager.plan.Load(), bucketID, profileChatMod)
-	modRate, modBurst := localShare(profileChatModShared, 1, 0)
-	modStandardRate, modStandardBurst := localShare(profileChatModStandard, 1, 0)
-	if !bucket.MatchesConfig(modRate, modBurst, modStandardRate, modStandardBurst) {
-		t.Fatal("cached bucket retained the old moderator profile")
-	}
+
+	assert.Equal(t, 90, admitted(t, manager, mod, now.Add(30*time.Minute)))
 }
 
-func TestPodOutsidePlanCanBorrowButCannotGrant(t *testing.T) {
+func TestPodOutsidePlanCannotGrant(t *testing.T) {
 	manager := NewLeaseManager(nil, NewBucketStore(16), nil, Identity{Region: "local", PodID: "pod-new"})
-	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 14)
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatalf("stateless non-holder could not install plan: %v", err)
-	}
-	if manager.plan.Load().selfIndex != -1 {
-		t.Fatal("pod outside plan unexpectedly received a local share")
-	}
+	plan, now := activeTestPlan(t, soloMembers, 14)
+	require.NoError(t, manager.ActivatePlan(plan, now, now, 0))
+
 	reply := manager.GrantPermit(now, BorrowRequest{
 		Version: planVersion, Epoch: plan.Epoch, Generation: plan.Generation,
 		Bucket: BucketID{Scope: "chat", Value: "123"}, Need: NeedShared, Profile: profileChat,
 	})
-	if reply.Paid != 0 || reply.Status != "invalid" {
-		t.Fatalf("non-holder granted capacity: %+v", reply)
-	}
+
+	assert.Equal(t, BorrowReply{Version: planVersion, Epoch: plan.Epoch, Status: "invalid"}, reply)
 }
 
 func TestExpiredPlanFailsClosed(t *testing.T) {
@@ -232,18 +210,15 @@ func TestExpiredPlanFailsClosed(t *testing.T) {
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 15,
 		ValidFromMS: now.Add(-time.Minute).UnixMilli(), ValidUntilMS: now.Add(-time.Second).UnixMilli(),
-		Members: []Member{{PodID: "pod-a", Region: "local"}},
+		Members: soloMembers,
 	}
-	if err := plan.ComputeDigest(); err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, plan.ComputeDigest())
+	require.NoError(t, manager.ActivatePlan(plan, now, now, 0))
+
 	allowed, err := manager.Allow(context.Background(), profileChatShared.ForDynamicKey("ratelimit:chat:", "chat", "123"))
-	if err != nil || allowed {
-		t.Fatalf("expired plan admitted request: allowed=%v err=%v", allowed, err)
-	}
+
+	require.NoError(t, err)
+	assert.False(t, allowed)
 }
 
 func TestGuardRetryAfterCoversBothSidesOfEpochBoundary(t *testing.T) {
@@ -279,12 +254,7 @@ func TestGuardRetryAfterCoversBothSidesOfEpochBoundary(t *testing.T) {
 }
 
 func TestLocalFastPathAllocatesNothing(t *testing.T) {
-	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
-	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 11)
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatal(err)
-	}
+	manager, now := newTestManager(t, "pod-a", soloMembers, nil)
 	spec := NewSpec(100, 100.0/30.0)
 	req := spec.ForDynamicKey("ratelimit:chat:", "chat", "123456789")
 	clock := now

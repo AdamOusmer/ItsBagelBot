@@ -5,7 +5,6 @@ package ratelimit
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -72,18 +71,7 @@ type membershipRegistryTest struct {
 
 func newMembershipRegistryTest(t *testing.T) *membershipRegistryTest {
 	t.Helper()
-	address := os.Getenv("VALKEY_TEST_ADDR")
-	if address == "" {
-		t.Skip("VALKEY_TEST_ADDR is not set")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{address},
-		Password:    os.Getenv("VALKEY_TEST_PASSWORD"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(client.Close)
+	client := newValkeyTestClient(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)

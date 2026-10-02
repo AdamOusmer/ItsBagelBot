@@ -10,128 +10,81 @@ import (
 	"ItsBagelBot/pkg/crypto"
 
 	"github.com/stretchr/testify/assert"
-
+	"github.com/stretchr/testify/require"
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/v2/keyset"
 	"github.com/tink-crypto/tink-go/v2/mac"
 )
 
-func generateValidKeyset() []byte {
-	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
-	if err != nil {
-		panic(err)
-	}
+func keysetJSON[T any](t *testing.T, template T, newHandle func(T) (*keyset.Handle, error)) []byte {
+	t.Helper()
+	handle, err := newHandle(template)
+	require.NoError(t, err)
 	buf := new(bytes.Buffer)
-	err = insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf))
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf)))
 	return buf.Bytes()
 }
 
-func TestNewCrypto_InvalidJSON(t *testing.T) {
-	c, err := crypto.NewCrypto([]byte("this-is-not-valid-json-data"))
-	assert.Error(t, err, "Should fail on invalid JSON")
-	assert.Nil(t, c)
+func newTestCrypto(t *testing.T) *crypto.Crypto {
+	t.Helper()
+	adapter, err := crypto.NewCrypto(keysetJSON(t, aead.AES256GCMKeyTemplate(), keyset.NewHandle))
+	require.NoError(t, err)
+	return adapter
 }
 
-func TestNewCrypto_WrongKeyType(t *testing.T) {
-	handle, err := keyset.NewHandle(mac.HMACSHA256Tag128KeyTemplate())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	buf := new(bytes.Buffer)
-	_ = insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf))
-	validMacKeyJSON := buf.Bytes()
-
-	c, err := crypto.NewCrypto(validMacKeyJSON)
-
-	assert.Error(t, err, "Should fail when passing a MAC key to AEAD constructor")
-
-	assert.Contains(t, err.Error(), "primitive is not a tink.AEAD", "Error should be about primitive type mismatch")
-	assert.Nil(t, c)
-}
-
-func TestTinkAdapter_RoundTrip(t *testing.T) {
-	validKeyJSON := generateValidKeyset()
-
-	adapter, err := crypto.NewCrypto(validKeyJSON)
-	if err != nil {
-		t.Fatalf("Failed to initialize crypto: %v", err)
-	}
-
-	plaintext := []byte("This is a secret Twitch token")
-	associatedData := []byte("user-id:1001")
-
-	envelope, err := adapter.Pack(plaintext, associatedData)
-	if err != nil {
-		t.Fatalf("Pack failed: %v", err)
-	}
-
-	decrypted, err := adapter.Unpack(envelope)
-	if err != nil {
-		t.Fatalf("Unpack failed: %v", err)
-	}
-
-	if !bytes.Equal(decrypted, plaintext) {
-		t.Errorf("Decryption failed. Got %s, want %s", decrypted, plaintext)
-	}
-}
-
-func TestTinkAdapter_ContextMismatch(t *testing.T) {
-	adapter, err := crypto.NewCrypto(generateValidKeyset())
-	if err != nil {
-		t.Fatalf("Setup failed: %v", err)
-	}
-
-	plaintext := []byte("Super Secret Data")
-	originalUser := []byte("user-A")
-	hackerUser := []byte("user-B")
-
-	envelope, _ := adapter.Pack(plaintext, originalUser)
-
-	envelope.AttachedData = hackerUser
-
-	_, err = adapter.Unpack(envelope)
-
-	if err == nil {
-		t.Fatal("Security Flaw: Decryption succeeded despite mismatched Associated Data!")
-	}
-}
-
-func TestPacker_Scenarios(t *testing.T) {
-	adapter, _ := crypto.NewCrypto(generateValidKeyset())
-
+func TestNewCryptoRejectsUnusableKeysets(t *testing.T) {
 	tests := []struct {
 		name    string
-		plain   string
-		ad      string
-		wantErr bool
+		keyset  []byte
+		wantErr string
 	}{
-		{"Normal Message", "hello world", "user:101", false},
-		{"Empty Message", "", "user:101", false},
-		{"Empty Context", "secret", "", false},
-		{"Special Characters", "🚀!@#$%^&*", "id:99", false},
+		{name: "rejects invalid JSON", keyset: []byte("this-is-not-valid-json-data")},
+		{name: "rejects a MAC key used as an AEAD key", keyset: keysetJSON(t, mac.HMACSHA256Tag128KeyTemplate(), keyset.NewHandle), wantErr: "primitive is not a tink.AEAD"},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			adapter, err := crypto.NewCrypto(tc.keyset)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env, err := adapter.Pack([]byte(tt.plain), []byte(tt.ad))
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Pack() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			dec, err := adapter.Unpack(env)
-			if err != nil {
-				t.Fatalf("Unpack() failed: %v", err)
-			}
-
-			if string(dec) != tt.plain {
-				t.Errorf("Mismatch! Got %s, want %s", string(dec), tt.plain)
-			}
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tc.wantErr)
+			assert.Nil(t, adapter)
 		})
 	}
+}
+
+func TestPackUnpackRoundTrips(t *testing.T) {
+	adapter := newTestCrypto(t)
+	tests := []struct {
+		name  string
+		plain string
+		ad    string
+	}{
+		{name: "round-trips a normal message", plain: "This is a secret Twitch token", ad: "user-id:1001"},
+		{name: "round-trips an empty message", plain: "", ad: "user:101"},
+		{name: "round-trips an empty context", plain: "secret", ad: ""},
+		{name: "round-trips special characters", plain: "🚀!@#$%^&*", ad: "id:99"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			envelope, err := adapter.Pack([]byte(tc.plain), []byte(tc.ad))
+			require.NoError(t, err)
+
+			decrypted, err := adapter.Unpack(envelope)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.plain, string(decrypted))
+		})
+	}
+}
+
+func TestUnpackRejectsMismatchedAssociatedData(t *testing.T) {
+	adapter := newTestCrypto(t)
+	envelope, err := adapter.Pack([]byte("Super Secret Data"), []byte("user-A"))
+	require.NoError(t, err)
+
+	envelope.AttachedData = []byte("user-B")
+	_, err = adapter.Unpack(envelope)
+
+	assert.Error(t, err, "decryption must fail when the associated data changes")
 }

@@ -12,42 +12,31 @@ import (
 	"ItsBagelBot/pkg/logger"
 )
 
-func TestNew_Development(t *testing.T) {
-	log := logger.New("development")
+func TestNewSetsTheLevelAndReplacesTheGlobalLogger(t *testing.T) {
+	tests := []struct {
+		name      string
+		env       string
+		wantDebug bool
+	}{
+		{name: "enables debug in development", env: "development", wantDebug: true},
+		{name: "suppresses debug in production", env: "production"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			log := logger.New(tc.env)
 
-	assert.NotNil(t, log)
-
-	assert.True(t, log.Core().Enabled(zap.DebugLevel))
-	assert.True(t, log.Core().Enabled(zap.InfoLevel))
+			assert.Equal(t, tc.wantDebug, log.Core().Enabled(zap.DebugLevel))
+			assert.True(t, log.Core().Enabled(zap.InfoLevel))
+			assert.Equal(t, log.Core(), zap.L().Core())
+		})
+	}
 }
 
-func TestNew_Production(t *testing.T) {
+func TestAtomLevelSwitchesTheProductionLoggerAtRuntime(t *testing.T) {
 	log := logger.New("production")
-
-	assert.NotNil(t, log)
-
-	assert.False(t, log.Core().Enabled(zap.DebugLevel))
-	assert.True(t, log.Core().Enabled(zap.InfoLevel))
-}
-
-func TestAtomLevel_DynamicSwitching(t *testing.T) {
-	log := logger.New("production")
-
 	assert.False(t, log.Core().Enabled(zap.DebugLevel))
 
 	logger.AtomLevel.SetLevel(zap.DebugLevel)
 
 	assert.True(t, log.Core().Enabled(zap.DebugLevel))
-}
-
-func TestGlobalReplacement(t *testing.T) {
-	log := logger.New("production")
-
-	assert.Equal(t, log.Core(), zap.L().Core())
-}
-
-func TestNew_Production_ConfigFormat(t *testing.T) {
-	log := logger.New("production")
-
-	assert.NotNil(t, log)
 }

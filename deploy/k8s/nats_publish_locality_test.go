@@ -4,24 +4,12 @@
 package k8s
 
 import (
-	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
-
-type sourceFile struct {
-	name string
-}
-
-func (f sourceFile) read(t *testing.T) string {
-	t.Helper()
-	body, err := os.ReadFile(f.name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(body)
-}
 
 func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 	publishers := []struct {
@@ -39,22 +27,19 @@ func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 
 	for _, publisher := range publishers {
 		t.Run(publisher.manifest, func(t *testing.T) {
-			manifest := sourceFile{name: publisher.manifest}.read(t)
 			value := strings.Replace(regexp.QuoteMeta(publisher.value),
 				`nats\.messaging`, `nats\.messaging(?:\.svc\.cluster\.local)?`, 1)
 			pattern := regexp.MustCompile(`(?m)^\s*- name: ` + regexp.QuoteMeta(publisher.variable) +
 				`\n\s+value: ` + value + `$`)
-			if !pattern.MatchString(manifest) {
-				t.Fatalf("%s must set %s=%s", publisher.manifest, publisher.variable, publisher.value)
-			}
+
+			assert.Regexp(t, pattern, readText(t, publisher.manifest), "%s must set %s=%s", publisher.manifest, publisher.variable, publisher.value)
 		})
 	}
 }
 
 func TestHubServicePrefersSameNode(t *testing.T) {
-	manifest := sourceFile{name: "../messaging/nats.yaml"}.read(t)
-	service := regexp.MustCompile(`(?s)kind: Service\nmetadata:.*?\n  name: nats\n.*?trafficDistribution: PreferSameNode`).FindString(manifest)
-	if service == "" {
-		t.Fatal("nats Service must retain trafficDistribution: PreferSameNode")
-	}
+	manifest := readText(t, "../messaging/nats.yaml")
+
+	assert.Regexp(t, regexp.MustCompile(`(?s)kind: Service\nmetadata:.*?\n  name: nats\n.*?trafficDistribution: PreferSameNode`), manifest,
+		"nats Service must retain trafficDistribution: PreferSameNode")
 }

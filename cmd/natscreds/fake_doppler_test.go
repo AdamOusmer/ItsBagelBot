@@ -3,7 +3,6 @@
 
 package main
 
-// fakeDoppler is an in-memory Doppler for tests: no network, no real CLI.
 type fakeDoppler struct {
 	projects map[string]bool
 	secrets  map[string]map[string]string

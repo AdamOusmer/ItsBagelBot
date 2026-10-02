@@ -3,50 +3,42 @@
 
 package conf
 
-import "testing"
+import (
+	"testing"
 
-func TestProjectionDefaults(t *testing.T) {
-	internal, viaProjector := LoadProjection(), LoadProjectionViaProjector()
+	"github.com/stretchr/testify/assert"
+)
 
-	got := []string{
-		internal.ProjectionUsersSubject,
-		internal.ProjectionModulesSubject,
-		internal.ProjectionCommandsSubject,
-		internal.CacheInvalidationPrefix,
-		viaProjector.ProjectionUsersSubject,
-		viaProjector.ProjectionModulesSubject,
-		viaProjector.ProjectionCommandsSubject,
-		viaProjector.CacheInvalidationPrefix,
-	}
-	want := []string{
-		"bagel.rpc.internal.projection.users.get",
-		"bagel.rpc.internal.projection.modules.get",
-		"bagel.rpc.internal.projection.commands.get",
-		"bagel.cache.invalidate",
-		"bagel.rpc.internal.projection.users.get",
-		"bagel.rpc.projector.dashboard.modules.get",
-		"bagel.rpc.projector.dashboard.commands.get",
-		"bagel.cache.invalidate",
-	}
-	for i, w := range want {
-		if got[i] != w {
-			t.Errorf("subject %d = %q, want %q", i, got[i], w)
-		}
-	}
-}
+func TestDefaultSubjectsAreStable(t *testing.T) {
+	internal, viaProjector, lanes := LoadProjection(), LoadProjectionViaProjector(), LoadLanes()
 
-func TestLaneDefaults(t *testing.T) {
-	l := LoadLanes()
-	got := []string{l.PremiumSubject, l.StandardSubject, l.OutgressPremiumSubject, l.OutgressStandardSubject}
-	want := []string{
-		"twitch.ingress.event.premium",
-		"twitch.ingress.event.standard",
-		"twitch.outgress.premium",
-		"twitch.outgress.standard",
+	got := map[string]string{
+		"internal users":         internal.ProjectionUsersSubject,
+		"internal modules":       internal.ProjectionModulesSubject,
+		"internal commands":      internal.ProjectionCommandsSubject,
+		"internal invalidation":  internal.CacheInvalidationPrefix,
+		"projector users":        viaProjector.ProjectionUsersSubject,
+		"projector modules":      viaProjector.ProjectionModulesSubject,
+		"projector commands":     viaProjector.ProjectionCommandsSubject,
+		"projector invalidation": viaProjector.CacheInvalidationPrefix,
+		"ingress premium lane":   lanes.PremiumSubject,
+		"ingress standard lane":  lanes.StandardSubject,
+		"outgress premium lane":  lanes.OutgressPremiumSubject,
+		"outgress standard lane": lanes.OutgressStandardSubject,
 	}
-	for i, w := range want {
-		if got[i] != w {
-			t.Errorf("lane %d = %q, want %q", i, got[i], w)
-		}
+	want := map[string]string{
+		"internal users":         "bagel.rpc.internal.projection.users.get",
+		"internal modules":       "bagel.rpc.internal.projection.modules.get",
+		"internal commands":      "bagel.rpc.internal.projection.commands.get",
+		"internal invalidation":  "bagel.cache.invalidate",
+		"projector users":        "bagel.rpc.internal.projection.users.get",
+		"projector modules":      "bagel.rpc.projector.dashboard.modules.get",
+		"projector commands":     "bagel.rpc.projector.dashboard.commands.get",
+		"projector invalidation": "bagel.cache.invalidate",
+		"ingress premium lane":   "twitch.ingress.event.premium",
+		"ingress standard lane":  "twitch.ingress.event.standard",
+		"outgress premium lane":  "twitch.outgress.premium",
+		"outgress standard lane": "twitch.outgress.standard",
 	}
+	assert.Equal(t, want, got)
 }

@@ -4,186 +4,116 @@
 package main
 
 import (
-	"errors"
+	"sort"
+	"strings"
 	"testing"
-
-	"ItsBagelBot/internal/natsacl"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// assertSeedSignsForSubject proves a minted seed is the private half of a
-// JWT's own subject: sign a nonce with the seed, verify with the subject's
-// public key.
-func assertSeedSignsForSubject(t *testing.T, seed, subject string) {
-	t.Helper()
-	userKP, err := nkeys.FromSeed([]byte(seed))
-	if err != nil {
-		t.Fatal(err)
+const roleACL = `system_account: SYS
+accounts:
+  SYS:
+    roles:
+      sys: {}
+  BUS:
+    roles:
+      outgress_bus:
+        publish:
+          allow: [a.>]
+      outgress_rpc: {}
+      discord_engine_bus: {}
+      worker_bus: {}
+      twitch_ingress_rpc: {}
+`
+
+const systemACL = "system_account: SYS\naccounts:\n  SYS: {}\n"
+
+func accountRoles(account string, roles ...string) string {
+	acl := "  " + account + ":\n    roles:\n"
+	for _, role := range roles {
+		acl += "      " + role + ": {}\n"
 	}
-	nonce := []byte("natscreds-test-nonce")
-	sig, err := userKP.Sign(nonce)
-	if err != nil {
-		t.Fatal(err)
-	}
-	subjectKP, err := nkeys.FromPublicKey(subject)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := subjectKP.Verify(nonce, sig); err != nil {
-		t.Fatalf("seed's signature does not verify against the JWT subject: %v", err)
-	}
+	return acl
 }
 
-func TestResolveRoleTargetsRejectsDuplicateRoleNames(t *testing.T) {
-	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
-		"A": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
-		"B": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
-	}}
-	_, err := resolveRoleTargets(acl)
-	if !errors.Is(err, ErrDuplicateRoleName) {
-		t.Fatalf("err = %v, want %v", err, ErrDuplicateRoleName)
-	}
-}
-
-func TestParseRoleKind(t *testing.T) {
-	tests := []struct {
-		role   string
-		want   roleKind
-		wantOK bool
-	}{
-		{"outgress_bus", roleKind{stem: "outgress", plane: "BUS"}, true},
-		{"twitch_ingress_rpc", roleKind{stem: "twitch_ingress", plane: "RPC"}, true},
-		{"sys", roleKind{}, false},
-	}
-	for _, tt := range tests {
-		kind, ok := parseRoleKind(tt.role)
-		if ok != tt.wantOK || kind != tt.want {
-			t.Errorf("parseRoleKind(%q) = (%+v, %v), want (%+v, %v)", tt.role, kind, ok, tt.want, tt.wantOK)
+func serviceCredentialSecrets(h *harness) []string {
+	var names []string
+	for name := range snapshotSecrets(h.store) {
+		if project, _, _ := strings.Cut(name, "/"); project != operatorProject && project != deployerProject {
+			names = append(names, name)
 		}
 	}
+	sort.Strings(names)
+	return names
 }
 
-func assertEnvNames(t *testing.T, kind roleKind, wantOK bool, want envNames) {
-	t.Helper()
-	got, ok := kind.envNames()
-	if ok != wantOK || got != want {
-		t.Fatalf("kind=%+v got=(%+v,%v), want=(%+v,%v)", kind, got, ok, want, wantOK)
+func TestRoleCredentialsLandInTheirDopplerProject(t *testing.T) {
+	h := newHarness(t, roleACL)
+
+	h.apply(t)
+
+	assert.Equal(t, []string{
+		"discord-svc/DISCORD_ENGINE_BUS_JWT", "discord-svc/DISCORD_ENGINE_BUS_NKEY_SEED",
+		"outgress/NATS_JWT", "outgress/NATS_NKEY_SEED",
+		"outgress/NATS_RPC_JWT", "outgress/NATS_RPC_NKEY_SEED",
+		"sesame/NATS_JWT", "sesame/NATS_NKEY_SEED",
+		"twitch-ingress/NATS_RPC_JWT", "twitch-ingress/NATS_RPC_NKEY_SEED",
+	}, serviceCredentialSecrets(h))
+}
+
+func TestRunsFailForRolesThatCannotMapToACredential(t *testing.T) {
+	tests := []struct {
+		name    string
+		acl     string
+		wantErr string
+	}{
+		{name: "rejects a role name used in two accounts", acl: systemACL + accountRoles("A", "outgress_bus") + accountRoles("B", "outgress_bus"), wantErr: ErrDuplicateRoleName.Error()},
+		{name: "rejects a role whose service has no Doppler project", acl: systemACL + accountRoles("BUS", "ghost_bus"), wantErr: "no doppler project mapping"},
+		{name: "rejects a bus role for a service that has no bus", acl: systemACL + accountRoles("BUS", "gossip_bus"), wantErr: "NO_BUS"},
 	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, tc.acl)
 
-func TestResolveEnvNamesPlainService(t *testing.T) {
-	assertEnvNames(t, roleKind{stem: "outgress", plane: "BUS"}, true,
-		envNames{project: "outgress", jwtKey: "NATS_JWT", seedKey: "NATS_NKEY_SEED"})
-	assertEnvNames(t, roleKind{stem: "outgress", plane: "RPC"}, true,
-		envNames{project: "outgress", jwtKey: "NATS_RPC_JWT", seedKey: "NATS_RPC_NKEY_SEED"})
-}
-
-func TestResolveEnvNamesSharedProject(t *testing.T) {
-	assertEnvNames(t, roleKind{stem: "discord_engine", plane: "BUS"}, true,
-		envNames{project: "discord-svc", jwtKey: "DISCORD_ENGINE_BUS_JWT", seedKey: "DISCORD_ENGINE_BUS_NKEY_SEED"})
-}
-
-func TestResolveEnvNamesUnknownStem(t *testing.T) {
-	assertEnvNames(t, roleKind{stem: "ghost", plane: "BUS"}, false, envNames{})
-}
-
-func TestResolveRoleTargetsExcludesSys(t *testing.T) {
-	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
-		"SYS": {Roles: map[string]natsacl.RoleSpec{"sys": {}}},
-		"BUS": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
-	}}
-	targets, err := resolveRoleTargets(acl)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(targets) != 1 || targets[0].role != "outgress_bus" {
-		t.Fatalf("targets = %+v, want exactly outgress_bus", targets)
+			assert.ErrorContains(t, h.applyErr(), tc.wantErr)
+		})
 	}
 }
 
-func TestMintUserCredentialHasEmptyPermissionLimits(t *testing.T) {
-	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
-		"BUS": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {
-			Publish: &natsacl.PermissionSpec{Allow: []string{"a.>"}},
-		}}},
-	}}
-	mat := testMaterialFor(t, acl)
-	ref := roleRef{account: "BUS", role: "outgress_bus"}
+func TestMintedUserCredentialIsIssuedByTheRoleKeyWithNoPermissionLimits(t *testing.T) {
+	h := newHarness(t, roleACL)
+	h.apply(t)
+	keys := h.keys(t)
 
-	token, seed, err := mintUserCredential(mat, ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	claims, err := jwt.DecodeUserClaims(token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !claims.HasEmptyPermissions() {
-		t.Fatalf("UserPermissionLimits = %+v, want the zero value", claims.UserPermissionLimits)
-	}
-	assertIssuedByRole(t, mat, ref, claims)
-	assertSeedSignsForSubject(t, seed, claims.Subject)
+	claims, err := jwt.DecodeUserClaims(h.secret("outgress", "NATS_JWT"))
+
+	require.NoError(t, err)
+	assert.True(t, claims.HasEmptyPermissions(), "permissions live in the account JWT, not the user JWT")
+	assert.Equal(t, keys.Accounts["BUS"], claims.IssuerAccount)
+	assert.Equal(t, keys.Roles["BUS"]["outgress_bus"], claims.Issuer)
+	seed, err := nkeys.FromSeed([]byte(h.secret("outgress", "NATS_NKEY_SEED")))
+	require.NoError(t, err)
+	subject, err := nkeys.FromPublicKey(claims.Subject)
+	require.NoError(t, err)
+	nonce := []byte("natscreds-test-nonce")
+	signature, err := seed.Sign(nonce)
+	require.NoError(t, err)
+	assert.NoError(t, subject.Verify(nonce, signature), "seed must be the private half of the JWT subject")
 }
 
-func assertIssuedByRole(t *testing.T, mat *material, ref roleRef, claims *jwt.UserClaims) {
-	t.Helper()
-	accountPub, err := mat.accountPub(ref.account)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if claims.IssuerAccount != accountPub {
-		t.Fatalf("IssuerAccount = %s, want %s", claims.IssuerAccount, accountPub)
-	}
-	rolePub, err := mat.roles[ref.account][ref.role].PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if claims.Issuer != rolePub {
-		t.Fatalf("Issuer = %s, want the role signing key %s", claims.Issuer, rolePub)
-	}
-}
+func TestDeployIdentityCanOnlyManageClaimsAndItsSigningSeedIsTheOperators(t *testing.T) {
+	h := newHarness(t, roleACL)
+	h.apply(t)
 
-func TestRotateScopeMatches(t *testing.T) {
-	var nilScope *rotateScope
-	if nilScope.matches("outgress_bus") {
-		t.Fatal("nil scope must never rotate")
-	}
-	all := parseRotateScope("all")
-	if !all.matches("outgress_bus") || !all.matches("sys") {
-		t.Fatal(`"all" must match every role`)
-	}
-	one := parseRotateScope("outgress_bus")
-	if !one.matches("outgress_bus") || one.matches("commands_bus") {
-		t.Fatal("a named scope must match only that role")
-	}
-}
+	claims, err := jwt.DecodeUserClaims(h.secret(deployerProject, deploySysJWTKey))
 
-func TestMintRoleCredentialSkipsWhenPresentAndNotRotating(t *testing.T) {
-	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
-		"BUS": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
-	}}
-	mat := testMaterialFor(t, acl)
-	store := newFakeDoppler()
-	target := roleTarget{
-		roleRef:  roleRef{account: "BUS", role: "outgress_bus"},
-		envNames: envNames{project: "outgress", jwtKey: "NATS_JWT", seedKey: "NATS_NKEY_SEED"},
-	}
-
-	created, err := mintRoleCredential(store, mat, target, nil)
-	mustMint(t, created, err)
-	before := store.secrets["outgress"]["NATS_JWT"]
-
-	created, err = mintRoleCredential(store, mat, target, nil)
-	mustSkip(t, created, err)
-	if store.secrets["outgress"]["NATS_JWT"] != before {
-		t.Fatal("credential changed without a rotate request")
-	}
-
-	created, err = mintRoleCredential(store, mat, target, parseRotateScope("outgress_bus"))
-	mustMint(t, created, err)
-	if store.secrets["outgress"]["NATS_JWT"] == before {
-		t.Fatal("rotate did not change the credential")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"$SYS.REQ.CLAIMS.UPDATE", "$SYS.REQ.ACCOUNT.*.CLAIMS.LOOKUP", "$SYS.REQ.SERVER.PING"}, []string(claims.Pub.Allow))
+	assert.Equal(t, []string{"_INBOX.>"}, []string(claims.Sub.Allow))
+	assert.Equal(t, h.keys(t).Accounts["SYS"], claims.Issuer)
+	assert.Equal(t, h.secret(operatorProject, "NATS_OPERATOR_SIGNING_SEED"), h.secret(deployerProject, deploySigningSeedKey))
 }

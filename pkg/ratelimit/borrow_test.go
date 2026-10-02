@@ -4,91 +4,80 @@
 package ratelimit
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
-	"os"
+	"errors"
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/codec"
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPermitService(t *testing.T) {
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		t.Skip("NATS_URL is not set")
-	}
-	nc, err := nats.Connect(natsURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer nc.Close()
+type recordingBorrower struct {
+	requests []BorrowRequest
+}
 
-	store := NewBucketStore(100)
-	service, err := NewPermitService(nc, "local", "pod-a", store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
-	manager := NewLeaseManager(nil, store, service, Identity{Region: "local", PodID: "pod-a"})
-	service.SetGrantor(manager)
+func (b *recordingBorrower) Borrow(_ context.Context, _ Member, request BorrowRequest) (BorrowReply, error) {
+	b.requests = append(b.requests, request)
+	return BorrowReply{}, errors.New("recorded")
+}
 
-	now := time.Now()
-	plan := Plan{
-		Version: planVersion, Epoch: 1, Generation: 7,
-		ValidFromMS: now.Add(-time.Second).UnixMilli(), ValidUntilMS: now.Add(time.Hour).UnixMilli(),
-		Members: []Member{{PodID: "pod-a", Region: "local"}},
-	}
-	if err := plan.ComputeDigest(); err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
-		t.Fatal(err)
-	}
+func peerShareRequest(t *testing.T, members []Member) BorrowRequest {
+	t.Helper()
+	recorder := &recordingBorrower{}
+	manager, _ := newTestManager(t, members[0].PodID, members, recorder)
+	_, err := manager.AllowOrdered(context.Background(), profileHelixStandard.ForKey("ratelimit:helix:app:standard"), HelixAppRequest())
+	require.NoError(t, err)
+	require.Len(t, recorder.requests, 1)
+	return recorder.requests[0]
+}
 
-	sharedRate, sharedBurst := localShare(profileHelixShared, 1, 0)
-	request := BorrowRequest{
-		Version: planVersion, RequestID: "req-1", Epoch: 1, Generation: 7,
-		Bucket: BucketID{Scope: "helix:app"}, Need: NeedShared, Profile: profileHelixGeneral,
-		SharedRateMicros: limitMicros(sharedRate), SharedBurst: sharedBurst,
-		DeadlineMS: time.Now().Add(time.Second).UnixMilli(),
-	}
-	_ = manager.GrantPermit(time.Now(), request)
-	time.Sleep(100 * time.Millisecond)
+func requestPermit(t *testing.T, nc *nats.Conn, subject string, request BorrowRequest) BorrowReply {
+	t.Helper()
 	data, err := codec.Marshal(&request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	message, err := nc.Request(permitSubject("local", "pod-a"), data, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	message, err := nc.Request(subject, data, time.Second)
+	require.NoError(t, err)
+	var reply BorrowReply
+	require.NoError(t, codec.Unmarshal(message.Data, &reply))
+	return reply
+}
+
+func TestPermitServiceGrantsPeerLeasesAndDedupesRetries(t *testing.T) {
+	const donorSubject = "bagel.outgress.permit.v2.local.pod-b"
+	members := []Member{{PodID: "pod-a", Region: "local"}, {PodID: "pod-b", Region: "local"}}
+	request := peerShareRequest(t, members)
+	request.RequestID = "req-1"
+	request.DeadlineMS = time.Now().Add(time.Minute).UnixMilli()
+
+	nc := testnats.Connect(t)
+	donor, _ := newTestManager(t, "pod-b", members, nil)
+	service, err := NewPermitService(nc, "local", "pod-b", nil)
+	require.NoError(t, err)
+	t.Cleanup(service.Close)
+	service.SetGrantor(donor)
+
 	var first BorrowReply
-	if err := codec.Unmarshal(message.Data, &first); err != nil {
-		t.Fatal(err)
-	}
-	if first.Status != "granted" || first.Paid != NeedShared || first.GrantID == "" {
-		t.Fatalf("unexpected first reply: %+v", first)
-	}
+	require.Eventually(t, func() bool {
+		first = requestPermit(t, nc, donorSubject, request)
+		return first.Status == "granted"
+	}, 5*time.Second, 20*time.Millisecond, "donor never accrued a token")
+	assert.Equal(t, NeedStandard|NeedShared, first.Paid)
+	assert.NotEmpty(t, first.GrantID)
 
-	message, err = nc.Request(permitSubject("local", "pod-a"), data, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var duplicate BorrowReply
-	if err := codec.Unmarshal(message.Data, &duplicate); err != nil {
-		t.Fatal(err)
-	}
-	if duplicate.GrantID != first.GrantID {
-		t.Fatalf("duplicate grant = %q, want %q", duplicate.GrantID, first.GrantID)
-	}
+	duplicate := requestPermit(t, nc, donorSubject, request)
+	assert.Equal(t, first.GrantID, duplicate.GrantID)
 
-	time.Sleep(100 * time.Millisecond)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	request.RequestID = ""
-	reply, err := service.Borrow(ctx, plan.Members[0], request)
-	if err != nil || reply.Paid != NeedShared {
-		t.Fatalf("Borrow() = %+v, %v", reply, err)
-	}
+	var borrowed BorrowReply
+	require.Eventually(t, func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		reply, err := service.Borrow(ctx, members[1], request)
+		borrowed = reply
+		return err == nil && reply.Paid != 0
+	}, 5*time.Second, 20*time.Millisecond, "borrow never paid")
+	assert.Equal(t, NeedStandard|NeedShared, borrowed.Paid)
 }

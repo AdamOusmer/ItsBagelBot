@@ -4,23 +4,29 @@
 package messaging
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/natsacl"
+
+	"github.com/stretchr/testify/require"
 )
 
 const accountsYAMLPath = "accounts.yaml"
 
-// committedACL is accounts.yaml, the ACL natscreds compiles into the account
-// JWTs both clusters enforce.
+func readText(t *testing.T, path string) string {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+	return string(body)
+}
+
 func committedACL(t *testing.T) *natsacl.ACL {
 	t.Helper()
 	acl, err := natsacl.LoadACL(accountsYAMLPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return acl
 }
 
