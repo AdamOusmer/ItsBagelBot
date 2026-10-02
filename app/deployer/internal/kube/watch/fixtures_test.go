@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -31,7 +32,11 @@ var testCfg = ports.Config{
 }
 
 func testWatcher(objs ...runtime.Object) *Watcher {
-	w := newWatcher(fake.NewClientset(objs...), testCfg, &http.Client{Timeout: 5 * time.Second})
+	return testWatcherOn(fake.NewClientset(objs...))
+}
+
+func testWatcherOn(cs kubernetes.Interface) *Watcher {
+	w := newWatcher(cs, testCfg, &http.Client{Timeout: 5 * time.Second})
 	w.now = func() time.Time { return testNow }
 	return w
 }

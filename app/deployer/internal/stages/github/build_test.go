@@ -175,16 +175,3 @@ func withQuery(r buildDoneResult, q ports.RunQuery) buildDoneResult {
 	r.Query = q
 	return r
 }
-
-func TestJobImage(t *testing.T) {
-	cases := map[string]deploy.ImageName{
-		"Build console-admin Intel x86_64": "console-admin",
-		"Build console-admin ARM64":        "console-admin",
-		"Publish manifest console-admin":   "console-admin",
-		"Select images":                    "",
-	}
-	for name, want := range cases {
-		got, _ := jobImage(name)
-		assert.Equal(t, want, got, name)
-	}
-}

@@ -4,6 +4,8 @@
 package github
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,9 +15,19 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
+func pinsIn(files ports.Files) map[deploy.ImageName]deploy.ImagePin {
+	pins := map[deploy.ImageName]deploy.ImagePin{}
+	for _, l := range ParsePins(files, testRepo) {
+		if _, seen := pins[l.Image]; !seen {
+			pins[l.Image] = l.Pin
+		}
+	}
+	return pins
+}
+
 func manifestImages(t *testing.T) []deploy.ImageName {
 	t.Helper()
-	return sortedImages(pinsByImage(ParsePins(loadManifests(t), testRepo)))
+	return slices.Sorted(maps.Keys(pinsIn(loadManifests(t))))
 }
 
 func releaseFixture(t *testing.T) (*fixture, map[deploy.ImageName]deploy.ImagePin) {
@@ -86,7 +98,7 @@ func TestDigestsBump(t *testing.T) {
 	}{
 		{"pins the changed image", []string{"users", "gossip"}, nil, []deploy.ImageName{"users"}, ""},
 		{"narrowed to a service", []string{"users", "sesame"}, []string{"sesame"}, []deploy.ImageName{"sesame"}, ""},
-		{"nothing changed", []string{"gossip"}, nil, []deploy.ImageName{}, deploy.FailDigestRefused},
+		{"nothing changed", []string{"gossip"}, nil, nil, deploy.FailDigestRefused},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,18 +113,18 @@ func TestDigestsBump(t *testing.T) {
 			}
 			f.gh.steps[9] = []runStep{{jobs: jobs}}
 			f.reg.tags = map[deploy.ImageName][]deploy.Tag{
-				"users":  {"main-100-abcdef123456", "main-200-abcdef123456", "main-300-000000000000", "sha-abcdef123456"},
+				"users":  {"main-100-abcdef123456", "main-200-abcdef123456", "main-90-abcdef123456", "main-300-000000000000", "sha-abcdef123456"},
 				"sesame": {"main-200-abcdef123456"},
 				"gossip": {"main-150-abcdef123456"},
 			}
 			f.publish([]deploy.ImageName{"users"}, "main-200-abcdef123456", target)
 			f.publish([]deploy.ImageName{"sesame"}, "main-200-abcdef123456", target)
-			gossip := pinsByImage(ParsePins(files, testRepo))["gossip"]
+			gossip := pinsIn(files)["gossip"]
 			f.reg.images[ports.ImageRef{Image: "gossip", Tag: "main-150-abcdef123456"}] = ports.ImageInfo{Digest: gossip.Digest, Platforms: bothArches, Revision: target}
 			f.gh.attested[gossip.Digest] = true
 
 			_, err := f.runStage(t, deploy.StageDigests)
-			got := bumpResult{Code: outcome(t, err), Images: sortedImages(f.sink.View().Outputs.Digests)}
+			got := bumpResult{Code: outcome(t, err), Images: slices.Sorted(maps.Keys(f.sink.View().Outputs.Digests))}
 			assert.Equal(t, bumpResult{Code: tc.code, Images: tc.want}, got)
 		})
 	}
@@ -121,13 +133,4 @@ func TestDigestsBump(t *testing.T) {
 type bumpResult struct {
 	Code   deploy.FailureCode
 	Images []deploy.ImageName
-}
-
-func TestMainTagPicksTheNewestBuildOfTheCommit(t *testing.T) {
-	reg := &fakeRegistry{tags: map[deploy.ImageName][]deploy.Tag{
-		"users": {"main-900-000000000000", "main-100-abcdef123456", "main-200-abcdef123456", "main-20-abcdef123456", "latest"},
-	}}
-	tag, err := mainTag(t.Context(), reg, "users", "abcdef1234567890")
-	require.NoError(t, err)
-	assert.Equal(t, deploy.Tag("main-200-abcdef123456"), tag)
 }

@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-github/v92/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -269,7 +269,7 @@ func TestCompare(t *testing.T) {
 	}, got)
 }
 
-func TestToCommitPR(t *testing.T) {
+func TestCompareReadsThePRNumberFromTheTitle(t *testing.T) {
 	titles := map[string]int{
 		"fix: y":                          0,
 		"feat: x (#12)":                   12,
@@ -278,11 +278,22 @@ func TestToCommitPR(t *testing.T) {
 		"Revert \"feat: x (#12)\" (#13)":  13,
 		"chore(deploy): bump gossip (#9)": 9,
 	}
-	got := map[string]int{}
+	var commits []map[string]any
 	for title := range titles {
-		got[title] = toCommit(&github.RepositoryCommit{Commit: &github.Commit{Message: github.Ptr(title)}}).PR
+		commits = append(commits, map[string]any{"sha": title, "commit": map[string]any{"message": title}})
 	}
-	assert.Equal(t, titles, got)
+	body, err := codec.Marshal(map[string]any{"commits": commits})
+	require.NoError(t, err)
+	c, _, _ := newClient(t, routes{"GET /repos/o/r/compare/live...pin": reply(http.StatusOK, string(body))})
+
+	got, err := c.Compare(t.Context(), "live", "pin")
+
+	require.NoError(t, err)
+	prs := map[string]int{}
+	for _, commit := range got.Commits {
+		prs[commit.Title] = commit.PR
+	}
+	assert.Equal(t, titles, prs)
 }
 
 func TestDeleteBranch(t *testing.T) {

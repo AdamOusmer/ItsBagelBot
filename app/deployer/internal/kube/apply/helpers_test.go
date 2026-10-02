@@ -33,7 +33,7 @@ func readTree(t *testing.T, fsys fs.FS, dir ports.FilePath) ports.Files {
 
 func buildDir(t *testing.T, fsys fs.FS, root ports.FilePath) ports.Objects {
 	t.Helper()
-	objs, err := build(ports.BuildSpec{Files: readTree(t, fsys, root), Root: root})
+	objs, err := new(Applier).Build(t.Context(), ports.BuildSpec{Files: readTree(t, fsys, root), Root: root})
 	require.NoError(t, err, "build %s", root)
 	return objs
 }

@@ -142,34 +142,3 @@ func TestParsePinsLineShapes(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 }
-
-func TestServicesForManifests(t *testing.T) {
-	lines := ParsePins(loadManifests(t), testRepo)
-	cases := []struct {
-		name   string
-		images []deploy.ImageName
-		want   []string
-	}{
-		{"sidecar maps to its deployment", []deploy.ImageName{"warp"}, []string{"gossip"}},
-		{"cronjob image counts once", []deploy.ImageName{"notifications"}, []string{"notifications"}},
-		{"three deployments in one file", []deploy.ImageName{"discord-engine", "discord-ingress"}, []string{"discord-ingress", "discord-engine"}},
-		{"every image", nil, allServices},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			images := pinsByImage(lines)
-			if tc.images != nil {
-				images = pinSet(tc.images...)
-			}
-			assert.Equal(t, tc.want, servicesFor(lines, images))
-		})
-	}
-}
-
-func pinSet(images ...deploy.ImageName) map[deploy.ImageName]deploy.ImagePin {
-	out := map[deploy.ImageName]deploy.ImagePin{}
-	for _, img := range images {
-		out[img] = deploy.ImagePin{Tag: "v1", Digest: testDigest(string(img))}
-	}
-	return out
-}

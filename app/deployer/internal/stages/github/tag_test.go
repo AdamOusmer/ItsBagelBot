@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -73,11 +72,8 @@ type releaseResult struct {
 }
 
 func TestReleaseStage(t *testing.T) {
-	entry := validEntry()
-	entry.Highlights["en"] = []string{"First.", "Second <b> & more."}
-	entry.Date = "2026-09-23"
-	body, err := newChangelogFile(testConfig(), "v0.2.3-beta", entry).render()
-	require.NoError(t, err)
+	const body = `{"tag":"beta","version":"v0.2.3-beta","date":"2026-09-23","title":{"en":"Deploys page"},
+		"highlights":{"en":["First.","Second <b> & more."]},"github":"https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.3-beta"}`
 	const url = "https://github.test/releases/tag/v0.2.3-beta"
 	cases := []struct {
 		name     string
@@ -98,7 +94,7 @@ func TestReleaseStage(t *testing.T) {
 			run := newRun(deploy.KindHotfix)
 			run.Version, run.Outputs.TagSHA = "v0.2.3-beta", "c1"
 			f := newFixture(t, run)
-			f.gh.commitMain("c1", ports.Files{changelogFilePath: body})
+			f.gh.commitMain("c1", ports.Files{changelogFilePath: []byte(body)})
 			if tc.existing != nil {
 				f.gh.releases["v0.2.3-beta"] = *tc.existing
 			}

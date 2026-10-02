@@ -16,19 +16,21 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-func TestChangelogRenderMatchesHandWritten(t *testing.T) {
+func TestChangelogStageWritesTheHandWrittenFiles(t *testing.T) {
 	for _, name := range []string{"v0.2.1-beta.json", "v0.2.2-beta.json"} {
 		t.Run(name, func(t *testing.T) {
 			want, err := os.ReadFile(filepath.Join("testdata", "changelog", name))
 			require.NoError(t, err)
 			var src changelogFile
 			require.NoError(t, codec.Unmarshal(want, &src))
-			entry := &deploy.ChangelogEntry{Title: src.Title, Highlights: src.Highlights, Date: src.Date}
+			run := newRun(deploy.KindRelease)
+			run.Version, run.Changelog = src.Version, &deploy.ChangelogEntry{Title: src.Title, Highlights: src.Highlights, Date: src.Date}
+			f := newFixture(t, run)
 
-			got, err := newChangelogFile(testConfig(), src.Version, entry).render()
+			_, err = f.runStage(t, deploy.StageChangelog)
 
 			require.NoError(t, err)
-			assert.Equal(t, string(want), string(got))
+			assert.Equal(t, string(want), string(f.gh.trees[f.gh.head()]["web/marketing/src/content/changelog/"+ports.FilePath(name)]))
 		})
 	}
 }
@@ -69,7 +71,13 @@ func TestValidateChangelog(t *testing.T) {
 	}
 }
 
-const changelogFilePath = "web/marketing/src/content/changelog/v0.2.3-beta.json"
+const (
+	changelogFilePath  = "web/marketing/src/content/changelog/v0.2.3-beta.json"
+	committedChangelog = `{"tag":"beta","version":"v0.2.3-beta","date":"2026-09-23",
+		"title":{"en":"Deploys page","fr":"Page des déploiements"},
+		"highlights":{"en":["Owners run the train & watch it."],"fr":["Les propriétaires lancent le train."]},
+		"github":"https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.3-beta"}`
+)
 
 type changelogResult struct {
 	Done  bool
@@ -81,12 +89,7 @@ type changelogResult struct {
 }
 
 func TestChangelogStage(t *testing.T) {
-	rendered := func() []byte {
-		e := validEntry()
-		e.Date = "2026-09-23"
-		body, _ := newChangelogFile(testConfig(), "v0.2.3-beta", e).render()
-		return body
-	}()
+	rendered := []byte(committedChangelog)
 	cases := []struct {
 		name  string
 		kind  deploy.RunKind

@@ -67,7 +67,7 @@ func TestBuild(t *testing.T) {
 				files = readTree(t, testdata, tc.root)
 			}
 			maps.Copy(files, tc.extra)
-			objs, err := build(ports.BuildSpec{Files: files, Root: tc.root})
+			objs, err := new(Applier).Build(t.Context(), ports.BuildSpec{Files: files, Root: tc.root})
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
@@ -82,7 +82,7 @@ func TestRepoManifests(t *testing.T) {
 	repo := os.DirFS("../../../../..")
 	for _, root := range []ports.FilePath{"deploy/k8s", "deploy/messaging", "deploy/db"} {
 		t.Run(string(root), func(t *testing.T) {
-			assert.Empty(t, lint(buildDir(t, repo, root)))
+			assert.Empty(t, new(Applier).Lint(buildDir(t, repo, root)))
 		})
 	}
 }

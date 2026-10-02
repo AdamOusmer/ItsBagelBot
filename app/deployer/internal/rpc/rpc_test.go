@@ -9,13 +9,18 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -121,16 +126,23 @@ func dispatch(v verbs, r request) (domainrpc.Refusal, bool) {
 	return rep.Refusal, rep.Run != nil
 }
 
-func boundNames(v verbs) []string {
-	names := []string{v.plan.Name, v.start.Name, v.list.Name}
-	for _, rv := range v.runs {
-		names = append(names, rv.Name)
-	}
-	return names
-}
+func TestServeBindsEveryDeployVerb(t *testing.T) {
+	nc := testnats.Connect(t)
+	require.NoError(t, Serve(bus.RPCWiring{NC: nc, Queue: "deploy", Log: zap.NewNop()}, "deploy.rpc", &fakeEngine{}, fakeAuth{}))
+	request := []byte(`{"actor_id":"` + ownerID + `","kind":"release","run_id":"run-1"}`)
 
-func TestEveryDeployVerbIsBound(t *testing.T) {
-	assert.ElementsMatch(t, allVerbs, boundNames(newVerbs(&fakeEngine{}, fakeAuth{})))
+	var refused []string
+	for _, verb := range allVerbs {
+		msg, err := nc.Request("deploy.rpc."+verb, request, time.Second)
+		require.NoError(t, err, verb)
+		var refusal domainrpc.Refusal
+		require.NoError(t, codec.Unmarshal(msg.Data, &refusal), verb)
+		if refusal != (domainrpc.Refusal{}) {
+			refused = append(refused, verb)
+		}
+	}
+
+	assert.Empty(t, refused)
 }
 
 func TestGuard(t *testing.T) {

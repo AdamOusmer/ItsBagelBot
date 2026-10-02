@@ -21,7 +21,6 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 
 	"ItsBagelBot/app/deployer/internal/ports"
-	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
 func TestReachable(t *testing.T) {
@@ -39,7 +38,7 @@ func TestReachable(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := newWatcher(c.cs, testCfg, http.DefaultClient).Reachable(context.Background())
+			err := testWatcherOn(c.cs).Reachable(context.Background())
 			if c.wantErr {
 				assert.Error(t, err)
 				return
@@ -176,20 +175,42 @@ func TestVerifyImageIDs(t *testing.T) {
 	}, got)
 }
 
-func TestImageNameAndDigest(t *testing.T) {
-	repo := imageRepo(testRepo)
+func TestVerifyImageIDsReadsEveryImageForm(t *testing.T) {
+	users := ports.WorkloadRef{Kind: kindDeployment, Namespace: "db", Name: "users"}
 	cases := []struct {
-		in         string
-		wantName   deploy.ImageName
-		wantDigest deploy.Digest
+		name    string
+		image   string
+		imageID string
+		want    []ports.Mismatch
 	}{
-		{in: testRepo + "/users:v0.3.0-beta@sha256:abc", wantName: "users", wantDigest: "sha256:abc"},
-		{in: testRepo + "/users@sha256:abc", wantName: "users", wantDigest: "sha256:abc"},
-		{in: testRepo + "/warp:main-1758000000-0123456789ab", wantName: "warp"},
-		{in: "docker.io/natsio/nats-server-config-reloader:0.16.0"},
+		{
+			name: "tag and digest", image: testRepo + "/users:v0.3.0-beta@sha256:new", imageID: testRepo + "/users@sha256:old",
+			want: []ports.Mismatch{{Workload: users, Pod: "users-a", Container: "app", Want: "sha256:new", Got: "sha256:old"}},
+		},
+		{
+			name: "digest only", image: testRepo + "/users@sha256:new", imageID: testRepo + "/users@sha256:old",
+			want: []ports.Mismatch{{Workload: users, Pod: "users-a", Container: "app", Want: "sha256:new", Got: "sha256:old"}},
+		},
+		{
+			name: "tag only with no digest reported", image: testRepo + "/users:main-1758000000-0123456789ab",
+			want: []ports.Mismatch{{Workload: users, Pod: "users-a", Container: "app", Want: "sha256:new"}},
+		},
+		{name: "image outside the repo", image: "docker.io/natsio/nats-server-config-reloader:0.16.0", imageID: "docker.io/natsio/nats-server-config-reloader@sha256:old"},
 	}
-	for _, c := range cases {
-		assert.Equal(t, [2]string{string(c.wantName), string(c.wantDigest)}, [2]string{string(repo.name(c.in)), string(digestOf(c.in))}, c.in)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			containers := []corev1.Container{{Name: "app", Image: tc.image}}
+			pod := podSpec{
+				name: "users-a", ns: "db", labels: map[string]string{"app": "users"}, containers: containers,
+				statuses: []corev1.ContainerStatus{{Name: "app", ImageID: tc.imageID}},
+			}
+			w := testWatcher(depSpec{name: "users", ns: "db", gen: 1, replicas: 1, containers: containers}.obj(), pod.obj())
+
+			got, err := w.VerifyImageIDs(context.Background(), []ports.WorkloadRef{users}, ports.Pins{"users": "sha256:new"})
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 

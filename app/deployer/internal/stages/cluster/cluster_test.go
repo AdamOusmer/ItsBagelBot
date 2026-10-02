@@ -27,7 +27,7 @@ func TestOrder(t *testing.T) {
 	assert.Equal(t, want, Order())
 }
 
-func TestSequence(t *testing.T) {
+func TestRolloutOrder(t *testing.T) {
 	cases := []struct {
 		name  string
 		build ports.Objects
@@ -41,18 +41,20 @@ func TestSequence(t *testing.T) {
 		},
 		{
 			name: "unknown services close their namespace group, deployer stays last",
-			build: ports.Objects{service(nsApp, "zeta"), service("misc", "lone"), service(nsOps, "deployer"),
+			build: ports.Objects{service(nsApp, "zeta"), service(nsMessaging, "lone"), service(nsOps, "deployer"),
 				service(nsDB, "aardvark"), service(nsApp, "sesame"), service(nsDB, "commands")},
 			want: []string{"commands", "aardvark", "sesame", "zeta", "lone", "deployer"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var got []string
-			for _, u := range arrange(tc.build).units {
-				got = append(got, u.name)
-			}
-			assert.Equal(t, tc.want, got)
+			h := newHarness(deploy.KindRelease)
+			h.applier.builds["deploy/k8s"] = tc.build
+
+			err := rollout{}.Run(context.Background(), h.rc(deploy.StageRollout))
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, h.watcher.waited)
 		})
 	}
 }
@@ -348,19 +350,33 @@ func verifyBuild() ports.Objects {
 	)
 }
 
-func TestProbeURLs(t *testing.T) {
-	objs := append(verifyBuild(),
+func TestVerifyProbesOnlyTheStatusHostOnce(t *testing.T) {
+	h := newHarness(deploy.KindRelease)
+	h.applier.builds["deploy/k8s"] = append(verifyBuild(),
 		ingressRoute(ports.ObjectRef{Namespace: nsDB, Name: "transactions-webhooks"},
 			"Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))"),
 		ingressRoute(ports.ObjectRef{Namespace: nsApp, Name: "discord-status"},
 			"Host(`health.itsbagelbot.com`) && Path(`/discord`)", "Host(`health.itsbagelbot.com`) && Path(`/twitch`)"),
 	)
+	h.applier.builds["deploy/db"] = dbRoutes()
 	want := []ports.URL{
 		"https://health.itsbagelbot.com/twitch",
 		"https://health.itsbagelbot.com/discord",
 		"https://health.itsbagelbot.com/db",
 	}
-	assert.Equal(t, want, probeURLs(objs, dbRoutes()))
+	h.watcher.codes = map[ports.URL]int{want[0]: 200, want[1]: 200, want[2]: 200}
+
+	err := verify{}.Run(context.Background(), h.rc(deploy.StageVerify))
+
+	var probed []ports.URL
+	run := h.sink.View()
+	for _, it := range run.Stage(deploy.StageVerify).Items {
+		if strings.HasPrefix(it.Key, "https://") {
+			probed = append(probed, ports.URL(it.Key))
+		}
+	}
+	assert.Equal(t, want, probed)
+	assert.NoError(t, err)
 }
 
 func TestVerify(t *testing.T) {

@@ -24,13 +24,13 @@ func TestLint(t *testing.T) {
 		name   string
 		ref    ports.ObjectRef
 		mutate func(o *unstructured.Unstructured)
-		want   []string
+		want   []ports.ObjectRef
 	}{
 		{
 			name:   "real manifests pass",
 			ref:    outgressRef,
 			mutate: func(*unstructured.Unstructured) {},
-			want:   []string{},
+			want:   []ports.ObjectRef{},
 		},
 		{
 			name: "required anti-affinity with maxSurge 1",
@@ -38,7 +38,7 @@ func TestLint(t *testing.T) {
 			mutate: func(o *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(o.Object, int64(1), "spec", "strategy", "rollingUpdate", "maxSurge")
 			},
-			want: []string{"Deployment db/notifications"},
+			want: []ports.ObjectRef{notificationsRef},
 		},
 		{
 			name: "maxSurge 0% does not surge",
@@ -46,7 +46,7 @@ func TestLint(t *testing.T) {
 			mutate: func(o *unstructured.Unstructured) {
 				_ = unstructured.SetNestedField(o.Object, "0%", "spec", "strategy", "rollingUpdate", "maxSurge")
 			},
-			want: []string{},
+			want: []ports.ObjectRef{},
 		},
 		{
 			name: "Recreate never surges",
@@ -54,13 +54,13 @@ func TestLint(t *testing.T) {
 			mutate: func(o *unstructured.Unstructured) {
 				_ = unstructured.SetNestedMap(o.Object, map[string]any{"type": "Recreate"}, "spec", "strategy")
 			},
-			want: []string{},
+			want: []ports.ObjectRef{},
 		},
 		{
 			name:   "no strategy defaults to 25% surge",
 			ref:    notificationsRef,
 			mutate: func(o *unstructured.Unstructured) { unstructured.RemoveNestedField(o.Object, "spec", "strategy") },
-			want:   []string{"Deployment db/notifications"},
+			want:   []ports.ObjectRef{notificationsRef},
 		},
 		{
 			name: "DoNotSchedule spread not scoped to the ReplicaSet",
@@ -72,16 +72,16 @@ func TestLint(t *testing.T) {
 				}
 				_ = unstructured.SetNestedSlice(o.Object, spread, "spec", "template", "spec", "topologySpreadConstraints")
 			},
-			want: []string{"Deployment app/console-admin"},
+			want: []ports.ObjectRef{consoleAdminRef},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			objs := clone(base)
 			tc.mutate(find(t, objs, tc.ref))
-			got := []string{}
-			for _, f := range lint(objs) {
-				got = append(got, refString(f.Object))
+			got := []ports.ObjectRef{}
+			for _, f := range new(Applier).Lint(objs) {
+				got = append(got, f.Object)
 			}
 			assert.Equal(t, tc.want, got)
 		})

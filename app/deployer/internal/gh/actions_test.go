@@ -66,7 +66,10 @@ func TestActiveRuns(t *testing.T) {
 		{"id":1,"status":"in_progress","created_at":"2026-09-23T10:01:00Z"}]}`)})
 	runs, err := c.ActiveRuns(t.Context(), "publish-images.yml")
 	require.NoError(t, err)
-	ids := mapAll(runs, func(r ports.WorkflowRun) int64 { return r.ID })
+	var ids []int64
+	for _, r := range runs {
+		ids = append(ids, r.ID)
+	}
 	assert.Equal(t, []int64{1, 3}, ids)
 }
 
@@ -102,6 +105,18 @@ func TestJobLogTail(t *testing.T) {
 			want: []string{"step 2", "error: build failed"},
 		},
 		{name: "surfaces a storage failure", storage: reply(http.StatusForbidden, `expired`), n: 50, wantErr: "403"},
+		{name: "returns nothing when no lines are asked", storage: reply(http.StatusOK, "a\nb\n"), n: 0},
+		{name: "returns every line when fewer than asked", storage: reply(http.StatusOK, "a\nb\n"), n: 5, want: []string{"a", "b"}},
+		{name: "keeps the last lines when the ring wraps", storage: reply(http.StatusOK, "a\nb\nc\nd\ne\n"), n: 2, want: []string{"d", "e"}},
+		{name: "keeps order when the ring wraps unevenly", storage: reply(http.StatusOK, "a\nb\nc\nd\ne"), n: 3, want: []string{"c", "d", "e"}},
+		{name: "trims carriage returns", storage: reply(http.StatusOK, "a\r\nb\r\n"), n: 2, want: []string{"a", "b"}},
+		{name: "returns nothing for an empty log", storage: reply(http.StatusOK, ""), n: 3},
+		{
+			name:    "reads a line longer than the default scanner buffer",
+			storage: reply(http.StatusOK, strings.Repeat("x", 200<<10)+"\nlast\n"),
+			n:       1,
+			want:    []string{"last"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,30 +141,6 @@ func TestJobLogTail(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, lines)
-		})
-	}
-}
-
-func TestTailLines(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		n    int
-		want []string
-	}{
-		{name: "none asked", in: "a\nb\n", n: 0, want: nil},
-		{name: "fewer lines than asked", in: "a\nb\n", n: 5, want: []string{"a", "b"}},
-		{name: "ring wraps", in: "a\nb\nc\nd\ne\n", n: 2, want: []string{"d", "e"}},
-		{name: "ring wraps unevenly", in: "a\nb\nc\nd\ne", n: 3, want: []string{"c", "d", "e"}},
-		{name: "crlf trimmed", in: "a\r\nb\r\n", n: 2, want: []string{"a", "b"}},
-		{name: "empty log", in: "", n: 3, want: nil},
-		{name: "a line longer than the scanner buffer", in: strings.Repeat("x", 200<<10) + "\nlast\n", n: 1, want: []string{"last"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := tailLines(strings.NewReader(tc.in), tc.n)
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
 		})
 	}
 }
