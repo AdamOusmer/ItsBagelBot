@@ -74,7 +74,7 @@ func TestGamble(t *testing.T) {
 			contains: []string{"minimum bet is 10"}},
 		{name: "a bet over the maximum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 900",
 			contains: []string{"max bet is 500"}},
-		{name: "an unseen viewer is refused, not broke-shamed", roll: 50, who: "ghost", text: "!gamble 50",
+		{name: "TestGambleUnknownViewer", roll: 50, who: "ghost", text: "!gamble 50",
 			contains: []string{"haven't seen"}, wagers: []engine.PointWager{wagerOf("ghost", 50, true)}},
 		{name: "custom templates fill the wager tokens", roll: 99, who: "erin", config: crumbs, text: "!gamble 50",
 			exact: "@erin busted 50 crumbs, 1184 left", wagers: []engine.PointWager{wagerOf("erin", 50, false)}},

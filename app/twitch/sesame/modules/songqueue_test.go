@@ -478,9 +478,9 @@ func TestSongQueueCommands(t *testing.T) {
 			gossip: nowPlayingGossip(playing(srTrack("t1", "One", "A"))), contains: []string{"jamming to One right now"}},
 		{name: "srlist shows five deep", text: "!songlist", chatter: "42", store: fakeSongQueue{up: six}, gossip: srSearchGossip(),
 			contains: []string{"Song 5"}, excludes: []string{"Song 6"}, queued: 6},
-		{name: "clear empties the queue", text: "!clear", chatter: "9", badges: []string{"moderator"}, store: fakeSongQueue{up: queue}, gossip: srSearchGossip(),
+		{name: "TestClearCommandEmptiesQueue", text: "!clear", chatter: "9", badges: []string{"moderator"}, store: fakeSongQueue{up: queue}, gossip: srSearchGossip(),
 			contains: []string{"cleared"}},
-		{name: "remove retracts the chatter's own request", text: "!remove", store: fakeSongQueue{up: []engine.SongEntry{entry("t1", "Mine", "42", "alice")}}, gossip: srSearchGossip(),
+		{name: "TestRemoveCommandRetractsOwn", text: "!remove", store: fakeSongQueue{up: []engine.SongEntry{entry("t1", "Mine", "42", "alice")}}, gossip: srSearchGossip(),
 			contains: []string{"Mine"}},
 	}
 	for _, tc := range cases {

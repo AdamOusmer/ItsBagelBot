@@ -135,17 +135,17 @@ func TestAlertsDeduplicate(t *testing.T) {
 		wantKeys  []string
 		wantTTL   time.Duration
 	}{
-		{"re-follow inside the window stays silent", &fakeCooldown{allow: []bool{true, false}},
+		{"TestAlertsFollowDedupeSuppressesRefollow", &fakeCooldown{allow: []bool{true, false}},
 			[]eventInput{follow, follow}, []bool{true, false}, []string{"alert:follow:2:7", "alert:follow:2:7"}, 72 * time.Hour},
-		{"follow dedupe is per channel", &fakeCooldown{},
+		{"TestAlertsFollowDedupeIsPerChannel", &fakeCooldown{},
 			[]eventInput{follow, {event: "channel.follow", payload: followOtherChannelJSON}}, []bool{true, true}, []string{"alert:follow:2:7", "alert:follow:9:7"}, 72 * time.Hour},
-		{"follow dedupe fails open", &fakeCooldown{err: errors.New("valkey down")},
+		{"TestAlertsFollowDedupeFailsOpen", &fakeCooldown{err: errors.New("valkey down")},
 			[]eventInput{follow}, []bool{true}, []string{"alert:follow:2:7"}, 72 * time.Hour},
-		{"follow without a user id skips dedupe", &fakeCooldown{allow: []bool{false}},
+		{"TestAlertsFollowWithoutUserIDSkipsDedupe", &fakeCooldown{allow: []bool{false}},
 			[]eventInput{{event: "channel.follow", payload: followNoIDJSON}}, []bool{true}, nil, 0},
-		{"disabled follow claims no window", &fakeCooldown{},
+		{"TestAlertsFollowDisabledClaimsNoWindow", &fakeCooldown{},
 			[]eventInput{{event: "channel.follow", payload: followJSON, cfg: `{"followEnabled":"off"}`}}, []bool{false}, nil, 0},
-		{"non follow alerts are not deduped", &fakeCooldown{},
+		{"TestAlertsNonFollowAlertsAreNotDeduped", &fakeCooldown{},
 			[]eventInput{
 				{event: "channel.subscription.gift", payload: giftJSON},
 				{event: "channel.cheer", payload: cheerJSON},

@@ -10,6 +10,7 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setSkipSnapshots(g *fakeGossip, before, after gossiprpc.SpotifyQueueReply) {
@@ -23,6 +24,22 @@ func spotifyQueue(current string, upNext ...string) gossiprpc.SpotifyQueueReply 
 		reply.UpNext = append(reply.UpNext, gossiprpc.SpotifyTrack{ID: id})
 	}
 	return reply
+}
+
+func TestSkipDrivesThePlayer(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{
+		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
+	}}
+	g := srSearchGossip()
+	setSkipSnapshots(g, spotifyQueue("external", "t1"), spotifyQueue("t1"))
+	m := SongQueue(songDeps(store, g))
+
+	out := runChat(t, m, chatCtx("9", "mod", "moderator"), "!skip")
+
+	require.NotEmpty(t, g.calls)
+	assert.Equal(t, "next", g.calls[len(g.calls)-2].endpoint)
+	assert.Contains(t, chatText(t, out), "Human")
+	require.NotNil(t, store.current)
 }
 
 func TestSkip(t *testing.T) {
@@ -42,7 +59,7 @@ func TestSkip(t *testing.T) {
 	}{
 		{name: "the skip command promotes the head request", text: "!skip", store: []engine.SongEntry{human},
 			before: spotifyQueue("external", "t1"), after: spotifyQueue("t1"), contains: []string{"Human"}, current: "t1"},
-		{name: "the sr skip verb promotes the head request", text: "!sr skip", store: []engine.SongEntry{human},
+		{name: "TestSRSkipVerbPromotesHead", text: "!sr skip", store: []engine.SongEntry{human},
 			before: spotifyQueue("external", "t1"), after: spotifyQueue("t1"), contains: []string{"Human"}, current: "t1"},
 		{name: "TestSkipWaitsForSpotifyBeforePromotingARequest", text: "!skip", store: []engine.SongEntry{entry("t1", "Human", "42", "alice")},
 			before: spotifyQueue("external", "t1"), after: spotifyQueue("external", "t1"), contains: []string{"Skip sent"}, queued: 1},
@@ -50,7 +67,7 @@ func TestSkip(t *testing.T) {
 			store:  []engine.SongEntry{{TrackID: "missed", Title: "Missed"}, {TrackID: "actual", Title: "Actual", RequesterName: "bob"}},
 			before: spotifyQueue("external", "missed", "actual"), after: spotifyQueue("actual"),
 			contains: []string{"Actual"}, excludes: []string{"Missed"}, current: "actual"},
-		{name: "a refused skip leaves the list alone", text: "!skip", store: []engine.SongEntry{human}, nextErr: "Spotify Premium is required for queue control",
+		{name: "TestSkipRefusalLeavesTheListAlone", text: "!skip", store: []engine.SongEntry{human}, nextErr: "Spotify Premium is required for queue control",
 			before: spotifyQueue("external", "t1"), after: spotifyQueue("external", "t1"), contains: []string{"Premium"}, queued: 1},
 	}
 	for _, tc := range cases {

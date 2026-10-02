@@ -151,10 +151,10 @@ func TestFortniteSessionSnapshots(t *testing.T) {
 			replies: map[string]any{"fortnite.session_start": gossiprpc.FortniteSnapshotReply{Player: "Ninja"}},
 			call:    &gossipCall{"fortnite.session_start", gossiprpc.Request{Account: "Ninja", AccountType: "epic", ChannelID: "2"}}},
 		{name: "stream online skips when sessions are off", module: "fortnite", event: "stream.online", config: `{"account":"Ninja","sessionEnabled":"off"}`},
-		{name: "stream offline clears the channel baseline", module: "fortnite", event: "stream.offline",
+		{name: "TestFnStreamOfflineClearsBaseline", module: "fortnite", event: "stream.offline",
 			config:  `{"sessionEnabled":true,"account":"Ninja","accountType":"epic"}`,
 			replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}},
 			call:    &gossipCall{"fortnite.session_end", gossiprpc.Request{ChannelID: "2"}}},
-		{name: "stream offline skips when sessions are off", module: "fortnite", event: "stream.offline", config: `{"account":"Ninja","sessionEnabled":"off"}`},
+		{name: "TestFnStreamOfflineSkipsWhenSessionOff", module: "fortnite", event: "stream.offline", config: `{"account":"Ninja","sessionEnabled":"off"}`},
 	})
 }

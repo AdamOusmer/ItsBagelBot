@@ -120,10 +120,10 @@ var personalityCases = []personalityCase{
 	{name: "a mention with punctuation gets a fact", text: "@ItsBagelBot!", store: &fakePersonality{cursor: 1}, want: personalityFacts[0]},
 	{name: "feeding reports today and lifetime", text: "feed the bagel", store: &fakePersonality{feed: engine.FeedCounts{Today: 3, Total: 48213}},
 		want: fmt.Sprintf(personalityFeedCountPack[0], 3, 48213)},
-	{name: "feeding the bagelbot works", text: "feed the bagelbot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
-	{name: "feeding itsbagelbot works", text: "feed itsbagelbot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
-	{name: "feeding the bagel bot works", text: "feed the bagel bot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
-	{name: "feeding an @mention works", text: "feed @ItsBagelBot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
+	{name: "TestPersonalityNameVariantsReachDirectedReactions bagelbot", text: "feed the bagelbot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
+	{name: "TestPersonalityNameVariantsReachDirectedReactions itsbagelbot", text: "feed itsbagelbot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
+	{name: "TestPersonalityNameVariantsReachDirectedReactions bagel bot", text: "feed the bagel bot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
+	{name: "TestPersonalityNameVariantsReachDirectedReactions mention", text: "feed @ItsBagelBot", store: &fakePersonality{feed: engine.FeedCounts{Today: 2, Total: 7}}, want: fmt.Sprintf(personalityFeedCountPack[0], 2, 7)},
 	{name: "a store error silences the feed line", text: "feed the bagel", store: &fakePersonality{err: assert.AnError}},
 	{name: "no store means no feed line", text: "feed the bagel"},
 	{name: "the stored mood sticks", text: "bagel mood?", store: &fakePersonality{mood: personalityMoodPack[2]}, want: "current mood: " + personalityMoodPack[2]},
@@ -305,6 +305,12 @@ func TestPersonalityRespondsToEveryReactionPhrase(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestPersonalityNormalizeChat(t *testing.T) {
+	assert.Equal(t, "good night itsbagelbot", normalizeChat("good night, @itsbagelbot!!"))
+	assert.Equal(t, "gn bagel", normalizeChat("gn   bagel 🥯"))
+	assert.Equal(t, "", normalizeChat("!?@"))
 }
 
 func TestPersonalityLocalesCoverEveryLine(t *testing.T) {

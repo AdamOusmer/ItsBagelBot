@@ -6,6 +6,8 @@ package modules
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 )
@@ -51,7 +53,7 @@ func TestMcsrSessionCommand(t *testing.T) {
 	runGossipCases(t, []gossipCase{
 		{name: "session reports the gain since the baseline", chat: mcsrChat("!session", account), replies: feinberg,
 			exact: "Feinberg this stream: +24 elo (1660 now) · 3W 1L 0D in 4 matches", call: sessionCall},
-		{name: "session draws fill the gap", chat: mcsrChat("!session", `{"account":"LawnMobius"}`),
+		{name: "TestMcsrSessionDrawsFillTheGap", chat: mcsrChat("!session", `{"account":"LawnMobius"}`),
 			replies: session(gossiprpc.McsrSessionReply{Nickname: "LawnMobius", Elo: 1568, EloChange: -13, Wins: 3, Loses: 4, Played: 8, HasSnapshot: true}),
 			exact:   "LawnMobius this stream: -13 elo (1568 now) · 3W 4L 1D in 8 matches"},
 		{name: "session draws are never negative", chat: mcsrChat("!session", account),
@@ -183,4 +185,15 @@ func TestMcsrPbCommand(t *testing.T) {
 		{name: "an upstream rejection chats the typed player", chat: mcsrChat("!pb ghostplayer", ""), err: bus.RPCReplyError{Message: "player not found"},
 			exact: "ghostplayer: player not found"},
 	})
+}
+
+func TestMcsrSessionDrawsNeverNegative(t *testing.T) {
+	assert.Equal(t, "0", mcsrWinLoss(3, 1, 2)["draws"])
+}
+
+func TestMcsrSessionTemplateUpgrade(t *testing.T) {
+	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(""))
+	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(legacyMcsrSessionTemplate))
+	assert.Equal(t, "{wins}-{losses}", mcsrSessionTemplate("{wins}-{losses}"))
+	assert.Equal(t, legacyMcsrSessionTemplate+"!", mcsrSessionTemplate(legacyMcsrSessionTemplate+"!"))
 }
