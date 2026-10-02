@@ -10,7 +10,7 @@ const t = useTranslations(lang);
 
 <button class="cue" type="button" data-scroll-cue>
     <span class="cue__inner">
-        <span class="cue__label">{t('hero.scrollCue')}</span>
+        <span class="cue__label"><span data-fit>{t('hero.scrollCue')}</span></span>
         <span class="cue__rail" aria-hidden="true">
             <span class="cue__dot"></span>
         </span>
@@ -24,6 +24,7 @@ const t = useTranslations(lang);
         bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
         transform: translateX(-50%);
         display: block;
+        width: 140px;
         padding: 6px 16px 0;
         border: 0;
         background: none;
@@ -44,6 +45,8 @@ const t = useTranslations(lang);
 
     .cue__label {
         display: none;
+        align-self: stretch;
+        text-align: center;
         font-family: var(--bb-font-mono);
         font-size: 0.62rem;
         letter-spacing: 0.24em;

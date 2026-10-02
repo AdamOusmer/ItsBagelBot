@@ -71,6 +71,10 @@
     overflow: hidden;
   }
 
+  .bb-text-link__mask[data-fit] {
+    display: inline-flex;
+  }
+
   .bb-text-link__row {
     display: inline-flex;
     align-items: baseline;

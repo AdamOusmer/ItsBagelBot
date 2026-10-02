@@ -5,8 +5,13 @@
 
 @layer bb.elements {
   .bb-footer {
-    --footer-pad: 72px 4% 40px;
+    --footer-pad: 72px max(4%, 72px) 40px;
     --footer-signoff-sub-font: var(--bb-font-hand);
+    --footer-signoff-lines: 1;
+    --footer-brand-w: 300px;
+    --footer-top-gap: 40px;
+    --footer-col-gap: 24px;
+    --footer-legal-max: 720px;
     --bb-footer-bg: transparent;
 
     position: relative;
@@ -40,6 +45,9 @@
   }
 
   .bb-footer__signoff-line {
+    display: grid;
+    align-content: safe center;
+    height: calc(var(--footer-signoff-lines) * 1lh);
     font-family: var(--bb-font-display);
     font-weight: 800;
     font-size: clamp(1.7rem, 4.6vw, 2.9rem);
@@ -61,16 +69,34 @@
 
   .bb-footer__top {
     position: relative;
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: var(--footer-brand-w) minmax(0, 1fr);
     align-items: center;
-    gap: 60px;
+    gap: var(--footer-top-gap);
     margin-bottom: 60px;
   }
 
+  .bb-footer__brand {
+    width: 100%;
+  }
+
+  .bb-footer__brand .bb-brand__id {
+    flex: 1 1 0;
+  }
+
+  .bb-footer__brand .bb-brand__sub {
+    align-self: flex-start;
+    font-size: calc(var(--brand-sub-size) * var(--bb-fit, 1));
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
   .bb-footer__cols {
-    display: flex;
-    gap: 60px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 30px var(--footer-col-gap);
   }
 
   .bb-footer__col {
@@ -78,9 +104,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+    min-width: 0;
   }
 
   .bb-footer__col-title {
+    align-self: stretch;
     font-family: var(--bb-font-mono);
     font-size: 0.9rem;
     letter-spacing: 0.1em;
@@ -95,8 +123,9 @@
 
   .bb-footer__bottom {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 3fr);
     align-items: center;
+    column-gap: 24px;
     padding-top: 30px;
     border-top: 1px solid rgba(var(--bb-white-pure-rgb), 0.05);
   }
@@ -104,7 +133,6 @@
   .bb-footer__copy,
   .bb-footer__note {
     min-width: 0;
-    overflow-wrap: break-word;
     font-family: var(--bb-font-mono);
     font-size: 0.7rem;
     color: var(--bb-muted);
@@ -115,22 +143,65 @@
   }
 
   .bb-footer__note {
+    display: grid;
+    align-content: safe center;
+    height: calc(2 * 1lh);
     letter-spacing: 0.08em;
+    text-align: center;
   }
 
   .bb-footer__legal {
     --bb-nav-link-size: var(--bb-text-xs);
     --bb-nav-link-tracking: 0.04em;
 
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-items: center;
     min-width: 0;
-    gap: 10px 20px;
   }
 
   .bb-footer__col .bb-nav-link {
     --bb-nav-link-size: var(--bb-text-xs);
+  }
+
+  @media (max-width: 1439px) {
+    .bb-footer__top {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      gap: 48px;
+    }
+
+    .bb-footer__brand {
+      flex-direction: column;
+      width: min(100%, 360px);
+      text-align: center;
+    }
+
+    .bb-footer__brand .bb-brand__id {
+      flex: none;
+      align-self: stretch;
+    }
+
+    .bb-footer__brand .bb-brand__sub {
+      align-self: safe center;
+    }
+
+    .bb-footer__cols {
+      justify-self: stretch;
+    }
+
+    .bb-footer__bottom {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      text-align: center;
+    }
+
+    .bb-footer__legal {
+      justify-self: center;
+      width: min(100%, var(--footer-legal-max));
+    }
   }
 
   @media (max-width: 900px) {
@@ -143,23 +214,28 @@
     }
 
     .bb-footer__top {
-      flex-direction: column;
       gap: 40px;
     }
 
     .bb-footer__cols {
-      flex-wrap: wrap;
-      gap: 30px;
+      grid-auto-flow: row;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      --footer-col-gap: 16px;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .bb-footer {
+      --footer-signoff-lines: 2;
     }
 
-    .bb-footer__bottom {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-      text-align: center;
+    .bb-footer__col:first-child {
+      grid-column: 1 / -1;
     }
 
     .bb-footer__legal {
-      justify-content: center;
+      grid-auto-flow: row;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 

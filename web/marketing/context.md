@@ -77,6 +77,10 @@ Preview samples illustrate behavior; availability and variable grammar come from
 - ClientRouter navigations need appropriate effect cleanup/reinitialization; avoid accumulating listeners.
 - Do not hand-copy the template evaluator/token regex; use kit's engine subpaths.
 - Frontend product claims need reconciliation with real service capabilities when behavior changes.
+- Layout geometry never comes from translated text: boxes take their width from the grid and their height
+  from a line count (`calc(N * 1lh)`); copy inside sits in a `data-fit` span that `@bagel/ui/lib/text-fit`
+  scales down to fit. No `:lang()` rules, no mid-word breaks, no ellipsis. `tests/locale-layout.spec.js` diffs
+  every box across locales.
 
 ## Focused commands
 

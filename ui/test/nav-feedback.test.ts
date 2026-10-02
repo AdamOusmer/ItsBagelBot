@@ -361,7 +361,7 @@ describe('catalog defaults', () => {
     props: { options: [{ code: 'en', label: 'EN', href: '/', current: true }], menuId: 'lang' },
     html:
       '<div class="bb-lang-switch" data-bb-lang-switch>' +
-      '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: EN"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label">EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
+      '<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: EN"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__label" data-fit>EN</span><svg class="bb-icon bb-lang-switch__chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9l6 6l6-6"></svg></button>' +
       '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">' +
       '<li><a class="bb-lang-switch__opt is-active" href="/" hreflang="en" aria-current="true"><span class="bb-lang-switch__flag" aria-hidden="true"></span><span class="bb-lang-switch__name" lang="en">EN</span><svg class="bb-icon bb-lang-switch__check" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg></a></li>' +
       '</ul></div>',

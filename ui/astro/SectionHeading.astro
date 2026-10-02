@@ -20,4 +20,4 @@ const classes = ['bb-section-heading', `bb-section-heading--${align}`, className
     .join(' ');
 ---
 
-<div class={classes} {...rest}>{(eyebrow || hasBadge) && (<div class="bb-section-heading__meta" data-reveal>{eyebrow && <span class="bb-section-heading__eyebrow">{eyebrow}</span>}<slot name="badge" /></div>)}<HeadingTag class="bb-section-heading__title" data-reveal="" style="--reveal-i: 1">{title}</HeadingTag></div>
+<div class={classes} {...rest}>{(eyebrow || hasBadge) && (<div class="bb-section-heading__meta" data-reveal>{eyebrow && <span class="bb-section-heading__eyebrow"><span data-fit>{eyebrow}</span></span>}<slot name="badge" /></div>)}<HeadingTag class="bb-section-heading__title" data-reveal="" style="--reveal-i: 1"><span data-fit="block">{title}</span></HeadingTag></div>

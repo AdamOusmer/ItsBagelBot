@@ -42,8 +42,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </div>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.mcTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('games.mcDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.mcTitle')}</span></Heading>
+            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.mcDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
@@ -73,8 +73,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.fnTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('games.fnDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.fnTitle')}</span></Heading>
+            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.fnDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
@@ -86,9 +86,9 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     <span class="games-val__stat"><b class="games-stat__key">Peak</b> Immortal 1</span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.valTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('games.valDesc')}</Text>
-            <TextLink variant="arrow" tone="go" class="games__more" href={localizePath('/valorant-stats', lang)} label={t('rail.learnMore')} />
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.valTitle')}</span></Heading>
+            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.valDesc')}</span></Text>
+            <TextLink variant="arrow" tone="go" class="games__more" href={localizePath('/valorant-stats', lang)}><span class="games__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
@@ -100,8 +100,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     <span class="games-cr__stat"><b class="games-stat__key">WR</b> 60%</span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.crTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('games.crDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.crTitle')}</span></Heading>
+            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.crDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
@@ -111,19 +111,21 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     New Issue
                 </ButtonLink>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.reqTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('games.reqDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.reqTitle')}</span></Heading>
+            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.reqDesc')}</span></Text>
         </Card>
     </div>
 
-    <Text size="xs" mono tone="muted" class="games__legal">{legalShortBefore}<TextLink
+    <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block">{legalShortBefore}<TextLink
         variant="inline"
         href={localizePath('/terms', lang)}
-    >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</Text>
+    >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</span></Text>
 </Section>
 
 <style>
     .games {
+        --section-heading-lines: 2;
+        --section-heading-lines-phone: 3;
         position: relative;
         padding-inline: 24px;
         max-width: var(--bb-content-max);
@@ -145,10 +147,21 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games__title {
+        height: calc(var(--games-title-lines, 2) * 1lh);
         margin: 0 0 8px;
     }
 
+    .games__desc {
+        height: calc(var(--games-desc-lines, 3) * 1lh);
+    }
+
+
     .games__more { margin-top: 14px; align-self: flex-start; }
+
+    .games__more-box {
+        display: block;
+        width: 136px;
+    }
 
     .games__demo {
         display: flex;
@@ -333,6 +346,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games__legal {
+        height: calc(var(--games-legal-lines, 2) * 1lh);
         margin: 28px auto 0;
         max-width: 720px;
         text-align: center;
@@ -368,7 +382,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     @media (max-width: 640px) {
-        .games { padding-inline: 20px; }
+        .games { --games-legal-lines: 3; padding-inline: 20px; }
         .games-mc__stats { flex-wrap: wrap; gap: 8px; }
     }
 </style>

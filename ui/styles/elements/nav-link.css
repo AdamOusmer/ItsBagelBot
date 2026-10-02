@@ -114,6 +114,18 @@
       text-overflow: ellipsis;
     }
 
+    .bb-nav-link:has(> .bb-nav-link__label[data-fit]) {
+      flex-shrink: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    /* The fitter reads the overflow on the link, so a fit label must keep its text width. */
+    .bb-nav-link__label[data-fit] {
+      flex-shrink: 0;
+      overflow: visible;
+    }
+
     .bb-nav-link svg {
       flex-shrink: 0;
       width: 1.36em;

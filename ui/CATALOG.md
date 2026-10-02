@@ -27,7 +27,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Lead** | `as`: 'p' \| 'div' | svelte + astro | stable | `styles/elements/typography.css` |
 | **SectionHeading** | `eyebrow`: string<br>`title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`align`: 'center' \| 'left'<br>`badge`: Snippet | svelte + astro | stable | `styles/elements/section-heading.css` |
 | **Text** | `size`: 'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'<br>`tone`: TextTone<br>`mono`: boolean<br>`truncate`: boolean<br>`as`: 'p' \| 'span' \| 'small' \| 'div' \| 'li' \| 'dd' \| 'dt' | svelte + astro | stable | `styles/elements/typography.css` |
-| **TextLink** | `href*`: string<br>`label`: string<br>`variant`: 'roll' \| 'arrow' \| 'inline' \| 'quiet'<br>`tone`: 'go' \| 'lead'<br>`prose`: boolean<br>`icon`: IconName<br>`current`: boolean<br>`external`: boolean<br>`size`: string<br>`touch`: boolean | svelte + astro | stable | `styles/elements/text-link.css` |
+| **TextLink** | `href*`: string<br>`label`: string<br>`variant`: 'roll' \| 'arrow' \| 'inline' \| 'quiet'<br>`tone`: 'go' \| 'lead'<br>`prose`: boolean<br>`icon`: IconName<br>`current`: boolean<br>`external`: boolean<br>`size`: string<br>`touch`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/text-link.css` |
 | **VisuallyHidden** | `focusable`: boolean<br>`as`: 'span' \| 'div' \| 'p' \| 'a' | svelte + astro | stable | `styles/elements/typography.css` |
 
 ## Layout
@@ -100,7 +100,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **Brand** | `title*`: string<br>`sub`: string<br>`href`: string<br>`logoSrc`: string<br>`logoAlt`: string<br>`size`: 'sm' \| 'md' \| 'lg'<br>`logoShape`: 'square' \| 'circle' | svelte + astro | stable | `styles/elements/brand-mark.css` |
+| **Brand** | `title*`: string<br>`sub`: string<br>`href`: string<br>`logoSrc`: string<br>`logoAlt`: string<br>`size`: 'sm' \| 'md' \| 'lg'<br>`logoShape`: 'square' \| 'circle'<br>`fit`: boolean | svelte + astro | stable | `styles/elements/brand-mark.css` |
 | **Dock** | `items`: UiNavLink[]<br>`groups`: UiNavGroup[]<br>`label`: string<br>`homeHref`: string<br>`fallbackIcon`: IconName | svelte + astro | stable | `styles/elements/shell.css` |
 | **EditorFooter** | `status`: 'idle' \| 'saving' \| 'saved' \| 'error' \| 'conflict'<br>`dirty`: boolean<br>`canSave`: boolean<br>`saveLabel`: string<br>`cancelLabel`: string<br>`savingLabel`: string<br>`savedLabel`: string<br>`errorLabel`: string<br>`dirtyLabel`: string<br>`onCancel*`: () => void | svelte + astro | stable | `styles/elements/editor-footer.css` |
 | **Footer** | `brand*`: UiBrand<br>`signoff`: { line: string; sub?: string }<br>`columns`: UiFooterColumn[]<br>`legal`: UiNavLink[]<br>`copyright*`: string<br>`note`: string<br>`colophon`: Snippet | svelte + astro | stable | `styles/elements/footer.css` |
@@ -109,7 +109,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **MobileMenu** | `links*`: UiNavLink[]<br>`cta`: UiNavLink<br>`id`: string<br>`panelLabel`: string<br>`meta`: string<br>`footer`: Snippet | svelte + astro | stable | `styles/elements/nav.css` |
 | **Nav** | `brand*`: UiBrand<br>`links*`: UiNavLink[]<br>`cta`: UiNavLink<br>`locales`: UiLocaleOption[]<br>`localeLabel`: string<br>`label`: string<br>`menuLabels`: { open?: string; close?: string; panel?: string }<br>`menuMeta`: string<br>`menuId`: string<br>`variant`: 'pill' \| 'bar'<br>`menu`: boolean<br>`actions`: Snippet<br>`mobileFooter`: Snippet | svelte + astro | stable | `styles/elements/nav.css` |
 | **NavGroup** | `label`: string<br>`items*`: UiNavLink[]<br>`startIndex`: number | svelte + astro | stable | `styles/elements/nav.css` |
-| **NavLink** | `href`: string<br>`label`: string<br>`current`: boolean<br>`variant`: 'rail' \| 'cta'<br>`external`: boolean<br>`block`: boolean<br>`disabled`: boolean<br>`hint`: string<br>`leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/button.css, styles/elements/nav-link.css` |
+| **NavLink** | `href`: string<br>`label`: string<br>`current`: boolean<br>`variant`: 'rail' \| 'cta'<br>`external`: boolean<br>`block`: boolean<br>`disabled`: boolean<br>`hint`: string<br>`fit`: boolean<br>`leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/button.css, styles/elements/nav-link.css` |
 | **PageHead** | `eyebrow`: string<br>`title`: string<br>`description`: string<br>`trailing`: Snippet<br>`compact`: boolean | svelte + astro | stable | `styles/elements/page.css` |
 | **PageToolbar** | `leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/page.css` |
 | **Pager** | `label*`: string<br>`prevHref*`: string<br>`nextHref*`: string<br>`hasPrev`: boolean<br>`hasNext`: boolean<br>`prevLabel`: string<br>`nextLabel`: string<br>`navLabel`: string | svelte + astro | stable | `styles/elements/pager.css` |

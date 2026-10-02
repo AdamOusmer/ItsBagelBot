@@ -29,6 +29,7 @@
     "./lib/reveal": "./lib/reveal.ts",
     "./lib/scroll-spy": "./lib/scroll-spy.ts",
     "./lib/select": "./lib/select.ts",
+    "./lib/text-fit": "./lib/text-fit.ts",
     "./lib/tilt": "./lib/tilt.ts",
     "./lib/tween": "./lib/tween.ts",
     "./svelte": "./svelte/index.ts",

@@ -89,8 +89,8 @@ const lines: Line[] = [
                     aria-hidden="true"
                 />
                 <span class="line__main">
-                    <Heading level={5} as="span" class="line__title">{line.title}</Heading>
-                    <Text as="span" size="sm" tone="muted" class="line__note">{line.note}</Text>
+                    <Heading level={5} as="span" class="line__title"><span data-fit>{line.title}</span></Heading>
+                    <Text as="span" size="sm" tone="muted" class="line__note"><span data-fit="block">{line.note}</span></Text>
                 </span>
                 <span class="line__meta">
                     {line.copy ? (
@@ -109,7 +109,7 @@ const lines: Line[] = [
                             </span>
                         </Chip>
                     ) : (
-                        <Text as="span" size="xs" mono tone="muted" class="line__hint">{line.hint}</Text>
+                        <Text as="span" size="xs" mono tone="muted" class="line__hint"><span data-fit>{line.hint}</span></Text>
                     )}
                     <span class="line__arrow" aria-hidden="true">→</span>
                 </span>
@@ -117,9 +117,7 @@ const lines: Line[] = [
         ))}
     </div>
 
-    <Text size="xs" mono tone="muted" class="board__note" data-reveal>
-        {t('switchboard.note')}
-    </Text>
+    <Text size="xs" mono tone="muted" class="board__note" data-reveal><span data-fit="block">{t('switchboard.note')}</span></Text>
 </section>
 
 <style>
@@ -191,23 +189,30 @@ const lines: Line[] = [
     }
 
     .line__title {
+        display: block;
         transition: color var(--bb-dur-fast) ease;
     }
 
     .line:hover .line__title { color: var(--bb-tan-light); }
 
     .line__note {
+        display: block;
         max-width: 52ch;
+        height: calc(2 * 1lh);
     }
 
     .line__meta {
         display: flex;
+        flex: 0 0 16rem;
+        justify-content: flex-end;
         align-items: center;
         gap: 14px;
-        flex-shrink: 0;
     }
 
     .line__hint {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: end;
         transition: color var(--bb-dur-fast) ease;
     }
 
@@ -243,6 +248,7 @@ const lines: Line[] = [
     .board__note {
         --reveal-i: 4;
         text-align: center;
+        height: calc(2 * 1lh);
         margin-top: 40px;
         opacity: 0.8;
     }
@@ -259,5 +265,6 @@ const lines: Line[] = [
         }
         .line__main { flex-basis: 100%; order: 3; }
         .line__meta { margin-left: auto; }
+        .line__note { height: calc(3 * 1lh); }
     }
 </style>

@@ -1,0 +1,37 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+    /* A font-size transition (even the 0.01ms reduced-motion one) makes the fitter read stale widths. */
+    [data-fit] {
+        font-size: calc(1em * var(--bb-fit, 1));
+    }
+
+    [data-fit],
+    [data-fit] * {
+        transition: none;
+    }
+
+    /* 1lh here is the scaled line box; dividing by the ratio keeps the nominal height so the box never shrinks. */
+    [data-fit=""],
+    [data-fit="line"] {
+        display: inline-flex;
+        align-items: center;
+        vertical-align: top;
+        min-height: calc(1lh / var(--bb-fit, 1));
+        white-space: nowrap;
+        max-width: none;
+    }
+
+    [data-fit="block"] {
+        display: block;
+    }
+
+    @media (scripting: enabled) {
+        [data-fit]:not([data-fit-ready]) {
+            visibility: hidden;
+        }
+    }
+}

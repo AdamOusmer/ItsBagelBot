@@ -31,7 +31,7 @@
 
   .bb-btn--block {
     --btn-w: 100%;
-    --btn-justify: center;
+    --btn-justify: safe center;
     --btn-min-h: 44px;
   }
 
@@ -49,6 +49,12 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .bb-btn__content:has(> [data-fit]) {
+    flex: 1 1 0;
+    justify-content: var(--btn-justify, flex-start);
+    min-width: 0;
   }
 
   .bb-btn__mark,
