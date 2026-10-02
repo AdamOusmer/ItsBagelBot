@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -26,8 +28,8 @@ func TestAsyncPublishTimeoutExpiresOnlyTheLostFuture(t *testing.T) {
 	defer peer.close()
 	var releaseSecond sync.Once
 	defer releaseSecond.Do(func() { close(peer.releaseSecond) })
-
-	publisher := newTimeoutPublisher(t, peer)
+	publisher, err := newBatchPublisherConnection("nats://"+peer.listener.Addr().String(), 0, wireSingle, zap.NewNop())
+	require.NoError(t, err)
 	defer publisher.nc.Close()
 
 	worker := &publishBatchWorker{js: publisher.js}
@@ -36,15 +38,14 @@ func TestAsyncPublishTimeoutExpiresOnlyTheLostFuture(t *testing.T) {
 	awaitLostTimeout(t, worker, first)
 	second := receiveAsyncResult(t, secondResult)
 	peer.waitForSecondPublish(t)
-
-	waitForPendingFuture(t, publisher.js, 1)
+	require.Eventually(t, func() bool { return publisher.js.PublishAsyncPending() == 1 }, time.Second, time.Millisecond,
+		"only the second future may stay pending after the first expired")
 	releaseSecond.Do(func() { close(peer.releaseSecond) })
 	awaitSecondAck(t, second.futures[0])
 
 	third := startTimeoutPublish(t, worker, "review.timeout.third")
-	if err := worker.awaitAsync(third); err != nil {
-		t.Fatalf("publish after lost PubAck await error = %v", err)
-	}
+
+	assert.NoError(t, worker.awaitAsync(third), "a publish after a lost PubAck")
 }
 
 type asyncResult struct {
@@ -52,21 +53,10 @@ type asyncResult struct {
 	err     error
 }
 
-func newTimeoutPublisher(t *testing.T, peer *publishTimeoutPeer) *batchPublisher {
-	t.Helper()
-	publisher, err := newBatchPublisherConnection("nats://"+peer.listener.Addr().String(), 0, wireSingle, zap.NewNop())
-	if err != nil {
-		t.Fatalf("newBatchPublisherConnection() error = %v", err)
-	}
-	return publisher
-}
-
 func startTimeoutPublish(t *testing.T, worker *publishBatchWorker, subject string) []nats.PubAckFuture {
 	t.Helper()
 	futures, err := worker.startAsync([]publishRequest{{msg: nats.NewMsg(subject)}})
-	if err != nil {
-		t.Fatalf("PublishMsgAsync(%q) error = %v", subject, err)
-	}
+	require.NoError(t, err, "PublishMsgAsync(%q)", subject)
 	return futures
 }
 
@@ -85,46 +75,22 @@ func awaitLostTimeout(t *testing.T, worker *publishBatchWorker, futures []nats.P
 	started := time.Now()
 	err := worker.awaitAsync(futures)
 	elapsed := time.Since(started)
-	if !isPublishTimeout(err) {
-		t.Fatalf("lost PubAck await error = %v, want timeout", err)
-	}
-	if elapsed < 800*time.Millisecond || elapsed > 2*time.Second {
-		t.Fatalf("NATS_PUBLISH_ACK_WAIT=1s waited %v, want about one second", elapsed)
-	}
-}
-
-func isPublishTimeout(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, nats.ErrAsyncPublishTimeout) {
-		return true
-	}
-	return strings.Contains(err.Error(), "PubAck timeout")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nats.ErrAsyncPublishTimeout) || strings.Contains(err.Error(), "PubAck timeout"),
+		"lost PubAck await error = %v, want timeout", err)
+	assert.True(t, elapsed >= 800*time.Millisecond && elapsed <= 2*time.Second,
+		"NATS_PUBLISH_ACK_WAIT=1s waited %v, want about one second", elapsed)
 }
 
 func receiveAsyncResult(t *testing.T, result <-chan asyncResult) asyncResult {
 	t.Helper()
 	select {
 	case second := <-result:
-		if second.err != nil {
-			t.Fatalf("second PublishMsgAsync() error = %v", second.err)
-		}
+		require.NoError(t, second.err, "second PublishMsgAsync()")
 		return second
 	case <-time.After(time.Second):
 		t.Fatal("second PublishMsgAsync() did not start")
 		return asyncResult{}
-	}
-}
-
-func waitForPendingFuture(t *testing.T, js nats.JetStreamContext, want int) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for js.PublishAsyncPending() != want && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := js.PublishAsyncPending(); got != want {
-		t.Fatalf("pending futures after first expiry = %d, want only the second future", got)
 	}
 }
 

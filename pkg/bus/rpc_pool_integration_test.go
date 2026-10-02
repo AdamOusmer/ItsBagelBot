@@ -5,7 +5,6 @@ package bus
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 
@@ -55,13 +54,9 @@ func TestQueueSubscribeRPCConcurrentIntegration(t *testing.T) {
 
 func dialIntegrationBroker(t *testing.T) *nats.Conn {
 	t.Helper()
-	url := os.Getenv("NATS_INTEGRATION_URL")
-	if url == "" {
-		t.Skip("NATS_INTEGRATION_URL is not set")
-	}
 	t.Setenv("NODE_NAME", "pooltest")
 
-	nc, err := nats.Connect(url)
+	nc, err := nats.Connect(brokerURL(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,8 +5,11 @@ package bus
 
 import (
 	"context"
-	"maps"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type idReq struct{ UserID string }
@@ -21,57 +24,40 @@ type idRep struct {
 func (r *idRep) Failed(message string) { r.Error = message }
 
 func TestUserIDRefusals(t *testing.T) {
-	got := map[string]string{
-		"empty":       refusal(t, ""),
-		"not numeric": refusal(t, "abc"),
-		"negative":    refusal(t, "-1"),
-		"overflow":    refusal(t, "99999999999999999999999"),
-	}
-	want := map[string]string{
-		"empty":       "bad request",
-		"not numeric": "invalid user_id",
-		"negative":    "invalid user_id",
-		"overflow":    "invalid user_id",
-	}
-	if !maps.Equal(got, want) {
-		t.Fatalf("refusals = %v, want %v", got, want)
-	}
-}
+	for _, tc := range []struct{ name, raw, want string }{
+		{"empty", "", "bad request"},
+		{"not numeric", "abc", "invalid user_id"},
+		{"negative", "-1", "invalid user_id"},
+		{"overflow", "99999999999999999999999", "invalid user_id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := UserID(tc.raw)
 
-func refusal(t *testing.T, raw string) string {
-	t.Helper()
-	_, err := UserID(raw)
-	if err == nil {
-		t.Fatalf("UserID(%q) accepted", raw)
+			require.Error(t, err)
+			assert.EqualError(t, err, tc.want)
+		})
 	}
-	return err.Error()
 }
 
 func TestForUserGuard(t *testing.T) {
 	handle := ForUser[idReq, idRep](func(_ context.Context, _ idReq, id uint64) (idRep, error) {
 		if id == 7 {
-			return idRep{}, errLoad
+			return idRep{}, errors.New("load failed")
 		}
 		return idRep{ID: id}, nil
 	})
 
-	got := map[string]idRep{
-		"parsed":     handle(context.Background(), idReq{UserID: "42"}),
-		"load error": handle(context.Background(), idReq{UserID: "7"}),
-		"refused":    handle(context.Background(), idReq{UserID: "x"}),
-	}
-	want := map[string]idRep{
-		"parsed":     {ID: 42},
-		"load error": {Error: "load failed"},
-		"refused":    {Error: "invalid user_id"},
-	}
-	if !maps.Equal(got, want) {
-		t.Fatalf("guard = %v, want %v", got, want)
+	for _, tc := range []struct {
+		name string
+		raw  string
+		want idRep
+	}{
+		{"parsed", "42", idRep{ID: 42}},
+		{"load error", "7", idRep{Error: "load failed"}},
+		{"refused", "x", idRep{Error: "invalid user_id"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, handle(context.Background(), idReq{UserID: tc.raw}))
+		})
 	}
 }
-
-var errLoad = errStr("load failed")
-
-type errStr string
-
-func (e errStr) Error() string { return string(e) }

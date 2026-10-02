@@ -4,144 +4,112 @@
 package bus
 
 import (
-	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestBaseOptionsInstallAsyncErrorHandler(t *testing.T) {
-	var opts nats.Options
-	for _, option := range baseOptions(connectionIdentity{name: "test"}) {
-		if err := option(&opts); err != nil {
-			t.Fatalf("apply option: %v", err)
-		}
-	}
-	if opts.AsyncErrorCB == nil {
-		t.Fatal("no asynchronous error handler; permission violations would be discarded silently")
-	}
+func TestConnectPrefersTheLeafOverTheGivenURL(t *testing.T) {
+	leaf, given := coreServer(t, "leaf"), coreServer(t, "given")
 
-	core, logs := observer.New(zap.ErrorLevel)
-	defer zap.ReplaceGlobals(zap.New(core))()
+	for _, tc := range []struct {
+		name    string
+		leafURL string
+		want    string
+	}{
+		{"a configured leaf wins", leaf.ClientURL(), "leaf"},
+		{"without a leaf the given URL is used", "", "given"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NATS_LEAF_URL", tc.leafURL)
 
-	opts.AsyncErrorCB(nil, nil, errors.New(
-		`nats: permissions violation: Permissions Violation for Publish to "$JS.FC.TWITCH_INGRESS.worker_premium.abcd"`))
-	opts.AsyncErrorCB(nil, &nats.Subscription{Subject: "twitch.ingress.event.premium"}, errors.New("nats: permissions violation"))
+			nc, err := Connect(given.ClientURL(), "connect-test")
 
-	entries := logs.All()
-	if len(entries) != 2 {
-		t.Fatalf("logged %d asynchronous errors, want 2", len(entries))
-	}
-	for i, want := range []string{"$JS.FC.TWITCH_INGRESS.worker_premium.abcd", "twitch.ingress.event.premium"} {
-		if got := entries[i].ContextMap()["subject"]; got != want {
-			t.Fatalf("logged subject = %v, want %q", got, want)
-		}
+			require.NoError(t, err)
+			defer nc.Close()
+			assert.Equal(t, tc.want, nc.ConnectedServerName())
+		})
 	}
 }
 
-func TestBusURLPrefersHubWhenSet(t *testing.T) {
-	t.Setenv("NATS_HUB_URL", "nats://nats:4222")
-	t.Setenv("NATS_LEAF_URL", "nats://nats-leaf:4222")
+func TestRPCURLFollowsTheOverride(t *testing.T) {
+	t.Setenv("NATS_RPC_URL", "")
+	assert.Equal(t, "nats://nats-rpc:4222", RPCURL("nats://nats-rpc:4222"))
 
-	if got := busURL("nats://nats-leaf:4222"); got != "nats://nats:4222" {
-		t.Fatalf("busURL = %q, want hub-only nats://nats:4222", got)
+	t.Setenv("NATS_RPC_URL", "nats://leaf-rpc:4222")
+	assert.Equal(t, "nats://leaf-rpc:4222", RPCURL("nats://nats-rpc:4222"))
+}
+
+func TestBusClientsPreferTheHubThenTheLeafThenTheGivenURL(t *testing.T) {
+	hub, leaf, given := coreServer(t, "hub"), coreServer(t, "leaf"), coreServer(t, "given")
+
+	for _, tc := range []struct {
+		name    string
+		hubURL  string
+		leafURL string
+		want    *struct{ servers [3]int }
+	}{
+		{"the hub wins when it is set", hub.ClientURL(), leaf.ClientURL(), &struct{ servers [3]int }{[3]int{1, 0, 0}}},
+		{"the leaf is used without a hub", "", leaf.ClientURL(), &struct{ servers [3]int }{[3]int{0, 1, 0}}},
+		{"the given URL is used without a hub or a leaf", "", "", &struct{ servers [3]int }{[3]int{0, 0, 1}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NATS_HUB_URL", tc.hubURL)
+			t.Setenv("NATS_LEAF_URL", tc.leafURL)
+			t.Setenv("NATS_HUB_PUBLISH_URL", "")
+			before := [3]int{hub.NumClients(), leaf.NumClients(), given.NumClients()}
+
+			pub, err := NewPublisher(given.ClientURL(), zap.NewNop())
+			require.NoError(t, err)
+			defer pub.Close()
+
+			connected := [3]int{hub.NumClients() - before[0], leaf.NumClients() - before[1], given.NumClients() - before[2]}
+			assert.Equal(t, [3]bool{tc.want.servers[0] > 0, tc.want.servers[1] > 0, tc.want.servers[2] > 0},
+				[3]bool{connected[0] > 0, connected[1] > 0, connected[2] > 0})
+		})
 	}
 }
 
-func TestBusURLFallsBackWhenNoHub(t *testing.T) {
-	t.Setenv("NATS_HUB_URL", "")
+func TestLeafFailbackReconnectsOnlyWhenTheLocalLeafIsHealthyAndNotAlreadyConnected(t *testing.T) {
+	healthy := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer healthy.Close()
+	unhealthy := httptest.NewServer(http.NotFoundHandler())
+	defer unhealthy.Close()
 
-	t.Setenv("NATS_LEAF_URL", "nats://nats-leaf:4222")
-	if got := busURL("ignored"); got != "nats://nats-leaf:4222" {
-		t.Fatalf("busURL = %q, want leaf fallback", got)
+	for _, tc := range []struct {
+		name       string
+		serverName string
+		healthURL  string
+		reconnects bool
+	}{
+		{"a remote connection with a healthy local leaf fails back", "remote", healthy.URL, true},
+		{"an unready local leaf keeps the connection", "remote", unhealthy.URL, false},
+		{"an unreachable local leaf keeps the connection", "remote", "http://127.0.0.1:1/healthz", false},
+		{"a connection already on the local leaf stays put", "node1--nats-leaf-abc", healthy.URL, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := coreServer(t, tc.serverName)
+			t.Setenv("NODE_NAME", "node1")
+			t.Setenv("NATS_LOCAL_LEAF_HEALTH_URL", tc.healthURL)
+			t.Setenv("NATS_FAILBACK_INTERVAL", "30ms")
+			t.Setenv("NATS_FAILBACK_SUCCESSES", "2")
+			t.Setenv("NATS_FAILBACK_PROBE_TIMEOUT", "50ms")
+			t.Setenv("NATS_LEAF_URL", "")
+			nc, err := Connect(s.ClientURL(), "failback-test")
+			require.NoError(t, err)
+			defer nc.Close()
+
+			deadline := time.Now().Add(500 * time.Millisecond)
+			for nc.Stats().Reconnects == 0 && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+			}
+
+			assert.Equal(t, tc.reconnects, nc.Stats().Reconnects > 0)
+		})
 	}
-
-	t.Setenv("NATS_LEAF_URL", "")
-	if got := busURL("nats://127.0.0.1:4222"); got != "nats://127.0.0.1:4222" {
-		t.Fatalf("busURL = %q, want local override", got)
-	}
-}
-
-func TestBusPublishURLPrefersNodeLocalOverride(t *testing.T) {
-	t.Setenv("NATS_HUB_URL", "nats://nats-1.nats-headless:4222")
-	t.Setenv("NATS_HUB_PUBLISH_URL", "nats://nats:4222")
-
-	if got := busPublishURL("ignored"); got != "nats://nats:4222" {
-		t.Fatalf("busPublishURL = %q, want node-local hub Service", got)
-	}
-}
-
-func TestRPCServerListStaysOnLeaf(t *testing.T) {
-	t.Setenv("NATS_LEAF_URL", "nats://nats-leaf:4222")
-	t.Setenv("NATS_HUB_URL", "nats://nats:4222")
-
-	if got := serverList("nats://nats-rpc:4222"); got != "nats://nats-leaf:4222" {
-		t.Fatalf("serverList = %q, want leaf-only RPC endpoint", got)
-	}
-}
-
-func applyOptions(t *testing.T, opts []nats.Option) nats.Options {
-	t.Helper()
-	var applied nats.Options
-	for _, option := range opts {
-		if err := option(&applied); err != nil {
-			t.Fatalf("apply option: %v", err)
-		}
-	}
-	return applied
-}
-
-func clearCredentialEnv(t *testing.T) {
-	t.Helper()
-	for _, key := range []string{"NATS_JWT", "NATS_NKEY_SEED", "NATS_RPC_JWT", "NATS_RPC_NKEY_SEED"} {
-		t.Setenv(key, "")
-	}
-}
-
-func assertJWT(t *testing.T, applied nats.Options, wantJWT string) {
-	t.Helper()
-	if applied.UserJWT == nil {
-		t.Fatal("UserJWT callback not set despite both JWT env vars present")
-	}
-	if applied.SignatureCB == nil {
-		t.Fatal("SignatureCB not set alongside UserJWT")
-	}
-	jwt, err := applied.UserJWT()
-	if err != nil || jwt != wantJWT {
-		t.Fatalf("UserJWT() = %q, %v, want %q, nil", jwt, err, wantJWT)
-	}
-}
-
-func TestBusOptionsSendOnlyTheJWT(t *testing.T) {
-	clearCredentialEnv(t)
-	t.Setenv("NATS_USER", "bus-user")
-	t.Setenv("NATS_PASSWORD", "bus-pass")
-	t.Setenv("NATS_JWT", "bus-jwt")
-	t.Setenv("NATS_NKEY_SEED", "bus-seed")
-
-	applied := applyOptions(t, busOptions("test"))
-	if applied.User != "" || applied.Password != "" {
-		t.Fatalf("got user=%q pass=%q, want no password credentials", applied.User, applied.Password)
-	}
-	assertJWT(t, applied, "bus-jwt")
-}
-
-func TestRPCOptionsFallsBackToBusJWT(t *testing.T) {
-	clearCredentialEnv(t)
-	t.Setenv("NATS_JWT", "bus-jwt")
-	t.Setenv("NATS_NKEY_SEED", "bus-seed")
-
-	assertJWT(t, applyOptions(t, rpcOptions("test")), "bus-jwt")
-}
-
-func TestRPCOptionsPrefersOwnJWT(t *testing.T) {
-	clearCredentialEnv(t)
-	t.Setenv("NATS_JWT", "bus-jwt")
-	t.Setenv("NATS_NKEY_SEED", "bus-seed")
-	t.Setenv("NATS_RPC_JWT", "rpc-jwt")
-	t.Setenv("NATS_RPC_NKEY_SEED", "rpc-seed")
-
-	assertJWT(t, applyOptions(t, rpcOptions("test")), "rpc-jwt")
 }

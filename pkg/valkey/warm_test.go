@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -57,19 +58,29 @@ func TestWarmReadsOnlyProbesLocalRouteWithReadOnlyKeyedCommands(t *testing.T) {
 	}
 }
 
-func TestWarmReadsSkipsClientsWithoutNodeLocalPool(t *testing.T) {
-	primary := newWarmupClient(t)
-	require.NoError(t, WarmReads(context.Background(), primary))
-	require.NoError(t, WarmReads(context.Background(), &Client{Client: primary}))
-	require.Empty(t, primary.commands)
-}
-
-func TestWarmReadsAlreadyCancelledDoesNoWork(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+func TestWarmReadsDoesNoWorkWhenThereIsNothingToWarm(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
-	local := newWarmupClient(t)
-	require.ErrorIs(t, WarmReads(ctx, &Client{local: local}), context.Canceled)
-	require.Empty(t, local.commands)
+
+	for _, tc := range []struct {
+		name    string
+		ctx     context.Context
+		client  func(*warmupClient) vk.Client
+		wantErr error
+	}{
+		{"a client without a node-local pool", context.Background(), func(c *warmupClient) vk.Client { return c }, nil},
+		{"a routed client without a node-local pool", context.Background(), func(c *warmupClient) vk.Client { return &Client{Client: c} }, nil},
+		{"an already cancelled context", cancelled, func(c *warmupClient) vk.Client { return &Client{local: c} }, context.Canceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := newWarmupClient(t)
+
+			err := WarmReads(tc.ctx, tc.client(conn))
+
+			require.True(t, errors.Is(err, tc.wantErr))
+			require.Empty(t, conn.commands)
+		})
+	}
 }
 
 func TestWarmReadsHonorsDeadlineAndBoundsConcurrency(t *testing.T) {
@@ -106,10 +117,8 @@ func TestWarmReadsStopsAfterFirstConnectionFailure(t *testing.T) {
 func TestWarmReadsUsesMultiplexedConnections(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ln.Close() })
 	counted := &warmupListener{Listener: ln}
-	server := &kvServer{ln: counted, values: map[string]string{}}
-	go server.serve()
+	server := startFakeValkey(t, counted)
 	local, err := vk.NewClient(vk.ClientOption{
 		InitAddress: []string{server.ln.Addr().String()}, AlwaysRESP2: true,
 		ForceSingleClient: true, DisableCache: true,
@@ -117,8 +126,7 @@ func TestWarmReadsUsesMultiplexedConnections(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(local.Close)
-	// This drives the real keyed command builder and the library's lazy mux.
-	// Exact connection coverage is probabilistic and deliberately not asserted.
+	// Exact connection coverage is probabilistic, so only "more than one" is asserted.
 	require.NoError(t, WarmReads(context.Background(), &Client{local: local}))
 	require.Greater(t, counted.connections.Load(), int32(1), "keyed probes must open connections beyond slot zero")
 }
