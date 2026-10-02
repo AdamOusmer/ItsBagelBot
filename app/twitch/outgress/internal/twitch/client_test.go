@@ -10,11 +10,28 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+func respond(status int, body string) *http.Response {
+	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}
+}
+
+func helixClient(app, bot *Source, handler roundTripFunc) *Client {
+	c := NewClient("client", app, bot, nil)
+	c.SetTransport(handler)
+	return c
+}
+
+func respondWith(status int, body string) roundTripFunc {
+	return func(*http.Request) (*http.Response, error) { return respond(status, body), nil }
+}
 
 func TestIsMissingScope(t *testing.T) {
 	tests := []struct {
@@ -124,90 +141,125 @@ func TestCloudBotChatAutoRoutingUsesAppToken(t *testing.T) {
 	}
 }
 
-func TestMissingScope401DoesNotRefreshToken(t *testing.T) {
-	refreshes := 0
-	source := &Source{
-		token:   "still-valid",
-		expires: time.Now().Add(time.Hour),
-		refresh: func(context.Context) (string, time.Duration, error) {
-			refreshes++
-			return "new-token", time.Hour, nil
-		},
+func TestExecuteRoutesAutoIdentityByEndpoint(t *testing.T) {
+	tests := []struct {
+		endpoint string
+		wantAuth string
+	}{
+		{"/helix/chat/messages", "Bearer app"},
+		{"/helix/chat/announcements?broadcaster_id=1&moderator_id=2", "Bearer app"},
+		{"/helix/chat/shoutouts?from_broadcaster_id=1&to_broadcaster_id=2&moderator_id=3", "Bearer app"},
+		{"/helix/chat/pins?broadcaster_id=1&moderator_id=2&message_id=abc", "Bearer app"},
+		{"/helix/users?login=a", "Bearer app"},
+		{"/helix/moderation/channels?user_id=1", "Bearer bot"},
+		{"/helix/chat/chatters?broadcaster_id=1", "Bearer bot"},
+		{"/helix/channels/followers?broadcaster_id=1", "Bearer bot"},
 	}
-	wantBody := `{"status":401,"message":"Missing scope: user:read:moderated_channels"}`
-	client := &Client{
-		clientID: "client",
-		http: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusUnauthorized,
-				Body:       io.NopCloser(strings.NewReader(wantBody)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+	for _, tt := range tests {
+		t.Run(tt.endpoint, func(t *testing.T) {
+			var gotAuth string
+			c := helixClient(NewStaticTokenSource("app"), NewStaticTokenSource("bot"), func(req *http.Request) (*http.Response, error) {
+				gotAuth = req.Header.Get("Authorization")
+				return respond(http.StatusOK, `{}`), nil
+			})
 
-	res, err := client.request(context.Background(), source, getCall("/helix/moderation/channels"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(body) != wantBody {
-		t.Fatalf("response body = %q, want %q", body, wantBody)
-	}
-	if refreshes != 0 {
-		t.Fatalf("refresh calls = %d, want 0", refreshes)
-	}
-	if token, ok := source.cached(0); ok || token != "" {
-		t.Fatal("missing-scope token remained cached; re-authorization would not be picked up")
+			res, err := c.Execute(context.Background(), http.MethodGet, tt.endpoint, nil)
+			require.NoError(t, err)
+			res.Body.Close()
+
+			assert.Equal(t, tt.wantAuth, gotAuth)
+		})
 	}
 }
 
-func TestInvalidToken401StillRefreshesAndRetries(t *testing.T) {
+func TestMissingScope401DoesNotRefreshToken(t *testing.T) {
 	refreshes := 0
-	requests := 0
-	source := &Source{
-		token:   "expired-early",
-		expires: time.Now().Add(time.Hour),
-		refresh: func(context.Context) (string, time.Duration, error) {
-			refreshes++
-			return "new-token", time.Hour, nil
-		},
-	}
-	client := &Client{
-		clientID: "client",
-		http: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-			requests++
-			if requests == 1 {
-				return &http.Response{
-					StatusCode: http.StatusUnauthorized,
-					Body:       io.NopCloser(strings.NewReader(`{"message":"Invalid OAuth token"}`)),
-					Header:     make(http.Header),
-				}, nil
-			}
-			if got := req.Header.Get("Authorization"); got != "Bearer new-token" {
-				t.Fatalf("retry authorization = %q", got)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
+	bot := &Source{token: "still-valid", expires: time.Now().Add(time.Hour), refresh: func(context.Context) (string, time.Duration, error) {
+		refreshes++
+		return "new-token", time.Hour, nil
+	}}
+	wantBody := `{"status":401,"message":"Missing scope: user:read:moderated_channels"}`
+	c := helixClient(NewStaticTokenSource("app"), bot, respondWith(http.StatusUnauthorized, wantBody))
 
-	res, err := client.request(context.Background(), source, getCall("/helix/users"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	res, err := c.Execute(context.Background(), http.MethodGet, "/helix/moderation/channels", nil)
+	require.NoError(t, err)
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, wantBody, string(body))
+	assert.Zero(t, refreshes, "a missing scope is not an expired token")
+
+	token, err := bot.Token(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "new-token", token, "the cached token was dropped so re-authorization is picked up")
+}
+
+func TestInvalidToken401StillRefreshesAndRetries(t *testing.T) {
+	refreshes, requests := 0, 0
+	bot := &Source{token: "expired-early", expires: time.Now().Add(time.Hour), refresh: func(context.Context) (string, time.Duration, error) {
+		refreshes++
+		return "new-token", time.Hour, nil
+	}}
+	c := helixClient(NewStaticTokenSource("app"), bot, func(req *http.Request) (*http.Response, error) {
+		requests++
+		if requests == 1 {
+			return respond(http.StatusUnauthorized, `{"message":"Invalid OAuth token"}`), nil
+		}
+		assert.Equal(t, "Bearer new-token", req.Header.Get("Authorization"))
+		return respond(http.StatusOK, `{}`), nil
+	})
+
+	res, err := c.Execute(context.Background(), http.MethodGet, "/helix/moderation/channels", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, [2]int{2, 1}, [2]int{requests, refreshes})
+}
+
+func TestStreamReads(t *testing.T) {
+	startedAt := time.Date(2026, time.August, 24, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name        string
+		status      int
+		body        string
+		wantLive    bool
+		wantStarted time.Time
+		wantDetails StreamDetails
+		wantErr     bool
+	}{
+		{
+			name: "reads a live stream", status: http.StatusOK,
+			body:     `{"data":[{"type":"live","started_at":"2026-08-24T12:00:00Z","title":"Ranked grind","game_name":"Fortnite","viewer_count":42}]}`,
+			wantLive: true, wantStarted: startedAt,
+			wantDetails: StreamDetails{Title: "Ranked grind", GameName: "Fortnite", ViewerCount: 42, StartedAt: startedAt},
+		},
+		{name: "reads an offline channel", status: http.StatusOK, body: `{"data":[]}`},
+		{name: "treats a non-live type as offline", status: http.StatusOK, body: `{"data":[{"type":"error","started_at":"2026-08-24T12:00:00Z"}]}`},
+		{name: "surfaces a Twitch failure", status: http.StatusServiceUnavailable, body: `{"message":"unavailable"}`, wantErr: true},
 	}
-	if requests != 2 || refreshes != 1 {
-		t.Fatalf("requests/refreshes = %d/%d, want 2/1", requests, refreshes)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := helixClient(NewStaticTokenSource("app"), nil, respondWith(tt.status, tt.body))
+
+			started, live, startedErr := c.StreamStartedAt(context.Background(), "123")
+			isLive, liveErr := c.IsStreamLive(context.Background(), "123")
+			details, detailsLive, detailsErr := c.StreamDetails(context.Background(), "123")
+
+			if tt.wantErr {
+				assert.Error(t, startedErr)
+				assert.Error(t, liveErr)
+				assert.Error(t, detailsErr)
+				return
+			}
+			require.NoError(t, startedErr)
+			require.NoError(t, liveErr)
+			require.NoError(t, detailsErr)
+			assert.Equal(t, [2]bool{tt.wantLive, tt.wantLive}, [2]bool{live, isLive})
+			assert.True(t, tt.wantStarted.Equal(started))
+			assert.Equal(t, tt.wantLive, detailsLive)
+			assert.Equal(t, tt.wantDetails, details)
+		})
 	}
 }

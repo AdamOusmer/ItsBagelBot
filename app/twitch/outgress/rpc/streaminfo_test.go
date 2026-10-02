@@ -60,75 +60,70 @@ func readInfo(r streamReader, req outgressrpc.StreamInfoRequest) outgressrpc.Str
 	return readStreamInfo(context.Background(), r, zap.NewNop(), req)
 }
 
-func TestStreamInfoRefusesARequestAddressingNobody(t *testing.T) {
-	r := liveReader()
-	assert.Equal(t, "bad request", readInfo(r, outgressrpc.StreamInfoRequest{}).Error)
-	assert.Empty(t, r.calls, "a request naming no channel costs no Helix call")
-}
-
-func TestStreamInfoReadsALiveChannelInOneCall(t *testing.T) {
-	r := liveReader()
-	got := readInfo(r, outgressrpc.StreamInfoRequest{BroadcasterID: "123"})
-
-	assert.Equal(t, outgressrpc.StreamInfoReply{
+func TestStreamInfoReplies(t *testing.T) {
+	liveReply := outgressrpc.StreamInfoReply{
 		UserFound: true, Live: true, Title: "bagel time", GameName: "Just Chatting",
 		ViewerCount: 42, StartedAt: streamStart,
-	}, got)
-	assert.Equal(t, []string{"streams:123"}, r.calls)
+	}
+	offline := func(r *fakeStreamReader) {
+		r.live["123"] = false
+		r.channels = map[string]twitch.ChannelInfo{"123": {Title: "back soon", GameName: "Science & Technology"}}
+	}
+	tests := []struct {
+		name  string
+		setup func(*fakeStreamReader)
+		req   outgressrpc.StreamInfoRequest
+		want  outgressrpc.StreamInfoReply
+	}{
+		{"refuses a request addressing nobody", func(*fakeStreamReader) {}, outgressrpc.StreamInfoRequest{}, outgressrpc.StreamInfoReply{Error: "bad request"}},
+		{"reads a live channel by id", func(*fakeStreamReader) {}, outgressrpc.StreamInfoRequest{BroadcasterID: "123"}, liveReply},
+		{"resolves a login to a live channel", func(*fakeStreamReader) {}, outgressrpc.StreamInfoRequest{TargetLogin: "streamer"}, liveReply},
+		{"reports an unknown login", func(*fakeStreamReader) {}, outgressrpc.StreamInfoRequest{TargetLogin: "ghost"}, outgressrpc.StreamInfoReply{UserFound: false}},
+		{
+			"falls back to the channel object when offline", offline, outgressrpc.StreamInfoRequest{BroadcasterID: "123"},
+			outgressrpc.StreamInfoReply{UserFound: true, Title: "back soon", GameName: "Science & Technology"},
+		},
+		{
+			"keeps the offline answer when the channel read fails",
+			func(r *fakeStreamReader) { r.live["123"] = false; r.channelErr = errors.New("boom") },
+			outgressrpc.StreamInfoRequest{BroadcasterID: "123"}, outgressrpc.StreamInfoReply{UserFound: true},
+		},
+		{
+			"reports a failed stream read for a channel that exists",
+			func(r *fakeStreamReader) { r.detailsErr = errors.New("boom") },
+			outgressrpc.StreamInfoRequest{BroadcasterID: "123"}, outgressrpc.StreamInfoReply{UserFound: true, Error: "lookup failed"},
+		},
+		{
+			"reports a failed login resolve", func(r *fakeStreamReader) { r.userErr = errors.New("boom") },
+			outgressrpc.StreamInfoRequest{TargetLogin: "streamer"}, outgressrpc.StreamInfoReply{Error: "lookup failed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := liveReader()
+			tt.setup(r)
+
+			assert.Equal(t, tt.want, readInfo(r, tt.req))
+		})
+	}
 }
 
-func TestStreamInfoResolvesALogin(t *testing.T) {
-	r := liveReader()
-	got := readInfo(r, outgressrpc.StreamInfoRequest{TargetLogin: "streamer"})
+func TestStreamInfoSpendsNoMoreHelixCallsThanItNeeds(t *testing.T) {
+	tests := []struct {
+		name      string
+		req       outgressrpc.StreamInfoRequest
+		wantCalls []string
+	}{
+		{"a request naming no channel costs no Helix call", outgressrpc.StreamInfoRequest{}, nil},
+		{"a live channel addressed by id costs one call", outgressrpc.StreamInfoRequest{BroadcasterID: "123"}, []string{"streams:123"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := liveReader()
 
-	assert.True(t, got.Live)
-	assert.Equal(t, "bagel time", got.Title)
-	assert.Equal(t, []string{"users:streamer", "streams:123"}, r.calls)
-}
+			readInfo(r, tt.req)
 
-func TestStreamInfoReportsAnUnknownLogin(t *testing.T) {
-	r := liveReader()
-	got := readInfo(r, outgressrpc.StreamInfoRequest{TargetLogin: "ghost"})
-
-	assert.Equal(t, outgressrpc.StreamInfoReply{UserFound: false}, got)
-	assert.Equal(t, []string{"users:ghost"}, r.calls)
-}
-
-func TestStreamInfoFallsBackToTheChannelObjectWhenOffline(t *testing.T) {
-	r := liveReader()
-	r.live["123"] = false
-	r.channels = map[string]twitch.ChannelInfo{"123": {Title: "back soon", GameName: "Science & Technology"}}
-
-	got := readInfo(r, outgressrpc.StreamInfoRequest{BroadcasterID: "123"})
-
-	assert.Equal(t, outgressrpc.StreamInfoReply{
-		UserFound: true, Title: "back soon", GameName: "Science & Technology",
-	}, got)
-	assert.Equal(t, []string{"streams:123", "channels:123"}, r.calls)
-}
-
-func TestStreamInfoKeepsTheOfflineAnswerWhenTheChannelReadFails(t *testing.T) {
-	r := liveReader()
-	r.live["123"] = false
-	r.channelErr = errors.New("boom")
-
-	assert.Equal(t, outgressrpc.StreamInfoReply{UserFound: true},
-		readInfo(r, outgressrpc.StreamInfoRequest{BroadcasterID: "123"}))
-}
-
-func TestStreamInfoReportsAFailedStreamRead(t *testing.T) {
-	r := liveReader()
-	r.detailsErr = errors.New("boom")
-
-	got := readInfo(r, outgressrpc.StreamInfoRequest{BroadcasterID: "123"})
-	assert.Equal(t, "lookup failed", got.Error)
-	assert.True(t, got.UserFound, "the channel exists; only the read did not")
-}
-
-func TestStreamInfoReportsAFailedLoginResolve(t *testing.T) {
-	r := liveReader()
-	r.userErr = errors.New("boom")
-
-	assert.Equal(t, outgressrpc.StreamInfoReply{Error: "lookup failed"},
-		readInfo(r, outgressrpc.StreamInfoRequest{TargetLogin: "streamer"}))
+			assert.Equal(t, tt.wantCalls, r.calls)
+		})
+	}
 }

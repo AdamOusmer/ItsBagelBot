@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeCatalog struct {
@@ -28,39 +29,70 @@ func emoteChain(cat EmoteSource, draws int, pick func(int) int) Chain {
 	return Chain{Emotes{Source: cat, Draws: draws, Pick: pick}}
 }
 
-func TestEmoteListsRenderTheirOwnProvider(t *testing.T) {
-	cat := loaded([]string{"PagMan", "Clap"}, []string{"KEKW"}, []string{"LUL", "ZULUL"})
-	chain := emoteChain(cat, 0, nil)
-
-	assert.Equal(t, "PagMan Clap", render(t, "{emotes:7tv}", chain, nil))
-	assert.Equal(t, "KEKW", render(t, "{emotes:bttv}", chain, nil))
-	assert.Equal(t, "LUL ZULUL", render(t, "{emotes:ffz}", chain, nil))
-}
-
-func TestEmoteListLegacyAliases(t *testing.T) {
-	cat := loaded([]string{"PagMan", "Clap"}, []string{"KEKW"}, []string{"LUL", "ZULUL"})
-	tests := []struct{ canonical, legacy string }{
-		{"{emotes:7tv}", "{7tvemotes}"},
-		{"{emotes:bttv}", "{bttvemotes}"},
-		{"{emotes:ffz}", "{ffzemotes}"},
+func TestEmoteListsRender(t *testing.T) {
+	sets := func() *fakeCatalog {
+		return loaded([]string{"PagMan", "Clap"}, []string{"KEKW"}, []string{"LUL", "ZULUL"})
+	}
+	tests := []struct {
+		name     string
+		chain    Chain
+		template string
+		want     string
+	}{
+		{"renders the 7tv list", emoteChain(sets(), 0, nil), "{emotes:7tv}", "PagMan Clap"},
+		{"renders the bttv list", emoteChain(sets(), 0, nil), "{emotes:bttv}", "KEKW"},
+		{"renders the ffz list", emoteChain(sets(), 0, nil), "{emotes:ffz}", "LUL ZULUL"},
+		{"folds the provider payload case", emoteChain(sets(), 0, nil), "{emotes:7TV}", "PagMan Clap"},
+		{"keeps the legacy 7tv alias", emoteChain(sets(), 0, nil), "{7tvemotes}", "PagMan Clap"},
+		{"keeps the legacy bttv alias", emoteChain(sets(), 0, nil), "{bttvemotes}", "KEKW"},
+		{"keeps the legacy ffz alias", emoteChain(sets(), 0, nil), "{ffzemotes}", "LUL ZULUL"},
+		{"renders empty rather than literal for empty sets", emoteChain(loaded(nil, nil, nil), 0, nil), "{7tvemotes}", ""},
+		{"renders the fallback for empty sets", emoteChain(loaded(nil, nil, nil), 0, nil), "{7tvemotes|none}", "none"},
+		{"renders empty for an unloaded catalog", emoteChain(&fakeCatalog{}, 0, nil), "{7tvemotes}", ""},
+		{"renders the fallback for an unloaded catalog", emoteChain(&fakeCatalog{}, 0, nil), "{7tvemotes|none}", "none"},
+		{"renders empty without a catalog", emoteChain(nil, 0, nil), "{7tvemotes}", ""},
+		{"renders the fallback without a catalog", emoteChain(nil, 0, nil), "{7tvemotes|none}", "none"},
+		{
+			name:     "draws a random emote across every loaded set",
+			chain:    emoteChain(loaded([]string{"PagMan"}, []string{"KEKW"}, []string{"LUL"}), 3, roundRobin()),
+			template: "{random.emote} {random.emote} {random.emote}",
+			want:     "PagMan KEKW LUL",
+		},
+		{
+			name:     "repeats the last draw past the draw cap",
+			chain:    emoteChain(loaded([]string{"A", "B", "C", "D"}, nil, nil), 4, roundRobin()),
+			template: "{random.emote}{random.emote}{random.emote}{random.emote}",
+			want:     "ABCC",
+		},
+		{
+			name:     "renders the random fallback with nothing loaded",
+			chain:    emoteChain(&fakeCatalog{}, 1, roundRobin()),
+			template: "{random.emote|🥯}",
+			want:     "🥯",
+		},
+		{
+			name:     "keeps a payloaded 7tv alias literal",
+			chain:    emoteChain(loaded([]string{"PagMan"}, []string{"KEKW"}, nil), 1, roundRobin()),
+			template: "{7tvemotes:100}",
+			want:     "{7tvemotes:100}",
+		},
+		{
+			name:     "keeps a payloaded bttv alias literal",
+			chain:    emoteChain(loaded([]string{"PagMan"}, []string{"KEKW"}, nil), 1, roundRobin()),
+			template: "{bttvemotes:global}",
+			want:     "{bttvemotes:global}",
+		},
+		{
+			name:     "keeps a payloaded random emote literal",
+			chain:    emoteChain(loaded([]string{"PagMan"}, []string{"KEKW"}, nil), 1, roundRobin()),
+			template: "{random.emote:7tv}",
+			want:     "{random.emote:7tv}",
+		},
 	}
 	for _, tt := range tests {
-		chain := emoteChain(cat, 0, nil)
-		assert.Equal(t, render(t, tt.canonical, chain, nil), render(t, tt.legacy, chain, nil), tt.legacy)
-	}
-
-	chain := emoteChain(cat, 0, nil)
-	assert.Equal(t, "PagMan Clap", render(t, "{emotes:7TV}", chain, nil), "the provider payload folds case")
-}
-
-func TestEmoteListsRenderEmptyRatherThanLiteral(t *testing.T) {
-	for _, chain := range []Chain{
-		emoteChain(loaded(nil, nil, nil), 0, nil),
-		emoteChain(&fakeCatalog{}, 0, nil),
-		emoteChain(nil, 0, nil),
-	} {
-		assert.Equal(t, "", render(t, "{7tvemotes}", chain, nil))
-		assert.Equal(t, "none", render(t, "{7tvemotes|none}", chain, nil))
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, tt.chain, nil))
+		})
 	}
 }
 
@@ -79,46 +111,17 @@ func TestEmoteListTruncatesToOneChatLine(t *testing.T) {
 	assert.False(t, strings.HasSuffix(got, " "), "no trailing separator")
 }
 
-func TestRandomEmoteDrawsAcrossEveryLoadedSet(t *testing.T) {
-	cat := loaded([]string{"PagMan"}, []string{"KEKW"}, []string{"LUL"})
-	got := render(t, "{random.emote} {random.emote} {random.emote}",
-		emoteChain(cat, 3, roundRobin()), nil)
-
-	assert.Equal(t, "PagMan KEKW LUL", got)
-}
-
-func TestRandomEmoteRepeatsPastTheDrawCap(t *testing.T) {
-	cat := loaded([]string{"A", "B", "C", "D"}, nil, nil)
-	got := render(t, "{random.emote}{random.emote}{random.emote}{random.emote}",
-		emoteChain(cat, 4, roundRobin()), nil)
-
-	assert.Equal(t, "ABCC", got)
-}
-
-func TestRandomEmoteRendersEmptyWithNothingLoaded(t *testing.T) {
-	chain := emoteChain(&fakeCatalog{}, 1, roundRobin())
-	assert.Equal(t, "🥯", render(t, "{random.emote|🥯}", chain, nil))
-}
-
 func TestEmotesReadTheCatalogOnce(t *testing.T) {
 	cat := loaded([]string{"PagMan", "Clap"}, nil, nil)
-	got := render(t, "{7tvemotes} - {random.emote}", emoteChain(cat, 1, roundRobin()), nil)
 
-	assert.Equal(t, "PagMan Clap - PagMan", got)
+	assert.Equal(t, "PagMan Clap - PagMan", render(t, "{7tvemotes} - {random.emote}", emoteChain(cat, 1, roundRobin()), nil))
 	assert.Equal(t, 1, cat.reads)
-}
-
-func TestEmoteSpansWithPayloadsStayLiteral(t *testing.T) {
-	chain := emoteChain(loaded([]string{"PagMan"}, []string{"KEKW"}, nil), 1, roundRobin())
-	for _, span := range []string{"{7tvemotes:100}", "{bttvemotes:global}", "{random.emote:7tv}"} {
-		assert.Equal(t, span, render(t, span, chain, nil))
-	}
 }
 
 func TestEmotesPlanOnlyWhatTheTemplateNames(t *testing.T) {
 	vals, err := Emotes{Source: loaded([]string{"PagMan"}, nil, nil)}.
 		Plan(t.Context(), []Var{{Name: BTTVEmotesToken}})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	got, ok := vals.Get(Var{Name: SevenTVEmotesToken})
 	assert.True(t, ok, "an unasked list still resolves, it is simply empty")

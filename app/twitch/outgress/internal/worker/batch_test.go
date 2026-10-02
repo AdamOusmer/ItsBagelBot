@@ -4,10 +4,13 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/kvstate/kvtest"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/stretchr/testify/assert"
@@ -16,51 +19,66 @@ import (
 
 var errAmbiguousTwitchFailure = errors.New("ambiguous twitch failure")
 
-type batchAttempt struct {
-	next     int
-	executed []string
-	failOn   string
-}
+const threeChatBatch = `{"id":"batch-1","items":[` +
+	`{"type":"chat","payload":{"message":"one"}},` +
+	`{"type":"chat","payload":{"message":"two"}},` +
+	`{"type":"chat","payload":{"message":"three"}}]}`
 
-func (a *batchAttempt) save(next int) error {
-	a.next = next
-	return nil
-}
-
-func (a *batchAttempt) execute(item outgress.Message) error {
-	a.executed = append(a.executed, item.Type)
-	if item.Type == a.failOn {
-		return errAmbiguousTwitchFailure
+func sentMessages(requests []recordedRequest) []string {
+	var bodies []string
+	for _, r := range requests {
+		bodies = append(bodies, r.Body)
 	}
-	return nil
+	return bodies
 }
+
+func chatBody(text string) string { return `{"message":"` + text + `","sender_id":"` + testBot + `"}` }
+
+type failingCheckpoints struct{ err error }
+
+func (f failingCheckpoints) Acquire(context.Context, BatchLease, time.Duration) (bool, error) {
+	return true, nil
+}
+func (f failingCheckpoints) Next(context.Context, string) (int, error) { return 0, nil }
+func (f failingCheckpoints) SaveNext(context.Context, BatchLease, int, time.Duration) error {
+	return f.err
+}
+func (f failingCheckpoints) Release(context.Context, BatchLease) error { return nil }
 
 func TestBatchRetryNeverRepeatsClaimedItems(t *testing.T) {
-	items := []outgress.Message{{Type: "one"}, {Type: "two"}, {Type: "three"}}
-	first := &batchAttempt{failOn: "two"}
-	err := runBatchItems(items, 0, first.save, first.execute)
-	require.ErrorIs(t, err, errAmbiguousTwitchFailure)
-	assert.Equal(t, 2, first.next)
-	assert.Equal(t, []string{"one", "two"}, first.executed)
+	rt := &scriptedTransport{responses: []scriptedResponse{{status: 204}, {err: errAmbiguousTwitchFailure}}}
+	w := pipelineWorker(t, rt, withBatchStore(NewJetStreamBatchStore(kvtest.New())))
+	batch := testMessage{Type: "batch", Payload: threeChatBatch}
 
-	retry := &batchAttempt{next: first.next}
-	require.NoError(t, runBatchItems(items, retry.next, retry.save, retry.execute))
-	assert.Equal(t, []string{"three"}, retry.executed)
+	require.ErrorIs(t, batch.send(w), errAmbiguousTwitchFailure)
+	assert.Equal(t, []string{chatBody("one"), chatBody("two")}, sentMessages(rt.recorded()), "items go out in order, the failed one is claimed")
+
+	require.NoError(t, batch.send(w))
+	assert.Equal(t, []string{chatBody("one"), chatBody("two"), chatBody("three")}, sentMessages(rt.recorded()), "the retry sends only what was never claimed")
 }
 
 func TestBatchCheckpointFailureDoesNotSendItem(t *testing.T) {
 	want := errors.New("valkey unavailable")
-	executed := false
-	err := runBatchItems([]outgress.Message{{Type: "chat"}}, 0,
-		func(int) error { return want },
-		func(outgress.Message) error { executed = true; return nil },
-	)
-	if !errors.Is(err, want) {
-		t.Fatalf("run error = %v, want %v", err, want)
-	}
-	if executed {
-		t.Fatal("item executed without an at-most-once checkpoint")
-	}
+	rt := &scriptedTransport{}
+	w := pipelineWorker(t, rt, withBatchStore(failingCheckpoints{err: want}))
+
+	err := testMessage{Type: "batch", Payload: threeChatBatch}.send(w)
+
+	require.ErrorIs(t, err, want)
+	assert.Empty(t, rt.recorded(), "an item is never sent without its at-most-once checkpoint")
+}
+
+func TestBatchWithoutAStoreIsRetriedLater(t *testing.T) {
+	rt := &scriptedTransport{}
+
+	err := testMessage{Type: "batch", Payload: threeChatBatch}.send(pipelineWorker(t, rt))
+
+	require.Error(t, err)
+	assert.Empty(t, rt.recorded())
+}
+
+func TestBatchJSONDecoderPrecompiles(t *testing.T) {
+	require.NoError(t, PrepareJSON())
 }
 
 func TestBatchWireCodecPreservesItems(t *testing.T) {
@@ -75,12 +93,6 @@ func TestBatchWireCodecPreservesItems(t *testing.T) {
 	}
 	if batch.ID != "batch-1" || len(batch.Items) != 2 {
 		t.Fatalf("decoded batch = %#v", batch)
-	}
-}
-
-func TestBatchJSONDecoderPrecompiles(t *testing.T) {
-	if err := PrepareJSON(); err != nil {
-		t.Fatal(err)
 	}
 }
 

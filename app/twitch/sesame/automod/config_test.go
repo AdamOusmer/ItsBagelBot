@@ -4,193 +4,155 @@
 package automod
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func termStrings(terms [][]byte) []string {
-	out := make([]string, len(terms))
-	for i, term := range terms {
-		out[i] = string(term)
-	}
-	return out
+const (
+	ipLoggerLine = "claim your prize at https://grabify.link/abcd right now friends"
+	shoutLine    = "STOP SCREAMING IN CHAT RIGHT NOW PLEASE"
+	capsMidLine  = "ABCDE FGHIJ KLM nopqrst"
+	profaneLine  = "well shit that was a terrible play from the team today"
+	clipsOnlyCfg = `{"level":"none","clips_only":"on"}`
+)
+
+func TestParseConfigRejectsUnusableBlobs(t *testing.T) {
+	assert.Nil(t, ParseConfig(nil), "an empty blob yields the global default")
+	assert.Nil(t, ParseConfig(codec.RawMessage(`{bad`)), "a malformed blob never yields a fail-closed config")
 }
 
-func sectionsOn(s sections) string {
-	var on []string
-	for _, f := range []struct {
-		name    string
-		enabled bool
+func TestParseConfigLevel(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want Level
 	}{
-		{"harassment", s.harassment},
-		{"sexual", s.sexual},
-		{"profanity", s.profanity},
-		{"style", s.style},
-		{"links", s.links},
-	} {
-		if f.enabled {
-			on = append(on, f.name)
-		}
+		{`{"level":"none"}`, LevelNone},
+		{`{"level":"off"}`, LevelNone},
+		{`{"level":"floor"}`, LevelNone},
+		{`{"level":"basic"}`, LevelBasic},
+		{`{"level":"adult"}`, LevelBasic},
+		{`{"level":"18+"}`, LevelBasic},
+		{`{"level":"strict"}`, LevelStrict},
+		{`{"level":"all"}`, LevelStrict},
+		{`{"level":"pg"}`, LevelStrict},
+		{`{"level":"family"}`, LevelStrict},
+		{`{"level":"moderate"}`, LevelModerate},
+		{`{"level":""}`, LevelModerate},
+		{`{"level":"garbage"}`, LevelModerate},
+		{`{"profile":"adult"}`, LevelBasic},
+		{`{"level":"strict","profile":"adult"}`, LevelStrict},
 	}
-	return strings.Join(on, " ")
-}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			cfg := ParseConfig(codec.RawMessage(tt.raw))
 
-const allSections = "harassment sexual profanity style links"
-
-const ipLoggerLine = "claim your prize at https://grabify.link/abcd right now friends"
-
-const capsMid = "ABCDE FGHIJ KLM nopqrst"
-
-func TestParseConfig(t *testing.T) {
-	if ParseConfig(nil) != nil {
-		t.Fatal("empty blob must yield nil (global default)")
-	}
-	if ParseConfig(codec.RawMessage(`{bad`)) != nil {
-		t.Fatal("malformed blob must yield nil, never a fail-closed config")
-	}
-	c := ParseConfig(codec.RawMessage(`{"level":"all","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
-	if c == nil {
-		t.Fatal("config must parse")
-	}
-	if c.Disabled || c.Level != LevelStrict {
-		t.Fatalf("parsed config wrong: %+v", c)
-	}
-	if got := termStrings(c.blockTerms); !slices.Equal(got, []string{"badword", "other thing", "third"}) {
-		t.Fatalf("block terms not split+normalized: %q", got)
-	}
-	if got := termStrings(c.allowTerms); !slices.Equal(got, []string{"okthing"}) {
-		t.Fatalf("allow term not normalized: %q", got)
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.want, cfg.Level)
+		})
 	}
 }
 
-func TestParseConfigLegacyProfileAlias(t *testing.T) {
-	c := ParseConfig(codec.RawMessage(`{"profile":"adult"}`))
-	if c == nil || c.Level != LevelBasic {
-		t.Fatalf("legacy profile alias: got %+v", c)
+func TestConfigPolicy(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        string
+		line       string
+		wantAction Action
+		wantRule   string
+	}{
+		{"holds the floor under level none", `{"level":"none"}`, ipLoggerLine, ActionTimeout, "ip_logger"},
+		{"holds the floor against an allow term", `{"level":"none","allow_terms":"grabify.link"}`, ipLoggerLine, ActionTimeout, "ip_logger"},
+		{"holds the floor under strict", `{"level":"all"}`, ipLoggerLine, ActionTimeout, "ip_logger"},
+		{"holds the floor with no config", "", ipLoggerLine, ActionTimeout, "ip_logger"},
+		{"flags moderate caps by default", "", shoutLine, ActionDelete, "heuristic"},
+		{"drops the caps check under level none", `{"level":"none"}`, shoutLine, ActionNone, ""},
+		{"lets mid caps pass under moderate", "", capsMidLine, ActionNone, ""},
+		{"tightens the caps threshold under strict", `{"level":"all"}`, capsMidLine, ActionDelete, "heuristic"},
+		{"forces a section on with an override", `{"profanity":"on"}`, profaneLine, ActionDelete, "lex:profanity:"},
+		{"leaves profanity alone under moderate", "", profaneLine, ActionNone, ""},
+		{"forces style off with an override", `{"level":"strict","style":"off"}`, shoutLine, ActionNone, ""},
+		{"flags a channel block term", `{"block_terms":"badword"}`, "this has badword in it", ActionDelete, "block_term"},
+		{"normalizes and splits block terms", `{"block_terms":"BadWord, other thing\nthird"}`, "we saw other thing today", ActionDelete, "block_term"},
+		{"matches a later block term", `{"block_terms":"BadWord, other thing\nthird"}`, "this is the third one", ActionDelete, "block_term"},
+		{"ignores a block term without a config", "", "this has badword in it", ActionNone, ""},
+		{"lets an allow term suppress a heuristic", `{"allow_terms":" HELLO "}`, "SCREAMING LOUDLY HELLO EVERYONE", ActionNone, ""},
+		{"flags the heuristic without the allow term", "", "SCREAMING LOUDLY HELLO EVERYONE", ActionDelete, "heuristic"},
+		{"lets an allow term cancel its own block term", `{"block_terms":"badword","allow_terms":"badword"}`, "look a badword here", ActionNone, ""},
 	}
-}
-
-func TestSplitTerms(t *testing.T) {
-	if got := splitTerms("a, b\n c ,,\n"); !slices.Equal(got, []string{"a", "b", "c"}) {
-		t.Fatalf("splitTerms = %q", got)
-	}
-	if splitTerms("") != nil {
-		t.Fatal("empty input yields nil")
-	}
-}
-
-func TestParseLevel(t *testing.T) {
-	for in, want := range map[string]Level{
-		"none": LevelNone, "off": LevelNone, "floor": LevelNone,
-		"basic": LevelBasic, "adult": LevelBasic, "18+": LevelBasic,
-		"strict": LevelStrict, "all": LevelStrict, "pg": LevelStrict, "family": LevelStrict,
-		"moderate": LevelModerate, "": LevelModerate, "garbage": LevelModerate,
-	} {
-		if got := parseLevel(in); got != want {
-			t.Fatalf("parseLevel(%q) = %v, want %v", in, got, want)
-		}
-	}
-}
-
-func TestResolvedSections(t *testing.T) {
-	if got := sectionsOn((&Config{Level: LevelNone}).resolved()); got != "" {
-		t.Fatalf("none must be floor-only, enabled: %s", got)
-	}
-	if got := sectionsOn((&Config{Level: LevelStrict}).resolved()); got != allSections {
-		t.Fatalf("strict must enable every section, got: %s", got)
-	}
-	if got := sectionsOn((&Config{Level: LevelStrict, Disabled: true}).resolved()); got != "" {
-		t.Fatalf("disabled row must be floor-only, enabled: %s", got)
-	}
-	over := (&Config{Level: LevelModerate, profanity: triOn}).resolved()
-	if !over.profanity {
-		t.Fatal("section override triOn must force profanity on")
-	}
-	off := (&Config{Level: LevelStrict, style: triOff}).resolved()
-	if off.style {
-		t.Fatal("section override triOff must force style off")
-	}
-}
-
-func TestFloorImmovableAcrossLevels(t *testing.T) {
-	g := New()
-	for _, raw := range []string{
-		`{"level":"none"}`,
-		`{"level":"none","allow_terms":"grabify.link"}`,
-		`{"level":"all"}`,
-	} {
-		cfg := ParseConfig(codec.RawMessage(raw))
-		if v := g.InspectWith(module.RoleEveryone, ipLoggerLine, cfg); v.Rule != "ip_logger" {
-			t.Fatalf("floor must hold for %s: got rule=%s action=%s", raw, v.Rule, v.Action)
-		}
-	}
-	if v := g.InspectWith(module.RoleEveryone, ipLoggerLine, &Config{Disabled: true}); v.Rule != "ip_logger" {
-		t.Fatalf("disabled row must still enforce the floor: got %s", v.Rule)
-	}
-}
-
-func TestLevelNoneDropsStyle(t *testing.T) {
 	g := newGateWithEmotes()
-	shout := "STOP SCREAMING IN CHAT RIGHT NOW PLEASE"
-	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
-		t.Fatalf("moderate caps should flag, got %s", v.Action)
-	}
-	none := ParseConfig(codec.RawMessage(`{"level":"none"}`))
-	if v := g.InspectWith(module.RoleEveryone, shout, none); v.Action != ActionNone {
-		t.Fatalf("level none drops the caps check, got %s", v.Action)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := g.InspectWith(module.RoleEveryone, tt.line, ParseConfig(codec.RawMessage(tt.cfg)))
+
+			assert.Equal(t, tt.wantAction, v.Action)
+			assert.True(t, strings.HasPrefix(v.Rule, tt.wantRule), "rule %q, want prefix %q", v.Rule, tt.wantRule)
+		})
 	}
 }
 
-func TestStrictTightensCaps(t *testing.T) {
+func TestDisabledConfigKeepsOnlyTheFloor(t *testing.T) {
+	tests := []struct {
+		name       string
+		raw        string
+		line       string
+		wantAction Action
+	}{
+		{"still enforces the floor", `{}`, ipLoggerLine, ActionTimeout},
+		{"ignores block terms", `{"block_terms":"badword"}`, "this has badword in it", ActionNone},
+		{"ignores the caps heuristic", `{}`, shoutLine, ActionNone},
+		{"ignores clips only", `{"clips_only":"on"}`, "join discord.gg/abcd please friends", ActionNone},
+	}
 	g := newGateWithEmotes()
-	if v := g.InspectWith(module.RoleEveryone, capsMid, nil); v.Action != ActionNone {
-		t.Fatalf("moderate: mid-caps under threshold should pass, got %s", v.Action)
-	}
-	strict := ParseConfig(codec.RawMessage(`{"level":"all"}`))
-	if v := g.InspectWith(module.RoleEveryone, capsMid, strict); v.Action != ActionDelete {
-		t.Fatalf("strict: mid-caps should flag at the tighter threshold, got %s", v.Action)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ParseConfig(codec.RawMessage(tt.raw))
+			cfg.Disabled = true
+
+			assert.Equal(t, tt.wantAction, g.InspectWith(module.RoleEveryone, tt.line, cfg).Action)
+		})
 	}
 }
 
-func TestBlockTermFlags(t *testing.T) {
+func TestClipsOnly(t *testing.T) {
+	deleted := Verdict{Action: ActionDelete, Rule: "clips_only"}
+	tests := []struct {
+		name string
+		cfg  string
+		line string
+		want Verdict
+	}{
+		{"passes clean prose", clipsOnlyCfg, "hello friends tonight", Verdict{}},
+		{"passes an ellipsis", clipsOnlyCfg, "wait... what...", Verdict{}},
+		{"passes a clips host slug", clipsOnlyCfg, "check https://clips.twitch.tv/CoolClip-Name_1 now", Verdict{}},
+		{"passes a bare www clips host", clipsOnlyCfg, "see www.clips.twitch.tv/AnotherClip!", Verdict{}},
+		{"passes a channel clip path", clipsOnlyCfg, "https://www.twitch.tv/itsmavey/clip/CoolClip", Verdict{}},
+		{"passes a scheme-less channel clip path", clipsOnlyCfg, "twitch.tv/someone/clip/Slug_here", Verdict{}},
+		{"deletes a discord invite", clipsOnlyCfg, "join discord.gg/abcd please friends", deleted},
+		{"deletes an ordinary site", clipsOnlyCfg, "open https://example.com/watch", deleted},
+		{"deletes a bare channel page", clipsOnlyCfg, "follow twitch.tv/itsmavey thanks", deleted},
+		{"deletes a clips host without a slug", clipsOnlyCfg, "visit clips.twitch.tv later", deleted},
+		{"deletes a clip beside a discord invite", clipsOnlyCfg, "clip https://clips.twitch.tv/CoolClip and discord.gg/x", deleted},
+		{"deletes a shortener", clipsOnlyCfg, "https://bit.ly/abc", deleted},
+		{"stays off by default", "", "check https://example.com/watch tonight friends", Verdict{}},
+		{"stays off when set off", `{"clips_only":"off"}`, "check https://example.com/watch tonight friends", Verdict{}},
+		{"lets an allow term suppress it", `{"clips_only":"on","allow_terms":"discord"}`, "join discord.gg/abcd please friends", Verdict{}},
+	}
 	g := New()
-	cfg := ParseConfig(codec.RawMessage(`{"block_terms":"badword"}`))
-	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", cfg); v.Rule != "block_term" {
-		t.Fatalf("channel block term should flag, got rule=%s", v.Rule)
-	}
-	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", nil); v.Action != ActionNone {
-		t.Fatalf("no config: line should be clean, got %s", v.Action)
-	}
-	dis := ParseConfig(codec.RawMessage(`{"block_terms":"badword"}`))
-	dis.Disabled = true
-	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", dis); v.Action != ActionNone {
-		t.Fatalf("disabled row must ignore block terms, got %s", v.Action)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, g.InspectWith(module.RoleEveryone, tt.line, ParseConfig(codec.RawMessage(tt.cfg))))
+		})
 	}
 }
 
-func TestAllowTermSuppressesNonFloor(t *testing.T) {
-	g := newGateWithEmotes()
-	shout := "SCREAMING LOUDLY HELLO EVERYONE"
-	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
-		t.Fatalf("baseline caps should flag, got %s", v.Action)
-	}
-	cfg := ParseConfig(codec.RawMessage(`{"allow_terms":"hello"}`))
-	if v := g.InspectWith(module.RoleEveryone, shout, cfg); v.Action != ActionNone {
-		t.Fatalf("allow term should suppress the heuristic, got %s", v.Action)
-	}
-	both := ParseConfig(codec.RawMessage(`{"block_terms":"badword","allow_terms":"badword"}`))
-	if v := g.InspectWith(module.RoleEveryone, "look a badword here", both); v.Action != ActionNone {
-		t.Fatalf("allow should cancel its own block term, got %s", v.Action)
-	}
-}
+func TestClipsOnlyExemptsVIPs(t *testing.T) {
+	cfg := ParseConfig(codec.RawMessage(`{"clips_only":"on"}`))
 
-func TestNilConfigMatchesDefault(t *testing.T) {
-	g := New()
-	if g.InspectWith(module.RoleEveryone, ipLoggerLine, nil) != g.Inspect(module.RoleEveryone, ipLoggerLine) {
-		t.Fatal("nil config must equal the default Inspect")
-	}
+	assert.Equal(t, Verdict{}, New().InspectWith(module.RoleVIP, "join discord.gg/abcd please", cfg))
 }

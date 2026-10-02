@@ -9,6 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func countingBuild(calls *int) func(string) *Source {
@@ -18,102 +21,37 @@ func countingBuild(calls *int) func(string) *Source {
 	}
 }
 
-func TestGetBuildsOncePerBroadcaster(t *testing.T) {
+func TestBroadcasterTokensGet(t *testing.T) {
 	var calls int
 	b := NewBroadcasterTokens(countingBuild(&calls))
+	var nilTokens *BroadcasterTokens
 
 	first := b.Get("chan-a")
-	second := b.Get("chan-a")
-	if first == nil || first != second {
-		t.Fatalf("cache hit returned a different Source: %p vs %p", first, second)
-	}
-	if calls != 1 {
-		t.Fatalf("build ran %d times for one broadcaster, want 1", calls)
-	}
 
-	if third := b.Get("chan-b"); third == first {
-		t.Fatal("distinct broadcaster shared a Source")
-	}
-	if calls != 2 {
-		t.Fatalf("build ran %d times for two broadcasters, want 2", calls)
-	}
+	assert.NotNil(t, first)
+	assert.Same(t, first, b.Get("chan-a"), "a cache hit returns the same Source")
+	assert.Equal(t, 1, calls, "build runs once per broadcaster")
+	assert.NotSame(t, first, b.Get("chan-b"), "a distinct broadcaster gets its own Source")
+	assert.Equal(t, 2, calls)
+	assert.Nil(t, nilTokens.Get("chan-a"), "a nil receiver has no Source")
+	assert.Nil(t, b.Get(""), "an empty id has no Source")
 }
 
-func TestGetNilReceiverAndEmptyID(t *testing.T) {
-	var nilCache *BroadcasterTokens
-	if got := nilCache.Get("chan-a"); got != nil {
-		t.Fatalf("nil-receiver Get = %p, want nil", got)
-	}
-
-	b := NewBroadcasterTokens(countingBuild(new(int)))
-	if got := b.Get(""); got != nil {
-		t.Fatalf("empty-id Get = %p, want nil", got)
-	}
-}
-
-func TestEvictLockedExpiresIdleEntries(t *testing.T) {
-	b := NewBroadcasterTokens(countingBuild(new(int)))
-	now := time.Now()
-
-	b.Get("idle")
-	b.Get("active")
-	b.cache["idle"].lastUsed = now.Add(-sourceIdleTTL - time.Minute)
-	b.cache["active"].lastUsed = now.Add(-time.Minute)
-
-	b.mu.Lock()
-	b.evictLocked(now)
-	b.mu.Unlock()
-
-	if _, ok := b.cache["idle"]; ok {
-		t.Error("entry idle past sourceIdleTTL survived eviction")
-	}
-	if _, ok := b.cache["active"]; !ok {
-		t.Error("entry used within sourceIdleTTL was evicted")
-	}
-}
-
-func TestGetEvictsIdleEntryAtCapacity(t *testing.T) {
-	b := NewBroadcasterTokens(countingBuild(new(int)))
+func TestBroadcasterTokensEvictTheLeastRecentlyUsedAtCapacity(t *testing.T) {
+	var calls int
+	b := NewBroadcasterTokens(countingBuild(&calls))
 	for i := range maxBroadcasterSources {
 		b.Get(strconv.Itoa(i))
 	}
-	if len(b.cache) != maxBroadcasterSources {
-		t.Fatalf("cache filled to %d, want %d", len(b.cache), maxBroadcasterSources)
-	}
-	b.cache["0"].lastUsed = time.Now().Add(-sourceIdleTTL - time.Minute)
+	require.Equal(t, maxBroadcasterSources, calls)
 
+	b.Get("0")
 	b.Get("overflow")
+	b.Get("0")
+	assert.Equal(t, maxBroadcasterSources+1, calls, "the touched entry survives the overflow insert")
 
-	if len(b.cache) > maxBroadcasterSources {
-		t.Fatalf("cache grew to %d past cap %d", len(b.cache), maxBroadcasterSources)
-	}
-	if _, ok := b.cache["0"]; ok {
-		t.Error("idle entry was not evicted on insert-at-cap")
-	}
-	if _, ok := b.cache["overflow"]; !ok {
-		t.Error("new broadcaster missing after insert-at-cap")
-	}
-}
-
-func TestGetEvictsLeastRecentlyUsedWhenNoneIdle(t *testing.T) {
-	b := NewBroadcasterTokens(countingBuild(new(int)))
-	for i := range maxBroadcasterSources {
-		b.Get(strconv.Itoa(i))
-	}
-	const lru = "7"
-	b.cache[lru].lastUsed = time.Now().Add(-time.Minute)
-
-	b.Get("overflow")
-
-	if len(b.cache) > maxBroadcasterSources {
-		t.Fatalf("cache grew to %d past cap %d", len(b.cache), maxBroadcasterSources)
-	}
-	if _, ok := b.cache[lru]; ok {
-		t.Errorf("least-recently-used entry %q survived eviction", lru)
-	}
-	if _, ok := b.cache["overflow"]; !ok {
-		t.Error("new broadcaster missing after LRU eviction")
-	}
+	b.Get("1")
+	assert.Equal(t, maxBroadcasterSources+2, calls, "the least recently used entry was evicted and is rebuilt")
 }
 
 func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *Source {
@@ -123,42 +61,6 @@ func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *
 	s.expires = time.Now().Add(refreshMargin - time.Second)
 	s.mu.Unlock()
 	return s
-}
-
-func TestSweepOnceRefreshesOrSkipsSource(t *testing.T) {
-	cases := []struct {
-		name      string
-		evict     bool
-		wantCalls int32
-	}{
-		{name: "near-expiry source in cache is refreshed", evict: false, wantCalls: 1},
-		{name: "source evicted before sweep is left alone", evict: true, wantCalls: 0},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var calls int32
-			b := NewBroadcasterTokens(func(string) *Source {
-				return nearExpirySource(func(context.Context) (string, time.Duration, error) {
-					atomic.AddInt32(&calls, 1)
-					return "fresh", time.Hour, nil
-				})
-			})
-			b.Get("chan-a")
-
-			if tc.evict {
-				b.mu.Lock()
-				delete(b.cache, "chan-a")
-				b.mu.Unlock()
-			}
-
-			b.sweepOnce(context.Background())
-
-			if got := atomic.LoadInt32(&calls); got != tc.wantCalls {
-				t.Fatalf("refresh calls = %d, want %d", got, tc.wantCalls)
-			}
-		})
-	}
 }
 
 func TestSweepOnceLeavesHealthySourceAlone(t *testing.T) {

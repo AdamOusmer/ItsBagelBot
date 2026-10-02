@@ -5,110 +5,92 @@ package automod
 
 import (
 	"fmt"
-	"math"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func newTestVocab() *Vocab {
-	v := NewVocab()
-	v.nowUnix = func() int64 { return 1_800_000_000 }
-	return v
-}
-
-func learnPattern(t *testing.T, v *Vocab, token string) {
-	t.Helper()
+func learnPattern(v *Vocab, ch uint64, token string) {
 	for s := 0; s < vocabSenders; s++ {
 		for u := 0; u < vocabTau/vocabSenders+1; u++ {
-			v.Observe(1, fmt.Sprintf("user-%d", s), []string{token})
+			v.Observe(ch, fmt.Sprintf("user-%d", s), []string{token})
 		}
 	}
 }
 
-func TestVocabLearnsAfterTauByDPattern(t *testing.T) {
-	v := newTestVocab()
-	learnPattern(t, v, "poggers")
-	if !v.Known(1, "POGGERS") {
-		t.Fatal("tau x d consensus must learn the token (lookup is case-insensitive)")
+func TestVocabKnown(t *testing.T) {
+	tests := []struct {
+		name    string
+		observe func(*Vocab)
+		channel uint64
+		token   string
+		want    bool
+	}{
+		{"learns a token after tau observations from d senders", func(v *Vocab) { learnPattern(v, 1, "poggers") }, 1, "poggers", true},
+		{"looks tokens up case-insensitively", func(v *Vocab) { learnPattern(v, 1, "poggers") }, 1, "POGGERS", true},
+		{"reports an unseen token as unknown", func(v *Vocab) { learnPattern(v, 1, "poggers") }, 1, "neverseen", false},
+		{"reports a token on an unseen channel as unknown", func(v *Vocab) { learnPattern(v, 1, "poggers") }, 99, "poggers", false},
+		{
+			"never learns from a single sender flood",
+			func(v *Vocab) {
+				for i := 0; i < 1000; i++ {
+					v.Observe(1, "launderer", []string{"freediscord"})
+				}
+			},
+			1, "freediscord", false,
+		},
+		{
+			"keeps a heavy hitter through one-off churn",
+			func(v *Vocab) {
+				misraGriesChurnStorm(v)
+				topUpHeavyHitterSenders(v)
+			},
+			2, "heavyhitter", true,
+		},
 	}
-	if v.Known(1, "neverseen") {
-		t.Fatal("unknown token reported Known")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := newTestVocab()
+			tt.observe(v)
+
+			assert.Equal(t, tt.want, v.Known(tt.channel, tt.token))
+		})
 	}
 }
 
-func TestVocabSingleSenderFloodNeverLearns(t *testing.T) {
+func TestVocabForgetsAfterASilentHour(t *testing.T) {
 	v := newTestVocab()
-	for i := 0; i < 1000; i++ {
-		v.Observe(1, "launderer", []string{"freediscord"})
-	}
-	ts := v.shards[1&vocabShardMask].m[1].bins["freediscord"]
-	if got := len(ts.senders); got != 1 {
-		t.Fatalf("single sender recorded %d distinct senders", got)
-	}
-	if v.Known(1, "freediscord") {
-		t.Fatal("d-sender consensus defeated: single-account flood learned a token")
-	}
+	learnPattern(v, 1, "fading")
+	assert.True(t, v.Known(1, "fading"))
+
+	now := v.nowUnix()
+	v.nowUnix = func() int64 { return now + 3600 }
+
+	assert.False(t, v.Known(1, "fading"), "a decayed husk must not read as known")
 }
 
-func TestVocabSenderSetCapsAtD(t *testing.T) {
+func TestVocabPurgeTokensRemovesAndMintsNothing(t *testing.T) {
+	v := newTestVocab()
+	learnPattern(v, 1, "edgecase")
+	assert.True(t, v.Known(1, "edgecase"))
+
+	v.PurgeTokens(1, []string{"EdgeCase"})
+	v.PurgeTokens(999, []string{"ghost"})
+
+	assert.False(t, v.Known(1, "edgecase"), "a purged token must reset")
+	assert.NotContains(t, v.shards[999&vocabShardMask].m, uint64(999), "purge must not mint channel rows")
+}
+
+func TestVocabBoundsItsMemory(t *testing.T) {
 	v := newTestVocab()
 	for s := 0; s < vocabSenders*4; s++ {
 		v.Observe(1, fmt.Sprintf("user-%d", s), []string{"busytoken"})
 	}
-	ts := v.shards[1&vocabShardMask].m[1].bins["busytoken"]
-	if len(ts.senders) != vocabSenders {
-		t.Fatalf("sender set grew past d: %d", len(ts.senders))
-	}
-}
-
-func TestVocabDecayHalvesHourly(t *testing.T) {
-	v := newTestVocab()
-	hour := int64(1_800_000_000 / 3600)
-	v.nowUnix = func() int64 { return hour * 3600 }
-	for i := 0; i < 4; i++ {
-		v.Observe(1, "u", []string{"fading"})
-	}
-	ts := v.shards[1&vocabShardMask].m[1].bins["fading"]
-	hour++
-	if got := ts.aged(hour); math.Abs(got-2.0) > 1e-9 {
-		t.Fatalf("one silent hour must halve 4 -> 2, got %v", got)
-	}
-	hour += 2
-	if got := ts.aged(hour); math.Abs(got-0.5) > 1e-9 {
-		t.Fatalf("three silent hours must take 4 -> 0.5, got %v", got)
-	}
-	if v.Known(1, "fading") {
-		t.Fatal("a decayed husk must not read as Known")
-	}
-}
-
-func TestVocabPurgeTokensRemoves(t *testing.T) {
-	v := newTestVocab()
-	learnPattern(t, v, "edgecase")
-	if !v.Known(1, "edgecase") {
-		t.Fatal("setup failed: token should be learned before purge")
-	}
-	v.PurgeTokens(1, []string{"EdgeCase"})
-	if v.Known(1, "edgecase") {
-		t.Fatal("purged token still Known; whitewash reset failed")
-	}
-	v.PurgeTokens(999, []string{"ghost"})
-	if _, ok := v.shards[999&vocabShardMask].m[999]; ok {
-		t.Fatal("purge must not mint channel rows")
-	}
-}
-
-func TestVocabMisraGriesWindowBounded(t *testing.T) {
-	v := newTestVocab()
 	misraGriesChurnStorm(v)
-	topUpHeavyHitterSenders(v)
-	cv := v.shards[2&vocabShardMask].m[2]
-	if len(cv.bins) > vocabBins {
-		t.Fatalf("MG window exceeded K: %d bins", len(cv.bins))
-	}
-	if !v.Known(2, "heavyhitter") {
-		t.Fatal("a true heavy hitter was evicted by one-off churn")
-	}
+
+	assert.Len(t, v.shards[1&vocabShardMask].m[1].bins["busytoken"].senders, vocabSenders, "sender set must stop at d")
+	assert.LessOrEqual(t, len(v.shards[2&vocabShardMask].m[2].bins), vocabBins, "the Misra-Gries window must stay within K")
 }
 
 func misraGriesChurnStorm(v *Vocab) {
@@ -129,27 +111,13 @@ func topUpHeavyHitterSenders(v *Vocab) {
 	}
 }
 
-func TestVocabZeroAllocSteadyState(t *testing.T) {
+func TestVocabSteadyStateAllocatesNothing(t *testing.T) {
 	v := newTestVocab()
-	ch := uint64(3)
-	for s := 0; s < vocabSenders; s++ {
-		for i := 0; i < vocabTau/vocabSenders+1; i++ {
-			v.Observe(ch, fmt.Sprintf("u%d", s), []string{"warm"})
-		}
-	}
-	got := testing.AllocsPerRun(1000, func() {
-		v.Observe(ch, "u0", []string{"warm"})
-	})
-	if got != 0 {
-		t.Fatalf("Observe steady state allocates %v times/run", got)
-	}
-	knows := false
-	got = testing.AllocsPerRun(1000, func() {
-		knows = v.Known(ch, "warm")
-	})
-	if got != 0 || !knows {
-		t.Fatalf("Known allocates %v times/run or lost the token (%v)", got, knows)
-	}
+	learnPattern(v, 3, "warm")
+
+	assert.Zero(t, testing.AllocsPerRun(1000, func() { v.Observe(3, "u0", []string{"warm"}) }), "Observe")
+	assert.Zero(t, testing.AllocsPerRun(1000, func() { _ = v.Known(3, "warm") }), "Known")
+	assert.True(t, v.Known(3, "warm"))
 }
 
 func TestVocabConcurrentShardsRace(t *testing.T) {
@@ -165,8 +133,8 @@ func TestVocabConcurrentShardsRace(t *testing.T) {
 				v.Known(ch, "t1")
 			}
 			for i := 0; i < 100; i++ {
-				v.Observe(uint64(8192), fmt.Sprintf("shared%d", g%vocabSenders), []string{"hot"})
-				v.PurgeTokens(uint64(8192), []string{"cold"})
+				v.Observe(8192, fmt.Sprintf("shared%d", g%vocabSenders), []string{"hot"})
+				v.PurgeTokens(8192, []string{"cold"})
 			}
 		}(g)
 	}

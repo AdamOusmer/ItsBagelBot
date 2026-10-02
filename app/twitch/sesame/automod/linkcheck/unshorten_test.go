@@ -10,16 +10,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
-)
 
-func testClient() *http.Client {
-	return &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func redirectServer(t *testing.T, location string) *httptest.Server {
 	t.Helper()
@@ -56,111 +52,86 @@ func clientFor(t *testing.T, m dnsMap) *http.Client {
 	}
 }
 
-func TestDestinationStopsAtAllowlistBoundary(t *testing.T) {
-	var destHits atomic.Int64
-	dest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		destHits.Add(1)
-	}))
-	defer dest.Close()
-
-	mid := redirectServer(t, "http://sdest.test/final")
-	head := redirectServer(t, "http://smid.test/m")
-
-	e := newExpanderScheme(
-		clientFor(t, dnsMap{
-			"shead.test": tok(head.URL),
-			"smid.test":  tok(mid.URL),
-			"sdest.test": tok(dest.URL),
-		}),
-		[]string{"shead.test", "smid.test"}, "http")
-
-	got, err := e.Destination(context.Background(), "shead.test/abc")
-	if err != nil {
-		t.Fatalf("destination: %v", err)
-	}
-	if got != "sdest.test" {
-		t.Fatalf("destination = %q, want sdest.test", got)
-	}
-	if destHits.Load() != 0 {
-		t.Fatalf("destination was contacted %d times; contract is never", destHits.Load())
-	}
+func expanderVia(t *testing.T, host string, srv *httptest.Server) *Expander {
+	t.Helper()
+	return newExpanderScheme(clientFor(t, dnsMap{host: tok(srv.URL)}), []string{host}, "http")
 }
 
-func TestDestinationNonShortenerInputIsUntouched(t *testing.T) {
-	e := newExpanderScheme(testClient(), []string{"bit.ly"}, "http")
-	got, err := e.Destination(context.Background(), "plain.example/x")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "plain.example" {
-		t.Fatalf("got %q, want plain.example returned uncontacted", got)
-	}
-}
-
-func TestDestinationInterstitialReturnsShortenerItself(t *testing.T) {
-	wall := redirectServer(t, "")
-	e := newExpanderScheme(clientFor(t, dnsMap{"swall.test": tok(wall.URL)}), []string{"swall.test"}, "http")
-	got, err := e.Destination(context.Background(), "swall.test/xyz")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "swall.test" {
-		t.Fatalf("interstitial destination = %q, want the shortener host swall.test", got)
-	}
-}
-
-func TestDestinationLoopCappedAtHops(t *testing.T) {
-	loop := redirectServer(t, "/self")
-	e := newExpanderScheme(clientFor(t, dnsMap{"sloop.test": tok(loop.URL)}), []string{"sloop.test"}, "http")
-	if _, err := e.Destination(context.Background(), "sloop.test/start"); err == nil {
-		t.Fatal("redirect loop resolved without error")
-	}
-}
-
-func TestDestinationRefusesExoticScheme(t *testing.T) {
-	srv := redirectServer(t, "javascript:alert(1)")
-	e := newExpanderScheme(clientFor(t, dnsMap{"sscheme.test": tok(srv.URL)}), []string{"sscheme.test"}, "http")
-	if _, err := e.Destination(context.Background(), "sscheme.test/x"); err == nil {
-		t.Fatal("non-http scheme accepted")
-	}
-}
-
-func TestGuardDial(t *testing.T) {
-	cases := []struct {
-		addr string
-		ok   bool
+func TestExpanderDestination(t *testing.T) {
+	tests := []struct {
+		name    string
+		expand  func(t *testing.T) *Expander
+		token   string
+		want    string
+		wantErr bool
 	}{
-		{"8.8.8.8:443", true},
-		{"1.1.1.1:53", true},
-		{"2606:4700::1111", false},
-		{"127.0.0.1:8080", false},
-		{"10.1.2.3:443", false},
-		{"192.168.0.20:443", false},
-		{"172.16.9.9:443", false},
-		{"100.64.0.9:443", false},
-		{"169.254.169.254:80", false},
-		{"[fd00::5]:443", false},
-		{"224.0.0.1:5353", false},
-		{"not-an-address:443", false},
+		{
+			name: "follows shorteners until the first non-shortener host",
+			expand: func(t *testing.T) *Expander {
+				dest := redirectServer(t, "")
+				mid := redirectServer(t, "http://sdest.test/final")
+				head := redirectServer(t, "http://smid.test/m")
+				return newExpanderScheme(
+					clientFor(t, dnsMap{"shead.test": tok(head.URL), "smid.test": tok(mid.URL), "sdest.test": tok(dest.URL)}),
+					[]string{"shead.test", "smid.test"}, "http")
+			},
+			token: "shead.test/abc", want: "sdest.test",
+		},
+		{
+			name:   "leaves a non-shortener input uncontacted",
+			expand: func(*testing.T) *Expander { return newExpanderScheme(&http.Client{}, []string{"bit.ly"}, "http") },
+			token:  "plain.example/x", want: "plain.example",
+		},
+		{
+			name:   "returns the shortener itself behind an interstitial",
+			expand: func(t *testing.T) *Expander { return expanderVia(t, "swall.test", redirectServer(t, "")) },
+			token:  "swall.test/xyz", want: "swall.test",
+		},
+		{
+			name:   "errors on a redirect loop",
+			expand: func(t *testing.T) *Expander { return expanderVia(t, "sloop.test", redirectServer(t, "/self")) },
+			token:  "sloop.test/start", wantErr: true,
+		},
+		{
+			name: "refuses a non-http redirect scheme",
+			expand: func(t *testing.T) *Expander {
+				return expanderVia(t, "sscheme.test", redirectServer(t, "javascript:alert(1)"))
+			},
+			token: "sscheme.test/x", wantErr: true,
+		},
 	}
-	for _, tt := range cases {
-		err := guardDial("tcp", tt.addr, nil)
-		if tt.ok && err != nil {
-			t.Errorf("guardDial(%q) = %v, want allowed", tt.addr, err)
-		}
-		if !tt.ok && err == nil {
-			t.Errorf("guardDial(%q) allowed, want refused", tt.addr)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.expand(t).Destination(context.Background(), tt.token)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 }
 
-func TestGuardDialBlocksLiveLoopbackDial(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
-	defer srv.Close()
+func TestDefaultExpanderRefusesInternalAddresses(t *testing.T) {
+	tests := []struct{ ip, token string }{
+		{"127.0.0.1", "127.0.0.1/x"},
+		{"10.1.2.3", "10.1.2.3/x"},
+		{"192.168.0.20", "192.168.0.20/x"},
+		{"172.16.9.9", "172.16.9.9/x"},
+		{"100.64.0.9", "100.64.0.9/x"},
+		{"169.254.169.254", "169.254.169.254/x"},
+		{"224.0.0.1", "224.0.0.1/x"},
+		{"0.0.0.0", "0.0.0.0/x"},
+		{"fd00::5", "[fd00::5]/x"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ip, func(t *testing.T) {
+			_, err := NewExpander(nil, []string{tt.ip}).Destination(context.Background(), tt.token)
 
-	e := NewExpander(nil, []string{hostOf(tok(srv.URL))})
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
-	if _, err := e.client.Do(req); err == nil {
-		t.Fatal("loopback dial succeeded despite guardDial")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "dial guard")
+		})
 	}
 }

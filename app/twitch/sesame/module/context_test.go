@@ -1,16 +1,27 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package module
+package module_test
 
 import (
 	"testing"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+
+	"github.com/stretchr/testify/assert"
 )
 
+func emoteSet(codes ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		set[code] = struct{}{}
+	}
+	return set
+}
+
 func TestEmoteCodesSlicesRawTextByRunes(t *testing.T) {
-	env := lane.Envelope{
+	c := &module.Context{Env: lane.Envelope{
 		Text: "\U0001F389LUL\U0001F389 Cheer100 hey",
 		Emotes: []lane.EmoteSpan{
 			{ID: "party", Begin: 1, End: 4},
@@ -20,51 +31,28 @@ func TestEmoteCodesSlicesRawTextByRunes(t *testing.T) {
 			{ID: "empty", Begin: 2, End: 2},
 			{ID: "inverted", Begin: 4, End: 1},
 		},
-	}
-	c := &Context{Env: env}
-	codes := c.EmoteCodes()
-	if len(codes) != 2 {
-		t.Fatalf("EmoteCodes = %v, want exactly {lul, cheer100}", codes)
-	}
-	if _, ok := codes["lul"]; !ok {
-		t.Fatal("span over native emote must yield lul")
-	}
-	if _, ok := codes["cheer100"]; !ok {
-		t.Fatal("mixed-case cheermote must fold to cheer100")
-	}
+	}}
+
+	assert.Equal(t, emoteSet("lul", "cheer100"), c.EmoteCodes())
 
 	c.Env = lane.Envelope{}
-	codes2 := c.EmoteCodes()
-	if len(codes2) != 2 {
-		t.Fatalf("second EmoteCodes call rebuilt from cleared Env: %v", codes2)
-	}
+	assert.Equal(t, emoteSet("lul", "cheer100"), c.EmoteCodes(), "codes are built once per message")
 }
 
-func TestEmoteCodesEmptyFastPath(t *testing.T) {
-	c := &Context{}
-	if got := c.EmoteCodes(); got != nil {
-		t.Fatalf("no-span context returned %v, want nil", got)
-	}
-	env := lane.Envelope{Text: "plain chat line", Emotes: []lane.EmoteSpan{{Begin: 0, End: 99}}}
-	c = &Context{Env: env}
-	if allocs := testing.AllocsPerRun(100, func() { _ = c.EmoteCodes() }); allocs != 0 {
-		t.Fatalf("steady state allocated %.1f allocs/op, want 0", allocs)
-	}
+func TestEmoteCodesWithoutValidSpansAllocatesNothing(t *testing.T) {
+	assert.Nil(t, (&module.Context{}).EmoteCodes())
+
+	c := &module.Context{Env: lane.Envelope{Text: "plain chat line", Emotes: []lane.EmoteSpan{{Begin: 0, End: 99}}}}
+	assert.Nil(t, c.EmoteCodes())
+	assert.Zero(t, testing.AllocsPerRun(100, func() { _ = c.EmoteCodes() }))
 }
 
-func TestResetClearsEmoteCodes(t *testing.T) {
-	env := lane.Envelope{Text: "LUL", Emotes: []lane.EmoteSpan{{Begin: 0, End: 3}}}
-	c := &Context{Env: env}
-	if got := c.EmoteCodes(); len(got) != 1 {
-		t.Fatalf("precondition: codes = %v", got)
-	}
+func TestResetDropsCachedEmoteCodes(t *testing.T) {
+	c := &module.Context{Env: lane.Envelope{Text: "LUL", Emotes: []lane.EmoteSpan{{Begin: 0, End: 3}}}}
+	assert.Equal(t, emoteSet("lul"), c.EmoteCodes())
+
 	c.Reset()
-	if c.emoteCodes != nil || c.emotesBuilt {
-		t.Fatal("Reset left emote state behind")
-	}
 	c.Env = lane.Envelope{Text: "KEKW", Emotes: []lane.EmoteSpan{{Begin: 0, End: 4}}}
-	got := c.EmoteCodes()
-	if _, ok := got["kekw"]; !ok {
-		t.Fatalf("rebuild after Reset yielded %v, want {kekw}", got)
-	}
+
+	assert.Equal(t, emoteSet("kekw"), c.EmoteCodes())
 }

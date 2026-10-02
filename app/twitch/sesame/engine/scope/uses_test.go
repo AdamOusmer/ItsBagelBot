@@ -9,31 +9,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUsesRendersTheCommandRowCount(t *testing.T) {
-	chain := Chain{Uses{Count: 41}}
-	assert.Equal(t, "hugged 41 times", render(t, "hugged {uses} times", chain, nil))
-}
-
-func TestUsesRendersZeroRatherThanFallingBack(t *testing.T) {
-	chain := Chain{Uses{}}
-	assert.Equal(t, "0", render(t, "{uses}", chain, nil))
-	assert.Equal(t, "0", render(t, "{uses|never}", chain, nil))
-}
-
-func TestUsesRejectsPayloads(t *testing.T) {
-	chain := Chain{Uses{Count: 7}}
-	assert.Equal(t, "{uses:hug}", render(t, "{uses:hug}", chain, nil))
-	assert.Equal(t, "{uses:hug|0}", render(t, "{uses:hug|0}", chain, nil))
-}
-
-func TestUsesLeftLiteralWhenNotMounted(t *testing.T) {
-	chain := Chain{Message{User: "alice"}}
-	assert.Equal(t, "{uses}", render(t, "{uses}", chain, nil))
-}
-
-func TestUsesOwnsOnlyItsOwnName(t *testing.T) {
-	assert.True(t, Uses{}.Owns(Var{Name: "uses"}))
-	assert.False(t, Uses{}.Owns(Var{Name: "use"}))
-	assert.True(t, Uses{}.Owns(Var{Name: "count"}))
-	assert.False(t, Uses{}.Owns(Var{Name: "count", HasPayload: true, Payload: "deaths"}))
+func TestUsesRender(t *testing.T) {
+	tests := []struct {
+		name     string
+		chain    Chain
+		template string
+		want     string
+	}{
+		{"renders the command row count", Chain{Uses{Count: 41}}, "hugged {uses} times", "hugged 41 times"},
+		{"renders zero rather than falling back", Chain{Uses{}}, "{uses|never}", "0"},
+		{"answers the bare count alias", Chain{Uses{Count: 7}}, "{count}", "7"},
+		{"rejects a payload", Chain{Uses{Count: 7}}, "{uses:hug}", "{uses:hug}"},
+		{"rejects a payload with a fallback", Chain{Uses{Count: 7}}, "{uses:hug|0}", "{uses:hug|0}"},
+		{"leaves a payloaded count to the counter store", Chain{Uses{Count: 7}}, "{count:deaths}", "{count:deaths}"},
+		{"stays literal when not mounted", Chain{Message{User: "alice"}}, "{uses}", "{uses}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, tt.chain, nil))
+		})
+	}
 }

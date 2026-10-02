@@ -1,203 +1,147 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package module
+package module_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"ItsBagelBot/app/twitch/sesame/module"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func noopRun(context.Context, *Context, string, Emit) error { return nil }
-func noopEvt(context.Context, *Context, Emit) error         { return nil }
+func noopRun(context.Context, *module.Context, string, module.Emit) error { return nil }
+func noopEvt(context.Context, *module.Context, module.Emit) error         { return nil }
 
-func TestBuildAssemblesCommandsAndEvents(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("ping").Everyone().Run(noopRun)
+type commandSpec struct {
+	Name          string
+	Perm          module.Role
+	Cooldown      time.Duration
+	LiveOnly      bool
+	AllowedUserID string
+	Aliases       []string
+	NumericSuffix bool
+}
+
+func specsOf(commands []module.Command) []commandSpec {
+	specs := make([]commandSpec, len(commands))
+	for i, c := range commands {
+		specs[i] = commandSpec{c.Name, c.Perm, c.Cooldown, c.LiveOnly, c.AllowedUserID, c.Aliases, c.NumericSuffix}
+	}
+	return specs
+}
+
+func TestBuildAssemblesModuleCommandsAndEvents(t *testing.T) {
+	m := module.NewModule("system", module.KindCore).Trial()
+	m.Command("PiNg").Everyone().Run(noopRun)
+	m.Command("sub").Sub().Run(noopRun)
+	m.Command("vip").VIP().Run(noopRun)
 	m.Command("announce").Mod().Run(noopRun)
+	m.Command("lead").LeadMod().Run(noopRun)
+	m.Command("owner").Broadcaster().Run(noopRun)
+	m.Command("so").Mod().Cooldown(30*time.Second).LiveOnly().AllowUser("12345").Aliases("shoutout", "SO2").NumericSuffix().Run(noopRun)
 	m.On("channel.chat.message", noopEvt)
+
 	mod := m.Build()
 
-	if mod.Name != "" || mod.Kind != KindCore {
-		t.Fatalf("got name=%q kind=%v, want core with empty name", mod.Name, mod.Kind)
-	}
-	if len(mod.Commands) != 2 {
-		t.Fatalf("got %d commands, want 2", len(mod.Commands))
-	}
-	if mod.Commands[0].Name != "ping" || mod.Commands[0].Perm != RoleEveryone {
-		t.Errorf("ping: got name=%q perm=%v", mod.Commands[0].Name, mod.Commands[0].Perm)
-	}
-	if mod.Commands[1].Name != "announce" || mod.Commands[1].Perm != RoleModerator {
-		t.Errorf("announce: got name=%q perm=%v", mod.Commands[1].Name, mod.Commands[1].Perm)
-	}
-	if _, ok := mod.Events["channel.chat.message"]; !ok {
-		t.Errorf("event handler not registered, events=%v", mod.Events)
-	}
+	assert.Equal(t, "system", mod.Name)
+	assert.Equal(t, module.KindCore, mod.Kind)
+	assert.True(t, mod.Trial)
+	assert.Contains(t, mod.Events, "channel.chat.message")
+	assert.Equal(t, []commandSpec{
+		{Name: "ping", Perm: module.RoleEveryone},
+		{Name: "sub", Perm: module.RoleSubscriber},
+		{Name: "vip", Perm: module.RoleVIP},
+		{Name: "announce", Perm: module.RoleModerator},
+		{Name: "lead", Perm: module.RoleLeadModerator},
+		{Name: "owner", Perm: module.RoleBroadcaster},
+		{
+			Name: "so", Perm: module.RoleModerator, Cooldown: 30 * time.Second, LiveOnly: true,
+			AllowedUserID: "12345", Aliases: []string{"shoutout", "so2"}, NumericSuffix: true,
+		},
+	}, specsOf(mod.Commands))
 }
 
-func TestPermSettersMapToRoles(t *testing.T) {
-	cases := []struct {
-		name string
-		set  func(*CmdBuilder) *CmdBuilder
-		want Role
-	}{
-		{"everyone", (*CmdBuilder).Everyone, RoleEveryone},
-		{"sub", (*CmdBuilder).Sub, RoleSubscriber},
-		{"vip", (*CmdBuilder).VIP, RoleVIP},
-		{"mod", (*CmdBuilder).Mod, RoleModerator},
-		{"lead_mod", (*CmdBuilder).LeadMod, RoleLeadModerator},
-		{"broadcaster", (*CmdBuilder).Broadcaster, RoleBroadcaster},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			m := NewModule("", KindCore)
-			tc.set(m.Command(tc.name)).Run(noopRun)
-			mod := m.Build()
-			if got := mod.Commands[0].Perm; got != tc.want {
-				t.Fatalf("got perm=%v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestCommandOptionsLand(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("so").
-		Mod().
-		Cooldown(30*time.Second).
-		LiveOnly().
-		AllowUser("12345").
-		Aliases("shoutout", "SO2").
-		Run(noopRun)
-	cmd := m.Build().Commands[0]
-
-	if cmd.Cooldown != 30*time.Second {
-		t.Errorf("cooldown: got %v", cmd.Cooldown)
-	}
-	if !cmd.LiveOnly {
-		t.Errorf("LiveOnly not set")
-	}
-	if cmd.AllowedUserID != "12345" {
-		t.Errorf("AllowedUserID: got %q", cmd.AllowedUserID)
-	}
-	if len(cmd.Aliases) != 2 || cmd.Aliases[0] != "shoutout" || cmd.Aliases[1] != "so2" {
-		t.Errorf("aliases not lowercased/stored: got %v", cmd.Aliases)
-	}
-}
-
-func TestTriggersLowercased(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("PiNg").Run(noopRun)
-	if got := m.Build().Commands[0].Name; got != "ping" {
-		t.Fatalf("command name not lowercased: got %q", got)
-	}
-}
-
-func TestValidateKindNamePairing(t *testing.T) {
-	cases := []struct {
-		name    string
-		build   func() *Builder
-		wantErr bool
-	}{
-		{"core empty ok", func() *Builder { return NewModule("", KindCore) }, false},
-		{"core named ok", func() *Builder { return NewModule("system", KindCore) }, false},
-		{"default named ok", func() *Builder {
-			b := NewModule("greeter", KindDefault)
-			b.On("channel.chat.message", noopEvt)
-			return b
-		}, false},
-		{"default empty bad", func() *Builder { return NewModule("", KindDefault) }, true},
-		{"optin empty bad", func() *Builder { return NewModule("", KindOptIn) }, true},
-		{"core beta bad", func() *Builder { return NewModule("x", KindCore).Beta() }, true},
-		{"optin beta ok", func() *Builder { return NewModule("x", KindOptIn).Beta() }, false},
-		{"core trial ok", func() *Builder { return NewModule("trial", KindCore).Trial() }, false},
-		{"optin trial bad", func() *Builder { return NewModule("x", KindOptIn).Trial() }, true},
-		{"default trial bad", func() *Builder { return NewModule("x", KindDefault).Trial() }, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.build().Validate(); (err != nil) != tc.wantErr {
-				t.Fatalf("Validate() err=%v, wantErr=%v", err, tc.wantErr)
-			}
-		})
-	}
-}
-
-func TestValidateCommandWithoutRun(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("ping")
-	if err := m.Validate(); err == nil {
-		t.Fatal("want error for command without Run, got nil")
-	}
-}
-
-func TestValidateDuplicateName(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("ping").Run(noopRun)
-	m.Command("ping").Run(noopRun)
-	if err := m.Validate(); err == nil {
-		t.Fatal("want error for duplicate command name, got nil")
-	}
-}
-
-func TestValidateAliasCollidesWithName(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("ping").Run(noopRun)
-	m.Command("pong").Aliases("ping").Run(noopRun)
-	if err := m.Validate(); err == nil {
-		t.Fatal("want error for alias colliding with a command name, got nil")
-	}
-}
-
-func TestValidateAliasCollidesWithAlias(t *testing.T) {
-	m := NewModule("", KindCore)
-	m.Command("a").Aliases("x").Run(noopRun)
-	m.Command("b").Aliases("x").Run(noopRun)
-	if err := m.Validate(); err == nil {
-		t.Fatal("want error for alias colliding with another alias, got nil")
-	}
-}
-
-func TestBuildPanicsOnInvalid(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Build did not panic on an invalid module")
-		}
-	}()
-	NewModule("", KindDefault).Build()
-}
-
-func TestNamedCoreBuilds(t *testing.T) {
-	m := NewModule("system", KindCore)
-	m.Command("sys").Run(noopRun)
-	mod := m.Build()
-	if mod.Name != "system" || mod.Kind != KindCore {
-		t.Fatalf("named core: got name=%q kind=%v, want system/core", mod.Name, mod.Kind)
-	}
-}
-
-func TestDuplicateEventKeepsLast(t *testing.T) {
+func TestBuildKeepsTheLastHandlerRegisteredForAnEvent(t *testing.T) {
 	var last int
-	first := func(context.Context, *Context, Emit) error { last = 1; return nil }
-	second := func(context.Context, *Context, Emit) error { last = 2; return nil }
+	first := func(context.Context, *module.Context, module.Emit) error { last = 1; return nil }
+	second := func(context.Context, *module.Context, module.Emit) error { last = 2; return nil }
 
-	m := NewModule("", KindCore)
+	m := module.NewModule("", module.KindCore)
 	m.On("channel.chat.message", first)
 	m.On("channel.chat.message", second)
 	mod := m.Build()
 
-	_ = mod.Events["channel.chat.message"](context.Background(), &Context{}, func(*Output) {})
-	if last != 2 {
-		t.Fatalf("On did not keep the last handler: last=%d", last)
+	require.NoError(t, mod.Events["channel.chat.message"](context.Background(), &module.Context{}, func(*module.Output) {}))
+	assert.Equal(t, 2, last)
+}
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		build   func() *module.Builder
+		wantErr bool
+	}{
+		{"accepts a core module with no name", func() *module.Builder { return module.NewModule("", module.KindCore) }, false},
+		{"accepts a named core module", func() *module.Builder { return module.NewModule("system", module.KindCore) }, false},
+		{"accepts a named default module", func() *module.Builder {
+			return module.NewModule("greeter", module.KindDefault).On("channel.chat.message", noopEvt)
+		}, false},
+		{"rejects a default module with no name", func() *module.Builder { return module.NewModule("", module.KindDefault) }, true},
+		{"rejects an opt-in module with no name", func() *module.Builder { return module.NewModule("", module.KindOptIn) }, true},
+		{"rejects an unknown kind", func() *module.Builder { return module.NewModule("x", module.Kind(99)) }, true},
+		{"rejects a beta core module", func() *module.Builder { return module.NewModule("x", module.KindCore).Beta() }, true},
+		{"accepts a beta opt-in module", func() *module.Builder { return module.NewModule("x", module.KindOptIn).Beta() }, false},
+		{"accepts a trial core module", func() *module.Builder { return module.NewModule("trial", module.KindCore).Trial() }, false},
+		{"rejects a trial opt-in module", func() *module.Builder { return module.NewModule("x", module.KindOptIn).Trial() }, true},
+		{"rejects a trial default module", func() *module.Builder { return module.NewModule("x", module.KindDefault).Trial() }, true},
+		{"rejects a command without Run", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("ping")
+			return m
+		}, true},
+		{"rejects a command with an empty name", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("").Run(noopRun)
+			return m
+		}, true},
+		{"rejects a duplicate command name", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("ping").Run(noopRun)
+			m.Command("ping").Run(noopRun)
+			return m
+		}, true},
+		{"rejects an alias that collides with a command name", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("ping").Run(noopRun)
+			m.Command("pong").Aliases("ping").Run(noopRun)
+			return m
+		}, true},
+		{"rejects an alias that collides with another alias", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("a").Aliases("x").Run(noopRun)
+			m.Command("b").Aliases("x").Run(noopRun)
+			return m
+		}, true},
+		{"rejects an empty alias", func() *module.Builder {
+			m := module.NewModule("", module.KindCore)
+			m.Command("a").Aliases("").Run(noopRun)
+			return m
+		}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.build().Validate()
+
+			assert.Equal(t, tt.wantErr, err != nil, "Validate() err=%v", err)
+		})
 	}
 }
 
-func TestTrialFlagLands(t *testing.T) {
-	if !NewModule("trial", KindCore).Trial().Build().Trial {
-		t.Fatal("Trial() did not mark the built module")
-	}
-	if NewModule("", KindCore).Build().Trial {
-		t.Fatal("a plain module must not be trial")
-	}
+func TestBuildPanicsOnInvalidModule(t *testing.T) {
+	assert.Panics(t, func() { module.NewModule("", module.KindDefault).Build() })
 }

@@ -8,79 +8,51 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func dohServer(t *testing.T, status int, body string) *httptest.Server {
-	t.Helper()
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
-	}))
-	t.Cleanup(s.Close)
-	return s
-}
-
 func TestDoHClassifications(t *testing.T) {
-	cases := []struct {
-		name    string
-		status  int
-		body    string
-		blocked bool
-		wantErr bool
+	tests := []struct {
+		name        string
+		status      int
+		body        string
+		wantBlocked bool
+		wantErr     bool
 	}{
-		{
-			name:    "sinkholed to 0.0.0.0",
-			status:  http.StatusOK,
-			body:    `{"Status":0,"Answer":[{"name":"evil.example","type":1,"TTL":300,"data":"0.0.0.0"}]}`,
-			blocked: true,
-		},
-		{
-			name:    "sinkholed to :: AAAA",
-			status:  http.StatusOK,
-			body:    `{"Status":0,"Answer":[{"type":28,"data":"::"}]}`,
-			blocked: true,
-		},
-		{
-			name:    "normal address clean",
-			status:  http.StatusOK,
-			body:    `{"Status":0,"Answer":[{"type":1,"data":"93.184.216.34"}]}`,
-			blocked: false,
-		},
-		{
-			name:    "nxdomain reads clean, not error",
-			status:  http.StatusOK,
-			body:    `{"Status":3}`,
-			blocked: false,
-		},
-		{
-			name:    "resolver error surfaces as error",
-			status:  http.StatusServiceUnavailable,
-			body:    "upstream sad",
-			wantErr: true,
-		},
-		{
-			name:    "garbage body surfaces as error",
-			status:  http.StatusOK,
-			body:    "<html>not json</html>",
-			wantErr: true,
-		},
+		{"reads a sinkhole to 0.0.0.0 as blocked", http.StatusOK, `{"Status":0,"Answer":[{"name":"evil.example","type":1,"TTL":300,"data":"0.0.0.0"}]}`, true, false},
+		{"reads a sinkhole to :: as blocked", http.StatusOK, `{"Status":0,"Answer":[{"type":28,"data":"::"}]}`, true, false},
+		{"reads a normal address as clean", http.StatusOK, `{"Status":0,"Answer":[{"type":1,"data":"93.184.216.34"}]}`, false, false},
+		{"reads nxdomain as clean, not an error", http.StatusOK, `{"Status":3}`, false, false},
+		{"surfaces a resolver error", http.StatusServiceUnavailable, "upstream sad", false, true},
+		{"surfaces a garbage body", http.StatusOK, "<html>not json</html>", false, true},
 	}
-	for _, tt := range cases {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := NewDoH(dohServer(t, tt.status, tt.body).URL, nil)
-			blocked, err := d.Blocked(context.Background(), "host.example")
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(srv.Close)
+
+			blocked, err := NewDoH(srv.URL, nil).Blocked(context.Background(), "host.example")
+
 			if tt.wantErr {
-				if err == nil {
-					t.Fatal("want error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if blocked != tt.blocked {
-				t.Fatalf("blocked = %v, want %v", blocked, tt.blocked)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantBlocked, blocked)
 		})
 	}
+}
+
+func TestDoHSurfacesATransportFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Close()
+
+	_, err := NewDoH(srv.URL, nil).Blocked(context.Background(), "host.example")
+
+	require.Error(t, err)
 }

@@ -5,56 +5,12 @@ package worker
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 
-	"ItsBagelBot/app/twitch/outgress/internal/twitch"
-
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/assert"
 )
-
-type scriptedTransport struct {
-	mu        sync.Mutex
-	responses []scriptedResponse
-	calls     int
-}
-
-type scriptedResponse struct {
-	status int
-	body   string
-}
-
-func (t *scriptedTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.calls >= len(t.responses) {
-		panic("scriptedTransport: more calls than scripted responses")
-	}
-	r := t.responses[t.calls]
-	t.calls++
-	return &http.Response{
-		StatusCode: r.status,
-		Body:       io.NopCloser(strings.NewReader(r.body)),
-	}, nil
-}
-
-func (t *scriptedTransport) callCount() int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.calls
-}
-
-func clipVerifyWorker(t *testing.T, rt http.RoundTripper) *Worker {
-	t.Helper()
-	tw := twitch.NewClient("test-client-id",
-		twitch.NewStaticTokenSource("app-token"),
-		twitch.NewStaticTokenSource("bot-token"), nil)
-	tw.SetTransport(rt)
-	return New(Config{Log: zap.NewNop(), Limiter: allowAll{}, Twitch: tw})
-}
 
 const (
 	clipFoundBody = `{"data":[{"id":"AbCdEf"}]}`
@@ -62,69 +18,39 @@ const (
 )
 
 func TestClipConfirmedAbsent(t *testing.T) {
-	cases := []struct {
+	tests := []struct {
 		name      string
 		responses []scriptedResponse
 		want      bool
-		wantCalls int
+		wantPolls int
 	}{
-		{
-			name: "absent twice confirms",
-			responses: []scriptedResponse{
-				{http.StatusOK, clipEmptyBody},
-				{http.StatusOK, clipEmptyBody},
-			},
-			want:      true,
-			wantCalls: 2,
-		},
-		{
-			name: "late publish on recheck stays silent",
-			responses: []scriptedResponse{
-				{http.StatusOK, clipEmptyBody},
-				{http.StatusOK, clipFoundBody},
-			},
-			want:      false,
-			wantCalls: 2,
-		},
-		{
-			name:      "found on first poll stops",
-			responses: []scriptedResponse{{http.StatusOK, clipFoundBody}},
-			want:      false,
-			wantCalls: 1,
-		},
-		{
-			name:      "non-200 is indeterminate",
-			responses: []scriptedResponse{{http.StatusServiceUnavailable, ""}},
-			want:      false,
-			wantCalls: 1,
-		},
+		{"confirms a clip absent twice", []scriptedResponse{{status: 200, body: clipEmptyBody}, {status: 200, body: clipEmptyBody}}, true, 2},
+		{"stays silent on a late publish at the recheck", []scriptedResponse{{status: 200, body: clipEmptyBody}, {status: 200, body: clipFoundBody}}, false, 2},
+		{"stops when the clip is found on the first poll", []scriptedResponse{{status: 200, body: clipFoundBody}}, false, 1},
+		{"treats a non-200 as indeterminate", []scriptedResponse{{status: http.StatusServiceUnavailable}}, false, 1},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			rt := &scriptedTransport{responses: tc.responses}
-			w := clipVerifyWorker(t, rt)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := &scriptedTransport{responses: tt.responses}
+			w := pipelineWorker(t, rt)
+
 			got := w.clipConfirmedAbsent(context.Background(), clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, 0, 0)
-			if got != tc.want {
-				t.Errorf("clipConfirmedAbsent = %v, want %v", got, tc.want)
-			}
-			if rt.callCount() != tc.wantCalls {
-				t.Errorf("polls = %d, want %d", rt.callCount(), tc.wantCalls)
-			}
+
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantPolls, rt.callCount())
 		})
 	}
 }
 
 func TestClipConfirmedAbsentCanceledContextStaysSilent(t *testing.T) {
 	rt := &scriptedTransport{}
-	w := clipVerifyWorker(t, rt)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if w.clipConfirmedAbsent(ctx, clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, clipVerifyDelay, clipVerifyRecheck) {
-		t.Error("clipConfirmedAbsent = true on canceled context")
-	}
-	if rt.callCount() != 0 {
-		t.Errorf("polls = %d, want 0", rt.callCount())
-	}
+
+	got := pipelineWorker(t, rt).clipConfirmedAbsent(ctx, clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, clipVerifyDelay, clipVerifyRecheck)
+
+	assert.False(t, got)
+	assert.Zero(t, rt.callCount())
 }
 
 func TestClipFailedText(t *testing.T) {

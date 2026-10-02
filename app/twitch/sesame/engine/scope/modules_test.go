@@ -60,92 +60,143 @@ func (f *fakeSongs) NowPlaying(context.Context) Track {
 	return f.track
 }
 
-func TestModulesLeavesTokensLiteralWhenNoFamilyIsMounted(t *testing.T) {
-	chain := Chain{Modules{}}
-	const template = "{quote} {quote:3} {time} {song} {song.title} {song.artist}"
-	assert.Equal(t, template, render(t, template, chain, nil),
-		"an unmounted family owns nothing, so its spans stay literal like a typo")
-}
-
-func TestModulesMountsEachFamilyOnItsOwn(t *testing.T) {
-	chain := Chain{Modules{QuoteDraws: 1, Quotes: &fakeQuotes{}}}
-	assert.Equal(t, "quote 1 / {time} / {song}", render(t, "{quote} / {time} / {song}", chain, nil))
-}
-
-func TestModulesDrawsEachBareQuoteIndependently(t *testing.T) {
-	quotes := &fakeQuotes{}
-	chain := Chain{Modules{QuoteDraws: 2, Quotes: quotes}}
-
-	assert.Equal(t, "quote 1 and quote 2", render(t, "{quote} and {quote}", chain, nil))
-	assert.Equal(t, 2, quotes.draws, "one round trip per bare span, planned before rendering")
-}
-
-func TestModulesCapsTheNumberOfDraws(t *testing.T) {
-	quotes := &fakeQuotes{}
-	chain := Chain{Modules{QuoteDraws: MaxQuoteDraws + 2, Quotes: quotes}}
-
-	got := render(t, "{quote}|{quote}|{quote}|{quote}|{quote}", chain, nil)
-	assert.Equal(t, "quote 1|quote 2|quote 3|quote 3|quote 3", got)
-	assert.Equal(t, MaxQuoteDraws, quotes.draws)
-}
-
-func TestModulesReadsEachNumberedQuoteOnce(t *testing.T) {
-	quotes := &fakeQuotes{numbered: map[uint64]string{12: "Quote #12: hi (2026-01-31)"}}
-	chain := Chain{Modules{Quotes: quotes}}
-
-	assert.Equal(t, "Quote #12: hi (2026-01-31) Quote #12: hi (2026-01-31)",
-		render(t, "{quote:12} {quote:12}", chain, nil))
-	assert.Equal(t, []uint64{12}, quotes.gets)
-	assert.Equal(t, "none saved", render(t, "{quote:99|none saved}", chain, nil))
-	assert.Zero(t, quotes.draws, "a numbered span never draws at random")
-}
-
-func TestModulesLeavesUnusableQuoteSpansLiteral(t *testing.T) {
-	quotes := &fakeQuotes{}
-	chain := Chain{Modules{Quotes: quotes}}
-
-	for _, span := range []string{"{quote:}", "{quote:seven}", "{quote:0}", "{quote:-3}"} {
-		assert.Equal(t, span, render(t, span, chain, nil), span)
+func TestModulesMountsOnlyWhatIsWired(t *testing.T) {
+	tests := []struct {
+		name     string
+		modules  Modules
+		template string
+		want     string
+	}{
+		{
+			name:     "leaves every token literal when no family is mounted",
+			modules:  Modules{},
+			template: "{quote} {quote:3} {time} {song} {song.title} {song.artist}",
+			want:     "{quote} {quote:3} {time} {song} {song.title} {song.artist}",
+		},
+		{
+			name:     "mounts each family on its own",
+			modules:  Modules{QuoteDraws: 1, Quotes: &fakeQuotes{}},
+			template: "{quote} / {time} / {song}",
+			want:     "quote 1 / {time} / {song}",
+		},
+		{
+			name:     "leaves a place span literal without places",
+			modules:  Modules{Clock: &fakeClock{value: "3:04 PM"}},
+			template: "{time} {time:tokyo}",
+			want:     "3:04 PM {time:tokyo}",
+		},
 	}
-	assert.Zero(t, quotes.draws)
-	assert.Empty(t, quotes.gets)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{tt.modules}, nil))
+		})
+	}
 }
 
-func TestModulesRendersTheLocalClockOnce(t *testing.T) {
-	clock := &fakeClock{value: "3:04 PM"}
-	chain := Chain{Modules{Clock: clock}}
+func TestModulesQuotes(t *testing.T) {
+	tests := []struct {
+		name      string
+		draws     int
+		numbered  map[uint64]string
+		template  string
+		want      string
+		wantDraws int
+		wantGets  []uint64
+	}{
+		{
+			name: "draws each bare quote independently", draws: 2,
+			template: "{quote} and {quote}", want: "quote 1 and quote 2", wantDraws: 2,
+		},
+		{
+			name: "caps the number of draws", draws: MaxQuoteDraws + 2,
+			template: "{quote}|{quote}|{quote}|{quote}|{quote}", want: "quote 1|quote 2|quote 3|quote 3|quote 3", wantDraws: MaxQuoteDraws,
+		},
+		{
+			name:     "reads each numbered quote once and never draws",
+			numbered: map[uint64]string{12: "Quote #12: hi (2026-01-31)"},
+			template: "{quote:12} {quote:12}", want: "Quote #12: hi (2026-01-31) Quote #12: hi (2026-01-31)",
+			wantGets: []uint64{12},
+		},
+		{
+			name:     "renders the fallback for a missing numbered quote",
+			template: "{quote:99|none saved}", want: "none saved", wantGets: []uint64{99},
+		},
+		{name: "leaves an empty quote span literal", template: "{quote:}", want: "{quote:}"},
+		{name: "leaves a non-numeric quote span literal", template: "{quote:seven}", want: "{quote:seven}"},
+		{name: "leaves a zero quote span literal", template: "{quote:0}", want: "{quote:0}"},
+		{name: "leaves a negative quote span literal", template: "{quote:-3}", want: "{quote:-3}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			quotes := &fakeQuotes{numbered: tt.numbered}
 
-	assert.Equal(t, "it is 3:04 PM (3:04 PM)", render(t, "it is {time} ({time})", chain, nil))
-	assert.Equal(t, 1, clock.calls)
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{Modules{QuoteDraws: tt.draws, Quotes: quotes}}, nil))
+			assert.Equal(t, tt.wantDraws, quotes.draws)
+			assert.Equal(t, tt.wantGets, quotes.gets)
+		})
+	}
 }
 
-func TestModulesRendersTheClockEmptyWithoutATimezone(t *testing.T) {
-	chain := Chain{Modules{Clock: &fakeClock{}}}
-	assert.Equal(t, "", render(t, "{time}", chain, nil))
-	assert.Equal(t, "who knows", render(t, "{time|who knows}", chain, nil))
+func TestModulesClock(t *testing.T) {
+	tests := []struct {
+		name      string
+		clock     string
+		template  string
+		want      string
+		wantCalls int
+	}{
+		{"renders the local clock with one read", "3:04 PM", "it is {time} ({time})", "it is 3:04 PM (3:04 PM)", 1},
+		{"renders empty without a timezone", "", "{time}", "", 1},
+		{"renders the fallback without a timezone", "", "{time|who knows}", "who knows", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &fakeClock{value: tt.clock}
+
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{Modules{Clock: clock}}, nil))
+			assert.Equal(t, tt.wantCalls, clock.calls)
+		})
+	}
 }
 
-func TestModulesRendersTheNowPlayingTrackOnce(t *testing.T) {
-	songs := &fakeSongs{track: Track{Title: "Bagel Song", Artist: "The Ovens", Playing: true}}
-	chain := Chain{Modules{Songs: songs}}
+func TestModulesSong(t *testing.T) {
+	tests := []struct {
+		name     string
+		track    Track
+		template string
+		want     string
+	}{
+		{
+			name:     "renders the now playing track across all three spellings",
+			track:    Track{Title: "Bagel Song", Artist: "The Ovens", Playing: true},
+			template: "{song} / {song.title} / {song.artist}",
+			want:     "Bagel Song by The Ovens / Bagel Song / The Ovens",
+		},
+		{
+			name:     "renders the title alone without an artist",
+			track:    Track{Title: "Untitled", Playing: true},
+			template: "{song}",
+			want:     "Untitled",
+		},
+		{
+			name:     "renders nothing playing as empty",
+			template: "{song}|{song.title}|{song.artist}",
+			want:     "||",
+		},
+		{
+			name:     "renders the fallback for nothing playing",
+			template: "{song|silence}",
+			want:     "silence",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			songs := &fakeSongs{track: tt.track}
 
-	assert.Equal(t, "Bagel Song by The Ovens / Bagel Song / The Ovens",
-		render(t, "{song} / {song.title} / {song.artist}", chain, nil))
-	assert.Equal(t, 1, songs.calls, "one read answers all three spellings")
-}
-
-func TestModulesRendersTheTitleAloneWithoutAnArtist(t *testing.T) {
-	chain := Chain{Modules{Songs: &fakeSongs{track: Track{Title: "Untitled", Playing: true}}}}
-	assert.Equal(t, "Untitled", render(t, "{song}", chain, nil))
-}
-
-func TestModulesRendersNothingPlayingAsEmpty(t *testing.T) {
-	songs := &fakeSongs{}
-	chain := Chain{Modules{Songs: songs}}
-
-	assert.Equal(t, "||", render(t, "{song}|{song.title}|{song.artist}", chain, nil))
-	require.Equal(t, 1, songs.calls, "the read still ran")
-	assert.Equal(t, "silence", render(t, "{song|silence}", chain, nil))
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{Modules{Songs: songs}}, nil))
+			assert.Equal(t, 1, songs.calls, "one read answers every spelling")
+		})
+	}
 }
 
 func TestModulesLeavesPayloadedClockAndSongSpansLiteral(t *testing.T) {
@@ -157,36 +208,44 @@ func TestModulesLeavesPayloadedClockAndSongSpansLiteral(t *testing.T) {
 		render(t, "{time} {time:America/Toronto} {song} {song:2}", chain, nil))
 }
 
-func TestModulesResolvesTimePlaceSpansWithoutAHomeClock(t *testing.T) {
-	places := &fakePlaces{}
-	chain := Chain{Modules{Places: places}}
+func TestModulesTimePlaces(t *testing.T) {
+	tests := []struct {
+		name       string
+		template   string
+		want       string
+		wantPlaces []string
+	}{
+		{
+			name:       "resolves place spans without a home clock and shares one resolve per place",
+			template:   "it is {time:Tokyo} ({time:Tokyo|literal here}) {time}",
+			want:       "it is tokyo time (tokyo time) {time}",
+			wantPlaces: []string{"tokyo"},
+		},
+		{
+			name:       "renders an unresolvable place as empty",
+			template:   "{time:nowhere}",
+			wantPlaces: []string{"nowhere"},
+		},
+		{
+			name:       "renders the fallback for an unresolvable place",
+			template:   "{time:nowhere|unknown}",
+			want:       "unknown",
+			wantPlaces: []string{"nowhere"},
+		},
+		{
+			name:       "caps distinct places",
+			template:   "{time:a}|{time:b}|{time:c}|{time:d}",
+			want:       "a time|b time|c time|",
+			wantPlaces: []string{"a", "b", "c"},
+		},
+		{name: "leaves an empty place span literal", template: "{time:}", want: "{time:}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			places := &fakePlaces{}
 
-	assert.Equal(t, "it is tokyo time (tokyo time) {time}",
-		render(t, "it is {time:Tokyo} ({time:Tokyo|literal here}) {time}", chain, nil))
-	assert.Equal(t, []string{"tokyo"}, places.calls, "two spans naming one place cost one resolve")
-}
-
-func TestModulesRendersAnUnresolvablePlaceAsEmpty(t *testing.T) {
-	chain := Chain{Modules{Places: &fakePlaces{}}}
-	assert.Equal(t, "", render(t, "{time:nowhere}", chain, nil))
-	assert.Equal(t, "unknown", render(t, "{time:nowhere|unknown}", chain, nil))
-}
-
-func TestModulesCapsDistinctTimePlaces(t *testing.T) {
-	places := &fakePlaces{}
-	chain := Chain{Modules{Places: places}}
-
-	got := render(t, "{time:a}|{time:b}|{time:c}|{time:d}", chain, nil)
-	assert.Equal(t, "a time|b time|c time|", got)
-	assert.Len(t, places.calls, MaxTimePlaces)
-}
-
-func TestModulesLeavesAnEmptyTimePlaceSpanLiteral(t *testing.T) {
-	chain := Chain{Modules{Places: &fakePlaces{}}}
-	assert.Equal(t, "{time:}", render(t, "{time:}", chain, nil))
-}
-
-func TestModulesLeavesTimePlaceSpanLiteralWithoutPlaces(t *testing.T) {
-	chain := Chain{Modules{Clock: &fakeClock{value: "3:04 PM"}}}
-	assert.Equal(t, "3:04 PM {time:tokyo}", render(t, "{time} {time:tokyo}", chain, nil))
+			require.Equal(t, tt.want, render(t, tt.template, Chain{Modules{Places: places}}, nil))
+			assert.Equal(t, tt.wantPlaces, places.calls)
+		})
+	}
 }

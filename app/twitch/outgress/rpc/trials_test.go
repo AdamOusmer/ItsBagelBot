@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package rpc
 
 import (
@@ -7,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
@@ -80,7 +85,7 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "state"), "pending", "ready to recreate")
 }
 
-func TestTrialSocketKeys(t *testing.T) {
+func TestTrialSocketKeyContract(t *testing.T) {
 	for _, tc := range []struct{ got, want string }{
 		{trialOwnerKey(0), "trial:owner"},
 		{trialSessionKey(0), "trial:owner_session"},
@@ -91,24 +96,28 @@ func TestTrialSocketKeys(t *testing.T) {
 	}
 }
 
-func TestTrialSlotMatches(t *testing.T) {
-	for _, tc := range []struct {
-		assigned string
-		slot     int
-		want     bool
-	}{{"", 0, true}, {"0", 0, true}, {"", 1, false}, {"2", 2, true}, {"1", 2, false}} {
-		if got := trialSlotMatches(map[string]string{"slot": tc.assigned}, tc.slot); got != tc.want {
-			t.Fatalf("slot %q vs %d: got %v", tc.assigned, tc.slot, got)
-		}
+func TestTrialRequestsFailClosedWhenInvalid(t *testing.T) {
+	valid := TrialSubscriptionRequest{Version: 1, BroadcasterID: "42", OwnerEpoch: 1, TrialGeneration: "1"}
+	tests := []struct {
+		name   string
+		mutate func(*TrialSubscriptionRequest)
+	}{
+		{"unknown protocol version", func(r *TrialSubscriptionRequest) { r.Version = 2 }},
+		{"missing broadcaster", func(r *TrialSubscriptionRequest) { r.BroadcasterID = "" }},
+		{"non-positive owner epoch", func(r *TrialSubscriptionRequest) { r.OwnerEpoch = 0 }},
+		{"negative slot", func(r *TrialSubscriptionRequest) { r.Slot = -1 }},
+		{"slot past the last socket", func(r *TrialSubscriptionRequest) { r.Slot = 3 }},
+		{"missing generation", func(r *TrialSubscriptionRequest) { r.TrialGeneration = "" }},
 	}
-}
+	h := &trialSubscriptions{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := valid
+			tt.mutate(&req)
 
-func TestTrialRequestSlotBounds(t *testing.T) {
-	for slot, want := range map[int]bool{-1: false, 0: true, 2: true, 3: false} {
-		req := TrialSubscriptionRequest{Version: 1, BroadcasterID: "42", OwnerEpoch: 1, TrialGeneration: "1", Slot: slot}
-		if req.valid() != want {
-			t.Fatalf("slot %d valid: want %v", slot, want)
-		}
+			assert.Equal(t, TrialSubscriptionReply{Error: "stale_or_invalid_owner"}, h.create(t.Context(), req))
+			assert.Equal(t, TrialSubscriptionReply{Error: "stale_or_invalid_owner"}, h.delete(t.Context(), req))
+		})
 	}
 }
 

@@ -5,6 +5,7 @@ package scope
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/pkg/tmpl"
@@ -61,7 +62,7 @@ func validateNonEmptyName(t *testing.T, familyID, example string, toks []tmpl.To
 	if toks[0].Name != "" {
 		return
 	}
-	if _, ok := positionalIndex(toks[0].Payload); !ok {
+	if _, err := strconv.Atoi(toks[0].Payload); err != nil {
 		t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
 	}
 }
