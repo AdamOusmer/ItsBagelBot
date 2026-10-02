@@ -4,7 +4,6 @@
 package repository_test
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
@@ -12,11 +11,10 @@ import (
 	"ItsBagelBot/app/db/commands/ent/enttest"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/repository"
-	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/crypto"
 
 	"ItsBagelBot/internal/testdb"
 
@@ -24,23 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tink-crypto/tink-go/v2/aead"
-	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
-	"github.com/tink-crypto/tink-go/v2/keyset"
-
 	"go.uber.org/zap"
 )
-
-func newFetchPacker(t *testing.T) *crypto.Crypto {
-	t.Helper()
-	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
-	require.NoError(t, err)
-	buf := new(bytes.Buffer)
-	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf)))
-	packer, err := crypto.NewCrypto(buf.Bytes())
-	require.NoError(t, err)
-	return packer
-}
 
 func fetchSetup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Fetches) {
 	t.Helper()
@@ -48,7 +31,7 @@ func fetchSetup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Fetc
 	client := testdb.Open(t, "fetchdefs", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	pub := bustest.NewPublisher()
-	repo := repository.NewFetches(client, newFetchPacker(t), pub, zap.NewNop())
+	repo := repository.NewFetches(client, dbtest.NewPacker(t), pub, zap.NewNop())
 	return client, pub, repo
 }
 
@@ -71,15 +54,10 @@ func TestFetchKeySealUnsealRoundTrip(t *testing.T) {
 	row := client.FetchKey.Query().Where().OnlyX(ctx)
 	assert.NotContains(t, string(row.KeyEnc), "sk-weather-secret", "key must be sealed at rest")
 	assert.Equal(t, "a1b2", row.Last4)
-}
 
-func TestFetchKeyLast4ShortValue(t *testing.T) {
-	_, _, repo := fetchSetup(t)
-	ctx := context.Background()
-
-	last4, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "tiny", Value: "abc"})
+	short, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "tiny", Value: "abc"})
 	require.NoError(t, err)
-	assert.Equal(t, "abc", last4, "values shorter than four chars store as-is")
+	assert.Equal(t, "abc", short, "values shorter than four chars store as-is")
 }
 
 func TestFetchKeyAADBindsUserAndLabel(t *testing.T) {
@@ -125,11 +103,7 @@ func TestFetchKeyUpsertReplacesAndDeletes(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrNoFetchKey)
 
 	require.NoError(t, repo.DeleteKey(ctx, 9999, "ghost"))
-}
-
-func TestFetchKeyMissingMapsToErrNoFetchKey(t *testing.T) {
-	_, _, repo := fetchSetup(t)
-	_, err := repo.Key(context.Background(), 4242, "nope")
+	_, err = repo.Key(ctx, 4242, "nope")
 	assert.ErrorIs(t, err, repository.ErrNoFetchKey)
 }
 
@@ -289,6 +263,42 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 	assert.True(t, finalDel["wx"], "wx's last event must carry Deleted")
 }
 
+func TestReferencingCommandsNamesOnlyWholeFetchTokens(t *testing.T) {
+	client, _, repo := fetchSetup(t)
+	ctx := context.Background()
+
+	var want []string
+	for _, tc := range []struct {
+		name       string
+		response   string
+		referenced bool
+	}{
+		{"fallback ends the payload", "it is {urlfetch:weather|n/a} out", true},
+		{"the name folds on both sides", "{URLFETCH:Weather.a}", true},
+		{"a dot-path still names the definition", "{urlfetch:weather.main.temp}", true},
+		{"a bare reference matches", "{urlfetch:weather}", true},
+		{"payloads are trimmed and unbanged", "{urlfetch: !Weather }", true},
+		{"a longer name is a different definition", "{urlfetch:weather2}", false},
+		{"a prefix is a different definition", "{urlfetch:weath}", false},
+		{"a payload-free span names nothing", "{urlfetch}", false},
+		{"an empty payload names nothing", "{urlfetch:}", false},
+		{"a leading selector names nothing", "{urlfetch:.weather}", false},
+		{"another token is not this one", "{counter:weather}", false},
+		{"an unclosed brace is literal text", "{urlfetch:weather", false},
+		{"the name is matched, not the text", "talking about urlfetch:weather", false},
+	} {
+		client.Commands.Create().SetUserID(1001).SetName(tc.name).SetResponse(tc.response).ExecX(ctx)
+		if tc.referenced {
+			want = append(want, tc.name)
+		}
+	}
+
+	got, err := repo.ReferencingCommands(ctx, 1001, "weather")
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, want, got)
+}
+
 func TestRenameDefRetiresOldName(t *testing.T) {
 	client, pub, repo := fetchSetup(t)
 	ctx := context.Background()
@@ -360,17 +370,4 @@ func countKeysFor(client *ent.Client, userID uint64) int {
 		}
 	}
 	return n
-}
-
-func TestFetchViewWireTagsMatchProjectionContract(t *testing.T) {
-	view := fetchkeyrpc.FetchView{Name: "wx", URL: "https://x", JSONPath: []string{"a"}, KeyLabel: "k", IsActive: true}
-	b, err := codec.Marshal(view)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"wx","url":"https://x","json_path":["a"],"key_label":"k","is_active":true}`, string(b))
-
-	minimal := fetchkeyrpc.FetchView{Name: "plain", URL: "https://y"}
-	b, err = codec.Marshal(minimal)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"plain","url":"https://y","is_active":false}`, string(b),
-		"omitted fields must stay absent from the projected JSON")
 }

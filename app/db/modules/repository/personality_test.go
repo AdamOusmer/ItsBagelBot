@@ -29,6 +29,22 @@ func setupPersonality(t *testing.T) (*ent.Client, *repository.Personality) {
 	return client, repository.NewPersonality(client)
 }
 
+type feeder struct {
+	id   uint64
+	name string
+}
+
+func feed(t *testing.T, repo *repository.Personality, who feeder, times int) repository.FeedTotals {
+	t.Helper()
+	var totals repository.FeedTotals
+	for range times {
+		var err error
+		totals, err = repo.FeedBump(context.Background(), who.id, who.name)
+		require.NoError(t, err)
+	}
+	return totals
+}
+
 // The very first feeding must create both the single fleet-wide row and the
 // feeding channel's row; every one after that increments them. (True
 // concurrency on the first feed is covered by the retry loop and MySQL's
@@ -64,14 +80,9 @@ func TestFeedBumpIncrementsExistingRow(t *testing.T) {
 // counts only its own, and the rank follows the counts.
 func TestFeedBumpSplitsFleetTotalFromChannelCounts(t *testing.T) {
 	_, repo := setupPersonality(t)
-	ctx := context.Background()
 
-	for range 3 {
-		_, err := repo.FeedBump(ctx, 10, "Ten")
-		require.NoError(t, err)
-	}
-	totals, err := repo.FeedBump(ctx, 20, "Twenty")
-	require.NoError(t, err)
+	feed(t, repo, feeder{10, "Ten"}, 3)
+	totals := feed(t, repo, feeder{20, "Twenty"}, 1)
 
 	assert.Equal(t, int64(4), totals.Total, "one bagel, fed by every channel")
 	assert.Equal(t, int64(1), totals.Channel)
@@ -84,12 +95,9 @@ func TestFeedBumpTracksNameWithoutErasingIt(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
 
-	_, err := repo.FeedBump(ctx, 10, "Old")
-	require.NoError(t, err)
-	_, err = repo.FeedBump(ctx, 10, "New")
-	require.NoError(t, err)
-	_, err = repo.FeedBump(ctx, 10, "")
-	require.NoError(t, err)
+	feed(t, repo, feeder{10, "Old"}, 1)
+	feed(t, repo, feeder{10, "New"}, 1)
+	feed(t, repo, feeder{10, ""}, 1)
 
 	board, err := repo.FeedBoard(ctx, 0)
 	require.NoError(t, err)
@@ -102,12 +110,8 @@ func TestFeedBoardRanksHighestFirstAndHonoursLimit(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
 
-	feedings := map[uint64]int{10: 5, 20: 9, 30: 1}
-	for id, times := range feedings {
-		for range times {
-			_, err := repo.FeedBump(ctx, id, "")
-			require.NoError(t, err)
-		}
+	for id, times := range map[uint64]int{10: 5, 20: 9, 30: 1} {
+		feed(t, repo, feeder{id, ""}, times)
 	}
 
 	board, err := repo.FeedBoard(ctx, 2)
@@ -132,12 +136,8 @@ func TestFeedChannelReadsStandingWithoutBumping(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
 
-	for range 2 {
-		_, err := repo.FeedBump(ctx, 10, "Ten")
-		require.NoError(t, err)
-	}
-	_, err := repo.FeedBump(ctx, 20, "Twenty")
-	require.NoError(t, err)
+	feed(t, repo, feeder{10, "Ten"}, 2)
+	feed(t, repo, feeder{20, "Twenty"}, 1)
 
 	count, rank, err := repo.FeedChannel(ctx, 20)
 	require.NoError(t, err)

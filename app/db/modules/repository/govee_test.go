@@ -4,45 +4,29 @@
 package repository_test
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/repository"
-	"ItsBagelBot/pkg/crypto"
 
 	"ItsBagelBot/internal/testdb"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tink-crypto/tink-go/v2/aead"
-	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
-	"github.com/tink-crypto/tink-go/v2/keyset"
 )
-
-func newPacker(t *testing.T) *crypto.Crypto {
-	t.Helper()
-	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
-	require.NoError(t, err)
-	buf := new(bytes.Buffer)
-	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf)))
-	packer, err := crypto.NewCrypto(buf.Bytes())
-	require.NoError(t, err)
-	return packer
-}
 
 func goveeSetup(t *testing.T) (*ent.Client, *repository.GoveeCreds) {
 	t.Helper()
 	client := testdb.Open(t, "goveecreds", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	return client, repository.NewGoveeCreds(client, newPacker(t))
+	return client, repository.NewGoveeCreds(client, dbtest.NewPacker(t))
 }
 
-func TestGoveeKeyRoundTrip(t *testing.T) {
+func TestGoveeKeyRoundTripSealsAndReplaces(t *testing.T) {
 	client, creds := goveeSetup(t)
 	ctx := context.Background()
 
@@ -51,30 +35,25 @@ func TestGoveeKeyRoundTrip(t *testing.T) {
 	got, err := creds.Key(ctx, 1001)
 	require.NoError(t, err)
 	assert.Equal(t, "govee-secret-key", got)
-
 	row := client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(1001)).OnlyX(ctx)
 	assert.NotContains(t, string(row.KeyEnc), "govee-secret-key", "key must be sealed at rest")
 	assert.NotEmpty(t, row.KeyEnc)
-}
 
-func TestGoveeKeyUpsertReplaces(t *testing.T) {
-	client, creds := goveeSetup(t)
-	ctx := context.Background()
-
-	require.NoError(t, creds.SetKey(ctx, 1001, "first"))
 	require.NoError(t, creds.SetKey(ctx, 1001, "second"))
 
-	got, err := creds.Key(ctx, 1001)
+	got, err = creds.Key(ctx, 1001)
 	require.NoError(t, err)
 	assert.Equal(t, "second", got)
-
-	rows := client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(1001)).AllX(ctx)
-	require.Len(t, rows, 1, "a second set must replace, not duplicate")
+	assert.Equal(t, 1, client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(1001)).CountX(ctx), "a second set must replace, not duplicate")
 }
 
 func TestGoveeKeyStatusAndClear(t *testing.T) {
 	_, creds := goveeSetup(t)
 	ctx := context.Background()
+
+	_, err := creds.Key(ctx, 4242)
+	assert.ErrorIs(t, err, repository.ErrNoGoveeKey)
+	assert.NoError(t, creds.ClearKey(ctx, 9999), "clearing a missing key is a no-op")
 
 	present, err := creds.HasKey(ctx, 1001)
 	require.NoError(t, err)
@@ -94,12 +73,6 @@ func TestGoveeKeyStatusAndClear(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrNoGoveeKey)
 }
 
-func TestGoveeKeyMissing(t *testing.T) {
-	_, creds := goveeSetup(t)
-	_, err := creds.Key(context.Background(), 4242)
-	assert.ErrorIs(t, err, repository.ErrNoGoveeKey)
-}
-
 func TestGoveeKeyAADBindsToUser(t *testing.T) {
 	client, creds := goveeSetup(t)
 	ctx := context.Background()
@@ -112,9 +85,4 @@ func TestGoveeKeyAADBindsToUser(t *testing.T) {
 	_, err := creds.Key(ctx, 2002)
 	assert.Error(t, err, "a stolen envelope must not open under another user id")
 	assert.NotErrorIs(t, err, repository.ErrNoGoveeKey)
-}
-
-func TestGoveeKeyClearMissingIsNoop(t *testing.T) {
-	_, creds := goveeSetup(t)
-	assert.NoError(t, creds.ClearKey(context.Background(), 9999))
 }

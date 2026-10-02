@@ -75,13 +75,27 @@ func TestUpsertNormalizesMultiLineResponse(t *testing.T) {
 	assert.Equal(t, "line one\nline two\nline three", rows[0].Response)
 }
 
-func TestUpsertRejectsTooManyLines(t *testing.T) {
-	_, _, repo := setup(t)
+func TestUpsertRefusesInvalidSpecs(t *testing.T) {
+	overlongUserCooldown := userCooldownSpec("!lurk")
+	overlongUserCooldown.UserCooldown = 86401
 
-	err := repo.Upsert(1001, spec("!multi", "1\n2\n3\n4\n5\n6", false, 0))
-	require.Error(t, err)
+	for _, tc := range []struct {
+		name string
+		spec repository.CommandSpec
+	}{
+		{"rejects too many lines", spec("!multi", "1\n2\n3\n4\n5\n6", false, 0)},
+		{"rejects a user cooldown over one day", overlongUserCooldown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _, repo := setup(t)
+			ctx := context.Background()
 
-	repo.Close(context.Background())
+			assert.Error(t, repo.Upsert(1001, tc.spec))
+
+			repo.Close(ctx)
+			assert.Zero(t, client.Commands.Query().CountX(ctx))
+		})
+	}
 }
 
 func TestDeleteIsImmediateAndAnnounced(t *testing.T) {
@@ -129,6 +143,74 @@ func TestRestoreOntoLiveCommandLeavesItUntouched(t *testing.T) {
 	assert.Equal(t, int64(0), row.Uses)
 
 	assert.Len(t, pub.On(data.SubjectCommandChanged), len(before))
+}
+
+func TestRestoreAppliesUsesOnlyWhenCreating(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		existing *int64
+		want     int64
+		created  bool
+	}{
+		{name: "missing row takes restored uses", want: 30, created: true},
+		{name: "live row keeps its counter", existing: new(int64(7)), want: 7},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _, repo := setup(t)
+			ctx := context.Background()
+			defer repo.Close(ctx)
+			if tc.existing != nil {
+				client.Commands.Create().SetUserID(1001).SetName("hello").SetResponse("old").SetUses(*tc.existing).SaveX(ctx)
+			}
+
+			created, err := repo.Restore(ctx, 1001, spec("!hello", "back", false, 0), 30)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.created, created)
+			row := client.Commands.Query().OnlyX(ctx)
+			assert.Equal(t, tc.want, row.Uses)
+			assert.False(t, row.CreatedAt.IsZero())
+		})
+	}
+}
+
+func TestEditPreservesTheUseCounter(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	client.Commands.Create().SetUserID(1001).SetName("hello").SetResponse("old wording").SetUses(42).SaveX(ctx)
+
+	require.NoError(t, repo.Upsert(1001, spec("!hello", "new wording", false, 0)))
+	repo.Close(ctx)
+
+	row := client.Commands.Query().OnlyX(ctx)
+	assert.Equal(t, "new wording", row.Response)
+	assert.Equal(t, int64(42), row.Uses)
+}
+
+func TestFlushDropsAnUnpersistableEditWithoutBlockingTheBatch(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+	client.Commands.Use(func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if name, _ := m.Field("name"); name == "bad" {
+				_ = m.SetField("response", "")
+			}
+			return next.Mutate(ctx, m)
+		})
+	})
+
+	require.NoError(t, repo.Upsert(1001, spec("!ok", "fine", false, 0)))
+	require.NoError(t, repo.Upsert(1001, spec("!bad", "fine", false, 0)))
+	repo.Close(ctx)
+
+	rows := client.Commands.Query().AllX(ctx)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "ok", rows[0].Name)
+	events := pub.On(data.SubjectCommandChanged)
+	require.Len(t, events, 1)
+	var dto data.CommandChangedDTO
+	require.NoError(t, codec.Unmarshal(events[0].Payload, &dto))
+	assert.Equal(t, "ok", dto.Name)
 }
 
 func TestRenameUpdatesRowInPlace(t *testing.T) {
@@ -247,13 +329,4 @@ func TestUserCooldownSurvivesEveryWritePath(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, restored)
 	requireStoredCooldowns(t, client, pub, "afk")
-}
-
-func TestUpsertRejectsUserCooldownOverOneDay(t *testing.T) {
-	_, _, repo := setup(t)
-	defer repo.Close(context.Background())
-
-	s := userCooldownSpec("!lurk")
-	s.UserCooldown = 86401
-	assert.Error(t, repo.Upsert(1001, s))
 }
