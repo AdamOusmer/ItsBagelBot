@@ -5,20 +5,25 @@
 
 @layer bb.elements {
   .bb-footer {
-    --footer-pad: 72px max(4%, 72px) 40px;
+    --footer-pad: 78px max(4vw, 40px) 34px;
     --footer-signoff-sub-font: var(--bb-font-hand);
     --footer-signoff-lines: 1;
-    --footer-brand-w: 300px;
-    --footer-top-gap: 40px;
-    --footer-col-gap: 24px;
-    --footer-legal-max: 720px;
+    --footer-fine-lines: 1;
+    --footer-colophon-lines: 1;
+    --footer-cols-max: 920px;
+    --footer-col-gap: 56px;
     --bb-footer-bg: transparent;
 
     position: relative;
+    isolation: isolate;
     background: var(--bb-footer-bg);
     border-top: 1px solid var(--bb-border);
     padding: var(--footer-pad);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
 
   .bb-footer::before {
@@ -26,6 +31,7 @@
     position: absolute;
     left: 50%;
     top: 0;
+    z-index: -1;
     width: 90vmin;
     height: 40vmin;
     translate: -50% -50%;
@@ -38,198 +44,259 @@
     filter: blur(12px);
   }
 
+  .bb-footer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(closest-side, rgba(var(--bb-green-rgb), 0.22), transparent) -150px 6% / 460px 460px no-repeat,
+      radial-gradient(closest-side, rgba(var(--bb-tan-rgb), 0.16), transparent) right -130px top 34% / 420px 420px no-repeat;
+  }
+
+  .bb-footer__ring {
+    position: absolute;
+    top: 190px;
+    left: 50%;
+    z-index: -1;
+    width: 860px;
+    height: 860px;
+    translate: -50% -50%;
+    opacity: 0.26;
+    pointer-events: none;
+    mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 88%);
+  }
+
+  .bb-footer__ring svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: bb-footer-spin 80s linear infinite;
+  }
+
+  @keyframes bb-footer-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   .bb-footer__signoff {
-    position: relative;
-    text-align: center;
-    margin-bottom: 72px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    row-gap: 12px;
+    width: min(100%, 1100px);
+    padding-bottom: 32px;
   }
 
   .bb-footer__signoff-line {
     display: grid;
     align-content: safe center;
     height: calc(var(--footer-signoff-lines) * 1lh);
+    margin: 0;
     font-family: var(--bb-font-display);
     font-weight: 800;
-    font-size: clamp(1.7rem, 4.6vw, 2.9rem);
+    font-size: clamp(2rem, 3.9vw, 3rem);
     letter-spacing: var(--bb-tracking-display);
     line-height: 1.08;
     color: var(--bb-white);
-    margin: 0 0 10px;
     text-shadow: 0 0 30px rgba(var(--bb-tan-rgb), 0.16);
   }
 
   .bb-footer__signoff-sub {
-    font-family: var(--footer-signoff-sub-font);
-    font-size: clamp(1.2rem, 2.6vw, 1.5rem);
-    font-weight: 500;
-    color: var(--bb-tan-light);
+    width: min(100%, 520px);
+    height: 1lh;
     margin: 0;
+    font-family: var(--footer-signoff-sub-font);
+    font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--bb-tan-light);
     rotate: -1deg;
   }
 
-  .bb-footer__top {
-    position: relative;
-    display: grid;
-    grid-template-columns: var(--footer-brand-w) minmax(0, 1fr);
-    align-items: center;
-    gap: var(--footer-top-gap);
-    margin-bottom: 60px;
-  }
-
   .bb-footer__brand {
-    width: 100%;
+    --brand-name-size: clamp(1.7rem, 2.4vw, 2.1rem);
+
+    width: min(100%, 320px);
   }
 
-  .bb-footer__brand .bb-brand__id {
-    flex: 1 1 0;
+  .bb-footer .bb-footer__brand .bb-brand__id {
+    align-self: stretch;
+    gap: 10px;
   }
 
-  .bb-footer__brand .bb-brand__sub {
-    align-self: flex-start;
+  .bb-footer .bb-footer__brand .bb-brand__sub {
+    --brand-sub-size: 13px;
+    --brand-sub-tracking: 0;
+
+    margin-top: 0;
+    font-family: var(--bb-font-body);
     font-size: calc(var(--brand-sub-size) * var(--bb-fit, 1));
     line-height: 1.3;
     white-space: nowrap;
   }
 
   .bb-footer__cols {
+    width: min(100%, var(--footer-cols-max));
+    padding: 64px 0 54px;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
+    column-gap: var(--footer-col-gap);
     align-items: start;
-    gap: 30px var(--footer-col-gap);
   }
 
-  .bb-footer__col {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+  .bb-footer__col,
+  .bb-footer__group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
     min-width: 0;
   }
 
+  .bb-footer__col {
+    align-content: start;
+    row-gap: 26px;
+  }
+
+  .bb-footer__group {
+    gap: 2px;
+    width: 100%;
+  }
+
   .bb-footer__col-title {
+    box-sizing: border-box;
     align-self: stretch;
+    height: calc(1.2lh + 10px);
+    margin: 0;
+    padding-bottom: 10px;
     font-family: var(--bb-font-mono);
-    font-size: 0.9rem;
-    letter-spacing: 0.1em;
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--bb-white);
-    margin: 0 0 4px;
+    color: var(--bb-tan);
+  }
+
+  .bb-footer .bb-nav-link {
+    --bb-nav-link-family: var(--bb-font-body);
+    --bb-nav-link-size: 15px;
+    --bb-nav-link-tracking: 0;
+    --bb-nav-link-transform: none;
+    --bb-nav-link-pad: 5px 0 7px;
+    --bb-nav-link-rest: rgba(var(--bb-white-rgb), 0.62);
+
+    line-height: 1.2;
+  }
+
+  .bb-footer__bottom {
+    width: min(100%, 960px);
+    padding-top: 26px;
+    border-top: 1px solid rgba(var(--bb-white-pure-rgb), 0.07);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 12px;
+  }
+
+  .bb-footer__legal {
+    width: min(100%, 600px);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .bb-footer .bb-footer__legal .bb-nav-link {
+    --bb-nav-link-size: var(--bb-text-xs);
+    --bb-nav-link-pad: 4px 0 6px;
+    --bb-nav-link-rest: var(--bb-muted-light);
+  }
+
+  .bb-footer__fine {
+    width: min(100%, 780px);
+    height: calc(var(--footer-fine-lines) * 1lh);
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--bb-muted);
+  }
+
+  .bb-footer__sep {
+    padding-inline: 0.7em;
+    opacity: 0.7;
+  }
+
+  .bb-footer__colophon {
+    width: min(100%, 960px);
+    padding-top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+  }
+
+  .bb-footer__colophon p {
+    width: 100%;
+    height: calc(var(--footer-colophon-lines) * 1lh);
+    margin: 0;
+    font: inherit;
+    color: inherit;
   }
 
   :root[data-theme="light"] :is(.bb-footer__signoff-line, .bb-footer__col-title) {
     color: var(--bb-ink);
   }
 
-  .bb-footer__bottom {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 3fr);
-    align-items: center;
-    column-gap: 24px;
-    padding-top: 30px;
-    border-top: 1px solid rgba(var(--bb-white-pure-rgb), 0.05);
+  :root[data-theme="light"] .bb-footer .bb-nav-link {
+    --bb-nav-link-rest: rgba(var(--bb-ink-rgb), 0.66);
+    --bb-nav-link-lit: var(--bb-ink);
   }
 
-  .bb-footer__copy,
-  .bb-footer__note {
-    min-width: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 0.7rem;
-    color: var(--bb-muted);
-  }
-
-  .bb-footer__copy {
-    letter-spacing: 0.06em;
-  }
-
-  .bb-footer__note {
-    display: grid;
-    align-content: safe center;
-    height: calc(2 * 1lh);
-    letter-spacing: 0.08em;
-    text-align: center;
-  }
-
-  .bb-footer__legal {
-    --bb-nav-link-size: var(--bb-text-xs);
-    --bb-nav-link-tracking: 0.04em;
-
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    justify-items: center;
-    align-items: center;
-    min-width: 0;
-  }
-
-  .bb-footer__col .bb-nav-link {
-    --bb-nav-link-size: var(--bb-text-xs);
-  }
-
-  @media (max-width: 1439px) {
-    .bb-footer__top {
-      grid-template-columns: minmax(0, 1fr);
-      justify-items: center;
-      gap: 48px;
-    }
-
-    .bb-footer__brand {
-      flex-direction: column;
-      width: min(100%, 360px);
-      text-align: center;
-    }
-
-    .bb-footer__brand .bb-brand__id {
-      flex: none;
-      align-self: stretch;
-    }
-
-    .bb-footer__brand .bb-brand__sub {
-      align-self: safe center;
-    }
-
-    .bb-footer__cols {
-      justify-self: stretch;
-    }
-
-    .bb-footer__bottom {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-      text-align: center;
-    }
-
-    .bb-footer__legal {
-      justify-self: center;
-      width: min(100%, var(--footer-legal-max));
-    }
-  }
-
-  @media (max-width: 900px) {
+  @media (max-width: 999px) {
     .bb-footer {
-      --footer-pad: 56px 25px 30px;
-    }
-
-    .bb-footer__signoff {
-      margin-bottom: 56px;
-    }
-
-    .bb-footer__top {
-      gap: 40px;
-    }
-
-    .bb-footer__cols {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      --footer-col-gap: 16px;
+      --footer-pad: 78px 32px 34px;
+      --footer-col-gap: 32px;
     }
   }
 
   @media (max-width: 639px) {
     .bb-footer {
+      --footer-pad: 60px 20px 28px;
       --footer-signoff-lines: 2;
+      --footer-fine-lines: 2;
+      --footer-colophon-lines: 2;
+    }
+
+    .bb-footer__signoff-line {
+      font-size: clamp(1.7rem, 7.4vw, 2rem);
+    }
+
+    .bb-footer__signoff {
+      padding-bottom: 26px;
+    }
+
+    .bb-footer__cols {
+      padding: 48px 0 44px;
+      grid-auto-flow: row;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 30px 20px;
     }
 
     .bb-footer__col:first-child {
+      grid-column: 1 / -1;
+    }
+
+    .bb-footer__col:first-child .bb-footer__group {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 20px;
+    }
+
+    .bb-footer__col:first-child .bb-footer__col-title {
       grid-column: 1 / -1;
     }
 
@@ -237,12 +304,21 @@
       grid-auto-flow: row;
       grid-template-columns: minmax(0, 1fr);
     }
+
+    .bb-footer .bb-footer__legal .bb-nav-link {
+      --bb-nav-link-pad: 8px 0;
+    }
   }
 
   @media (pointer: coarse) {
-    .bb-footer__col .bb-nav-link,
-    .bb-footer__legal .bb-nav-link {
+    .bb-footer .bb-nav-link {
       min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-footer__ring svg {
+      animation: none;
     }
   }
 }

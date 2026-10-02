@@ -5,7 +5,9 @@ import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/footer.css';
 import Brand from './Brand.astro';
+import LightField from './LightField.astro';
 import NavLink from './NavLink.astro';
+import { FOOTER_RING, stackColumns } from '../lib/footer-layout';
 import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
 
 interface Props extends Omit<HTMLAttributes<'footer'>, 'brand' | 'signoff' | 'columns' | 'legal' | 'copyright' | 'note' | 'class'> {
@@ -30,12 +32,16 @@ const {
 } = Astro.props;
 
 const classes = ['bb-footer', className || null].filter(Boolean).join(' ');
+const stacks = stackColumns(columns);
+const colophon = ((await Astro.slots.render('colophon')) ?? '').trim();
 ---
 
-<slot name="colophon" /><footer class={classes} {...rest}>{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__top"><Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" fit data-reveal /><div class="bb-footer__cols">{columns.map((column, i) => (
-  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><p class="bb-footer__col-title"><span data-fit>{column.title}</span></p>{column.links.map((link) => (
-    <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit />
+<footer class={classes} {...rest}><div class="bb-footer__ring" aria-hidden="true" set:html={FOOTER_RING} /><LightField />{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" wordmark fit data-reveal /><div class="bb-footer__cols">{stacks.map((stack, i) => (
+  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}>{stack.map((column) => (
+    <div class="bb-footer__group"><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{column.links.map((link) => (
+      <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup={`bb-footer-links-${i}`} />
+    ))}</div>
   ))}</div>
-))}</div></div><div class="bb-footer__bottom"><span class="bb-footer__copy"><span data-fit>{copyright}</span></span><span class="bb-footer__note">{note && <span data-fit="block">{note}</span>}</span><div class="bb-footer__legal">{legal.map((link) => (
-  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit />
-))}</div></div></footer>
+))}</div><div class="bb-footer__bottom"><div class="bb-footer__legal">{legal.map((link) => (
+  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup="bb-footer-legal" />
+))}</div><p class="bb-footer__fine"><span data-fit="block"><span>{copyright}</span>{note && <Fragment><span class="bb-footer__sep" aria-hidden="true">·</span><span>{note}</span></Fragment>}</span></p>{colophon && <div class="bb-footer__colophon" set:html={colophon} />}</div></footer>

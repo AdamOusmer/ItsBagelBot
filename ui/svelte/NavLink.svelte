@@ -16,6 +16,7 @@
     disabled?: boolean;
     hint?: string;
     fit?: boolean;
+    fitGroup?: string;
     class?: string;
     leading?: Snippet;
     trailing?: Snippet;
@@ -32,6 +33,7 @@
     disabled = false,
     hint,
     fit = false,
+    fitGroup,
     class: className = '',
     leading,
     trailing,
@@ -54,7 +56,7 @@
 
 {#if disabled}
   <span class={classes} aria-disabled="true" {...rest}
-    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined}
+    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
       >{#if children}{@render children()}{:else}{label}{/if}</span
     >{#if trailing}{@render trailing()}{/if}{#if hint}<span class="bb-nav-link__hint"
       >{hint}</span
@@ -68,7 +70,7 @@
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined}
+    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
       >{#if children}{@render children()}{:else}{label}{/if}</span
     >{#if trailing}{@render trailing()}{/if}</a
   >
