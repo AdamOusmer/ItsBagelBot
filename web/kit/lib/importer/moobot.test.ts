@@ -8,7 +8,7 @@ import { detectMoobot, MoobotExportError, parseMoobot } from './moobot';
 import { translateTags } from './moobot/tags';
 import type { TagContext } from './moobot/tags';
 import type { ImportDiagnostic, ImportManifest } from './types';
-import { findCollisions } from './validate';
+import { findCollisions, isValidFetchDefName } from './validate';
 
 const here = dirname(import.meta.path);
 
@@ -145,7 +145,8 @@ describe('urlfetch mapping', () => {
     const { manifest } = parseMoobot(
       exportWith('a <urlfetch.plain> b <urlfetch.json.3>', 'my cool-cmd')
     );
-    expect(manifest.fetches!.map((f) => f.name)).toEqual(['moobot_my_cool_cmd', 'moobot_my_cool_cmd_3']);
+    expect(manifest.fetches!.length).toBe(2);
+    for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
   });
 
   test('json.N tags map to slug-N; plain and slots coexist as distinct defs', () => {

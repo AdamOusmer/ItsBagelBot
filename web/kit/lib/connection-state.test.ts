@@ -19,8 +19,6 @@ const ROWS: Row[] = [
 	['a revoked sub outranks the active flag outgress cleared', { active: false, sub: 'revoked' }, { kind: 'reauth_required' }],
 	['a chat ban outranks the active flag outgress cleared', { active: false, sub: 'chat_banned' }, { kind: 'bot_banned' }],
 	['an unenrolled sub outranks the active flag outgress cleared', { active: false, sub: 'unenrolled' }, { kind: 'disabled' }],
-	['a down grant read is unavailable, not a definite state', { grant: 'unknown' }, { kind: 'unavailable' }],
-	['a down active read is unavailable and retryable, never live or enable-able', { active: 'unknown' }, { kind: 'unavailable', canRetry: true, live: false, showEnable: false }],
 	['no grant → auth_required (connect via settings, not enable)', { grant: false }, { kind: 'auth_required', showConnect: true, showEnable: false }],
 	['grant present but inactive → disabled (enable form shown)', { active: false }, { kind: 'disabled', showEnable: true, canManage: false }]
 ];
@@ -28,6 +26,33 @@ const ROWS: Row[] = [
 describe('connectionUiState', () => {
 	test.each(ROWS)('%s', (_name, patch, want) => {
 		expect(connectionUiState({ ...base, ...patch })).toMatchObject(want);
+	});
+
+	test('pending / unenrolled map to connecting, failing to degraded', () => {
+		expect(connectionUiState({ ...base, sub: 'pending' }).kind).toBe('connecting');
+		expect(connectionUiState({ ...base, sub: 'unenrolled' }).kind).toBe('connecting');
+		expect(connectionUiState({ ...base, sub: 'failing' }).kind).toBe('degraded');
+		expect(connectionUiState({ ...base, sub: 'unknown' }).kind).toBe('sub_unknown');
+	});
+
+	test('a down core read is unavailable, not a definite state', () => {
+		expect(connectionUiState({ ...base, grant: 'unknown' }).kind).toBe('unavailable');
+		expect(connectionUiState({ ...base, active: 'unknown' }).kind).toBe('unavailable');
+		const u = connectionUiState({ ...base, active: 'unknown' });
+		expect(u.canRetry).toBe(true);
+		expect(u.live).toBe(false);
+		expect(u.showEnable).toBe(false);
+	});
+
+	test('enable is never offered while a channel is active or in flight', () => {
+		for (const sub of ['ok', 'pending', 'unenrolled', 'failing', 'revoked', 'unknown'] as SubState[]) {
+			expect(connectionUiState({ ...base, sub }).showEnable).toBe(false);
+		}
+	});
+
+	test('management actions are unavailable while an enrollment is in flight', () => {
+		expect(connectionUiState({ ...base, sub: 'pending' }).canManage).toBe(false);
+		expect(connectionUiState({ ...base, sub: 'unenrolled' }).canManage).toBe(false);
 	});
 
 	test('every signal permutation resolves to exactly one kind', () => {

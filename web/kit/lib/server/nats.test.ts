@@ -110,8 +110,14 @@ describe('local leaf failback probe', () => {
   });
 });
 
-test('direct-hub JetStream options use the API prefix authorized on the hub account', () => {
-  expect(hubJetStreamOptions()).toEqual({ apiPrefix: '$JS.API', checkAPI: false });
+describe('direct-hub JetStream options', () => {
+  test('uses the API prefix authorized on the hub account', () => {
+    expect(hubJetStreamOptions()).toEqual({ apiPrefix: '$JS.API', checkAPI: false });
+  });
+
+  test('returns a fresh object for client normalization', () => {
+    expect(hubJetStreamOptions()).not.toBe(hubJetStreamOptions());
+  });
 });
 
 describe('rpcRefusal', () => {

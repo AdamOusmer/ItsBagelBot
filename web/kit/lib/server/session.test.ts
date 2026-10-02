@@ -31,9 +31,14 @@ describe('session codec', () => {
     expect(codec.open(codec.seal(s))).toEqual(s);
   });
 
+  test('rejects tampered ciphertext and the wrong key', () => {
+    const sealed = codec.seal(make());
+    expect(codec.open(sealed.slice(0, -2))).toBeNull();
+    const other = createSessionCodec<TestSession>(() => randomBytes(32), 'test-session');
+    expect(other.open(sealed)).toBeNull();
+  });
+
   test.each([
-    ['rejects tampered ciphertext', () => codec.open(codec.seal(make()).slice(0, -2))],
-    ['rejects the wrong key', () => createSessionCodec<TestSession>(() => randomBytes(32), 'test-session').open(codec.seal(make()))],
     ['rejects a cookie sealed under a different AAD even with the same key', () => createSessionCodec<TestSession>(() => key, 'other-session').open(codec.seal(make()))],
     ['rejects an expired session', () => codec.open(codec.seal(make({ iat: now() - 7200, expires_at: now() - 3600 })))],
     ['rejects a session without iat (pre-iat cookies)', () => codec.open(sealRaw({ user_id: '42', expires_at: now() + 3600 }))],

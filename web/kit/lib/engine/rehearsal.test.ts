@@ -2,17 +2,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { rehearseCommand, rehearseReply, rehearseTimer, resolvedWithoutSample, timerOwns, type ChainKind, type Samples, type Seg, type SegKind } from './rehearsal';
+import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, resolvedWithoutSample, timerOwns, type ChainKind, type Seg, type SegKind, type Token } from './rehearsal';
 
 function textOf(segments: Seg[]): string {
   return segments.map((s) => s.text).join('');
 }
 
 describe('token expansion (module/vars.go Expand mirror)', () => {
-  const segmentsOf = (template: string, samples: Samples) => rehearseReply(template, samples, { dynamic: false })[0].segments;
+  const resolve = (token: Token) => (token.name === 'user' ? 'sam' : null);
 
   test('substitutes known tokens and marks them as samples', () => {
-    expect(segmentsOf('hi {user}!', { user: 'sam' })).toEqual([
+    expect(expandSegments('hi {user}!', resolve)).toEqual([
       { text: 'hi ', kind: 'plain' },
       { text: 'sam', kind: 'sample' },
       { text: '!', kind: 'plain' }
@@ -20,12 +20,13 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('token names are case-insensitive, payloads keep their case', () => {
-    expect(segmentsOf('{User}', { user: 'sam' })).toEqual([{ text: 'sam', kind: 'sample' }]);
-    expect(segmentsOf('{CHOICE:Hi,Yo}', { 'choice:Hi,Yo': 'Hi' })).toEqual([{ text: 'Hi', kind: 'sample' }]);
+    expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
+    const choice = expandSegments('{CHOICE:Hi,Yo}', (t) => (t.key === 'choice:Hi,Yo' ? 'Hi' : null));
+    expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
 
   test('any brace span is a token, unknown ones stay literal but marked', () => {
-    expect(segmentsOf('{touser2} {foo bar}', { user: 'sam' })).toEqual([
+    expect(expandSegments('{touser2} {foo bar}', resolve)).toEqual([
       { text: '{touser2}', kind: 'unknown' },
       { text: ' ', kind: 'plain' },
       { text: '{foo bar}', kind: 'unknown' }
@@ -33,11 +34,11 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('a "{" with no closing brace is copied literally', () => {
-    expect(segmentsOf('oops {user', { user: 'sam' })).toEqual([{ text: 'oops {user', kind: 'plain' }]);
+    expect(expandSegments('oops {user', resolve)).toEqual([{ text: 'oops {user', kind: 'plain' }]);
   });
 
   test('an empty-string resolution drops the token from the output', () => {
-    expect(textOf(segmentsOf('[{gone}]', { gone: '' }))).toBe('[]');
+    expect(textOf(expandSegments('[{gone}]', () => ''))).toBe('[]');
   });
 });
 

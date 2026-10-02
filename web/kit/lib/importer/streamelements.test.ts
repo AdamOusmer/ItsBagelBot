@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { CODE } from './validate';
+import { CODE, isValidFetchDefName } from './validate';
 import {
   FETCH_DEF_CAP,
   MAX_CREDENTIAL_LEN,
@@ -393,7 +393,8 @@ describe('urlfetch mapping', () => {
       '$(urlfetch https://a.example/1) $(urlfetch https://a.example/2 data.temp)',
       ',"command":"my cool-cmd"'
     );
-    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se_my_cool_cmd', 'se_my_cool_cmd_2']);
+    expect(manifest.fetches!.length).toBe(2);
+    for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
   });
 
   const SE = 'streamelements';

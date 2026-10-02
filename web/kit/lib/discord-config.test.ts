@@ -26,12 +26,14 @@ import {
   guildIconURL,
   guildMonogram,
   guildPickerBadge,
+  hexToDiscordColor,
   legacyConfigFor,
   mergeDiscordConfig,
   normalizeHex,
   parseConfigVersion,
   parseDiscordConfig,
   parseIdList,
+  parseUserGuild,
   parseUserGuilds,
   parseNameList,
   parsePinnedRoles,
@@ -262,23 +264,25 @@ describe('guild presentation', () => {
     ['offline when the bot is absent', { botPresent: false }, 'offline'],
     ['reauth outranks offline on the bot pill', { botPresent: false, needsReauth: true }, 'reauth'],
     ['reauth outranks online on the bot pill', { botPresent: true, needsReauth: true }, 'reauth'],
-    ['no signals read as offline', {}, 'offline'],
-    ['an unread reauth flag is neutral when the bot is present', { botPresent: true, reauthUnknown: true }, 'unknown'],
-    ['an unread reauth flag is neutral when the bot is absent', { botPresent: false, reauthUnknown: true }, 'unknown'],
-    ['a known reauth outranks an unread flag', { botPresent: true, needsReauth: true, reauthUnknown: true }, 'reauth'],
-    ['a read flag leaves the bot online', { botPresent: true, reauthUnknown: false }, 'online']
+    ['no signals read as offline', {}, 'offline']
   ] as [string, Parameters<typeof guildBotState>[0], ReturnType<typeof guildBotState>][])('%s', (_name, signals, want) => {
     expect(guildBotState(signals)).toBe(want);
   });
 
-  test.each([
-    ['my server is mine', ID_A, { bound: [ID_A, ID_B] }, 'mine'],
-    ['an unbound server is addable', ID_C, { bound: [ID_A, ID_B] }, 'addable'],
-    ['nothing bound makes every server addable', ID_A, { bound: [] }, 'addable'],
-    ['a server bound to someone else is elsewhere', ID_C, { bound: [ID_A, ID_B], elsewhere: [ID_C] }, 'elsewhere'],
-    ['mine outranks elsewhere', ID_A, { bound: [ID_A, ID_B], elsewhere: [ID_A] }, 'mine']
-  ] as [string, string, Parameters<typeof guildPickerBadge>[1], ReturnType<typeof guildPickerBadge>][])('the picker badge separates servers: %s', (_name, id, sets, want) => {
-    expect(guildPickerBadge(id, sets)).toBe(want);
+  test('an unread reauth flag is neutral, never green and never red', () => {
+    expect(guildBotState({ botPresent: true, reauthUnknown: true })).toBe('unknown');
+    expect(guildBotState({ botPresent: false, reauthUnknown: true })).toBe('unknown');
+    expect(guildBotState({ botPresent: true, needsReauth: true, reauthUnknown: true })).toBe('reauth');
+    expect(guildBotState({ botPresent: true, reauthUnknown: false })).toBe('online');
+  });
+
+  test('the picker badge separates my servers from someone else\'s', () => {
+    const bound = [ID_A, ID_B];
+    expect(guildPickerBadge(ID_A, { bound })).toBe('mine');
+    expect(guildPickerBadge(ID_C, { bound })).toBe('addable');
+    expect(guildPickerBadge(ID_A, { bound: [] })).toBe('addable');
+    expect(guildPickerBadge(ID_C, { bound, elsewhere: [ID_C] })).toBe('elsewhere');
+    expect(guildPickerBadge(ID_A, { bound, elsewhere: [ID_A] })).toBe('mine');
   });
 });
 
@@ -290,10 +294,15 @@ describe('parseUserGuilds', () => {
 
   test.each([
     ['a 429 body is not an empty guild list', { message: 'You are being rate limited.', retry_after: 1.5 }],
-    ['an HTML error page is not an empty guild list', '<!DOCTYPE html><html><body>502</body></html>'],
-    ...[null, undefined, 0, '', {}, { guilds: [] }].map((body): [string, unknown] => [`a non-array body ${JSON.stringify(body)} is refused rather than emptied`, body])
+    ['an HTML error page is not an empty guild list', '<!DOCTYPE html><html><body>502</body></html>']
   ])('%s', (_name, body) => {
     expect(parseUserGuilds(body)).toBeNull();
+  });
+
+  test('every non-array body is refused rather than emptied', () => {
+    for (const body of [null, undefined, 0, '', {}, { guilds: [] }]) {
+      expect(parseUserGuilds(body)).toBeNull();
+    }
   });
 
   test('junk entries are dropped, good ones survive', () => {
@@ -302,7 +311,7 @@ describe('parseUserGuilds', () => {
   });
 
   test('a numeric permissions field is not trusted as a string', () => {
-    expect(parseUserGuilds([{ id: ID_A, permissions: 8 }])?.[0].permissions).toBe('');
+    expect(parseUserGuild({ id: ID_A, permissions: 8 })?.permissions).toBe('');
   });
 });
 
@@ -328,10 +337,15 @@ describe('legacyConfigFor', () => {
     ['a blob naming a different guild is not inherited', legacy, ID_B],
     ['an already narrowed blob has nothing to migrate', { guildId: ID_A, twitchLogin: 'demo' }, ID_A],
     ['a blob with no guild has nothing to migrate', { twitchLogin: 'demo' }, ID_A],
-    ['a guild id that is not a snowflake never migrates', { ...legacy, guildId: 'abc' }, 'abc'],
-    ...[null, undefined, 'x', [legacy], 7].map((blob): [string, unknown, string] => [`a malformed blob ${JSON.stringify(blob)} is not a migration`, blob, ID_A])
+    ['a guild id that is not a snowflake never migrates', { ...legacy, guildId: 'abc' }, 'abc']
   ])('%s', (_name, blob, guildId) => {
     expect(legacyConfigFor(blob, guildId)).toBeNull();
+  });
+
+  test('a missing or malformed blob is not a migration', () => {
+    for (const blob of [null, undefined, 'x', [legacy], 7]) {
+      expect(legacyConfigFor(blob, ID_A)).toBeNull();
+    }
   });
 });
 
@@ -385,15 +399,20 @@ describe('the repost panel payload', () => {
   test('a colour the streamer never set is omitted, not defaulted on the wire', () => {
     const payload = ticketPanelPayload(blankDiscordConfig());
     expect('color' in payload).toBe(false);
+    expect(hexToDiscordColor('')).toBeNull();
     expect(payload.title).toBe(TICKET_PANEL_DEFAULTS.title);
   });
 
-  test.each(['#000000', '#000'])('black %s is a colour, not an absence', (ticketPanelColor) => {
-    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor }).color).toBe(0);
+  test('black is a colour, not an absence', () => {
+    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: '#000000' }).color).toBe(0);
+    expect(hexToDiscordColor('#000')).toBe(0);
+    expect(hexToDiscordColor('#000000')).toBe(0);
   });
 
-  test.each([LIVE_COLOR_HEX, 'C47A3A'])('a chosen colour %s travels as the decimal Go parses', (ticketPanelColor) => {
-    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor }).color).toBe(0xc47a3a);
+  test('a chosen colour travels as the decimal Go parses', () => {
+    const payload = ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: LIVE_COLOR_HEX });
+    expect(payload.color).toBe(0xc47a3a);
+    expect(hexToDiscordColor('C47A3A')).toBe(0xc47a3a);
   });
 
   test('an unparsable colour is omitted, and the merge reports it as a field error', () => {

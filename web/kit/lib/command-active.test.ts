@@ -15,13 +15,16 @@ describe('persistCommandActive', () => {
     { name: 'create uses the draft checkbox (new commands default on)', args: [false, true, false], want: true },
     { name: 'create keeps an unchecked draft off', args: [false, false, true], want: false },
     { name: 'edit uses the live row, not the inspector snapshot (#221)', args: [true, true, false], want: false },
-    { name: 'edit follows a live row that is on', args: [true, false, true], want: true },
-    { name: 'edit falls back to an on draft when the live row is gone', args: [true, true, undefined], want: true },
-    { name: 'edit falls back to an off draft when the live row is gone', args: [true, false, undefined], want: false }
+    { name: 'edit follows a live row that is on', args: [true, false, true], want: true }
   ];
 
   test.each(ROWS)('$name', ({ args, want }) => {
     expect(persistCommandActive(...args)).toBe(want);
+  });
+
+  test('edit falls back to the draft when the live row is gone', () => {
+    expect(persistCommandActive(true, true, undefined)).toBe(true);
+    expect(persistCommandActive(true, false, undefined)).toBe(false);
   });
 });
 
