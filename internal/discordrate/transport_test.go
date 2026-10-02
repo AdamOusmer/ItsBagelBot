@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	api "ItsBagelBot/internal/discordapi"
 )
 
@@ -131,31 +133,24 @@ func restCalls() []restCall {
 	}
 }
 
-func TestEveryRestCallPaysOneToken(t *testing.T) {
-	for _, tc := range restCalls() {
-		t.Run(tc.name, func(t *testing.T) {
-			gate := &fakeGate{}
-			client, next := gatedClient(gate)
-			_ = tc.call(context.Background(), client)
-			if gate.calls != 1 || next.requests != 1 {
-				t.Fatalf("gate calls = %d, requests sent = %d, want 1 and 1", gate.calls, next.requests)
-			}
-		})
-	}
-}
-
-func TestRefusedCallNeverReachesDiscord(t *testing.T) {
-	for _, tc := range restCalls() {
-		t.Run(tc.name, func(t *testing.T) {
-			gate := &fakeGate{deny: true}
-			client, next := gatedClient(gate)
-			if err := tc.call(context.Background(), client); !errors.Is(err, ErrRateLimited) {
-				t.Fatalf("err = %v, want ErrRateLimited", err)
-			}
-			if next.requests != 0 {
-				t.Fatal("a refused call must never reach Discord")
-			}
-		})
+func TestEveryRestCallPassesTheGateFirst(t *testing.T) {
+	for _, gate := range []struct {
+		name string
+		deny bool
+		sent int
+	}{
+		{name: "an allowed call pays one token and reaches discord", deny: false, sent: 1},
+		{name: "a refused call never reaches discord", deny: true, sent: 0},
+	} {
+		for _, tc := range restCalls() {
+			t.Run(gate.name+"/"+tc.name, func(t *testing.T) {
+				g := &fakeGate{deny: gate.deny}
+				client, next := gatedClient(g)
+				err := tc.call(context.Background(), client)
+				assert.Equal(t, gate.deny, errors.Is(err, ErrRateLimited), "err = %v", err)
+				assert.Equal(t, [2]int{1, gate.sent}, [2]int{g.calls, next.requests}, "gate calls, requests sent")
+			})
+		}
 	}
 }
 

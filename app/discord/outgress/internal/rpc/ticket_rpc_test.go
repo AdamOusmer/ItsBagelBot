@@ -6,130 +6,174 @@ package rpc
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/rpc"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/codec"
+
 	"github.com/stretchr/testify/require"
 )
 
-func channelCreate(call recordedCall) bool {
-	return call.method == http.MethodPost && call.path == "/guilds/g1/channels"
+const missingPermissions = `{"message":"Missing Permissions"}`
+
+func serveTickets(rest *discapi.Client, _ kv.LiveStore, wire Wiring) error {
+	return SubscribeTickets(rest, TicketDeps{BotID: "bot9"}, wire)
 }
 
-func TestTicketOpenCreatesThenPostsTheCard(t *testing.T) {
-	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if channelCreate(call) {
-			return 200, `{"id":"c-new","name":"ticket-ada-1"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
-
-	reply := h.open(context.Background(), discordoutgress.TicketOpenRequest{
-		GuildID: "g1", Name: "ticket-ada-1", ParentID: "cat1", Content: "<@u1>",
-		Embed:   ddiscord.Embed{Title: "Ticket", Description: "Describe your issue", Color: 7},
-		Buttons: []ddiscord.ButtonSpec{{Style: 2, Label: "Claim", CustomID: discapi.CustomTicketClaim}},
-	})
-
-	wantReplyField(t, "error", reply.Error, "")
-	wantReplyField(t, "channel id", reply.ChannelID, "c-new")
-	wantReplyField(t, "message id", reply.MessageID, "m-new")
-	posts := tr.find(http.MethodPost, "/channels/c-new/messages")
-	if len(posts) != 1 {
-		t.Fatalf("card posts = %+v, want exactly one", posts)
-	}
-	require.JSONEq(t, `{"content":"<@u1>","embeds":[{"title":"Ticket","description":"Describe your issue","color":7}],"components":[{"type":1,"components":[{"type":2,"style":2,"label":"Claim","custom_id":"`+discapi.CustomTicketClaim+`"}]}]}`, posts[0].body)
-	require.Less(t, tr.indexOf(http.MethodPost, "/guilds/g1/channels"), tr.indexOf(http.MethodPost, "/channels/c-new/messages"))
+func ticketOpenCases() []discordCase {
+	created := answer{status: http.StatusOK, body: `{"id":"c-new","name":"ticket-ada-1"}`}
+	both := []string{"POST /guilds/g1/channels", "POST /channels/c-new/messages"}
+	return []discordCase{{
+		name: "creates the channel and then posts the card",
+		verb: "ticket.open",
+		req: discordoutgress.TicketOpenRequest{
+			GuildID: "g1", Name: "ticket-ada-1", ParentID: "cat1", Content: "<@u1>",
+			Embed:   ddiscord.Embed{Title: "Ticket", Description: "Describe your issue", Color: 7},
+			Buttons: []ddiscord.ButtonSpec{{Style: 2, Label: "Claim", CustomID: discapi.CustomTicketClaim}},
+		},
+		routes: map[string]answer{"POST /guilds/g1/channels": created},
+		want:   discordoutgress.TicketOpenReply{ChannelID: "c-new", MessageID: "m-new"},
+		calls:  both,
+		write:  "POST /channels/c-new/messages",
+		body: `{"content":"<@u1>","embeds":[{"title":"Ticket","description":"Describe your issue","color":7}],` +
+			`"components":[{"type":1,"components":[{"type":2,"style":2,"label":"Claim","custom_id":"` +
+			discapi.CustomTicketClaim + `"}]}]}`,
+	}, {
+		name: "reports the orphan channel when the card is refused",
+		verb: "ticket.open",
+		req:  discordoutgress.TicketOpenRequest{GuildID: "g1", Name: "t"},
+		routes: map[string]answer{
+			"POST /guilds/g1/channels":      created,
+			"POST /channels/c-new/messages": {status: http.StatusForbidden, body: missingPermissions},
+		},
+		want: discordoutgress.TicketOpenReply{
+			ChannelID: "c-new", Error: "discord: forbidden: " + missingPermissions, Code: outgressrpc.CodeForbidden,
+		},
+		calls: both,
+	}, {
+		name:   "reports a refused channel create",
+		verb:   "ticket.open",
+		req:    discordoutgress.TicketOpenRequest{GuildID: "g1", Name: "t"},
+		routes: map[string]answer{"POST /guilds/g1/channels": {status: http.StatusForbidden, body: missingPermissions}},
+		want: discordoutgress.TicketOpenReply{
+			Error: "discord: forbidden: " + missingPermissions, Code: outgressrpc.CodeForbidden,
+		},
+		calls: both[:1],
+	}}
 }
 
-func TestTicketOpenReportsTheChannelEvenWhenTheCardFails(t *testing.T) {
-	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if call.path == "/guilds/g1/channels" {
-			return 200, `{"id":"c-new"}`
-		}
-		return 403, `{"message":"Missing Permissions"}`
-	})
-
-	wire := rpcWiring(t)
-	require.NoError(t, SubscribeTickets(h.rest, TicketDeps{BotID: h.botID}, wire))
-	var reply discordoutgress.TicketOpenReply
-	require.NoError(t, codec.Unmarshal(requestRPC(t, wire, "ticket.open", `{"guild_id":"g1","name":"t"}`), &reply))
-	require.Len(t, tr.find(http.MethodPost, "/guilds/g1/channels"), 1)
-	require.Len(t, tr.find(http.MethodPost, "/channels/c-new/messages"), 1)
-	require.NotEmpty(t, reply.Error)
-	require.Empty(t, reply.MessageID)
-
-	if reply.ChannelID != "c-new" {
-		t.Fatal("the caller must learn about the orphan channel so it can roll it back")
-	}
-	if reply.Code != outgressrpc.CodeForbidden {
-		t.Fatalf("code = %q", reply.Code)
-	}
-}
-
-func TestTicketClaimEditsTheCardAndPostsTheNote(t *testing.T) {
-	h, tr := newTicketRPC(t, nil)
-
-	reply := h.claim(context.Background(), discordoutgress.TicketClaimRequest{
+func ticketClaimCases() []discordCase {
+	claim := discordoutgress.TicketClaimRequest{
 		GuildID: "g1", ChannelID: "c1", MessageID: "m1", Content: "<@u1>", Note: "Mod claimed this ticket.",
-		Embed: ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: "<@u1>", ClaimedBy: "Mod"}),
-	})
+		Embed: ddiscord.Embed{Title: "Ticket", Description: "Claimed by Mod"},
+	}
+	edit := []string{"GET /channels/c1", "PATCH /channels/c1/messages/m1"}
+	withNote := slices.Concat(edit, []string{"POST /channels/c1/messages"})
+	return []discordCase{{
+		name:  "edits the claimed card and posts the note",
+		verb:  "ticket.claim",
+		req:   claim,
+		want:  discordoutgress.TicketClaimReply{},
+		calls: withNote,
+		write: "PATCH /channels/c1/messages/m1",
+		body:  `{"content":"<@u1>","embeds":[{"title":"Ticket","description":"Claimed by Mod"}]}`,
+	}, {
+		name: "edits the card without posting an empty note",
+		verb: "ticket.claim",
+		req: discordoutgress.TicketClaimRequest{
+			GuildID: "g1", ChannelID: "c1", MessageID: "m1", Embed: ddiscord.Embed{Title: "Ticket"},
+		},
+		want:  discordoutgress.TicketClaimReply{},
+		calls: edit,
+	}, {
+		name:   "keeps the claim when the note is refused",
+		verb:   "ticket.claim",
+		req:    claim,
+		routes: map[string]answer{"POST /channels/c1/messages": {status: http.StatusForbidden}},
+		want:   discordoutgress.TicketClaimReply{},
+		calls:  withNote,
+	}, {
+		name:   "reports a refused card edit and posts no note",
+		verb:   "ticket.claim",
+		req:    claim,
+		routes: map[string]answer{"PATCH /channels/c1/messages/m1": {status: http.StatusForbidden, body: missingPermissions}},
+		want: discordoutgress.TicketClaimReply{
+			Error: "discord: forbidden: " + missingPermissions, Code: outgressrpc.CodeForbidden,
+		},
+		calls: edit,
+	}, {
+		name: "ignores a claim without a card",
+		verb: "ticket.claim",
+		req:  discordoutgress.TicketClaimRequest{ChannelID: "c1"},
+		want: discordoutgress.TicketClaimReply{},
+	}}
+}
 
-	if reply.Error != "" {
-		t.Fatalf("reply = %+v", reply)
+func ticketAddCases() []discordCase {
+	add := discordoutgress.TicketMemberAddRequest{GuildID: "g1", ChannelID: "c1", UserID: "u2"}
+	calls := []string{"GET /channels/c1", "PUT /channels/c1/permissions/u2"}
+	failed := func(name string, got answer, want discordoutgress.TicketMemberAddReply) discordCase {
+		return discordCase{
+			name: name, verb: "ticket.add", req: add, want: want, calls: calls,
+			routes: map[string]answer{"PUT /channels/c1/permissions/u2": got},
+		}
 	}
-	edits := tr.find(http.MethodPatch, "/channels/c1/messages/m1")
-	if len(edits) != 1 || !strings.Contains(edits[0].body, "Claimed by Mod") {
-		t.Fatalf("edit = %+v", edits)
-	}
-	var patch struct {
-		Content string `json:"content"`
-	}
-	if err := codec.Unmarshal([]byte(edits[0].body), &patch); err != nil {
-		t.Fatalf("decode patch: %v", err)
-	}
-	if patch.Content != "<@u1>" {
-		t.Fatalf("content = %q; Discord's PATCH replaces it rather than leaving it alone", patch.Content)
-	}
-	if got := tr.find(http.MethodPost, "/channels/c1/messages"); len(got) != 1 {
-		t.Fatalf("notes = %d, want 1", len(got))
+	return []discordCase{{
+		name:  "grants a member one overwrite without rewriting the channel",
+		verb:  "ticket.add",
+		req:   add,
+		want:  discordoutgress.TicketMemberAddReply{},
+		calls: calls,
+		write: "PUT /channels/c1/permissions/u2",
+		body:  `{"id":"u2","type":1,"allow":"68608","deny":"0"}`,
+	},
+		failed("maps a bad request onto invalid", answer{status: http.StatusBadRequest, body: "bad"},
+			addFailure("discord: bad request: bad", outgressrpc.CodeInvalid)),
+		failed("maps lost credentials onto discord_unavailable", answer{status: http.StatusUnauthorized},
+			addFailure(discapi.ErrAuth.Error(), outgressrpc.CodeDiscordUnavailable)),
+		failed("maps a refusal onto forbidden", answer{status: http.StatusForbidden, body: missingPermissions},
+			addFailure("discord: forbidden: "+missingPermissions, outgressrpc.CodeForbidden)),
+		failed("maps a missing channel onto not_found", answer{status: http.StatusNotFound},
+			addFailure(discapi.ErrChannelNotFound.Error(), outgressrpc.CodeNotFound)),
+		failed("maps a rate limit onto rate_limited", answer{status: http.StatusTooManyRequests, body: "slow down"},
+			addFailure("discord: rate limited: slow down", outgressrpc.CodeRateLimited)),
+		failed("maps a deadline onto timeout", answer{err: context.DeadlineExceeded},
+			addFailure(`Put "https://discord.com/api/v10/channels/c1/permissions/u2": context deadline exceeded`, outgressrpc.CodeTimeout)),
+		failed("maps an unclassified failure onto unknown", answer{status: http.StatusBadGateway, body: "boom"},
+			addFailure("discord: api rejected request (502): boom", outgressrpc.CodeUnknown)),
 	}
 }
 
-func TestTicketClaimWithoutACardIsANoOp(t *testing.T) {
-	h, tr := newTicketRPC(t, nil)
-
-	reply := h.claim(context.Background(), discordoutgress.TicketClaimRequest{ChannelID: "c1"})
-
-	if reply.Error != "" {
-		t.Fatalf("reply = %+v", reply)
-	}
-	if len(tr.calls) != 0 {
-		t.Fatalf("calls = %+v, want none", tr.calls)
-	}
+func ticketPanelCases() []discordCase {
+	return []discordCase{{
+		name: "reports a refused desk panel post",
+		verb: "ticket.panel",
+		req:  discordoutgress.TicketPanelRequest{GuildID: "g1", ChannelID: "desk1"},
+		routes: map[string]answer{
+			"POST /channels/desk1/messages": {status: http.StatusForbidden, body: missingPermissions},
+		},
+		want: discordoutgress.TicketPanelReply{
+			Error: "discord: forbidden: " + missingPermissions, Code: outgressrpc.CodeForbidden,
+		},
+		calls: []string{"GET /channels/desk1", "POST /channels/desk1/messages"},
+	}}
 }
 
-func TestTicketAddWritesOneOverwrite(t *testing.T) {
-	h, tr := newTicketRPC(t, nil)
+func addFailure(message string, code rpc.Code) discordoutgress.TicketMemberAddReply {
+	return discordoutgress.TicketMemberAddReply{Error: message, Code: code}
+}
 
-	reply := h.add(context.Background(), discordoutgress.TicketMemberAddRequest{GuildID: "g1", ChannelID: "c1", UserID: "u2"})
-
-	if reply.Error != "" {
-		t.Fatalf("reply = %+v", reply)
-	}
-	puts := tr.find(http.MethodPut, "/channels/c1/permissions/u2")
-	if len(puts) != 1 {
-		t.Fatalf("overwrite writes = %+v", tr.calls)
-	}
-	if !strings.Contains(puts[0].body, `"allow":"`+permTicketMemberBits+`"`) {
-		t.Fatalf("overwrite body = %q", puts[0].body)
-	}
-	if got := tr.find(http.MethodPatch, "/channels/c1"); len(got) != 0 {
-		t.Fatal("adding a member must not rewrite the whole overwrite array")
+func TestTicketVerbsReachDiscordAndAnswerWithAnHonestCode(t *testing.T) {
+	for _, tc := range slices.Concat(ticketOpenCases(), ticketClaimCases(), ticketAddCases(), ticketPanelCases()) {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected(t), tc.exchange(t, serveTickets))
+		})
 	}
 }
 

@@ -1,363 +1,346 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package setup
+package setup_test
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
+	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type guildRecorder struct {
-	channelGuilds map[string]string
-	channelErr    error
-
-	mu           sync.Mutex
-	channels     []discapi.Snowflake
-	roles        []discapi.Snowflake
-	createdCh    []string
-	createdRo    []string
-	panels       []string
-	deleted      []string
-	deleteErr    error
-	panelPosts   []discapi.EmbedPost
-	panelButtons []discapi.Button
-	nextID       int
-	specs        map[string]discapi.ChannelCreate
-
-	getGuildErr   error
-	getGuildCalls int
-}
-
-func (r *guildRecorder) nextSnowflake(prefix string) string {
-	r.nextID++
-	return prefix + strconv.Itoa(r.nextID)
-}
-
-func (r *guildRecorder) SendChat(context.Context, discapi.ChatPost) error { return nil }
-
-func (r *guildRecorder) DeleteMessage(_ context.Context, m discapi.Message) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.deleted = append(r.deleted, m.ID)
-	return r.deleteErr
-}
-
-func newGuildRecorder() *guildRecorder { return &guildRecorder{} }
-
-func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, btn := range buttons {
-		r.panels = append(r.panels, btn.CustomID)
-	}
-	r.panelPosts = append(r.panelPosts, post)
-	r.panelButtons = append(r.panelButtons, buttons...)
-	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("panel-")}, nil
-}
-
-func (r *guildRecorder) CreateChannel(_ context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Spec.Name, Type: ch.Spec.Type}
-	if r.specs == nil {
-		r.specs = map[string]discapi.ChannelCreate{}
-	}
-	r.specs[strings.ToLower(ch.Spec.Name)] = ch.Spec
-	r.channels = append(r.channels, out)
-	r.createdCh = append(r.createdCh, ch.Spec.Name)
-	return out, nil
-}
-
-func (r *guildRecorder) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.createdRo = append(r.createdRo, role.Spec.Name)
-	return discapi.Snowflake{ID: r.nextSnowflake("role-"), Name: role.Spec.Name}, nil
-}
-
-func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]discapi.Snowflake, len(r.channels))
-	copy(out, r.channels)
-	return out, nil
-}
-
-func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
-	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
-}
-
-func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.getGuildCalls++
-	if r.getGuildErr != nil {
-		return discapi.GuildInfo{}, r.getGuildErr
-	}
-	return discapi.GuildInfo{ID: g.ID, Name: "server " + g.ID, Icon: "abc", ApproximateMemberCount: 42}, nil
-}
-
-var _ discordGuildAPI = (*guildRecorder)(nil)
-
-func setupWorker(guild *guildRecorder, store discordstore.Store) *Worker {
-	return New(Config{Discord: guild, Store: store, Log: zap.NewNop()})
-}
-
-func setupGuild1(t *testing.T, w *Worker, broadcasterID string) GuildSetupResult {
-	t.Helper()
-	got, err := w.SetupGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: broadcasterID})
-	if err != nil {
-		t.Fatalf("SetupGuild: %v", err)
-	}
-	return got
-}
-
-func foreignChannels() []discapi.Snowflake {
-	out := make([]discapi.Snowflake, 0, ddiscord.LivingCommunityMinChannels)
-	for i := 0; i < ddiscord.LivingCommunityMinChannels; i++ {
-		out = append(out, discapi.Snowflake{ID: "ch-" + strconv.Itoa(i), Name: "existing-" + strconv.Itoa(i)})
+func existingChannels(names ...string) []discapi.Snowflake {
+	out := make([]discapi.Snowflake, 0, len(names))
+	for _, name := range names {
+		out = append(out, discapi.Snowflake{ID: "old-" + name, Name: name})
 	}
 	return out
 }
 
-func assertBound(t *testing.T, store *discordstore.Mem, broadcasterID string) {
-	t.Helper()
-	b, ok := store.Broadcaster(context.Background(), discordstore.Guild{ID: "guild-1"})
-	if !ok {
-		t.Fatal("guild-1 must be bound")
+func livedInServer() []discapi.Snowflake {
+	var names []string
+	for i := range ddiscord.LivingCommunityMinChannels {
+		names = append(names, "existing-"+strconv.Itoa(i))
 	}
-	if b.ID != broadcasterID {
-		t.Fatalf("bound broadcaster = %s, want %s", b.ID, broadcasterID)
+	return existingChannels(append(names, "Clips")...)
+}
+
+type fillView struct {
+	Refused bool
+	Filled  bool
+	Live    string
+	Clips   string
+	Desk    string
+	Created bool
+	BoundTo string
+	Guilds  int
+}
+
+func viewFill(got setup.GuildSetupResult, d *fakeDiscord, store *discordstore.Mem) fillView {
+	ctx := context.Background()
+	owner, _ := store.Broadcaster(ctx, discordstore.Guild{ID: "guild-1"})
+	guilds, _ := store.GuildsOf(ctx, discordstore.Broadcaster{ID: "42"})
+	required := []string{got.LiveChannelID, got.ClipsChannelID, got.VoiceHubID, got.LogChannelID, got.TicketChannelID, got.TicketCategoryID}
+	view := fillView{
+		Refused: got.Refused != "", Filled: !slices.Contains(required, ""),
+		Live: got.LiveChannelID, Clips: got.ClipsChannelID,
+		Created: len(d.createdChannels) > 0, BoundTo: owner.ID, Guilds: len(guilds),
+	}
+	for _, p := range d.panels {
+		view.Desk = p.Post.ChannelID
+	}
+	return view
+}
+
+func TestSetupGuild(t *testing.T) {
+	cases := []struct {
+		name     string
+		existing []discapi.Snowflake
+		owners   owners
+		wantErr  error
+		want     fillView
+	}{{
+		name: "fills a fresh server, binds it and posts the ticket desk",
+		want: fillView{Filled: true, Live: "ch-now-live", Clips: "ch-clips", Desk: "ch-support", Created: true, BoundTo: "42", Guilds: 1},
+	}, {
+		name:     "adopts matching channels on a lived-in server instead of filling it",
+		existing: livedInServer(),
+		want:     fillView{Refused: true, Clips: "old-Clips", BoundTo: "42", Guilds: 1},
+	}, {
+		name:     "completes a partial fill by reusing the channels it finds",
+		existing: existingChannels("Welcome", "welcome", "rules", "Announcements", "now-live", "clips", "announcements", "Community"),
+		owners:   owners{"guild-1": "42"},
+		want:     fillView{Filled: true, Live: "old-now-live", Clips: "old-clips", Desk: "ch-support", Created: true, BoundTo: "42", Guilds: 1},
+	}, {
+		name:    "refuses a guild bound to another broadcaster before any write",
+		owners:  owners{"guild-1": "7"},
+		wantErr: setup.ErrGuildBoundElsewhere,
+		want:    fillView{BoundTo: "7"},
+	}, {
+		name:   "binds a second guild for the same broadcaster",
+		owners: owners{"guild-0": "42"},
+		want:   fillView{Filled: true, Live: "ch-now-live", Clips: "ch-clips", Desk: "ch-support", Created: true, BoundTo: "42", Guilds: 2},
+	}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{channels: tc.existing}
+			store := boundStore(tc.owners)
+
+			got, err := newWorker(d, store).SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.want, viewFill(got, d, store))
+		})
 	}
 }
 
-func assertFilled(t *testing.T, got GuildSetupResult) {
-	t.Helper()
-	if got.Refused != "" {
-		t.Fatalf("refused = %q", got.Refused)
+type templateFill struct {
+	RolePermissions   map[string]string
+	ArchiveType       int
+	ArchiveOverwrites []discapi.PermissionOverwrite
+	DeskButtons       []discapi.Button
+}
+
+func TestSetupGuildCreatesTheTemplateRolesStaffArchiveAndDesk(t *testing.T) {
+	d := &fakeDiscord{}
+
+	_, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+	require.NoError(t, err)
+
+	perms := map[string]string{}
+	for _, r := range d.createdRoles {
+		perms[r.Name] = r.Permissions
 	}
-	if msg := filledGaps(got); msg != "" {
-		t.Fatal(msg)
+	staffOnly := func(role string) discapi.PermissionOverwrite {
+		return discapi.PermissionOverwrite{ID: role, Allow: "1024", Deny: "2048"}
+	}
+	archive := d.createdChannels["archive"]
+	require.Equal(t, templateFill{
+		RolePermissions: map[string]string{
+			ddiscord.RoleOwner: "", ddiscord.RoleLeadMod: "8", ddiscord.RoleMods: strconv.FormatInt(int64(ddiscord.PermModerator), 10),
+			ddiscord.RoleVIP: "", ddiscord.RoleRegulars: "", ddiscord.RoleMember: "",
+		},
+		ArchiveType: ddiscord.ChannelCategory,
+		ArchiveOverwrites: []discapi.PermissionOverwrite{
+			{ID: "guild-1", Allow: "0", Deny: "1024"},
+			staffOnly("role-owner"), staffOnly("role-lead mod"), staffOnly("role-mods"),
+		},
+		DeskButtons: []discapi.Button{{Style: discapi.ButtonPrimary, Label: ddiscord.TicketPanelButtonDefault, CustomID: discapi.CustomTicketOpen}},
+	}, templateFill{
+		RolePermissions: perms, ArchiveType: archive.Type, ArchiveOverwrites: archive.PermissionOverwrites,
+		DeskButtons: d.panels[0].Buttons,
+	})
+}
+
+type pinView struct {
+	Owner   string
+	Mods    string
+	VIP     string
+	Member  string
+	Created []string
+	Dropped []string
+	Staff   []string
+}
+
+func viewPins(got setup.GuildSetupResult, d *fakeDiscord) pinView {
+	var staff []string
+	for _, o := range d.createdChannels["staff"].PermissionOverwrites {
+		staff = append(staff, o.ID)
+	}
+	return pinView{
+		Owner: got.OwnerRoleID, Mods: got.ModsRoleID, VIP: got.VIPRoleID, Member: got.MemberRoleID,
+		Created: d.roleNames(), Dropped: got.DroppedPins, Staff: staff,
 	}
 }
 
-func filledGaps(got GuildSetupResult) string {
-	if got.GuildID != "guild-1" {
-		return "guild = " + got.GuildID
-	}
-	for _, slot := range []struct{ id, name string }{
-		{got.LiveChannelID, "live channel"},
-		{got.ClipsChannelID, "clips channel"},
-		{got.VoiceHubID, "voice hub"},
-		{got.LogChannelID, "logs channel"},
-		{got.TicketChannelID, "ticket channel"},
-		{got.TicketCategoryID, "ticket category"},
-	} {
-		if slot.id == "" {
-			return "missing " + slot.name
-		}
-	}
-	return ""
-}
+func TestSetupGuildPinnedRoles(t *testing.T) {
+	everyRole := []string{ddiscord.RoleOwner, ddiscord.RoleLeadMod, ddiscord.RoleMods, ddiscord.RoleVIP, ddiscord.RoleRegulars, ddiscord.RoleMember}
+	defaultStaff := []string{"guild-1", "role-owner", "role-lead mod", "role-mods"}
+	cases := []struct {
+		name string
+		live []string
+		pins map[string]string
+		want pinView
+	}{{
+		name: "adopts pinned roles instead of creating them and grants them their channels",
+		live: []string{"existing-mods", "existing-member"},
+		pins: map[string]string{ddiscord.SlotMods: "existing-mods", ddiscord.SlotMember: "existing-member"},
+		want: pinView{
+			Owner: "role-owner", Mods: "existing-mods", VIP: "role-vip", Member: "existing-member",
+			Created: []string{ddiscord.RoleOwner, ddiscord.RoleLeadMod, ddiscord.RoleVIP, ddiscord.RoleRegulars},
+			Staff:   []string{"guild-1", "role-owner", "role-lead mod", "existing-mods"},
+		},
+	}, {
+		name: "ignores a pin for an unknown slot",
+		live: []string{"nope"},
+		pins: map[string]string{"janitor": "nope"},
+		want: pinView{Owner: "role-owner", Mods: "role-mods", VIP: "role-vip", Member: "role-member", Created: everyRole, Staff: defaultStaff},
+	}, {
+		name: "drops a pin whose role is gone and creates the role instead",
+		pins: map[string]string{ddiscord.SlotMods: "deleted-role"},
+		want: pinView{
+			Owner: "role-owner", Mods: "role-mods", VIP: "role-vip", Member: "role-member", Created: everyRole,
+			Dropped: []string{ddiscord.SlotMods}, Staff: defaultStaff,
+		},
+	}, {
+		name: "reports dropped pins sorted and keeps the pins that are live",
+		live: []string{"live-vip"},
+		pins: map[string]string{
+			ddiscord.SlotMods: "gone-1", ddiscord.SlotOwner: "gone-2", ddiscord.SlotMember: "gone-3", ddiscord.SlotVIP: "live-vip",
+		},
+		want: pinView{
+			Owner: "role-owner", Mods: "role-mods", VIP: "live-vip", Member: "role-member",
+			Created: []string{ddiscord.RoleOwner, ddiscord.RoleLeadMod, ddiscord.RoleMods, ddiscord.RoleRegulars, ddiscord.RoleMember},
+			Dropped: []string{ddiscord.SlotMember, ddiscord.SlotMods, ddiscord.SlotOwner}, Staff: defaultStaff,
+		},
+	}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{roles: existingRoles(tc.live)}
 
-func TestSetupGuildCreatesMissingRolesAndBindsChannels(t *testing.T) {
-	guild := &guildRecorder{}
-	store := discordstore.NewMem()
+			got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), setup.GuildSetupRequest{
+				GuildID: "guild-1", BroadcasterID: "42", PinnedRoles: tc.pins,
+			})
 
-	got := setupGuild1(t, setupWorker(guild, store), "42")
-
-	assertFilled(t, got)
-	assertBound(t, store, "42")
-	wantRoles := map[string]bool{"Owner": true, "Lead Mod": true, "Mods": true, "Regulars": true, "Member": true}
-	for _, name := range guild.createdRo {
-		delete(wantRoles, name)
-	}
-	if len(wantRoles) != 0 {
-		t.Fatalf("missing roles %v", wantRoles)
-	}
-	if len(guild.panels) == 0 {
-		t.Fatal("setup must post the ticket desk button")
-	}
-	if guild.panels[0] != discapi.CustomTicketOpen {
-		t.Fatalf("desk button = %v", guild.panels)
-	}
-}
-
-func TestSetupGuildRefusesALivedInServerButStillBinds(t *testing.T) {
-	guild := &guildRecorder{channels: foreignChannels()}
-	store := discordstore.NewMem()
-
-	got := setupGuild1(t, setupWorker(guild, store), "42")
-
-	if got.Refused == "" {
-		t.Fatal("lived-in guild must refuse the fill")
-	}
-	if len(guild.createdCh) != 0 {
-		t.Fatal("lived-in guild must not create channels")
-	}
-	if got.GuildID != "guild-1" {
-		t.Fatalf("refused setup returns the guild id: %+v", got)
-	}
-	if got.ClipsChannelID != "" {
-		t.Fatalf("refused setup adopts nothing here: %+v", got)
-	}
-	assertBound(t, store, "42")
-}
-
-func TestSetupGuildRefusesAGuildBoundToAnotherBroadcasterBeforeAnyWrite(t *testing.T) {
-	guild := &guildRecorder{}
-	store := discordstore.NewMem()
-	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "7"})
-
-	_, err := setupWorker(guild, store).SetupGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
-
-	if err != ErrGuildBoundElsewhere {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
-	}
-	if len(guild.createdCh)+len(guild.createdRo) != 0 {
-		t.Fatal("a refused caller must not touch the server")
-	}
-	assertBound(t, store, "7")
-}
-
-func TestSetupGuildCompletesAPartialFill(t *testing.T) {
-	guild := &guildRecorder{}
-	for _, name := range []string{"Welcome", "welcome", "rules", "Announcements", "now-live", "clips", "announcements", "Community"} {
-		guild.channels = append(guild.channels, discapi.Snowflake{ID: "old-" + name, Name: name})
-	}
-	store := discordstore.NewMem()
-	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
-
-	got := setupGuild1(t, setupWorker(guild, store), "42")
-
-	assertFilled(t, got)
-	if got.LiveChannelID != "old-now-live" {
-		t.Fatalf("existing live channel must be reused: %+v", got)
-	}
-	if got.ClipsChannelID != "old-clips" {
-		t.Fatalf("existing clips channel must be reused: %+v", got)
-	}
-	for _, name := range guild.createdCh {
-		if name == "now-live" || name == "clips" {
-			t.Fatalf("%s was created twice", name)
-		}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, viewPins(got, d))
+		})
 	}
 }
 
-func TestSetupGuildAdoptsMatchingChannelsOnALivedInServer(t *testing.T) {
-	guild := &guildRecorder{channels: append(foreignChannels(), discapi.Snowflake{ID: "their-clips", Name: "Clips"})}
-
-	got := setupGuild1(t, setupWorker(guild, discordstore.NewMem()), "42")
-
-	if got.Refused == "" {
-		t.Fatal("lived-in guild must refuse the fill")
+func existingRoles(ids []string) []discapi.Snowflake {
+	out := make([]discapi.Snowflake, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, discapi.Snowflake{ID: id, Name: id})
 	}
-	if len(guild.createdCh) != 0 {
-		t.Fatal("lived-in guild must not create channels")
-	}
-	if got.ClipsChannelID != "their-clips" {
-		t.Fatalf("clips channel must be adopted by name, got %q", got.ClipsChannelID)
+	return out
+}
+
+func TestGuildLayout(t *testing.T) {
+	yes, no := true, false
+	everyone := setup.GuildEntry{ID: "guild-1", Name: "@everyone"}
+	cases := []struct {
+		name     string
+		caller   string
+		botID    string
+		channels []discapi.Snowflake
+		want     setup.GuildLayout
+		wantErr  error
+	}{{
+		name:     "refuses a broadcaster who does not own the guild",
+		caller:   "7",
+		channels: []discapi.Snowflake{{ID: "c1", Name: "general"}},
+		wantErr:  setup.ErrNotBound,
+	}, {
+		name:     "lists the channels and roles for the owner",
+		caller:   "42",
+		channels: []discapi.Snowflake{{ID: "c1", Name: "general"}},
+		want:     setup.GuildLayout{Channels: []setup.GuildEntry{{ID: "c1", Name: "general"}}, Roles: []setup.GuildEntry{everyone}},
+	}, {
+		name:   "flags which text channels the bot can post and embed in",
+		caller: "42",
+		botID:  "bot",
+		channels: []discapi.Snowflake{
+			{ID: "c1", Name: "general"},
+			{ID: "c2", Name: "quiet", PermissionOverwrites: []discapi.PermissionOverwrite{{ID: "guild-1", Allow: "0", Deny: "2048"}}},
+			{ID: "c3", Name: "plain", PermissionOverwrites: []discapi.PermissionOverwrite{{ID: "guild-1", Allow: "0", Deny: "16384"}}},
+			{ID: "c4", Name: "lobby", Type: ddiscord.ChannelVoice},
+		},
+		want: setup.GuildLayout{Channels: []setup.GuildEntry{
+			{ID: "c1", Name: "general", CanSend: &yes, CanEmbed: &yes},
+			{ID: "c2", Name: "quiet", CanSend: &no, CanEmbed: &no},
+			{ID: "c3", Name: "plain", CanSend: &yes, CanEmbed: &no},
+			{ID: "c4", Name: "lobby", Type: ddiscord.ChannelVoice},
+		}, Roles: []setup.GuildEntry{everyone}},
+	}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{channels: tc.channels, everyonePerms: "19456"}
+			w := setup.New(setup.Config{Discord: d, Store: boundStore(owners{"guild-1": "42"}), Log: zap.NewNop(), BotID: tc.botID})
+
+			got, err := w.GuildLayout(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: tc.caller})
+
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.want, got)
+		})
 	}
 }
 
-func TestUnbindGuildOnlyForTheBoundBroadcaster(t *testing.T) {
-	store := discordstore.NewMem()
-	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
-	w := setupWorker(&guildRecorder{}, store)
+func TestUnbindGuild(t *testing.T) {
+	cases := []struct {
+		name    string
+		caller  string
+		wantErr error
+		bound   string
+	}{
+		{name: "refuses a broadcaster who does not own the guild", caller: "7", wantErr: setup.ErrNotBound, bound: "42"},
+		{name: "unbinds the owner's guild", caller: "42"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := boundStore(owners{"guild-1": "42"})
 
-	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
-		t.Fatalf("err = %v, want ErrNotBound", err)
-	}
-	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}); err != nil {
-		t.Fatalf("UnbindGuild: %v", err)
-	}
-	if _, ok := store.Broadcaster(context.Background(), discordstore.Guild{ID: "guild-1"}); ok {
-		t.Fatal("binding survived unbind")
+			err := newWorker(&fakeDiscord{}, store).UnbindGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: tc.caller})
+
+			require.ErrorIs(t, err, tc.wantErr)
+			owner, _ := store.Broadcaster(context.Background(), discordstore.Guild{ID: "guild-1"})
+			require.Equal(t, tc.bound, owner.ID)
+		})
 	}
 }
 
-func TestGuildLayoutRequiresTheBinding(t *testing.T) {
-	guild := &guildRecorder{channels: []discapi.Snowflake{{ID: "c1", Name: "general"}}}
-	store := discordstore.NewMem()
-	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
-	w := setupWorker(guild, store)
+func TestUnbindStaysIdempotent(t *testing.T) {
+	w := newWorker(&fakeDiscord{}, boundStore(owners{"guild-1": "42"}))
+	ctx := context.Background()
+	req := setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}
 
-	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
-		t.Fatalf("err = %v, want ErrNotBound", err)
-	}
-	layout, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
-	if err != nil {
-		t.Fatalf("GuildLayout: %v", err)
-	}
-	if len(layout.Channels) != 1 {
-		t.Fatalf("channels = %+v", layout.Channels)
-	}
-	if layout.Channels[0].ID != "c1" {
-		t.Fatalf("channels = %+v", layout.Channels)
-	}
+	require.NoError(t, w.UnbindGuild(ctx, req), "first unbind")
+	require.NoError(t, w.UnbindGuild(ctx, req), "second unbind, want the same silence")
+	other := setup.GuildSetupRequest{GuildID: "guild-9", BroadcasterID: "42"}
+	require.NoError(t, w.UnbindGuild(ctx, other), "unbinding an unknown guild")
 }
 
-func TestPostDiscordRequiresChannelAndContent(t *testing.T) {
-	guild := &guildRecorder{}
-	w := setupWorker(guild, discordstore.NewMem())
-
-	if err := w.PostDiscord(context.Background(), "", "hi"); err != discapi.ErrBadRequest {
-		t.Fatalf("err = %v, want ErrBadRequest", err)
+func workerFor(d *fakeDiscord, store discordstore.Store, offline bool) *setup.Worker {
+	if offline {
+		return setup.New(setup.Config{Store: store, Log: zap.NewNop()})
 	}
-	if err := w.PostDiscord(context.Background(), "chan", ""); err != discapi.ErrBadRequest {
-		t.Fatalf("err = %v, want ErrBadRequest", err)
-	}
+	return newWorker(d, store)
 }
 
-func TestPostDiscordRequiresAClient(t *testing.T) {
-	w := New(Config{Log: zap.NewNop()})
-	if err := w.PostDiscord(context.Background(), "chan", "hi"); err != discapi.ErrAuth {
-		t.Fatalf("err = %v, want ErrAuth", err)
+func TestPostDiscord(t *testing.T) {
+	longest := strings.Repeat("é", 2000)
+	cases := []struct {
+		name    string
+		post    discapi.ChatPost
+		offline bool
+		wantErr error
+		want    []discapi.ChatPost
+	}{
+		{name: "posts content up to the 2000 rune limit", post: discapi.ChatPost{ChannelID: "chan", Content: longest},
+			want: []discapi.ChatPost{{ChannelID: "chan", Content: longest}}},
+		{name: "requires a channel", post: discapi.ChatPost{Content: "hi"}, wantErr: discapi.ErrBadRequest},
+		{name: "requires content", post: discapi.ChatPost{ChannelID: "chan"}, wantErr: discapi.ErrBadRequest},
+		{name: "refuses content past the rune limit", post: discapi.ChatPost{ChannelID: "chan", Content: longest + "é"}, wantErr: discapi.ErrBadRequest},
+		{name: "requires a discord client", post: discapi.ChatPost{ChannelID: "chan", Content: "hi"}, offline: true, wantErr: discapi.ErrAuth},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{}
 
-func roleSpecNamed(name string) ddiscord.RoleSpec {
-	for _, r := range ddiscord.CommunityRoles() {
-		if r.Name == name {
-			return r
-		}
-	}
-	return ddiscord.RoleSpec{}
-}
+			err := workerFor(d, discordstore.NewMem(), tc.offline).PostDiscord(context.Background(), tc.post.ChannelID, tc.post.Content)
 
-func TestRolePermissionsAreStringEncoded(t *testing.T) {
-	leadMod := roleSpecNamed("Lead Mod")
-	mods := roleSpecNamed("Mods")
-	regulars := roleSpecNamed("Regulars")
-
-	if got := rolePermissions(leadMod); got != "8" {
-		t.Fatalf("Lead Mod permissions = %q, want \"8\" (Administrator)", got)
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.want, d.chats)
+		})
 	}
-	if got := rolePermissions(mods); got == "" || got == "0" {
-		t.Fatalf("Mods permissions = %q, want the moderator set", got)
-	}
-	if got := rolePermissions(regulars); got != "" {
-		t.Fatalf("Regulars permissions = %q, want empty (grants nothing)", got)
-	}
-}
-
-func (r *guildRecorder) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
-	if r.channelErr != nil {
-		return discapi.ChannelInfo{}, r.channelErr
-	}
-	guild := "guild-1"
-	if r.channelGuilds != nil {
-		guild = r.channelGuilds[id]
-	}
-	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
 }

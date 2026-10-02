@@ -1,313 +1,197 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package modules
+package modules_test
 
 import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/discord/engine/module"
+	"ItsBagelBot/app/discord/engine/modules"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/discord/linkguard"
+	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type fakeGuard struct {
-	verdicts map[string]linkguard.Verdict
-	seen     []linkguard.Sighting
-}
+type sightingFlags struct{ Moderator, Allowed bool }
 
-func (f *fakeGuard) Observe(_ context.Context, s linkguard.Sighting) linkguard.Verdict {
-	f.seen = append(f.seen, s)
-	norm, invite := linkguard.NormalizeLink(s.Link)
-	if v, ok := f.verdicts[norm]; ok {
-		return v
+func guardWith(trips, valkeyErrors []string) *fakeGuard {
+	verdicts := map[string]linkguard.Verdict{}
+	for _, link := range trips {
+		norm, _ := linkguard.NormalizeLink(link)
+		_, invite := linkguard.NormalizeLink(link)
+		verdicts[norm] = linkguard.Verdict{
+			Reason: linkguard.ReasonChannelThreshold, NormalizedLink: norm, IsInvite: invite, GuildTripped: true,
+		}
 	}
-	return linkguard.Verdict{Allow: true, Reason: linkguard.ReasonBelowThreshold, NormalizedLink: norm, IsInvite: invite}
-}
-
-func trip(link, reason string) linkguard.Verdict {
-	norm, invite := linkguard.NormalizeLink(link)
-	return linkguard.Verdict{Allow: false, Reason: reason, NormalizedLink: norm, IsInvite: invite, GuildTripped: true}
-}
-
-type fakeOwnInvite struct {
-	own map[string]bool
-	err error
-
-	calls []string
-}
-
-func (f *fakeOwnInvite) IsOwnGuildInvite(_ context.Context, _ string, rawLink string) (bool, error) {
-	f.calls = append(f.calls, rawLink)
-	if f.err != nil {
-		return false, f.err
+	for _, link := range valkeyErrors {
+		norm, _ := linkguard.NormalizeLink(link)
+		verdicts[norm] = linkguard.Verdict{Allow: true, Reason: linkguard.ReasonValkeyError, NormalizedLink: norm}
 	}
-	return f.own[rawLink], nil
+	return &fakeGuard{verdicts: verdicts}
 }
 
-type messageEventInput struct {
-	ID        string
-	GuildID   string
-	ChannelID string
-	AuthorID  string
-	Content   string
-	Bot       bool
-	Roles     []string
-}
-
-func messageEventRaw(t *testing.T, in messageEventInput) []byte {
+func messageEvent(t *testing.T, content string, bot bool, roles []string) []byte {
 	t.Helper()
 	raw, err := codec.Marshal(map[string]any{
-		"id": in.ID, "guild_id": in.GuildID, "channel_id": in.ChannelID, "content": in.Content,
-		"author": map[string]any{"id": in.AuthorID, "bot": in.Bot},
-		"member": map[string]any{"roles": in.Roles},
+		"id": "m1", "guild_id": "g1", "channel_id": "c3", "content": content,
+		"author": map[string]any{"id": "u1", "bot": bot},
+		"member": map[string]any{"roles": roles},
 	})
-	if err != nil {
-		t.Fatalf("marshal message event: %v", err)
-	}
+	require.NoError(t, err)
 	return raw
 }
 
-func linkGuardContext(cfg ddiscord.Config, raw []byte) *module.Context {
-	return &module.Context{
-		Event:         ddiscord.Event{Type: "MESSAGE_CREATE", GuildID: cfg.GuildID, Raw: raw},
-		Config:        cfg,
-		BroadcasterID: "999",
-		Log:           zap.NewNop(),
+func TestLinkGuard(t *testing.T) {
+	const (
+		spam    = "discord.gg/spamcode"
+		own     = "discord.gg/ourownserver"
+		other   = "discord.gg/someoneelses"
+		partner = "discord.gg/partner"
+		plain   = "check out discord.gg/abc123"
+	)
+	cases := []struct {
+		name         string
+		content      string
+		bot          bool
+		roles        []string
+		allowList    string
+		trips        []string
+		valkeyErrors []string
+		ownLinks     map[string]bool
+		ownErr       error
+		wantDeletes  int
+		wantSeen     []sightingFlags
+		wantOwnCalls []string
+	}{
+		{name: "TestLinkGuardResolutionNotAttemptedForNonTrippingLink: a link below threshold is untouched and never resolved",
+			content: plain, wantSeen: []sightingFlags{{}}},
+		{name: "a threshold trip deletes the message with its reason",
+			content: "join now " + spam, trips: []string{spam}, wantDeletes: 1, wantSeen: []sightingFlags{{}}, wantOwnCalls: []string{spam}},
+		{name: "a moderator repost is exempt",
+			content: spam, roles: []string{"modsrole"}, wantSeen: []sightingFlags{{Moderator: true}}},
+		{name: "an allow-listed link is exempt",
+			content: partner, allowList: partner, wantSeen: []sightingFlags{{Allowed: true}}},
+		{name: "TestLinkGuardOwnInviteTripIsNotDeleted",
+			content: own, trips: []string{own}, ownLinks: map[string]bool{own: true}, wantSeen: []sightingFlags{{}}, wantOwnCalls: []string{own}},
+		{name: "TestLinkGuardOtherGuildInviteStillDeleted",
+			content: other, trips: []string{other}, ownLinks: map[string]bool{other: false}, wantDeletes: 1, wantSeen: []sightingFlags{{}}, wantOwnCalls: []string{other}},
+		{name: "TestLinkGuardOwnInviteRPCFailureSkipsAction",
+			content: spam, trips: []string{spam}, ownErr: errors.New("outgress rpc timeout"), wantSeen: []sightingFlags{{}}, wantOwnCalls: []string{spam}},
+		{name: "a bot author is ignored",
+			content: spam, bot: true},
+		{name: "a Valkey error fails open",
+			content: spam, valkeyErrors: []string{spam}, wantSeen: []sightingFlags{{}}},
+		{name: "three tripped links in one message delete once and are all recorded",
+			content: "discord.gg/one discord.gg/two discord.gg/three", trips: []string{"discord.gg/one", "discord.gg/two", "discord.gg/three"},
+			wantDeletes: 1, wantSeen: []sightingFlags{{}, {}, {}}, wantOwnCalls: []string{"discord.gg/one"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			guard := guardWith(tc.trips, tc.valkeyErrors)
+			ownInvite := &fakeOwnInvite{own: tc.ownLinks, err: tc.ownErr}
+			cfg := ddiscord.Config{GuildID: "g1", ModsRoleID: "modsrole", LinkGuardEnabled: "on", LinkAllowList: tc.allowList}
+			handler := modules.LinkGuard(guard, ownInvite, zap.NewNop()).Events["MESSAGE_CREATE"]
+			var emitted []ddiscord.Command
+			c := &module.Context{
+				Event:  ddiscord.Event{Type: "MESSAGE_CREATE", GuildID: "g1", Raw: messageEvent(t, tc.content, tc.bot, tc.roles)},
+				Config: cfg, BroadcasterID: "999", Log: zap.NewNop(),
+			}
+
+			require.NoError(t, handler(context.Background(), c, func(cmd ddiscord.Command) { emitted = append(emitted, cmd) }))
+
+			require.Len(t, emitted, tc.wantDeletes, "only deletes are emitted")
+			for _, cmd := range emitted {
+				requireDeletesTheMessage(t, cmd)
+			}
+			require.Equal(t, tc.wantSeen, flagsOf(guard.seen))
+			require.Equal(t, tc.wantOwnCalls, ownInvite.calls)
+		})
 	}
 }
 
-func onGuardConfig() ddiscord.Config {
-	return ddiscord.Config{GuildID: "g1", ModsRoleID: "modsrole", LinkGuardEnabled: "on"}
-}
-
-func runLinkGuard(t *testing.T, guard *fakeGuard, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
-	t.Helper()
-	return runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: &fakeOwnInvite{}, Cfg: cfg, Raw: raw})
-}
-
-type linkGuardRun struct {
-	Guard *fakeGuard
-	Own   *fakeOwnInvite
-	Cfg   ddiscord.Config
-	Raw   []byte
-}
-
-func runLinkGuardWithOwn(t *testing.T, in linkGuardRun) []ddiscord.Command {
-	t.Helper()
-	mod := LinkGuard(in.Guard, in.Own, zap.NewNop())
-	handler, ok := mod.Events["MESSAGE_CREATE"]
-	if !ok {
-		t.Fatal("LinkGuard did not register MESSAGE_CREATE")
-	}
-	var emitted []ddiscord.Command
-	err := handler(context.Background(), linkGuardContext(in.Cfg, in.Raw), func(c ddiscord.Command) { emitted = append(emitted, c) })
-	if err != nil {
-		t.Fatalf("handler returned error: %v", err)
-	}
-	return emitted
-}
-
-func deleteCommands(cmds []ddiscord.Command) []ddiscord.Command {
-	var out []ddiscord.Command
-	for _, c := range cmds {
-		if c.Type == ddiscord.TypeDeleteMessage {
-			out = append(out, c)
-		}
+func flagsOf(seen []linkguard.Sighting) []sightingFlags {
+	var out []sightingFlags
+	for _, s := range seen {
+		out = append(out, sightingFlags{Moderator: s.Moderator, Allowed: s.Allowed})
 	}
 	return out
 }
 
-func TestLinkGuardBelowThresholdUntouched(t *testing.T) {
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: "check out discord.gg/abc123"})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	if got := deleteCommands(cmds); len(got) != 0 {
-		t.Fatalf("delete commands = %d, want 0 (cmds %+v)", len(got), got)
-	}
-	if len(guard.seen) != 1 {
-		t.Fatalf("guard.Observe called %d times, want 1", len(guard.seen))
-	}
-}
-
-func TestLinkGuardThresholdTripDeletesWithReason(t *testing.T) {
-	const link = "discord.gg/spamcode"
-	norm, _ := linkguard.NormalizeLink(link)
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{norm: trip(link, linkguard.ReasonChannelThreshold)}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c3", AuthorID: "u1", Content: "join now " + link})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	dels := deleteCommands(cmds)
-	if len(dels) != 1 {
-		t.Fatalf("delete commands = %d, want exactly 1 (cmds %+v)", len(dels), cmds)
-	}
-	d := dels[0]
-	if d.ChannelID != "c3" || d.GuildID != "g1" {
-		t.Errorf("delete targets guild=%q channel=%q, want g1/c3", d.GuildID, d.ChannelID)
-	}
-	if d.Reason == "" {
-		t.Error("Reason is empty, want the tripped threshold recorded for the audit log")
-	}
+func requireDeletesTheMessage(t *testing.T, cmd ddiscord.Command) {
+	t.Helper()
+	require.Equal(t, ddiscord.TypeDeleteMessage, cmd.Type)
+	require.Equal(t, [2]string{"g1", "c3"}, [2]string{cmd.GuildID, cmd.ChannelID})
+	require.NotEmpty(t, cmd.Reason, "the tripped threshold is recorded for the audit log")
 	var payload ddiscord.DeletePayload
-	if err := codec.Unmarshal(d.Payload, &payload); err != nil {
-		t.Fatalf("unmarshal delete payload: %v", err)
-	}
-	if payload.MessageID != "m1" {
-		t.Errorf("MessageID = %q, want m1", payload.MessageID)
-	}
+	require.NoError(t, codec.Unmarshal(cmd.Payload, &payload))
+	require.Equal(t, "m1", payload.MessageID)
 }
 
-func TestLinkGuardModeratorRepostExempt(t *testing.T) {
-	const link = "discord.gg/spamcode"
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link, Roles: []string{"modsrole"}})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	if len(deleteCommands(cmds)) != 0 {
-		t.Fatalf("delete commands present for a moderator repost, want none (cmds %+v)", cmds)
+func TestOwnInviteChecker(t *testing.T) {
+	const (
+		positiveTTL = 24 * time.Hour
+		negativeTTL = linkguard.Window
+	)
+	type lookup struct {
+		guildID string
+		wantOwn bool
+		wantErr bool
 	}
-	if len(guard.seen) != 1 || !guard.seen[0].Moderator {
-		t.Fatalf("Sighting.Moderator = %v, want true", guard.seen[0].Moderator)
+	cases := []struct {
+		name      string
+		link      string
+		reply     discordoutgress.InviteResolveReply
+		rpcErr    error
+		lookups   []lookup
+		wantCalls int
+		wantCache map[string]cachedGuild
+	}{
+		{name: "TestOwnInviteResolvesAndCachesPositive", link: "discord.gg/abc",
+			reply:     discordoutgress.InviteResolveReply{GuildID: "g1"},
+			lookups:   []lookup{{guildID: "g1", wantOwn: true}},
+			wantCalls: 1, wantCache: map[string]cachedGuild{"abc": {GuildID: "g1", TTL: positiveTTL}}},
+		{name: "TestOwnInviteSecondLookupHitsCacheNotResolver", link: "discord.gg/abc",
+			reply:     discordoutgress.InviteResolveReply{GuildID: "g1"},
+			lookups:   []lookup{{guildID: "g1", wantOwn: true}, {guildID: "g2"}},
+			wantCalls: 1, wantCache: map[string]cachedGuild{"abc": {GuildID: "g1", TTL: positiveTTL}}},
+		{name: "TestOwnInviteNotFoundCachesNegative", link: "discord.gg/dead",
+			reply:     discordoutgress.InviteResolveReply{NotFound: true},
+			lookups:   []lookup{{guildID: "g1"}, {guildID: "g1"}},
+			wantCalls: 1, wantCache: map[string]cachedGuild{"dead": {TTL: negativeTTL}}},
+		{name: "TestOwnInviteRPCErrorNotCached", link: "discord.gg/abc",
+			rpcErr:    errors.New("nats timeout"),
+			lookups:   []lookup{{guildID: "g1", wantErr: true}, {guildID: "g1", wantErr: true}},
+			wantCalls: 2, wantCache: map[string]cachedGuild{}},
+		{name: "TestOwnInviteReplyErrorNotCached", link: "discord.gg/abc",
+			reply:     discordoutgress.InviteResolveReply{Error: "discord: rate limited"},
+			lookups:   []lookup{{guildID: "g1", wantErr: true}},
+			wantCalls: 1, wantCache: map[string]cachedGuild{}},
+		{name: "TestOwnInviteNonInviteLinkNeverResolves", link: "https://example.com/not-an-invite",
+			lookups: []lookup{{guildID: "g1"}}, wantCache: map[string]cachedGuild{}},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolver := &fakeInviteResolver{reply: tc.reply, err: tc.rpcErr}
+			cache := &memInviteCache{entries: map[string]cachedGuild{}}
+			checker := modules.NewOwnInviteChecker(resolver, cache)
 
-func TestLinkGuardAllowListedExempt(t *testing.T) {
-	const link = "discord.gg/partner"
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	cfg := onGuardConfig()
-	cfg.LinkAllowList = "discord.gg/partner"
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
+			for _, l := range tc.lookups {
+				own, err := checker.IsOwnGuildInvite(context.Background(), l.guildID, tc.link)
 
-	cmds := runLinkGuard(t, guard, cfg, raw)
+				require.Equal(t, l.wantErr, err != nil)
+				require.Equal(t, l.wantOwn, own)
+			}
 
-	if len(deleteCommands(cmds)) != 0 {
-		t.Fatalf("delete commands present for an allow-listed link, want none (cmds %+v)", cmds)
-	}
-	if len(guard.seen) != 1 || !guard.seen[0].Allowed {
-		t.Fatalf("Sighting.Allowed = %v, want true", guard.seen[0].Allowed)
-	}
-}
-
-func TestLinkGuardOwnInviteTripIsNotDeleted(t *testing.T) {
-	const link = "discord.gg/ourownserver"
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	norm, _ := linkguard.NormalizeLink(link)
-	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
-	own := &fakeOwnInvite{own: map[string]bool{link: true}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
-
-	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
-
-	if len(deleteCommands(cmds)) != 0 {
-		t.Fatalf("delete commands present for the guild's own invite, want none (cmds %+v)", cmds)
-	}
-	if len(own.calls) != 1 || own.calls[0] != link {
-		t.Fatalf("IsOwnGuildInvite calls = %v, want exactly [%q]", own.calls, link)
-	}
-	if len(guard.seen) != 1 {
-		t.Fatalf("guard.Observe called %d times, want 1 (the trip is still counted)", len(guard.seen))
-	}
-}
-
-func TestLinkGuardOtherGuildInviteStillDeleted(t *testing.T) {
-	const link = "discord.gg/someoneelses"
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	norm, _ := linkguard.NormalizeLink(link)
-	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
-	own := &fakeOwnInvite{own: map[string]bool{link: false}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
-
-	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
-
-	if len(deleteCommands(cmds)) != 1 {
-		t.Fatalf("delete commands = %d, want exactly 1 for another guild's invite (cmds %+v)", len(deleteCommands(cmds)), cmds)
-	}
-	if len(own.calls) != 1 {
-		t.Fatalf("IsOwnGuildInvite calls = %d, want 1", len(own.calls))
-	}
-}
-
-func TestLinkGuardResolutionNotAttemptedForNonTrippingLink(t *testing.T) {
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	own := &fakeOwnInvite{}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: "check out discord.gg/abc123"})
-
-	runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
-
-	if len(own.calls) != 0 {
-		t.Fatalf("IsOwnGuildInvite called %d times for a non-tripping link, want 0", len(own.calls))
-	}
-}
-
-func TestLinkGuardOwnInviteRPCFailureSkipsAction(t *testing.T) {
-	const link = "discord.gg/unresolvable"
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	norm, _ := linkguard.NormalizeLink(link)
-	guard.verdicts[norm] = trip(link, linkguard.ReasonChannelThreshold)
-	own := &fakeOwnInvite{err: errors.New("outgress rpc timeout")}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
-
-	cmds := runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: own, Cfg: onGuardConfig(), Raw: raw})
-
-	if len(deleteCommands(cmds)) != 0 {
-		t.Fatalf("delete commands present after an unresolvable invite check, want none -- must fail safe (cmds %+v)", cmds)
-	}
-}
-
-func TestLinkGuardBotAuthorIgnored(t *testing.T) {
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "bot1", Content: "discord.gg/spamcode", Bot: true})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	if len(cmds) != 0 {
-		t.Fatalf("commands emitted for a bot author, want none (cmds %+v)", cmds)
-	}
-	if len(guard.seen) != 0 {
-		t.Fatalf("guard.Observe called for a bot author, want 0 calls")
-	}
-}
-
-func TestLinkGuardValkeyErrorAllows(t *testing.T) {
-	const link = "discord.gg/spamcode"
-	norm, _ := linkguard.NormalizeLink(link)
-	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{
-		norm: {Allow: true, Reason: linkguard.ReasonValkeyError, NormalizedLink: norm},
-	}}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: link})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	if len(deleteCommands(cmds)) != 0 {
-		t.Fatalf("delete commands present after a Valkey error, want none -- must fail open (cmds %+v)", cmds)
-	}
-}
-
-func TestLinkGuardThreeLinksAtMostOneDelete(t *testing.T) {
-	links := []string{"discord.gg/one", "discord.gg/two", "discord.gg/three"}
-	verdicts := map[string]linkguard.Verdict{}
-	for _, l := range links {
-		norm, _ := linkguard.NormalizeLink(l)
-		verdicts[norm] = trip(l, linkguard.ReasonChannelThreshold)
-	}
-	guard := &fakeGuard{verdicts: verdicts}
-	raw := messageEventRaw(t, messageEventInput{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", Content: links[0] + " " + links[1] + " " + links[2]})
-
-	cmds := runLinkGuard(t, guard, onGuardConfig(), raw)
-
-	if got := deleteCommands(cmds); len(got) != 1 {
-		t.Fatalf("delete commands = %d, want exactly 1 for one message with three tripped links (cmds %+v)", len(got), cmds)
-	}
-	if len(guard.seen) != 3 {
-		t.Fatalf("guard.Observe called %d times, want 3 (every link still recorded)", len(guard.seen))
+			require.Equal(t, tc.wantCalls, resolver.calls)
+			require.Equal(t, tc.wantCache, cache.entries)
+		})
 	}
 }

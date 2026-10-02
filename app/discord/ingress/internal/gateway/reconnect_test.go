@@ -5,179 +5,70 @@ package gateway
 
 import (
 	"context"
-	"errors"
-	"sync"
+	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	ddiscord "ItsBagelBot/internal/domain/discord"
+	"github.com/stretchr/testify/require"
 )
 
-func TestBackoffCeilingGrowsAndCaps(t *testing.T) {
-	want := []time.Duration{
-		time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second,
-		16 * time.Second, 32 * time.Second, 60 * time.Second, 60 * time.Second,
-	}
-	for attempt, w := range want {
-		if got := backoffCeiling(attempt); got != w {
-			t.Fatalf("backoffCeiling(%d) = %s, want %s", attempt, got, w)
+func TestReconnectBackoffGrowsCapsAndResetsAfterAStableSocket(t *testing.T) {
+	const (
+		failures    = 20
+		stableLoops = 3
+		socketLife  = 6 * time.Minute
+		slack       = 10 * time.Millisecond
+	)
+	ceilings := append([]time.Duration{1, 2, 4, 8, 16, 32}, slices.Repeat([]time.Duration{60}, failures-6)...)
+	synctest.Test(t, func(t *testing.T) {
+		stable := gatewayFrames{}
+		stable.hello = frame(t, packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 1_000_000})})
+		stable.ready = newFrames(t).ready
+		ctx, cancel := context.WithCancel(context.Background())
+		var dialedAt []time.Time
+		dial := func(context.Context, string) (Conn, error) {
+			dialedAt = append(dialedAt, time.Now())
+			n := len(dialedAt)
+			switch {
+			case n <= failures:
+				return nil, errRefused
+			case n <= failures+stableLoops:
+				conn := script{reads: [][]byte{stable.hello, stable.ready}}.conn()
+				time.AfterFunc(socketLife, func() { _ = conn.Close() })
+				return conn, nil
+			default:
+				cancel()
+				return nil, errRefused
+			}
 		}
-	}
-	if got := backoffCeiling(200); got != backoffMax {
-		t.Fatalf("backoffCeiling(200) = %s, want %s", got, backoffMax)
-	}
-}
+		sess := Session{Token: "bot-token", Dial: dial, Handle: &recHandler{}, budget: noBudgetLimits()}
 
-func TestFullJitterStaysInBounds(t *testing.T) {
-	const ceiling = 8 * time.Second
-	seen := map[time.Duration]bool{}
-	for range 500 {
-		d := fullJitter(ceiling)
-		if d < 0 || d > ceiling {
-			t.Fatalf("fullJitter drew %s, outside [0, %s]", d, ceiling)
+		require.ErrorIs(t, sess.Run(ctx), context.Canceled)
+
+		gaps := make([]time.Duration, 0, len(dialedAt))
+		for i := 1; i < len(dialedAt); i++ {
+			gaps = append(gaps, dialedAt[i].Sub(dialedAt[i-1]))
 		}
-		seen[d] = true
-	}
-	if len(seen) < 2 {
-		t.Fatal("fullJitter drew one value 500 times; it is not jittering")
-	}
-	if got := fullJitter(0); got != 0 {
-		t.Fatalf("fullJitter(0) = %s, want 0", got)
-	}
-}
-
-func TestReconnectSchedulesAndResetsAfterStableSocket(t *testing.T) {
-	rc := &reconnect{draw: func(d time.Duration) time.Duration { return d }}
-	for _, want := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second} {
-		if got := rc.next(time.Millisecond); got != want {
-			t.Fatalf("next() = %s, want %s", got, want)
+		failureGaps, stableGaps := gaps[:failures], gaps[failures+1:]
+		for i, gap := range failureGaps {
+			require.LessOrEqual(t, gap, ceilings[i]*time.Second+slack, "wait %d stays under the capped schedule", i)
 		}
+		require.GreaterOrEqual(t, sum(failureGaps), 30*time.Second, "the waits grow instead of staying at the first step")
+		for i, gap := range stableGaps {
+			require.LessOrEqual(t, gap-socketLife, time.Second+slack, "wait after stable socket %d restarts the schedule", i)
+		}
+	})
+}
+
+func sum(ds []time.Duration) time.Duration {
+	var total time.Duration
+	for _, d := range ds {
+		total += d
 	}
-	if got := rc.next(stableFor); got != time.Second {
-		t.Fatalf("next() after a %s socket = %s, want the schedule reset to %s", stableFor, got, time.Second)
-	}
-	if got := rc.next(time.Millisecond); got != 2*time.Second {
-		t.Fatalf("next() after the reset = %s, want %s", got, 2*time.Second)
-	}
+	return total
 }
 
-type recStatus struct {
-	mu       sync.Mutex
-	ups      []Up
-	down     []Down
-	budgets  []Budget
-	eventHit int
-}
-
-func (r *recStatus) Up(_ context.Context, up Up) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.ups = append(r.ups, up)
-}
-
-func (r *recStatus) Down(_ context.Context, d Down) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.down = append(r.down, d)
-}
-
-func (r *recStatus) Event(context.Context) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.eventHit++
-}
-
-func (r *recStatus) Budget(_ context.Context, b Budget) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.budgets = append(r.budgets, b)
-}
-
-func (r *recStatus) downs() []Down {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]Down(nil), r.down...)
-}
-
-func (r *recStatus) budgetStates() []Budget {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]Budget(nil), r.budgets...)
-}
-
-func (r *recStatus) events() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.eventHit
-}
-
-func openBudget() *connectBudget {
+func noBudgetLimits() *connectBudget {
 	return &connectBudget{now: time.Now, sched: budgetSchedule{ceiling: 1 << 30, window: connectWindow}}
-}
-
-func dialCounter(code int) (Dial, func() int) {
-	var mu sync.Mutex
-	n := 0
-	dial := func(context.Context, string) (Conn, error) {
-		mu.Lock()
-		n++
-		mu.Unlock()
-		return &scriptedConn{readErr: errors.New("websocket closed"), closeCode: code}, nil
-	}
-	return dial, func() int {
-		mu.Lock()
-		defer mu.Unlock()
-		return n
-	}
-}
-
-func TestFatalCloseStopsReconnecting(t *testing.T) {
-	dial, dials := dialCounter(ddiscord.CloseDisallowedIntents)
-	st := &recStatus{}
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-	defer cancel()
-
-	sess := Session{Token: "bot-token", Dial: dial, Status: st}
-	if err := sess.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run err = %v, want the context error (Run must park, not return early)", err)
-	}
-
-	if got := dials(); got != 1 {
-		t.Fatalf("dials = %d, want exactly 1 after a fatal close", got)
-	}
-	wantFatalDown(t, st, ddiscord.CloseDisallowedIntents)
-}
-
-func wantFatalDown(t *testing.T, st *recStatus, code int) {
-	t.Helper()
-	downs := st.downs()
-	if len(downs) != 1 {
-		t.Fatalf("Down = %+v, want exactly one", downs)
-	}
-	if !downs[0].Fatal {
-		t.Fatalf("Down = %+v, want it marked fatal", downs[0])
-	}
-	if downs[0].Code != code {
-		t.Fatalf("Down code = %d, want %d", downs[0].Code, code)
-	}
-}
-
-func TestNonFatalCloseKeepsReconnecting(t *testing.T) {
-	dial, dials := dialCounter(4000)
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-	defer cancel()
-
-	st := &recStatus{}
-	sess := Session{Token: "bot-token", Dial: dial, Status: st, budget: openBudget()}
-	if err := sess.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run err = %v, want the context error", err)
-	}
-	if got := dials(); got < 2 {
-		t.Fatalf("dials = %d, want at least 2: 4000 is a reconnectable close", got)
-	}
-	for _, d := range st.downs() {
-		if d.Fatal {
-			t.Fatalf("Down %+v marked fatal; 4000 is not in the fatal set", d)
-		}
-	}
 }

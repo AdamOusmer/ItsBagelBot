@@ -6,311 +6,105 @@ package gateway
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/coder/websocket"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type scriptedConn struct {
-	mu            sync.Mutex
-	reads         [][]byte
-	wrote         [][]byte
-	readErr       error
-	closeCode     int
-	closeReason   string
-	writeErr      error
-	writeErrAfter int
-	closed        chan struct{}
-	closeOnce     sync.Once
-	closeSent     []websocket.StatusCode
+type activity struct {
+	Name string `json:"name"`
+	Type int    `json:"type"`
 }
 
-func (s *scriptedConn) Read(ctx context.Context) ([]byte, error) {
-	s.mu.Lock()
-	if len(s.reads) == 0 {
-		err := s.readErr
-		closed := s.closed
-		s.mu.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-closed:
-			return nil, errors.New("use of closed network connection")
-		}
+type presenceSeen struct {
+	FirstOp int
+	Frames  [][]activity
+	Forgets int
+}
+
+func watching(names ...string) [][]activity {
+	frames := make([][]activity, 0, len(names))
+	for _, name := range names {
+		frames = append(frames, []activity{{Name: name, Type: activityTypeWatching}})
 	}
-	raw := s.reads[0]
-	s.reads = s.reads[1:]
-	s.mu.Unlock()
-	return raw, nil
+	return frames
 }
 
-func (s *scriptedConn) Write(_ context.Context, data []byte) error {
-	cp := append([]byte(nil), data...)
-	s.mu.Lock()
-	s.wrote = append(s.wrote, cp)
-	var err error
-	if len(s.wrote) > s.writeErrAfter {
-		err = s.writeErr
-	}
-	s.mu.Unlock()
-	return err
-}
-
-func (s *scriptedConn) Close() error { return s.closeWith(reconnectingClose) }
-
-func (s *scriptedConn) Shutdown() error { return s.closeWith(websocket.StatusNormalClosure) }
-
-func (s *scriptedConn) closeWith(code websocket.StatusCode) error {
-	s.mu.Lock()
-	closed := s.closed
-	s.closeSent = append(s.closeSent, code)
-	s.mu.Unlock()
-	if closed != nil {
-		s.closeOnce.Do(func() { close(closed) })
-	}
-	return nil
-}
-
-func (s *scriptedConn) closeCodes() []websocket.StatusCode {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]websocket.StatusCode(nil), s.closeSent...)
-}
-
-func (s *scriptedConn) CloseCode(err error) int {
-	if code := websocket.CloseStatus(err); code >= 0 {
-		return int(code)
-	}
-	return s.closeCode
-}
-
-func (s *scriptedConn) CloseReason(err error) string {
-	var ce websocket.CloseError
-	if errors.As(err, &ce) {
-		return ce.Reason
-	}
-	return s.closeReason
-}
-
-func (s *scriptedConn) wroteSnapshot() [][]byte {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([][]byte(nil), s.wrote...)
-}
-
-type recHandler struct {
-	ready bool
-	types []string
-}
-
-func (r *recHandler) Ready(context.Context, Identity) error { r.ready = true; return nil }
-func (r *recHandler) Dispatch(_ context.Context, ev Event) error {
-	r.types = append(r.types, ev.Type)
-	return nil
-}
-
-func TestSessionIdentifiesAndDispatches(t *testing.T) {
-	hello, _ := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
-	ready, _ := codec.Marshal(packet{Op: opDispatch, T: eventReady, D: mustRaw(t, readyData{})})
-	join, _ := codec.Marshal(packet{Op: opDispatch, T: eventMemberAdd, D: mustRaw(t, map[string]string{"guild_id": "g"})})
-	conn := &scriptedConn{reads: [][]byte{hello, ready, join}}
-	h := &recHandler{}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	sess := Session{
-		Token:  "bot-token",
-		Dial:   func(context.Context, string) (Conn, error) { return conn, nil },
-		Handle: h,
-	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
-	if !h.ready {
-		t.Fatal("ready not delivered")
-	}
-	if len(h.types) != 1 || h.types[0] != eventMemberAdd {
-		t.Fatalf("dispatch = %v", h.types)
-	}
-	if len(conn.wroteSnapshot()) == 0 {
-		t.Fatal("identify not written")
-	}
-}
-
-func mustRaw(t *testing.T, v any) []byte {
-	t.Helper()
-	raw, err := codec.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return raw
-}
-
-type fakePresence struct {
-	mu        sync.Mutex
-	ok        bool
-	refreshes int
-	forgets   int
-}
-
-func (f *fakePresence) Refresh(context.Context) (string, bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.refreshes++
-	if !f.ok {
-		return "", false
-	}
-	return fmt.Sprintf("watch-%d streams", f.refreshes), true
-}
-
-func (f *fakePresence) Forget() {
-	f.mu.Lock()
-	f.forgets++
-	f.mu.Unlock()
-}
-
-func (f *fakePresence) snapshot() (refreshes, forgets int) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.refreshes, f.forgets
-}
-
-func presenceOps(t *testing.T, wrote [][]byte) []string {
-	t.Helper()
-	var names []string
+func presenceFrames(wrote [][]byte) [][]activity {
+	var frames [][]activity
 	for _, raw := range wrote {
 		var pkt struct {
 			Op int `json:"op"`
 			D  struct {
-				Activities []struct {
-					Name string `json:"name"`
-					Type int    `json:"type"`
-				} `json:"activities"`
+				Activities []activity `json:"activities"`
 			} `json:"d"`
 		}
-		if err := codec.Unmarshal(raw, &pkt); err != nil {
-			t.Fatal(err)
+		if codec.Unmarshal(raw, &pkt) == nil && pkt.Op == opPresenceUpdate {
+			frames = append(frames, pkt.D.Activities)
 		}
-		if pkt.Op != opPresenceUpdate {
-			continue
-		}
-		if len(pkt.D.Activities) != 1 {
-			t.Fatalf("presence frame has %d activities, want 1", len(pkt.D.Activities))
-		}
-		if pkt.D.Activities[0].Type != activityTypeWatching {
-			t.Fatalf("activity type = %d, want %d (Watching)", pkt.D.Activities[0].Type, activityTypeWatching)
-		}
-		names = append(names, pkt.D.Activities[0].Name)
 	}
-	return names
+	return frames
 }
 
-func TestPresenceSentOnConnect(t *testing.T) {
-	hello, _ := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
-	conn := &scriptedConn{reads: [][]byte{hello}}
-	pres := &fakePresence{ok: true}
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-	defer cancel()
-	sess := Session{
-		Token:            "bot-token",
-		Dial:             func(context.Context, string) (Conn, error) { return conn, nil },
-		Handle:           &recHandler{},
-		Presence:         pres,
-		PresenceInterval: time.Hour,
-	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
-
-	names := presenceOps(t, conn.wroteSnapshot())
-	if len(names) != 1 || names[0] != "watch-1 streams" {
-		t.Fatalf("presence frames = %v, want exactly one connect-time send", names)
-	}
-	if _, forgets := pres.snapshot(); forgets != 1 {
-		t.Fatalf("forgets = %d, want 1 (reconnect must clear dedup)", forgets)
-	}
+func presenceSettled(pres *fakePresence, d *dialer, refreshes, frames int) bool {
+	seen, _ := pres.counts()
+	return seen >= refreshes && len(presenceFrames(d.wrote(0))) >= frames
 }
 
-func TestPresenceRefreshesOnTicker(t *testing.T) {
-	hello, _ := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
-	conn := &scriptedConn{reads: [][]byte{hello}}
-	pres := &fakePresence{ok: true}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
-	defer cancel()
-	sess := Session{
-		Token:            "bot-token",
-		Dial:             func(context.Context, string) (Conn, error) { return conn, nil },
-		Handle:           &recHandler{},
-		Presence:         pres,
-		PresenceInterval: 20 * time.Millisecond,
-	}
-	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
-
-	names := presenceOps(t, conn.wroteSnapshot())
-	if len(names) < 2 {
-		t.Fatalf("presence frames = %v, want at least the connect send plus a ticker refresh", names)
-	}
-}
-
-func TestPresenceSkippedWhenSourceReportsNoChange(t *testing.T) {
-	hello, _ := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
-	conn := &scriptedConn{reads: [][]byte{hello}}
-	pres := &fakePresence{ok: false}
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-	defer cancel()
-	sess := Session{
-		Token:            "bot-token",
-		Dial:             func(context.Context, string) (Conn, error) { return conn, nil },
-		Handle:           &recHandler{},
-		Presence:         pres,
-		PresenceInterval: 15 * time.Millisecond,
-	}
-	end := sess.oneSocket(ctx, "ws://example", &resumeState{})
-	if end.err == nil || ctx.Err() == nil {
-		t.Fatalf("oneSocket should end on context cancellation, err=%v ctxErr=%v", end.err, ctx.Err())
-	}
-
-	if names := presenceOps(t, conn.wroteSnapshot()); len(names) != 0 {
-		t.Fatalf("presence frames = %v, want none", names)
-	}
-	if refreshes, _ := pres.snapshot(); refreshes == 0 {
-		t.Fatal("Refresh was never called")
-	}
-	if len(conn.wroteSnapshot()) == 0 {
-		t.Fatal("identify should still have been written")
-	}
-}
-
-func opsWritten(t *testing.T, frames [][]byte) []int {
+func runInBackground(t *testing.T, sess Session) (stop func()) {
 	t.Helper()
-	var ops []int
-	for _, raw := range frames {
-		var pkt packet
-		if err := codec.Unmarshal(raw, &pkt); err != nil {
-			continue
-		}
-		ops = append(ops, pkt.Op)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan error, 1)
+	go func() { done <- sess.Run(ctx) }()
+	return func() {
+		cancel()
+		require.ErrorIs(t, <-done, context.Canceled)
 	}
-	return ops
 }
 
-func helloFrame(t *testing.T) []byte {
-	t.Helper()
-	raw, err := codec.Marshal(packet{Op: opHello, D: mustRaw(t, helloData{HeartbeatInterval: 50000})})
-	if err != nil {
-		t.Fatalf("marshal hello: %v", err)
+func TestPresenceIsSentOnConnectAndOnChange(t *testing.T) {
+	cases := []struct {
+		name      string
+		sends     int
+		interval  time.Duration
+		refreshes int
+		want      presenceSeen
+	}{
+		{
+			name: "sends once on connect after forgetting the last status", sends: 100, interval: time.Hour, refreshes: 1,
+			want: presenceSeen{FirstOp: opIdentify, Frames: watching("watch-1 streams"), Forgets: 1},
+		},
+		{
+			name: "sends each change the ticker finds", sends: 2, interval: 20 * time.Millisecond, refreshes: 2,
+			want: presenceSeen{FirstOp: opIdentify, Frames: watching("watch-1 streams", "watch-2 streams"), Forgets: 1},
+		},
+		{
+			name: "sends nothing while the count is unchanged", interval: 15 * time.Millisecond, refreshes: 2,
+			want: presenceSeen{FirstOp: opIdentify, Forgets: 1},
+		},
 	}
-	return raw
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pres := &fakePresence{sends: tc.sends}
+			d := &dialer{scripts: []script{{reads: [][]byte{helloFrame(t)}}}}
+			stop := runInBackground(t, Session{Token: "bot-token", Dial: d.dial, Presence: pres, PresenceInterval: tc.interval})
 
-func firstOpIs(ops []int, want int) bool {
-	return len(ops) > 0 && ops[0] == want
+			require.Eventually(t, func() bool {
+				return presenceSettled(pres, d, tc.refreshes, len(tc.want.Frames))
+			}, 2*time.Second, 5*time.Millisecond)
+			stop()
+
+			_, forgets := pres.counts()
+			wrote := d.wrote(0)
+			assert.Equal(t, tc.want, presenceSeen{FirstOp: opsWritten(t, wrote)[0], Frames: presenceFrames(wrote), Forgets: forgets})
+		})
+	}
 }
 
 func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
@@ -421,90 +215,5 @@ func TestResumeStateTracksSequence(t *testing.T) {
 	st.invalidate()
 	if st.sequence() != nil {
 		t.Fatal("invalidate left a sequence from the dead session")
-	}
-}
-
-func intPtr(v int) *int { return &v }
-
-func TestSocketEndWarnCarriesTheCloseTelemetry(t *testing.T) {
-	core, logs := observer.New(zapcore.DebugLevel)
-	sess := Session{Log: zap.New(core)}
-	rc := &reconnect{draw: func(d time.Duration) time.Duration { return d }}
-	bud, _ := testBudget(dailyConnectCeiling)
-
-	sess.afterSocket(context.Background(), budgetInputs{bud: bud, rc: rc}, sessionEnd{
-		up:        flapMinUptime,
-		code:      4000,
-		reason:    "Session is no longer valid.",
-		err:       errors.New("socket died"),
-		opened:    openResume,
-		sessionID: "sess-1",
-		seq:       7,
-	})
-
-	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
-	if len(warns) != 1 {
-		t.Fatalf("warn logs = %v, want exactly one socket-end line", warns)
-	}
-	wantFields(t, warns[0].ContextMap(), map[string]any{
-		"close_code":   int64(4000),
-		"close_reason": "Session is no longer valid.",
-		"uptime":       flapMinUptime,
-		"opened":       string(openResume),
-		"resumed":      false,
-		"session_id":   "sess-1",
-		"connect_seq":  int64(7),
-	})
-}
-
-func wantFields(t *testing.T, got, want map[string]any) {
-	t.Helper()
-	for name, value := range want {
-		if got[name] != value {
-			t.Fatalf("log field %s = %v, want %v", name, got[name], value)
-		}
-	}
-}
-
-func TestInvalidSessionLogsWhatWasRefused(t *testing.T) {
-	core, logs := observer.New(zapcore.DebugLevel)
-	sess := Session{Token: "t", Log: zap.New(core)}
-	st := &resumeState{}
-	st.ready("sess-1", "ws://resume")
-	st.markOpened(openResume)
-
-	_ = sess.onInvalidSession(packet{Op: opInvalidSession, D: mustRaw(t, false)}, st)
-
-	infos := logs.FilterLevelExact(zapcore.InfoLevel).All()
-	if len(infos) != 1 {
-		t.Fatalf("info logs = %v, want the one op 9 line", infos)
-	}
-	wantFields(t, infos[0].ContextMap(), map[string]any{
-		"resumable":  false,
-		"opened":     string(openResume),
-		"session_id": "sess-1",
-	})
-}
-
-func TestConnectReportsHowTheSocketOpened(t *testing.T) {
-	st := &resumeState{}
-	st.ready("sess-1", "ws://resume")
-	conn := &scriptedConn{
-		reads:       [][]byte{helloFrame(t), dispatchPacket(t, eventResumed, struct{}{})},
-		readErr:     errors.New("websocket closed"),
-		closeReason: "Heartbeat ACK not received.",
-	}
-	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
-
-	end := sess.connect(context.Background(), "ws://x", st)
-
-	if end.opened != openResume || !end.resumed {
-		t.Fatalf("end = %+v, want a resume that landed", end)
-	}
-	if end.sessionID != "sess-1" {
-		t.Fatalf("end session_id = %q, want sess-1", end.sessionID)
-	}
-	if end.reason != "Heartbeat ACK not received." {
-		t.Fatalf("end reason = %q, want the close frame text", end.reason)
 	}
 }

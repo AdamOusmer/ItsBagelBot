@@ -6,11 +6,12 @@ package main
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/require"
 )
 
 type recordingPublisher struct {
@@ -36,23 +37,13 @@ func TestConfirmedPublisherSendsOnTheLaneWithAnIdentity(t *testing.T) {
 	pub := &recordingPublisher{}
 	cmd := ddiscord.Command{Type: ddiscord.TypeDeleteMessage, GuildID: "g1", ChannelID: "c1"}
 
-	if err := confirmedPublisher(pub)(context.Background(), cmd); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
+	require.NoError(t, confirmedPublisher(pub)(context.Background(), cmd))
 
-	if want := ddiscord.Lane(cmd.Type); pub.subject != want {
-		t.Fatalf("subject = %q, want %q", pub.subject, want)
-	}
-	if pub.id == "" {
-		t.Fatal("message id is empty; bus.PublishConfirmed refuses that publish outright")
-	}
+	require.Equal(t, ddiscord.Lane(cmd.Type), pub.subject)
+	require.NotEmpty(t, pub.id, "bus.PublishConfirmed refuses an empty message id outright")
 	var got ddiscord.Command
-	if err := codec.Unmarshal(pub.payload, &got); err != nil {
-		t.Fatalf("payload does not decode as a Command: %v", err)
-	}
-	if !reflect.DeepEqual(got, cmd) {
-		t.Fatalf("payload = %+v, want %+v", got, cmd)
-	}
+	require.NoError(t, codec.Unmarshal(pub.payload, &got))
+	require.Equal(t, cmd, got)
 }
 
 func TestConfirmedPublisherReturnsTheBrokerVerdict(t *testing.T) {
@@ -61,7 +52,5 @@ func TestConfirmedPublisherReturnsTheBrokerVerdict(t *testing.T) {
 
 	err := confirmedPublisher(pub)(context.Background(), ddiscord.Command{Type: "post"})
 
-	if !errors.Is(err, want) {
-		t.Fatalf("err = %v, want the publisher's own error", err)
-	}
+	require.ErrorIs(t, err, want)
 }
