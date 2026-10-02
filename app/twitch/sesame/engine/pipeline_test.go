@@ -227,12 +227,12 @@ func processEmissionCases() []processCase {
 
 	return []processCase{
 		{
-			name: "an emitted slash verb is translated", lane: "standard", text: "hi",
+			name: "TestEmitTranslatesSlashVerbOnModulePath", lane: "standard", text: "hi",
 			modules: []module.Module{emitModule("", module.KindCore, "/announcegreen big news")},
 			want:    []published{{standardSubj, outgress.TypeAnnounce, "green", "big news"}},
 		},
 		{
-			name: "an emitted empty slash action is dropped", lane: "standard", text: "hi",
+			name: "TestEmitDropsEmptySlashAction", lane: "standard", text: "hi",
 			modules: []module.Module{emitModule("", module.KindCore, "/shoutout")},
 		},
 		{
@@ -244,7 +244,7 @@ func processEmissionCases() []processCase {
 			modules: []module.Module{emitModule("", module.KindCore, "")},
 		},
 		{
-			name: "an emitted /me passes through untouched", lane: "standard", text: "hi",
+			name: "TestEmitLeavesMePassthrough", lane: "standard", text: "hi",
 			modules: []module.Module{emitModule("", module.KindCore, "/me waves")},
 			want:    []published{{standardSubj, outgress.TypeChat, "", "/me waves"}},
 		},

@@ -182,7 +182,7 @@ func replyBatchCases() []replyCase {
 			want:     []module.Output{chatLine("[spaced]")},
 		},
 		{
-			name:     "a suppressed line leaves a single survivor unbatched",
+			name:     "TestCustomMultiLineSuppressionDoesNotLeaveSequenceGap",
 			response: "grabify.link/bad\nsafe line",
 			msgID:    "event-message-3",
 			want:     []module.Output{chatLine("safe line")},

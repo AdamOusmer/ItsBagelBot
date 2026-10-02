@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDigestPoolGolden(t *testing.T) {
@@ -32,4 +33,33 @@ func TestDigestPoolBindsToTheExactPool(t *testing.T) {
 			assert.Equal(t, tc.same, DigestPool(tc.pool) == d)
 		})
 	}
+}
+
+func TestPickWinnersDistinctInRange(t *testing.T) {
+	pool := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	for range 200 {
+		pick := pickWinners(pool, 4)
+		require.Len(t, pick, 4)
+		seen := map[string]bool{}
+		for _, w := range pick {
+			assert.False(t, seen[w], "pick returned a duplicate winner")
+			seen[w] = true
+		}
+	}
+}
+
+func TestPickWinnersSingleCoversWholePool(t *testing.T) {
+	pool := []string{"a", "b", "c"}
+	hits := map[string]bool{}
+	for range 500 {
+		hits[pickWinners(pool, 1)[0]] = true
+	}
+	assert.Len(t, hits, 3, "a single-winner draw should reach every entrant over time")
+}
+
+func TestPickWinnersOversizedAskClampsToCeiling(t *testing.T) {
+	pool := []string{"a", "b", "c", "d", "e"}
+	pick := pickWinners(pool, 1<<40)
+	assert.ElementsMatch(t, pool, pick)
+	assert.Empty(t, pickWinners(pool, -5))
 }
