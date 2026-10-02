@@ -6,7 +6,7 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/button.css';
 import '../styles/elements/nav-link.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'href' | 'label' | 'current' | 'variant' | 'external' | 'block' | 'disabled' | 'hint' | 'fit' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'href' | 'label' | 'current' | 'variant' | 'external' | 'block' | 'disabled' | 'hint' | 'fit' | 'fitGroup' | 'class'> {
   href?: string;
   label?: string;
   current?: boolean;
@@ -16,6 +16,7 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'href' | 'label' | 'current'
   disabled?: boolean;
   hint?: string;
   fit?: boolean;
+  fitGroup?: string;
   class?: string;
 }
 
@@ -29,6 +30,7 @@ const {
   disabled = false,
   hint,
   fit = false,
+  fitGroup,
   class: className = '',
   ...rest
 } = Astro.props;
@@ -45,7 +47,7 @@ const classes = [
 ---
 
 {disabled ? (
-  <span class={classes} aria-disabled="true" {...rest}><slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined}><slot>{label}</slot></span><slot name="trailing" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
+  <span class={classes} aria-disabled="true" {...rest}><slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}><slot>{label}</slot></span><slot name="trailing" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
 ) : (
   <a
     class={classes}
@@ -54,5 +56,5 @@ const classes = [
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-  ><slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined}><slot>{label}</slot></span><slot name="trailing" /></a>
+  ><slot name="leading" /><span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}><slot>{label}</slot></span><slot name="trailing" /></a>
 )}

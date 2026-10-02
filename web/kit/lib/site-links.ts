@@ -30,6 +30,7 @@ export interface SiteLinkDef {
 export interface SiteColumnDef {
   key: string;
   links: readonly SiteLinkDef[];
+  stacked?: boolean;
 }
 
 export interface SiteLink {
@@ -42,6 +43,7 @@ export interface SiteLink {
 export interface SiteColumn {
   title: string;
   links: SiteLink[];
+  stacked?: boolean;
 }
 
 export interface SiteLinkContext {
@@ -73,18 +75,19 @@ export const SITE_FOOTER = [
     ],
   },
   {
-    key: 'compare',
-    links: [
-      { path: '/vs/nightbot', key: 'vsNightbot', englishOnly: true },
-      { path: '/vs/streamelements', key: 'vsStreamelements', englishOnly: true },
-    ],
-  },
-  {
     key: 'company',
     links: [
       { path: '/contact', key: 'contact' },
       { url: SITE.stats, key: 'stats' },
       { url: SITE.status, key: 'status' },
+    ],
+  },
+  {
+    key: 'compare',
+    stacked: true,
+    links: [
+      { path: '/vs/nightbot', key: 'vsNightbot', englishOnly: true },
+      { path: '/vs/streamelements', key: 'vsStreamelements', englishOnly: true },
     ],
   },
   {
@@ -131,6 +134,7 @@ export function resolveSiteColumns(
   return defs.map((column) => ({
     title: ctx.label(column.key),
     links: resolveSiteLinks(column.links, ctx),
+    ...(column.stacked ? { stacked: true } : {}),
   }));
 }
 

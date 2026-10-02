@@ -89,6 +89,12 @@ export const CASES: ParityCase[] = [
     props: { ...brand, logoShape: 'circle' },
   },
   {
+    name: 'BrandWordmark',
+    svelte: SvelteBrand,
+    astro: AstroBrand,
+    props: { ...brand, sub: 'One bot, every stream.', size: 'lg', wordmark: true, fit: true },
+  },
+  {
     name: 'Hamburger',
     svelte: SvelteHamburger,
     astro: AstroHamburger,
@@ -162,6 +168,24 @@ export const CASES: ParityCase[] = [
       legal: [{ href: '/privacy', label: 'Privacy' }],
       copyright: '© 2026 ItsBagelBot',
       note: 'Your data is never sold.',
+    },
+  },
+  {
+    name: 'FooterStacked',
+    svelte: SvelteFooter,
+    astro: AstroFooter,
+    props: {
+      brand: { title: 'ItsBagelBot', href: '/' },
+      columns: [
+        { title: 'Company', links: [{ href: '/contact', label: 'Contact' }] },
+        { title: 'Compare', links: [{ href: '/vs/nightbot', label: 'vs Nightbot' }], stacked: true },
+        { title: 'Community', links: [{ href: '/discord', label: 'Discord' }] },
+      ],
+      legal: [
+        { href: '/privacy', label: 'Privacy' },
+        { href: '/terms', label: 'Terms' },
+      ],
+      copyright: '© 2026 ItsBagelBot',
     },
   },
   {
