@@ -207,6 +207,45 @@ func TestCacheRevalidatesAStaleEntryOnceFleetWide(t *testing.T) {
 	})
 }
 
+func buildStatic(body string, ttl time.Duration, counter *atomic.Int32) func(context.Context) ([]byte, time.Duration, error) {
+	return func(context.Context) ([]byte, time.Duration, error) {
+		if counter != nil {
+			counter.Add(1)
+		}
+		return []byte(body), ttl, nil
+	}
+}
+
+func TestCachedBytesStaleRefreshClaimedOnceFleetWide(t *testing.T) {
+	st := providertest.NewMemStore()
+	podA, podB := core.NewCache(st), core.NewCache(st)
+	var builds atomic.Int32
+	ctx := context.Background()
+
+	_, err := core.CachedBytes(ctx, podA, "k", nil, buildStatic(`{"n":1}`, 20*time.Millisecond, &builds))
+	require.NoError(t, err)
+	require.Equal(t, int32(1), builds.Load())
+	time.Sleep(40 * time.Millisecond)
+
+	release := make(chan struct{})
+	rebuild := func(rctx context.Context) ([]byte, time.Duration, error) {
+		<-release
+		return buildStatic(`{"n":2}`, time.Minute, &builds)(rctx)
+	}
+	for _, pod := range []*core.Cache{podA, podB} {
+		b, gerr := core.CachedBytes(ctx, pod, "k", nil, rebuild)
+		require.NoError(t, gerr)
+		assert.JSONEq(t, `{"n":1}`, string(b), "stale hit must serve the old bytes")
+	}
+	close(release)
+
+	require.Eventually(t, func() bool {
+		got, gerr := core.CachedBytes(ctx, podA, "k", nil, rebuild)
+		return gerr == nil && string(got) == `{"n":2}`
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(2), builds.Load(), "one cold fill + exactly one fleet-wide refresh")
+}
+
 type namedFlavor struct {
 	name   string
 	flavor cacheFlavor

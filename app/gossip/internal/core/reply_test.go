@@ -12,33 +12,67 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFriendlyUpstreamMapsStatusesToChatMessages(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		err     error
-		wantMsg string
-		wantPin core.Pin
-	}{
-		{"a local bucket denial retries on the next request", &core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true},
-			"stats commands are busy right now, try again in a few seconds", core.PinNone},
-		{"an upstream throttle backs off briefly", &core.UpstreamError{Status: 429},
-			"stats provider is rate limiting us, try again in a minute", core.PinThrottle},
-		{"a missing player is cached as absent", &core.UpstreamError{Status: 404},
-			"player not found", core.PinNegative},
-		{"an upstream message on a bad request is passed through", &core.UpstreamError{Status: 400, Message: "bad name"},
-			"bad name", core.PinNegative},
-		{"a refusal is told but never cached", &core.UpstreamError{Status: 403},
-			"stats lookup not permitted right now", core.PinNone},
-		{"infrastructure failures propagate instead of chatting", errors.New("dial tcp: timeout"), "", core.PinNone},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			msg, pin := core.FriendlyUpstream(tc.err)
-			assert.Equal(t, tc.wantMsg, msg)
-			assert.Equal(t, tc.wantPin, pin)
-		})
+func TestFriendlyUpstream429Origins(t *testing.T) {
+	msg, pin := core.FriendlyUpstream(&core.UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true})
+	assert.Equal(t, "stats commands are busy right now, try again in a few seconds", msg)
+	assert.Equal(t, core.PinNone, pin, "a bucket denial must retry on the next request")
+
+	msg, pin = core.FriendlyUpstream(&core.UpstreamError{Status: 429})
+	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", msg)
+	assert.Equal(t, core.PinThrottle, pin, "an upstream throttle must back off briefly")
+}
+
+func TestFriendlyUpstreamClasses(t *testing.T) {
+	msg, pin := core.FriendlyUpstream(&core.UpstreamError{Status: 404})
+	assert.Equal(t, "player not found", msg)
+	assert.Equal(t, core.PinNegative, pin)
+
+	msg, pin = core.FriendlyUpstream(&core.UpstreamError{Status: 403})
+	assert.Equal(t, "stats lookup not permitted right now", msg)
+	assert.Equal(t, core.PinNone, pin)
+
+	msg, _ = core.FriendlyUpstream(errors.New("dial tcp: timeout"))
+	assert.Empty(t, msg, "infrastructure failures must propagate, not chat")
+}
+
+func TestBuildReplyPinTTLs(t *testing.T) {
+	const negativeTTL = 5 * time.Minute
+	errReply := func(msg string) any { return map[string]string{"error": msg} }
+	build := func(err error) (time.Duration, *core.UpstreamError) {
+		t.Helper()
+		b, ttl, friendly, berr := core.BuildReply(context.Background(), time.Minute, negativeTTL,
+			func(context.Context) (any, error) { return nil, err }, errReply)
+		require.NoError(t, berr)
+		require.NotEmpty(t, b)
+		return ttl, friendly
 	}
+
+	ttl, friendly := build(&core.UpstreamError{Status: 404})
+	assert.Equal(t, negativeTTL, ttl)
+	require.NotNil(t, friendly)
+
+	ttl, friendly = build(&core.UpstreamError{Status: 429})
+	assert.Equal(t, core.ThrottleTTL, ttl)
+	require.NotNil(t, friendly)
+	assert.False(t, friendly.LocalDeny)
+
+	ttl, friendly = build(&core.UpstreamError{Status: 429, LocalDeny: true})
+	assert.Equal(t, time.Duration(0), ttl)
+	require.NotNil(t, friendly)
+	assert.True(t, friendly.LocalDeny)
+}
+
+func TestBuildReplySuccess(t *testing.T) {
+	b, ttl, friendly, err := core.BuildReply(context.Background(), time.Minute, time.Hour,
+		func(context.Context) (any, error) { return map[string]string{"ok": "1"}, nil },
+		func(msg string) any { return map[string]string{"error": msg} })
+	require.NoError(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, time.Minute, ttl)
+	assert.Nil(t, friendly)
 }
 
 type replyOutcome struct {
@@ -62,9 +96,7 @@ func mapperFor(m *mapping) func(error) (string, core.Pin) {
 
 func TestBuildReplyShapesTheCachedAnswer(t *testing.T) {
 	const ttl, negativeTTL = time.Minute, 15 * time.Second
-	notFound := &core.UpstreamError{Status: 404}
-	throttled := &core.UpstreamError{Status: 429}
-	localDeny := &core.UpstreamError{Status: 429, LocalDeny: true}
+	badName := &core.UpstreamError{Status: 400, Message: "bad name"}
 	longRetry := &core.UpstreamError{Status: 429, RetryAfter: 90 * time.Second}
 	shortRetry := &core.UpstreamError{Status: 429, RetryAfter: 5 * time.Second}
 	refusedWithRetry := &core.UpstreamError{Status: 403, RetryAfter: 10 * time.Minute}
@@ -78,14 +110,8 @@ func TestBuildReplyShapesTheCachedAnswer(t *testing.T) {
 		mapper *mapping
 		want   replyOutcome
 	}{
-		{"caches a success for the fresh window", nil, nil,
-			replyOutcome{Body: `{"ok":"1"}`, TTL: ttl}},
-		{"caches an absence for the negative window", notFound, nil,
-			replyOutcome{Body: `{"error":"player not found"}`, TTL: negativeTTL, Friendly: notFound}},
-		{"pins an upstream throttle briefly", throttled, nil,
-			replyOutcome{Body: `{"error":"stats provider is rate limiting us, try again in a minute"}`, TTL: core.ThrottleTTL, Friendly: throttled}},
-		{"never caches a local bucket denial", localDeny, nil,
-			replyOutcome{Body: `{"error":"stats commands are busy right now, try again in a few seconds"}`, Friendly: localDeny}},
+		{"passes an upstream message through and caches it as an absence", badName, nil,
+			replyOutcome{Body: `{"error":"bad name"}`, TTL: negativeTTL, Friendly: badName}},
 		{"TestBuildReplyHonorsRetryAfter", longRetry, nil,
 			replyOutcome{Body: `{"error":"stats provider is rate limiting us, try again in a minute"}`, TTL: 90 * time.Second, Friendly: longRetry}},
 		{"TestBuildReplyHonorsRetryAfter: ThrottleTTL is the floor when Retry-After is shorter", shortRetry, nil,

@@ -117,7 +117,7 @@ func TestStatsFailuresAreFriendlyAndCachedOnlyWhenTheyAreFacts(t *testing.T) {
 			[2]string{"player not found", "player not found"}, 1, 1},
 		{"retries after a refusal instead of caching it", "Techno", []providertest.Reply{resolved}, []providertest.Reply{badKey, played},
 			[2]string{"stats lookup not permitted right now", ""}, 1, 2},
-		{"pins a Mojang throttle instead of re-hitting the upstream", "Techno", []providertest.Reply{throttled}, nil,
+		{"TestStatsMojangRateLimitedPinsBriefly", "Techno", []providertest.Reply{throttled}, nil,
 			[2]string{busy, busy}, 1, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
