@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -393,7 +392,7 @@ func decodeJSON(t *testing.T, raw string) any {
 		return nil
 	}
 	var out any
-	require.NoError(t, json.Unmarshal([]byte(raw), &out), raw)
+	require.NoError(t, codec.Unmarshal([]byte(raw), &out), raw)
 	return out
 }
 

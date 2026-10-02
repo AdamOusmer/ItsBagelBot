@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -21,6 +20,7 @@ import (
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/require"
 )
@@ -214,7 +214,7 @@ func uploadOf(t *testing.T, call recordedCall) transcriptUpload {
 	form, err := multipart.NewReader(strings.NewReader(call.body), params["boundary"]).ReadForm(1 << 20)
 	require.NoError(t, err)
 	var payload uploadPayload
-	require.NoError(t, json.Unmarshal([]byte(form.Value["payload_json"][0]), &payload))
+	require.NoError(t, codec.Unmarshal([]byte(form.Value["payload_json"][0]), &payload))
 	file, err := form.File["files[0]"][0].Open()
 	require.NoError(t, err)
 	data, err := io.ReadAll(file)

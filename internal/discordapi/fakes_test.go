@@ -4,13 +4,13 @@
 package discordapi_test
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
 	api "ItsBagelBot/internal/discordapi"
+	"ItsBagelBot/pkg/codec"
 )
 
 const botToken = "bot-token"
@@ -61,9 +61,9 @@ func bodyOf(r *http.Request) string {
 
 func canonical(raw []byte) string {
 	var v any
-	if json.Unmarshal(raw, &v) != nil {
+	if codec.Unmarshal(raw, &v) != nil {
 		return string(raw)
 	}
-	out, _ := json.Marshal(v)
+	out, _ := codec.Marshal(v)
 	return string(out)
 }
