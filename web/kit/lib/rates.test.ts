@@ -2,69 +2,70 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, exactRateWindow, perSecond, rateWindow, rateWindows, type RateSample as Sample } from './rates';
+import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, exactRateWindow, exactRateWindows, perSecond, type ExactRateSample } from './rates';
 
 const TICK_MS = 2000;
+const UNKNOWN = { msg: null, event: null };
 
-function stepped(stepEveryMs: number, perStep: number, untilMs: number, startAt = 0): Sample[] {
-  const samples: Sample[] = [];
-  for (let at = startAt; at <= untilMs; at += TICK_MS) {
-    const steps = Math.floor(at / stepEveryMs);
-    samples.push({ messages: steps * perStep, events: steps * perStep * 2, at });
+function sample(messages: number, at: number, events = messages): ExactRateSample {
+  return { messages: BigInt(messages), events: BigInt(events), at };
+}
+
+function stepped(stepEveryMs: number, perStep: number, untilMs: number): ExactRateSample[] {
+  const samples: ExactRateSample[] = [];
+  for (let at = 0; at <= untilMs; at += TICK_MS) {
+    const total = Math.floor(at / stepEveryMs) * perStep;
+    samples.push(sample(total, at, total * 2));
   }
   return samples;
 }
 
-function feed(samples: Sample[], windowMs = 30_000) {
-  const next = rateWindow(windowMs);
+function feed(samples: ExactRateSample[]) {
+  const next = exactRateWindows();
   return samples.map(next);
 }
 
-describe('rateWindow', () => {
+describe('shared rate windows', () => {
   test('a total that moves in 5s steps never reads as a zero rate once the window fills', () => {
-    const rates = feed(stepped(5000, 125, 120_000)).slice(15);
+    const rates = feed(stepped(5000, 125, 120_000)).slice(30);
     for (const r of rates) {
-      expect(r.msg).toBeGreaterThan(20);
-      expect(r.msg).toBeLessThan(30);
+      expect(r.now.msg).toBeGreaterThan(0);
+      expect(r.avg.msg).toBeGreaterThan(20);
+      expect(r.avg.msg).toBeLessThan(30);
     }
-  });
-
-  test('a 2s window over the same steps would read zero most of the time', () => {
-    const rates = feed(stepped(5000, 125, 120_000), TICK_MS).slice(1);
-    const zeros = rates.filter((r) => r.msg === 0).length;
-    expect(zeros / rates.length).toBeGreaterThan(0.4);
   });
 
   test('reports events and messages independently', () => {
     const last = feed(stepped(5000, 100, 60_000)).at(-1)!;
-    expect(last.event).toBeCloseTo(last.msg! * 2, 5);
+    expect(last.avg.event).toBeCloseTo(last.avg.msg! * 2, 5);
   });
 
   test('stays unknown until at least a second has passed', () => {
-    const next = rateWindow();
-    expect(next({ messages: 10, events: 10, at: 0 })).toEqual({ msg: null, event: null });
-    expect(next({ messages: 20, events: 20, at: 500 })).toEqual({ msg: null, event: null });
-    expect(next({ messages: 30, events: 30, at: 1000 }).msg).toBe(20);
+    const next = exactRateWindows();
+    expect(next(sample(10, 0))).toEqual({ now: UNKNOWN, avg: UNKNOWN });
+    expect(next(sample(20, 500))).toEqual({ now: UNKNOWN, avg: UNKNOWN });
+    const third = next(sample(30, 1000));
+    expect([third.now.msg, third.avg.msg]).toEqual([20, 20]);
   });
 
   test('a counter reset restarts the window instead of reading as a long zero', () => {
-    const next = rateWindow();
-    next({ messages: 1000, events: 1000, at: 0 });
-    next({ messages: 1300, events: 1300, at: 10_000 });
-    next({ messages: 0, events: 0, at: 12_000 });
-    expect(next({ messages: 60, events: 60, at: 14_000 }).msg).toBe(30);
+    const next = exactRateWindows();
+    next(sample(1000, 0));
+    next(sample(1300, 10_000));
+    next(sample(0, 12_000));
+    const rate = next(sample(60, 14_000));
+    expect([rate.now.msg, rate.avg.msg]).toEqual([30, 30]);
   });
 
-  test('forgets samples older than the window', () => {
-    const next = rateWindow(10_000);
-    next({ messages: 0, events: 0, at: 0 });
-    next({ messages: 1000, events: 1000, at: 1000 });
-    const r = next({ messages: 1100, events: 1100, at: 12_000 });
-    expect(r.msg).toBeCloseTo(100 / 11, 5);
+  test('the now window forgets samples older than it while the minute average keeps them', () => {
+    const next = exactRateWindows();
+    next(sample(0, 0));
+    next(sample(1000, 1000));
+    const rate = next(sample(1100, 12_000));
+    expect(rate.now.msg).toBeCloseTo(100 / 11, 5);
+    expect(rate.avg.msg).toBeCloseTo(1100 / 12, 5);
   });
-});
 
-describe('shared rate windows', () => {
   test('exact rate samples retain increments above the JavaScript safe integer', () => {
     const next = exactRateWindow(60_000);
     next({ messages: 9223372036854775700n, events: 9223372036854775700n, at: 0 });
@@ -78,12 +79,11 @@ describe('shared rate windows', () => {
   });
 
   test('a burst shows in the now window while the minute average stays low', () => {
-    const next = rateWindows();
-    let last = next({ messages: 0, events: 0, at: 0 });
-    for (let at = 2000; at <= 60_000; at += 2000) {
-      const messages = at <= 50_000 ? at / 1000 : 50 + (at - 50_000) / 1000 * 10;
-      last = next({ messages, events: messages, at });
-    }
+    const burst = Array.from({ length: 31 }, (_, i) => {
+      const at = i * TICK_MS;
+      return sample(at <= 50_000 ? at / 1000 : 50 + ((at - 50_000) / 1000) * 10, at);
+    });
+    const last = feed(burst).at(-1)!;
     expect(last.now.msg!).toBeGreaterThan(8);
     expect(last.avg.msg!).toBeLessThan(3);
   });

@@ -12,7 +12,7 @@ import {
   NightbotFetchError,
   parseNightbot
 } from './nightbot';
-import { CODE, isValidFetchDefName, validateManifest } from './validate';
+import { CODE, validateManifest } from './validate';
 import type { ImportDiagnostic } from './types';
 
 const bytes = (doc: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(doc));
@@ -191,7 +191,6 @@ describe('urlfetch synthesis', () => {
       { name: 'nightbot_weather', url: 'https://api.example.com/w', source: 'nightbot' },
       { name: 'nightbot_weather_2', url: 'https://api.example.com/x', source: 'nightbot' }
     ]);
-    for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created', 'fetch_def_created']);
   });

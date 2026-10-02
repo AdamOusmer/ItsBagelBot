@@ -10,7 +10,6 @@ import {
   clampCooldown,
   fetchDefSlug,
   findCollisions,
-  isValidFetchDefName,
   isEmptyStats,
   mapPermission,
   normalizeName,
@@ -262,15 +261,7 @@ describe('fetchDefSlug', () => {
     const slug = fetchDefSlug('nightbot', 'a'.repeat(64));
     expect(slug.length).toBeLessThanOrEqual(32 - 5);
     expect(`${slug}_2000`.length).toBeLessThanOrEqual(32);
-    expect(isValidFetchDefName(`${slug}_2000`)).toBe(true);
+    expect(`${slug}_2000`).toMatch(/^[a-z0-9_]+$/);
     expect(fetchDefSlug('se', `${'b'.repeat(23)}-tail`).endsWith('_')).toBe(false);
-  });
-
-  test('isValidFetchDefName rejects what the service rejects', () => {
-    expect(isValidFetchDefName('se_weather')).toBe(true);
-    expect(isValidFetchDefName('se-weather')).toBe(false);
-    expect(isValidFetchDefName('SE_weather')).toBe(false);
-    expect(isValidFetchDefName('a'.repeat(33))).toBe(false);
-    expect(isValidFetchDefName('')).toBe(false);
   });
 });

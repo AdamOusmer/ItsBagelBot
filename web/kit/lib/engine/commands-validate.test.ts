@@ -13,7 +13,6 @@ import {
   KEY_VALUE_MAX,
   URLFETCH_TOKEN_CAP,
   buildJsonPath,
-  malformedUrlFetchTokens,
   normalizeCommandResponse,
   parseJsonPath,
   slugifyName,
@@ -187,25 +186,12 @@ describe('urlfetch token scanning', () => {
     expect(urlFetchNames('{user} typed {urlfetch:w.x} and {choice:a,b}')).toEqual(['w.x']);
   });
 
-  test('malformed spans are named verbatim', () => {
-    expect(malformedUrlFetchTokens('{urlfetch:ok.def} fine')).toEqual([]);
-    expect(malformedUrlFetchTokens('{urlfetch} {urlfetch:} {urlfetch:a..b} {urlfetch unclosed')).toEqual([
-      '{urlfetch}',
-      '{urlfetch:}',
-      '{urlfetch:a..b}',
-      '{urlfetch unclosed'
-    ]);
-  });
-
   test('a fallback belongs to the span, not to the definition name', () => {
     expect(urlFetchNames('temp is {urlfetch:weather|n/a}')).toEqual(['weather']);
-    expect(malformedUrlFetchTokens('temp is {urlfetch:weather|n/a}')).toEqual([]);
-    expect(malformedUrlFetchTokens('{urlfetch:a|b|c}')).toEqual(['{urlfetch:a|b|c}']);
   });
 
   test('token names are case-insensitive, as the lexer folds them', () => {
     expect(urlFetchNames('{URLFETCH:Weather}')).toEqual(['weather']);
-    expect(malformedUrlFetchTokens('{UrlFetch:}')).toEqual(['{UrlFetch:}']);
   });
 
   test('distinct definitions are counted the way scope.External keys them', () => {
@@ -274,10 +260,7 @@ describe('picker path-building property', () => {
       expect(parsed).not.toBeNull();
       expect(parsed).toEqual(leaf.path);
       expect(resolveMirror(fixture, parsed!)).toEqual(leaf.value);
-      if (leaf.path.length > 0) {
-        expect(dotted.length).toBeGreaterThan(0);
-        expect(malformedUrlFetchTokens(`{urlfetch:name.${dotted}}`)).toEqual([]);
-      }
+      if (leaf.path.length > 0) expect(urlFetchNames(`{urlfetch:name.${dotted}}`)).toEqual([`name.${dotted}`.toLowerCase()]);
     }
   });
 

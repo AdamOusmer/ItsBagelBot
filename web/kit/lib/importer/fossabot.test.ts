@@ -14,7 +14,7 @@ import {
   parseFossabot
 } from './fossabot';
 import { translateVariables } from './fossabot/variables';
-import { CODE, isValidFetchDefName, validateManifest } from './validate';
+import { CODE, validateManifest } from './validate';
 import type { ImportDiagnostic, ManifestCommand } from './types';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -356,7 +356,6 @@ describe('urlfetch synthesis', () => {
     expect(manifest.fetches).toEqual([
       { name: 'fossabot_weather', url: 'https://api.example.com/w', source: 'fossabot' }
     ]);
-    for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created']);
   });

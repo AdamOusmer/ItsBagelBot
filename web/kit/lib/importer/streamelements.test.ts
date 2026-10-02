@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { CODE, isValidFetchDefName } from './validate';
+import { CODE } from './validate';
 import {
   FETCH_DEF_CAP,
   MAX_CREDENTIAL_LEN,
@@ -12,9 +12,7 @@ import {
   StreamElementsError,
   detectStreamElements,
   fetchStreamElements,
-  mapAccessLevel,
-  parseStreamElements,
-  translateVariables
+  parseStreamElements
 } from './streamelements';
 
 const here = dirname(import.meta.path);
@@ -43,7 +41,18 @@ describe('golden replay', () => {
   });
 });
 
-describe('translateVariables (vectors from variables_test)', () => {
+describe('variable translation (vectors from variables_test)', () => {
+  const translate = (reply: string) => {
+    const { manifest, diagnostics } = parseStreamElements(
+      JSON.stringify({ commands: [{ command: 'x', reply, accessLevel: 100 }], timers: [] })
+    );
+    return {
+      text: manifest.commands?.[0]?.responses?.[0],
+      warns: diagnostics.filter((d) => d.code === CODE.variableUnmapped).map((d) => d.message)
+    };
+  };
+  const unmapped = (token: string) => `response uses ${token}, which has no equivalent; left as literal text`;
+
   const cases: [string, string, string[] | null][] = [
     ['$(user)!', '{user}!', null],
     ['${user.name} x $(sender) $(source)', '{user} x {user} {user}', null],
@@ -88,9 +97,9 @@ describe('translateVariables (vectors from variables_test)', () => {
   ];
   for (const [input, want, warns] of cases) {
     test(`${input}`, () => {
-      const { text, warns: got } = translateVariables(input);
+      const { text, warns: got } = translate(input);
       expect(text).toBe(want);
-      expect(got).toEqual(warns ?? []);
+      expect(got).toEqual((warns ?? []).map(unmapped));
     });
   }
 });
@@ -116,7 +125,14 @@ describe('$(if …) warn points at {if:cond:then:else}', () => {
   });
 });
 
-describe('mapAccessLevel table', () => {
+describe('accessLevel mapping', () => {
+  const importLevel = (accessLevel: number) => {
+    const { manifest, diagnostics } = parseStreamElements(
+      JSON.stringify({ commands: [{ command: 'x', reply: 'y', accessLevel }], timers: [] })
+    );
+    return { perm: manifest.commands?.[0].permission, recognized: !diagnostics.some((d) => d.code === CODE.permissionUnmapped) };
+  };
+
   const cases: [number, string, boolean][] = [
     [100, 'everyone', true],
     [250, 'sub', true],
@@ -130,7 +146,7 @@ describe('mapAccessLevel table', () => {
     [-5, 'everyone', false]
   ];
   for (const [level, perm, recognized] of cases) {
-    test(`accessLevel ${level}`, () => expect(mapAccessLevel(level)).toEqual({ perm, recognized }));
+    test(`accessLevel ${level}`, () => expect(importLevel(level)).toEqual({ perm, recognized }));
   }
   test('levelLabel uses SE vocabulary in warnings', () => {
     const { diagnostics } = parseStreamElements(
@@ -377,8 +393,7 @@ describe('urlfetch mapping', () => {
       '$(urlfetch https://a.example/1) $(urlfetch https://a.example/2 data.temp)',
       ',"command":"my cool-cmd"'
     );
-    expect(manifest.fetches!.length).toBe(2);
-    for (const f of manifest.fetches!) expect(isValidFetchDefName(f.name)).toBe(true);
+    expect(manifest.fetches!.map((f) => f.name)).toEqual(['se_my_cool_cmd', 'se_my_cool_cmd_2']);
   });
 
   const SE = 'streamelements';

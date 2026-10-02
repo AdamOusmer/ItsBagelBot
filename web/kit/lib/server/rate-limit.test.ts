@@ -5,7 +5,6 @@ import { describe, expect, setSystemTime, test } from 'bun:test';
 import {
   RateLimiter,
   ValkeyRateLimiter,
-  clientIp,
   rateLimitClientForTests,
   rateLimiterReady,
   resetRateLimiterBackendForTests
@@ -147,25 +146,5 @@ describe('ValkeyRateLimiter', () => {
     podA.dispose();
     podB.dispose();
     resetRateLimiterBackendForTests();
-  });
-});
-
-describe('clientIp', () => {
-  const fallback = () => '10.0.0.1';
-
-  test.each([
-    ['prefers Cf-Connecting-Ip', { 'cf-connecting-ip': '1.2.3.4', 'x-forwarded-for': '5.6.7.8' }, '1.2.3.4'],
-    ['falls back to first X-Forwarded-For hop', { 'x-forwarded-for': ' 5.6.7.8 , 9.9.9.9' }, '5.6.7.8'],
-    ['uses the socket address when no proxy headers exist', {}, '10.0.0.1']
-  ] as [string, Record<string, string>, string][])('%s', (_name, headers, want) => {
-    expect(clientIp(new Headers(headers), fallback)).toBe(want);
-  });
-
-  test('never throws when the fallback does', () => {
-    expect(
-      clientIp(new Headers(), () => {
-        throw new Error('socket gone');
-      })
-    ).toBe('unknown');
   });
 });

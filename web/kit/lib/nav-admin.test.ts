@@ -6,7 +6,6 @@ import {
   ADMIN_GROUP_ORDER,
   ADMIN_SECTIONS,
   adminNavGroups,
-  adminNavItems,
   adminSectionForPath,
   adminSectionLabelKey
 } from './nav-admin';
@@ -39,10 +38,12 @@ describe('admin nav registry', () => {
     expect(adminSectionForPath(path)).toBe(section);
   });
 
-  test('minRole hides Access rows from the roles their routes bounce', () => {
-    const hrefs = (role: StaffRole) =>
-      adminNavItems({ role, section: 'overview' }).map((item) => item.href);
+  const hrefs = (role: StaffRole) =>
+    adminNavGroups({ role, section: 'overview' })
+      .flatMap((group) => group.items)
+      .map((item) => item.href);
 
+  test('minRole hides Access rows from the roles their routes bounce', () => {
     expect(hrefs('moderator')).not.toContain('/staff');
     expect(hrefs('moderator')).not.toContain('/counters');
     expect(hrefs('moderator')).not.toContain('/trials');
@@ -54,9 +55,7 @@ describe('admin nav registry', () => {
   });
 
   test('/deploys is offered to owners only', () => {
-    const offered = ROLES.filter((role) =>
-      adminNavItems({ role, section: 'overview' }).some((item) => item.href === '/deploys')
-    );
+    const offered = ROLES.filter((role) => hrefs(role).includes('/deploys'));
     expect(offered).toEqual(['owner']);
   });
 

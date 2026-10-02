@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { afterEach, describe, expect, test } from 'bun:test';
-import { focusWithin, isRendered, overlayContains, registerOverlayAnchor, trapFocus, wirePopupAnchor } from '../lib/overlay-stack';
+import { focusWithin, overlayContains, registerOverlayAnchor, trapFocus, wirePopupAnchor } from '../lib/overlay-stack';
 import { wireTooltip } from '../lib/tooltip';
 import { snapshotGlobals } from './dom-fakes';
 
@@ -92,24 +92,18 @@ describe('trapFocus visibility', () => {
     ['checkVisibility false drops the control even with an offsetParent', [{}, false], false],
     ['without checkVisibility, client rects keep a control', [null, undefined, 1], true],
     ['without checkVisibility, no client rects drop a control', [{}, undefined, 0], false],
-  ] as const)('%s', (_name, args, expected) => {
-    expect(isRendered(asEl(new FakeElement(...args)))).toBe(expected);
-  });
-
-  test('Tab from the last control wraps to a fixed-position first control', () => {
+  ] as const)('%s', (_name, args, kept) => {
     globalThis.document = fakeDocument as unknown as Document;
     globalThis.requestAnimationFrame = (() => 0) as never;
     globalThis.cancelAnimationFrame = (() => {}) as never;
-    const fixed = new FakeElement(null, true);
+    const first = new FakeElement(...args);
     const last = new FakeElement({}, true);
     const node = new FakeElement();
-    node.children = [fixed, last];
+    node.children = [first, last];
     trapFocus(asEl(node));
     last.focus();
-    let prevented = false;
-    node.listeners.get('keydown')?.({ key: 'Tab', shiftKey: false, preventDefault: () => (prevented = true) } as never);
-    expect(prevented).toBe(true);
-    expect(fakeDocument.activeElement).toBe(fixed);
+    node.listeners.get('keydown')?.({ key: 'Tab', shiftKey: false, preventDefault: () => {} } as never);
+    expect(fakeDocument.activeElement).toBe(kept ? first : last);
   });
 });
 

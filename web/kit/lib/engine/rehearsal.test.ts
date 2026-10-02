@@ -2,17 +2,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, timerOwns, type Seg, type SegKind, type Token } from './rehearsal';
+import { rehearseCommand, rehearseReply, rehearseTimer, resolvedWithoutSample, timerOwns, type ChainKind, type Samples, type Seg, type SegKind } from './rehearsal';
 
 function textOf(segments: Seg[]): string {
   return segments.map((s) => s.text).join('');
 }
 
 describe('token expansion (module/vars.go Expand mirror)', () => {
-  const resolve = (token: Token) => (token.name === 'user' ? 'sam' : null);
+  const segmentsOf = (template: string, samples: Samples) => rehearseReply(template, samples, { dynamic: false })[0].segments;
 
   test('substitutes known tokens and marks them as samples', () => {
-    expect(expandSegments('hi {user}!', resolve)).toEqual([
+    expect(segmentsOf('hi {user}!', { user: 'sam' })).toEqual([
       { text: 'hi ', kind: 'plain' },
       { text: 'sam', kind: 'sample' },
       { text: '!', kind: 'plain' }
@@ -20,13 +20,12 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('token names are case-insensitive, payloads keep their case', () => {
-    expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
-    const choice = expandSegments('{CHOICE:Hi,Yo}', (t) => (t.key === 'choice:Hi,Yo' ? 'Hi' : null));
-    expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
+    expect(segmentsOf('{User}', { user: 'sam' })).toEqual([{ text: 'sam', kind: 'sample' }]);
+    expect(segmentsOf('{CHOICE:Hi,Yo}', { 'choice:Hi,Yo': 'Hi' })).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
 
   test('any brace span is a token, unknown ones stay literal but marked', () => {
-    expect(expandSegments('{touser2} {foo bar}', resolve)).toEqual([
+    expect(segmentsOf('{touser2} {foo bar}', { user: 'sam' })).toEqual([
       { text: '{touser2}', kind: 'unknown' },
       { text: ' ', kind: 'plain' },
       { text: '{foo bar}', kind: 'unknown' }
@@ -34,11 +33,11 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('a "{" with no closing brace is copied literally', () => {
-    expect(expandSegments('oops {user', resolve)).toEqual([{ text: 'oops {user', kind: 'plain' }]);
+    expect(segmentsOf('oops {user', { user: 'sam' })).toEqual([{ text: 'oops {user', kind: 'plain' }]);
   });
 
   test('an empty-string resolution drops the token from the output', () => {
-    expect(textOf(expandSegments('[{gone}]', () => ''))).toBe('[]');
+    expect(textOf(segmentsOf('[{gone}]', { gone: '' }))).toBe('[]');
   });
 });
 
@@ -294,6 +293,19 @@ describe('rehearseTimer', () => {
 
   test('an empty message rehearses nothing', () => {
     expect(rehearseTimer('  \n ')).toHaveLength(0);
+  });
+});
+
+describe('resolvedWithoutSample', () => {
+  test.each([
+    { name: 'a dice token needs no sample in a command', token: 'random', kind: 'command', want: true },
+    { name: 'a conditional needs no sample in a command', token: 'if', kind: 'command', want: true },
+    { name: 'a message token needs its sample in a command', token: 'user', kind: 'command', want: false },
+    { name: 'an unknown token is not resolved in a command', token: 'nosuchtoken', kind: 'command', want: false },
+    { name: 'a dice token needs no sample in a reply', token: 'random', kind: 'reply', want: true },
+    { name: 'a message token needs its sample in a reply', token: 'user', kind: 'reply', want: false }
+  ] satisfies { name: string; token: string; kind: ChainKind; want: boolean }[])('$name', ({ token, kind, want }) => {
+    expect(resolvedWithoutSample(token, kind)).toBe(want);
   });
 });
 

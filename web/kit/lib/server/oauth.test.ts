@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import {
   processAuthorizationCodeResponse,
   type AuthorizationServer,
   type Client
 } from 'oauth4webapi';
-import { OAuth2Tokens, __normalizeTwitchScopeForTests as normalizeTwitchScope } from './oauth';
+import { OAuth2Tokens, ResponseBodyError, Twitch, isOAuthProtocolError } from './oauth';
 
 const AS: AuthorizationServer = {
   issuer: 'https://id.twitch.tv/oauth2',
@@ -39,15 +39,19 @@ const twitchBody = () => ({
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-describe('normalizeTwitchScope', () => {
+describe('Twitch token exchange', () => {
+  const twitch = new Twitch('client-id', 'client-secret', 'https://console.test/callback');
+  const exchange = (response: Response) => {
+    spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    return twitch.validateAuthorizationCode('code', 'abc');
+  };
+
+  afterEach(() => mock.restore());
+
   it('makes the real Twitch shape (array scope) parse through oauth4webapi', async () => {
-    const normalized = await normalizeTwitchScope(jsonResponse(twitchBody()));
-    const result = await processAuthorizationCodeResponse(AS, client, normalized, {
-      requireIdToken: true,
-      expectedNonce: 'abc'
-    });
-    expect(result.access_token).toBe('a'.repeat(30));
-    expect(result.scope).toBe('openid user:read:email');
+    const tokens = await exchange(jsonResponse(twitchBody()));
+    expect(tokens.accessToken()).toBe('a'.repeat(30));
+    expect(tokens.scopes()).toEqual(['openid', 'user:read:email']);
   });
 
   it('the raw Twitch shape still throws without the shim (quirk still exists upstream)', async () => {
@@ -60,25 +64,20 @@ describe('normalizeTwitchScope', () => {
   });
 
   it('leaves an already-conformant string scope untouched', async () => {
-    const body = { ...twitchBody(), scope: 'openid user:read:email' };
-    const normalized = await normalizeTwitchScope(jsonResponse(body));
-    const result = await processAuthorizationCodeResponse(AS, client, normalized, {
-      requireIdToken: true,
-      expectedNonce: 'abc'
-    });
-    expect(result.scope).toBe('openid user:read:email');
+    const tokens = await exchange(jsonResponse({ ...twitchBody(), scope: 'openid user:read:email' }));
+    expect(tokens.scopes()).toEqual(['openid', 'user:read:email']);
   });
 
-  it('passes error responses through byte-identical for ResponseBodyError classification', async () => {
-    const resp = jsonResponse({ status: 400, message: 'invalid grant' }, 400);
-    const out = await normalizeTwitchScope(resp);
-    expect(out).toBe(resp);
+  it('passes error responses through for protocol error classification', async () => {
+    const twitchError = await exchange(jsonResponse({ status: 400, message: 'invalid grant' }, 400)).catch((e) => e);
+    const oauthError = await exchange(jsonResponse({ error: 'invalid_grant' }, 400)).catch((e) => e);
+    expect(isOAuthProtocolError(twitchError)).toBe(true);
+    expect(oauthError).toBeInstanceOf(ResponseBodyError);
   });
 
-  it('tolerates a non-JSON body without throwing', async () => {
-    const resp = new Response('gateway timeout', { status: 200 });
-    const out = await normalizeTwitchScope(resp);
-    expect(out).toBe(resp);
+  it('tolerates a non-JSON body without throwing its own error', async () => {
+    const failure = await exchange(new Response('gateway timeout', { status: 200 })).catch((e) => e);
+    expect(isOAuthProtocolError(failure)).toBe(true);
   });
 });
 

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { render } from 'svelte/server';
 import { CATALOG_FILES } from '../locales/index';
-import { createUiI18n, resolveUiLocale, uiText, UI_LOCALES } from '../lib/i18n';
+import { createUiI18n, UI_LOCALES, type UiLocale } from '../lib/i18n';
 import { uiI18n } from '../astro/i18n';
 import I18nHost from './fixtures/i18n-host.svelte';
 
@@ -18,8 +18,9 @@ describe('catalogs', () => {
   const reference = keys(CATALOG_FILES.en).sort();
 
   test.each(UI_LOCALES)('%s is complete: exactly the English keys, none empty', (locale) => {
+    const i18n = createUiI18n(() => locale);
     expect(keys(CATALOG_FILES[locale]).sort()).toEqual(reference);
-    for (const key of reference) expect(uiText(locale, key as never).trim().length).toBeGreaterThan(0);
+    for (const key of reference) expect(i18n.t(key as never).trim().length).toBeGreaterThan(0);
   });
 
   test('no locale has a key English lacks', () => {
@@ -37,17 +38,19 @@ describe('catalogs', () => {
 });
 
 describe('lookup', () => {
-  test('resolves regional and unknown locales', () => {
-    expect(resolveUiLocale('fr-CA')).toBe('fr');
-    expect(resolveUiLocale('FR')).toBe('fr');
-    expect(resolveUiLocale('de-DE')).toBe('de');
-    expect(resolveUiLocale('es-MX')).toBe('es');
-    expect(resolveUiLocale('ru-RU')).toBe('ru');
-    expect(resolveUiLocale('PT_BR')).toBe('pt-br');
-    expect(resolveUiLocale('pt-PT')).toBe('pt-br');
-    expect(resolveUiLocale('pt')).toBe('pt-br');
-    expect(resolveUiLocale('zz')).toBe('en');
-    expect(resolveUiLocale(undefined)).toBe('en');
+  test.each([
+    ['fr-CA', 'fr'],
+    ['FR', 'fr'],
+    ['de-DE', 'de'],
+    ['es-MX', 'es'],
+    ['ru-RU', 'ru'],
+    ['PT_BR', 'pt-br'],
+    ['pt-PT', 'pt-br'],
+    ['pt', 'pt-br'],
+    ['zz', 'en'],
+    [undefined, 'en']
+  ] as [string | undefined, UiLocale][])('resolves %s to the %s catalog', (input, want) => {
+    expect(createUiI18n(() => input).locale).toBe(want);
   });
 
   test('interpolates named placeholders and leaves unknown ones', () => {

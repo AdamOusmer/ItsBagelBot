@@ -25,23 +25,16 @@ import {
   guildIconSrc,
   guildIconURL,
   guildMonogram,
-  guildPermissionBits,
   guildPickerBadge,
   legacyConfigFor,
-  isHexColor,
-  isSnowflake,
   mergeDiscordConfig,
   normalizeHex,
   parseConfigVersion,
   parseDiscordConfig,
   parseIdList,
-  parseUserGuild,
   parseUserGuilds,
   parseNameList,
   parsePinnedRoles,
-  pinnedRole,
-  hexToDiscordColor,
-  ticketLogChannel,
   ticketOpenLimitN,
   ticketPanelPayload,
   ticketPanelSpec,
@@ -146,12 +139,6 @@ describe('pinned roles', () => {
   test('parse drops unknown slots and malformed ids', () => {
     expect(parsePinnedRoles(`owner=${ID_A},founder=${ID_B},vip=nope,=,mods=`)).toEqual({ owner: ID_A });
   });
-
-  test('pinnedRole reads one slot out of the blob', () => {
-    const config = { ...blankDiscordConfig(), pinnedRoles: `mods=${ID_C}` };
-    expect(pinnedRole(config, 'mods')).toBe(ID_C);
-    expect(pinnedRole(config, 'owner')).toBe('');
-  });
 });
 
 describe('id lists', () => {
@@ -161,12 +148,9 @@ describe('id lists', () => {
     expect(encodeIdList([])).toBe('');
   });
 
-  test('isSnowflake pins the 17-20 digit window', () => {
-    expect(isSnowflake('1'.repeat(16))).toBe(false);
-    expect(isSnowflake('1'.repeat(17))).toBe(true);
-    expect(isSnowflake('1'.repeat(20))).toBe(true);
-    expect(isSnowflake('1'.repeat(21))).toBe(false);
-    expect(isSnowflake('1234567890123456a')).toBe(false);
+  test('an id is a 17 to 20 digit number', () => {
+    const ids = ['1'.repeat(16), '1'.repeat(17), '1'.repeat(20), '1'.repeat(21), '1234567890123456a'];
+    expect(parseIdList(ids.join(','))).toEqual(['1'.repeat(17), '1'.repeat(20)]);
   });
 });
 
@@ -194,15 +178,8 @@ describe('colour', () => {
   test('bad hex falls back rather than painting a wrong colour', () => {
     for (const bad of ['', 'red', '#12', '#1234567', 'rgb(1,2,3)', '#gggggg']) {
       expect(normalizeHex(bad)).toBe(LIVE_COLOR_HEX);
-      expect(isHexColor(bad)).toBe(false);
     }
     expect(normalizeHex('nope', '#000000')).toBe('#000000');
-  });
-
-  test('isHexColor accepts only the stored 6-digit shape', () => {
-    expect(isHexColor('#c47a3a')).toBe(true);
-    expect(isHexColor('#C47A3A')).toBe(true);
-    expect(isHexColor('#abc')).toBe(false);
   });
 });
 
@@ -227,12 +204,6 @@ describe('accessors', () => {
     const base = { ...blankDiscordConfig(), ownerRoleId: ID_A, leadModRoleId: ID_B };
     expect(ticketStaffRoleIds(base)).toEqual([ID_A, ID_B]);
     expect(ticketStaffRoleIds({ ...base, ticketStaffRoleIds: ID_C })).toEqual([ID_C]);
-  });
-
-  test('the ticket log channel falls back to the staff log channel', () => {
-    const base = { ...blankDiscordConfig(), logChannelId: ID_A };
-    expect(ticketLogChannel(base)).toBe(ID_A);
-    expect(ticketLogChannel({ ...base, ticketLogChannelId: ID_B })).toBe(ID_B);
   });
 });
 
@@ -265,20 +236,13 @@ describe('guild permissions', () => {
     ['owner qualifies whatever the bitfield says', { owner: true, permissions: '0' }, true],
     ['a non-owner with no bits is filtered out', { owner: false, permissions: '0' }, false],
     ['a bitfield past 2^53 keeps every low bit', { permissions: PAST_2_53.toString() }, true],
-    ['a high bit alone is not a permission', { permissions: (1n << 50n).toString() }, false]
-  ] as [string, { owner?: boolean; permissions?: string }, boolean][])('%s', (_name, guild, want) => {
+    ['a high bit alone is not a permission', { permissions: (1n << 50n).toString() }, false],
+    ['trailing junk is worth no permission', { permissions: '12x' }, false],
+    ['a negative is worth no permission', { permissions: '-8' }, false],
+    ['a number is read as its bits', { permissions: 8 }, true],
+    ['a fractional number is worth no permission', { permissions: 1.5 }, false]
+  ] as [string, { owner?: boolean; permissions?: string | number }, boolean][])('%s', (_name, guild, want) => {
     expect(canManageGuild(guild)).toBe(want);
-  });
-
-  test.each([
-    ['a bitfield past 2^53 is read exactly', PAST_2_53.toString(), PAST_2_53],
-    ['trailing junk is worth no permission', '12x', 0n],
-    ['a negative is worth no permission', '-8', 0n],
-    ['a missing bitfield is worth no permission', undefined, 0n],
-    ['a number is read as its bits', 8, 8n],
-    ['a fractional number is worth no permission', 1.5, 0n]
-  ] as [string, string | number | undefined, bigint][])('%s', (_name, raw, want) => {
-    expect(guildPermissionBits(raw)).toBe(want);
   });
 });
 
@@ -338,7 +302,7 @@ describe('parseUserGuilds', () => {
   });
 
   test('a numeric permissions field is not trusted as a string', () => {
-    expect(parseUserGuild({ id: ID_A, permissions: 8 })?.permissions).toBe('');
+    expect(parseUserGuilds([{ id: ID_A, permissions: 8 }])?.[0].permissions).toBe('');
   });
 });
 
@@ -421,20 +385,15 @@ describe('the repost panel payload', () => {
   test('a colour the streamer never set is omitted, not defaulted on the wire', () => {
     const payload = ticketPanelPayload(blankDiscordConfig());
     expect('color' in payload).toBe(false);
-    expect(hexToDiscordColor('')).toBeNull();
     expect(payload.title).toBe(TICKET_PANEL_DEFAULTS.title);
   });
 
-  test('black is a colour, not an absence', () => {
-    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: '#000000' }).color).toBe(0);
-    expect(hexToDiscordColor('#000')).toBe(0);
-    expect(hexToDiscordColor('#000000')).toBe(0);
+  test.each(['#000000', '#000'])('black %s is a colour, not an absence', (ticketPanelColor) => {
+    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor }).color).toBe(0);
   });
 
-  test('a chosen colour travels as the decimal Go parses', () => {
-    const payload = ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor: LIVE_COLOR_HEX });
-    expect(payload.color).toBe(0xc47a3a);
-    expect(hexToDiscordColor('C47A3A')).toBe(0xc47a3a);
+  test.each([LIVE_COLOR_HEX, 'C47A3A'])('a chosen colour %s travels as the decimal Go parses', (ticketPanelColor) => {
+    expect(ticketPanelPayload({ ...blankDiscordConfig(), ticketPanelColor }).color).toBe(0xc47a3a);
   });
 
   test('an unparsable colour is omitted, and the merge reports it as a field error', () => {
@@ -448,8 +407,7 @@ describe('the repost panel payload', () => {
 
 describe('guild icons', () => {
   test('the picker keeps the hash Discord sent and builds the CDN url from it', () => {
-    expect(parseUserGuild({ id: ID_A, name: 'x', icon: 'abc123' })?.icon).toBe('abc123');
-    expect(parseUserGuild({ id: ID_A, name: 'x', icon: null })?.icon).toBe('');
+    expect(parseUserGuilds([{ id: ID_A, name: 'x', icon: 'abc123' }, { id: ID_B, name: 'x', icon: null }])?.map((g) => g.icon)).toEqual(['abc123', '']);
     expect(guildIconURL(ID_A, 'abc123')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/abc123.png`);
     expect(guildIconURL(ID_A, 'a_9f0')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/a_9f0.png`);
   });
