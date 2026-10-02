@@ -5,18 +5,16 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"io"
 	"sync"
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type counterStore struct {
@@ -36,6 +34,7 @@ func (s *counterStore) takeLocks() []string {
 }
 
 type counterConn struct {
+	unusedConn
 	s       *counterStore
 	pending map[string]int64
 	held    map[string]bool
@@ -43,16 +42,10 @@ type counterConn struct {
 
 type counterTx struct{ c *counterConn }
 
-type counterRows struct {
-	cols []string
-	rows [][]driver.Value
-}
-
-func (*counterConn) Prepare(string) (driver.Stmt, error) { return nil, fmt.Errorf("unused") }
-func (*counterConn) Close() error                        { return nil }
 func (c *counterConn) Begin() (driver.Tx, error) {
 	return c.BeginTx(context.Background(), driver.TxOptions{})
 }
+
 func (c *counterConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
 	c.pending = map[string]int64{}
 	c.held = map[string]bool{}
@@ -142,30 +135,10 @@ func (c *counterConn) lockRow(name string) *counterRows {
 	return rows
 }
 
-func (r *counterRows) Columns() []string { return r.cols }
-func (*counterRows) Close() error        { return nil }
-func (r *counterRows) Next(dest []driver.Value) error {
-	if len(r.rows) == 0 {
-		return io.EOF
-	}
-	copy(dest, r.rows[0])
-	r.rows = r.rows[1:]
-	return nil
-}
-
-type counterDriver struct{ s *counterStore }
-
-func (d counterDriver) Open(string) (driver.Conn, error) { return &counterConn{s: d.s}, nil }
-
 func promoteRepo(t *testing.T, values map[string]int64) (*Loyalty, *counterStore) {
 	t.Helper()
 	store := &counterStore{values: values}
-	name := fmt.Sprintf("loyalty-trial-%d", fakeDBSeq.Add(1))
-	sql.Register(name, counterDriver{store})
-	sqldb, err := sql.Open(name, "")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
-	return &Loyalty{sqldb: sqldb, log: zap.NewNop()}, store
+	return fakeLoyalty(t, func() driver.Conn { return &counterConn{s: store} }), store
 }
 
 func TestPromoteTrialCarriesCountersIntoTheChannelOnce(t *testing.T) {
@@ -192,92 +165,120 @@ func TestPromoteTrialCarriesCountersIntoTheChannelOnce(t *testing.T) {
 	require.False(t, promoted, "a second promotion must be a no-op")
 	require.Empty(t, store.takeLocks(), "a promoted trial must not take row locks")
 
-	require.Equal(t, int64(120), store.values[data.CounterEventsProcessed])
-	require.Equal(t, int64(125), store.values[data.CounterMessagesProcessed])
-	require.Equal(t, int64(7), store.values[data.CounterCommandsAnswered])
-	require.Equal(t, int64(1), store.values[data.CounterTrialPromoted])
+	assert.Equal(t, map[string]int64{
+		data.CounterTrialDecoded:      120,
+		data.CounterTrialAnswered:     7,
+		data.CounterEventsProcessed:   120,
+		data.CounterMessagesProcessed: 125,
+		data.CounterCommandsAnswered:  7,
+		data.CounterTrialPromoted:     1,
+	}, store.values)
 }
 
-func TestPromoteTrialLocksCounterRowsInAscendingNameOrder(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 3, data.CounterTrialAnswered: 1})
+type promoteTrialCase struct {
+	name         string
+	values       map[string]int64
+	onLock       func(values map[string]int64, name string)
+	deadlocks    int
+	wantErr      error
+	wantPromoted bool
+	wantValues   map[string]int64
+	wantAbsent   []string
+	wantLocks    []string
+}
 
-	_, err := r.PromoteTrial(context.Background(), 42)
-	require.NoError(t, err)
-	locks := store.takeLocks()
-	require.NotEmpty(t, locks)
-	for i := 1; i < len(locks); i++ {
-		require.Less(t, locks[i-1], locks[i], "counters rows must lock in ascending (user_id, name) order")
+func promoteTrialCases() []promoteTrialCase {
+	return []promoteTrialCase{
+		{
+			name:         "TestPromoteTrialLocksCounterRowsInAscendingNameOrder",
+			values:       map[string]int64{data.CounterTrialDecoded: 3, data.CounterTrialAnswered: 1},
+			wantPromoted: true,
+			wantLocks: []string{
+				data.CounterCommandsAnswered,
+				data.CounterEventsProcessed,
+				data.CounterMessagesProcessed,
+				data.CounterTrialAnswered,
+				data.CounterTrialDecoded,
+				data.CounterTrialPromoted,
+			},
+		},
+		{
+			name:         "TestPromoteTrialSkipsEmptyTotals",
+			values:       map[string]int64{},
+			wantPromoted: true,
+			wantAbsent:   []string{data.CounterEventsProcessed, data.CounterCommandsAnswered},
+			wantLocks:    []string{data.CounterTrialAnswered, data.CounterTrialDecoded, data.CounterTrialPromoted},
+		},
+		{
+			name:   "TestPromoteTrialCarriesABumpCommittedBeforeTheLock",
+			values: map[string]int64{data.CounterTrialDecoded: 120, data.CounterMessagesProcessed: 5},
+			onLock: func(values map[string]int64, name string) {
+				if name == data.CounterTrialDecoded && values[name] == 120 {
+					values[name] += 30
+				}
+			},
+			wantPromoted: true,
+			wantValues: map[string]int64{
+				data.CounterEventsProcessed:   150,
+				data.CounterMessagesProcessed: 155,
+				data.CounterTrialPromoted:     1,
+			},
+		},
+		{
+			name:   "TestPromoteTrialGivesUpWhileTotalsKeepMoving",
+			values: map[string]int64{data.CounterTrialDecoded: 120},
+			onLock: func(values map[string]int64, name string) {
+				if name == data.CounterTrialDecoded {
+					values[name]++
+				}
+			},
+			wantErr:    errTrialTotalsMoved,
+			wantAbsent: []string{data.CounterEventsProcessed, data.CounterTrialPromoted},
+		},
+		{
+			name:         "TestPromoteTrialCreatesMissingTrialRowsSoTheyLock",
+			values:       map[string]int64{data.CounterTrialDecoded: 4},
+			wantPromoted: true,
+			wantValues:   map[string]int64{data.CounterTrialAnswered: 0, data.CounterTrialDecoded: 4},
+		},
+		{
+			name:         "TestPromoteTrialRetriesAfterADeadlock",
+			values:       map[string]int64{data.CounterTrialDecoded: 9},
+			deadlocks:    1,
+			wantPromoted: true,
+			wantValues:   map[string]int64{data.CounterEventsProcessed: 9, data.CounterTrialPromoted: 1},
+		},
 	}
 }
 
-func TestPromoteTrialSkipsEmptyTotals(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{})
-
-	promoted, err := r.PromoteTrial(context.Background(), 42)
-	require.NoError(t, err)
-	require.True(t, promoted)
-	require.Equal(t, []string{data.CounterTrialAnswered, data.CounterTrialDecoded, data.CounterTrialPromoted}, store.takeLocks())
-	require.NotContains(t, store.values, data.CounterEventsProcessed)
-	require.NotContains(t, store.values, data.CounterCommandsAnswered)
-}
-
-func TestPromoteTrialCarriesABumpCommittedBeforeTheLock(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 120, data.CounterMessagesProcessed: 5})
-	store.onLock = func(name string) {
-		if name == data.CounterTrialDecoded && store.values[name] == 120 {
-			store.values[name] += 30
-		}
+func requireStoredTrial(t *testing.T, tc promoteTrialCase, store *counterStore) {
+	t.Helper()
+	for name, want := range tc.wantValues {
+		require.Contains(t, store.values, name)
+		assert.Equal(t, want, store.values[name], name)
 	}
-
-	promoted, err := r.PromoteTrial(context.Background(), 42)
-	require.NoError(t, err)
-	require.True(t, promoted)
-	require.Equal(t, int64(150), store.values[data.CounterEventsProcessed])
-	require.Equal(t, int64(155), store.values[data.CounterMessagesProcessed])
-	require.Equal(t, int64(1), store.values[data.CounterTrialPromoted])
-}
-
-func TestPromoteTrialGivesUpWhileTotalsKeepMoving(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 120})
-	store.onLock = func(name string) {
-		if name == data.CounterTrialDecoded {
-			store.values[name]++
-		}
+	for _, name := range tc.wantAbsent {
+		assert.NotContains(t, store.values, name, "an abandoned or empty promotion must not carry")
 	}
-
-	promoted, err := r.PromoteTrial(context.Background(), 42)
-	require.ErrorIs(t, err, errTrialTotalsMoved)
-	require.False(t, promoted)
-	require.NotContains(t, store.values, data.CounterEventsProcessed, "an abandoned promotion must roll back its carry")
-	require.NotContains(t, store.values, data.CounterTrialPromoted)
+	if tc.wantLocks != nil {
+		assert.Equal(t, tc.wantLocks, store.takeLocks())
+	}
 }
 
-func TestPromoteTrialCreatesMissingTrialRowsSoTheyLock(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 4})
+func TestPromoteTrial(t *testing.T) {
+	for _, tc := range promoteTrialCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			r, store := promoteRepo(t, tc.values)
+			store.deadlocks = tc.deadlocks
+			if tc.onLock != nil {
+				store.onLock = func(name string) { tc.onLock(store.values, name) }
+			}
 
-	promoted, err := r.PromoteTrial(context.Background(), 42)
-	require.NoError(t, err)
-	require.True(t, promoted)
-	require.Contains(t, store.values, data.CounterTrialAnswered, "an absent trial row takes no lock under READ COMMITTED")
-	require.Zero(t, store.values[data.CounterTrialAnswered])
-	require.Equal(t, int64(4), store.values[data.CounterTrialDecoded])
-}
+			promoted, err := r.PromoteTrial(context.Background(), 42)
 
-func TestPromoteTrialRetriesAfterADeadlock(t *testing.T) {
-	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 9})
-	store.deadlocks = 1
-
-	promoted, err := r.PromoteTrial(context.Background(), 42)
-	require.NoError(t, err)
-	require.True(t, promoted)
-	require.Equal(t, int64(9), store.values[data.CounterEventsProcessed], "the rolled-back attempt must not carry twice")
-	require.Equal(t, int64(1), store.values[data.CounterTrialPromoted])
-}
-
-func TestTrialCountersAreReservedSystemCounters(t *testing.T) {
-	require.True(t, data.SystemCounter(data.CounterTrialDecoded))
-	require.True(t, data.SystemCounter("trial_blocked"))
-	require.False(t, data.SystemCounter("trials"))
-	_, err := writableCounterName(42, "trial_blocked")
-	require.Error(t, err, "a streamer must not create or set a trial counter")
+			assert.ErrorIs(t, err, tc.wantErr)
+			assert.Equal(t, tc.wantPromoted, promoted)
+			requireStoredTrial(t, tc, store)
+		})
+	}
 }

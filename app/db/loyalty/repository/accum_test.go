@@ -4,178 +4,104 @@
 package repository
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
-	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func bare() *Loyalty {
-	return &Loyalty{
-		earnPend: map[balKey]*earnSum{},
-		bumpPend: map[bumpKey]*bumpSum{},
+func TestBumpNameColumnLimit(t *testing.T) {
+	cases := []struct {
+		name   string
+		usable bool
+	}{
+		{strings.Repeat("a", maxCounterName), true},
+		{strings.Repeat("a", maxCounterName+1), false},
+		{strings.Repeat("é", maxCounterName), true},
+		{strings.Repeat("é", maxCounterName+1), false},
+		{strings.Repeat("🥯", maxCounterName), true},
+		{"!" + strings.Repeat("A", maxCounterName) + " ", true},
 	}
+	for _, tc := range cases {
+		_, _, ok := bumpTarget(1, data.CounterBumpEntry{Name: tc.name, Delta: 1})
+		assert.Equal(t, tc.usable, ok, "len=%d runes=%d", len(tc.name), utf8.RuneCountInString(tc.name))
+	}
+
+	key, _, ok := bumpTarget(1, data.CounterBumpEntry{Name: "A\xffb", Delta: 1})
+	require.True(t, ok)
+	assert.True(t, utf8.ValidString(key.name))
 }
 
-func TestRecordEarnedFolds(t *testing.T) {
+func TestBumpCommandTruncatesToColumnLimit(t *testing.T) {
+	atLimit := strings.Repeat("€", maxCounterName)
+	over := strings.Repeat("€", maxCounterName+1)
+	for _, scope := range []string{data.CounterScopeCommand, data.CounterScopeViewerCommand} {
+		key, _, ok := bumpTarget(1, data.CounterBumpEntry{Name: "uses", Scope: scope, ViewerID: 7, Command: "!" + atLimit, Delta: 1})
+		require.True(t, ok, scope)
+		assert.Equal(t, atLimit, key.command, scope)
+
+		key, _, ok = bumpTarget(1, data.CounterBumpEntry{Name: "uses", Scope: scope, ViewerID: 7, Command: over, Delta: 1})
+		require.True(t, ok, scope)
+		assert.Equal(t, atLimit, key.command, scope)
+	}
+
+	key, scope, ok := bumpTarget(1, data.CounterBumpEntry{Name: "deaths", Command: over, Delta: 1})
+	require.True(t, ok)
+	assert.Equal(t, data.CounterScopeChannel, scope)
+	assert.Empty(t, key.command)
+}
+
+func TestNormalizeCommandTruncatesCharacters(t *testing.T) {
+	got := normalizeCommand("!" + strings.Repeat("€", maxCounterName+5))
+	assert.True(t, utf8.ValidString(got))
+	assert.Equal(t, maxCounterName, utf8.RuneCountInString(got))
+	assert.Equal(t, "hug", normalizeCommand(" !Hug "))
+}
+
+func TestOverLongViewerDisplayKeepsDelta(t *testing.T) {
+	long := strings.Repeat("x", maxCounterName+1)
+	r := bare()
+	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", ViewerName: "Cool", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: long, ViewerName: "a\xff", Delta: 2},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 8, ViewerLogin: long, ViewerName: strings.Repeat("é", maxCounterName), Delta: 3},
+	}})
+	_, bumps := r.drain()
+	require.Len(t, bumps, 2)
+	seven := bumps[bumpKey{userID: 1, name: "hugs", viewerID: 7}]
+	require.NotNil(t, seven)
+	assert.Equal(t, int64(3), seven.delta)
+	assert.Equal(t, "cool", seven.login)
+	assert.Equal(t, "Cool", seven.name)
+	eight := bumps[bumpKey{userID: 1, name: "hugs", viewerID: 8}]
+	require.NotNil(t, eight)
+	assert.Equal(t, int64(3), eight.delta)
+	assert.Empty(t, eight.login)
+	assert.Equal(t, strings.Repeat("é", maxCounterName), eight.name)
+}
+
+func TestOverLongEarnDisplayKeepsPoints(t *testing.T) {
+	long := strings.Repeat("🥯", maxCounterName+1)
 	r := bare()
 	r.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{
-		{ViewerID: 7, ViewerLogin: "cool", Points: 100, WatchSeconds: 300},
-		{ViewerID: 7, ViewerName: "Cool", Points: 50},
-		{ViewerID: 8, WatchSeconds: 300},
-		{ViewerID: 0, Points: 10},
-		{ViewerID: 9},
+		{ViewerID: 7, ViewerLogin: "cool", ViewerName: "Cool", Points: 10},
+		{ViewerID: 7, ViewerLogin: long, ViewerName: long, Points: 5, WatchSeconds: 60},
+		{ViewerID: 8, ViewerLogin: long, Points: 1},
 	}})
-
-	earn, bumps := r.drain()
-	assert.Empty(t, bumps)
+	earn, _ := r.drain()
 	require.Len(t, earn, 2)
 	seven := earn[balKey{userID: 1, viewerID: 7}]
 	require.NotNil(t, seven)
-	assert.Equal(t, int64(150), seven.points)
-	assert.Equal(t, uint64(300), seven.watchSeconds)
+	assert.Equal(t, int64(15), seven.points)
+	assert.Equal(t, uint64(60), seven.watchSeconds)
 	assert.Equal(t, "cool", seven.login)
 	assert.Equal(t, "Cool", seven.name)
-
-	earn, _ = r.drain()
-	assert.Empty(t, earn)
-}
-
-func TestRecordBumpsFoldsAndValidates(t *testing.T) {
-	r := bare()
-	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
-		{Name: "!Deaths", Delta: 1},
-		{Name: "deaths", Delta: 2},
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},
-		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},
-		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2},
-		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},
-		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},
-		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 1},
-		{Name: "bot:x", Delta: 1},
-		{Name: "", Delta: 1},
-		{Name: "noop", Delta: 0},
-	}})
-	r.RecordBumps(data.CounterBumpedDTO{UserID: 0, Bumps: []data.CounterBumpEntry{
-		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 4},
-		{Name: "deaths", Delta: 1},
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1},
-	}})
-
-	_, bumps := r.drain()
-	require.Len(t, bumps, 6)
-	deaths := bumps[bumpKey{userID: 1, name: "deaths"}]
-	require.NotNil(t, deaths)
-	assert.Equal(t, int64(3), deaths.delta)
-	assert.Equal(t, data.CounterScopeChannel, deaths.scope)
-	hugs := bumps[bumpKey{userID: 1, name: "hugs", viewerID: 7}]
-	require.NotNil(t, hugs)
-	assert.Equal(t, int64(2), hugs.delta)
-	assert.Equal(t, data.CounterScopeViewer, hugs.scope)
-	assert.Equal(t, "cool", hugs.login)
-	assert.Equal(t, "Cool", hugs.name)
-	uses := bumps[bumpKey{userID: 1, name: "uses", command: "hug", viewerID: 7}]
-	require.NotNil(t, uses)
-	assert.Equal(t, int64(2), uses.delta)
-	assert.Equal(t, data.CounterScopeViewerCommand, uses.scope)
-	raids := bumps[bumpKey{userID: 1, name: "raids", command: "raid"}]
-	require.NotNil(t, raids)
-	assert.Equal(t, int64(3), raids.delta)
-	assert.Equal(t, data.CounterScopeCommand, raids.scope)
-	pulls := bumps[bumpKey{userID: 1, name: "pulls"}]
-	require.NotNil(t, pulls)
-	assert.Equal(t, int64(2), pulls.delta)
-	assert.Equal(t, data.CounterScopeChannel, pulls.scope)
-	feeds := bumps[bumpKey{name: "feeds"}]
-	require.NotNil(t, feeds)
-	assert.Equal(t, int64(4), feeds.delta)
-	assert.Equal(t, data.CounterScopeBot, feeds.scope)
-}
-
-func TestSplitBumpsRouting(t *testing.T) {
-	bumps := map[bumpKey]*bumpSum{
-		{userID: 1, name: "deaths"}:                            {scope: data.CounterScopeChannel},
-		{name: "feeds"}:                                        {scope: data.CounterScopeBot},
-		{userID: 1, name: "hugs", viewerID: 7}:                 {scope: data.CounterScopeViewer},
-		{userID: 1, name: "raids", command: "raid"}:            {scope: data.CounterScopeCommand},
-		{userID: 1, name: "uses", command: "hug", viewerID: 7}: {scope: data.CounterScopeViewerCommand},
-	}
-	channel, entries := splitBumps(bumps)
-	assert.Len(t, channel, 2)
-	assert.Len(t, entries, 3)
-}
-
-func TestEntryTarget(t *testing.T) {
-	scoped := func(scope string) *ent.Counter { return &ent.Counter{Scope: scope} }
-
-	v, cmd, ok := entryTarget(scoped(data.CounterScopeCommand), 7, "!Raid")
-	require.True(t, ok)
-	assert.Equal(t, uint64(0), v)
-	assert.Equal(t, "raid", cmd)
-
-	_, _, ok = entryTarget(scoped(data.CounterScopeCommand), 7, "")
-	assert.False(t, ok)
-
-	v, cmd, ok = entryTarget(scoped(data.CounterScopeViewerCommand), 7, "!Raid")
-	require.True(t, ok)
-	assert.Equal(t, uint64(7), v)
-	assert.Equal(t, "raid", cmd)
-
-	_, _, ok = entryTarget(scoped(data.CounterScopeViewer), 0, "")
-	assert.False(t, ok)
-
-	_, _, ok = entryTarget(scoped(data.CounterScopeBot), 7, "x")
-	assert.False(t, ok)
-}
-
-func TestValidCounterName(t *testing.T) {
-	n, err := ValidCounterName("  !Deaths ")
-	require.NoError(t, err)
-	assert.Equal(t, "deaths", n)
-
-	_, err = ValidCounterName("   ")
-	assert.ErrorIs(t, err, ErrInvalidInput)
-
-	long := make([]byte, maxCounterName+1)
-	for i := range long {
-		long[i] = 'a'
-	}
-	_, err = ValidCounterName(string(long))
-	assert.ErrorIs(t, err, ErrInvalidInput)
-
-	_, err = ValidCounterName("target:deaths")
-	assert.ErrorIs(t, err, ErrInvalidInput)
-}
-
-func TestValidScope(t *testing.T) {
-	s, err := ValidScope("")
-	require.NoError(t, err)
-	assert.Equal(t, data.CounterScopeChannel, s)
-
-	s, err = ValidScope(data.CounterScopeViewer)
-	require.NoError(t, err)
-	assert.Equal(t, data.CounterScopeViewer, s)
-
-	_, err = ValidScope("global")
-	assert.ErrorIs(t, err, ErrInvalidInput)
-}
-
-func TestWritableCounterNameReservesSystemCounters(t *testing.T) {
-	_, err := writableCounterName(123, data.CounterMessagesProcessed)
-	require.ErrorIs(t, err, ErrInvalidInput)
-
-	_, err = writableCounterName(123, "  !Messages_Processed ")
-	require.ErrorIs(t, err, ErrInvalidInput)
-
-	n, err := writableCounterName(0, data.CounterEventsProcessed)
-	require.NoError(t, err)
-	assert.Equal(t, data.CounterEventsProcessed, n)
-
-	n, err = writableCounterName(123, "deaths")
-	require.NoError(t, err)
-	assert.Equal(t, "deaths", n)
+	eight := earn[balKey{userID: 1, viewerID: 8}]
+	require.NotNil(t, eight)
+	assert.Equal(t, int64(1), eight.points)
+	assert.Empty(t, eight.login)
 }

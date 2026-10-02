@@ -1,204 +1,154 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package giveaway
 
 import (
-	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/db/transactions/ent/billingoperation"
-	"ItsBagelBot/app/db/transactions/ent/enttest"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/tebex"
 	users "ItsBagelBot/internal/domain/rpc/users"
-	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type fakeUsers struct {
-	mu                sync.Mutex
-	prepares, commits int
-	lastPrepare       users.PreparePremiumGrantRequest
-	coverage          users.PremiumCoverage
-	commitErr         error
-}
-
-func (f *fakeUsers) Pool(context.Context, *time.Time) (users.GiveawayPoolReply, error) {
-	return users.GiveawayPoolReply{}, nil
-}
-func (f *fakeUsers) Coverage(context.Context, uint64) (users.PremiumCoverage, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.coverage, nil
-}
-func (f *fakeUsers) Prepare(_ context.Context, req users.PreparePremiumGrantRequest) (users.PremiumGrant, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.prepares++
-	f.lastPrepare = req
-	return users.PremiumGrant{ID: 7}, nil
-}
-func (f *fakeUsers) Commit(context.Context, users.CommitPremiumGrantRequest) (users.PremiumGrant, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.commits++
-	if f.commitErr != nil {
-		return users.PremiumGrant{}, f.commitErr
-	}
-	return users.PremiumGrant{ID: 7}, nil
-}
-func (f *fakeUsers) Email(context.Context, uint64) (string, error) { return "", nil }
-
 func TestEngineRestartDoesNotDuplicatePreparedGrant(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-engine"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	award, err := client.GiveawayAward.Create().SetID("award-1").SetGiveawayID("campaign-1").SetDrawID("draw-1").SetUserID(42).SetOrdinal(1).SetPrizeMonths(1).SetIntervalRule("provider-monthly-unverified").SetSelectedAt(now).Save(context.Background())
+	f := newFixture(t)
+	f.users, f.config = &fakeUsers{}, Config{PromotionalGrantsEnabled: true}
+	award := f.award("award-1")
+	f.queue(award, "award.fulfill")
+
+	require.NoError(t, f.engine().DispatchOnce(t.Context()))
+	require.Error(t, f.engine().DispatchOnce(t.Context()))
+
+	ledger := f.users.ledger()
+	assert.Equal(t, 1, ledger.prepares)
+	assert.Equal(t, 1, ledger.commits)
+	assert.Equal(t, PromotionalCalendarMonthRule, ledger.prepared.IntervalRuleVersion)
+	assert.Equal(t, f.now, ledger.prepared.StartAt)
+	assert.Equal(t, f.now.AddDate(0, 1, 0), ledger.prepared.EndAt)
+	assert.Equal(t, "active", f.db.GiveawayAward.GetX(t.Context(), award.ID).State)
+	plan, err := f.db.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(t.Context())
 	require.NoError(t, err)
-	payload := `{"award_id":"award-1"}`
-	_, err = client.GiveawayOutbox.Create().SetID("work-1").SetAggregateID(award.ID).SetEventType("award.fulfill").SetPayloadJSON(payload).Save(context.Background())
-	require.NoError(t, err)
-	usersPort := &fakeUsers{}
-	cfg := EngineConfig{Store: NewStore(client), Users: usersPort, Config: Config{PromotionalGrantsEnabled: true}, Now: func() time.Time { return now }}
-	require.NoError(t, NewEngine(cfg).DispatchOnce(context.Background()))
-	require.Error(t, NewEngine(cfg).DispatchOnce(context.Background()))
-	usersPort.mu.Lock()
-	prepares, commits, rule := usersPort.prepares, usersPort.commits, usersPort.lastPrepare.IntervalRuleVersion
-	preparedStart, preparedEnd := usersPort.lastPrepare.StartAt, usersPort.lastPrepare.EndAt
-	usersPort.mu.Unlock()
-	require.Equal(t, 1, prepares)
-	require.Equal(t, 1, commits)
-	require.Equal(t, PromotionalCalendarMonthRule, rule)
-	require.Equal(t, now, preparedStart)
-	require.Equal(t, now.AddDate(0, 1, 0), preparedEnd)
-	row := client.GiveawayAward.GetX(context.Background(), award.ID)
-	require.Equal(t, "active", row.State)
-	plan, err := client.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, PromotionalCalendarMonthRule, plan.IntervalRule)
-	require.Equal(t, now, plan.StartAt)
-	require.Equal(t, now.AddDate(0, 1, 0), plan.EndAt)
+	assert.Equal(t, PromotionalCalendarMonthRule, plan.IntervalRule)
+	assert.Equal(t, f.now, plan.StartAt)
+	assert.Equal(t, f.now.AddDate(0, 1, 0), plan.EndAt)
 }
 
 func TestEngineCommitRetryReusesImmutablePlanAndResolvesFulfillmentAlert(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-plan-retry"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	award, err := client.GiveawayAward.Create().SetID("award-plan-retry").SetGiveawayID("campaign").SetDrawID("draw").SetUserID(42).SetOrdinal(1).SetPrizeMonths(1).SetIntervalRule("provider-monthly-unverified").SetSelectedAt(now).Save(context.Background())
-	require.NoError(t, err)
-	_, err = client.GiveawayAlert.Create().SetID(award.ID + ":fulfillment").SetAwardID(award.ID).SetCategory("fulfillment").SetState("unresolved").SetMessage("old commit failure").Save(context.Background())
-	require.NoError(t, err)
-	_, err = client.GiveawayOutbox.Create().SetID("work-plan-retry").SetAggregateID(award.ID).SetEventType("award.fulfill").SetPayloadJSON(`{"award_id":"award-plan-retry"}`).Save(context.Background())
-	require.NoError(t, err)
+	f := newFixture(t)
 	commitErr := errors.New("temporary users commit failure")
-	usersPort := &fakeUsers{commitErr: commitErr}
-	cfg := EngineConfig{Store: NewStore(client), Users: usersPort, Config: Config{PromotionalGrantsEnabled: true}, Now: func() time.Time { return now }}
-	engine := NewEngine(cfg)
-	require.ErrorIs(t, engine.DispatchOnce(context.Background()), commitErr)
-	firstPlan, err := client.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(context.Background())
+	f.users, f.config = &fakeUsers{commitErr: commitErr}, Config{PromotionalGrantsEnabled: true}
+	award := f.award("award-plan-retry")
+	_, err := f.db.GiveawayAlert.Create().SetID(award.ID + ":fulfillment").SetAwardID(award.ID).SetCategory("fulfillment").SetState("unresolved").SetMessage("old commit failure").Save(t.Context())
 	require.NoError(t, err)
-	firstAward := client.GiveawayAward.GetX(context.Background(), award.ID)
-	usersPort.mu.Lock()
-	usersPort.commitErr = nil
-	usersPort.mu.Unlock()
-	_, err = client.GiveawayOutbox.UpdateOneID("work-plan-retry").SetState("queued").ClearNextAttemptAt().Save(context.Background())
-	require.NoError(t, err)
-	require.NoError(t, engine.DispatchOnce(context.Background()))
-	secondPlan, err := client.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, firstPlan.IntervalRule, secondPlan.IntervalRule)
-	require.Equal(t, firstPlan.StartAt, secondPlan.StartAt)
-	require.Equal(t, firstPlan.EndAt, secondPlan.EndAt)
-	updated := client.GiveawayAward.GetX(context.Background(), award.ID)
-	require.Equal(t, "provider-monthly-unverified", updated.IntervalRule)
-	require.Equal(t, "active", updated.State)
-	require.Empty(t, updated.FailureReason)
-	require.Equal(t, firstAward.PlannedStart, updated.PlannedStart)
-	require.Equal(t, firstAward.PlannedEnd, updated.PlannedEnd)
-	usersPort.mu.Lock()
-	preparedRule := usersPort.lastPrepare.IntervalRuleVersion
-	preparedStart, preparedEnd := usersPort.lastPrepare.StartAt, usersPort.lastPrepare.EndAt
-	usersPort.mu.Unlock()
-	require.Equal(t, PromotionalCalendarMonthRule, preparedRule)
-	require.Equal(t, firstPlan.StartAt, preparedStart)
-	require.Equal(t, firstPlan.EndAt, preparedEnd)
-	alert, err := client.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(award.ID), giveawayalert.CategoryEQ("fulfillment")).Only(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, "resolved", alert.State)
-}
 
-func TestProviderInspectDoesNotTrustAnUnownedPause(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-unowned-pause"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	end := now.Add(2 * time.Hour)
-	ref := "ref-unowned"
-	_, err := client.BillingOperation.Create().SetID("billing:unowned").SetAwardID("award-unowned").SetAgreementID("agreement:unowned").SetRecurringReference(ref).SetRequestedStart(now).SetRequestedEnd(end).Save(context.Background())
+	require.ErrorIs(t, f.dispatch(award, "award.fulfill"), commitErr)
+	firstPlan, err := f.db.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(t.Context())
 	require.NoError(t, err)
-	next := now.Add(time.Hour)
-	paused := now.Add(24 * time.Hour)
-	adapter := engineProviderAdapter{
-		provider: &reconcileProvider{payment: tebex.RecurringPayment{Reference: ref, Status: "Paused", Interval: "P1M", NextPaymentDate: &next, PausedUntil: &paused}},
-		db:       client, awardID: "award-unowned",
-	}
-	state, err := adapter.Inspect(context.Background(), ref)
-	require.NoError(t, err)
-	require.True(t, state.Ambiguous)
-	require.Nil(t, state.ProtectedUntil)
+	firstAward := f.db.GiveawayAward.GetX(t.Context(), award.ID)
 
-	operation, err := client.BillingOperation.Query().Where(billingoperation.IDEQ("billing:unowned")).Only(context.Background())
+	f.users.mu.Lock()
+	f.users.commitErr = nil
+	f.users.mu.Unlock()
+	require.NoError(t, f.dispatch(award, "award.fulfill"))
+
+	secondPlan, err := f.db.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(award.ID)).Only(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "pending", operation.State)
+	assert.Equal(t, firstPlan.IntervalRule, secondPlan.IntervalRule)
+	assert.Equal(t, firstPlan.StartAt, secondPlan.StartAt)
+	assert.Equal(t, firstPlan.EndAt, secondPlan.EndAt)
+	updated := f.db.GiveawayAward.GetX(t.Context(), award.ID)
+	assert.Equal(t, "provider-monthly-unverified", updated.IntervalRule)
+	assert.Equal(t, "active", updated.State)
+	assert.Empty(t, updated.FailureReason)
+	assert.Equal(t, firstAward.PlannedStart, updated.PlannedStart)
+	assert.Equal(t, firstAward.PlannedEnd, updated.PlannedEnd)
+	prepared := f.users.ledger().prepared
+	assert.Equal(t, PromotionalCalendarMonthRule, prepared.IntervalRuleVersion)
+	assert.Equal(t, firstPlan.StartAt, prepared.StartAt)
+	assert.Equal(t, firstPlan.EndAt, prepared.EndAt)
+	alert, err := f.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(award.ID), giveawayalert.CategoryEQ("fulfillment")).Only(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "resolved", alert.State)
 }
 
 func TestEngineKeepsRecurringWinnerPendingUntilProviderRuleVerified(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-provider-rule-gate"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	f := newFixture(t)
 	ref := "recurring-ref"
-	award, err := client.GiveawayAward.Create().SetID("award-provider-gate").SetGiveawayID("campaign").SetDrawID("draw").SetUserID(42).SetOrdinal(1).SetPrizeMonths(1).SetIntervalRule("provider-monthly-unverified").SetSelectedAt(now).Save(context.Background())
-	require.NoError(t, err)
-	_, err = client.GiveawayOutbox.Create().SetID("work-provider-gate").SetAggregateID(award.ID).SetEventType("award.fulfill").SetPayloadJSON(`{"award_id":"award-provider-gate"}`).Save(context.Background())
-	require.NoError(t, err)
-	usersPort := &fakeUsers{coverage: users.PremiumCoverage{RecurringReference: &ref}}
-	engine := NewEngine(EngineConfig{Store: NewStore(client), Users: usersPort, Config: Config{PromotionalGrantsEnabled: true}, Now: func() time.Time { return now }})
-	require.ErrorIs(t, engine.DispatchOnce(context.Background()), ErrAwardNeedsReview)
-	updated := client.GiveawayAward.GetX(context.Background(), award.ID)
-	require.Equal(t, "needs_review", updated.State)
-	usersPort.mu.Lock()
-	prepares := usersPort.prepares
-	usersPort.mu.Unlock()
-	require.Equal(t, 0, prepares)
+	f.users, f.config = &fakeUsers{coverage: users.PremiumCoverage{RecurringReference: &ref}}, Config{PromotionalGrantsEnabled: true}
+	award := f.award("award-provider-gate")
+
+	require.ErrorIs(t, f.dispatch(award, "award.fulfill"), ErrAwardNeedsReview)
+
+	assert.Equal(t, "needs_review", f.db.GiveawayAward.GetX(t.Context(), award.ID).State)
+	assert.Zero(t, f.users.ledger().prepares)
 }
 
 func TestEngineDoesNotBypassDisabledRuleForSavedPlan(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-saved-plan-gate"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	award, err := client.GiveawayAward.Create().SetID("award-saved-plan-gate").SetGiveawayID("campaign").SetDrawID("draw").SetUserID(42).SetOrdinal(1).SetPrizeMonths(1).SetIntervalRule(PromotionalCalendarMonthRule).SetPlannedStart(now).SetPlannedEnd(now.AddDate(0, 1, 0)).Save(context.Background())
+	f := newFixture(t)
+	award, err := f.newAward("award-saved-plan-gate").SetIntervalRule(PromotionalCalendarMonthRule).SetPlannedStart(f.now).SetPlannedEnd(f.now.AddDate(0, 1, 0)).Save(t.Context())
 	require.NoError(t, err)
-	engine := NewEngine(EngineConfig{Store: NewStore(client), Now: func() time.Time { return now }})
-	_, err = engine.planAward(context.Background(), award, users.PremiumCoverage{})
+
+	_, err = f.engine().planAward(t.Context(), award, users.PremiumCoverage{})
+
 	require.ErrorIs(t, err, ErrAwardNeedsReview)
-	updated := client.GiveawayAward.GetX(context.Background(), award.ID)
-	require.Equal(t, "needs_review", updated.State)
+	assert.Equal(t, "needs_review", f.db.GiveawayAward.GetX(t.Context(), award.ID).State)
 }
 
-func TestPersistReviewAlertReopensResolvedAlert(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-review-alert"))
-	t.Cleanup(func() { _ = client.Close() })
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	_, err := client.GiveawayAlert.Create().SetID("award-review:billing").SetAwardID("award-review").SetCategory("billing").SetState("resolved").SetMessage("old reason").SetResolvedAt(now.Add(-time.Hour)).SetAcknowledgedBy(7).SetAcknowledgedAt(now.Add(-time.Hour)).Save(context.Background())
+func TestEngineSendsUnprotectedSubscriberToReviewWithoutCommitting(t *testing.T) {
+	next := fixtureNow.Add(14 * 24 * time.Hour)
+	pausedPastPrizeEnd := fixtureNow.AddDate(0, 3, 0)
+	for _, tc := range []struct {
+		name    string
+		payment tebex.RecurringPayment
+	}{
+		{"leaves an unpaused subscription for review", tebex.RecurringPayment{Reference: "ref-1", Status: "Active", Interval: "P1M", NextPaymentDate: &next}},
+		{"does not trust a pause this engine never wrote", tebex.RecurringPayment{Reference: "ref-1", Status: "Paused", Interval: "P1M", NextPaymentDate: &next, PausedUntil: &pausedPastPrizeEnd}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			ref := "ref-1"
+			f.users = &fakeUsers{coverage: users.PremiumCoverage{RecurringReference: &ref}}
+			f.provider = &fakeProvider{payment: tc.payment}
+			f.config = Config{IntervalRuleVerified: true}
+			award := f.award("award-review")
+
+			require.ErrorIs(t, f.dispatch(award, "award.fulfill"), ErrAwardNeedsReview)
+
+			assert.Equal(t, "needs_review", f.db.GiveawayAward.GetX(t.Context(), award.ID).State)
+			assert.Zero(t, f.users.ledger().commits, "an unprotected prize must never be committed")
+			operation, err := f.db.BillingOperation.Query().Where(billingoperation.AwardIDEQ(award.ID)).Only(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, "needs_review", operation.State)
+		})
+	}
+}
+
+func TestEngineReviewReopensAResolvedBillingAlert(t *testing.T) {
+	f := newFixture(t)
+	ref := "ref-1"
+	next := f.now.Add(30 * 24 * time.Hour)
+	f.users = &fakeUsers{coverage: users.PremiumCoverage{RecurringReference: &ref}}
+	f.provider = &fakeProvider{payment: tebex.RecurringPayment{Reference: ref, Status: "Active", Interval: "P1M", NextPaymentDate: &next}}
+	f.config = Config{IntervalRuleVerified: true}
+	award := f.award("award-review")
+	_, err := f.db.GiveawayAlert.Create().SetID(award.ID + ":billing").SetAwardID(award.ID).SetCategory("billing").SetState("resolved").SetMessage("old reason").
+		SetResolvedAt(f.now.Add(-time.Hour)).SetAcknowledgedBy(7).SetAcknowledgedAt(f.now.Add(-time.Hour)).Save(t.Context())
 	require.NoError(t, err)
-	require.NoError(t, persistReviewAlert(context.Background(), client, "award-review", errors.New("new reason")))
-	alert, err := client.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ("award-review"), giveawayalert.CategoryEQ("billing")).Only(context.Background())
+
+	require.ErrorIs(t, f.dispatch(award, "award.fulfill"), ErrAwardNeedsReview)
+
+	alert, err := f.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(award.ID), giveawayalert.CategoryEQ("billing")).Only(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "unresolved", alert.State)
-	require.Equal(t, "new reason", alert.Message)
-	require.True(t, alert.ResolvedAt.IsZero())
-	require.True(t, alert.AcknowledgedAt.IsZero())
+	assert.Equal(t, "unresolved", alert.State)
+	assert.Equal(t, ErrAwardNeedsReview.Error(), alert.Message)
+	assert.True(t, alert.ResolvedAt.IsZero())
+	assert.True(t, alert.AcknowledgedAt.IsZero())
 }

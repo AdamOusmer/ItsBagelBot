@@ -13,22 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCancellationIntentSurvivesTimezoneLessDates(t *testing.T) {
-	var payment RecurringPayment
-	err := codec.Unmarshal([]byte(`{"reference":"99","status":{"active":1,"description":"Paused"},"interval":"P1M","next_payment_date":"2030-09-20T14:00:00Z","paused_until":"2030-12-20T14:00:00Z","cancelled_at":null,"cancellation_requested_at":"2024-07-25 14:01:03"}`), &payment)
-	require.NoError(t, err)
-	assert.True(t, payment.CancellationRequested)
-	assert.Nil(t, payment.CancellationDate, "a timezone-less value cannot prove an absolute date")
-	assert.False(t, payment.CanProtect("tbx-r-99"))
-}
-
-func TestUnknownCancellationAndDateRemainUnverified(t *testing.T) {
-	var payment RecurringPayment
-	err := codec.Unmarshal([]byte(`{"reference":"99","status":{"active":1,"description":"Active"},"interval":"P1M","next_payment_date":"2030-09-20T14:00:00"}`), &payment)
-	require.NoError(t, err)
-	assert.True(t, payment.Ambiguous)
-	assert.Nil(t, payment.NextPaymentDate)
-	assert.False(t, payment.CanProtect("tbx-r-99"))
+func TestRecurringPaymentDecodingNeverInventsCertainty(t *testing.T) {
+	type decoded struct {
+		cancellationRequested, ambiguous, hasCancellationDate, hasNextPayment, canProtect bool
+	}
+	for _, tc := range []struct {
+		name string
+		body string
+		want decoded
+	}{
+		{
+			name: "a timezone-less cancellation survives but proves no absolute date",
+			body: `{"reference":"99","status":{"active":1,"description":"Paused"},"interval":"P1M","next_payment_date":"2030-09-20T14:00:00Z","paused_until":"2030-12-20T14:00:00Z","cancelled_at":null,"cancellation_requested_at":"2024-07-25 14:01:03"}`,
+			want: decoded{cancellationRequested: true, hasNextPayment: true},
+		},
+		{
+			name: "a timezone-less payment date stays unverified",
+			body: `{"reference":"99","status":{"active":1,"description":"Active"},"interval":"P1M","next_payment_date":"2030-09-20T14:00:00"}`,
+			want: decoded{ambiguous: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var payment RecurringPayment
+			require.NoError(t, codec.Unmarshal([]byte(tc.body), &payment))
+			assert.Equal(t, tc.want, decoded{payment.CancellationRequested, payment.Ambiguous, payment.CancellationDate != nil, payment.NextPaymentDate != nil, payment.CanProtect("tbx-r-99")})
+		})
+	}
 }
 
 func TestProtectionRequiresFullIntervalIdentityAndPausedState(t *testing.T) {

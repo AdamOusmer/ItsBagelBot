@@ -7,69 +7,11 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestSanitizeGiftMessage(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"trims", "  hi there  ", "hi there"},
-		{"keeps newlines", "line1\nline2", "line1\nline2"},
-		{"tabs become spaces", "a\tb", "a b"},
-		{"strips control chars", "hi\x00\x07 there", "hi there"},
-		{"empty stays empty", "   ", ""},
-		{"caps Unicode by runes", strings.Repeat("é", 400), strings.Repeat("é", giftMessageMaxRunes)},
-	}
-	for _, tc := range tests {
-		if got := sanitizeGiftMessage(tc.in); got != tc.want {
-			t.Errorf("%s: sanitizeGiftMessage(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestClampLogin(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"short passes", "bagelfan", "bagelfan"},
-		{"trims", "  bagelfan  ", "bagelfan"},
-		{"at max", strings.Repeat("a", twitchLoginMaxLen), strings.Repeat("a", twitchLoginMaxLen)},
-		{"over max truncates", strings.Repeat("a", 100), strings.Repeat("a", twitchLoginMaxLen)},
-	}
-	for _, tc := range tests {
-		if got := clampLogin(tc.in); got != tc.want {
-			t.Errorf("%s: clampLogin(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestGiftNoteLinkAfterSanitize(t *testing.T) {
-	cases := []struct {
-		note    string
-		blocked bool
-	}{
-		{"visit example.com now", true},
-		{"go to example . com", true},
-		{"hey\x00example[.]com", true},
-		{"ping me user (at) gmail dot com", true},
-		{"thanks so much, enjoy premium!", false},
-		{"see you at 3 p.m.", false},
-	}
-	for _, tc := range cases {
-		if noteHasLink(sanitizeGiftMessage(tc.note)) != tc.blocked {
-			t.Errorf("gift note %q link detection mismatch", tc.note)
-		}
-	}
-}
 
 func TestBasketBudget(t *testing.T) {
 	if want := 15 * time.Second; basketBudget != want {

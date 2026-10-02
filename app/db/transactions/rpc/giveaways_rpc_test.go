@@ -160,7 +160,6 @@ func TestGiveawayRPCRejectedMutationsLeaveNoPersistedChanges(t *testing.T) {
 	require.Zero(t, f.db.Giveaway.Query().CountX(context.Background()))
 	require.Zero(t, f.db.GiveawayCandidate.Query().CountX(context.Background()))
 	require.Zero(t, f.db.GiveawayAward.Query().CountX(context.Background()))
-	// An absent pool responder would return unavailable if freeze reached Users.
 	invalidFreeze := giveawayRequest[giveaways.FreezeReply](t, f.nc, giveaways.AdminPrefix+".freeze", giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10"}, CampaignID: "missing"})
 	require.Equal(t, domainrpc.CodeInvalid, invalidFreeze.Code)
 	invalidPreview := giveawayRequest[giveaways.PreviewReply](t, f.nc, giveaways.AdminPrefix+".preview", giveaways.PreviewRequest{Mutation: giveaways.Mutation{ActorID: "10"}, WinnerCount: 1, PrizeMonths: 13})
@@ -236,4 +235,90 @@ func giveawayRequest[T any](t *testing.T, nc *nats.Conn, subject string, request
 	var reply T
 	require.NoError(t, codec.Unmarshal(msg.Data, &reply))
 	return reply
+}
+
+func strptr(value string) *string { return &value }
+
+func TestGiveawayRPCCapabilitiesReflectLaunchGates(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		config    giveawayengine.Config
+		want      giveaways.Capabilities
+		explained bool
+	}{
+		{
+			name:   "reports every gate open without a reason",
+			config: giveawayengine.Config{NewAwardsEnabled: true, IntervalRuleVerified: true, ProviderMutations: true},
+			want:   giveaways.Capabilities{NewAwardsEnabled: true, SchedulingEnabled: true, ProviderMutations: true, IntervalRuleVerified: true},
+		},
+		{
+			name:      "explains a launch with every gate closed",
+			want:      giveaways.Capabilities{},
+			explained: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newGiveawayRPCFixture(t, tc.config)
+			reply := giveawayRequest[giveaways.CapabilitiesReply](t, f.nc, giveaways.AdminPrefix+"."+giveaways.VerbCapabilities, giveaways.CapabilitiesRequest{Mutation: giveaways.Mutation{ActorID: "10"}})
+			require.Empty(t, reply.Error)
+			require.Equal(t, tc.explained, reply.Capabilities.Reason != "")
+			reply.Capabilities.Reason = ""
+			require.Equal(t, tc.want, reply.Capabilities)
+		})
+	}
+}
+
+func TestGiveawayRPCPreviewSummary(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pool    usersrpc.GiveawayPoolReply
+		winners int
+		months  int
+		want    giveaways.PoolSummary
+	}{
+		{
+			name: "counts each candidate in exactly one category",
+			pool: usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 6, Eligible: 6}, Candidates: []usersrpc.GiveawayCandidate{
+				{UserID: 1, Status: "free"},
+				{UserID: 2, Status: "paid"},
+				{UserID: 3, Status: "paid"},
+				{UserID: 4, Status: "paid", SubscriptionRef: strptr("recurring-4")},
+				{UserID: 5, Status: "paid", SubscriptionRef: strptr("recurring-5")},
+				{UserID: 6, Status: "free", SubscriptionRef: strptr("recurring-6")},
+			}},
+			winners: 1, months: 1,
+			want: giveaways.PoolSummary{Total: 6, Eligible: 6, Free: 1, Premium: 2, Subscribers: 3, RequestedWinners: 1, PrizeMonths: 1, TotalPrizeMonths: "1"},
+		},
+		{
+			name:    "carries the requested values and exclusions for an empty pool",
+			pool:    usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 8, Eligible: 3, Banned: 2, VIP: 3}},
+			winners: 5, months: 2,
+			want: giveaways.PoolSummary{Total: 8, Eligible: 3, Excluded: 5, RequestedWinners: 5, PrizeMonths: 2, TotalPrizeMonths: "10", Exclusions: giveaways.PoolExclusionCounts{Banned: 2, VIP: 3}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newGiveawayRPCFixture(t, giveawayengine.Config{})
+			f.pool(t, tc.pool)
+			preview := giveawayRequest[giveaways.PreviewReply](t, f.nc, giveaways.AdminPrefix+".preview", giveaways.PreviewRequest{Mutation: giveaways.Mutation{ActorID: "10"}, WinnerCount: tc.winners, PrizeMonths: tc.months})
+			require.Empty(t, preview.Error)
+			require.Equal(t, tc.want, preview.Summary)
+		})
+	}
+}
+
+func TestGiveawayRPCFrozenReplaySummarizesStoredExclusionsWithoutUsers(t *testing.T) {
+	f := newGiveawayRPCFixture(t, giveawayengine.Config{NewAwardsEnabled: true})
+	created := giveawayRequest[giveaways.CreateReply](t, f.nc, giveaways.AdminPrefix+".create", giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create"}, Title: "Stored summary", WinnerCount: 2, PrizeMonths: 3})
+	require.Empty(t, created.Error)
+	candidates := []giveawayengine.Candidate{{UserID: 1, Eligible: true}, {UserID: 2, ExclusionReason: "vip"}, {UserID: 3, ExclusionReason: "current_staff"}}
+	digest, err := giveawayengine.PoolDigest(candidates)
+	require.NoError(t, err)
+	freeze := giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "freeze", ExpectedVersion: created.Campaign.Version}, CampaignID: created.Campaign.ID, PoolDigest: digest}
+	_, err = giveawayengine.NewStore(f.db).FreezeCandidates(t.Context(), freeze, candidates, time.Now().UTC())
+	require.NoError(t, err)
+
+	replayed := giveawayRequest[giveaways.FreezeReply](t, f.nc, giveaways.AdminPrefix+".freeze", freeze)
+
+	require.Empty(t, replayed.Error)
+	require.Equal(t, giveaways.PoolSummary{Total: 3, Eligible: 1, Excluded: 2, RequestedWinners: 2, PrizeMonths: 3, TotalPrizeMonths: "6", Exclusions: giveaways.PoolExclusionCounts{VIP: 1, CurrentStaff: 1}}, replayed.Summary)
 }
