@@ -97,7 +97,7 @@ func TestCreateBasketCarriesAttributionAndAuthentication(t *testing.T) {
 			pkg: map[string]any{"package_id": float64(42), "type": "subscription"},
 		},
 		{
-			name: "without a private key the IP and the top-level username are omitted", noKey: true, noUsername: true, linksOnCreate: true,
+			name: "TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP", noKey: true, noUsername: true, linksOnCreate: true,
 			spec:     BasketSpec{UserID: 804932984, Username: "mavey", IPAddress: "203.0.113.10"},
 			noCreate: []string{"ip_address", "username"},
 			custom:   map[string]any{"username": "mavey"},

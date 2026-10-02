@@ -534,21 +534,26 @@ func TestIDByUsernameResolvesLogins(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		login string
-		want  uint64
 	}{
-		{"resolves a known login", "streamer", 4001},
-		{"normalizes case and whitespace", "  STREAMER ", 4001},
-		{"never falls back to another channel for an unknown login", "nobody", 0},
-		{"rejects a malformed login", "not a login!", 0},
-		{"rejects an empty login", "", 0},
+		{"resolves a known login", "streamer"},
+		{"TestIDByUsernameNormalizesInput", "  STREAMER "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			id, err := repo.IDByUsername(ctx, tc.login)
 
-			assert.Equal(t, tc.want, id)
-			assert.Equal(t, tc.want == 0, err != nil)
+			require.NoError(t, err)
+			assert.Equal(t, uint64(4001), id)
 		})
 	}
+
+	t.Run("TestIDByUsernameUnknownAndInvalid", func(t *testing.T) {
+		for _, login := range []string{"nobody", "not a login!", ""} {
+			id, err := repo.IDByUsername(ctx, login)
+
+			assert.Error(t, err, "an unresolvable login must not fall back to some other channel: %q", login)
+			assert.Zero(t, id, login)
+		}
+	})
 }
 
 func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {

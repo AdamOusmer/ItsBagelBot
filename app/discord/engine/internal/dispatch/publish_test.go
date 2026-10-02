@@ -129,20 +129,36 @@ func (f *flakyPublish) publish(context.Context, ddiscord.Command) error {
 	return f.err
 }
 
+func publishOnce(t *testing.T, tc publishCase) (*flakyPublish, *observer.ObservedLogs) {
+	t.Helper()
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh})
+	pub := &flakyPublish{succeedsOn: tc.succeedsOn, err: tc.err}
+	core, logs := observer.New(zapcore.DebugLevel)
+	h.d.Publish, h.d.Log = pub.publish, zap.New(core)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if tc.cancelled {
+		cancel()
+	}
+
+	h.sendCtx(ctx, testGuild, "GUILD_MEMBER_ADD", memberPayload(testGuild))
+	return pub, logs
+}
+
+func TestConfirmedPublishErrorsAreClassifiedHonestly(t *testing.T) {
+	for _, tc := range busPublishErrors() {
+		t.Run(tc.name, func(t *testing.T) {
+			_, logs := publishOnce(t, tc)
+
+			requireLostLog(t, logs, tc)
+		})
+	}
+}
+
 func TestConfirmedPublishRetryLoopMatchesTheClassification(t *testing.T) {
 	for _, tc := range append(retryCases(), busPublishErrors()...) {
 		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(t, ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh})
-			pub := &flakyPublish{succeedsOn: tc.succeedsOn, err: tc.err}
-			core, logs := observer.New(zapcore.DebugLevel)
-			h.d.Publish, h.d.Log = pub.publish, zap.New(core)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			if tc.cancelled {
-				cancel()
-			}
-
-			h.sendCtx(ctx, testGuild, "GUILD_MEMBER_ADD", memberPayload(testGuild))
+			pub, logs := publishOnce(t, tc)
 
 			require.Equal(t, tc.attempts, pub.attempts, tc.why)
 			requireLostLog(t, logs, tc)

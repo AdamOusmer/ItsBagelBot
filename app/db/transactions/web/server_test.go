@@ -101,7 +101,7 @@ func recordedEvents(events []repository.WebhookEvent) []recordedEvent {
 	return out
 }
 
-func TestWebhookRoutesAnswerReachabilityProbes(t *testing.T) {
+func TestWebhookAliasesExposeReachability(t *testing.T) {
 	store := &fakeStore{}
 	app := newTestApp(store)
 	for _, path := range []string{"/tebex", "/tebex/", "/webhooks/tebex", "/webhooks/tebex/"} {
@@ -157,7 +157,7 @@ func paymentWebhookCases() []webhookCase {
 			wantEvents:  processedEvent("tbx-1234"),
 		},
 		{
-			name:        "keeps an explicit product expiry",
+			name:        "TestPaymentCompletedWithExplicitExpiryIsNotOverridden",
 			body:        webhookEvent("payment.completed", `{"transaction_id":"tbx-1234",`+subjectCustom+`,"products":[{"expires_at":"2027-01-01T00:00:00+00:00"}]}`),
 			wantStatus:  http.StatusNoContent,
 			wantChanges: []appliedChange{{Action: billingrpc.ActionActivate, UserID: 1001, Expires: "2027-01-01"}},
@@ -171,7 +171,7 @@ func paymentWebhookCases() []webhookCase {
 			wantError:  "user id",
 		},
 		{
-			name:        "revokes the entitlement on a refund",
+			name:        "TestRefundRevokesEntitlementAndStoresProcessedState",
 			body:        webhookEvent("payment.refunded", `{"transaction_id":"tbx-1234",`+subjectCustom+`}`),
 			wantStatus:  http.StatusNoContent,
 			wantChanges: []appliedChange{{Action: billingrpc.ActionRevoke, UserID: 1001}},
@@ -183,7 +183,7 @@ func paymentWebhookCases() []webhookCase {
 func recurringWebhookCases() []webhookCase {
 	return []webhookCase{
 		{
-			name:        "bounds the expiry of a cancellation without a next payment",
+			name:        "TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry",
 			body:        webhookEvent("recurring-payment.cancellation.requested", `{"reference":"tbx-r-1234","initial_payment":{"transaction_id":"tbx-init",`+subjectCustom+`}}`),
 			wantStatus:  http.StatusNoContent,
 			wantChanges: []appliedChange{{Action: billingrpc.ActionCancelRequested, UserID: 1001, Expires: "2026-08-02", Reference: "tbx-r-1234"}},

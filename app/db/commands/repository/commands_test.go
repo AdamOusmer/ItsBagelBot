@@ -174,7 +174,7 @@ func TestRestoreAppliesUsesOnlyWhenCreating(t *testing.T) {
 	}
 }
 
-func TestEditPreservesTheUseCounter(t *testing.T) {
+func TestBulkUpsertPreservesUses(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 	client.Commands.Create().SetUserID(1001).SetName("hello").SetResponse("old wording").SetUses(42).SaveX(ctx)
@@ -187,7 +187,7 @@ func TestEditPreservesTheUseCounter(t *testing.T) {
 	assert.Equal(t, int64(42), row.Uses)
 }
 
-func TestFlushDropsAnUnpersistableEditWithoutBlockingTheBatch(t *testing.T) {
+func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 	client.Commands.Use(func(next ent.Mutator) ent.Mutator {

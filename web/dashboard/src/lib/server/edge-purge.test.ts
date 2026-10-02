@@ -47,8 +47,16 @@ afterEach(() => {
 });
 
 const calls = {
-  purgeEdge: { run: () => purgeEdge([PAGE]), body: { files: [PAGE] } },
-  purgeEdgeByTag: { run: () => purgeEdgeByTag('dashboard-edge-shell'), body: { tags: ['dashboard-edge-shell'] } }
+  purgeEdge: {
+    run: () => purgeEdge([PAGE]),
+    body: { files: [PAGE] },
+    requestName: 'sends the zone URL, bearer auth, and a files body'
+  },
+  purgeEdgeByTag: {
+    run: () => purgeEdgeByTag('dashboard-edge-shell'),
+    body: { tags: ['dashboard-edge-shell'] },
+    requestName: 'sends the tag purge request with the zone URL, bearer auth, and a tags body'
+  }
 };
 
 const transport: { name: string; configured: boolean; status: number; want: { ok: boolean; sent: boolean } }[] = [
@@ -65,7 +73,7 @@ describe.each(Object.keys(calls) as (keyof typeof calls)[])('%s', (name) => {
     expect({ ok, sent: purges.length > 0 }).toEqual(want);
   });
 
-  test('sends the zone URL, bearer auth, and the purge body', async () => {
+  test(calls[name].requestName, async () => {
     await calls[name].run();
     expect(purges).toEqual([{ url: PURGE_URL, authorization: 'Bearer token1', body: calls[name].body }]);
   });

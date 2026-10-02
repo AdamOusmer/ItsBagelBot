@@ -38,7 +38,7 @@ func memTicketScenarios() []scenario {
 	}
 	done := discordstore.TicketClose{GuildID: "g1", ChannelID: "c1", ClosedBy: "u9", ArchivedChannelID: "c1"}
 	return []scenario{{
-		name: "the open limit numbers tickets and refuses with the held count",
+		name: "TestMemEnforcesTheOpenLimitAndNumbersTickets",
 		steps: []step{
 			{do: callResult(store.TrackTicket, opening("c1")), want: outcome(discordstore.TicketOpenResult{TicketID: 1, OpenCount: 1}, nil)},
 			{do: call(store.OpenTicketCount, u1), want: 1},
@@ -47,7 +47,7 @@ func memTicketScenarios() []scenario {
 			{do: readTicket(discordstore.Channel{ID: "c3"}), want: pair(discordstore.Ticket{}, false)},
 		},
 	}, {
-		name: "a claim, transcript and close move the ticket on",
+		name: "TestMemClaimAndCloseMoveTheTicketOn",
 		steps: []step{
 			{do: callResult(store.TrackTicket, opening("c1")), want: outcome(discordstore.TicketOpenResult{TicketID: 1, OpenCount: 1}, nil)},
 			{do: call(store.ClaimTicket, discordstore.TicketClaim{GuildID: "g1", ChannelID: "c1", StaffID: "mod1"}), want: nil},
@@ -92,7 +92,7 @@ func memDeskScenarios() []scenario {
 			{do: call(store.ClaimDesk, g2), want: false},
 		},
 	}, {
-		name: "the desk remembers its panel message",
+		name: "TestMemDeskRemembersThePanelMessage",
 		steps: []step{
 			{do: callFound(store.Desk, g1), want: pair(discordstore.DeskPanel{}, false)},
 			{do: call(store.RememberDesk, panel), want: nil},
