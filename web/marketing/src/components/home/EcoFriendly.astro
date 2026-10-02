@@ -19,8 +19,8 @@ const t = useTranslations(lang);
             <div class="eco__demo" slot="band" aria-hidden="true">
                 <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
             </div>
-            <Heading level={5} as="h3" variant="title" class="eco__title">{t('ecoFriendly.title')}</Heading>
-            <Text tone="muted" class="eco__desc">{t('ecoFriendly.desc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="eco__title"><span data-fit="block">{t('ecoFriendly.title')}</span></Heading>
+            <Text tone="muted" class="eco__desc"><span data-fit="block">{t('ecoFriendly.desc')}</span></Text>
             <div class="eco__links">
                 <TextLink variant="quiet" class="eco__link" href="https://www.websitecarbon.com/website/itsbagelbot-com/" label="Website Carbon: ItsBagelBot" external />
                 <TextLink variant="quiet" class="eco__link" href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" label="Website Carbon: Dashboard" external />
@@ -50,12 +50,15 @@ const t = useTranslations(lang);
     }
 
     .eco__title {
+        height: calc(var(--eco-title-lines, 1) * 1lh);
         margin: 0 0 8px;
     }
 
     .eco__desc {
+        height: calc(var(--eco-desc-lines, 4) * 1lh);
         margin: 0 0 20px;
     }
+
 
     .eco__links {
         display: flex;

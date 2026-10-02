@@ -287,7 +287,7 @@ describe('SkipLink and LanguageSwitcher', () => {
   const FLAG = '<span class="bb-lang-switch__flag" aria-hidden="true"></span>';
   const CHEVRON = icon('chevron', 12, 'bb-lang-switch__chevron');
   const CHECK = icon('check', 14, 'bb-lang-switch__check');
-  const TRIGGER_EN = `<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English">${FLAG}<span class="bb-lang-switch__label">EN</span>${CHEVRON}</button>`;
+  const TRIGGER_EN = `<button type="button" class="bb-lang-switch__trigger" popovertarget="lang" aria-label="Language: English">${FLAG}<span class="bb-lang-switch__label" data-fit>EN</span>${CHEVRON}</button>`;
   const MENU = '<ul class="bb-lang-switch__menu" id="lang" popover="auto" role="list" aria-label="Language">';
   const options = [
     { code: 'en', label: 'EN', current: true, title: 'English' },

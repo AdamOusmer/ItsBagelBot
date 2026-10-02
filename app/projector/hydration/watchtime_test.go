@@ -102,7 +102,8 @@ func TestHydrationCannotAdmitOfflineWatchtime(t *testing.T) {
 			// Even a forced go-live settings refresh cannot establish live status.
 			h.RefreshAsync(id)
 			store.awaitFill(t)
-			require.NoError(t, store.SetStreamLive(ctx, id, projectedLive))
+			_, err := store.SetStreamLive(ctx, id, projection.StreamLive{Live: projectedLive, Version: 1000})
+			require.NoError(t, err)
 			active, err := client.Do(ctx, client.B().Hget().Key("settings:"+strconv.FormatUint(id, 10)).Field("active").Build()).ToString()
 			require.NoError(t, err)
 			require.Equal(t, "1", active, "the account really was hydrated")
@@ -144,7 +145,8 @@ func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 	waitFor(t, secondUserStarted, "hydration to reach the delayed account fetch")
 	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.ClearScript).Numkeys(2).
 		Key(livekey.Key(id), livekey.VerKey(id)).Arg("3000", "7200").Build()).Error())
-	require.NoError(t, store.SetStreamLive(ctx, id, false))
+	_, err = store.SetStreamLive(ctx, id, projection.StreamLive{Version: 3000})
+	require.NoError(t, err)
 	releaseFill()
 	store.awaitFill(t)
 	_, allowed, err = awards.Capture(ctx, id)

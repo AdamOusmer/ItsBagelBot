@@ -20,7 +20,7 @@ const tabStop = items.some((opt) => opt.value === value) ? value : items[0]?.val
 const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}>{opt.label}{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
+<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}><span data-fit>{opt.label}</span>{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
 
 <script>
     import { rovingTarget } from '../lib/roving-focus';

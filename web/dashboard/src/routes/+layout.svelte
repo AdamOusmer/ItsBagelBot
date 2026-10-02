@@ -22,8 +22,10 @@
   <meta name="twitter:description" content={DEFAULT_DESC} />
 </svelte:head>
 
-<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled} orbs={page.route.id !== '/(public)/login'}>
-  {@render children()}
-  <InstallAppPrompt />
-  <ToastHost />
-</RootShell>
+{#key data.locale}
+  <RootShell locale={data.locale} cursorEnabled={data.cursorEnabled} orbs={page.route.id !== '/(public)/login'}>
+    {@render children()}
+    <InstallAppPrompt />
+    <ToastHost />
+  </RootShell>
+{/key}

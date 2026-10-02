@@ -311,17 +311,17 @@ describe('SegmentedControl', () => {
       },
       html:
         '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source">' +
-        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all">All<span class="bb-tab__count">12</span></button>' +
-        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
-        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain">Plain</button></div>',
+        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all"><span data-fit>All</span><span class="bb-tab__count">12</span></button>' +
+        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod"><span data-fit>Modules</span><span class="bb-tab__count">0</span></button>' +
+        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain"><span data-fit>Plain</span></button></div>',
     },
     {
       name: 'segment buttons carry their value',
       props: { value: 'custom', label: 'Mode', options: [{ value: 'custom', label: 'Custom' }, 'plain'] },
       html:
         '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
-        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom">Custom</button>' +
-        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain">plain</button></div>',
+        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom"><span data-fit>Custom</span></button>' +
+        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain"><span data-fit>plain</span></button></div>',
     },
     {
       name: 'segment options pass their own attributes to the button',
@@ -332,8 +332,8 @@ describe('SegmentedControl', () => {
       },
       html:
         '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
-        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom" data-mode="custom">Custom</button>' +
-        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain">plain</button></div>',
+        '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom" data-mode="custom"><span data-fit>Custom</span></button>' +
+        '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain"><span data-fit>plain</span></button></div>',
     },
   ]);
 });

@@ -10,6 +10,11 @@
     .bb-chip--banned { --tone: var(--bb-tier-banned); --tone-bg: var(--bb-tier-banned-bg); --tone-rule: var(--bb-tier-banned-border); }
     .bb-chip--inactive { --tone: var(--bb-tier-inactive); --tone-bg: var(--bb-tier-inactive-bg); --tone-rule: var(--bb-tier-inactive-border); }
 
+    .bb-chip--cell {
+        justify-content: safe center;
+        min-width: 0;
+    }
+
     .bb-chip {
         display: inline-flex;
         align-items: center;

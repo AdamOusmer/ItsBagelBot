@@ -61,7 +61,7 @@
     class="bb-lang-switch__trigger"
     popovertarget={popoverId}
     aria-label="{label}: {current?.title ?? current?.label}"
-    >{@render flag(current?.flag)}<span class="bb-lang-switch__label"
+    >{@render flag(current?.flag)}<span class="bb-lang-switch__label" data-fit={variant === 'field' ? undefined : ''}
       >{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</span
     ><Icon name="chevron" size={12} class="bb-lang-switch__chevron" /></button
   ><ul class="bb-lang-switch__menu" id={popoverId} popover="auto" role="list" aria-label={label}

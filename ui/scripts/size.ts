@@ -251,7 +251,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3450 }, // 2981 B: flagged locale popover replaced the code row (2026-09-30)
-  { name: "elements/footer", budget: 1100 },
+  { name: "elements/footer", budget: 1950 }, // 1740 B: signature layout with ring, orbs, stacked groups and the colophon slot; +150 B platform delta, ~5% room (2026-10-01)
   { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },
   { name: "elements/chip", budget: 1110 }, // 864 B: chip base and tier tones, split from tags.css (2026-09-29)

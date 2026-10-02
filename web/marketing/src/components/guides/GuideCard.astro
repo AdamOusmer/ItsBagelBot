@@ -33,22 +33,22 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     style={`--reveal-i: ${revealIndex}`}
 >
     <span class="gcard__chips" slot="band" aria-hidden="true">
-        {chips.map((chip) => <Chip as="span">{chip}</Chip>)}
+        {chips.map((chip) => <Chip as="span" class="bb-chip--cell"><span data-fit>{chip}</span></Chip>)}
     </span>
     <span class="gcard__body">
-        <Heading level={4} as="span" class="gcard__title">{title}</Heading>
-        <Text as="span" tone="muted-light" class="gcard__desc">{description}</Text>
+        <Heading level={4} as="span" class="gcard__title"><span data-fit>{title}</span></Heading>
+        <Text as="span" tone="muted-light" class="gcard__desc"><span data-fit="block">{description}</span></Text>
         <span class="gcard__foot">
-            <Text as="span" size="xs" mono tone="muted" class="gcard__meta">{meta}</Text>
-            <Button as="span" variant="secondary" data-cursor>{cta}</Button>
+            <Text as="span" size="xs" mono tone="muted" class="gcard__meta"><span data-fit>{meta}</span></Text>
+            <Button as="span" variant="secondary" class="gcard__cta" data-cursor><span data-fit>{cta}</span></Button>
         </span>
     </span>
 </Card>
 
 <style>
     .gcard__chips {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
         align-content: center;
         align-items: center;
         gap: 8px;
@@ -63,11 +63,15 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         min-width: 0;
     }
 
-    .gcard__title { margin-bottom: 8px; }
+    .gcard__title {
+        display: block;
+        margin-bottom: 8px;
+    }
 
     .gcard__desc {
         display: block;
         max-width: 58ch;
+        height: calc(4 * 1lh);
         margin-bottom: 18px;
     }
 
@@ -80,7 +84,12 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         margin-top: auto;
     }
 
-    .gcard__meta { white-space: nowrap; }
+    .gcard__meta {
+        flex: 0 0 11rem;
+        min-width: 0;
+    }
+
+    .gcard__cta { --btn-w: 11rem; --btn-justify: safe center; }
 
     .gcard:focus-visible {
         outline: 2px solid var(--bb-green-glow);
@@ -102,11 +111,18 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         align-items: flex-end;
         margin-top: 0;
     }
+    .gcard--wide .gcard__meta {
+        flex: none;
+        width: 11rem;
+        text-align: end;
+    }
 
     @media (max-width: 640px) {
         .gcard--wide .gcard__body { display: flex; align-items: stretch; }
         .gcard--wide .gcard__desc { margin-bottom: 18px; }
         .gcard--wide .gcard__foot { flex-direction: row; align-items: center; }
         .gcard__chips { padding-right: 0; }
+        .gcard__desc { height: calc(6 * 1lh); }
+        .gcard--wide .gcard__meta { text-align: start; }
     }
 </style>

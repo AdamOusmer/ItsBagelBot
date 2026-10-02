@@ -230,3 +230,23 @@ func TestLiveAndWatchTimeShareFallbackVersion(t *testing.T) {
 	require.Len(t, fx.live.setCalls, 1)
 	assert.Equal(t, fx.live.setCalls[0], tick.version)
 }
+
+func TestStaleOfflineLosingToNewerOnlineIsIgnored(t *testing.T) {
+	fx := newLiveFixture()
+
+	runLifecycle(t, fx.m, "stream.online", "1970-01-01T00:00:02Z")
+	waitForLog(t, fx.log, 3)
+	fx.log.reset()
+
+	runLifecycle(t, fx.m, "stream.offline", "1970-01-01T00:00:01Z")
+
+	assert.Eventually(t, func() bool {
+		fx.live.mu.Lock()
+		defer fx.live.mu.Unlock()
+		return len(fx.live.clearCalls) == 1
+	}, time.Second, time.Millisecond, "stale offline never reached the store")
+
+	assert.Never(t, func() bool { return len(fx.log.snapshot()) > 0 }, 200*time.Millisecond, 5*time.Millisecond,
+		"a superseded offline must not disarm a live stream's timers")
+	assert.True(t, fx.live.isLive)
+}

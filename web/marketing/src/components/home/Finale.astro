@@ -18,22 +18,18 @@ const titleWords = t('finale.title').split(' ');
 <section class="finale" data-motion>
     <div class="finale__glow" aria-hidden="true"></div>
     <div class="finale__inner">
-        <Eyebrow tone="go" class="finale__eyebrow" data-reveal>{t('finale.eyebrow')}</Eyebrow>
+        <Eyebrow tone="go" class="finale__eyebrow" data-reveal><span data-fit>{t('finale.eyebrow')}</span></Eyebrow>
         <Heading level={2} class="finale__title" aria-label={titleWords.join(' ')}>
-            {titleWords.map((word, i) => (
+            <span class="finale__title-text" data-fit="block">{titleWords.map((word, i) => (
                 <Fragment><span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>{i < titleWords.length - 1 ? ' ' : ''}</Fragment>
-            ))}
+            ))}</span>
         </Heading>
-        <Lead class="finale__sub" data-reveal>
-            {t('finale.sub')}
-        </Lead>
+        <Lead class="finale__sub" data-reveal><span data-fit="block">{t('finale.sub')}</span></Lead>
         <Cluster gap={4} justify="center" class="finale__actions" data-reveal>
-            <ButtonLink href={dashLoginHref(lang)}>{t('nav.cta')}</ButtonLink>
-            <ButtonLink variant="secondary" href={localizePath('/pricing', lang)}>{t('finale.seePricing')}</ButtonLink>
+            <ButtonLink class="finale__cta" href={dashLoginHref(lang)}><span data-fit>{t('nav.cta')}</span></ButtonLink>
+            <ButtonLink class="finale__cta" variant="secondary" href={localizePath('/pricing', lang)}><span data-fit>{t('finale.seePricing')}</span></ButtonLink>
         </Cluster>
-        <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal>
-            {t('finale.honesty')}
-        </Text>
+        <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal><span data-fit="block">{t('finale.honesty')}</span></Text>
     </div>
 </section>
 
@@ -89,15 +85,17 @@ const titleWords = t('finale.title').split(' ');
     }
 
     .finale__eyebrow {
+        width: 100%;
         margin-bottom: 22px;
         text-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.55), 0 2px 12px rgba(var(--bb-shadow-rgb), 0.95);
     }
 
     .finale__title {
         display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        column-gap: 0.28em;
+        flex-direction: column;
+        justify-content: safe center;
+        width: 100%;
+        height: calc(var(--finale-title-lines, 4) * 1lh);
         font-weight: 800;
         font-size: clamp(2.1rem, 5.5vw, 3.6rem);
         letter-spacing: var(--bb-tracking-tight);
@@ -109,10 +107,19 @@ const titleWords = t('finale.title').split(' ');
             0 0 40px rgba(var(--bb-tan-rgb), 0.24);
     }
 
+    .finale__title-text {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        column-gap: 0.28em;
+    }
+
     .finale__word { display: inline-block; }
 
     .finale__sub {
         --reveal-i: 8;
+        width: 100%;
+        height: calc(var(--finale-sub-lines, 2) * 1lh);
         margin: 0 0 40px;
     }
 
@@ -120,8 +127,15 @@ const titleWords = t('finale.title').split(' ');
         --reveal-i: 9;
     }
 
+    .finale__cta {
+        --btn-w: 216px;
+        --btn-justify: center;
+    }
+
     .finale__honesty {
         --reveal-i: 10;
+        width: 100%;
+        height: calc(var(--finale-honesty-lines, 1) * 1lh);
         margin-top: 30px;
         opacity: 0.75;
     }

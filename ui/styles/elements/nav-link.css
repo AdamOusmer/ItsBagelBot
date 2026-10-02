@@ -23,6 +23,7 @@
       --bb-nav-link-radius: 0;
 
       --bb-nav-link-draw-dur: 420ms;
+      --bb-nav-link-mark-inset: 15px;
 
       position: relative;
       display: inline-flex;
@@ -63,18 +64,30 @@
 
     .bb-nav-link::before {
       content: "";
-      flex-shrink: 0;
+      position: absolute;
+      top: 50%;
+      left: calc(var(--bb-nav-link-mark-inset) * -1);
       box-sizing: border-box;
       width: 5px;
       height: 5px;
-      border: 1px solid currentColor;
+      border: 1px solid var(--bb-nav-link-mark);
       background: transparent;
+      translate: 0 -50%;
+      rotate: 45deg;
+      scale: 0.6;
       opacity: 0;
-      transform: rotate(45deg);
       transition:
         opacity var(--bb-dur-base) var(--bb-ease-out-expo),
+        scale var(--bb-dur-base) var(--bb-ease-out-expo),
         background-color var(--bb-dur-base) var(--bb-ease-out-expo),
         border-color var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-nav-link--block::before,
+    .bb-nav-link--cta::before {
+      position: static;
+      flex: none;
+      translate: none;
     }
 
     .bb-nav-link:not(:where(.bb-btn)):is(:hover, :focus-visible) {
@@ -84,6 +97,7 @@
 
     .bb-nav-link:is(:hover, :focus-visible)::before {
       opacity: 1;
+      scale: 1;
     }
 
     .bb-nav-link:focus-visible {
@@ -98,7 +112,7 @@
 
     .bb-nav-link[aria-current="page"]::before {
       opacity: 1;
-      border-color: var(--bb-nav-link-mark);
+      scale: 1;
       background: var(--bb-nav-link-mark);
     }
 
@@ -112,6 +126,21 @@
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .bb-nav-link:has(> .bb-nav-link__label[data-fit]) {
+      flex-shrink: 0;
+      max-width: 100%;
+    }
+
+    :is(.bb-nav-link--block, .bb-nav-link--cta):has(> .bb-nav-link__label[data-fit]) {
+      overflow: hidden;
+    }
+
+    /* The fitter reads the overflow on the link, so a fit label must keep its text width. */
+    .bb-nav-link__label[data-fit] {
+      flex-shrink: 0;
+      overflow: visible;
     }
 
     .bb-nav-link svg {
@@ -154,6 +183,7 @@
 
     .bb-nav-link--cta::before {
       opacity: 1;
+      scale: 1;
       border-color: currentColor;
     }
 

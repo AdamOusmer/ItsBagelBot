@@ -18,6 +18,7 @@
     external?: boolean;
     size?: string;
     touch?: boolean;
+    fit?: boolean;
     class?: string;
     children?: Snippet;
   };
@@ -33,6 +34,7 @@
     external = false,
     size,
     touch = false,
+    fit = false,
     class: className = '',
     children,
     ...rest
@@ -73,6 +75,7 @@
     >{#if icon}<Icon name={icon} size={14} class="bb-text-link__icon" />{/if}<span
       class="bb-text-link__mask"
       aria-hidden="true"
+      data-fit={fit ? '' : undefined}
       ><span class="bb-text-link__row bb-text-link__row--rest"
         >{#each glyphs as glyph, index}<span class="bb-text-link__glyph" style="--gi: {index};"
             >{glyph}</span

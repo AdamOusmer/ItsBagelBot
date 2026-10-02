@@ -37,7 +37,11 @@
   }
 
   .bb-disclosure__label {
+    display: flex;
     flex: 1;
+    flex-direction: column;
+    justify-content: safe center;
+    height: calc(var(--disclosure-label-lines, 1) * 1lh);
     min-width: 0;
   }
 

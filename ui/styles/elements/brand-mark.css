@@ -92,18 +92,44 @@
     margin-top: 10px;
   }
 
+  .bb-brand--wordmark {
+    --brand-name-size: 2.1rem;
+
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .bb-brand--wordmark .bb-brand__id {
+    align-items: center;
+  }
+
+  .bb-brand--wordmark .bb-brand__name {
+    line-height: 1.1;
+  }
+
+  .bb-brand__o {
+    display: inline-block;
+    width: 0.82em;
+    height: 0.82em;
+    margin-inline: 0.02em;
+    vertical-align: -0.1em;
+  }
+
   @media (hover: hover) and (pointer: fine) {
-    .bb-brand--lg .bb-brand__logo {
+    .bb-brand--lg .bb-brand__logo,
+    .bb-brand__o {
       transition: rotate 500ms var(--bb-ease-out-back);
     }
 
-    .bb-brand--lg:hover .bb-brand__logo {
+    .bb-brand--lg:hover .bb-brand__logo,
+    .bb-brand--wordmark:hover .bb-brand__o {
       rotate: 14deg;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bb-brand--lg .bb-brand__logo {
+    .bb-brand--lg .bb-brand__logo,
+    .bb-brand__o {
       transition: none;
     }
   }

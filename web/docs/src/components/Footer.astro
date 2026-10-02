@@ -2,13 +2,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { getImage } from 'astro:assets';
 import { SITE } from '@bagel/kit/site-links';
 import { docsI18n } from '../i18n/ui';
+import logoImage from '../assets/LogoBOT.png';
 
 import Default from '@astrojs/starlight/components/Footer.astro';
 import Footer from '@bagel/ui/astro/Footer.astro';
 
 const { t, path } = docsI18n(Astro.locals.starlightRoute.locale);
+const logo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
 const columns = [
   {
     title: t('brand'),
@@ -38,7 +41,7 @@ const columns = [
 
 <Default><slot /></Default>
 <Footer
-  brand={{ title: 'ItsBagelBot', sub: t('brand'), href: `${SITE.web}${path('/')}` }}
+  brand={{ title: 'ItsBagelBot', sub: t('brand'), href: `${SITE.web}${path('/')}`, logoSrc: logo.src }}
   columns={columns}
   legal={[
     { href: `${SITE.web}${path('/privacy')}`, label: t('privacy'), external: true },

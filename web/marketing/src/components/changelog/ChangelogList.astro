@@ -58,7 +58,7 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
                 return (
                     <li class="clog__item" data-reveal style={`--reveal-i: ${i + 1}`}>
                         <Eyebrow as="div">
-                            <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+                            <time class="clog__date" datetime={date.toISOString()}><span data-fit>{dateFmt.format(date)}</span></time>
                         </Eyebrow>
                         <Card as="article" atmo hover class="clog__card">
                             <div class="clog__body">
@@ -123,6 +123,8 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         );
         pointer-events: none;
     }
+
+    .clog__date { display: block; }
 
     .clog__item {
         position: relative;

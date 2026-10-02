@@ -108,18 +108,19 @@ func TestStreamEventsBaselineCountersOnlyOnTheGoLiveEdge(t *testing.T) {
 				service, loyalty = newLoyalty(t, tc.mode, counters, nil)
 				deps.Loyalty = loyalty
 			}
-			require.NoError(t, store.SetStreamLive(ctx, broadcasterID, tc.wasLive))
+			_, err := store.SetStreamLive(ctx, broadcasterID, projection.StreamLive{Live: tc.wasLive, Version: 1})
+			require.NoError(t, err)
 			eventType := map[bool]string{true: "stream.online", false: "stream.offline"}[tc.live]
 
-			err := NewProjector(deps).HandleStreamEvent(message(t, "evt", map[string]any{
+			err = NewProjector(deps).HandleStreamEvent(message(t, "evt", map[string]any{
 				"subscription": map[string]string{"type": eventType},
 				"event":        map[string]string{"broadcaster_user_id": strconv.FormatUint(broadcasterID, 10)},
 			}))
 
 			require.NoError(t, err)
-			isLive, _, err := store.GetStreamLive(ctx, broadcasterID)
+			state, err := store.GetStreamLive(ctx, broadcasterID)
 			require.NoError(t, err)
-			assert.Equal(t, tc.live, isLive)
+			assert.Equal(t, tc.live, state.Live)
 			baseline, found, err := store.GetStreamCounterBaseline(ctx, strconv.FormatUint(broadcasterID, 10))
 			require.NoError(t, err)
 			var got *projection.StreamCounters
