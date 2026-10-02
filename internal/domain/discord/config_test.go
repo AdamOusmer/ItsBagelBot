@@ -4,100 +4,72 @@
 package discord
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestCategoryAllowed(t *testing.T) {
-	c := Config{CategoryAllow: "Minecraft, Valorant", CategoryDeny: "Just Chatting"}
-	if !c.CategoryAllowed("Minecraft") {
-		t.Fatal("allow-list should accept Minecraft")
-	}
-	if c.CategoryAllowed("Fortnite") {
-		t.Fatal("allow-list should reject Fortnite")
-	}
-	if c.CategoryAllowed("Just Chatting") {
-		t.Fatal("deny wins even if also allowed")
-	}
-	open := Config{}
-	if !open.CategoryAllowed("anything") {
-		t.Fatal("empty allow is every category")
-	}
+func wantToggle(onByDefault bool, value string) bool {
+	return value == "on" || (onByDefault && value != "off")
 }
 
-func TestTogglesDefaultOnExceptNoisyOnes(t *testing.T) {
-	var c Config
-	toggles := map[string]struct {
-		on   func() bool
-		want bool
+func TestToggleDefaults(t *testing.T) {
+	toggles := []struct {
+		name        string
+		set         func(*Config, string)
+		read        func(Config) bool
+		onByDefault bool
 	}{
-		"live":    {c.LiveOn, true},
-		"clips":   {c.ClipsOn, true},
-		"welcome": {c.WelcomeOn, true},
-		"voice":   {c.VoiceOn, true},
-		"tickets": {c.TicketsOn, true},
-		"logs":    {c.LogsOn, true},
-		"levels":  {c.LevelsOn, true},
-		"goodbye": {c.GoodbyeOn, false},
+		{"live", func(c *Config, v string) { c.LiveEnabled = v }, Config.LiveOn, true},
+		{"clips", func(c *Config, v string) { c.ClipsEnabled = v }, Config.ClipsOn, true},
+		{"welcome", func(c *Config, v string) { c.WelcomeEnabled = v }, Config.WelcomeOn, true},
+		{"voice", func(c *Config, v string) { c.VoiceEnabled = v }, Config.VoiceOn, true},
+		{"tickets", func(c *Config, v string) { c.TicketsEnabled = v }, Config.TicketsOn, true},
+		{"logs", func(c *Config, v string) { c.LogsEnabled = v }, Config.LogsOn, true},
+		{"levels", func(c *Config, v string) { c.LevelsEnabled = v }, Config.LevelsOn, true},
+		{"ticket transcript", func(c *Config, v string) { c.TicketTranscriptEnabled = v }, Config.TicketTranscriptOn, true},
+		{"autorole", func(c *Config, v string) { c.AutoRoleEnabled = v }, Config.AutoRoleOn, true},
+		{"goodbye", func(c *Config, v string) { c.GoodbyeEnabled = v }, Config.GoodbyeOn, false},
+		{"subscribers", func(c *Config, v string) { c.SubscribersEnabled = v }, Config.SubscribersOn, false},
+		{"link guard", func(c *Config, v string) { c.LinkGuardEnabled = v }, Config.LinkGuardOn, false},
 	}
-	for name, tc := range toggles {
-		if got := tc.on(); got != tc.want {
-			t.Errorf("%s default = %v, want %v", name, got, tc.want)
+	for _, tc := range toggles {
+		for _, value := range []string{"", "on", "off", "yes"} {
+			t.Run(tc.name+"/"+value, func(t *testing.T) {
+				var c Config
+				tc.set(&c, value)
+				assert.Equal(t, wantToggle(tc.onByDefault, value), tc.read(c))
+			})
 		}
 	}
 }
 
-func TestInviteAndTemplateURLs(t *testing.T) {
-	if InviteURL("", "") != "" {
-		t.Fatal("empty client id must yield no invite")
+func TestCategoryAllowed(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      Config
+		category string
+		want     bool
+	}{
+		{"allow-list accepts a listed category", Config{CategoryAllow: "Minecraft, Valorant", CategoryDeny: "Just Chatting"}, "Minecraft", true},
+		{"allow-list rejects an unlisted category", Config{CategoryAllow: "Minecraft, Valorant", CategoryDeny: "Just Chatting"}, "Fortnite", false},
+		{"deny wins even if also allowed", Config{CategoryAllow: "Just Chatting", CategoryDeny: "Just Chatting"}, "Just Chatting", false},
+		{"empty allow is every category", Config{}, "anything", true},
 	}
-	u := InviteURL("123", "")
-	if u == "" {
-		t.Fatal("invite url must not be empty")
-	}
-	if !strings.Contains(u, "permissions=1102012607574") {
-		t.Fatalf("invite permissions drifted (keep in sync with dashboard DISCORD_BOT_PERMISSIONS): %q", u)
-	}
-	if !strings.Contains(u, "scope=bot") {
-		t.Fatalf("invite = %q missing scope", u)
-	}
-	if TemplateURL("") != "" {
-		t.Fatal("empty template code must yield no url")
-	}
-	if TemplateURL("abc") != "https://discord.new/abc" {
-		t.Fatal("template url")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.cfg.CategoryAllowed(tc.category))
+		})
 	}
 }
 
-func TestNewToggleDefaults(t *testing.T) {
-	cases := []struct {
-		name  string
-		value string
-		want  bool
-	}{
-		{"unset is on", "", true},
-		{"on is on", "on", true},
-		{"off is off", "off", false},
-		{"garbage is on (alertOn semantics)", "yes", true},
-	}
-	for _, tc := range cases {
-		t.Run("transcript/"+tc.name, func(t *testing.T) {
-			if got := (Config{TicketTranscriptEnabled: tc.value}).TicketTranscriptOn(); got != tc.want {
-				t.Fatalf("TicketTranscriptOn(%q) = %v, want %v", tc.value, got, tc.want)
-			}
-		})
-		t.Run("autorole/"+tc.name, func(t *testing.T) {
-			if got := (Config{AutoRoleEnabled: tc.value}).AutoRoleOn(); got != tc.want {
-				t.Fatalf("AutoRoleOn(%q) = %v, want %v", tc.value, got, tc.want)
-			}
-		})
-	}
-	if (Config{GoodbyeEnabled: "yes"}).GoodbyeOn() {
-		t.Fatal("GoodbyeOn must require the literal \"on\"")
-	}
-	if (Config{SubscribersEnabled: ""}).SubscribersOn() {
-		t.Fatal("SubscribersOn must default off")
-	}
+func TestInviteAndTemplateURLs(t *testing.T) {
+	assert.Empty(t, InviteURL("", ""), "empty client id must yield no invite")
+	assert.Empty(t, TemplateURL(""), "empty template code must yield no url")
+	assert.Equal(t, "https://discord.new/abc", TemplateURL("abc"))
+	invite := InviteURL("123", "")
+	assert.Contains(t, invite, "permissions=1102012607574", "keep in sync with dashboard DISCORD_BOT_PERMISSIONS")
+	assert.Contains(t, invite, "scope=bot")
 }
 
 func TestTicketOpenLimitNClamps(t *testing.T) {
@@ -113,9 +85,7 @@ func TestTicketOpenLimitNClamps(t *testing.T) {
 		" 4 ":  4,
 	}
 	for raw, want := range cases {
-		if got := (Config{TicketOpenLimit: raw}).TicketOpenLimitN(); got != want {
-			t.Fatalf("TicketOpenLimitN(%q) = %d, want %d", raw, got, want)
-		}
+		assert.Equal(t, want, Config{TicketOpenLimit: raw}.TicketOpenLimitN(), "limit %q", raw)
 	}
 }
 
@@ -128,18 +98,7 @@ type panelWant struct {
 
 func wantPanel(t *testing.T, got TicketPanelSpec, want panelWant) {
 	t.Helper()
-	if got.Title != want.title {
-		t.Fatalf("title = %q, want %q", got.Title, want.title)
-	}
-	if got.Body != want.body {
-		t.Fatalf("body = %q, want %q", got.Body, want.body)
-	}
-	if got.Button != want.button {
-		t.Fatalf("button = %q, want %q", got.Button, want.button)
-	}
-	if got.ColorOr(0) != want.color {
-		t.Fatalf("color = %#x, want %#x", got.ColorOr(0), want.color)
-	}
+	assert.Equal(t, want, panelWant{got.Title, got.Body, got.Button, got.ColorOr(0)})
 }
 
 func TestTicketPanelFillsDefaults(t *testing.T) {
@@ -152,37 +111,53 @@ func TestTicketPanelFillsDefaults(t *testing.T) {
 		TicketPanelButton: "Ask", TicketPanelColor: "#00FF80",
 	}.TicketPanel()
 	wantPanel(t, custom, panelWant{title: "Support", body: "Ask us.", button: "Ask", color: 0x00FF80})
-	if bad := (Config{TicketPanelColor: "nope"}).TicketPanel(); bad.ColorOr(0) != LiveColor {
-		t.Fatalf("color = %#x, want LiveColor", bad.ColorOr(0))
+	assert.Equal(t, LiveColor, Config{TicketPanelColor: "nope"}.TicketPanel().ColorOr(0))
+}
+
+func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
+	wantPanel(t, TicketPanelSpec{Title: "Kept"}.OrDefaults(), panelWant{
+		title: "Kept", body: TicketPanelBodyDefault,
+		button: TicketPanelButtonDefault, color: LiveColor,
+	})
+}
+
+func TestTicketPanelSpecKeepsABlackColour(t *testing.T) {
+	black := 0
+	got := TicketPanelSpec{Color: &black}.OrDefaults()
+	if got.ColorOr(LiveColor) != 0 {
+		t.Fatalf("color = %#x, want #000000 to survive OrDefaults", got.ColorOr(LiveColor))
+	}
+	if e := TicketPanelEmbed(got); e.Color != 0 {
+		t.Fatalf("embed color = %#x, want the black the streamer picked", e.Color)
+	}
+
+	unset := TicketPanelSpec{}.OrDefaults()
+	if unset.Color == nil || *unset.Color != LiveColor {
+		t.Fatalf("unset color = %v, want the brand default", unset.Color)
+	}
+
+	fromConfig := Config{TicketPanelColor: "#000000"}.TicketPanel()
+	if fromConfig.ColorOr(LiveColor) != 0 {
+		t.Fatalf("config color = %#x, want 0", fromConfig.ColorOr(LiveColor))
 	}
 }
 
 func TestTicketStaffAndLogFallbacks(t *testing.T) {
 	base := Config{OwnerRoleID: "o", LeadModRoleID: "l", ModsRoleID: "m", LogChannelID: "log"}
-	if got := base.TicketStaffRoleIDs(); len(got) != 3 || got[0] != "o" {
-		t.Fatalf("staff = %v, want the StaffRoleIDs fallback", got)
-	}
-	if got := base.TicketLogChannel(); got != "log" {
-		t.Fatalf("log channel = %q, want the general fallback", got)
-	}
 	withOwn := base
 	withOwn.TicketStaffRoles = "h1, h2"
 	withOwn.TicketLogChannelID = "tickets-log"
-	if got := withOwn.TicketStaffRoleIDs(); len(got) != 2 || got[1] != "h2" {
-		t.Fatalf("staff = %v, want the explicit list", got)
-	}
-	if got := withOwn.TicketLogChannel(); got != "tickets-log" {
-		t.Fatalf("log channel = %q, want the explicit one", got)
-	}
+
+	assert.Equal(t, []string{"o", "l", "m"}, base.TicketStaffRoleIDs(), "the StaffRoleIDs fallback")
+	assert.Equal(t, "log", base.TicketLogChannel(), "the general log fallback")
+	assert.Equal(t, []string{"h1", "h2"}, withOwn.TicketStaffRoleIDs(), "the explicit list")
+	assert.Equal(t, "tickets-log", withOwn.TicketLogChannel(), "the explicit channel")
 }
 
 func TestTierRoomsRoundTripsThroughParse(t *testing.T) {
 	raw := []byte(`{"subsChannelId":"1","subsCategoryId":"2","vipChannelId":"3","vipCategoryId":"4"}`)
-	got := Parse(raw).TierRooms()
-	want := TierRooms{SubsChannelID: "1", SubsCategoryID: "2", VIPChannelID: "3", VIPCategoryID: "4"}
-	if got != want {
-		t.Fatalf("rooms = %+v, want %+v", got, want)
-	}
+
+	assert.Equal(t, TierRooms{SubsChannelID: "1", SubsCategoryID: "2", VIPChannelID: "3", VIPCategoryID: "4"}, Parse(raw).TierRooms())
 }
 
 func TestParseHexColor(t *testing.T) {

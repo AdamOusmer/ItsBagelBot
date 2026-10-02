@@ -3,7 +3,12 @@
 
 package linkguard
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestNormalizeLinkInviteEquivalence(t *testing.T) {
 	inputs := []string{
@@ -23,64 +28,52 @@ func TestNormalizeLinkInviteEquivalence(t *testing.T) {
 		"https://discord.gg/abc123!",
 	}
 	want, isInvite := NormalizeLink("discord.gg/abc123")
-	if !isInvite {
-		t.Fatalf("baseline not recognized as invite")
-	}
+	require.True(t, isInvite, "baseline not recognized as invite")
 	for _, in := range inputs {
 		got, invite := NormalizeLink(in)
-		if !invite {
-			t.Errorf("NormalizeLink(%q) isInvite = false, want true", in)
-		}
-		if got != want {
-			t.Errorf("NormalizeLink(%q) = %q, want %q", in, got, want)
-		}
+		assert.True(t, invite, in)
+		assert.Equal(t, want, got, in)
 	}
 }
 
-func TestNormalizeLinkDistinctInvites(t *testing.T) {
-	a, _ := NormalizeLink("discord.gg/abc123")
-	b, _ := NormalizeLink("discord.gg/xyz789")
-	if a == b {
-		t.Fatalf("distinct invite codes normalized to the same key: %q", a)
+func TestNormalizeLinkKeying(t *testing.T) {
+	cases := []struct {
+		name     string
+		a, b     string
+		wantSame bool
+	}{
+		{"distinct invite codes never share a key", "discord.gg/abc123", "discord.gg/xyz789", false},
+		{"an invite and a generic URL never collide", "discord.gg/x", "example.com/x", false},
+		{"generic URLs ignore scheme, case and query", "https://example.com/scam?ref=123", "EXAMPLE.com/scam", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, _ := NormalizeLink(tc.a)
+			b, _ := NormalizeLink(tc.b)
+			assert.NotEmpty(t, a)
+			assert.Equal(t, tc.wantSame, a == b)
+		})
 	}
 }
 
-func TestNormalizeLinkNonInviteURL(t *testing.T) {
-	got, invite := NormalizeLink("https://example.com/scam?ref=123")
-	if invite {
-		t.Fatalf("example.com misclassified as an invite")
+func TestNormalizeLinkClassification(t *testing.T) {
+	cases := []struct {
+		name       string
+		in         string
+		wantInvite bool
+		wantEmpty  bool
+	}{
+		{"an invite link is an invite", "discord.gg/x", true, false},
+		{"a generic URL is not an invite", "https://example.com/scam?ref=123", false, false},
+		{"a non-invite discord.com path is not an invite", "https://discord.com/download", false, false},
+		{"blank input has no key", "   ", false, true},
 	}
-	if got == "" {
-		t.Fatalf("non-invite URL produced empty normalized key")
-	}
-	got2, _ := NormalizeLink("EXAMPLE.com/scam")
-	if got != got2 {
-		t.Errorf("non-invite URL host/path folding not case/scheme insensitive: %q != %q", got, got2)
-	}
-}
-
-func TestNormalizeLinkInviteAndURLNeverCollide(t *testing.T) {
-	invite, isInvite := NormalizeLink("discord.gg/x")
-	generic, _ := NormalizeLink("example.com/x")
-	if !isInvite {
-		t.Fatalf("discord.gg/x not recognized as invite")
-	}
-	if invite == generic {
-		t.Fatalf("invite and generic URL normalized to colliding keys")
-	}
-}
-
-func TestNormalizeLinkEmpty(t *testing.T) {
-	got, invite := NormalizeLink("   ")
-	if got != "" || invite {
-		t.Fatalf("blank input = (%q, %v), want (\"\", false)", got, invite)
-	}
-}
-
-func TestNormalizeLinkNonInviteHostPathNotTreatedAsInvite(t *testing.T) {
-	_, invite := NormalizeLink("https://discord.com/download")
-	if invite {
-		t.Fatalf("non-invite discord.com path misclassified as an invite")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, invite := NormalizeLink(tc.in)
+			assert.Equal(t, tc.wantInvite, invite)
+			assert.Equal(t, tc.wantEmpty, got == "")
+		})
 	}
 }
 

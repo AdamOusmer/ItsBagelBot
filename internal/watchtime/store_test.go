@@ -1,11 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+
 package watchtime_test
 
 import (
 	"context"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -27,20 +26,10 @@ type primaryAdmissionFixture struct {
 
 func newPrimaryAdmissionFixture(t *testing.T) *primaryAdmissionFixture {
 	t.Helper()
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires an isolated real Valkey")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-	require.NoError(t, err)
-	id := uint64(time.Now().UnixNano()%100000000 + 8000000000)
-	sid := strconv.FormatUint(id, 10)
-	keys := []string{"settings:" + sid, watchtime.AdmissionKey(id), "live:" + sid, "watchtime:operations:" + sid, "loyaltick:state:" + sid, "loyaltick:claim:" + sid}
-	t.Cleanup(func() {
-		client.Do(context.Background(), client.B().Del().Key(keys...).Build())
-		client.Do(context.Background(), client.B().Srem().Key("trial:desired").Member(sid).Build())
-		client.Close()
-	})
+	client := realClient(t, 0)
+	id, sid := uniqueID(8000000000)
+	cleanupKeys(t, client, "settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid, "watchtime:operations:"+sid, "loyaltick:state:"+sid, "loyaltick:claim:"+sid)
+	t.Cleanup(func() { client.Do(context.Background(), client.B().Srem().Key("trial:desired").Member(sid).Build()) })
 	return &primaryAdmissionFixture{client: client, store: watchtime.NewStore(client), proj: projection.NewStore(client), id: id, sid: sid}
 }
 
@@ -149,17 +138,10 @@ func TestAccountIncarnationFencesOutdatedWork(t *testing.T) {
 }
 
 func TestAccountStateOrderingSurvivesSettingsExpiry(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires isolated real Valkey")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-	require.NoError(t, err)
-	defer client.Close()
+	client := realClient(t, 0)
 	ctx := t.Context()
-	id := uint64(time.Now().UnixNano()%100000000 + 8200000000)
-	sid := strconv.FormatUint(id, 10)
-	defer client.Do(context.Background(), client.B().Del().Key("settings:"+sid, watchtime.AdmissionKey(id)).Build())
+	id, sid := uniqueID(8200000000)
+	cleanupKeys(t, client, "settings:"+sid, watchtime.AdmissionKey(id))
 	store := watchtime.NewStore(client)
 	proj := projection.NewStore(client)
 	allowed, err := store.RestoreAccount(ctx, id, 100)
@@ -219,18 +201,10 @@ func TestAccountStateOrderingSurvivesSettingsExpiry(t *testing.T) {
 }
 
 func TestAccountHydrationRestoresCanonicalIncarnation(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires isolated real Valkey")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-	require.NoError(t, err)
-	defer client.Close()
+	client := realClient(t, 0)
 	ctx := t.Context()
-	id := uint64(time.Now().UnixNano()%100000000 + 8300000000)
-	sid := strconv.FormatUint(id, 10)
-	keys := []string{"settings:" + sid, watchtime.AdmissionKey(id), "live:" + sid, "loyaltick:state:" + sid, "loyaltick:claim:" + sid}
-	defer client.Do(context.Background(), client.B().Del().Key(keys...).Build())
+	id, sid := uniqueID(8300000000)
+	cleanupKeys(t, client, "settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid, "loyaltick:state:"+sid, "loyaltick:claim:"+sid)
 	store := watchtime.NewStore(client)
 	proj := projection.NewStore(client)
 	user := projection.UserProjection{AccountCreatedAt: 100, StateRevision: 3, IsActive: true, Status: "paid"}
@@ -260,19 +234,12 @@ func TestAccountHydrationRestoresCanonicalIncarnation(t *testing.T) {
 }
 
 func TestAccountHydrationPreservesEitherSectionWriteOrder(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires isolated real Valkey")
-	}
 	for _, order := range []string{"user first", "module first", "module event first"} {
 		t.Run(order, func(t *testing.T) {
-			client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-			require.NoError(t, err)
-			defer client.Close()
+			client := realClient(t, 0)
 			ctx := t.Context()
-			id := uint64(time.Now().UnixNano()%100000000 + 8400000000)
-			sid := strconv.FormatUint(id, 10)
-			defer client.Do(context.Background(), client.B().Del().Key("settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid).Build())
+			id, sid := uniqueID(8400000000)
+			cleanupKeys(t, client, "settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid)
 			proj := projection.NewStore(client)
 			mod := projection.ModuleView{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: true, Revision: 1}
 			writeUser := func() {

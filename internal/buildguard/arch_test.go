@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -37,9 +38,19 @@ func isDataAccessPackage(dep string) bool {
 
 func TestEngineDoesNotImportModules(t *testing.T) {
 	const modules = "ItsBagelBot/app/twitch/sesame/modules"
-	for _, dep := range deps(t, "ItsBagelBot/app/twitch/sesame/engine") {
-		if dep == modules {
-			t.Fatalf("app/twitch/sesame/engine must not import %q; the engine depends on module abstractions only, main wires the concrete modules", modules)
-		}
+	if slices.Contains(deps(t, "ItsBagelBot/app/twitch/sesame/engine"), modules) {
+		t.Fatalf("app/twitch/sesame/engine must not import %q; the engine depends on module abstractions only, main wires the concrete modules", modules)
+	}
+}
+
+func TestDataServicesLinkEntRuntime(t *testing.T) {
+	for _, svc := range []string{"commands", "modules", "users", "transactions"} {
+		t.Run(svc, func(t *testing.T) {
+			pkg := "ItsBagelBot/app/db/" + svc
+			want := pkg + "/ent/runtime"
+			if !slices.Contains(deps(t, pkg), want) {
+				t.Fatalf("%s main does not import %q; add `_ %q` so ent field defaults/hooks initialize and writes persist", pkg, want, want)
+			}
+		})
 	}
 }

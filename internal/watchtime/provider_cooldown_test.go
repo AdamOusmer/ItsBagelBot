@@ -1,27 +1,22 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+
 package watchtime_test
 
 import (
-	"ItsBagelBot/internal/watchtime"
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/valkey-io/valkey-go"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"ItsBagelBot/internal/watchtime"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestProviderCooldownSharedMonotonicBoundedAndExpiring(t *testing.T) {
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires an isolated real Valkey")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-	require.NoError(t, err)
-	defer client.Close()
+	client := realClient(t, 0)
 	ctx := context.Background()
 	identity := "helix:bot:" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	other := "helix:bot:" + strconv.FormatInt(time.Now().UnixNano()+42, 10)

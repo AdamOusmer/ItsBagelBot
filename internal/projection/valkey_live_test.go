@@ -43,7 +43,7 @@ func newLiveFixture(t *testing.T) liveFixture {
 		user: stamp, board: CounterName("b" + strconv.FormatUint(stamp, 10)), seeded: time.UnixMilli(time.Now().UnixMilli()),
 	}
 	t.Cleanup(func() {
-		client.Do(f.ctx, client.B().Del().Key(liveCounterKey(f.user), liveBoardKey(f.board), liveBoardSeedFlag+string(f.board), liveBoardMemberPrefix+string(f.board)).Build())
+		client.Do(f.ctx, client.B().Del().Key(liveCounterPrefix+f.member(), f.boardKey(f.board), liveBoardSeedFlag+string(f.board), liveBoardMemberPrefix+string(f.board)).Build())
 		client.Close()
 	})
 	return f
@@ -69,6 +69,8 @@ func (f liveFixture) apply(msgID string, storedAt time.Time, messages int64) Liv
 
 func (f liveFixture) member() string { return strconv.FormatUint(f.user, 10) }
 
+func (f liveFixture) boardKey(name CounterName) string { return liveBoardPrefix + string(name) }
+
 func (f liveFixture) totals() (map[CounterName]int64, bool) {
 	f.t.Helper()
 	got, seeded, err := f.store.GetLiveCounters(f.ctx, f.user, []CounterName{"events", f.board})
@@ -83,7 +85,7 @@ func (f liveFixture) boardScore(user string) (int64, bool) {
 		return 0, false
 	}
 	require.NoError(f.t, err)
-	score, err := f.client.Do(f.ctx, f.client.B().Zscore().Key(liveBoardKey(f.board)).Member(member).Build()).AsInt64()
+	score, err := f.client.Do(f.ctx, f.client.B().Zscore().Key(f.boardKey(f.board)).Member(member).Build()).AsInt64()
 	require.NoError(f.t, err)
 	require.Zero(f.t, score)
 	value, err := strconv.ParseInt(strings.SplitN(member, ":", 2)[0], 10, 64)
@@ -150,7 +152,7 @@ func TestLiveCountersTrackTheBoardAtTheHashTotal(t *testing.T) {
 	f.apply("m1", f.seeded.Add(time.Second), 2)
 	score, _ = f.boardScore(f.member())
 	require.Equal(t, int64(42), score)
-	_, err := f.client.Do(f.ctx, f.client.B().Zscore().Key(liveBoardKey("events")).Member(f.member()).Build()).AsFloat64()
+	_, err := f.client.Do(f.ctx, f.client.B().Zscore().Key(f.boardKey("events")).Member(f.member()).Build()).AsFloat64()
 	require.True(t, valkey.IsValkeyNil(err), "a counter without a board never gets a board entry")
 }
 
@@ -162,7 +164,7 @@ func TestSeedBoardKeepsFresherTotals(t *testing.T) {
 	require.False(t, seeded)
 
 	require.NoError(t, f.store.SeedBoard(f.ctx, f.board, []BoardEntry{{UserID: f.user, Value: 3}, {UserID: 1, Value: 9}}))
-	t.Cleanup(func() { f.client.Do(f.ctx, f.client.B().Zrem().Key(liveBoardKey(f.board)).Member("1").Build()) })
+	t.Cleanup(func() { f.client.Do(f.ctx, f.client.B().Zrem().Key(f.boardKey(f.board)).Member("1").Build()) })
 
 	mine, _ := f.boardScore(f.member())
 	other, _ := f.boardScore("1")
@@ -313,4 +315,37 @@ func TestLiveSeedWrongBoardTypeLeavesHashUnseeded(t *testing.T) {
 	require.Zero(t, exists)
 	require.NoError(t, f.client.Do(f.ctx, f.client.B().Del().Key(index).Build()).Error())
 	f.seed(5)
+}
+
+func TestGetModulesPrimaryReadsFencingWithoutChangingTheHash(t *testing.T) {
+	f := newLiveFixture(t)
+	key := settingsKeyPrefix + f.member()
+	t.Cleanup(func() { f.client.Do(f.ctx, f.client.B().Del().Key(key).Build()) })
+	fields := f.client.B().Hset().Key(key).FieldValue()
+	for field, value := range map[string]string{
+		modulesMarkerField:                 "1",
+		"module:custom:enabled":            "1",
+		"module:custom:revision":           "7",
+		"module:custom:account_created_at": "123",
+		"module:custom:config":             `{"text":"hello"}`,
+		"command:large":                    strings.Repeat("x", 100000),
+		"fetch:large":                      strings.Repeat("y", 100000),
+		"locale":                           "fr",
+	} {
+		fields = fields.FieldValue(field, value)
+	}
+	require.NoError(t, f.client.Do(f.ctx, fields.Build()).Error())
+	before, err := f.client.Do(f.ctx, f.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	require.NoError(t, err)
+
+	mods, projected, err := f.store.GetModulesPrimary(f.ctx, f.user)
+
+	require.NoError(t, err)
+	require.True(t, projected)
+	require.Equal(t, 7, mods["custom"].Revision)
+	require.EqualValues(t, 123, mods["custom"].AccountCreatedAt)
+	require.JSONEq(t, `{"text":"hello"}`, string(mods["custom"].Configs))
+	after, err := f.client.Do(f.ctx, f.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	require.NoError(t, err)
+	require.Equal(t, before, after, "read-only snapshot must preserve the settings hash")
 }

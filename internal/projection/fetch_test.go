@@ -6,19 +6,13 @@ package projection
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
-
-func newTestStore(t *testing.T) (*Store, *fakeValkey) {
-	t.Helper()
-	f := newFakeValkey(t)
-	return NewStore(f.client), f
-}
 
 func fetchDTO(userID uint64, name string, deleted bool) data.FetchChangedDTO {
 	return data.FetchChangedDTO{
@@ -182,14 +176,7 @@ func TestLegacyFetchProjectedFieldDecaysHarmlessly(t *testing.T) {
 func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
-
-	client := NewClient(Config{
-		Store:    store,
-		Subjects: Subjects{Fetches: "bagel.rpc.internal.projection.commands.fetches.get"},
-		TTL:      0,
-		Log:      zap.NewNop(),
-	})
-	defer client.Close()
+	client, evict := invalidatedClient(t, store)
 
 	_, found, err := client.FetchDefs(ctx, 46, "late")
 	require.NoError(t, err)
@@ -198,27 +185,28 @@ func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	require.NoError(t, store.SetFetches(ctx, 46, []FetchView{
 		{Name: "late", URL: "https://late.example", KeyLabel: "k", IsActive: true},
 	}))
-	client.fetches.Invalidate(fetchKey(46, "late"))
-
-	view, found, err := client.FetchDefs(ctx, 46, "Late")
-	require.NoError(t, err)
-	require.True(t, found, "tier-2 hit after invalidation")
+	evict("fetches", 46, "late")
+	var view FetchView
+	require.Eventually(t, func() bool {
+		var ok bool
+		view, ok, err = client.FetchDefs(ctx, 46, "Late")
+		return err == nil && ok
+	}, 2*time.Second, 5*time.Millisecond, "an invalidated negative entry is refilled from the projection")
 	assert.Equal(t, "https://late.example", view.URL)
 	assert.Equal(t, "k", view.KeyLabel, "label projects; key material never does")
 
-	opsBefore := len(f.ops())
+	opsBefore := len(f.Ops())
 	_, found, err = client.FetchDefs(ctx, 46, "late")
 	require.NoError(t, err)
 	assert.True(t, found)
-	assert.GreaterOrEqual(t, len(f.ops()), opsBefore, "cache hit issues no server ops")
-	assert.Equal(t, opsBefore, len(f.ops()), "warm entry costs zero Valkey round trips")
+	assert.Equal(t, opsBefore, len(f.Ops()), "warm entry costs zero Valkey round trips")
 
 	_, found, err = client.FetchDefs(ctx, 46, "ghost")
 	require.NoError(t, err)
 	assert.False(t, found)
-	negOps := len(f.ops())
+	negOps := len(f.Ops())
 	_, found, err = client.FetchDefs(ctx, 46, "ghost")
 	require.NoError(t, err)
 	assert.False(t, found)
-	assert.Equal(t, negOps, len(f.ops()), "negative entries keep repeat misses off Valkey")
+	assert.Equal(t, negOps, len(f.Ops()), "negative entries keep repeat misses off Valkey")
 }

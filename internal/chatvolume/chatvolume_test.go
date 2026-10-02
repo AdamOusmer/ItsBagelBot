@@ -1,180 +1,143 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package chatvolume
+package chatvolume_test
 
 import (
-	"context"
-	"os"
+	"strconv"
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/chatvolume"
+	"ItsBagelBot/internal/valkeytest"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
-func TestBuildChatVolumeEmptyRingIsAllZero(t *testing.T) {
-	cv := buildChatVolume(map[string]string{}, 1_000_000)
-	require.Len(t, cv.Buckets, ringWidth)
-	for _, b := range cv.Buckets {
-		require.Equal(t, 0, b)
-	}
-	require.Empty(t, cv.CommandTicks)
-	require.Equal(t, 0, cv.Now)
-	require.Equal(t, 0, cv.Peak)
+const (
+	ringWidth        = 60
+	typeChatMessage  = "channel.chat.message"
+	typeStreamOnline = "stream.online"
+)
+
+type ring struct {
+	client      valkey.Client
+	store       *chatvolume.Store
+	broadcaster uint64
 }
 
-func TestBuildChatVolumeLaps(t *testing.T) {
+func newRing(t *testing.T, client valkey.Client) ring {
+	t.Helper()
+	r := ring{client: client, store: chatvolume.New(client, zap.NewNop()), broadcaster: uint64(time.Now().UnixNano())}
+	t.Cleanup(func() { _ = client.Do(t.Context(), client.B().Del().Key(r.key()).Build()).Error() })
+	return r
+}
+
+func (r ring) key() string { return "chatvol:" + strconv.FormatUint(r.broadcaster, 10) }
+
+func (r ring) seed(t *testing.T, fields map[string]string) {
+	t.Helper()
+	cmd := r.client.B().Hset().Key(r.key()).FieldValue()
+	for field, value := range fields {
+		cmd = cmd.FieldValue(field, value)
+	}
+	require.NoError(t, r.client.Do(t.Context(), cmd.Build()).Error())
+}
+
+func (r ring) read(t *testing.T, now time.Time) chatvolume.ChatVolume {
+	t.Helper()
+	cv, err := r.store.Read(t.Context(), r.broadcaster, now)
+	require.NoError(t, err)
+	return cv
+}
+
+func minuteAt(epoch int64) time.Time { return time.Unix(epoch*60, 0).UTC() }
+
+func slot(epoch int64) string { return strconv.FormatInt(epoch%ringWidth, 10) }
+
+func TestStoreReadEmptyRingIsAllZero(t *testing.T) {
+	r := newRing(t, valkeytest.Client(t))
+
+	cv := r.read(t, minuteAt(1_000_000))
+
+	assert.Equal(t, chatvolume.ChatVolume{Buckets: make([]int, ringWidth)}, cv)
+}
+
+func TestStoreReadRingSlots(t *testing.T) {
+	now := int64(1_000_100)
 	cases := []struct {
 		name      string
-		now       int64
-		anchor    string
-		slotValue string
+		fields    map[string]string
 		wantNow   int
-		wantTick  bool
+		wantPeak  int
+		wantTicks []int
 	}{
-		{name: "current lap", now: 1_000_100, anchor: "1000000", slotValue: "100:7:1", wantNow: 7, wantTick: true},
-		{name: "stale lap reads as zero", now: 2_000_200, anchor: "2000000", slotValue: "999:42:1"},
+		{name: "current lap slot is read with its command tick", fields: map[string]string{"a": "1000000", slot(now): "100:7:1"}, wantNow: 7, wantPeak: 7, wantTicks: []int{ringWidth - 1}},
+		{name: "slot written on an earlier lap reads as zero", fields: map[string]string{"a": "1000000", slot(now): "40:42:1"}},
+		{name: "missing anchor reads as zero", fields: map[string]string{slot(now): "100:9:1"}},
+		{name: "empty slot value is ignored", fields: map[string]string{"a": "1000000", slot(now): ""}},
+		{name: "slot without a handled flag is ignored", fields: map[string]string{"a": "1000000", slot(now): "100:2"}},
+		{name: "non numeric delta is ignored", fields: map[string]string{"a": "1000000", slot(now): "x:2:0"}},
+		{name: "non numeric count is ignored", fields: map[string]string{"a": "1000000", slot(now): "100:x:0"}},
+		{name: "trailing segments are tolerated", fields: map[string]string{"a": "1000000", slot(now): "100:2:0:extra"}, wantNow: 2, wantPeak: 2},
+		{name: "peak is the busiest minute of the hour", fields: map[string]string{"a": "1000000", slot(now): "100:3:0", slot(now - 5): "95:9:0"}, wantNow: 3, wantPeak: 9},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			fields := map[string]string{"a": tc.anchor, slotName(tc.now): tc.slotValue}
-			cv := buildChatVolume(fields, tc.now)
-			require.Equal(t, tc.wantNow, cv.Now)
-			require.Equal(t, tc.wantNow, cv.Peak)
-			if tc.wantTick {
-				require.Contains(t, cv.CommandTicks, ringWidth-1)
-			} else {
-				require.Empty(t, cv.CommandTicks)
-			}
+			r := newRing(t, valkeytest.Client(t))
+			r.seed(t, tc.fields)
+
+			cv := r.read(t, minuteAt(now))
+
+			assert.Equal(t, tc.wantNow, cv.Now)
+			assert.Equal(t, tc.wantPeak, cv.Peak)
+			assert.Equal(t, tc.wantTicks, cv.CommandTicks)
 		})
 	}
 }
 
-func TestBuildChatVolumeMissingAnchorIsAllZero(t *testing.T) {
-	slot := slotName(500)
-	cv := buildChatVolume(map[string]string{slot: "0:9:1"}, 500)
-	require.Equal(t, 0, cv.Now)
+type observed struct {
+	typ     string
+	after   time.Duration
+	handled bool
 }
 
-func TestParseSlotValueRejectsMalformed(t *testing.T) {
-	cases := []string{"", "1:2", "a:2:0", "1:b:0", "1:2:0:extra-is-fine-since-splitn3"}
-	for _, raw := range cases {
-		_, _, _, ok := parseSlotValue(raw)
-		if raw == "1:2:0:extra-is-fine-since-splitn3" {
-			require.True(t, ok, raw)
-			continue
-		}
-		require.False(t, ok, raw)
+func TestStoreObserveBumpsTheMinuteRing(t *testing.T) {
+	base := minuteAt(1_800_000)
+	chat := func(after time.Duration, handled bool) observed { return observed{typeChatMessage, after, handled} }
+	cases := []struct {
+		name      string
+		events    []observed
+		readAt    time.Duration
+		wantNow   int
+		wantPrev  int
+		wantTicks []int
+		wantKey   bool
+	}{
+		{name: "messages within one minute accumulate and keep the command tick", events: []observed{chat(0, false), chat(10*time.Second, false), chat(20*time.Second, true)}, readAt: 30 * time.Second, wantNow: 3, wantTicks: []int{ringWidth - 1}, wantKey: true},
+		{name: "a new minute resets its own bucket and leaves the previous one", events: []observed{chat(0, false), chat(0, false), chat(time.Minute, false)}, readAt: time.Minute, wantNow: 1, wantPrev: 2, wantKey: true},
+		{name: "a full lap later reads fresh instead of adding to the old count", events: []observed{chat(0, false), chat(0, false), chat(0, false), chat(ringWidth*time.Minute, false)}, readAt: ringWidth * time.Minute, wantNow: 1, wantKey: true},
+		{name: "stream online clears the ring", events: []observed{chat(0, false), {typeStreamOnline, 0, false}}, readAt: 0, wantKey: false},
+		{name: "other event types leave the ring untouched", events: []observed{{"channel.follow", 0, false}}, readAt: 0, wantKey: false},
 	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRing(t, valkeytest.Real(t))
+			for _, ev := range tc.events {
+				r.store.Observe(chatvolume.Event{BroadcasterID: r.broadcaster, Type: ev.typ, At: base.Add(ev.after), Handled: ev.handled})
+			}
 
-func TestPeakOf(t *testing.T) {
-	require.Equal(t, 9, peakOf([]int{0, 3, 9, 1}))
-	require.Equal(t, 0, peakOf(nil))
-}
+			cv := r.read(t, base.Add(tc.readAt))
 
-func newChatVolumeTestClient(t *testing.T) valkey.Client {
-	t.Helper()
-	address := os.Getenv("VALKEY_TEST_ADDR")
-	if address == "" {
-		t.Skip("VALKEY_TEST_ADDR is not set")
+			assert.Equal(t, tc.wantNow, cv.Now)
+			assert.Equal(t, tc.wantPrev, cv.Buckets[ringWidth-2])
+			assert.Equal(t, tc.wantTicks, cv.CommandTicks)
+			exists, err := r.client.Do(t.Context(), r.client.B().Exists().Key(r.key()).Build()).AsBool()
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantKey, exists)
+		})
 	}
-	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{address},
-		Password:    os.Getenv("VALKEY_TEST_PASSWORD"),
-	})
-	require.NoError(t, err)
-	t.Cleanup(client.Close)
-	return client
-}
-
-func TestStoreBumpAccumulatesWithinOneMinute(t *testing.T) {
-	client := newChatVolumeTestClient(t)
-	ctx := context.Background()
-	s := New(client, zap.NewNop())
-	broadcaster := uint64(time.Now().UnixNano())
-	t.Cleanup(func() { _ = client.Do(ctx, client.B().Del().Key(chatVolKey(broadcaster)).Build()).Error() })
-
-	minute := time.Unix(1_800_000*60, 0).UTC()
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: minute, Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: minute.Add(10 * time.Second), Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: minute.Add(20 * time.Second), Handled: true})
-
-	cv, err := s.Read(ctx, broadcaster, minute.Add(30*time.Second))
-	require.NoError(t, err)
-	require.Equal(t, 3, cv.Now)
-	require.Contains(t, cv.CommandTicks, ringWidth-1)
-}
-
-func TestStoreBumpResetsOnMinuteRollover(t *testing.T) {
-	client := newChatVolumeTestClient(t)
-	ctx := context.Background()
-	s := New(client, zap.NewNop())
-	broadcaster := uint64(time.Now().UnixNano())
-	t.Cleanup(func() { _ = client.Do(ctx, client.B().Del().Key(chatVolKey(broadcaster)).Build()).Error() })
-
-	minute := time.Unix(1_800_100*60, 0).UTC()
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: minute, Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: minute, Handled: false})
-	next := minute.Add(time.Minute)
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: next, Handled: false})
-
-	cv, err := s.Read(ctx, broadcaster, next)
-	require.NoError(t, err)
-	require.Equal(t, 1, cv.Now, "new minute must reset the bucket, not add onto the previous minute's count")
-	require.Equal(t, 2, cv.Buckets[ringWidth-2], "the previous minute's own bucket is untouched")
-}
-
-func TestStoreRingCollisionAfterFullLapReadsFresh(t *testing.T) {
-	client := newChatVolumeTestClient(t)
-	ctx := context.Background()
-	s := New(client, zap.NewNop())
-	broadcaster := uint64(time.Now().UnixNano())
-	t.Cleanup(func() { _ = client.Do(ctx, client.B().Del().Key(chatVolKey(broadcaster)).Build()).Error() })
-
-	base := time.Unix(1_800_300*60, 0).UTC()
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: base, Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: base, Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: base, Handled: false})
-
-	lapLater := base.Add(time.Duration(ringWidth) * time.Minute)
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: lapLater, Handled: false})
-
-	cv, err := s.Read(ctx, broadcaster, lapLater)
-	require.NoError(t, err)
-	require.Equal(t, 1, cv.Now)
-}
-
-func TestStoreStreamOnlineClearsRing(t *testing.T) {
-	client := newChatVolumeTestClient(t)
-	ctx := context.Background()
-	s := New(client, zap.NewNop())
-	broadcaster := uint64(time.Now().UnixNano())
-	t.Cleanup(func() { _ = client.Do(ctx, client.B().Del().Key(chatVolKey(broadcaster)).Build()).Error() })
-
-	now := time.Unix(1_800_500*60, 0).UTC()
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: now, Handled: false})
-	s.Observe(Event{BroadcasterID: broadcaster, Type: typeStreamOnline, At: now, Handled: false})
-
-	cv, err := s.Read(ctx, broadcaster, now)
-	require.NoError(t, err)
-	require.Equal(t, 0, cv.Now)
-	require.Equal(t, 0, cv.Peak)
-}
-
-func TestStoreObserveIgnoresOtherEventTypes(t *testing.T) {
-	client := newChatVolumeTestClient(t)
-	ctx := context.Background()
-	s := New(client, zap.NewNop())
-	broadcaster := uint64(time.Now().UnixNano())
-	t.Cleanup(func() { _ = client.Do(ctx, client.B().Del().Key(chatVolKey(broadcaster)).Build()).Error() })
-
-	now := time.Unix(1_800_600*60, 0).UTC()
-	s.Observe(Event{BroadcasterID: broadcaster, Type: "channel.follow", At: now, Handled: false})
-
-	exists, err := client.Do(ctx, client.B().Exists().Key(chatVolKey(broadcaster)).Build()).AsInt64()
-	require.NoError(t, err)
-	require.Equal(t, int64(0), exists)
 }

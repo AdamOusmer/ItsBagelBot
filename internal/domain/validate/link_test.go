@@ -1,9 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package validate
+package validate_test
 
-import "testing"
+import (
+	"testing"
+
+	"ItsBagelBot/internal/domain/validate"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestContainsLinkCatches(t *testing.T) {
 	links := []string{
@@ -48,9 +54,7 @@ func TestContainsLinkCatches(t *testing.T) {
 		"host.example:8443/login",
 	}
 	for _, in := range links {
-		if !ContainsLink(in) {
-			t.Errorf("ContainsLink(%q) = false, want true (link slipped through)", in)
-		}
+		assert.True(t, validate.ContainsLink(in), "link slipped through: %q", in)
 	}
 }
 
@@ -71,8 +75,6 @@ func TestContainsLinkAllows(t *testing.T) {
 		"Meet me at 12:30 sharp",
 	}
 	for _, in := range clean {
-		if ContainsLink(in) {
-			t.Errorf("ContainsLink(%q) = true, want false (false positive)", in)
-		}
+		assert.False(t, validate.ContainsLink(in), "false positive: %q", in)
 	}
 }

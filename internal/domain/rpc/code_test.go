@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package rpc
+package rpc_test
 
 import (
 	"context"
@@ -9,45 +9,14 @@ import (
 	"fmt"
 	"testing"
 
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var errSentinel = errors.New("bound elsewhere")
-
-func TestFailClassifies(t *testing.T) {
-	rules := []Rule{
-		Is(errSentinel, CodeConflict),
-		When(func(err error) bool { return err.Error() == "gone" }, CodeNotFound),
-	}
-	cases := map[string]struct {
-		err  error
-		want Refusal
-	}{
-		"nil":       {nil, Refusal{}},
-		"sentinel":  {fmt.Errorf("save: %w", errSentinel), Refusal{Error: "save: bound elsewhere", Code: CodeConflict}},
-		"predicate": {errors.New("gone"), Refusal{Error: "gone", Code: CodeNotFound}},
-		"deadline":  {fmt.Errorf("query: %w", context.DeadlineExceeded), Refusal{Error: "query: context deadline exceeded", Code: CodeUnavailable}},
-		"unknown":   {errors.New("boom"), Refusal{Error: "boom", Code: CodeInternal}},
-	}
-	for name, tc := range cases {
-		if got := Fail(tc.err, rules...); got != tc.want {
-			t.Errorf("%s: Fail = %+v, want %+v", name, got, tc.want)
-		}
-	}
-}
-
-func TestCodesVocabulary(t *testing.T) {
-	want := []Code{"invalid", "not_found", "forbidden", "conflict", "unavailable", "internal"}
-	got := Codes()
-	if len(got) != len(want) {
-		t.Fatalf("Codes() = %v, want %v", got, want)
-	}
-	for i, code := range want {
-		if got[i] != code {
-			t.Fatalf("Codes()[%d] = %q, want %q", i, got[i], code)
-		}
-	}
-}
 
 type oldReply struct {
 	Value string `json:"value,omitempty"`
@@ -56,43 +25,53 @@ type oldReply struct {
 
 type newReply struct {
 	Value string `json:"value,omitempty"`
-	Refusal
+	rpc.Refusal
 }
 
-func TestWireCompatBothDirections(t *testing.T) {
-	fromNew := mustEncode(t, newReply{Refusal: Refused(CodeNotFound, "no such user")})
-	var old oldReply
-	decode(t, fromNew, &old)
-	if old.Error != "no such user" {
-		t.Errorf("old reader lost the message: %+v (from %s)", old, fromNew)
+func TestFailClassifies(t *testing.T) {
+	rules := []rpc.Rule{
+		rpc.Is(errSentinel, rpc.CodeConflict),
+		rpc.When(func(err error) bool { return err.Error() == "gone" }, rpc.CodeNotFound),
 	}
-
-	fromOld := mustEncode(t, oldReply{Error: "no such user"})
-	var fresh newReply
-	decode(t, fromOld, &fresh)
-	if fresh.Error != "no such user" || fresh.Code != CodeOK {
-		t.Errorf("new reader mishandled an old reply: %+v (from %s)", fresh, fromOld)
+	cases := []struct {
+		name string
+		err  error
+		want rpc.Refusal
+	}{
+		{"nil is not a refusal", nil, rpc.Refusal{}},
+		{"a wrapped sentinel maps to its code", fmt.Errorf("save: %w", errSentinel), rpc.Refusal{Error: "save: bound elsewhere", Code: rpc.CodeConflict}},
+		{"a predicate rule maps to its code", errors.New("gone"), rpc.Refusal{Error: "gone", Code: rpc.CodeNotFound}},
+		{"a deadline is unavailable", fmt.Errorf("query: %w", context.DeadlineExceeded), rpc.Refusal{Error: "query: context deadline exceeded", Code: rpc.CodeUnavailable}},
+		{"a cancellation is unavailable", fmt.Errorf("query: %w", context.Canceled), rpc.Refusal{Error: "query: context canceled", Code: rpc.CodeUnavailable}},
+		{"anything else is internal", errors.New("boom"), rpc.Refusal{Error: "boom", Code: rpc.CodeInternal}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, rpc.Fail(tc.err, rules...))
+		})
 	}
 }
 
-func TestSuccessOmitsBothFields(t *testing.T) {
-	if got := mustEncode(t, newReply{Value: "ok"}); got != `{"value":"ok"}` {
-		t.Errorf("success reply = %s, want {\"value\":\"ok\"}", got)
-	}
-}
+func TestWireContract(t *testing.T) {
+	assert.Equal(t, []rpc.Code{"invalid", "not_found", "forbidden", "conflict", "unavailable", "internal"}, rpc.Codes())
 
-func mustEncode(t *testing.T, v any) string {
-	t.Helper()
-	raw, err := codec.MarshalToString(v)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	return raw
-}
+	t.Run("old and new readers understand each other", func(t *testing.T) {
+		fromNew, err := codec.MarshalToString(newReply{Refusal: rpc.Refused(rpc.CodeNotFound, "no such user")})
+		require.NoError(t, err)
+		var old oldReply
+		require.NoError(t, codec.UnmarshalFromString(fromNew, &old))
+		assert.Equal(t, "no such user", old.Error)
 
-func decode(t *testing.T, raw string, into any) {
-	t.Helper()
-	if err := codec.UnmarshalFromString(raw, into); err != nil {
-		t.Fatalf("unmarshal %s: %v", raw, err)
-	}
+		fromOld, err := codec.MarshalToString(oldReply{Error: "no such user"})
+		require.NoError(t, err)
+		var fresh newReply
+		require.NoError(t, codec.UnmarshalFromString(fromOld, &fresh))
+		assert.Equal(t, rpc.Refusal{Error: "no such user", Code: rpc.CodeOK}, fresh.Refusal)
+	})
+
+	t.Run("success omits the refusal fields", func(t *testing.T) {
+		got, err := codec.MarshalToString(newReply{Value: "ok"})
+		require.NoError(t, err)
+		assert.Equal(t, `{"value":"ok"}`, got)
+	})
 }

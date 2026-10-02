@@ -8,9 +8,19 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/moderation"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	validate.CheckFloor = moderation.CheckFloor
+}
+
+func leetify(term string) string {
+	return strings.NewReplacer("a", "4", "e", "3", "i", "1", "o", "0", "s", "5").Replace(term)
+}
 
 func TestUserID(t *testing.T) {
 	assert.NoError(t, validate.UserID(1))
@@ -105,4 +115,38 @@ func TestStatus(t *testing.T) {
 
 	assert.Error(t, validate.Status("premium"))
 	assert.Error(t, validate.Status(""))
+}
+
+func TestContentFloor(t *testing.T) {
+	terms := moderation.EmbeddedLexicon().Terms(moderation.CatHate)
+	require.NotEmpty(t, terms, "embedded hate list empty")
+	slur := terms[0]
+	cases := []struct {
+		name    string
+		check   func() error
+		refused bool
+	}{
+		{"slur in a command response", func() error { return validate.CommandResponse("welcome to the stream " + slur) }, true},
+		{"obfuscated slur in a command response", func() error { return validate.CommandResponse("hello " + leetify(slur) + " world") }, true},
+		{"ip grabber host in a command response", func() error { return validate.CommandResponse("check my setup at grabify.link/pc") }, true},
+		{"mild profanity in a command response", func() error { return validate.CommandResponse("that was some bullshit, hell of a play though") }, false},
+		{"prize giveaway wording in a command response", func() error { return validate.CommandResponse("type !prize to claim your prize in tonight's giveaway") }, false},
+		{"swearing about the game in a command response", func() error { return validate.CommandResponse("damn this fucking game is hard") }, false},
+		{"slur in a config string", func() error { return validate.ConfigsJSON([]byte(`{"message":"raid hype ` + slur + ` welcome"}`)) }, true},
+		{"slur nested in a config", func() error { return validate.ConfigsJSON([]byte(`{"a":{"b":["fine","also fine","` + slur + `"]}}`)) }, true},
+		{"clean config", func() error {
+			return validate.ConfigsJSON([]byte(`{"message":"huge shoutout to {raider}, damn what a raid!","count":3}`))
+		}, false},
+		{"obfuscated slur in a fetch definition name", func() error { return validate.FetchDefName("chat_" + leetify(slur)) }, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.check()
+			if tc.refused {
+				assert.ErrorIs(t, err, validate.ErrContentFloor)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
 }

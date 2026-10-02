@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -42,16 +43,20 @@ func (c *gatedProjectionReads) Do(ctx context.Context, cmd valkey.Completed) val
 	return c.Client.Do(ctx, cmd)
 }
 
+func seedChannel(f *fakeValkey) {
+	for _, kv := range []fakeField{
+		{"status", "premium"}, {"active", "1"}, {"locale", "fr"}, {modulesMarkerField, "1"},
+		{"module:automod:enabled", "1"}, {"module:automod:revision", "7"},
+	} {
+		f.seed("settings:81", kv)
+	}
+}
+
 func channelTestClient(t *testing.T) (*Client, *gatedProjectionReads, *fakeValkey) {
 	t.Helper()
 	f := newFakeValkey(t)
-	f.seed("settings:81", fakeField{"status", "premium"})
-	f.seed("settings:81", fakeField{"active", "1"})
-	f.seed("settings:81", fakeField{"locale", "fr"})
-	f.seed("settings:81", fakeField{modulesMarkerField, "1"})
-	f.seed("settings:81", fakeField{"module:automod:enabled", "1"})
-	f.seed("settings:81", fakeField{"module:automod:revision", "7"})
-	reads := &gatedProjectionReads{Client: f.client}
+	seedChannel(f)
+	reads := &gatedProjectionReads{Client: f.Client()}
 	c := NewClient(Config{Store: NewStore(reads), TTL: time.Minute, Log: zap.NewNop()})
 	t.Cleanup(c.Close)
 	return c, reads, f
@@ -83,7 +88,6 @@ func TestLoadChannelColdReadsOverlap(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[string]bool{"HMGET": true, "EVAL_RO": true}, seen)
-	// Unblock both reads without closing twice in cleanup.
 	release <- struct{}{}
 	release <- struct{}{}
 	<-done
@@ -91,37 +95,44 @@ func TestLoadChannelColdReadsOverlap(t *testing.T) {
 	require.Equal(t, "fr", user.Locale)
 	require.True(t, user.Premium())
 	require.Equal(t, 7, mods["automod"].Revision)
-	// A repeated load performs no additional wire read.
 	_, _, err = c.LoadChannel(ctx, 81, true)
 	require.NoError(t, err)
-	require.EqualValues(t, 2, reads.reads.Load())
+	require.EqualValues(t, 2, reads.reads.Load(), "a repeated load performs no additional wire read")
 }
 
-func TestLoadChannelIndependentInvalidationAndOptionalModules(t *testing.T) {
-	c, reads, f := channelTestClient(t)
+func TestLoadChannelInvalidatesUserAndModulesIndependently(t *testing.T) {
+	f := newFakeValkey(t)
+	seedChannel(f)
+	reads := &gatedProjectionReads{Client: f.Client()}
+	c, evict := invalidatedClient(t, NewStore(reads))
 	ctx := context.Background()
+	load := func() (map[string]ModuleView, User) {
+		mods, user, err := c.LoadChannel(ctx, 81, true)
+		require.NoError(t, err)
+		return mods, user
+	}
+
 	_, user, err := c.LoadChannel(ctx, 81, false)
 	require.NoError(t, err)
 	require.Equal(t, "fr", user.Locale)
 	require.EqualValues(t, 1, reads.reads.Load(), "user-only loads must not read modules")
-	mods, _, err := c.LoadChannel(ctx, 81, true)
-	require.NoError(t, err)
+	mods, _ := load()
 	require.True(t, mods["automod"].IsEnabled)
 	require.EqualValues(t, 2, reads.reads.Load())
+
 	f.seed("settings:81", fakeField{"locale", "en"})
-	c.evictScope("locale", 81, nil)
-	mods, user, err = c.LoadChannel(ctx, 81, true)
-	require.NoError(t, err)
-	require.Equal(t, "en", user.Locale)
-	require.True(t, mods["automod"].IsEnabled)
-	require.EqualValues(t, 3, reads.reads.Load(), "locale invalidation reloads only User")
+	evict("locale", 81)
+	require.Eventually(t, func() bool { _, u := load(); return u.Locale == "en" }, 2*time.Second, 5*time.Millisecond)
+	mods, _ = load()
+	assert.True(t, mods["automod"].IsEnabled)
+	assert.EqualValues(t, 3, reads.reads.Load(), "locale invalidation reloads only User")
+
 	f.seed("settings:81", fakeField{"module:automod:enabled", "0"})
-	c.evictScope("modules", 81, nil)
-	mods, user, err = c.LoadChannel(ctx, 81, true)
-	require.NoError(t, err)
-	require.False(t, mods["automod"].IsEnabled)
-	require.Equal(t, "en", user.Locale)
-	require.EqualValues(t, 4, reads.reads.Load(), "modules invalidation reloads only Modules")
+	evict("modules", 81)
+	require.Eventually(t, func() bool { m, _ := load(); return !m["automod"].IsEnabled }, 2*time.Second, 5*time.Millisecond)
+	_, user = load()
+	assert.Equal(t, "en", user.Locale)
+	assert.EqualValues(t, 4, reads.reads.Load(), "modules invalidation reloads only Modules")
 }
 
 func TestLoadChannelConcurrentColdLoadsSingleflight(t *testing.T) {
@@ -161,17 +172,23 @@ func TestLoadChannelConcurrentColdLoadsSingleflight(t *testing.T) {
 }
 
 func TestLoadChannelFailurePolicies(t *testing.T) {
-	c, _, _ := channelTestClient(t)
+	c, _, f := channelTestClient(t)
 	ctx := context.Background()
 	// An absent account and unavailable RPC retain the conservative user
 	// fallback, while absent modules remain a retryable error, never cached.
 	_, user, err := c.LoadChannel(ctx, 999, true)
 	require.Error(t, err)
 	require.Equal(t, User{Status: "standard"}, user)
-	_, modulesCached := c.modules.Get(key("modules", 999))
-	require.False(t, modulesCached)
-	_, userCached := c.users.Get(key("user", 999))
-	require.True(t, userCached)
+
+	f.seed("settings:999", fakeField{"status", "paid"})
+	f.seed("settings:999", fakeField{"active", "1"})
+	f.seed("settings:999", fakeField{modulesMarkerField, "1"})
+	f.seed("settings:999", fakeField{"module:automod:enabled", "1"})
+
+	mods, user, err := c.LoadChannel(ctx, 999, true)
+	require.NoError(t, err, "the failed modules load must not have been cached")
+	assert.True(t, mods["automod"].IsEnabled)
+	assert.Equal(t, User{Status: "standard"}, user, "the user fallback is cached")
 }
 
 func BenchmarkLoadChannelHot(b *testing.B) {
