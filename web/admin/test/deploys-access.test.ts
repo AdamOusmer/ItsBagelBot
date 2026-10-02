@@ -4,21 +4,6 @@
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
-class TestRedirect extends Error {
-  constructor(
-    readonly status: number,
-    readonly location: string
-  ) {
-    super(`Redirect to ${location}`);
-  }
-}
-
-class TestHttpError extends Error {
-  constructor(readonly status: number, body: string) {
-    super(body);
-  }
-}
-
 type Admin = { id: string; login: string; display_name: string; role: 'moderator' | 'admin' | 'owner' };
 
 let adminReply: Admin | null = { id: '1', login: 'mod', display_name: 'Mod', role: 'admin' };
@@ -29,10 +14,6 @@ const allows = mock(() => allowsReply);
 const requireRole = mock(async () => (allowsReply ? adminReply : null));
 
 mock.module('$lib/server/access', () => ({ requireAdmin, allows, requireRole }));
-mock.module('@sveltejs/kit', () => ({
-  redirect: (status: number, location: string) => new TestRedirect(status, location),
-  error: (status: number, body: string) => new TestHttpError(status, body)
-}));
 
 const loadDeploys = mock(async () => ({ planned: Promise.resolve({ plan: null, planError: null }), runs: [], active: null, runsError: null }));
 const loadDeployRun = mock(async () => ({ run: {} }));

@@ -3,21 +3,16 @@
 
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { ChannelPointReward } from '@bagel/kit';
+import { stubSvelteKit } from '../../../test/sveltekit';
 
-const { MOD } = await import('@bagel/kit/catalog');
-mock.module('@bagel/kit', () => ({ MOD }));
+stubSvelteKit();
 
-const realNats = await import('@bagel/kit/server/nats');
 let reply: Record<string, unknown> = {};
 const upsertModule = mock(async () => {});
 
-mock.module('@bagel/kit/server/nats', () => ({ ...realNats, rpcReply: async () => reply }));
-mock.module('./services', () => ({ SUB: { outgressRpc: 'test' }, publishEventSubEnsureOptional: async () => {} }));
-mock.module('./commands-store', () => ({ upsertModule }));
-mock.module('./module-blob', () => ({
-  readModuleBlob: async () => ({ enabled: false, configs: {} }),
-  setModuleEnabled: async () => {}
-}));
+const realNats = await import('@bagel/kit/server/nats');
+mock.module('@bagel/kit/server/nats', () => ({ ...realNats, rpcReply: async () => reply, publish: async () => {} }));
+mock.module('./commands-store', () => ({ listModules: async () => [], upsertModule }));
 mock.module('./loyalty-store', () => ({ createCounter: async () => {} }));
 
 const { createReward } = await import('./channelpoints-store');

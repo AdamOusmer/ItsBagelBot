@@ -1,17 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stubSvelteKit } from '../../../test/sveltekit';
 
-mock.module('newrelic', () => ({ default: { noticeError: () => {} } }));
-const { MOD } = await import('@bagel/kit/catalog');
-const discordConfig = await import('../../../../kit/lib/discord-config');
-mock.module('@bagel/kit', () => ({ MOD, ...discordConfig }));
-mock.module('./services', () => ({ SUB: {} }));
-mock.module('./commands-store', () => ({ upsertModule: async () => {} }));
-mock.module('./module-blob', () => ({ readModuleBlob: async () => ({ enabled: false, configs: {} }) }));
+stubSvelteKit();
 
 const { DISCORD_CODES, SETUP_FIELDS } = await import('./discord-store');
 

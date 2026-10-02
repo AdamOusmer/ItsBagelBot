@@ -1,13 +1,8 @@
-import { describe, expect, mock, test } from 'bun:test';
-import { staticText } from '../../../../kit/lib/i18n/static';
+import { describe, expect, test } from 'bun:test';
+import { stubSvelteKit } from '../../../test/sveltekit';
 
-mock.module('@bagel/kit', () => ({
-  translate: (locale: 'en' | 'fr', key: string, params: Record<string, string | number> = {}) => {
-    let value = staticText(locale, key);
-    for (const [name, replacement] of Object.entries(params)) value = value.split(`{${name}}`).join(String(replacement));
-    return value;
-  }
-}));
+stubSvelteKit();
+
 const { actionError } = await import('./action-errors');
 
 describe('action error presentation', () => {
