@@ -1,64 +1,25 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package govee
+package govee_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providers/govee"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
-
-func init() { core.SetSSRFCheckForTests(false) }
-
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
-}
-
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	return nil
-}
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
 
 type fakeKeys struct {
 	key string
@@ -67,35 +28,10 @@ type fakeKeys struct {
 
 func (f fakeKeys) Key(context.Context, string) (string, error) { return f.key, f.err }
 
-func newTestProvider(t *testing.T, keys provider.BroadcasterKeyResolver, handler http.Handler) provider.Provider {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), GoveeKeys: keys})
-}
-
-func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == name {
-			return ep.Handle
-		}
-	}
-	t.Fatalf("endpoint %q not declared", name)
-	return nil
-}
-
-func asReply[T any](t *testing.T, res any) T {
-	t.Helper()
-	if v, ok := res.(T); ok {
-		return v
-	}
-	raw, ok := res.(codec.RawMessage)
-	require.True(t, ok, "unexpected handler result type %T", res)
-	var v T
-	require.NoError(t, codec.Unmarshal(raw, &v))
-	return v
+func newProvider(t testing.TB, keys provider.BroadcasterKeyResolver, handler http.Handler) provider.Provider {
+	deps := providertest.Deps(providertest.NewMemStore())
+	deps.GoveeKeys = keys
+	return govee.New(govee.Config{BaseURL: providertest.Upstream(t, handler)}, deps)
 }
 
 const deviceListBody = `{
@@ -114,35 +50,26 @@ const deviceListBody = `{
 
 func TestDevicesParsesAndFlagsColor(t *testing.T) {
 	var gotKey string
-	p := newTestProvider(t, fakeKeys{key: "k-123"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, fakeKeys{key: "k-123"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/router/api/v1/user/devices", r.URL.Path)
 		gotKey = r.Header.Get("Govee-API-Key")
 		_, _ = io.WriteString(w, deviceListBody)
 	}))
 
-	reply := asReply[gossiprpc.GoveeDevicesReply](t, endpoint(t, p, "devices")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
-	assert.Equal(t, "k-123", gotKey, "the broadcaster's key must ride the header")
-	require.Len(t, reply.Devices, 2)
-	assert.Equal(t, "AB:CD:EF", reply.Devices[0].Device)
-	assert.Equal(t, "H6159", reply.Devices[0].SKU)
-	assert.Equal(t, "Desk strip", reply.Devices[0].Name)
-	assert.True(t, reply.Devices[0].Color, "colour-capable device flagged")
-	assert.False(t, reply.Devices[1].Color, "plug without colour not flagged")
-}
+	reply := providertest.Call[gossiprpc.GoveeDevicesReply](t, p, "devices", gossiprpc.Request{ChannelID: "2"})
 
-func TestDevicesNoKeyOnFile(t *testing.T) {
-	called := false
-	p := newTestProvider(t, fakeKeys{key: ""}, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
-	reply := asReply[gossiprpc.GoveeDevicesReply](t, endpoint(t, p, "devices")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
-	assert.Contains(t, reply.Error, "no Govee API key")
-	assert.False(t, called, "must not dial Govee with no key")
+	assert.Equal(t, "k-123", gotKey, "the broadcaster's key must ride the header")
+	assert.Equal(t, []gossiprpc.GoveeDevice{
+		{Device: "AB:CD:EF", SKU: "H6159", Name: "Desk strip", Color: true},
+		{Device: "11:22:33", SKU: "H5081", Name: "Smart plug"},
+	}, reply.Devices)
 }
 
 func TestControlPowersOnThenSetsColor(t *testing.T) {
 	var bodies []map[string]any
 	var gotKey string
 	var mu sync.Mutex
-	p := newTestProvider(t, fakeKeys{key: "k-9"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, fakeKeys{key: "k-9"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/router/api/v1/device/control", r.URL.Path)
 		assert.Equal(t, http.MethodPost, r.Method)
 		b, _ := io.ReadAll(r.Body)
@@ -155,41 +82,51 @@ func TestControlPowersOnThenSetsColor(t *testing.T) {
 		_, _ = io.WriteString(w, `{"code":200,"message":"success"}`)
 	}))
 
-	reply := asReply[gossiprpc.GoveeControlReply](t, endpoint(t, p, "control")(context.Background(),
-		gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0x00CCFF}))
+	reply := providertest.Call[gossiprpc.GoveeControlReply](t, p, "control",
+		gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0x00CCFF})
 
 	require.True(t, reply.OK)
 	assert.Equal(t, "k-9", gotKey)
 	require.Len(t, bodies, 2, "control is power-on then colour")
-
-	power := capabilityOf(t, bodies[0])
-	assert.Equal(t, "devices.capabilities.on_off", power["type"])
-	assert.Equal(t, "powerSwitch", power["instance"])
-	assert.EqualValues(t, 1, power["value"])
-
-	color := capabilityOf(t, bodies[1])
-	assert.Equal(t, "devices.capabilities.color_setting", color["type"])
-	assert.Equal(t, "colorRgb", color["instance"])
-	assert.EqualValues(t, 0x00CCFF, color["value"])
+	assert.Equal(t, map[string]any{"type": "devices.capabilities.on_off", "instance": "powerSwitch", "value": float64(1)}, capabilityOf(t, bodies[0]))
+	assert.Equal(t, map[string]any{"type": "devices.capabilities.color_setting", "instance": "colorRgb", "value": float64(0x00CCFF)}, capabilityOf(t, bodies[1]))
 }
 
-func TestControlAPILevelFailure(t *testing.T) {
-	p := newTestProvider(t, fakeKeys{key: "k"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"code":400,"message":"invalid device"}`)
-	}))
-	reply := asReply[gossiprpc.GoveeControlReply](t, endpoint(t, p, "control")(context.Background(),
-		gossiprpc.Request{ChannelID: "2", Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000}))
-	assert.False(t, reply.OK)
-	assert.NotEmpty(t, reply.Error)
-}
+func TestRequestsThatCannotBeServedExplainWhyAndOnlyDialWhenTheyShould(t *testing.T) {
+	const channel = "2"
+	for _, tc := range []struct {
+		name      string
+		endpoint  string
+		keys      fakeKeys
+		req       gossiprpc.Request
+		upstream  []providertest.Reply
+		wantError string
+		wantHits  int
+	}{
+		{"devices: rejects a request without a channel", "devices", fakeKeys{key: "k"},
+			gossiprpc.Request{}, nil, "missing channel", 0},
+		{"devices: does not dial Govee with no key on file", "devices", fakeKeys{},
+			gossiprpc.Request{ChannelID: channel}, nil, "no Govee API key", 0},
+		{"devices: reports a key store failure", "devices", fakeKeys{err: errors.New("custody unreachable")},
+			gossiprpc.Request{ChannelID: channel}, nil, "could not read your Govee key", 0},
+		{"devices: reports an upstream failure", "devices", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel}, []providertest.Reply{{Status: http.StatusInternalServerError, Body: `{}`}}, "device lookup failed", 1},
+		{"control: does not dial Govee without a device", "control", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel, SKU: "H6159", ColorRGB: 1}, nil, "missing device", 0},
+		{"control: surfaces an API level failure", "control", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000},
+			[]providertest.Reply{{Body: `{"code":400,"message":"invalid device"}`}}, "could not reach your lights", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := providertest.NewSequence(t, tc.upstream...)
+			p := newProvider(t, tc.keys, upstream)
 
-func TestControlMissingDevice(t *testing.T) {
-	p := newTestProvider(t, fakeKeys{key: "k"}, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("must not dial Govee without a device")
-	}))
-	reply := asReply[gossiprpc.GoveeControlReply](t, endpoint(t, p, "control")(context.Background(),
-		gossiprpc.Request{ChannelID: "2", SKU: "H6159", ColorRGB: 1}))
-	assert.Contains(t, reply.Error, "missing device")
+			res := providertest.Endpoint(t, p, tc.endpoint)(context.Background(), tc.req)
+
+			assert.Contains(t, providertest.ErrorOf(t, res), tc.wantError)
+			assert.Equal(t, tc.wantHits, upstream.Hits())
+		})
+	}
 }
 
 func capabilityOf(t *testing.T, body map[string]any) map[string]any {

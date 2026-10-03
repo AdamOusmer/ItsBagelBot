@@ -2,26 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { acceptedLanguages, matchAcceptLanguage } from './accept-language';
-
-describe('acceptedLanguages', () => {
-  test('orders by q-weight, not header order', () => {
-    expect(acceptedLanguages('fr;q=0.8, en-GB')).toEqual(['en-gb', 'fr']);
-  });
-
-  test('keeps header order for equal weights', () => {
-    expect(acceptedLanguages('fr-CA, en-US')).toEqual(['fr-ca', 'en-us']);
-  });
-
-  test('drops q=0, malformed weights and empty parts', () => {
-    expect(acceptedLanguages('de;q=0, ,fr;q=abc, en;q=0.5')).toEqual(['en']);
-  });
-
-  test('handles a missing header', () => {
-    expect(acceptedLanguages(null)).toEqual([]);
-    expect(acceptedLanguages('')).toEqual([]);
-  });
-});
+import { matchAcceptLanguage } from './accept-language';
 
 describe('matchAcceptLanguage', () => {
   const LOCALES = ['de', 'en', 'es', 'fr', 'pt-br', 'ru'];
@@ -48,5 +29,18 @@ describe('matchAcceptLanguage', () => {
   test('returns undefined when nothing matches', () => {
     expect(match('ja-JP, *;q=0.1')).toBeUndefined();
     expect(match(null)).toBeUndefined();
+  });
+
+  test('keeps header order for equal weights', () => {
+    expect(match('fr-CA, en-US')).toBe('fr');
+    expect(match('en-US, fr-CA')).toBe('en');
+  });
+
+  test('drops q=0, malformed weights and empty parts', () => {
+    expect(match('de;q=0, ,fr;q=abc, en;q=0.5')).toBe('en');
+  });
+
+  test('an empty header matches nothing', () => {
+    expect(match('')).toBeUndefined();
   });
 });

@@ -2,36 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { eventTarget as target, isolatedLib, snapshotGlobals } from './dom-fakes';
 
-const GLOBALS = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame'];
-const saved = new Map(GLOBALS.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const));
+const restoreGlobals = snapshotGlobals(['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame']);
 
 let fine = true;
 let reduced = false;
-
-type Listener = (event: unknown) => void;
-
-function target() {
-  const listeners = new Map<string, Set<Listener>>();
-  return {
-    addEventListener(type: string, fn: Listener) {
-      if (!listeners.has(type)) listeners.set(type, new Set());
-      listeners.get(type)?.add(fn);
-    },
-    removeEventListener(type: string, fn: Listener) {
-      listeners.get(type)?.delete(fn);
-    },
-    dispatch(type: string, event: unknown = {}) {
-      for (const fn of listeners.get(type) ?? []) fn(event);
-    },
-    count(type: string) {
-      return listeners.get(type)?.size ?? 0;
-    },
-  };
-}
 
 const media = (feature: string) => ({
   get matches() {
@@ -59,19 +35,13 @@ function flush(): void {
   for (const fn of due) fn(0);
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'bagel-pointer-test-'));
-for (const file of ['motion-query.ts', 'raf-loop.ts', 'rect-cache.ts', 'parallax.ts', 'tilt.ts']) {
-  copyFileSync(new URL(`../lib/${file}`, import.meta.url), join(dir, file));
-}
-const { mountParallax } = (await import(join(dir, 'parallax.ts'))) as typeof import('../lib/parallax');
-const { mountTilt, observeTilt } = (await import(join(dir, 'tilt.ts'))) as typeof import('../lib/tilt');
+const lib = isolatedLib('pointer', ['motion-query.ts', 'raf-loop.ts', 'rect-cache.ts', 'parallax.ts', 'tilt.ts']);
+const { mountParallax } = await lib.load<typeof import('../lib/parallax')>('parallax.ts');
+const { mountTilt, observeTilt } = await lib.load<typeof import('../lib/tilt')>('tilt.ts');
 
 afterAll(() => {
-  rmSync(dir, { recursive: true, force: true });
-  for (const [key, descriptor] of saved) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  }
+  lib.remove();
+  restoreGlobals();
 });
 
 function node(rect = { left: 100, top: 50, width: 100, height: 40 }) {

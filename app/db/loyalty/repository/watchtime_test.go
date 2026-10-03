@@ -6,13 +6,11 @@ import (
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/event/data"
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func watchAward(user, viewer uint64, instance int64) data.WatchAwardDTO {
-	return data.WatchAwardDTO{UserID: user, AccountCreatedAt: instance, Generation: "1", LiveSession: "s", WindowID: "w", Entries: []data.LoyaltyEarnEntry{{ViewerID: viewer, ViewerLogin: "viewer", Points: 10, WatchSeconds: 300}}}
-}
 func TestWatchPostingDedupsChunkAndViewerAcrossChunks(t *testing.T) {
 	repo, _ := newLoyaltyRepo(t)
 	ctx := context.Background()
@@ -76,8 +74,6 @@ func TestWatchFailedPostingRemainsReplayable(t *testing.T) {
 	a := watchAward(17, 77, 100)
 	_, _, err := repo.BalanceAdjustViewer(ctx, loyaltyrepo.BalanceAdjustment{UserID: 17, ViewerID: 77, ViewerLogin: "viewer", Value: 100, Absolute: true})
 	require.NoError(t, err)
-	// A real posting error occurs after inbox/viewer insertion. Repair and
-	// retry proves both dedup markers roll back with the failed balance write.
 	_, err = raw.ExecContext(ctx, "CREATE TRIGGER fail_watch BEFORE UPDATE ON balances BEGIN SELECT RAISE(ABORT, 'posting failure'); END")
 	require.NoError(t, err)
 	require.ErrorContains(t, repo.ApplyWatchAward(ctx, a), "posting failure")
@@ -115,8 +111,6 @@ func TestUnknownDeletionCannotRetireKnownAccount(t *testing.T) {
 	require.EqualValues(t, 20, row.Points)
 }
 
-// Main's counter consumer uses transactional batches rather than the legacy
-// accumulator. Account deletion must fence that path before any counter write.
 func TestWatchDeletionFencesCounterBatches(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	ctx := t.Context()
@@ -130,8 +124,7 @@ func TestWatchDeletionFencesCounterBatches(t *testing.T) {
 	_, _, found, err := repo.CounterGet(ctx, 17, "deaths", 0, "")
 	require.NoError(t, err)
 	require.False(t, found)
-	// The discarded delivery still needs its existing batch replay marker:
-	// a lost consumer ACK may be delivered again after account recreation.
+	// The discarded delivery keeps its replay marker: a lost ACK can redeliver after recreation.
 	require.Equal(t, 1, client.CounterBatch.Query().CountX(ctx))
 	require.NoError(t, repo.RestoreUser(ctx, 17, 101))
 	require.NoError(t, repo.ApplyBumps(ctx, data.CounterBumpedDTO{

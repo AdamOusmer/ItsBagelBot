@@ -29,6 +29,7 @@ type chatterFakeAPI struct {
 	page                   twitch.ChattersPage
 	err                    error
 	bid, moderator, cursor string
+	onPage                 func(context.Context)
 }
 
 func (a *chatterFakeAPI) GetChattersPage(ctx context.Context, request twitch.ChattersPageRequest) (twitch.ChattersPage, error) {
@@ -36,6 +37,9 @@ func (a *chatterFakeAPI) GetChattersPage(ctx context.Context, request twitch.Cha
 	a.bid = request.BroadcasterID
 	a.moderator = request.ModeratorID
 	a.cursor = request.Cursor
+	if a.onPage != nil {
+		a.onPage(ctx)
+	}
 	return a.page, a.err
 }
 func (a *chatterFakeAPI) StreamSession(context.Context, string) (string, time.Time, bool, error) {
@@ -62,44 +66,50 @@ func (l *chatterFakeLimiter) AllowOrdered(_ context.Context, a, b ratelimit.Requ
 	l.pairs = append(l.pairs, [2]ratelimit.Request{a, b})
 	return l.denied, l.err
 }
+
+var chatterAdmitAll = func(context.Context, manage.ChattersRequest) (bool, error) { return true, nil }
+
+func newChatters(api chatterAPI, now time.Time, opts ChattersOptions) *chatters {
+	return &chatters{twitch: api, botID: "456", log: zap.NewNop(), now: func() time.Time { return now }, opts: opts}
+}
+
 func chatterHandler(api *chatterFakeAPI, now time.Time) *chatters {
-	return &chatters{twitch: api, botID: "456", log: zap.NewNop(), now: func() time.Time { return now }, opts: ChattersOptions{Limiter: &chatterFakeLimiter{allow: true}, Admit: func(context.Context, manage.ChattersRequest) (bool, error) { return true, nil }}}
+	return newChatters(api, now, ChattersOptions{Limiter: &chatterFakeLimiter{allow: true}, Admit: chatterAdmitAll})
 }
 func chatterReq(now time.Time) manage.ChattersRequest {
 	return manage.ChattersRequest{BroadcasterID: "123", RequestID: "request-1", WindowID: "window-1", SessionGeneration: "gen", LiveSession: "session", DeadlineUnixMilli: now.Add(time.Second).UnixMilli()}
 }
 
-func TestChattersExpiredQueuedWorkNeverCallsAPIOrAdmission(t *testing.T) {
-	now := time.Now()
-	api := &chatterFakeAPI{}
-	c := chatterHandler(api, now)
-	admitted := false
-	c.opts.Admit = func(context.Context, manage.ChattersRequest) (bool, error) { admitted = true; return true, nil }
-	req := chatterReq(now)
-	req.DeadlineUnixMilli = now.Add(-time.Second).UnixMilli()
-	reply := c.handleGet(t.Context(), req)
-	require.Equal(t, "expired", reply.ErrorCode)
-	require.Equal(t, 0, api.calls)
-	require.Equal(t, 0, api.liveCalls)
-	require.False(t, admitted)
-}
-func TestChattersAdmissionFailsClosed(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		active bool
-		err    error
-		code   string
+func TestChattersRefuseBeforeSpendingAnything(t *testing.T) {
+	tests := []struct {
+		name       string
+		expired    bool
+		active     bool
+		admitErr   error
+		wantCode   string
+		wantAdmits int
 	}{
-		{"removed", false, nil, "inactive"}, {"authority unavailable", false, errors.New("down"), "unavailable"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+		{"expired queued work never reaches admission", true, true, nil, "expired", 0},
+		{"a removed channel is inactive", false, false, nil, "inactive", 1},
+		{"an unavailable authority fails closed", false, false, errors.New("down"), "unavailable", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			now := time.Now()
 			api := &chatterFakeAPI{}
 			c := chatterHandler(api, now)
-			c.opts.Admit = func(context.Context, manage.ChattersRequest) (bool, error) { return tc.active, tc.err }
-			r := c.handleGet(t.Context(), chatterReq(now))
-			require.Equal(t, tc.code, r.ErrorCode)
-			require.Equal(t, 0, api.calls)
+			admits := 0
+			c.opts.Admit = func(context.Context, manage.ChattersRequest) (bool, error) { admits++; return tt.active, tt.admitErr }
+			req := chatterReq(now)
+			if tt.expired {
+				req.DeadlineUnixMilli = now.Add(-time.Second).UnixMilli()
+			}
+
+			reply := c.handleGet(t.Context(), req)
+
+			require.Equal(t, tt.wantCode, reply.ErrorCode)
+			require.Equal(t, tt.wantAdmits, admits)
+			require.Zero(t, api.calls+api.liveCalls, "refused work never calls Twitch")
 		})
 	}
 }
@@ -150,44 +160,78 @@ func TestChattersFreshOfflineCheckSkipsAttendance(t *testing.T) {
 	require.Equal(t, now.UnixMilli(), r.CheckedAtUnixMilli)
 	require.Equal(t, 0, api.calls)
 }
+func chatterClient(rt func(*http.Request) (*http.Response, error)) *twitch.Client {
+	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
+	api.SetTransport(chatterRevocationTransport(rt))
+	return api
+}
+
+func chatterJSON(status int, body string) (*http.Response, error) {
+	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+}
+
+const (
+	liveStreamBody = `{"data":[{"id":"stream","user_id":"123","type":"live","started_at":"2026-09-26T00:00:00Z"}]}`
+	emptyPageBody  = `{"data":[],"pagination":{}}`
+)
+
 func TestChattersPageUsesSharedBotQuotaAndBoundedWatchShare(t *testing.T) {
 	now := time.Now()
-	c := chatterHandler(&chatterFakeAPI{}, now)
-	l := &chatterFakeLimiter{allow: true}
-	c.opts.Limiter = l
+	limiter := &chatterFakeLimiter{allow: true}
+	api := chatterClient(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/helix/streams" {
+			return chatterJSON(200, liveStreamBody)
+		}
+		return chatterJSON(200, emptyPageBody)
+	})
+	c := newChatters(api, now, ChattersOptions{Limiter: limiter, Admit: chatterAdmitAll})
+	req := chatterReq(now)
+	req.CheckLive = true
 
-	require.NoError(t, c.admit(manage.ChattersRequest{BroadcasterID: "123", RequestID: "watch-test"})(t.Context(), "/helix/chat/chatters?broadcaster_id=123"))
+	reply := c.handleGet(t.Context(), req)
 
-	require.Equal(t, 1, len(l.requests))
-	require.Equal(t, "watch:tenant", l.requests[0].Bucket.Scope)
-	require.Equal(t, "123", l.requests[0].Bucket.Value)
-	require.Equal(t, 1, len(l.pairs))
-	require.Equal(t, "ratelimit:watch:chatters", l.pairs[0][0].Key)
-	require.Equal(t, "ratelimit:helix:user:bot", l.pairs[0][1].Key)
-
-	require.NoError(t, c.admit(manage.ChattersRequest{BroadcasterID: "789", RequestID: "watch-test"})(t.Context(), "/helix/streams?user_id=789"))
-
-	require.Equal(t, "789", l.requests[1].Bucket.Value)
-	require.Equal(t, "ratelimit:watch:live", l.pairs[1][0].Key)
-	require.Equal(t, "ratelimit:helix:app", l.pairs[1][1].Key)
+	require.Empty(t, reply.ErrorCode)
+	var tenants []string
+	for _, r := range limiter.requests {
+		tenants = append(tenants, r.Bucket.Scope+"="+r.Bucket.Value)
+	}
+	var keys [][2]string
+	for _, pair := range limiter.pairs {
+		keys = append(keys, [2]string{pair[0].Key, pair[1].Key})
+	}
+	require.Equal(t, []string{"watch:tenant=123", "watch:tenant=123"}, tenants)
+	require.Equal(t, [][2]string{
+		{"ratelimit:watch:live", "ratelimit:helix:app"},
+		{"ratelimit:watch:chatters", "ratelimit:helix:user:bot"},
+	}, keys)
 }
 func TestChattersRateAdmissionStopsBeforeSharedSpend(t *testing.T) {
-	now := time.Now()
-	c := chatterHandler(&chatterFakeAPI{}, now)
-	l := &chatterFakeLimiter{allow: false}
-	c.opts.Limiter = l
-	err := c.admit(manage.ChattersRequest{BroadcasterID: "123", RequestID: "watch-test"})(t.Context(), "/helix/chat/chatters")
-	var rate *twitch.AdmissionError
-	require.True(t, errors.As(err, &rate))
-	require.Equal(t, "rate_limited", rate.Code)
-	require.True(t, rate.RetryAt.After(now))
-	require.Equal(t, 0, len(l.pairs))
+	tests := []struct {
+		name      string
+		limiter   *chatterFakeLimiter
+		wantPairs int
+	}{
+		{"tenant quota denied", &chatterFakeLimiter{allow: false}, 0},
+		{"shared quota denied", &chatterFakeLimiter{allow: true, denied: 2}, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			now := time.Now()
+			httpCalls := 0
+			api := chatterClient(func(*http.Request) (*http.Response, error) {
+				httpCalls++
+				return chatterJSON(200, emptyPageBody)
+			})
+			c := newChatters(api, now, ChattersOptions{Limiter: tt.limiter, Admit: chatterAdmitAll})
 
-	l.allow = true
-	l.denied = 2
-	err = c.admit(manage.ChattersRequest{BroadcasterID: "123", RequestID: "watch-test"})(t.Context(), "/helix/chat/chatters")
-	require.True(t, errors.As(err, &rate))
-	require.Equal(t, "rate_limited", rate.Code)
+			reply := c.handleGet(t.Context(), chatterReq(now))
+
+			require.Equal(t, "rate_limited", reply.ErrorCode)
+			require.Greater(t, reply.RetryAtUnixMilli, now.UnixMilli())
+			require.Equal(t, tt.wantPairs, len(tt.limiter.pairs))
+			require.Zero(t, httpCalls, "a quota denial never reaches HTTP")
+		})
+	}
 }
 
 type chatterRevocationTransport func(*http.Request) (*http.Response, error)
@@ -201,8 +245,7 @@ func TestChattersRevocationStopsNextPageAnd401Retry(t *testing.T) {
 			now := time.Now()
 			active := true
 			calls := 0
-			api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-			api.SetTransport(chatterRevocationTransport(func(req *http.Request) (*http.Response, error) {
+			api := chatterClient(func(req *http.Request) (*http.Response, error) {
 				calls++
 				active = false
 				status := 200
@@ -212,7 +255,7 @@ func TestChattersRevocationStopsNextPageAnd401Retry(t *testing.T) {
 					body = `{"error":"Unauthorized","message":"Invalid OAuth token"}`
 				}
 				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
-			}))
+			})
 			limiter := &chatterFakeLimiter{allow: true}
 			c := &chatters{twitch: api, botID: "456", log: zap.NewNop(), now: func() time.Time { return now }, opts: ChattersOptions{Limiter: limiter, Admit: func(context.Context, manage.ChattersRequest) (bool, error) { return active, nil }}}
 			req := chatterReq(now)
@@ -294,11 +337,10 @@ func TestChattersProviderCooldownErrorsFailClosed(t *testing.T) {
 			now := time.Now()
 			calls := 0
 			quota := &chatterFakeLimiter{allow: true}
-			api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-			api.SetTransport(chatterRevocationTransport(func(*http.Request) (*http.Response, error) {
+			api := chatterClient(func(*http.Request) (*http.Response, error) {
 				calls++
 				return &http.Response{StatusCode: 429, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`))}, nil
-			}))
+			})
 			opts := ChattersOptions{Limiter: quota, Admit: func(context.Context, manage.ChattersRequest) (bool, error) { return true, nil }, ProviderRetryAt: func(context.Context, string) (time.Time, error) {
 				if mode == "read" {
 					return time.Time{}, errors.New("down")
@@ -317,46 +359,59 @@ func TestChattersProviderCooldownErrorsFailClosed(t *testing.T) {
 }
 func TestChattersAppCooldownDoesNotBlockBotAndLocalQuotaDoesNotPersist(t *testing.T) {
 	now := time.Now()
-	c := chatterHandler(&chatterFakeAPI{}, now)
-	writes := 0
-	c.opts.ProviderRetryAt = func(_ context.Context, id string) (time.Time, error) {
-		if id == "helix:app" {
-			return now.Add(time.Minute), nil
-		}
-		return time.Time{}, nil
-	}
-	c.opts.ObserveProviderReset = func(context.Context, string, time.Time) error { writes++; return nil }
-	err := c.admit(chatterReq(now))(t.Context(), "/helix/streams?user_id=123")
-	var admission *twitch.AdmissionError
-	require.True(t, errors.As(err, &admission))
-	require.Equal(t, "rate_limited", admission.Code)
+	httpCalls, writes := 0, 0
+	limiter := &chatterFakeLimiter{allow: true}
+	api := chatterClient(func(req *http.Request) (*http.Response, error) {
+		httpCalls++
+		return chatterJSON(200, emptyPageBody)
+	})
+	c := newChatters(api, now, ChattersOptions{
+		Limiter: limiter, Admit: chatterAdmitAll,
+		ProviderRetryAt: func(_ context.Context, id string) (time.Time, error) {
+			if id == "helix:app" {
+				return now.Add(time.Minute), nil
+			}
+			return time.Time{}, nil
+		},
+		ObserveProviderReset: func(context.Context, string, time.Time) error { writes++; return nil },
+	})
+	live := chatterReq(now)
+	live.CheckLive = true
 
-	require.NoError(t, c.admit(chatterReq(now))(t.Context(), "/helix/chat/chatters?broadcaster_id=123"))
+	require.Equal(t, "rate_limited", c.handleGet(t.Context(), live).ErrorCode, "the app cooldown stops the live probe")
+	require.Zero(t, httpCalls)
 
-	c.providerFailure(t.Context(), "helix:bot:456", &twitch.AdmissionError{Code: "rate_limited", RetryAt: now.Add(time.Second)})
-	require.Equal(t, 0, writes)
+	require.Empty(t, c.handleGet(t.Context(), chatterReq(now)).ErrorCode, "the bot token is not blocked by the app cooldown")
+	require.Equal(t, 1, httpCalls)
+
+	limiter.allow = false
+	require.Equal(t, "rate_limited", c.handleGet(t.Context(), chatterReq(now)).ErrorCode)
+	require.Zero(t, writes, "a local quota denial is not a provider observation")
 }
 
 func TestChattersProviderResetSurvivesCallerCancellation(t *testing.T) {
 	now := time.Now()
-	c := chatterHandler(&chatterFakeAPI{}, now)
+	ctx, cancel := context.WithCancel(t.Context())
+	api := &chatterFakeAPI{
+		err:    &twitch.AdmissionError{Provider: true, Code: "rate_limited", RetryAt: now.Add(time.Minute)},
+		onPage: func(context.Context) { cancel() },
+	}
+	c := chatterHandler(api, now)
 	observed := false
 	c.opts.ObserveProviderReset = func(ctx context.Context, id string, reset time.Time) error {
-		require.Equal(t, nil, ctx.Err())
-
+		require.NoError(t, ctx.Err())
 		deadline, ok := ctx.Deadline()
 		require.True(t, ok)
 		require.LessOrEqual(t, time.Until(deadline), time.Second)
-
 		observed = true
 		return nil
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	code, reset := c.providerFailure(ctx, "helix:bot:456", &twitch.AdmissionError{Provider: true, Code: "rate_limited", RetryAt: now.Add(time.Minute)})
+
+	reply := c.handleGet(ctx, chatterReq(now))
+
 	require.True(t, observed)
-	require.Equal(t, "rate_limited", code)
-	require.True(t, reset.Equal(now.Add(time.Minute)))
+	require.Equal(t, "rate_limited", reply.ErrorCode)
+	require.Equal(t, now.Add(time.Minute).UnixMilli(), reply.RetryAtUnixMilli)
 }
 
 type chatterSlow429Body struct {
@@ -377,8 +432,7 @@ func TestChatters429HeadersPublishSharedResetBeforeBodyDrain(t *testing.T) {
 	calls := 0
 	var mu sync.Mutex
 	resets := map[string]time.Time{}
-	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-	api.SetTransport(chatterRevocationTransport(func(*http.Request) (*http.Response, error) {
+	api := chatterClient(func(*http.Request) (*http.Response, error) {
 		mu.Lock()
 		calls++
 		n := calls
@@ -389,7 +443,7 @@ func TestChatters429HeadersPublishSharedResetBeforeBodyDrain(t *testing.T) {
 			return &http.Response{StatusCode: 429, Header: h, Body: body}, nil
 		}
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"data":[]}`))}, nil
-	}))
+	})
 	opts := ChattersOptions{Limiter: &chatterFakeLimiter{allow: true}, Admit: func(context.Context, manage.ChattersRequest) (bool, error) { return true, nil }, ProviderRetryAt: func(_ context.Context, id string) (time.Time, error) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -424,23 +478,30 @@ func TestChatters429HeadersPublishSharedResetBeforeBodyDrain(t *testing.T) {
 
 func TestChattersProviderAuthorityOwnsCooldownExpiry(t *testing.T) {
 	now := time.Now()
-	c := chatterHandler(&chatterFakeAPI{}, now.Add(time.Hour))
+	podClock := now.Add(time.Hour)
+	httpCalls := 0
 	limiter := &chatterFakeLimiter{allow: true}
-	c.opts.Limiter = limiter
-	c.opts.ProviderRetryAt = func(context.Context, string) (time.Time, error) { return now.Add(time.Minute), nil }
-	err := c.admit(chatterReq(now))(t.Context(), "/helix/chat/chatters?broadcaster_id=123")
-	var denied *twitch.AdmissionError
-	require.True(t, errors.As(err, &denied))
-	require.Equal(t, "rate_limited", denied.Code)
-	require.Equal(t, 0, len(limiter.requests))
+	api := chatterClient(func(*http.Request) (*http.Response, error) {
+		httpCalls++
+		return chatterJSON(200, emptyPageBody)
+	})
+	c := newChatters(api, podClock, ChattersOptions{
+		Limiter: limiter, Admit: chatterAdmitAll,
+		ProviderRetryAt: func(context.Context, string) (time.Time, error) { return now.Add(time.Minute), nil },
+	})
+
+	reply := c.handleGet(t.Context(), chatterReq(podClock))
+
+	require.Equal(t, "rate_limited", reply.ErrorCode, "a cooldown the authority still reports is live whatever this pod's clock says")
+	require.Empty(t, limiter.requests)
+	require.Zero(t, httpCalls)
 }
 
 func TestLegacyViewerListingUsesIndependentAdmissionAndSharedQuota(t *testing.T) {
 	now := time.Now()
 	calls := 0
 	quota := &chatterFakeLimiter{allow: true}
-	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-	api.SetTransport(chatterRevocationTransport(func(req *http.Request) (*http.Response, error) {
+	api := chatterClient(func(req *http.Request) (*http.Response, error) {
 		calls++
 		cursor := req.URL.Query().Get("after")
 		body := `{"data":[{"user_id":"11","user_login":"one"}],"pagination":{"cursor":"next"}}`
@@ -448,7 +509,7 @@ func TestLegacyViewerListingUsesIndependentAdmissionAndSharedQuota(t *testing.T)
 			body = `{"data":[{"user_id":"12","user_login":"two"}],"pagination":{}}`
 		}
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
-	}))
+	})
 	c := &chatters{twitch: api, botID: "456", now: func() time.Time { return now }, opts: ChattersOptions{Limiter: quota, Admit: func(context.Context, manage.ChattersRequest) (bool, error) {
 		t.Fatal("viewer listing used loyalty admission")
 		return false, nil
@@ -465,12 +526,11 @@ func TestLegacyViewerIncompleteListingNeverReturnsPartialAttendance(t *testing.T
 	now := time.Now()
 	calls := 0
 	quota := &chatterFakeLimiter{allow: true}
-	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-	api.SetTransport(chatterRevocationTransport(func(*http.Request) (*http.Response, error) {
+	api := chatterClient(func(*http.Request) (*http.Response, error) {
 		calls++
 		body := fmt.Sprintf(`{"data":[{"user_id":"11","user_login":"one"}],"pagination":{"cursor":"%d"}}`, calls)
 		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
-	}))
+	})
 	c := &chatters{twitch: api, botID: "456", now: func() time.Time { return now }, opts: ChattersOptions{Limiter: quota, AdmitViewer: func(context.Context, string) (bool, error) { return true, nil }}}
 	reply := c.handleGet(t.Context(), manage.ChattersRequest{BroadcasterID: "123"})
 	require.NotEqual(t, "", reply.Error)
@@ -486,12 +546,11 @@ func TestLegacyViewerCooldownAndRevocationStopHTTP(t *testing.T) {
 			calls := 0
 			quota := &chatterFakeLimiter{allow: true}
 			active := true
-			api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), nil)
-			api.SetTransport(chatterRevocationTransport(func(*http.Request) (*http.Response, error) {
+			api := chatterClient(func(*http.Request) (*http.Response, error) {
 				calls++
 				active = false
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"data":[],"pagination":{"cursor":"next"}}`))}, nil
-			}))
+			})
 			c := &chatters{twitch: api, botID: "456", now: func() time.Time { return now }, opts: ChattersOptions{Limiter: quota, AdmitViewer: func(context.Context, string) (bool, error) { return active, nil }, ProviderRetryAt: func(context.Context, string) (time.Time, error) {
 				if mode == "cooldown" {
 					return now.Add(time.Minute), nil

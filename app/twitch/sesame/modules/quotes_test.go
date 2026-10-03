@@ -5,24 +5,20 @@ package modules
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type fakeQuotes struct {
 	quotes map[uint64]modulesrpc.Quote
-	err    error
 }
 
 func newFakeQuotes(texts ...string) *fakeQuotes {
@@ -35,50 +31,25 @@ func newFakeQuotes(texts ...string) *fakeQuotes {
 }
 
 func (f *fakeQuotes) QuoteAdd(_ context.Context, _ uint64, text, addedBy string) (modulesrpc.Quote, error) {
-	if f.err != nil {
-		return modulesrpc.Quote{}, f.err
-	}
-	var max uint64
+	var highest uint64
 	for n := range f.quotes {
-		if n > max {
-			max = n
-		}
+		highest = max(highest, n)
 	}
-	q := modulesrpc.Quote{Number: max + 1, Text: text, AddedBy: addedBy, CreatedAt: "2026-07-11T10:00:00Z"}
+	q := modulesrpc.Quote{Number: highest + 1, Text: text, AddedBy: addedBy, CreatedAt: "2026-07-11T10:00:00Z"}
 	f.quotes[q.Number] = q
 	return q, nil
 }
 
 func (f *fakeQuotes) QuoteGet(_ context.Context, _ uint64, number uint64) (modulesrpc.Quote, bool, error) {
-	if f.err != nil {
-		return modulesrpc.Quote{}, false, f.err
-	}
 	q, ok := f.quotes[number]
 	return q, ok, nil
 }
 
-func (f *fakeQuotes) QuoteRandom(_ context.Context, _ uint64) (modulesrpc.Quote, bool, error) {
-	if f.err != nil {
-		return modulesrpc.Quote{}, false, f.err
-	}
+func (f *fakeQuotes) lowest(match func(modulesrpc.Quote) bool) (modulesrpc.Quote, bool, error) {
 	var best modulesrpc.Quote
 	found := false
 	for _, q := range f.quotes {
-		if !found || q.Number < best.Number {
-			best, found = q, true
-		}
-	}
-	return best, found, nil
-}
-
-func (f *fakeQuotes) QuoteSearch(_ context.Context, _ uint64, term string) (modulesrpc.Quote, bool, error) {
-	if f.err != nil {
-		return modulesrpc.Quote{}, false, f.err
-	}
-	var best modulesrpc.Quote
-	found := false
-	for _, q := range f.quotes {
-		if !strings.Contains(strings.ToLower(q.Text), strings.ToLower(term)) {
+		if !match(q) {
 			continue
 		}
 		if !found || q.Number < best.Number {
@@ -88,10 +59,15 @@ func (f *fakeQuotes) QuoteSearch(_ context.Context, _ uint64, term string) (modu
 	return best, found, nil
 }
 
+func (f *fakeQuotes) QuoteRandom(context.Context, uint64) (modulesrpc.Quote, bool, error) {
+	return f.lowest(func(modulesrpc.Quote) bool { return true })
+}
+
+func (f *fakeQuotes) QuoteSearch(_ context.Context, _ uint64, term string) (modulesrpc.Quote, bool, error) {
+	return f.lowest(func(q modulesrpc.Quote) bool { return strings.Contains(strings.ToLower(q.Text), strings.ToLower(term)) })
+}
+
 func (f *fakeQuotes) QuoteEdit(_ context.Context, _ uint64, number uint64, text string) (modulesrpc.Quote, bool, error) {
-	if f.err != nil {
-		return modulesrpc.Quote{}, false, f.err
-	}
 	q, ok := f.quotes[number]
 	if !ok {
 		return modulesrpc.Quote{}, false, nil
@@ -102,9 +78,6 @@ func (f *fakeQuotes) QuoteEdit(_ context.Context, _ uint64, number uint64, text 
 }
 
 func (f *fakeQuotes) QuoteRemove(_ context.Context, _ uint64, number uint64) (bool, error) {
-	if f.err != nil {
-		return false, f.err
-	}
 	_, ok := f.quotes[number]
 	delete(f.quotes, number)
 	return ok, nil
@@ -121,349 +94,104 @@ func (c *countingCooldown) Allow(context.Context, string, time.Duration) (bool, 
 	return c.allow, nil
 }
 
-func quotesCtx(login, badge string) *module.Context {
-	env := lane.Envelope{
-		Type:                 "channel.chat.message",
-		BroadcasterUserID:    "100",
-		BroadcasterUserLogin: "streamer",
-		ChatterUserID:        "42",
-		ChatterUserLogin:     login,
+func (f *fakeQuotes) orderedTexts() []string {
+	numbers := make([]uint64, 0, len(f.quotes))
+	for n := range f.quotes {
+		numbers = append(numbers, n)
 	}
-	if badge != "" {
-		env.Badges = []lane.Badge{{SetID: badge}}
+	sort.Slice(numbers, func(i, j int) bool { return numbers[i] < numbers[j] })
+	var got []string
+	for _, n := range numbers {
+		got = append(got, f.quotes[n].Text)
 	}
-	return &module.Context{Env: env, BroadcasterID: 100, Log: zap.NewNop()}
+	return got
 }
 
-func runQuotes(t *testing.T, d engine.Deps, c *module.Context, args string) []module.Output {
-	t.Helper()
-	m := Quotes(d)
-	cmd := findCmd(t, m, "quote")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
-	return col.out
+func TestQuotes(t *testing.T) {
+	ferret := []string{"never trust a ferret", "bagels are sentient"}
+	denied := func() *countingCooldown { return &countingCooldown{} }
+	cases := []struct {
+		name     string
+		text     string
+		who      string
+		badge    string
+		config   string
+		initial  []string
+		cooldown *countingCooldown
+		claims   int
+		silent   bool
+		exact    string
+		contains []string
+		want     []string
+	}{
+		{name: "a bare quote reads one at random", text: "!quote", who: "alice", initial: ferret[:1], exact: "Quote #1: never trust a ferret (2026-07-10)", want: ferret[:1]},
+		{name: "a number reads that quote", text: "!quote 2", who: "alice", initial: []string{"one", "two"}, exact: "Quote #2: two (2026-07-10)", want: []string{"one", "two"}},
+		{name: "a missing number says it does not exist", text: "!quote 7", who: "alice", initial: []string{"one"}, contains: []string{"#7", "doesn't exist"}, want: []string{"one"}},
+		{name: "an empty book says so", text: "!quote", who: "alice", contains: []string{"No quotes saved yet"}},
+		{name: "a word searches case insensitively", text: "!quote Ferret", who: "alice", initial: ferret, exact: "Quote #1: never trust a ferret (2026-07-10)", want: ferret},
+		{name: "a multi word term searches the text", text: "!quote are sentient", who: "alice", initial: ferret, exact: "Quote #2: bagels are sentient (2026-07-10)", want: ferret},
+		{name: "a search with no match says so", text: "!quote something funny", who: "alice", initial: []string{"one"}, contains: []string{`No quote matching "something funny"`}, want: []string{"one"}},
+		{name: "a throttled search stays silent", text: "!quote one", who: "alice", initial: []string{"one"}, cooldown: denied(), claims: 1, silent: true, want: []string{"one"}},
+		{name: "a throttled read stays silent", text: "!quote", who: "alice", initial: []string{"one"}, cooldown: denied(), claims: 1, silent: true, want: []string{"one"}},
+		{name: "a mod saves a quoted quote", text: `!quote "the bagels are sentient"`, who: "mod_amy", badge: "moderator", initial: []string{"existing"},
+			contains: []string{"#2", "added"}, want: []string{"existing", "the bagels are sentient"}},
+		{name: "curly quotes unwrap too", text: "!quote “smart quotes too”", who: "mod_amy", badge: "moderator", contains: []string{"added"}, want: []string{"smart quotes too"}},
+		{name: "the add subcommand takes plain words", text: "!quote add plain words work", who: "streamer", badge: "broadcaster", contains: []string{"added"}, want: []string{"plain words work"}},
+		{name: "saving ignores the read cooldown", text: `!quote "cooldown never gates saves"`, who: "mod_amy", badge: "moderator", cooldown: denied(),
+			contains: []string{"added"}, want: []string{"cooldown never gates saves"}},
+		{name: "a viewer's save is silent", text: `!quote "nice try"`, who: "alice", silent: true},
+		{name: "addPerm sub lets a sub save", text: `!quote "subs can save now"`, who: "subby", badge: "subscriber", config: `{"addPerm":"sub"}`,
+			contains: []string{"added"}, want: []string{"subs can save now"}},
+		{name: "addPerm sub still blocks a viewer", text: `!quote "no badge here"`, who: "alice", config: `{"addPerm":"sub"}`, silent: true},
+		{name: "addPerm everyone lets a viewer save", text: `!quote "anyone can save"`, who: "alice", config: `{"addPerm":"everyone"}`,
+			contains: []string{"added"}, want: []string{"anyone can save"}},
+		{name: "quoteadd saves plain text", text: "!quoteadd no quoting needed here", who: "mod_amy", badge: "moderator", contains: []string{"added"}, want: []string{"no quoting needed here"}},
+		{name: "quoteadd still unwraps a quoted body", text: `!quoteadd "still unwraps"`, who: "mod_amy", badge: "moderator", contains: []string{"added"}, want: []string{"still unwraps"}},
+		{name: "the addquote alias saves", text: "!addquote via the alias", who: "mod_amy", badge: "moderator", contains: []string{"added"}, want: []string{"via the alias"}},
+		{name: "a viewer's quoteadd is silent", text: "!quoteadd nice try", who: "alice", silent: true},
+		{name: "quoteadd honours addPerm", text: "!quoteadd anyone can save", who: "alice", config: `{"addPerm":"everyone"}`, contains: []string{"added"}, want: []string{"anyone can save"}},
+		{name: "a mod removes a quote", text: "!quote remove 1", who: "mod_amy", badge: "moderator", initial: []string{"one", "two"}, contains: []string{"#1", "removed"}, want: []string{"two"}},
+		{name: "a viewer's remove is silent", text: "!quote remove 1", who: "alice", initial: []string{"one"}, silent: true, want: []string{"one"}},
+		{name: "remove ignores addPerm", text: "!quote remove 1", who: "alice", config: `{"addPerm":"everyone"}`, initial: []string{"one"}, silent: true, want: []string{"one"}},
+		{name: "remove without a number prints usage", text: "!quote remove ferret", who: "mod_amy", badge: "moderator", initial: []string{"one"}, contains: []string{"Usage"}, want: []string{"one"}},
+		{name: "a mod edits a quote", text: "!quote edit 1 the bagels", who: "mod_amy", badge: "moderator", initial: []string{"teh bagels"}, contains: []string{"#1", "updated"}, want: []string{"the bagels"}},
+		{name: "an edit unwraps a quoted body", text: `!quote edit 1 "new text"`, who: "mod_amy", badge: "moderator", initial: []string{"old"}, contains: []string{"updated"}, want: []string{"new text"}},
+		{name: "editing a missing number says so", text: "!quote edit 7 rewritten", who: "mod_amy", badge: "moderator", initial: []string{"one"}, contains: []string{"doesn't exist"}, want: []string{"one"}},
+		{name: "a malformed edit prints usage", text: "!quote edit ferret words", who: "mod_amy", badge: "moderator", initial: []string{"one"}, contains: []string{"Usage"}, want: []string{"one"}},
+		{name: "a viewer's edit is silent", text: "!quote edit 1 hijacked", who: "alice", initial: []string{"one"}, silent: true, want: []string{"one"}},
+		{name: "editPerm vip lets a vip edit", text: "!quote edit 1 vips can edit", who: "vippy", badge: "vip", config: `{"editPerm":"vip"}`, initial: []string{"old"},
+			contains: []string{"updated"}, want: []string{"vips can edit"}},
+		{name: "editPerm vip still blocks a viewer", text: "!quote edit 1 nope", who: "alice", config: `{"editPerm":"vip"}`, initial: []string{"old"}, silent: true, want: []string{"old"}},
+		{name: "edit ignores addPerm", text: "!quote edit 1 sneaky", who: "alice", config: `{"addPerm":"everyone"}`, initial: []string{"old"}, silent: true, want: []string{"old"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeQuotes(tc.initial...)
+			d := engine.Deps{Quotes: f}
+			if tc.cooldown != nil {
+				d.Cooldown = tc.cooldown
+			}
+			out := runChat(t, Quotes(d), withConfig(chatCtx("42", tc.who, tc.badge), tc.config), tc.text)
+			if tc.silent {
+				assert.Empty(t, out)
+			} else {
+				require.Len(t, out, 1)
+				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, nil})
+			}
+			assert.Equal(t, tc.want, f.orderedTexts())
+			if tc.cooldown != nil {
+				assert.Equal(t, tc.claims, tc.cooldown.claims)
+			}
+		})
+	}
 }
 
-func withAddPerm(c *module.Context, perm string) *module.Context {
-	c.Config = []byte(`{"addPerm":"` + perm + `"}`)
-	return c
-}
-
-func TestQuoteRandomReadout(t *testing.T) {
-	f := newFakeQuotes("never trust a ferret")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Equal(t, "100", out[0].BroadcasterID)
-	assert.Equal(t, `Quote #1: never trust a ferret (2026-07-10)`, out[0].Text)
-}
-
-func TestQuoteByNumber(t *testing.T) {
-	f := newFakeQuotes("one", "two")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "2")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, `Quote #2: two (2026-07-10)`, out[0].Text)
-}
-
-func TestQuoteByNumberMissing(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "7")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "#7")
-	assert.Contains(t, out[0].Text, "doesn't exist")
-}
-
-func TestQuoteEmptyBook(t *testing.T) {
+func TestQuoteAddRecordsTheAdder(t *testing.T) {
 	f := newFakeQuotes()
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "No quotes saved yet")
-}
-
-func TestQuoteAddQuotedByMod(t *testing.T) {
-	f := newFakeQuotes("existing")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), `"the bagels are sentient"`)
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "#2")
-	assert.Contains(t, out[0].Text, "added")
-	assert.Equal(t, "the bagels are sentient", f.quotes[2].Text)
-	assert.Equal(t, "mod_amy", f.quotes[2].AddedBy)
-}
-
-func TestQuoteAddCurlyQuotes(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "“smart quotes too”")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "smart quotes too", f.quotes[1].Text)
-}
-
-func TestQuoteAddSubcommand(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("streamer", "broadcaster"), "add plain words work")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "plain words work", f.quotes[1].Text)
-}
-
-func TestQuoteAddByViewerIsSilent(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), `"nice try"`)
-
-	assert.Empty(t, out)
-	assert.Empty(t, f.quotes)
-}
-
-func TestQuoteAddPermSubscriberAllowsSub(t *testing.T) {
-	f := newFakeQuotes()
-	ctx := withAddPerm(quotesCtx("subby", "subscriber"), "sub")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"subs can save now"`)
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "added")
-	assert.Equal(t, "subs can save now", f.quotes[1].Text)
-}
-
-func TestQuoteAddPermSubscriberBlocksViewer(t *testing.T) {
-	f := newFakeQuotes()
-	ctx := withAddPerm(quotesCtx("alice", ""), "sub")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"no badge here"`)
-
-	assert.Empty(t, out)
-	assert.Empty(t, f.quotes)
-}
-
-func TestQuoteAddPermEveryoneAllowsViewer(t *testing.T) {
-	f := newFakeQuotes()
-	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, `"anyone can save"`)
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "added")
-	assert.Equal(t, "anyone can save", f.quotes[1].Text)
-}
-
-func TestQuoteRemoveIgnoresAddPerm(t *testing.T) {
-	f := newFakeQuotes("one")
-	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "remove 1")
-
-	assert.Empty(t, out)
-	_, ok := f.quotes[1]
-	assert.True(t, ok)
-}
-
-func TestQuoteRemoveByMod(t *testing.T) {
-	f := newFakeQuotes("one", "two")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "remove 1")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "#1")
-	assert.Contains(t, out[0].Text, "removed")
-	_, ok := f.quotes[1]
-	assert.False(t, ok)
-}
-
-func TestQuoteRemoveByViewerIsSilent(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "remove 1")
-
-	assert.Empty(t, out)
-	_, ok := f.quotes[1]
-	assert.True(t, ok)
-}
-
-func TestQuoteRemoveUsage(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "remove ferret")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "Usage")
-}
-
-func TestQuoteSearchByWord(t *testing.T) {
-	f := newFakeQuotes("never trust a ferret", "bagels are sentient")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "Ferret")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, `Quote #1: never trust a ferret (2026-07-10)`, out[0].Text)
-}
-
-func TestQuoteSearchMultiWordTerm(t *testing.T) {
-	f := newFakeQuotes("never trust a ferret", "bagels are sentient")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "are sentient")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, `Quote #2: bagels are sentient (2026-07-10)`, out[0].Text)
-}
-
-func TestQuoteSearchNoMatch(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "something funny")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, `No quote matching "something funny"`)
-}
-
-func TestQuoteSearchRespectsCooldown(t *testing.T) {
-	f := newFakeQuotes("one")
-	cd := &countingCooldown{allow: false}
-	out := runQuotes(t, engine.Deps{Quotes: f, Cooldown: cd}, quotesCtx("alice", ""), "one")
-
-	assert.Empty(t, out)
-	assert.Equal(t, 1, cd.claims)
-}
-
-func runQuoteAdd(t *testing.T, d engine.Deps, c *module.Context, cmdName, args string) []module.Output {
-	t.Helper()
-	m := Quotes(d)
-	cmd := findCmd(t, m, cmdName)
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
-	return col.out
-}
-
-func TestQuoteAddCommandByMod(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "quoteadd", "no quoting needed here")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "added")
-	assert.Equal(t, "no quoting needed here", f.quotes[1].Text)
+	runChat(t, Quotes(engine.Deps{Quotes: f}), chatCtx("42", "mod_amy", "moderator"), "!quoteadd hello")
 	assert.Equal(t, "mod_amy", f.quotes[1].AddedBy)
 }
 
-func TestQuoteAddCommandQuotedBodyUnwrapped(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "quoteadd", `"still unwraps"`)
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "still unwraps", f.quotes[1].Text)
-}
-
-func TestQuoteAddCommandByViewerIsSilent(t *testing.T) {
-	f := newFakeQuotes()
-	out := runQuoteAdd(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "quoteadd", "nice try")
-
-	assert.Empty(t, out)
-	assert.Empty(t, f.quotes)
-}
-
-func TestQuoteAddCommandHonorsAddPerm(t *testing.T) {
-	f := newFakeQuotes()
-	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
-	out := runQuoteAdd(t, engine.Deps{Quotes: f}, ctx, "quoteadd", "anyone can save")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "anyone can save", f.quotes[1].Text)
-}
-
-func TestQuoteAddCommandHasAddquoteAlias(t *testing.T) {
-	m := Quotes(engine.Deps{Quotes: newFakeQuotes()})
-	cmd := findCmd(t, m, "quoteadd")
-	assert.Contains(t, cmd.Aliases, "addquote")
-}
-
-func TestQuoteEditByMod(t *testing.T) {
-	f := newFakeQuotes("teh bagels")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit 1 the bagels")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "#1")
-	assert.Contains(t, out[0].Text, "updated")
-	assert.Equal(t, "the bagels", f.quotes[1].Text)
-}
-
-func TestQuoteEditQuotedBody(t *testing.T) {
-	f := newFakeQuotes("old")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), `edit 1 "new text"`)
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "new text", f.quotes[1].Text)
-}
-
-func TestQuoteEditMissingNumber(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit 7 rewritten")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "doesn't exist")
-	assert.Equal(t, "one", f.quotes[1].Text)
-}
-
-func TestQuoteEditUsageOnMalformed(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("mod_amy", "moderator"), "edit ferret words")
-
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "Usage")
-	assert.Equal(t, "one", f.quotes[1].Text)
-}
-
-func TestQuoteEditByViewerIsSilent(t *testing.T) {
-	f := newFakeQuotes("one")
-	out := runQuotes(t, engine.Deps{Quotes: f}, quotesCtx("alice", ""), "edit 1 hijacked")
-
-	assert.Empty(t, out)
-	assert.Equal(t, "one", f.quotes[1].Text)
-}
-
-func withEditPerm(c *module.Context, perm string) *module.Context {
-	c.Config = []byte(`{"editPerm":"` + perm + `"}`)
-	return c
-}
-
-func TestQuoteEditPermVipAllowsVip(t *testing.T) {
-	f := newFakeQuotes("old")
-	ctx := withEditPerm(quotesCtx("vippy", "vip"), "vip")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 vips can edit")
-
-	require.Len(t, out, 1)
-	assert.Equal(t, "vips can edit", f.quotes[1].Text)
-}
-
-func TestQuoteEditPermVipBlocksViewer(t *testing.T) {
-	f := newFakeQuotes("old")
-	ctx := withEditPerm(quotesCtx("alice", ""), "vip")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 nope")
-
-	assert.Empty(t, out)
-	assert.Equal(t, "old", f.quotes[1].Text)
-}
-
-func TestQuoteEditIgnoresAddPerm(t *testing.T) {
-	f := newFakeQuotes("old")
-	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
-	out := runQuotes(t, engine.Deps{Quotes: f}, ctx, "edit 1 sneaky")
-
-	assert.Empty(t, out)
-	assert.Equal(t, "old", f.quotes[1].Text)
-}
-
-func TestQuoteReadCooldownThrottles(t *testing.T) {
-	f := newFakeQuotes("one")
-	cd := &countingCooldown{allow: false}
-	out := runQuotes(t, engine.Deps{Quotes: f, Cooldown: cd}, quotesCtx("alice", ""), "")
-
-	assert.Empty(t, out)
-	assert.Equal(t, 1, cd.claims)
-}
-
-func TestQuoteAddSkipsCooldown(t *testing.T) {
-	f := newFakeQuotes()
-	cd := &countingCooldown{allow: false}
-	out := runQuotes(t, engine.Deps{Quotes: f, Cooldown: cd}, quotesCtx("mod_amy", "moderator"), `"cooldown never gates saves"`)
-
-	require.Len(t, out, 1)
-	assert.Equal(t, 0, cd.claims)
-}
-
-func TestQuoteNilStoreInert(t *testing.T) {
-	out := runQuotes(t, engine.Deps{}, quotesCtx("alice", ""), "")
-	assert.Empty(t, out)
+func TestQuotesStayInertWithoutAStore(t *testing.T) {
+	assert.Empty(t, runChat(t, Quotes(engine.Deps{}), chatCtx("42", "alice"), "!quote"))
 }

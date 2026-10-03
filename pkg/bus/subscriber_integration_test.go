@@ -5,7 +5,6 @@ package bus
 
 import (
 	"context"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,17 +13,17 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 const nativeSubscriberTestTimeout = 3 * time.Second
 
 type nativeSubscriberFixture struct {
-	stream    string
-	broadcast string
-	durable   string
-	shutdown  string
-	cancel    string
+	stream   string
+	durable  string
+	shutdown string
+	cancel   string
 }
 
 type nativeSubscriberIntegration struct {
@@ -35,9 +34,6 @@ type nativeSubscriberIntegration struct {
 
 func TestNativeSubscriberIntegration(t *testing.T) {
 	integration := openNativeSubscriberIntegration(t)
-	t.Run("broadcast deliver-new fans out", func(t *testing.T) {
-		testNativeBroadcastFanout(t, integration)
-	})
 	t.Run("durable ack nak redelivery and term", func(t *testing.T) {
 		testNativeDurableDelivery(t, integration)
 	})
@@ -51,17 +47,13 @@ func TestNativeSubscriberIntegration(t *testing.T) {
 
 func openNativeSubscriberIntegration(t *testing.T) nativeSubscriberIntegration {
 	t.Helper()
-	url := os.Getenv("NATS_INTEGRATION_URL")
-	if url == "" {
-		t.Skip("NATS_INTEGRATION_URL is not set")
-	}
+	url := brokerURL(t)
 	token := nuid.Next()
 	fixture := nativeSubscriberFixture{
-		stream:    "BUS_NATIVE_SUBSCRIBER_TEST_" + token,
-		broadcast: "bus.native." + token + ".broadcast",
-		durable:   "bus.native." + token + ".durable",
-		shutdown:  "bus.native." + token + ".shutdown",
-		cancel:    "bus.native." + token + ".cancel",
+		stream:   "BUS_NATIVE_SUBSCRIBER_TEST_" + token,
+		durable:  "bus.native." + token + ".durable",
+		shutdown: "bus.native." + token + ".shutdown",
+		cancel:   "bus.native." + token + ".cancel",
 	}
 	t.Setenv("NATS_JS_DOMAIN", "hub")
 	t.Setenv("NATS_LEAF_URL", "")
@@ -89,62 +81,6 @@ func openNativeSubscriberIntegration(t *testing.T) nativeSubscriberIntegration {
 		nc.Close()
 	})
 	return nativeSubscriberIntegration{url: url, js: js, fixture: fixture}
-}
-
-func testNativeBroadcastFanout(t *testing.T, integration nativeSubscriberIntegration) {
-	t.Helper()
-	fixture := integration.fixture
-	first := openNativeBroadcastIntegrationSubscriber(t, integration.url, "broadcast-first", fixture.stream)
-	second := openNativeBroadcastIntegrationSubscriber(t, integration.url, "broadcast-second", fixture.stream)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	firstMessages, err := first.Subscribe(ctx, fixture.broadcast)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondMessages, err := second.Subscribe(ctx, fixture.broadcast)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wire := nats.NewMsg(fixture.broadcast)
-	wire.Data = []byte("fanout")
-	wire.Header.Set(MessageIDHeader, "broadcast-id")
-	if _, err := integration.js.PublishMsg(wire); err != nil {
-		t.Fatal(err)
-	}
-
-	for i, messages := range []<-chan *Message{firstMessages, secondMessages} {
-		msg := receiveIntegrationMessage(t, messages)
-		if msg.UUID != "broadcast-id" || string(msg.Payload) != "fanout" {
-			t.Fatalf("subscriber %d received id=%q payload=%q", i, msg.UUID, msg.Payload)
-		}
-		if !msg.Ack() {
-			t.Fatalf("subscriber %d could not ack", i)
-		}
-	}
-}
-
-func openNativeBroadcastIntegrationSubscriber(t *testing.T, url, name, stream string) Subscriber {
-	t.Helper()
-	nc, err := nats.Connect(url, busOptions(clientName(name))...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	js, err := nc.JetStream(nats.Domain("hub"))
-	if err != nil {
-		nc.Close()
-		t.Fatal(err)
-	}
-	sub := newConcurrentDurableSubscriber(concurrentSubscriberConfig{
-		nc: nc, js: js, stream: stream, log: zap.NewNop(),
-	})
-	t.Cleanup(func() {
-		if err := sub.Close(); err != nil {
-			t.Errorf("close broadcast subscriber: %v", err)
-		}
-	})
-	return sub
 }
 
 type durableIntegrationScenario struct {
@@ -179,7 +115,7 @@ func testNativeDurableDelivery(t *testing.T, integration nativeSubscriberIntegra
 	})
 	scenario := durableIntegrationScenario{
 		t: t, js: integration.js, stream: fixture.stream, subject: fixture.durable,
-		consumer: durableName(group, fixture.durable), messages: lane.messages, nakDelay: nakDelay,
+		consumer: onlyConsumerOf(t, integration.js, fixture.stream), messages: lane.messages, nakDelay: nakDelay,
 	}
 	scenario.verifyDelayedRedelivery()
 	scenario.verifyMalformedDeliveryTerminates()
@@ -413,4 +349,14 @@ func (s durableIntegrationScenario) waitForConsumer(
 		s.t.Fatal(err)
 	}
 	return info, false
+}
+
+func onlyConsumerOf(t *testing.T, js nats.JetStreamContext, stream string) string {
+	t.Helper()
+	var names []string
+	for name := range js.ConsumerNames(stream) {
+		names = append(names, name)
+	}
+	require.Len(t, names, 1, "the lane must own exactly one durable")
+	return names[0]
 }

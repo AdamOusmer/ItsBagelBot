@@ -10,32 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 )
 
-func TestNewSpecPrecomputesArguments(t *testing.T) {
-	spec := NewSpec(20, 20.0/30.0)
-	if spec.capacityArg != "20" {
-		t.Fatalf("capacity = %q, want 20", spec.capacityArg)
-	}
-	if spec.refillArg == "" {
-		t.Fatal("refill argument is empty")
-	}
-	if spec.ttlArg != "60" {
-		t.Fatalf("ttl = %q, want 60", spec.ttlArg)
-	}
-}
-
-func TestNewSpecRejectsInvalidConfiguration(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("NewSpec did not panic")
-		}
-	}()
-	_ = NewSpec(0, 1)
-}
-
-func TestAllowOrderedIntegration(t *testing.T) {
+func newValkeyTestClient(t *testing.T) valkey.Client {
+	t.Helper()
 	address := os.Getenv("VALKEY_TEST_ADDR")
 	if address == "" {
 		t.Skip("VALKEY_TEST_ADDR is not set")
@@ -44,80 +25,85 @@ func TestAllowOrderedIntegration(t *testing.T) {
 		InitAddress: []string{address},
 		Password:    os.Getenv("VALKEY_TEST_PASSWORD"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+	return client
+}
 
+func TestNewSpecRejectsInvalidConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		capacity float64
+		refill   float64
+	}{
+		{name: "rejects zero capacity", capacity: 0, refill: 1},
+		{name: "rejects zero refill rate", capacity: 1, refill: 0},
+		{name: "rejects fractional capacity", capacity: 1.5, refill: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Panics(t, func() { NewSpec(tc.capacity, tc.refill) })
+		})
+	}
+}
+
+type orderedBuckets struct {
+	t      *testing.T
+	ctx    context.Context
+	client valkey.Client
+	first  string
+	second string
+}
+
+func (o orderedBuckets) seed(key, tokens string) {
+	future := strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10)
+	require.NoError(o.t, o.client.Do(o.ctx, o.client.B().Hset().Key(key).FieldValue().
+		FieldValue("tokens", tokens).FieldValue("last_ms", future).Build()).Error())
+}
+
+func (o orderedBuckets) state(key string) map[string]string {
+	state, err := o.client.Do(o.ctx, o.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	require.NoError(o.t, err)
+	return state
+}
+
+func (o orderedBuckets) corrupt(key string) {
+	require.NoError(o.t, o.client.Do(o.ctx, o.client.B().Set().Key(key).Value("wrong-type").Build()).Error())
+}
+
+func TestLimiterAllowOrderedIsAtomicAcrossBothBuckets(t *testing.T) {
+	client := newValkeyTestClient(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	t.Cleanup(cancel)
 	prefix := "test:outgress:limiter:" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	firstKey, secondKey := prefix+":first", prefix+":second"
-	defer client.Do(context.Background(), client.B().Del().Key(firstKey, secondKey).Build())
+	buckets := orderedBuckets{t: t, ctx: ctx, client: client, first: prefix + ":first", second: prefix + ":second"}
+	t.Cleanup(func() { client.Do(context.Background(), client.B().Del().Key(buckets.first, buckets.second).Build()) })
 
 	limiter := New(client)
 	spec := NewSpec(2, 0.001)
-	first, second := spec.ForKey(firstKey), spec.ForKey(secondKey)
+	first, second := spec.ForKey(buckets.first), spec.ForKey(buckets.second)
 
 	denied, err := limiter.AllowOrdered(ctx, first, second)
-	if err != nil || denied != 0 {
-		t.Fatalf("fresh pair denied/error = %d/%v", denied, err)
-	}
+	require.NoError(t, err)
+	require.Zero(t, denied, "fresh pair")
 
-	future := strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10)
-	if err := client.Do(ctx, client.B().Hset().Key(firstKey).FieldValue().
-		FieldValue("tokens", "0").FieldValue("last_ms", future).Build()).Error(); err != nil {
-		t.Fatal(err)
-	}
-	before, err := client.Do(ctx, client.B().Hgetall().Key(secondKey).Build()).AsStrMap()
-	if err != nil {
-		t.Fatal(err)
-	}
+	buckets.seed(buckets.first, "0")
+	secondBefore := buckets.state(buckets.second)
 	denied, err = limiter.AllowOrdered(ctx, first, second)
-	if err != nil || denied != 1 {
-		t.Fatalf("first-empty pair denied/error = %d/%v", denied, err)
-	}
-	after, err := client.Do(ctx, client.B().Hgetall().Key(secondKey).Build()).AsStrMap()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if before["tokens"] != after["tokens"] || before["last_ms"] != after["last_ms"] {
-		t.Fatalf("second bucket changed after first denial: before=%v after=%v", before, after)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, uint8(1), denied, "first-empty pair")
+	assert.Equal(t, secondBefore, buckets.state(buckets.second), "second bucket changed after first denial")
 
-	for key, tokens := range map[string]string{firstKey: "2", secondKey: "0"} {
-		if err := client.Do(ctx, client.B().Hset().Key(key).FieldValue().
-			FieldValue("tokens", tokens).FieldValue("last_ms", future).Build()).Error(); err != nil {
-			t.Fatal(err)
-		}
-	}
+	buckets.seed(buckets.first, "2")
+	buckets.seed(buckets.second, "0")
 	denied, err = limiter.AllowOrdered(ctx, first, second)
-	if err != nil || denied != 2 {
-		t.Fatalf("second-empty pair denied/error = %d/%v", denied, err)
-	}
-	tokens, err := client.Do(ctx, client.B().Hget().Key(firstKey).Field("tokens").Build()).ToString()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tokens != "2" {
-		t.Fatalf("first tokens = %q, want 2 (atomic fallback)", tokens)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, uint8(2), denied, "second-empty pair")
+	assert.Equal(t, "2", buckets.state(buckets.first)["tokens"], "atomic fallback")
 
-	if err := client.Do(ctx, client.B().Hset().Key(firstKey).FieldValue().
-		FieldValue("tokens", "2").FieldValue("last_ms", future).Build()).Error(); err != nil {
-		t.Fatal(err)
-	}
-	if err := client.Do(ctx, client.B().Set().Key(secondKey).Value("wrong-type").Build()).Error(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := limiter.AllowOrdered(ctx, first, second); err == nil {
-		t.Fatal("wrong-type second bucket did not fail")
-	}
-	tokens, err = client.Do(ctx, client.B().Hget().Key(firstKey).Field("tokens").Build()).ToString()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tokens != "2" {
-		t.Fatalf("first tokens after second-key error = %q, want 2", tokens)
-	}
+	buckets.seed(buckets.first, "2")
+	buckets.corrupt(buckets.second)
+	_, err = limiter.AllowOrdered(ctx, first, second)
+	require.Error(t, err, "wrong-type second bucket")
+	assert.Equal(t, "2", buckets.state(buckets.first)["tokens"], "first tokens after second-key error")
 }

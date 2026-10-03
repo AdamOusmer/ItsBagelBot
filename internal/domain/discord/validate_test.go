@@ -4,26 +4,27 @@
 package discord
 
 import (
-	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const goodID = "123456789012345678"
 
 func TestValidateConfigAcceptsEmptyAndFilled(t *testing.T) {
-	if errs := ValidateConfig(Config{}); len(errs) != 0 {
-		t.Fatalf("a blank config must be storable, got %v", errs)
-	}
 	full := Config{
 		GuildID: goodID, ModsRoleID: goodID, TicketArchiveCategoryID: goodID,
 		TicketStaffRoles: goodID + "," + goodID, TicketOpenLimit: "3",
 		TicketPanelColor: "#C47A3A", TicketPanelTitle: "Help", TicketPanelButton: "Open",
 		PinnedRoles: "mods=" + goodID, AutoRoleEnabled: "off", TicketTranscriptEnabled: "on",
+		TicketPanelBody: strings.Repeat("é", TicketPanelBodyMax),
 	}
-	if errs := ValidateConfig(full); len(errs) != 0 {
-		t.Fatalf("a valid config was rejected: %v", errs)
-	}
+
+	assert.Empty(t, ValidateConfig(Config{}), "a blank config must be storable")
+	assert.Empty(t, ValidateConfig(full), "a valid config (with a body of exactly the max in runes) was rejected")
 }
 
 func TestValidateConfigFieldErrors(t *testing.T) {
@@ -58,36 +59,22 @@ func TestValidateConfigFieldErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := ValidateConfig(tc.cfg)
-			if len(errs) != 1 {
-				t.Fatalf("errors = %v, want exactly one", errs)
-			}
-			if errs[0].Field != tc.field || errs[0].Code != tc.code {
-				t.Fatalf("error = %+v, want {%s %s}", errs[0], tc.field, tc.code)
-			}
+			require.Len(t, errs, 1)
+			assert.Equal(t, tc.field, errs[0].Field)
+			assert.Equal(t, tc.code, errs[0].Code)
 		})
-	}
-}
-
-func TestValidateConfigLengthBoundaryIsRunes(t *testing.T) {
-	at := Config{TicketPanelBody: strings.Repeat("é", TicketPanelBodyMax)}
-	if errs := ValidateConfig(at); len(errs) != 0 {
-		t.Fatalf("a body of exactly the max was rejected: %v", errs)
 	}
 }
 
 func TestValidateConfigOrderIsStable(t *testing.T) {
 	cfg := Config{LiveChannelID: "bad", GuildID: "bad", ModsRoleID: "bad"}
+
 	first := ValidateConfig(cfg)
+
+	require.Len(t, first, 3)
+	assert.Equal(t, "guildId", first[0].Field, "errors come back alphabetical")
 	for i := 0; i < 20; i++ {
-		got := ValidateConfig(cfg)
-		for j := range got {
-			if got[j] != first[j] {
-				t.Fatalf("run %d differs: %v vs %v", i, got, first)
-			}
-		}
-	}
-	if first[0].Field != "guildId" {
-		t.Fatalf("first error = %+v, want guildId (alphabetical)", first[0])
+		assert.True(t, slices.Equal(first, ValidateConfig(cfg)), "run %d differs", i)
 	}
 }
 
@@ -102,65 +89,42 @@ func TestValidSnowflake(t *testing.T) {
 		"-12345678901234567":    false,
 	}
 	for id, want := range cases {
-		if got := ValidSnowflake(id); got != want {
-			t.Fatalf("ValidSnowflake(%q) = %v, want %v", id, got, want)
+		assert.Equal(t, want, ValidSnowflake(id), "ValidSnowflake(%q)", id)
+	}
+}
+
+func TestSanitizeConfig(t *testing.T) {
+	t.Run("zeroes only the invalid fields", func(t *testing.T) {
+		cfg := Config{
+			GuildID:          "100000000000000001",
+			LiveChannelID:    "100000000000000002",
+			ClipsChannelID:   "#clips",
+			TicketPanelColor: "burgundy",
+			TicketOpenLimit:  "9",
+			LiveEnabled:      "maybe",
 		}
-	}
-}
 
-func TestSanitizeConfigZeroesOnlyTheInvalidFields(t *testing.T) {
-	cfg := Config{
-		GuildID:          "100000000000000001",
-		LiveChannelID:    "100000000000000002",
-		ClipsChannelID:   "#clips",
-		TicketPanelColor: "burgundy",
-		TicketOpenLimit:  "9",
-		LiveEnabled:      "maybe",
-	}
+		clean, bad := SanitizeConfig(cfg)
 
-	clean, bad := SanitizeConfig(cfg)
+		assert.Len(t, bad, 4)
+		assert.Equal(t, Config{GuildID: cfg.GuildID, LiveChannelID: cfg.LiveChannelID}, clean)
+	})
 
-	if len(bad) != 4 {
-		t.Fatalf("errors = %+v, want 4", bad)
-	}
-	zeroed := map[string]string{
-		"ClipsChannelID":   clean.ClipsChannelID,
-		"TicketPanelColor": clean.TicketPanelColor,
-		"TicketOpenLimit":  clean.TicketOpenLimit,
-		"LiveEnabled":      clean.LiveEnabled,
-	}
-	for field, got := range zeroed {
-		if got != "" {
-			t.Fatalf("%s = %q, want every rejected field zeroed (clean = %+v)", field, got, clean)
-		}
-	}
-	if clean.GuildID != cfg.GuildID || clean.LiveChannelID != cfg.LiveChannelID {
-		t.Fatalf("clean = %+v, want the valid fields untouched", clean)
-	}
-}
+	t.Run("zeroed fields fall back to their defaults", func(t *testing.T) {
+		clean, _ := SanitizeConfig(Config{TicketOpenLimit: "12", TicketTranscriptEnabled: "yes"})
 
-func TestSanitizeConfigLeavesZeroedFieldsOnTheirDefaults(t *testing.T) {
-	clean, _ := SanitizeConfig(Config{TicketOpenLimit: "12", TicketTranscriptEnabled: "yes"})
+		assert.Equal(t, TicketOpenLimitDefault, clean.TicketOpenLimitN())
+		assert.True(t, clean.TicketTranscriptOn(), "a zeroed transcript flag falls back to its default-ON reader")
+	})
 
-	if clean.TicketOpenLimitN() != TicketOpenLimitDefault {
-		t.Fatalf("limit = %d, want the default %d", clean.TicketOpenLimitN(), TicketOpenLimitDefault)
-	}
-	if !clean.TicketTranscriptOn() {
-		t.Fatal("a zeroed transcript flag must fall back to its default-ON reader")
-	}
-}
+	t.Run("leaves a valid config alone", func(t *testing.T) {
+		cfg := Config{GuildID: "100000000000000001", TicketPanelColor: "#ff8800", LiveEnabled: "off"}
 
-func TestSanitizeConfigLeavesAValidConfigAlone(t *testing.T) {
-	cfg := Config{GuildID: "100000000000000001", TicketPanelColor: "#ff8800", LiveEnabled: "off"}
+		clean, bad := SanitizeConfig(cfg)
 
-	clean, bad := SanitizeConfig(cfg)
-
-	if len(bad) != 0 {
-		t.Fatalf("errors = %+v, want none", bad)
-	}
-	if clean != cfg {
-		t.Fatalf("clean = %+v, want it unchanged", clean)
-	}
+		assert.Empty(t, bad)
+		assert.Equal(t, cfg, clean)
+	})
 }
 
 func TestEveryValidatedFieldNameExistsOnConfig(t *testing.T) {
@@ -169,13 +133,10 @@ func TestEveryValidatedFieldNameExistsOnConfig(t *testing.T) {
 		TicketOpenLimit: "x", PinnedRoles: "nope", LiveEnabled: "x",
 		TicketPanelTitle: strings.Repeat("t", TicketPanelTitleMax+1),
 	})
-	if len(bad) == 0 {
-		t.Fatal("the fixture was supposed to be invalid")
-	}
-	tags := configFieldsByTag(reflect.TypeOf(Config{}))
+	require.NotEmpty(t, bad, "the fixture was supposed to be invalid")
+
+	tags := configJSONTags(t)
 	for _, fe := range bad {
-		if _, ok := tags[fe.Field]; !ok {
-			t.Fatalf("ValidateConfig reports %q, which is not a Config json tag", fe.Field)
-		}
+		assert.Contains(t, tags, fe.Field, "ValidateConfig reports %q, which is not a Config json tag", fe.Field)
 	}
 }

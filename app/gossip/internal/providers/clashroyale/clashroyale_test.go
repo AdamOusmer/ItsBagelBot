@@ -1,97 +1,26 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package clashroyale
+package clashroyale_test
 
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
-	"sync"
 	"testing"
-	"time"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providers/clashroyale"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func init() { core.SetSSRFCheckForTests(false) }
-
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
-}
-
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return append([]byte(nil), b...), ok, nil
-}
-
-func (s *memStore) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), value...)
-	return nil
-}
-
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
-
-func newTestProvider(t *testing.T, handler http.Handler) provider.Provider {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL, APIKey: "royale-key"}, provider.Deps{
-		Cache: core.NewCache(newMemStore()),
-		Log:   zap.NewNop(),
-	})
-}
-
-func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == name {
-			return ep.Handle
-		}
-	}
-	t.Fatalf("endpoint %q not found", name)
-	return nil
-}
-
-func decodeReply[T any](t *testing.T, value any) T {
-	t.Helper()
-	if typed, ok := value.(T); ok {
-		return typed
-	}
-	raw, ok := value.(codec.RawMessage)
-	require.True(t, ok, "unexpected result type %T", value)
-	var reply T
-	require.NoError(t, codec.Unmarshal(raw, &reply))
-	return reply
+func newProvider(t testing.TB, handler http.Handler) provider.Provider {
+	return clashroyale.New(
+		clashroyale.Config{BaseURL: providertest.Upstream(t, handler), APIKey: "royale-key"},
+		providertest.Deps(providertest.NewMemStore()))
 }
 
 const playerBody = `{
@@ -135,14 +64,14 @@ const playerBody = `{
 
 func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	var hits int
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
 		assert.Equal(t, "/players/#P2LQ0GR", r.URL.Path)
 		assert.Equal(t, "Bearer royale-key", r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(playerBody))
 	}))
 
-	stats := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: " #p2lq0gr "}))
+	stats := providertest.Call[gossiprpc.ClashRoyaleStatsReply](t, p, "stats", gossiprpc.Request{Account: " #p2lq0gr "})
 	require.Empty(t, stats.Error)
 	assert.Equal(t, "Bagel", stats.Player)
 	assert.Equal(t, "#P2LQ0GR", stats.Tag)
@@ -152,7 +81,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Equal(t, "Bakery", stats.Clan.Name)
 	assert.Equal(t, "Knight", stats.FavouriteCard.Name)
 
-	decks := decodeReply[gossiprpc.ClashRoyaleDecksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	decks := providertest.Call[gossiprpc.ClashRoyaleDecksReply](t, p, "decks", gossiprpc.Request{Account: "P2LQ0GR"})
 	require.Empty(t, decks.Error)
 	require.Len(t, decks.CurrentDeck, 8)
 	assert.Equal(t, "Knight", decks.CurrentDeck[0].Name)
@@ -160,7 +89,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Len(t, decks.SupportCards, 1)
 	assert.InDelta(t, 3.75, decks.AverageElixir, 1e-9)
 
-	ranked := decodeReply[gossiprpc.ClashRoyaleRankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "#P2LQ0GR"}))
+	ranked := providertest.Call[gossiprpc.ClashRoyaleRankedReply](t, p, "ranked", gossiprpc.Request{Account: "#P2LQ0GR"})
 	require.Empty(t, ranked.Error)
 	assert.False(t, ranked.Unranked)
 	assert.Equal(t, 10, ranked.Current.LeagueNumber)
@@ -168,7 +97,7 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 	assert.Equal(t, 321, ranked.Current.Rank)
 	assert.Equal(t, 42, ranked.Best.Rank)
 
-	road := decodeReply[gossiprpc.ClashRoyaleTrophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	road := providertest.Call[gossiprpc.ClashRoyaleTrophyRoadReply](t, p, "trophy_road", gossiprpc.Request{Account: "P2LQ0GR"})
 	require.Empty(t, road.Error)
 	assert.Equal(t, 9123, road.Trophies)
 	assert.Equal(t, 9345, road.BestTrophies)
@@ -178,18 +107,16 @@ func TestEndpointsShareOneNormalizedPlayerFetch(t *testing.T) {
 }
 
 func TestRankedFallsBackToLeagueStatistics(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{
-			"tag":"#P2LQ0GR","name":"Legacy",
-			"leagueStatistics":{
-				"currentSeason":{"id":"2026-07","trophies":1800,"bestTrophies":1900},
-				"previousSeason":{"id":"2026-06","trophies":1700,"rank":900},
-				"bestSeason":{"id":"2026-05","trophies":2200,"rank":100}
-			}
-		}`))
-	}))
+	p := newProvider(t, providertest.Respond(http.StatusOK, `{
+		"tag":"#P2LQ0GR","name":"Legacy",
+		"leagueStatistics":{
+			"currentSeason":{"id":"2026-07","trophies":1800,"bestTrophies":1900},
+			"previousSeason":{"id":"2026-06","trophies":1700,"rank":900},
+			"bestSeason":{"id":"2026-05","trophies":2200,"rank":100}
+		}
+	}`))
 
-	reply := decodeReply[gossiprpc.ClashRoyaleRankedReply](t, endpoint(t, p, "ranked")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	reply := providertest.Call[gossiprpc.ClashRoyaleRankedReply](t, p, "ranked", gossiprpc.Request{Account: "P2LQ0GR"})
 	require.Empty(t, reply.Error)
 	assert.False(t, reply.Unranked)
 	assert.Equal(t, "2026-07", reply.Current.SeasonID)
@@ -198,64 +125,79 @@ func TestRankedFallsBackToLeagueStatistics(t *testing.T) {
 	assert.Equal(t, "2026-05", reply.Best.SeasonID)
 }
 
-func TestMissingAndInvalidTagsDoNotCallUpstream(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("no upstream request expected")
-	}))
+func TestPlayerTagsAreNormalizedOrRejectedBeforeAnyUpstreamCall(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		endpoint  string
+		account   string
+		wantError string
+		wantPath  string
+	}{
+		{"rejects a missing account", "stats", "", "missing account", ""},
+		{"rejects characters outside the tag alphabet", "decks", "#ABC123", "invalid player tag", ""},
+		{"rejects a tag that is too short", "ranked", "P2", "invalid player tag", ""},
+		{"rejects a tag that is too long", "trophy_road", "P2LQ0GRP2LQ0GRP2", "invalid player tag", ""},
+		{"rejects latin-1 letters without panicking", "stats", "ÿÿÿ", "invalid player tag", ""},
+		{"rejects a non-ASCII rune inside a tag", "stats", "2ÿ9", "invalid player tag", ""},
+		{"rejects a non-ASCII rune behind the hash", "stats", "#2ÿ9", "invalid player tag", ""},
+		{"rejects accented letters", "stats", "ñññ", "invalid player tag", ""},
+		{"rejects full-width digits", "stats", "２８９", "invalid player tag", ""},
+		{"normalizes case, spaces, and the letter O to zero", "stats", " #p2lqogr ", "", "/players/#P2LQ0GR"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotPath string
+			p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				_, _ = w.Write([]byte(playerBody))
+			}))
 
-	missing := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{}))
-	assert.Equal(t, "missing account", missing.Error)
-
-	invalid := decodeReply[gossiprpc.ClashRoyaleDecksReply](t, endpoint(t, p, "decks")(context.Background(), gossiprpc.Request{Account: "#ABC123"}))
-	assert.Equal(t, "invalid player tag", invalid.Error)
-}
-
-func TestPlayerTagNormalizesCommonLetterOToZero(t *testing.T) {
-	tag, errMsg := parsePlayerTag(" #p2lqogr ")
-	assert.Empty(t, errMsg)
-	assert.Equal(t, "#P2LQ0GR", tag.String())
+			res := providertest.Endpoint(t, p, tc.endpoint)(context.Background(), gossiprpc.Request{Account: tc.account})
+			assert.Equal(t, tc.wantError, providertest.ErrorOf(t, res))
+			assert.Equal(t, tc.wantPath, gotPath)
+		})
+	}
 }
 
 func TestNotFoundIsFriendlyAndNegativeCachedAcrossEndpoints(t *testing.T) {
 	var hits int
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"reason":"notFound"}`))
 	}))
 
-	stats := decodeReply[gossiprpc.ClashRoyaleStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	stats := providertest.Call[gossiprpc.ClashRoyaleStatsReply](t, p, "stats", gossiprpc.Request{Account: "P2LQ0GR"})
 	assert.Equal(t, "player not found", stats.Error)
-	road := decodeReply[gossiprpc.ClashRoyaleTrophyRoadReply](t, endpoint(t, p, "trophy_road")(context.Background(), gossiprpc.Request{Account: "P2LQ0GR"}))
+	road := providertest.Call[gossiprpc.ClashRoyaleTrophyRoadReply](t, p, "trophy_road", gossiprpc.Request{Account: "P2LQ0GR"})
 	assert.Equal(t, "player not found", road.Error)
 	assert.Equal(t, 1, hits)
 }
 
-func TestEndpointNamesAndDefaultConfig(t *testing.T) {
-	p := New(Config{APIKey: "key"}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+func TestUpstreamProfilesAreNormalizedForChat(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want gossiprpc.ClashRoyaleStatsReply
+	}{
+		{"reports a profile without a tag as an unknown player", `{"name":"Ghost"}`,
+			gossiprpc.ClashRoyaleStatsReply{Error: "player not found", Tag: "#P2LQ0GR"}},
+		{"never reports negative draws", `{"tag":"#P2LQ0GR","name":"Odd","wins":8,"losses":5,"battleCount":10}`,
+			gossiprpc.ClashRoyaleStatsReply{Player: "Odd", Tag: "#P2LQ0GR", Wins: 8, Losses: 5, Battles: 10, WinRate: 80}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProvider(t, providertest.Respond(http.StatusOK, tc.body))
+			assert.Equal(t, tc.want, providertest.Call[gossiprpc.ClashRoyaleStatsReply](t, p, "stats", gossiprpc.Request{Account: "P2LQ0GR"}))
+		})
+	}
+}
+
+func TestProviderDeclaresItsRPCEndpoints(t *testing.T) {
+	p := clashroyale.New(clashroyale.Config{APIKey: "key"}, providertest.Deps(providertest.NewMemStore()))
+
 	var names []string
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
-		assert.Equal(t, handlerTimeout, ep.Timeout)
 	}
-	assert.Equal(t, []string{"stats", "decks", "ranked", "trophy_road"}, names)
 	assert.Equal(t, "clashroyale", p.Name())
-	assert.Equal(t, "https://proxy.royaleapi.dev/v1", defaultBaseURL)
-}
-
-func TestPlayerTagRejectsNonASCIIWithoutPanicking(t *testing.T) {
-	for _, tag := range []string{"ÿÿÿ", "2ÿ9", "#2ÿ9", "ñññ", "２８９"} {
-		got, reason := parsePlayerTag(tag)
-		assert.Empty(t, got, "non-ASCII tag %q must not parse", tag)
-		assert.Equal(t, "invalid player tag", reason, "tag %q", tag)
-	}
-}
-
-func TestIsTagRuneRejectsOutOfRangeRunes(t *testing.T) {
-	for _, r := range []rune{'Ÿ', 'Ñ', rune(128), rune(0x10FFFF), -1} {
-		assert.False(t, isTagRune(r), "rune %d must be rejected", r)
-	}
-	for _, r := range tagAlphabet {
-		assert.True(t, isTagRune(r), "alphabet rune %q must be accepted", r)
-	}
+	assert.Equal(t, []string{"stats", "decks", "ranked", "trophy_road"}, names)
 }

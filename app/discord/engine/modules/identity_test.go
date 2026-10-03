@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package modules
+package modules_test
 
 import (
 	"context"
@@ -9,200 +9,110 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/discord/engine/module"
+	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type fakeApplied struct {
-	seen      map[string]string
-	records   int
-	recordErr error
-}
-
-func newFakeApplied() *fakeApplied { return &fakeApplied{seen: map[string]string{}} }
-
-func (f *fakeApplied) Applied(_ context.Context, guildID string) (string, bool) {
-	v, ok := f.seen[guildID]
-	return v, ok
-}
-
-func (f *fakeApplied) Record(_ context.Context, guildID, fingerprint string) error {
-	f.records++
-	if f.recordErr != nil {
-		return f.recordErr
-	}
-	f.seen[guildID] = fingerprint
-	return nil
-}
-
-func identityFor(t *testing.T, applied *fakeApplied, status string) (*Identity, *[]ddiscord.Command) {
-	t.Helper()
-	var emitted []ddiscord.Command
-	i := &Identity{
+func identityFor(status string, applied *fakeApplied) (*modules.Identity, *[]ddiscord.Command) {
+	published := &[]ddiscord.Command{}
+	return &modules.Identity{
 		Resolve: func(context.Context, uint64) []discordstore.GuildConfigOf {
-			return []discordstore.GuildConfigOf{{
-				Guild:  discordstore.Guild{ID: "g1"},
-				Config: ddiscord.Config{GuildID: "g1"},
-			}}
+			return []discordstore.GuildConfigOf{{Guild: discordstore.Guild{ID: "g1"}, Config: ddiscord.Config{GuildID: "g1"}}}
 		},
-		Status: func(context.Context, uint64) (string, bool) {
-			if status == "" {
-				return "", false
-			}
-			return status, true
-		},
+		Status:  func(context.Context, uint64) (string, bool) { return status, status != "" },
 		Applied: applied,
 		Publish: func(_ context.Context, c ddiscord.Command) error {
-			emitted = append(emitted, c)
+			*published = append(*published, c)
 			return nil
 		},
 		Log: zap.NewNop(),
-	}
-	return i, &emitted
+	}, published
 }
 
-func runOnGuild(t *testing.T, i *Identity) []ddiscord.Command {
+func identityTiers(t *testing.T, cmds []ddiscord.Command) []string {
 	t.Helper()
-	mod := IdentityModule(i)
-	handler, ok := mod.Events[ddiscord.SubjectEventGuild]
-	if !ok {
-		t.Fatal("IdentityModule did not register the guild event")
+	var tiers []string
+	for _, c := range cmds {
+		require.Equal(t, ddiscord.TypeSetGuildIdentity, c.Type)
+		require.Equal(t, ddiscord.LaneDefault, ddiscord.Lane(c.Type), "identity rides the default lane, not moderation")
+		var payload ddiscord.IdentityPayload
+		require.NoError(t, codec.Unmarshal(c.Payload, &payload))
+		if payload.Identity.Premium {
+			tiers = append(tiers, "premium")
+		} else {
+			tiers = append(tiers, "standard")
+		}
 	}
+	return tiers
+}
+
+func connectGuild(t *testing.T, i *modules.Identity) []ddiscord.Command {
+	t.Helper()
 	var emitted []ddiscord.Command
-	ctx := &module.Context{
-		Event:         ddiscord.Event{Type: "GUILD_CREATE", GuildID: "g1"},
-		Config:        ddiscord.Config{GuildID: "g1"},
-		BroadcasterID: "999",
-		Log:           zap.NewNop(),
+	c := &module.Context{
+		Event:  ddiscord.Event{Type: "GUILD_CREATE", GuildID: "g1"},
+		Config: ddiscord.Config{GuildID: "g1"}, BroadcasterID: "999", Log: zap.NewNop(),
 	}
-	if err := handler(context.Background(), ctx, func(c ddiscord.Command) { emitted = append(emitted, c) }); err != nil {
-		t.Fatalf("handler returned error: %v", err)
-	}
+	handler := modules.IdentityModule(i).Events[ddiscord.SubjectEventGuild]
+	require.NoError(t, handler(context.Background(), c, func(cmd ddiscord.Command) { emitted = append(emitted, cmd) }))
 	return emitted
 }
 
-func busMessage(payload []byte) *bus.Message {
-	return &bus.Message{Payload: payload}
-}
+func TestIdentityOnGuildConnect(t *testing.T) {
+	cases := []struct {
+		name        string
+		statuses    []string
+		recordErr   error
+		want        []string
+		wantRecords int
+	}{
+		{name: "a paid guild gets the premium identity", statuses: []string{"paid"}, want: []string{"premium"}, wantRecords: 1},
+		{name: "vip is treated as premium", statuses: []string{"vip"}, want: []string{"premium"}, wantRecords: 1},
+		{name: "a free guild clears the override", statuses: []string{"free"}, want: []string{"standard"}, wantRecords: 1},
+		{name: "a second connect emits nothing", statuses: []string{"paid", "paid"}, want: []string{"premium"}, wantRecords: 1},
+		{name: "an upgrade after apply emits again", statuses: []string{"free", "paid"}, want: []string{"standard", "premium"}, wantRecords: 2},
+		{name: "an unprojected account leaves the guild alone", statuses: []string{""}},
+		{name: "a record failure still emits", statuses: []string{"paid"}, recordErr: errors.New("valkey down"), want: []string{"premium"}, wantRecords: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			applied := &fakeApplied{seen: map[string]string{}, recordErr: tc.recordErr}
+			var emitted []ddiscord.Command
 
-func identityPayload(t *testing.T, c ddiscord.Command) ddiscord.IdentityPayload {
-	t.Helper()
-	var p ddiscord.IdentityPayload
-	if err := codec.Unmarshal(c.Payload, &p); err != nil {
-		t.Fatalf("unmarshal identity payload: %v", err)
-	}
-	return p
-}
+			for _, status := range tc.statuses {
+				i, _ := identityFor(status, applied)
+				emitted = append(emitted, connectGuild(t, i)...)
+			}
 
-func TestIdentityPaidGuildGetsPremium(t *testing.T) {
-	i, _ := identityFor(t, newFakeApplied(), "paid")
-	cmds := runOnGuild(t, i)
-	if len(cmds) != 1 {
-		t.Fatalf("emitted %d commands, want 1", len(cmds))
-	}
-	if cmds[0].Type != ddiscord.TypeSetGuildIdentity {
-		t.Fatalf("type = %q", cmds[0].Type)
-	}
-	if !identityPayload(t, cmds[0]).Identity.Premium {
-		t.Fatal("paid guild did not get the premium identity")
-	}
-}
-
-func TestIdentityVIPIsTreatedAsPremium(t *testing.T) {
-	i, _ := identityFor(t, newFakeApplied(), "vip")
-	cmds := runOnGuild(t, i)
-	if len(cmds) != 1 || !identityPayload(t, cmds[0]).Identity.Premium {
-		t.Fatal("vip did not get the premium identity")
+			require.Equal(t, tc.want, identityTiers(t, emitted))
+			require.Equal(t, tc.wantRecords, applied.records)
+		})
 	}
 }
 
-func TestIdentityFreeGuildClearsTheOverride(t *testing.T) {
-	i, _ := identityFor(t, newFakeApplied(), "free")
-	cmds := runOnGuild(t, i)
-	if len(cmds) != 1 {
-		t.Fatalf("emitted %d commands, want 1", len(cmds))
+func TestIdentityOnUserChanged(t *testing.T) {
+	cases := []struct {
+		name    string
+		payload string
+		want    []string
+	}{
+		{name: "a tier upgrade applies immediately", payload: `{"user_id": 999, "status": "paid"}`, want: []string{"premium"}},
+		{name: "a malformed payload is acked and publishes nothing", payload: `{not json`},
 	}
-	if identityPayload(t, cmds[0]).Identity.Premium {
-		t.Fatal("free guild was given the premium identity")
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			i, published := identityFor("free", &fakeApplied{seen: map[string]string{}})
 
-func TestIdentitySecondConnectEmitsNothing(t *testing.T) {
-	applied := newFakeApplied()
-	i, _ := identityFor(t, applied, "paid")
-	if got := len(runOnGuild(t, i)); got != 1 {
-		t.Fatalf("first connect emitted %d, want 1", got)
-	}
-	if got := len(runOnGuild(t, i)); got != 0 {
-		t.Fatalf("second connect emitted %d, want 0", got)
-	}
-}
+			err := i.HandleUserChanged(bus.NewMessage("m", []byte(tc.payload)))
 
-func TestIdentityUpgradeAfterApplyEmitsAgain(t *testing.T) {
-	applied := newFakeApplied()
-	free, _ := identityFor(t, applied, "free")
-	runOnGuild(t, free)
-	paid, _ := identityFor(t, applied, "paid")
-	cmds := runOnGuild(t, paid)
-	if len(cmds) != 1 || !identityPayload(t, cmds[0]).Identity.Premium {
-		t.Fatal("upgrade did not re-apply as premium")
-	}
-}
-
-func TestIdentityUnknownStatusLeavesGuildAlone(t *testing.T) {
-	applied := newFakeApplied()
-	i, _ := identityFor(t, applied, "")
-	if got := len(runOnGuild(t, i)); got != 0 {
-		t.Fatalf("emitted %d commands for an unprojected account, want 0", got)
-	}
-	if applied.records != 0 {
-		t.Fatal("recorded a fingerprint without applying anything")
-	}
-}
-
-func TestIdentityUserChangedAppliesImmediately(t *testing.T) {
-	applied := newFakeApplied()
-	i, emitted := identityFor(t, applied, "free")
-	raw, err := codec.Marshal(map[string]any{"user_id": 999, "status": "paid"})
-	if err != nil {
-		t.Fatalf("marshal user-changed: %v", err)
-	}
-	if err := i.HandleUserChanged(busMessage(raw)); err != nil {
-		t.Fatalf("HandleUserChanged: %v", err)
-	}
-	if len(*emitted) != 1 || !identityPayload(t, (*emitted)[0]).Identity.Premium {
-		t.Fatal("a tier upgrade did not publish the premium identity")
-	}
-}
-
-func TestIdentityUserChangedMalformedIsAcked(t *testing.T) {
-	i, emitted := identityFor(t, newFakeApplied(), "paid")
-	if err := i.HandleUserChanged(busMessage([]byte("{not json"))); err != nil {
-		t.Fatalf("malformed payload returned an error (would nack): %v", err)
-	}
-	if len(*emitted) != 0 {
-		t.Fatal("malformed payload still published a command")
-	}
-}
-
-func TestIdentityRecordFailureStillEmits(t *testing.T) {
-	applied := newFakeApplied()
-	applied.recordErr = errors.New("valkey down")
-	i, _ := identityFor(t, applied, "paid")
-	if got := len(runOnGuild(t, i)); got != 1 {
-		t.Fatalf("emitted %d commands, want 1", got)
-	}
-}
-
-func TestIdentityRidesTheDefaultLane(t *testing.T) {
-	if ddiscord.ModType(ddiscord.TypeSetGuildIdentity) {
-		t.Fatal("set_guild_identity is classified as a moderation command")
-	}
-	if got := ddiscord.Lane(ddiscord.TypeSetGuildIdentity); got != ddiscord.LaneDefault {
-		t.Fatalf("lane = %q, want %q", got, ddiscord.LaneDefault)
+			require.NoError(t, err, "an error would nack the message")
+			require.Equal(t, tc.want, identityTiers(t, *published))
+		})
 	}
 }

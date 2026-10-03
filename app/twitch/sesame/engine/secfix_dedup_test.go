@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +34,12 @@ func TestSanitizeVarStripsControlChars(t *testing.T) {
 		{"mid-text url keeps slashes", "see https://example.com/x", "see https://example.com/x"},
 		{"emoji survive", "café ☕ 🥯", "café ☕ 🥯"},
 		{"empty stays empty", "", ""},
+		{"a single leading slash is trimmed", "/ban someone", "ban someone"},
+		{"space-padded slashes are trimmed", "  //ban", "ban"},
+		{"a url scheme keeps its slashes", "http://example.com", "http://example.com"},
+		{"an escape byte is stripped but its text stays", "\x1b[31mred\x1b[0m", "[31mred[0m"},
+		{"the byte-wise strip never splits a rune", "héllo\r\nwörld", "héllowörld"},
+		{"only controls leaves nothing", "\r\n\x00\x1b", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -64,28 +69,10 @@ func TestWatchTickGuardCollapsesRefire(t *testing.T) {
 	assert.True(t, d.Duplicate(ctx, ref), "re-fired tick is recognized")
 }
 
-type countingLoyalty struct {
-	LoyaltyStore
-	bumps     int
-	peekCalls int
-	value     int64
-}
-
-func (l *countingLoyalty) CounterBump(_ context.Context, _ CounterBump) (int64, error) {
-	l.bumps++
-	l.value++
-	return l.value, nil
-}
-
-func (l *countingLoyalty) CounterPeek(context.Context, CounterTarget) (loyaltyrpc.Counter, bool, error) {
-	l.peekCalls++
-	return loyaltyrpc.Counter{Name: "deaths", Value: l.value}, true, nil
-}
-
 func TestCounterTokenNeverBumpsOnRedelivery(t *testing.T) {
 	store := newRecordingStore()
 	pub := &rawPublisher{}
-	loyal := &countingLoyalty{}
+	loyal := &stubLoyalty{}
 	reader := fakeReader{cmd: projection.Command{
 		Name: "foo", Response: "died {counter:deaths}", IsActive: true,
 	}, cmdFound: true}
@@ -104,8 +91,8 @@ func TestCounterTokenNeverBumpsOnRedelivery(t *testing.T) {
 	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo")))
 	require.NoError(t, p.Process(commandMsg(t, "m2", "!foo")))
 
-	assert.Zero(t, loyal.bumps, "a template read never bumps, replayed or not")
-	assert.Equal(t, 3, loyal.peekCalls, "every render re-peeks; a read has nothing to deduplicate")
+	assert.Empty(t, loyal.bumps, "a template read never bumps, replayed or not")
+	assert.Len(t, loyal.peeks, 3, "every render re-peeks; a read has nothing to deduplicate")
 	for _, key := range store.keys() {
 		assert.NotContains(t, key, "cbump:deaths", "no read claims the counter-bump namespace")
 	}

@@ -4,17 +4,16 @@
 package k8s
 
 import (
-	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type rbacManifest struct {
-	Kind     string `yaml:"kind"`
-	Metadata struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	} `yaml:"metadata"`
+	Kind     string        `yaml:"kind"`
+	Metadata objectMeta    `yaml:"metadata"`
 	Rules    []rbacRule    `yaml:"rules"`
 	RoleRef  rbacRoleRef   `yaml:"roleRef"`
 	Subjects []rbacSubject `yaml:"subjects"`
@@ -47,6 +46,12 @@ func rbacKinds(t *testing.T) map[string][]rbacManifest {
 	return out
 }
 
+var allowlist = sorted(
+	"/configmaps", "/services", "apps/daemonsets", "apps/deployments", "batch/cronjobs",
+	"keda.sh/scaledobjects", "networking.k8s.io/networkpolicies", "policy/poddisruptionbudgets",
+	"traefik.io/ingressroutes", "traefik.io/middlewares",
+)
+
 var deniedGrants = []struct {
 	field  string
 	of     func(rbacRule) []string
@@ -60,29 +65,10 @@ var deniedGrants = []struct {
 		[]string{"rbac.authorization.k8s.io", "*"}},
 }
 
-func TestDeployerRBACNeverGrantsDeleteSecretsOrRBAC(t *testing.T) {
-	kinds := rbacKinds(t)
-	roles := slices.Concat(kinds["Role"], kinds["ClusterRole"])
-	if len(roles) == 0 {
-		t.Fatal("deployer.yaml declares no roles; the decode or the kinds are wrong")
-	}
-	var granted []string
-	for _, role := range roles {
-		for _, rule := range role.Rules {
-			for _, value := range deniedIn(rule) {
-				granted = append(granted, role.Kind+" "+role.Metadata.Namespace+"/"+role.Metadata.Name+" "+value)
-			}
-		}
-	}
-	if len(granted) > 0 {
-		t.Fatalf("deployer RBAC grants what it must never hold: %v", granted)
-	}
-}
-
-func deniedIn(rule rbacRule) []string {
+func (r rbacRule) deniedGrants() []string {
 	var out []string
 	for _, grant := range deniedGrants {
-		for _, value := range grant.of(rule) {
+		for _, value := range grant.of(r) {
 			if slices.Contains(grant.denied, value) {
 				out = append(out, grant.field+" "+value)
 			}
@@ -91,81 +77,75 @@ func deniedIn(rule rbacRule) []string {
 	return out
 }
 
-func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
-	byNamespace := map[string][]rbacRule{}
+func (r rbacRule) patchTargets() []string {
+	var out []string
+	if slices.Contains(r.Verbs, "patch") {
+		for _, group := range r.APIGroups {
+			for _, resource := range r.Resources {
+				out = append(out, group+"/"+resource)
+			}
+		}
+	}
+	return out
+}
+
+func namespaceRules(t *testing.T) map[string][]rbacRule {
+	t.Helper()
+	out := map[string][]rbacRule{}
 	for _, role := range rbacKinds(t)["Role"] {
-		byNamespace[role.Metadata.Namespace] = role.Rules
+		out[role.Metadata.Namespace] = append(out[role.Metadata.Namespace], role.Rules...)
 	}
-	want := map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist, "ops": {"apps/deployments"}}
+	return out
+}
+
+func TestDeployerRBACNeverGrantsDeleteSecretsOrRBAC(t *testing.T) {
+	kinds := rbacKinds(t)
+	roles := slices.Concat(kinds["Role"], kinds["ClusterRole"])
+	require.NotEmpty(t, roles, "deployer.yaml declares no roles; the decode or the kinds are wrong")
+
+	var granted []string
+	for _, role := range roles {
+		for _, rule := range role.Rules {
+			for _, value := range rule.deniedGrants() {
+				granted = append(granted, role.Kind+" "+role.Metadata.Namespace+"/"+role.Metadata.Name+" "+value)
+			}
+		}
+	}
+
+	assert.Empty(t, granted, "deployer RBAC grants what it must never hold")
+}
+
+func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
+	rules := namespaceRules(t)
 	got := map[string][]string{}
-	for namespace, rules := range byNamespace {
-		got[namespace] = writableResources(rules)
+	for namespace, namespaceRules := range rules {
+		var targets []string
+		for _, rule := range namespaceRules {
+			targets = append(targets, rule.patchTargets()...)
+		}
+		got[namespace] = sorted(targets...)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("deployer Role write grants by namespace:\n got %v\nwant %v", got, want)
-	}
-	if !reflect.DeepEqual(byNamespace["db"], byNamespace["app"]) || !reflect.DeepEqual(byNamespace["messaging"], byNamespace["app"]) {
-		t.Fatal("deployer Roles differ between namespaces; keep app, db and messaging identical")
-	}
+
+	assert.Equal(t, map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist, "ops": {"apps/deployments"}}, got)
+	assert.Equal(t, rules["app"], rules["db"], "keep the app and db deployer Roles identical")
+	assert.Equal(t, rules["app"], rules["messaging"], "keep the app and messaging deployer Roles identical")
 }
 
 func TestDeployerPatchesOnlyItselfInOps(t *testing.T) {
-	grants := slices.DeleteFunc(rulesIn(t, "ops"), func(r rbacRule) bool { return !slices.ContainsFunc(r.Verbs, writes) })
-	want := []rbacRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"patch"}, ResourceNames: []string{"deployer"}}}
-	if !reflect.DeepEqual(grants, want) {
-		t.Fatalf("ops write grants = %+v, want %+v", grants, want)
-	}
-}
+	writes := func(verb string) bool { return !slices.Contains([]string{"get", "list", "watch"}, verb) }
+	grants := slices.DeleteFunc(namespaceRules(t)["ops"], func(r rbacRule) bool { return !slices.ContainsFunc(r.Verbs, writes) })
 
-func writes(verb string) bool { return !slices.Contains([]string{"get", "list", "watch"}, verb) }
-
-func rulesIn(t *testing.T, namespace string) []rbacRule {
-	t.Helper()
-	var out []rbacRule
-	for _, role := range rbacKinds(t)["Role"] {
-		if role.Metadata.Namespace == namespace {
-			out = append(out, role.Rules...)
-		}
-	}
-	return out
-}
-
-var allowlist = sorted(
-	"/configmaps", "/services", "apps/daemonsets", "apps/deployments", "batch/cronjobs",
-	"keda.sh/scaledobjects", "networking.k8s.io/networkpolicies", "policy/poddisruptionbudgets",
-	"traefik.io/ingressroutes", "traefik.io/middlewares",
-)
-
-func writableResources(rules []rbacRule) []string {
-	var out []string
-	for _, rule := range rules {
-		if slices.Contains(rule.Verbs, "patch") {
-			out = append(out, rule.targets()...)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
-func (r rbacRule) targets() []string {
-	var out []string
-	for _, group := range r.APIGroups {
-		for _, resource := range r.Resources {
-			out = append(out, group+"/"+resource)
-		}
-	}
-	return out
+	assert.Equal(t, []rbacRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"patch"}, ResourceNames: []string{"deployer"}}}, grants)
 }
 
 func TestDeployerClusterRoleIsPriorityClassesAndNodes(t *testing.T) {
 	clusterRoles := rbacKinds(t)["ClusterRole"]
-	want := []rbacRule{
+
+	require.Len(t, clusterRoles, 1)
+	assert.Equal(t, []rbacRule{
 		{APIGroups: []string{"scheduling.k8s.io"}, Resources: []string{"priorityclasses"}, Verbs: []string{"get", "list", "create", "patch"}},
 		{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get", "list"}},
-	}
-	if len(clusterRoles) != 1 || !reflect.DeepEqual(clusterRoles[0].Rules, want) {
-		t.Fatalf("deployer ClusterRoles = %+v, want one bagel-deployer with %+v", clusterRoles, want)
-	}
+	}, clusterRoles[0].Rules)
 }
 
 func TestDeployerBindingsNameOnlyItsServiceAccount(t *testing.T) {
@@ -180,14 +160,12 @@ func TestDeployerBindingsNameOnlyItsServiceAccount(t *testing.T) {
 	}
 	deployer := []rbacSubject{{Kind: "ServiceAccount", Name: "deployer", Namespace: "ops"}}
 	role := binding{RoleRef: rbacRoleRef{Kind: "Role", Name: "deployer"}, Subjects: deployer}
-	want := map[string]binding{
+
+	assert.Equal(t, map[string]binding{
 		"RoleBinding app/deployer":           role,
 		"RoleBinding db/deployer":            role,
 		"RoleBinding messaging/deployer":     role,
 		"RoleBinding ops/deployer":           role,
 		"ClusterRoleBinding /bagel-deployer": {RoleRef: rbacRoleRef{Kind: "ClusterRole", Name: "bagel-deployer"}, Subjects: deployer},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("deployer bindings:\n got %+v\nwant %+v", got, want)
-	}
+	}, got)
 }

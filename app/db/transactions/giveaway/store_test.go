@@ -1,94 +1,89 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package giveaway
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/db/transactions/ent/enttest"
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/internal/domain/rpc/giveaways"
-	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDrawReplayReturnsCommittedAwards(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-draw-replay"))
-	t.Cleanup(func() { _ = client.Close() })
-	store := NewStore(client)
+	f := newFixture(t)
+	store := NewStore(f.db)
 	store.RandomReader = strings.NewReader("stable entropy for replay")
-	ctx := context.Background()
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	campaign, err := store.Create(ctx, giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create-1"}, Title: "test", WinnerCount: 2, PrizeMonths: 3}, "giveaway-v1", now)
+	campaign, err := store.Create(t.Context(), giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create-1"}, Title: "test", WinnerCount: 2, PrizeMonths: 3}, "giveaway-v1", f.now)
 	require.NoError(t, err)
 	candidates := []Candidate{{UserID: 7, Eligible: true}, {UserID: 2, Eligible: true}, {UserID: 9, Eligible: true}}
 	digest, err := PoolDigest(candidates)
 	require.NoError(t, err)
-	_, err = store.FreezeCandidates(ctx, giveaways.FreezeRequest{Mutation: giveaways.Mutation{ExpectedVersion: campaign.Version}, CampaignID: campaign.ID, PoolDigest: digest}, candidates, now)
+	_, err = store.FreezeCandidates(t.Context(), giveaways.FreezeRequest{Mutation: giveaways.Mutation{ExpectedVersion: campaign.Version}, CampaignID: campaign.ID, PoolDigest: digest}, candidates, f.now)
 	require.NoError(t, err)
-	first, err := store.Draw(ctx, giveaways.DrawRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "draw-1"}, CampaignID: campaign.ID, PoolDigest: digest}, now)
+
+	first, err := store.Draw(t.Context(), giveaways.DrawRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "draw-1"}, CampaignID: campaign.ID, PoolDigest: digest}, f.now)
 	require.NoError(t, err)
-	second, err := store.Draw(ctx, giveaways.DrawRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "draw-retry"}, CampaignID: campaign.ID}, now)
+	second, err := store.Draw(t.Context(), giveaways.DrawRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "draw-retry"}, CampaignID: campaign.ID}, f.now)
 	require.NoError(t, err)
-	require.Equal(t, first.Draw.ID, second.Draw.ID)
+
+	assert.Equal(t, first.Draw.ID, second.Draw.ID)
 	require.Len(t, second.Awards, len(first.Awards))
 	for i := range first.Awards {
-		require.Equal(t, first.Awards[i].UserID, second.Awards[i].UserID)
+		assert.Equal(t, first.Awards[i].UserID, second.Awards[i].UserID)
 	}
-	count, err := client.GiveawayOutbox.Query().Where(giveawayoutbox.AggregateIDEQ(first.Awards[0].ID)).Count(ctx)
+	count, err := f.db.GiveawayOutbox.Query().Where(giveawayoutbox.AggregateIDEQ(first.Awards[0].ID)).Count(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, 2, count)
+	assert.Equal(t, 2, count)
 }
 
 func TestCreateAndFreezeReplayUseStableKeys(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-freeze-replay"))
-	t.Cleanup(func() { _ = client.Close() })
-	store := NewStore(client)
-	ctx := context.Background()
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	f := newFixture(t)
+	store := NewStore(f.db)
 	req := giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create-stable"}, Title: "test", Reason: "launch", WinnerCount: 1, PrizeMonths: 2}
-	first, err := store.Create(ctx, req, "giveaway-v1", now)
+	first, err := store.Create(t.Context(), req, "giveaway-v1", f.now)
 	require.NoError(t, err)
-	replay, err := store.Create(ctx, req, "giveaway-v1", now.Add(time.Hour))
+	replay, err := store.Create(t.Context(), req, "giveaway-v1", f.now.Add(time.Hour))
 	require.NoError(t, err)
-	require.Equal(t, first.ID, replay.ID)
+	assert.Equal(t, first.ID, replay.ID)
 	changed := req
 	changed.Reason = "different"
-	_, err = store.Create(ctx, changed, "giveaway-v1", now)
+	_, err = store.Create(t.Context(), changed, "giveaway-v1", f.now)
 	require.ErrorIs(t, err, ErrVersion)
+
 	candidates := []Candidate{{UserID: 7, Eligible: true}, {UserID: 9, Eligible: false}}
 	digest, err := PoolDigest(candidates)
 	require.NoError(t, err)
 	freeze := giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "freeze-stable", ExpectedVersion: first.Version}, CampaignID: first.ID, PoolDigest: digest}
-	frozen, err := store.FreezeCandidates(ctx, freeze, candidates, now)
+	frozen, err := store.FreezeCandidates(t.Context(), freeze, candidates, f.now)
 	require.NoError(t, err)
-	replayed, err := store.FreezeCandidates(ctx, freeze, candidates, now.Add(time.Hour))
+	replayed, err := store.FreezeCandidates(t.Context(), freeze, candidates, f.now.Add(time.Hour))
 	require.NoError(t, err)
-	require.Equal(t, frozen.ID, replayed.ID)
-	count, err := client.GiveawayCandidate.Query().Where(giveawaycandidate.GiveawayIDEQ(first.ID)).Count(ctx)
+	assert.Equal(t, frozen.ID, replayed.ID)
+	count, err := f.db.GiveawayCandidate.Query().Where(giveawaycandidate.GiveawayIDEQ(first.ID)).Count(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, len(candidates), count)
+	assert.Equal(t, len(candidates), count)
 }
 
 func TestRetryAwardPreservesLiveLeaseAndRequeuesExpiredWork(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("giveaway-retry-lease"))
-	t.Cleanup(func() { _ = client.Close() })
-	store := NewStore(client)
-	ctx := context.Background()
-	now := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	future := now.Add(time.Minute)
-	_, err := client.GiveawayOutbox.Create().SetID("retry-live").SetAggregateID("award-retry").SetEventType("award.fulfill").SetPayloadJSON(`{"award_id":"award-retry"}`).SetState("processing").SetLeaseOwner("worker-a").SetLeaseUntil(future).Save(ctx)
+	f := newFixture(t)
+	store := NewStore(f.db)
+	_, err := f.db.GiveawayOutbox.Create().SetID("retry-live").SetAggregateID("award-retry").SetEventType("award.fulfill").SetPayloadJSON(`{"award_id":"award-retry"}`).SetState("processing").SetLeaseOwner("worker-a").SetLeaseUntil(f.now.Add(time.Minute)).Save(t.Context())
 	require.NoError(t, err)
-	require.ErrorIs(t, store.RetryAward(ctx, "award-retry", now), ErrAwardLeased)
-	_, err = client.GiveawayOutbox.UpdateOneID("retry-live").SetLeaseUntil(now.Add(-time.Second)).Save(ctx)
+	require.ErrorIs(t, store.RetryAward(t.Context(), "award-retry", f.now), ErrAwardLeased)
+
+	_, err = f.db.GiveawayOutbox.UpdateOneID("retry-live").SetLeaseUntil(f.now.Add(-time.Second)).Save(t.Context())
 	require.NoError(t, err)
-	require.NoError(t, store.RetryAward(ctx, "award-retry", now))
-	row := client.GiveawayOutbox.GetX(ctx, "retry-live")
-	require.Equal(t, "queued", row.State)
-	require.Empty(t, row.LeaseOwner)
-	require.True(t, row.LeaseUntil.IsZero())
+	require.NoError(t, store.RetryAward(t.Context(), "award-retry", f.now))
+
+	row := f.db.GiveawayOutbox.GetX(t.Context(), "retry-live")
+	assert.Equal(t, "queued", row.State)
+	assert.Empty(t, row.LeaseOwner)
+	assert.True(t, row.LeaseUntil.IsZero())
 }

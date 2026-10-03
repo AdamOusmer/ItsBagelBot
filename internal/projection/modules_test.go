@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/internal/valkeytest"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
@@ -100,4 +101,73 @@ func TestSetModulesPreservesNewerConcurrentModuleRows(t *testing.T) {
 	assert.JSONEq(t, `{"block_terms":"new"}`, string(got["automod"].Configs))
 	assert.Equal(t, 3, got["timers"].Revision)
 	assert.JSONEq(t, `{"seconds":30}`, string(got["timers"].Configs))
+}
+
+func seedCustomModule(f *fakeValkey) {
+	for name, value := range map[string]string{
+		modulesMarkerField:                      "1",
+		"module:custom-name:enabled":            "1",
+		"module:custom-name:config":             `{"text":"hello"}`,
+		"module:custom-name:revision":           "7",
+		"module:custom-name:account_created_at": "123",
+		"command:large":                         "x",
+		"fetch:large":                           "y",
+		"locale":                                "fr",
+	} {
+		f.seed("settings:81", fakeField{name, value})
+	}
+}
+
+func countOps(f *fakeValkey, cmd string) int {
+	n := 0
+	for _, op := range f.Ops() {
+		if op.Cmd == cmd {
+			n++
+		}
+	}
+	return n
+}
+
+func TestGetModulesSnapshotRead(t *testing.T) {
+	cases := []struct {
+		name          string
+		evalFail      string
+		wantErr       bool
+		wantFullReads int
+		wantRevision  int
+	}{
+		{name: "reads the snapshot script without a full hash read", wantRevision: 7},
+		{name: "falls back to one full hash read when EVAL_RO is unknown", evalFail: "unknown command 'EVAL_RO'", wantFullReads: 1, wantRevision: 7},
+		{name: "falls back to one full hash read when EVAL_RO is not permitted", evalFail: "NOPERM cannot execute EVAL_RO", wantFullReads: 1, wantRevision: 7},
+		{name: "ordinary failures gain no sequential retry", evalFail: "simulated transport failure", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, f := newTestStore(t)
+			seedCustomModule(f)
+			if tc.evalFail != "" {
+				f.Fail(valkeytest.Failure{Cmd: "EVAL_RO", Message: tc.evalFail})
+			}
+
+			mods, projected, err := store.GetModules(context.Background(), 81)
+
+			assert.Equal(t, tc.wantFullReads, countOps(f, "HGETALL"))
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, !tc.wantErr, projected)
+			assert.Equal(t, tc.wantRevision, mods["custom-name"].Revision)
+		})
+	}
+}
+
+func TestGetModulesProjectsEveryModuleField(t *testing.T) {
+	store, f := newTestStore(t)
+	seedCustomModule(f)
+
+	mods, projected, err := store.GetModules(context.Background(), 81)
+
+	require.NoError(t, err)
+	assert.True(t, projected)
+	assert.EqualValues(t, 123, mods["custom-name"].AccountCreatedAt)
+	assert.True(t, mods["custom-name"].IsEnabled)
+	assert.JSONEq(t, `{"text":"hello"}`, string(mods["custom-name"].Configs))
 }

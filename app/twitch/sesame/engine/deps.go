@@ -160,6 +160,23 @@ type BalanceAdjustment struct {
 	Absolute      bool
 }
 
+type PointEarning struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	Login         string
+	Name          string
+	Points        int64
+	WatchSeconds  uint64
+}
+
+type PointTransfer struct {
+	BroadcasterID  uint64
+	FromViewerID   uint64
+	TargetViewerID uint64
+	TargetLogin    string
+	Amount         int64
+}
+
 type PointWager struct {
 	BroadcasterID uint64
 	ViewerID      uint64
@@ -176,7 +193,7 @@ type WagerOutcome struct {
 }
 
 type LoyaltyStore interface {
-	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
+	Earn(earning PointEarning)
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
@@ -184,7 +201,7 @@ type LoyaltyStore interface {
 	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
-	BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error)
+	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
 	CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error)

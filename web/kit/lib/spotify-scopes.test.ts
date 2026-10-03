@@ -11,21 +11,12 @@ const REQUIRED = [
 ];
 
 describe('scopeGap', () => {
-  test('a complete grant is not short', () => {
-    expect(scopeGap(REQUIRED, REQUIRED)).toEqual([]);
-  });
-
-  test('names the scope a pre-playback-control grant is missing', () => {
-    expect(scopeGap(REQUIRED, ['user-read-currently-playing', 'user-read-playback-state'])).toEqual(
-      ['user-modify-playback-state']
-    );
-  });
-
-  test('an unknown grant counts as missing everything', () => {
-    expect(scopeGap(REQUIRED, [])).toEqual(REQUIRED);
-  });
-
-  test('scopes the deployment does not ask for are ignored', () => {
-    expect(scopeGap(REQUIRED, [...REQUIRED, 'playlist-read-private'])).toEqual([]);
+  test.each([
+    ['a complete grant is not short', REQUIRED, []],
+    ['names the scope a pre-playback-control grant is missing', ['user-read-currently-playing', 'user-read-playback-state'], ['user-modify-playback-state']],
+    ['an unknown grant counts as missing everything', [], REQUIRED],
+    ['scopes the deployment does not ask for are ignored', [...REQUIRED, 'playlist-read-private'], []]
+  ] as [string, string[], string[]][])('%s', (_name, granted, missing) => {
+    expect(scopeGap(REQUIRED, granted)).toEqual(missing);
   });
 });

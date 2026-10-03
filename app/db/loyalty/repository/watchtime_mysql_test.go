@@ -5,59 +5,15 @@ package repository_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/event/data"
-	"github.com/go-sql-driver/mysql"
+
 	"github.com/stretchr/testify/require"
 )
-
-// MYSQL_TEST_DSN must point at a disposable test server with CREATE DATABASE
-// permission. Tests use a unique database, never the DSN's existing database.
-func mysqlRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
-	t.Helper()
-	dsn := os.Getenv("MYSQL_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set MYSQL_TEST_DSN to run isolated real-MySQL watchtime tests")
-	}
-	cfg, err := mysql.ParseDSN(dsn)
-	require.NoError(t, err)
-	cfg.DBName = ""
-	cfg.ParseTime = true
-	cfg.Timeout = 5 * time.Second
-	cfg.ReadTimeout = 20 * time.Second
-	cfg.WriteTimeout = 20 * time.Second
-	admin, err := sql.Open("mysql", cfg.FormatDSN())
-	require.NoError(t, err)
-	t.Cleanup(func() { admin.Close() })
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	require.NoError(t, admin.PingContext(ctx))
-	name := "bagel_watch_" + strconv.FormatInt(time.Now().UnixNano(), 36)
-	_, err = admin.ExecContext(ctx, "CREATE DATABASE `"+name+"`")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		cleanup, done := context.WithTimeout(context.Background(), 10*time.Second)
-		defer done()
-		_, err := admin.ExecContext(cleanup, "DROP DATABASE `"+name+"`")
-		if err != nil {
-			t.Errorf("drop temporary watchtime database: %v", err)
-		}
-	})
-	cfg.DBName = name
-	raw, err := sql.Open("mysql", cfg.FormatDSN())
-	require.NoError(t, err)
-	raw.SetMaxOpenConns(24)
-	t.Cleanup(func() { raw.Close() })
-	return watchRetentionRepo(t, raw, "mysql"), raw
-}
 
 func TestWatchMySQLRetentionRejectsReplayAfterPruning(t *testing.T) {
 	r, raw := mysqlRetentionRepo(t)
@@ -88,8 +44,6 @@ func TestWatchMySQLConcurrentDuplicateChunksAndTenants(t *testing.T) {
 					e.ViewerLogin = fmt.Sprintf("viewer%d", v)
 					a.Entries = append(a.Entries, e)
 				}
-				// Match the production consumer's complete SQL posting budget,
-				// including contention behind other chunks for this tenant.
 				posting, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				began := time.Now()

@@ -9,59 +9,45 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestUserClaimRoundTripAndReplay(t *testing.T) {
-	key := []byte("web-tier-key")
-	claim := &UserClaim{UserID: "42", Login: "ave", IssuedAt: time.Now().UnixMilli(), Nonce: "abc123"}
+var webTierKey = []byte("web-tier-key")
 
-	value, sig, err := SignUserClaim(claim, key)
-	if err != nil {
-		t.Fatalf("sign claim: %v", err)
-	}
-
+func claimMessage(t *testing.T, claim *UserClaim) *nats.Msg {
+	t.Helper()
+	claim.Nonce = nuid.Next()
+	value, sig, err := SignUserClaim(claim, webTierKey)
+	require.NoError(t, err)
 	msg := nats.NewMsg("bagel.rpc.delegation.create")
-	msg.Header = nats.Header{}
 	msg.Header.Set(HeaderUserClaim, value)
 	msg.Header.Set(HeaderUserClaimSig, sig)
+	return msg
+}
 
-	got, err := VerifyUserClaim(msg, key, time.Minute)
-	if err != nil {
-		t.Fatalf("verify claim: %v", err)
-	}
-	if got.UserID != "42" || got.Login != "ave" {
-		t.Fatalf("claim mismatch: %+v", got)
-	}
+func TestUserClaimRoundTripRejectsReplayAndForgery(t *testing.T) {
+	msg := claimMessage(t, &UserClaim{UserID: "42", Login: "ave", IssuedAt: time.Now().UnixMilli()})
+	forged := claimMessage(t, &UserClaim{UserID: "42", Login: "ave", IssuedAt: time.Now().UnixMilli()})
+	forged.Header.Set(HeaderUserClaimSig, strings.Repeat("0", len(forged.Header.Get(HeaderUserClaimSig))))
 
-	if _, err := VerifyUserClaim(msg, key, time.Minute); err == nil {
-		t.Fatal("replayed claim accepted")
-	}
+	got, err := VerifyUserClaim(msg, webTierKey, time.Minute)
+	_, replayErr := VerifyUserClaim(msg, webTierKey, time.Minute)
+	_, forgedErr := VerifyUserClaim(forged, webTierKey, time.Minute)
 
-	badSig := strings.Repeat("0", len(sig))
-	msg.Header.Set(HeaderUserClaimSig, badSig)
-	if _, err := VerifyUserClaim(msg, key, time.Minute); err == nil {
-		t.Fatal("forged claim accepted")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, [2]string{"42", "ave"}, [2]string{got.UserID, got.Login})
+	assert.Error(t, replayErr, "a replayed claim must be rejected")
+	assert.Error(t, forgedErr, "a forged claim must be rejected")
 }
 
 func TestVerifyUserClaimRejectsMissingAndStale(t *testing.T) {
-	key := []byte("web-tier-key")
+	stale := claimMessage(t, &UserClaim{UserID: "42", IssuedAt: time.Now().Add(-time.Hour).UnixMilli()})
 
-	bare := nats.NewMsg("subj")
-	if _, err := VerifyUserClaim(bare, key, DefaultCallerSkew); err == nil {
-		t.Fatal("claim-less request accepted")
-	}
+	_, missingErr := VerifyUserClaim(nats.NewMsg("subj"), webTierKey, DefaultCallerSkew)
+	_, staleErr := VerifyUserClaim(stale, webTierKey, DefaultCallerSkew)
 
-	stale := &UserClaim{UserID: "42", IssuedAt: time.Now().Add(-time.Hour).UnixMilli(), Nonce: "n1"}
-	value, sig, err := SignUserClaim(stale, key)
-	if err != nil {
-		t.Fatalf("sign claim: %v", err)
-	}
-	msg := nats.NewMsg("subj")
-	msg.Header = nats.Header{}
-	msg.Header.Set(HeaderUserClaim, value)
-	msg.Header.Set(HeaderUserClaimSig, sig)
-	if _, err := VerifyUserClaim(msg, key, DefaultCallerSkew); err == nil {
-		t.Fatal("stale claim accepted")
-	}
+	assert.Error(t, missingErr, "a claim-less request must be rejected")
+	assert.Error(t, staleErr, "a stale claim must be rejected")
 }

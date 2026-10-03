@@ -1,65 +1,45 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package mcsr
+package mcsr_test
 
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providers/mcsr"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func init() { core.SetSSRFCheckForTests(false) }
-
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
+func newProviderWithStore(t testing.TB, handler http.Handler, store *providertest.MemStore) provider.Provider {
+	return mcsr.New(mcsr.Config{BaseURL: providertest.Upstream(t, handler)}, providertest.Deps(store))
 }
 
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	return nil
-}
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
+func newProvider(t testing.TB, handler http.Handler) provider.Provider {
+	return newProviderWithStore(t, handler, providertest.NewMemStore())
 }
 
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
+func serve(t testing.TB, path string, query url.Values, body string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, path, r.URL.Path)
+		for key := range query {
+			assert.Equal(t, query.Get(key), r.URL.Query().Get(key), "query %s", key)
+		}
+		_, _ = w.Write([]byte(body))
 	}
-	s.m[key] = []byte("1")
-	return true, nil
 }
 
-func userBody(elo int, wins, loses, played int) string {
+func userBody(elo, wins, loses, played int) string {
 	i := strconv.Itoa
 	return `{
 		"status": "success",
@@ -78,127 +58,6 @@ func userBody(elo int, wins, loses, played int) string {
 	}`
 }
 
-func newTestProvider(t *testing.T, handler http.Handler) (provider.Provider, *memStore) {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	st := newMemStore()
-	return New(Config{BaseURL: srv.URL},
-		provider.Deps{Cache: core.NewCache(st), Log: zap.NewNop()}), st
-}
-
-func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == name {
-			return ep.Handle
-		}
-	}
-	t.Fatalf("endpoint %q not declared", name)
-	return nil
-}
-
-func callEndpoint[R any](t *testing.T, handler http.Handler, name string, req gossiprpc.Request) R {
-	t.Helper()
-	p, _ := newTestProvider(t, handler)
-	return endpoint(t, p, name)(context.Background(), req).(R)
-}
-
-func TestUserParsing(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrUserReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/users/Feinberg", r.URL.Path)
-		_, _ = w.Write([]byte(userBody(1650, 40, 20, 61)))
-	}), "user", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "Feinberg", reply.Nickname)
-	assert.Equal(t, 1650, reply.Elo)
-	assert.Equal(t, 12, reply.Rank)
-	assert.Equal(t, 40, reply.Wins)
-	assert.Equal(t, 20, reply.Loses)
-	assert.Equal(t, 61, reply.Played)
-	assert.Equal(t, int64(543210), reply.BestTimeMS)
-}
-
-func TestUserUnrated(t *testing.T) {
-	body := `{"status":"success","data":{"uuid":"u1","nickname":"New","eloRate":null,"eloRank":null,"country":null,"statistics":{"season":{}}}}`
-	reply := callEndpoint[gossiprpc.McsrUserReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(body))
-	}), "user", gossiprpc.Request{Account: "New"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, -1, reply.Elo)
-	assert.Equal(t, -1, reply.Rank)
-}
-
-func TestUserNotFound(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrUserReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"status":"error","data":null}`))
-	}), "user", gossiprpc.Request{Account: "ghost"})
-	assert.Equal(t, "player not found", reply.Error)
-}
-
-func TestSessionFlow(t *testing.T) {
-	var mu sync.Mutex
-	elo, wins, loses, played := 1650, 40, 20, 61
-	p, st := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		body := userBody(elo, wins, loses, played)
-		mu.Unlock()
-		_, _ = w.Write([]byte(body))
-	}))
-
-	start := endpoint(t, p, "session_start")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSnapshotReply)
-	require.Empty(t, start.Error)
-	assert.Equal(t, 1650, start.Elo)
-
-	mu.Lock()
-	elo, wins, loses, played = 1674, 43, 21, 65
-	mu.Unlock()
-	require.NoError(t, st.Del(context.Background(), core.Key("mcsr", "user", "feinberg")))
-
-	sess := endpoint(t, p, "session")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSessionReply)
-	require.Empty(t, sess.Error)
-	assert.True(t, sess.HasSnapshot)
-	assert.Equal(t, 1674, sess.Elo)
-	assert.Equal(t, 24, sess.EloChange)
-	assert.Equal(t, 3, sess.Wins)
-	assert.Equal(t, 1, sess.Loses)
-	assert.Equal(t, 4, sess.Played)
-}
-
-func TestSessionWithoutSnapshotStartsTracking(t *testing.T) {
-	p, _ := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(userBody(1650, 40, 20, 61)))
-	}))
-
-	sess := endpoint(t, p, "session")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSessionReply)
-	require.Empty(t, sess.Error)
-	assert.False(t, sess.HasSnapshot)
-
-	sess = endpoint(t, p, "session")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSessionReply)
-	assert.True(t, sess.HasSnapshot)
-	assert.Zero(t, sess.EloChange)
-}
-
-func TestSessionAccountSwitchResetsBaseline(t *testing.T) {
-	p, _ := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(userBody(1650, 40, 20, 61)))
-	}))
-
-	start := endpoint(t, p, "session_start")(context.Background(), gossiprpc.Request{Account: "OldAcc", ChannelID: "77"}).(gossiprpc.McsrSnapshotReply)
-	require.Empty(t, start.Error)
-
-	sess := endpoint(t, p, "session")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSessionReply)
-	assert.False(t, sess.HasSnapshot, "different account must reset the baseline")
-}
-
-func TestMissingChannel(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrSessionReply](t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("no upstream call expected")
-	}), "session", gossiprpc.Request{Account: "x"})
-	assert.Equal(t, "missing account or channel", reply.Error)
-}
-
 func lastMatchBody(forfeited, decayed bool, winnerUUID string, timeMS int64) string {
 	winner := `null`
 	if winnerUUID != "" {
@@ -208,8 +67,8 @@ func lastMatchBody(forfeited, decayed bool, winnerUUID string, timeMS int64) str
 		"date": 1000000000,
 		"seedType": "DESERT_TEMPLE",
 		"bastionType": "TREASURE",
-		"forfeited": ` + boolStr(forfeited) + `,
-		"decayed": ` + boolStr(decayed) + `,
+		"forfeited": ` + strconv.FormatBool(forfeited) + `,
+		"decayed": ` + strconv.FormatBool(decayed) + `,
 		"players": [
 			{"uuid":"u-self","nickname":"Feinberg"},
 			{"uuid":"u-opp","nickname":"lowk3y_"}
@@ -222,262 +81,307 @@ func lastMatchBody(forfeited, decayed bool, winnerUUID string, timeMS int64) str
 	}]}`
 }
 
-func boolStr(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
-}
-
-func TestLastMatchWin(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/users/Feinberg/matches", r.URL.Path)
-		require.Equal(t, "1", r.URL.Query().Get("count"))
-		_, _ = w.Write([]byte(lastMatchBody(false, false, "u-self", 663135)))
-	}), "last_match", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.False(t, reply.Empty)
-	assert.Equal(t, "Feinberg", reply.Player)
-	assert.Equal(t, "lowk3y_", reply.Opponent)
-	assert.Equal(t, "win", reply.Result)
-	assert.Equal(t, "11:03.135", reply.Time)
-	assert.Equal(t, "Desert Temple", reply.Seed)
-	assert.Equal(t, "Treasure", reply.Structure)
-	assert.Equal(t, 21, reply.EloChange)
-	assert.False(t, reply.Forfeited)
-	assert.False(t, reply.Decayed)
-}
-
-func TestLastMatchForfeit(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(lastMatchBody(true, false, "u-opp", 0)))
-	}), "last_match", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.True(t, reply.Forfeited)
-	assert.Equal(t, "loss", reply.Result)
-	assert.Empty(t, reply.Time, "no completion time on a forfeit before either side finished")
-}
-
-func TestLastMatchDecayed(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(lastMatchBody(false, true, "u-self", 500000)))
-	}), "last_match", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.True(t, reply.Decayed)
-	assert.Equal(t, "win", reply.Result)
-}
-
-func TestLastMatchEmpty(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"success","data":[]}`))
-	}), "last_match", gossiprpc.Request{Account: "Newbie"})
-	require.Empty(t, reply.Error)
-	assert.True(t, reply.Empty)
-}
-
-func TestLastMatchNotFound(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"status":"error","data":null}`))
-	}), "last_match", gossiprpc.Request{Account: "ghost"})
-	assert.Equal(t, "player not found", reply.Error)
-}
-
-func TestLastMatchSeasonForwarded(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "11", r.URL.Query().Get("season"))
-		_, _ = w.Write([]byte(lastMatchBody(false, false, "u-self", 663135)))
-	}), "last_match", gossiprpc.Request{Account: "Feinberg", Season: 11})
-	require.Empty(t, reply.Error)
-}
-
-func TestVersusParsing(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrRecordReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/users/Feinberg/versus/lowk3y_", r.URL.Path)
-		_, _ = w.Write([]byte(`{"status":"success","data":{
-			"players": [
-				{"uuid":"u-opp","nickname":"lowk3y_"},
-				{"uuid":"u-self","nickname":"Feinberg"}
-			],
-			"results": {
-				"ranked": {"total":34,"u-opp":14,"u-self":20},
-				"casual": {"total":2,"u-opp":1,"u-self":1}
-			}
-		}}`))
-	}), "versus", gossiprpc.Request{Account: "Feinberg", AccountB: "lowk3y_"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "Feinberg", reply.PlayerA)
-	assert.Equal(t, "lowk3y_", reply.PlayerB)
-	assert.Equal(t, 21, reply.WinsA)
-	assert.Equal(t, 15, reply.WinsB)
-	assert.Equal(t, 36, reply.Played)
-}
-
-func TestVersusMissingAccount(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrRecordReply](t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("no upstream call expected")
-	}), "versus", gossiprpc.Request{Account: "Feinberg"})
-	assert.Equal(t, "missing account", reply.Error)
-}
-
-func TestVersusNotFound(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrRecordReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"status":"error","data":null}`))
-	}), "versus", gossiprpc.Request{Account: "Feinberg", AccountB: "ghost"})
-	assert.Equal(t, "player not found", reply.Error)
-}
-
-func TestLeaderboardElo(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/leaderboard", r.URL.Path)
-		require.Equal(t, "us", r.URL.Query().Get("country"))
-		_, _ = w.Write([]byte(`{"status":"success","data":{"users":[
-			{"nickname":"A","seasonResult":{"eloRate":2400}},
-			{"nickname":"B","seasonResult":{"eloRate":2300}}
-		]}}`))
-	}), "leaderboard", gossiprpc.Request{Country: "us"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "elo", reply.Board)
-	require.Len(t, reply.Entries, 2)
-	assert.Equal(t, gossiprpc.McsrLeaderboardEntry{Rank: 1, Name: "A", Value: "2400"}, reply.Entries[0])
-}
-
-func TestLeaderboardPhasePredicted(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/phase-leaderboard", r.URL.Path)
-		require.Equal(t, "true", r.URL.Query().Get("predicted"))
-		_, _ = w.Write([]byte(`{"status":"success","data":{"users":[
-			{"nickname":"A","seasonResult":{"phasePoint":50,"predPhasePoint":80}}
-		]}}`))
-	}), "leaderboard", gossiprpc.Request{Board: "phase", Predicted: true})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "phase", reply.Board)
-	require.Len(t, reply.Entries, 1)
-	assert.Equal(t, "80", reply.Entries[0].Value)
-}
-
-func TestLeaderboardRecordSeasonDefaultsCurrent(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/record-leaderboard", r.URL.Path)
-		require.Equal(t, "0", r.URL.Query().Get("season"))
-		_, _ = w.Write([]byte(`{"status":"success","data":[
-			{"rank":1,"time":395123,"user":{"nickname":"A"}}
-		]}`))
-	}), "leaderboard", gossiprpc.Request{Board: "record"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "record", reply.Board)
-	require.Len(t, reply.Entries, 1)
-	assert.Equal(t, "6:35.123", reply.Entries[0].Value)
-}
-
-func TestLeaderboardEmpty(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"success","data":{"users":[]}}`))
-	}), "leaderboard", gossiprpc.Request{})
-	require.Empty(t, reply.Error)
-	assert.True(t, reply.Empty)
-}
-
-func TestLeaderboardUpstream400(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"status":"error","data":null}`))
-	}), "leaderboard", gossiprpc.Request{Board: "phase"})
-	assert.Equal(t, "player not found", reply.Error)
-}
-
-func weeklyRaceBody() string {
-	return `{"status":"success","data":{"id":99,"leaderboard":[
+const (
+	notFoundBody = `{"status":"error","data":null}`
+	emptyData    = `{"status":"success","data":[]}`
+	versusBody   = `{"status":"success","data":{
+		"players": [
+			{"uuid":"u-opp","nickname":"lowk3y_"},
+			{"uuid":"u-self","nickname":"Feinberg"}
+		],
+		"results": {
+			"ranked": {"total":34,"u-opp":14,"u-self":20},
+			"casual": {"total":2,"u-opp":1,"u-self":1}
+		}
+	}}`
+	weeklyRaceBody = `{"status":"success","data":{"id":99,"leaderboard":[
 		{"rank":1,"player":{"nickname":"gharfyy"},"time":147374},
 		{"rank":2,"player":{"nickname":"Feinberg"},"time":160000}
 	]}}`
+	eloBoardBody = `{"status":"success","data":{"users":[
+		{"nickname":"A","seasonResult":{"eloRate":2400}},
+		{"nickname":"B","seasonResult":{"eloRate":2300}}
+	]}}`
+	phaseBoardBody = `{"status":"success","data":{"users":[
+		{"nickname":"A","seasonResult":{"phasePoint":50,"predPhasePoint":80}}
+	]}}`
+	recordBoardBody = `{"status":"success","data":[
+		{"rank":1,"time":395123,"user":{"nickname":"A"}}
+	]}`
+)
+
+func TestUserReplies(t *testing.T) {
+	const unrated = `{"status":"success","data":{"uuid":"u1","nickname":"New","eloRate":null,"eloRank":null,"country":null,"statistics":{"season":{}}}}`
+	providertest.RunCases(t, newProvider, "user", []providertest.Case[gossiprpc.McsrUserReply]{
+		{Name: "reports the ranked season stats", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: serve(t, "/users/Feinberg", nil, userBody(1650, 40, 20, 61)),
+			Want: gossiprpc.McsrUserReply{
+				Nickname: "Feinberg", UUID: "u1", Elo: 1650, Rank: 12, Country: "us",
+				Wins: 40, Loses: 20, Played: 61, BestTimeMS: 543210,
+			}},
+		{Name: "reports an unrated player with elo and rank of -1", Req: gossiprpc.Request{Account: "New"},
+			Upstream: providertest.Respond(http.StatusOK, unrated),
+			Want:     gossiprpc.McsrUserReply{Nickname: "New", UUID: "u1", Elo: -1, Rank: -1}},
+		{Name: "answers an unknown player", Req: gossiprpc.Request{Account: "ghost"},
+			Upstream: providertest.Respond(http.StatusBadRequest, notFoundBody),
+			Want:     gossiprpc.McsrUserReply{Nickname: "ghost", Error: "player not found"}},
+		{Name: "asks chat to wait when the API throttles", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Respond(http.StatusTooManyRequests, `{}`),
+			Want:     gossiprpc.McsrUserReply{Nickname: "Feinberg", Error: "MCSR Ranked API is busy, try again in a minute"}},
+		{Name: "falls back to a generic failure on an upstream outage", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Respond(http.StatusBadGateway, `{}`),
+			Want:     gossiprpc.McsrUserReply{Nickname: "Feinberg", Error: "stats lookup failed"}},
+		{Name: "rejects a missing account before any upstream call", Req: gossiprpc.Request{},
+			Upstream: providertest.Forbid(t),
+			Want:     gossiprpc.McsrUserReply{Error: "missing account"}},
+	})
 }
 
-func TestWeeklyRaceFindsPlayer(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrWeeklyRaceReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/weekly-race", r.URL.Path)
-		_, _ = w.Write([]byte(weeklyRaceBody()))
-	}), "weekly_race", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "gharfyy", reply.LeaderName)
-	assert.Equal(t, "2:27.374", reply.LeaderTime)
-	assert.True(t, reply.HasPlayer)
-	assert.Equal(t, 2, reply.PlayerRank)
-	assert.Equal(t, "2:40.000", reply.PlayerTime)
+func TestLastMatchReplies(t *testing.T) {
+	win := gossiprpc.McsrLastMatchReply{
+		Player: "Feinberg", Opponent: "lowk3y_", Result: "win", Time: "11:03.135",
+		Seed: "Desert Temple", Structure: "Treasure", EloChange: 21,
+	}
+	forfeit := gossiprpc.McsrLastMatchReply{Player: "Feinberg", Opponent: "lowk3y_", Result: "loss", Seed: "Desert Temple", Structure: "Treasure", EloChange: 21, Forfeited: true}
+	decayed := gossiprpc.McsrLastMatchReply{Player: "Feinberg", Opponent: "lowk3y_", Result: "win", Time: "8:20.000", Seed: "Desert Temple", Structure: "Treasure", EloChange: 21, Decayed: true}
+	matches := func(season string, body string) http.HandlerFunc {
+		return serve(t, "/users/Feinberg/matches", url.Values{"count": {"1"}, "season": {season}}, body)
+	}
+
+	withoutAge := func(r gossiprpc.McsrLastMatchReply) gossiprpc.McsrLastMatchReply {
+		r.AgoSeconds = 0
+		return r
+	}
+
+	providertest.RunCases(t, newProvider, "last_match", []providertest.Case[gossiprpc.McsrLastMatchReply]{
+		{Name: "summarizes a win", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: serve(t, "/users/Feinberg/matches", url.Values{"count": {"1"}}, lastMatchBody(false, false, "u-self", 663135)),
+			Want:     win},
+		{Name: "forwards the requested season", Req: gossiprpc.Request{Account: "Feinberg", Season: 11},
+			Upstream: matches("11", lastMatchBody(false, false, "u-self", 663135)),
+			Want:     win},
+		{Name: "reads a forfeit as a loss with no completion time", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Respond(http.StatusOK, lastMatchBody(true, false, "u-opp", 0)),
+			Want:     forfeit},
+		{Name: "flags a decayed match", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Respond(http.StatusOK, lastMatchBody(false, true, "u-self", 500000)),
+			Want:     decayed},
+		{Name: "reads an empty history as an answer, not an error", Req: gossiprpc.Request{Account: "Newbie"},
+			Upstream: providertest.Respond(http.StatusOK, emptyData),
+			Want:     gossiprpc.McsrLastMatchReply{Player: "Newbie", Empty: true}},
+		{Name: "answers an unknown player", Req: gossiprpc.Request{Account: "ghost"},
+			Upstream: providertest.Respond(http.StatusBadRequest, notFoundBody),
+			Want:     gossiprpc.McsrLastMatchReply{Player: "ghost", Error: "player not found"}},
+	}, withoutAge)
 }
 
-func TestWeeklyRacePlayerNotOnBoard(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrWeeklyRaceReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(weeklyRaceBody()))
-	}), "weekly_race", gossiprpc.Request{Account: "SomeoneElse"})
-	require.Empty(t, reply.Error)
-	assert.False(t, reply.HasPlayer)
-	assert.Equal(t, "gharfyy", reply.LeaderName, "leader info is reported even without a player match")
+func TestVersusReplies(t *testing.T) {
+	providertest.RunCases(t, newProvider, "versus", []providertest.Case[gossiprpc.McsrRecordReply]{
+		{Name: "counts both players' ranked and casual wins", Req: gossiprpc.Request{Account: "Feinberg", AccountB: "lowk3y_"},
+			Upstream: serve(t, "/users/Feinberg/versus/lowk3y_", nil, versusBody),
+			Want:     gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_", WinsA: 21, WinsB: 15, Played: 36}},
+		{Name: "rejects a missing second account before any upstream call", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Forbid(t),
+			Want:     gossiprpc.McsrRecordReply{Error: "missing account"}},
+		{Name: "answers an unknown opponent", Req: gossiprpc.Request{Account: "Feinberg", AccountB: "ghost"},
+			Upstream: providertest.Respond(http.StatusBadRequest, notFoundBody),
+			Want:     gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "ghost", Error: "player not found"}},
+	})
 }
 
-func TestWeeklyRaceEmpty(t *testing.T) {
-	reply := callEndpoint[gossiprpc.McsrWeeklyRaceReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"success","data":{"id":99,"leaderboard":[]}}`))
-	}), "weekly_race", gossiprpc.Request{Account: "Feinberg"})
-	require.Empty(t, reply.Error)
-	assert.True(t, reply.Empty)
+func TestLeaderboardReplies(t *testing.T) {
+	providertest.RunCases(t, newProvider, "leaderboard", []providertest.Case[gossiprpc.McsrLeaderboardReply]{
+		{Name: "ranks the elo board for a country", Req: gossiprpc.Request{Country: "us"},
+			Upstream: serve(t, "/leaderboard", url.Values{"country": {"us"}}, eloBoardBody),
+			Want: gossiprpc.McsrLeaderboardReply{Board: "elo", Entries: []gossiprpc.McsrLeaderboardEntry{
+				{Rank: 1, Name: "A", Value: "2400"}, {Rank: 2, Name: "B", Value: "2300"},
+			}}},
+		{Name: "shows predicted phase points when asked", Req: gossiprpc.Request{Board: "phase", Predicted: true},
+			Upstream: serve(t, "/phase-leaderboard", url.Values{"predicted": {"true"}}, phaseBoardBody),
+			Want: gossiprpc.McsrLeaderboardReply{Board: "phase", Entries: []gossiprpc.McsrLeaderboardEntry{
+				{Rank: 1, Name: "A", Value: "80"},
+			}}},
+		{Name: "defaults the record board to the current season", Req: gossiprpc.Request{Board: "record"},
+			Upstream: serve(t, "/record-leaderboard", url.Values{"season": {"0"}}, recordBoardBody),
+			Want: gossiprpc.McsrLeaderboardReply{Board: "record", Entries: []gossiprpc.McsrLeaderboardEntry{
+				{Rank: 1, Name: "A", Value: "6:35.123"},
+			}}},
+		{Name: "reads an empty board as an answer, not an error", Req: gossiprpc.Request{},
+			Upstream: providertest.Respond(http.StatusOK, `{"status":"success","data":{"users":[]}}`),
+			Want:     gossiprpc.McsrLeaderboardReply{Board: "elo", Entries: []gossiprpc.McsrLeaderboardEntry{}, Empty: true}},
+		{Name: "answers an upstream 400", Req: gossiprpc.Request{Board: "phase"},
+			Upstream: providertest.Respond(http.StatusBadRequest, notFoundBody),
+			Want:     gossiprpc.McsrLeaderboardReply{Board: "phase", Error: "player not found"}},
+	})
+}
+
+func TestWeeklyRaceReplies(t *testing.T) {
+	leaderOnly := gossiprpc.McsrWeeklyRaceReply{Player: "SomeoneElse", LeaderName: "gharfyy", LeaderTime: "2:27.374"}
+	boardOf := func(nicknames ...string) string {
+		entries := ""
+		for i, nickname := range nicknames {
+			if i > 0 {
+				entries += ","
+			}
+			entries += `{"rank":` + strconv.Itoa(i+1) + `,"player":{"nickname":"` + nickname + `"},"time":160000}`
+		}
+		return `{"status":"success","data":{"id":99,"leaderboard":[` + entries + `]}}`
+	}
+
+	providertest.RunCases(t, newProvider, "weekly_race", []providertest.Case[gossiprpc.McsrWeeklyRaceReply]{
+		{Name: "finds the player on the board", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: serve(t, "/weekly-race", nil, weeklyRaceBody),
+			Want: gossiprpc.McsrWeeklyRaceReply{
+				Player: "Feinberg", LeaderName: "gharfyy", LeaderTime: "2:27.374",
+				HasPlayer: true, PlayerRank: 2, PlayerTime: "2:40.000",
+			}},
+		{Name: "reports the leader even when the player is not on the board", Req: gossiprpc.Request{Account: "SomeoneElse"},
+			Upstream: providertest.Respond(http.StatusOK, weeklyRaceBody),
+			Want:     leaderOnly},
+		{Name: "reads an empty board as an answer, not an error", Req: gossiprpc.Request{Account: "Feinberg"},
+			Upstream: providertest.Respond(http.StatusOK, `{"status":"success","data":{"id":99,"leaderboard":[]}}`),
+			Want:     gossiprpc.McsrWeeklyRaceReply{Player: "Feinberg", Empty: true}},
+		{Name: "TestASCIIEqualFoldDoesNotFoldUnicode", Req: gossiprpc.Request{Account: "Some"},
+			Upstream: providertest.Respond(http.StatusOK, boardOf("ſome")),
+			Want:     gossiprpc.McsrWeeklyRaceReply{Player: "Some", LeaderName: "ſome", LeaderTime: "2:40.000"}},
+		{Name: "TestASCIIEqualFoldDoesNotFoldUnicode: ASCII case folds", Req: gossiprpc.Request{Account: "nIcKnAmE"},
+			Upstream: providertest.Respond(http.StatusOK, boardOf("Nickname")),
+			Want: gossiprpc.McsrWeeklyRaceReply{
+				Player: "nIcKnAmE", LeaderName: "Nickname", LeaderTime: "2:40.000",
+				HasPlayer: true, PlayerRank: 1, PlayerTime: "2:40.000",
+			}},
+		{Name: "TestASCIIEqualFoldDoesNotFoldUnicode: a length mismatch never matches", Req: gossiprpc.Request{Account: "ab"},
+			Upstream: providertest.Respond(http.StatusOK, boardOf("abc")),
+			Want:     gossiprpc.McsrWeeklyRaceReply{Player: "ab", LeaderName: "abc", LeaderTime: "2:40.000"}},
+	})
 }
 
 func TestWeeklyRaceSharesOneUpstreamCallAcrossPlayers(t *testing.T) {
-	var calls int
-	p, _ := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls++
-		_, _ = w.Write([]byte(weeklyRaceBody()))
-	}))
+	upstream := providertest.NewSequence(t, providertest.Reply{Body: weeklyRaceBody})
+	p := newProvider(t, upstream)
 
-	_ = endpoint(t, p, "weekly_race")(context.Background(), gossiprpc.Request{Account: "Feinberg"}).(gossiprpc.McsrWeeklyRaceReply)
-	_ = endpoint(t, p, "weekly_race")(context.Background(), gossiprpc.Request{Account: "gharfyy"}).(gossiprpc.McsrWeeklyRaceReply)
-	assert.Equal(t, 1, calls)
+	for _, account := range []string{"Feinberg", "gharfyy"} {
+		_ = providertest.Call[gossiprpc.McsrWeeklyRaceReply](t, p, "weekly_race", gossiprpc.Request{Account: account})
+	}
+
+	assert.Equal(t, 1, upstream.Hits())
 }
 
-func TestASCIIEqualFoldDoesNotFoldUnicode(t *testing.T) {
-	if !asciiEqualFold("Nickname", "nIcKnAmE") {
-		t.Fatal("ASCII case must fold")
-	}
-	if asciiEqualFold("ſome", "Some") {
-		t.Fatal("long s must not fold to ASCII s")
-	}
-	if asciiEqualFold("abc", "ab") {
-		t.Fatal("length mismatch must not match")
+func TestSessionTracksChangesSinceTheStoredBaseline(t *testing.T) {
+	var mu sync.Mutex
+	elo, wins, loses, played := 1650, 40, 20, 61
+	store := providertest.NewMemStore()
+	p := newProviderWithStore(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		body := userBody(elo, wins, loses, played)
+		mu.Unlock()
+		_, _ = w.Write([]byte(body))
+	}), store)
+	req := gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}
+
+	start := providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_start", req)
+	require.Empty(t, start.Error)
+	assert.Equal(t, 1650, start.Elo)
+
+	mu.Lock()
+	elo, wins, loses, played = 1674, 43, 21, 65
+	mu.Unlock()
+	require.NoError(t, store.Del(context.Background(), core.Key("mcsr", "user", "feinberg")))
+
+	sess := providertest.Call[gossiprpc.McsrSessionReply](t, p, "session", req)
+	require.Empty(t, sess.Error)
+	assert.True(t, sess.HasSnapshot)
+	assert.Equal(t, 1674, sess.Elo)
+	assert.Equal(t, 24, sess.EloChange)
+	assert.Equal(t, 3, sess.Wins)
+	assert.Equal(t, 1, sess.Loses)
+	assert.Equal(t, 4, sess.Played)
+}
+
+func TestSessionBaselineBelongsToOneAccount(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		startAccount string
+		wantSnapshot [2]bool
+	}{
+		{"the first session read starts tracking", "", [2]bool{false, true}},
+		{"a baseline stored for another account is reset", "OldAcc", [2]bool{false, true}},
+		{"a baseline stored for the same account is kept", "Feinberg", [2]bool{true, true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProvider(t, providertest.Respond(http.StatusOK, userBody(1650, 40, 20, 61)))
+			if tc.startAccount != "" {
+				start := providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_start", gossiprpc.Request{Account: tc.startAccount, ChannelID: "77"})
+				require.Empty(t, start.Error)
+			}
+
+			for i, want := range tc.wantSnapshot {
+				sess := providertest.Call[gossiprpc.McsrSessionReply](t, p, "session", gossiprpc.Request{Account: "Feinberg", ChannelID: "77"})
+				require.Empty(t, sess.Error)
+				assert.Equal(t, want, sess.HasSnapshot, "read %d", i+1)
+				assert.Zero(t, sess.EloChange)
+			}
+		})
 	}
 }
 
-func TestCacheIDBytes(t *testing.T) {
-	t.Run("account", func(t *testing.T) {
-		cases := []struct {
-			account string
-			season  int
-			want    string
-		}{
-			{account: "Frosty", season: 3, want: "frosty:3"},
-			{account: "  FrOsTy  ", season: 3, want: "frosty:3"},
-			{account: "frosty", season: 0, want: "frosty:0"},
-		}
-		for _, c := range cases {
-			assert.Equal(t, c.want, mcsrCacheID(c.account, c.season), "account %q", c.account)
-		}
-	})
+func TestSessionEndDropsTheBaseline(t *testing.T) {
+	p := newProvider(t, providertest.Respond(http.StatusOK, userBody(1650, 40, 20, 61)))
+	req := gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}
+	require.Empty(t, providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_start", req).Error)
 
-	t.Run("leaderboard", func(t *testing.T) {
-		cases := []struct {
-			country   string
-			season    int
-			predicted bool
-			want      string
-		}{
-			{season: 0, want: "0:"},
-			{season: 2, country: "CA", want: "2:ca"},
-			{season: 2, country: " Ca ", want: "2:ca"},
-			{season: 2, country: "ca", predicted: true, want: "2:ca:predicted"},
+	ended := providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_end", req)
+	sess := providertest.Call[gossiprpc.McsrSessionReply](t, p, "session", req)
+
+	assert.Empty(t, ended.Error)
+	assert.False(t, sess.HasSnapshot, "an ended session must start tracking afresh")
+	assert.Equal(t, "missing channel", providertest.Call[gossiprpc.McsrSnapshotReply](t, p, "session_end", gossiprpc.Request{}).Error)
+}
+
+func TestSessionRequiresAChannel(t *testing.T) {
+	p := newProvider(t, providertest.Forbid(t))
+
+	reply := providertest.Call[gossiprpc.McsrSessionReply](t, p, "session", gossiprpc.Request{Account: "x"})
+
+	assert.Equal(t, "missing account or channel", reply.Error)
+}
+
+func TestCacheKeysFoldAccountSeasonAndCountry(t *testing.T) {
+	store := providertest.NewMemStore()
+	p := newProviderWithStore(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bodies := map[string]string{
+			"/users/FrOsTy":                userBody(1650, 40, 20, 61),
+			"/users/FrOsTy/matches":        lastMatchBody(false, false, "u-self", 663135),
+			"/users/FrOsTy/versus/LowK3y_": versusBody,
+			"/leaderboard":                 eloBoardBody,
+			"/phase-leaderboard":           phaseBoardBody,
+			"/record-leaderboard":          recordBoardBody,
 		}
-		for _, c := range cases {
-			assert.Equal(t, c.want, leaderboardCacheID(c.season, c.country, c.predicted), "country %q", c.country)
-		}
-	})
+		_, _ = w.Write([]byte(bodies[r.URL.Path]))
+	}), store)
+
+	for _, call := range []struct {
+		endpoint string
+		req      gossiprpc.Request
+	}{
+		{"user", gossiprpc.Request{Account: "  FrOsTy  "}},
+		{"last_match", gossiprpc.Request{Account: "  FrOsTy  ", Season: 3}},
+		{"versus", gossiprpc.Request{Account: "  FrOsTy  ", AccountB: " LowK3y_ ", Season: 3}},
+		{"leaderboard", gossiprpc.Request{}},
+		{"leaderboard", gossiprpc.Request{Season: 2, Country: " Ca "}},
+		{"leaderboard", gossiprpc.Request{Board: "phase", Season: 2, Country: "ca", Predicted: true}},
+		{"leaderboard", gossiprpc.Request{Board: "record", Season: 4}},
+	} {
+		_ = providertest.Endpoint(t, p, call.endpoint)(context.Background(), call.req)
+	}
+
+	assert.Equal(t, []string{
+		"gossip:mcsr:last-match:frosty:3",
+		"gossip:mcsr:leaderboard-elo:0:",
+		"gossip:mcsr:leaderboard-elo:2:ca",
+		"gossip:mcsr:leaderboard-phase:2:ca:predicted",
+		"gossip:mcsr:leaderboard-record:4",
+		"gossip:mcsr:user:frosty",
+		"gossip:mcsr:versus:frosty:3|lowk3y_",
+	}, store.Keys())
 }

@@ -38,27 +38,14 @@ describe('session codec', () => {
     expect(other.open(sealed)).toBeNull();
   });
 
-  test('rejects a cookie sealed under a different AAD even with the same key', () => {
-    const sameKeyOtherApp = createSessionCodec<TestSession>(() => key, 'other-session');
-    expect(sameKeyOtherApp.open(codec.seal(make()))).toBeNull();
-  });
-
-  test('rejects an expired session', () => {
-    expect(codec.open(codec.seal(make({ iat: now() - 7200, expires_at: now() - 3600 })))).toBeNull();
-  });
-
-  test('rejects a session without iat (pre-iat cookies)', () => {
-    const sealed = sealRaw({ user_id: '42', expires_at: now() + 3600 });
-    expect(codec.open(sealed)).toBeNull();
-  });
-
-  test('rejects a future-dated iat beyond clock skew', () => {
-    expect(codec.open(codec.seal(make({ iat: now() + 300 })))).toBeNull();
-  });
-
-  test('rejects expires_at at or before iat', () => {
-    const t = now();
-    expect(codec.open(codec.seal(make({ iat: t, expires_at: t })))).toBeNull();
+  test.each([
+    ['rejects a cookie sealed under a different AAD even with the same key', () => createSessionCodec<TestSession>(() => key, 'other-session').open(codec.seal(make()))],
+    ['rejects an expired session', () => codec.open(codec.seal(make({ iat: now() - 7200, expires_at: now() - 3600 })))],
+    ['rejects a session without iat (pre-iat cookies)', () => codec.open(sealRaw({ user_id: '42', expires_at: now() + 3600 }))],
+    ['rejects a future-dated iat beyond clock skew', () => codec.open(codec.seal(make({ iat: now() + 300 })))],
+    ['rejects expires_at at or before iat', () => codec.open(codec.seal(make({ iat: now(), expires_at: now() })))]
+  ] as [string, () => TestSession | null][])('%s', (_name, open) => {
+    expect(open()).toBeNull();
   });
 
   test('enforces maxAgeSec from iat regardless of expires_at', () => {

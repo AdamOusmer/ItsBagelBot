@@ -23,8 +23,8 @@ func TestChatSendsWithValkeyUnavailable(t *testing.T) {
 	defer client.Close()
 	registry := channels.New(client)
 	defer registry.Close()
-	transport := &scriptedTransport{responses: []scriptedResponse{{http.StatusOK, `{"data":[{"message_id":"sent","is_sent":true}]}`}}}
-	w := clipVerifyWorker(t, transport)
+	transport := &scriptedTransport{responses: []scriptedResponse{{status: http.StatusOK, body: `{"data":[{"message_id":"sent","is_sent":true}]}`}}}
+	w := pipelineWorker(t, transport)
 	w.registry = registry
 	w.botID = "bot"
 	w.limiter = ratelimit.NewJetStreamManager(kvtest.New())

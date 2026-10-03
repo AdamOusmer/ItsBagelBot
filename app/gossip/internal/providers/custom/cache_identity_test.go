@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Cache assertions use the same compiled array-index representation that
-// extraction addresses, rather than a raw stored authoring path.
 func storedResultKey(channelID string, def gossiprpc.FetchDef) string {
 	path, _ := effectivePath(&def, nil)
 	return resultKey(channelID, def, path)
@@ -75,8 +73,6 @@ func TestFetchDoesNotReadLegacyTenantlessEntry(t *testing.T) {
 	entry, found, err := h.store.Get(context.Background(), key)
 	require.NoError(t, err)
 	require.True(t, found)
-	// Seed the exact pre-fix key with a valid cache envelope, then remove
-	// the v2 entry so this request proves the old cache is never consulted.
 	sum := sha256.Sum256([]byte("private"))
 	require.NoError(t, h.store.Set(context.Background(), "gossip:custom:fetch:"+hex.EncodeToString(sum[:8]), entry, time.Minute))
 	require.NoError(t, h.store.Del(context.Background(), key))
@@ -85,8 +81,7 @@ func TestFetchDoesNotReadLegacyTenantlessEntry(t *testing.T) {
 	require.Equal(t, int32(2), h.hits.Load())
 }
 
-// The first tenant stays blocked until the test releases it. Cleanup releases
-// it before closing the server, including when a timeout fails the test.
+// Cleanup releases the blocked tenant before closing the server, or a failed test would hang on Close.
 func blockedTenantUpstream(t *testing.T) (string, <-chan struct{}, func()) {
 	t.Helper()
 	started, unblock := make(chan struct{}), make(chan struct{})

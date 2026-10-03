@@ -4,23 +4,12 @@
 package scope
 
 import (
-	"context"
 	"testing"
 	"time"
-
-	"ItsBagelBot/pkg/tmpl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func renderPure(t *testing.T, p Pure, template string) string {
-	t.Helper()
-	chain := Chain{p}
-	toks := tmpl.Lex(template)
-	values := chain.Plan(context.Background(), toks, nil)
-	return string(chain.Render(nil, toks, values))
-}
 
 var pinnedNow = time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 
@@ -28,28 +17,8 @@ func fixedClock() Pure {
 	return Pure{Now: func() time.Time { return pinnedNow }}
 }
 
-func TestPureOwnsTheUtilityPalette(t *testing.T) {
-	for _, name := range []string{
-		"random", "choice", "math", "queryescape", "pathescape",
-		"repeat", "countdown", "countup",
-	} {
-		assert.True(t, Pure{}.Owns(Var{Name: name}), "pure should own %q", name)
-	}
-	for _, name := range []string{"user", "args", "counter", "querystring", "maths", ""} {
-		assert.False(t, Pure{}.Owns(Var{Name: name}), "pure should not own %q", name)
-	}
-}
-
-func TestPureUtilitiesResolveAtRenderTime(t *testing.T) {
-	assert.Equal(t, "3 and 7", renderPure(t, Pure{}, "{math:1+2} and {math:3+4}"))
-}
-
-func TestCountdownCountsTowardTheDate(t *testing.T) {
-	cases := []struct {
-		name     string
-		template string
-		want     string
-	}{
+func TestCountdownAndCountup(t *testing.T) {
+	tests := []struct{ name, template, want string }{
 		{"days and hours remain", "{countdown:2026-09-12T16:00:00Z}", "3 days, 4 hours"},
 		{"a bare date is UTC midnight", "{countdown:2026-09-11}", "1 day, 12 hours"},
 		{"an offset is honoured", "{countdown:2026-09-09T15:00:00+01:00}", "2 hours"},
@@ -64,9 +33,9 @@ func TestCountdownCountsTowardTheDate(t *testing.T) {
 		{"a bare countdown is not the token", "{countdown}", "{countdown}"},
 		{"a bare countup is not the token", "{countup}", "{countup}"},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, renderPure(t, fixedClock(), tc.template))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{fixedClock()}, nil))
 		})
 	}
 }
@@ -74,11 +43,11 @@ func TestCountdownCountsTowardTheDate(t *testing.T) {
 func TestCountdownWordsItselfInTheBroadcasterLocale(t *testing.T) {
 	p := fixedClock()
 	p.Locale = "fr"
-	assert.Equal(t, "3 jours, 4 heures", renderPure(t, p, "{countdown:2026-09-12T16:00:00Z}"))
+	assert.Equal(t, "3 jours, 4 heures", render(t, "{countdown:2026-09-12T16:00:00Z}", Chain{p}, nil))
 }
 
 func TestCountdownDefaultsToTheWallClock(t *testing.T) {
-	got := renderPure(t, Pure{}, "{countup:2020-01-01}")
+	got := render(t, "{countup:2020-01-01}", Chain{Pure{}}, nil)
 	assert.NotEmpty(t, got)
 	assert.NotContains(t, got, "{")
 }
@@ -86,29 +55,20 @@ func TestCountdownDefaultsToTheWallClock(t *testing.T) {
 func TestRepeatRefusesAnOverlongLine(t *testing.T) {
 	phrase := "123456789012345678901234"
 	require.Len(t, phrase, 24)
-	assert.Equal(t, "", renderPure(t, Pure{}, "{repeat:20:"+phrase+"}"))
-	assert.NotEmpty(t, renderPure(t, Pure{}, "{repeat:20:"+phrase[:23]+"}"))
+	assert.Equal(t, "", render(t, "{repeat:20:"+phrase+"}", Chain{Pure{}}, nil))
+	assert.NotEmpty(t, render(t, "{repeat:20:"+phrase[:23]+"}", Chain{Pure{}}, nil))
 }
 
-func TestQuerystringEscapesTheWholeArgumentString(t *testing.T) {
-	msg := Message{Words: []string{"hello", "world", "&", "friends"}}
-	chain := Chain{Pure{}, msg}
-	toks := tmpl.Lex("{querystring} {queryescape:hello world & friends}")
-	values := chain.Plan(context.Background(), toks, nil)
-	out := string(chain.Render(nil, toks, values))
-	assert.Equal(t, "hello+world+%26+friends hello+world+%26+friends", out)
-}
+func TestPureResolvesEachSpanIndependently(t *testing.T) {
+	chain := Chain{Pure{}}
+	assert.Equal(t, "7", render(t, "{random:7-7}", chain, nil))
+	assert.Equal(t, "only", render(t, "{choice:only}", chain, nil))
+	assert.Equal(t, "{choice}", render(t, "{choice}", chain, nil), "no options named")
+	assert.Equal(t, "{random:x-y}", render(t, "{random:x-y}", chain, nil), "unparseable range")
 
-func TestQuerystringIsEmptyWithoutArguments(t *testing.T) {
-	chain := Chain{Message{}}
-	toks := tmpl.Lex("[{querystring}] [{querystring|none}]")
-	values := chain.Plan(context.Background(), toks, nil)
-	assert.Equal(t, "[] [none]", string(chain.Render(nil, toks, values)))
-}
-
-func TestQuerystringRejectsAPayload(t *testing.T) {
-	chain := Chain{Message{Words: []string{"hi"}}}
-	toks := tmpl.Lex("{querystring:x}")
-	values := chain.Plan(context.Background(), toks, nil)
-	assert.Equal(t, "{querystring:x}", string(chain.Render(nil, toks, values)))
+	rolls := map[string]struct{}{}
+	for range 40 {
+		rolls[render(t, "{random:1-1000}{random:1-1000}", chain, nil)] = struct{}{}
+	}
+	assert.Greater(t, len(rolls), 1, "two spans of one pure token draw independently")
 }

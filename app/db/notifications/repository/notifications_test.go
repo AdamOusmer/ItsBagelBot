@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/notifications/ent"
 	"ItsBagelBot/app/db/notifications/ent/enttest"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
@@ -20,208 +21,180 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBroadcastVisibleToEveryUser(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifbroadcast"))
-	t.Cleanup(func() { _ = client.Close() })
+const (
+	alice = uint64(1001)
+	bob   = uint64(2002)
+)
 
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	_, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "broadcast-1", Scope: notification.ScopeBroadcast, Title: "Maintenance", Body: "Downtime tonight", Level: notification.LevelWarning, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-
-	rows, read, err := repo.ListForUser(ctx, 1001, 50)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.False(t, read[rows[0].ID])
-
-	rows, _, err = repo.ListForUser(ctx, 2002, 50)
-	require.NoError(t, err)
-	require.Len(t, rows, 1, "broadcast must reach every user")
+type fixture struct {
+	repo   *repository.Notifications
+	client *ent.Client
+	ctx    context.Context
 }
 
-func TestDirectNotificationScopedToTarget(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifdirect"))
+func newFixture(t *testing.T) *fixture {
+	t.Helper()
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
 	t.Cleanup(func() { _ = client.Close() })
-
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	target := uint64(1001)
-	_, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "direct-1", Scope: notification.ScopeDirect, TargetUserID: &target, Title: "Welcome", Body: "Thanks for subscribing", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-
-	rows, _, err := repo.ListForUser(ctx, 1001, 50)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-
-	rows, _, err = repo.ListForUser(ctx, 2002, 50)
-	require.NoError(t, err)
-	assert.Empty(t, rows, "direct notification must not reach other users")
+	return &fixture{repo: repository.New(client), client: client, ctx: context.Background()}
 }
 
-func TestMarkReadIsIdempotentAndPerUser(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifread"))
-	t.Cleanup(func() { _ = client.Close() })
-
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	row, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "read-1", Scope: notification.ScopeBroadcast, Title: "Heads up", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
+func (f *fixture) send(t *testing.T, edit func(*repository.CreateParams)) *ent.Notification {
+	t.Helper()
+	params := repository.CreateParams{Scope: notification.ScopeBroadcast, Title: "Heads up", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"}
+	if edit != nil {
+		edit(&params)
+	}
+	row, _, err := f.repo.Create(f.ctx, params)
 	require.NoError(t, err)
-
-	future := time.Now().Add(time.Hour)
-	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001, future))
-	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001, future), "repeat mark-read must not error")
-
-	_, read, err := repo.ListForUser(ctx, 1001, 50)
-	require.NoError(t, err)
-	assert.True(t, read[row.ID])
-
-	_, read, err = repo.ListForUser(ctx, 2002, 50)
-	require.NoError(t, err)
-	assert.False(t, read[row.ID], "another user's read state must not leak")
+	return row
 }
 
-func TestExpiredNotificationExcluded(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifexpiry"))
-	t.Cleanup(func() { _ = client.Close() })
-
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	past := time.Now().Add(-time.Hour)
-	_, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "expired-1", Scope: notification.ScopeBroadcast, Title: "Expired", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey", ExpiresAt: &past})
+func (f *fixture) titlesFor(t *testing.T, userID uint64) []string {
+	t.Helper()
+	rows, _, err := f.repo.ListForUser(f.ctx, userID, repository.UserListLimit)
 	require.NoError(t, err)
+	titles := make([]string, 0, len(rows))
+	for _, row := range rows {
+		titles = append(titles, row.Title)
+	}
+	return titles
+}
 
-	future := time.Now().Add(time.Hour)
-	_, _, err = repo.Create(ctx, repository.CreateParams{RequestID: "live-1", Scope: notification.ScopeBroadcast, Title: "Still live", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey", ExpiresAt: &future})
-	require.NoError(t, err)
+func TestListForUserVisibility(t *testing.T) {
+	expired, live := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	for _, tc := range []struct {
+		name string
+		send []func(*repository.CreateParams)
+		want map[uint64][]string
+	}{
+		{
+			name: "broadcast reaches every user",
+			send: []func(*repository.CreateParams){func(p *repository.CreateParams) { p.Title = "Maintenance" }},
+			want: map[uint64][]string{alice: {"Maintenance"}, bob: {"Maintenance"}},
+		},
+		{
+			name: "direct notification does not reach other users",
+			send: []func(*repository.CreateParams){func(p *repository.CreateParams) {
+				target := alice
+				p.Scope, p.TargetUserID, p.Title = notification.ScopeDirect, &target, "Welcome"
+			}},
+			want: map[uint64][]string{alice: {"Welcome"}, bob: {}},
+		},
+		{
+			name: "expired notification is excluded",
+			send: []func(*repository.CreateParams){
+				func(p *repository.CreateParams) { p.Title, p.ExpiresAt = "Expired", &expired },
+				func(p *repository.CreateParams) { p.Title, p.ExpiresAt = "Still live", &live },
+			},
+			want: map[uint64][]string{alice: {"Still live"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			for _, edit := range tc.send {
+				f.send(t, edit)
+			}
+			for userID, titles := range tc.want {
+				assert.Equal(t, titles, f.titlesFor(t, userID), "user %d", userID)
+			}
+		})
+	}
+}
 
-	rows, _, err := repo.ListForUser(ctx, 1001, 50)
+func TestMarkRead(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		cutoff     time.Duration
+		wantListed bool
+	}{
+		{"is idempotent and per user", time.Hour, true},
+		{"cutoff hides the notification after expiry", -time.Minute, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			row := f.send(t, nil)
+			cutoff := time.Now().Add(tc.cutoff)
+			require.NoError(t, f.repo.MarkRead(f.ctx, row.ID, alice, cutoff))
+			require.NoError(t, f.repo.MarkRead(f.ctx, row.ID, alice, cutoff), "repeat mark-read must not error")
+
+			rows, read, err := f.repo.ListForUser(f.ctx, alice, repository.UserListLimit)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantListed, len(rows) == 1)
+			assert.Equal(t, tc.wantListed, read[row.ID])
+
+			rows, read, err = f.repo.ListForUser(f.ctx, bob, repository.UserListLimit)
+			require.NoError(t, err)
+			require.Len(t, rows, 1, "another user's cutoff must not hide it")
+			assert.False(t, read[row.ID], "another user's read state must not leak")
+		})
+	}
+}
+
+func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
+	f := newFixture(t)
+	unread := f.send(t, nil)
+	read := f.send(t, nil)
+	shortCutoff := time.Now().Add(time.Minute)
+	require.NoError(t, f.repo.MarkRead(f.ctx, read.ID, alice, shortCutoff))
+
+	peeked, err := f.repo.MarkPeeked(f.ctx, alice, time.Now().Add(24*time.Hour))
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, "Still live", rows[0].Title)
+	assert.Equal(t, 1, peeked, "only the unread notification is newly peeked")
+
+	_, acknowledged, err := f.repo.ListForUser(f.ctx, alice, repository.UserListLimit)
+	require.NoError(t, err)
+	assert.Equal(t, map[int]bool{unread.ID: true, read.ID: true}, acknowledged)
+
+	receipt := f.client.NotificationRead.Query().
+		Where(notificationread.UserIDEQ(alice), notificationread.HasNotificationWith(notification.IDEQ(read.ID))).
+		OnlyX(f.ctx)
+	assert.WithinDuration(t, shortCutoff, *receipt.ExpiresAt, time.Second, "peek must not extend a full-read cutoff")
+
+	peeked, err = f.repo.MarkPeeked(f.ctx, alice, time.Now().Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Zero(t, peeked)
 }
 
 func TestDeleteCascadesReads(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifdelete"))
-	t.Cleanup(func() { _ = client.Close() })
+	f := newFixture(t)
+	row := f.send(t, nil)
+	require.NoError(t, f.repo.MarkRead(f.ctx, row.ID, alice, time.Now().Add(time.Hour)))
 
-	repo := repository.New(client)
-	ctx := context.Background()
+	require.NoError(t, f.repo.Delete(f.ctx, row.ID))
 
-	row, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "delete-1", Scope: notification.ScopeBroadcast, Title: "Bye", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001, time.Now().Add(time.Hour)))
-
-	require.NoError(t, repo.Delete(ctx, row.ID))
-
-	assert.Equal(t, 0, client.NotificationRead.Query().CountX(ctx), "cascade must remove read receipts")
-
-	admin, err := repo.ListForAdmin(ctx, 20, 0)
+	assert.Zero(t, f.client.NotificationRead.Query().CountX(f.ctx), "cascade must remove read receipts")
+	admin, err := f.repo.ListForAdmin(f.ctx, repository.AdminPageSize, 0)
 	require.NoError(t, err)
 	assert.Empty(t, admin)
 }
 
-func TestMarkReadCutoffHidesAfterExpiry(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifreadcutoff"))
-	t.Cleanup(func() { _ = client.Close() })
-
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	row, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "cutoff-1", Scope: notification.ScopeBroadcast, Title: "Heads up", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-
-	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001, time.Now().Add(-time.Minute)))
-
-	rows, _, err := repo.ListForUser(ctx, 1001, 50)
-	require.NoError(t, err)
-	assert.Empty(t, rows, "a lapsed per-user cutoff must hide the notification")
-
-	rows, _, err = repo.ListForUser(ctx, 2002, 50)
-	require.NoError(t, err)
-	require.Len(t, rows, 1, "another user's cutoff must not hide it")
-}
-
-func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifpeek"))
-	t.Cleanup(func() { _ = client.Close() })
-
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	a, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "peek-a", Scope: notification.ScopeBroadcast, Title: "A", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-	b, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "peek-b", Scope: notification.ScopeBroadcast, Title: "B", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-
-	shortCutoff := time.Now().Add(time.Minute)
-	require.NoError(t, repo.MarkRead(ctx, b.ID, 1001, shortCutoff))
-
-	peeked, err := repo.MarkPeeked(ctx, 1001, time.Now().Add(24*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, 1, peeked, "only the unread notification is newly peeked")
-
-	_, read, err := repo.ListForUser(ctx, 1001, 50)
-	require.NoError(t, err)
-	assert.True(t, read[a.ID], "peek acknowledges the unread notification")
-	assert.True(t, read[b.ID])
-
-	bRead := client.NotificationRead.Query().
-		Where(
-			notificationread.UserIDEQ(1001),
-			notificationread.HasNotificationWith(notification.IDEQ(b.ID)),
-		).OnlyX(ctx)
-	assert.WithinDuration(t, shortCutoff, *bRead.ExpiresAt, time.Second,
-		"peek must not extend a full-read cutoff")
-
-	peeked, err = repo.MarkPeeked(ctx, 1001, time.Now().Add(24*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, 0, peeked)
-}
-
 func TestDeleteExpiredSweepsGloballyExpired(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifsweep"))
-	t.Cleanup(func() { _ = client.Close() })
+	f := newFixture(t)
+	past, future := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	dead := f.send(t, func(p *repository.CreateParams) { p.ExpiresAt = &past })
+	require.NoError(t, f.repo.MarkRead(f.ctx, dead.ID, alice, time.Now().Add(time.Hour)))
+	f.send(t, func(p *repository.CreateParams) { p.ExpiresAt = &future })
+	f.send(t, nil)
 
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	past := time.Now().Add(-time.Hour)
-	dead, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "dead-1", Scope: notification.ScopeBroadcast, Title: "Dead", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey", ExpiresAt: &past})
-	require.NoError(t, err)
-	require.NoError(t, repo.MarkRead(ctx, dead.ID, 1001, time.Now().Add(time.Hour)))
-
-	future := time.Now().Add(time.Hour)
-	_, _, err = repo.Create(ctx, repository.CreateParams{RequestID: "live-1", Scope: notification.ScopeBroadcast, Title: "Live", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey", ExpiresAt: &future})
-	require.NoError(t, err)
-
-	_, _, err = repo.Create(ctx, repository.CreateParams{RequestID: "keep-1", Scope: notification.ScopeBroadcast, Title: "Keep", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
-	require.NoError(t, err)
-
-	removed, err := repo.DeleteExpired(ctx, time.Now())
+	removed, err := f.repo.DeleteExpired(f.ctx, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed, "only the globally-expired notification is swept")
-	assert.Equal(t, 2, client.Notification.Query().CountX(ctx))
-	assert.Equal(t, 0, client.NotificationRead.Query().CountX(ctx), "swept notification's reads cascade")
+	assert.Equal(t, 2, f.client.Notification.Query().CountX(f.ctx))
+	assert.Zero(t, f.client.NotificationRead.Query().CountX(f.ctx), "swept notification's reads cascade")
 }
 
 func TestCreateIsIdempotentByRequestID(t *testing.T) {
-	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifidempotency"))
-	t.Cleanup(func() { _ = client.Close() })
+	f := newFixture(t)
+	params := repository.CreateParams{RequestID: "send-123", Scope: notification.ScopeBroadcast, Title: "Once", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"}
 
-	repo := repository.New(client)
-	ctx := context.Background()
-
-	first, created, err := repo.Create(ctx, repository.CreateParams{RequestID: "send-123", Scope: notification.ScopeBroadcast, Title: "Once", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
+	first, created, err := f.repo.Create(f.ctx, params)
 	require.NoError(t, err)
 	assert.True(t, created)
 
-	duplicate, created, err := repo.Create(ctx, repository.CreateParams{RequestID: "send-123", Scope: notification.ScopeBroadcast, Title: "Once", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
+	duplicate, created, err := f.repo.Create(f.ctx, params)
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, first.ID, duplicate.ID)
-	assert.Equal(t, 1, client.Notification.Query().CountX(ctx))
+	assert.Equal(t, 1, f.client.Notification.Query().CountX(f.ctx))
 }

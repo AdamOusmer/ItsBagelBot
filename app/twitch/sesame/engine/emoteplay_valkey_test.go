@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var emoteplayChannelSeq = func() *atomic.Uint64 {
+var channelSeq = func() *atomic.Uint64 {
 	var seq atomic.Uint64
 	seq.Store(uint64(time.Now().UnixNano()))
 	return &seq
 }()
 
-func nextEmotePlayChannel() uint64 {
-	return emoteplayChannelSeq.Add(1)
+func freshChannel() uint64 {
+	return channelSeq.Add(1)
 }
 
 type emoteplayFixture struct {
@@ -38,7 +38,7 @@ func newEmotePlayFixture(t *testing.T) *emoteplayFixture {
 }
 
 func (f *emoteplayFixture) channel() uint64 {
-	return nextEmotePlayChannel()
+	return freshChannel()
 }
 
 type emoteBump struct {
@@ -49,7 +49,7 @@ type emoteBump struct {
 	copies  int
 }
 
-func (f *emoteplayFixture) bump(b emoteBump) EmotePlayResult {
+func (f *emoteplayFixture) play(b emoteBump) EmotePlayResult {
 	f.t.Helper()
 	emote := b.emote
 	if emote == "" {
@@ -66,27 +66,27 @@ func TestEmotePlayPyramidCompletesOnceAtTheBase(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
 	for _, w := range []int{1, 2} {
-		require.False(t, f.bump(emoteBump{channel: ch, msgID: "m" + strconv.Itoa(w), width: w, copies: 1}).PyramidDone)
+		require.False(t, f.play(emoteBump{channel: ch, msgID: "m" + strconv.Itoa(w), width: w, copies: 1}).PyramidDone)
 	}
-	r3 := f.bump(emoteBump{channel: ch, msgID: "m3", width: 3, copies: 1})
+	r3 := f.play(emoteBump{channel: ch, msgID: "m3", width: 3, copies: 1})
 	require.False(t, r3.PyramidDone)
 	require.Equal(t, 0, r3.Apex, "apex is only reported on completion")
-	require.False(t, f.bump(emoteBump{channel: ch, msgID: "m2d", width: 2, copies: 1}).PyramidDone)
-	done := f.bump(emoteBump{channel: ch, msgID: "m1d", width: 1, copies: 1})
+	require.False(t, f.play(emoteBump{channel: ch, msgID: "m2d", width: 2, copies: 1}).PyramidDone)
+	done := f.play(emoteBump{channel: ch, msgID: "m1d", width: 1, copies: 1})
 	require.True(t, done.PyramidDone)
 	require.Equal(t, 3, done.Apex)
-	require.False(t, f.bump(emoteBump{channel: ch, msgID: "after", width: 1, copies: 1}).PyramidDone)
+	require.False(t, f.play(emoteBump{channel: ch, msgID: "after", width: 1, copies: 1}).PyramidDone)
 }
 
 func TestEmotePlaySameWidthDuplicatesNeverDoubleStep(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "c", width: 2, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "d", width: 3, copies: 1})
-	require.False(t, f.bump(emoteBump{channel: ch, msgID: "e", width: 3, copies: 1}).PyramidDone)
-	require.False(t, f.bump(emoteBump{channel: ch, msgID: "f", width: 4, copies: 1}).PyramidDone)
+	f.play(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "c", width: 2, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "d", width: 3, copies: 1})
+	require.False(t, f.play(emoteBump{channel: ch, msgID: "e", width: 3, copies: 1}).PyramidDone)
+	require.False(t, f.play(emoteBump{channel: ch, msgID: "f", width: 4, copies: 1}).PyramidDone)
 }
 
 func TestEmotePlayRejectsPartialPyramids(t *testing.T) {
@@ -101,7 +101,7 @@ func TestEmotePlayRejectsPartialPyramids(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ch := f.channel()
 			for i, width := range tc.widths {
-				res := f.bump(emoteBump{channel: ch, msgID: tc.name + strconv.Itoa(i), width: width, copies: 1})
+				res := f.play(emoteBump{channel: ch, msgID: tc.name + strconv.Itoa(i), width: width, copies: 1})
 				require.False(t, res.PyramidDone)
 			}
 		})
@@ -111,54 +111,54 @@ func TestEmotePlayRejectsPartialPyramids(t *testing.T) {
 func TestEmotePlayRejectsWidthJumps(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1})
 	for _, width := range []int{4, 3, 2, 1} {
-		require.False(t, f.bump(emoteBump{channel: ch, msgID: "after-jump" + strconv.Itoa(width), width: width, copies: 1}).PyramidDone)
+		require.False(t, f.play(emoteBump{channel: ch, msgID: "after-jump" + strconv.Itoa(width), width: width, copies: 1}).PyramidDone)
 	}
 }
 
 func TestEmotePlayReplayedMessageIDAppliesNothing(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	first := f.bump(emoteBump{channel: ch, msgID: "same", width: 1, copies: 1})
+	first := f.play(emoteBump{channel: ch, msgID: "same", width: 1, copies: 1})
 	require.False(t, first.StreakMilestone)
 	for i := 0; i < 3; i++ {
-		replay := f.bump(emoteBump{channel: ch, msgID: "same", width: 1, copies: 1})
+		replay := f.play(emoteBump{channel: ch, msgID: "same", width: 1, copies: 1})
 		require.False(t, replay.StreakMilestone, "redelivery must not recount")
 		require.False(t, replay.PyramidDone)
 	}
-	next := f.bump(emoteBump{channel: ch, msgID: "other", width: 1, copies: 1})
+	next := f.play(emoteBump{channel: ch, msgID: "other", width: 1, copies: 1})
 	require.False(t, next.StreakMilestone, "count is 2, under the first rung")
 }
 
 func TestEmotePlayStreakLadderCrossingWithFoldedCohorts(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "s1", width: 1, copies: streakLadder[0] - 1})
-	crossed := f.bump(emoteBump{channel: ch, msgID: "s2", width: 1, copies: 2})
+	f.play(emoteBump{channel: ch, msgID: "s1", width: 1, copies: streakLadder[0] - 1})
+	crossed := f.play(emoteBump{channel: ch, msgID: "s2", width: 1, copies: 2})
 	require.True(t, crossed.StreakMilestone, "the cohort steps over the rung")
 	require.Equal(t, streakLadder[0], crossed.Streak, "the announced value is the rung, not the raw count")
-	silent := f.bump(emoteBump{channel: ch, msgID: "s3", width: 1, copies: 1})
+	silent := f.play(emoteBump{channel: ch, msgID: "s3", width: 1, copies: 1})
 	require.False(t, silent.StreakMilestone, "between rungs")
-	switched := f.bump(emoteBump{channel: ch, msgID: "s4", emote: "PogChamp", width: 1, copies: 1})
+	switched := f.play(emoteBump{channel: ch, msgID: "s4", emote: "PogChamp", width: 1, copies: 1})
 	require.False(t, switched.StreakMilestone, "a new emote restarts from 1")
 }
 
 func TestEmotePlayWideLineBreaksTheStreakSilently(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "w1", width: 1, copies: streakLadder[0] - 1})
-	f.bump(emoteBump{channel: ch, msgID: "w2", width: 3, copies: 1})
-	wide := f.bump(emoteBump{channel: ch, msgID: "w3", width: 1, copies: 1})
+	f.play(emoteBump{channel: ch, msgID: "w1", width: 1, copies: streakLadder[0] - 1})
+	f.play(emoteBump{channel: ch, msgID: "w2", width: 3, copies: 1})
+	wide := f.play(emoteBump{channel: ch, msgID: "w3", width: 1, copies: 1})
 	require.False(t, wide.StreakMilestone)
 }
 
 func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
-	ch := nextEmotePlayChannel()
+	ch := freshChannel()
 	short := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: 40 * time.Millisecond, stkWin: 40 * time.Millisecond}
 	bumpShort := func(msgID string, width int) EmotePlayResult {
 		res, err := short.Bump(ctx, EmotePlayUpdate{BroadcasterID: ch, MsgID: msgID, Emote: "Kappa", Width: width, Copies: 1})
@@ -176,7 +176,7 @@ func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 const racingReplicas = 16
 
 func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
-	ch := nextEmotePlayChannel()
+	ch := freshChannel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 	racing := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: time.Minute, stkWin: time.Minute}

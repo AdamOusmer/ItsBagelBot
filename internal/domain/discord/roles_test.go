@@ -4,8 +4,10 @@
 package discord
 
 import (
-	"maps"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPinnedRoleMapParses(t *testing.T) {
@@ -25,42 +27,27 @@ func TestPinnedRoleMapParses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			wantPins(t, Config{PinnedRoles: tc.raw}.PinnedRoleMap(), tc.want)
+			got := Config{PinnedRoles: tc.raw}.PinnedRoleMap()
+			assert.Len(t, got, len(tc.want))
+			for slot, id := range tc.want {
+				assert.Equal(t, id, got[slot], slot)
+			}
 		})
-	}
-}
-
-func wantPins(t *testing.T, got, want map[string]string) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("map = %v, want %v", got, want)
-	}
-	for slot, id := range want {
-		if got[slot] != id {
-			t.Fatalf("slot %q = %q, want %q", slot, got[slot], id)
-		}
 	}
 }
 
 func TestPinnedRoleLooksUpOneSlot(t *testing.T) {
 	cfg := Config{PinnedRoles: "mods=111,vip=222"}
-	if got := cfg.PinnedRole(SlotMods); got != "111" {
-		t.Fatalf("mods = %q, want 111", got)
-	}
-	if got := cfg.PinnedRole(SlotOwner); got != "" {
-		t.Fatalf("unpinned owner = %q, want empty", got)
-	}
+
+	assert.Equal(t, "111", cfg.PinnedRole(SlotMods))
+	assert.Empty(t, cfg.PinnedRole(SlotOwner), "an unpinned slot reads empty")
 }
 
 func TestEveryTemplateRoleHasASlot(t *testing.T) {
 	for _, spec := range CommunityRoles() {
-		if SlotForRoleName(spec.Name) == "" {
-			t.Fatalf("template role %q has no slot", spec.Name)
-		}
+		assert.NotEmpty(t, SlotForRoleName(spec.Name), "template role %q has no slot", spec.Name)
 	}
-	if len(RoleSlots()) != len(CommunityRoles()) {
-		t.Fatalf("slots = %d, template roles = %d", len(RoleSlots()), len(CommunityRoles()))
-	}
+	assert.Len(t, RoleSlots(), len(CommunityRoles()))
 }
 
 func TestIsModStaff(t *testing.T) {
@@ -119,30 +106,16 @@ func TestIsTicketStaff(t *testing.T) {
 	}
 }
 
-func TestFormatPinnedRolesRoundTrips(t *testing.T) {
-	pins := map[string]string{
-		SlotMods: "100000000000000001", SlotOwner: "100000000000000002",
-	}
+func TestFormatPinnedRoles(t *testing.T) {
+	pins := map[string]string{SlotMods: "100000000000000001", SlotOwner: "100000000000000002"}
 
 	raw := FormatPinnedRoles(pins)
 
-	if raw != "mods=100000000000000001,owner=100000000000000002" {
-		t.Fatalf("formatted = %q, want the slots sorted", raw)
-	}
-	back := Config{PinnedRoles: raw}.PinnedRoleMap()
-	if !maps.Equal(back, pins) {
-		t.Fatalf("round trip = %v, want %v", back, pins)
-	}
-	if FormatPinnedRoles(nil) != "" {
-		t.Fatal("no pins must format as the empty (unset) field")
-	}
-}
+	assert.Equal(t, "mods=100000000000000001,owner=100000000000000002", raw, "slots are sorted")
+	assert.Equal(t, pins, Config{PinnedRoles: raw}.PinnedRoleMap(), "the format round trips")
+	assert.Empty(t, FormatPinnedRoles(nil), "no pins format as the empty (unset) field")
 
-func TestFormatPinnedRolesKeepsAnEmptyIDVisibleToTheValidator(t *testing.T) {
-	raw := FormatPinnedRoles(map[string]string{SlotMods: ""})
-
-	bad := ValidateConfig(Config{PinnedRoles: raw})
-	if len(bad) != 1 || bad[0].Code != CodeMalformedPair {
-		t.Fatalf("errors = %+v, want one %s", bad, CodeMalformedPair)
-	}
+	bad := ValidateConfig(Config{PinnedRoles: FormatPinnedRoles(map[string]string{SlotMods: ""})})
+	require.Len(t, bad, 1, "an empty id stays visible to the validator")
+	assert.Equal(t, CodeMalformedPair, bad[0].Code)
 }

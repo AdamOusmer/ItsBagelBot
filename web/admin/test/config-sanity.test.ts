@@ -2,18 +2,22 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
-import { describe, expect, test } from 'bun:test';
-import { assertDemoConfigSafe } from '../src/lib/server/config-sanity';
+import { expect, test } from 'bun:test';
+import { assertConfigSane } from '../src/lib/server/config-sanity';
 
-describe('admin demo configuration', () => {
-  test('rejects DEMO in production', () => {
-    expect(() => assertDemoConfigSafe({ DEMO: '1', NODE_ENV: 'production' })).toThrow(
-      'DEMO must not be enabled in production'
-    );
-  });
+const sane = {
+  ORIGIN: 'https://admin.example',
+  TWITCH_REDIRECT_URI: 'https://admin.example/auth/callback',
+  DASHBOARD_PUBLIC_ORIGIN: 'https://dashboard.example'
+};
 
-  test('allows DEMO only outside production', () => {
-    expect(() => assertDemoConfigSafe({ DEMO: '1', NODE_ENV: 'development' })).not.toThrow();
-    expect(() => assertDemoConfigSafe({ NODE_ENV: 'production' })).not.toThrow();
-  });
+test('admin startup rejects DEMO in production', () => {
+  expect(() => assertConfigSane({ ...sane, DEMO: '1', NODE_ENV: 'production' })).toThrow('DEMO must not be enabled in production');
+});
+
+test.each([
+  { name: 'DEMO outside production', env: { ...sane, DEMO: '1', NODE_ENV: 'development' } },
+  { name: 'production without DEMO', env: { ...sane, NODE_ENV: 'production' } }
+])('admin startup allows $name', ({ env }) => {
+  expect(() => assertConfigSane(env)).not.toThrow();
 });

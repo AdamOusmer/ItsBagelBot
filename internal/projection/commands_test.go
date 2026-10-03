@@ -6,11 +6,13 @@ package projection
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func commandDTO(userID uint64, name, response string, aliases ...string) data.CommandChangedDTO {
@@ -101,8 +103,8 @@ func TestSetCommandsWritesTheMarkerInTheSameHSETAsTheRows(t *testing.T) {
 	}))
 
 	hdel, hset := -1, -1
-	for i, op := range f.ops() {
-		switch op.cmd {
+	for i, op := range f.Ops() {
+		switch op.Cmd {
 		case "HDEL":
 			hdel = i
 		case "HSET":
@@ -114,7 +116,7 @@ func TestSetCommandsWritesTheMarkerInTheSameHSETAsTheRows(t *testing.T) {
 	require.NotEqual(t, -1, hset)
 	assert.Less(t, hdel, hset, "the clear must precede the write, never follow it")
 
-	written := f.ops()[hset].args
+	written := f.Ops()[hset].Args
 	assert.Subset(t, written, []string{
 		key,
 		commandsMarkerField, "1",
@@ -137,15 +139,17 @@ func TestSetCommandsWritesTheMarkerInTheSameHSETAsTheRows(t *testing.T) {
 func TestSetCommandProjectsBothCooldownsBehindAliases(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
+	client := NewClient(Config{Store: store, TTL: time.Minute, Log: zap.NewNop()})
+	t.Cleanup(client.Close)
 
 	dto := commandDTO(80, "lurk", "lurking", "afk")
 	dto.Cooldown, dto.UserCooldown = 5, 60
 	require.NoError(t, store.SetCommand(ctx, dto))
 	require.NoError(t, store.SetCommand(ctx, commandDTO(80, "plain", "no limits")))
 
-	view, found, _, err := store.GetCommand(ctx, 80, "afk")
+	cmd, found, err := client.Command(ctx, 80, "afk")
 	require.NoError(t, err)
 	require.True(t, found)
-	assert.Equal(t, [2]uint{5, 60}, [2]uint{commandFromView(view).Cooldown, commandFromView(view).UserCooldown})
+	assert.Equal(t, [2]uint{5, 60}, [2]uint{cmd.Cooldown, cmd.UserCooldown})
 	assert.NotContains(t, f.hash("settings:80")["command:plain"], "user_cooldown", "rows without a per-user limit keep their existing shape")
 }

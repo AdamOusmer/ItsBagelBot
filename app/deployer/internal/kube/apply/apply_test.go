@@ -6,9 +6,10 @@ package apply
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -115,9 +116,8 @@ func TestApply(t *testing.T) {
 	c, a := newCluster(t, true, liveSesameScaler, liveConfig)
 
 	res, err := a.Apply(context.Background(), objs)
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
+
+	require.NoError(t, err)
 	type outcome struct {
 		Patches       []patch
 		Changed       []string
@@ -140,9 +140,7 @@ func TestApply(t *testing.T) {
 		Applied:       6,
 		InputReplicas: true,
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("apply outcome\n got %+v\nwant %+v", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestApplyCountsContentChangesOnly(t *testing.T) {
@@ -165,12 +163,9 @@ func TestApplyCountsContentChangesOnly(t *testing.T) {
 			c, a := newCluster(t, false, live)
 			c.takeVersion = "8"
 			res, err := a.Apply(context.Background(), objects(tc.apply))
-			if err != nil {
-				t.Fatalf("Apply: %v", err)
-			}
-			if got := refStrings(res.Changed); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("changed = %v, want %v", got, tc.want)
-			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, refStrings(res.Changed))
 		})
 	}
 }
@@ -178,13 +173,11 @@ func TestApplyCountsContentChangesOnly(t *testing.T) {
 func TestApplyWithoutKEDA(t *testing.T) {
 	c, a := newCluster(t, false)
 	objs := objects(manifest{apiVersion: "apps/v1", kind: "Deployment", ns: "db", name: "users", spec: replicas3})
-	if _, err := a.Apply(context.Background(), objs); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	want := []patch{{Ref: "Deployment db/users", Manager: FieldManager, Force: true, Replicas: true}}
-	if !reflect.DeepEqual(c.patches, want) {
-		t.Fatalf("patches = %+v, want %+v", c.patches, want)
-	}
+
+	_, err := a.Apply(context.Background(), objs)
+
+	require.NoError(t, err)
+	assert.Equal(t, []patch{{Ref: "Deployment db/users", Manager: FieldManager, Force: true, Replicas: true}}, c.patches)
 }
 
 func TestApplyStopsAtFirstFailure(t *testing.T) {
@@ -205,10 +198,7 @@ func TestApplyStopsAtFirstFailure(t *testing.T) {
 	if ok {
 		got.Code = f.Code
 	}
-	want := outcome{Code: deploy.FailApplyFailed, Applied: []string{"Deployment db/commands"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %+v (err %v), want %+v", got, err, want)
-	}
+	assert.Equal(t, outcome{Code: deploy.FailApplyFailed, Applied: []string{"Deployment db/commands"}}, got)
 }
 
 func TestAllowlist(t *testing.T) {
@@ -237,15 +227,12 @@ func TestAllowlist(t *testing.T) {
 	}
 	got := outcome{Refused: errors.Is(err, ports.ErrRefused), LogLines: len(f.LogTail), Actions: len(c.client.Actions()),
 		Code: f.Code, Accepted: refs(ok, nil), Outside: refStrings(out)}
-	want := outcome{
+	assert.Equal(t, outcome{
 		Refused: true, Code: deploy.FailApplyRefused, LogLines: 6, Actions: 0,
 		Accepted: []string{"Deployment app/gossip", "Deployment ops/deployer", "PriorityClass bagel-edge"},
 		Outside: []string{"Secret app/gossip-env", "Role db/deployer", "Deployment ops/backup", "Service ops/deployer",
 			"DopplerSecret db/users-env", "Deployment app/lookalike"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %+v\nwant %+v", got, want)
-	}
+	}, got)
 }
 
 func refStrings(rs []ports.ObjectRef) []string {

@@ -1,13 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package codec
+package codec_test
 
 import (
 	"errors"
 	"strconv"
 	"strings"
 	"testing"
+
+	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const doc = `{
@@ -22,208 +27,173 @@ const doc = `{
 	"stats":{"br_kills_solo":41,"br_wins_solo":3,"br_kills_duo":58,"other":9}
 }`
 
-type extracted func(data []byte, path Path) (string, error)
+type extracted func(data []byte, path codec.Path) (string, error)
 
-func asString(data []byte, path Path) (string, error) {
-	return ExtractString(data, path)
+func asString(data []byte, path codec.Path) (string, error) {
+	return codec.ExtractString(data, path)
 }
 
-func asInt(data []byte, path Path) (string, error) {
-	v, err := ExtractInt(data, path)
+func asInt(data []byte, path codec.Path) (string, error) {
+	v, err := codec.ExtractInt(data, path)
 	return strconv.FormatInt(v, 10), err
 }
 
-func asFloat(data []byte, path Path) (string, error) {
-	v, err := ExtractFloat(data, path)
+func asFloat(data []byte, path codec.Path) (string, error) {
+	v, err := codec.ExtractFloat(data, path)
 	return strconv.FormatFloat(v, 'g', -1, 64), err
 }
 
-func asBool(data []byte, path Path) (string, error) {
-	v, err := ExtractBool(data, path)
+func asBool(data []byte, path codec.Path) (string, error) {
+	v, err := codec.ExtractBool(data, path)
 	return strconv.FormatBool(v), err
 }
 
 func TestExtractScalars(t *testing.T) {
-	for _, tc := range []struct {
+	tests := []struct {
 		name string
 		get  extracted
-		path Path
+		path codec.Path
 		want string
 	}{
-		{"string", asString, Path{"account_id"}, "abc-123"},
-		{"int", asInt, Path{"level"}, "74"},
-		{"float", asFloat, Path{"ratio"}, "1.75"},
-		{"bool", asBool, Path{"active"}, "true"},
-		{"escaped string", asString, Path{"name"}, `say "hi"`},
-		{"nested string", asString, Path{"profile", "region"}, "eu"},
-		{"nested int", asInt, Path{"profile", "wins"}, "12"},
-	} {
+		{"extracts a string", asString, codec.Path{"account_id"}, "abc-123"},
+		{"extracts an int", asInt, codec.Path{"level"}, "74"},
+		{"extracts a float", asFloat, codec.Path{"ratio"}, "1.75"},
+		{"extracts a bool", asBool, codec.Path{"active"}, "true"},
+		{"unescapes a string", asString, codec.Path{"name"}, `say "hi"`},
+		{"extracts a nested string", asString, codec.Path{"profile", "region"}, "eu"},
+		{"extracts a nested int", asInt, codec.Path{"profile", "wins"}, "12"},
+	}
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := tc.get([]byte(doc), tc.path)
-			if err != nil {
-				t.Fatalf("%v: %v", tc.path, err)
-			}
-			if got != tc.want {
-				t.Fatalf("%v = %q, want %q", tc.path, got, tc.want)
-			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestExtractMissingPathIsErrNotFound(t *testing.T) {
-	_, err := ExtractString([]byte(doc), Path{"profile", "nope"})
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "nope") {
-		t.Fatalf("error omits the path: %v", err)
-	}
-}
-
-func TestExtractNullIsNotMissing(t *testing.T) {
-	_, kind, err := ExtractValue([]byte(doc), Path{"missing_child"})
-	if err != nil {
-		t.Fatalf("ExtractValue(null) errored: %v", err)
-	}
-	if kind != KindNull {
-		t.Fatalf("kind = %v, want null", kind)
-	}
-}
-
-func TestExtractValueKinds(t *testing.T) {
-	for _, tc := range []struct {
-		path Path
-		want Kind
+func TestExtractValueReportsKinds(t *testing.T) {
+	tests := []struct {
+		name string
+		path codec.Path
+		want codec.Kind
 	}{
-		{Path{"account_id"}, KindString},
-		{Path{"level"}, KindNumber},
-		{Path{"active"}, KindBool},
-		{Path{"profile"}, KindObject},
-		{Path{"modes"}, KindArray},
-		{Path{"missing_child"}, KindNull},
-	} {
-		_, kind, err := ExtractValue([]byte(doc), tc.path)
-		if err != nil {
-			t.Fatalf("ExtractValue(%v): %v", tc.path, err)
+		{"reports a string", codec.Path{"account_id"}, codec.KindString},
+		{"reports a number", codec.Path{"level"}, codec.KindNumber},
+		{"reports a bool", codec.Path{"active"}, codec.KindBool},
+		{"reports an object", codec.Path{"profile"}, codec.KindObject},
+		{"reports an array", codec.Path{"modes"}, codec.KindArray},
+		{"reports null as a present value, not a missing key", codec.Path{"missing_child"}, codec.KindNull},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, kind, err := codec.ExtractValue([]byte(doc), tc.path)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, kind)
+		})
+	}
+
+	t.Run("returns an object value that decodes as JSON", func(t *testing.T) {
+		raw, _, err := codec.ExtractValue([]byte(doc), codec.Path{"profile"})
+		require.NoError(t, err)
+
+		var profile struct {
+			Region string `json:"region"`
+			Wins   int    `json:"wins"`
 		}
-		if kind != tc.want {
-			t.Fatalf("ExtractValue(%v) kind = %v, want %v", tc.path, kind, tc.want)
-		}
-	}
-	raw, _, err := ExtractValue([]byte(doc), Path{"profile"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var profile struct {
-		Region string `json:"region"`
-		Wins   int    `json:"wins"`
-	}
-	if err := Unmarshal(raw, &profile); err != nil {
-		t.Fatalf("object value is not valid JSON: %v", err)
-	}
-	if profile.Region != "eu" || profile.Wins != 12 {
-		t.Fatalf("round-trip = %+v", profile)
-	}
+		require.NoError(t, codec.Unmarshal(raw, &profile))
+		assert.Equal(t, "eu", profile.Region)
+		assert.Equal(t, 12, profile.Wins)
+	})
 }
 
-func TestExtractEachAggregates(t *testing.T) {
-	var total int64
-	var seen int
-	err := ExtractEach([]byte(doc), func(key, value []byte, kind Kind) error {
-		seen++
-		if kind != KindNumber || !strings.HasPrefix(string(key), "br_kills_") {
-			return nil
-		}
-		n, err := ParseInt(value)
-		if err != nil {
+func TestExtractRejectsMissingPathsAndMalformedDocuments(t *testing.T) {
+	t.Run("reports ErrNotFound naming the missing path", func(t *testing.T) {
+		_, err := codec.ExtractString([]byte(doc), codec.Path{"profile", "nope"})
+
+		require.ErrorIs(t, err, codec.ErrNotFound)
+		assert.ErrorContains(t, err, "nope")
+	})
+	t.Run("reports ErrNotFound when iterating a missing object", func(t *testing.T) {
+		err := codec.ExtractEach([]byte(doc), func(_, _ []byte, _ codec.Kind) error { return nil }, codec.Path{"nope"})
+
+		assert.ErrorIs(t, err, codec.ErrNotFound)
+	})
+	t.Run("rejects a malformed document", func(t *testing.T) {
+		_, err := codec.ExtractString([]byte(`{"a":`), codec.Path{"a"})
+
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractEachWalksObjectMembers(t *testing.T) {
+	t.Run("aggregates matching members", func(t *testing.T) {
+		var total int64
+		var seen int
+		err := codec.ExtractEach([]byte(doc), func(key, value []byte, kind codec.Kind) error {
+			seen++
+			if kind != codec.KindNumber || !strings.HasPrefix(string(key), "br_kills_") {
+				return nil
+			}
+			n, err := codec.ParseInt(value)
+			total += n
 			return err
-		}
-		total += n
-		return nil
-	}, Path{"stats"})
-	if err != nil {
-		t.Fatalf("ExtractEach: %v", err)
-	}
-	if seen != 4 {
-		t.Fatalf("visited %d members, want 4", seen)
-	}
-	if total != 99 {
-		t.Fatalf("total = %d, want 99", total)
-	}
+		}, codec.Path{"stats"})
+
+		require.NoError(t, err)
+		assert.Equal(t, 4, seen)
+		assert.Equal(t, int64(99), total)
+	})
+	t.Run("stops at the callback error and returns it unchanged", func(t *testing.T) {
+		stop := errors.New("stop")
+		var visited int
+		err := codec.ExtractEach([]byte(doc), func(_, _ []byte, _ codec.Kind) error {
+			visited++
+			return stop
+		}, codec.Path{"stats"})
+
+		require.ErrorIs(t, err, stop)
+		assert.Equal(t, 1, visited)
+	})
 }
 
-func TestExtractEachPropagatesCallbackError(t *testing.T) {
-	stop := errors.New("stop")
-	var visited int
-	err := ExtractEach([]byte(doc), func(_, _ []byte, _ Kind) error {
-		visited++
-		return stop
-	}, Path{"stats"})
-	if !errors.Is(err, stop) {
-		t.Fatalf("want the callback's own error, got %v", err)
-	}
-	if visited != 1 {
-		t.Fatalf("walk continued past the error: visited %d", visited)
-	}
-}
-
-func TestExtractArray(t *testing.T) {
+func TestExtractArrayVisitsEveryElement(t *testing.T) {
 	var got []string
-	err := ExtractArray([]byte(doc), func(value []byte, kind Kind) error {
-		if kind != KindString {
-			t.Fatalf("element kind = %v", kind)
-		}
-		s, err := ParseString(value)
-		if err != nil {
-			return err
-		}
+	err := codec.ExtractArray([]byte(doc), func(value []byte, kind codec.Kind) error {
+		assert.Equal(t, codec.KindString, kind)
+		s, err := codec.ParseString(value)
 		got = append(got, s)
-		return nil
-	}, Path{"modes"})
-	if err != nil {
-		t.Fatalf("ExtractArray: %v", err)
-	}
-	if strings.Join(got, ",") != "solo,duo,squad" {
-		t.Fatalf("elements = %v", got)
-	}
+		return err
+	}, codec.Path{"modes"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"solo", "duo", "squad"}, got)
 }
 
-func TestExtractEachMissingPath(t *testing.T) {
-	err := ExtractEach([]byte(doc), func(_, _ []byte, _ Kind) error { return nil }, Path{"nope"})
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
-}
-
-func TestExtractMalformedDocument(t *testing.T) {
-	if _, err := ExtractString([]byte(`{"a":`), Path{"a"}); err == nil {
-		t.Fatal("malformed document accepted")
-	}
-}
+var sinkInt int64
 
 func TestExtractEachAllocationIsFlat(t *testing.T) {
 	scan := func(data []byte) float64 {
 		return testing.AllocsPerRun(50, func() {
 			var total int64
-			_ = ExtractEach(data, func(key, value []byte, kind Kind) error {
-				if kind == KindNumber && strings.HasPrefix(string(key), "br_kills_") {
-					n, _ := ParseInt(value)
+			_ = codec.ExtractEach(data, func(key, value []byte, kind codec.Kind) error {
+				if kind == codec.KindNumber && strings.HasPrefix(string(key), "br_kills_") {
+					n, _ := codec.ParseInt(value)
 					total += n
 				}
 				return nil
-			}, Path{"stats"})
+			}, codec.Path{"stats"})
 			sinkInt = total
 		})
 	}
 
 	narrow := scan(statsDoc(5))
 	wide := scan(statsDoc(5000))
-	if narrow != wide {
-		t.Fatalf("allocations scale with document size: %v members-5 vs %v members-5000", narrow, wide)
-	}
-	if wide > 1 {
-		t.Fatalf("ExtractEach allocated %v times per call, want at most 1", wide)
-	}
+
+	assert.Equal(t, narrow, wide, "allocations scale with document size")
+	assert.LessOrEqual(t, wide, 1.0, "ExtractEach allocations per call")
 }
 
 func statsDoc(n int) []byte {
@@ -241,5 +211,3 @@ func statsDoc(n int) []byte {
 	b.WriteString(`}}`)
 	return []byte(b.String())
 }
-
-var sinkInt int64

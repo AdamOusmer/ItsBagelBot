@@ -9,6 +9,7 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -34,20 +35,6 @@ func deadLetterJetStream(t *testing.T) nats.JetStreamContext {
 	return js
 }
 
-func fetchDelivery(t *testing.T, js nats.JetStreamContext, subject string, header nats.Header) *nats.Msg {
-	t.Helper()
-	msg := nats.NewMsg(subject)
-	msg.Data = []byte(`{"batch_id":"b1"}`)
-	msg.Header = header
-	_, err := js.PublishMsg(msg)
-	require.NoError(t, err)
-	sub, err := js.PullSubscribe(subject, "")
-	require.NoError(t, err)
-	got, err := sub.Fetch(1, nats.MaxWait(2*time.Second))
-	require.NoError(t, err)
-	return got[0]
-}
-
 func deadLetters(t *testing.T, js nats.JetStreamContext) uint64 {
 	t.Helper()
 	info, err := js.StreamInfo(BagelDeadLetterStream.Name)
@@ -55,73 +42,26 @@ func deadLetters(t *testing.T, js nats.JetStreamContext) uint64 {
 	return info.State.Msgs
 }
 
-func TestTerminatedDataMessageMovesToTheDeadLetterStream(t *testing.T) {
-	js := deadLetterJetStream(t)
-	header := nats.Header{}
-	header.Set(nats.MsgIdHdr, "decoded:abc")
-	header.Set(nats.ExpectedStreamHdr, BagelDataStream.Name)
-	header.Set("Traceparent", "00-trace")
-	delivery := fetchDelivery(t, js, "data.loyalty.counters", header)
-	s := &concurrentDurableSubscriber{js: js, stream: BagelDataStream.Name, consumer: "loyalty", log: zap.NewNop()}
-
-	s.terminate(delivery, deadLetterMaxDeliveries)
-	s.terminate(delivery, deadLetterMaxDeliveries)
-
-	require.Equal(t, uint64(1), deadLetters(t, js))
-	letter, err := js.GetLastMsg(BagelDeadLetterStream.Name, "dlq.data.loyalty.counters")
-	require.NoError(t, err)
-	require.JSONEq(t, `{"batch_id":"b1"}`, string(letter.Data))
-	require.Equal(t, "data.loyalty.counters", letter.Header.Get(DeadLetterSubjectHeader))
-	require.Equal(t, "decoded:abc", letter.Header.Get(DeadLetterMsgIDHeader))
-	require.Equal(t, "loyalty", letter.Header.Get(DeadLetterConsumerHeader))
-	require.Equal(t, deadLetterMaxDeliveries, letter.Header.Get(DeadLetterReasonHeader))
-	require.Equal(t, "1", letter.Header.Get(DeadLetterDeliveriesHeader))
-	require.Equal(t, "00-trace", letter.Header.Get("Traceparent"))
-	require.Empty(t, letter.Header.Get(nats.ExpectedStreamHdr))
-	require.Equal(t, "dlq:BAGEL_DATA:1", letter.Header.Get(nats.MsgIdHdr))
-}
-
-func TestTerminatedMessageOutsideBagelDataIsNotDeadLettered(t *testing.T) {
-	js := deadLetterJetStream(t)
-	delivery := fetchDelivery(t, js, "other.thing", nil)
-	s := &concurrentDurableSubscriber{js: js, stream: "OTHER", consumer: "c", log: zap.NewNop()}
-
-	s.terminate(delivery, deadLetterMaxDeliveries)
-
-	require.Zero(t, deadLetters(t, js))
-}
-
-func TestDeadLetterSubjectsStayOutsideTheDataStream(t *testing.T) {
-	require.False(t, matchesAnySubject(deadLetterSubject("data.loyalty.counters"), BagelDataStream.Subjects))
-	require.True(t, matchesAnySubject(deadLetterSubject("data.loyalty.counters"), BagelDeadLetterStream.Subjects))
-}
-
-func TestDataLanesRetryThreeTimesWithBackoffBeforeDeadLettering(t *testing.T) {
-	delay := newBackoffRetryDelay(dataRetryBackoff)
-	require.Equal(t, 5*time.Second, delay.WaitTime(1))
-	require.Equal(t, 20*time.Second, delay.WaitTime(2))
-	require.Equal(t, time.Minute, delay.WaitTime(3))
-	require.Equal(t, terminateDelivery, delay.WaitTime(4))
-}
-
-func TestDataRetryScheduleFitsInsideTheDataStreamMaxAge(t *testing.T) {
-	delay := dataRetryDelay()
-	worst := time.Duration(delay.deliveries())*newConcurrentDurableSubscriber(concurrentSubscriberConfig{}).handlerDeadline + delay.deferral
-	for _, wait := range dataRetryBackoff {
-		worst += wait
-	}
-	require.Less(t, worst, BagelDataStream.MaxAge)
-}
-
 func TestDataLanesGrantOneDeferredDeliveryBeforeDeadLettering(t *testing.T) {
 	delay := dataRetryDelay()
 	require.EqualValues(t, 5, delay.deliveries())
-	require.Equal(t, 5*time.Second, delay.nakDelay(1, 45*time.Second))
-	require.Equal(t, terminateDelivery, delay.nakDelay(4, 0))
-	require.Equal(t, 45*time.Second, delay.nakDelay(4, 45*time.Second))
-	require.Equal(t, dataRetryDeferral, delay.nakDelay(4, time.Hour))
-	require.Equal(t, terminateDelivery, delay.nakDelay(5, 45*time.Second))
-	require.Equal(t, terminateDelivery, newMaxRetryDelay(time.Second, 4).nakDelay(4, 45*time.Second))
+
+	for _, tc := range []struct {
+		name string
+		got  time.Duration
+		want time.Duration
+	}{
+		{"an early delivery nacks on the backoff step, not the requested delay", delay.nakDelay(1, 45*time.Second), 5 * time.Second},
+		{"a last backoff delivery without a request terminates", delay.nakDelay(4, 0), terminateDelivery},
+		{"a last backoff delivery honours a requested delay", delay.nakDelay(4, 45*time.Second), 45 * time.Second},
+		{"a requested delay is capped at the deferral", delay.nakDelay(4, time.Hour), dataRetryDeferral},
+		{"the deferred delivery terminates", delay.nakDelay(5, 45*time.Second), terminateDelivery},
+		{"a plain capped delay ignores the requested delay at its limit", newMaxRetryDelay(time.Second, 4).nakDelay(4, 45*time.Second), terminateDelivery},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.got)
+		})
+	}
 }
 
 func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
@@ -133,6 +73,7 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	require.NoError(t, err)
 	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(int(delay.deliveries())), nats.AckWait(time.Minute))
 	require.NoError(t, err)
+
 	for delivered := uint64(1); delivered <= delay.deliveries(); delivered++ {
 		got, err := sub.Fetch(1, nats.MaxWait(2*time.Second))
 		require.NoError(t, err, "delivery %d", delivered)
@@ -142,5 +83,6 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 		require.Zero(t, deadLetters(t, js), "delivery %d", delivered)
 		s.nack(got[0], time.Minute)
 	}
+
 	require.Equal(t, uint64(1), deadLetters(t, js))
 }

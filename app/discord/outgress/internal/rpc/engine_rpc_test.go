@@ -6,177 +6,229 @@ package rpc
 import (
 	"context"
 	"errors"
-	"fmt"
+	"net/http"
+	"slices"
 	"testing"
 
 	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type fakeEngineREST struct {
-	channelGuilds map[string]string
-	channelErr    error
+var (
+	refusedByDiscord = answer{status: http.StatusForbidden, body: "Missing Permissions"}
+	twoMessages      = answer{status: http.StatusOK, body: `[{"id":"m1"},{"id":"m2"}]`}
+	liveMessage      = map[kv.GuildID]discapi.Message{"g1": {ChannelID: "live1", ID: "tracked1"}}
+)
 
-	created  []string
-	deleted  []string
-	modified []discapi.ChannelPatch
-	moved    []discapi.VoiceMove
-	listed   []discapi.Snowflake
-	bulkDel  []discapi.Purge
-	sent     []discapi.EmbedPost
-	edited   []discapi.Message
-	editErr  error
+const refusedError = "discord: forbidden: Missing Permissions"
 
-	inviteCodes []string
-	inviteReply discapi.Invite
-	inviteErr   error
+func serveEngine(rest *discapi.Client, live kv.LiveStore, wire Wiring) error {
+	return SubscribeEngine(rest, live, wire)
 }
 
-func (f *fakeEngineREST) CreateChannel(_ context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error) {
-	id := "ch-" + ch.Spec.Name
-	f.created = append(f.created, id)
-	return discapi.Snowflake{ID: id}, nil
-}
-func (f *fakeEngineREST) DeleteChannel(_ context.Context, ch discapi.Snowflake) error {
-	f.deleted = append(f.deleted, ch.ID)
-	return nil
-}
-func (f *fakeEngineREST) ModifyChannel(_ context.Context, patch discapi.ChannelPatch) error {
-	f.modified = append(f.modified, patch)
-	return nil
-}
-func (f *fakeEngineREST) MoveMember(_ context.Context, move discapi.VoiceMove) error {
-	f.moved = append(f.moved, move)
-	return nil
-}
-func (f *fakeEngineREST) ListMessages(context.Context, discapi.MessageQuery) ([]discapi.Snowflake, error) {
-	return f.listed, nil
-}
-func (f *fakeEngineREST) BulkDeleteMessages(_ context.Context, p discapi.Purge) error {
-	f.bulkDel = append(f.bulkDel, p)
-	return nil
-}
-func (f *fakeEngineREST) SendEmbed(_ context.Context, post discapi.EmbedPost) (discapi.Message, error) {
-	f.sent = append(f.sent, post)
-	return discapi.Message{ChannelID: post.ChannelID, ID: "msg-1"}, nil
-}
-func (f *fakeEngineREST) EditMessage(_ context.Context, m discapi.Message, _ discapi.MessagePatch) error {
-	f.edited = append(f.edited, m)
-	return f.editErr
-}
-func (f *fakeEngineREST) GetInvite(_ context.Context, code string) (discapi.Invite, error) {
-	f.inviteCodes = append(f.inviteCodes, code)
-	return f.inviteReply, f.inviteErr
-}
-
-type memLive struct {
-	msgs map[kv.GuildID]discapi.Message
-}
-
-func newMemLive() *memLive { return &memLive{msgs: map[kv.GuildID]discapi.Message{}} }
-
-func (m *memLive) PutLiveMessage(_ context.Context, guildID kv.GuildID, msg discapi.Message) error {
-	m.msgs[guildID] = msg
-	return nil
-}
-func (m *memLive) GetLiveMessage(_ context.Context, guildID kv.GuildID) (discapi.Message, bool) {
-	msg, ok := m.msgs[guildID]
-	return msg, ok
-}
-func (m *memLive) DeleteLiveMessage(_ context.Context, guildID kv.GuildID) error {
-	delete(m.msgs, guildID)
-	return nil
+func channelCases() []discordCase {
+	overwrites := []discapi.PermissionOverwrite{{ID: "u1", Type: 1, Allow: "1024", Deny: "0"}}
+	return []discordCase{{
+		name: "creates a channel with the requested spec",
+		verb: "channel.create",
+		req: discordoutgress.ChannelCreateRequest{
+			GuildID: "g1", Name: "voice", Type: 2, ParentID: "cat1", Topic: "Welcome", Overwrites: overwrites,
+		},
+		want:  discordoutgress.ChannelCreateReply{ChannelID: "m-new"},
+		calls: []string{"POST /guilds/g1/channels"},
+		write: "POST /guilds/g1/channels",
+		body:  `{"name":"voice","type":2,"parent_id":"cat1","topic":"Welcome","permission_overwrites":[{"id":"u1","type":1,"allow":"1024","deny":"0"}]}`,
+	}, {
+		name:   "reports a refused channel create",
+		verb:   "channel.create",
+		req:    discordoutgress.ChannelCreateRequest{GuildID: "g1", Name: "voice"},
+		routes: map[string]answer{"POST /guilds/g1/channels": refusedByDiscord},
+		want:   discordoutgress.ChannelCreateReply{Error: refusedError},
+		calls:  []string{"POST /guilds/g1/channels"},
+	}, {
+		name:  "deletes a channel of the guild",
+		verb:  "channel.delete",
+		req:   discordoutgress.ChannelDeleteRequest{GuildID: "g1", ChannelID: "old1"},
+		want:  discordoutgress.ChannelDeleteReply{},
+		calls: []string{"GET /channels/old1", "DELETE /channels/old1"},
+	}, {
+		name:   "reports a refused channel delete",
+		verb:   "channel.delete",
+		req:    discordoutgress.ChannelDeleteRequest{GuildID: "g1", ChannelID: "old1"},
+		routes: map[string]answer{"DELETE /channels/old1": refusedByDiscord},
+		want:   discordoutgress.ChannelDeleteReply{Error: refusedError},
+		calls:  []string{"GET /channels/old1", "DELETE /channels/old1"},
+	}, {
+		name: "modifies a channel of the guild",
+		verb: "channel.modify",
+		req: discordoutgress.ChannelModifyRequest{
+			GuildID: "g1", ChannelID: "c1", Name: "renamed", UserLimit: 4, Overwrites: overwrites,
+		},
+		want:  discordoutgress.ChannelModifyReply{},
+		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
+		write: "PATCH /channels/c1",
+		body:  `{"name":"renamed","user_limit":4,"permission_overwrites":[{"id":"u1","type":1,"allow":"1024","deny":"0"}]}`,
+	}}
 }
 
-func TestHandleCreateReturnsTheChannelID(t *testing.T) {
-	rest := &fakeEngineREST{}
-	h := &engineRPC{rest: rest, log: zap.NewNop()}
-	reply := h.handleCreate(context.Background(), discordoutgress.ChannelCreateRequest{GuildID: "g1", Name: "ticket-ada"})
-	if reply.Error != "" {
-		t.Fatalf("error = %s", reply.Error)
+func memberCases() []discordCase {
+	return []discordCase{{
+		name:  "moves a member into a voice channel",
+		verb:  "member.move",
+		req:   discordoutgress.MemberMoveRequest{GuildID: "g1", UserID: "u1", ChannelID: "voice1"},
+		want:  discordoutgress.MemberMoveReply{},
+		calls: []string{"PATCH /guilds/g1/members/u1"},
+		write: "PATCH /guilds/g1/members/u1",
+		body:  `{"channel_id":"voice1"}`,
+	}, {
+		name:  "disconnects a member when no channel is given",
+		verb:  "member.move",
+		req:   discordoutgress.MemberMoveRequest{GuildID: "g1", UserID: "u1"},
+		want:  discordoutgress.MemberMoveReply{},
+		calls: []string{"PATCH /guilds/g1/members/u1"},
+		write: "PATCH /guilds/g1/members/u1",
+		body:  `{"channel_id":null}`,
+	}, {
+		name:   "reports a refused member move",
+		verb:   "member.move",
+		req:    discordoutgress.MemberMoveRequest{GuildID: "g1", UserID: "u1", ChannelID: "voice1"},
+		routes: map[string]answer{"PATCH /guilds/g1/members/u1": refusedByDiscord},
+		want:   discordoutgress.MemberMoveReply{Error: refusedError},
+		calls:  []string{"PATCH /guilds/g1/members/u1"},
+	}}
+}
+
+func purgeCases() []discordCase {
+	purge := discordoutgress.PurgeRequest{GuildID: "g1", ChannelID: "c1", Count: 50}
+	listing := []string{"GET /channels/c1", "GET /channels/c1/messages?limit=50"}
+	return []discordCase{{
+		name:   "bulk-deletes the listed messages",
+		verb:   "channel.purge",
+		req:    purge,
+		routes: map[string]answer{"GET /channels/c1/messages?limit=50": twoMessages},
+		want:   discordoutgress.PurgeReply{Deleted: 2},
+		calls:  append(listing, "POST /channels/c1/messages/bulk-delete"),
+		write:  "POST /channels/c1/messages/bulk-delete",
+		body:   `{"messages":["m1","m2"]}`,
+	}, {
+		name: "reports a lone message without a bulk delete",
+		verb: "channel.purge",
+		req:  purge,
+		routes: map[string]answer{
+			"GET /channels/c1/messages?limit=50": {status: http.StatusOK, body: `[{"id":"m1"}]`},
+		},
+		want:  discordoutgress.PurgeReply{Deleted: 1},
+		calls: listing,
+	}, {
+		name: "reports a failed message listing",
+		verb: "channel.purge",
+		req:  purge,
+		routes: map[string]answer{
+			"GET /channels/c1/messages?limit=50": {status: http.StatusInternalServerError, body: "boom"},
+		},
+		want:  discordoutgress.PurgeReply{Error: "discord: api rejected request (500): boom"},
+		calls: listing,
+	}, {
+		name: "reports a refused bulk delete",
+		verb: "channel.purge",
+		req:  purge,
+		routes: map[string]answer{
+			"GET /channels/c1/messages?limit=50":     twoMessages,
+			"POST /channels/c1/messages/bulk-delete": refusedByDiscord,
+		},
+		want:  discordoutgress.PurgeReply{Error: refusedError},
+		calls: append(listing, "POST /channels/c1/messages/bulk-delete"),
+	}}
+}
+
+func liveCases() []discordCase {
+	online := discordoutgress.LiveOnlineRequest{
+		GuildID: "g1", ChannelID: "live1",
+		Embed: ddiscord.Embed{Title: "Live now", URL: "https://twitch.tv/bagel", Color: 7},
 	}
-	if reply.ChannelID != "ch-ticket-ada" {
-		t.Fatalf("channel id = %s", reply.ChannelID)
-	}
+	offline := discordoutgress.LiveOfflineRequest{GuildID: "g1"}
+	edit := []string{"GET /channels/live1", "PATCH /channels/live1/messages/tracked1"}
+	return []discordCase{{
+		name:    "posts the go-live embed and remembers it",
+		verb:    "live.online",
+		req:     online,
+		want:    discordoutgress.LiveOnlineReply{},
+		calls:   []string{"GET /channels/live1", "POST /channels/live1/messages"},
+		write:   "POST /channels/live1/messages",
+		body:    `{"embeds":[{"title":"Live now","url":"https://twitch.tv/bagel","color":7}]}`,
+		tracked: map[kv.GuildID]discapi.Message{"g1": {ChannelID: "live1", ID: "m-new"}},
+	}, {
+		name:    "does not post again while the go-live message is remembered",
+		verb:    "live.online",
+		req:     online,
+		live:    liveMessage,
+		want:    discordoutgress.LiveOnlineReply{},
+		tracked: liveMessage,
+	}, {
+		name:   "reports a refused go-live post and remembers nothing",
+		verb:   "live.online",
+		req:    online,
+		routes: map[string]answer{"POST /channels/live1/messages": refusedByDiscord},
+		want:   discordoutgress.LiveOnlineReply{Error: refusedError},
+		calls:  []string{"GET /channels/live1", "POST /channels/live1/messages"},
+	}, {
+		name:  "edits the go-live message when the stream ends and forgets it",
+		verb:  "live.offline",
+		req:   offline,
+		live:  liveMessage,
+		want:  discordoutgress.LiveOfflineReply{},
+		calls: edit,
+		write: "PATCH /channels/live1/messages/tracked1",
+		body:  `{"content":"Stream ended.","embeds":[]}`,
+	}, {
+		name: "ignores a stream end without a remembered message",
+		verb: "live.offline",
+		req:  offline,
+		want: discordoutgress.LiveOfflineReply{},
+	}, {
+		name:   "forgets a go-live message Discord already deleted",
+		verb:   "live.offline",
+		req:    offline,
+		live:   liveMessage,
+		routes: map[string]answer{"PATCH /channels/live1/messages/tracked1": {status: http.StatusNotFound}},
+		want:   discordoutgress.LiveOfflineReply{},
+		calls:  edit,
+	}, {
+		name:    "keeps the go-live message for a retry while the edit is refused",
+		verb:    "live.offline",
+		req:     offline,
+		live:    liveMessage,
+		routes:  map[string]answer{"PATCH /channels/live1/messages/tracked1": refusedByDiscord},
+		want:    discordoutgress.LiveOfflineReply{Error: refusedError},
+		calls:   edit,
+		tracked: liveMessage,
+	}}
 }
 
-func TestHandlePurgeBelowMinimumStillReportsCount(t *testing.T) {
-	rest := &fakeEngineREST{listed: []discapi.Snowflake{{ID: "m1"}}}
-	h := &engineRPC{rest: rest, log: zap.NewNop()}
-	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{GuildID: "g1", ChannelID: "c1", Count: 50})
-	if reply.Deleted != 1 {
-		t.Fatalf("deleted = %d, want 1 (below Discord's 2-message minimum, no bulk-delete call)", reply.Deleted)
-	}
-	if len(rest.bulkDel) != 0 {
-		t.Fatal("must not call bulk-delete under the minimum")
-	}
+func inviteCases() []discordCase {
+	return []discordCase{{
+		name: "resolves an invite to its guild",
+		verb: "invite.resolve",
+		req:  discordoutgress.InviteResolveRequest{Code: "bagel"},
+		routes: map[string]answer{
+			"GET /invites/bagel?with_counts=false": {status: http.StatusOK, body: `{"guild":{"id":"g1"}}`},
+		},
+		want:  discordoutgress.InviteResolveReply{GuildID: "g1"},
+		calls: []string{"GET /invites/bagel?with_counts=false"},
+	}}
 }
 
-func TestHandlePurgeBulkDeletes(t *testing.T) {
-	rest := &fakeEngineREST{listed: []discapi.Snowflake{{ID: "m1"}, {ID: "m2"}, {ID: "m3"}}}
-	h := &engineRPC{rest: rest, log: zap.NewNop()}
-	reply := h.handlePurge(context.Background(), discordoutgress.PurgeRequest{GuildID: "g1", ChannelID: "c1", Count: 50})
-	if reply.Deleted != 3 {
-		t.Fatalf("deleted = %d, want 3", reply.Deleted)
-	}
-	if len(rest.bulkDel) != 1 || len(rest.bulkDel[0].MessageIDs) != 3 {
-		t.Fatalf("bulk delete = %+v", rest.bulkDel)
-	}
-}
-
-func TestHandleLiveOnlineIsIdempotentPerStream(t *testing.T) {
-	rest := &fakeEngineREST{}
-	live := newMemLive()
-	h := &engineRPC{rest: rest, live: live, log: zap.NewNop()}
-
-	first := h.handleLiveOnline(context.Background(), discordoutgress.LiveOnlineRequest{GuildID: "g1", ChannelID: "c1"})
-	if first.Error != "" {
-		t.Fatalf("first online: %s", first.Error)
-	}
-	if len(rest.sent) != 1 {
-		t.Fatalf("expected exactly one embed sent, got %d", len(rest.sent))
-	}
-
-	second := h.handleLiveOnline(context.Background(), discordoutgress.LiveOnlineRequest{GuildID: "g1", ChannelID: "c1"})
-	if second.Error != "" {
-		t.Fatalf("second online: %s", second.Error)
-	}
-	if len(rest.sent) != 1 {
-		t.Fatalf("repeat go-live must not post again, got %d sends", len(rest.sent))
-	}
-}
-
-func TestHandleLiveOfflineEditsAndForgets(t *testing.T) {
-	rest := &fakeEngineREST{}
-	live := newMemLive()
-	h := &engineRPC{rest: rest, live: live, log: zap.NewNop()}
-
-	_ = h.handleLiveOnline(context.Background(), discordoutgress.LiveOnlineRequest{GuildID: "g1", ChannelID: "c1"})
-	reply := h.handleLiveOffline(context.Background(), discordoutgress.LiveOfflineRequest{GuildID: "g1"})
-	if reply.Error != "" {
-		t.Fatalf("offline: %s", reply.Error)
-	}
-	if len(rest.edited) != 1 {
-		t.Fatalf("expected the go-live message to be edited, got %d edits", len(rest.edited))
-	}
-	if _, known := live.GetLiveMessage(context.Background(), "g1"); known {
-		t.Fatal("the live message must be forgotten after the offline edit")
-	}
-}
-
-func TestHandleLiveOfflineWithNoKnownMessageIsANoOp(t *testing.T) {
-	rest := &fakeEngineREST{}
-	h := &engineRPC{rest: rest, live: newMemLive(), log: zap.NewNop()}
-	reply := h.handleLiveOffline(context.Background(), discordoutgress.LiveOfflineRequest{GuildID: "g1"})
-	if reply.Error != "" {
-		t.Fatalf("offline: %s", reply.Error)
-	}
-	if len(rest.edited) != 0 {
-		t.Fatal("must not edit anything when no go-live message is known")
+func TestEngineVerbsReachDiscordAndAnswer(t *testing.T) {
+	cases := slices.Concat(channelCases(), memberCases(), purgeCases(), liveCases(), inviteCases())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected(t), tc.exchange(t, serveEngine))
+		})
 	}
 }
 
@@ -220,50 +272,4 @@ func TestHandleInviteResolveTransientErrorIsError(t *testing.T) {
 	if reply.Error == "" || reply.NotFound {
 		t.Fatalf("reply = %+v, want a non-empty Error and NotFound false", reply)
 	}
-}
-
-func TestHandleLiveOfflineRetainsTrackingOnlyForRetryableFailures(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		err  error
-		keep bool
-	}{
-		{"message disappeared", fmt.Errorf("edit failed: %w", discapi.ErrChannelNotFound), false},
-		{"permission denied", discapi.ErrForbidden, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			rest := &fakeEngineREST{editErr: tc.err}
-			live := newMemLive()
-			msg := discapi.Message{ChannelID: "live1", ID: "m1"}
-			require.NoError(t, live.PutLiveMessage(ctx, "g1", msg))
-			h := &engineRPC{rest: rest, live: live, log: zap.NewNop()}
-			reply := h.handleLiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: "g1"})
-			require.Equal(t, tc.keep, reply.Error != "")
-			require.Equal(t, []discapi.Message{msg}, rest.edited)
-			tracked, known := live.GetLiveMessage(ctx, "g1")
-			require.Equal(t, tc.keep, known)
-			if tc.keep {
-				require.Equal(t, msg, tracked)
-				require.Equal(t, tc.err.Error(), reply.Error)
-				rest.editErr = nil
-				retry := h.handleLiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: "g1"})
-				require.Empty(t, retry.Error)
-				require.Equal(t, []discapi.Message{msg, msg}, rest.edited)
-				_, known = live.GetLiveMessage(ctx, "g1")
-				require.False(t, known)
-			}
-		})
-	}
-}
-
-func (f *fakeEngineREST) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
-	if f.channelErr != nil {
-		return discapi.ChannelInfo{}, f.channelErr
-	}
-	guild := "g1"
-	if f.channelGuilds != nil {
-		guild = f.channelGuilds[id]
-	}
-	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
 }

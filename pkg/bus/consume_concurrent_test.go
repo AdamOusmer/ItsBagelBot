@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -46,7 +47,7 @@ func newConcurrentTestHarness(t *testing.T) *concurrentTestHarness {
 	consumer, err := ConsumeConcurrent(t.Context(), nil, h.subscriber, "test.concurrent.counter", 3, h.handle, zap.NewNop())
 	require.NoError(t, err)
 	h.consumer = consumer
-	t.Cleanup(h.finish)
+	t.Cleanup(h.unblockAndClose)
 	for _, msg := range h.messages {
 		h.subscriber.messages <- msg
 	}
@@ -62,26 +63,8 @@ func (h *concurrentTestHarness) handle(msg *Message) error {
 	return nil
 }
 
-func (h *concurrentTestHarness) finish() {
+func (h *concurrentTestHarness) unblockAndClose() {
 	h.stop.Do(func() { close(h.release); _ = h.subscriber.Close() })
-}
-
-func assertNoSignal(t *testing.T, signal <-chan struct{}, message string) {
-	t.Helper()
-	select {
-	case <-signal:
-		t.Fatal(message)
-	default:
-	}
-}
-
-func assertSignal(t *testing.T, signal <-chan struct{}, message string) {
-	t.Helper()
-	select {
-	case <-signal:
-	default:
-		t.Fatal(message)
-	}
 }
 
 func (h *concurrentTestHarness) assertBoundedHandlers(t *testing.T) {
@@ -89,7 +72,7 @@ func (h *concurrentTestHarness) assertBoundedHandlers(t *testing.T) {
 	for range 3 {
 		select {
 		case msg := <-h.started:
-			assertNoSignal(t, msg.Acked(), "ACK before handler completion")
+			assert.False(t, signalClosed(msg.Acked()), "ACK before handler completion")
 		case <-time.After(time.Second):
 			t.Fatal("handlers did not run concurrently")
 		}
@@ -104,11 +87,9 @@ func (h *concurrentTestHarness) assertBoundedHandlers(t *testing.T) {
 func (h *concurrentTestHarness) assertResults(t *testing.T) {
 	t.Helper()
 	for _, msg := range h.messages {
-		if msg.UUID == "failed" {
-			assertSignal(t, msg.Nacked(), "failed write was not NACKed")
-			continue
-		}
-		assertSignal(t, msg.Acked(), "successful write was not ACKed")
+		failed := msg.UUID == "failed"
+		assert.Equal(t, failed, signalClosed(msg.Nacked()), "%s NACK", msg.UUID)
+		assert.Equal(t, !failed, signalClosed(msg.Acked()), "%s ACK", msg.UUID)
 	}
 }
 
@@ -118,18 +99,23 @@ func TestConsumeConcurrentBoundsHandlersAndAcknowledgesAfterResult(t *testing.T)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, h.consumer.Drain(ctx), context.Canceled)
-	h.finish()
+	h.unblockAndClose()
 	ctx, cancel = context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
+
 	require.NoError(t, h.consumer.Drain(ctx))
+
 	h.assertResults(t)
 }
 
 func TestConsumeConcurrentRejectsInvalidWorkersAndSubscriptionErrors(t *testing.T) {
 	s := &concurrentTestSubscriber{err: errors.New("subscribe failed")}
-	_, err := ConsumeConcurrent(t.Context(), nil, s, "test", 0, nil, zap.NewNop())
-	require.Error(t, err)
-	require.False(t, s.subscribed)
-	_, err = ConsumeConcurrent(t.Context(), nil, s, "test", 1, nil, zap.NewNop())
-	require.ErrorIs(t, err, s.err)
+
+	_, invalidWorkers := ConsumeConcurrent(t.Context(), nil, s, "test", 0, nil, zap.NewNop())
+	subscribedAfterInvalid := s.subscribed
+	_, subscriptionErr := ConsumeConcurrent(t.Context(), nil, s, "test", 1, nil, zap.NewNop())
+
+	require.Error(t, invalidWorkers)
+	assert.False(t, subscribedAfterInvalid, "an invalid worker count must be rejected before subscribing")
+	assert.ErrorIs(t, subscriptionErr, s.err)
 }

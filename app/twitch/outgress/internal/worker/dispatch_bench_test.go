@@ -4,25 +4,11 @@
 package worker
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
-	"ItsBagelBot/app/twitch/outgress/internal/channels"
-	"ItsBagelBot/app/twitch/outgress/internal/twitch"
-	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/ratelimit"
-
-	"go.uber.org/zap"
 )
-
-type allowAll struct{}
-
-func (allowAll) Allow(context.Context, ratelimit.Request) (bool, error) { return true, nil }
-func (allowAll) AllowOrdered(context.Context, ratelimit.Request, ratelimit.Request) (uint8, error) {
-	return 0, nil
-}
 
 type cannedTransport struct{ status int }
 
@@ -32,23 +18,7 @@ func (t cannedTransport) RoundTrip(*http.Request) (*http.Response, error) {
 
 func benchWorker(tb testing.TB) *Worker {
 	tb.Helper()
-	registry := channels.New(nil)
-	registry.SeedPause(false)
-	registry.Prime(manage.Channel{BroadcasterID: "44322889", Enabled: true, IsMod: true})
-
-	tw := twitch.NewClient("bench-client-id",
-		twitch.NewStaticTokenSource("app-token"),
-		twitch.NewStaticTokenSource("bot-token"), nil)
-	tw.SetTransport(cannedTransport{status: http.StatusNoContent})
-
-	return New(Config{
-		Log:      zap.NewNop(),
-		Limiter:  allowAll{},
-		Registry: registry,
-		Twitch:   tw,
-		BotID:    "987654",
-		Lane:     LanePremium,
-	})
+	return pipelineWorker(tb, cannedTransport{status: http.StatusNoContent})
 }
 
 const benchChatBody = `{"type":"chat","broadcaster_id":"44322889","payload":{"broadcaster_id":"44322889","message":"hello chat"}}`

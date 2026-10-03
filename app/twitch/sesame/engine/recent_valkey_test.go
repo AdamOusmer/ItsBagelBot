@@ -4,15 +4,9 @@
 package engine
 
 import (
-	"bufio"
+	"cmp"
 	"context"
-	"errors"
-	"fmt"
-	"io"
-	"net"
 	"strconv"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,207 +14,126 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
-type recentScriptedServer struct {
-	ln net.Listener
-
-	mu        sync.Mutex
-	members   []string
-	lastRange []string
+func newRecentStore(t *testing.T) (*ValkeyRecent, *fakeValkey) {
+	t.Helper()
+	f := newFakeValkey(t)
+	return NewValkeyRecent(f.client, zap.NewNop()), f
 }
 
-func newRecentScriptedServer(tb testing.TB) *recentScriptedServer {
-	tb.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(tb, err)
-	tb.Cleanup(func() { ln.Close() })
-	s := &recentScriptedServer{ln: ln}
-	go s.serve()
-	return s
-}
-
-func (s *recentScriptedServer) scriptMembers(members []string) {
-	s.mu.Lock()
-	s.members = members
-	s.mu.Unlock()
-}
-
-func (s *recentScriptedServer) serve() {
-	for {
-		conn, err := s.ln.Accept()
-		if err != nil {
-			return
-		}
-		go s.handle(conn)
-	}
-}
-
-func (s *recentScriptedServer) handle(c net.Conn) {
-	defer c.Close()
-	r := bufio.NewReader(c)
-	for {
-		cmd, err := parseRespCommand(r)
-		if err != nil {
-			return
-		}
-		if len(cmd.args) == 0 {
-			continue
-		}
-		switch strings.ToUpper(cmd.args[0]) {
-		case "HELLO":
-			writeLine(c, "-ERR unknown command 'HELLO'\r\n")
-		case "ZRANGEBYSCORE":
-			s.writeMemberArray(c, cmd.args)
-		default:
-			writeLine(c, ":1\r\n")
-		}
-	}
-}
-
-func writeLine(c net.Conn, line string) {
-	if _, err := io.WriteString(c, line); err != nil {
-		c.Close()
-	}
-}
-
-func (s *recentScriptedServer) writeMemberArray(c net.Conn, args []string) {
-	s.mu.Lock()
-	members := append([]string(nil), s.members...)
-	s.lastRange = append([]string(nil), args...)
-	s.mu.Unlock()
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "*%d\r\n", len(members))
-	for _, m := range members {
-		fmt.Fprintf(&b, "$%d\r\n%s\r\n", len(m), m)
-	}
-	writeLine(c, b.String())
-}
-
-func dialRecentClient(tb testing.TB, addr string) valkey.Client {
-	tb.Helper()
-	real, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress:       []string{addr},
-		AlwaysRESP2:       true,
-		DisableCache:      true,
-		ForceSingleClient: true,
-	})
-	require.NoError(tb, err)
-	tb.Cleanup(real.Close)
-	return real
-}
-
-type recentRecordingClient struct {
-	valkey.Client
-
-	mu   sync.Mutex
-	cmds [][]string
-}
-
-func (r *recentRecordingClient) DoMulti(ctx context.Context, cmds ...valkey.Completed) []valkey.ValkeyResult {
-	r.mu.Lock()
-	for _, cmd := range cmds {
-		r.cmds = append(r.cmds, append([]string(nil), cmd.Commands()...))
-	}
-	r.mu.Unlock()
-	return r.Client.DoMulti(ctx, cmds...)
-}
-
-func (r *recentRecordingClient) captured() [][]string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([][]string(nil), r.cmds...)
-}
-
-func newRecentStoreUnderTest(tb testing.TB) (*ValkeyRecent, *recentRecordingClient, *recentScriptedServer) {
-	tb.Helper()
-	server := newRecentScriptedServer(tb)
-	rec := &recentRecordingClient{Client: dialRecentClient(tb, server.ln.Addr().String())}
-	v := NewValkeyRecent(rec, zap.NewNop())
-	return v, rec, server
+func flushRecent(t *testing.T, v *ValkeyRecent) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		v.Start(ctx)
+		close(done)
+	}()
+	cancel()
+	<-done
 }
 
 func TestValkeyRecentFlushPipelinesPerChannelShape(t *testing.T) {
-	v, rec, _ := newRecentStoreUnderTest(t)
+	v, f := newRecentStore(t)
 
 	v.Record(123, soloChatEnv("999", "hello there"), nukeClockBase)
 	v.Record(123, cohortChatEnv([]string{"555", "556"}, "same copypasta everywhere"), nukeClockBase.Add(time.Second))
 	v.Record(456, soloChatEnv("777", "other channel line"), nukeClockBase)
-	v.flush(context.Background())
-
-	cmds := rec.captured()
+	flushRecent(t, v)
 
 	byKey := map[string][][]string{}
-	for _, cmd := range cmds {
+	for _, cmd := range f.commands() {
 		require.GreaterOrEqual(t, len(cmd), 2)
 		byKey[cmd[1]] = append(byKey[cmd[1]], cmd)
 	}
 	require.Len(t, byKey, 2, "one pipelined group per touched channel")
 
-	k123 := byKey["am:recent:123"]
-	require.Len(t, k123, 4)
-	assert.Equal(t, []string{"ZADD", "am:recent:123",
-		strconv.FormatInt(nukeClockBase.UnixMilli(), 10), "999:0:hello there",
-		strconv.FormatInt(nukeClockBase.Add(time.Second).UnixMilli(), 10), "555:0:same copypasta everywhere",
-		strconv.FormatInt(nukeClockBase.Add(time.Second).UnixMilli(), 10), "556:0:same copypasta everywhere"}, k123[0])
 	cutoff := strconv.FormatInt((nukeClockBase.Add(time.Second).UnixNano()-int64(recentTTL))/int64(time.Millisecond), 10)
-	assert.Equal(t, []string{"ZREMRANGEBYSCORE", "am:recent:123", "-inf", cutoff}, k123[1])
-	assert.Equal(t, []string{"ZREMRANGEBYRANK", "am:recent:123", "0", strconv.Itoa(-(recentRingCap + 1))}, k123[2])
-	assert.Equal(t, []string{"EXPIRE", "am:recent:123", strconv.FormatInt(int64(recentTTL/time.Second), 10)}, k123[3])
-
+	assert.Equal(t, [][]string{
+		{
+			"ZADD", "am:recent:123",
+			strconv.FormatInt(nukeClockBase.UnixMilli(), 10), "999:0:hello there",
+			strconv.FormatInt(nukeClockBase.Add(time.Second).UnixMilli(), 10), "555:0:same copypasta everywhere",
+			strconv.FormatInt(nukeClockBase.Add(time.Second).UnixMilli(), 10), "556:0:same copypasta everywhere",
+		},
+		{"ZREMRANGEBYSCORE", "am:recent:123", "-inf", cutoff},
+		{"ZREMRANGEBYRANK", "am:recent:123", "0", strconv.Itoa(-(recentRingCap + 1))},
+		{"EXPIRE", "am:recent:123", strconv.FormatInt(int64(recentTTL/time.Second), 10)},
+	}, byKey["am:recent:123"])
 	assert.Equal(t, "am:recent:456", byKey["am:recent:456"][0][1], "the second channel is tenant-scoped")
 }
 
-func TestValkeyRecentSkipsCommandShapesAndEmptyText(t *testing.T) {
-	v, rec, _ := newRecentStoreUnderTest(t)
+func TestValkeyRecentFlushSkipsWhatIsNotRetainable(t *testing.T) {
+	v, f := newRecentStore(t)
+	flushRecent(t, v)
 
 	v.Record(123, soloChatEnv("999", "!nuke spam"), nukeClockBase)
 	v.Record(123, soloChatEnv("999", ""), nukeClockBase)
-	v.flush(context.Background())
-	assert.Empty(t, rec.captured(), "nothing retainable means no round trip")
+	flushRecent(t, v)
+
+	assert.Empty(t, f.commands(), "nothing retainable means no round trip")
 }
 
-func TestValkeyRecentFlushAfterEmptyFlushIsNoop(t *testing.T) {
-	v, rec, _ := newRecentStoreUnderTest(t)
-	v.flush(context.Background())
-	assert.Empty(t, rec.captured())
+type sweepHit struct {
+	user channelID
+	role module.Role
 }
 
-func TestValkeyRecentSweepParsesMatchesAndDedupes(t *testing.T) {
-	v, rec, server := newRecentStoreUnderTest(t)
-	server.scriptMembers([]string{
-		"111:0:join my FREE N1TRO giveaway",
-		encodeRecentMember(recentEntry{uid: 111, text: "free nitro again!!"}),
-		"222:4:free nitro is my whole personality",
-		"garbage-without-colons",
-		"zero:0:no uid",
-	})
+func TestValkeyRecentSweepReadsOneBoundedRange(t *testing.T) {
+	cases := []struct {
+		name    string
+		phrase  string
+		members []string
+		want    []sweepHit
+	}{
+		{
+			name: "matches parse, normalize and dedupe while garbage is skipped",
+			members: []string{
+				"111:0:join my FREE N1TRO giveaway",
+				"111:0:free nitro again!!",
+				"222:4:free nitro is my whole personality",
+				"garbage-without-colons",
+				"zero:0:no uid",
+			},
+			want: []sweepHit{{111, module.RoleEveryone}, {222, module.RoleLeadModerator}},
+		},
+		{
+			name:   "a stored member carries its sender and role and malformed members are skipped",
+			phrase: "kekw kekw",
+			members: []string{
+				"44322889:2:KEKW KEKW :D",
+				"", "nocolons", "abc:0:kekw kekw", "44322889:x:kekw kekw", "0:0:kekw kekw", "44322889:", "44322889",
+			},
+			want: []sweepHit{{44322889, module.RoleVIP}},
+		},
+		{
+			name: "one hit per sender is kept in first-seen order",
+			members: []string{
+				"111:0:free nitro, first", "222:0:free nitro too", "111:0:free nitro, again",
+				"333:0:free nitro three", "222:0:free nitro once more", "111:0:free nitro, still",
+			},
+			want: []sweepHit{{111, module.RoleEveryone}, {222, module.RoleEveryone}, {333, module.RoleEveryone}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v, f := newRecentStore(t)
+			f.scriptRange(tc.members)
 
-	hits := v.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
-	require.Len(t, hits, 2)
-	assert.Equal(t, channelID(111), hits[0].UserID)
-	assert.Equal(t, module.RoleEveryone, hits[0].Role)
-	assert.Equal(t, channelID(222), hits[1].UserID)
-	assert.Equal(t, module.RoleLeadModerator, hits[1].Role)
+			var got []sweepHit
+			for _, hit := range v.Sweep(context.Background(), 123, cmp.Or(tc.phrase, "free nitro"), nukeClockBase) {
+				got = append(got, sweepHit{hit.UserID, hit.Role})
+			}
 
-	cmds := rec.captured()
-	assert.Empty(t, cmds)
-}
-
-func TestValkeyRecentSweepCutoffRidesTheCommand(t *testing.T) {
-	v, _, server := newRecentStoreUnderTest(t)
-
-	v.Sweep(context.Background(), 123, "phrase", nukeClockBase)
-
-	server.mu.Lock()
-	last := append([]string(nil), server.lastRange...)
-	server.mu.Unlock()
-	wantMin := strconv.FormatInt(nukeClockBase.Add(-recentTTL).UnixMilli(), 10)
-	require.Len(t, last, 7)
-	assert.Equal(t, []string{"ZRANGEBYSCORE", "am:recent:123", wantMin, "+inf", "LIMIT", "0", strconv.Itoa(recentFetchLimit)}, last)
+			assert.Equal(t, tc.want, got)
+			wantMin := strconv.FormatInt(nukeClockBase.Add(-recentTTL).UnixMilli(), 10)
+			assert.Equal(t,
+				[][]string{{"ZRANGEBYSCORE", "am:recent:123", wantMin, "+inf", "LIMIT", "0", strconv.Itoa(recentFetchLimit)}},
+				f.commands(), "the cutoff rides the command and nothing is written")
+		})
+	}
 }
 
 func TestValkeyRecentNilClientDegradesSilently(t *testing.T) {
@@ -229,102 +142,21 @@ func TestValkeyRecentNilClientDegradesSilently(t *testing.T) {
 	assert.Empty(t, v.Sweep(context.Background(), 123, "free nitro", nukeClockBase))
 }
 
-func TestParseRecentMember(t *testing.T) {
-	e, ok := parseRecentMember("44322889:2:KEKW KEKW :D")
-	assert.True(t, ok)
-	assert.Equal(t, uint64(44322889), e.uid)
-	assert.Equal(t, module.RoleVIP, e.role)
-	assert.Equal(t, "KEKW KEKW :D", e.text)
-
-	for _, bad := range []string{
-		"", "nocolons", "abc:0:text", "44322889:x:text", "0:0:text", "44322889:", "44322889",
-	} {
-		_, ok := parseRecentMember(bad)
-		assert.False(t, ok, bad)
-	}
-}
-
-func TestValkeyRecentErrorsSurfaceOncePerInterval(t *testing.T) {
-	v, rec, _ := newRecentStoreUnderTest(t)
-
-	failFirst := true
-	rec.Client = failClient{Client: rec.Client, shouldFail: &failFirst}
-	v.client = rec
-
+func TestValkeyRecentEntriesRecordedAfterAFailedFlushStillLand(t *testing.T) {
+	v, f := newRecentStore(t)
+	f.goDown()
 	v.Record(123, soloChatEnv("999", "hello world again"), nukeClockBase)
-	v.flush(context.Background())
+	flushRecent(t, v)
 
+	f.comeBack()
 	v.Record(123, soloChatEnv("998", "second line here"), nukeClockBase)
-	failFirst = false
-	v.flush(context.Background())
+	flushRecent(t, v)
 
-	found := false
-	for _, cmd := range rec.captured() {
-		if zaddCarrying(cmd, "second line") {
-			found = true
+	var members []string
+	for _, cmd := range f.commands() {
+		if cmd[0] == "ZADD" {
+			members = append(members, cmd[3:]...)
 		}
 	}
-	assert.True(t, found, "entries recorded after a failed flush still land")
-}
-
-func zaddCarrying(cmd []string, text string) bool {
-	return cmd[0] == "ZADD" && len(cmd) > 3 && strings.Contains(cmd[len(cmd)-1], text)
-}
-
-func wroteMemberContaining(rec *recentRecordingClient, substr string) bool {
-	for _, cmd := range rec.captured() {
-		if zaddCarriesMember(cmd, substr) {
-			return true
-		}
-	}
-	return false
-}
-
-func zaddCarriesMember(cmd []string, substr string) bool {
-	if len(cmd) < 4 || cmd[0] != "ZADD" {
-		return false
-	}
-	for i := 3; i < len(cmd); i += 2 {
-		if strings.Contains(cmd[i], substr) {
-			return true
-		}
-	}
-	return false
-}
-
-type failClient struct {
-	valkey.Client
-	shouldFail *bool
-}
-
-func (c failClient) DoMulti(ctx context.Context, cmds ...valkey.Completed) []valkey.ValkeyResult {
-	if *c.shouldFail {
-		out := make([]valkey.ValkeyResult, len(cmds))
-		for i := range cmds {
-			out[i] = valkey.NewErrorResult(errors.New("valkey down"))
-		}
-		return out
-	}
-	return c.Client.DoMulti(ctx, cmds...)
-}
-
-func TestValkeyRecentSweepKeepsOneHitPerSenderInOrder(t *testing.T) {
-	v, _, server := newRecentStoreUnderTest(t)
-	server.scriptMembers([]string{
-		"111:0:free nitro, first",
-		"222:0:free nitro too",
-		"111:0:free nitro, again",
-		"333:0:free nitro three",
-		"222:0:free nitro once more",
-		"111:0:free nitro, still",
-	})
-
-	hits := v.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
-
-	require.Len(t, hits, 3)
-	got := make([]channelID, len(hits))
-	for i := range hits {
-		got[i] = hits[i].UserID
-	}
-	assert.Equal(t, []channelID{111, 222, 333}, got)
+	assert.Contains(t, members, "998:0:second line here")
 }

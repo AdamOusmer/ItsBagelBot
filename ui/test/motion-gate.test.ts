@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// observeMotion's wiring: every `[data-motion]` region is watched, flips with
-// its intersection, and stops being watched on dispose. Bun has no DOM, so the
-// two surfaces motion-gate.ts touches (querySelectorAll, IntersectionObserver)
-// are stubbed, as in reveal.test.ts.
-
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { observeMotion } from "../lib/motion-gate";
 

@@ -7,11 +7,11 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"reflect"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -179,9 +179,7 @@ func TestWaitRollout(t *testing.T) {
 			if f, ok := ports.AsFail(err); ok {
 				got.Code, got.Tail = f.Code, f.LogTail
 			}
-			if !reflect.DeepEqual(got, c.want) {
-				t.Fatalf("WaitRollout() = %+v (err %v)\nwant %+v", got, err, c.want)
-			}
+			assert.Equal(t, c.want, got, "err = %v", err)
 		})
 	}
 }
@@ -191,7 +189,5 @@ func TestWaitRolloutReportsOnChange(t *testing.T) {
 	var states []deploy.StageState
 	spec := ports.RolloutSpec{Workload: ports.WorkloadRef{Kind: kindDeployment, Namespace: "db", Name: "commands"}}
 	_ = testWatcher(c.objects()...).WaitRollout(context.Background(), spec, func(it deploy.Item) { states = append(states, it.State) })
-	if want := []deploy.StageState{deploy.StateRunning, deploy.StateFailed}; !reflect.DeepEqual(states, want) {
-		t.Fatalf("progress states = %v, want %v", states, want)
-	}
+	assert.Equal(t, []deploy.StageState{deploy.StateRunning, deploy.StateFailed}, states)
 }

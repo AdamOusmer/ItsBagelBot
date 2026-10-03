@@ -66,7 +66,10 @@ func TestActiveRuns(t *testing.T) {
 		{"id":1,"status":"in_progress","created_at":"2026-09-23T10:01:00Z"}]}`)})
 	runs, err := c.ActiveRuns(t.Context(), "publish-images.yml")
 	require.NoError(t, err)
-	ids := mapAll(runs, func(r ports.WorkflowRun) int64 { return r.ID })
+	var ids []int64
+	for _, r := range runs {
+		ids = append(ids, r.ID)
+	}
 	assert.Equal(t, []int64{1, 3}, ids)
 }
 
@@ -86,64 +89,60 @@ func TestRunJobs(t *testing.T) {
 }
 
 func TestJobLogTail(t *testing.T) {
-	var storageAuth string
-	var base string
-	c, _, _ := newClient(t, routes{
-		"GET /repos/o/r/actions/jobs/7/logs": func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, base+"/storage/job-7.txt?sig=x", http.StatusFound)
-		},
-		"GET /storage/job-7.txt": func(w http.ResponseWriter, r *http.Request) {
-			storageAuth = r.Header.Get("Authorization")
-			_, _ = w.Write([]byte("step 1\r\nstep 2\nerror: build failed\n"))
-		},
-	})
-	base = strings.TrimSuffix(c.gh.BaseURL(), "/")
-	lines, err := c.JobLogTail(t.Context(), 7, 2)
-	require.NoError(t, err)
-	assert.Equal(t, []any{[]string{"step 2", "error: build failed"}, ""}, []any{lines, storageAuth})
-}
-
-func TestJobLogTailStorageError(t *testing.T) {
-	var base string
-	c, _, _ := newClient(t, routes{
-		"GET /repos/o/r/actions/jobs/7/logs": func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, base+"/storage/gone", http.StatusFound)
-		},
-		"GET /storage/gone": reply(http.StatusForbidden, `expired`),
-	})
-	base = strings.TrimSuffix(c.gh.BaseURL(), "/")
-	_, err := c.JobLogTail(t.Context(), 7, 50)
-	assert.ErrorContains(t, err, "403")
-}
-
-func TestTailLines(t *testing.T) {
 	cases := []struct {
-		name string
-		in   string
-		n    int
-		want []string
+		name    string
+		storage http.HandlerFunc
+		n       int
+		want    []string
+		wantErr string
 	}{
-		{name: "none asked", in: "a\nb\n", n: 0, want: nil},
-		{name: "fewer lines than asked", in: "a\nb\n", n: 5, want: []string{"a", "b"}},
-		{name: "ring wraps", in: "a\nb\nc\nd\ne\n", n: 2, want: []string{"d", "e"}},
-		{name: "ring wraps unevenly", in: "a\nb\nc\nd\ne", n: 3, want: []string{"c", "d", "e"}},
-		{name: "crlf trimmed", in: "a\r\nb\r\n", n: 2, want: []string{"a", "b"}},
-		{name: "empty log", in: "", n: 3, want: nil},
+		{
+			name: "follows the redirect to storage without the installation token",
+			storage: func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("step 1\r\nstep 2\nerror: build failed\n"))
+			},
+			n:    2,
+			want: []string{"step 2", "error: build failed"},
+		},
+		{name: "surfaces a storage failure", storage: reply(http.StatusForbidden, `expired`), n: 50, wantErr: "403"},
+		{name: "returns nothing when no lines are asked", storage: reply(http.StatusOK, "a\nb\n"), n: 0},
+		{name: "returns every line when fewer than asked", storage: reply(http.StatusOK, "a\nb\n"), n: 5, want: []string{"a", "b"}},
+		{name: "keeps the last lines when the ring wraps", storage: reply(http.StatusOK, "a\nb\nc\nd\ne\n"), n: 2, want: []string{"d", "e"}},
+		{name: "keeps order when the ring wraps unevenly", storage: reply(http.StatusOK, "a\nb\nc\nd\ne"), n: 3, want: []string{"c", "d", "e"}},
+		{name: "trims carriage returns", storage: reply(http.StatusOK, "a\r\nb\r\n"), n: 2, want: []string{"a", "b"}},
+		{name: "returns nothing for an empty log", storage: reply(http.StatusOK, ""), n: 3},
+		{
+			name:    "reads a line longer than the default scanner buffer",
+			storage: reply(http.StatusOK, strings.Repeat("x", 200<<10)+"\nlast\n"),
+			n:       1,
+			want:    []string{"last"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := tailLines(strings.NewReader(tc.in), tc.n)
+			var base, storageAuth string
+			c, _, _ := newClient(t, routes{
+				"GET /repos/o/r/actions/jobs/7/logs": func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, base+"/storage/job-7.txt?sig=x", http.StatusFound)
+				},
+				"GET /storage/job-7.txt": func(w http.ResponseWriter, r *http.Request) {
+					storageAuth = r.Header.Get("Authorization")
+					tc.storage(w, r)
+				},
+			})
+			base = strings.TrimSuffix(c.gh.BaseURL(), "/")
+
+			lines, err := c.JobLogTail(t.Context(), 7, tc.n)
+
+			assert.Empty(t, storageAuth)
+			if tc.wantErr != "" {
+				assert.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, lines)
 		})
 	}
-}
-
-func TestTailLinesLongLine(t *testing.T) {
-	long := strings.Repeat("x", 200<<10)
-	got, err := tailLines(strings.NewReader(long+"\nlast\n"), 1)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"last"}, got)
 }
 
 func TestRerunFailedJobs(t *testing.T) {

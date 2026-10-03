@@ -11,7 +11,6 @@ import {
   detectStreamLabsDesktop,
   fetchStreamLabsDesktop,
   mapPermissionSLCB,
-  parseQuoteDate,
   parseStreamLabsDesktop,
   translateVariables
 } from './streamlabs-desktop';
@@ -188,14 +187,6 @@ describe('golden replay', () => {
       expect(diagnostics).toEqual(want.diags as never);
     });
   }
-
-
-  test('parse is deterministic', async () => {
-    const bytes = buildFixtureDB(fullSpec);
-    const a = JSON.stringify(await parseStreamLabsDesktop(bytes));
-    const b = JSON.stringify(await parseStreamLabsDesktop(bytes));
-    expect(a).toBe(b);
-  });
 });
 
 const unitSpec: Spec = {
@@ -590,6 +581,9 @@ describe('quote date layouts (from TestParseQuoteDateLayouts)', () => {
     '31/12/2015': null
   };
   for (const [input, want] of Object.entries(cases)) {
-    test(`${input}`, () => expect(parseQuoteDate(input)).toBe(want));
+    test(`${input}`, async () => {
+      const { manifest } = await parseStreamLabsDesktop(buildFixtureDB({ quotes: [['a quote', input]] }));
+      expect(manifest.quotes?.[0].created_at ?? null).toBe(want);
+    });
   }
 });

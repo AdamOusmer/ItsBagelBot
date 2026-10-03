@@ -4,21 +4,18 @@
 package valorant
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const testBundleAssetID = "d087f4fd-4942-d782-c76c-5e84dc307a66"
@@ -67,14 +64,14 @@ func newShopProvider(t *testing.T) (provider.Provider, func() [4]int) {
 	var mu sync.Mutex
 	skinHits, tierHits, bundleHits, storeHits := 0, 0, 0, 0
 
-	henrik := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, "/valorant/v1/store-featured", r.URL.Path)
 		storeHits++
 		fmt.Fprint(w, featuredBody)
-	}))
-	content := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
+	content := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch r.URL.Path {
@@ -91,30 +88,19 @@ func newShopProvider(t *testing.T) (provider.Provider, func() [4]int) {
 			t.Errorf("unexpected content path %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
 		}
-	}))
-	t.Cleanup(func() { henrik.Close(); content.Close() })
-
-	p := New(Config{
-		BaseURL:        henrik.URL,
-		ContentBaseURL: content.URL,
-		APIKey:         "val-key",
-	}, provider.Deps{
-		Cache: core.NewCache(newMemStore()),
-		Log:   zap.NewNop(),
 	})
 	hits := func() [4]int {
 		mu.Lock()
 		defer mu.Unlock()
 		return [4]int{skinHits, tierHits, bundleHits, storeHits}
 	}
-	return p, hits
+	return newTestProvider(t, henrik, content), hits
 }
 
 func TestShopJoinsTheFeaturedBundleAgainstTheCatalogue(t *testing.T) {
 	p, hits := newShopProvider(t)
-	handle := endpoint(t, p, "shop")
 
-	reply := decodeReply[shopReply](t, handle(context.Background(), gossiprpc.Request{}))
+	reply := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
 
 	assert.Empty(t, reply.Error)
 	assert.Equal(t, "Aeris", reply.Bundle)
@@ -134,14 +120,14 @@ func TestShopJoinsTheFeaturedBundleAgainstTheCatalogue(t *testing.T) {
 
 	require.Equal(t, [4]int{1, 1, 1, 1}, hits(), "catalogues cache for a day; one store fetch serves the window")
 
-	again := decodeReply[shopReply](t, handle(context.Background(), gossiprpc.Request{}))
+	again := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
 	assert.Equal(t, reply, again)
 	require.Equal(t, [4]int{1, 1, 1, 1}, hits(), "nothing re-fetches inside the six-hour window")
 }
 
 func TestShopUnknownSkinsAreSkippedButCountedHonestly(t *testing.T) {
 	p, _ := newShopProvider(t)
-	reply := decodeReply[shopReply](t, endpoint(t, p, "shop")(context.Background(), gossiprpc.Request{}))
+	reply := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
 	assert.Equal(t, 2, reply.Count)
 	require.Len(t, reply.Items, reply.Count)
 	for _, item := range reply.Items {

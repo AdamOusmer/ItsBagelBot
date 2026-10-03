@@ -2,60 +2,66 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, mock, test } from 'bun:test';
-import { MODULE_CATALOG, catalogIndexable, moduleDef } from '../../../../../kit/lib/catalog';
-import * as moduleDefs from '../../../../../kit/lib/catalog/module-def';
-import { staticText } from '../../../../../kit/lib/i18n/static';
+import { stubSvelteKit } from '../../../../test/sveltekit';
 
-let rows: unknown[] = [];
+stubSvelteKit();
 
-mock.module('$app/environment', () => ({ dev: false }));
-mock.module('$env/dynamic/private', () => ({ env: {} }));
-mock.module('@bagel/kit', () => ({
-  ...moduleDefs,
-  MODULE_CATALOG,
-  catalogIndexable,
-  moduleDef,
-  translate: (locale: 'en' | 'fr', key: string) => staticText(locale ?? 'en', key)
+const { MODULE_CATALOG, catalogIndexable } = await import('@bagel/kit/catalog');
+
+type ModuleRow = Record<string, unknown>;
+type Loaded = { degraded?: boolean; modules: { def: { id: string }; enabled: boolean; config: Record<string, string>; revision: number }[] };
+
+const listed: string[] = [];
+let listing: () => Promise<ModuleRow[]> = async () => [];
+
+mock.module('$lib/server/commands-store', () => ({
+  listModules: async (userId: string) => {
+    listed.push(userId);
+    return listing();
+  }
 }));
-mock.module('$lib/server/services', () => ({
-  accountState: async () => ({ status: 'paid' }),
-  auditDashboardImpersonation: () => {}
-}));
-mock.module('$lib/server/commands-store', () => ({ listModules: async () => rows }));
-mock.module('$lib/server/module-blob', () => ({ setModuleEnabled: async () => null }));
-mock.module('$lib/server/module-parent', () => ({ disableChildren: async () => {} }));
-
-const actionErrors = await import('../../../lib/server/action-errors');
-mock.module('$lib/server/action-errors', () => actionErrors);
-const board = await import('../../../lib/server/board');
-mock.module('$lib/server/board', () => board);
-const editState = await import('../../../lib/server/module-edit-state');
-mock.module('$lib/server/module-edit-state', () => editState);
-const gate = await import('../../../lib/server/module-gate');
-mock.module('$lib/server/module-gate', () => gate);
 
 const { load } = await import('./+page.server');
 
 const def = MODULE_CATALOG.find((d) => catalogIndexable(d) && !d.href)!;
 
-async function loadModule(row: unknown) {
-  rows = [row];
-  const data = (await load({ locals: { session: { user_id: '7' }, locale: 'en' } } as never)) as {
-    modules: { def: { id: string }; config: Record<string, string>; revision: number }[];
-  };
-  return data.modules.find((m) => m.def.id === def.id)!;
+async function loadModules(rows: () => Promise<ModuleRow[]>) {
+  listing = rows;
+  const locals = { session: { user_id: '7' }, locale: 'en', accountState: { value: { status: 'paid' } } };
+  const data = (await load({ locals } as never)) as Loaded;
+  return { data, module: data.modules.find((m) => m.def.id === def.id)! };
 }
 
+const rows: { name: string; row: ModuleRow; want: { config: Record<string, string>; revision: number } }[] = [
+  {
+    name: 'keeps the internal revision mirror out of the editable config',
+    row: { name: def.id, is_enabled: true, revision: 8, configs: { __rev: 5, greeting: 'hi' } },
+    want: { config: { greeting: 'hi' }, revision: 8 }
+  },
+  {
+    name: 'falls back to the mirror revision for legacy replies',
+    row: { name: def.id, is_enabled: true, configs: { __rev: 3 } },
+    want: { config: {}, revision: 3 }
+  }
+];
+
 describe('modules index load', () => {
-  test('keeps the internal revision mirror out of the editable config', async () => {
-    const mod = await loadModule({ name: def.id, is_enabled: true, revision: 8, configs: { __rev: 5, greeting: 'hi' } });
-    expect(mod.config).toEqual({ greeting: 'hi' });
-    expect(mod.revision).toBe(8);
+  test.each(rows)('$name', async ({ row, want }) => {
+    const { module } = await loadModules(async () => [row]);
+    expect({ config: module.config, revision: module.revision }).toEqual(want);
+    expect(listed.at(-1)).toBe('7');
   });
 
-  test('falls back to the mirror revision for legacy replies', async () => {
-    const mod = await loadModule({ name: def.id, is_enabled: true, configs: { __rev: 3 } });
-    expect(mod.config).toEqual({});
-    expect(mod.revision).toBe(3);
+  test('a stored row overrides the catalog default', async () => {
+    const { module } = await loadModules(async () => [{ name: def.id, is_enabled: !def.defaultEnabled }]);
+    expect(module.enabled).toBe(!def.defaultEnabled);
+  });
+
+  test('an unreachable modules service degrades the page instead of failing it', async () => {
+    const { data } = await loadModules(async () => {
+      throw new Error('modules unavailable');
+    });
+    expect(data.degraded).toBe(true);
+    expect(data.modules.length).toBeGreaterThan(0);
   });
 });

@@ -6,13 +6,13 @@ package modules
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
@@ -168,28 +168,6 @@ func songDeps(store engine.SongQueueStore, g engine.GossipCaller) engine.Deps {
 	return engine.Deps{SongQueue: store, Gossip: g, Log: zap.NewNop()}
 }
 
-func songCtx(chatterID, login string, badges ...string) *module.Context {
-	env := lane.Envelope{
-		Type:                 "channel.chat.message",
-		BroadcasterUserID:    "100",
-		BroadcasterUserLogin: "streamer",
-		ChatterUserID:        chatterID,
-		ChatterUserLogin:     login,
-	}
-	for _, b := range badges {
-		env.Badges = append(env.Badges, lane.Badge{SetID: b})
-	}
-	return &module.Context{Env: env, BroadcasterID: 100, Log: zap.NewNop()}
-}
-
-func runSR(t *testing.T, m module.Module, c *module.Context, args string) []module.Output {
-	t.Helper()
-	cmd := findCmd(t, m, "sr")
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
-	return col.out
-}
-
 func srTrack(id, name, artist string) gossiprpc.SpotifyTrack {
 	return gossiprpc.SpotifyTrack{ID: id, Name: name, Artists: []string{artist}, DurationMS: 222000}
 }
@@ -202,6 +180,14 @@ func srSearchGossip(tracks ...gossiprpc.SpotifyTrack) *fakeGossip {
 	}}
 }
 
+func nowPlayingGossip(reply gossiprpc.SpotifyNowPlayingReply) *fakeGossip {
+	return &fakeGossip{replies: map[string]any{"spotify.nowplaying": reply}}
+}
+
+func playing(tr gossiprpc.SpotifyTrack) gossiprpc.SpotifyNowPlayingReply {
+	return gossiprpc.SpotifyNowPlayingReply{IsPlaying: true, Track: &tr}
+}
+
 func chatText(t *testing.T, out []module.Output) string {
 	t.Helper()
 	require.NotEmpty(t, out)
@@ -209,13 +195,14 @@ func chatText(t *testing.T, out []module.Output) string {
 	return out[0].Text
 }
 
-func TestSRAddsResolvedTrack(t *testing.T) {
+func entry(id, title, requesterID, requester string) engine.SongEntry {
+	return engine.SongEntry{TrackID: id, Title: title, RequesterID: requesterID, RequesterName: requester}
+}
+
+func TestSongRequestAddsResolvedTrack(t *testing.T) {
 	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
 	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "brightside by the killers")
-
+	out := runChat(t, SongQueue(songDeps(store, g)), chatCtx("42", "alice"), "!sr brightside by the killers")
 	require.Len(t, g.calls, 4)
 	search, queueRead, sync, push := g.calls[0], g.calls[1], g.calls[2], g.calls[3]
 	assert.Equal(t, "playerqueue", queueRead.endpoint)
@@ -228,373 +215,305 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 	assert.Equal(t, "queue", push.endpoint)
 	assert.Equal(t, "t1", push.req.TrackID)
 	assert.Equal(t, "100", push.req.ChannelID)
-
 	require.Len(t, store.up, 1)
-	entry := store.up[0]
-	assert.Equal(t, "t1", entry.TrackID)
-	assert.Equal(t, "Mr. Brightside", entry.Title)
-	assert.Equal(t, []string{"The Killers"}, entry.Artists)
-	assert.Equal(t, "42", entry.RequesterID, "retract authorization keys on the twitch user id")
-	assert.Equal(t, "alice", entry.RequesterName)
-	assert.NotZero(t, entry.EnqueuedAt)
-
+	got := store.up[0]
+	assert.NotZero(t, got.EnqueuedAt)
+	got.EnqueuedAt = 0
+	assert.Equal(t, engine.SongEntry{
+		TrackID: "t1", Title: "Mr. Brightside", Artists: []string{"The Killers"}, DurationMS: 222000,
+		RequesterID: "42", RequesterName: "alice",
+	}, got, "retract authorization keys on the twitch user id")
 	text := chatText(t, out)
 	assert.Contains(t, text, "@alice")
 	assert.Contains(t, text, "Mr. Brightside")
 	assert.Contains(t, text, "#1")
 }
 
-func TestSRSecondRequestQueuesByDefault(t *testing.T) {
-	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-	c := songCtx("42", "alice")
-
-	runSR(t, m, c, "human")
-	out := runSR(t, m, c, "another one")
-
-	assert.Len(t, store.up, 2, "no per-viewer cap unless the broadcaster set one")
-	assert.Contains(t, chatText(t, out), "#2")
+type srCase struct {
+	name      string
+	text      string
+	badges    []string
+	chatter   string
+	config    string
+	live      liveState
+	repeat    int
+	store     fakeSongQueue
+	replies   map[string]any
+	drop      string
+	gossipErr error
+	noTracks  bool
+	noStore   bool
+	noGossip  bool
+	silent    bool
+	noCall    bool
+	queued    int
+	current   string
+	contains  []string
+	excludes  []string
 }
 
-func TestSRQuotaPerTier(t *testing.T) {
-	cases := []struct {
-		name   string
-		config string
-		badges []string
-		adds   int
-		queued int
-		says   string
-	}{
-		{"everyone capped at 1", `{"quotas":{"everyone":1}}`, nil, 2, 1, "limit (1"},
-		{"sub tier caps subs", `{"quotas":{"everyone":1,"sub":2}}`, []string{"subscriber"}, 3, 2, "limit (2"},
-		{"mod tier absent means unlimited", `{"quotas":{"everyone":1}}`, []string{"moderator"}, 3, 3, ""},
-		{"broadcaster is never capped", `{"quotas":{"everyone":1,"mod":1}}`, []string{"broadcaster"}, 3, 3, ""},
+func (tc srCase) deps(store *fakeSongQueue, g *fakeGossip) engine.Deps {
+	d := songDeps(store, g)
+	d.Live = tc.live.store()
+	if tc.noStore {
+		d.SongQueue = nil
+	}
+	if tc.noGossip {
+		d.Gossip = nil
+	}
+	return d
+}
+
+func (tc srCase) gossip() *fakeGossip {
+	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
+	if tc.noTracks {
+		g = srSearchGossip()
+	}
+	for route, reply := range tc.replies {
+		g.replies[route] = reply
+	}
+	delete(g.replies, tc.drop)
+	g.err = tc.gossipErr
+	return g
+}
+
+func TestSongRequest(t *testing.T) {
+	cases := []srCase{
+		{name: "a second request queues without a per viewer cap by default", text: "!sr human", repeat: 2, queued: 2, contains: []string{"#2"}},
+		{name: "everyone is capped by the everyone quota", config: `{"quotas":{"everyone":1}}`, repeat: 2, queued: 1, contains: []string{"limit (1"}},
+		{name: "subs are capped by the sub quota", config: `{"quotas":{"everyone":1,"sub":2}}`, badges: []string{"subscriber"}, repeat: 3, queued: 2, contains: []string{"limit (2"}},
+		{name: "a missing mod quota means unlimited", config: `{"quotas":{"everyone":1}}`, badges: []string{"moderator"}, repeat: 3, queued: 3},
+		{name: "the broadcaster is never capped", config: `{"quotas":{"everyone":1,"mod":1}}`, chatter: "100", badges: []string{"broadcaster"}, repeat: 3, queued: 3},
+		{name: "a player refusal rolls the add back and says why", queued: 0,
+			replies:  map[string]any{"spotify.queue": gossiprpc.SpotifyPlayerReply{Error: "no active Spotify device, start playing something first"}},
+			contains: []string{"no active Spotify device"}},
+		{name: "a player transport failure rolls the add back without claiming a position", drop: "spotify.queue", queued: 0, excludes: []string{"#1"}},
+		{name: "a provider error surfaces verbatim", replies: map[string]any{"spotify.search": gossiprpc.SpotifySearchReply{Error: "no Spotify connection on file"}},
+			contains: []string{"no Spotify connection on file"}},
+		{name: "a transport error stays generic", gossipErr: errors.New("connection reset"), contains: []string{"music lookup is down"}},
+		{name: "no results is friendly", text: "!sr zzzz", noTracks: true, contains: []string{"no track found"}},
+		{name: "the played head reconciles before the position is chosen", text: "!sr human", queued: 1, current: "t1", contains: []string{"#1"},
+			store:   fakeSongQueue{up: []engine.SongEntry{entry("t1", "Played Already", "7", "bob")}},
+			replies: map[string]any{"spotify.nowplaying": playing(srTrack("t1", "Played Already", "Someone"))}},
+		{name: "an unwired store keeps the module inert", noStore: true, silent: true},
+		{name: "an unwired gossip keeps the module inert", noGossip: true, silent: true},
+		{name: "a disabled path says it is off", config: `{"sr":{"enabled":false,"perm":"everyone"}}`, live: liveOnline, noCall: true, contains: []string{"turned off"}},
+		{name: "a perm tier says it is limited", config: `{"sr":{"enabled":true,"perm":"mod"}}`, live: liveOnline, noCall: true, contains: []string{"smaller group"}},
+		{name: "live only says it is offline", config: `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, live: liveOffline, noCall: true, contains: []string{"while the stream is live"}},
+		{name: "allowOffline queues while offline", config: `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
+		{name: "a legacy blob keeps queueing", config: `{"maxDepth":10}`, live: liveOffline, queued: 1, contains: []string{"Mr. Brightside"}},
+		{name: "a partial sr record keeps queueing", config: `{"sr":{"perm":"everyone"}}`, live: liveOnline, queued: 1, contains: []string{"Mr. Brightside"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			store := &fakeSongQueue{}
-			m := SongQueue(songDeps(store, srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))))
-			c := songCtx("42", "alice", tc.badges...)
-			if tc.badges != nil && tc.badges[0] == "broadcaster" {
-				c.Env.ChatterUserID = c.Env.BroadcasterUserID
+			store := tc.store
+			g := tc.gossip()
+			who := tc.chatter
+			if who == "" {
+				who = "42"
 			}
-			c.Config = []byte(tc.config)
-
+			text := tc.text
+			if text == "" {
+				text = "!sr brightside"
+			}
+			m := SongQueue(tc.deps(&store, g))
 			var out []module.Output
-			for i := 0; i < tc.adds; i++ {
-				out = runSR(t, m, c, "song number "+strconv.Itoa(i))
+			for i := range max(tc.repeat, 1) {
+				out = runChat(t, m, withConfig(chatCtx(who, "alice", tc.badges...), tc.config), fmt.Sprintf("%s %d", text, i))
 			}
+			if tc.silent {
+				assert.Empty(t, out)
+				return
+			}
+			assertText(t, chatText(t, out), textWant{"", tc.contains, tc.excludes})
 			assert.Len(t, store.up, tc.queued)
-			if tc.says != "" {
-				assert.Contains(t, chatText(t, out), tc.says)
+			if tc.current != "" {
+				require.NotNil(t, store.current)
+				assert.Equal(t, tc.current, store.current.TrackID)
+			}
+			if tc.noCall {
+				assert.Empty(t, g.calls)
 			}
 		})
 	}
 }
 
-func TestSRPlayerRefusalRollsBackTheAdd(t *testing.T) {
-	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
-	g.replies["spotify.queue"] = gossiprpc.SpotifyPlayerReply{Error: "no active Spotify device, start playing something first"}
+func TestSongRequestRetractTouchesOnlyOwnLatest(t *testing.T) {
+	g := srSearchGossip(srTrack("tA", "Song A", "Artist"), srTrack("tB", "Song B", "Artist"))
 	store := &fakeSongQueue{}
 	m := SongQueue(songDeps(store, g))
+	runChat(t, m, chatCtx("1", "alice"), "!sr song a")
+	runChat(t, m, chatCtx("2", "bob"), "!sr song b")
 
-	out := runSR(t, m, songCtx("42", "alice"), "brightside")
-
-	assert.Empty(t, store.up, "the rolled-back entry must not linger")
-	assert.Contains(t, chatText(t, out), "no active Spotify device")
-}
-
-func TestSRPlayerTransportFailureRollsBackTheAdd(t *testing.T) {
-	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
-	delete(g.replies, "spotify.queue")
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "brightside")
-
-	assert.Empty(t, store.up)
-	text := chatText(t, out)
-	assert.NotContains(t, text, "#1", "no position claim without a confirmed push")
-}
-
-func TestSRProviderErrorSurfacesVerbatim(t *testing.T) {
-	g := &fakeGossip{replies: map[string]any{
-		"spotify.search": gossiprpc.SpotifySearchReply{Error: "no Spotify connection on file"},
-	}}
-	m := SongQueue(songDeps(&fakeSongQueue{}, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "whatever")
-	assert.Contains(t, chatText(t, out), "no Spotify connection on file")
-}
-
-func TestSRTransportErrorStaysGeneric(t *testing.T) {
-	g := &fakeGossip{err: errors.New("connection reset")}
-	m := SongQueue(songDeps(&fakeSongQueue{}, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "whatever")
-	assert.Contains(t, chatText(t, out), "music lookup is down")
-}
-
-func TestSRNoResultsIsFriendly(t *testing.T) {
-	g := srSearchGossip()
-	m := SongQueue(songDeps(&fakeSongQueue{}, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "zzzz")
-	assert.Contains(t, chatText(t, out), "no track found")
-}
-
-func TestSRRetractTouchesOnlyOwnLatest(t *testing.T) {
-	g := srSearchGossip(
-		srTrack("tA", "Song A", "Artist"),
-		srTrack("tB", "Song B", "Artist"),
-	)
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-
-	runSR(t, m, songCtx("1", "alice"), "song a")
-	runSR(t, m, songCtx("2", "bob"), "song b")
-
-	out := runSR(t, m, songCtx("1", "alice"), "remove")
+	out := runChat(t, m, chatCtx("1", "alice"), "!sr remove")
 	require.Len(t, store.up, 1, "only alice's request goes")
 	assert.Equal(t, "2", store.up[0].RequesterID)
 	assert.Contains(t, chatText(t, out), "Song A")
 
-	out = runSR(t, m, songCtx("1", "alice"), "retract")
+	out = runChat(t, m, chatCtx("1", "alice"), "!sr retract")
 	assert.Contains(t, chatText(t, out), "don't have a queued song")
 }
 
-func TestSRRemoveNumberIsModOnlyPositional(t *testing.T) {
-	g := srSearchGossip(
-		srTrack("t1", "One", "A"),
-		srTrack("t2", "Two", "B"),
-		srTrack("t3", "Three", "C"),
-	)
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-	runSR(t, m, songCtx("1", "alice"), "one")
-	runSR(t, m, songCtx("2", "bob"), "two")
-	runSR(t, m, songCtx("3", "carol"), "three")
+func TestSongRequestRemoveNumberIsModOnlyPositional(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "1", "alice"), entry("t2", "Two", "2", "bob"), entry("t3", "Three", "3", "carol")}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
 
-	out := runSR(t, m, songCtx("3", "carol", "moderator"), "remove 2")
+	out := runChat(t, m, chatCtx("3", "carol", "moderator"), "!sr remove 2")
 	require.Len(t, store.up, 2)
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "#2", "the mod removed position #2")
 	assert.Contains(t, out[0].Text, "bob", "the confirmation names whose entry went")
 
-	runSR(t, m, songCtx("3", "carol"), "remove 1")
+	runChat(t, m, chatCtx("3", "carol"), "!sr remove 1")
 	require.Len(t, store.up, 1)
 	assert.Equal(t, "1", store.up[0].RequesterID, "carol's own remaining entry went, not alice's #1")
 }
 
-func TestSRNextIsModOnlyAndPromotesHead(t *testing.T) {
-	g := srSearchGossip(srTrack("t1", "One", "A"))
-	store := &fakeSongQueue{}
+func TestSongRequestNextIsModOnlyAndPromotesHead(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "42", "alice")}}
+	g := srSearchGossip()
 	m := SongQueue(songDeps(store, g))
-	runSR(t, m, songCtx("42", "alice"), "one")
 
-	out := runSR(t, m, songCtx("99", "randoviewer"), "next")
+	out := runChat(t, m, chatCtx("99", "randoviewer"), "!sr next")
 	assert.Empty(t, out, "mod verbs typed by a non-mod are silently ignored")
 	assert.Nil(t, store.current)
 
 	setSkipSnapshots(g,
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}},
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}})
-	out = runSR(t, m, songCtx("7", "modder", "moderator"), "next")
+	out = runChat(t, m, chatCtx("7", "modder", "moderator"), "!sr next")
 	require.NotNil(t, store.current)
 	assert.Equal(t, "One", store.current.Title)
 	assert.Empty(t, store.up)
-	assert.Contains(t, chatText(t, out), "Now playing")
-	assert.Contains(t, chatText(t, out), "alice")
+	assertText(t, chatText(t, out), textWant{"", []string{"Now playing", "alice"}, nil})
 
 	setSkipSnapshots(g,
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}},
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}})
-	out = runSR(t, m, songCtx("7", "modder", "moderator"), "next")
+	out = runChat(t, m, chatCtx("7", "modder", "moderator"), "!sr next")
 	assert.Nil(t, store.current)
 	assert.Contains(t, chatText(t, out), "empty")
 }
 
-func TestSRClearIsModOnly(t *testing.T) {
-	g := srSearchGossip(srTrack("t1", "One", "A"))
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
-	runSR(t, m, songCtx("42", "alice"), "one")
-
-	runSR(t, m, songCtx("99", "viewer"), "clear")
+func TestSongRequestClearIsModOnly(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "42", "alice")}}
+	m := SongQueue(songDeps(store, srSearchGossip()))
+	runChat(t, m, chatCtx("99", "viewer"), "!sr clear")
 	assert.Len(t, store.up, 1)
-
-	runSR(t, m, songCtx("7", "modder", "moderator"), "clear")
+	runChat(t, m, chatCtx("7", "modder", "moderator"), "!sr clear")
 	assert.Empty(t, store.up)
 	assert.Nil(t, store.current)
 }
 
-func TestSRViewShowsNowPlayingAndUpNext(t *testing.T) {
-	g := srSearchGossip(srTrack("t1", "One", "A"))
+func TestSongRequestViewShowsNowPlayingAndUpNext(t *testing.T) {
+	g := srSearchGossip()
 	m := SongQueue(songDeps(&fakeSongQueue{}, g))
+	assert.Contains(t, chatText(t, runChat(t, m, chatCtx("42", "alice"), "!sr")), "Nothing queued")
 
-	out := runSR(t, m, songCtx("42", "alice"), "")
-	assert.Contains(t, chatText(t, out), "Nothing queued")
-
-	store := &fakeSongQueue{}
-	g2 := srSearchGossip(srTrack("t1", "One", "A"), srTrack("t2", "Two", "B"))
-	m2 := SongQueue(songDeps(store, g2))
-	runSR(t, m2, songCtx("1", "alice"), "one")
-	runSR(t, m2, songCtx("2", "bob"), "two")
-	setSkipSnapshots(g2,
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("t1", "One", "1", "alice"), entry("t2", "Two", "2", "bob")}}
+	m = SongQueue(songDeps(store, g))
+	setSkipSnapshots(g,
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}, {ID: "t2"}}},
 		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t2"}}})
-	runSR(t, m2, songCtx("7", "modder", "moderator"), "next")
-
-	out = runSR(t, m2, songCtx("9", "viewer"), "")
-	text := chatText(t, out)
+	runChat(t, m, chatCtx("7", "modder", "moderator"), "!sr next")
+	text := chatText(t, runChat(t, m, chatCtx("9", "viewer"), "!sr"))
 	assert.Contains(t, text, "Now playing: One (asked by alice)")
-	assert.Contains(t, text, "1. One (by bob)", "bob's pending request renders with its requester")
+	assert.Contains(t, text, "1. Two (by bob)", "bob's pending request renders with its requester")
 }
 
-func TestSRUnknownWordsAreQueriesNotVerbs(t *testing.T) {
-	g := srSearchGossip(srTrack("tn", "Next Episode", "Dr. Dre"))
-	store := &fakeSongQueue{}
-	m := SongQueue(songDeps(store, g))
+func TestSRViewRenumbersAfterSpotifySkippedPendingTrack(t *testing.T) {
+	store := &fakeSongQueue{up: []engine.SongEntry{entry("a", "Skipped", "", "alice"), entry("b", "Survivor", "", "bob")}}
+	g := srSearchGossip()
+	g.replies["spotify.playerqueue"] = gossiprpc.SpotifyQueueReply{
+		Current: &gossiprpc.SpotifyTrack{ID: "external"},
+		UpNext:  []gossiprpc.SpotifyTrack{{ID: "b"}},
+	}
+	text := chatText(t, runChat(t, SongQueue(songDeps(store, g)), chatCtx("9", "viewer"), "!sr"))
+	assert.Contains(t, text, "1. Survivor (by bob)")
+	assert.NotContains(t, text, "Skipped")
+}
 
-	runSR(t, m, songCtx("42", "alice"), "Next Episode by Dr. Dre")
+func TestSongRequestUnknownWordsAreQueriesNotVerbs(t *testing.T) {
+	store := &fakeSongQueue{}
+	g := srSearchGossip(srTrack("tn", "Next Episode", "Dr. Dre"))
+	runChat(t, SongQueue(songDeps(store, g)), chatCtx("42", "alice"), "!sr Next Episode by Dr. Dre")
 	require.Len(t, store.up, 1)
 	assert.Equal(t, "tn", store.up[0].TrackID)
 }
 
-func TestSRIsInertWithoutStoreOrGossip(t *testing.T) {
-	m := SongQueue(engine.Deps{Log: zap.NewNop()})
-	out := runSR(t, m, songCtx("42", "alice"), "anything")
-	assert.Empty(t, out, "an unwired module stays inert")
-
-	m2 := SongQueue(songDeps(&fakeSongQueue{}, nil))
-	out = runSR(t, m2, songCtx("42", "alice"), "anything")
-	assert.Empty(t, out)
-}
-
-func songDepsLive(store engine.SongQueueStore, g engine.GossipCaller, live bool) engine.Deps {
-	d := songDeps(store, g)
-	d.Live = &fakeLive{live: live}
-	return d
-}
-
-func TestSRPathGates(t *testing.T) {
+func TestSongQueueCommands(t *testing.T) {
+	queue := []engine.SongEntry{entry("t1", "One", "42", "alice"), entry("t2", "Two", "2", "b")}
+	six := make([]engine.SongEntry, 0, 6)
+	for i := 1; i <= 6; i++ {
+		id := strconv.Itoa(i)
+		six = append(six, entry("t"+id, "Song "+id, id, "v"+id))
+	}
 	cases := []struct {
-		name   string
-		config string
-		live   bool
-		queued bool
-		says   string
+		name     string
+		text     string
+		chatter  string
+		badges   []string
+		config   string
+		store    fakeSongQueue
+		gossip   *fakeGossip
+		contains []string
+		excludes []string
+		queued   int
 	}{
-		{"disabled path says it is off", `{"sr":{"enabled":false,"perm":"everyone"}}`, true, false, "turned off"},
-		{"perm tier says it is limited", `{"sr":{"enabled":true,"perm":"mod"}}`, true, false, "smaller group"},
-		{"live-only says it is offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false, "while the stream is live"},
-		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true, ""},
-		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true, ""},
-		{"partial sr record keeps queueing", `{"sr":{"perm":"everyone"}}`, true, true, ""},
+		{name: "song falls back to the queue when nothing plays", text: "!song", gossip: nowPlayingGossip(gossiprpc.SpotifyNowPlayingReply{}),
+			contains: []string{"Nothing queued"}},
+		{name: "song reads the live player, not the queue", text: "!song", gossip: nowPlayingGossip(playing(srTrack("t9", "Unrequested", "Some Artist"))),
+			contains: []string{"Unrequested", "Some Artist"}, excludes: []string{"Nothing queued"}},
+		{name: "current credits the matching requester", text: "!current", gossip: nowPlayingGossip(playing(srTrack("t1", "One", "A"))),
+			store:    fakeSongQueue{current: &engine.SongEntry{TrackID: "t1", Title: "One", Artists: []string{"A"}, RequesterID: "7", RequesterName: "alice"}},
+			contains: []string{"alice"}},
+		{name: "a broadcaster started track has no requester to credit", text: "!np", gossip: nowPlayingGossip(playing(srTrack("t2", "Two", "B"))),
+			store:    fakeSongQueue{current: &engine.SongEntry{TrackID: "t1", Title: "One", Artists: []string{"A"}, RequesterID: "7", RequesterName: "alice"}},
+			contains: []string{"Two"}, excludes: []string{"alice"}},
+		{name: "song surfaces the provider reason", text: "!song", gossip: nowPlayingGossip(gossiprpc.SpotifyNowPlayingReply{Error: "no Spotify app set up for this channel"}),
+			contains: []string{"no Spotify app set up"}},
+		{name: "song keeps transport errors generic", text: "!song", gossip: &fakeGossip{err: errors.New("connection reset")},
+			contains: []string{"music lookup is down"}},
+		{name: "song honours the broadcaster's template", text: "!song", config: `{"currentMessage":"jamming to {title} right now"}`,
+			gossip: nowPlayingGossip(playing(srTrack("t1", "One", "A"))), contains: []string{"jamming to One right now"}},
+		{name: "srlist shows five deep", text: "!songlist", chatter: "42", store: fakeSongQueue{up: six}, gossip: srSearchGossip(),
+			contains: []string{"Song 5"}, excludes: []string{"Song 6"}, queued: 6},
+		{name: "TestClearCommandEmptiesQueue", text: "!clear", chatter: "9", badges: []string{"moderator"}, store: fakeSongQueue{up: queue}, gossip: srSearchGossip(),
+			contains: []string{"cleared"}},
+		{name: "TestRemoveCommandRetractsOwn", text: "!remove", store: fakeSongQueue{up: []engine.SongEntry{entry("t1", "Mine", "42", "alice")}}, gossip: srSearchGossip(),
+			contains: []string{"Mine"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
-			store := &fakeSongQueue{}
-			c := songCtx("42", "alice")
-			c.Config = []byte(tc.config)
-
-			out := runSR(t, SongQueue(songDepsLive(store, g, tc.live)), c, "brightside")
-			if !tc.queued {
-				assert.Empty(t, store.up)
-				assert.Empty(t, g.calls)
-				assert.Contains(t, chatText(t, out), tc.says)
-				return
+			store := tc.store
+			who := tc.chatter
+			if who == "" {
+				who = "42"
 			}
-			require.Len(t, store.up, 1)
-			assert.Contains(t, chatText(t, out), "Mr. Brightside")
+			out := runChat(t, SongQueue(songDeps(&store, tc.gossip)), withConfig(chatCtx(who, "alice", tc.badges...), tc.config), tc.text)
+			assertText(t, chatText(t, out), textWant{"", tc.contains, tc.excludes})
+			assert.Len(t, store.up, tc.queued)
 		})
 	}
 }
 
-const songRedeemJSON = `{"id":"redeem-1","broadcaster_user_id":"100","user_id":"42","user_name":"Alice","user_login":"alice","user_input":"brightside","reward":{"id":"rw-sr","title":"Song request","cost":500}}`
-
-func songRedeemCtx(config string) *module.Context {
-	return &module.Context{
-		Env:           lane.Envelope{Type: redemptionAddType, Event: []byte(songRedeemJSON)},
-		BroadcasterID: 100,
-		Config:        []byte(config),
-		Log:           zap.NewNop(),
-	}
-}
-
-func TestSongRedeemGates(t *testing.T) {
-	cases := []struct {
-		name   string
-		config string
-		live   bool
-		want   string
-	}{
-		{"offline refunds", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, false, "refund"},
-		{"allowOffline queues", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","allowOffline":true}}`, false, "queued"},
-		{"disabled path refunds", `{"redeem":{"enabled":false,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, true, "refund"},
-		{"another reward is ignored", `{"redeem":{"enabled":true,"rewardId":"rw-other","onRedeem":"fulfill"}}`, true, "ignored"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			store := &fakeSongQueue{}
-			m := SongQueue(songDepsLive(store, srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers")), tc.live))
-			h := m.Events[redemptionAddType]
-			require.NotNil(t, h)
-
-			var col collector
-			require.NoError(t, h(context.Background(), songRedeemCtx(tc.config), col.emit))
-			assertSongRedeem(t, tc.want, store, col.out)
-		})
-	}
-}
-
-func assertSongRedeem(t *testing.T, want string, store *fakeSongQueue, out []module.Output) {
-	t.Helper()
-	switch want {
-	case "queued":
-		require.Len(t, store.up, 1)
-		require.NotEmpty(t, out)
-		assert.Equal(t, outgress.RedemptionFulfilled, out[len(out)-1].Status)
-	case "refund":
-		assert.Empty(t, store.up)
-		assertRefund(t, out)
-	default:
-		assert.Empty(t, out)
-		assert.Empty(t, store.up)
-	}
-}
-
-func TestSRPositionSkipsAlreadyPlayedHead(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "t1", Title: "Played Already", RequesterID: "7", RequesterName: "bob"},
+func TestSongCommandDegradesToNowPlayingWhenGossipLacksPlayerQueue(t *testing.T) {
+	g := &fakeGossip{replies: map[string]any{
+		"spotify.playerqueue": gossiprpc.SpotifyQueueReply{Error: "unknown endpoint"},
+		"spotify.nowplaying":  playing(srTrack("t9", "Unrequested", "Some Artist")),
 	}}
-	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
-	g.replies["spotify.nowplaying"] = playing(srTrack("t1", "Played Already", "Someone"))
-	m := SongQueue(songDeps(store, g))
-
-	out := runSR(t, m, songCtx("42", "alice"), "human")
-
-	require.NotNil(t, store.current)
-	assert.Equal(t, "t1", store.current.TrackID, "the played head reconciles to current")
-	require.Len(t, store.up, 1)
-	assert.Contains(t, chatText(t, out), "#1", "the new request is first in what is actually waiting")
+	out := runChat(t, SongQueue(songDeps(&fakeSongQueue{}, g)), chatCtx("42", "alice"), "!song")
+	require.Len(t, g.calls, 2)
+	assert.Equal(t, "playerqueue", g.calls[0].endpoint, "an old gossip is asked for the queue snapshot first")
+	assert.Equal(t, "nowplaying", g.calls[1].endpoint, "the queue read's unknown-endpoint error falls back to the live player")
+	assertText(t, chatText(t, out), textWant{"", []string{"Unrequested", "Some Artist"}, nil})
 }
 
-func TestSRListShowsFiveUpNext(t *testing.T) {
-	up := make([]engine.SongEntry, 0, 6)
-	for i := 0; i < 6; i++ {
-		id := strconv.Itoa(i + 1)
-		up = append(up, engine.SongEntry{TrackID: "t" + id, Title: "Song " + id, RequesterID: id, RequesterName: "v" + id})
-	}
-	store := &fakeSongQueue{up: up}
-	m := SongQueue(songDeps(store, srSearchGossip()))
-
-	out := runSongCmd(t, m, "srlist", songCtx("42", "alice"))
-
-	text := chatText(t, out)
-	assert.Contains(t, text, "Song 5")
-	assert.NotContains(t, text, "Song 6", "srlist is five deep, not the whole line")
-	assert.Contains(t, findCmd(t, m, "srlist").Aliases, "songlist")
+func TestSongCommandReadsTheLivePlayerScopedToTheChannel(t *testing.T) {
+	g := nowPlayingGossip(playing(srTrack("t9", "Unrequested", "Some Artist")))
+	runChat(t, SongQueue(songDeps(&fakeSongQueue{}, g)), chatCtx("42", "alice"), "!song")
+	call := g.lastCall(t)
+	assert.Equal(t, "spotify", call.provider)
+	assert.Equal(t, "nowplaying", call.endpoint)
+	assert.Equal(t, "100", call.req.ChannelID, "the broadcaster id scopes gossip's per-channel credential")
 }

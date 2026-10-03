@@ -195,7 +195,7 @@ func newHotPathTestClient(tb testingTB) valkey.Client {
 	tb.Helper()
 	address := os.Getenv("VALKEY_TEST_ADDR")
 	if address == "" {
-		tb.Skip("VALKEY_TEST_ADDR is not set")
+		address = localValkeyAddr(tb)
 	}
 	client, err := valkey.NewClient(valkey.ClientOption{
 		InitAddress: []string{address},

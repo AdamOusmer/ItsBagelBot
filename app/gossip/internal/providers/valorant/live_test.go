@@ -4,30 +4,24 @@
 package valorant
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
 
-	"ItsBagelBot/app/gossip/internal/core"
-	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestLiveUpstream(t *testing.T) {
 	if os.Getenv("VALORANT_LIVE") != "1" || os.Getenv("VALORANT_API_KEY") == "" {
 		t.Skip("live probe: needs VALORANT_LIVE=1 and a real VALORANT_API_KEY")
 	}
-	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
-	ctx := context.Background()
+	p := New(Config{APIKey: os.Getenv("VALORANT_API_KEY")}, providertest.Deps(providertest.NewMemStore()))
 
-	board := decodeReply[leaderboardReply](t, endpoint(t, p, "leaderboard")(ctx,
-		gossiprpc.Request{Region: "eu", Platform: "pc"}))
+	board := providertest.Call[leaderboardReply](t, p, "leaderboard", gossiprpc.Request{Region: "eu", Platform: "pc"})
 	require.Empty(t, board.Error, "leaderboard probe failed")
 	require.NotEmpty(t, board.Entries, "eu/pc board empty")
 	top := board.Entries[0]
@@ -36,23 +30,23 @@ func TestLiveUpstream(t *testing.T) {
 
 	player := gossiprpc.Request{Account: top.Player}
 
-	account := decodeReply[accountReply](t, endpoint(t, p, "account")(ctx, player))
+	account := providertest.Call[accountReply](t, p, "account", player)
 	assert.Empty(t, account.Error)
 	fmt.Printf("account: %s region=%s level=%d card=%v\n", account.Player, account.Region, account.AccountLevel, account.Card != "")
 
-	rank := decodeReply[rankReply](t, endpoint(t, p, "rank")(ctx, player))
+	rank := providertest.Call[rankReply](t, p, "rank", player)
 	assert.Empty(t, rank.Error)
 	fmt.Printf("rank: %s tier=%q rr=%d delta=%d peak=%q unranked=%v\n",
 		rank.Region, rank.Tier, rank.RR, rank.LastChange, rank.PeakTier, rank.Unranked)
 
-	matches := decodeReply[matchesReply](t, endpoint(t, p, "matches")(ctx, player))
+	matches := providertest.Call[matchesReply](t, p, "matches", player)
 	assert.Empty(t, matches.Error)
 	for i, m := range matches.Matches {
 		fmt.Printf("match[%d]: %s on %s as %s %d/%d/%d acs=%.1f\n",
 			i, m.Result, m.Map, m.Agent, m.Kills, m.Deaths, m.Assists, m.ACS)
 	}
 
-	shop := decodeReply[shopReply](t, endpoint(t, p, "shop")(ctx, gossiprpc.Request{}))
+	shop := providertest.Call[shopReply](t, p, "shop", gossiprpc.Request{})
 	assert.Empty(t, shop.Error)
 	if shop.Count > 0 {
 		fmt.Printf("shop: bundle=%q (%.1f%% off) price=%d vp items=%d first=%q expires_in=%.1fd\n",
@@ -62,5 +56,3 @@ func TestLiveUpstream(t *testing.T) {
 		fmt.Println("shop: no featured bundle payload")
 	}
 }
-
-func init() { core.SetSSRFCheckForTests(false) }

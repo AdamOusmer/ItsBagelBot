@@ -7,107 +7,49 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func init() { core.SetSSRFCheckForTests(false) }
-
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
-}
-
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return append([]byte(nil), b...), ok, nil
-}
-
-func (s *memStore) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), value...)
-	return nil
-}
-
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
-
-func newTestProvider(t *testing.T, henrik, content http.Handler) provider.Provider {
-	t.Helper()
-	henrikSrv := httptest.NewServer(henrik)
-	t.Cleanup(henrikSrv.Close)
-	contentSrv := httptest.NewServer(content)
-	t.Cleanup(contentSrv.Close)
+func newProviderWithStore(t testing.TB, henrik, content http.Handler, store *providertest.MemStore) provider.Provider {
 	return New(Config{
-		BaseURL:        henrikSrv.URL,
-		ContentBaseURL: contentSrv.URL,
+		BaseURL:        providertest.Upstream(t, henrik),
+		ContentBaseURL: providertest.Upstream(t, content),
 		APIKey:         "val-key",
-	}, provider.Deps{
-		Cache: core.NewCache(newMemStore()),
-		Log:   zap.NewNop(),
-	})
+	}, providertest.Deps(store))
 }
 
-func noUpstream(t *testing.T, name string) http.Handler {
-	t.Helper()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("unexpected %s request: %s", name, r.URL.Path)
-		w.WriteHeader(http.StatusTeapot)
-	})
+func newTestProvider(t testing.TB, henrik, content http.Handler) provider.Provider {
+	return newProviderWithStore(t, henrik, content, providertest.NewMemStore())
 }
 
-func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == name {
-			return ep.Handle
-		}
+type hitCounter struct {
+	mu   sync.Mutex
+	hits map[string]int
+}
+
+func (c *hitCounter) count(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.hits == nil {
+		c.hits = map[string]int{}
 	}
-	t.Fatalf("endpoint %q not found", name)
-	return nil
+	c.hits[key]++
 }
 
-func decodeReply[T any](t *testing.T, value any) T {
-	t.Helper()
-	if typed, ok := value.(T); ok {
-		return typed
-	}
-	raw, ok := value.(codec.RawMessage)
-	require.True(t, ok, "unexpected result type %T", value)
-	var reply T
-	require.NoError(t, codec.Unmarshal(raw, &reply))
-	return reply
+func (c *hitCounter) get(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.hits[key]
 }
 
 const mmrBody = `{
@@ -139,103 +81,6 @@ const accountBody = `{
     "platforms":["pc"]
   }
 }`
-
-func TestRankFetchesMMRWithPlainAuthorizationHeader(t *testing.T) {
-	var gotAuth string
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth = r.Header.Get("Authorization")
-		assert.Equal(t, "/valorant/v3/mmr/na/pc/Frosty/EUW1", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, mmrBody)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	reply := decodeReply[rankReply](t, endpoint(t, p, "rank")(context.Background(), gossiprpc.Request{
-		Account: "Frosty#EUW1",
-		Region:  "NA",
-	}))
-
-	assert.Empty(t, reply.Error)
-	assert.Equal(t, "Frosty#EUW1", reply.Player, "display preserves name case, canonical tag")
-	assert.Equal(t, "na", reply.Region, "region normalizes to canonical form")
-	assert.Equal(t, "Immortal 1", reply.Tier)
-	assert.Equal(t, 1849, reply.Elo)
-	assert.Equal(t, 63, reply.RR)
-	assert.Equal(t, -12, reply.LastChange)
-	assert.Equal(t, 812, reply.Placement)
-	assert.False(t, reply.Unranked)
-	assert.Equal(t, "Ascendant 2", reply.PeakTier, "the single peak object reads directly")
-	assert.Equal(t, "val-key", gotAuth)
-}
-
-func TestRankAutoRegionResolvesThroughSharedAccountEntry(t *testing.T) {
-	var mu sync.Mutex
-	accountHits, mmrHits := 0, 0
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		switch {
-		case strings.HasPrefix(r.URL.Path, "/valorant/v2/account/"):
-			accountHits++
-			fmt.Fprint(w, accountBody)
-		case strings.HasPrefix(r.URL.Path, "/valorant/v3/mmr/"):
-			mmrHits++
-			assert.Equal(t, "/valorant/v3/mmr/eu/pc/Frosty/EUW1", r.URL.Path,
-				"detected region must route the mmr leg")
-			fmt.Fprint(w, mmrBody)
-		default:
-			t.Errorf("unexpected path %s", r.URL.Path)
-			w.WriteHeader(http.StatusNotFound)
-		}
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-	handle := endpoint(t, p, "rank")
-	req := gossiprpc.Request{Account: "Frosty#EUW1"}
-
-	for i := 0; i < 3; i++ {
-		reply := decodeReply[rankReply](t, handle(context.Background(), req))
-		assert.Empty(t, reply.Error)
-		assert.Equal(t, "eu", reply.Region)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, 1, accountHits, "identity resolve is paid once, then cached for the day")
-	assert.Equal(t, 1, mmrHits, "rank replies collapse onto one cached flight")
-}
-
-func TestRankNegativeCacheStopsRepeatUpstreamHits(t *testing.T) {
-	hits := 0
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits++
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, `{"status":404,"errors":[{"code":"NO_ACCOUNT","message":"No account found"}]}`)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	handle := endpoint(t, p, "rank")
-	req := gossiprpc.Request{Account: "Ghost404#0000", Region: "ap"}
-	first := decodeReply[rankReply](t, handle(context.Background(), req))
-	second := decodeReply[rankReply](t, handle(context.Background(), req))
-
-	assert.Equal(t, "player not found", first.Error)
-	assert.Equal(t, first.Error, second.Error)
-	assert.Equal(t, 1, hits, "404s are negatively cached for the window")
-}
-
-func TestUnrankedZeroesEloButKeepsRRShape(t *testing.T) {
-	unrankedBody := `{"status":200,"data":{"current":{"elo":0,"rr":0,"last_change":0,"tier":{"id":0,"name":"UNRANKED"},"leaderboard_placement":{"rank":0}},"peak":{"tier":{"id":0,"name":"UNRANKED"},"rr":0}}}`
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, unrankedBody)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	reply := decodeReply[rankReply](t, endpoint(t, p, "rank")(context.Background(), gossiprpc.Request{
-		Account: "Newbie#EUW", Region: "eu",
-	}))
-	assert.True(t, reply.Unranked)
-	assert.Zero(t, reply.Elo, "elo of an unranked account is noise; templates should never see it")
-	assert.Empty(t, reply.PeakTier)
-}
 
 const matchesBody = `{
   "status":200,
@@ -275,70 +120,6 @@ const matchesBody = `{
   ]
 }`
 
-func TestMatchesSummarizesCompletedGamesOnly(t *testing.T) {
-	anHourAgo := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
-	body := fmt.Sprintf(matchesBody, anHourAgo, anHourAgo, anHourAgo)
-	var gotQuery string
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.RawQuery
-		assert.Equal(t, "/valorant/v4/matches/na/pc/Frosty/EUW1", r.URL.Path)
-		fmt.Fprint(w, body)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	reply := decodeReply[matchesReply](t, endpoint(t, p, "matches")(context.Background(), gossiprpc.Request{
-		Account: "Frosty#EUW1", Region: "na",
-	}))
-
-	assert.Empty(t, reply.Error)
-	assert.Equal(t, "mode=competitive&size=5", gotQuery,
-		"the competitive-only filter rides the upstream query, not client-side guessing")
-	require.Len(t, reply.Matches, 2, "an incomplete game is skipped, not shown as a ghost row")
-
-	win := reply.Matches[0]
-	assert.Equal(t, "Ascent", win.Map)
-	assert.Equal(t, "Jett", win.Agent)
-	assert.Equal(t, "win", win.Result)
-	assert.Equal(t, 24, win.Kills)
-	assert.InDelta(t, 190.1, win.ACS, 0.001, "score 4563 over 24 rounds, rounded to one decimal")
-	assert.GreaterOrEqual(t, win.AgoSeconds, int64(3590))
-
-	loss := reply.Matches[1]
-	assert.Equal(t, "loss", loss.Result)
-	assert.InDelta(t, 126.9, loss.ACS, 0.001, "score 2412 over 19 rounds")
-}
-
-func TestMatchesEmptyHistoryIsAnAnswerNotAnError(t *testing.T) {
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"status":200,"data":[]}`)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	reply := decodeReply[matchesReply](t, endpoint(t, p, "matches")(context.Background(), gossiprpc.Request{
-		Account: "Quiet#EUW", Region: "eu",
-	}))
-	assert.Empty(t, reply.Error)
-	assert.True(t, reply.Empty)
-}
-
-func TestAccountEchoesResolvedIdentity(t *testing.T) {
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/valorant/v2/account/Frosty/EUW1", r.URL.Path)
-		fmt.Fprint(w, accountBody)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
-
-	reply := decodeReply[accountReply](t, endpoint(t, p, "account")(context.Background(), gossiprpc.Request{
-		Account: "Frosty#EUW1",
-	}))
-	assert.Empty(t, reply.Error)
-	assert.Equal(t, "Frosty#EUW1", reply.Player)
-	assert.Equal(t, "puuid-1", reply.Puuid)
-	assert.Equal(t, "eu", reply.Region)
-	assert.Equal(t, 231, reply.AccountLevel)
-	assert.Equal(t, "https://media.test/card.png", reply.Card)
-}
-
 const leaderboardBody = `{
   "status":200,
   "data":{
@@ -351,18 +132,206 @@ const leaderboardBody = `{
   }
 }`
 
+func henrik(t testing.TB, routes map[string]string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for prefix, body := range routes {
+			if strings.HasPrefix(r.URL.Path, prefix) {
+				fmt.Fprint(w, body)
+				return
+			}
+		}
+		t.Errorf("unexpected path %s", r.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func TestRankFetchesMMRWithPlainAuthorizationHeader(t *testing.T) {
+	var gotAuth string
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		assert.Equal(t, "/valorant/v3/mmr/na/pc/Frosty/EUW1", r.URL.Path)
+		fmt.Fprint(w, mmrBody)
+	}), providertest.Forbid(t))
+
+	reply := providertest.Call[rankReply](t, p, "rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"})
+
+	assert.Equal(t, "val-key", gotAuth)
+	assert.Equal(t, rankReply{
+		Player: "Frosty#EUW1", Region: "na", Tier: "Immortal 1", Elo: 1849, RR: 63,
+		LastChange: -12, PeakTier: "Ascendant 2", Placement: 812,
+	}, reply, "display preserves name case, region normalizes, the single peak object reads directly")
+}
+
+func TestUnrankedAccountsHideTheirEloNoise(t *testing.T) {
+	p := newTestProvider(t, providertest.Respond(http.StatusOK,
+		`{"status":200,"data":{"current":{"elo":0,"rr":0,"last_change":0,"tier":{"id":0,"name":"UNRANKED"},"leaderboard_placement":{"rank":0}},"peak":{"tier":{"id":0,"name":"UNRANKED"},"rr":0}}}`),
+		providertest.Forbid(t))
+
+	reply := providertest.Call[rankReply](t, p, "rank", gossiprpc.Request{Account: "Newbie#EUW", Region: "eu"})
+
+	assert.Equal(t, rankReply{Player: "Newbie#EUW", Region: "eu", Tier: "UNRANKED", Unranked: true}, reply,
+		"elo of an unranked account is noise; templates should never see it")
+}
+
+func TestRankRejectsMalformedRequestsBeforeAnyUpstreamCall(t *testing.T) {
+	const badID = "invalid riot id (want name#tag)"
+	const badRegion = "unknown region (want na, eu, ap, kr, br or latam)"
+	for _, tc := range []struct {
+		name      string
+		endpoint  string
+		req       gossiprpc.Request
+		wantError string
+	}{
+		{"an empty account", "rank", gossiprpc.Request{}, badID},
+		{"an account without a tag", "rank", gossiprpc.Request{Account: "NoTag"}, badID},
+		{"an account without a name", "matches", gossiprpc.Request{Account: "#EUW1"}, badID},
+		{"an account with an empty tag", "account", gossiprpc.Request{Account: "Name#"}, badID},
+		{"an account with an over-long name", "rank", gossiprpc.Request{Account: strings.Repeat("n", 33) + "#tag"}, badID},
+		{"a region outside the affinities", "rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "es"}, badRegion},
+		{"a spelled-out region", "matches", gossiprpc.Request{Account: "Frosty#EUW1", Region: "north america"}, badRegion},
+		{"a shard name instead of an affinity", "rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "euw"}, badRegion},
+		{"an unknown platform", "rank", gossiprpc.Request{Account: "Frosty#EUW1", Platform: "mobile"}, "unknown platform (want pc or console)"},
+		{"a leaderboard without a region or an account", "leaderboard", gossiprpc.Request{}, "missing region"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestProvider(t, providertest.Forbid(t), providertest.Forbid(t))
+
+			res := providertest.Endpoint(t, p, tc.endpoint)(context.Background(), tc.req)
+
+			assert.Contains(t, providertest.ErrorOf(t, res), tc.wantError)
+		})
+	}
+}
+
+func TestRankCachesAbsenceForTheWindow(t *testing.T) {
+	upstream := providertest.NewSequence(t, providertest.Reply{
+		Status: http.StatusNotFound,
+		Body:   `{"status":404,"errors":[{"code":"NO_ACCOUNT","message":"No account found"}]}`,
+	})
+	p := newTestProvider(t, upstream, providertest.Forbid(t))
+	req := gossiprpc.Request{Account: "Ghost404#0000", Region: "ap"}
+
+	first := providertest.Call[rankReply](t, p, "rank", req)
+	second := providertest.Call[rankReply](t, p, "rank", req)
+
+	assert.Equal(t, rankReply{Player: "Ghost404#0000", Error: "player not found"}, first)
+	assert.Equal(t, first, second)
+	assert.Equal(t, 1, upstream.Hits(), "404s are negatively cached for the window")
+}
+
+func TestAutoRegionIsResolvedOnceAndSharedAcrossEndpoints(t *testing.T) {
+	var counter hitCounter
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/valorant/v2/account/"):
+			counter.count("account")
+			fmt.Fprint(w, accountBody)
+		case strings.HasPrefix(r.URL.Path, "/valorant/v4/matches/"):
+			fmt.Fprint(w, `{"status":200,"data":[]}`)
+		case strings.HasPrefix(r.URL.Path, "/valorant/v3/mmr/"):
+			counter.count("mmr")
+			assert.Equal(t, "/valorant/v3/mmr/eu/pc/Frosty/EUW1", r.URL.Path, "the detected region must route the mmr leg")
+			fmt.Fprint(w, mmrBody)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}), providertest.Forbid(t))
+	auto := gossiprpc.Request{Account: "Frosty#EUW1"}
+
+	for range 3 {
+		reply := providertest.Call[rankReply](t, p, "rank", auto)
+		assert.Empty(t, reply.Error)
+		assert.Equal(t, "eu", reply.Region)
+	}
+	assert.Empty(t, providertest.Call[matchesReply](t, p, "matches", auto).Error)
+	assert.Equal(t, 1, counter.get("account"),
+		"auto-region lookups ride one identity entry; a second account read means the shared resolve was lost")
+	assert.Equal(t, 1, counter.get("mmr"), "rank replies collapse onto one cached flight")
+
+	explicit := providertest.Call[rankReply](t, p, "rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "eu"})
+	assert.Empty(t, explicit.Error)
+	assert.Equal(t, 1, counter.get("account"), "an explicit region never touches the resolve at all")
+}
+
+func TestAccountEndpointKeepsItsOwnCacheEntry(t *testing.T) {
+	var counter hitCounter
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/valorant/v2/account/") {
+			counter.count("account")
+			fmt.Fprint(w, accountBody)
+			return
+		}
+		fmt.Fprint(w, mmrBody)
+	}), providertest.Forbid(t))
+	req := gossiprpc.Request{Account: "Frosty#EUW1"}
+
+	assert.Empty(t, providertest.Call[rankReply](t, p, "rank", req).Error, "warms the identity resolve")
+	assert.Empty(t, providertest.Call[accountReply](t, p, "account", req).Error, "must not ride the still-warm resolve entry")
+	assert.Equal(t, 2, counter.get("account"))
+
+	assert.Empty(t, providertest.Call[accountReply](t, p, "account", req).Error)
+	assert.Equal(t, 2, counter.get("account"), "the account endpoint's own byte-flow cache absorbs the repeat")
+}
+
+func TestMatchesSummarizesCompletedGamesOnly(t *testing.T) {
+	anHourAgo := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	body := fmt.Sprintf(matchesBody, anHourAgo, anHourAgo, anHourAgo)
+	var gotQuery string
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		assert.Equal(t, "/valorant/v4/matches/na/pc/Frosty/EUW1", r.URL.Path)
+		fmt.Fprint(w, body)
+	}), providertest.Forbid(t))
+
+	reply := providertest.Call[matchesReply](t, p, "matches", gossiprpc.Request{Account: "Frosty#EUW1", Region: "na"})
+
+	assert.Empty(t, reply.Error)
+	assert.Equal(t, "mode=competitive&size=5", gotQuery,
+		"the competitive-only filter rides the upstream query, not client-side guessing")
+	require.Len(t, reply.Matches, 2, "an incomplete game is skipped, not shown as a ghost row")
+
+	win, loss := reply.Matches[0], reply.Matches[1]
+	assert.Equal(t, "Ascent", win.Map)
+	assert.Equal(t, "Jett", win.Agent)
+	assert.Equal(t, "win", win.Result)
+	assert.Equal(t, 24, win.Kills)
+	assert.InDelta(t, 190.1, win.ACS, 0.001, "score 4563 over 24 rounds, rounded to one decimal")
+	assert.GreaterOrEqual(t, win.AgoSeconds, int64(3590))
+	assert.Equal(t, "loss", loss.Result)
+	assert.InDelta(t, 126.9, loss.ACS, 0.001, "score 2412 over 19 rounds")
+}
+
+func TestMatchesEmptyHistoryIsAnAnswerNotAnError(t *testing.T) {
+	p := newTestProvider(t, providertest.Respond(http.StatusOK, `{"status":200,"data":[]}`), providertest.Forbid(t))
+
+	reply := providertest.Call[matchesReply](t, p, "matches", gossiprpc.Request{Account: "Quiet#EUW", Region: "eu"})
+
+	assert.Empty(t, reply.Error)
+	assert.True(t, reply.Empty)
+}
+
+func TestAccountEchoesResolvedIdentity(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/valorant/v2/account/Frosty/EUW1", r.URL.Path)
+		fmt.Fprint(w, accountBody)
+	}), providertest.Forbid(t))
+
+	reply := providertest.Call[accountReply](t, p, "account", gossiprpc.Request{Account: "Frosty#EUW1"})
+
+	assert.Equal(t, accountReply{
+		Player: "Frosty#EUW1", Puuid: "puuid-1", Region: "eu", AccountLevel: 231,
+		Card: "https://media.test/card.png", Title: "Vanquisher",
+	}, reply)
+}
+
 func TestLeaderboardSortsAndCapsTheSlice(t *testing.T) {
-	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/valorant/v3/leaderboard/ap/console", r.URL.Path,
 			"v3 is the platform-aware board; v2 would silently return PC data")
 		fmt.Fprint(w, leaderboardBody)
-	})
-	p := newTestProvider(t, henrik, noUpstream(t, "content"))
+	}), providertest.Forbid(t))
 
-	reply := decodeReply[leaderboardReply](t, endpoint(t, p, "leaderboard")(context.Background(), gossiprpc.Request{
-		Region:   "AP",
-		Platform: "Console",
-	}))
+	reply := providertest.Call[leaderboardReply](t, p, "leaderboard", gossiprpc.Request{Region: "AP", Platform: "Console"})
 
 	assert.Empty(t, reply.Error)
 	assert.Equal(t, "ap/console", reply.Board)
@@ -374,119 +343,41 @@ func TestLeaderboardSortsAndCapsTheSlice(t *testing.T) {
 	assert.Equal(t, "One#1111", reply.Entries[0].Player)
 }
 
-func TestLeaderboardRequiresRegionWithoutAccount(t *testing.T) {
-	p := newTestProvider(t, noUpstream(t, "henrik"), noUpstream(t, "content"))
+func TestCacheKeysFoldPlayerRegionAndPlatform(t *testing.T) {
+	store := providertest.NewMemStore()
+	p := newProviderWithStore(t, henrik(t, map[string]string{
+		"/valorant/v2/account/":     accountBody,
+		"/valorant/v3/mmr/":         mmrBody,
+		"/valorant/v3/leaderboard/": leaderboardBody,
+	}), providertest.Forbid(t), store)
 
-	reply := decodeReply[leaderboardReply](t, endpoint(t, p, "leaderboard")(context.Background(), gossiprpc.Request{}))
-	assert.Contains(t, reply.Error, "missing region")
+	for _, call := range []struct {
+		endpoint string
+		req      gossiprpc.Request
+	}{
+		{"rank", gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"}},
+		{"rank", gossiprpc.Request{Account: "  FrOsTy # euw1 ", Region: " Na ", Platform: " Console "}},
+		{"leaderboard", gossiprpc.Request{Region: "kr"}},
+		{"leaderboard", gossiprpc.Request{Account: "  FrOsTy#EUW1  ", Region: "eu", Platform: "Console"}},
+	} {
+		_ = providertest.Endpoint(t, p, call.endpoint)(context.Background(), call.req)
+	}
+
+	assert.Equal(t, []string{
+		"gossip:valorant:leaderboard::kr:pc",
+		"gossip:valorant:leaderboard:frosty#euw1:eu:console",
+		"gossip:valorant:rank:frosty#euw1:na:console",
+		"gossip:valorant:rank:frosty#euw1:na:pc",
+	}, store.Keys())
 }
 
-func TestIdentityValidationAndCacheKeys(t *testing.T) {
-	t.Run("parseRiotID", func(t *testing.T) {
-		cases := []struct {
-			in     string
-			wantID string
-			reject string
-		}{
-			{in: "Frosty#EUW1", wantID: "Frosty#EUW1"},
-			{in: " frosty#euw1 ", wantID: "frosty#EUW1"},
-			{in: "", reject: "invalid riot id"},
-			{in: "NoTag", reject: "invalid riot id"},
-			{in: "#EUW1", reject: "invalid riot id"},
-			{in: "Name#", reject: "invalid riot id"},
-			{in: strings.Repeat("n", 33) + "#tag", reject: "invalid riot id"},
-		}
-		for _, tc := range cases {
-			id, msg := parseRiotID(tc.in)
-			if tc.reject != "" {
-				assert.NotEmpty(t, msg, tc.in)
-				continue
-			}
-			assert.Empty(t, msg, tc.in)
-			assert.Equal(t, tc.wantID, id.String(), tc.in)
-		}
-	})
+func TestProviderDeclaresItsRPCEndpoints(t *testing.T) {
+	p := newTestProvider(t, providertest.Forbid(t), providertest.Forbid(t))
 
-	t.Run("normalizeRegion", func(t *testing.T) {
-		region, msg := normalizeRegion(" NA ")
-		assert.Equal(t, "na", region)
-		assert.Empty(t, msg)
-
-		region, msg = normalizeRegion("")
-		assert.Equal(t, "auto", region, "empty means detect-from-account")
-		assert.Empty(t, msg)
-
-		for _, bad := range []string{"es", "north america", "euw"} {
-			_, msg = normalizeRegion(bad)
-			assert.NotEmpty(t, msg, bad)
-		}
-	})
-
-	t.Run("normalizePlatform", func(t *testing.T) {
-		platform, msg := normalizePlatform("")
-		assert.Equal(t, "pc", platform, "pc is the default split")
-		assert.Empty(t, msg)
-		platform, msg = normalizePlatform("Console")
-		assert.Equal(t, "console", platform)
-		assert.Empty(t, msg)
-		_, msg = normalizePlatform("mobile")
-		assert.NotEmpty(t, msg)
-	})
-
-	t.Run("riotID folds scoping into the cache key", func(t *testing.T) {
-		id, msg := riotID(gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"})
-		assert.Empty(t, msg)
-		assert.Equal(t, "frosty#euw1:na:pc", id.Key,
-			"same player, different spelling and region casing must share one entry")
-
-		id, msg = riotID(gossiprpc.Request{Account: "Frosty#EUW1"})
-		assert.Empty(t, msg)
-		assert.Equal(t, "frosty#euw1:auto:pc", id.Key,
-			"unset region keys separately from an explicit one; detection fills the gap")
-
-		_, msg = riotID(gossiprpc.Request{Account: "Frosty#EUW1", Platform: "stadia"})
-		assert.NotEmpty(t, msg)
-	})
-}
-
-func TestEndpointSurface(t *testing.T) {
-	p := newTestProvider(t, noUpstream(t, "henrik"), noUpstream(t, "content"))
-	assert.Equal(t, "valorant", p.Name())
 	names := make([]string, 0, 5)
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
 	}
+	assert.Equal(t, "valorant", p.Name())
 	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop"}, names)
-}
-
-func TestCacheIDBytes(t *testing.T) {
-	cases := []struct {
-		name string
-		req  gossiprpc.Request
-		want string
-	}{
-		{name: "player", req: gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"}, want: "frosty#euw1:na:pc"},
-		{name: "player spaced", req: gossiprpc.Request{Account: "  FrOsTy # euw1 ", Region: " Na ", Platform: " Console "}, want: "frosty#euw1:na:console"},
-		{name: "player defaults", req: gossiprpc.Request{Account: "Frosty#EUW1"}, want: "frosty#euw1:auto:pc"},
-	}
-	for _, c := range cases {
-		id, msg := riotID(c.req)
-		assert.Empty(t, msg, c.name)
-		assert.Equal(t, c.want, id.Key, c.name)
-	}
-
-	boards := []struct {
-		name string
-		req  gossiprpc.Request
-		want string
-	}{
-		{name: "board", req: gossiprpc.Request{Account: "Frosty#EUW1", Region: "EU"}, want: "frosty#euw1:eu:pc"},
-		{name: "board spaced", req: gossiprpc.Request{Account: "  FrOsTy#EUW1  ", Region: "eu", Platform: "Console"}, want: "frosty#euw1:eu:console"},
-		{name: "board no account", req: gossiprpc.Request{Region: "kr"}, want: ":kr:pc"},
-	}
-	for _, c := range boards {
-		id, msg := boardID(c.req)
-		assert.Empty(t, msg, c.name)
-		assert.Equal(t, c.want, id.Key, c.name)
-	}
 }

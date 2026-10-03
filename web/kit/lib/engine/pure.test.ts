@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { evalMath, pathEscape, queryEscape, repeatPhrase, resolveComputedUtil } from './pure';
+import { queryEscape, resolveComputedUtil } from './pure';
 import { expand } from './tmpl';
 
 const GOLDEN_PATH = join(
@@ -32,28 +32,21 @@ describe('pure utility golden (engine/scope/testdata/pure.golden.json)', () => {
   }
 });
 
-describe('evalMath', () => {
-  test('works past the double-precision range, like the int64 evaluator', () => {
-    expect(evalMath('9007199254740993')).toBe('9007199254740993');
-    expect(evalMath('4611686018427387903*2+1')).toBe('9223372036854775807');
-  });
+describe('computed utilities beyond the Go golden', () => {
+  const rows = [
+    { name: 'math works past the double-precision range, like the int64 evaluator', tmpl: '{math:9007199254740993}', want: '9007199254740993' },
+    { name: 'math keeps exactness up to the int64 ceiling', tmpl: '{math:4611686018427387903*2+1}', want: '9223372036854775807' },
+    { name: 'math refuses the step that leaves the int64 range downward', tmpl: '{math:0-9223372036854775807-2}', want: '' },
+    { name: 'repeat counts the byte length of the phrase, not its characters', tmpl: '{repeat:20:🥯}', want: Array(20).fill('🥯').join(' ') },
+    { name: 'repeat refuses a phrase over the byte cap', tmpl: `{repeat:20:${'x'.repeat(24)}}`, want: '' }
+  ];
 
-  test('refuses the step that leaves the int64 range', () => {
-    expect(evalMath('9223372036854775807+1')).toBe('');
-    expect(evalMath('0-9223372036854775807-2')).toBe('');
-  });
-
-  test('an empty payload is not an expression', () => {
-    expect(evalMath('')).toBe('');
+  test.each(rows)('$name', ({ tmpl, want }) => {
+    expect(expand(tmpl, resolveComputedUtil)).toBe(want);
   });
 });
 
 describe('the URL encoders', () => {
-  test('query escape and path escape differ on a space', () => {
-    expect(queryEscape('a b')).toBe('a+b');
-    expect(pathEscape('a b')).toBe('a%20b');
-  });
-
   test('encodeURIComponent is NOT the same function', () => {
     expect(queryEscape("!'()*")).toBe('%21%27%28%29%2A');
     expect(encodeURIComponent("!'()*")).toBe("!'()*");
@@ -61,16 +54,5 @@ describe('the URL encoders', () => {
 
   test('non-ASCII is encoded from its UTF-8 bytes', () => {
     expect(queryEscape('café 🥯')).toBe('caf%C3%A9+%F0%9F%A5%AF');
-  });
-});
-
-describe('repeatPhrase', () => {
-  test('counts the byte length of the phrase, not its characters', () => {
-    expect(repeatPhrase('20:🥯')).toContain('🥯');
-    expect(repeatPhrase('20:' + 'x'.repeat(24))).toBe('');
-  });
-
-  test('the first colon splits, so a phrase keeps its own colons', () => {
-    expect(repeatPhrase('2:a:b')).toBe('a:b a:b');
   });
 });

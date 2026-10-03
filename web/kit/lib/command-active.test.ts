@@ -5,14 +5,21 @@ import { describe, expect, test } from 'bun:test';
 import { commandContentSnapshot, overlayLiveActive, persistCommandActive } from './command-active';
 
 describe('persistCommandActive', () => {
-  test('create uses the draft checkbox (new commands default on)', () => {
-    expect(persistCommandActive(false, true, false)).toBe(true);
-    expect(persistCommandActive(false, false, true)).toBe(false);
-  });
+  interface Row {
+    name: string;
+    args: Parameters<typeof persistCommandActive>;
+    want: boolean;
+  }
 
-  test('edit uses the live row, not the inspector snapshot (#221)', () => {
-    expect(persistCommandActive(true, true, false)).toBe(false);
-    expect(persistCommandActive(true, false, true)).toBe(true);
+  const ROWS: Row[] = [
+    { name: 'create uses the draft checkbox (new commands default on)', args: [false, true, false], want: true },
+    { name: 'create keeps an unchecked draft off', args: [false, false, true], want: false },
+    { name: 'edit uses the live row, not the inspector snapshot (#221)', args: [true, true, false], want: false },
+    { name: 'edit follows a live row that is on', args: [true, false, true], want: true }
+  ];
+
+  test.each(ROWS)('$name', ({ args, want }) => {
+    expect(persistCommandActive(...args)).toBe(want);
   });
 
   test('edit falls back to the draft when the live row is gone', () => {

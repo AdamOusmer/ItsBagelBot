@@ -6,11 +6,15 @@ package engine
 import (
 	"context"
 	"errors"
-	"sync"
+	"maps"
+	"slices"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -20,114 +24,103 @@ import (
 	"go.uber.org/zap"
 )
 
-type captured struct {
-	subject string
-	id      string
-	msg     outgress.Message
-}
-
-type fakePublisher struct {
-	mu      sync.Mutex
-	got     []captured
-	failErr error
-}
-
-func (p *fakePublisher) PublishOwned(_ context.Context, subject string, payload []byte) error {
-	return p.PublishOwnedWithID(context.Background(), subject, "", payload)
-}
-
-func (p *fakePublisher) PublishOwnedWithID(_ context.Context, subject, id string, payload []byte) error {
-	if p.failErr != nil {
-		return p.failErr
-	}
-	var om outgress.Message
-	_ = codec.Unmarshal(payload, &om)
-	p.mu.Lock()
-	p.got = append(p.got, captured{subject: subject, id: id, msg: om})
-	p.mu.Unlock()
-	return nil
-}
-
-func (p *fakePublisher) snapshot() []captured {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]captured(nil), p.got...)
-}
-
-func (p *fakePublisher) Flush(context.Context) error { return nil }
-func (p *fakePublisher) Close() error                { return nil }
-
-type fakeReader struct {
-	user     projection.User
-	modules  map[string]projection.ModuleView
-	modErr   error
-	cmd      projection.Command
-	cmdFound bool
-}
-
-func (r fakeReader) User(context.Context, uint64) (projection.User, error) { return r.user, nil }
-
-func (r fakeReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
-	return r.modules, r.modErr
-}
-func (r fakeReader) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
-	views, err := r.Modules(ctx, id)
-	if err != nil {
-		return projection.ModuleView{}, false, err
-	}
-	view, ok := views[name]
-	return view, ok, nil
-}
-func (r fakeReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
-	return r.cmd, r.cmdFound, nil
-}
-
-type liveAlways struct{}
-
-func (liveAlways) IsLive(context.Context, uint64) (bool, error)           { return true, nil }
-func (liveAlways) SetLive(context.Context, uint64, int64) (bool, error)   { return true, nil }
-func (liveAlways) ClearLive(context.Context, uint64, int64) (bool, error) { return true, nil }
-
-const (
-	premiumSubj  = "outgress.premium"
-	standardSubj = "outgress.standard"
-)
-
-func newPipelineWith(pub bus.Publisher, reader projection.Reader, mods ...module.Module) *Pipeline {
-	reg := NewRegistry(zap.NewNop(), mods...)
-	d := Deps{Proj: reader, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop()}
-	return NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+func envelopeMsg(t *testing.T, id string, fields map[string]any) *bus.Message {
+	t.Helper()
+	body := map[string]any{"type": chatType, "lane": "standard", "broadcaster_user_id": "123"}
+	maps.Copy(body, fields)
+	encoded, err := codec.Marshal(body)
+	require.NoError(t, err)
+	return bus.NewMessage(id, encoded)
 }
 
 func chatMsg(t *testing.T, laneName, text string) *bus.Message {
 	t.Helper()
-	body, err := codec.Marshal(map[string]any{
-		"type":                chatType,
-		"lane":                laneName,
-		"broadcaster_user_id": "123",
-		"chatter_user_id":     "999",
-		"text":                text,
-	})
+	return envelopeMsg(t, "uuid-1", map[string]any{"lane": laneName, "chatter_user_id": "999", "text": text})
+}
+
+func commandMsg(t *testing.T, msgID, text string) *bus.Message {
+	t.Helper()
+	return envelopeMsg(t, "uuid-"+msgID, map[string]any{"msg_id": msgID, "chatter_user_id": "999", "text": text})
+}
+
+func eventMsg(t *testing.T, eventType string) *bus.Message {
+	t.Helper()
+	return envelopeMsg(t, "uuid-event", map[string]any{"type": eventType})
+}
+
+func cohortMsg(t *testing.T, size int, text string, extra map[string]any) *bus.Message {
+	t.Helper()
+	senders := make([]map[string]any, size)
+	for i := range senders {
+		senders[i] = map[string]any{"chatter_user_id": strconv.Itoa(i + 1)}
+	}
+	fields := map[string]any{"text": text, "senders": senders}
+	maps.Copy(fields, extra)
+	return envelopeMsg(t, "cohort", fields)
+}
+
+func chatEnv(text, badgeRole string) lane.Envelope {
+	env := lane.Envelope{
+		Type:              chatType,
+		Lane:              "standard",
+		Text:              text,
+		BroadcasterUserID: "123",
+		ChatterUserID:     "999",
+		ChatterUserLogin:  "alice",
+	}
+	if badgeRole != "" {
+		env.Badges = []lane.Badge{{SetID: badgeRole}}
+	}
+	return env
+}
+
+func outputOf(m outgress.Message) module.Output {
+	if m.Type != outgress.TypeBatch {
+		var inner struct {
+			Message string `json:"message"`
+		}
+		_ = codec.Unmarshal(m.Payload, &inner)
+		return module.Output{Type: m.Type, Color: m.Color, Text: inner.Message}
+	}
+	var batch outgress.Batch
+	_ = codec.Unmarshal(m.Payload, &batch)
+	out := module.Output{Type: m.Type, BatchID: batch.ID}
+	for _, item := range batch.Items {
+		out.Items = append(out.Items, outputOf(item))
+	}
+	return out
+}
+
+func runChat(t *testing.T, p *Pipeline, env lane.Envelope) ([]module.Output, error) {
+	t.Helper()
+	pub := p.pub.(*fakePublisher)
+	before := len(pub.snapshot())
+	body, err := codec.Marshal(env)
 	require.NoError(t, err)
-	return bus.NewMessage("uuid-1", body)
+
+	processErr := p.Process(bus.NewMessage("uuid-chat", body))
+
+	var got []module.Output
+	for _, c := range pub.snapshot()[before:] {
+		got = append(got, outputOf(c.msg))
+	}
+	return got, processErr
 }
 
-func bareModule(name string, kind module.Kind) module.Module {
-	return module.NewModule(name, kind).Build()
+func replies(t *testing.T, p *Pipeline, env lane.Envelope) []module.Output {
+	t.Helper()
+	got, err := runChat(t, p, env)
+	require.NoError(t, err)
+	return got
 }
 
-func emitModule(name string, kind module.Kind, text string) module.Module {
-	b := module.NewModule(name, kind)
-	b.On(chatType, func(_ context.Context, c *module.Context, emit module.Emit) error {
-		o := GetOutput()
-		defer PutOutput(o)
-		o.Type = outgress.TypeChat
-		o.BroadcasterID = c.Env.BroadcasterUserID
-		o.Text = text
-		emit(o)
-		return nil
-	})
-	return b.Build()
+func chatMessageText(t *testing.T, m outgress.Message) string {
+	t.Helper()
+	var inner struct {
+		Message string `json:"message"`
+	}
+	require.NoError(t, codec.Unmarshal(m.Payload, &inner))
+	return inner.Message
 }
 
 func emitLocaleModule(eventType string) module.Module {
@@ -151,144 +144,199 @@ func errCore() module.Module {
 	return b.Build()
 }
 
-func TestEnabledCoreModuleAlwaysRuns(t *testing.T) {
-	p := &Pipeline{}
-	mctx := &module.Context{Config: []byte("stale")}
-	assert.True(t, p.enabled(bareModule("", module.KindCore), nil, mctx))
-	assert.Nil(t, mctx.Config)
+func configEcho(prefix, name string, kind module.Kind) module.Module {
+	b := module.NewModule(name, kind)
+	b.On(chatType, func(_ context.Context, c *module.Context, emit module.Emit) error {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: prefix + ":" + string(c.Config)})
+		return nil
+	})
+	return b.Build()
 }
 
-func TestEnabledByKindAndProjection(t *testing.T) {
-	type views = map[string]projection.ModuleView
-	cases := []struct {
-		name       string
-		kind       module.Kind
-		views      views
-		want       bool
-		wantConfig []byte
-	}{
-		{name: "default enabled", kind: module.KindDefault, views: views{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"x":1}`)}}, want: true, wantConfig: []byte(`{"x":1}`)},
-		{name: "default disabled", kind: module.KindDefault, views: views{"m": {Name: "m", IsEnabled: false}}},
-		{name: "default without projection", kind: module.KindDefault, want: true},
-		{name: "opt-in without projection", kind: module.KindOptIn},
-		{name: "opt-in enabled", kind: module.KindOptIn, views: views{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"m":"hi"}`)}}, want: true, wantConfig: []byte(`{"m":"hi"}`)},
-		{name: "opt-in disabled", kind: module.KindOptIn, views: views{"m": {Name: "m", IsEnabled: false}}},
+type published struct {
+	Subject string
+	Type    string
+	Color   string
+	Text    string
+}
+
+func publishedMessages(pub *fakePublisher) []published {
+	var out []published
+	for _, c := range pub.snapshot() {
+		var inner struct {
+			Message string `json:"message"`
+		}
+		_ = codec.Unmarshal(c.msg.Payload, &inner)
+		out = append(out, published{Subject: c.subject, Type: c.msg.Type, Color: c.msg.Color, Text: inner.Message})
 	}
-	for _, tc := range cases {
+	return out
+}
+
+type processCase struct {
+	name    string
+	lane    string
+	text    string
+	raw     []byte
+	cohort  int
+	reader  fakeReader
+	modules []module.Module
+	pubErr  error
+	wantErr bool
+	want    []published
+}
+
+func (tc processCase) message(t *testing.T) *bus.Message {
+	t.Helper()
+	switch {
+	case tc.raw != nil:
+		return bus.NewMessage("uuid-bad", tc.raw)
+	case tc.cohort > 0:
+		return cohortMsg(t, tc.cohort, tc.text, nil)
+	}
+	return chatMsg(t, tc.lane, tc.text)
+}
+
+func processRoutingCases() []processCase {
+	pong := emitModule("", module.KindCore, "pong")
+
+	return []processCase{
+		{name: "a malformed envelope is dropped and acked", raw: []byte("{not json"), modules: []module.Module{pong}},
+		{name: "a chat line with no module acks and emits nothing", lane: "premium", text: "hi"},
+		{
+			name: "chat is emitted to the standard lane", lane: "standard", text: "hi", modules: []module.Module{pong},
+			want: []published{{standardSubj, outgress.TypeChat, "", "pong"}},
+		},
+		{
+			name: "chat is emitted to the premium lane", lane: "premium", text: "hi", modules: []module.Module{pong},
+			want: []published{{premiumSubj, outgress.TypeChat, "", "pong"}},
+		},
+		{
+			name: "a failing module is skipped, not nacked", lane: "standard", text: "hi",
+			modules: []module.Module{errCore(), emitModule("", module.KindCore, "still here")},
+			want:    []published{{standardSubj, outgress.TypeChat, "", "still here"}},
+		},
+		{
+			name: "a publish error nacks", lane: "standard", text: "hi", modules: []module.Module{pong},
+			pubErr: errors.New("broker down"), wantErr: true,
+		},
+	}
+}
+
+func processEmissionCases() []processCase {
+	slur := moderation.EmbeddedLexicon().Terms(moderation.CatHate)[0]
+
+	return []processCase{
+		{
+			name: "TestEmitTranslatesSlashVerbOnModulePath", lane: "standard", text: "hi",
+			modules: []module.Module{emitModule("", module.KindCore, "/announcegreen big news")},
+			want:    []published{{standardSubj, outgress.TypeAnnounce, "green", "big news"}},
+		},
+		{
+			name: "TestEmitDropsEmptySlashAction", lane: "standard", text: "hi",
+			modules: []module.Module{emitModule("", module.KindCore, "/shoutout")},
+		},
+		{
+			name: "an emitted empty pin is dropped", lane: "standard", text: "hi",
+			modules: []module.Module{emitModule("", module.KindCore, "/pin")},
+		},
+		{
+			name: "an emitted empty chat line is dropped", lane: "standard", text: "hi",
+			modules: []module.Module{emitModule("", module.KindCore, "")},
+		},
+		{
+			name: "TestEmitLeavesMePassthrough", lane: "standard", text: "hi",
+			modules: []module.Module{emitModule("", module.KindCore, "/me waves")},
+			want:    []published{{standardSubj, outgress.TypeChat, "", "/me waves"}},
+		},
+		{
+			name: "an emission carrying floor content is suppressed", lane: "standard", text: "hello",
+			modules: []module.Module{emitModule("", module.KindCore, "so true "+slur+" moment")},
+		},
+		{
+			name: "milder language still goes out", lane: "standard", text: "hello",
+			modules: []module.Module{emitModule("", module.KindCore, "hell of a play, that was bullshit ref")},
+			want:    []published{{standardSubj, outgress.TypeChat, "", "hell of a play, that was bullshit ref"}},
+		},
+	}
+}
+
+func processCommandCases() []processCase {
+	command := fakeReader{cmd: projection.Command{Name: "hi", Response: "hello", IsActive: true}, cmdFound: true}
+
+	return []processCase{
+		{name: "a cohort never dispatches a command", text: "!hi", cohort: 2, reader: command},
+		{
+			name: "a normal command line still dispatches", lane: "standard", text: "!hi", reader: command,
+			want: []published{{standardSubj, outgress.TypeChat, "", "hello"}},
+		},
+	}
+}
+
+func processModuleCases() []processCase {
+	return []processCase{
+		{
+			name: "an enabled default module receives its configured blob", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindDefault)},
+			reader:  fakeReader{modules: map[string]projection.ModuleView{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"x":1}`)}}},
+			want:    []published{{standardSubj, outgress.TypeChat, "", `m:{"x":1}`}},
+		},
+		{
+			name: "a disabled default module stays silent", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindDefault)},
+			reader:  fakeReader{modules: map[string]projection.ModuleView{"m": {Name: "m", IsEnabled: false}}},
+		},
+		{
+			name: "a default module without a projection row runs with no config", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindDefault)},
+			want:    []published{{standardSubj, outgress.TypeChat, "", "m:"}},
+		},
+		{
+			name: "an opt-in module without a projection row stays silent", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindOptIn)},
+		},
+		{
+			name: "an enabled opt-in module receives its configured blob", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindOptIn)},
+			reader:  fakeReader{modules: map[string]projection.ModuleView{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"m":"hi"}`)}}},
+			want:    []published{{standardSubj, outgress.TypeChat, "", `m:{"m":"hi"}`}},
+		},
+		{
+			name: "a disabled opt-in module stays silent", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindOptIn)},
+			reader:  fakeReader{modules: map[string]projection.ModuleView{"m": {Name: "m", IsEnabled: false}}},
+		},
+		{
+			name: "a core module runs beside a configured module without inheriting its config", lane: "standard", text: "hi",
+			modules: []module.Module{configEcho("m", "m", module.KindDefault), configEcho("core", "", module.KindCore)},
+			reader:  fakeReader{modules: map[string]projection.ModuleView{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"x":1}`)}}},
+			want: []published{
+				{standardSubj, outgress.TypeChat, "", `m:{"x":1}`},
+				{standardSubj, outgress.TypeChat, "", "core:"},
+			},
+		},
+	}
+}
+
+func TestProcessEmitsAtTheBroker(t *testing.T) {
+	for _, tc := range slices.Concat(processRoutingCases(), processEmissionCases(), processCommandCases(), processModuleCases()) {
 		t.Run(tc.name, func(t *testing.T) {
-			mctx := &module.Context{}
-			assert.Equal(t, tc.want, (&Pipeline{}).enabled(bareModule("m", tc.kind), tc.views, mctx))
-			if tc.wantConfig != nil {
-				assert.Equal(t, tc.wantConfig, []byte(mctx.Config))
-			}
+			pub := &fakePublisher{failErr: tc.pubErr}
+
+			err := newPipelineWith(pub, tc.reader, tc.modules...).Process(tc.message(t))
+
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, tc.want, publishedMessages(pub))
 		})
 	}
-}
-
-func TestProcessMalformedEnvelopeDropped(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "x"))
-	err := p.Process(bus.NewMessage("uuid-bad", []byte("{not json")))
-	assert.NoError(t, err)
-	assert.Empty(t, pub.got)
 }
 
 func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{user: projection.User{Locale: "fr"}}, emitLocaleModule("stream.online"))
-	body, err := codec.Marshal(map[string]any{
-		"type":                "stream.online",
-		"lane":                "standard",
-		"broadcaster_user_id": "123",
-	})
-	require.NoError(t, err)
 
-	require.NoError(t, p.Process(bus.NewMessage("uuid-locale", body)))
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, "fr", chatMessageText(t, pub.got[0].msg))
-}
+	require.NoError(t, p.Process(eventMsg(t, "stream.online")))
 
-func TestProcessNoModuleAcks(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{})
-	err := p.Process(chatMsg(t, "premium", "hi"))
-	assert.NoError(t, err)
-	assert.Empty(t, pub.got)
-}
-
-func TestProcessChatEmittedToStandardLane(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
-	err := p.Process(chatMsg(t, "standard", "hi"))
-	require.NoError(t, err)
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, standardSubj, pub.got[0].subject)
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
-	assert.Equal(t, "123", pub.got[0].msg.BroadcasterID)
-
-	var inner struct {
-		BroadcasterID string `json:"broadcaster_id"`
-		Message       string `json:"message"`
-	}
-	require.NoError(t, codec.Unmarshal(pub.got[0].msg.Payload, &inner))
-	assert.Equal(t, "pong", inner.Message)
-	assert.Equal(t, "123", inner.BroadcasterID)
-}
-
-func TestProcessChatEmittedToPremiumLane(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
-	err := p.Process(chatMsg(t, "premium", "hi"))
-	require.NoError(t, err)
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, premiumSubj, pub.got[0].subject)
-}
-
-func TestProcessModuleErrorSkippedNotNacked(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, errCore(), emitModule("", module.KindCore, "still here"))
-	err := p.Process(chatMsg(t, "standard", "hi"))
-	assert.NoError(t, err)
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
-}
-
-func TestProcessPublishErrorNacks(t *testing.T) {
-	pub := &fakePublisher{failErr: errors.New("broker down")}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
-	err := p.Process(chatMsg(t, "standard", "hi"))
-	assert.Error(t, err)
-}
-
-func TestEmitTranslatesSlashVerbOnModulePath(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/announcegreen big news"))
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeAnnounce, pub.got[0].msg.Type)
-	assert.Equal(t, "green", pub.got[0].msg.Color)
-
-	var inner struct {
-		Message string `json:"message"`
-	}
-	require.NoError(t, codec.Unmarshal(pub.got[0].msg.Payload, &inner))
-	assert.Equal(t, "big news", inner.Message)
-}
-
-func TestEmitDropsEmptySlashAction(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/shoutout"))
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
-	assert.Empty(t, pub.got)
-}
-
-func TestEmitLeavesMePassthrough(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/me waves"))
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
-	assert.Equal(t, "/me waves", chatMessageText(t, pub.got[0].msg))
+	assert.Equal(t, []published{{standardSubj, outgress.TypeChat, "", "fr"}}, publishedMessages(pub))
 }
 
 type countingChatLines struct {
@@ -303,43 +351,74 @@ func TestProcessCountsViewerChatLinesOnly(t *testing.T) {
 	cases := []struct {
 		name      string
 		botID     string
+		event     string
 		wantCalls []uint64
 	}{
 		{name: "viewer line", wantCalls: []uint64{123}},
 		{name: "bot's own line", botID: "999"},
+		{name: "non-chat event", event: "stream.online"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			counter := &countingChatLines{}
 			d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), ChatLines: counter}
 			p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{BotID: tc.botID, OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+			msg := chatMsg(t, "standard", "hi")
+			if tc.event != "" {
+				msg = eventMsg(t, tc.event)
+			}
 
-			require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+			require.NoError(t, p.Process(msg))
 
 			assert.Equal(t, tc.wantCalls, counter.calls)
 		})
 	}
 }
 
-func TestProcessDoesNotCountNonChatEvent(t *testing.T) {
-	pub := &fakePublisher{}
-	counter := &countingChatLines{}
-	p := newPipelineWith(pub, fakeReader{}, emitLocaleModule("stream.online"))
-	p.chatLineCounter = counter
-	body, err := codec.Marshal(map[string]any{
-		"type":                "stream.online",
-		"lane":                "standard",
-		"broadcaster_user_id": "123",
+func TestProcessFeedsRosterFromChatLines(t *testing.T) {
+	p := newPipelineWith(&fakePublisher{}, fakeReader{})
+	line := envelopeMsg(t, "uuid-roster", map[string]any{
+		"chatter_user_id": "7", "chatter_user_login": "bob", "chatter_user_name": "Bob", "text": "hi",
 	})
-	require.NoError(t, err)
 
-	require.NoError(t, p.Process(bus.NewMessage("uuid-locale", body)))
+	require.NoError(t, p.Process(line))
 
-	assert.Empty(t, counter.calls)
+	v, ok := p.roster.Resolve(123, "bob")
+	require.True(t, ok)
+	assert.Equal(t, Viewer{ID: 7, Login: "bob", Name: "Bob"}, v)
 }
 
-func TestProcessNilChatLineCounterIsSafe(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+func TestProcessOutputIDsFollowTheEventID(t *testing.T) {
+	cases := []struct {
+		name      string
+		eventIDs  []string
+		wantIDs   int
+		wantEmpty bool
+	}{
+		{"a replayed event reuses its output id", []string{"event-1", "event-1"}, 1, false},
+		{"distinct events use distinct output ids", []string{"event-1", "event-2"}, 2, false},
+		{"an event without an id publishes ordinarily", []string{""}, 1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pub := &fakePublisher{}
+			p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
+			for _, eventID := range tc.eventIDs {
+				fields := map[string]any{"chatter_user_id": "999", "text": "hi"}
+				if eventID != "" {
+					fields["event_id"], fields["msg_id"] = eventID, "chat-message-1"
+				}
+				require.NoError(t, p.Process(envelopeMsg(t, "uuid-"+eventID, fields)))
+			}
+
+			ids := map[string]bool{}
+			for _, c := range pub.snapshot() {
+				ids[c.id] = true
+			}
+
+			assert.Len(t, pub.snapshot(), len(tc.eventIDs))
+			assert.Len(t, ids, tc.wantIDs)
+			assert.Equal(t, tc.wantEmpty, ids[""])
+		})
+	}
 }

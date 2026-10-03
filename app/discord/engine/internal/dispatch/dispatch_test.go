@@ -1,505 +1,175 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package dispatch
+package dispatch_test
 
 import (
-	"context"
-	"fmt"
-	"sync"
 	"testing"
 
-	"ItsBagelBot/app/discord/engine/internal/registry"
-	"ItsBagelBot/app/discord/engine/internal/resolve"
-	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
-	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
-	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 
-	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
 
-type fakeChannels struct {
-	mu       sync.Mutex
-	created  []string
-	panels   []discordoutgress.TicketPanelRequest
-	deleted  []string
-	moved    []string
-	modified []string
-	opened   []discordoutgress.TicketOpenRequest
-	claimed  []discordoutgress.TicketClaimRequest
-	closed   []discordoutgress.TicketCloseRequest
-	added    []discordoutgress.TicketMemberAddRequest
-}
-
-func (f *fakeChannels) TicketOpen(_ context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	id := "ch-" + req.Name
-	f.created = append(f.created, id)
-	f.opened = append(f.opened, req)
-	return discordoutgress.TicketOpenReply{ChannelID: id, MessageID: "msg-" + id}, nil
-}
-
-func (f *fakeChannels) TicketClaim(_ context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.claimed = append(f.claimed, req)
-	return discordoutgress.TicketClaimReply{}, nil
-}
-
-func (f *fakeChannels) TicketClose(_ context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.closed = append(f.closed, req)
-	f.deleted = append(f.deleted, req.ChannelID)
-	return discordoutgress.TicketCloseReply{}, nil
-}
-
-func (f *fakeChannels) TicketAddMember(_ context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.added = append(f.added, req)
-	return discordoutgress.TicketMemberAddReply{}, nil
-}
-
-func (f *fakeChannels) TicketPanel(_ context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.panels = append(f.panels, req)
-	return discordoutgress.TicketPanelReply{MessageID: "m-panel"}, nil
-}
-
-func (f *fakeChannels) CreateChannel(_ context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	id := "ch-" + req.Name
-	f.created = append(f.created, id)
-	return discordoutgress.ChannelCreateReply{ChannelID: id}, nil
-}
-
-func (f *fakeChannels) DeleteChannel(_ context.Context, req discordoutgress.ChannelDeleteRequest) (discordoutgress.ChannelDeleteReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.deleted = append(f.deleted, req.ChannelID)
-	return discordoutgress.ChannelDeleteReply{}, nil
-}
-
-func (f *fakeChannels) ModifyChannel(_ context.Context, req discordoutgress.ChannelModifyRequest) (discordoutgress.ChannelModifyReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.modified = append(f.modified, req.ChannelID)
-	return discordoutgress.ChannelModifyReply{}, nil
-}
-
-func (f *fakeChannels) MoveMember(_ context.Context, req discordoutgress.MemberMoveRequest) (discordoutgress.MemberMoveReply, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.moved = append(f.moved, req.UserID+">"+req.ChannelID)
-	return discordoutgress.MemberMoveReply{}, nil
-}
-
-func (f *fakeChannels) Purge(context.Context, discordoutgress.PurgeRequest) (discordoutgress.PurgeReply, error) {
-	return discordoutgress.PurgeReply{Deleted: 2}, nil
-}
-
-type fakeModules struct{ cfg ddiscord.Config }
-
-func (m fakeModules) GetModule(context.Context, uint64, string) (projection.ModuleView, bool, error) {
-	if m.cfg.GuildID == "" {
-		return projection.ModuleView{}, false, nil
-	}
-	raw, _ := codec.Marshal(m.cfg)
-	return projection.ModuleView{IsEnabled: true, Configs: raw}, true, nil
-}
-
-type commandLog struct {
-	mu   sync.Mutex
-	cmds []ddiscord.Command
-}
-
-func (l *commandLog) publish(_ context.Context, c ddiscord.Command) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.cmds = append(l.cmds, c)
-	return nil
-}
-
-func (l *commandLog) byType(t string) []ddiscord.Command {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	var out []ddiscord.Command
-	for _, c := range l.cmds {
-		if c.Type == t {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-const (
-	testGuild      = "100000000000000001"
-	testWelcomeCh  = "100000000000000002"
-	testMemberRole = "100000000000000003"
-	testLogsCh     = "100000000000000004"
-	testVoiceHub   = "100000000000000005"
-	testTicketCat  = "100000000000000006"
-	testSupportCh  = "100000000000000007"
-)
-
-func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordstore.Mem, *commandLog) {
-	channels := &fakeChannels{}
-	store := discordstore.NewMem()
-	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
-	store.PutGuildConfig(discordstore.Guild{ID: cfg.GuildID}, cfg)
-	log := &commandLog{}
-
-	resolver := resolve.Resolver{
-		Store: store, Modules: fakeModules{cfg: cfg},
-		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
-		Log:  zap.NewNop(),
-	}
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Tickets: channels, Purge: channels, Log: zap.NewNop()})...)
-	d := &Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: log.publish, Log: zap.NewNop()}
-	return d, channels, store, log
-}
-
-func mustJSON(t *testing.T, v any) []byte {
-	t.Helper()
-	raw, err := codec.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return raw
-}
-
-func event(t *testing.T, eventType, guildID string, payload any) ddiscord.Event {
-	t.Helper()
-	return ddiscord.Event{Type: eventType, GuildID: guildID, Raw: mustJSON(t, payload)}
-}
-
-func dispatch(t *testing.T, d *Dispatcher, ev ddiscord.Event) {
-	t.Helper()
-	msg := bus.NewMessage("test", mustJSON(t, ev))
-	if err := d.Handle(msg); err != nil {
-		t.Fatalf("Handle: %v", err)
-	}
-}
-
-func memberPayload(guildID string) map[string]any {
-	return map[string]any{
-		"guild_id": guildID,
-		"user":     map[string]any{"id": "u1", "username": "Ada"},
-	}
-}
-
-func TestWelcomeAndAutorole(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, MemberRoleID: testMemberRole})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
-
-	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
-		t.Fatalf("welcome embeds = %d", len(got))
-	}
-	if got := log.byType(ddiscord.TypeAddRole); len(got) != 1 {
-		t.Fatalf("autorole = %d", len(got))
-	}
-}
-
-func TestMemberDispatchGuards(t *testing.T) {
+func TestMemberEvents(t *testing.T) {
 	cases := []struct {
-		name    string
-		cfg     ddiscord.Config
-		event   string
-		guildID string
-		wantLog int
+		name       string
+		cfg        ddiscord.Config
+		event      string
+		guildID    string
+		wantEmbeds int
+		wantRoles  int
 	}{
-		{name: "goodbye off by default", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_REMOVE", guildID: testGuild, wantLog: 0},
-		{name: "join logs when welcome off", cfg: ddiscord.Config{GuildID: testGuild, WelcomeEnabled: "off", LogChannelID: testLogsCh}, event: "GUILD_MEMBER_ADD", guildID: testGuild, wantLog: 1},
-		{name: "unbound guild ignored", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_ADD", guildID: "other", wantLog: 0},
+		{"a join welcomes the member and assigns the autorole",
+			ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, MemberRoleID: testMemberRole}, "GUILD_MEMBER_ADD", testGuild, 1, 1},
+		{"goodbye is off by default",
+			ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, "GUILD_MEMBER_REMOVE", testGuild, 0, 0},
+		{"a join is logged when the welcome is off",
+			ddiscord.Config{GuildID: testGuild, WelcomeEnabled: "off", LogChannelID: testLogsCh}, "GUILD_MEMBER_ADD", testGuild, 1, 0},
+		{"an unbound guild is ignored",
+			ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, "GUILD_MEMBER_ADD", "other", 0, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d, _, _, log := testDispatcher(tc.cfg)
-			dispatch(t, d, event(t, tc.event, tc.guildID, memberPayload(tc.guildID)))
-			if got := log.byType(ddiscord.TypePostEmbed); len(got) != tc.wantLog {
-				t.Fatalf("post-embed commands = %d, want %d", len(got), tc.wantLog)
-			}
+			h := newHarness(t, tc.cfg)
+
+			h.sendTo(tc.guildID, tc.event, memberPayload(tc.guildID))
+
+			require.Len(t, h.log.byType(ddiscord.TypePostEmbed), tc.wantEmbeds)
+			require.Len(t, h.log.byType(ddiscord.TypeAddRole), tc.wantRoles)
 		})
 	}
 }
 
-func voicePayload(guildID, channelID string) map[string]any {
-	return map[string]any{
-		"guild_id": guildID, "channel_id": channelID, "user_id": "u1",
-		"member": map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}},
-	}
+func hubConfig() ddiscord.Config {
+	return ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub}
 }
 
-func TestJoinToCreateVoice(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
-
-	if len(channels.created) != 1 {
-		t.Fatalf("created = %v", channels.created)
-	}
-	if len(channels.moved) != 1 {
-		t.Fatalf("moved = %v", channels.moved)
-	}
-	if got := log.byType(ddiscord.TypePostPanel); len(got) != 1 {
-		t.Fatalf("voice room panel = %d", len(got))
-	}
+func (h *harness) joinHub() string {
+	h.t.Helper()
+	h.send("VOICE_STATE_UPDATE", voicePayload(testVoiceHub))
+	return h.channels.created[0]
 }
 
-func TestEmptyCloneIsDeleted(t *testing.T) {
-	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
-	cloneID := channels.created[0]
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, cloneID)))
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, "")))
+func TestJoiningTheVoiceHubClonesTheRoomAndMovesTheMember(t *testing.T) {
+	h := newHarness(t, hubConfig())
 
-	if len(channels.deleted) != 1 || channels.deleted[0] != cloneID {
-		t.Fatalf("deleted = %v, want [%s]", channels.deleted, cloneID)
-	}
+	h.joinHub()
+
+	require.Len(t, h.channels.created, 1)
+	require.Len(t, h.channels.moved, 1)
+	require.Len(t, h.log.byType(ddiscord.TypePostPanel), 1)
 }
 
-func interactionPayload(guildID, channelID string, data map[string]any, member map[string]any) map[string]any {
-	return map[string]any{
-		"id": "i1", "token": "tok", "guild_id": guildID, "channel_id": channelID,
-		"data": data, "member": member,
-	}
+func TestAnEmptiedVoiceCloneIsDeleted(t *testing.T) {
+	h := newHarness(t, hubConfig())
+	clone := h.joinHub()
+
+	h.send("VOICE_STATE_UPDATE", voicePayload(clone))
+	h.send("VOICE_STATE_UPDATE", voicePayload(""))
+
+	require.Equal(t, []string{clone}, h.channels.deleted)
+}
+
+func TestTheVoiceLockButtonLocksTheRoom(t *testing.T) {
+	h := newHarness(t, hubConfig())
+	clone := h.joinHub()
+
+	h.interact(interaction{channelID: clone, data: map[string]any{"custom_id": discordapi.CustomVoiceLock}, member: memberWith("0")})
+
+	followups := h.log.followups(t)
+	require.Len(t, followups, 1)
+	require.Equal(t, "Locked.", followups[0].Content)
 }
 
 func TestTicketOpenAndClose(t *testing.T) {
-	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketCategoryID: testTicketCat})
-	member := map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"}
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild, TicketCategoryID: testTicketCat})
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, testSupportCh,
-		map[string]any{"custom_id": discordapi.CustomTicketOpen}, member)))
-	if len(channels.created) != 1 {
-		t.Fatalf("ticket channel = %v", channels.created)
-	}
-	if len(channels.opened) != 1 || len(channels.opened[0].Buttons) != 2 {
-		t.Fatalf("ticket open request = %+v", channels.opened)
-	}
+	h.interact(interaction{channelID: testSupportCh, data: map[string]any{"custom_id": discordapi.CustomTicketOpen}, member: memberWith("8")})
+	require.Len(t, h.channels.created, 1)
+	require.Len(t, h.channels.opened, 1)
+	require.Len(t, h.channels.opened[0].Buttons, 2)
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
-		map[string]any{"custom_id": discordapi.CustomTicketClose}, member)))
-	if len(channels.deleted) != 1 {
-		t.Fatalf("deleted = %v", channels.deleted)
-	}
+	h.interact(interaction{channelID: h.channels.created[0], data: map[string]any{"custom_id": discordapi.CustomTicketClose}, member: memberWith("8")})
+	require.Len(t, h.channels.deleted, 1)
 }
 
-func TestDailyAndRank(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
-	member := map[string]any{"user": map[string]any{"id": "u1"}}
+func TestTicketDeskIsPostedOncePerGuild(t *testing.T) {
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild, TicketChannelID: testSupportCh, WelcomeEnabled: "off"})
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
-		map[string]any{"name": "daily"}, member)))
-	first := log.byType(ddiscord.TypeInteractionFollowup)
-	if len(first) != 1 {
-		t.Fatalf("daily reply = %d", len(first))
-	}
+	h.send("GUILD_MEMBER_ADD", memberPayload(testGuild))
+	h.send("GUILD_MEMBER_ADD", memberPayload(testGuild))
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
-		map[string]any{"name": "daily"}, member)))
-	second := log.byType(ddiscord.TypeInteractionFollowup)
-	if len(second) != 2 {
-		t.Fatalf("second daily reply missing: %d", len(second))
-	}
-	var payload ddiscord.FollowupPayload
-	if err := codec.Unmarshal(second[1].Payload, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload.Embed == nil || payload.Embed.Description != "Already claimed today." {
-		t.Fatalf("second daily embed = %+v", payload.Embed)
-	}
+	require.Len(t, h.log.byType(ddiscord.TypePostPanel), 1)
 }
 
-func TestModerationRequiresPerms(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
-	kickData := map[string]any{"name": "kick", "options": []any{
+func TestDailyClaimsOncePerDay(t *testing.T) {
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild})
+	daily := interaction{data: map[string]any{"name": "daily"}, member: map[string]any{"user": map[string]any{"id": "u1"}}}
+
+	h.interact(daily)
+	h.interact(daily)
+
+	followups := h.log.followups(t)
+	require.Len(t, followups, 2)
+	require.Equal(t, "Already claimed today.", followups[1].Embed.Description)
+}
+
+func TestKickNeedsModerationPermissions(t *testing.T) {
+	kick := map[string]any{"name": "kick", "options": []any{
 		map[string]any{"name": "user", "type": 6, "value": "u2"},
 	}}
-
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
-		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"})))
-	if len(log.byType(ddiscord.TypeKickMember)) != 0 {
-		t.Fatal("kick without perms must not fire")
+	cases := []struct {
+		name        string
+		permissions string
+		wantKicks   int
+	}{
+		{"a member without permissions cannot kick", "0", 0},
+		{"an admin kick fires", "8", 1},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, ddiscord.Config{GuildID: testGuild})
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
-		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"})))
-	if len(log.byType(ddiscord.TypeKickMember)) != 1 {
-		t.Fatal("admin kick must fire")
+			h.interact(interaction{data: kick, member: memberWith(tc.permissions)})
+
+			require.Len(t, h.log.byType(ddiscord.TypeKickMember), tc.wantKicks)
+		})
 	}
 }
 
-func TestLevelUpOnChat(t *testing.T) {
-	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
-	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: testGuild, UserID: "u1"}, Amount: 90})
+func TestChatLevelsTheMemberUp(t *testing.T) {
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild})
+	h.store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: testGuild, UserID: "u1"}, Amount: 90})
 
-	dispatch(t, d, event(t, "MESSAGE_CREATE", testGuild, map[string]any{
+	h.send("MESSAGE_CREATE", map[string]any{
 		"id": "m1", "guild_id": testGuild, "channel_id": "chat", "content": "hi",
 		"author": map[string]any{"id": "u1", "username": "Ada"},
-	}))
-	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
-		t.Fatalf("level-up embeds = %d", len(got))
-	}
-}
+	})
 
-func TestTicketDeskPostedOnce(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketChannelID: testSupportCh, WelcomeEnabled: "off"})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
-
-	panels := log.byType(ddiscord.TypePostPanel)
-	if len(panels) != 1 {
-		t.Fatalf("desk posts = %d, want 1", len(panels))
-	}
-}
-
-func TestVoiceLockButton(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
-
-	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
-		map[string]any{"custom_id": discordapi.CustomVoiceLock},
-		map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"})))
-
-	followups := log.byType(ddiscord.TypeInteractionFollowup)
-	if len(followups) != 1 {
-		t.Fatalf("lock reply = %d", len(followups))
-	}
-	var payload ddiscord.FollowupPayload
-	if err := codec.Unmarshal(followups[0].Payload, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload.Content != "Locked." {
-		t.Fatalf("lock reply content = %q", payload.Content)
-	}
-}
-
-type flakyPublish struct {
-	attempts int
-	failFor  int
-	failWith error
-}
-
-func (f *flakyPublish) publish(context.Context, ddiscord.Command) error {
-	f.attempts++
-	if f.attempts > f.failFor {
-		return nil
-	}
-	if f.failWith != nil {
-		return f.failWith
-	}
-	return nats.ErrNoResponders
-}
-
-func observedDispatcher(pub func(context.Context, ddiscord.Command) error) (*Dispatcher, *observer.ObservedLogs) {
-	core, logs := observer.New(zapcore.DebugLevel)
-	return &Dispatcher{Publish: pub, Log: zap.New(core)}, logs
-}
-
-func TestPublishRetriesBeforeGivingUp(t *testing.T) {
-	pub := &flakyPublish{failFor: 99}
-	d, logs := observedDispatcher(pub.publish)
-
-	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
-
-	if pub.attempts != publishAttempts {
-		t.Fatalf("attempts = %d, want %d", pub.attempts, publishAttempts)
-	}
-	lost := logs.FilterLevelExact(zapcore.ErrorLevel).All()
-	if len(lost) != 1 {
-		t.Fatalf("error logs = %d, want exactly one naming the lost command", len(lost))
-	}
-	if lost[0].ContextMap()["type"] != "post" {
-		t.Fatalf("error log fields = %v, want the command type", lost[0].ContextMap())
-	}
-}
-
-func TestPublishStopsRetryingOnceItSucceeds(t *testing.T) {
-	pub := &flakyPublish{failFor: 1}
-	d, logs := observedDispatcher(pub.publish)
-
-	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
-
-	if pub.attempts != 2 {
-		t.Fatalf("attempts = %d, want 2 (one failure, one success)", pub.attempts)
-	}
-	if n := logs.FilterLevelExact(zapcore.ErrorLevel).Len(); n != 0 {
-		t.Fatalf("error logs = %d, want none: the command was published", n)
-	}
-}
-
-func TestPublishGivesUpImmediatelyOnShutdown(t *testing.T) {
-	pub := &flakyPublish{failFor: 99}
-	d, _ := observedDispatcher(pub.publish)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	d.publishAll(ctx, []ddiscord.Command{{Type: "post"}})
-
-	if pub.attempts != 1 {
-		t.Fatalf("attempts = %d, want 1 on a cancelled context", pub.attempts)
-	}
+	require.Len(t, h.log.byType(ddiscord.TypePostEmbed), 1)
 }
 
 func TestUndecodableInteractionIsLogged(t *testing.T) {
-	d, logs := observedDispatcher(nil)
+	h := newHarness(t, ddiscord.Config{GuildID: testGuild})
+	core, logs := observer.New(zapcore.DebugLevel)
+	h.d.Log = zap.New(core)
 
-	got := d.handlersFor(ddiscord.Event{Type: "INTERACTION_CREATE", GuildID: "g1", Raw: []byte("{not json")})
+	h.handle(t.Context(), ddiscord.Event{Type: "INTERACTION_CREATE", GuildID: testGuild, Raw: []byte("{not json")})
 
-	if got != nil {
-		t.Fatalf("handlers = %v, want none", got)
-	}
+	require.Empty(t, h.log.cmds, "no module handler may run")
 	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
-	if len(warns) != 1 {
-		t.Fatalf("warn logs = %d, want one", len(warns))
-	}
-	fields := warns[0].ContextMap()
-	if fields["guild_id"] != "g1" || fields["event_type"] != "INTERACTION_CREATE" {
-		t.Fatalf("warn fields = %v, want the type and guild", fields)
-	}
+	require.Len(t, warns, 1)
+	require.Equal(t, map[string]any{"guild_id": testGuild, "event_type": "INTERACTION_CREATE"}, warnFields(warns[0]))
 }
 
-func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
-	pub := &flakyPublish{failFor: 99, failWith: nats.ErrTimeout}
-	d, logs := observedDispatcher(pub.publish)
-
-	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
-
-	if pub.attempts != 1 {
-		t.Fatalf("attempts = %d, want 1: a timeout may already have been stored", pub.attempts)
-	}
-	errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
-	if len(errs) != 1 {
-		t.Fatalf("error logs = %d, want exactly one", len(errs))
-	}
-	fields := errs[0].ContextMap()
-	if fields["retried"] != false {
-		t.Fatalf("log fields = %v, want retried=false so an operator knows to go look on the stream", fields)
-	}
-	if fields["subject"] == "" || fields["type"] != "post" {
-		t.Fatalf("log fields = %v, want the subject and type to find the message with", fields)
-	}
-}
-
-func TestPublishRetriesWrappedPreAdmissionErrors(t *testing.T) {
-	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrNoResponders)}
-	d, _ := observedDispatcher(pub.publish)
-
-	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
-
-	if pub.attempts != 2 {
-		t.Fatalf("attempts = %d, want 2 (one wrapped failure, one success)", pub.attempts)
-	}
+func warnFields(entry observer.LoggedEntry) map[string]any {
+	fields := entry.ContextMap()
+	delete(fields, "error")
+	return fields
 }

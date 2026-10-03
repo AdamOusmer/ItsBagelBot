@@ -24,15 +24,9 @@ func (f *fakeStreams) Stream(_ context.Context, login string) Stream {
 	return f.values[login]
 }
 
-func liveStream(title, game string, viewers int) Stream {
-	return Stream{
-		UserFound: true, Live: true, Title: title, GameName: game,
-		ViewerCount: viewers, StartedAt: channelClock.Add(-2 * time.Hour),
-	}
-}
-
-func offlineStream(title, game string) Stream {
-	return Stream{UserFound: true, Title: title, GameName: game}
+func live(s Stream) Stream {
+	s.UserFound, s.Live, s.StartedAt = true, true, channelClock.Add(-2*time.Hour)
+	return s
 }
 
 func mounted(streams Streams) Channel {
@@ -41,82 +35,6 @@ func mounted(streams Streams) Channel {
 		Uptime: true, Title: true, Game: true, Viewers: true,
 		Now: func() time.Time { return channelClock },
 	}
-}
-
-func TestChannelLeavesTokensLiteralWhenNothingIsWired(t *testing.T) {
-	const template = "{uptime} {title} {game} {channel.viewers}"
-	assert.Equal(t, template, render(t, template, Chain{Channel{}}, nil),
-		"an unwired scope owns nothing, so its spans stay literal like a typo")
-}
-
-func TestChannelMountsEachTokenOnItsOwn(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
-	ch := mounted(streams)
-	ch.Title = false
-
-	assert.Equal(t, "{title} / Just Chatting", render(t, "{title} / {game}", Chain{ch}, nil))
-}
-
-func TestChannelRendersTheLiveSession(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
-
-	assert.Equal(t, "bagel time / Just Chatting / 42 / 2 hours",
-		render(t, "{title} / {game} / {channel.viewers} / {uptime}", Chain{mounted(streams)}, nil))
-	assert.Equal(t, []string{""}, streams.asked, "four spans, one read")
-}
-
-func TestChannelRendersAnOfflineChannel(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{"": offlineStream("bagel time", "Just Chatting")}}
-
-	assert.Equal(t, "bagel time / Just Chatting / 0 / not right now",
-		render(t, "{title} / {game} / {channel.viewers} / {uptime|not right now}", Chain{mounted(streams)}, nil))
-}
-
-func TestChannelRendersNothingForAnUnknownChannel(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{}}
-
-	assert.Equal(t, "-/-", render(t, "{title:ghost|-}/{game:ghost|-}", Chain{mounted(streams)}, nil))
-}
-
-func TestChannelReadsANamedChannel(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{
-		"":         liveStream("bagel time", "Just Chatting", 42),
-		"pokimane": liveStream("valorant", "VALORANT", 30000),
-	}}
-
-	assert.Equal(t, "VALORANT / Just Chatting",
-		render(t, "{game:@Pokimane} / {game}", Chain{mounted(streams)}, nil))
-	assert.Equal(t, []string{"pokimane", ""}, streams.asked, "'@Pokimane' folds to the bare login")
-}
-
-func TestChannelFoldsItsOwnLoginOntoTheBareSpan(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
-
-	assert.Equal(t, "bagel time / bagel time",
-		render(t, "{title:Streamer} / {title}", Chain{mounted(streams)}, nil))
-	assert.Equal(t, []string{""}, streams.asked)
-}
-
-func TestChannelCapsNamedLogins(t *testing.T) {
-	values := map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}
-	var template string
-	for i := 0; i < MaxChannelLogins+1; i++ {
-		login := "chan" + strconv.Itoa(i)
-		values[login] = liveStream("t"+strconv.Itoa(i), "g"+strconv.Itoa(i), i)
-		template += "{game:" + login + "|-}"
-	}
-	streams := &fakeStreams{values: values}
-
-	assert.Equal(t, "g0g1g2-", render(t, template+"", Chain{mounted(streams)}, nil))
-	assert.Len(t, streams.asked, MaxChannelLogins, "the fourth channel is never read")
-}
-
-func TestChannelKeepsUnaddressableSpansLiteral(t *testing.T) {
-	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
-	const template = "{title:} {channel.viewers:pokimane} {channel.followers}"
-
-	assert.Equal(t, template, render(t, template, Chain{mounted(streams)}, nil))
-	assert.Empty(t, streams.asked, "an unaddressable span costs no read")
 }
 
 type fakeCounts struct {
@@ -129,29 +47,149 @@ func (f *fakeCounts) Counts(context.Context) ChannelCountsResult {
 	return f.result
 }
 
-func TestChannelReadsFollowersAndSubsWithoutStreams(t *testing.T) {
-	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true}}
-	chain := Chain{Channel{Counts: counts}}
-
-	assert.Equal(t, "100 / 7", render(t, "{followers} / {subs}", chain, nil))
-	assert.Equal(t, 1, counts.calls, "one read answers both spans")
+func TestChannelMountsOnlyWhatIsWired(t *testing.T) {
+	streams := &fakeStreams{values: map[string]Stream{"": live(Stream{Title: "bagel time", GameName: "Just Chatting", ViewerCount: 42})}}
+	untitled := mounted(streams)
+	untitled.Title = false
+	tests := []struct {
+		name     string
+		channel  Channel
+		template string
+		want     string
+	}{
+		{
+			name:     "leaves every token literal when nothing is wired",
+			channel:  Channel{},
+			template: "{uptime} {title} {game} {channel.viewers} {followers} {subs}",
+			want:     "{uptime} {title} {game} {channel.viewers} {followers} {subs}",
+		},
+		{
+			name:     "mounts each token on its own",
+			channel:  untitled,
+			template: "{title} / {game}",
+			want:     "{title} / Just Chatting",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{tt.channel}, nil))
+		})
+	}
 }
 
-func TestChannelLeavesANotOKCountLiteral(t *testing.T) {
-	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, SubsOK: false}}
-	chain := Chain{Channel{Counts: counts}}
+func TestChannelStreamReads(t *testing.T) {
+	bagel := live(Stream{Title: "bagel time", GameName: "Just Chatting", ViewerCount: 42})
+	tests := []struct {
+		name      string
+		streams   map[string]Stream
+		template  string
+		want      string
+		wantAsked []string
+	}{
+		{
+			name:      "renders the live session with one read for four spans",
+			streams:   map[string]Stream{"": bagel},
+			template:  "{title} / {game} / {channel.viewers} / {uptime}",
+			want:      "bagel time / Just Chatting / 42 / 2 hours",
+			wantAsked: []string{""},
+		},
+		{
+			name:      "renders an offline channel",
+			streams:   map[string]Stream{"": {UserFound: true, Title: "bagel time", GameName: "Just Chatting"}},
+			template:  "{title} / {game} / {channel.viewers} / {uptime|not right now}",
+			want:      "bagel time / Just Chatting / 0 / not right now",
+			wantAsked: []string{""},
+		},
+		{
+			name:      "renders nothing for an unknown channel",
+			streams:   map[string]Stream{},
+			template:  "{title:ghost|-}/{game:ghost|-}",
+			want:      "-/-",
+			wantAsked: []string{"ghost"},
+		},
+		{
+			name:      "reads a named channel and folds the at sign to the bare login",
+			streams:   map[string]Stream{"": bagel, "pokimane": live(Stream{Title: "valorant", GameName: "VALORANT", ViewerCount: 30000})},
+			template:  "{game:@Pokimane} / {game}",
+			want:      "VALORANT / Just Chatting",
+			wantAsked: []string{"pokimane", ""},
+		},
+		{
+			name:      "folds its own login onto the bare span",
+			streams:   map[string]Stream{"": bagel},
+			template:  "{title:Streamer} / {title}",
+			want:      "bagel time / bagel time",
+			wantAsked: []string{""},
+		},
+		{
+			name:     "keeps unaddressable spans literal without a read",
+			streams:  map[string]Stream{"": bagel},
+			template: "{title:} {channel.viewers:pokimane} {channel.followers}",
+			want:     "{title:} {channel.viewers:pokimane} {channel.followers}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			streams := &fakeStreams{values: tt.streams}
 
-	assert.Equal(t, "100 {subs}", render(t, "{followers} {subs}", chain, nil))
-	assert.Equal(t, "100 {subs|unknown}", render(t, "{followers} {subs|unknown}", chain, nil))
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{mounted(streams)}, nil))
+			assert.Equal(t, tt.wantAsked, streams.asked)
+		})
+	}
 }
 
-func TestChannelLeavesPayloadedCountSpansLiteral(t *testing.T) {
-	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true}}
-	chain := Chain{Channel{Counts: counts}}
+func TestChannelCapsNamedLogins(t *testing.T) {
+	values := map[string]Stream{"": live(Stream{Title: "bagel time", GameName: "Just Chatting", ViewerCount: 42})}
+	var template string
+	for i := 0; i < MaxChannelLogins+1; i++ {
+		login := "chan" + strconv.Itoa(i)
+		values[login] = live(Stream{Title: "t" + strconv.Itoa(i), GameName: "g" + strconv.Itoa(i), ViewerCount: i})
+		template += "{game:" + login + "|-}"
+	}
+	streams := &fakeStreams{values: values}
 
-	assert.Equal(t, "{followers:pokimane} 100", render(t, "{followers:pokimane} {followers}", chain, nil))
+	assert.Equal(t, "g0g1g2-", render(t, template, Chain{mounted(streams)}, nil))
+	assert.Len(t, streams.asked, MaxChannelLogins, "the fourth channel is never read")
 }
 
-func TestChannelLeavesCountsLiteralWithoutTheDependency(t *testing.T) {
-	assert.Equal(t, "{followers} {subs}", render(t, "{followers} {subs}", Chain{Channel{}}, nil))
+func TestChannelCountSpans(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   ChannelCountsResult
+		template string
+		want     string
+	}{
+		{
+			name:     "reads followers and subs without streams",
+			result:   ChannelCountsResult{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true},
+			template: "{followers} / {subs}",
+			want:     "100 / 7",
+		},
+		{
+			name:     "leaves a count that is not ok literal",
+			result:   ChannelCountsResult{Followers: 100, FollowersOK: true},
+			template: "{followers} {subs}",
+			want:     "100 {subs}",
+		},
+		{
+			name:     "leaves a not ok count literal even with a fallback",
+			result:   ChannelCountsResult{Followers: 100, FollowersOK: true},
+			template: "{followers} {subs|unknown}",
+			want:     "100 {subs|unknown}",
+		},
+		{
+			name:     "leaves payloaded count spans literal",
+			result:   ChannelCountsResult{Followers: 100, FollowersOK: true},
+			template: "{followers:pokimane} {followers}",
+			want:     "{followers:pokimane} 100",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counts := &fakeCounts{result: tt.result}
+
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{Channel{Counts: counts}}, nil))
+			assert.Equal(t, 1, counts.calls, "one read answers every count span")
+		})
+	}
 }

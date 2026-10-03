@@ -1,138 +1,89 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package bootstrap
+package bootstrap_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"ItsBagelBot/app/discord/outgress/internal/bootstrap"
 	"ItsBagelBot/internal/discordapi"
+
+	"github.com/stretchr/testify/require"
 )
 
 type fakeRegistrar struct {
-	app       discordapi.Snowflake
-	appErr    error
-	overwrite discordapi.CommandCatalog
-	overErr   error
+	app        discordapi.Snowflake
+	appErr     error
+	catalogErr error
+	registered discordapi.CommandCatalog
 }
 
 func (f *fakeRegistrar) GetCurrentApplication(context.Context) (discordapi.Snowflake, error) {
 	return f.app, f.appErr
 }
+
 func (f *fakeRegistrar) BulkOverwriteCommands(_ context.Context, cat discordapi.CommandCatalog) error {
-	f.overwrite = cat
-	return f.overErr
+	f.registered = cat
+	return f.catalogErr
 }
 
-func TestRegisterUsesTheLearnedApplicationID(t *testing.T) {
-	r := &fakeRegistrar{app: discordapi.Snowflake{ID: "app-1"}}
-	id, err := Register(context.Background(), r)
-	if err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-	if id != "app-1" {
-		t.Fatalf("id = %s", id)
-	}
-	if r.overwrite.ApplicationID != "app-1" {
-		t.Fatalf("catalog application id = %s", r.overwrite.ApplicationID)
-	}
-	if len(r.overwrite.Commands) == 0 {
-		t.Fatal("expected a non-empty slash-command catalog")
+func TestRegister(t *testing.T) {
+	errUnauthorized, errRateLimited := errors.New("unauthorized"), errors.New("rate limited")
+	cases := []struct {
+		name           string
+		registrar      fakeRegistrar
+		wantID         string
+		wantErr        error
+		wantRegistered string
+	}{{
+		name:           "registers the catalog under the learned application id",
+		registrar:      fakeRegistrar{app: discordapi.Snowflake{ID: "app-1"}},
+		wantID:         "app-1",
+		wantRegistered: "app-1",
+	}, {
+		name:      "registers nothing when the application lookup fails",
+		registrar: fakeRegistrar{appErr: errUnauthorized},
+		wantErr:   errUnauthorized,
+	}, {
+		name:           "still returns the application id when the catalog upload fails",
+		registrar:      fakeRegistrar{app: discordapi.Snowflake{ID: "app-1"}, catalogErr: errRateLimited},
+		wantID:         "app-1",
+		wantErr:        errRateLimited,
+		wantRegistered: "app-1",
+	}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.registrar
+
+			id, err := bootstrap.Register(context.Background(), &r)
+
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.wantID, id)
+			require.Equal(t, tc.wantRegistered, r.registered.ApplicationID)
+			require.Equal(t, tc.wantRegistered != "", len(r.registered.Commands) > 0)
+		})
 	}
 }
 
-func TestRegisterFailsFastWhenApplicationLookupFails(t *testing.T) {
-	r := &fakeRegistrar{appErr: errors.New("unauthorized")}
-	if _, err := Register(context.Background(), r); err == nil {
-		t.Fatal("expected an error")
-	}
-	if len(r.overwrite.Commands) != 0 {
-		t.Fatal("must not attempt registration without an application id")
-	}
-}
-
-func TestRegisterStillReturnsTheIDOnACatalogFailure(t *testing.T) {
-	r := &fakeRegistrar{app: discordapi.Snowflake{ID: "app-1"}, overErr: errors.New("rate limited")}
-	id, err := Register(context.Background(), r)
-	if err == nil {
-		t.Fatal("expected the catalog error to surface")
-	}
-	if id != "app-1" {
-		t.Fatalf("id = %s, want app-1 even on a catalog failure", id)
-	}
-}
-
-func TestCatalogPinsTheTicketSubcommands(t *testing.T) {
-	ticket := catalogCommand(t, "ticket")
-
-	wantSubcommands(t, ticket, "open", "close", "claim", "add", "panel")
-	wantRequiredUserOption(t, subcommand(t, ticket, "add"))
-}
-
-func catalogCommand(t *testing.T, name string) discordapi.AppCommand {
-	t.Helper()
-	for _, cmd := range Catalog() {
-		if cmd.Name == name {
-			return cmd
+func TestCatalogShipsTheTicketSubcommands(t *testing.T) {
+	var ticket discordapi.AppCommand
+	for _, cmd := range bootstrap.Catalog() {
+		if cmd.Name == "ticket" {
+			ticket = cmd
 		}
 	}
-	t.Fatalf("no /%s command in the catalog", name)
-	return discordapi.AppCommand{}
-}
 
-func wantSubcommands(t *testing.T, cmd discordapi.AppCommand, names ...string) {
-	t.Helper()
-	want := make(map[string]bool, len(names))
-	for _, name := range names {
-		want[name] = false
+	subs := map[string][]discordapi.AppCommandOption{}
+	for _, sub := range ticket.Options {
+		require.Equal(t, 1, sub.Type, "/ticket %s must be a SUB_COMMAND", sub.Name)
+		subs[sub.Name] = sub.Options
 	}
-	for _, sub := range cmd.Options {
-		markSubcommand(t, cmd.Name, sub, want)
-	}
-	for name, seen := range want {
-		if !seen {
-			t.Fatalf("/%s %s is missing from the catalog", cmd.Name, name)
-		}
-	}
-}
 
-func markSubcommand(t *testing.T, group string, sub discordapi.AppCommandOption, want map[string]bool) {
-	t.Helper()
-	if _, ok := want[sub.Name]; !ok {
-		t.Fatalf("unexpected /%s subcommand %q", group, sub.Name)
-	}
-	want[sub.Name] = true
-	if sub.Type != 1 {
-		t.Fatalf("/%s %s type = %d, want 1 (SUB_COMMAND)", group, sub.Name, sub.Type)
-	}
-}
-
-func wantRequiredUserOption(t *testing.T, sub discordapi.AppCommandOption) {
-	t.Helper()
-	if len(sub.Options) != 1 {
-		t.Fatalf("%s options = %+v, want exactly one", sub.Name, sub.Options)
-	}
-	opt := sub.Options[0]
-	if opt.Name != "user" {
-		t.Fatalf("%s option = %q, want user", sub.Name, opt.Name)
-	}
-	if opt.Type != 6 {
-		t.Fatalf("%s user option type = %d, want 6 (USER)", sub.Name, opt.Type)
-	}
-	if !opt.Required {
-		t.Fatalf("%s user option must be required", sub.Name)
-	}
-}
-
-func subcommand(t *testing.T, cmd discordapi.AppCommand, name string) discordapi.AppCommandOption {
-	t.Helper()
-	for _, sub := range cmd.Options {
-		if sub.Name == name {
-			return sub
-		}
-	}
-	t.Fatalf("no /%s %s", cmd.Name, name)
-	return discordapi.AppCommandOption{}
+	require.Equal(t, map[string][]discordapi.AppCommandOption{
+		"open": nil, "close": nil, "claim": nil, "panel": nil,
+		"add": {{Type: 6, Name: "user", Description: "Member", Required: true}},
+	}, subs)
 }

@@ -1,24 +1,20 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package tmpl
+package tmpl_test
 
 import (
 	"strconv"
 	"testing"
+
+	"ItsBagelBot/pkg/tmpl"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func one(t *testing.T, span string) Token {
-	t.Helper()
-	toks := Lex(span)
-	if len(toks) != 1 || toks[0].Kind != KindVar {
-		t.Fatalf("Lex(%q) = %v, want one span", span, toks)
-	}
-	return toks[0]
-}
-
 func TestDynamicPinsPayloadEdges(t *testing.T) {
-	for _, tc := range []struct {
+	tests := []struct {
 		span string
 		want string
 		ok   bool
@@ -33,62 +29,46 @@ func TestDynamicPinsPayloadEdges(t *testing.T) {
 		{"{random:9-2}", "", false},
 		{"{random:-5-5}", "", false},
 		{"{nothing}", "", false},
-	} {
-		got, ok := Dynamic(one(t, tc.span))
-		if got != tc.want || ok != tc.ok {
-			t.Errorf("Dynamic(%s) = %q,%v want %q,%v", tc.span, got, ok, tc.want, tc.ok)
-		}
+	}
+	for _, tc := range tests {
+		t.Run(tc.span, func(t *testing.T) {
+			toks := tmpl.Lex(tc.span)
+			require.Len(t, toks, 1)
+
+			got, ok := tmpl.Dynamic(toks[0])
+
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.ok, ok)
+		})
 	}
 }
 
-func TestDynamicBareRandomIsPercentile(t *testing.T) {
-	tok := one(t, "{random}")
-	for i := 0; i < 200; i++ {
-		got, ok := Dynamic(tok)
-		if !ok {
-			t.Fatalf("Dynamic({random}) not ok")
-		}
-		if !rollInRange(got, 1, randomDefaultMax) {
-			t.Fatalf("Dynamic({random}) = %q, want 1..%d", got, randomDefaultMax)
-		}
-	}
-}
+func TestBareRandomRollsAPercentile(t *testing.T) {
+	const percentileMax = 100
+	tok := tmpl.Lex("{random}")[0]
 
-func rollInRange(text string, low, high int) bool {
-	n, err := strconv.Atoi(text)
-	return err == nil && n >= low && n <= high
-}
+	for range 200 {
+		got, ok := tmpl.Dynamic(tok)
 
-func TestDynamicChoiceKeepsPayloadCase(t *testing.T) {
-	got := Expand("{CHOICE:Hi}", Dynamic)
-	if got != "Hi" {
-		t.Errorf("Expand({CHOICE:Hi}) = %q, want %q", got, "Hi")
+		require.True(t, ok)
+		roll, err := strconv.Atoi(got)
+		require.NoError(t, err)
+		require.True(t, roll >= 1 && roll <= percentileMax, "roll %d outside 1..%d", roll, percentileMax)
 	}
 }
 
 func TestDynamicThroughExpandFallsBackAndStaysLiteral(t *testing.T) {
-	for _, tc := range [][2]string{
+	tests := []struct{ in, want string }{
 		{"{choice}", "{choice}"},
 		{"{choice|none}", "{choice|none}"},
 		{"[{choice:}]", "[]"},
 		{"{choice:|none}", "none"},
 		{"{choice:one}", "one"},
-	} {
-		if got := Expand(tc[0], Dynamic); got != tc[1] {
-			t.Errorf("Expand(%q) = %q, want %q", tc[0], got, tc[1])
-		}
+		{"{CHOICE:Hi}", "Hi"},
 	}
-}
-
-func TestNormalizeName(t *testing.T) {
-	for _, tc := range [][2]string{
-		{"  !Deaths  ", "deaths"},
-		{"  ", ""},
-		{"A.B", "a.b"},
-		{"!!twice", "!twice"},
-	} {
-		if got := NormalizeName(tc[0]); got != tc[1] {
-			t.Errorf("NormalizeName(%q) = %q, want %q", tc[0], got, tc[1])
-		}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			assert.Equal(t, tc.want, tmpl.Expand(tc.in, tmpl.Dynamic))
+		})
 	}
 }

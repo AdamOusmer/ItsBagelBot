@@ -11,7 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"github.com/stretchr/testify/assert"
@@ -34,248 +34,171 @@ const (
 	adBreakJSON            = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
 )
 
-func alertsCtx(eventType, payload, config string) *module.Context {
-	c := &module.Context{
-		Env:           lane.Envelope{Type: eventType, Event: []byte(payload)},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-	}
-	if config != "" {
-		c.Config = []byte(config)
-	}
-	return c
-}
-
-func alertsHandler(t *testing.T, eventType string) module.EventHandler {
+func runAlert(t *testing.T, d engine.Deps, in eventInput) []module.Output {
 	t.Helper()
-	return alertsHandlerWith(t, eventType, engine.Deps{Log: zap.NewNop()})
+	return runEvent(t, Alerts(d), eventCtx(eventInput{in.event, in.payload, in.cfg}))
 }
 
-func alertsHandlerWith(t *testing.T, eventType string, d engine.Deps) module.EventHandler {
+type activityRows struct{ rows []activity.Row }
+
+func (a *activityRows) Emit(_ context.Context, _ string, row activity.Row) {
+	a.rows = append(a.rows, row)
+}
+
+func captureActivity(t *testing.T) *activityRows {
 	t.Helper()
-	m := Alerts(d)
-	assert.Equal(t, "alerts", m.Name)
-	assert.Equal(t, module.KindDefault, m.Kind)
-	h := m.Events[eventType]
-	require.NotNil(t, h, "alerts must handle %s", eventType)
-	return h
+	sink := &activityRows{}
+	activity.SetSink(sink)
+	t.Cleanup(func() { activity.SetSink(nil) })
+	return sink
 }
 
-func alertsDeps(cd engine.CooldownStore) engine.Deps {
-	return engine.Deps{Log: zap.NewNop(), Cooldown: cd}
-}
-
-func TestAlertActivityTextUsesBroadcasterLocale(t *testing.T) {
-	follow := followEvent{UserName: "Gift", UserLogin: "gift", BroadcasterUserID: "2"}
-	sub := subscribeEvent{UserName: "Someone just made your day.", UserLogin: "someone", Tier: "1000"}
-
-	assert.Equal(t, "Gift a suivi la chaîne", follow.activityText(&module.Context{Locale: "fr"}))
-	assert.Equal(t, "Someone just made your day. s'est abonné·e (1000)", sub.activityText(&module.Context{Locale: "fr"}))
-}
-
-type alertInput struct {
-	event   string
-	payload string
-	cfg     string
-}
-
-func runAlert(t *testing.T, in alertInput) []module.Output {
-	t.Helper()
-	var col collector
-	require.NoError(t, alertsHandler(t, in.event)(context.Background(), alertsCtx(in.event, in.payload, in.cfg), col.emit))
-	return col.out
-}
-
-func runAlertOn(t *testing.T, h module.EventHandler, in alertInput) []module.Output {
-	t.Helper()
-	var col collector
-	require.NoError(t, h(context.Background(), alertsCtx(in.event, in.payload, in.cfg), col.emit))
-	return col.out
-}
-
-func TestAlertsFollowDedupeSuppressesRefollow(t *testing.T) {
-	cd := &fakeCooldown{allow: []bool{true, false}}
-	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
-	in := alertInput{event: "channel.follow", payload: followJSON}
-
-	require.Len(t, runAlertOn(t, h, in), 1)
-	assert.Empty(t, runAlertOn(t, h, in), "re-follow inside the window must stay silent")
-
-	assert.Equal(t, []string{"alert:follow:2:7", "alert:follow:2:7"}, cd.keys)
-	assert.Equal(t, []time.Duration{followAlertWindow, followAlertWindow}, cd.ttls)
-	assert.Equal(t, 72*time.Hour, followAlertWindow, "follow dedupe window must stay multi-day")
-}
-
-func TestAlertsFollowDedupeIsPerChannel(t *testing.T) {
-	cd := &fakeCooldown{}
-	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
-
-	require.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followJSON}), 1)
-	require.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followOtherChannelJSON}), 1)
-
-	assert.Equal(t, []string{"alert:follow:2:7", "alert:follow:9:7"}, cd.keys)
-}
-
-func TestAlertsFollowDedupeFailsOpen(t *testing.T) {
-	cd := &fakeCooldown{err: errors.New("valkey down")}
-	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
-
-	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followJSON}), 1)
-}
-
-func TestAlertsFollowWithoutUserIDSkipsDedupe(t *testing.T) {
-	cd := &fakeCooldown{allow: []bool{false}}
-	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
-
-	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followNoIDJSON}), 1)
-	assert.Empty(t, cd.keys)
-}
-
-func TestAlertsFollowDisabledClaimsNoWindow(t *testing.T) {
-	cd := &fakeCooldown{}
-	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
-
-	in := alertInput{event: "channel.follow", payload: followJSON, cfg: `{"followEnabled":"off"}`}
-	assert.Empty(t, runAlertOn(t, h, in))
-	assert.Empty(t, cd.keys)
-}
-
-func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
-	cd := &fakeCooldown{}
-	d := alertsDeps(cd)
-
-	for _, in := range []alertInput{
-		{event: "channel.subscription.gift", payload: giftJSON},
-		{event: "channel.cheer", payload: cheerJSON},
-		{event: "channel.raid", payload: raidJSON},
-		{event: "channel.ad_break.begin", payload: adBreakJSON, cfg: `{"adsEnabled":"on"}`},
-	} {
-		h := alertsHandlerWith(t, in.event, d)
-		assert.Len(t, runAlertOn(t, h, in), 1, in.event)
-	}
-	assert.Empty(t, cd.keys)
-}
-
-func TestAlertsSubDedupeSuppressesShareAfterRenewal(t *testing.T) {
-	cd := &fakeCooldown{allow: []bool{true, false}}
-	d := alertsDeps(cd)
-
-	subH := alertsHandlerWith(t, "channel.subscribe", d)
-	require.Len(t, runAlertOn(t, subH, alertInput{event: "channel.subscribe", payload: subscribeJSON}), 1)
-
-	msgH := alertsHandlerWith(t, "channel.subscription.message", d)
-	assert.Empty(t, runAlertOn(t, msgH, alertInput{event: "channel.subscription.message", payload: resubJSON}),
-		"share click inside the window must stay silent")
-
-	assert.Equal(t, []string{"alert:sub:2:7", "alert:sub:2:7"}, cd.keys)
-	assert.Equal(t, []time.Duration{subAlertWindow, subAlertWindow}, cd.ttls)
-	assert.Equal(t, 15*time.Minute, subAlertWindow, "sub dedupe window must stay short")
-}
-
-func TestAlertsSubDedupeFailsOpen(t *testing.T) {
-	cd := &fakeCooldown{err: errors.New("valkey down")}
-	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
-
-	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: subscribeJSON}), 1)
-}
-
-func TestAlertsSubWithoutUserIDSkipsDedupe(t *testing.T) {
-	cd := &fakeCooldown{allow: []bool{false}}
-	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
-
-	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: subscribeNoIDJSON}), 1)
-	assert.Empty(t, cd.keys)
-}
-
-func TestAlertsGiftedRecipientClaimsNoSubWindow(t *testing.T) {
-	cd := &fakeCooldown{}
-	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
-
-	assert.Empty(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: giftedSubJSON}))
-	assert.Empty(t, cd.keys)
-}
-
-func TestAlertsDefaultTemplates(t *testing.T) {
+func TestAlertsChatLines(t *testing.T) {
 	cases := []struct {
-		name string
-		in   alertInput
-		want []string
+		name     string
+		in       eventInput
+		text     string
+		contains []string
 	}{
-		{"follow", alertInput{"channel.follow", followJSON, ""}, []string{"CoolViewer"}},
-		{"subscribe", alertInput{"channel.subscribe", subscribeJSON, ""}, []string{"CoolViewer"}},
-		{"resub", alertInput{"channel.subscription.message", resubJSON, ""}, []string{"CoolViewer"}},
-		{"gift", alertInput{"channel.subscription.gift", giftJSON, ""}, []string{"GenerousViewer", "5"}},
-		{"anonymous gift", alertInput{"channel.subscription.gift", anonGiftJSON, ""}, []string{"anonymous", "3"}},
-		{"cheer", alertInput{"channel.cheer", cheerJSON, ""}, []string{"CoolViewer", "100"}},
-		{"anonymous cheer", alertInput{"channel.cheer", anonCheerJSON, ""}, []string{"anonymous", "50"}},
-		{"raid", alertInput{"channel.raid", raidJSON, ""}, []string{"CoolStreamer", "42"}},
-		{"ad break", alertInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on"}`}, []string{"90"}},
+		{name: "follow default", in: eventInput{"channel.follow", followJSON, ""}, contains: []string{"CoolViewer"}},
+		{name: "subscribe default", in: eventInput{"channel.subscribe", subscribeJSON, ""}, contains: []string{"CoolViewer"}},
+		{name: "resub default", in: eventInput{"channel.subscription.message", resubJSON, ""}, contains: []string{"CoolViewer"}},
+		{name: "gift default", in: eventInput{"channel.subscription.gift", giftJSON, ""}, contains: []string{"GenerousViewer", "5"}},
+		{name: "anonymous gift default", in: eventInput{"channel.subscription.gift", anonGiftJSON, ""}, contains: []string{"anonymous", "3"}},
+		{name: "cheer default", in: eventInput{"channel.cheer", cheerJSON, ""}, contains: []string{"CoolViewer", "100"}},
+		{name: "anonymous cheer default", in: eventInput{"channel.cheer", anonCheerJSON, ""}, contains: []string{"anonymous", "50"}},
+		{name: "raid default", in: eventInput{"channel.raid", raidJSON, ""}, contains: []string{"CoolStreamer", "42"}},
+		{name: "ad break default", in: eventInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on"}`}, contains: []string{"90"}},
+		{name: "follow custom", in: eventInput{"channel.follow", followJSON, `{"followMessage":"welcome {user}"}`}, text: "welcome CoolViewer"},
+		{name: "subscribe custom", in: eventInput{"channel.subscribe", subscribeJSON, `{"subMessage":"{user} sub'd at tier {tier}"}`}, text: "CoolViewer sub'd at tier 1000"},
+		{name: "gift custom", in: eventInput{"channel.subscription.gift", giftJSON, `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`}, text: "GenerousViewer dropped 5 tier 1000 gifts"},
+		{name: "raid custom", in: eventInput{"channel.raid", raidJSON, `{"raidMessage":"raid! {user} +{viewers}"}`}, text: "raid! CoolStreamer +42"},
+		{name: "ad break custom", in: eventInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`}, text: "break for 90s"},
+		{name: "follow fires with the toggle on", in: eventInput{"channel.follow", followJSON, `{"followEnabled":"on"}`}, contains: []string{"CoolViewer"}},
+		{name: "follow fires with an empty config object", in: eventInput{"channel.follow", followJSON, `{}`}, contains: []string{"CoolViewer"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := runAlert(t, tc.in)
+			out := runAlert(t, alertsDeps(nil), tc.in)
 			require.Len(t, out, 1)
 			assert.Equal(t, outgress.TypeChat, out[0].Type)
 			assert.Equal(t, "2", out[0].BroadcasterID)
-			for _, want := range tc.want {
+			if tc.text != "" {
+				assert.Equal(t, tc.text, out[0].Text)
+			}
+			for _, want := range tc.contains {
 				assert.Contains(t, out[0].Text, want)
 			}
 		})
 	}
 }
 
-func TestAlertsCustomTemplates(t *testing.T) {
+func alertsDeps(cd engine.CooldownStore) engine.Deps {
+	return engine.Deps{Log: zap.NewNop(), Cooldown: cd}
+}
+
+func TestAlertsStaySilent(t *testing.T) {
 	cases := []struct {
 		name string
-		in   alertInput
-		want string
+		in   eventInput
 	}{
-		{"follow", alertInput{"channel.follow", followJSON, `{"followMessage":"welcome {user}"}`}, "welcome CoolViewer"},
-		{"subscribe", alertInput{"channel.subscribe", subscribeJSON, `{"subMessage":"{user} sub'd at tier {tier}"}`}, "CoolViewer sub'd at tier 1000"},
-		{"gift", alertInput{"channel.subscription.gift", giftJSON, `{"giftMessage":"{user} dropped {count} tier {tier} gifts"}`}, "GenerousViewer dropped 5 tier 1000 gifts"},
-		{"raid", alertInput{"channel.raid", raidJSON, `{"raidMessage":"raid! {user} +{viewers}"}`}, "raid! CoolStreamer +42"},
-		{"ad break", alertInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"on","adsMessage":"break for {duration}s"}`}, "break for 90s"},
+		{"follow off", eventInput{"channel.follow", followJSON, `{"followEnabled":"off"}`}},
+		{"sub off", eventInput{"channel.subscribe", subscribeJSON, `{"subEnabled":"off"}`}},
+		{"resub follows the sub toggle", eventInput{"channel.subscription.message", resubJSON, `{"subEnabled":"off"}`}},
+		{"gift off", eventInput{"channel.subscription.gift", giftJSON, `{"giftEnabled":"off"}`}},
+		{"cheer off", eventInput{"channel.cheer", cheerJSON, `{"cheerEnabled":"off"}`}},
+		{"raid off", eventInput{"channel.raid", raidJSON, `{"raidEnabled":"off"}`}},
+		{"gifted recipient", eventInput{"channel.subscribe", giftedSubJSON, ""}},
+		{"empty follow event", eventInput{"channel.follow", "", ""}},
+		{"empty gift event", eventInput{"channel.subscription.gift", "", ""}},
+		{"empty ad event", eventInput{"channel.ad_break.begin", "", `{"adsEnabled":"on"}`}},
+		{"ad break without config", eventInput{"channel.ad_break.begin", adBreakJSON, ``}},
+		{"ad break with an empty config object", eventInput{"channel.ad_break.begin", adBreakJSON, `{}`}},
+		{"ad break with a blank toggle", eventInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":""}`}},
+		{"ad break toggled off", eventInput{"channel.ad_break.begin", adBreakJSON, `{"adsEnabled":"off"}`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := runAlert(t, tc.in)
-			require.Len(t, out, 1)
-			assert.Equal(t, tc.want, out[0].Text)
+			assert.Empty(t, runAlert(t, alertsDeps(nil), tc.in))
 		})
 	}
 }
 
-func TestAlertsSilentCases(t *testing.T) {
+func TestAlertsDeduplicate(t *testing.T) {
+	follow := eventInput{event: "channel.follow", payload: followJSON}
+	subscribe := eventInput{event: "channel.subscribe", payload: subscribeJSON}
 	cases := []struct {
-		name string
-		in   alertInput
+		name      string
+		cooldown  *fakeCooldown
+		steps     []eventInput
+		wantFired []bool
+		wantKeys  []string
+		wantTTL   time.Duration
 	}{
-		{"follow off", alertInput{"channel.follow", followJSON, `{"followEnabled":"off"}`}},
-		{"sub off", alertInput{"channel.subscribe", subscribeJSON, `{"subEnabled":"off"}`}},
-		{"resub follows sub toggle", alertInput{"channel.subscription.message", resubJSON, `{"subEnabled":"off"}`}},
-		{"gift off", alertInput{"channel.subscription.gift", giftJSON, `{"giftEnabled":"off"}`}},
-		{"cheer off", alertInput{"channel.cheer", cheerJSON, `{"cheerEnabled":"off"}`}},
-		{"raid off", alertInput{"channel.raid", raidJSON, `{"raidEnabled":"off"}`}},
-		{"gifted recipient", alertInput{"channel.subscribe", giftedSubJSON, ""}},
-		{"empty follow event", alertInput{"channel.follow", "", ""}},
-		{"empty gift event", alertInput{"channel.subscription.gift", "", ""}},
-		{"empty ad event", alertInput{"channel.ad_break.begin", "", `{"adsEnabled":"on"}`}},
+		{"TestAlertsFollowDedupeSuppressesRefollow", &fakeCooldown{allow: []bool{true, false}},
+			[]eventInput{follow, follow}, []bool{true, false}, []string{"alert:follow:2:7", "alert:follow:2:7"}, 72 * time.Hour},
+		{"TestAlertsFollowDedupeIsPerChannel", &fakeCooldown{},
+			[]eventInput{follow, {event: "channel.follow", payload: followOtherChannelJSON}}, []bool{true, true}, []string{"alert:follow:2:7", "alert:follow:9:7"}, 72 * time.Hour},
+		{"TestAlertsFollowDedupeFailsOpen", &fakeCooldown{err: errors.New("valkey down")},
+			[]eventInput{follow}, []bool{true}, []string{"alert:follow:2:7"}, 72 * time.Hour},
+		{"TestAlertsFollowWithoutUserIDSkipsDedupe", &fakeCooldown{allow: []bool{false}},
+			[]eventInput{{event: "channel.follow", payload: followNoIDJSON}}, []bool{true}, nil, 0},
+		{"TestAlertsFollowDisabledClaimsNoWindow", &fakeCooldown{},
+			[]eventInput{{event: "channel.follow", payload: followJSON, cfg: `{"followEnabled":"off"}`}}, []bool{false}, nil, 0},
+		{"TestAlertsNonFollowAlertsAreNotDeduped", &fakeCooldown{},
+			[]eventInput{
+				{event: "channel.subscription.gift", payload: giftJSON},
+				{event: "channel.cheer", payload: cheerJSON},
+				{event: "channel.raid", payload: raidJSON},
+				{event: "channel.ad_break.begin", payload: adBreakJSON, cfg: `{"adsEnabled":"on"}`},
+			}, []bool{true, true, true, true}, nil, 0},
+		{"TestAlertsSubDedupeSuppressesShareAfterRenewal", &fakeCooldown{allow: []bool{true, false}},
+			[]eventInput{subscribe, {event: "channel.subscription.message", payload: resubJSON}}, []bool{true, false}, []string{"alert:sub:2:7", "alert:sub:2:7"}, 15 * time.Minute},
+		{"TestAlertsSubDedupeFailsOpen", &fakeCooldown{err: errors.New("valkey down")},
+			[]eventInput{subscribe}, []bool{true}, []string{"alert:sub:2:7"}, 15 * time.Minute},
+		{"TestAlertsSubWithoutUserIDSkipsDedupe", &fakeCooldown{allow: []bool{false}},
+			[]eventInput{{event: "channel.subscribe", payload: subscribeNoIDJSON}}, []bool{true}, nil, 0},
+		{"TestAlertsGiftedRecipientClaimsNoSubWindow", &fakeCooldown{},
+			[]eventInput{{event: "channel.subscribe", payload: giftedSubJSON}}, []bool{false}, nil, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Empty(t, runAlert(t, tc.in))
+			var fired []bool
+			for _, step := range tc.steps {
+				fired = append(fired, len(runAlert(t, alertsDeps(tc.cooldown), step)) == 1)
+			}
+			assert.Equal(t, tc.wantFired, fired)
+			assert.Equal(t, tc.wantKeys, tc.cooldown.keys)
+			for _, ttl := range tc.cooldown.ttls {
+				assert.Equal(t, tc.wantTTL, ttl)
+			}
 		})
 	}
 }
 
-func TestAlertsAdBreakDefaultOff(t *testing.T) {
-	for _, cfg := range []string{``, `{}`, `{"adsEnabled":""}`, `{"adsEnabled":"off"}`} {
-		assert.Empty(t, runAlert(t, alertInput{"channel.ad_break.begin", adBreakJSON, cfg}), "cfg=%q must stay silent", cfg)
+func TestAlertsRecordActivityInBroadcasterLocale(t *testing.T) {
+	cases := []struct {
+		name   string
+		in     eventInput
+		locale string
+		want   string
+	}{
+		{"follow in english", eventInput{"channel.follow", followJSON, ""}, "en", "CoolViewer followed"},
+		{"follow in french", eventInput{"channel.follow", followJSON, ""}, "fr", "CoolViewer a suivi la chaîne"},
+		{"subscribe in english", eventInput{"channel.subscribe", subscribeJSON, ""}, "en", "CoolViewer subscribed (1000)"},
+		{"subscribe in french", eventInput{"channel.subscribe", subscribeJSON, ""}, "fr", "CoolViewer s'est abonné·e (1000)"},
+		{"gift in english", eventInput{"channel.subscription.gift", giftJSON, ""}, "en", "GenerousViewer gifted 5 subs"},
+		{"raid in french", eventInput{"channel.raid", raidJSON, ""}, "fr", "CoolStreamer a fait un raid avec 42 spectateurs"},
 	}
-}
-
-func TestAlertsEnabledOnAndBlankBothFire(t *testing.T) {
-	for _, cfg := range []string{`{"followEnabled":"on"}`, `{}`, ``} {
-		assert.Len(t, runAlert(t, alertInput{"channel.follow", followJSON, cfg}), 1, "cfg=%q should fire", cfg)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := captureActivity(t)
+			c := eventCtx(eventInput{tc.in.event, tc.in.payload, tc.in.cfg})
+			c.Locale = tc.locale
+			runEvent(t, Alerts(alertsDeps(nil)), c)
+			require.Len(t, sink.rows, 1)
+			assert.Equal(t, activity.KindEvent, sink.rows[0].Kind)
+			assert.Equal(t, tc.want, sink.rows[0].Text)
+		})
 	}
 }

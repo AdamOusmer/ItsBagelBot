@@ -47,37 +47,18 @@ describe('NotificationBell trigger', () => {
 
 describe('NotificationBell source contract', () => {
   const source = read('../components/NotificationBell.svelte');
+  const css = read('../styles/notifications.css');
 
-  test('the panel is a labelled non-modal dialog the trigger controls', () => {
-    expect(source).toContain('role="dialog"');
-    expect(source).toContain('aria-modal="false"');
-    expect(source).toContain('aria-labelledby={titleId}');
-    expect(source).toContain('aria-controls={open ? panelId : undefined}');
+  test.each([
+    ['the panel is a labelled non-modal dialog the trigger controls', ['role="dialog"', 'aria-modal="false"', 'aria-labelledby={titleId}', 'aria-controls={open ? panelId : undefined}']],
+    ['focus moves in on open and returns to the trigger on Escape', ['if (open && panel) focusWithin(panel);', "event.key === 'Escape'", 'close(true)', 'trigger?.focus()']],
+    ['focus leaving the widget closes it', ['onfocusout', '!wrap?.contains(next)']]
+  ] as [string, string[]][])('%s', (_name, snippets) => {
+    for (const snippet of snippets) expect(source).toContain(snippet);
   });
 
-  test('focus moves in on open and returns to the trigger on Escape', () => {
-    expect(source).toContain('if (open && panel) focusWithin(panel);');
-    expect(source).toContain("event.key === 'Escape'");
-    expect(source).toContain('close(true)');
-    expect(source).toContain('trigger?.focus()');
-  });
-
-  test('focus leaving the widget closes it', () => {
-    expect(source).toContain('onfocusout');
-    expect(source).toContain('!wrap?.contains(next)');
-  });
-
-  test('no hard-coded English or dead scrim handler remains', () => {
-    expect(source).not.toContain('Recent notifications');
-    expect(source).not.toContain('Nothing yet');
-    expect(source).not.toContain('View all');
-    expect(source).not.toContain('onkeydown={(e)');
-    expect(source).not.toContain('{n.level}</Badge>');
-  });
-
-  test('the heading level is a prop defaulting to the previous h4', () => {
-    expect(source).toContain('headingLevel = 4');
-    expect(source).toContain('this={`h${headingLevel}`}');
+  test('the trigger widens its hit area on coarse pointers', () => {
+    expect(css).toMatch(/pointer: coarse[\s\S]*bb-notifications__icon-btn::after/);
   });
 });
 

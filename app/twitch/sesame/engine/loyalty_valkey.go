@@ -106,8 +106,8 @@ func balanceKey(broadcasterID, viewerID uint64) string {
 	return cache.PairKey(loyalBalancePrefix, broadcasterID, strconv.FormatUint(viewerID, 10))
 }
 
-func (s *ValkeyLoyaltyStore) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
-	s.reporter.Earn(broadcasterID, viewerID, login, name, points, watchSeconds)
+func (s *ValkeyLoyaltyStore) Earn(e PointEarning) {
+	s.reporter.Earn(e.BroadcasterID, e.ViewerID, e.Login, e.Name, e.Points, e.WatchSeconds)
 }
 
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) string {
@@ -356,14 +356,14 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uin
 	return bal, true, spent, nil
 }
 
-func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
-	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetViewerID, targetLogin, amount)
+func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, t PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error) {
+	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, t.BroadcasterID, t.FromViewerID, t.TargetViewerID, t.TargetLogin, t.Amount)
 	if err != nil || !found {
 		return bal, found, moved, err
 	}
-	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	s.dropBalanceCache(ctx, t.BroadcasterID, bal.ViewerID)
 	if moved && target != nil {
-		s.dropBalanceCache(ctx, broadcasterID, target.ViewerID)
+		s.dropBalanceCache(ctx, t.BroadcasterID, target.ViewerID)
 	}
 	return bal, true, moved, nil
 }

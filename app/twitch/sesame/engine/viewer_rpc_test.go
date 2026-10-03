@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func newTestViewerRPC(f *chattersFake, request func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error)) *ViewerRPC {
+func newTestViewerRPC(f *fakeValkey, request func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error)) *ViewerRPC {
 	return &ViewerRPC{
 		store:        NewValkeyChatters(f.client, zap.NewNop()),
 		request:      request,
@@ -30,22 +30,16 @@ func newTestViewerRPC(f *chattersFake, request func(context.Context, manage.Chat
 
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	t.Fatal("condition never became true")
+	require.Eventually(t, cond, 2*time.Second, 2*time.Millisecond)
 }
 
 func TestViewerRPCColdSnapshotFetchesOnceUnderContention(t *testing.T) {
-	f := newChattersFake(t)
+	f := newFakeValkey(t)
 	var calls atomic.Int32
+	release := make(chan struct{})
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
 		calls.Add(1)
-		time.Sleep(20 * time.Millisecond)
+		<-release
 		return manage.ChattersReply{Chatters: []manage.Chatter{{ID: "42", Login: "sam"}}}, nil
 	})
 
@@ -59,15 +53,16 @@ func TestViewerRPCColdSnapshotFetchesOnceUnderContention(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+	waitFor(t, func() bool { return calls.Load() == 1 })
+	close(release)
 
 	assert.Equal(t, []viewerSnapshotState{viewerSnapshotCold, viewerSnapshotCold}, states, "neither caller waits on the fetch")
-	waitFor(t, func() bool { return calls.Load() == 1 })
-	time.Sleep(30 * time.Millisecond)
-	assert.Equal(t, int32(1), calls.Load(), "the second caller must not have won a fetch of its own")
+	assert.Never(t, func() bool { return calls.Load() > 1 }, 50*time.Millisecond, 5*time.Millisecond,
+		"the second caller must not have won a fetch of its own")
 }
 
 func TestViewerRPCColdFetchWarmsTheSnapshotForTheNextRead(t *testing.T) {
-	f := newChattersFake(t)
+	f := newFakeValkey(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
 		return manage.ChattersReply{Chatters: []manage.Chatter{{ID: "42", Login: "sam"}, {ID: "7", Login: "alex"}}}, nil
 	})
@@ -77,7 +72,7 @@ func TestViewerRPCColdFetchWarmsTheSnapshotForTheNextRead(t *testing.T) {
 	assert.Nil(t, entries)
 
 	waitFor(t, func() bool {
-		_, ok := f.rawValue(chattersSnapshotKey(123))
+		_, ok, _ := r.store.Snapshot(context.Background(), 123)
 		return ok
 	})
 
@@ -89,14 +84,17 @@ func TestViewerRPCColdFetchWarmsTheSnapshotForTheNextRead(t *testing.T) {
 }
 
 func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
-	f := newChattersFake(t)
+	f := newFakeValkey(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
 		return manage.ChattersReply{MissingScope: true}, nil
 	})
 
 	_, state := r.Snapshot(context.Background(), 123)
 	assert.Equal(t, viewerSnapshotCold, state, "the triggering call itself is still just cold")
-	waitFor(t, func() bool { return r.isMissingScope(123) })
+	waitFor(t, func() bool {
+		_, latched := r.Snapshot(context.Background(), 123)
+		return latched == viewerSnapshotMissingScope
+	})
 
 	waitFor(t, func() bool { return r.store.TryFetchLock(context.Background(), 123) })
 	r.store.ReleaseFetchLock(context.Background(), 123)
@@ -109,11 +107,14 @@ func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
 	entries, state := r.Snapshot(context.Background(), 123)
 	require.Equal(t, viewerSnapshotOK, state)
 	assert.Equal(t, []chattersSnapshotEntry{{ID: 9, Login: "back", Name: "back"}}, entries)
-	assert.False(t, r.isMissingScope(123), "a snapshot hit must clear the latch")
+
+	f.advance(chattersSnapshotTTL + time.Second)
+	_, state = r.Snapshot(context.Background(), 123)
+	assert.Equal(t, viewerSnapshotCold, state, "a snapshot hit must clear the latch")
 }
 
 func TestViewerRPCReleasesTheFetchLockOnRPCFailure(t *testing.T) {
-	f := newChattersFake(t)
+	f := newFakeValkey(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
 		return manage.ChattersReply{}, errors.New("boom")
 	})

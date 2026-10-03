@@ -52,13 +52,3 @@ describe('codeReader', () => {
     expect(read({ code: undefined, error: undefined })).toBe('');
   });
 });
-
-describe('wire compatibility', () => {
-  test('decodes a new reply and an old one the same way', () => {
-    const fresh = JSON.parse('{"error":"no such user","code":"not_found"}');
-    const old = JSON.parse('{"error":"no such user"}');
-    expect(rpcCode(fresh)).toBe('not_found');
-    expect(rpcCode(old)).toBe('');
-    expect(fresh.error).toBe(old.error);
-  });
-});

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -70,19 +71,25 @@ func TestLockLifecycle(t *testing.T) {
 	}
 }
 
-func TestLockExpiryBoundary(t *testing.T) {
-	s, _, clk := testStore()
-	hb := lockRecord{Owner: "A", HeartbeatAt: clk.now}
-	cases := map[time.Duration]bool{
-		0:                             false,
-		testLockTTL - time.Nanosecond: false,
-		testLockTTL:                   true,
-		testLockTTL + time.Second:     true,
+func TestLockExpiresExactlyAtTTL(t *testing.T) {
+	cases := map[string]struct {
+		after time.Duration
+		want  error
+	}{
+		"held with no time elapsed":      {0, ports.ErrLockHeld},
+		"held one nanosecond before TTL": {testLockTTL - time.Nanosecond, ports.ErrLockHeld},
+		"free at TTL":                    {testLockTTL, nil},
+		"free past TTL":                  {testLockTTL + time.Second, nil},
 	}
-	got := map[time.Duration]bool{}
-	for after := range cases {
-		clk.now = hb.HeartbeatAt.Add(after)
-		got[after] = s.expired(hb)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			s, _, clk := testStore()
+			_, err := s.AcquireLock(context.Background(), "A")
+			require.NoError(t, err)
+
+			clk.now = clk.now.Add(tc.after)
+			_, err = s.AcquireLock(context.Background(), "B")
+			assert.ErrorIs(t, err, tc.want)
+		})
 	}
-	assert.Equal(t, cases, got)
 }

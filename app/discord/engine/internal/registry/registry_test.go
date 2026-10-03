@@ -1,66 +1,47 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package registry
+package registry_test
 
 import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/discord/engine/internal/registry"
 	"ItsBagelBot/app/discord/engine/module"
+
+	"github.com/stretchr/testify/require"
 )
 
 func noop(context.Context, *module.Context, module.Emit) error { return nil }
 
 func TestNewIndexesAllThreeAxesAcrossModules(t *testing.T) {
-	a := module.NewModule("a").On("GUILD_CREATE", noop).Slash("ticket", noop).Button("x", noop).Build()
+	a := module.NewModule("a").On("GUILD_CREATE", noop).On("MESSAGE_CREATE", noop).Slash("ticket", noop).Button("x", noop).Build()
 	b := module.NewModule("b").On("MESSAGE_CREATE", noop).Build()
 
-	r := New(a, b)
-	if len(r.Events("GUILD_CREATE")) != 1 {
-		t.Fatal("missing event handler from module a")
-	}
-	if len(r.Events("MESSAGE_CREATE")) != 1 {
-		t.Fatal("missing event handler from module b")
-	}
-	if _, ok := r.Slash("ticket"); !ok {
-		t.Fatal("missing slash handler")
-	}
-	if _, ok := r.Button("x"); !ok {
-		t.Fatal("missing button handler")
-	}
-	if _, ok := r.Slash("nope"); ok {
-		t.Fatal("unregistered slash name must not resolve")
-	}
+	r := registry.New(a, b)
+
+	require.Len(t, r.Events("GUILD_CREATE"), 1)
+	require.Len(t, r.Events("MESSAGE_CREATE"), 2, "an event type can have several interested modules")
+	_, slash := r.Slash("ticket")
+	_, button := r.Button("x")
+	_, unknown := r.Slash("nope")
+	require.True(t, slash)
+	require.True(t, button)
+	require.False(t, unknown, "an unregistered slash name must not resolve")
 }
 
-func TestEventTypeCanHaveSeveralInterestedModules(t *testing.T) {
-	a := module.NewModule("a").On("MESSAGE_CREATE", noop).Build()
-	b := module.NewModule("b").On("MESSAGE_CREATE", noop).Build()
-	r := New(a, b)
-	if got := len(r.Events("MESSAGE_CREATE")); got != 2 {
-		t.Fatalf("handlers for MESSAGE_CREATE = %d, want 2", got)
+func TestNewPanicsOnDuplicateClaimAcrossModules(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b module.Module
+	}{
+		{"slash command name", module.NewModule("a").Slash("ticket", noop).Build(), module.NewModule("b").Slash("ticket", noop).Build()},
+		{"button custom id", module.NewModule("a").Button("x", noop).Build(), module.NewModule("b").Button("x", noop).Build()},
 	}
-}
-
-func TestNewPanicsOnDuplicateSlashAcrossModules(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected a panic on a duplicate slash-command name")
-		}
-	}()
-	a := module.NewModule("a").Slash("ticket", noop).Build()
-	b := module.NewModule("b").Slash("ticket", noop).Build()
-	New(a, b)
-}
-
-func TestNewPanicsOnDuplicateButtonAcrossModules(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected a panic on a duplicate button custom id")
-		}
-	}()
-	a := module.NewModule("a").Button("x", noop).Build()
-	b := module.NewModule("b").Button("x", noop).Build()
-	New(a, b)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Panics(t, func() { registry.New(tc.a, tc.b) })
+		})
+	}
 }

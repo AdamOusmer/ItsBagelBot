@@ -15,7 +15,7 @@ import {
   WizebotFetchError
 } from './wizebot';
 import { CODE } from './validate';
-import type { ImportDiagnostic } from './types';
+import type { ImportDiagnostic, ManifestCommand } from './types';
 
 const TESTDATA = join(import.meta.dir, 'testdata');
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -51,29 +51,17 @@ const listBytes = (rows: Row[]): Uint8Array =>
 const chip = (label: string): string => `<span class="label label-warning">${label}</span>`;
 
 describe('decodeEntities', () => {
-  test('named Latin-1 and typographic references decode', () => {
-    expect(decodeEntities('caf&eacute; &agrave; c&ocirc;t&eacute;')).toBe('café à côté');
-    expect(decodeEntities('Twitch &amp; Youtube &laquo; ici &raquo;&hellip;')).toBe(
-      'Twitch & Youtube « ici »…'
-    );
-    expect(decodeEntities('&lt;3 &gt;_&lt; &quot;quoted&quot;')).toBe('<3 >_< "quoted"');
-  });
-
-  test('numeric references decode in decimal and hex', () => {
-    expect(decodeEntities('l&#39;autre &#x27;un&#x27;')).toBe("l'autre 'un'");
-    expect(decodeEntities('&#128512;')).toBe('\u{1f600}');
-  });
-
-  test('unknown named references survive verbatim rather than vanishing', () => {
-    expect(decodeEntities('&angmsdaw; &notreal;')).toBe('&angmsdaw; &notreal;');
-  });
-
-  test('a bare ampersand in running text is left alone', () => {
-    expect(decodeEntities('rock & roll, 5 & 6')).toBe('rock & roll, 5 & 6');
-  });
-
-  test('out-of-range and surrogate code points stay literal', () => {
-    expect(decodeEntities('&#x110000; &#xd800; &#0;')).toBe('&#x110000; &#xd800; &#0;');
+  test.each([
+    ['named Latin-1 references decode', 'caf&eacute; &agrave; c&ocirc;t&eacute;', 'café à côté'],
+    ['typographic references decode', 'Twitch &amp; Youtube &laquo; ici &raquo;&hellip;', 'Twitch & Youtube « ici »…'],
+    ['markup references decode', '&lt;3 &gt;_&lt; &quot;quoted&quot;', '<3 >_< "quoted"'],
+    ['numeric references decode in decimal and hex', 'l&#39;autre &#x27;un&#x27;', "l'autre 'un'"],
+    ['a numeric reference decodes beyond the BMP', '&#128512;', '\u{1f600}'],
+    ['unknown named references survive verbatim rather than vanishing', '&angmsdaw; &notreal;', '&angmsdaw; &notreal;'],
+    ['a bare ampersand in running text is left alone', 'rock & roll, 5 & 6', 'rock & roll, 5 & 6'],
+    ['out-of-range and surrogate code points stay literal', '&#x110000; &#xd800; &#0;', '&#x110000; &#xd800; &#0;']
+  ])('%s', (_name, input, want) => {
+    expect(decodeEntities(input)).toBe(want);
   });
 });
 
@@ -256,31 +244,16 @@ describe('commands', () => {
 });
 
 describe('permissions', () => {
-  test('one chip maps onto its tier', () => {
-    const { manifest, diagnostics } = parseWizebot(
-      listBytes([
-        { aliases: '!a', perm: chip('Subscribers') },
-        { aliases: '!b', perm: chip('VIPs') },
-        { aliases: '!c', perm: chip('Moderators') },
-        { aliases: '!d', perm: '' }
-      ])
-    );
-    expect(manifest.commands?.map((c) => c.permission)).toEqual(['sub', 'vip', 'mod', 'everyone']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('several chips are any-of, so the widest audience wins', () => {
-    const { manifest } = parseWizebot(
-      listBytes([{ aliases: '!a', perm: `${chip('Subscribers')} ${chip('VIPs')} ${chip('Moderators')}` }])
-    );
-    expect(manifest.commands?.[0].permission).toBe('sub');
-  });
-
-  test('the follower tier drops its qualifier and reads as everyone', () => {
-    const { manifest, diagnostics } = parseWizebot(
-      listBytes([{ aliases: '!a', perm: chip('Followers (0 J.)') }])
-    );
-    expect(manifest.commands?.[0].permission).toBe('everyone');
+  test.each<[string, string, ManifestCommand['permission']]>([
+    ['the subscriber chip maps onto sub', chip('Subscribers'), 'sub'],
+    ['the VIP chip maps onto vip', chip('VIPs'), 'vip'],
+    ['the moderator chip maps onto mod', chip('Moderators'), 'mod'],
+    ['no chip is everyone', '', 'everyone'],
+    ['several chips are any-of, so the widest audience wins', `${chip('Subscribers')} ${chip('VIPs')} ${chip('Moderators')}`, 'sub'],
+    ['the follower tier drops its qualifier and reads as everyone', chip('Followers (0 J.)'), 'everyone']
+  ])('%s', (_name, perm, permission) => {
+    const { manifest, diagnostics } = parseWizebot(listBytes([{ aliases: '!a', perm }]));
+    expect(manifest.commands?.[0].permission).toBe(permission);
     expect(diagnostics).toEqual([]);
   });
 

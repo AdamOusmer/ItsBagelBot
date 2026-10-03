@@ -95,10 +95,16 @@ func cohortChatEnv(chatters []string, text string) *lane.Envelope {
 	return env
 }
 
-func timeoutTargets(t *testing.T, pub *fakePublisher) []string {
+type nukeTimeout struct {
+	user    string
+	seconds int
+	reason  string
+}
+
+func nukeTimeouts(t *testing.T, pub *fakePublisher) []nukeTimeout {
 	t.Helper()
-	var ids []string
-	for _, c := range pub.got {
+	var timeouts []nukeTimeout
+	for _, c := range pub.snapshot() {
 		if c.msg.Type != outgress.TypeTimeout {
 			continue
 		}
@@ -110,70 +116,94 @@ func timeoutTargets(t *testing.T, pub *fakePublisher) []string {
 			} `json:"data"`
 		}
 		require.NoError(t, codec.Unmarshal(c.msg.Payload, &body))
-		assert.Equal(t, 600, body.Data.Duration)
-		assert.Equal(t, "nuke", body.Data.Reason)
-		ids = append(ids, body.Data.UserID)
+		timeouts = append(timeouts, nukeTimeout{body.Data.UserID, body.Data.Duration, body.Data.Reason})
+	}
+	return timeouts
+}
+
+func timeoutTargets(t *testing.T, pub *fakePublisher) []string {
+	t.Helper()
+	var ids []string
+	for _, timeout := range nukeTimeouts(t, pub) {
+		assert.Equal(t, nukeTimeout{timeout.user, nukeDefaultSeconds, "nuke"}, timeout)
+		ids = append(ids, timeout.user)
 	}
 	return ids
 }
 
-func TestRecentSweepMatchesNormalizedPhrase(t *testing.T) {
-	l := NewRecentLog()
-	l.Record(123, soloChatEnv("999", "FREE N1TRO!!! claim it"), nukeClockBase)
-	l.Record(123, soloChatEnv("998", "totally clean chat"), nukeClockBase)
-
-	hits := l.Sweep(context.Background(), 123, "free nitro", nukeClockBase)
-	require.Len(t, hits, 1)
-	assert.Equal(t, channelID(999), hits[0].UserID)
-	assert.Equal(t, module.RoleEveryone, hits[0].Role)
+type recentRecord struct {
+	env *lane.Envelope
+	at  time.Time
 }
 
-func TestRecentSweepBoundaryMissesPartialToken(t *testing.T) {
-	l := NewRecentLog()
-	l.Record(123, soloChatEnv("999", "grabbing bass vibes"), nukeClockBase)
-	assert.Empty(t, l.Sweep(context.Background(), 123, "ass", nukeClockBase))
-	assert.Len(t, l.Sweep(context.Background(), 123, "bass", nukeClockBase), 1)
-}
-
-func TestRecentSweepDedupesAndExpires(t *testing.T) {
-	l := NewRecentLog()
-	env := soloChatEnv("999", "raid plan meet here")
-	l.Record(123, env, nukeClockBase)
-	l.Record(123, env, nukeClockBase.Add(time.Second))
-	assert.Len(t, l.Sweep(context.Background(), 123, "raid plan", nukeClockBase.Add(time.Second)), 1, "one user, two lines")
-
-	assert.Empty(t, l.Sweep(context.Background(), 123, "raid plan", nukeClockBase.Add(recentTTL+time.Minute)), "past the TTL nothing sweeps")
-}
-
-func TestRecentRecordsCohortSendersIndividually(t *testing.T) {
-	l := NewRecentLog()
-	l.Record(123, cohortChatEnv([]string{"1", "2", "3"}, "same copypasta everywhere"), nukeClockBase)
-	assert.Len(t, l.Sweep(context.Background(), 123, "copypasta", nukeClockBase), 3)
-}
-
-func TestRecentSkipsCommandShapes(t *testing.T) {
-	l := NewRecentLog()
-	l.Record(123, soloChatEnv("999", "!nuke spam"), nukeClockBase)
-	l.Record(123, soloChatEnv("998", "  !ping"), nukeClockBase)
-	assert.Empty(t, l.Sweep(context.Background(), 123, "spam", nukeClockBase), "a command line must never be sweepable")
-	assert.Empty(t, l.Sweep(context.Background(), 123, "!ping", nukeClockBase))
-}
-
-func TestRecentChannelsAreIsolated(t *testing.T) {
-	l := NewRecentLog()
-	l.Record(123, soloChatEnv("999", "secret phrase x"), nukeClockBase)
-	assert.Empty(t, l.Sweep(context.Background(), 456, "secret phrase", nukeClockBase))
-}
-
-func TestRecentRingEvictsOldestBeyondCap(t *testing.T) {
-	l := NewRecentLog()
-	for i := 0; i < recentRingCap+10; i++ {
-		l.Record(123, soloChatEnv(strconv.Itoa(i), "filler "+strconv.Itoa(i)),
-			nukeClockBase.Add(time.Duration(i)*time.Millisecond))
+func recordedAt(at time.Time, envs ...*lane.Envelope) []recentRecord {
+	records := make([]recentRecord, len(envs))
+	for i, env := range envs {
+		records[i] = recentRecord{env: env, at: at}
 	}
-	sweepAt := nukeClockBase.Add(time.Duration(recentRingCap+20) * time.Millisecond)
-	assert.Empty(t, l.Sweep(context.Background(), 123, "filler 3", sweepAt), "the oldest lines fell off the ring")
-	assert.NotEmpty(t, l.Sweep(context.Background(), 123, "filler 130", sweepAt), "the newest survived")
+	return records
+}
+
+func fillerRecords(n int) []recentRecord {
+	records := make([]recentRecord, n)
+	for i := range records {
+		records[i] = recentRecord{
+			env: soloChatEnv(strconv.Itoa(i), "filler "+strconv.Itoa(i)),
+			at:  nukeClockBase.Add(time.Duration(i) * time.Millisecond),
+		}
+	}
+	return records
+}
+
+func TestRecentLogSweep(t *testing.T) {
+	phraseLine := recordedAt(nukeClockBase, soloChatEnv("999", "FREE N1TRO!!! claim it"), soloChatEnv("998", "totally clean chat"))
+	bass := recordedAt(nukeClockBase, soloChatEnv("999", "grabbing bass vibes"))
+	raid := soloChatEnv("999", "raid plan meet here")
+	commands := recordedAt(nukeClockBase, soloChatEnv("999", "!nuke spam"), soloChatEnv("998", "  !ping"))
+	ringSweep := nukeClockBase.Add(time.Duration(recentRingCap+20) * time.Millisecond)
+	cases := []struct {
+		name    string
+		records []recentRecord
+		channel channelID
+		phrase  string
+		at      time.Time
+		want    []channelID
+	}{
+		{"a sweep matches the normalized phrase", phraseLine, 123, "free nitro", nukeClockBase, []channelID{999}},
+		{"a sweep misses a partial token", bass, 123, "ass", nukeClockBase, nil},
+		{"a sweep hits a whole token", bass, 123, "bass", nukeClockBase, []channelID{999}},
+		{
+			"one user with two lines is one hit",
+			[]recentRecord{{raid, nukeClockBase}, {raid, nukeClockBase.Add(time.Second)}},
+			123, "raid plan", nukeClockBase.Add(time.Second), []channelID{999},
+		},
+		{"past the TTL nothing sweeps", recordedAt(nukeClockBase, raid), 123, "raid plan", nukeClockBase.Add(recentTTL + time.Minute), nil},
+		{
+			"a cohort's senders are recorded individually",
+			recordedAt(nukeClockBase, cohortChatEnv([]string{"1", "2", "3"}, "same copypasta everywhere")),
+			123, "copypasta", nukeClockBase, []channelID{1, 2, 3},
+		},
+		{"a command line is never sweepable", commands, 123, "spam", nukeClockBase, nil},
+		{"a command shape is never sweepable even by its own text", commands, 123, "!ping", nukeClockBase, nil},
+		{"channels are isolated", recordedAt(nukeClockBase, soloChatEnv("999", "secret phrase x")), 456, "secret phrase", nukeClockBase, nil},
+		{"the ring evicts the oldest lines", fillerRecords(recentRingCap + 10), 123, "filler 3", ringSweep, nil},
+		{"the ring keeps the newest lines", fillerRecords(recentRingCap + 10), 123, "filler 130", ringSweep, []channelID{130}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewRecentLog()
+			for _, r := range tc.records {
+				l.Record(123, r.env, r.at)
+			}
+
+			var got []channelID
+			for _, hit := range l.Sweep(context.Background(), tc.channel, tc.phrase, tc.at) {
+				got = append(got, hit.UserID)
+			}
+
+			assert.ElementsMatch(t, tc.want, got)
+		})
+	}
 }
 
 func TestRecentSweepCapsResults(t *testing.T) {
@@ -195,22 +225,10 @@ func TestNukeTimesOutMatchedChattersAndReports(t *testing.T) {
 	chatFrom(t, p, "333", "FREE NITRO over here!!")
 	moderatorNuke(t, p, "free nitro")
 
-	ids := timeoutTargets(t, pub)
-	assert.ElementsMatch(t, []string{"111", "333"}, ids)
-
-	reports := 0
-	for _, c := range pub.got {
-		if c.msg.Type != outgress.TypeChat {
-			continue
-		}
-		reports++
-		var body struct {
-			Message string `json:"message"`
-		}
-		require.NoError(t, codec.Unmarshal(c.msg.Payload, &body))
-		assert.Contains(t, body.Message, "2 user(s)")
-	}
-	assert.Equal(t, 1, reports, "exactly one summary line")
+	assert.ElementsMatch(t, []string{"111", "333"}, timeoutTargets(t, pub))
+	reports := pub.chatTexts(t)
+	require.Len(t, reports, 1, "exactly one summary line")
+	assert.Contains(t, reports[0], "2 user(s)")
 }
 
 func TestNukeNeverTouchesStaffBroadcasterOrBot(t *testing.T) {
@@ -228,93 +246,88 @@ func TestNukeNeverTouchesStaffBroadcasterOrBot(t *testing.T) {
 }
 
 func TestNukeOverflowEscalatesShieldOncePerWindow(t *testing.T) {
-	n := newNukeUnderTest()
-	pub := &fakePublisher{}
-	p := nukeTestPipeline(pub, n, nukeModule(n))
-
-	shieldCalls := 0
-	n.setShield(func(uint64) bool { shieldCalls++; return true })
-
-	for i := 0; i < nukeMaxTargets+5; i++ {
-		chatFrom(t, p, strconv.Itoa(1000+i), "the raid has arrived brothers")
-	}
-	moderatorNuke(t, p, "raid has arrived")
-
-	assert.Len(t, timeoutTargets(t, pub), nukeMaxTargets, "the budget cap holds")
-
-	shields := 0
-	for _, c := range pub.got {
-		if c.msg.Type == outgress.TypeShieldMode {
-			shields++
-		}
-	}
-	assert.Equal(t, 1, shields, "overflow activates Shield Mode once")
-	assert.Equal(t, 1, shieldCalls)
-}
-
-func TestNukeWithoutShieldArmedStillReportsTheCap(t *testing.T) {
-	n := newNukeUnderTest()
-	n.shield = nil
-	pub := &fakePublisher{}
-	p := nukeTestPipeline(pub, n, nukeModule(n))
-
-	for i := 0; i < nukeMaxTargets+1; i++ {
-		chatFrom(t, p, strconv.Itoa(1000+i), "spam wave incoming now")
-	}
-	moderatorNuke(t, p, "spam wave incoming")
-
-	for _, c := range pub.got {
-		assert.NotEqual(t, outgress.TypeShieldMode, c.msg.Type, "no armed policy, no activation")
-	}
-	assert.Len(t, timeoutTargets(t, pub), nukeMaxTargets)
-}
-
-func TestNukeZeroHitsAndUsageReplies(t *testing.T) {
-	n := newNukeUnderTest()
-	pub := &fakePublisher{}
-	p := nukeTestPipeline(pub, n, nukeModule(n))
-
-	moderatorNuke(t, p, "nothing matches this")
-	moderatorNuke(t, p, "ab")
-
-	timeouts := timeoutTargets(t, pub)
-	assert.Empty(t, timeouts)
-	chats := 0
-	for _, c := range pub.got {
-		if c.msg.Type == outgress.TypeChat {
-			chats++
-		}
-	}
-	assert.Equal(t, 2, chats, "a reply per invocation, no actions")
-}
-
-func TestNukeDurationParsing(t *testing.T) {
-	tests := []struct {
-		args string
-		want int64
+	cases := []struct {
+		name        string
+		armShield   bool
+		wantShields int
 	}{
-		{"spam wave", nukeDefaultSeconds},
-		{"spam wave 300", 300},
-		{"spam wave 300s", 300},
-		{"spam wave 1", nukeMinSeconds},
-		{"spam wave 99999999", nukeMaxSeconds},
+		{"an armed shield policy activates once on overflow", true, 1},
+		{"no armed policy means no activation", false, 0},
 	}
-	for _, tt := range tests {
-		phrase, secs := parseNukeArgs(tt.args)
-		assert.Equal(t, tt.want, secs, tt.args)
-		assert.Equal(t, "spam wave", phrase, tt.args)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			n := newNukeUnderTest()
+			pub := &fakePublisher{}
+			p := nukeTestPipeline(pub, n, nukeModule(n))
+			shieldCalls := 0
+			n.shield = nil
+			if tc.armShield {
+				n.setShield(func(uint64) bool { shieldCalls++; return true })
+			}
+			for i := 0; i < nukeMaxTargets+5; i++ {
+				chatFrom(t, p, strconv.Itoa(1000+i), "the raid has arrived brothers")
+			}
+
+			moderatorNuke(t, p, "raid has arrived")
+
+			assert.Len(t, timeoutTargets(t, pub), nukeMaxTargets, "the budget cap holds")
+			assert.Equal(t, tc.wantShields, pub.types()[outgress.TypeShieldMode])
+			assert.Equal(t, tc.wantShields, shieldCalls)
+		})
 	}
 }
 
-func TestNukeInertWithoutService(t *testing.T) {
-	pub := &fakePublisher{}
-	p := nukeTestPipeline(pub, nil, nukeModule(nil))
+func TestNukeRepliesWithoutActing(t *testing.T) {
+	cases := []struct {
+		name      string
+		service   bool
+		args      []string
+		wantChats int
+	}{
+		{"zero hits and a too-short phrase each get a reply", true, []string{"nothing matches this", "ab"}, 2},
+		{"inert without a service means silent, not chatty, even on a match", false, []string{"free nitro"}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var n *Nuke
+			if tc.service {
+				n = newNukeUnderTest()
+			}
+			pub := &fakePublisher{}
+			p := nukeTestPipeline(pub, n, nukeModule(n))
+			chatFrom(t, p, "111", "free nitro everyone come")
 
-	chatFrom(t, p, "111", "free nitro everyone come")
-	moderatorNuke(t, p, "free nitro")
+			for _, args := range tc.args {
+				moderatorNuke(t, p, args)
+			}
 
-	assert.Empty(t, timeoutTargets(t, pub), "no service wired, no actions")
-	for _, c := range pub.got {
-		assert.NotEqual(t, outgress.TypeChat, c.msg.Type, "inert means silent, not chatty")
+			assert.Empty(t, timeoutTargets(t, pub))
+			assert.Len(t, pub.chatTexts(t), tc.wantChats)
+		})
+	}
+}
+
+func TestNukeClampsTheRequestedDuration(t *testing.T) {
+	cases := []struct {
+		args string
+		want int
+	}{
+		{"free nitro", nukeDefaultSeconds},
+		{"free nitro 300", 300},
+		{"free nitro 300s", 300},
+		{"free nitro 1", nukeMinSeconds},
+		{"free nitro 99999999", nukeMaxSeconds},
+	}
+	for _, tc := range cases {
+		t.Run(tc.args, func(t *testing.T) {
+			n := newNukeUnderTest()
+			pub := &fakePublisher{}
+			p := nukeTestPipeline(pub, n, nukeModule(n))
+			chatFrom(t, p, "111", "join my free nitro giveaway now")
+
+			moderatorNuke(t, p, tc.args)
+
+			assert.Equal(t, []nukeTimeout{{"111", tc.want, "nuke"}}, nukeTimeouts(t, pub))
+		})
 	}
 }

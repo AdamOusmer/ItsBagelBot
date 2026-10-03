@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,7 +46,6 @@ type checkoutProviderCall struct {
 	leaseHeld bool
 }
 
-// The HTTP fixture exercises the real Tebex client and records the lease at each provider call.
 func checkoutProvider(t *testing.T, db *ent.Client, userID uint64, failPackage bool) (*tebex.Client, <-chan checkoutProviderCall) {
 	t.Helper()
 	calls := make(chan checkoutProviderCall, 8)
@@ -178,6 +178,42 @@ func TestCheckoutRPCBasketLeaseLifecycle(t *testing.T) {
 	}
 }
 
+type checkoutHarness struct {
+	nc      *nats.Conn
+	db      *ent.Client
+	calls   <-chan checkoutProviderCall
+	lookups chan usersrpc.AdminRequest
+}
+
+func newCheckoutHarness(t *testing.T, leaseUser uint64, lookup func(usersrpc.AdminRequest) usersrpc.AdminReply) *checkoutHarness {
+	t.Helper()
+	db := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
+	t.Cleanup(func() { _ = db.Close() })
+	client, calls := checkoutProvider(t, db, leaseUser, false)
+	nc := testnats.Connect(t)
+	wiring := bus.RPCWiring{NC: nc, Log: zap.NewNop()}
+	h := &checkoutHarness{nc: nc, db: db, calls: calls, lookups: make(chan usersrpc.AdminRequest, 8)}
+	if lookup != nil {
+		require.NoError(t, bus.Serve(wiring, "users.get", func(_ context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+			h.lookups <- req
+			return lookup(req)
+		}))
+	}
+	require.NoError(t, SubscribeCheckout(wiring, client, CheckoutConfig{Prefix: "checkout", UserGetSubject: "users.get", Guard: NewCheckoutGuard(db, fakeCoverage{})}))
+	return h
+}
+
+func (h *checkoutHarness) customOf(t *testing.T, call checkoutProviderCall) map[string]any {
+	t.Helper()
+	custom, ok := call.body["custom"].(map[string]any)
+	require.True(t, ok)
+	return custom
+}
+
+func eligibleRecipient(usersrpc.AdminRequest) usersrpc.AdminReply {
+	return usersrpc.AdminReply{User: &usersrpc.AdminUserView{ID: 9, Username: "Recipient", Status: "free"}}
+}
+
 func TestCheckoutRPCGiftRecipientAndAttribution(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -195,32 +231,23 @@ func TestCheckoutRPCGiftRecipientAndAttribution(t *testing.T) {
 		{name: "obfuscated gift link", view: &usersrpc.AdminUserView{ID: 9, Username: "Recipient"}, note: "visit example[.]com", wantError: errGiftMessageLink.Error()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			db := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
-			t.Cleanup(func() { _ = db.Close() })
-			client, calls := checkoutProvider(t, db, 9, false)
-			nc := testnats.Connect(t)
-			wiring := bus.RPCWiring{NC: nc, Log: zap.NewNop()}
-			lookups := make(chan usersrpc.AdminRequest, 8)
+			var lookup func(usersrpc.AdminRequest) usersrpc.AdminReply
 			if !tc.unavailable {
-				require.NoError(t, bus.Serve(wiring, "users.get", func(_ context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
-					lookups <- req
-					return usersrpc.AdminReply{User: tc.view}
-				}))
+				lookup = func(usersrpc.AdminRequest) usersrpc.AdminReply { return usersrpc.AdminReply{User: tc.view} }
 			}
-			require.NoError(t, SubscribeCheckout(wiring, client, CheckoutConfig{Prefix: "checkout", UserGetSubject: "users.get", Guard: NewCheckoutGuard(db, fakeCoverage{})}))
-			reply := requestBasket(t, nc, transactionsrpc.BasketCreateRequest{UserID: "7", Username: " Buyer ", RecipientUsername: " @ReCiPiEnT ", IPAddress: "2001:db8::1", PackageType: "subscription", GiftMessage: tc.note})
+			h := newCheckoutHarness(t, 9, lookup)
+			reply := requestBasket(t, h.nc, transactionsrpc.BasketCreateRequest{UserID: "7", Username: " Buyer ", RecipientUsername: " @ReCiPiEnT ", IPAddress: "2001:db8::1", PackageType: "subscription", GiftMessage: tc.note})
 			require.Equal(t, tc.wantError, reply.Error)
 			if !tc.unavailable {
-				require.Len(t, lookups, 1)
-				require.Equal(t, "recipient", (<-lookups).Username)
+				require.Len(t, h.lookups, 1)
+				require.Equal(t, "recipient", (<-h.lookups).Username)
 			}
 			if tc.wantError != "" {
 				if !tc.unavailable {
 					require.Equal(t, domainrpc.CodeInvalid, reply.Code)
 				}
-				require.Empty(t, calls, "recipient refusal must not create a provider basket")
-				count, err := db.GiveawayUserLease.Query().Count(ctx)
+				require.Empty(t, h.calls, "recipient refusal must not create a provider basket")
+				count, err := h.db.GiveawayUserLease.Query().Count(t.Context())
 				require.NoError(t, err)
 				require.Zero(t, count, "recipient validation must precede acquiring a premium lease")
 				return
@@ -228,19 +255,92 @@ func TestCheckoutRPCGiftRecipientAndAttribution(t *testing.T) {
 			require.Equal(t, "Recipient", reply.RecipientLogin)
 			require.Equal(t, "basket", reply.Ident)
 			require.Equal(t, "https://checkout.example/basket", reply.CheckoutURL)
-			require.Len(t, calls, 2)
-			created, added := <-calls, <-calls
+			require.Len(t, h.calls, 2)
+			created, added := <-h.calls, <-h.calls
 			require.True(t, created.leaseHeld)
 			require.True(t, added.leaseHeld)
 			require.Equal(t, map[string]any{"user_id": "9", "username": "Recipient", "gifted_by": "7", "gifted_by_login": "Buyer", "gift_message": "Enjoy premium!"}, created.body["custom"])
 			require.NotContains(t, created.body, "ip_address")
 			require.Equal(t, "single", added.body["type"], "gifts must use a nonrecurring package")
-			lease, err := db.GiveawayUserLease.Get(ctx, "user:9")
+			lease, err := h.db.GiveawayUserLease.Get(t.Context(), "user:9")
 			require.NoError(t, err)
 			require.False(t, lease.LeaseUntil.After(time.Now()), "recipient's lease must be released")
-			count, err := db.GiveawayUserLease.Query().Count(ctx)
+			count, err := h.db.GiveawayUserLease.Query().Count(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, 1, count, "gift lease must belong to recipient, not buyer")
+		})
+	}
+}
+
+func TestCheckoutRPCGiftMessageIsSanitizedBeforeTheProvider(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		note string
+		want string
+	}{
+		{"trims surrounding space", "  hi there  ", "hi there"},
+		{"keeps newlines", "line1\nline2", "line1\nline2"},
+		{"turns tabs into spaces", "a\tb", "a b"},
+		{"strips control characters", "hi\x00\x07 there", "hi there"},
+		{"drops a blank note", "   ", ""},
+		{"caps a note by runes", strings.Repeat("é", giftMessageMaxRunes+120), strings.Repeat("é", giftMessageMaxRunes)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newCheckoutHarness(t, 9, eligibleRecipient)
+			reply := requestBasket(t, h.nc, transactionsrpc.BasketCreateRequest{UserID: "7", Username: "Buyer", RecipientUsername: "recipient", PackageType: "single", GiftMessage: tc.note})
+			require.Empty(t, reply.Error)
+			created := <-h.calls
+			custom := h.customOf(t, created)
+			if tc.want == "" {
+				require.NotContains(t, custom, "gift_message")
+				return
+			}
+			require.Equal(t, tc.want, custom["gift_message"])
+		})
+	}
+}
+
+func TestCheckoutRPCGiftMessageLinksAreRefusedAfterSanitizing(t *testing.T) {
+	for _, tc := range []struct {
+		note    string
+		blocked bool
+	}{
+		{"visit example.com now", true},
+		{"go to example . com", true},
+		{"hey\x00example[.]com", true},
+		{"ping me user (at) gmail dot com", true},
+		{"thanks so much, enjoy premium!", false},
+		{"see you at 3 p.m.", false},
+	} {
+		t.Run(tc.note, func(t *testing.T) {
+			h := newCheckoutHarness(t, 9, eligibleRecipient)
+			reply := requestBasket(t, h.nc, transactionsrpc.BasketCreateRequest{UserID: "7", Username: "Buyer", RecipientUsername: "recipient", PackageType: "single", GiftMessage: tc.note})
+			if tc.blocked {
+				require.Equal(t, errGiftMessageLink.Error(), reply.Error)
+				require.Empty(t, h.calls)
+				return
+			}
+			require.Empty(t, reply.Error)
+		})
+	}
+}
+
+func TestCheckoutRPCBuyerLoginIsTrimmedAndClamped(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		login string
+		want  string
+	}{
+		{"keeps a short login", "bagelfan", "bagelfan"},
+		{"trims padding", "  bagelfan  ", "bagelfan"},
+		{"keeps a login at the limit", strings.Repeat("a", twitchLoginMaxLen), strings.Repeat("a", twitchLoginMaxLen)},
+		{"truncates a login over the limit", strings.Repeat("a", 100), strings.Repeat("a", twitchLoginMaxLen)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newCheckoutHarness(t, 7, nil)
+			reply := requestBasket(t, h.nc, transactionsrpc.BasketCreateRequest{UserID: "7", Username: tc.login, PackageType: "single"})
+			require.Empty(t, reply.Error)
+			require.Equal(t, map[string]any{"user_id": "7", "username": tc.want}, h.customOf(t, <-h.calls))
 		})
 	}
 }

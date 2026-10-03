@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package rpc
+package rpc_test
 
 import (
 	"context"
@@ -11,90 +11,74 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
-	"ItsBagelBot/app/db/users/ent/enttest"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
-	"ItsBagelBot/internal/testdb"
-
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func setupAdminAuthTest(t *testing.T) (*adminAuthRPC, *ent.Client) {
-	t.Helper()
+const auditEntries = 30
 
-	client := testdb.Open(t, "adminauth", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-
-	return &adminAuthRPC{staffGate: staffGate{db: client}, log: zap.NewNop()}, client
+func (h harness) auditEntries(n int, base time.Time) {
+	for i := range n {
+		h.client.AdminAudit.Create().
+			SetActorID(uint64(1000 + i%2)).
+			SetActorLogin(fmt.Sprintf("actor-%02d", i)).
+			SetAction("set_status").
+			SetTarget(fmt.Sprintf("user-%02d", i)).
+			SetDetail(fmt.Sprintf("detail-%02d", i)).
+			SetOk(true).
+			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).
+			ExecX(context.Background())
+	}
 }
 
-type staffFixture struct {
-	id     uint64
-	role   adminuser.Role
-	active bool
+func targets(reply usersrpc.AuthReply) []string {
+	names := make([]string, 0, len(reply.Entries))
+	for _, e := range reply.Entries {
+		names = append(names, e.Target)
+	}
+	return names
 }
 
-func createStaff(t *testing.T, client *ent.Client, fixture staffFixture) *ent.AdminUser {
-	t.Helper()
-	login := fmt.Sprintf("staff-%d", fixture.id)
-	return client.AdminUser.Create().
-		SetID(fixture.id).
-		SetLogin(login).
-		SetDisplayName(login).
-		SetRole(fixture.role).
-		SetActive(fixture.active).
-		SaveX(context.Background())
-}
+func TestAuditListPagesNewestFirst(t *testing.T) {
+	h := newHarness(t)
+	h.auditEntries(auditEntries, time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
+	const pageSize = 10
 
-func createAuditEntry(t *testing.T, client *ent.Client, i int, createdAt time.Time) {
-	t.Helper()
+	for _, tc := range []struct {
+		page    int
+		first   int
+		hasMore bool
+	}{
+		{1, 29, true},
+		{2, 19, true},
+		{3, 9, false},
+	} {
+		t.Run(fmt.Sprintf("page %d", tc.page), func(t *testing.T) {
+			reply := h.audit(t, "list", usersrpc.AuthRequest{Page: tc.page, Limit: pageSize})
 
-	client.AdminAudit.Create().
-		SetActorID(uint64(1000 + i%2)).
-		SetActorLogin(fmt.Sprintf("actor-%02d", i)).
-		SetAction("set_status").
-		SetTarget(fmt.Sprintf("user-%02d", i)).
-		SetDetail(fmt.Sprintf("detail-%02d", i)).
-		SetOk(true).
-		SetCreatedAt(createdAt).
-		ExecX(context.Background())
-}
-
-func TestAuditListPagesResults(t *testing.T) {
-	a, client := setupAdminAuthTest(t)
-	ctx := context.Background()
-	base := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
-	for i := 0; i < 30; i++ {
-		createAuditEntry(t, client, i, base.Add(time.Duration(i)*time.Minute))
+			require.Empty(t, reply.Error)
+			want := make([]string, 0, pageSize)
+			for i := tc.first; i > tc.first-pageSize; i-- {
+				want = append(want, fmt.Sprintf("user-%02d", i))
+			}
+			assert.Equal(t, want, targets(reply))
+			assert.Equal(t, tc.page, reply.Page)
+			assert.Equal(t, pageSize, reply.PageSize)
+			assert.Equal(t, tc.hasMore, reply.HasMore)
+		})
 	}
 
-	first := a.auditList(ctx, usersrpc.AuthRequest{Page: 1, Limit: auditPageSize})
-	require.Empty(t, first.Error)
-	require.Len(t, first.Entries, auditPageSize)
-	assert.Equal(t, 1, first.Page)
-	assert.Equal(t, auditPageSize, first.PageSize)
-	assert.Equal(t, auditMaxPages, first.MaxPages)
-	assert.True(t, first.HasMore)
-	assert.Equal(t, "user-29", first.Entries[0].Target)
-	assert.Equal(t, fmt.Sprintf("user-%02d", 30-auditPageSize), first.Entries[auditPageSize-1].Target)
-
-	second := a.auditList(ctx, usersrpc.AuthRequest{Page: 2, Limit: auditPageSize})
-	require.Empty(t, second.Error)
-	require.Len(t, second.Entries, auditPageSize)
-	assert.False(t, second.HasMore)
-	assert.Equal(t, fmt.Sprintf("user-%02d", 30-auditPageSize-1), second.Entries[0].Target)
+	beyond := h.audit(t, "list", usersrpc.AuthRequest{Page: 10_000, Limit: pageSize})
+	assert.Equal(t, beyond.MaxPages, beyond.Page, "a page past the cap is clamped to the last allowed page")
 }
 
 func TestAuditListSearchesBeforePaging(t *testing.T) {
-	a, client := setupAdminAuthTest(t)
-	ctx := context.Background()
+	h := newHarness(t)
 	base := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
-	for i := 0; i < 30; i++ {
-		createAuditEntry(t, client, i, base.Add(time.Duration(i)*time.Minute))
-	}
-	client.AdminAudit.Create().
+	h.auditEntries(auditEntries, base)
+	h.client.AdminAudit.Create().
 		SetActorID(4242).
 		SetActorLogin("itsmavey").
 		SetAction("staff_upsert").
@@ -102,9 +86,10 @@ func TestAuditListSearchesBeforePaging(t *testing.T) {
 		SetDetail("Promoted through the audit search needle").
 		SetOk(true).
 		SetCreatedAt(base.Add(2 * time.Hour)).
-		ExecX(ctx)
+		ExecX(t.Context())
 
-	reply := a.auditList(ctx, usersrpc.AuthRequest{Page: 1, Limit: auditPageSize, Search: "NEEDLE"})
+	reply := h.audit(t, "list", usersrpc.AuthRequest{Page: 1, Limit: 10, Search: "NEEDLE"})
+
 	require.Empty(t, reply.Error)
 	require.Len(t, reply.Entries, 1)
 	assert.Equal(t, "itsmavey", reply.Entries[0].ActorLogin)
@@ -113,93 +98,81 @@ func TestAuditListSearchesBeforePaging(t *testing.T) {
 }
 
 func TestUpsertStaffAuthorizesStoredActorRole(t *testing.T) {
-	a, client := setupAdminAuthTest(t)
-	ctx := context.Background()
-	createStaff(t, client, staffFixture{id: 99, role: adminuser.RoleModerator, active: true})
-	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleAdmin, active: true})
-	createStaff(t, client, staffFixture{id: 101, role: adminuser.RoleOwner, active: true})
+	h := newHarness(t)
+	h.staff(
+		staffFixture{99, adminuser.RoleModerator, true},
+		staffFixture{100, adminuser.RoleAdmin, true},
+		staffFixture{101, adminuser.RoleOwner, true},
+		staffFixture{102, adminuser.RoleOwner, false},
+	)
 
-	moderatorSpoof := a.upsertStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "99",
-		ActorRole: "owner",
-		UserID:    "199",
-		Login:     "new-moderator",
-		Role:      "moderator",
-	})
-	assert.Equal(t, "forbidden: managers only", moderatorSpoof.Error)
-	_, err := client.AdminUser.Get(ctx, 199)
-	assert.True(t, ent.IsNotFound(err))
+	for _, tc := range []struct {
+		name      string
+		actor     string
+		claimed   string
+		target    string
+		role      string
+		wantError string
+		stored    bool
+	}{
+		{"a moderator cannot spoof owner", "99", "owner", "199", "moderator", "forbidden: managers only", false},
+		{"an admin cannot grant owner by claiming it", "100", "owner", "200", "owner", "forbidden: only an owner can grant owner", false},
+		{"an inactive owner is refused", "102", "owner", "201", "moderator", "forbidden: actor is not active staff", false},
+		{"an owner may grant owner whatever role it claims", "101", "moderator", "200", "owner", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.auth(t, "upsert", usersrpc.AuthRequest{
+				ActorID: tc.actor, ActorRole: tc.claimed, UserID: tc.target, Login: "new-staff-" + tc.target, Role: tc.role,
+			})
 
-	spoofed := a.upsertStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "100",
-		ActorRole: "owner",
-		UserID:    "200",
-		Login:     "new-owner",
-		Role:      "owner",
-	})
-	assert.Equal(t, "forbidden: only an owner can grant owner", spoofed.Error)
-	_, err = client.AdminUser.Get(ctx, 200)
-	assert.True(t, ent.IsNotFound(err))
-
-	legitimate := a.upsertStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "101",
-		ActorRole: "moderator",
-		UserID:    "200",
-		Login:     "new-owner",
-		Role:      "owner",
-	})
-	require.Empty(t, legitimate.Error)
-	created := client.AdminUser.GetX(ctx, 200)
-	assert.Equal(t, adminuser.RoleOwner, created.Role)
-	assert.Equal(t, uint64(101), created.AddedBy)
+			assert.Equal(t, tc.wantError, reply.Error)
+			stored, err := h.client.AdminUser.Get(t.Context(), mustID(t, tc.target))
+			if !tc.stored {
+				assert.True(t, ent.IsNotFound(err))
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, adminuser.RoleOwner, stored.Role)
+			assert.Equal(t, uint64(101), stored.AddedBy)
+		})
+	}
 }
 
 func TestRemoveStaffAuthorizesStoredActorRole(t *testing.T) {
-	a, client := setupAdminAuthTest(t)
-	ctx := context.Background()
-	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleAdmin, active: true})
-	createStaff(t, client, staffFixture{id: 101, role: adminuser.RoleOwner, active: true})
-	createStaff(t, client, staffFixture{id: 102, role: adminuser.RoleOwner, active: true})
+	h := newHarness(t)
+	h.staff(
+		staffFixture{100, adminuser.RoleAdmin, true},
+		staffFixture{101, adminuser.RoleOwner, true},
+		staffFixture{102, adminuser.RoleOwner, true},
+		staffFixture{103, adminuser.RoleOwner, false},
+		staffFixture{200, adminuser.RoleModerator, true},
+	)
 
-	spoofed := a.removeStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "100",
-		ActorRole: "owner",
-		UserID:    "102",
-	})
-	assert.Equal(t, "forbidden: cannot remove an owner", spoofed.Error)
-	assert.True(t, client.AdminUser.GetX(ctx, 102).Active)
+	for _, tc := range []struct {
+		name       string
+		actor      string
+		claimed    string
+		target     uint64
+		wantError  string
+		wantActive bool
+	}{
+		{"an admin cannot remove an owner by claiming owner", "100", "owner", 102, "forbidden: cannot remove an owner", true},
+		{"an inactive owner is refused", "103", "owner", 200, "forbidden: actor is not active staff", true},
+		{"an owner may remove another owner whatever role it claims", "101", "moderator", 102, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.auth(t, "remove", usersrpc.AuthRequest{ActorID: tc.actor, ActorRole: tc.claimed, UserID: fmt.Sprint(tc.target)})
 
-	legitimate := a.removeStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "101",
-		ActorRole: "moderator",
-		UserID:    "102",
-	})
-	require.Empty(t, legitimate.Error)
-	assert.False(t, client.AdminUser.GetX(ctx, 102).Active)
+			assert.Equal(t, tc.wantError, reply.Error)
+			assert.Equal(t, tc.wantActive, h.client.AdminUser.GetX(t.Context(), tc.target).Active)
+		})
+	}
 }
 
-func TestRosterMutationsRejectInactiveActor(t *testing.T) {
-	a, client := setupAdminAuthTest(t)
-	ctx := context.Background()
-	createStaff(t, client, staffFixture{id: 100, role: adminuser.RoleOwner, active: false})
-	createStaff(t, client, staffFixture{id: 200, role: adminuser.RoleModerator, active: true})
-
-	upsert := a.upsertStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "100",
-		ActorRole: "owner",
-		UserID:    "201",
-		Login:     "new-moderator",
-		Role:      "moderator",
-	})
-	assert.Equal(t, "forbidden: actor is not active staff", upsert.Error)
-	_, err := client.AdminUser.Get(ctx, 201)
-	assert.True(t, ent.IsNotFound(err))
-
-	remove := a.removeStaff(ctx, usersrpc.AuthRequest{
-		ActorID:   "100",
-		ActorRole: "owner",
-		UserID:    "200",
-	})
-	assert.Equal(t, "forbidden: actor is not active staff", remove.Error)
-	assert.True(t, client.AdminUser.GetX(ctx, 200).Active)
+func mustID(t *testing.T, raw string) uint64 {
+	t.Helper()
+	var id uint64
+	_, err := fmt.Sscan(raw, &id)
+	require.NoError(t, err)
+	return id
 }

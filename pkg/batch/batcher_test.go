@@ -36,6 +36,12 @@ func (r *recorder) flush(_ context.Context, items []int) error {
 	return nil
 }
 
+func (r *recorder) heal() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fail = false
+}
+
 func (r *recorder) attemptCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -53,18 +59,32 @@ func (r *recorder) all() []int {
 	return out
 }
 
-func TestCoalescesSameKey(t *testing.T) {
-	rec := &recorder{}
+func TestCloseFlushesPendingWritesOncePerKey(t *testing.T) {
+	type write struct {
+		key   string
+		value int
+	}
+	tests := []struct {
+		name   string
+		writes []write
+		want   []int
+	}{
+		{name: "keeps only the last write per key", writes: []write{{"key", 1}, {"key", 2}, {"key", 3}}, want: []int{3}},
+		{name: "flushes every pending key", writes: []write{{"a", 1}, {"b", 2}}, want: []int{1, 2}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &recorder{}
+			b := New[string, int](time.Hour, 100, rec.flush, zap.NewNop())
+			for _, w := range tc.writes {
+				b.Add(w.key, w.value)
+			}
 
-	b := New[string, int](time.Hour, 100, rec.flush, zap.NewNop())
+			b.Close(context.Background())
 
-	b.Add("key", 1)
-	b.Add("key", 2)
-	b.Add("key", 3)
-
-	b.Close(context.Background())
-
-	require.Equal(t, []int{3}, rec.all(), "only the last write per key may survive the window")
+			assert.ElementsMatch(t, tc.want, rec.all())
+		})
+	}
 }
 
 func TestFlushTriggers(t *testing.T) {
@@ -94,19 +114,6 @@ func TestFlushTriggers(t *testing.T) {
 	}
 }
 
-func TestCloseFlushesPending(t *testing.T) {
-	rec := &recorder{}
-
-	b := New[string, int](time.Hour, 100, rec.flush, zap.NewNop())
-
-	b.Add("a", 1)
-	b.Add("b", 2)
-
-	b.Close(context.Background())
-
-	assert.ElementsMatch(t, []int{1, 2}, rec.all())
-}
-
 func TestFailedFlushRetriesWithoutClobbering(t *testing.T) {
 	rec := &recorder{fail: true}
 
@@ -115,18 +122,10 @@ func TestFailedFlushRetriesWithoutClobbering(t *testing.T) {
 	b.Add("key", 1)
 
 	assert.Eventually(t, func() bool {
-		if rec.attemptCount() < 1 {
-			return false
-		}
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		_, pending := b.pending["key"]
-		return pending
+		return rec.attemptCount() >= 1 && b.Stats().Pending == 1
 	}, time.Second, 5*time.Millisecond, "failed item must return to pending")
 
-	rec.mu.Lock()
-	rec.fail = false
-	rec.mu.Unlock()
+	rec.heal()
 
 	b.Add("key", 2)
 
@@ -186,9 +185,7 @@ func TestStatsTrackWindows(t *testing.T) {
 		return b.Stats().Failures >= 1
 	}, time.Second, 5*time.Millisecond, "the failed window must count")
 
-	rec.mu.Lock()
-	rec.fail = false
-	rec.mu.Unlock()
+	rec.heal()
 
 	b.Close(context.Background())
 
@@ -239,9 +236,7 @@ func TestCloseRetriesFailedFinalDrain(t *testing.T) {
 		return b.pendingCount() == 1 && rec.attemptCount() == 1
 	}, time.Second, 5*time.Millisecond, "the failing window must be back in pending")
 
-	rec.mu.Lock()
-	rec.fail = false
-	rec.mu.Unlock()
+	rec.heal()
 
 	b.Close(context.Background())
 

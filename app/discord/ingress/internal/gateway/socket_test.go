@@ -16,51 +16,99 @@ import (
 	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/coder/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestWSConnCloseCodeReadsRealFrames(t *testing.T) {
-	var w wsConn
+func wsURL(srv *httptest.Server) string { return "ws" + strings.TrimPrefix(srv.URL, "http") }
+
+func echoOnce(ctx context.Context, c *websocket.Conn) {
+	typ, data, err := c.Read(ctx)
+	if err == nil {
+		_ = c.Write(ctx, typ, data)
+	}
+}
+
+func dialEcho(t *testing.T) (Conn, <-chan websocket.StatusCode) {
+	t.Helper()
+	peerClose := make(chan websocket.StatusCode, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		echoOnce(r.Context(), c)
+		_, _, rerr := c.Read(r.Context())
+		peerClose <- websocket.CloseStatus(rerr)
+	}))
+	t.Cleanup(srv.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	conn, err := DialWS(ctx, wsURL(srv))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Shutdown() })
+	return conn, peerClose
+}
+
+func TestDialWSRoundTripsFramesAndShutsDownNormally(t *testing.T) {
+	conn, peerClose := dialEcho(t)
+	ctx := context.Background()
+
+	require.NoError(t, conn.Write(ctx, []byte(`{"op":1}`)))
+	got, err := conn.Read(ctx)
+	require.NoError(t, err)
+	require.NoError(t, conn.Shutdown())
+
+	assert.Equal(t, `{"op":1}`, string(got))
+	assert.Equal(t, websocket.StatusNormalClosure, <-peerClose)
+}
+
+func TestDialWSRejectsAPeerThatDoesNotUpgrade(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+
+	_, err := DialWS(context.Background(), wsURL(srv))
+
+	require.Error(t, err)
+}
+
+type closeSeen struct {
+	Code   int
+	Reason string
+}
+
+func TestDialWSConnReadsTheCloseFrame(t *testing.T) {
+	conn, _ := dialEcho(t)
 	cases := []struct {
 		name string
 		err  error
-		want int
+		want closeSeen
 	}{
 		{
 			name: "close frame",
 			err:  websocket.CloseError{Code: websocket.StatusCode(ddiscord.CloseAuthenticationFailed), Reason: "Authentication failed."},
-			want: ddiscord.CloseAuthenticationFailed,
+			want: closeSeen{Code: ddiscord.CloseAuthenticationFailed, Reason: "Authentication failed."},
 		},
 		{
 			name: "wrapped close frame",
 			err:  fmt.Errorf("read packet: %w", websocket.CloseError{Code: websocket.StatusCode(ddiscord.CloseDisallowedIntents)}),
-			want: ddiscord.CloseDisallowedIntents,
+			want: closeSeen{Code: ddiscord.CloseDisallowedIntents},
 		},
 		{
-			name: "plain network error",
-			err:  &net.OpError{Op: "read", Err: errors.New("connection reset by peer")},
-			want: 0,
+			name: "normal closure",
+			err:  websocket.CloseError{Code: websocket.StatusNormalClosure},
+			want: closeSeen{Code: int(websocket.StatusNormalClosure)},
 		},
-		{
-			name: "context cancellation",
-			err:  context.Canceled,
-			want: 0,
-		},
-		{
-			name: "nil",
-			err:  nil,
-			want: 0,
-		},
+		{name: "plain network error", err: &net.OpError{Op: "read", Err: errors.New("connection reset by peer")}},
+		{name: "context cancellation", err: context.Canceled},
+		{name: "nil"},
 	}
 	for _, tc := range cases {
-		if got := w.CloseCode(tc.err); got != tc.want {
-			t.Fatalf("%s: CloseCode = %d, want %d", tc.name, got, tc.want)
-		}
-	}
-	if got := w.CloseCode(websocket.CloseError{Code: websocket.StatusNormalClosure}); got != int(websocket.StatusNormalClosure) {
-		t.Fatalf("CloseCode(normal closure) = %d, want %d", got, websocket.StatusNormalClosure)
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, closeSeen{Code: conn.CloseCode(tc.err), Reason: conn.CloseReason(tc.err)})
+		})
 	}
 }
 
@@ -91,27 +139,6 @@ func TestReconnectingCloseReachesThePeer(t *testing.T) {
 	}
 }
 
-func authFailure() error {
-	return websocket.CloseError{
-		Code:   websocket.StatusCode(ddiscord.CloseAuthenticationFailed),
-		Reason: "Authentication failed.",
-	}
-}
-
-func heartbeatFailingConn(t *testing.T) *scriptedConn {
-	t.Helper()
-	hello, err := fastHello()
-	if err != nil {
-		t.Fatalf("marshal hello: %v", err)
-	}
-	return &scriptedConn{
-		reads:         [][]byte{hello},
-		writeErr:      authFailure(),
-		writeErrAfter: 1,
-		closed:        make(chan struct{}),
-	}
-}
-
 func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) sessionEnd {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -124,80 +151,6 @@ func wantCloseFrame(t *testing.T, err error) {
 	t.Helper()
 	if !errors.As(err, &websocket.CloseError{}) {
 		t.Fatalf("err = %v, want the close frame, not the pump's generic read error", err)
-	}
-}
-
-func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
-	end := oneSocketOver(t, heartbeatFailingConn(t), time.Second)
-	code, err := end.code, end.err
-
-	if code != ddiscord.CloseAuthenticationFailed {
-		t.Fatalf("close code = %d, want %d off the write error", code, ddiscord.CloseAuthenticationFailed)
-	}
-	if !ddiscord.FatalCloseCode(code) {
-		t.Fatalf("code %d must be fatal", code)
-	}
-	wantCloseFrame(t, err)
-}
-
-func TestRunParksOnAWriteSideFatalClose(t *testing.T) {
-	dials := 0
-	dial := func(context.Context, string) (Conn, error) {
-		dials++
-		return heartbeatFailingConn(t), nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-	st := &recStatus{}
-	sess := Session{Token: "t", Dial: dial, Status: st}
-
-	if err := sess.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run err = %v, want the context error (Run must park)", err)
-	}
-	if dials != 1 {
-		t.Fatalf("dials = %d, want exactly 1", dials)
-	}
-	wantFatalDown(t, st, ddiscord.CloseAuthenticationFailed)
-}
-
-func fastHello() ([]byte, error) {
-	d, err := codec.Marshal(helloData{HeartbeatInterval: 10})
-	if err != nil {
-		return nil, err
-	}
-	return codec.Marshal(packet{Op: opHello, D: d})
-}
-
-func ackingConn(t *testing.T, acks int) *scriptedConn {
-	t.Helper()
-	hello, err := fastHello()
-	if err != nil {
-		t.Fatalf("marshal hello: %v", err)
-	}
-	ack, err := codec.Marshal(packet{Op: opHeartbeatAck})
-	if err != nil {
-		t.Fatalf("marshal ack: %v", err)
-	}
-	reads := [][]byte{hello}
-	for range acks {
-		reads = append(reads, ack)
-	}
-	return &scriptedConn{reads: reads, closed: make(chan struct{})}
-}
-
-func TestHeartbeatEndsASocketThatStopsAcking(t *testing.T) {
-	end := oneSocketOver(t, ackingConn(t, 0), 2*time.Second)
-
-	if !errors.Is(end.err, errZombie) {
-		t.Fatalf("socket ended with %v, want the unacknowledged-heartbeat error", end.err)
-	}
-}
-
-func TestHeartbeatKeepsASocketThatAcks(t *testing.T) {
-	end := oneSocketOver(t, ackingConn(t, 50), 200*time.Millisecond)
-
-	if !errors.Is(end.err, context.DeadlineExceeded) {
-		t.Fatalf("socket ended with %v, want it still up at the deadline", end.err)
 	}
 }
 

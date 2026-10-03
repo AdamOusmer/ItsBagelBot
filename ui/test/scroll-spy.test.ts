@@ -3,15 +3,9 @@
 
 import { afterEach, expect, test } from 'bun:test';
 import { mountScrollSpy, mountSectionNav } from '../lib/scroll-spy';
+import { snapshotGlobals } from './dom-fakes';
 
-const originals = new Map(['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame']
-  .map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
-afterEach(() => {
-  for (const [key, descriptor] of originals) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  }
-});
+afterEach(snapshotGlobals(['window', 'document', 'ResizeObserver', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame']));
 
 function fixture() {
   const events = Object.assign(new EventTarget(), {
@@ -104,7 +98,7 @@ test('the short final section wins at the document bottom, including fractional 
   const f = fixture();
   const dispose = mountScrollSpy(f.sections, f.links);
   f.entries[1].top = 100;
-  f.entries[2].top = 700; // Never reaches the 350px activation line.
+  f.entries[2].top = 700; // stays below the 350px activation line
   f.scroller.scrollTop = 1999.5;
   f.dispatch();
   expect([...f.active]).toEqual(['last']);
@@ -149,7 +143,7 @@ test('the active item scrolls into view within a height-limited menu', () => {
   } as HTMLElement;
   const dispose = mountScrollSpy(f.sections, f.links, { scrollContainer });
   expect(scrollContainer.scrollTop).toBe(50);
-  scrollContainer.scrollTop = 0; // User browses other menu links.
+  scrollContainer.scrollTop = 0;
   f.dispatch();
   expect(scrollContainer.scrollTop).toBe(0);
   dispose();
@@ -166,7 +160,7 @@ test('a short sidebar containing the menu can scroll the active item without scr
   expect(sidebar.scrollTop).toBe(50);
   expect(f.scroller.scrollTop).toBe(100);
   sidebar.scrollTop = 0;
-  f.observers[0].callback(); // Sidebar/content reflow with the same section active.
+  f.observers[0].callback();
   f.flush();
   expect(sidebar.scrollTop).toBe(50);
   dispose();
@@ -179,7 +173,7 @@ test('section menus use anchor offsets and rebind after filtering or link replac
     querySelectorAll: () => renderedLinks,
     scrollHeight: 200, clientHeight: 200,
   } as unknown as HTMLElement;
-  f.entries[1].top = 250; // Visible, but below the sticky chrome.
+  f.entries[1].top = 250; // visible but below the sticky chrome
   const dispose = mountSectionNav(root);
   expect([...f.active]).toEqual(['first']);
   f.entries[1].top = 160;

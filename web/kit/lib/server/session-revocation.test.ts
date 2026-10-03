@@ -8,25 +8,19 @@ import { registerServerConfig } from './config';
 
 afterEach(() => setRevocationReadForTests(undefined));
 
+type Claims = Parameters<typeof isSessionRevoked>[0];
+
 describe('isSessionRevoked', () => {
-  test('not revoked when neither key exists', async () => {
-    setRevocationReadForTests(async () => [null, null]);
-    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(false);
-  });
-
-  test('revoked when the sid key is set', async () => {
-    setRevocationReadForTests(async () => ['1', null]);
-    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(true);
-  });
-
-  test('revoked by the revoke-all epoch when iat predates it', async () => {
-    setRevocationReadForTests(async () => [null, '2000']);
-    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(true);
-  });
-
-  test('not revoked when iat is newer than the revoke-all epoch', async () => {
-    setRevocationReadForTests(async () => [null, '2000']);
-    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 3000 })).toBe(false);
+  test.each([
+    ['not revoked when neither key exists', { sid: 's1', userId: 'u1', iat: 1000 }, [null, null], false],
+    ['revoked when the sid key is set', { sid: 's1', userId: 'u1', iat: 1000 }, ['1', null], true],
+    ['revoked by the revoke-all epoch when iat predates it', { sid: 's1', userId: 'u1', iat: 1000 }, [null, '2000'], true],
+    ['not revoked when iat is newer than the revoke-all epoch', { sid: 's1', userId: 'u1', iat: 3000 }, [null, '2000'], false],
+    ['a sid-less legacy session is still revoked by the user epoch', { userId: '42', iat: 1_000 }, [null, '2000'], true],
+    ['a sid-less legacy session issued after the epoch survives', { userId: '42', iat: 2_000 }, [null, '1000'], false]
+  ] as [string, Claims, (string | null)[], boolean][])('%s', async (_name, claims, read, revoked) => {
+    setRevocationReadForTests(async () => read as [string | null, string | null]);
+    expect(await isSessionRevoked(claims)).toBe(revoked);
   });
 
   test('a missing sid still consults the user epoch, with no sid key', async () => {
@@ -54,18 +48,5 @@ describe('revokeSession / revokeAllForUser', () => {
     await expect(revokeSession('s1', 60)).resolves.toBeUndefined();
     await expect(revokeAllForUser('u1', 1000, 60)).resolves.toBeUndefined();
     resetMasterClientForTests();
-  });
-
-  test('a sid-less legacy session is still revoked by the user epoch', async () => {
-    setRevocationReadForTests(async ({ sid }) => {
-      expect(sid).toBeUndefined();
-      return [null, String(2_000)];
-    });
-    expect(await isSessionRevoked({ userId: '42', iat: 1_000 })).toBe(true);
-  });
-
-  test('a sid-less legacy session issued after the epoch survives', async () => {
-    setRevocationReadForTests(async () => [null, String(1_000)]);
-    expect(await isSessionRevoked({ userId: '42', iat: 2_000 })).toBe(false);
   });
 });

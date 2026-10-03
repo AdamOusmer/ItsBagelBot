@@ -1,131 +1,138 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package activity
+package activity_test
 
 import (
 	"context"
-	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/valkeytest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 )
 
-func TestTruncateBytes(t *testing.T) {
-	assert.Equal(t, "short", truncateBytes("short", 40))
-	assert.Equal(t, "", truncateBytes("", 40))
-	assert.Equal(t, "abc", truncateBytes("abcdef", 3))
+type recordingSink struct{ channels []string }
 
-	s := "ab" + "❤"
-	got := truncateBytes(s, 4)
-	assert.True(t, len(got) <= 4)
-	assert.True(t, strings_ValidUTF8(got))
+func (s *recordingSink) Emit(_ context.Context, channelID string, _ activity.Row) {
+	s.channels = append(s.channels, channelID)
 }
 
-func strings_ValidUTF8(s string) bool {
-	return strings.ToValidUTF8(s, "") == s
+type fixture struct {
+	client    valkey.Client
+	store     *activity.Store
+	channelID string
 }
 
-func TestEncodeDecodeRowRoundTrip(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Millisecond)
-	row := Row{Kind: KindCommand, Text: "!bagel answered @novaburst", Meta: "41ms", At: now, DurationMS: 41}
-
-	data, err := encodeRow(row)
-	require.NoError(t, err)
-
-	got, ok := decodeRow(string(data))
-	require.True(t, ok)
-	assert.Equal(t, row.Kind, got.Kind)
-	assert.Equal(t, row.Text, got.Text)
-	assert.Equal(t, row.Meta, got.Meta)
-	assert.Equal(t, row.DurationMS, got.DurationMS)
-	assert.True(t, row.At.Equal(got.At))
-}
-
-func TestEncodeRowTruncatesOversizeFields(t *testing.T) {
-	row := Row{Kind: KindEvent, Text: strings.Repeat("x", 200), Meta: strings.Repeat("y", 200), At: time.Now()}
-	data, err := encodeRow(row)
-	require.NoError(t, err)
-	got, ok := decodeRow(string(data))
-	require.True(t, ok)
-	assert.LessOrEqual(t, len(got.Text), maxTextBytes)
-	assert.LessOrEqual(t, len(got.Meta), maxMetaBytes)
-}
-
-func TestDecodeRowRejectsGarbage(t *testing.T) {
-	_, ok := decodeRow("not json")
-	assert.False(t, ok)
-}
-
-func TestMedian(t *testing.T) {
-	assert.Nil(t, median(nil))
-	assert.Nil(t, median([]string{"not-a-number"}))
-
-	m := median([]string{"10", "30", "20"})
-	require.NotNil(t, m)
-	assert.Equal(t, 20, *m)
-
-	m = median([]string{"10", "junk", "30"})
-	require.NotNil(t, m)
-	assert.Equal(t, 30, *m)
-}
-
-func TestKeyBuilders(t *testing.T) {
-	assert.Equal(t, "activity:feed:123", feedKey("123"))
-	assert.Equal(t, "activity:latency:123", latencyKey("123"))
-	assert.Equal(t, "activity:dropped:123", droppedKey("123"))
-}
-
-func newTestClient(t *testing.T) valkey.Client {
+func newFixture(t *testing.T) fixture {
 	t.Helper()
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR is not set")
-	}
-	c, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{addr},
-		Password:    os.Getenv("VALKEY_TEST_PASSWORD"),
-	})
+	client := valkeytest.Client(t)
+	return fixture{client: client, store: activity.NewStore(client), channelID: "activity-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)}
+}
+
+func (f fixture) push(t *testing.T, key string, elements ...string) {
+	t.Helper()
+	require.NoError(t, f.client.Do(t.Context(), f.client.B().Lpush().Key(key).Element(elements...).Build()).Error())
+}
+
+func (f fixture) read(t *testing.T) activity.Feed {
+	t.Helper()
+	feed, err := f.store.Read(t.Context(), f.channelID)
 	require.NoError(t, err)
-	t.Cleanup(c.Close)
-	return c
+	return feed
 }
 
 func TestStoreEmitAndRead(t *testing.T) {
-	client := newTestClient(t)
-	ctx := context.Background()
-	s := NewStore(client)
-	channelID := "activity-store-test-" + time.Now().Format("150405.000000000")
+	f := newFixture(t)
+	ctx := t.Context()
 
-	s.Emit(ctx, channelID, Row{Kind: KindAutomod, Text: "ban issued", At: time.Now()})
-	s.Emit(ctx, channelID, Row{Kind: KindCommand, Text: "!bagel answered @novaburst", Meta: "41ms", At: time.Now(), DurationMS: 41})
-	s.Emit(ctx, channelID, Row{Kind: KindCommand, Text: "!bagel answered @kip", Meta: "21ms", At: time.Now(), DurationMS: 21})
+	f.store.Emit(ctx, f.channelID, activity.Row{Kind: activity.KindAutomod, Text: "ban issued", At: time.Now()})
+	f.store.Emit(ctx, f.channelID, activity.Row{Kind: activity.KindCommand, Text: "!bagel answered @novaburst", Meta: "41ms", At: time.Now(), DurationMS: 41})
+	f.store.Emit(ctx, f.channelID, activity.Row{Kind: activity.KindCommand, Text: "!bagel answered @kip", Meta: "21ms", At: time.Now(), DurationMS: 21})
 
-	feed, err := s.Read(ctx, channelID)
-	require.NoError(t, err)
+	feed := f.read(t)
 	require.Len(t, feed.Rows, 3)
 	assert.Equal(t, "!bagel answered @kip", feed.Rows[0].Text)
 	require.NotNil(t, feed.MedianMS)
 	assert.Equal(t, 41, *feed.MedianMS)
 	assert.Zero(t, feed.Dropped)
-
-	ttl, err := client.Do(ctx, client.B().Ttl().Key(feedKey(channelID)).Build()).AsInt64()
+	ttl, err := f.client.Do(ctx, f.client.B().Ttl().Key("activity:feed:"+f.channelID).Build()).AsInt64()
 	require.NoError(t, err)
 	assert.Positive(t, ttl)
 }
 
+func TestStoreEmitTruncatesFieldsOnRuneBoundaries(t *testing.T) {
+	f := newFixture(t)
+
+	f.store.Emit(t.Context(), f.channelID, activity.Row{Kind: activity.KindEvent, Text: strings.Repeat("x", 200), Meta: "ab" + strings.Repeat("❤", 20), At: time.Now()})
+
+	row := f.read(t).Rows[0]
+	assert.Equal(t, strings.Repeat("x", 40), row.Text)
+	assert.LessOrEqual(t, len(row.Meta), 14)
+	assert.True(t, utf8.ValidString(row.Meta))
+}
+
+func TestStoreReadSkipsUndecodableRowsAndLatencies(t *testing.T) {
+	cases := []struct {
+		name      string
+		feed      []string
+		latencies []string
+		dropped   string
+		wantRows  int
+		wantMed   *int
+		wantDrop  uint64
+	}{
+		{name: "garbage rows are skipped", feed: []string{"not json", `{"k":"event","x":"ok","m":"","a":"2026-01-02T03:04:05Z","d":0}`, `{"k":"event","a":"not a time"}`}, wantRows: 1},
+		{name: "junk latencies are ignored", feed: []string{`{"k":"event","a":"2026-01-02T03:04:05Z"}`}, latencies: []string{"10", "junk", "30"}, wantRows: 1, wantMed: new(30)},
+		{name: "only junk latencies yield no median", feed: []string{`{"k":"event","a":"2026-01-02T03:04:05Z"}`}, latencies: []string{"junk"}, wantRows: 1},
+		{name: "dropped counter is read back", feed: []string{`{"k":"event","a":"2026-01-02T03:04:05Z"}`}, dropped: "7", wantRows: 1, wantDrop: 7},
+		{name: "unparseable dropped counter reads as zero", feed: []string{`{"k":"event","a":"2026-01-02T03:04:05Z"}`}, dropped: "many", wantRows: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.push(t, "activity:feed:"+f.channelID, tc.feed...)
+			if len(tc.latencies) > 0 {
+				f.push(t, "activity:latency:"+f.channelID, tc.latencies...)
+			}
+			if tc.dropped != "" {
+				require.NoError(t, f.client.Do(t.Context(), f.client.B().Set().Key("activity:dropped:"+f.channelID).Value(tc.dropped).Build()).Error())
+			}
+
+			feed := f.read(t)
+
+			assert.Len(t, feed.Rows, tc.wantRows)
+			assert.Equal(t, tc.wantMed, feed.MedianMS)
+			assert.Equal(t, tc.wantDrop, feed.Dropped)
+		})
+	}
+}
+
 func TestStoreEmitDropsOnCanceledContext(t *testing.T) {
-	client := newTestClient(t)
-	s := NewStore(client)
-	channelID := "activity-store-drop-test-" + time.Now().Format("150405.000000000")
-
-	canceled, cancel := context.WithCancel(context.Background())
+	f := newFixture(t)
+	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	s.Emit(canceled, channelID, Row{Kind: KindEvent, Text: "x", At: time.Now()})
 
-	assert.Equal(t, uint64(1), s.Dropped())
+	f.store.Emit(canceled, f.channelID, activity.Row{Kind: activity.KindEvent, Text: "x", At: time.Now()})
+
+	assert.Equal(t, uint64(1), f.store.Dropped())
+}
+
+func TestSinkRoutesEmitAndFallsBackToNoop(t *testing.T) {
+	sink := &recordingSink{}
+	activity.SetSink(sink)
+	t.Cleanup(func() { activity.SetSink(nil) })
+
+	activity.Emit(t.Context(), "chan-1", activity.Row{Kind: activity.KindTimer})
+	activity.SetSink(nil)
+	activity.Emit(t.Context(), "chan-2", activity.Row{Kind: activity.KindTimer})
+
+	assert.Equal(t, []string{"chan-1"}, sink.channels)
 }

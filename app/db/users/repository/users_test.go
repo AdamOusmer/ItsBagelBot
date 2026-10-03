@@ -4,13 +4,13 @@
 package repository_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/tokens"
@@ -20,7 +20,6 @@ import (
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/crypto"
 
 	"ItsBagelBot/internal/testdb"
 
@@ -29,26 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/zap"
-
-	"github.com/tink-crypto/tink-go/v2/aead"
-	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
-	"github.com/tink-crypto/tink-go/v2/keyset"
 )
-
-func newPacker(t *testing.T) *crypto.Crypto {
-	t.Helper()
-
-	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
-	require.NoError(t, err)
-
-	buf := new(bytes.Buffer)
-	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf)))
-
-	packer, err := crypto.NewCrypto(buf.Bytes())
-	require.NoError(t, err)
-
-	return packer
-}
 
 func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 	t.Helper()
@@ -57,7 +37,7 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 
 	pub := bustest.NewPublisher()
 
-	repo := repository.NewUsers(client, newPacker(t), pub, nil, zap.NewNop())
+	repo := repository.NewUsers(client, dbtest.NewPacker(t), pub, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
 	return client, pub, repo
@@ -82,20 +62,12 @@ func TestTokenRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, access)
 	assert.Equal(t, refresh, gotRefresh)
-}
 
-func TestTokenUpsertReplacesExisting(t *testing.T) {
-	_, _, repo := setup(t)
-	ctx := context.Background()
-
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
-
-	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("old"), nil, nil))
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("new"), nil, nil))
 
-	access, _, _, err := repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
+	access, _, _, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
 	require.NoError(t, err)
-	assert.Equal(t, []byte("new"), access)
+	assert.Equal(t, []byte("new"), access, "an upsert replaces the stored token")
 }
 
 func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
@@ -554,40 +526,34 @@ func TestDeleteDelegationsByOwnerReturnsAllConsumedDelegateIDs(t *testing.T) {
 	assert.Empty(t, grants)
 }
 
-func TestIDByUsernameResolves(t *testing.T) {
+func TestIDByUsernameResolvesLogins(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-
 	require.NoError(t, repo.Register(ctx, 4001, "streamer", "streamer", "streamer@test.com"))
 
-	id, err := repo.IDByUsername(ctx, "streamer")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(4001), id)
-}
+	for _, tc := range []struct {
+		name  string
+		login string
+	}{
+		{"resolves a known login", "streamer"},
+		{"TestIDByUsernameNormalizesInput", "  STREAMER "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id, err := repo.IDByUsername(ctx, tc.login)
 
-func TestIDByUsernameNormalizesInput(t *testing.T) {
-	_, _, repo := setup(t)
-	ctx := context.Background()
+			require.NoError(t, err)
+			assert.Equal(t, uint64(4001), id)
+		})
+	}
 
-	require.NoError(t, repo.Register(ctx, 4002, "streamer", "streamer", "streamer2@test.com"))
+	t.Run("TestIDByUsernameUnknownAndInvalid", func(t *testing.T) {
+		for _, login := range []string{"nobody", "not a login!", ""} {
+			id, err := repo.IDByUsername(ctx, login)
 
-	id, err := repo.IDByUsername(ctx, "  STREAMER ")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(4002), id)
-}
-
-func TestIDByUsernameUnknownAndInvalid(t *testing.T) {
-	_, _, repo := setup(t)
-	ctx := context.Background()
-
-	_, err := repo.IDByUsername(ctx, "nobody")
-	assert.Error(t, err, "an unresolvable login must not fall back to some other channel")
-
-	_, err = repo.IDByUsername(ctx, "not a login!")
-	assert.Error(t, err)
-
-	_, err = repo.IDByUsername(ctx, "")
-	assert.Error(t, err)
+			assert.Error(t, err, "an unresolvable login must not fall back to some other channel: %q", login)
+			assert.Zero(t, id, login)
+		}
+	})
 }
 
 func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
@@ -643,4 +609,39 @@ func TestApplyBillingPaymentFailedLifecycle(t *testing.T) {
 		assert.Equal(t, step.wantFailed, view.SubscriptionPaymentFailed, step.name)
 		assert.Equal(t, step.wantStatus, view.Status, step.name)
 	}
+}
+
+func TestUserEventsIdentifyAccountIncarnation(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 1001, "viewer", "Viewer", "viewer@example.com"))
+	first := client.User.Query().Where(user.IDEQ(1001)).OnlyX(ctx)
+	var changed data.UserChangedDTO
+	require.NoError(t, codec.Unmarshal(pub.On(data.SubjectUserChanged)[0].Payload, &changed))
+	require.Equal(t, first.CreatedAt.UnixMicro(), changed.AccountCreatedAt)
+	require.Positive(t, changed.AccountCreatedAt)
+
+	// Reprojection and ordinary preferences keep the same incarnation.
+	require.NoError(t, repo.SetCommandsPageHidden(ctx, 1001, true))
+	require.NoError(t, repo.Reproject(ctx))
+	for _, msg := range pub.On(data.SubjectUserChanged) {
+		var dto data.UserChangedDTO
+		require.NoError(t, codec.Unmarshal(msg.Payload, &dto))
+		require.Equal(t, changed.AccountCreatedAt, dto.AccountCreatedAt)
+	}
+
+	require.NoError(t, repo.Delete(ctx, 1001))
+	var deleted data.UserDeletedDTO
+	require.NoError(t, codec.Unmarshal(pub.On(data.SubjectUserDeleted)[0].Payload, &deleted))
+	require.Equal(t, changed.AccountCreatedAt, deleted.AccountCreatedAt)
+
+	// Use an explicit later timestamp rather than depending on clock speed
+	// or the database's timestamp precision during recreation.
+	client.User.Create().SetID(1001).SetUsername("viewer").SetEmail("viewer@example.com").
+		SetCreatedAt(first.CreatedAt.Add(time.Second)).SaveX(ctx)
+	require.NoError(t, repo.Register(ctx, 1001, "viewer", "Viewer", "viewer@example.com"))
+	msgs := pub.On(data.SubjectUserChanged)
+	var recreated data.UserChangedDTO
+	require.NoError(t, codec.Unmarshal(msgs[len(msgs)-1].Payload, &recreated))
+	require.Greater(t, recreated.AccountCreatedAt, deleted.AccountCreatedAt)
 }

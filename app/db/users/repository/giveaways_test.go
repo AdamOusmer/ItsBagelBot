@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
@@ -224,7 +225,7 @@ func (p *rejectInvalidateStatus) Close() error                    { return p.inn
 func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.T) {
 	client := testdb.Open(t, "grantinvalidate", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	inner := bustest.NewPublisher()
-	repo := repository.NewUsers(client, newPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
+	repo := repository.NewUsers(client, dbtest.NewPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	repo.SetInvalidationPrefix("bagel.cache.invalidate")
 

@@ -13,87 +13,63 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestValkeyChattersStoreAndSnapshotRoundTrip(t *testing.T) {
-	f := newChattersFake(t)
-	store := NewValkeyChatters(f.client, zap.NewNop())
-	ctx := context.Background()
-
-	entries, ok, err := store.Snapshot(ctx, 123)
-	require.NoError(t, err)
-	assert.False(t, ok, "nothing stored yet")
-	assert.Nil(t, entries)
-
-	want := []chattersSnapshotEntry{{ID: 1, Login: "sam", Name: "sam"}, {ID: 2, Login: "alex", Name: "alex"}}
-	store.Store(ctx, 123, want)
-
-	got, ok, err := store.Snapshot(ctx, 123)
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, want, got)
-}
-
-func TestValkeyChattersStoreCapsTheStoredList(t *testing.T) {
-	f := newChattersFake(t)
-	store := NewValkeyChatters(f.client, zap.NewNop())
-	ctx := context.Background()
-
-	entries := make([]chattersSnapshotEntry, chattersSnapshotCap+50)
+func numberedViewers(n int) []chattersSnapshotEntry {
+	entries := make([]chattersSnapshotEntry, n)
 	for i := range entries {
 		entries[i] = chattersSnapshotEntry{ID: uint64(i + 1), Login: "v", Name: "v"}
 	}
-	store.Store(ctx, 123, entries)
-
-	got, ok, err := store.Snapshot(ctx, 123)
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Len(t, got, chattersSnapshotCap)
+	return entries
 }
 
-func TestValkeyChattersStoreExpiresOnTheTickSchedule(t *testing.T) {
-	f := newChattersFake(t)
-	store := NewValkeyChatters(f.client, zap.NewNop())
-	ctx := context.Background()
-	store.Store(ctx, 123, []chattersSnapshotEntry{{ID: 1, Login: "sam", Name: "sam"}})
+func TestValkeyChattersSnapshot(t *testing.T) {
+	pair := []chattersSnapshotEntry{{ID: 1, Login: "sam", Name: "sam"}, {ID: 2, Login: "alex", Name: "alex"}}
+	cases := []struct {
+		name      string
+		stored    []chattersSnapshotEntry
+		raw       string
+		advance   time.Duration
+		breakGets bool
+		want      []chattersSnapshotEntry
+		wantErr   bool
+	}{
+		{name: "nothing stored is a clean miss"},
+		{name: "a stored snapshot round trips", stored: pair, want: pair},
+		{
+			name: "the stored list is capped", stored: numberedViewers(chattersSnapshotCap + 50),
+			want: numberedViewers(chattersSnapshotCap),
+		},
+		{name: "a snapshot is still served inside the TTL window", stored: pair, advance: chattersSnapshotTTL - time.Second, want: pair},
+		{name: "a snapshot expires past the TTL window", stored: pair, advance: chattersSnapshotTTL + time.Second},
+		{name: "a transport failure is distinguishable from a miss", breakGets: true, wantErr: true},
+		{name: "an undecodable value reports an error", raw: "not json", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeValkey(t)
+			store := NewValkeyChatters(f.client, zap.NewNop())
+			ctx := context.Background()
+			if tc.stored != nil {
+				store.Store(ctx, 123, tc.stored)
+			}
+			if tc.raw != "" {
+				require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key(chattersSnapshotKey(123)).Value(tc.raw).Build()).Error())
+			}
+			if tc.breakGets {
+				f.breakReads()
+			}
+			f.advance(tc.advance)
 
-	f.advance(chattersSnapshotTTL - time.Second)
-	_, ok, err := store.Snapshot(ctx, 123)
-	require.NoError(t, err)
-	assert.True(t, ok, "still inside the TTL window")
+			got, ok, err := store.Snapshot(ctx, 123)
 
-	f.advance(2 * time.Second)
-	_, ok, err = store.Snapshot(ctx, 123)
-	require.NoError(t, err)
-	assert.False(t, ok, "past the TTL window")
-}
-
-func TestValkeyChattersSnapshotDistinguishesACleanMissFromADownRead(t *testing.T) {
-	f := newChattersFake(t)
-	store := NewValkeyChatters(f.client, zap.NewNop())
-	ctx := context.Background()
-
-	_, ok, err := store.Snapshot(ctx, 123)
-	assert.False(t, ok)
-	assert.NoError(t, err, "an absent key is a clean miss, not a failure")
-
-	f.breakGET()
-	_, ok, err = store.Snapshot(ctx, 123)
-	assert.False(t, ok)
-	assert.Error(t, err, "a transport failure must be distinguishable from a miss")
-}
-
-func TestValkeyChattersSnapshotReportsADecodeFailure(t *testing.T) {
-	f := newChattersFake(t)
-	store := NewValkeyChatters(f.client, zap.NewNop())
-	ctx := context.Background()
-	require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key(chattersSnapshotKey(123)).Value("not json").Build()).Error())
-
-	_, ok, err := store.Snapshot(ctx, 123)
-	assert.False(t, ok)
-	assert.Error(t, err)
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, tc.want != nil, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestValkeyChattersFetchLockContentionAndRelease(t *testing.T) {
-	f := newChattersFake(t)
+	f := newFakeValkey(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())
 	ctx := context.Background()
 

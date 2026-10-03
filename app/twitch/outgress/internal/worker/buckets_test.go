@@ -6,119 +6,41 @@ package worker
 import (
 	"context"
 	"errors"
-	"slices"
 	"testing"
 	"time"
 
-	"ItsBagelBot/pkg/ratelimit"
-
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/assert"
 )
 
-type scriptedLimiter struct {
-	denied map[string]bool
-	errs   map[string]error
-	calls  []string
-}
-
-type guardOnceLimiter struct {
-	calls int
-	wait  time.Duration
-}
-
-func (g *guardOnceLimiter) Allow(context.Context, ratelimit.Request) (bool, error) {
-	g.calls++
-	return g.calls > 1, nil
-}
-
-func (g *guardOnceLimiter) AllowOrdered(context.Context, ratelimit.Request, ratelimit.Request) (uint8, error) {
-	return 0, nil
-}
-
-func (g *guardOnceLimiter) GuardRetryAfter() time.Duration { return g.wait }
-
-func scriptedKey(req ratelimit.Request) string {
-	if req.Key != "" {
-		return req.Key
-	}
-	return req.DynamicPrefix + req.Bucket.Value
-}
-
-func (s *scriptedLimiter) Allow(_ context.Context, req ratelimit.Request) (bool, error) {
-	key := scriptedKey(req)
-	s.calls = append(s.calls, key)
-	if err := s.errs[key]; err != nil {
-		return false, err
-	}
-	return !s.denied[key], nil
-}
-
-func (s *scriptedLimiter) AllowOrdered(context.Context, ratelimit.Request, ratelimit.Request) (uint8, error) {
-	return 0, nil
-}
-
-func systemLaneWorker(limiter ratelimit.Manager) *Worker {
-	return New(Config{Log: zap.NewNop(), Limiter: limiter, Lane: LaneSystem})
-}
-
-func TestTakeSystemHelixPrefersReserve(t *testing.T) {
-	limiter := &scriptedLimiter{}
-	w := systemLaneWorker(limiter)
-
-	if err := w.takeSystemHelix(context.Background()); err != nil {
-		t.Fatalf("takeSystemHelix() = %v, want nil", err)
-	}
-	if !slices.Equal(limiter.calls, []string{"ratelimit:helix:system"}) {
-		t.Fatalf("calls = %v, want only the system reserve", limiter.calls)
-	}
-}
-
-func TestTakeSystemHelixSpillsToGeneralWhenReserveDrained(t *testing.T) {
-	limiter := &scriptedLimiter{denied: map[string]bool{"ratelimit:helix:system": true}}
-	w := systemLaneWorker(limiter)
-
-	if err := w.takeSystemHelix(context.Background()); err != nil {
-		t.Fatalf("takeSystemHelix() = %v, want nil via general spillover", err)
-	}
-	want := []string{"ratelimit:helix:system", "ratelimit:helix:app"}
-	if !slices.Equal(limiter.calls, want) {
-		t.Fatalf("calls = %v, want %v", limiter.calls, want)
-	}
-}
-
-func TestTakeSystemHelixDeniedWhenBothDrained(t *testing.T) {
-	limiter := &scriptedLimiter{denied: map[string]bool{
-		"ratelimit:helix:system": true,
-		"ratelimit:helix:app":    true,
-	}}
-	w := systemLaneWorker(limiter)
-
-	if err := w.takeSystemHelix(context.Background()); !errors.Is(err, errRateLimitShared) {
-		t.Fatalf("takeSystemHelix() = %v, want errRateLimitShared", err)
-	}
-}
-
-func TestTakeSystemHelixInfraErrorDoesNotSpill(t *testing.T) {
+func TestSystemLaneSpendsTheReserveBeforeTheGeneralBudget(t *testing.T) {
+	const reserve, general = "ratelimit:helix:system", "ratelimit:helix:app"
 	boom := errors.New("valkey down")
-	limiter := &scriptedLimiter{errs: map[string]error{"ratelimit:helix:system": boom}}
-	w := systemLaneWorker(limiter)
-
-	if err := w.takeSystemHelix(context.Background()); !errors.Is(err, boom) {
-		t.Fatalf("takeSystemHelix() = %v, want infra error passthrough", err)
+	tests := []struct {
+		name      string
+		limiter   *scriptedLimiter
+		wantErr   error
+		wantCalls []string
+	}{
+		{"TestTakeSystemHelixPrefersReserve", &scriptedLimiter{}, nil, []string{reserve}},
+		{"TestTakeSystemHelixSpillsToGeneralWhenReserveDrained", &scriptedLimiter{denied: map[string]bool{reserve: true}}, nil, []string{reserve, general}},
+		{
+			"TestTakeSystemHelixDeniedWhenBothDrained",
+			&scriptedLimiter{denied: map[string]bool{reserve: true, general: true}}, errRateLimitShared, []string{reserve, general},
+		},
+		{"TestTakeSystemHelixInfraErrorDoesNotSpill", &scriptedLimiter{errs: map[string]error{reserve: boom}}, boom, []string{reserve}},
+		{
+			"TestTakeSystemHelixRetriesLeaseGuardBeforeSpillover",
+			&scriptedLimiter{denyOnce: map[string]bool{reserve: true}, guardWait: time.Millisecond}, nil, []string{reserve, reserve},
+		},
 	}
-	if len(limiter.calls) != 1 {
-		t.Fatalf("calls = %v, want no spillover on infra error", limiter.calls)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := pipelineWorker(t, &scriptedTransport{}, withLimiter(tt.limiter), withLane(LaneSystem))
 
-func TestTakeSystemHelixRetriesLeaseGuardBeforeSpillover(t *testing.T) {
-	limiter := &guardOnceLimiter{wait: time.Millisecond}
-	w := systemLaneWorker(limiter)
+			err := w.takeSystemHelix(context.Background())
 
-	if err := w.takeSystemHelix(context.Background()); err != nil {
-		t.Fatalf("takeSystemHelix() = %v, want nil after guard retry", err)
-	}
-	if limiter.calls != 2 {
-		t.Fatalf("calls = %d, want one guard retry", limiter.calls)
+			assert.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantCalls, tt.limiter.keys())
+		})
 	}
 }

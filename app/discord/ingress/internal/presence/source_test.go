@@ -1,105 +1,126 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package presence
+package presence_test
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	"ItsBagelBot/app/discord/ingress/internal/presence"
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
+
+	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func fetchOf(values ...int) Fetch {
-	i := 0
-	return func(context.Context) (int, error) {
-		v := values[i]
-		if i < len(values)-1 {
-			i++
+type refresh struct {
+	forget bool
+	total  int
+	err    error
+}
+
+type sent struct {
+	Name string
+	OK   bool
+}
+
+func refreshAll(steps []refresh) []sent {
+	next := 0
+	s := &presence.Source{Fetch: func(context.Context) (int, error) {
+		step := steps[next]
+		return step.total, step.err
+	}}
+	var out []sent
+	for i, step := range steps {
+		next = i
+		if step.forget {
+			s.Forget()
 		}
-		return v, nil
+		name, ok := s.Refresh(context.Background())
+		out = append(out, sent{Name: name, OK: ok})
 	}
+	return out
 }
 
-func TestRefreshSendsOnCountChange(t *testing.T) {
-	s := &Source{Fetch: fetchOf(5, 9)}
-
-	name, ok := s.Refresh(context.Background())
-	if !ok || name != "5 streams" {
-		t.Fatalf("first refresh = %q, %v", name, ok)
-	}
-
-	name, ok = s.Refresh(context.Background())
-	if !ok || name != "9 streams" {
-		t.Fatalf("second refresh = %q, %v", name, ok)
-	}
-}
-
-func TestRefreshSkipsUnchangedCount(t *testing.T) {
-	s := &Source{Fetch: fetchOf(42)}
-
-	if _, ok := s.Refresh(context.Background()); !ok {
-		t.Fatal("first refresh should send")
-	}
-	if _, ok := s.Refresh(context.Background()); ok {
-		t.Fatal("unchanged count should not send")
-	}
-}
-
-func TestForgetForcesResendOnReconnect(t *testing.T) {
-	s := &Source{Fetch: fetchOf(7)}
-
-	if _, ok := s.Refresh(context.Background()); !ok {
-		t.Fatal("first refresh should send")
-	}
-	if _, ok := s.Refresh(context.Background()); ok {
-		t.Fatal("unchanged count should not send before Forget")
-	}
-
-	s.Forget()
-	name, ok := s.Refresh(context.Background())
-	if !ok || name != "7 streams" {
-		t.Fatalf("post-reconnect refresh = %q, %v", name, ok)
-	}
-}
-
-func TestRefreshRPCFailureLeavesPreviousStatus(t *testing.T) {
-	calls := 0
-	failing := func(context.Context) (int, error) {
-		calls++
-		if calls == 2 {
-			return 0, errors.New("users service unreachable")
-		}
-		return 3, nil
-	}
-	s := &Source{Fetch: failing}
-
-	name, ok := s.Refresh(context.Background())
-	if !ok || name != "3 streams" {
-		t.Fatalf("first refresh = %q, %v", name, ok)
-	}
-
-	if name, ok := s.Refresh(context.Background()); ok {
-		t.Fatalf("failed fetch should not report a send, got %q", name)
-	}
-
-	if name, ok := s.Refresh(context.Background()); ok {
-		t.Fatalf("unchanged count after a failed fetch should still skip, got %q", name)
-	}
-}
-
-func TestActivityNamePluralizesAndGroups(t *testing.T) {
+func TestRefreshSendsOnlyChangedCounts(t *testing.T) {
+	unreachable := errors.New("users service unreachable")
 	cases := []struct {
-		total int
-		want  string
+		name  string
+		steps []refresh
+		want  []sent
 	}{
-		{0, "0 streams"},
-		{1, "1 stream"},
-		{2, "2 streams"},
-		{1234, "1,234 streams"},
+		{
+			name:  "sends the first count and every change",
+			steps: []refresh{{total: 5}, {total: 9}},
+			want:  []sent{{"5 streams", true}, {"9 streams", true}},
+		},
+		{
+			name:  "skips an unchanged count",
+			steps: []refresh{{total: 42}, {total: 42}},
+			want:  []sent{{"42 streams", true}, {}},
+		},
+		{
+			name:  "forget resends the unchanged count after a reconnect",
+			steps: []refresh{{total: 7}, {total: 7}, {forget: true, total: 7}},
+			want:  []sent{{"7 streams", true}, {}, {"7 streams", true}},
+		},
+		{
+			name:  "failed fetch keeps the previous status",
+			steps: []refresh{{total: 3}, {err: unreachable}, {total: 3}},
+			want:  []sent{{"3 streams", true}, {}, {}},
+		},
+		{
+			name:  "pluralizes and groups the count",
+			steps: []refresh{{total: 0}, {total: 1}, {total: 2}, {total: 1234}},
+			want:  []sent{{"0 streams", true}, {"1 stream", true}, {"2 streams", true}, {"1,234 streams", true}},
+		},
 	}
 	for _, tc := range cases {
-		if got := activityName(tc.total); got != tc.want {
-			t.Errorf("activityName(%d) = %q, want %q", tc.total, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, refreshAll(tc.steps))
+		})
+	}
+}
+
+type fetched struct {
+	Total  int
+	Failed bool
+}
+
+func answer(t *testing.T, nc *nats.Conn, subject string, reply []byte) {
+	t.Helper()
+	if reply == nil {
+		return
+	}
+	require.NoError(t, bus.QueueSubscribeRPC(nc, subject, "users", func(m *nats.Msg) {
+		_ = m.Respond(reply)
+	}))
+	require.NoError(t, nc.Flush())
+}
+
+func TestNewFetchAsksTheUsersServiceForTheTotal(t *testing.T) {
+	nc := testnats.Connect(t)
+	cases := []struct {
+		name    string
+		subject string
+		reply   []byte
+		want    fetched
+	}{
+		{"returns the total users", "users.counts.ok", []byte(`{"total_users":1234,"active_users":3}`), fetched{Total: 1234}},
+		{"surfaces a refusal as an error", "users.counts.refused", []byte(`{"error":"users service unavailable"}`), fetched{Failed: true}},
+		{"fails when nobody answers", "users.counts.none", nil, fetched{Failed: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			answer(t, nc, tc.subject, tc.reply)
+
+			total, err := presence.NewFetch(nc, tc.subject)(context.Background())
+
+			assert.Equal(t, tc.want, fetched{Total: total, Failed: err != nil})
+		})
 	}
 }

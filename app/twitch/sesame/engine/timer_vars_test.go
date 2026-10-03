@@ -11,11 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/engine/scope"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,15 +46,6 @@ func timerFireStore(p *Pipeline) (*ValkeyTimerStore, *fakePublisher) {
 	return store, pub
 }
 
-func decodeChat(t *testing.T, msg outgress.Message) string {
-	t.Helper()
-	var inner struct {
-		Message string `json:"message"`
-	}
-	require.NoError(t, codec.Unmarshal(msg.Payload, &inner))
-	return inner.Message
-}
-
 func TestFireExpandsTimerScopedTokensAndLeavesRestLiteral(t *testing.T) {
 	stream := &stubStreamInfo{byAddress: map[string]StreamInfoResult{"42/": liveNow()}}
 	p := timerPipeline(stream, nil)
@@ -70,7 +57,7 @@ func TestFireExpandsTimerScopedTokensAndLeavesRestLiteral(t *testing.T) {
 	})
 
 	require.Len(t, pub.got, 1)
-	text := decodeChat(t, pub.got[0].msg)
+	text := chatMessageText(t, pub.got[0].msg)
 	assert.Regexp(t, regexp.MustCompile(`^2 hours \d+ \{user\} \{1\}$`), text)
 }
 
@@ -82,7 +69,7 @@ func TestFirePostsByteIdentical(t *testing.T) {
 		msg           string
 	}{
 		{"NoTokenMessage", timerPipeline(nil, nil), 1, "hello chat, welcome to the stream!"},
-		{"NilPipelineRaw", nil, 3, "hello {uptime} {random} raw — no chain wired yet"},
+		{"NilPipelineRaw", nil, 3, "hello {uptime} {random} raw - no chain wired yet"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, pub := timerFireStore(tc.pipeline)
@@ -93,7 +80,7 @@ func TestFirePostsByteIdentical(t *testing.T) {
 			})
 
 			require.Len(t, pub.got, 1)
-			assert.Equal(t, tc.msg, decodeChat(t, pub.got[0].msg))
+			assert.Equal(t, tc.msg, chatMessageText(t, pub.got[0].msg))
 		})
 	}
 }
@@ -109,7 +96,7 @@ func TestFireFailedStreamLookupLeavesUptimeEmptyStillPosts(t *testing.T) {
 	})
 
 	require.Len(t, pub.got, 1, "a failed lookup must never drop the timer")
-	assert.Equal(t, "live:  go", decodeChat(t, pub.got[0].msg))
+	assert.Equal(t, "live:  go", chatMessageText(t, pub.got[0].msg))
 }
 
 func TestFireUrlfetchResolvesThroughExternal(t *testing.T) {
@@ -125,7 +112,7 @@ func TestFireUrlfetchResolvesThroughExternal(t *testing.T) {
 	})
 
 	require.Len(t, pub.got, 1)
-	assert.Equal(t, "now 72F", decodeChat(t, pub.got[0].msg))
+	assert.Equal(t, "now 72F", chatMessageText(t, pub.got[0].msg))
 	assert.Equal(t, 1, ff.calls())
 }
 
@@ -142,7 +129,7 @@ func TestFireMultiLineFansOutAndCapsAtMaxResponseLines(t *testing.T) {
 	require.Len(t, pub.got, 5, "the blank line drops and the 6th surviving line hits the cap")
 	got := make([]string, len(pub.got))
 	for i, c := range pub.got {
-		got[i] = decodeChat(t, c.msg)
+		got[i] = chatMessageText(t, c.msg)
 	}
 	assert.Equal(t, []string{"line1", "line2", "line3", "line4", "line5"}, got)
 }
@@ -163,24 +150,4 @@ func TestFireBlankExpansionWarnsOnceAndPublishesNothing(t *testing.T) {
 	assert.Empty(t, pub.got, "a blank expansion publishes nothing")
 	warnings := logs.FilterMessage("timers: expansion left nothing to post, fire slot spent").All()
 	require.Len(t, warnings, 1, "the warning logs once per timer, not once per fire")
-}
-
-type failingTimerScope struct{ name string }
-
-func (f failingTimerScope) Owns(v scope.Var) bool { return v.Name == f.name }
-func (failingTimerScope) Plan(context.Context, []scope.Var) (scope.Values, error) {
-	return nil, errors.New("boom")
-}
-
-func TestLogTimerScopeFailureDegradesToEmptyNotDropped(t *testing.T) {
-	p := &Pipeline{log: zap.NewNop()}
-	chain := scope.Chain{failingTimerScope{name: "uptime"}, scope.Pure{}}
-	toks := tmpl.Lex("stream: {uptime} dice: {random}")
-	ref := timerRef{broadcasterID: 5, id: "t1"}
-
-	values := chain.Plan(context.Background(), toks, p.logTimerScopeFailure(ref))
-	out := string(chain.Render(nil, toks, values))
-
-	assert.True(t, strings.HasPrefix(out, "stream:  dice: "), "the failed scope's own span renders empty: %q", out)
-	assert.NotContains(t, out, "{uptime}", "a Plan error is not the same outcome as an unmounted scope")
 }

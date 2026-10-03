@@ -1,72 +1,25 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package provider
+package provider_test
 
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
-
-type memStore struct {
-	mu   sync.Mutex
-	m    map[string][]byte
-	ttls map[string]time.Duration
-}
-
-func newMemStore() *memStore {
-	return &memStore{m: map[string][]byte{}, ttls: map[string]time.Duration{}}
-}
-
-func (s *memStore) retention(key string) time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ttls[key]
-}
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-func (s *memStore) Set(_ context.Context, key string, val []byte, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	s.ttls[key] = ttl
-	return nil
-}
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
-
-func testDeps() Deps {
-	return Deps{Cache: core.NewCache(newMemStore())}
-}
 
 type testReply struct {
 	Player string `json:"player"`
@@ -76,20 +29,21 @@ type testReply struct {
 
 func testErrReply(id, msg string) any { return testReply{Player: id, Error: msg} }
 
-func decode(t *testing.T, res any) testReply {
-	t.Helper()
-	if v, ok := res.(testReply); ok {
-		return v
+func noop(context.Context, gossiprpc.Request) any { return nil }
+
+func memDeps() provider.Deps { return providertest.Deps(providertest.NewMemStore()) }
+
+type fetchRecorder struct{ calls int }
+
+func (r *fetchRecorder) fetch(value testReply, err error) provider.FetchFunc {
+	return func(context.Context, gossiprpc.Request, provider.ID) (any, error) {
+		r.calls++
+		return value, err
 	}
-	raw, ok := res.(codec.RawMessage)
-	require.True(t, ok, "unexpected handler result type %T", res)
-	var v testReply
-	require.NoError(t, codec.Unmarshal(raw, &v))
-	return v
 }
 
 func TestBuildIndexesEndpointsInOrder(t *testing.T) {
-	b := NewProvider("demo", testDeps())
+	b := provider.NewProvider("demo", memDeps())
 	b.Endpoint("one").Timeout(3 * time.Second).Handle(func(context.Context, gossiprpc.Request) any { return "1" })
 	b.Endpoint("two").Handle(func(context.Context, gossiprpc.Request) any { return "2" })
 	p := b.Build()
@@ -103,195 +57,199 @@ func TestBuildIndexesEndpointsInOrder(t *testing.T) {
 }
 
 func TestValidateRejectsMisassembly(t *testing.T) {
-	handler := func(context.Context, gossiprpc.Request) any { return nil }
-
-	t.Run("empty provider name", func(t *testing.T) {
-		b := NewProvider("", testDeps())
-		b.Endpoint("x").Handle(handler)
-		assert.ErrorContains(t, b.Validate(), "non-empty name")
-	})
-	t.Run("no endpoints", func(t *testing.T) {
-		assert.ErrorContains(t, NewProvider("demo", testDeps()).Validate(), "no endpoints")
-	})
-	t.Run("empty endpoint name", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("").Handle(handler)
-		assert.ErrorContains(t, b.Validate(), "empty name")
-	})
-	t.Run("duplicate endpoint", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("x").Handle(handler)
-		b.Endpoint("x").Handle(handler)
-		assert.ErrorContains(t, b.Validate(), "twice")
-	})
-	t.Run("no terminal", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("x")
-		assert.ErrorContains(t, b.Validate(), "no terminal")
-	})
-	t.Run("flow without Fetch", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("x").Cached(time.Minute, time.Minute).Reply(testErrReply)
-		assert.ErrorContains(t, b.Validate(), "no Fetch")
-	})
-	t.Run("flow without Reply", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("x").Cached(time.Minute, time.Minute).
-			Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) { return nil, nil })
-		assert.ErrorContains(t, b.Validate(), "no Reply")
-	})
-	t.Run("flow without cache", func(t *testing.T) {
-		b := NewProvider("demo", Deps{})
-		b.Endpoint("x").Cached(time.Minute, time.Minute).Reply(testErrReply).
-			Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) { return nil, nil })
-		assert.ErrorContains(t, b.Validate(), "Deps.Cache is nil")
-	})
+	cached := func(b *provider.Builder) *provider.FlowBuilder {
+		return b.Endpoint("x").Cached(time.Minute, time.Minute)
+	}
+	for _, tc := range []struct {
+		name     string
+		provider string
+		deps     provider.Deps
+		setup    func(b *provider.Builder)
+		want     string
+	}{
+		{"empty provider name", "", memDeps(), func(b *provider.Builder) { b.Endpoint("x").Handle(noop) }, "non-empty name"},
+		{"no endpoints", "demo", memDeps(), func(*provider.Builder) {}, "no endpoints"},
+		{"empty endpoint name", "demo", memDeps(), func(b *provider.Builder) { b.Endpoint("").Handle(noop) }, "empty name"},
+		{"duplicate endpoint", "demo", memDeps(), func(b *provider.Builder) {
+			b.Endpoint("x").Handle(noop)
+			b.Endpoint("x").Handle(noop)
+		}, "twice"},
+		{"no terminal", "demo", memDeps(), func(b *provider.Builder) { b.Endpoint("x") }, "no terminal"},
+		{"flow without Fetch", "demo", memDeps(), func(b *provider.Builder) { cached(b).Reply(testErrReply) }, "no Fetch"},
+		{"flow without Reply", "demo", memDeps(), func(b *provider.Builder) {
+			cached(b).Fetch(func(context.Context, gossiprpc.Request, provider.ID) (any, error) { return nil, nil })
+		}, "no Reply"},
+		{"flow without cache", "demo", provider.Deps{}, func(b *provider.Builder) {
+			cached(b).Reply(testErrReply).Fetch(func(context.Context, gossiprpc.Request, provider.ID) (any, error) { return nil, nil })
+		}, "Deps.Cache is nil"},
+		{"dead trusted flag", "dead", memDeps(), func(b *provider.Builder) {
+			b.Trusted()
+			b.Endpoint("x").Handle(noop)
+		}, ".Trusted()"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := provider.NewProvider(tc.provider, tc.deps)
+			tc.setup(b)
+			assert.ErrorContains(t, b.Validate(), tc.want)
+		})
+	}
 }
 
-func TestBuildPanicsOnProgrammerError(t *testing.T) {
-	b := NewProvider("demo", testDeps())
-	b.Endpoint("x")
-	assert.Panics(t, func() { b.Build() })
+func TestBuilderPanicsOnProgrammerError(t *testing.T) {
+	t.Run("building an endpoint without a terminal", func(t *testing.T) {
+		b := provider.NewProvider("demo", memDeps())
+		b.Endpoint("x")
+		assert.Panics(t, func() { b.Build() })
+	})
+	t.Run("declaring trust after constructing a client", func(t *testing.T) {
+		b := provider.NewProvider("late", memDeps())
+		b.Client("https://a.invalid", nil, time.Second)
+		assert.Panics(t, func() { b.Trusted() })
+	})
 }
 
 func TestFlowServesAndCaches(t *testing.T) {
 	fetches := 0
-	b := NewProvider("demo", testDeps())
+	b := provider.NewProvider("demo", memDeps())
 	b.Endpoint("stats").
 		Cached(time.Minute, time.Minute).
 		Reply(testErrReply).
 		Fallback("stats lookup failed").
-		Fetch(func(_ context.Context, _ gossiprpc.Request, id ID) (any, error) {
+		Fetch(func(_ context.Context, _ gossiprpc.Request, id provider.ID) (any, error) {
 			fetches++
 			return testReply{Player: id.Display, Value: 7}, nil
 		})
 	h := b.Build().Endpoints()[0].Handle
 
-	first := decode(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
-	require.Empty(t, first.Error)
-	assert.Equal(t, "Techno", first.Player)
-	assert.Equal(t, 7, first.Value)
+	first := providertest.Decode[testReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	assert.Equal(t, testReply{Player: "Techno", Value: 7}, first)
 
 	res := h(context.Background(), gossiprpc.Request{Account: "techno"})
-	_, isRaw := res.(codec.RawMessage)
-	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
+	assert.IsType(t, codec.RawMessage{}, res, "a cache hit must answer stored wire bytes")
 	assert.Equal(t, 1, fetches)
 }
 
-func TestCachedUntilRetainsOnlyUntilTheDeadline(t *testing.T) {
-	store := newMemStore()
-	deadline := time.Now().Add(6 * time.Hour)
-
-	b := NewProvider("demo", Deps{Cache: core.NewCache(store)})
-	b.Endpoint("shop").
-		CachedUntil(func(time.Time) time.Time { return deadline }, time.Minute).
-		ID(StaticID("current")).
-		Reply(testErrReply).
-		Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
-			return testReply{Value: 7}, nil
-		})
-	h := b.Build().Endpoints()[0].Handle
-
-	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
-
-	retention := store.retention(core.Key("demo", "shop", "current"))
-	assert.WithinDuration(t, deadline, time.Now().Add(retention), time.Second,
-		"the entry must fall out of the store as the deadline passes, not after it")
-}
-
-func TestCachedUntilPastDeadlineDoesNotCache(t *testing.T) {
-	store := newMemStore()
-	fetches := 0
-
-	b := NewProvider("demo", Deps{Cache: core.NewCache(store)})
-	b.Endpoint("shop").
-		CachedUntil(func(now time.Time) time.Time { return now.Add(-time.Hour) }, time.Minute).
-		ID(StaticID("current")).
-		Reply(testErrReply).
-		Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
-			fetches++
-			return testReply{Value: 7}, nil
-		})
-	h := b.Build().Endpoints()[0].Handle
-
-	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
-	require.Empty(t, decode(t, h(context.Background(), gossiprpc.Request{})).Error)
-	assert.Equal(t, 2, fetches, "a stale-on-arrival reply must be refetched, never served from the store")
-}
-
-func TestFlowRejectsMissingIdentity(t *testing.T) {
-	b := NewProvider("demo", testDeps())
-	b.Endpoint("stats").
-		Cached(time.Minute, time.Minute).
-		Reply(testErrReply).
-		Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
-			t.Error("no fetch expected")
-			return nil, nil
-		})
-	h := b.Build().Endpoints()[0].Handle
-
-	reply := decode(t, h(context.Background(), gossiprpc.Request{}))
-	assert.Equal(t, "missing account", reply.Error)
-}
-
-func TestFlowErrorShaping(t *testing.T) {
-	t.Run("friendly upstream", func(t *testing.T) {
-		fetches := 0
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("stats").
-			Cached(time.Minute, time.Minute).
+func TestCachedUntilBoundsTheCachedWindowByTheDeadline(t *testing.T) {
+	shop := func(store *providertest.MemStore, deadline provider.DeadlineFunc, rec *fetchRecorder) provider.HandlerFunc {
+		b := provider.NewProvider("demo", providertest.Deps(store))
+		b.Endpoint("shop").
+			CachedUntil(deadline, time.Minute).
+			ID(provider.StaticID("current")).
 			Reply(testErrReply).
-			Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
-				fetches++
-				return nil, &core.UpstreamError{Status: 404, Message: "player not found"}
-			})
-		h := b.Build().Endpoints()[0].Handle
+			Fetch(rec.fetch(testReply{Value: 7}, nil))
+		return b.Build().Endpoints()[0].Handle
+	}
 
-		reply := decode(t, h(context.Background(), gossiprpc.Request{Account: "ghost"}))
-		assert.Equal(t, "player not found", reply.Error)
-		assert.Equal(t, "ghost", reply.Player)
+	t.Run("retains the entry only until the deadline", func(t *testing.T) {
+		store := providertest.NewMemStore()
+		deadline := time.Now().Add(6 * time.Hour)
+		h := shop(store, func(time.Time) time.Time { return deadline }, &fetchRecorder{})
 
-		reply = decode(t, h(context.Background(), gossiprpc.Request{Account: "ghost"}))
-		assert.Equal(t, "player not found", reply.Error)
-		assert.Equal(t, 1, fetches, "the miss must be served from the negative cache")
+		require.Empty(t, providertest.Decode[testReply](t, h(context.Background(), gossiprpc.Request{})).Error)
+
+		retention := store.Retention(core.Key("demo", "shop", "current"))
+		assert.WithinDuration(t, deadline, time.Now().Add(retention), time.Second,
+			"the entry must fall out of the store as the deadline passes, not after it")
 	})
-	t.Run("infrastructure fallback", func(t *testing.T) {
-		b := NewProvider("demo", testDeps())
-		b.Endpoint("stats").
-			Cached(time.Minute, time.Minute).
-			Reply(testErrReply).
-			Fallback("stats lookup failed").
-			Fetch(func(context.Context, gossiprpc.Request, ID) (any, error) {
-				return nil, errors.New("upstream unreachable")
-			})
-		h := b.Build().Endpoints()[0].Handle
+	t.Run("never serves a reply that was stale on arrival", func(t *testing.T) {
+		var rec fetchRecorder
+		h := shop(providertest.NewMemStore(), func(now time.Time) time.Time { return now.Add(-time.Hour) }, &rec)
 
-		reply := decode(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
-		assert.Equal(t, "stats lookup failed", reply.Error)
-		assert.Equal(t, "Techno", reply.Player)
+		require.Empty(t, providertest.Decode[testReply](t, h(context.Background(), gossiprpc.Request{})).Error)
+		require.Empty(t, providertest.Decode[testReply](t, h(context.Background(), gossiprpc.Request{})).Error)
+		assert.Equal(t, 2, rec.calls)
 	})
+}
+
+func TestFlowAnswersFailuresInChat(t *testing.T) {
+	notFound := &core.UpstreamError{Status: 404, Message: "player not found"}
+	for _, tc := range []struct {
+		name        string
+		req         gossiprpc.Request
+		fetchErr    error
+		want        testReply
+		wantFetches int
+	}{
+		{"rejects a request without an account before fetching", gossiprpc.Request{}, nil,
+			testReply{Error: "missing account"}, 0},
+		{"answers an absent player from the negative cache", gossiprpc.Request{Account: "ghost"}, notFound,
+			testReply{Player: "ghost", Error: "player not found"}, 1},
+		{"answers an infrastructure failure with the fallback and never caches it", gossiprpc.Request{Account: "Techno"}, errors.New("upstream unreachable"),
+			testReply{Player: "Techno", Error: "stats lookup failed"}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var rec fetchRecorder
+			b := provider.NewProvider("demo", memDeps())
+			b.Endpoint("stats").
+				Cached(time.Minute, time.Minute).
+				Reply(testErrReply).
+				Fallback("stats lookup failed").
+				Fetch(rec.fetch(testReply{}, tc.fetchErr))
+			h := b.Build().Endpoints()[0].Handle
+
+			for range 2 {
+				assert.Equal(t, tc.want, providertest.Decode[testReply](t, h(context.Background(), tc.req)))
+			}
+			assert.Equal(t, tc.wantFetches, rec.calls)
+		})
+	}
 }
 
 func TestIDExtractors(t *testing.T) {
-	t.Run("Account", func(t *testing.T) {
-		id, reject := Account(gossiprpc.Request{Account: "  Techno "})
-		require.Empty(t, reject)
-		assert.Equal(t, ID{Display: "Techno", Key: "techno"}, id)
+	for _, tc := range []struct {
+		name       string
+		extract    provider.IDFunc
+		req        gossiprpc.Request
+		want       provider.ID
+		wantReject string
+	}{
+		{"Account trims and folds the key", provider.Account, gossiprpc.Request{Account: "  Techno "}, provider.ID{Display: "Techno", Key: "techno"}, ""},
+		{"Account rejects a missing account", provider.Account, gossiprpc.Request{}, provider.ID{}, "missing account"},
+		{"Channel trims and keeps the key", provider.Channel, gossiprpc.Request{ChannelID: " 42 "}, provider.ID{Display: "42", Key: "42"}, ""},
+		{"Channel rejects a missing channel", provider.Channel, gossiprpc.Request{}, provider.ID{}, "missing channel"},
+		{"StaticID ignores the request", provider.StaticID("current"), gossiprpc.Request{Account: "ignored"}, provider.ID{Key: "current"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id, reject := tc.extract(tc.req)
+			assert.Equal(t, tc.want, id)
+			assert.Equal(t, tc.wantReject, reject)
+		})
+	}
+}
 
-		_, reject = Account(gossiprpc.Request{})
-		assert.Equal(t, "missing account", reject)
-	})
-	t.Run("Channel", func(t *testing.T) {
-		id, reject := Channel(gossiprpc.Request{ChannelID: " 42 "})
-		require.Empty(t, reject)
-		assert.Equal(t, ID{Display: "42", Key: "42"}, id)
+func TestClientLaneFollowsTrustDeclaration(t *testing.T) {
+	quiet := provider.Deps{Log: zap.NewNop()}
+	trusted := provider.NewProvider("t", quiet).Trusted()
+	assert.Equal(t, core.LaneDirect, trusted.Client("https://a.invalid", nil, time.Second).Lane())
 
-		_, reject = Channel(gossiprpc.Request{})
-		assert.Equal(t, "missing channel", reject)
-	})
-	t.Run("StaticID", func(t *testing.T) {
-		id, reject := StaticID("current")(gossiprpc.Request{Account: "ignored"})
-		require.Empty(t, reject)
-		assert.Equal(t, ID{Key: "current"}, id)
-	})
+	unmarked := provider.NewProvider("u", quiet)
+	assert.Equal(t, core.LaneWARP, unmarked.Client("https://b.invalid", nil, time.Second).Lane(),
+		"the default must be the untrusted lane; inversion is the point")
+}
+
+func TestBuildLogsClientTally(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		trusted bool
+		clients []string
+		want    string
+	}{
+		{"govee", true, []string{"https://a.invalid", "https://m.invalid"}, "govee: 2 clients (trusted)"},
+		{"custom", false, []string{"https://c.invalid"}, "custom: 1 client (warp)"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			observed, logs := observer.New(zap.InfoLevel)
+			b := provider.NewProvider(tc.name, provider.Deps{Log: zap.New(observed)})
+			if tc.trusted {
+				b = b.Trusted()
+			}
+			for _, base := range tc.clients {
+				b.Client(base, nil, time.Second)
+			}
+			b.Endpoint("e").Handle(noop)
+			b.Build()
+
+			assert.Equal(t, 1, logs.FilterMessage(tc.want).Len(), "expected exact tally line, got %v", logs.All())
+		})
+	}
 }

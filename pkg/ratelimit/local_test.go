@@ -4,6 +4,7 @@
 package ratelimit
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -11,87 +12,168 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func TestLocalBucket_Update_StartsEmpty(t *testing.T) {
-	b := NewLocalBucket()
-	now := time.Now()
-
-	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod1", NotBefore: now.Add(-time.Second), NotAfter: now.Add(time.Second), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
-
-	assert.False(t, b.TryPremium(now), "Expected premium to be empty upon creation")
-
-	st, sh := b.TryStandard(now)
-	assert.False(t, st, "Expected standard to be empty upon creation")
-	assert.False(t, sh)
-
-	later := now.Add(100 * time.Millisecond)
-	assert.True(t, b.TryPremium(later))
+type lease struct {
+	epoch, generation uint64
+	from, to          time.Duration
+	shared, standard  rate.Limit
 }
 
-func TestLocalBucket_TryStandard_Fallback(t *testing.T) {
-	b := NewLocalBucket()
+func newLease(epoch, generation uint64, from, to time.Duration) lease {
+	return lease{epoch: epoch, generation: generation, from: from, to: to, shared: 10, standard: 5}
+}
+
+func (l lease) withRates(shared, standard rate.Limit) lease {
+	l.shared, l.standard = shared, standard
+	return l
+}
+
+func (l lease) config(start time.Time) BucketConfig {
+	return BucketConfig{
+		Epoch: l.epoch, Generation: l.generation, Holder: "pod1",
+		NotBefore: start.Add(l.from), NotAfter: start.Add(l.to),
+		SharedRate: l.shared, SharedBurst: max(1, int(l.shared)),
+		StandardRate: l.standard, StandardBurst: max(1, int(l.standard)),
+	}
+}
+
+type leaseStep func(t *testing.T, b *LocalBucket, start time.Time)
+
+func update(at time.Duration, l lease) leaseStep {
+	return func(_ *testing.T, b *LocalBucket, start time.Time) { b.Update(start.Add(at), l.config(start)) }
+}
+
+func renew(epoch uint64, l lease) leaseStep {
+	return func(_ *testing.T, b *LocalBucket, start time.Time) {
+		b.Renew(epoch, start.Add(l.from), start.Add(l.to))
+	}
+}
+
+func epochIs(want uint64) leaseStep {
+	return func(t *testing.T, b *LocalBucket, _ time.Time) { assert.Equal(t, want, b.Epoch()) }
+}
+
+func premium(at time.Duration, want bool) leaseStep {
+	return func(t *testing.T, b *LocalBucket, start time.Time) {
+		assert.Equal(t, want, b.TryPremium(start.Add(at)), "premium at %s", at)
+	}
+}
+
+func standard(at time.Duration, want bool) leaseStep {
+	return func(t *testing.T, b *LocalBucket, start time.Time) {
+		standard, shared := b.TryStandard(start.Add(at))
+		assert.Equal(t, [2]bool{want, want}, [2]bool{standard, shared}, "standard pair at %s", at)
+	}
+}
+
+func TestLocalBucketLeaseAdmission(t *testing.T) {
+	const second = time.Second
+	repeat := func(n int, step leaseStep) []leaseStep {
+		steps := make([]leaseStep, n)
+		for i := range steps {
+			steps[i] = step
+		}
+		return steps
+	}
+	tests := []struct {
+		name  string
+		steps []leaseStep
+	}{
+		{name: "starts empty and refills", steps: []leaseStep{
+			update(0, newLease(1, 1, -second, second)),
+			premium(0, false), standard(0, false), premium(100*time.Millisecond, true),
+		}},
+		{name: "standard traffic pays both buckets and falls back to shared", steps: append(append(
+			[]leaseStep{update(0, newLease(1, 1, -second, time.Hour))},
+			repeat(5, standard(2*second, true))...),
+			standard(2*second, false), premium(2*second, true),
+		)},
+		{name: "admits only inside the lease window", steps: []leaseStep{
+			update(0, newLease(1, 1, second, 2*second)),
+			premium(0, false), standard(0, false), premium(1500*time.Millisecond, true), premium(3*second, false),
+		}},
+		{name: "renewal extends the window and advances the epoch", steps: []leaseStep{
+			update(0, newLease(1, 1, -second, second)),
+			premium(1500*time.Millisecond, false),
+			renew(2, newLease(2, 1, 0, 2*second)),
+			epochIs(2), premium(1500*time.Millisecond, true),
+		}},
+		{name: "resizing a lease keeps admitting", steps: []leaseStep{
+			update(0, newLease(1, 1, -second, time.Hour)),
+			update(second, newLease(2, 1, second, time.Hour).withRates(20, 10)),
+			premium(second, true),
+		}},
+		{name: "new generation for the same holder starts empty", steps: []leaseStep{
+			update(0, newLease(1, 1, 0, time.Hour)),
+			premium(second, true),
+			update(second, newLease(2, 2, second, time.Hour)),
+			premium(second, false),
+		}},
+		{name: "denied standard pair leaves the standard bucket untouched", steps: []leaseStep{
+			update(0, newLease(1, 1, 0, time.Hour).withRates(1, 0.1)),
+			premium(20*second, true),
+			standard(20*second, false),
+			standard(21*second, true),
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bucket := NewLocalBucket()
+			start := time.Now()
+			for _, step := range tc.steps {
+				step(t, bucket, start)
+			}
+		})
+	}
+}
+
+type modelAction struct {
+	below int
+	apply func(b *LocalBucket, now time.Time) bool
+}
+
+func modelActions() []modelAction {
+	relet := func(b *LocalBucket, now time.Time, generation uint64, holder string) {
+		b.Update(now, BucketConfig{
+			Epoch: b.Epoch() + 1, Generation: generation, Holder: holder,
+			NotBefore: now, NotAfter: now.Add(time.Hour),
+			SharedRate: 10, SharedBurst: 10, StandardRate: 5, StandardBurst: 5,
+		})
+	}
+	return []modelAction{
+		{10, func(b *LocalBucket, now time.Time) bool { b.Renew(b.Epoch()+1, now, now.Add(time.Hour)); return false }},
+		{15, func(b *LocalBucket, now time.Time) bool { relet(b, now, 1, "pod-a"); return false }},
+		{20, func(b *LocalBucket, now time.Time) bool { relet(b, now, 2, "pod-b"); return false }},
+		{60, func(b *LocalBucket, now time.Time) bool { return b.TryPremium(now) }},
+		{100, func(b *LocalBucket, now time.Time) bool {
+			standard, shared := b.TryStandard(now)
+			return standard && shared
+		}},
+	}
+}
+
+func pickAction(actions []modelAction, roll int) modelAction {
+	for _, action := range actions {
+		if roll < action.below {
+			return action
+		}
+	}
+	return actions[len(actions)-1]
+}
+
+func TestLocalBucketNeverAdmitsAboveTheoreticalCapacityUnderRandomLeaseChurn(t *testing.T) {
+	bucket := NewLocalBucket()
 	now := time.Now()
+	bucket.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod-a", NotBefore: now, NotAfter: now.Add(time.Hour), SharedRate: 10, SharedBurst: 10, StandardRate: 5, StandardBurst: 5})
+	actions := modelActions()
+	rng := rand.New(rand.NewSource(42))
 
-	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod1", NotBefore: now.Add(-time.Second), NotAfter: now.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
-
-	later := now.Add(2 * time.Second)
-
-	for i := 0; i < 5; i++ {
-		st, sh := b.TryStandard(later)
-		assert.True(t, st)
-		assert.True(t, sh)
+	admissions := 0
+	for range 1000 {
+		now = now.Add(time.Duration(rng.Intn(50)+1) * time.Millisecond)
+		if pickAction(actions, rng.Intn(100)).apply(bucket, now) {
+			admissions++
+		}
 	}
 
-	st, sh := b.TryStandard(later)
-	assert.False(t, st)
-	assert.False(t, sh)
-
-	assert.True(t, b.TryPremium(later))
-}
-
-func TestLocalBucket_Validity(t *testing.T) {
-	b := NewLocalBucket()
-	now := time.Now()
-
-	notBefore := now.Add(time.Second)
-	notAfter := now.Add(2 * time.Second)
-
-	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod1", NotBefore: notBefore, NotAfter: notAfter, SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
-
-	assert.False(t, b.TryPremium(now))
-	st, sh := b.TryStandard(now)
-	assert.False(t, st)
-	assert.False(t, sh)
-
-	later := now.Add(1500 * time.Millisecond)
-	assert.True(t, b.TryPremium(later))
-
-	tooLate := now.Add(3 * time.Second)
-	assert.False(t, b.TryPremium(tooLate))
-}
-
-func TestLocalBucket_Renew(t *testing.T) {
-	b := NewLocalBucket()
-	now := time.Now()
-
-	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod1", NotBefore: now.Add(-time.Second), NotAfter: now.Add(time.Second), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
-
-	later := now.Add(500 * time.Millisecond)
-
-	b.Renew(2, now, later.Add(time.Second))
-	assert.Equal(t, uint64(2), b.Epoch())
-
-	assert.True(t, b.TryPremium(later))
-}
-
-func TestLocalBucket_Resize(t *testing.T) {
-	b := NewLocalBucket()
-	now := time.Now()
-
-	b.Update(now, BucketConfig{Epoch: 1, Generation: 1, Holder: "pod1", NotBefore: now.Add(-time.Second), NotAfter: now.Add(time.Hour), SharedRate: rate.Limit(10), SharedBurst: 10, StandardRate: rate.Limit(5), StandardBurst: 5})
-
-	later := now.Add(time.Second)
-
-	b.Update(later, BucketConfig{Epoch: 2, Generation: 1, Holder: "pod1", NotBefore: later, NotAfter: later.Add(time.Hour), SharedRate: rate.Limit(20), SharedBurst: 20, StandardRate: rate.Limit(10), StandardBurst: 10})
-
-	assert.True(t, b.TryPremium(later))
+	assert.LessOrEqual(t, admissions, 500)
 }

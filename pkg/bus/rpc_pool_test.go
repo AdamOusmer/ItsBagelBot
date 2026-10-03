@@ -5,7 +5,6 @@ package bus
 
 import (
 	"context"
-	"errors"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const rpcPoolTestTimeout = 5 * time.Second
@@ -52,7 +53,7 @@ func (o *overlapProbe) recordPeak(current int64) {
 func (o *overlapProbe) awaitArrivals(t *testing.T, n int) {
 	t.Helper()
 	deadline := time.After(rpcPoolTestTimeout)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		select {
 		case <-o.arrived:
 		case <-deadline:
@@ -64,7 +65,7 @@ func (o *overlapProbe) awaitArrivals(t *testing.T, n int) {
 func submitAll(pool *RPCPool, n int, handler nats.MsgHandler) *sync.WaitGroup {
 	callback := pool.callback(handler)
 	var senders sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for range n {
 		senders.Add(1)
 		go func() {
 			defer senders.Done()
@@ -97,9 +98,7 @@ func requireDrained(t *testing.T, drained <-chan error) {
 	t.Helper()
 	select {
 	case err := <-drained:
-		if err != nil {
-			t.Fatalf("Drain() = %v", err)
-		}
+		require.NoError(t, err)
 	case <-time.After(rpcPoolTestTimeout):
 		t.Fatal("Drain() never returned after the handlers finished")
 	}
@@ -123,68 +122,39 @@ func drainWithin(t *testing.T, pool *RPCPool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), rpcPoolTestTimeout)
 	defer cancel()
-	if err := pool.Drain(ctx); err != nil {
-		t.Fatalf("Drain() = %v", err)
-	}
+	require.NoError(t, pool.Drain(ctx))
 }
 
 func TestRPCPoolRunsHandlersConcurrently(t *testing.T) {
-	tests := []struct {
+	for _, tc := range []struct {
 		name       string
 		policy     RPCPoolPolicy
 		messages   int
 		wantAtOnce int
 	}{
-		{
-			name:       "four workers overlap four messages",
-			policy:     RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 4},
-			messages:   4,
-			wantAtOnce: 4,
-		},
-		{
-			name:       "ceiling above demand serves every message at once",
-			policy:     RPCPoolPolicy{MaxWorkers: 8, QueueDepth: 8},
-			messages:   6,
-			wantAtOnce: 6,
-		},
-		{
-			name:       "default policy overlaps to its ceiling",
-			policy:     RPCPoolPolicy{},
-			messages:   defaultRPCMaxWorkers,
-			wantAtOnce: defaultRPCMaxWorkers,
-		},
-		{
-			name:       "a single worker reproduces the inline serial behavior",
-			policy:     RPCPoolPolicy{MaxWorkers: 1, QueueDepth: 4},
-			messages:   4,
-			wantAtOnce: 1,
-		},
-	}
+		{"four workers overlap four messages", RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 4}, 4, 4},
+		{"ceiling above demand serves every message at once", RPCPoolPolicy{MaxWorkers: 8, QueueDepth: 8}, 6, 6},
+		{"default policy overlaps to its ceiling", RPCPoolPolicy{}, defaultRPCMaxWorkers, defaultRPCMaxWorkers},
+		{"a single worker reproduces the inline serial behavior", RPCPoolPolicy{MaxWorkers: 1, QueueDepth: 4}, 4, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := newRPCPool(tc.policy)
+			probe := newOverlapProbe(tc.messages)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pool := newRPCPool(tt.policy)
-			probe := newOverlapProbe(tt.messages)
-
-			senders := submitAll(pool, tt.messages, probe.handle)
-			probe.awaitArrivals(t, tt.wantAtOnce)
+			senders := submitAll(pool, tc.messages, probe.handle)
+			probe.awaitArrivals(t, tc.wantAtOnce)
 			close(probe.release)
-
 			waitGroupWithin(t, senders, "submits to return")
 			drainWithin(t, pool)
 
-			if got := int(probe.peak.Load()); got != tt.wantAtOnce {
-				t.Fatalf("peak concurrent handlers = %d, want %d", got, tt.wantAtOnce)
-			}
-			if got := int(probe.completed.Load()); got != tt.messages {
-				t.Fatalf("completed handlers = %d, want %d", got, tt.messages)
-			}
+			assert.Equal(t, [2]int64{int64(tc.wantAtOnce), int64(tc.messages)}, [2]int64{probe.peak.Load(), probe.completed.Load()},
+				"peak concurrent handlers and completed handlers")
 		})
 	}
 }
 
 func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
-	tests := []struct {
+	for _, tc := range []struct {
 		name        string
 		policy      RPCPoolPolicy
 		messages    int
@@ -192,33 +162,16 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 		wantAtOnce  int
 		wantBlocked int
 	}{
-		{
-			name:        "two workers one queued four blocked",
-			policy:      RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 1},
-			messages:    7,
-			wantAccept:  3,
-			wantAtOnce:  2,
-			wantBlocked: 4,
-		},
-		{
-			name:        "unbuffered pool bounds on workers alone",
-			policy:      RPCPoolPolicy{MaxWorkers: 3, QueueDepth: -1},
-			messages:    6,
-			wantAccept:  3,
-			wantAtOnce:  3,
-			wantBlocked: 3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pool := newRPCPool(tt.policy)
-			probe := newOverlapProbe(tt.messages)
-
+		{"two workers one queued four blocked", RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 1}, 7, 3, 2, 4},
+		{"unbuffered pool bounds on workers alone", RPCPoolPolicy{MaxWorkers: 3, QueueDepth: -1}, 6, 3, 3, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := newRPCPool(tc.policy)
+			probe := newOverlapProbe(tc.messages)
 			var accepted atomic.Int64
 			callback := pool.callback(probe.handle)
 			var senders sync.WaitGroup
-			for i := 0; i < tt.messages; i++ {
+			for range tc.messages {
 				senders.Add(1)
 				go func() {
 					defer senders.Done()
@@ -227,28 +180,16 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 				}()
 			}
 
-			probe.awaitArrivals(t, tt.wantAtOnce)
-			waitFor(t, func() bool {
-				return int(accepted.Load()) == tt.wantAccept
-			}, "timed out waiting for the admitted messages to settle")
+			probe.awaitArrivals(t, tc.wantAtOnce)
+			waitFor(t, func() bool { return int(accepted.Load()) == tc.wantAccept }, "timed out waiting for the admitted messages to settle")
 
-			if got := tt.messages - int(accepted.Load()); got != tt.wantBlocked {
-				t.Fatalf("blocked senders = %d, want %d", got, tt.wantBlocked)
-			}
-			if got := int(probe.running.Load()); got != tt.wantAtOnce {
-				t.Fatalf("running handlers = %d, want %d", got, tt.wantAtOnce)
-			}
-
+			assert.Equal(t, tc.wantBlocked, tc.messages-int(accepted.Load()), "blocked senders")
+			assert.EqualValues(t, tc.wantAtOnce, probe.running.Load(), "running handlers")
 			close(probe.release)
 			waitGroupWithin(t, &senders, "blocked submits to be released")
 			drainWithin(t, pool)
-
-			if got := int(probe.peak.Load()); got != tt.wantAtOnce {
-				t.Fatalf("peak concurrent handlers = %d, want %d", got, tt.wantAtOnce)
-			}
-			if got := int(probe.completed.Load()); got != tt.messages {
-				t.Fatalf("completed handlers = %d, want %d, so a message was lost", got, tt.messages)
-			}
+			assert.Equal(t, [2]int64{int64(tc.wantAtOnce), int64(tc.messages)}, [2]int64{probe.peak.Load(), probe.completed.Load()},
+				"peak concurrent handlers and completed handlers, so no message was lost")
 		})
 	}
 }
@@ -256,10 +197,8 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 func TestRPCPoolDrainWaitsForInFlightHandlers(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 4})
 	probe := newOverlapProbe(4)
-
 	senders := submitAll(pool, 4, probe.handle)
 	probe.awaitArrivals(t, 4)
-
 	drained := drainAsync(pool)
 	requireStillDraining(t, drained)
 
@@ -267,27 +206,22 @@ func TestRPCPoolDrainWaitsForInFlightHandlers(t *testing.T) {
 	waitGroupWithin(t, senders, "submits to return")
 	requireDrained(t, drained)
 
-	if got := int(probe.completed.Load()); got != 4 {
-		t.Fatalf("completed handlers = %d, want 4", got)
-	}
-	if inflight, workers := pool.stats(); inflight != 0 || workers != 0 {
-		t.Fatalf("after Drain: inflight = %d, workers = %d, want 0 and 0", inflight, workers)
-	}
+	inflight, workers := pool.stats()
+	assert.EqualValues(t, 4, probe.completed.Load())
+	assert.Equal(t, [2]int{0, 0}, [2]int{inflight, workers}, "inflight and workers after Drain")
 }
 
 func TestRPCPoolDrainHonoursDeadline(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 	probe := newOverlapProbe(2)
-
 	senders := submitAll(pool, 2, probe.handle)
 	probe.awaitArrivals(t, 2)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
 	defer cancel()
-	if err := pool.Drain(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Drain() = %v, want context.DeadlineExceeded", err)
-	}
 
+	err := pool.Drain(ctx)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	close(probe.release)
 	waitGroupWithin(t, senders, "submits to return")
 	drainWithin(t, pool)
@@ -295,35 +229,30 @@ func TestRPCPoolDrainHonoursDeadline(t *testing.T) {
 
 func TestRPCPoolRejectsSubmitsAfterDrain(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
-
 	var ran atomic.Int64
 	callback := pool.callback(func(*nats.Msg) { ran.Add(1) })
 	callback(&nats.Msg{Subject: "bagel.rpc.test"})
 	waitFor(t, func() bool { return ran.Load() == 1 }, "the first message was never handled")
-
 	drainWithin(t, pool)
 
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		callback(&nats.Msg{Subject: "bagel.rpc.test"})
 	}
-	if got := ran.Load(); got != 1 {
-		t.Fatalf("handler ran %d times, want 1: a post-drain delivery was executed", got)
-	}
+
+	assert.EqualValues(t, 1, ran.Load(), "a post-drain delivery was executed")
 }
 
 func TestRPCPoolRetiresIdleWorkers(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 6, QueueDepth: 6, IdleTimeout: 10 * time.Millisecond})
 	probe := newOverlapProbe(6)
-
 	senders := submitAll(pool, 6, probe.handle)
 	probe.awaitArrivals(t, 6)
-	if _, workers := pool.stats(); workers != 6 {
-		t.Fatalf("workers at saturation = %d, want 6", workers)
-	}
+	_, saturated := pool.stats()
 
 	close(probe.release)
 	waitGroupWithin(t, senders, "submits to return")
 
+	assert.Equal(t, 6, saturated, "workers at saturation")
 	waitFor(t, func() bool {
 		_, workers := pool.stats()
 		return workers == 1
@@ -333,7 +262,6 @@ func TestRPCPoolRetiresIdleWorkers(t *testing.T) {
 
 func TestRPCPoolLeaksNoGoroutines(t *testing.T) {
 	baseline := runtime.NumGoroutine()
-
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 8, QueueDepth: 8})
 	probe := newOverlapProbe(16)
 	senders := submitAll(pool, 16, probe.handle)
@@ -342,52 +270,41 @@ func TestRPCPoolLeaksNoGoroutines(t *testing.T) {
 	waitGroupWithin(t, senders, "submits to return")
 	drainWithin(t, pool)
 
-	if _, workers := pool.stats(); workers != 0 {
-		t.Fatalf("live workers after Drain = %d, want 0", workers)
-	}
-	waitFor(t, func() bool {
-		return runtime.NumGoroutine() <= baseline
-	}, "goroutines never returned to the baseline after Drain")
+	_, workers := pool.stats()
+
+	assert.Zero(t, workers, "live workers after Drain")
+	waitFor(t, func() bool { return runtime.NumGoroutine() <= baseline }, "goroutines never returned to the baseline after Drain")
 }
 
 func TestRPCPoolPolicyNormalized(t *testing.T) {
-	tests := []struct {
+	for _, tc := range []struct {
 		name string
 		in   RPCPoolPolicy
 		want RPCPoolPolicy
 	}{
 		{
-			name: "zero value takes the fleet defaults",
-			in:   RPCPoolPolicy{},
-			want: RPCPoolPolicy{
-				MinWorkers:  defaultRPCMinWorkers,
-				MaxWorkers:  defaultRPCMaxWorkers,
-				QueueDepth:  defaultRPCMaxWorkers,
-				IdleTimeout: defaultRPCIdleTimeout,
-			},
+			"zero value takes the fleet defaults",
+			RPCPoolPolicy{},
+			RPCPoolPolicy{MinWorkers: defaultRPCMinWorkers, MaxWorkers: defaultRPCMaxWorkers, QueueDepth: defaultRPCMaxWorkers, IdleTimeout: defaultRPCIdleTimeout},
 		},
 		{
-			name: "ceiling below the floor is raised to it",
-			in:   RPCPoolPolicy{MinWorkers: 4, MaxWorkers: 2, QueueDepth: 3, IdleTimeout: time.Second},
-			want: RPCPoolPolicy{MinWorkers: 4, MaxWorkers: 4, QueueDepth: 3, IdleTimeout: time.Second},
+			"ceiling below the floor is raised to it",
+			RPCPoolPolicy{MinWorkers: 4, MaxWorkers: 2, QueueDepth: 3, IdleTimeout: time.Second},
+			RPCPoolPolicy{MinWorkers: 4, MaxWorkers: 4, QueueDepth: 3, IdleTimeout: time.Second},
 		},
 		{
-			name: "negative queue depth means an unbuffered handoff",
-			in:   RPCPoolPolicy{MinWorkers: 2, MaxWorkers: 5, QueueDepth: -8, IdleTimeout: time.Minute},
-			want: RPCPoolPolicy{MinWorkers: 2, MaxWorkers: 5, QueueDepth: 0, IdleTimeout: time.Minute},
+			"negative queue depth means an unbuffered handoff",
+			RPCPoolPolicy{MinWorkers: 2, MaxWorkers: 5, QueueDepth: -8, IdleTimeout: time.Minute},
+			RPCPoolPolicy{MinWorkers: 2, MaxWorkers: 5, QueueDepth: 0, IdleTimeout: time.Minute},
 		},
 		{
-			name: "negative floor and idle timeout fall back",
-			in:   RPCPoolPolicy{MinWorkers: -1, MaxWorkers: 3, QueueDepth: 2, IdleTimeout: -time.Second},
-			want: RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 3, QueueDepth: 2, IdleTimeout: defaultRPCIdleTimeout},
+			"negative floor and idle timeout fall back",
+			RPCPoolPolicy{MinWorkers: -1, MaxWorkers: 3, QueueDepth: 2, IdleTimeout: -time.Second},
+			RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 3, QueueDepth: 2, IdleTimeout: defaultRPCIdleTimeout},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.in.normalized(); got != tt.want {
-				t.Fatalf("normalized() = %+v, want %+v", got, tt.want)
-			}
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.in.normalized())
 		})
 	}
 }
@@ -395,21 +312,16 @@ func TestRPCPoolPolicyNormalized(t *testing.T) {
 func TestDrainRPCHandlersCoversRegisteredPools(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 	registerRPCPool(pool)
-
 	var ran atomic.Int64
 	callback := pool.callback(func(*nats.Msg) { ran.Add(1) })
 	callback(&nats.Msg{Subject: "bagel.rpc.test"})
 	waitFor(t, func() bool { return ran.Load() == 1 }, "the message was never handled")
-
 	ctx, cancel := context.WithTimeout(context.Background(), rpcPoolTestTimeout)
 	defer cancel()
-	if err := DrainRPCHandlers(ctx); err != nil {
-		t.Fatalf("DrainRPCHandlers() = %v", err)
-	}
-	if _, workers := pool.stats(); workers != 0 {
-		t.Fatalf("live workers after DrainRPCHandlers = %d, want 0", workers)
-	}
-	if err := DrainRPCHandlers(ctx); err != nil {
-		t.Fatalf("second DrainRPCHandlers() = %v", err)
-	}
+
+	require.NoError(t, DrainRPCHandlers(ctx))
+	_, workers := pool.stats()
+
+	assert.Zero(t, workers, "live workers after DrainRPCHandlers")
+	assert.NoError(t, DrainRPCHandlers(ctx), "a second drain must be a no-op")
 }

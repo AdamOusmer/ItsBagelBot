@@ -4,223 +4,143 @@
 package modules
 
 import (
-	"context"
+	"errors"
+	"math"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func gamesCtx(login, config string) *module.Context {
-	c := &module.Context{
-		Env: lane.Envelope{
-			Type:              "channel.chat.message",
-			BroadcasterUserID: "100",
-			ChatterUserID:     "42",
-			ChatterUserLogin:  login,
-		},
-		BroadcasterID: 100,
-		Log:           zap.NewNop(),
-	}
-	if config != "" {
-		c.Config = []byte(config)
-	}
-	return c
-}
-
-func runGames(t *testing.T, m module.Module, c *module.Context, args string) []module.Output {
+func patchGambleRoll(t *testing.T, roll func() (int64, error)) {
 	t.Helper()
-	var col collector
-	require.NoError(t, m.Commands[0].Run(t.Context(), c, args, col.emit))
-	return col.out
+	original := engine.RollGamble
+	engine.RollGamble = roll
+	t.Cleanup(func() { engine.RollGamble = original })
 }
 
 func pinRoll(t *testing.T, roll int64) {
 	t.Helper()
-	old := engine.RollGamble
-	engine.RollGamble = func() (int64, error) { return roll, nil }
-	t.Cleanup(func() { engine.RollGamble = old })
+	patchGambleRoll(t, func() (int64, error) { return roll, nil })
 }
 
-func TestGambleWinCreditsStake(t *testing.T) {
-	pinRoll(t, 23)
-	fake := &fakeLoyalty{}
-	cd := &fakeCooldown{}
-	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
-
-	out := runGames(t, m, gamesCtx("alice", ""), "300")
-	require.Len(t, out, 1)
-	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Contains(t, out[0].Text, "@alice")
-	assert.Contains(t, out[0].Text, "rolled 23")
-	assert.Contains(t, out[0].Text, "won 300")
-	assert.Contains(t, out[0].Text, "1534", "the reply carries the post-wager standing")
-
-	require.Len(t, fake.wagers, 1)
-	assert.Equal(t, int64(300), fake.wagers[0].Amount)
-	assert.True(t, fake.wagers[0].Won)
-	assert.Empty(t, fake.adjusts, "the complete result is one atomic wager")
+func loyaltyView(enabled bool, config string) []projection.ModuleView {
+	return []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: enabled, Configs: []byte(config)}}
 }
 
-func TestGambleLossAppliesAtomicWager(t *testing.T) {
-	pinRoll(t, 87)
-	fake := &fakeLoyalty{}
-	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
+func gambleDeps(fake *fakeLoyalty, cd engine.CooldownStore, view []projection.ModuleView) engine.Deps {
+	d := engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()}
+	if view != nil {
+		d.Proj = &fakeProj{modules: view}
+	}
+	return d
+}
 
-	out := runGames(t, m, gamesCtx("alice", ""), "300")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "lost 300")
-	assert.Contains(t, out[0].Text, "934")
+func wagerOf(login string, amount int64, won bool) engine.PointWager {
+	return engine.PointWager{BroadcasterID: 100, ViewerID: 42, Login: login, Amount: amount, Won: won}
+}
 
-	require.Len(t, fake.wagers, 1)
-	assert.Equal(t, int64(300), fake.wagers[0].Amount)
-	assert.Empty(t, fake.adjusts, "a loss never rides the open-ended adjust")
+func TestGamble(t *testing.T) {
+	const maxBet = `{"maxBet":9223372036854775807}`
+	const crumbs = `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
+	cases := []struct {
+		name     string
+		roll     int64
+		who      string
+		config   string
+		text     string
+		fake     fakeLoyalty
+		view     []projection.ModuleView
+		silent   bool
+		exact    string
+		contains []string
+		excludes []string
+		wagers   []engine.PointWager
+	}{
+		{name: "a win credits the stake", roll: 23, who: "alice", text: "!gamble 300",
+			contains: []string{"@alice", "rolled 23", "won 300", "1534"}, wagers: []engine.PointWager{wagerOf("alice", 300, true)}},
+		{name: "TestGambleLossAppliesAtomicWager", roll: 87, who: "alice", text: "!gamble 300",
+			contains: []string{"lost 300", "934"}, wagers: []engine.PointWager{wagerOf("alice", 300, false)}},
+		{name: "all stakes the whole balance up to the cap", roll: 50, who: "bob", text: "!gamble all",
+			contains: []string{"won 1000"}, wagers: []engine.PointWager{wagerOf("bob", 1000, true)}},
+		{name: "a bet the balance cannot cover moves nothing", who: "bob", config: `{"maxBet":5000}`, text: "!gamble 2000",
+			contains: []string{"can't cover that"}},
+		{name: "no amount prints usage", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble", contains: []string{"!gamble"}},
+		{name: "a bet under the minimum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 5",
+			contains: []string{"minimum bet is 10"}},
+		{name: "a bet over the maximum is refused", who: "alice", config: `{"minBet":10,"maxBet":500}`, text: "!gamble 900",
+			contains: []string{"max bet is 500"}},
+		{name: "TestGambleUnknownViewer", roll: 50, who: "ghost", text: "!gamble 50",
+			contains: []string{"haven't seen"}, wagers: []engine.PointWager{wagerOf("ghost", 50, true)}},
+		{name: "custom templates fill the wager tokens", roll: 99, who: "erin", config: crumbs, text: "!gamble 50",
+			exact: "@erin busted 50 crumbs, 1184 left", wagers: []engine.PointWager{wagerOf("erin", 50, false)}},
+		{name: "loyalty's currency name wins over the leftover game blob", roll: 99, who: "erin", config: crumbs, text: "!gamble 50",
+			view: loyaltyView(true, `{"pointsName":"bagels"}`), exact: "@erin busted 50 bagels, 1184 left", wagers: []engine.PointWager{wagerOf("erin", 50, false)}},
+		{name: "stays silent while loyalty is off", who: "alice", text: "!gamble 300", view: loyaltyView(false, `{}`), silent: true},
+		{name: "TestGambleRejectsBIGINTOverflowBeforeDebit doubled payout", who: "alice", config: maxBet, text: "!gamble 4611686018427387904",
+			fake: fakeLoyalty{getPoints: math.MaxInt64/2 + 1}, contains: []string{"could exceed"}},
+		{name: "TestGambleRejectsBIGINTOverflowBeforeDebit net winnings", who: "alice", config: maxBet, text: "!gamble 1",
+			fake: fakeLoyalty{getPoints: math.MaxInt64}, contains: []string{"could exceed"}},
+		{name: "TestGambleStaleCapacityRefusalDoesNotAnnounceWin", roll: 1, who: "alice", text: "!gamble 1",
+			fake: fakeLoyalty{getPoints: math.MaxInt64 - 2, wagerLimit: true}, contains: []string{"could exceed"}, excludes: []string{"won"},
+			wagers: []engine.PointWager{wagerOf("alice", 1, true)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pinRoll(t, tc.roll)
+			fake := tc.fake
+			cd := &fakeCooldown{}
+			out := runChat(t, Gamble(gambleDeps(&fake, cd, tc.view)), withConfig(chatCtx("42", tc.who), tc.config), tc.text)
+			if tc.silent {
+				assert.Empty(t, out)
+			} else {
+				require.Len(t, out, 1)
+				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
+			}
+			assert.Equal(t, tc.wagers, fake.wagers)
+			assert.Empty(t, fake.adjusts, "a wager is one atomic settlement, never the open-ended adjust")
+		})
+	}
 }
 
 func TestGambleRefusedWagersNeverClaimCooldown(t *testing.T) {
-	fake := &fakeLoyalty{}
 	cd := &fakeCooldown{}
-	cfg := `{"minBet":10,"maxBet":500}`
-	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
-
-	out := runGames(t, m, gamesCtx("alice", cfg), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "!gamble")
-
-	out = runGames(t, m, gamesCtx("alice", cfg), "5")
-	assert.Contains(t, out[0].Text, "minimum bet is 10")
-
-	out = runGames(t, m, gamesCtx("alice", cfg), "900")
-	assert.Contains(t, out[0].Text, "max bet is 500")
-
+	m := Gamble(gambleDeps(&fakeLoyalty{}, cd, nil))
+	c := chatCtx("42", "alice")
+	c.Config = []byte(`{"minBet":10,"maxBet":500}`)
+	for _, text := range []string{"!gamble", "!gamble 5", "!gamble 900"} {
+		runChat(t, m, c, text)
+	}
 	assert.Empty(t, cd.keys, "no refusal may burn the chatter's cooldown")
-	assert.Empty(t, fake.wagers)
-	assert.Empty(t, fake.adjusts)
-}
-
-func TestGambleDerivedAndOverBalance(t *testing.T) {
-	pinRoll(t, 50)
-	fake := &fakeLoyalty{}
-	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
-
-	out := runGames(t, m, gamesCtx("bob", ""), "all")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "won 1000")
-	require.Len(t, fake.wagers, 1)
-	assert.Equal(t, int64(1000), fake.wagers[0].Amount)
-	assert.True(t, fake.wagers[0].Won)
-
-	out = runGames(t, m, gamesCtx("bob", `{"maxBet":5000}`), "2000")
-	assert.Contains(t, out[0].Text, "can't cover that")
-	assert.Len(t, fake.wagers, 1, "refusal moved nothing")
 }
 
 func TestGamblePerUserCooldown(t *testing.T) {
 	pinRoll(t, 1)
-	fake := &fakeLoyalty{}
 	cd := &fakeCooldown{allow: []bool{true, false}}
-	m := Gamble(engine.Deps{Loyalty: fake, Cooldown: cd, Log: zap.NewNop()})
+	m := Gamble(gambleDeps(&fakeLoyalty{}, cd, nil))
+	config := `{"cooldownSeconds":30}`
 
-	ctx := gamesCtx("carol", `{"cooldownSeconds":30}`)
-	out := runGames(t, m, ctx, "10")
-	require.Len(t, out, 1)
+	carol := withConfig(chatCtx("42", "carol"), config)
+	require.Len(t, runChat(t, m, carol, "!gamble 10"), 1)
 	require.Len(t, cd.keys, 1)
 	assert.Contains(t, cd.keys[0], "carol", "cooldown keys per user, not per channel")
 	assert.Contains(t, cd.keys[0], "games:gamble:100")
 
-	out = runGames(t, m, ctx, "10")
-	assert.Contains(t, out[0].Text, "breather", "second wager inside the window is cooled")
+	assert.Contains(t, runChat(t, m, carol, "!gamble 10")[0].Text, "breather", "a second wager inside the window is cooled")
 
 	cd.allow = append(cd.allow, true)
-	out = runGames(t, m, gamesCtx("dave", `{"cooldownSeconds":30}`), "10")
-	assert.NotContains(t, out[0].Text, "breather")
+	dave := withConfig(chatCtx("42", "dave"), config)
+	assert.NotContains(t, runChat(t, m, dave, "!gamble 10")[0].Text, "breather")
 }
 
-func TestGambleUnknownViewer(t *testing.T) {
-	pinRoll(t, 50)
+func TestGambleRollFailureDoesNotMovePoints(t *testing.T) {
+	patchGambleRoll(t, func() (int64, error) { return 0, errors.New("dice unavailable") })
 	fake := &fakeLoyalty{}
-	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
-
-	out := runGames(t, m, gamesCtx("ghost", ""), "50")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "haven't seen")
-	assert.Empty(t, fake.adjusts, "an unseen viewer is refused, not broke-shamed")
-}
-
-func TestGambleCustomTemplates(t *testing.T) {
-	pinRoll(t, 99)
-	fake := &fakeLoyalty{spendBad: false}
-	cfg := `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
-	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
-
-	out := runGames(t, m, gamesCtx("erin", cfg), "50")
-	require.Len(t, out, 1)
-	assert.Equal(t, "@erin busted 50 crumbs, 1184 left", out[0].Text)
-}
-
-func TestGambleUsesLoyaltyCurrencyNotGameBlob(t *testing.T) {
-	pinRoll(t, 99)
-	fake := &fakeLoyalty{}
-	cfg := `{"loseMessage":"@{user} busted {amount} {points}, {balance} left","pointsName":"crumbs"}`
-	m := Gamble(engine.Deps{
-		Loyalty: fake,
-		Proj:    loyaltyProj{on: true, name: "bagels"},
-		Log:     zap.NewNop(),
-	})
-
-	out := runGames(t, m, gamesCtx("erin", cfg), "50")
-	require.Len(t, out, 1)
-	assert.Equal(t, "@erin busted 50 bagels, 1184 left", out[0].Text, "loyalty's name wins over the leftover game blob")
-}
-
-func TestGambleInertWhenLoyaltyOff(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := Gamble(engine.Deps{
-		Loyalty: fake,
-		Proj:    loyaltyProj{on: false},
-		Log:     zap.NewNop(),
-	})
-
-	out := runGames(t, m, gamesCtx("alice", ""), "300")
-	assert.Empty(t, out, "an enabled gamble row still stays silent while loyalty is off")
-	assert.Empty(t, fake.wagers)
-}
-
-type loyaltyProj struct {
-	on   bool
-	name string
-}
-
-func (p loyaltyProj) User(context.Context, uint64) (projection.User, error) {
-	return projection.User{}, nil
-}
-
-func (p loyaltyProj) Command(context.Context, uint64, string) (projection.Command, bool, error) {
-	return projection.Command{}, false, nil
-}
-
-func (p loyaltyProj) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
-	raw, _ := codec.Marshal(engine.LoyaltyModuleConfig{PointsName: p.name})
-	return projection.ModuleMap([]projection.ModuleView{{
-		Name:      engine.LoyaltyModuleName,
-		IsEnabled: p.on,
-		Configs:   raw,
-	}}), nil
-}
-
-func (p loyaltyProj) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
-	views, err := p.Modules(ctx, id)
-	if err != nil {
-		return projection.ModuleView{}, false, err
-	}
-	view, ok := views[name]
-	return view, ok, nil
+	_, err := runChatErr(t, Gamble(gambleDeps(fake, nil, nil)), chatCtx("42", "alice"), "!gamble 100")
+	require.Error(t, err)
+	require.Empty(t, fake.wagers)
 }

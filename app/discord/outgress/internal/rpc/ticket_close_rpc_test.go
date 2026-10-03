@@ -5,20 +5,27 @@ package rpc
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	discapi "ItsBagelBot/internal/discordapi"
-	ddiscord "ItsBagelBot/internal/domain/discord"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/pkg/codec"
+
 	"github.com/stretchr/testify/require"
 )
+
+const incompleteTranscript = "[transcript incomplete: the oldest messages could not be collected]\n"
 
 func historyGet(call recordedCall) bool {
 	return call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages")
@@ -58,205 +65,200 @@ func wantContainsAll(t *testing.T, body string, wants ...string) {
 	}
 }
 
-func pagedHistory(call recordedCall) (int, string) {
+func messagePage(high, n int) string {
+	items := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		id := high - i
+		items = append(items, fmt.Sprintf(
+			`{"id":"%d","content":"line %d","timestamp":"2026-01-02T03:04:05+00:00","author":{"id":"u1","username":"ada"}}`,
+			id, id))
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+func transcriptOf(high, n int) string {
+	var b strings.Builder
+	for id := high - n + 1; id <= high; id++ {
+		fmt.Fprintf(&b, "[2026-01-02 03:04 UTC] ada: line %d\n", id)
+	}
+	return b.String()
+}
+
+func endlessHistory(call recordedCall) (int, string) {
 	if !historyGet(call) {
-		return 200, `{"id":"m-new"}`
+		return http.StatusOK, `{"id":"m-new"}`
 	}
-	if strings.Contains(call.query, "before=") {
-		return 200, messagePage(900, 3)
+	top := 100000
+	if before := beforeCursor(call); before > 0 {
+		top = before - 1
 	}
-	return 200, messagePage(1000, discapi.MessagePageMax)
+	return http.StatusOK, messagePage(top, discapi.MessagePageMax)
 }
 
-func assertHistoryPaging(t *testing.T, tr *scriptedTransport) {
-	t.Helper()
-	pages := tr.find(http.MethodGet, "/channels/c1/messages")
-	if len(pages) != 2 {
-		t.Fatalf("history pages = %d, want 2", len(pages))
+func beforeCursor(call recordedCall) int {
+	query, _ := url.ParseQuery(call.query)
+	before, _ := strconv.Atoi(query.Get("before"))
+	return before
+}
+
+func historyCalls(top, pages int) []string {
+	out := []string{"GET /channels/c1/messages?limit=100"}
+	for page := 1; page < pages; page++ {
+		before := top - page*discapi.MessagePageMax + 1
+		out = append(out, "GET /channels/c1/messages?before="+strconv.Itoa(before)+"&limit=100")
 	}
-	if strings.Contains(pages[0].query, "before=") {
-		t.Fatalf("first page must have no cursor: %q", pages[0].query)
-	}
-	if !strings.Contains(pages[1].query, "before=901") {
-		t.Fatalf("second page cursor = %q, want the first page's oldest id", pages[1].query)
+	return out
+}
+
+func ticketCloseCases() []discordCase {
+	refused := answer{status: http.StatusForbidden, body: missingPermissions}
+	return []discordCase{{
+		name: "deletes the channel and posts a plain summary when no archive is set",
+		verb: "ticket.close",
+		req: discordoutgress.TicketCloseRequest{
+			GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", LogChannelID: "log1",
+		},
+		want:  discordoutgress.TicketCloseReply{},
+		calls: []string{"GET /channels/c1", "DELETE /channels/c1", "GET /channels/log1", "POST /channels/log1/messages"},
+	}, {
+		name:  "posts nothing without a log channel",
+		verb:  "ticket.close",
+		req:   discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1"},
+		want:  discordoutgress.TicketCloseReply{},
+		calls: []string{"GET /channels/c1", "DELETE /channels/c1"},
+	}, {
+		name: "maps a refused archive onto the forbidden code",
+		verb: "ticket.close",
+		req: discordoutgress.TicketCloseRequest{
+			GuildID: "g1", ChannelID: "c1", ChannelName: "t", ArchiveCategoryID: "cat1",
+		},
+		routes: map[string]answer{"PATCH /channels/c1": refused},
+		want: discordoutgress.TicketCloseReply{
+			Error: "discord: forbidden: " + missingPermissions, Code: outgressrpc.CodeForbidden,
+		},
+		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
+	}, {
+		name:  "archives an unnamed ticket without renaming it",
+		verb:  "ticket.close",
+		req:   discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1", ArchiveCategoryID: "cat1"},
+		want:  discordoutgress.TicketCloseReply{ArchivedChannelID: "c1"},
+		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
+		write: "PATCH /channels/c1",
+		body:  `{"parent_id":"cat1","permission_overwrites":[{"id":"g1","type":0,"allow":"0","deny":"1024"}]}`,
+	}, {
+		name:   "stops paging at the transcript cap and marks it incomplete",
+		verb:   "ticket.close",
+		req:    discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1", Transcript: true},
+		script: endlessHistory,
+		want: discordoutgress.TicketCloseReply{
+			MessageCount: 2000, Truncated: true, TranscriptBody: incompleteTranscript + transcriptOf(100000, 2000),
+		},
+		calls: slices.Concat([]string{"GET /channels/c1"}, historyCalls(100000, 20), []string{"DELETE /channels/c1"}),
+	}, {
+		name:   "closes an empty ticket without a transcript",
+		verb:   "ticket.close",
+		req:    discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1", Transcript: true},
+		routes: map[string]answer{"GET /channels/c1/messages?limit=100": {status: http.StatusOK, body: `[]`}},
+		want:   discordoutgress.TicketCloseReply{},
+		calls:  []string{"GET /channels/c1", "GET /channels/c1/messages?limit=100", "DELETE /channels/c1"},
+	}, {
+		name: "keeps embeds and attachment links in the transcript",
+		verb: "ticket.close",
+		req:  discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1", Transcript: true},
+		routes: map[string]answer{"GET /channels/c1/messages?limit=100": {status: http.StatusOK, body: `[{
+			"id":"5","content":"see attached","timestamp":"2026-01-02T03:04:05+00:00",
+			"author":{"id":"u1","username":"ada"},
+			"embeds":[{"title":"Order","description":"#42"}],
+			"attachments":[{"url":"https://cdn.example/receipt.png","filename":"receipt.png"}]}]`}},
+		want: discordoutgress.TicketCloseReply{
+			MessageCount: 1,
+			TranscriptBody: "[2026-01-02 03:04 UTC] ada: see attached\n" +
+				"    [embed] Order: #42\n" +
+				"    [attachment] https://cdn.example/receipt.png\n",
+		},
+		calls: []string{"GET /channels/c1", "GET /channels/c1/messages?limit=100", "DELETE /channels/c1"},
+	}}
+}
+
+func TestTicketCloseDisposesTheChannelAndAnswers(t *testing.T) {
+	for _, tc := range ticketCloseCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected(t), tc.exchange(t, serveTickets))
+		})
 	}
 }
 
-func assertTranscriptOrder(t *testing.T, body string) {
+type transcriptUpload struct {
+	Payload uploadPayload
+	File    string
+}
+
+type uploadPayload struct {
+	Attachments []uploadAttachment `json:"attachments"`
+	Embeds      []uploadEmbed      `json:"embeds"`
+}
+
+type uploadAttachment struct {
+	ID       int    `json:"id"`
+	Filename string `json:"filename"`
+}
+
+type uploadEmbed struct {
+	Title string `json:"title"`
+}
+
+func uploadOf(t *testing.T, call recordedCall) transcriptUpload {
 	t.Helper()
-	if !strings.HasPrefix(body, "[2026-01-02 03:04 UTC] ada: line 898\n") {
-		t.Fatalf("transcript starts %q", firstLine(body))
-	}
-	if !strings.HasSuffix(body, "ada: line 1000\n") {
-		t.Fatalf("transcript ends %q", body[len(body)-40:])
-	}
+	_, params, err := mime.ParseMediaType(call.contentType)
+	require.NoError(t, err)
+	form, err := multipart.NewReader(strings.NewReader(call.body), params["boundary"]).ReadForm(1 << 20)
+	require.NoError(t, err)
+	var payload uploadPayload
+	require.NoError(t, codec.Unmarshal([]byte(form.Value["payload_json"][0]), &payload))
+	file, err := form.File["files[0]"][0].Open()
+	require.NoError(t, err)
+	data, err := io.ReadAll(file)
+	require.NoError(t, err)
+	return transcriptUpload{Payload: payload, File: string(data)}
 }
 
 func TestTicketClosePagesHistoryUploadsAndArchives(t *testing.T) {
-	h, tr := newTicketRPC(t, pagedHistory)
-
 	req := closeReq()
 	req.OpenerID = "u1"
 	req.Transcript = true
 	req.StaffRoleIDs = []string{"rmod", ""}
 	req.Summary = discordoutgress.TicketCloseSummary{Opener: "<@u1>", Closer: "Mod"}
+	transcript := transcriptOf(1000, discapi.MessagePageMax+3)
+	tc := discordCase{
+		verb: "ticket.close",
+		req:  req,
+		routes: map[string]answer{
+			"GET /channels/c1/messages?limit=100":            {status: http.StatusOK, body: messagePage(1000, discapi.MessagePageMax)},
+			"GET /channels/c1/messages?before=901&limit=100": {status: http.StatusOK, body: messagePage(900, 3)},
+		},
+		want: discordoutgress.TicketCloseReply{
+			MessageCount: discapi.MessagePageMax + 3, TranscriptBody: transcript, ArchivedChannelID: "c1",
+		},
+		calls: []string{
+			"GET /channels/c1", "GET /channels/c1/messages?limit=100", "GET /channels/c1/messages?before=901&limit=100",
+			"PATCH /channels/c1", "GET /channels/log1", "POST /channels/log1/messages multipart",
+		},
+		write: "PATCH /channels/c1",
+		body: `{"name":"closed-ticket-ada-1","parent_id":"cat1","permission_overwrites":[` +
+			`{"id":"g1","type":0,"allow":"0","deny":"1024"},{"id":"u1","type":1,"allow":"0","deny":"1024"},` +
+			`{"id":"rmod","type":0,"allow":"66560","deny":"0"}]}`,
+	}
 
-	reply := h.close(context.Background(), req)
+	got, tr := tc.exchangeWith(t, serveTickets)
 
-	if reply.Error != "" {
-		t.Fatalf("close reply = %+v", reply)
-	}
-	if reply.MessageCount != discapi.MessagePageMax+3 {
-		t.Fatalf("message count = %d", reply.MessageCount)
-	}
-	if reply.ArchivedChannelID != "c1" {
-		t.Fatalf("archived channel = %q, want the channel itself", reply.ArchivedChannelID)
-	}
-
-	assertHistoryPaging(t, tr)
-	assertTranscriptOrder(t, reply.TranscriptBody)
-	assertMultipartUpload(t, tr)
-	assertArchivePatch(t, tr)
-
-	if got := tr.find(http.MethodDelete, "/channels/c1"); len(got) != 0 {
-		t.Fatal("an archived ticket channel must survive")
-	}
-}
-
-func assertMultipartUpload(t *testing.T, tr *scriptedTransport) {
-	t.Helper()
-	uploads := wantLogPosts(t, tr, 1)
-	mediaType, params, err := mime.ParseMediaType(uploads[0].contentType)
-	if err != nil {
-		t.Fatalf("content type %q: %v", uploads[0].contentType, err)
-	}
-	if mediaType != "multipart/form-data" {
-		t.Fatalf("content type = %q, want a multipart upload", uploads[0].contentType)
-	}
-	form, err := multipart.NewReader(strings.NewReader(uploads[0].body), params["boundary"]).ReadForm(1 << 20)
-	if err != nil {
-		t.Fatalf("read form: %v", err)
-	}
-	if len(form.Value["payload_json"]) != 1 {
-		t.Fatalf("payload_json parts = %v", form.Value)
-	}
-	wantContainsAll(t, form.Value["payload_json"][0],
-		`"filename":"ticket-ada-1.txt"`, "Ticket closed", `"id":0`)
-	if len(form.File["files[0]"]) != 1 {
-		t.Fatalf("file parts = %v", form.File)
-	}
-}
-
-func assertArchivePatch(t *testing.T, tr *scriptedTransport) {
-	t.Helper()
-	body := wantChannelPatch(t, tr).body
-	wantContainsAll(t, body,
-		`"parent_id":"cat1"`, `"name":"closed-ticket-ada-1"`, `"id":"rmod"`, `"id":"u1"`)
-	if strings.Contains(body, `"id":"","type":0,"allow"`) {
-		t.Fatalf("patch body carries an empty-id overwrite: %q", body)
-	}
-}
-
-func TestTicketCloseWithoutTranscriptOrArchiveDeletesTheChannel(t *testing.T) {
-	h, tr := newTicketRPC(t, nil)
-
-	req := closeReq()
-	req.ArchiveCategoryID = ""
-	req.Transcript = false
-
-	reply := h.close(context.Background(), req)
-
-	wantReplyField(t, "error", reply.Error, "")
-	wantReplyField(t, "message count", reply.MessageCount, 0)
-	wantReplyField(t, "transcript body", reply.TranscriptBody, "")
-	if reply.ArchivedChannelID != "" {
-		t.Fatalf("archived = %q, want empty when the channel is deleted", reply.ArchivedChannelID)
-	}
-	if got := tr.find(http.MethodGet, "/channels/c1/messages"); len(got) != 0 {
-		t.Fatal("transcript off must not page the channel")
-	}
-	posts := wantLogPosts(t, tr, 1)
-	if strings.HasPrefix(posts[0].contentType, "multipart/") {
-		t.Fatalf("log post = %+v, want a plain embed rather than an upload", posts[0])
-	}
-	if got := tr.find(http.MethodDelete, "/channels/c1"); len(got) != 1 {
-		t.Fatalf("deletes = %d, want 1", len(got))
-	}
-}
-
-func TestTicketCloseWithoutALogChannelPostsNothing(t *testing.T) {
-	h, tr := newTicketRPC(t, nil)
-
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{GuildID: "g1", ChannelID: "c1"})
-
-	if reply.Error != "" {
-		t.Fatalf("reply = %+v", reply)
-	}
-	for _, call := range tr.calls {
-		if call.method == http.MethodPost {
-			t.Fatalf("unexpected post: %+v", call)
-		}
-	}
-}
-
-func TestTicketCloseMapsForbiddenOntoTheCode(t *testing.T) {
-	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if call.method == http.MethodPatch {
-			return 403, `{"message":"Missing Permissions"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
-
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "t", ArchiveCategoryID: "cat1",
-	})
-
-	if reply.Code != outgressrpc.CodeForbidden {
-		t.Fatalf("code = %q, want %q (reply %+v)", reply.Code, outgressrpc.CodeForbidden, reply)
-	}
-	if reply.Error == "" {
-		t.Fatal("the message travels alongside the code")
-	}
-}
-
-func TestPageLimitNeverOvershootsTheCap(t *testing.T) {
-	if got := pageLimit(0); got != discapi.MessagePageMax {
-		t.Fatalf("pageLimit(0) = %d", got)
-	}
-	left := ddiscord.TranscriptMessageCap - 40
-	if got := pageLimit(left); got != 40 {
-		t.Fatalf("pageLimit(%d) = %d, want 40", left, got)
-	}
-}
-
-func TestCollectStopsAtTheMessageCap(t *testing.T) {
-	next := 100000
-	h, tr := newTicketRPC(t, func(recordedCall) (int, string) {
-		next -= discapi.MessagePageMax
-		return 200, messagePage(next+discapi.MessagePageMax, discapi.MessagePageMax)
-	})
-
-	got, err := h.collect(context.Background(), "c1")
-
-	if err != nil {
-		t.Fatalf("collect: %v", err)
-	}
-	if len(got) != ddiscord.TranscriptMessageCap {
-		t.Fatalf("collected = %d, want the cap %d", len(got), ddiscord.TranscriptMessageCap)
-	}
-	want := ddiscord.TranscriptMessageCap / discapi.MessagePageMax
-	if pages := tr.find(http.MethodGet, "/channels/c1/messages"); len(pages) != want {
-		t.Fatalf("pages = %d, want %d", len(pages), want)
-	}
-}
-
-func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
-	if got := archivedName(""); got != "" {
-		t.Fatalf("archivedName(\"\") = %q; an empty name means ModifyChannel leaves it alone", got)
-	}
-	if got := archivedName("ticket-ada-" + strconv.Itoa(1)); got != "closed-ticket-ada-1" {
-		t.Fatalf("archivedName = %q", got)
-	}
+	require.Equal(t, tc.expected(t), got)
+	require.Equal(t, transcriptUpload{
+		Payload: uploadPayload{
+			Attachments: []uploadAttachment{{ID: 0, Filename: "ticket-ada-1.txt"}},
+			Embeds:      []uploadEmbed{{Title: "Ticket closed"}},
+		},
+		File: transcript,
+	}, uploadOf(t, tr.find(http.MethodPost, "/channels/log1/messages")[0]))
 }
 
 func TestArchiveOverwritesCarryBothHalves(t *testing.T) {

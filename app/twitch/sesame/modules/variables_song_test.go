@@ -83,7 +83,7 @@ func assertSongVariableCase(t *testing.T, tc songVariableCase) {
 		}
 		deps.Gossip = &fakeGossip{replies: replies, err: tc.gossipErr}
 	}
-	values, err := songVariables(deps)(context.Background(), urchinCtx(""))
+	values, err := variableGroupReader(t, deps, "songqueue", "current")(context.Background(), gameCtx(""))
 	assert.ErrorIs(t, err, tc.wantErr)
 	assert.Equal(t, tc.wantTitle, values["title"])
 	assert.Equal(t, tc.wantRequester, values["req"])
@@ -132,7 +132,7 @@ func TestSongVariablesReadThePlayerOncePerRender(t *testing.T) {
 
 func newVariableSongQueueCmd(t *testing.T, store engine.SongQueueStore, gossip engine.GossipCaller) songQueueCmd {
 	t.Helper()
-	qc, ok := newSongQueueCmd(engine.Deps{SongQueue: store, Gossip: gossip}, urchinCtx(""), zap.NewNop(), newSpotifyWarnThrottle())
+	qc, ok := newSongQueueCmd(engine.Deps{SongQueue: store, Gossip: gossip}, gameCtx(""), zap.NewNop(), newSpotifyWarnThrottle())
 	require.True(t, ok)
 	return qc
 }
@@ -155,10 +155,11 @@ func TestSongVariablesCacheExpiresAfterTTL(t *testing.T) {
 	require.NotNil(t, track)
 	assert.Len(t, gossip.calls, 1, "a repeated render within the TTL window must reuse the cached read")
 
-	time.Sleep(tinyTTL * 5)
-	_, failure = qc.cachedReadPlayer(ctx, players)
+	require.Eventually(t, func() bool {
+		_, failure = qc.cachedReadPlayer(ctx, players)
+		return len(gossip.calls) == 2
+	}, 2*time.Second, tinyTTL/4, "a render after the TTL window must issue a fresh call")
 	require.Empty(t, failure)
-	assert.Len(t, gossip.calls, 2, "a render after the TTL window must issue a fresh call")
 }
 
 func TestSongVariablesCacheSkipsErrorResults(t *testing.T) {

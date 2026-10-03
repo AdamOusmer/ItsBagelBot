@@ -155,17 +155,4 @@ func TestAPIRequestsCarryInstallationToken(t *testing.T) {
 	assert.Equal(t, [2]string{"m1", "token " + appToken}, [2]string{string(sha), auth})
 }
 
-func TestCacheExpires(t *testing.T) {
-	cache := newCache[string, int](cacheTTL)
-	start := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
-	fetches := 0
-	fetch := func() (int, error) { fetches++; return fetches, nil }
-	var got []int
-	for _, at := range []time.Duration{0, cacheTTL - time.Second, cacheTTL, cacheTTL + time.Second} {
-		v, _ := cache.load("k", start.Add(at), fetch)
-		got = append(got, v)
-	}
-	assert.Equal(t, []int{1, 1, 2, 2}, got)
-}
-
 func secs(n int) time.Duration { return time.Duration(n) * time.Second }

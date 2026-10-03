@@ -6,7 +6,7 @@ import { beforeEach, expect, mock, test } from 'bun:test';
 const calls: string[] = [];
 const upserts: Record<string, unknown>[] = [];
 let failName = '';
-mock.module('@bagel/kit/server/logger', () => ({ logger: { error: () => {} } }));
+process.env.LOG_LEVEL = 'silent';
 mock.module('./commands-store', () => ({
   listCommands: async () => [
     { name: 'discord', response: 'a', is_active: true },

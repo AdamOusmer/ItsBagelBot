@@ -48,6 +48,16 @@ func TestPutCompareAndSet(t *testing.T) {
 		})
 }
 
+func TestGetReportsCorruptValue(t *testing.T) {
+	s, kv, _ := testStore()
+	kv.write("run.r1", []byte("{not json"))
+
+	_, _, err := s.Get(context.Background(), "r1")
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ports.ErrNotFound)
+}
+
 func activeID(t *testing.T, s *Store) deploy.RunID {
 	t.Helper()
 	run, _, ok, err := s.Active(context.Background())
@@ -100,7 +110,7 @@ func TestActivePointerStaleHolderIsTakenOver(t *testing.T) {
 	}{
 		{"holder never written", func(kv *fakeKV) {}},
 		{"holder terminal", func(kv *fakeKV) {
-			kv.seed(runKey("r0"), deploy.Run{ID: "r0", State: deploy.RunCancelled})
+			kv.seed("run.r0", deploy.Run{ID: "r0", State: deploy.RunCancelled})
 		}},
 	}
 	for _, tc := range cases {

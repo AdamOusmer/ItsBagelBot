@@ -39,54 +39,37 @@ func seedUsers(t *testing.T, client *ent.Client, seeds []statsSeed) {
 	}
 }
 
-func legacyUserStats(t *testing.T, client *ent.Client) (total, active, paid, vip int) {
-	t.Helper()
+func TestUserStatsCountsEveryStatusAndFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		seeds []statsSeed
+		want  [4]int
+	}{
+		{name: "an empty table counts zero"},
+		{
+			name: "counts total, active, paid and vip across banned rows",
+			seeds: []statsSeed{
+				{id: 2001, status: user.StatusFree, isActive: true},
+				{id: 2002, status: user.StatusFree, isActive: false},
+				{id: 2003, status: user.StatusPaid, isActive: true},
+				{id: 2004, status: user.StatusPaid, isActive: false},
+				{id: 2005, status: user.StatusVip, isActive: true},
+				{id: 2006, status: user.StatusVip, isActive: true, banned: true},
+				{id: 2007, status: user.StatusPaid, isActive: true, banned: true},
+			},
+			want: [4]int{7, 5, 3, 2},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _, repo := setup(t)
+			seedUsers(t, client, tc.seeds)
 
-	ctx := context.Background()
-	total = client.User.Query().CountX(ctx)
-	active = client.User.Query().Where(user.IsActiveEQ(true)).CountX(ctx)
-	paid = client.User.Query().Where(user.StatusEQ(user.StatusPaid)).CountX(ctx)
-	vip = client.User.Query().Where(user.StatusEQ(user.StatusVip)).CountX(ctx)
-	return
-}
+			total, active, paid, vip, err := repo.UserStats(context.Background())
 
-func TestUserStatsEmptyTable(t *testing.T) {
-	_, _, repo := setup(t)
-
-	total, active, paid, vip, err := repo.UserStats(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, 0, total)
-	assert.Equal(t, 0, active)
-	assert.Equal(t, 0, paid)
-	assert.Equal(t, 0, vip)
-}
-
-func TestUserStatsMatchesLegacyCounts(t *testing.T) {
-	client, _, repo := setup(t)
-
-	seedUsers(t, client, []statsSeed{
-		{id: 2001, status: user.StatusFree, isActive: true},
-		{id: 2002, status: user.StatusFree, isActive: false},
-		{id: 2003, status: user.StatusPaid, isActive: true},
-		{id: 2004, status: user.StatusPaid, isActive: false},
-		{id: 2005, status: user.StatusVip, isActive: true},
-		{id: 2006, status: user.StatusVip, isActive: true, banned: true},
-		{id: 2007, status: user.StatusPaid, isActive: true, banned: true},
-	})
-
-	total, active, paid, vip, err := repo.UserStats(context.Background())
-	require.NoError(t, err)
-
-	wantTotal, wantActive, wantPaid, wantVip := legacyUserStats(t, client)
-	assert.Equal(t, wantTotal, total)
-	assert.Equal(t, wantActive, active)
-	assert.Equal(t, wantPaid, paid)
-	assert.Equal(t, wantVip, vip)
-
-	assert.Equal(t, 7, total)
-	assert.Equal(t, 5, active)
-	assert.Equal(t, 3, paid)
-	assert.Equal(t, 2, vip)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, [4]int{total, active, paid, vip})
+		})
+	}
 }
 
 func TestUserStatsServesFromCacheWithinTTL(t *testing.T) {

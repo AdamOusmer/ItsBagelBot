@@ -151,18 +151,29 @@ func TestStartRecordsTheLiveRelease(t *testing.T) {
 		deploy.Outputs{LiveVersion: run.Outputs.LiveVersion, LiveSHA: run.Outputs.LiveSHA})
 }
 
-func TestNextVersionBumpsThePatch(t *testing.T) {
-	cases := map[deploy.Version]deploy.Version{
-		"v0.2.2-beta":  "v0.2.3-beta",
-		"v1.9.9-beta":  "v1.9.10-beta",
-		"v1.2.3":       "",
-		"v1.2.3-alpha": "",
+func TestPlanProposesTheNextBetaPatch(t *testing.T) {
+	cases := []struct {
+		name string
+		last deploy.Version
+		want deploy.Version
+	}{
+		{"bumps the patch", "v0.2.2-beta", "v0.2.3-beta"},
+		{"carries past one digit", "v1.9.9-beta", "v1.9.10-beta"},
+		{"proposes nothing after a stable tag", "v1.2.3", ""},
+		{"proposes nothing after a foreign suffix", "v1.2.3-alpha", ""},
 	}
-	got := map[deploy.Version]deploy.Version{}
-	for in := range cases {
-		got[in] = nextVersion(in)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			withCluster(h)
+			h.gh.tags = map[deploy.Version]deploy.SHA{tc.last: tagSHA}
+
+			plan, err := h.eng.Plan(bg, owner, deploy.PlanRequest{})
+			require.NoError(t, err)
+
+			assert.Equal(t, [2]deploy.Version{tc.last, tc.want}, [2]deploy.Version{plan.LastTag, plan.NextVersion})
+		})
 	}
-	assert.Equal(t, cases, got)
 }
 
 func TestStartRefusesMalformedRequests(t *testing.T) {

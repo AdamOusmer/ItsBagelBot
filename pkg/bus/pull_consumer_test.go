@@ -5,234 +5,179 @@ package bus
 
 import (
 	"context"
-	"fmt"
-	"strings"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	jsapi "github.com/nats-io/nats.go/jetstream"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
-func TestPullConsumerIsOneSharedDurableForTheWholeFleet(t *testing.T) {
-	t.Setenv("POD_NAME", "sesame-6d9f7c8b45-tq2xz")
-	name := pullConsumerName("worker", "twitch.ingress.event.premium")
+func TestPullAckNoneRecordsNoReceipt(t *testing.T) {
+	t.Setenv("NATS_PULL_ACK_POLICY", "none")
+	s := &pullSubscriber{desired: pullConsumerConfig(hotLane, "x")}
 
-	if name != durableName("worker", "twitch.ingress.event.premium") {
-		t.Fatalf("consumer name = %q, want the plain fleet-wide durable", name)
-	}
-	if strings.Contains(name, "tq2xz") || strings.Contains(name, podIdentity()) {
-		t.Fatalf("consumer name %q carries pod identity and would fan the lane out", name)
-	}
-	if name == flowConsumerName("worker", "twitch.ingress.event.premium") {
-		t.Fatal("pull and flow durables collide")
-	}
+	s.noteReceipt(&fakePullMsg{})
+
+	assert.Nil(t, s.takePending(), "AckNone must not record a receipt for the floor ack")
 }
 
-func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "all")
-	cfg := pullConsumerConfig("twitch.ingress.event.premium", "worker_twitch_ingress_event_premium")
-
-	requireContract(t,
-		contractClause{cfg.AckPolicy == jsapi.AckAllPolicy,
-			fmt.Sprintf("ack policy = %v, want AckAll", cfg.AckPolicy)},
-		contractClause{cfg.DeliverSubject == "" && !cfg.FlowControl,
-			fmt.Sprintf("pull consumer was given push delivery: %#v", cfg)},
-		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
-			fmt.Sprintf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)},
-		contractClause{cfg.Replicas == defaultPullReplicas && cfg.MemoryStorage,
-			fmt.Sprintf("consumer state must be replicated in memory: %#v", cfg)},
-		contractClause{cfg.InactiveThreshold == flowInactiveThreshold,
-			fmt.Sprintf("inactive threshold = %v, want %v", cfg.InactiveThreshold, flowInactiveThreshold)},
-		contractClause{cfg.AckWait == defaultPullAckWait && cfg.MaxAckPending == defaultPullMaxAckPending,
-			fmt.Sprintf("ack budget = %v/%d, want the shipped defaults", cfg.AckWait, cfg.MaxAckPending)},
-	)
+func subscriberWithRebind(replacement jsapi.Consumer, failure error) (*pullSubscriber, *int) {
+	attempts := 0
+	s := &pullSubscriber{subject: hotLane, log: zap.NewNop()}
+	s.rebind = func() (jsapi.Consumer, error) {
+		attempts++
+		if failure != nil {
+			return nil, failure
+		}
+		return replacement, nil
+	}
+	return s, &attempts
 }
 
-func TestPullConsumerKnobsRejectNonPositiveOverrides(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "all")
-	t.Setenv("NATS_PULL_ACK_WAIT", "45s")
-	t.Setenv("NATS_PULL_MAX_ACK_PENDING", "70000")
-	t.Setenv("NATS_PULL_FETCH_BATCH", "0")
-	t.Setenv("NATS_PULL_FETCH_MAXWAIT", "-1s")
-	t.Setenv("NATS_PULL_ACK_EVERY", "100ms")
+func TestFetchErrorRebuildsALostDurable(t *testing.T) {
+	replacement := &pullConsumerHandle{info: &jsapi.ConsumerInfo{}}
+	s, rebuilds := subscriberWithRebind(replacement, nil)
 
-	cfg := pullConsumerConfig("twitch.ingress.event.premium", "worker_premium")
-	if cfg.AckWait != 45*time.Second || cfg.MaxAckPending != 70000 {
-		t.Fatalf("valid overrides were ignored: %v/%d", cfg.AckWait, cfg.MaxAckPending)
-	}
-	if pullFetchBatch() != defaultPullFetchBatch || pullFetchMaxWait() != defaultPullFetchMaxWait {
-		t.Fatalf("non-positive override was accepted: batch=%d wait=%v",
-			pullFetchBatch(), pullFetchMaxWait())
-	}
-	if pullAckEvery() != 100*time.Millisecond {
-		t.Fatalf("ack cadence = %v, want the override", pullAckEvery())
-	}
+	running := s.noteFetchError(jsapi.ErrConsumerNotFound)
+
+	assert.True(t, running, "a fetch error on a live binding must keep the pump loop running")
+	assert.Equal(t, 1, *rebuilds, "one rebuild attempt after the durable went missing")
+	assert.Same(t, replacement, s.consumer, "the pump loop is still bound to the consumer the server has deleted")
 }
 
-func TestPullWireCarriesAStableIdentity(t *testing.T) {
-	wire := fakePullDelivery(99)
-	first := pullWireMessage(wire)
-	second := pullWireMessage(fakePullDelivery(99))
-
-	want := jetStreamIdentity("hub", TwitchIngressStream.Name, 99)
-	if got := first.Header.Get(MessageIDHeader); got != want {
-		t.Fatalf("stamped identity = %q, want %q", got, want)
-	}
-	if second.Header.Get(MessageIDHeader) != want {
-		t.Fatal("two deliveries of the same sequence got different identities")
-	}
-
-	authored := fakePullDelivery(100)
-	authored.header.Set(MessageIDHeader, "authored-id")
-	if got := pullWireMessage(authored).Header.Get(MessageIDHeader); got != "authored-id" {
-		t.Fatalf("publisher identity was overwritten with %q", got)
-	}
-}
-
-func TestPullSubscriberIsBoundToOneSubject(t *testing.T) {
-	sub := testPullSubscriber()
-	defer close(sub.closeCh)
-
-	first, err := sub.Subscribe(context.Background(), sub.subject)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := sub.Subscribe(context.Background(), sub.subject)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatal("a second consumer unit was handed its own lane channel")
-	}
-	if _, err := sub.Subscribe(context.Background(), "twitch.ingress.event.premium"); err == nil {
-		t.Fatal("the subscriber accepted a subject it is not bound to")
-	}
-	sub.closed.Store(true)
-	if _, err := sub.Subscribe(context.Background(), sub.subject); err == nil {
-		t.Fatal("a closed subscriber handed out its lane channel")
-	}
-}
-
-func TestConsumeModeIsThreeWayAndDefaultsToPull(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		flow string
-		mode string
-		want laneConsumeMode
+func TestOnlyALostDurableTriggersARebuild(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
 	}{
-		{"unset", "", "", laneModeExplicit},
-		{"mode without the opt-in", "", "pull", laneModeExplicit},
-		{"flow", "on", "flow", laneModeFlow},
-		{"pull", "on", "pull", laneModePull},
-		{"explicit", "on", "explicit", laneModeExplicit},
-		{"garbage", "on", "puull", laneModePull},
-		{"default", "on", "", laneModePull},
-		{"backcompat off", "off", "pull", laneModeExplicit},
-		{"backcompat off over flow", "off", "flow", laneModeExplicit},
+		{jsapi.ErrConsumerLeadershipChanged, false},
+		{jsapi.ErrNoHeartbeat, false},
+		{errors.New("nats: timeout"), false},
+		{jsapi.ErrConsumerNotFound, true},
+		{jsapi.ErrConsumerDeleted, true},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("NATS_CONSUME_FLOW", test.flow)
-			t.Setenv("NATS_CONSUME_MODE", test.mode)
-			if got := consumeMode(); got != test.want {
-				t.Fatalf("consumeMode() = %q, want %q", got, test.want)
-			}
+		t.Run(tc.err.Error(), func(t *testing.T) {
+			assert.Equal(t, tc.want, consumerGone(tc.err))
 		})
 	}
 }
 
-func TestPullModeStillRefusesLanesOutsideTheHotIngress(t *testing.T) {
-	t.Setenv("NATS_CONSUME_FLOW", "on")
-	t.Setenv("NATS_CONSUME_MODE", "pull")
-	subscriber := &fleetSubscriber{group: "worker"}
-	hot := subscriptionTarget{stream: TwitchIngressStandardStream.Name, topic: "twitch.ingress.event.standard"}
-	control := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.status.authz.revoked"}
+func TestAFailedRebuildKeepsTheLoopRunning(t *testing.T) {
+	original := &pullConsumerHandle{info: &jsapi.ConsumerInfo{}}
+	s, rebuilds := subscriberWithRebind(nil, errors.New("nats: no responders"))
+	s.consumer = original
 
-	if got := subscriber.laneModeFor(hot); got != laneModePull {
-		t.Fatalf("hot lane mode = %q, want pull", got)
+	running := s.noteFetchError(jsapi.ErrConsumerDeleted)
+
+	assert.True(t, running, "a failed rebuild must not stop the pump loop")
+	assert.Equal(t, 1, *rebuilds)
+	assert.Same(t, original, s.consumer, "a failed rebuild must not replace the binding with a consumer it never got")
+}
+
+func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
+	s := &pullSubscriber{log: zap.NewNop()}
+	rebindEntered := make(chan struct{})
+	releaseRebind := make(chan struct{})
+	s.rebind = func() (jsapi.Consumer, error) {
+		close(rebindEntered)
+		<-releaseRebind
+		return &pullConsumerHandle{}, nil
 	}
-	if got := subscriber.laneModeFor(control); got != laneModeExplicit {
-		t.Fatalf("control lane mode = %q, want explicit", got)
+
+	rebuilt := make(chan struct{})
+	go func() {
+		s.rebuildConsumer()
+		close(rebuilt)
+	}()
+	<-rebindEntered
+
+	fetched := make(chan struct{})
+	go func() {
+		s.handleFor(0)
+		close(fetched)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for s.handleMu.TryLock() {
+		s.handleMu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatal("primary handle lookup never acquired handleMu")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(releaseRebind)
+
+	awaitSignal(t, rebuilt, "rebuild and primary handle lookup deadlocked")
+	awaitSignal(t, fetched, "primary handle lookup did not complete after rebuild")
+}
+
+func TestLaneHealthSeparatesSilenceFromFailure(t *testing.T) {
+	s, _ := subscriberWithRebind(nil, errors.New("nats: no responders"))
+	erroringFor := func(age time.Duration) bool {
+		s.errSince.Store(time.Now().Add(-age).UnixNano())
+		return s.Healthy()
+	}
+
+	assert.True(t, s.Healthy(), "a lane that has never failed is healthy, however long it has been idle")
+	assert.True(t, erroringFor(laneUnhealthyAfter/2), "a lane erroring for less than the grace window must still report ready")
+	assert.False(t, erroringFor(2*laneUnhealthyAfter), "a lane stuck in its error path past the grace window must report unready")
+	s.noteFetchProgress()
+	assert.True(t, s.Healthy(), "a lane that read a message again must report ready")
+}
+
+func TestSubscriberHealthyAggregatesTheLanes(t *testing.T) {
+	sick, _ := subscriberWithRebind(nil, nil)
+	sick.errSince.Store(time.Now().Add(-2 * laneUnhealthyAfter).UnixNano())
+	well, _ := subscriberWithRebind(nil, nil)
+	fleet := &fleetSubscriber{flowLanes: map[string]*sharedFlowLane{"well": {sub: well}}}
+	onlyHealthy := SubscriberHealthy(fleet)
+
+	fleet.flowLanes["sick"] = &sharedFlowLane{sub: sick}
+
+	assert.True(t, onlyHealthy, "a fleet whose only lane is healthy must report ready")
+	assert.False(t, SubscriberHealthy(fleet), "one wedged lane must take the whole pod out of readiness")
+	assert.True(t, SubscriberHealthy(&fleetSubscriber{}), "a subscriber with no lanes must report ready")
+}
+
+func TestPullConnectionsDefaultsToOne(t *testing.T) {
+	t.Setenv("NATS_PULL_CONNECTIONS", "")
+	assert.Equal(t, 1, pullConnections(), "default pull connections")
+	t.Setenv("NATS_PULL_CONNECTIONS", "64")
+	assert.Equal(t, 32, pullConnections(), "pull connections clamp")
+
+	s := &pullSubscriber{consumer: &pullConsumerHandle{}}
+	for i := range 3 {
+		assert.Same(t, s.consumer, s.handleFor(i), "loop %d without extra connections must use the lane consumer", i)
 	}
 }
 
-func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
-	t.Setenv("NATS_PULL_ACK_POLICY", "all")
-	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100)}
-	name := js.live.Config.Name
+func TestPullCreateStaggerIsBounded(t *testing.T) {
+	t.Setenv("NATS_PULL_CREATE_STAGGER", "0")
+	started := time.Now()
+	pullCreateStagger()
+	assert.LessOrEqual(t, time.Since(started), 50*time.Millisecond, "a zero stagger must not sleep")
 
-	consumer, err := bindPullConsumer(
-		context.Background(), js, TwitchIngressStandardStream.Name,
-		pullConsumerConfig("twitch.ingress.event.standard", name),
-	)
-	if err != nil {
-		t.Fatalf("bindPullConsumer: %v", err)
-	}
-	if consumer == nil {
-		t.Fatal("conversion returned no consumer to fetch from")
-	}
-	if js.deletes != 1 {
-		t.Fatalf("deletes = %d, want exactly one: the conversion is the only thing that earns a delete", js.deletes)
-	}
-	if len(js.created) != 1 {
-		t.Fatalf("creates = %d, want one recreation", len(js.created))
-	}
-
-	got := js.created[0]
-	requireContract(t,
-		contractClause{got.DeliverSubject == "",
-			fmt.Sprintf("replacement carries delivery subject %q; it is still a push consumer", got.DeliverSubject)},
-		contractClause{got.AckPolicy == jsapi.AckAllPolicy,
-			fmt.Sprintf("replacement ack policy = %v, want the pull lane's floor-based AckAll", got.AckPolicy)},
-		contractClause{got.DeliverPolicy == jsapi.DeliverByStartSequencePolicy && got.OptStartSeq == 9_101,
-			fmt.Sprintf("replacement resumed at %v/%d, want the predecessor's ack floor + 1",
-				got.DeliverPolicy, got.OptStartSeq)},
-	)
+	t.Setenv("NATS_PULL_CREATE_STAGGER", "20ms")
+	started = time.Now()
+	pullCreateStagger()
+	assert.LessOrEqual(t, time.Since(started), 200*time.Millisecond, "a stagger of 20ms must not sleep longer")
 }
 
-func TestPullReplacementNeverOpensOnTheWholeRetainedFirehose(t *testing.T) {
-	js := &pullConsumerSpy{live: livePushLaneConsumer(0)}
+func TestAwaitPullLeaderSettlesOnAStableLeader(t *testing.T) {
+	cfg := pullConsumerConfig("twitch.ingress.event.premium", "x")
+	clustered := &pullConsumerHandle{info: &jsapi.ConsumerInfo{Config: cfg, Cluster: &jsapi.ClusterInfo{Leader: "nats-1"}}}
+	single := &pullConsumerHandle{info: &jsapi.ConsumerInfo{Config: cfg}}
 
-	if _, err := bindPullConsumer(
-		context.Background(), js, TwitchIngressStandardStream.Name,
-		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
-	); err != nil {
-		t.Fatalf("bindPullConsumer: %v", err)
-	}
-	if got := js.created[0]; got.DeliverPolicy != jsapi.DeliverNewPolicy || got.OptStartSeq != 0 {
-		t.Fatalf("unknown ack floor resumed at %v/%d, want DeliverNew", got.DeliverPolicy, got.OptStartSeq)
-	}
-}
+	started := time.Now()
+	awaitPullLeader(context.Background(), clustered)
+	settled := time.Since(started)
+	started = time.Now()
+	awaitPullLeader(context.Background(), single)
+	unclustered := time.Since(started)
 
-func TestPullBindingBindsAConversionAnotherPodAlreadyMade(t *testing.T) {
-	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), convertAfter: 2}
-
-	consumer, err := bindPullConsumer(
-		context.Background(), js, TwitchIngressStandardStream.Name,
-		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
-	)
-	if err != nil {
-		t.Fatalf("bindPullConsumer: %v", err)
-	}
-	if consumer == nil {
-		t.Fatal("raced conversion returned no consumer to fetch from")
-	}
-	if js.deletes != 0 {
-		t.Fatalf("deletes = %d, want none: the durable was already converted", js.deletes)
-	}
-}
-
-func TestPullBindingNeverDeletesOnATransientFailure(t *testing.T) {
-	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), createErr: nats.ErrNoResponders}
-
-	_, err := bindPullConsumer(
-		context.Background(), js, TwitchIngressStandardStream.Name,
-		pullConsumerConfig("twitch.ingress.event.standard", js.live.Config.Name),
-	)
-	if err == nil {
-		t.Fatal("a transient provisioning failure was swallowed")
-	}
-	if js.deletes != 0 {
-		t.Fatalf("deletes = %d, want none: only an immutable-field rejection earns a delete", js.deletes)
-	}
+	assert.GreaterOrEqual(t, settled, pullLeaderPoll, "a stable leader settles after about one poll")
+	assert.LessOrEqual(t, settled, 10*pullLeaderPoll)
+	assert.LessOrEqual(t, unclustered, pullLeaderPoll, "a durable without cluster info must not wait")
 }

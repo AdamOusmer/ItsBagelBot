@@ -3,7 +3,6 @@
 
 import { describe, expect, test } from 'bun:test';
 import {
-	initial,
 	openClean,
 	edit,
 	requestSave,

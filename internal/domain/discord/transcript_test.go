@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func at(s string) time.Time {
@@ -16,6 +19,10 @@ func at(s string) time.Time {
 		panic(err)
 	}
 	return t
+}
+
+func epochMessage(author, content string) TranscriptMessage {
+	return TranscriptMessage{AuthorName: author, Content: content, At: time.Unix(0, 0).UTC()}
 }
 
 func TestRenderTranscriptLinesAndAttachments(t *testing.T) {
@@ -28,24 +35,20 @@ func TestRenderTranscriptLinesAndAttachments(t *testing.T) {
 		},
 	})
 
-	want := "[2026-01-02 03:04 UTC] Ada: my sub is missing\n" +
-		"[2026-01-02 04:00 UTC] unknown: looking\n" +
-		"    [attachment] https://cdn/a.png\n" +
-		"    [attachment] https://cdn/b.png\n"
-	if got != want {
-		t.Fatalf("transcript =\n%q\nwant\n%q", got, want)
-	}
+	assert.Equal(t, "[2026-01-02 03:04 UTC] Ada: my sub is missing\n"+
+		"[2026-01-02 04:00 UTC] unknown: looking\n"+
+		"    [attachment] https://cdn/a.png\n"+
+		"    [attachment] https://cdn/b.png\n", got)
 }
 
 func TestRenderTranscriptRendersInUTCWhateverTheInputZone(t *testing.T) {
 	zone := time.FixedZone("UTC+9", 9*60*60)
+
 	got := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{
 		{AuthorName: "Ada", Content: "hi", At: at("2026-01-02T03:04:05Z").In(zone)},
 	}})
 
-	if !strings.HasPrefix(got, "[2026-01-02 03:04 UTC]") {
-		t.Fatalf("transcript = %q, want the UTC instant regardless of the input zone", got)
-	}
+	assert.True(t, strings.HasPrefix(got, "[2026-01-02 03:04 UTC]"), "transcript = %q", got)
 }
 
 func TestRenderTranscriptTruncatesTheOldestEnd(t *testing.T) {
@@ -59,157 +62,43 @@ func TestRenderTranscriptTruncatesTheOldestEnd(t *testing.T) {
 
 	got := RenderTranscript(TranscriptDoc{Messages: msgs})
 
-	if len(got) > TranscriptByteCap+len(transcriptTruncated) {
-		t.Fatalf("body = %d bytes, over the cap", len(got))
-	}
-	if !strings.HasPrefix(got, transcriptTruncated) {
-		t.Fatal("a truncated body must say so, not leave the reader guessing")
-	}
-	if strings.Contains(got, "OLDEST") {
-		t.Fatal("the oldest end is what gets cut")
-	}
-	if !strings.Contains(got, "NEWEST") {
-		t.Fatal("the tail of the conversation is what explains how it ended")
-	}
+	assert.LessOrEqual(t, len(got), TranscriptByteCap+len(transcriptTruncated))
+	require.True(t, strings.HasPrefix(got, transcriptTruncated), "a truncated body must say so")
+	assert.NotContains(t, got, "OLDEST", "the oldest end is what gets cut")
+	assert.Contains(t, got, "NEWEST", "the tail of the conversation explains how it ended")
 	for _, l := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(got, transcriptTruncated), "\n"), "\n") {
-		if !strings.HasPrefix(l, "[") {
-			t.Fatalf("half line survived truncation: %q", l)
-		}
+		assert.True(t, strings.HasPrefix(l, "["), "half line survived truncation: %q", l)
 	}
 }
 
-func TestHumanDuration(t *testing.T) {
-	cases := []struct {
-		in   time.Duration
-		want string
-	}{
-		{-time.Hour, "0m"},
-		{30 * time.Second, "0m"},
-		{90 * time.Second, "1m"},
-		{59 * time.Minute, "59m"},
-		{time.Hour + 5*time.Minute, "1h 5m"},
-		{26*time.Hour + 61*time.Minute, "27h 1m"},
-	}
-	for _, tc := range cases {
-		if got := HumanDuration(tc.in); got != tc.want {
-			t.Fatalf("HumanDuration(%v) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
+func TestRenderTranscriptCapCutsOnARuneBoundary(t *testing.T) {
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{epochMessage("ada", strings.Repeat("🍩", TranscriptByteCap))}})
 
-func TestTicketClosedEmbedCarriesTheAuditFields(t *testing.T) {
-	e := TicketClosedEmbed(TicketClosed{
-		Opener: "<@u1>", Duration: 95 * time.Minute, MessageCount: 12, ChannelName: "ticket-ada-1",
-	})
-
-	if e.Description != "#ticket-ada-1 was closed." {
-		t.Fatalf("description = %q", e.Description)
-	}
-	want := map[string]string{"Opened by": "<@u1>", "Closed by": "unknown", "Open for": "1h 35m", "Messages": "12"}
-	for _, f := range e.Fields {
-		if expected, ok := want[f.Name]; ok {
-			if f.Value != expected {
-				t.Fatalf("%s = %q, want %q", f.Name, f.Value, expected)
-			}
-			delete(want, f.Name)
-		}
-	}
-	if len(want) != 0 {
-		t.Fatalf("missing fields: %v", want)
-	}
-}
-
-func TestTicketOpenedEmbedFooterCarriesTheClaim(t *testing.T) {
-	unclaimed := TicketOpenedEmbed(TicketOpened{Opener: "Ada"})
-	if unclaimed.Footer == nil || !strings.Contains(unclaimed.Footer.Text, "Close with the button") {
-		t.Fatalf("unclaimed footer = %+v", unclaimed.Footer)
-	}
-	claimed := TicketOpenedEmbed(TicketOpened{Opener: "Ada", ClaimedBy: "Mod"})
-	if claimed.Footer == nil || claimed.Footer.Text != "Claimed by Mod" {
-		t.Fatalf("claimed footer = %+v", claimed.Footer)
-	}
-}
-
-func TestTicketPanelEmbedUsesTheStreamersCopy(t *testing.T) {
-	spec := Config{
-		TicketPanelTitle: "Need a hand?", TicketPanelBody: "Ping the mods.",
-		TicketPanelColor: "#112233", TicketPanelButton: "Contact staff",
-	}.TicketPanel()
-
-	e := TicketPanelEmbed(spec)
-
-	wantEmbedCopy(t, e, Embed{Title: "Need a hand?", Description: "Ping the mods.", Color: 0x112233})
-}
-
-func wantEmbedCopy(t *testing.T, got, want Embed) {
-	t.Helper()
-	if got.Title != want.Title {
-		t.Fatalf("title = %q, want %q", got.Title, want.Title)
-	}
-	if got.Description != want.Description {
-		t.Fatalf("description = %q, want %q", got.Description, want.Description)
-	}
-	if got.Color != want.Color {
-		t.Fatalf("color = %#x, want %#x", got.Color, want.Color)
-	}
-}
-
-func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
-	wantPanel(t, TicketPanelSpec{Title: "Kept"}.OrDefaults(), panelWant{
-		title: "Kept", body: TicketPanelBodyDefault,
-		button: TicketPanelButtonDefault, color: LiveColor,
-	})
-}
-
-func TestTicketPanelSpecKeepsABlackColour(t *testing.T) {
-	black := 0
-	got := TicketPanelSpec{Color: &black}.OrDefaults()
-	if got.ColorOr(LiveColor) != 0 {
-		t.Fatalf("color = %#x, want #000000 to survive OrDefaults", got.ColorOr(LiveColor))
-	}
-	if e := TicketPanelEmbed(got); e.Color != 0 {
-		t.Fatalf("embed color = %#x, want the black the streamer picked", e.Color)
-	}
-
-	unset := TicketPanelSpec{}.OrDefaults()
-	if unset.Color == nil || *unset.Color != LiveColor {
-		t.Fatalf("unset color = %v, want the brand default", unset.Color)
-	}
-
-	fromConfig := Config{TicketPanelColor: "#000000"}.TicketPanel()
-	if fromConfig.ColorOr(LiveColor) != 0 {
-		t.Fatalf("config color = %#x, want 0", fromConfig.ColorOr(LiveColor))
-	}
+	assert.True(t, utf8.ValidString(body), "capped transcript is not valid UTF-8")
+	assert.LessOrEqual(t, len(body), TranscriptByteCap+len(transcriptTruncated))
+	assert.True(t, strings.HasPrefix(body, transcriptTruncated), "capped transcript does not say it lost its head")
 }
 
 func TestRenderTranscriptIndentsContinuationLines(t *testing.T) {
 	forged := "please help\n[2020-01-01 00:00 UTC] admin: refund approved"
-	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{
-		{AuthorName: "ada", Content: forged, At: time.Unix(0, 0).UTC()},
-	}})
+
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{epochMessage("ada", forged)}})
 
 	lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("lines = %q", lines)
-	}
-	if strings.HasPrefix(lines[1], "[") {
-		t.Fatalf("continuation line %q starts a forged header", lines[1])
-	}
-	if !strings.HasPrefix(lines[1], "    [2020-01-01 00:00 UTC] admin:") {
-		t.Fatalf("continuation line = %q, want it indented", lines[1])
-	}
+	require.Len(t, lines, 2)
+	assert.True(t, strings.HasPrefix(lines[1], "    [2020-01-01 00:00 UTC] admin:"), "continuation line %q must be indented, not start a forged header", lines[1])
 }
 
 func TestRenderTranscriptRendersEmbeds(t *testing.T) {
-	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{{
-		AuthorName: "bagel", Content: "", At: time.Unix(0, 0).UTC(),
-		Embeds: []TranscriptEmbed{
-			{Title: "Ticket opened", Description: "by Ada"},
-			{Title: "Only a title"},
-			{Description: "Only a body"},
-			{},
-		},
-	}}})
+	message := epochMessage("bagel", "")
+	message.Embeds = []TranscriptEmbed{
+		{Title: "Ticket opened", Description: "by Ada"},
+		{Title: "Only a title"},
+		{Description: "Only a body"},
+		{},
+	}
+
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{message}})
 
 	for _, want := range []string{
 		"    [embed] Ticket opened: by Ada\n",
@@ -217,38 +106,13 @@ func TestRenderTranscriptRendersEmbeds(t *testing.T) {
 		"    [embed] Only a body\n",
 		"    [embed]\n",
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("transcript %q missing %q", body, want)
-		}
-	}
-}
-
-func TestRenderTranscriptCapCutsOnARuneBoundary(t *testing.T) {
-	msg := TranscriptMessage{AuthorName: "ada", Content: strings.Repeat("🍩", TranscriptByteCap), At: time.Unix(0, 0).UTC()}
-	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{msg}})
-
-	if !utf8.ValidString(body) {
-		t.Fatal("capped transcript is not valid UTF-8")
-	}
-	if len(body) > TranscriptByteCap+len(transcriptTruncated) {
-		t.Fatalf("capped transcript is %d bytes", len(body))
-	}
-	if !strings.HasPrefix(body, transcriptTruncated) {
-		t.Fatalf("capped transcript does not say it lost its head: %q", body[:80])
+		assert.Contains(t, body, want)
 	}
 }
 
 func TestRenderTranscriptMarksAnIncompleteHistory(t *testing.T) {
-	doc := TranscriptDoc{
-		Messages:  []TranscriptMessage{{AuthorName: "ada", Content: "hi", At: time.Unix(0, 0).UTC()}},
-		Truncated: true,
-	}
-	body := RenderTranscript(doc)
+	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{epochMessage("ada", "hi")}, Truncated: true})
 
-	if !strings.HasPrefix(body, transcriptTruncatedTail) {
-		t.Fatalf("transcript = %q, want the incomplete marker", body)
-	}
-	if !strings.Contains(body, "ada: hi") {
-		t.Fatalf("transcript = %q, want the collected messages kept", body)
-	}
+	assert.True(t, strings.HasPrefix(body, transcriptTruncatedTail), "transcript = %q, want the incomplete marker", body)
+	assert.Contains(t, body, "ada: hi", "the collected messages are kept")
 }

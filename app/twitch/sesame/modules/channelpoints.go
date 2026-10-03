@@ -130,7 +130,7 @@ func (a rewardAward) grant(ctx context.Context) {
 	if points <= 0 {
 		return
 	}
-	a.d.Loyalty.Earn(a.c.BroadcasterID, viewerID, a.ev.UserLogin, a.ev.UserName, points, 0)
+	a.d.Loyalty.Earn(engine.PointEarning{BroadcasterID: a.c.BroadcasterID, ViewerID: viewerID, Login: a.ev.UserLogin, Name: a.ev.UserName, Points: points})
 }
 
 func (a rewardAward) points(ctx context.Context, viewerID uint64) int64 {

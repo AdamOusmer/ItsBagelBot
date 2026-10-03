@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -95,14 +96,17 @@ func (f *fixture) stageOf(id deploy.StageID) deploy.Stage {
 
 func (f *fixture) runStage(t *testing.T, id deploy.StageID) (done bool, err error) {
 	t.Helper()
-	s := stageByID(t, id)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	rc := f.rc(id)
-	if done, err = s.Done(ctx, rc); err != nil || done {
+	if done, err = f.stageDone(ctx, t, id); err != nil || done {
 		return done, err
 	}
-	return false, s.Run(ctx, rc)
+	return false, stageByID(t, id).Run(ctx, f.rc(id))
+}
+
+func (f *fixture) stageDone(ctx context.Context, t *testing.T, id deploy.StageID) (bool, error) {
+	t.Helper()
+	return stageByID(t, id).Done(ctx, f.rc(id))
 }
 
 func stageByID(t *testing.T, id deploy.StageID) stage.Stage {
@@ -112,7 +116,7 @@ func stageByID(t *testing.T, id deploy.StageID) stage.Stage {
 			return s
 		}
 	}
-	t.Fatalf("no stage %s", id)
+	require.FailNow(t, "no such stage", "%s", id)
 	return nil
 }
 
@@ -123,15 +127,11 @@ func (fixedClock) Now() time.Time { return time.Date(2026, 9, 23, 23, 30, 0, 0, 
 func loadManifests(t *testing.T) ports.Files {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Join("testdata", "k8s"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	files := ports.Files{}
 	for _, e := range entries {
 		body, err := os.ReadFile(filepath.Join("testdata", "k8s", e.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		files[ports.FilePath("deploy/k8s/"+e.Name())] = body
 	}
 	return files
@@ -155,6 +155,7 @@ type fakeGitHub struct {
 	notes    map[deploy.Version]string
 	checks   map[deploy.SHA][]ports.CheckSummary
 	runs     []ports.WorkflowRun
+	queries  []ports.RunQuery
 	steps    map[int64][]runStep
 	logs     map[int64][]string
 	attested map[deploy.Digest]bool
@@ -413,6 +414,7 @@ func (g *fakeGitHub) Releases(context.Context, int) ([]ports.Release, error) { r
 func (g *fakeGitHub) FindWorkflowRun(_ context.Context, q ports.RunQuery) (ports.WorkflowRun, bool, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.queries = append(g.queries, q)
 	for _, r := range g.runs {
 		if r.HeadSHA == q.SHA {
 			return g.current(r.ID).run, true, nil

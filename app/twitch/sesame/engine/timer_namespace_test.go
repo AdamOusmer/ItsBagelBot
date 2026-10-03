@@ -6,12 +6,12 @@ package engine
 import (
 	"context"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func TestTimerModuleNamespaceUsesModuleGateAndOneRead(t *testing.T) {
@@ -24,18 +24,23 @@ func TestTimerModuleNamespaceUsesModuleGateAndOneRead(t *testing.T) {
 				assert.Empty(t, c.Env.ChatterUserID)
 				return map[string]string{"date": "today"}, nil
 			}}}}
-			d := Deps{Proj: fakeReader{modules: map[string]projection.ModuleView{"facts": {Name: "facts", IsEnabled: enabled}}}, Log: zap.NewNop()}
+			reader := fakeReader{modules: map[string]projection.ModuleView{"facts": {Name: "facts", IsEnabled: enabled}}}
+			d := Deps{Proj: reader, Log: zap.NewNop()}
 			p := NewPipeline(d, NewRegistry(d.Log, feature), Config{})
 			t.Cleanup(p.Close)
+			store, pub := timerFireStore(p)
+			store.proj = reader
 			text := "{facts:date}/{facts:status:date}/{if:facts:date:yes:no}/{user}"
-			result := p.expandTimerText(context.Background(), timerRun{ref: timerRef{broadcasterID: 42, id: "daily"}, locale: "en", firedAt: time.Now()}, text)
+
+			store.fire(context.Background(), armedTimer{ref: timerRef{broadcasterID: 42, id: "daily"}, def: timerDef{ID: "daily", Message: text}})
+
 			if enabled {
-				assert.Equal(t, "today/today/yes/{user}", result)
+				assert.Equal(t, []string{"today/today/yes/{user}"}, pub.chatTexts(t))
 				assert.Equal(t, 1, reads)
-			} else {
-				assert.Equal(t, text, result)
-				assert.Zero(t, reads)
+				return
 			}
+			assert.Equal(t, []string{text}, pub.chatTexts(t))
+			assert.Zero(t, reads)
 		})
 	}
 }
@@ -77,7 +82,7 @@ func TestTimerNamespacesUseLoadedPremiumStatusAndConfiguredAccount(t *testing.T)
 			store.outgressPremium = premiumSubj
 			store.fire(context.Background(), armedTimer{ref: timerRef{broadcasterID: 42, id: "daily"}, def: timerDef{ID: "daily", Message: "{facts:player|unavailable}/{facts:tier}"}})
 			if assert.Len(t, pub.got, 1) {
-				assert.Equal(t, tc.want, decodeChat(t, pub.got[0].msg))
+				assert.Equal(t, tc.want, chatMessageText(t, pub.got[0].msg))
 				wantSubject := standardSubj
 				if user.Premium() {
 					wantSubject = premiumSubj

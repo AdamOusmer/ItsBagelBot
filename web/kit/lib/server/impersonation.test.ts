@@ -31,34 +31,20 @@ describe('view-as tokens', () => {
     });
   });
 
-  test('rejects malformed and tampered signatures', () => {
-    expect(verifyViewAs('not-a-token', { publicKey: publicKeyB64 })).toBeNull();
-    const token = signViewAs(base, { privateKey: privateKeyB64, now: () => 1_000 });
-    expect(verifyViewAs(`${token}x`, { publicKey: publicKeyB64, now: () => 1_001 })).toBeNull();
-  });
-
-  test('rejects the wrong audience', () => {
-    const token = signedPayload({
+  test.each([
+    ['rejects a malformed token', () => 'not-a-token', 1_001],
+    ['rejects a tampered signature', () => `${signViewAs(base, { privateKey: privateKeyB64, now: () => 1_000 })}x`, 1_001],
+    ['rejects the wrong audience', () => signedPayload({
       ...base,
       iss: 'bagel-console-admin',
       aud: 'not-the-dashboard' as ViewAsPayload['aud'],
       jti: 'nonce',
       iat: 1_000,
       exp: 1_300
-    });
-    expect(verifyViewAs(token, { publicKey: publicKeyB64, now: () => 1_001 })).toBeNull();
-  });
-
-  test('rejects excessive lifetimes', () => {
-    const token = signViewAs({ ...base, exp: 1_301 }, {
-      privateKey: privateKeyB64,
-      now: () => 1_000
-    });
-    expect(verifyViewAs(token, { publicKey: publicKeyB64, now: () => 1_001 })).toBeNull();
-  });
-
-  test('rejects expired tokens', () => {
-    const token = signViewAs(base, { privateKey: privateKeyB64, now: () => 1_000 });
-    expect(verifyViewAs(token, { publicKey: publicKeyB64, now: () => 1_301 })).toBeNull();
+    }), 1_001],
+    ['rejects excessive lifetimes', () => signViewAs({ ...base, exp: 1_301 }, { privateKey: privateKeyB64, now: () => 1_000 }), 1_001],
+    ['rejects expired tokens', () => signViewAs(base, { privateKey: privateKeyB64, now: () => 1_000 }), 1_301]
+  ] as [string, () => string, number][])('%s', (_name, mint, now) => {
+    expect(verifyViewAs(mint(), { publicKey: publicKeyB64, now: () => now })).toBeNull();
   });
 });

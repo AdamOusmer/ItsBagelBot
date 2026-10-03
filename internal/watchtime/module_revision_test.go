@@ -4,8 +4,6 @@
 package watchtime_test
 
 import (
-	"context"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -28,18 +26,9 @@ type moduleRevisionFixture struct {
 
 func newModuleRevisionFixture(t *testing.T) moduleRevisionFixture {
 	t.Helper()
-	addr := os.Getenv("VALKEY_TEST_ADDR")
-	if addr == "" {
-		t.Skip("VALKEY_TEST_ADDR requires isolated real Valkey")
-	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
-	require.NoError(t, err)
-	id := uint64(time.Now().UnixNano()%100000000 + 8500000000)
-	sid := strconv.FormatUint(id, 10)
-	t.Cleanup(func() {
-		client.Do(context.Background(), client.B().Del().Key("settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid, "loyaltick:state:"+sid, "loyaltick:claim:"+sid).Build())
-		client.Close()
-	})
+	client := realClient(t, 0)
+	id, sid := uniqueID(8500000000)
+	cleanupKeys(t, client, "settings:"+sid, watchtime.AdmissionKey(id), "live:"+sid, "loyaltick:state:"+sid, "loyaltick:claim:"+sid)
 	f := moduleRevisionFixture{client: client, proj: projection.NewStore(client), store: watchtime.NewStore(client), id: id, sid: sid, user: projection.UserProjection{AccountCreatedAt: 100, StateRevision: 1, IsActive: true, Status: "paid"}}
 	require.NoError(t, f.proj.SetUser(t.Context(), id, f.user))
 	require.NoError(t, client.Do(t.Context(), client.B().Set().Key("live:"+sid).Value("s").Build()).Error())

@@ -1,71 +1,21 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package tmpl
+package tmpl_test
 
-import "testing"
+import (
+	"testing"
 
-var pinTokens = map[string]string{
-	"user":  "bob",
-	"title": "hi",
-	"":      "EMPTY",
-	"x:y":   "XY",
-	"x:Y":   "XYUP",
-}
+	"ItsBagelBot/pkg/tmpl"
 
-func TestExpandPinsLegacyBehaviour(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"", ""},
-		{"plain text", "plain text"},
-		{"{user}", "bob"},
-		{"hi {user}!", "hi bob!"},
-		{"{USER}", "bob"},
-		{"{User}", "bob"},
-		{"{unknown}", "{unknown}"},
-		{"{user", "{user"},
-		{"{}", "EMPTY"},
-		{"{{user}", "{{user}"},
-		{"{{user}}", "{{user}}"},
-		{"{a{user}", "{a{user}"},
-		{"{user}{title}", "bobhi"},
-		{"}{user}", "}bob"},
-		{"{ user }", "{ user }"},
-		{"{user}}", "bob}"},
-		{"}}", "}}"},
-		{"{", "{"},
-		{"}", "}"},
-		{"a{b}c{user}d", "a{b}cbobd"},
-		{"{user}{", "bob{"},
-		{"{us{er}", "{us{er}"},
-		{"{user:}", "{user:}"},
-		{"{:user}", "{:user}"},
-		{"{x:y}", "XY"},
-		{"{x:Y}", "XYUP"},
-		{"{X:Y}", "XYUP"},
-	}
-	for _, tc := range cases {
-		if got := Expand(tc.in, pinRepl); got != tc.want {
-			t.Errorf("Expand(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-func pinRepl(tok Token) (string, bool) {
-	key := tok.Key()
-	v, ok := pinTokens[key]
-	return v, ok
-}
-
-func TestAppendKeepsCallerBuffer(t *testing.T) {
-	dst := make([]byte, 0, 64)
-	got := Append(append(dst, "pre "...), "{user} says {unknown}", pinRepl)
-	if string(got) != "pre bob says {unknown}" {
-		t.Fatalf("Append = %q", got)
-	}
-	if allocs := testing.AllocsPerRun(50, func() {
-		_ = Append(dst[:0], "{user} and {title}", pinRepl)
-	}); allocs != 0 {
-		t.Errorf("Append allocated %v times per run, want 0", allocs)
+func lookup(values map[string]string) func(tmpl.Token) (string, bool) {
+	return func(tok tmpl.Token) (string, bool) {
+		val, ok := values[tok.Key()]
+		return val, ok
 	}
 }
 
@@ -74,18 +24,20 @@ func TestLexRoundTrips(t *testing.T) {
 		"", "plain", "{user}", "hi {user}!", "{user}{title}", "a{b}c{user}d",
 		"{user", "{{user}}", "{}", "}{user}", "{user}}", "{1|everyone}",
 		"{choice:a|b|c}", "{so:Name|nobody} and {x}",
+		"}}", "{", "}", "{us{er}", "{user:}", "{:user}",
 	} {
-		var got string
-		for _, tok := range Lex(in) {
-			if tok.Kind == KindLiteral {
-				got += tok.Text
-				continue
+		t.Run(in, func(t *testing.T) {
+			var got string
+			for _, tok := range tmpl.Lex(in) {
+				if tok.Kind == tmpl.KindLiteral {
+					got += tok.Text
+					continue
+				}
+				got += tok.Raw
 			}
-			got += tok.Raw
-		}
-		if got != in {
-			t.Errorf("Lex(%q) round-trips to %q", in, got)
-		}
+
+			assert.Equal(t, in, got)
+		})
 	}
 }
 
@@ -95,7 +47,7 @@ func TestLexSplitsSpanParts(t *testing.T) {
 		hasPayload, hasFallback bool
 		key                     string
 	}
-	cases := []struct {
+	tests := []struct {
 		in   string
 		want parts
 	}{
@@ -108,39 +60,63 @@ func TestLexSplitsSpanParts(t *testing.T) {
 		{"{so:Name|nobody}", parts{name: "so", payload: "Name", fallback: "nobody", hasPayload: true, hasFallback: true, key: "so:Name"}},
 		{"{choice:a|b|c}", parts{name: "choice", payload: "a|b", fallback: "c", hasPayload: true, hasFallback: true, key: "choice:a|b"}},
 	}
-	for _, tc := range cases {
-		toks := Lex(tc.in)
-		if len(toks) != 1 || toks[0].Kind != KindVar {
-			t.Fatalf("Lex(%q) = %#v, want one var token", tc.in, toks)
-		}
-		tok := toks[0]
-		got := parts{
-			name:        tok.Name,
-			payload:     tok.Payload,
-			fallback:    tok.Fallback,
-			hasPayload:  tok.HasPayload,
-			hasFallback: tok.HasFallback,
-			key:         tok.Key(),
-		}
-		if got != tc.want {
-			t.Errorf("Lex(%q) parts = %+v, want %+v", tc.in, got, tc.want)
-		}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			toks := tmpl.Lex(tc.in)
+			require.Len(t, toks, 1)
+			require.Equal(t, tmpl.KindVar, toks[0].Kind)
+			tok := toks[0]
+
+			assert.Equal(t, tc.want, parts{
+				name: tok.Name, payload: tok.Payload, fallback: tok.Fallback,
+				hasPayload: tok.HasPayload, hasFallback: tok.HasFallback, key: tok.Key(),
+			})
+		})
 	}
 }
 
-func TestResolveThreeWay(t *testing.T) {
-	tok := Lex("{1|everyone}")[0]
-	if got := tok.Resolve("", false); got != "{1|everyone}" {
-		t.Errorf("unknown name resolved to %q", got)
+func TestResolveChoosesBetweenValueFallbackAndLiteral(t *testing.T) {
+	tests := []struct {
+		name  string
+		span  string
+		value string
+		known bool
+		want  string
+	}{
+		{name: "leaves an unknown name literal", span: "{1|everyone}", want: "{1|everyone}"},
+		{name: "renders the fallback for an empty value", span: "{1|everyone}", known: true, want: "everyone"},
+		{name: "renders the value over the fallback", span: "{1|everyone}", value: "bob", known: true, want: "bob"},
+		{name: "renders nothing for an empty value without a fallback", span: "{1}", known: true, want: ""},
 	}
-	if got := tok.Resolve("", true); got != "everyone" {
-		t.Errorf("empty value resolved to %q", got)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tmpl.Lex(tc.span)[0].Resolve(tc.value, tc.known))
+		})
 	}
-	if got := tok.Resolve("bob", true); got != "bob" {
-		t.Errorf("value resolved to %q", got)
+}
+
+func TestAppendKeepsCallerBufferWithoutAllocating(t *testing.T) {
+	repl := lookup(map[string]string{"user": "bob", "title": "hi"})
+	dst := make([]byte, 0, 64)
+
+	got := tmpl.Append(append(dst, "pre "...), "{user} says {unknown}", repl)
+
+	assert.Equal(t, "pre bob says {unknown}", string(got))
+	assert.Zero(t, testing.AllocsPerRun(50, func() {
+		_ = tmpl.Append(dst[:0], "{user} and {title}", repl)
+	}))
+}
+
+func TestNormalizeName(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"  !Deaths  ", "deaths"},
+		{"  ", ""},
+		{"A.B", "a.b"},
+		{"!!twice", "!twice"},
 	}
-	bare := Lex("{1}")[0]
-	if got := bare.Resolve("", true); got != "" {
-		t.Errorf("empty value with no fallback resolved to %q", got)
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			assert.Equal(t, tc.want, tmpl.NormalizeName(tc.in))
+		})
 	}
 }

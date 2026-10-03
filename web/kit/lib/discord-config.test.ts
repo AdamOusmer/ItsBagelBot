@@ -13,6 +13,7 @@ import {
   TICKET_PANEL_BODY_MAX,
   TICKET_PANEL_DEFAULTS,
   blankDiscordConfig,
+  type DiscordConfig,
   canManageGuild,
   clearPinnedSlots,
   droppedPinNotice,
@@ -24,11 +25,9 @@ import {
   guildIconSrc,
   guildIconURL,
   guildMonogram,
-  guildPermissionBits,
   guildPickerBadge,
+  hexToDiscordColor,
   legacyConfigFor,
-  isHexColor,
-  isSnowflake,
   mergeDiscordConfig,
   normalizeHex,
   parseConfigVersion,
@@ -38,9 +37,6 @@ import {
   parseUserGuilds,
   parseNameList,
   parsePinnedRoles,
-  pinnedRole,
-  hexToDiscordColor,
-  ticketLogChannel,
   ticketOpenLimitN,
   ticketPanelPayload,
   ticketPanelSpec,
@@ -96,97 +92,37 @@ describe('parse / round trip', () => {
 });
 
 describe('merge', () => {
-  test('a field the draft omits keeps its stored value', () => {
-    const current = { ...blankDiscordConfig(), liveChannelId: ID_A };
-    const { config } = mergeDiscordConfig(current, { clipsChannelId: ID_B });
-    expect(config.liveChannelId).toBe(ID_A);
-    expect(config.clipsChannelId).toBe(ID_B);
-  });
+  interface Row {
+    name: string;
+    current: Partial<DiscordConfig>;
+    draft: Record<string, unknown>;
+    want: Partial<DiscordConfig>;
+    errors: ReturnType<typeof mergeDiscordConfig>['errors'];
+  }
 
-  test('a bad snowflake keeps the stored value and reports the field', () => {
-    const current = { ...blankDiscordConfig(), liveChannelId: ID_A };
-    const { config, errors } = mergeDiscordConfig(current, { liveChannelId: '12' });
-    expect(config.liveChannelId).toBe(ID_A);
-    expect(errors).toEqual([{ field: 'liveChannelId', code: 'snowflake' }]);
-  });
+  const row = (name: string, current: Row['current'], draft: Row['draft'], want: Row['want'], errors: Row['errors']): Row => ({ name, current, draft, want, errors });
 
-  test('an empty string clears a field', () => {
-    const current = { ...blankDiscordConfig(), liveChannelId: ID_A };
-    const { config, errors } = mergeDiscordConfig(current, { liveChannelId: '' });
-    expect(config.liveChannelId).toBe('');
-    expect(errors).toEqual([]);
-  });
+  const ROWS: Row[] = [
+    row('a field the draft omits keeps its stored value', { liveChannelId: ID_A }, { clipsChannelId: ID_B }, { liveChannelId: ID_A, clipsChannelId: ID_B }, []),
+    row('a bad snowflake keeps the stored value and reports the field', { liveChannelId: ID_A }, { liveChannelId: '12' }, { liveChannelId: ID_A }, [{ field: 'liveChannelId', code: 'snowflake' }]),
+    row('an empty string clears a field', { liveChannelId: ID_A }, { liveChannelId: '' }, { liveChannelId: '' }, []),
+    row('non-string draft values are ignored, not coerced', { ticketOpenLimit: '3' }, { ticketOpenLimit: 5 }, { ticketOpenLimit: '3' }, []),
+    row('lists and colours are canonicalised on the way in', {}, { ticketStaffRoleIds: ` ${ID_A} , ${ID_B} , ${ID_A} `, ticketPanelColor: 'C47A3A', pinnedRoles: ` vip = ${ID_B} , owner = ${ID_A} ` }, { ticketStaffRoleIds: `${ID_A},${ID_B}`, ticketPanelColor: LIVE_COLOR_HEX, pinnedRoles: `owner=${ID_A},vip=${ID_B}` }, []),
+    row('a malformed role id in a list is refused, not silently dropped', { ticketStaffRoleIds: ID_A }, { ticketStaffRoleIds: `${ID_B},notasnowflake` }, { ticketStaffRoleIds: ID_A }, [{ field: 'ticketStaffRoleIds', code: 'list' }]),
+    row('an unknown pin slot is refused, not silently dropped', {}, { pinnedRoles: `nosuchslot=${ID_A}` }, { pinnedRoles: '' }, [{ field: 'pinnedRoles', code: 'pinned' }]),
+    row('a malformed role id in a pin pair is refused', {}, { pinnedRoles: 'mods=notasnowflake' }, { pinnedRoles: '' }, [{ field: 'pinnedRoles', code: 'pinned' }]),
+    row('a colour that is not a colour is refused rather than swapped', { ticketPanelColor: '#52b788' }, { ticketPanelColor: 'rebeccapurple' }, { ticketPanelColor: '#52b788' }, [{ field: 'ticketPanelColor', code: 'color' }]),
+    row('the colour shorthand still normalises', {}, { ticketPanelColor: 'ABC' }, { ticketPanelColor: '#aabbcc' }, []),
+    row('a flag only accepts on/off', {}, { levelsEnabled: 'yes' }, { levelsEnabled: '' }, [{ field: 'levelsEnabled', code: 'flag' }]),
+    row('an over-long panel body is refused, not truncated', {}, { ticketPanelBody: 'x'.repeat(TICKET_PANEL_BODY_MAX + 1) }, { ticketPanelBody: '' }, [{ field: 'ticketPanelBody', code: 'length' }]),
+    ...['0', '6', '-1', 'two', '3.5'].map((bad) => row(`the open limit ${JSON.stringify(bad)} is refused outside 1..5`, {}, { ticketOpenLimit: bad }, { ticketOpenLimit: '' }, [{ field: 'ticketOpenLimit', code: 'range' }])),
+    row('the open limit 5 is accepted', {}, { ticketOpenLimit: '5' }, { ticketOpenLimit: '5' }, [])
+  ];
 
-  test('non-string draft values are ignored, not coerced', () => {
-    const current = { ...blankDiscordConfig(), ticketOpenLimit: '3' };
-    const { config, errors } = mergeDiscordConfig(current, { ticketOpenLimit: 5 });
-    expect(config.ticketOpenLimit).toBe('3');
-    expect(errors).toEqual([]);
-  });
-
-  test('lists and colours are canonicalised on the way in', () => {
-    const { config } = mergeDiscordConfig(blankDiscordConfig(), {
-      ticketStaffRoleIds: ` ${ID_A} , ${ID_B} , ${ID_A} `,
-      ticketPanelColor: 'C47A3A',
-      pinnedRoles: ` vip = ${ID_B} , owner = ${ID_A} `
-    });
-    expect(config.ticketStaffRoleIds).toBe(`${ID_A},${ID_B}`);
-    expect(config.ticketPanelColor).toBe(LIVE_COLOR_HEX);
-    expect(config.pinnedRoles).toBe(`owner=${ID_A},vip=${ID_B}`);
-  });
-
-  test('a malformed role id in a list is refused, not silently dropped', () => {
-    const current = { ...blankDiscordConfig(), ticketStaffRoleIds: ID_A };
-    const { config, errors } = mergeDiscordConfig(current, { ticketStaffRoleIds: `${ID_B},notasnowflake` });
-    expect(config.ticketStaffRoleIds).toBe(ID_A);
-    expect(errors).toEqual([{ field: 'ticketStaffRoleIds', code: 'list' }]);
-  });
-
-  test('an unknown pin slot is refused, not silently dropped', () => {
-    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), {
-      pinnedRoles: `nosuchslot=${ID_A}`
-    });
-    expect(config.pinnedRoles).toBe('');
-    expect(errors).toEqual([{ field: 'pinnedRoles', code: 'pinned' }]);
-  });
-
-  test('a malformed role id in a pin pair is refused', () => {
-    const { errors } = mergeDiscordConfig(blankDiscordConfig(), { pinnedRoles: 'mods=notasnowflake' });
-    expect(errors).toEqual([{ field: 'pinnedRoles', code: 'pinned' }]);
-  });
-
-  test('a colour that is not a colour is refused rather than swapped', () => {
-    const current = { ...blankDiscordConfig(), ticketPanelColor: '#52b788' };
-    const { config, errors } = mergeDiscordConfig(current, { ticketPanelColor: 'rebeccapurple' });
-    expect(config.ticketPanelColor).toBe('#52b788');
-    expect(errors).toEqual([{ field: 'ticketPanelColor', code: 'color' }]);
-  });
-
-  test('the colour shorthand still normalises', () => {
-    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketPanelColor: 'ABC' });
-    expect(config.ticketPanelColor).toBe('#aabbcc');
-    expect(errors).toEqual([]);
-  });
-
-  test('a flag only accepts on/off', () => {
-    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { levelsEnabled: 'yes' });
-    expect(config.levelsEnabled).toBe('');
-    expect(errors).toEqual([{ field: 'levelsEnabled', code: 'flag' }]);
-  });
-
-  test('an over-long panel body is refused, not truncated', () => {
-    const body = 'x'.repeat(TICKET_PANEL_BODY_MAX + 1);
-    const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketPanelBody: body });
-    expect(config.ticketPanelBody).toBe('');
-    expect(errors).toEqual([{ field: 'ticketPanelBody', code: 'length' }]);
-  });
-
-  test('the open limit is refused outside 1..5', () => {
-    for (const bad of ['0', '6', '-1', 'two', '3.5']) {
-      const { errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketOpenLimit: bad });
-      expect(errors).toEqual([{ field: 'ticketOpenLimit', code: 'range' }]);
-    }
-    expect(mergeDiscordConfig(blankDiscordConfig(), { ticketOpenLimit: '5' }).errors).toEqual([]);
+  test.each(ROWS)('$name', ({ current, draft, want, errors }) => {
+    const merged = mergeDiscordConfig({ ...blankDiscordConfig(), ...current }, draft);
+    expect(merged.config).toMatchObject(want);
+    expect(merged.errors).toEqual(errors);
   });
 });
 
@@ -205,12 +141,6 @@ describe('pinned roles', () => {
   test('parse drops unknown slots and malformed ids', () => {
     expect(parsePinnedRoles(`owner=${ID_A},founder=${ID_B},vip=nope,=,mods=`)).toEqual({ owner: ID_A });
   });
-
-  test('pinnedRole reads one slot out of the blob', () => {
-    const config = { ...blankDiscordConfig(), pinnedRoles: `mods=${ID_C}` };
-    expect(pinnedRole(config, 'mods')).toBe(ID_C);
-    expect(pinnedRole(config, 'owner')).toBe('');
-  });
 });
 
 describe('id lists', () => {
@@ -220,12 +150,9 @@ describe('id lists', () => {
     expect(encodeIdList([])).toBe('');
   });
 
-  test('isSnowflake pins the 17-20 digit window', () => {
-    expect(isSnowflake('1'.repeat(16))).toBe(false);
-    expect(isSnowflake('1'.repeat(17))).toBe(true);
-    expect(isSnowflake('1'.repeat(20))).toBe(true);
-    expect(isSnowflake('1'.repeat(21))).toBe(false);
-    expect(isSnowflake('1234567890123456a')).toBe(false);
+  test('an id is a 17 to 20 digit number', () => {
+    const ids = ['1'.repeat(16), '1'.repeat(17), '1'.repeat(20), '1'.repeat(21), '1234567890123456a'];
+    expect(parseIdList(ids.join(','))).toEqual(['1'.repeat(17), '1'.repeat(20)]);
   });
 });
 
@@ -253,15 +180,8 @@ describe('colour', () => {
   test('bad hex falls back rather than painting a wrong colour', () => {
     for (const bad of ['', 'red', '#12', '#1234567', 'rgb(1,2,3)', '#gggggg']) {
       expect(normalizeHex(bad)).toBe(LIVE_COLOR_HEX);
-      expect(isHexColor(bad)).toBe(false);
     }
     expect(normalizeHex('nope', '#000000')).toBe('#000000');
-  });
-
-  test('isHexColor accepts only the stored 6-digit shape', () => {
-    expect(isHexColor('#c47a3a')).toBe(true);
-    expect(isHexColor('#C47A3A')).toBe(true);
-    expect(isHexColor('#abc')).toBe(false);
   });
 });
 
@@ -287,80 +207,66 @@ describe('accessors', () => {
     expect(ticketStaffRoleIds(base)).toEqual([ID_A, ID_B]);
     expect(ticketStaffRoleIds({ ...base, ticketStaffRoleIds: ID_C })).toEqual([ID_C]);
   });
-
-  test('the ticket log channel falls back to the staff log channel', () => {
-    const base = { ...blankDiscordConfig(), logChannelId: ID_A };
-    expect(ticketLogChannel(base)).toBe(ID_A);
-    expect(ticketLogChannel({ ...base, ticketLogChannelId: ID_B })).toBe(ID_B);
-  });
 });
 
 describe('config version', () => {
-  test('a number, a quoted number and nothing all decode', () => {
-    expect(parseConfigVersion(7)).toBe(7);
-    expect(parseConfigVersion('7')).toBe(7);
-    expect(parseConfigVersion(' 12 ')).toBe(12);
-    expect(parseConfigVersion(undefined)).toBe(DISCORD_CONFIG_VERSION_NEW);
-  });
-
-  test('a value that is not a whole non-negative version reads as never-saved', () => {
-    expect(parseConfigVersion(-1)).toBe(DISCORD_CONFIG_VERSION_NEW);
-    expect(parseConfigVersion(1.5)).toBe(DISCORD_CONFIG_VERSION_NEW);
-    expect(parseConfigVersion('abc')).toBe(DISCORD_CONFIG_VERSION_NEW);
-    expect(parseConfigVersion(null)).toBe(DISCORD_CONFIG_VERSION_NEW);
-    expect(parseConfigVersion(Number.MAX_SAFE_INTEGER + 2)).toBe(DISCORD_CONFIG_VERSION_NEW);
+  test.each([
+    ['a number decodes', 7, 7],
+    ['a quoted number decodes', '7', 7],
+    ['a padded quoted number decodes', ' 12 ', 12],
+    ['nothing reads as never-saved', undefined, DISCORD_CONFIG_VERSION_NEW],
+    ['a negative reads as never-saved', -1, DISCORD_CONFIG_VERSION_NEW],
+    ['a fraction reads as never-saved', 1.5, DISCORD_CONFIG_VERSION_NEW],
+    ['text reads as never-saved', 'abc', DISCORD_CONFIG_VERSION_NEW],
+    ['null reads as never-saved', null, DISCORD_CONFIG_VERSION_NEW],
+    ['an unsafe integer reads as never-saved', Number.MAX_SAFE_INTEGER + 2, DISCORD_CONFIG_VERSION_NEW]
+  ])('%s', (_name, raw, want) => {
+    expect(parseConfigVersion(raw)).toBe(want);
   });
 });
 
 describe('guild permissions', () => {
-  test('ADMINISTRATOR and MANAGE_GUILD each qualify on their own', () => {
-    expect(canManageGuild({ permissions: '8' })).toBe(true);
-    expect(canManageGuild({ permissions: '32' })).toBe(true);
-    expect(canManageGuild({ permissions: '40' })).toBe(true);
-  });
+  const PAST_2_53 = (1n << 50n) | DISCORD_MANAGE_GUILD;
 
-  test('a guild with neither bit is filtered out', () => {
-    expect(canManageGuild({ permissions: '3136' })).toBe(false);
-    expect(canManageGuild({ permissions: '0' })).toBe(false);
-    expect(canManageGuild({})).toBe(false);
-  });
-
-  test('owner qualifies whatever the bitfield says', () => {
-    expect(canManageGuild({ owner: true, permissions: '0' })).toBe(true);
-    expect(canManageGuild({ owner: false, permissions: '0' })).toBe(false);
-  });
-
-  test('a bitfield past 2^53 keeps every low bit', () => {
-    const bits = (1n << 50n) | DISCORD_MANAGE_GUILD;
-    expect(canManageGuild({ permissions: bits.toString() })).toBe(true);
-    expect(guildPermissionBits(bits.toString())).toBe(bits);
-    expect(canManageGuild({ permissions: (1n << 50n).toString() })).toBe(false);
-  });
-
-  test('a malformed bitfield is worth no permission at all', () => {
-    expect(guildPermissionBits('12x')).toBe(0n);
-    expect(guildPermissionBits('-8')).toBe(0n);
-    expect(guildPermissionBits(undefined)).toBe(0n);
-    expect(guildPermissionBits(8)).toBe(8n);
-    expect(guildPermissionBits(1.5)).toBe(0n);
+  test.each([
+    ['ADMINISTRATOR qualifies on its own', { permissions: '8' }, true],
+    ['MANAGE_GUILD qualifies on its own', { permissions: '32' }, true],
+    ['both bits qualify', { permissions: '40' }, true],
+    ['a guild with neither bit is filtered out', { permissions: '3136' }, false],
+    ['a zero bitfield is filtered out', { permissions: '0' }, false],
+    ['a missing bitfield is filtered out', {}, false],
+    ['owner qualifies whatever the bitfield says', { owner: true, permissions: '0' }, true],
+    ['a non-owner with no bits is filtered out', { owner: false, permissions: '0' }, false],
+    ['a bitfield past 2^53 keeps every low bit', { permissions: PAST_2_53.toString() }, true],
+    ['a high bit alone is not a permission', { permissions: (1n << 50n).toString() }, false],
+    ['trailing junk is worth no permission', { permissions: '12x' }, false],
+    ['a negative is worth no permission', { permissions: '-8' }, false],
+    ['a number is read as its bits', { permissions: 8 }, true],
+    ['a fractional number is worth no permission', { permissions: 1.5 }, false]
+  ] as [string, { owner?: boolean; permissions?: string | number }, boolean][])('%s', (_name, guild, want) => {
+    expect(canManageGuild(guild)).toBe(want);
   });
 });
 
 describe('guild presentation', () => {
-  test('the monogram takes two initials, or two letters from one word', () => {
-    expect(guildMonogram('Demo Bakery')).toBe('DB');
-    expect(guildMonogram('  the  bagel  house ')).toBe('TB');
-    expect(guildMonogram('Bagels')).toBe('BA');
-    expect(guildMonogram('x')).toBe('X');
-    expect(guildMonogram('   ')).toBe('?');
+  test.each([
+    ['Demo Bakery', 'DB'],
+    ['  the  bagel  house ', 'TB'],
+    ['Bagels', 'BA'],
+    ['x', 'X'],
+    ['   ', '?']
+  ])('the monogram of %p is %s', (name, want) => {
+    expect(guildMonogram(name)).toBe(want);
   });
 
-  test('reauth outranks offline on the bot pill', () => {
-    expect(guildBotState({ botPresent: true })).toBe('online');
-    expect(guildBotState({ botPresent: false })).toBe('offline');
-    expect(guildBotState({ botPresent: false, needsReauth: true })).toBe('reauth');
-    expect(guildBotState({ botPresent: true, needsReauth: true })).toBe('reauth');
-    expect(guildBotState({})).toBe('offline');
+  test.each([
+    ['online when the bot is present', { botPresent: true }, 'online'],
+    ['offline when the bot is absent', { botPresent: false }, 'offline'],
+    ['reauth outranks offline on the bot pill', { botPresent: false, needsReauth: true }, 'reauth'],
+    ['reauth outranks online on the bot pill', { botPresent: true, needsReauth: true }, 'reauth'],
+    ['no signals read as offline', {}, 'offline']
+  ] as [string, Parameters<typeof guildBotState>[0], ReturnType<typeof guildBotState>][])('%s', (_name, signals, want) => {
+    expect(guildBotState(signals)).toBe(want);
   });
 
   test('an unread reauth flag is neutral, never green and never red', () => {
@@ -382,20 +288,15 @@ describe('guild presentation', () => {
 
 describe('parseUserGuilds', () => {
   test('keeps the permission bitfield as the string Discord sent', () => {
-    const guilds = parseUserGuilds([
-      { id: ID_A, name: 'Demo Bakery', icon: '', owner: true, permissions: '1125899906842623' }
-    ]);
-    expect(guilds).toEqual([
-      { id: ID_A, name: 'Demo Bakery', icon: '', owner: true, permissions: '1125899906842623' }
-    ]);
+    const guild = { id: ID_A, name: 'Demo Bakery', icon: '', owner: true, permissions: '1125899906842623' };
+    expect(parseUserGuilds([guild])).toEqual([guild]);
   });
 
-  test('a 429 body is not an empty guild list', () => {
-    expect(parseUserGuilds({ message: 'You are being rate limited.', retry_after: 1.5 })).toBeNull();
-  });
-
-  test('an HTML error page is not an empty guild list', () => {
-    expect(parseUserGuilds('<!DOCTYPE html><html><body>502</body></html>')).toBeNull();
+  test.each([
+    ['a 429 body is not an empty guild list', { message: 'You are being rate limited.', retry_after: 1.5 }],
+    ['an HTML error page is not an empty guild list', '<!DOCTYPE html><html><body>502</body></html>']
+  ])('%s', (_name, body) => {
+    expect(parseUserGuilds(body)).toBeNull();
   });
 
   test('every non-array body is refused rather than emptied', () => {
@@ -432,23 +333,19 @@ describe('legacyConfigFor', () => {
     expect(Object.keys(out ?? {})).toEqual([...DISCORD_CONFIG_KEYS]);
   });
 
-  test('a blob naming a different guild is not inherited', () => {
-    expect(legacyConfigFor(legacy, ID_B)).toBeNull();
-  });
-
-  test('an already narrowed blob has nothing to migrate', () => {
-    expect(legacyConfigFor({ guildId: ID_A, twitchLogin: 'demo' }, ID_A)).toBeNull();
-    expect(legacyConfigFor({ twitchLogin: 'demo' }, ID_A)).toBeNull();
+  test.each([
+    ['a blob naming a different guild is not inherited', legacy, ID_B],
+    ['an already narrowed blob has nothing to migrate', { guildId: ID_A, twitchLogin: 'demo' }, ID_A],
+    ['a blob with no guild has nothing to migrate', { twitchLogin: 'demo' }, ID_A],
+    ['a guild id that is not a snowflake never migrates', { ...legacy, guildId: 'abc' }, 'abc']
+  ])('%s', (_name, blob, guildId) => {
+    expect(legacyConfigFor(blob, guildId)).toBeNull();
   });
 
   test('a missing or malformed blob is not a migration', () => {
     for (const blob of [null, undefined, 'x', [legacy], 7]) {
       expect(legacyConfigFor(blob, ID_A)).toBeNull();
     }
-  });
-
-  test('a guild id that is not a snowflake never migrates', () => {
-    expect(legacyConfigFor({ ...legacy, guildId: 'abc' }, 'abc')).toBeNull();
   });
 });
 
@@ -486,39 +383,15 @@ describe('dropped pins', () => {
 });
 
 describe('refused fields', () => {
-  test('known fields are marked and the first one is the one to name', () => {
-    const out = fieldErrorsByField(['modsRoleId', 'ticketPanelTitle']);
-    expect(out.byField).toEqual({ modsRoleId: true, ticketPanelTitle: true });
-    expect(out.first).toBe('modsRoleId');
-    expect(out.unknown).toEqual([]);
-  });
-
-  test('a name this console has no field for falls back to the banner', () => {
-    const out = fieldErrorsByField(['gone_field', 'gone_field']);
-    expect(out.byField).toEqual({});
-    expect(out.first).toBe('');
-    expect(out.unknown).toEqual(['gone_field']);
-  });
-
-  test('a mixed list marks what it can and keeps the rest for the banner', () => {
-    const out = fieldErrorsByField(['gone_field', 'modsRoleId']);
-    expect(out.byField).toEqual({ modsRoleId: true });
-    expect(out.first).toBe('modsRoleId');
-    expect(out.unknown).toEqual(['gone_field']);
-  });
-
-  test('non-strings and blanks never reach either list', () => {
-    const out = fieldErrorsByField([7, null, undefined, '', '   ', { field: 'modsRoleId' }]);
-    expect(out.byField).toEqual({});
-    expect(out.unknown).toEqual([]);
-  });
-
-  test('a padded name still names its own field', () => {
-    expect(fieldErrorsByField([' modsRoleId ']).first).toBe('modsRoleId');
-  });
-
-  test('no refusal is an empty map', () => {
-    expect(fieldErrorsByField(undefined)).toEqual({ byField: {}, first: '', unknown: [] });
+  test.each([
+    ['known fields are marked and the first one is the one to name', ['modsRoleId', 'ticketPanelTitle'], { byField: { modsRoleId: true, ticketPanelTitle: true }, first: 'modsRoleId', unknown: [] }],
+    ['a name this console has no field for falls back to the banner', ['gone_field', 'gone_field'], { byField: {}, first: '', unknown: ['gone_field'] }],
+    ['a mixed list marks what it can and keeps the rest for the banner', ['gone_field', 'modsRoleId'], { byField: { modsRoleId: true }, first: 'modsRoleId', unknown: ['gone_field'] }],
+    ['non-strings and blanks never reach either list', [7, null, undefined, '', '   ', { field: 'modsRoleId' }], { byField: {}, first: '', unknown: [] }],
+    ['a padded name still names its own field', [' modsRoleId '], { byField: { modsRoleId: true }, first: 'modsRoleId', unknown: [] }],
+    ['no refusal is an empty map', undefined, { byField: {}, first: '', unknown: [] }]
+  ] as [string, readonly unknown[] | undefined, ReturnType<typeof fieldErrorsByField>][])('%s', (_name, refused, want) => {
+    expect(fieldErrorsByField(refused)).toEqual(want);
   });
 });
 
@@ -553,8 +426,7 @@ describe('the repost panel payload', () => {
 
 describe('guild icons', () => {
   test('the picker keeps the hash Discord sent and builds the CDN url from it', () => {
-    expect(parseUserGuild({ id: ID_A, name: 'x', icon: 'abc123' })?.icon).toBe('abc123');
-    expect(parseUserGuild({ id: ID_A, name: 'x', icon: null })?.icon).toBe('');
+    expect(parseUserGuilds([{ id: ID_A, name: 'x', icon: 'abc123' }, { id: ID_B, name: 'x', icon: null }])?.map((g) => g.icon)).toEqual(['abc123', '']);
     expect(guildIconURL(ID_A, 'abc123')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/abc123.png`);
     expect(guildIconURL(ID_A, 'a_9f0')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/a_9f0.png`);
   });

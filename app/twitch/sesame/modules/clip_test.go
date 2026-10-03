@@ -4,151 +4,52 @@
 package modules
 
 import (
-	"context"
 	"errors"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-type clipReader struct {
-	modules []projection.ModuleView
-	err     error
-}
-
-func (r clipReader) User(context.Context, uint64) (projection.User, error) {
-	return projection.User{}, nil
-}
-func (r clipReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
-	if r.err != nil {
-		return nil, r.err
+func TestClipChat(t *testing.T) {
+	clipView := func(enabled bool, config string) []projection.ModuleView {
+		return []projection.ModuleView{{Name: "clip", IsEnabled: enabled, Configs: []byte(config)}}
 	}
-	return projection.ModuleMap(r.modules), nil
-}
-func (r clipReader) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
-	views, err := r.Modules(ctx, id)
-	if err != nil {
-		return projection.ModuleView{}, false, err
+	clipped := func(o module.Output) []module.Output {
+		o.Type, o.BroadcasterID, o.To = outgress.TypeClip, "100", "viewer"
+		return []module.Output{o}
 	}
-	view, ok := views[name]
-	return view, ok, nil
-}
-func (r clipReader) Command(context.Context, uint64, string) (projection.Command, bool, error) {
-	return projection.Command{}, false, nil
-}
-
-func clipCommand(t *testing.T, d engine.Deps) module.Command {
-	t.Helper()
-	m := Clip(d)
-	for _, cmd := range m.Commands {
-		if cmd.Name == "clip" {
-			return cmd
-		}
+	cases := []struct {
+		name       string
+		text       string
+		modules    []projection.ModuleView
+		modulesErr error
+		want       []module.Output
+	}{
+		{name: "clips with the typed title", text: "!clip Sick play", want: clipped(module.Output{Text: "Sick play"})},
+		{name: "a plain clip leaves the duration to Twitch", text: "!clip", want: clipped(module.Output{})},
+		{name: "numeric suffix sets the duration", text: "!clip45", want: clipped(module.Output{Duration: 45})},
+		{name: "duration keeps the shortest allowed value", text: "!clip5", want: clipped(module.Output{Duration: 5})},
+		{name: "duration keeps the longest allowed value", text: "!clip60", want: clipped(module.Output{Duration: 60})},
+		{name: "duration below the minimum rises to five", text: "!clip3", want: clipped(module.Output{Duration: 5})},
+		{name: "zero duration rises to five", text: "!clip0", want: clipped(module.Output{Duration: 5})},
+		{name: "duration above the maximum drops to sixty", text: "!clip90", want: clipped(module.Output{Duration: 60})},
+		{name: "an overflowing duration drops to sixty", text: "!clip999999999999999999999999", want: clipped(module.Output{Duration: 60})},
+		{name: "passes the configured reply template through untouched", text: "!clip x",
+			modules: clipView(true, `{"reply":"{user} clipped {clip}"}`),
+			want:    clipped(module.Output{Text: "x", Template: "{user} clipped {clip}"})},
+		{name: "a disabled module emits nothing", text: "!clip x", modules: clipView(false, `{}`)},
+		{name: "a projection read error does not swallow the clip", text: "!clip", modulesErr: errors.New("boom"), want: clipped(module.Output{})},
 	}
-	t.Fatal("clip command not found")
-	return module.Command{}
-}
-
-func clipCtx() *module.Context {
-	return &module.Context{
-		Env: lane.Envelope{
-			Type:              "channel.chat.message",
-			BroadcasterUserID: "5",
-			ChatterUserLogin:  "viewer",
-		},
-		BroadcasterID: 5,
-		Log:           zap.NewNop(),
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := engine.Deps{Proj: &fakeProj{modules: tc.modules, modulesErr: tc.modulesErr}, Log: zap.NewNop()}
+			assert.Equal(t, tc.want, runChat(t, Clip(d), chatCtx("42", "viewer"), tc.text))
+		})
 	}
-}
-
-func TestClipCommandShape(t *testing.T) {
-	cmd := clipCommand(t, engine.Deps{Log: zap.NewNop()})
-	assert.True(t, cmd.NumericSuffix, "clip must accept a numeric suffix")
-	assert.Equal(t, clipCooldown, cmd.Cooldown)
-	assert.Equal(t, module.RoleEveryone, cmd.Perm)
-	assert.True(t, cmd.LiveOnly, "clip must be live-only: Twitch rejects clips on an offline channel")
-}
-
-func TestClipEmitsWhenEnabled(t *testing.T) {
-	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "Sick play", col.emit))
-	require.Len(t, col.out, 1)
-	o := col.out[0]
-	assert.Equal(t, outgress.TypeClip, o.Type)
-	assert.Equal(t, "5", o.BroadcasterID)
-	assert.Equal(t, "Sick play", o.Text)
-	assert.Equal(t, "viewer", o.To)
-	assert.Zero(t, o.Duration, "plain !clip leaves duration unset (Twitch default)")
-}
-
-func TestClipReplyTemplateFromConfig(t *testing.T) {
-	reader := clipReader{modules: []projection.ModuleView{
-		{Name: "clip", IsEnabled: true, Configs: []byte(`{"reply":"{user} clipped {clip}"}`)},
-	}}
-	cmd := clipCommand(t, engine.Deps{Proj: reader, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "x", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "{user} clipped {clip}", col.out[0].Template)
-}
-
-func TestClipNoTemplateWhenConfigEmpty(t *testing.T) {
-	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "x", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Empty(t, col.out[0].Template)
-}
-
-func TestClipDurationFromNumericSuffix(t *testing.T) {
-	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
-	c := clipCtx()
-	c.Num = "45"
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, 45.0, col.out[0].Duration)
-}
-
-func TestClipDuration(t *testing.T) {
-	cases := map[string]float64{
-		"":                         0,
-		"30":                       30,
-		"5":                        5,
-		"60":                       60,
-		"3":                        5,
-		"90":                       60,
-		"0":                        5,
-		"999999999999999999999999": 60,
-	}
-	for in, want := range cases {
-		if got := clipDuration(in); got != want {
-			t.Errorf("clipDuration(%q) = %v, want %v", in, got, want)
-		}
-	}
-}
-
-func TestClipSuppressedWhenDisabled(t *testing.T) {
-	reader := clipReader{modules: []projection.ModuleView{{Name: "clip", IsEnabled: false}}}
-	cmd := clipCommand(t, engine.Deps{Proj: reader, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "x", col.emit))
-	assert.Empty(t, col.out, "disabled clip must emit nothing")
-}
-
-func TestClipFailsOpenOnReadError(t *testing.T) {
-	reader := clipReader{err: errors.New("boom")}
-	cmd := clipCommand(t, engine.Deps{Proj: reader, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "", col.emit))
-	require.Len(t, col.out, 1, "a projection blip should not swallow the clip")
 }

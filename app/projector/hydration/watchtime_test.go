@@ -1,15 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package hydration
+package hydration_test
 
 import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/internal/domain/event/data"
 	livekey "ItsBagelBot/internal/domain/live"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
@@ -21,7 +23,38 @@ import (
 	"go.uber.org/zap"
 )
 
-func hydrationWatchStore(t *testing.T) (valkey.Client, *projection.Store, *watchtime.Store, uint64) {
+type notifyingStore struct {
+	*projection.Store
+	written chan string
+}
+
+func (s notifyingStore) SetUserWithTTL(ctx context.Context, id uint64, u projection.UserProjection, ttl time.Duration) error {
+	defer func() { s.written <- "user" }()
+	return s.Store.SetUserWithTTL(ctx, id, u, ttl)
+}
+
+func (s notifyingStore) SetModulesWithTTL(ctx context.Context, id uint64, modules []projection.ModuleView, ttl time.Duration) error {
+	defer func() { s.written <- "modules" }()
+	return s.Store.SetModulesWithTTL(ctx, id, modules, ttl)
+}
+
+func (s notifyingStore) SetCommandsWithTTL(ctx context.Context, id uint64, commands []projection.CommandView, ttl time.Duration) error {
+	defer func() { s.written <- "commands" }()
+	return s.Store.SetCommandsWithTTL(ctx, id, commands, ttl)
+}
+
+func (s notifyingStore) awaitFill(t *testing.T) {
+	t.Helper()
+	for range 3 {
+		select {
+		case <-s.written:
+		case <-time.After(5 * time.Second):
+			t.Fatal("hydration did not finish writing every section")
+		}
+	}
+}
+
+func hydrationWatchStore(t *testing.T) (valkey.Client, notifyingStore, *watchtime.Store, uint64) {
 	t.Helper()
 	address := os.Getenv("VALKEY_TEST_ADDR")
 	if address == "" {
@@ -39,20 +72,24 @@ func hydrationWatchStore(t *testing.T) (valkey.Client, *projection.Store, *watch
 		defer cancel()
 		client.Do(ctx, client.B().Del().Key("settings:"+sid, livekey.Key(id), livekey.VerKey(id), watchtime.AdmissionKey(id), "loyaltick:state:"+sid, "loyaltick:claim:"+sid).Build())
 	})
-	return client, projection.NewStore(client), watchtime.NewStore(client), id
+	store := notifyingStore{Store: projection.NewStore(client), written: make(chan string, 16)}
+	return client, store, watchtime.NewStore(client), id
 }
 
-func watchHydrationFetchers() fetchers {
-	fetch := noOpFetchers()
-	fetch.user = func(context.Context, uint64) (rpcprojection.UserReply, error) {
-		return rpcprojection.UserReply{AccountCreatedAt: 100, StateRevision: 1, Status: "paid", IsActive: true}, nil
+func watchReplies(onSecondUser func()) replies {
+	return replies{
+		"users": func(attempt int) any {
+			if attempt == 2 {
+				onSecondUser()
+			}
+			return rpcprojection.UserReply{AccountCreatedAt: 100, StateRevision: 1, Status: "paid", IsActive: true}
+		},
+		"modules": func(int) any {
+			return rpcprojection.ModulesReply{Modules: []projection.ModuleView{{
+				Name: "loyalty", IsEnabled: true, Revision: 1, AccountCreatedAt: 100,
+			}}}
+		},
 	}
-	fetch.modules = func(context.Context, uint64) (rpcprojection.ModulesReply, error) {
-		return rpcprojection.ModulesReply{Modules: []projection.ModuleView{{
-			Name: "loyalty", IsEnabled: true, Revision: 1, AccountCreatedAt: 100,
-		}}}, nil
-	}
-	return fetch
 }
 
 func TestHydrationCannotAdmitOfflineWatchtime(t *testing.T) {
@@ -60,9 +97,11 @@ func TestHydrationCannotAdmitOfflineWatchtime(t *testing.T) {
 		t.Run(strconv.FormatBool(projectedLive), func(t *testing.T) {
 			client, store, awards, id := hydrationWatchStore(t)
 			ctx := t.Context()
-			h := newHydrator(store, watchHydrationFetchers(), 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
+			nc, up := newUpstream(t, watchReplies(func() {}))
+			h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.NewNop())
 			// Even a forced go-live settings refresh cannot establish live status.
-			h.run(job{userID: id, force: true, ttl: h.liveTTL})
+			h.RefreshAsync(id)
+			store.awaitFill(t)
 			_, err := store.SetStreamLive(ctx, id, projection.StreamLive{Live: projectedLive, Version: 1000})
 			require.NoError(t, err)
 			active, err := client.Do(ctx, client.B().Hget().Key("settings:"+strconv.FormatUint(id, 10)).Field("active").Build()).ToString()
@@ -81,50 +120,35 @@ func TestHydrationCannotAdmitOfflineWatchtime(t *testing.T) {
 func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 	client, store, awards, id := hydrationWatchStore(t)
 	ctx := t.Context()
-	fetch := watchHydrationFetchers()
-	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
-	h.run(job{userID: id, force: true, ttl: h.liveTTL})
+	secondUser, secondUserStarted := signal()
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseFill := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseFill()
+	nc, up := newUpstream(t, watchReplies(func() {
+		secondUser()
+		select {
+		case <-release:
+		case <-time.After(5 * time.Second):
+		}
+	}))
+	h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.NewNop())
+	h.RefreshAsync(id)
+	store.awaitFill(t)
 	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.SetScript).Numkeys(2).
 		Key(livekey.Key(id), livekey.VerKey(id)).Arg("2000", "3600", "7200").Build()).Error())
 	snapshot, allowed, err := awards.Capture(ctx, id)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	started := make(chan struct{})
-	release := make(chan struct{})
-	done := make(chan struct{})
-	defer func() {
-		select {
-		case <-release:
-		default:
-			close(release)
-		}
-		// Join the background fill even when a require or timeout ends the test,
-		// before the fixture deletes keys and closes its client.
-		if !receiveHydrationSignal(done, operationTimeout+time.Second) {
-			t.Error("background hydration did not stop before fixture cleanup")
-		}
-	}()
-	h.fetch.user = func(ctx context.Context, id uint64) (rpcprojection.UserReply, error) {
-		close(started)
-		select {
-		case <-release:
-			return fetch.user(ctx, id)
-		case <-ctx.Done():
-			return rpcprojection.UserReply{}, ctx.Err()
-		}
-	}
-	go func() {
-		h.run(job{userID: id, force: true, ttl: h.liveTTL})
-		close(done)
-	}()
-	require.True(t, receiveHydrationSignal(started, time.Second), "hydration did not reach delayed account fetch")
+	h.RefreshAsync(id)
+	waitFor(t, secondUserStarted, "hydration to reach the delayed account fetch")
 	require.NoError(t, client.Do(ctx, client.B().Eval().Script(livekey.ClearScript).Numkeys(2).
 		Key(livekey.Key(id), livekey.VerKey(id)).Arg("3000", "7200").Build()).Error())
 	_, err = store.SetStreamLive(ctx, id, projection.StreamLive{Version: 3000})
 	require.NoError(t, err)
-	close(release)
-	require.True(t, receiveHydrationSignal(done, time.Second), "hydration did not finish")
+	releaseFill()
+	store.awaitFill(t)
 	_, allowed, err = awards.Capture(ctx, id)
 	require.NoError(t, err)
 	require.False(t, allowed, "a late account/module fill must leave watchtime offline")
@@ -135,13 +159,4 @@ func TestHydrationFinishingAfterOfflineCannotReviveWatchtime(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, accepted, "an award captured while live cannot be accepted after offline hydration")
-}
-
-func receiveHydrationSignal(signal <-chan struct{}, timeout time.Duration) bool {
-	select {
-	case <-signal:
-		return true
-	case <-time.After(timeout):
-		return false
-	}
 }

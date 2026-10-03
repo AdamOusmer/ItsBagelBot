@@ -11,41 +11,23 @@ const STATE = 'zH8sB6xQ2m1kJ0pR';
 const UID = '44322889';
 
 describe('oauth-state', () => {
+  const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
+
   test('a sealed state round trips', () => {
-    const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
     expect(cookie.startsWith(`${STATE}.`)).toBe(true);
     expect(openOAuthState(key, 'discord-pick', UID, cookie)).toBe(STATE);
   });
 
-  test('a cookie minted for another account does not validate', () => {
-    const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
-    expect(openOAuthState(key, 'discord-pick', '99999999', cookie)).toBeNull();
-  });
-
-  test('the two Discord legs do not validate for each other', () => {
-    const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
-    expect(openOAuthState(key, 'discord-install', UID, cookie)).toBeNull();
-  });
-
-  test('another key does not validate', () => {
-    const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
-    expect(openOAuthState(other, 'discord-pick', UID, cookie)).toBeNull();
-  });
-
-  test('a swapped state does not validate', () => {
-    const cookie = sealOAuthState(key, 'discord-pick', UID, STATE);
-    const tampered = `attacker-state.${cookie.split('.')[1]}`;
-    expect(openOAuthState(key, 'discord-pick', UID, tampered)).toBeNull();
-  });
-
-  test('malformed cookies are refused, not thrown on', () => {
-    for (const bad of ['', '.', 'nomac', `${STATE}.`, `.${STATE}`, `${STATE}.!!!!`]) {
-      expect(openOAuthState(key, 'discord-pick', UID, bad)).toBeNull();
-    }
-  });
-
-  test('label and uid cannot be re-split into a different pair', () => {
-    const a = sealOAuthState(key, 'ab', 'cd', STATE);
-    expect(openOAuthState(key, 'a', 'bcd', a)).toBeNull();
+  test.each([
+    ['a cookie minted for another account does not validate', () => openOAuthState(key, 'discord-pick', '99999999', cookie)],
+    ['the two Discord legs do not validate for each other', () => openOAuthState(key, 'discord-install', UID, cookie)],
+    ['another key does not validate', () => openOAuthState(other, 'discord-pick', UID, cookie)],
+    ['a swapped state does not validate', () => openOAuthState(key, 'discord-pick', UID, `attacker-state.${cookie.split('.')[1]}`)],
+    ['label and uid cannot be re-split into a different pair', () => openOAuthState(key, 'a', 'bcd', sealOAuthState(key, 'ab', 'cd', STATE))],
+    ...['', '.', 'nomac', `${STATE}.`, `.${STATE}`, `${STATE}.!!!!`].map(
+      (bad) => [`a malformed cookie ${JSON.stringify(bad)} is refused, not thrown on`, () => openOAuthState(key, 'discord-pick', UID, bad)] as [string, () => string | null]
+    )
+  ] as [string, () => string | null][])('%s', (_name, open) => {
+    expect(open()).toBeNull();
   });
 });

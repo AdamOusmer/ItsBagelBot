@@ -1,21 +1,39 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, mock, test } from 'bun:test';
+import { beforeEach, expect, mock, test } from 'bun:test';
+import { registerServerConfig } from '@bagel/kit/server/config';
 
-mock.module('newrelic', () => ({
-  default: { startSegment: (_n: string, _r: boolean, f: () => unknown) => f(), recordMetric: () => {}, noticeError: () => {} }
-}));
+process.env.NEW_RELIC_ENABLED = 'false';
 mock.module('$app/environment', () => ({ dev: false }));
+registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
-const { SCOPES, userPrefixes } = await import('./services');
+let deliver: (subject: string, data: Uint8Array) => void = () => {};
+const nats = await import('@bagel/kit/server/nats');
+mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
+  subscribeDurable: (_subject: string, onMessage: typeof deliver) => {
+    deliver = onMessage;
+  }
+}));
 
-describe('commands_page invalidation routing', () => {
-  test('SCOPES.commands_page routes to the per-user commands_page key', () => {
-    expect(SCOPES.commands_page?.('42')).toEqual(['commands_page:42']);
-  });
+const { fabric, startInvalidationListener } = await import('./services');
+startInvalidationListener();
 
-  test('userPrefixes includes commands_page so the coarse "*" flush covers it too', () => {
-    expect(userPrefixes('42')).toContain('commands_page:42');
-  });
+const KEY = 'commands_page:42';
+const cached = () => fabric.readKey(KEY, 60_000, async () => 'reloaded');
+
+function invalidation(scope: string, broadcasterId: string): void {
+  deliver(`inv.${scope}`, new TextEncoder().encode(JSON.stringify({ broadcaster_id: broadcasterId })));
+}
+
+beforeEach(() => fabric.cache.set(KEY, 'cached', 60_000));
+
+test.each([
+  { name: 'a commands_page event evicts that channel only', scope: 'commands_page', id: '42', want: 'reloaded' },
+  { name: 'an event for another channel keeps it', scope: 'commands_page', id: '7', want: 'cached' },
+  { name: 'a coarse flush evicts it too', scope: 'unmapped_scope', id: '42', want: 'reloaded' }
+])('commands page flag cache: $name', async ({ scope, id, want }) => {
+  invalidation(scope, id);
+  expect(await cached()).toBe(want);
 });

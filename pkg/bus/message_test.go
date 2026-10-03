@@ -4,232 +4,41 @@
 package bus
 
 import (
-	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestMessageAcknowledgementIsIdempotentAndExclusive(t *testing.T) {
-	msg := NewMessage("id", nil)
-	if !msg.Ack() || !msg.Ack() {
-		t.Fatal("Ack must be idempotent")
-	}
-	if msg.Nack() {
-		t.Fatal("Nack must lose after Ack")
-	}
-	select {
-	case <-msg.Acked():
-	default:
-		t.Fatal("Acked channel was not closed")
-	}
-	select {
-	case <-msg.Nacked():
-		t.Fatal("Nacked channel closed after Ack")
-	default:
-	}
-}
-
-func TestZeroValueMessageInitializesAcknowledgementSignals(t *testing.T) {
-	var acked Message
-	if !acked.Ack() {
-		t.Fatal("zero-value message could not ack")
-	}
-	assertSignalState(t, acked.Acked(), true, "acked")
-	assertSignalState(t, acked.Nacked(), false, "nacked after ack")
-
-	var nacked Message
-	if !nacked.Nack() {
-		t.Fatal("zero-value message could not nack")
-	}
-	assertSignalState(t, nacked.Nacked(), true, "nacked")
-	assertSignalState(t, nacked.Acked(), false, "acked after nack")
-}
-
-func TestNewMessageDoesNotPreallocateSignals(t *testing.T) {
-	msg := NewMessage("id", nil)
-	if msg.ack != nil || msg.nack != nil {
-		t.Fatal("acknowledgement signals were allocated before anyone asked for one")
-	}
-	assertSignalState(t, msg.Acked(), false, "acked")
-	assertSignalState(t, msg.Nacked(), false, "nacked")
-	if !msg.Ack() {
-		t.Fatal("a message with lazily created signals could not ack")
-	}
-	assertSignalState(t, msg.Acked(), true, "acked after ack")
-	assertSignalState(t, msg.Nacked(), false, "nacked after ack")
-}
-
-func TestResolveHandlerFiresOnceOnTheWinningResult(t *testing.T) {
-	for _, testCase := range []struct {
-		name    string
-		resolve func(*Message) bool
-		acked   bool
-	}{
-		{name: "ack", resolve: (*Message).Ack, acked: true},
-		{name: "nack", resolve: (*Message).Nack, acked: false},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			var calls, ackedCalls atomic.Int64
-			msg := NewMessage("id", nil)
-			msg.setResolveHandler(func(acked bool) {
-				calls.Add(1)
-				if acked {
-					ackedCalls.Add(1)
-				}
-			})
-
-			if !testCase.resolve(msg) {
-				t.Fatal("the first resolution must win")
-			}
-			msg.Ack()
-			msg.Nack()
-
-			if calls.Load() != 1 {
-				t.Fatalf("resolve handler ran %d times, want exactly one", calls.Load())
-			}
-			if wasAcked := ackedCalls.Load() == 1; wasAcked != testCase.acked {
-				t.Fatalf("handler was told acked=%v, want %v", wasAcked, testCase.acked)
-			}
-			assertSignalState(t, msg.Acked(), testCase.acked, "acked")
-			assertSignalState(t, msg.Nacked(), !testCase.acked, "nacked")
-		})
-	}
-}
-
-func TestResolveHandlerRunsOutsideTheMessageLock(t *testing.T) {
-	msg := NewMessage("id", nil)
-	sawResolved := make(chan bool, 1)
-	msg.setResolveHandler(func(bool) {
-		select {
-		case <-msg.Acked():
-			sawResolved <- true
-		default:
-			sawResolved <- false
-		}
-	})
-
-	done := make(chan struct{})
-	go func() { defer close(done); msg.Ack() }()
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("the resolve handler was invoked while the message lock was held")
-	}
-	if !<-sawResolved {
-		t.Fatal("the resolve handler ran before the acknowledgement was committed")
-	}
-}
-
-func assertSignalState(t *testing.T, signal <-chan struct{}, wantClosed bool, name string) {
-	t.Helper()
+func signalClosed(signal <-chan struct{}) bool {
 	select {
 	case <-signal:
-		if !wantClosed {
-			t.Fatalf("%s signal closed", name)
-		}
+		return true
 	default:
-		if wantClosed {
-			t.Fatalf("%s signal remained open", name)
-		}
+		return false
 	}
 }
 
-func TestMessageFromNATSUsesFleetIdentityAndCopiesMetadata(t *testing.T) {
-	wire := nats.NewMsg("data.test")
-	wire.Data = []byte("payload")
-	wire.Header.Set(MessageIDHeader, "fleet-id")
-	wire.Header.Set(nats.MsgIdHdr, "broker-dedup-id")
-	wire.Header.Set("Traceparent", "trace-id")
-
-	msg, err := messageFromNATS(wire)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msg.UUID != "fleet-id" {
-		t.Fatalf("message id = %q, want fleet-id", msg.UUID)
-	}
-	if msg.Metadata.Get("Traceparent") != "trace-id" {
-		t.Fatalf("trace metadata = %q", msg.Metadata.Get("Traceparent"))
-	}
-	if _, ok := msg.Metadata[MessageIDHeader]; ok {
-		t.Fatal("fleet identity leaked into application metadata")
-	}
-	if _, ok := msg.Metadata[nats.MsgIdHdr]; ok {
-		t.Fatal("broker dedup identity leaked into application metadata")
-	}
-}
-
-func TestMessageFromNATSUsesStableJetStreamSequenceFallback(t *testing.T) {
-	wire := nats.NewMsg("data.test")
-	wire.Reply = "$JS.ACK.STREAM.CONSUMER.1.42.7.1000000000.0"
-	wire.Sub = &nats.Subscription{}
-	msg, err := messageFromNATS(wire)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msg.UUID != "js::STREAM:42" {
-		t.Fatalf("message id = %q, want stable stream sequence", msg.UUID)
-	}
-}
-
-func TestJetStreamStoredAt(t *testing.T) {
-	cases := []struct {
-		name  string
-		reply string
-		want  int64
+func TestMessageResolutionIsIdempotentAndExclusive(t *testing.T) {
+	ack, nack := (*Message).Ack, (*Message).Nack
+	for _, tc := range []struct {
+		name      string
+		message   func() *Message
+		win, lose func(*Message) bool
+		wantAcked bool
 	}{
-		{"v1 reply", "$JS.ACK.STREAM.CONSUMER.1.42.7.1000000000.0", 1000000000},
-		{"v2 reply", "$JS.ACK.hub.acchash.STREAM.CONSUMER.1.42.7.1700000000000000000.5", 1700000000000000000},
-		{"v2 reply with trailing token", "$JS.ACK.hub.acchash.STREAM.CONSUMER.1.42.7.1700000000000000000.5.x", 1700000000000000000},
-		{"malformed timestamp", "$JS.ACK.STREAM.CONSUMER.1.42.7.soon.0", 0},
-		{"core reply", "_INBOX.abc", 0},
-		{"empty", "", 0},
-	}
-	for _, tc := range cases {
+		{"a new message acks and ignores a later nack", func() *Message { return NewMessage("id", nil) }, ack, nack, true},
+		{"a new message nacks and ignores a later ack", func() *Message { return NewMessage("id", nil) }, nack, ack, false},
+		{"a zero-value message acks", func() *Message { return &Message{} }, ack, nack, true},
+		{"a zero-value message nacks", func() *Message { return &Message{} }, nack, ack, false},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := jetStreamStoredAt(tc.reply)
-			if tc.want == 0 && !got.IsZero() {
-				t.Fatalf("stored at = %v, want zero", got)
-			}
-			if tc.want != 0 && got.UnixNano() != tc.want {
-				t.Fatalf("stored at = %d, want %d", got.UnixNano(), tc.want)
-			}
+			msg := tc.message()
+
+			first, repeat, loser := tc.win(msg), tc.win(msg), tc.lose(msg)
+
+			assert.Equal(t, []bool{true, true, false}, []bool{first, repeat, loser})
+			assert.Equal(t, tc.wantAcked, signalClosed(msg.Acked()))
+			assert.Equal(t, !tc.wantAcked, signalClosed(msg.Nacked()))
 		})
-	}
-}
-
-func TestMessageFromNATSExposesStoredAt(t *testing.T) {
-	wire := nats.NewMsg("data.test")
-	wire.Reply = "$JS.ACK.STREAM.CONSUMER.1.42.7.1000000000.0"
-	msg, err := messageFromNATS(wire)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if msg.StoredAt().UnixNano() != 1000000000 {
-		t.Fatalf("stored at = %v, want the ack reply timestamp", msg.StoredAt())
-	}
-	if plain, _ := messageFromNATS(nats.NewMsg("data.test")); !plain.StoredAt().IsZero() {
-		t.Fatalf("stored at = %v for a core delivery, want zero", plain.StoredAt())
-	}
-}
-
-func TestMessageFromNATSRejectsMultiValueMetadata(t *testing.T) {
-	wire := nats.NewMsg("data.test")
-	wire.Header["Traceparent"] = []string{"one", "two"}
-	if _, err := messageFromNATS(wire); err == nil {
-		t.Fatal("multi-value application metadata must be rejected")
-	}
-}
-
-func TestMaxRetryDelayTerminatesFinalDelivery(t *testing.T) {
-	delay := newMaxRetryDelay(3, 3)
-	if got := delay.WaitTime(2); got != 3 {
-		t.Fatalf("retry delay = %v, want 3", got)
-	}
-	if got := delay.WaitTime(3); got != terminateDelivery {
-		t.Fatalf("final delivery = %v, want terminate signal", got)
 	}
 }

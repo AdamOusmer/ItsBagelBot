@@ -3,7 +3,11 @@
 
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"ItsBagelBot/internal/domain/event/data"
+)
 
 func TestKeyLiterals(t *testing.T) {
 	const id uint64 = 12345
@@ -22,6 +26,9 @@ func TestKeyLiterals(t *testing.T) {
 		"balance":         balanceKey(id, 678),
 		"timer":           timerRef{id, "t1"}.scheduleKey(),
 		"campaign":        campaignKey(id, 255),
+		"entry_command":   entryField(data.CounterScopeCommand, 0, "raid"),
+		"entry_viewer_cm": entryField(data.CounterScopeViewerCommand, 7, "raid"),
+		"entry_viewer":    entryField(data.CounterScopeViewer, 7, ""),
 	}
 	want := map[string]string{
 		"greet":           "bagel:greeted:12345",
@@ -38,6 +45,9 @@ func TestKeyLiterals(t *testing.T) {
 		"balance":         "loyal:bal:12345:678",
 		"timer":           "timer:12345:t1",
 		"campaign":        "am:tmpl:12345:ff",
+		"entry_command":   "raid:0",
+		"entry_viewer_cm": "raid:7",
+		"entry_viewer":    "7",
 	}
 	for name, w := range want {
 		if got[name] != w {

@@ -186,34 +186,29 @@ async function scan(): Promise<Map<string, Hit[]>> {
 }
 
 describe('offendingParts', () => {
-  test('flags a bare element that sets type', () => {
-    expect(offendingParts('.head h2', 'font-size: 18px;')).toEqual(['h2']);
-  });
+  interface PartsRow {
+    name: string;
+    rule: { selector: string; body: string };
+    parts: string[];
+  }
 
-  test('ignores a bare element that only lays out', () => {
-    expect(offendingParts('.row span', 'display: flex; gap: 4px;')).toEqual([]);
-  });
+  const PARTS_ROWS: PartsRow[] = [
+    { name: 'flags a bare element that sets type', rule: { selector: '.head h2', body: 'font-size: 18px;' }, parts: ['h2'] },
+    { name: 'ignores a bare element that only lays out', rule: { selector: '.row span', body: 'display: flex; gap: 4px;' }, parts: [] },
+    { name: 'flags any .bb-* class, including inside :global()', rule: { selector: '.editor :global(.bb-field)', body: 'margin: 0;' }, parts: ['.bb-field'] },
+    { name: 'ignores a reset that only inherits type', rule: { selector: 'input, button', body: 'font: inherit;' }, parts: [] },
+    { name: 'flags a literal fallback on a brand token', rule: { selector: '.row', body: 'color: var(--bb-muted, #888077);' }, parts: ['--bb-muted, …'] },
+    { name: 'does not read element names inside attribute selectors', rule: { selector: '[data-kind="span"] .label', body: 'color: red;' }, parts: [] }
+  ];
 
-  test('flags any .bb-* class, including inside :global()', () => {
-    expect(offendingParts('.editor :global(.bb-field)', 'margin: 0;')).toEqual(['.bb-field']);
-  });
-
-  test('ignores a reset that only inherits type', () => {
-    expect(offendingParts('input, button', 'font: inherit;')).toEqual([]);
-  });
-
-  test('flags a literal fallback on a brand token', () => {
-    expect(offendingParts('.row', 'color: var(--bb-muted, #888077);')).toEqual(['--bb-muted, …']);
+  test.each(PARTS_ROWS)('$name', ({ rule, parts }) => {
+    expect(offendingParts(rule.selector, rule.body)).toEqual(parts);
   });
 
   test('scans a standalone stylesheet from its first line', () => {
     expect(offendersIn({ rel: 'x.css', source: '.ok { display: grid; }\n.cell td { font-size: 12px; }\n' })).toEqual([
       { rel: 'x.css', line: 2, selector: '.cell td', parts: ['td'] },
     ]);
-  });
-
-  test('does not read element names inside attribute selectors', () => {
-    expect(offendingParts('[data-kind="span"] .label', 'color: red;')).toEqual([]);
   });
 
   test('reports the line of each offending rule in a component', () => {

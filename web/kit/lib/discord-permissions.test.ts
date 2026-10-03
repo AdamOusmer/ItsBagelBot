@@ -39,15 +39,11 @@ describe('discord bot permissions', () => {
     expect(tsPermissions()).toBe(goPermissions());
   });
 
-  test('the invite never requests Administrator', () => {
-    expect(goPermissions() & 8n).toBe(0n);
-  });
-
-  test('the invite requests CHANGE_NICKNAME', () => {
-    expect(goPermissions() & (1n << 26n)).toBe(1n << 26n);
-  });
-
-  test('the number stays inside a safe JS integer', () => {
-    expect(goPermissions() <= BigInt(Number.MAX_SAFE_INTEGER)).toBe(true);
+  test.each([
+    ['the invite never requests Administrator', (bits: bigint) => (bits & 8n) === 0n],
+    ['the invite requests CHANGE_NICKNAME', (bits: bigint) => (bits & (1n << 26n)) === 1n << 26n],
+    ['the number stays inside a safe JS integer', (bits: bigint) => bits <= BigInt(Number.MAX_SAFE_INTEGER)]
+  ] as [string, (bits: bigint) => boolean][])('%s', (_name, holds) => {
+    expect(holds(goPermissions())).toBe(true);
   });
 });
