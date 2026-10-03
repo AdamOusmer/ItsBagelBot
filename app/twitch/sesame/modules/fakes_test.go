@@ -322,8 +322,8 @@ type fakeLoyalty struct {
 	wagerLimit  bool
 }
 
-func (f *fakeLoyalty) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
-	f.earns = append(f.earns, earnCall{broadcasterID, viewerID, login, name, points, watchSeconds})
+func (f *fakeLoyalty) Earn(e engine.PointEarning) {
+	f.earns = append(f.earns, earnCall{e.BroadcasterID, e.ViewerID, e.Login, e.Name, e.Points, e.WatchSeconds})
 }
 
 func (f *fakeLoyalty) CounterBump(_ context.Context, b engine.CounterBump) (int64, error) {
@@ -359,20 +359,20 @@ func (f *fakeLoyalty) BalanceAdjustViewer(_ context.Context, a engine.BalanceAdj
 	return bal, true, nil
 }
 
-func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	f.transfers = append(f.transfers, transferCall{fromViewerID, targetViewerID, targetLogin, amount})
-	if targetLogin == "ghost" {
+func (f *fakeLoyalty) BalanceTransfer(_ context.Context, t engine.PointTransfer) (loyaltyrpc.Balance, bool, bool, error) {
+	f.transfers = append(f.transfers, transferCall{t.FromViewerID, t.TargetViewerID, t.TargetLogin, t.Amount})
+	if t.TargetLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, false, nil
 	}
-	bal := f.standing(targetLogin)
+	bal := f.standing(t.TargetLogin)
 	sender := f.standing("sender")
-	if f.transferBad || amount > sender.Points {
+	if f.transferBad || t.Amount > sender.Points {
 		return sender, true, false, nil
 	}
-	sender.Points -= amount
-	bal.Points += amount
+	sender.Points -= t.Amount
+	bal.Points += t.Amount
 	f.balances["sender"] = sender.Points
-	f.balances[targetLogin] = bal.Points
+	f.balances[t.TargetLogin] = bal.Points
 	return sender, true, true, nil
 }
 
