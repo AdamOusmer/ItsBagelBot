@@ -183,6 +183,7 @@
 
     .bb-nav-link--cta::before {
       opacity: 1;
+      rotate: none;
       scale: 1;
       border-color: currentColor;
     }
