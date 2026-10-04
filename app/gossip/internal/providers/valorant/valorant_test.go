@@ -316,9 +316,9 @@ func TestAccountEchoesResolvedIdentity(t *testing.T) {
 		fmt.Fprint(w, accountBody)
 	}), providertest.Forbid(t))
 
-	reply := providertest.Call[accountReply](t, p, "account", gossiprpc.Request{Account: "Frosty#EUW1"})
+	reply := providertest.Call[gossiprpc.ValorantAccountReply](t, p, "account", gossiprpc.Request{Account: "Frosty#EUW1"})
 
-	assert.Equal(t, accountReply{
+	assert.Equal(t, gossiprpc.ValorantAccountReply{
 		Player: "Frosty#EUW1", Puuid: "puuid-1", Region: "eu", AccountLevel: 231,
 		Card: "https://media.test/card.png", Title: "Vanquisher",
 	}, reply)

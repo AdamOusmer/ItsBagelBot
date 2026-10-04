@@ -210,8 +210,8 @@ func protocolCases(f gatewayFrames) []runCase {
 			name: "a resumed reconnect resumes at the resume url and still spends the budget", stopAfter: 2,
 			budget: fastBudget(dailyConnectCeiling, nil),
 			scripts: []script{
-				{reads: [][]byte{f.fastBeat, f.ready}, readErr: errClosed},
-				{reads: [][]byte{f.fastBeat, f.resumed}, readErr: errClosed},
+				{reads: [][]byte{f.hello, f.ready}, readErr: errClosed},
+				{reads: [][]byte{f.hello, f.resumed}, readErr: errClosed},
 			},
 			want: runSeen{URLs: []string{gatewayURL, resumeDialURL}, Opened: []int{opIdentify, opResume}, Ready: []Identity{{}},
 				Ups:   []Up{{SessionID: "sess-1"}, {SessionID: "sess-1", Resumed: true}},
@@ -314,8 +314,8 @@ func TestRunLogsWhyASocketEnded(t *testing.T) {
 			name: "socket end warning carries the close telemetry",
 			run: runCase{
 				scripts: []script{
-					{reads: [][]byte{f.fastBeat, f.ready}, readErr: errClosed},
-					{reads: [][]byte{f.fastBeat, f.resumed}, readErr: errClosed, closeCode: 4000, closeReason: "Session is no longer valid."},
+					{reads: [][]byte{f.hello, f.ready}, readErr: errClosed},
+					{reads: [][]byte{f.hello, f.resumed}, readErr: errClosed, closeCode: 4000, closeReason: "Session is no longer valid."},
 				},
 				budget:    fastBudget(dailyConnectCeiling, nil),
 				stopAfter: 2,
