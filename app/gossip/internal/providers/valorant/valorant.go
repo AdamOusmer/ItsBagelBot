@@ -525,7 +525,7 @@ func matchResult(teams []matchTeam, teamID string) string {
 
 type accountReply struct {
 	Player       string `json:"player"`
-	Puuid        string `json:"puuuid,omitempty"`
+	Puuid        string `json:"puuid,omitempty"`
 	Region       string `json:"region,omitempty"`
 	AccountLevel int    `json:"account_level,omitempty"`
 	Card         string `json:"card,omitempty"`
