@@ -271,3 +271,51 @@ func TestLocalFastPathAllocatesNothing(t *testing.T) {
 		t.Fatalf("local decision allocated %.1f objects/op, want 0", allocations)
 	}
 }
+
+type peerGrants struct {
+	donor *LeaseManager
+	clock *time.Time
+}
+
+func (p peerGrants) Borrow(_ context.Context, _ Member, request BorrowRequest) (BorrowReply, error) {
+	return p.donor.GrantPermit(*p.clock, request), nil
+}
+
+func warmManager(t *testing.T, podID string, req Request, borrower PermitBorrower) func(Plan, time.Time) *LeaseManager {
+	return func(plan Plan, now time.Time) *LeaseManager {
+		t.Helper()
+		manager := NewLeaseManager(nil, NewBucketStore(16), borrower, Identity{Region: "local", PodID: podID})
+		require.NoError(t, manager.ActivatePlan(plan, now, now, 0))
+		_, err := manager.allowAt(context.Background(), &req, now)
+		require.NoError(t, err)
+		return manager
+	}
+}
+
+func TestPremiumRequestsBorrowThePeerShareForEveryProfile(t *testing.T) {
+	members := []Member{{PodID: "pod-a", Region: "local"}, {PodID: "pod-b", Region: "local"}}
+	plan, now := activeTestPlan(t, members, 1)
+	later := now.Add(30 * time.Minute)
+	for _, tc := range []struct {
+		name string
+		req  Request
+	}{
+		{"chat", profileChatShared.ForDynamicKey("ratelimit:chat:", "chat", "123")},
+		{"chat as moderator", profileChatModShared.ForDynamicKey("ratelimit:chat:mod:", "chat:mod", "123")},
+		{"helix app", HelixAppRequest()},
+		{"helix bot user", HelixBotRequest()},
+		{"helix system", profileHelixSystemShare.ForKey("ratelimit:helix:system")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ownShare := admitted(t, warmManager(t, "pod-a", tc.req, nil)(plan, now), tc.req, later)
+			peerShare := admitted(t, warmManager(t, "pod-b", tc.req, nil)(plan, now), tc.req, later)
+			clock := now
+			donor := warmManager(t, "pod-b", tc.req, nil)(plan, now)
+			requester := warmManager(t, "pod-a", tc.req, peerGrants{donor: donor, clock: &clock})(plan, now)
+			clock = later
+
+			require.Positive(t, peerShare)
+			assert.Equal(t, ownShare+peerShare, admitted(t, requester, tc.req, later))
+		})
+	}
+}
