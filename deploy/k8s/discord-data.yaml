@@ -89,7 +89,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-data
-          image: ghcr.io/adamousmer/itsbagelbot/discord-data:v0.2.6-beta@sha256:ac45599687ed7cfaf2224265af79c52ba0e8e125199ae71502d4f5ded9ba9612
+          image: ghcr.io/adamousmer/itsbagelbot/discord-data:v0.2.7-beta@sha256:43d22a6461e52c69ce53cf5ef06f925fe9ad474b1d9c252324c9a8b65527897d
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
