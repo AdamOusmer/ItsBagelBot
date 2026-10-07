@@ -102,11 +102,9 @@ export function mountCursor(options: CursorOptions): () => void {
     let overText = false;
     let lastMove = 0;
     let radius = FALLBACK_RADIUS;
-    let measured: Box | null = null;
 
     function setTarget(next: HTMLElement | null): void {
         target = next;
-        measured = null;
         if (next) radius = radiusOf(next);
     }
 
@@ -119,8 +117,7 @@ export function mountCursor(options: CursorOptions): () => void {
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        if (el) measured ??= hoverBox(el, radius);
-        const to = el ? (measured as Box) : idleBox(pointerX, pointerY);
+        const to = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
         box = lerpBox(box, to, el ? ease.hover : ease.release);
         paintRing(ring, box, !!el, overText);
         return to;
@@ -130,13 +127,10 @@ export function mountCursor(options: CursorOptions): () => void {
         const el = hovered();
         const to = paint(el);
         if (reduceMotion.matches) return false;
-        if (!arrived(box, to)) return;
-        if (el) {
-            box = to;
-            paintRing(ring, box, true, overText);
-            return false;
-        }
-        if (now - lastMove > IDLE_MS) return false;
+        if (!arrived(box, to) || now - lastMove <= IDLE_MS) return;
+        box = to;
+        paintRing(ring, box, !!el, overText);
+        return false;
     }
 
     const nearest = (event: PointerEvent): HTMLElement | null =>
@@ -170,9 +164,7 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const remeasure = (): void => {
-        if (!target) return;
-        measured = null;
-        wake(tick);
+        if (target) wake(tick);
     };
 
     const layered = [ring, dot].filter((el) => typeof el.showPopover === 'function');
