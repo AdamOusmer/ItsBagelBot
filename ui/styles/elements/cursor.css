@@ -48,6 +48,7 @@
         height: 36px;
         border: 2px solid var(--bb-tan);
         border-radius: var(--bb-radius-sm);
+        background: transparent;
         opacity: 0.5;
         pointer-events: none;
         z-index: calc(var(--bb-z-cursor) - 1);

@@ -131,7 +131,7 @@ beforeEach(() => {
 });
 
 describe('cursor', () => {
-  function stage() {
+  function stage(top = (_read: number) => 100) {
     let rects = 0;
     const link = {
       isConnected: true,
@@ -139,7 +139,7 @@ describe('cursor', () => {
       closest: () => link,
       getBoundingClientRect: () => {
         rects += 1;
-        return { left: 100, top: 100, width: 80, height: 20 };
+        return { left: 100, top: top(rects), width: 80, height: 20 };
       },
     };
     const paint = () => ({ style: {} as Record<string, string>, classList: { toggle() {} } });
@@ -149,13 +149,17 @@ describe('cursor', () => {
     return { link, ring, dispose, rects: () => rects };
   }
 
-  test('a hovered element is measured once, then the loop sleeps on the settled ring', () => {
-    const { link, ring, dispose, rects } = stage();
+  test('a hovered element that moves mid-hover is tracked, then the loop sleeps on the settled ring', () => {
+    const { link, ring, dispose } = stage((read) => (read < 3 ? 100 : 97));
     doc.dispatch('pointerover', { target: link });
     settle();
-    expect([rects(), styleReads]).toEqual([1, 1]);
+    expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
-    expect([ring.style.width, ring.style.height]).toEqual(['92.0px', '32.0px']);
+    expect([ring.style.transform, ring.style.width, ring.style.height]).toEqual([
+      'translate(94.0px, 91.0px)',
+      '92.0px',
+      '32.0px',
+    ]);
     dispose();
   });
 
@@ -163,12 +167,14 @@ describe('cursor', () => {
     const { link, dispose, rects } = stage();
     doc.dispatch('pointerover', { target: link });
     settle();
+    const hovered = rects();
     win.dispatch('scroll');
     expect(frames.length).toBeGreaterThan(0);
     settle();
+    const scrolled = rects();
     win.dispatch('resize');
     settle();
-    expect(rects()).toBe(3);
+    expect([scrolled > hovered, rects() > scrolled]).toEqual([true, true]);
     expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
     dispose();
