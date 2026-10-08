@@ -200,11 +200,13 @@ func (c Config) VoiceName(owner string) string {
 
 func (c Config) VoiceLimit() int {
 	n, err := strconv.Atoi(strings.TrimSpace(c.VoiceUserLimit))
-	if err != nil || n < 0 || n > VoiceUserLimitMax {
+	if err != nil || !withinVoiceLimit(n) {
 		return 0
 	}
 	return n
 }
+
+func withinVoiceLimit(n int) bool { return n >= 0 && n <= VoiceUserLimitMax }
 
 func (c Config) VoicePrivacy() string {
 	switch mode := strings.TrimSpace(c.VoicePrivacyMode); mode {

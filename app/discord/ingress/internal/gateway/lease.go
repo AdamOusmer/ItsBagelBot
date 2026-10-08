@@ -133,23 +133,34 @@ func (s Session) renewWhileHeld(ctx context.Context) (lost bool) {
 	defer t.Stop()
 	lastKept := s.clock()
 	for {
-		select {
-		case <-ctx.Done():
+		if !awaitTick(ctx, t.C) {
 			return false
-		case <-t.C:
 		}
 		sent := s.clock()
 		kept, err := s.renewOnce(ctx)
-		switch {
-		case ctx.Err() != nil:
+		if ctx.Err() != nil {
 			return false
-		case err == nil && !kept:
-			return true
-		case err == nil:
-			lastKept = sent
-		case s.clock().Sub(lastKept) >= s.leaseTiming().deadline:
+		}
+		if err != nil && !s.pastDeadline(lastKept) {
+			continue
+		}
+		if err != nil || !kept {
 			return true
 		}
+		lastKept = sent
+	}
+}
+
+func (s Session) pastDeadline(lastKept time.Time) bool {
+	return s.clock().Sub(lastKept) >= s.leaseTiming().deadline
+}
+
+func awaitTick(ctx context.Context, tick <-chan time.Time) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-tick:
+		return true
 	}
 }
 

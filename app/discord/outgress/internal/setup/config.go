@@ -71,12 +71,7 @@ func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg 
 	if guildID == "" {
 		return discapi.ErrBadRequest
 	}
-	var wanted []string
-	for _, id := range configChannelIDs(cfg) {
-		if id != "" {
-			wanted = append(wanted, id)
-		}
-	}
+	wanted := nonEmpty(configChannelIDs(cfg))
 	if len(wanted) == 0 {
 		return nil
 	}
@@ -87,6 +82,20 @@ func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg 
 	if err != nil {
 		return err
 	}
+	return requireAllPresent(wanted, channels)
+}
+
+func nonEmpty(ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func requireAllPresent(wanted []string, channels []discapi.Snowflake) error {
 	inGuild := make(map[string]bool, len(channels))
 	for _, ch := range channels {
 		inGuild[ch.ID] = true

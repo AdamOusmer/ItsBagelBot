@@ -156,11 +156,18 @@ func validVoiceLimit(raw string) bool {
 	if v == "" {
 		return true
 	}
-	if len(v) > 2 || v[0] < '0' || v[0] > '9' {
+	if !shortDigits(v) {
 		return false
 	}
 	n, err := strconv.Atoi(v)
 	return err == nil && n <= VoiceUserLimitMax
+}
+
+func shortDigits(v string) bool {
+	if len(v) > 2 {
+		return false
+	}
+	return v[0] >= '0' && v[0] <= '9'
 }
 
 func tooLong(field, value string, max int) []FieldError {

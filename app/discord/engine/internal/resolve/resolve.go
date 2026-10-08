@@ -98,11 +98,15 @@ const (
 )
 
 func (r Resolver) dropped(guildID, reason string, broadcasterID uint64) {
-	if guildID == "" || reason == dropLoggedElsewhere || !r.Warned.first(guildID, reason) {
+	if !r.shouldWarn(guildID, reason) {
 		return
 	}
 	r.log().Warn("dropping discord events for guild",
 		zap.String("guild_id", guildID), zap.Uint64("broadcaster_id", broadcasterID), zap.String("reason", reason))
+}
+
+func (r Resolver) shouldWarn(guildID, reason string) bool {
+	return guildID != "" && reason != dropLoggedElsewhere && r.Warned.first(guildID, reason)
 }
 
 func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config {

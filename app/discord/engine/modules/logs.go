@@ -191,17 +191,26 @@ func (h logsModule) messageEdit(ctx context.Context, c *module.Context, emit mod
 		return nil
 	}
 	got, cached := h.store.RecallMessage(ctx, discordstore.Message{ID: ev.ID})
-	if skipBot(c, ev.Author.Bot || got.Bot) || (cached && got.Content == ev.Content) {
+	if skipBot(c, ev.Author.Bot || got.Bot) {
 		return nil
 	}
-	h.logEdit(c, emit, ev, got, cached)
+	if cached && got.Content == ev.Content {
+		return nil
+	}
+	h.logEdit(c, emit, ev, recalled{msg: got, cached: cached})
 	h.refresh(ctx, ev, got)
 	return nil
 }
 
-func (h logsModule) logEdit(c *module.Context, emit module.Emit, ev decode.MessageEvent, got discordstore.CachedMessage, cached bool) {
+type recalled struct {
+	msg    discordstore.CachedMessage
+	cached bool
+}
+
+func (h logsModule) logEdit(c *module.Context, emit module.Emit, ev decode.MessageEvent, prior recalled) {
+	got := prior.msg
 	before := unknownContent
-	if cached {
+	if prior.cached {
 		before = got.Content
 	}
 	logTo(c, emit, ddiscord.LogMessages, logEntry{
@@ -269,15 +278,30 @@ func (h logsModule) memberUpdate(ctx context.Context, c *module.Context, emit mo
 }
 
 func (h logsModule) nickChange(ctx context.Context, c *module.Context, emit module.Emit, ev decode.MemberUpdateEvent) {
-	ref := discordstore.LabelRef{Kind: discordstore.LabelNick, GuildID: ev.GuildID, ID: ev.User.ID}
-	old, changed := h.trackName(ctx, ref, ev.Nick)
+	h.renamed(ctx, c, emit, nameChange{
+		ref:  discordstore.LabelRef{Kind: discordstore.LabelNick, GuildID: ev.GuildID, ID: ev.User.ID},
+		name: ev.Nick,
+		cat:  ddiscord.LogMembers,
+		entry: logEntry{
+			Title: "Nickname changed", Body: decode.Mention(ev.User), Footer: idFooter("User", ev.User.ID),
+		},
+	})
+}
+
+type nameChange struct {
+	ref   discordstore.LabelRef
+	name  string
+	cat   ddiscord.LogCategory
+	entry logEntry
+}
+
+func (h logsModule) renamed(ctx context.Context, c *module.Context, emit module.Emit, nc nameChange) {
+	old, changed := h.trackName(ctx, nc.ref, nc.name)
 	if !changed {
 		return
 	}
-	logTo(c, emit, ddiscord.LogMembers, logEntry{
-		Title: "Nickname changed", Body: decode.Mention(ev.User),
-		Fields: beforeAfter(old, ev.Nick), Footer: idFooter("User", ev.User.ID),
-	})
+	nc.entry.Fields = beforeAfter(old, nc.name)
+	logTo(c, emit, nc.cat, nc.entry)
 }
 
 func (h logsModule) roleChange(ctx context.Context, c *module.Context, emit module.Emit, ev decode.MemberUpdateEvent) {
@@ -374,21 +398,25 @@ func (h logsModule) isTempVoiceRoom(ctx context.Context, cfg ddiscord.Config, ev
 	if ev.Type != ddiscord.ChannelVoice {
 		return false
 	}
-	if cfg.VoiceCategoryID != "" && ev.ParentID == cfg.VoiceCategoryID && ev.ID != cfg.VoiceHubID {
+	if inVoiceCategory(cfg, ev) {
 		return true
 	}
 	_, tracked := h.store.Clone(ctx, discordstore.Channel{ID: ev.ID})
 	return tracked
 }
 
+func inVoiceCategory(cfg ddiscord.Config, ev decode.ChannelEvent) bool {
+	return cfg.VoiceCategoryID != "" && ev.ParentID == cfg.VoiceCategoryID && ev.ID != cfg.VoiceHubID
+}
+
 func (h logsModule) channelUpdated(ctx context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
-	old, changed := h.trackName(ctx, channelRef(ev.GuildID, ev.ID), ev.Name)
-	if !changed {
-		return nil
-	}
-	logTo(c, emit, ddiscord.LogChannels, logEntry{
-		Title: "Channel renamed", Body: channelMention(ev.ID),
-		Fields: beforeAfter(old, ev.Name), Footer: idFooter("Channel", ev.ID), SourceChannelID: ev.ID,
+	h.renamed(ctx, c, emit, nameChange{
+		ref:  channelRef(ev.GuildID, ev.ID),
+		name: ev.Name,
+		cat:  ddiscord.LogChannels,
+		entry: logEntry{
+			Title: "Channel renamed", Body: channelMention(ev.ID), Footer: idFooter("Channel", ev.ID), SourceChannelID: ev.ID,
+		},
 	})
 	return nil
 }
@@ -413,13 +441,13 @@ func (h logsModule) roleCreated(ctx context.Context, c *module.Context, emit mod
 }
 
 func (h logsModule) roleUpdated(ctx context.Context, c *module.Context, emit module.Emit, ev decode.RoleEvent) error {
-	old, changed := h.trackName(ctx, roleRef(ev.GuildID, ev.Role.ID), ev.Role.Name)
-	if !changed {
-		return nil
-	}
-	logTo(c, emit, ddiscord.LogRoles, logEntry{
-		Title: "Role renamed", Body: "<@&" + ev.Role.ID + ">",
-		Fields: beforeAfter(old, ev.Role.Name), Footer: idFooter("Role", ev.Role.ID),
+	h.renamed(ctx, c, emit, nameChange{
+		ref:  roleRef(ev.GuildID, ev.Role.ID),
+		name: ev.Role.Name,
+		cat:  ddiscord.LogRoles,
+		entry: logEntry{
+			Title: "Role renamed", Body: "<@&" + ev.Role.ID + ">", Footer: idFooter("Role", ev.Role.ID),
+		},
 	})
 	return nil
 }
@@ -433,13 +461,11 @@ func (h logsModule) roleDeleted(ctx context.Context, c *module.Context, emit mod
 }
 
 func (h logsModule) guildUpdated(ctx context.Context, c *module.Context, emit module.Emit, ev decode.GuildUpdateEvent) error {
-	ref := discordstore.LabelRef{Kind: discordstore.LabelGuild, GuildID: ev.ID, ID: ev.ID}
-	old, changed := h.trackName(ctx, ref, ev.Name)
-	if !changed {
-		return nil
-	}
-	logTo(c, emit, ddiscord.LogServer, logEntry{
-		Title: "Server renamed", Fields: beforeAfter(old, ev.Name), Footer: idFooter("Server", ev.ID),
+	h.renamed(ctx, c, emit, nameChange{
+		ref:   discordstore.LabelRef{Kind: discordstore.LabelGuild, GuildID: ev.ID, ID: ev.ID},
+		name:  ev.Name,
+		cat:   ddiscord.LogServer,
+		entry: logEntry{Title: "Server renamed", Footer: idFooter("Server", ev.ID)},
 	})
 	return nil
 }

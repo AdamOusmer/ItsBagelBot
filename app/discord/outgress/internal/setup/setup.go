@@ -358,18 +358,29 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": true, "ticketcat": true, "ticketarchive": true}
 
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
+	_, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return f.chanByName[strings.ToLower(spec.Parent)], livedInCreatable[spec.Bind]
+	})
+	return err
+}
+
+type channelPass func(spec ddiscord.ChannelSpec) (parent string, ok bool)
+
+func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass channelPass) (map[string]string, error) {
+	ensured := map[string]string{}
 	for _, spec := range ddiscord.CommunityChannels() {
-		if !livedInCreatable[spec.Bind] || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+		parent, ok := pass(spec)
+		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
-		parent := f.chanByName[strings.ToLower(spec.Parent)]
 		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
 		if err != nil {
-			return err
+			return ensured, err
 		}
+		ensured[spec.Name] = id
 		out.setChannel(namedRef{Name: spec.Bind, ID: id})
 	}
-	return nil
+	return ensured, nil
 }
 
 type namedRef struct {
@@ -429,19 +440,16 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 }
 
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
-	parentID := map[string]string{}
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type != ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
-			continue
-		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec}))
-		if err != nil {
-			return err
-		}
-		parentID[spec.Name] = id
-		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+	parentID, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return "", spec.Type == ddiscord.ChannelCategory
+	})
+	if err != nil {
+		return err
 	}
-	return f.ensureChildChannels(ctx, parentID, out)
+	_, err = f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return parentID[spec.Parent], spec.Type != ddiscord.ChannelCategory
+	})
+	return err
 }
 
 func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
@@ -462,20 +470,6 @@ func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
 	_ = f.w.store.RememberDesk(ctx, discordstore.DeskPanel{
 		GuildID: out.GuildID, ChannelID: out.TicketChannelID, MessageID: msg.ID,
 	})
-}
-
-func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type == ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
-			continue
-		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parentID[spec.Parent]}))
-		if err != nil {
-			return err
-		}
-		out.setChannel(namedRef{Name: spec.Bind, ID: id})
-	}
-	return nil
 }
 
 func (f *guildFill) channelCreator(ctx context.Context, want channelWant) namedCreate {
@@ -514,15 +508,13 @@ func (f *guildFill) create(ctx context.Context, do func() (discapi.Snowflake, er
 	}
 }
 
-func (out *GuildSetupResult) setRole(role namedRef) {
-	if role.ID == "" {
+func (out *GuildSetupResult) setRole(role namedRef) { assignSlot(out.roleSlot(role.Name), role.ID) }
+
+func assignSlot(slot *string, id string) {
+	if id == "" || slot == nil {
 		return
 	}
-	field := out.roleSlot(role.Name)
-	if field == nil {
-		return
-	}
-	*field = role.ID
+	*slot = id
 }
 
 func (out *GuildSetupResult) roleSlot(name string) *string {
@@ -538,16 +530,7 @@ func (out *GuildSetupResult) roleSlot(name string) *string {
 	return slots[name]
 }
 
-func (out *GuildSetupResult) setChannel(ch namedRef) {
-	if ch.ID == "" {
-		return
-	}
-	field := out.channelSlot(ch.Name)
-	if field == nil {
-		return
-	}
-	*field = ch.ID
-}
+func (out *GuildSetupResult) setChannel(ch namedRef) { assignSlot(out.channelSlot(ch.Name), ch.ID) }
 
 func (out *GuildSetupResult) channelSlot(name string) *string {
 	slots := map[string]*string{
