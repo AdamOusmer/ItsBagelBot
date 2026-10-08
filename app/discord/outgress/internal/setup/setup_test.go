@@ -62,6 +62,39 @@ func viewFill(got setup.GuildSetupResult, d *fakeDiscord, store *discordstore.Me
 	return view
 }
 
+func TestSetupGuildOnLivedInServerAddsOnlyTheBoundChannels(t *testing.T) {
+	d := &fakeDiscord{channels: livedInServer()}
+
+	got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, got.Refused)
+	require.Equal(t, "ch-+ create voice", got.VoiceHubID)
+	require.Equal(t, "ch-logs", got.LogChannelID)
+	require.Equal(t, "ch-tickets", got.TicketCategoryID)
+	require.Equal(t, "ch-archive", got.TicketArchiveCategoryID)
+	require.Empty(t, d.createdRoles)
+	for _, name := range []string{"welcome", "now-live", "support", "vip-lounge", "vip"} {
+		require.NotContains(t, d.createdChannels, name)
+	}
+	require.Equal(t, "old-Clips", got.ClipsChannelID)
+	require.NotContains(t, d.createdChannels, "chat")
+	require.NotContains(t, d.createdChannels, "off-topic")
+}
+
+func TestSetupGuildGatedChannelsAdmitTheBot(t *testing.T) {
+	d := &fakeDiscord{}
+	w := setup.New(setup.Config{Discord: d, Store: discordstore.NewMem(), Log: zap.NewNop(), BotID: "bot-1"})
+
+	_, err := w.SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+
+	require.NoError(t, err)
+	overwrites := d.createdChannels["logs"].PermissionOverwrites
+	bot := discapi.PermissionOverwrite{ID: "bot-1", Type: 1, Allow: "52224", Deny: "0"}
+	require.Equal(t, bot, overwrites[len(overwrites)-1])
+	require.Contains(t, d.createdChannels["now-live"].PermissionOverwrites, bot)
+}
+
 func TestSetupGuild(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -73,9 +106,9 @@ func TestSetupGuild(t *testing.T) {
 		name: "fills a fresh server, binds it and posts the ticket desk",
 		want: fillView{Filled: true, Live: "ch-now-live", Clips: "ch-clips", Desk: "ch-support", Created: true, BoundTo: "42", Guilds: 1},
 	}, {
-		name:     "adopts matching channels on a lived-in server instead of filling it",
+		name:     "adopts matching channels on a lived-in server and adds only the hub, logs and ticket categories",
 		existing: livedInServer(),
-		want:     fillView{Refused: true, Clips: "old-Clips", BoundTo: "42", Guilds: 1},
+		want:     fillView{Refused: true, Clips: "old-Clips", Created: true, BoundTo: "42", Guilds: 1},
 	}, {
 		name:     "completes a partial fill by reusing the channels it finds",
 		existing: existingChannels("Welcome", "welcome", "rules", "Announcements", "now-live", "clips", "announcements", "Community"),

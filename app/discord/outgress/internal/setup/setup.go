@@ -22,8 +22,12 @@ import (
 
 const (
 	overwriteRole          = 0
+	overwriteMember        = 1
 	permViewChannel  int64 = 1024
 	permSendMessages int64 = 2048
+	permEmbedLinks   int64 = 16384
+	permAttachFiles  int64 = 32768
+	permBotPost            = permViewChannel | permSendMessages | permEmbedLinks | permAttachFiles
 
 	channelAnnouncement = 5
 
@@ -76,10 +80,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	out.DroppedPins = fill.droppedPins
 	defer w.invalidateConfig(ctx, req.GuildID)
 	if fill.livedIn() {
-		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
-		fill.adopt(&out)
-		fill.postTicketDesk(ctx, out)
-		return out, nil
+		return fill.adoptLivedIn(ctx, out)
 	}
 	if err := fill.ensureRoles(ctx, &out); err != nil {
 		return out, err
@@ -88,6 +89,16 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 		return out, err
 	}
 	fill.postTicketDesk(ctx, out)
+	return out, nil
+}
+
+func (f *guildFill) adoptLivedIn(ctx context.Context, out GuildSetupResult) (GuildSetupResult, error) {
+	out.Refused = "this server already has a layout; Bagel adopted the channels it recognised and added only the bound ones it was missing, pick the rest below"
+	f.adopt(&out)
+	if err := f.ensureBoundChannels(ctx, &out); err != nil {
+		return out, err
+	}
+	f.postTicketDesk(ctx, out)
 	return out, nil
 }
 
@@ -344,6 +355,23 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 	}
 }
 
+var livedInCreatable = map[string]bool{"voice": true, "logs": true, "ticketcat": true, "ticketarchive": true}
+
+func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
+	for _, spec := range ddiscord.CommunityChannels() {
+		if !livedInCreatable[spec.Bind] || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+			continue
+		}
+		parent := f.chanByName[strings.ToLower(spec.Parent)]
+		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		if err != nil {
+			return err
+		}
+		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+	}
+	return nil
+}
+
 type namedRef struct {
 	Name string
 	ID   string
@@ -544,9 +572,9 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 		return f.gatedOverwrites(spec)
 	}
 	if spec.ReadOnly {
-		return []discapi.PermissionOverwrite{{
+		return f.withBotAccess([]discapi.PermissionOverwrite{{
 			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permSendMessages),
-		}}
+		}})
 	}
 	return nil
 }
@@ -571,7 +599,17 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 			Allow: fmt.Sprintf("%d", allow), Deny: fmt.Sprintf("%d", deny),
 		})
 	}
-	return out
+	return f.withBotAccess(out)
+}
+
+func (f *guildFill) withBotAccess(in []discapi.PermissionOverwrite) []discapi.PermissionOverwrite {
+	if f.w.botID == "" {
+		return in
+	}
+	return append(in, discapi.PermissionOverwrite{
+		ID: f.w.botID, Type: overwriteMember,
+		Allow: fmt.Sprintf("%d", permBotPost), Deny: "0",
+	})
 }
 
 func rolePermissions(spec ddiscord.RoleSpec) string {

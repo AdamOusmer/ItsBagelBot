@@ -25,7 +25,7 @@ func roleNamed(t *testing.T, name string) RoleSpec {
 func TestBotPermissionPolicy(t *testing.T) {
 	assert.Zero(t, BotPermissions&int(PermAdministrator), "the bot invite must not request Administrator")
 	for name, bit := range map[string]int64{
-		"kick": PermKickMembers, "ban": PermBanMembers, "manage messages": PermManageMessages, "timeout (MODERATE_MEMBERS)": PermModerateMembers,
+		"kick": PermKickMembers, "ban": PermBanMembers, "manage messages": PermManageMessages, "view audit log": PermViewAuditLog, "timeout (MODERATE_MEMBERS)": PermModerateMembers,
 	} {
 		assert.NotZero(t, int64(BotPermissions)&bit, "the bot must request %s", name)
 	}
