@@ -32,7 +32,6 @@ type reply struct {
 	AccessToken          string     `json:"access_token"`
 	RefreshToken         string     `json:"refresh_token"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
-	Error                string     `json:"error"`
 }
 
 type Loaded struct {
@@ -45,9 +44,6 @@ func (s *Store) Load(ctx context.Context) (Loaded, error) {
 	r, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".get", map[string]string{"user_id": s.userID}, rpcTimeout)
 	if err != nil {
 		return Loaded{}, fmt.Errorf("tokens get rpc: %w", err)
-	}
-	if r.Error != "" {
-		return Loaded{}, bus.RPCReplyError{Subject: s.prefix + ".get", Message: r.Error}
 	}
 	return Loaded{
 		AccessToken:          r.AccessToken,
@@ -88,12 +84,8 @@ func (s *Store) Save(ctx context.Context, accessToken, refreshToken string, expi
 		req["access_token_expires_at"] = *expiresAt
 	}
 
-	r, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".save", req, rpcTimeout)
-	if err != nil {
+	if _, err := bus.RequestJSONTimeout[reply](ctx, s.nc, s.prefix+".save", req, rpcTimeout); err != nil {
 		return fmt.Errorf("tokens save rpc: %w", err)
-	}
-	if r.Error != "" {
-		return fmt.Errorf("tokens save: %s", r.Error)
 	}
 	return nil
 }
