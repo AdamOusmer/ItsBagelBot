@@ -23,7 +23,7 @@ export const QUEUE_MODULE: ModuleDef =
       defaultMessage: '@{user} you joined the queue at position #{pos}.',
       tokens: replyTokens(
         ['user', 'pos', 'channel'],
-        { user: 'sesame_sam', pos: '3', channel: 'streamer' },
+        { user: 'PrincessBarney', pos: '3', channel: 'streamer' },
         'queue.join'
       )
     },
@@ -35,7 +35,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'alreadyMessage',
       defaultMessage: '@{user} you are already in the queue at position #{pos}.',
-      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '2' })
+      tokens: replyTokens(['user', 'pos'], { user: 'PrincessBarney', pos: '2' })
     },
     {
       key: 'leave',
@@ -45,7 +45,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'leave',
       messageKey: 'leaveMessage',
       defaultMessage: '@{user} you left the queue.',
-      tokens: replyTokens(['user'], { user: 'sesame_sam' })
+      tokens: replyTokens(['user'], { user: 'PrincessBarney' })
     },
     {
       key: 'next',
@@ -57,7 +57,7 @@ export const QUEUE_MODULE: ModuleDef =
       defaultMessage: '@{target} you are up next! ({count} still waiting)',
       tokens: replyTokens(
         ['target', 'count', 'user', 'channel'],
-        { target: 'ferret_king', count: '2', user: 'sesame_sam', channel: 'streamer' },
+        { target: 'Lotti', count: '2', user: 'PrincessBarney', channel: 'streamer' },
         'queue.next'
       )
     },

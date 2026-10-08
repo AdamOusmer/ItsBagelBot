@@ -1,5 +1,5 @@
 {
   "name": "Time watched",
   "hint": "how long they have watched, in the same words as !uptime (Loyalty)",
-  "desc": "How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module."
+  "desc": "How long they have watched while the loyalty clock was running. {watchtime:MikanMeerkat} asks about someone else. Needs the Loyalty Points module."
 }

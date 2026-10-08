@@ -1,5 +1,5 @@
 {
   "name": "Tiempo de visualización",
   "hint": "cuánto tiempo ha visto, con el mismo formato que !uptime (Fidelidad)",
-  "desc": "Cuánto tiempo ha visto mientras el reloj de fidelidad estaba en marcha. {watchtime:alex} consulta a otra persona. Requiere el módulo Puntos de fidelidad."
+  "desc": "Cuánto tiempo ha visto mientras el reloj de fidelidad estaba en marcha. {watchtime:MikanMeerkat} consulta a otra persona. Requiere el módulo Puntos de fidelidad."
 }

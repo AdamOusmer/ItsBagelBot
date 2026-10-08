@@ -108,7 +108,7 @@ const BASE_VARIABLES: readonly VariableDef[] = [
     requires: 'followage',
     forms: [
       { syntax: '{followage}', example: '{followage}', output: FOLLOWAGE_SAMPLE },
-      { syntax: '{followage:<login>}', example: '{followage:alex}', output: FOLLOWAGE_SAMPLE }
+      { syntax: '{followage:<login>}', example: '{followage:MikanMeerkat}', output: FOLLOWAGE_SAMPLE }
     ]
   },
   {
@@ -118,7 +118,7 @@ const BASE_VARIABLES: readonly VariableDef[] = [
     requires: 'accountage',
     forms: [
       { syntax: '{accountage}', example: '{accountage}', output: ACCOUNTAGE_SAMPLE },
-      { syntax: '{accountage:<login>}', example: '{accountage:alex}', output: ACCOUNTAGE_SAMPLE }
+      { syntax: '{accountage:<login>}', example: '{accountage:MikanMeerkat}', output: ACCOUNTAGE_SAMPLE }
     ]
   },
   {
@@ -128,7 +128,7 @@ const BASE_VARIABLES: readonly VariableDef[] = [
     requires: 'loyalty',
     forms: [
       { syntax: '{points}', example: '{points}', output: POINTS_SAMPLE },
-      { syntax: '{points:<login>}', example: '{points:alex}', output: POINTS_SAMPLE }
+      { syntax: '{points:<login>}', example: '{points:MikanMeerkat}', output: POINTS_SAMPLE }
     ]
   },
   { id: 'pointsname', head: 'points.name', group: 'data', requires: 'loyalty', aliases: ['pointsname'], forms: [{ syntax: '{points.name}', example: '{points.name}', output: POINTS_NAME_SAMPLE }] },
@@ -139,7 +139,7 @@ const BASE_VARIABLES: readonly VariableDef[] = [
     requires: 'loyalty',
     forms: [
       { syntax: '{watchtime}', example: '{watchtime}', output: WATCHTIME_SAMPLE },
-      { syntax: '{watchtime:<login>}', example: '{watchtime:alex}', output: WATCHTIME_SAMPLE }
+      { syntax: '{watchtime:<login>}', example: '{watchtime:MikanMeerkat}', output: WATCHTIME_SAMPLE }
     ]
   },
   { id: 'uses', head: 'count', group: 'data', requires: null, aliases: ['uses'], forms: [{ syntax: '{count}', example: '{count}', output: USES_SAMPLE }] },

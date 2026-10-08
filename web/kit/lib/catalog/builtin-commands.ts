@@ -82,7 +82,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     liveOnly: true,
     editable: true,
     replyKey: 'reply',
-    tokens: replyTokens(['clip', 'user', 'target'], { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' }, 'builtin.clip')
+    tokens: replyTokens(['clip', 'user', 'target'], { user: 'PrincessBarney', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' }, 'builtin.clip')
   },
   {
     id: 'title',

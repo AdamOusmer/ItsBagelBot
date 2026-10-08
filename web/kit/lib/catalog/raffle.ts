@@ -21,7 +21,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: "@{user} you're in! {count} entered so far. Good luck!",
-      tokens: replyTokens(['user', 'count'], { user: 'sesame_sam', count: '12' })
+      tokens: replyTokens(['user', 'count'], { user: 'PrincessBarney', count: '12' })
     },
     {
       key: 'already',
@@ -31,7 +31,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'alreadyMessage',
       defaultMessage: '@{user} you are already in this raffle ({count} entered).',
-      tokens: replyTokens(['user', 'count'], { user: 'sesame_sam', count: '13' })
+      tokens: replyTokens(['user', 'count'], { user: 'PrincessBarney', count: '13' })
     },
     {
       key: 'noRaffle',
@@ -41,7 +41,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'noRaffleMessage',
       defaultMessage: '@{user} no raffle is running right now.',
-      tokens: replyTokens(['user'], { user: 'sesame_sam' })
+      tokens: replyTokens(['user'], { user: 'PrincessBarney' })
     },
     {
       key: 'opened',
@@ -62,7 +62,7 @@ export const RAFFLE_MODULE: ModuleDef =
       messageKey: 'wonMessage',
       defaultMessage:
         '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
-      tokens: replyTokens(['targets', 'count', 'entrants', 'claim'], { targets: '@maya_live, @crustycrumbs', count: '2', entrants: '18', claim: '15' })
+      tokens: replyTokens(['targets', 'count', 'entrants', 'claim'], { targets: '@SnackPackPanda, @crustycrumbs', count: '2', entrants: '18', claim: '15' })
     },
     {
       key: 'claimOk',
@@ -72,7 +72,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'claim',
       messageKey: 'claimOkMessage',
       defaultMessage: '@{user} your prize is confirmed. Enjoy!',
-      tokens: replyTokens(['user'], { user: 'maya_live' })
+      tokens: replyTokens(['user'], { user: 'SnackPackPanda' })
     }
   ],
   commands: [

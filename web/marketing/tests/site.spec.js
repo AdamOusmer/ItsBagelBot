@@ -479,8 +479,8 @@ test.describe('guides & command builder', () => {
         await page.fill('[data-template]', 'Hello ');
         await page.click('[data-vars] .var:first-child');
         await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
-        await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello sesame_sam');
-        await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('sesame_sam');
+        await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello PrincessBarney');
+        await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('PrincessBarney');
 
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('dashboard.itsbagelbot.com/commands?compose=1');

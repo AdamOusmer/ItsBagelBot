@@ -485,7 +485,7 @@ for (const surface of builderData(defaultLang).surfaces) {
             if (kind === 'event') return null;
             const surface = current();
             const line = el('div', 'line viewer');
-            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'maya_live');
+            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'SnackPackPanda');
             const text = mode === 'custom' ? `!${cleanName() || 'command'}` : surface.prompt;
             const msg = el('span', kind === 'message' ? 'msg plain' : 'msg', text);
             line.append(who, msg);

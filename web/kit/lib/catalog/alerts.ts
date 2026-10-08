@@ -21,7 +21,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'followEnabled',
       messageKey: 'followMessage',
       defaultMessage: 'Thank you for following the channel, {user}!',
-      tokens: replyTokens(['user'], { user: 'sesame_sam' }, 'alerts.follow')
+      tokens: replyTokens(['user'], { user: 'PrincessBarney' }, 'alerts.follow')
     },
     {
       key: 'sub',
@@ -31,7 +31,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'subEnabled',
       messageKey: 'subMessage',
       defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!',
-      tokens: replyTokens(['user', 'tier'], { user: 'sesame_sam', tier: '1000' }, 'alerts.sub')
+      tokens: replyTokens(['user', 'tier'], { user: 'PrincessBarney', tier: '1000' }, 'alerts.sub')
     },
     {
       key: 'gift',
@@ -51,7 +51,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'cheerEnabled',
       messageKey: 'cheerMessage',
       defaultMessage: 'Thank you for the {bits} bits, {user}!',
-      tokens: replyTokens(['user', 'bits'], { user: 'sesame_sam', bits: '500' }, 'alerts.cheer')
+      tokens: replyTokens(['user', 'bits'], { user: 'PrincessBarney', bits: '500' }, 'alerts.cheer')
     },
     {
       key: 'raid',

@@ -14,7 +14,7 @@
     "description": "Écrivez le message comme une phrase, cliquez pour insérer les parties intelligentes, regardez la répétition en direct, puis envoyez la commande terminée dans votre tableau de bord.",
     "cta": "Ouvrir le constructeur",
     "demoIn": "Bienvenue, <i>&#123;user&#125;</i>! Vous êtes le visiteur <i>&#123;counter:visites&#125;</i> 🥯",
-    "demoOut": "<b>ItsBagelBot:</b> Bienvenue, maya_live! Vous êtes le visiteur 128 🥯"
+    "demoOut": "<b>ItsBagelBot:</b> Bienvenue, SnackPackPanda! Vous êtes le visiteur 128 🥯"
   },
   "help": {
     "prompt": "Un guide ne couvre pas votre question?",

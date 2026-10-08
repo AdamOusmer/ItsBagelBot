@@ -1,5 +1,5 @@
 {
   "name": "Temps de follow",
   "hint": "depuis combien de temps la personne suit la chaîne (module Followage)",
-  "desc": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage."
+  "desc": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:MikanMeerkat} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage."
 }

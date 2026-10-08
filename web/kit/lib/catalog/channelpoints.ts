@@ -25,7 +25,7 @@ export const CHANNELPOINTS_MODULE: ModuleDef =
       tokens: replyTokens(
         ['user', 'input', 'reward', 'cost', 'channel', 'counter', 'points'],
         {
-          user: 'sesame_sam',
+          user: 'PrincessBarney',
           input: 'hello chat',
           reward: 'Say Hi',
           cost: '500',

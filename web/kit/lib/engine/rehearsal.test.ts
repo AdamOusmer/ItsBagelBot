@@ -9,18 +9,18 @@ function textOf(segments: Seg[]): string {
 }
 
 describe('token expansion (module/vars.go Expand mirror)', () => {
-  const resolve = (token: Token) => (token.name === 'user' ? 'sam' : null);
+  const resolve = (token: Token) => (token.name === 'user' ? 'Lotti' : null);
 
   test('substitutes known tokens and marks them as samples', () => {
     expect(expandSegments('hi {user}!', resolve)).toEqual([
       { text: 'hi ', kind: 'plain' },
-      { text: 'sam', kind: 'sample' },
+      { text: 'Lotti', kind: 'sample' },
       { text: '!', kind: 'plain' }
     ]);
   });
 
   test('token names are case-insensitive, payloads keep their case', () => {
-    expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
+    expect(expandSegments('{User}', resolve)).toEqual([{ text: 'Lotti', kind: 'sample' }]);
     const choice = expandSegments('{CHOICE:Hi,Yo}', (t) => (t.key === 'choice:Hi,Yo' ? 'Hi' : null));
     expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
@@ -48,21 +48,21 @@ const commandText = (template: string, overrides?: Overrides) =>
   textOf(rehearseCommand(template, overrides)[0].segments);
 
 const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: Overrides][] = [
-  ['positional words come from the {args} sample, so the two agree', '{1} / {2} / {2:} / {1:}', 'ferret_king / good / good luck / ferret_king good luck'],
-  ['an override of {args} moves the positional samples with it', '{1} then {2:}', 'alex then two three', { args: 'alex two three' }],
+  ['positional words come from the {args} sample, so the two agree', '{1} / {2} / {2:} / {1:}', 'Lotti / good / good luck / Lotti good luck'],
+  ['an override of {args} moves the positional samples with it', '{1} then {2:}', 'MikanMeerkat then two three', { args: 'MikanMeerkat two three' }],
   ['a word past the end renders its fallback, or nothing', '[{9}] {9|nobody}', '[] nobody'],
-  ['{n:m} is a real slice; {:m} anchors it at word 1', '{1:2} / {:2}', 'ferret_king good / ferret_king good'],
-  ['{sender}/{target} are aliases; an override of the canonical covers them', '{sender} waves at {target}', 'maya_live waves at alex', { user: 'maya_live', touser: 'alex' }],
+  ['{n:m} is a real slice; {:m} anchors it at word 1', '{1:2} / {:2}', 'Lotti good / Lotti good'],
+  ['{sender}/{target} are aliases; an override of the canonical covers them', '{sender} waves at {target}', 'SnackPackPanda waves at MikanMeerkat', { user: 'SnackPackPanda', touser: 'MikanMeerkat' }],
   ['resolves dynamic tokens deterministically', '{random} {random:10-20} {choice:a,b,c}', '57 15 a'],
   ['invalid random ranges stay literal, like ParseDynamic ok=false', '{random:5-1} {random:x-y}', '{random:5-1} {random:x-y}'],
-  ['a conditional picks a branch from the sample of the token it names', '{if:touser:hi you:hi everyone} - {touser}', 'hi you - ferret_king'],
+  ['a conditional picks a branch from the sample of the token it names', '{if:touser:hi you:hi everyone} - {touser}', 'hi you - Lotti'],
   ['a conditional on a missing word tests emptiness', '{if:9:word nine:no ninth word}', 'no ninth word'],
   ['a conditional equality is true on a match', '{if:command=hug:hugs:waves}', 'hugs'],
   ['a conditional equality is case-sensitive', '{if:command=HUG:hugs:waves}', 'waves'],
   ['a conditional on a counter tests emptiness', '{if:count:deaths:some deaths:none}', 'some deaths'],
   ['a conditional on a counter supports equality', '{if:count:deaths=42:exactly 42:something else}', 'exactly 42'],
   ['a branch is literal text: no token expands inside it', '{if:user:hi {user}}', 'hi {user}'],
-  ['a present value ignores its fallback', 'hi {user|everyone}', 'hi sesame_sam'],
+  ['a present value ignores its fallback', 'hi {user|everyone}', 'hi PrincessBarney'],
   ['the pure scope answers first, so a sample cannot shadow the dice', '{random}', '57', { random: 'nope' }],
   ['the utility scope computes {math:…} for real', 'that is {math:(1+2)*3} bagels', 'that is 9 bagels'],
   ['a refused expression renders its fallback, like chat', '{math:1/0|no idea}', 'no idea'],
@@ -73,9 +73,9 @@ const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: O
   ['{countdown} shows a fixed sample', '{countdown:2026-12-25}', '3 days, 4 hours'],
   ['{countup} shows a fixed sample', '{countup:2020-01-01T00:00:00Z}', '3 days, 4 hours'],
   ['a bad countdown date renders its fallback', '{countdown:next tuesday|soon}', 'soon'],
-  ['a named viewer previews the same stand-in as the bare form', '{points:alex} vs {points}', '1280 vs 1280'],
-  ['the message scope still answers first for the names it owns', '{user} has {points}', 'sesame_sam has 1280'],
-  ['two chatter draws preview as the same name', '{random.chatter} and {random.chatter}', 'maya_live and maya_live'],
+  ['a named viewer previews the same stand-in as the bare form', '{points:MikanMeerkat} vs {points}', '1280 vs 1280'],
+  ['the message scope still answers first for the names it owns', '{user} has {points}', 'PrincessBarney has 1280'],
+  ['two chatter draws preview as the same name', '{random.chatter} and {random.chatter}', 'SnackPackPanda and SnackPackPanda'],
   ['a named channel previews with the same stand-in', 'go watch {game:@Pokimane}', 'go watch Just Chatting'],
   ['bare {channel} is still the display name', '{channel} plays {game}', 'bagel_bakery plays Just Chatting'],
   ['two emote draws preview as the same code', '{random.emote} {random.emote}', 'KEKW KEKW'],
@@ -89,17 +89,17 @@ const COMMAND_TEXT: [name: string, template: string, want: string, overrides?: O
 
 const COMMAND_RESOLVED: [name: string, template: string, want: string][] = [
   ['the viewer lookups preview with a stand-in', '{followage} / {accountage} / {points} {pointsname} / {watchtime}', '3 months / 4 years, 2 months / 1280 bagels / 2 hours, 30 minutes'],
-  ['the room previews with a stand-in', '{chatters} here, hi {random.chatter}', '37 here, hi maya_live'],
+  ['the room previews with a stand-in', '{chatters} here, hi {random.chatter}', '37 here, hi SnackPackPanda'],
   ['the command run count previews with a stand-in', 'hugged {uses} times', 'hugged 317 times'],
   ['the channel facts preview with a stand-in', '{title} / {game} / {channel.viewers} / {uptime}', 'bagel baking and chill / Just Chatting / 128 / 2 hours, 15 minutes'],
   ['each provider list previews with its own stand-in', '{7tvemotes} / {bttvemotes} / {ffzemotes}', 'PagMan Clap peepoHappy / KEKW monkaS catJAM / LUL ZULUL AYAYA'],
   ['the module facts preview with a stand-in', '{quote} / {time} / {song}', 'Quote #12: bagels are just savoury donuts (2026-01-31) / 3:04 PM / Everything In Its Right Place by Radiohead'],
-  ['{time:<place>} previews a value, not the literal span', '{time} in {touser}, {time:Paris} in Paris', '3:04 PM in ferret_king, 11:04 PM in Paris']
+  ['{time:<place>} previews a value, not the literal span', '{time} in {touser}, {time:Paris} in Paris', '3:04 PM in Lotti, 11:04 PM in Paris']
 ];
 
 const COMMAND_SAMPLED: [name: string, template: string, want: string, samples: number][] = [
-  ['substitutes exactly the expandCommand token set', '{user} {target} {args} {channel}', 'sesame_sam ferret_king ferret_king good luck bagel_bakery', 4],
-  ['the identity tokens substitute too', '{userid} {user.login} !{command}', '48291057 sesame_sam !hug', 3],
+  ['substitutes exactly the expandCommand token set', '{user} {target} {args} {channel}', 'PrincessBarney Lotti Lotti good luck bagel_bakery', 4],
+  ['the identity tokens substitute too', '{userid} {user.login} !{command}', '48291057 PrincessBarney !hug', 3],
   ['a span that only looks like a word number stays literal', '{0} {31} {01} {+1} {2:1}', '{0} {31} {01} {+1} {2:1}', 0]
 ];
 
@@ -107,7 +107,7 @@ const LITERAL_SPANS: [name: string, spans: string[]][] = [
   ['a cond naming something no scope owns keeps the whole span', ['{if:missing:x}', '{if:missing:x:y}', '{if}', '{if:user}']],
   ['a fallback never rescues a name no scope owns', ['{typo|rescued}']],
   ['an identity token with a payload stays literal, like Message.Get', ['{user:bob}']],
-  ['a span that addresses nobody stays literal, like refOf', ['{points:}', '{followage:}', '{pointsname:alex}']],
+  ['a span that addresses nobody stays literal, like refOf', ['{points:}', '{followage:}', '{pointsname:MikanMeerkat}']],
   ['the chatter tokens take no payload', ['{chatters:5}', '{random.chatter:mods}', '{chatter}']],
   ['the uses token takes no payload', ['{uses:hug}']],
   ['a channel span addressing nobody stays literal', ['{title:}', '{channel.viewers:pokimane}', '{channel.followers}']],
@@ -117,7 +117,7 @@ const LITERAL_SPANS: [name: string, spans: string[]][] = [
 ];
 
 const LINE_CASES: [name: string, template: string, want: string[]][] = [
-  ['a line a false conditional empties is dropped, its siblings are not', 'hi {user}\n{if:9: and word nine}\nlast line', ['hi sesame_sam', 'last line']],
+  ['a line a false conditional empties is dropped, its siblings are not', 'hi {user}\n{if:9: and word nine}\nlast line', ['hi PrincessBarney', 'last line']],
   ['an emptied line does not eat a slot in the 5-message cap', 'one\n{if:9:two}\nthree\nfour\nfive', ['one', 'three', 'four', 'five']]
 ];
 
@@ -170,7 +170,7 @@ describe('rehearseCommand', () => {
     const [a, b] = rehearseCommand('/announcegreen go {user}!\n/me waves');
     expect(a.mode).toBe('announce');
     expect(a.color).toBe('green');
-    expect(textOf(a.segments)).toBe('go sesame_sam!');
+    expect(textOf(a.segments)).toBe('go PrincessBarney!');
     expect(b.mode).toBe('me');
     expect(textOf(b.segments)).toBe('waves');
   });
@@ -184,7 +184,7 @@ describe('rehearseCommand', () => {
   test('shoutout consumes the target (leading @ dropped)', () => {
     const [line] = rehearseCommand('/shoutout @{target} go watch');
     expect(line.mode).toBe('shoutout');
-    expect(line.target).toBe('ferret_king');
+    expect(line.target).toBe('Lotti');
     expect(textOf(line.segments)).toBe('go watch');
   });
 
@@ -208,9 +208,9 @@ describe('rehearseCommand', () => {
 
 describe('rehearseReply', () => {
   test('substitutes only the given samples; command tokens stay unknown', () => {
-    const [line] = rehearseReply('{user} {args}', { user: 'sam' });
+    const [line] = rehearseReply('{user} {args}', { user: 'Lotti' });
     expect(line.segments).toEqual([
-      { text: 'sam', kind: 'sample' },
+      { text: 'Lotti', kind: 'sample' },
       { text: ' ', kind: 'plain' },
       { text: '{args}', kind: 'unknown' }
     ]);
@@ -222,8 +222,8 @@ describe('rehearseReply', () => {
   });
 
   test('dynamic=false mirrors bare replacers (govee, clip): nothing but samples', () => {
-    const [line] = rehearseReply('{user} {random}', { user: 'sam' }, { dynamic: false });
-    expect(textOf(line.segments)).toBe('sam {random}');
+    const [line] = rehearseReply('{user} {random}', { user: 'Lotti' }, { dynamic: false });
+    expect(textOf(line.segments)).toBe('Lotti {random}');
     expect(line.segments.at(-1)?.kind).toBe('unknown');
   });
 
@@ -241,9 +241,9 @@ describe('rehearseReply', () => {
   });
 
   test('/me renders as an italic action on reply surfaces too', () => {
-    const [line] = rehearseReply('/me thanks {user} warmly', { user: 'sam' });
+    const [line] = rehearseReply('/me thanks {user} warmly', { user: 'Lotti' });
     expect(line.mode).toBe('me');
-    expect(textOf(line.segments)).toBe('thanks sam warmly');
+    expect(textOf(line.segments)).toBe('thanks Lotti warmly');
   });
 
   test.each([
