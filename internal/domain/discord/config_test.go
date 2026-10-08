@@ -68,7 +68,7 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 	assert.Empty(t, TemplateURL(""), "empty template code must yield no url")
 	assert.Equal(t, "https://discord.new/abc", TemplateURL("abc"))
 	invite := InviteURL("123", "")
-	assert.Contains(t, invite, "permissions=1102012607574", "keep in sync with dashboard DISCORD_BOT_PERMISSIONS")
+	assert.Contains(t, invite, "permissions=1102012607702", "keep in sync with dashboard DISCORD_BOT_PERMISSIONS")
 	assert.Contains(t, invite, "scope=bot")
 }
 
