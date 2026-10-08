@@ -304,3 +304,20 @@ func TestStandbyFailsProbesWhenItsLeaseLoopStops(t *testing.T) {
 
 	probes{ready: errLeaseLoopStalled, live: errLeaseLoopStalled}.do(h)
 }
+
+func TestRelaunchedLeaderPublishesDisconnectedUntilReady(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	h.r.Leading(ctx)
+	h.r.Up(ctx, gateway.Up{SessionID: "sess-1"})
+	h.r.Standing(ctx)
+	h.r.Leading(ctx)
+	h.r.beat(ctx)
+
+	raw := h.kv.value(ddiscord.BotStatusKey)
+	got, err := ddiscord.DecodeBotStatus([]byte(raw))
+	require.NoError(t, err)
+	assert.False(t, got.Connected)
+	assert.Empty(t, got.SessionID)
+}

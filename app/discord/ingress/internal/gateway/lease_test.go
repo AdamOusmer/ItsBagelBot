@@ -362,3 +362,90 @@ func TestEventsCarryTheirSessionAndSequenceAndCheckpointEveryHundredSeqs(t *test
 	require.Len(t, l.handler.events, 101)
 	assert.Equal(t, Event{Type: "GUILD_MEMBER_ADD", Raw: l.handler.events[0].Raw, SessionID: "sess-1", Seq: 5}, l.handler.events[0])
 }
+
+func TestDefaultLeaseTimingLeavesRoomForARenewBeforeTheTTL(t *testing.T) {
+	d := defaultLeaseTiming
+	assert.Less(t, d.deadline+d.renew, d.ttl)
+	assert.GreaterOrEqual(t, d.deadline, 15*time.Second, "a sentinel failover must not depose a healthy leader")
+}
+
+type steppedLease struct {
+	mu    sync.Mutex
+	clock time.Time
+	calls int
+}
+
+func (l *steppedLease) now() time.Time {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.clock
+}
+
+func (l *steppedLease) Acquire(context.Context, time.Duration) (bool, error) { return false, nil }
+
+func (l *steppedLease) Renew(context.Context, time.Duration) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls++
+	if l.calls == 1 {
+		l.clock = l.clock.Add(15 * time.Second)
+		return true, nil
+	}
+	l.clock = l.clock.Add(5 * time.Second)
+	return false, errors.New("valkey: connection refused")
+}
+
+func (l *steppedLease) Release(context.Context) error { return nil }
+
+func TestRenewDeadlineMeasuresFromWhenTheLastSuccessfulRenewWasSent(t *testing.T) {
+	timing := leaseTiming{ttl: 30 * time.Second, renew: time.Millisecond, deadline: 20 * time.Second, poll: time.Millisecond, release: time.Millisecond}
+	lease := &steppedLease{clock: time.Unix(1_700_000_000, 0)}
+	sess := Session{Lease: lease, timing: &timing, now: lease.now}
+
+	lost := sess.renewWhileHeld(context.Background())
+
+	assert.True(t, lost)
+	assert.Equal(t, 2, lease.calls, "a slow success response must not extend the deadline")
+}
+
+type hangingLease struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (l *hangingLease) hang(ctx context.Context) (bool, error) {
+	l.mu.Lock()
+	l.calls++
+	l.mu.Unlock()
+	<-ctx.Done()
+	return false, ctx.Err()
+}
+
+func (l *hangingLease) Acquire(ctx context.Context, _ time.Duration) (bool, error) {
+	return l.hang(ctx)
+}
+func (l *hangingLease) Renew(ctx context.Context, _ time.Duration) (bool, error) { return l.hang(ctx) }
+func (l *hangingLease) Release(context.Context) error                            { return nil }
+
+func (l *hangingLease) count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.calls
+}
+
+func TestStandbyKeepsPollingWhenTheLeaseStoreHangs(t *testing.T) {
+	lease := &hangingLease{}
+	role := &fakeRole{}
+	timing := fastLease
+	sess := Session{Lease: lease, Role: role, timing: &timing}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- sess.standby(ctx) }()
+
+	require.Eventually(t, func() bool { return lease.count() >= 4 }, 3*time.Second, time.Millisecond)
+	role.mu.Lock()
+	assert.GreaterOrEqual(t, role.standing, 2, "the standby heartbeat must keep ticking")
+	role.mu.Unlock()
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+}
