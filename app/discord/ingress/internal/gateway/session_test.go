@@ -157,7 +157,7 @@ func wantCloseCode(t *testing.T, got []websocket.StatusCode, want websocket.Stat
 	}
 }
 
-func TestShutdownClosesWithNormalClosure(t *testing.T) {
+func TestShutdownKeepsTheSessionResumable(t *testing.T) {
 	conn := &scriptedConn{reads: [][]byte{helloFrame(t)}}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -165,7 +165,7 @@ func TestShutdownClosesWithNormalClosure(t *testing.T) {
 
 	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
 
-	wantCloseCode(t, conn.closeCodes(), websocket.StatusNormalClosure)
+	wantCloseCode(t, conn.closeCodes(), reconnectingClose)
 }
 
 type resumeSnapshot struct {

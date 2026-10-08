@@ -22,8 +22,12 @@ import (
 
 const (
 	overwriteRole          = 0
+	overwriteMember        = 1
 	permViewChannel  int64 = 1024
 	permSendMessages int64 = 2048
+	permEmbedLinks   int64 = 16384
+	permAttachFiles  int64 = 32768
+	permBotPost            = permViewChannel | permSendMessages | permEmbedLinks | permAttachFiles
 
 	channelAnnouncement = 5
 
@@ -76,10 +80,7 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	out.DroppedPins = fill.droppedPins
 	defer w.invalidateConfig(ctx, req.GuildID)
 	if fill.livedIn() {
-		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
-		fill.adopt(&out)
-		fill.postTicketDesk(ctx, out)
-		return out, nil
+		return fill.adoptLivedIn(ctx, out)
 	}
 	if err := fill.ensureRoles(ctx, &out); err != nil {
 		return out, err
@@ -88,6 +89,16 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 		return out, err
 	}
 	fill.postTicketDesk(ctx, out)
+	return out, nil
+}
+
+func (f *guildFill) adoptLivedIn(ctx context.Context, out GuildSetupResult) (GuildSetupResult, error) {
+	out.Refused = "this server already has a layout; Bagel adopted the channels it recognised and added only the bound ones it was missing, pick the rest below"
+	f.adopt(&out)
+	if err := f.ensureBoundChannels(ctx, &out); err != nil {
+		return out, err
+	}
+	f.postTicketDesk(ctx, out)
 	return out, nil
 }
 
@@ -344,6 +355,34 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 	}
 }
 
+var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": true, "ticketcat": true, "ticketarchive": true}
+
+func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
+	_, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return f.chanByName[strings.ToLower(spec.Parent)], livedInCreatable[spec.Bind]
+	})
+	return err
+}
+
+type channelPass func(spec ddiscord.ChannelSpec) (parent string, ok bool)
+
+func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass channelPass) (map[string]string, error) {
+	ensured := map[string]string{}
+	for _, spec := range ddiscord.CommunityChannels() {
+		parent, ok := pass(spec)
+		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+			continue
+		}
+		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		if err != nil {
+			return ensured, err
+		}
+		ensured[spec.Name] = id
+		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+	}
+	return ensured, nil
+}
+
 type namedRef struct {
 	Name string
 	ID   string
@@ -401,19 +440,16 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 }
 
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
-	parentID := map[string]string{}
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type != ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
-			continue
-		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec}))
-		if err != nil {
-			return err
-		}
-		parentID[spec.Name] = id
-		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+	parentID, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return "", spec.Type == ddiscord.ChannelCategory
+	})
+	if err != nil {
+		return err
 	}
-	return f.ensureChildChannels(ctx, parentID, out)
+	_, err = f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
+		return parentID[spec.Parent], spec.Type != ddiscord.ChannelCategory
+	})
+	return err
 }
 
 func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
@@ -434,20 +470,6 @@ func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
 	_ = f.w.store.RememberDesk(ctx, discordstore.DeskPanel{
 		GuildID: out.GuildID, ChannelID: out.TicketChannelID, MessageID: msg.ID,
 	})
-}
-
-func (f *guildFill) ensureChildChannels(ctx context.Context, parentID map[string]string, out *GuildSetupResult) error {
-	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Type == ddiscord.ChannelCategory || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
-			continue
-		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parentID[spec.Parent]}))
-		if err != nil {
-			return err
-		}
-		out.setChannel(namedRef{Name: spec.Bind, ID: id})
-	}
-	return nil
 }
 
 func (f *guildFill) channelCreator(ctx context.Context, want channelWant) namedCreate {
@@ -486,15 +508,13 @@ func (f *guildFill) create(ctx context.Context, do func() (discapi.Snowflake, er
 	}
 }
 
-func (out *GuildSetupResult) setRole(role namedRef) {
-	if role.ID == "" {
+func (out *GuildSetupResult) setRole(role namedRef) { assignSlot(out.roleSlot(role.Name), role.ID) }
+
+func assignSlot(slot *string, id string) {
+	if id == "" || slot == nil {
 		return
 	}
-	field := out.roleSlot(role.Name)
-	if field == nil {
-		return
-	}
-	*field = role.ID
+	*slot = id
 }
 
 func (out *GuildSetupResult) roleSlot(name string) *string {
@@ -510,16 +530,7 @@ func (out *GuildSetupResult) roleSlot(name string) *string {
 	return slots[name]
 }
 
-func (out *GuildSetupResult) setChannel(ch namedRef) {
-	if ch.ID == "" {
-		return
-	}
-	field := out.channelSlot(ch.Name)
-	if field == nil {
-		return
-	}
-	*field = ch.ID
-}
+func (out *GuildSetupResult) setChannel(ch namedRef) { assignSlot(out.channelSlot(ch.Name), ch.ID) }
 
 func (out *GuildSetupResult) channelSlot(name string) *string {
 	slots := map[string]*string{
@@ -527,6 +538,7 @@ func (out *GuildSetupResult) channelSlot(name string) *string {
 		"clips":         &out.ClipsChannelID,
 		"welcome":       &out.WelcomeChannelID,
 		"voice":         &out.VoiceHubID,
+		"voicecat":      &out.VoiceCategoryID,
 		"logs":          &out.LogChannelID,
 		"tickets":       &out.TicketChannelID,
 		"ticketcat":     &out.TicketCategoryID,
@@ -544,9 +556,9 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 		return f.gatedOverwrites(spec)
 	}
 	if spec.ReadOnly {
-		return []discapi.PermissionOverwrite{{
+		return f.withBotAccess([]discapi.PermissionOverwrite{{
 			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permSendMessages),
-		}}
+		}})
 	}
 	return nil
 }
@@ -571,7 +583,17 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 			Allow: fmt.Sprintf("%d", allow), Deny: fmt.Sprintf("%d", deny),
 		})
 	}
-	return out
+	return f.withBotAccess(out)
+}
+
+func (f *guildFill) withBotAccess(in []discapi.PermissionOverwrite) []discapi.PermissionOverwrite {
+	if f.w.botID == "" {
+		return in
+	}
+	return append(in, discapi.PermissionOverwrite{
+		ID: f.w.botID, Type: overwriteMember,
+		Allow: fmt.Sprintf("%d", permBotPost), Deny: "0",
+	})
 }
 
 func rolePermissions(spec ddiscord.RoleSpec) string {

@@ -8,6 +8,7 @@ import {
   actionPayload,
   fieldErrorsByField,
   flagValue,
+  voiceCategoryMissing,
   type ActionOk,
   type DiscordConfig,
   type I18n,
@@ -129,7 +130,15 @@ export function createGuildDraft(init: DraftInit) {
     if (p?.code === 'invalid') await invalidateAll();
   }
 
-  const saveSubmit: SubmitFunction = () => {
+  const blocksSave = () => fields.includes('voiceCategoryId') && voiceCategoryMissing(config);
+
+  const saveSubmit: SubmitFunction = ({ cancel }) => {
+    if (blocksSave()) {
+      cancel();
+      markSave('error', 4000);
+      toast('danger', t('discord.channels.voiceCategoryRequired'));
+      return;
+    }
     saving = true;
     markSave('saving');
     return async ({ result }) => {

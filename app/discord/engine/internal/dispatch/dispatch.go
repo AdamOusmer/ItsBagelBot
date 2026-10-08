@@ -17,6 +17,7 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -28,6 +29,14 @@ type Dispatcher struct {
 	Store    discordstore.Store
 	Publish  modules.Publish
 	Log      *zap.Logger
+}
+
+const dedupTTL = 2 * time.Minute
+
+func Dedup(store idempotency.Store, log *zap.Logger, metrics idempotency.Metrics) func(idempotency.Handler) idempotency.Handler {
+	return idempotency.Guard(idempotency.Config{
+		Store: store, Key: idempotency.MessageUUIDKey, TTL: dedupTTL, Log: log, Metrics: metrics,
+	})
 }
 
 func (d *Dispatcher) Handle(msg *bus.Message) error {

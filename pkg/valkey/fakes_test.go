@@ -293,6 +293,9 @@ func (f *fakeValkey) execDEL(args respArgs) []byte {
 }
 
 func (f *fakeValkey) execEVAL(args respArgs) []byte {
+	if args[0] == renewIfOwner && args.int(1) == 1 {
+		return f.renewLocked(args[2], args[3], time.Duration(args.int(4))*time.Millisecond)
+	}
 	if args[0] != releaseIfOwner || args.int(1) != 1 {
 		return respText("unsupported script in fake").failure()
 	}
@@ -302,6 +305,14 @@ func (f *fakeValkey) execEVAL(args respArgs) []byte {
 	}
 	delete(f.strs, key)
 	delete(f.expires, key)
+	return respInt(1)
+}
+
+func (f *fakeValkey) renewLocked(key, owner string, ttl time.Duration) []byte {
+	if !f.aliveLocked(key) || f.strs[key] != owner {
+		return respInt(0)
+	}
+	f.expires[key] = f.now.Add(ttl)
 	return respInt(1)
 }
 
