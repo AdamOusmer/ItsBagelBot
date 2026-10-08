@@ -36,6 +36,72 @@ type MemberEvent struct {
 	User    UserRef `json:"user"`
 }
 
+type MemberUpdateEvent struct {
+	GuildID string   `json:"guild_id"`
+	User    UserRef  `json:"user"`
+	Nick    string   `json:"nick"`
+	Roles   []string `json:"roles"`
+}
+
+type BanEvent struct {
+	GuildID string  `json:"guild_id"`
+	User    UserRef `json:"user"`
+}
+
+type BulkDeleteEvent struct {
+	IDs       []string `json:"ids"`
+	ChannelID string   `json:"channel_id"`
+	GuildID   string   `json:"guild_id"`
+}
+
+type ChannelEvent struct {
+	ID       string `json:"id"`
+	GuildID  string `json:"guild_id"`
+	Name     string `json:"name"`
+	Type     int    `json:"type"`
+	ParentID string `json:"parent_id"`
+}
+
+type RoleRef struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color int    `json:"color"`
+}
+
+type RoleEvent struct {
+	GuildID string  `json:"guild_id"`
+	Role    RoleRef `json:"role"`
+}
+
+type RoleDeleteEvent struct {
+	GuildID string `json:"guild_id"`
+	RoleID  string `json:"role_id"`
+}
+
+type GuildUpdateEvent struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type InviteEvent struct {
+	GuildID   string `json:"guild_id"`
+	ChannelID string `json:"channel_id"`
+	Code      string `json:"code"`
+	Inviter   struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"inviter"`
+}
+
+type AuditEntryEvent struct {
+	GuildID    string `json:"guild_id"`
+	ID         string `json:"id"`
+	UserID     string `json:"user_id"`
+	TargetID   string `json:"target_id"`
+	ActionType int    `json:"action_type"`
+	Reason     string `json:"reason"`
+}
+
 type VoiceEvent struct {
 	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`

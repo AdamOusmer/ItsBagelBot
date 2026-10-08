@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/health"
+	"ItsBagelBot/pkg/idempotency"
 	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
@@ -31,6 +32,8 @@ import (
 )
 
 const serviceName = "discord-engine"
+
+const eventDedupPrefix = "discord:ev:"
 
 // Must match the serviceName consts in app/discord/ingress/main.go and app/discord/outgress/main.go.
 const (
@@ -88,7 +91,8 @@ func main() {
 		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
-	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
+	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log,
+		Dedup: idempotency.NewValkeyStore(valkeyClient, eventDedupPrefix, log)}
 
 	ingressSub, closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
 	defer closeIngress()

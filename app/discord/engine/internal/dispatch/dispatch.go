@@ -17,6 +17,7 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -28,7 +29,10 @@ type Dispatcher struct {
 	Store    discordstore.Store
 	Publish  modules.Publish
 	Log      *zap.Logger
+	Dedup    idempotency.Store
 }
+
+const dedupTTL = 2 * time.Minute
 
 func (d *Dispatcher) Handle(msg *bus.Message) error {
 	var ev ddiscord.Event
@@ -37,6 +41,9 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 		return nil
 	}
 	ctx := msg.Context()
+	if d.duplicate(ctx, msg.UUID) {
+		return nil
+	}
 	cfg, broadcasterID, ok := d.Resolver.ByGuild(ctx, ev.GuildID)
 	if !ok {
 		return nil
@@ -51,6 +58,18 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 
 	d.publishAll(ctx, emitted)
 	return nil
+}
+
+func (d *Dispatcher) duplicate(ctx context.Context, id string) bool {
+	if d.Dedup == nil || id == "" {
+		return false
+	}
+	seen, err := d.Dedup.Seen(ctx, id, dedupTTL)
+	if err != nil {
+		d.Log.Warn("discord event dedup failed, processing anyway", zap.String("message_id", id), zap.Error(err))
+		return false
+	}
+	return seen
 }
 
 func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
