@@ -30,9 +30,9 @@ type leaseTiming struct {
 }
 
 var defaultLeaseTiming = leaseTiming{
-	ttl:      15 * time.Second,
+	ttl:      30 * time.Second,
 	renew:    5 * time.Second,
-	deadline: 10 * time.Second,
+	deadline: 20 * time.Second,
 	poll:     2 * time.Second,
 	release:  2 * time.Second,
 }
@@ -87,11 +87,13 @@ func (s Session) tryAcquire(ctx context.Context) bool {
 }
 
 func (s Session) takeLease(ctx context.Context) (bool, error) {
-	ttl := s.leaseTiming().ttl
-	if kept, err := s.Lease.Renew(ctx, ttl); err == nil && kept {
+	t := s.leaseTiming()
+	rctx, cancel := context.WithTimeout(ctx, t.poll)
+	defer cancel()
+	if kept, err := s.Lease.Renew(rctx, t.ttl); err == nil && kept {
 		return true, nil
 	}
-	return s.Lease.Acquire(ctx, ttl)
+	return s.Lease.Acquire(rctx, t.ttl)
 }
 
 func (s Session) lead(ctx context.Context) error {
@@ -136,6 +138,7 @@ func (s Session) renewWhileHeld(ctx context.Context) (lost bool) {
 			return false
 		case <-t.C:
 		}
+		sent := time.Now()
 		kept, err := s.renewOnce(ctx)
 		switch {
 		case ctx.Err() != nil:
@@ -143,7 +146,7 @@ func (s Session) renewWhileHeld(ctx context.Context) (lost bool) {
 		case err == nil && !kept:
 			return true
 		case err == nil:
-			lastKept = time.Now()
+			lastKept = sent
 		case time.Since(lastKept) >= s.leaseTiming().deadline:
 			return true
 		}

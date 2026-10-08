@@ -113,6 +113,8 @@ func (r *Reporter) Standing(context.Context) {
 	defer r.mu.Unlock()
 	r.standby = true
 	r.standbyAt = r.now()
+	r.cur.Connected = false
+	r.cur.SessionID = ""
 }
 
 func (r *Reporter) Leading(context.Context) {
