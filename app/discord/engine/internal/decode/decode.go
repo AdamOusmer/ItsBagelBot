@@ -63,9 +63,8 @@ type ChannelEvent struct {
 }
 
 type RoleRef struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Color int    `json:"color"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type RoleEvent struct {
@@ -91,15 +90,6 @@ type InviteEvent struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
 	} `json:"inviter"`
-}
-
-type AuditEntryEvent struct {
-	GuildID    string `json:"guild_id"`
-	ID         string `json:"id"`
-	UserID     string `json:"user_id"`
-	TargetID   string `json:"target_id"`
-	ActionType int    `json:"action_type"`
-	Reason     string `json:"reason"`
 }
 
 type VoiceEvent struct {

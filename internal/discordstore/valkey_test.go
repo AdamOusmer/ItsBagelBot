@@ -195,3 +195,11 @@ func TestValkeyStoreCachesMessagesAndFactsWithTTLs(t *testing.T) {
 		require.InDelta(t, wantTTL[i].Seconds(), float64(ttl), 5, key)
 	}
 }
+
+func TestValkeyTrackCloneStopsAtTheCapUnderConcurrency(t *testing.T) {
+	client := valkeyClient(t)
+	guild := "cap" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	t.Cleanup(func() { client.Do(context.Background(), client.B().Del().Key("discord:voices:"+guild).Build()) })
+
+	requireCloneCapHolds(t, discordstore.New(client), guild)
+}

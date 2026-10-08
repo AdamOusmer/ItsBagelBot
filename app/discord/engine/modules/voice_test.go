@@ -57,6 +57,12 @@ func (trackFails) TrackClone(context.Context, discordstore.Clone) error {
 	return errors.New("valkey down")
 }
 
+type capReached struct{ *discordstore.Mem }
+
+func (capReached) TrackClone(context.Context, discordstore.Clone) error {
+	return discordstore.ErrCloneCapReached
+}
+
 type storeDown struct{ *discordstore.Mem }
 
 func (storeDown) UpdateVoiceOccupancy(context.Context, discordstore.VoiceSeat) discordstore.VoiceMove {
@@ -166,6 +172,7 @@ func TestVoiceCloneIsDeletedWhenTrackingOrMoveFails(t *testing.T) {
 		calls []string
 	}{
 		{"tracking fails", func(m *discordstore.Mem) discordstore.Store { return trackFails{m} }, "", []string{"create", "delete:room1"}},
+		{"a racing join hit the cap", func(m *discordstore.Mem) discordstore.Store { return capReached{m} }, "", []string{"create", "delete:room1"}},
 		{"move fails", nil, "user left voice", []string{"create", "move", "delete:room1"}},
 	}
 	for _, tc := range cases {
@@ -321,6 +328,23 @@ func TestVoiceLogsJoinMoveLeave(t *testing.T) {
 	require.Len(t, r.logs(), 3)
 	require.Equal(t, "Left voice", r.logs()[2].Embed.Title)
 	require.Equal(t, "<@u1> left <#B>", r.logs()[2].Embed.Description)
+}
+
+func TestVoiceLogsHideTheJoinToCreateHandshake(t *testing.T) {
+	r := newVoiceRig(t, nil)
+	r.logsOn()
+
+	r.state("u1", "hub")
+	require.Empty(t, r.logs(), "entering the hub logs nothing")
+
+	r.state("u1", "room9")
+	require.Len(t, r.logs(), 1)
+	require.Equal(t, "Joined voice", r.logs()[0].Embed.Title)
+	require.Equal(t, "<@u1> joined <#room9>", r.logs()[0].Embed.Description, "the bot move reads as a join")
+
+	r.state("u1", "hub")
+	r.state("u1", "")
+	require.Len(t, r.logs(), 1, "returning to the hub and leaving from it log nothing")
 }
 
 func TestVoiceLogsSkipUnchangedSeat(t *testing.T) {

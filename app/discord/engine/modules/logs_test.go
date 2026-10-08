@@ -250,6 +250,23 @@ func TestLogsChannelsRolesAndServer(t *testing.T) {
 	require.Equal(t, "Invite deleted", only(t, r.fire("INVITE_DELETE", invite)).Embed.Title)
 }
 
+func TestLogsSkipTemporaryVoiceRooms(t *testing.T) {
+	r := newLogRig(t)
+	r.cfg.VoiceCategoryID, r.cfg.VoiceHubID = "cat1", "hub"
+	room := func(id, parent string, kind int) map[string]any {
+		return map[string]any{"id": id, "guild_id": "g1", "name": id, "type": kind, "parent_id": parent}
+	}
+
+	require.Empty(t, r.fire("CHANNEL_CREATE", room("clone1", "cat1", ddiscord.ChannelVoice)), "clone in the voice category")
+	require.Empty(t, r.fire("CHANNEL_DELETE", room("clone1", "cat1", ddiscord.ChannelVoice)))
+	require.NoError(t, r.store.TrackClone(context.Background(), discordstore.Clone{ChannelID: "clone2", GuildID: "g1", OwnerID: "u1"}))
+	require.Empty(t, r.fire("CHANNEL_DELETE", room("clone2", "", ddiscord.ChannelVoice)), "tracked clone")
+
+	require.Len(t, r.fire("CHANNEL_CREATE", room("hub", "cat1", ddiscord.ChannelVoice)), 1, "the hub itself is logged")
+	require.Len(t, r.fire("CHANNEL_CREATE", room("text1", "cat1", 0)), 1, "text channels are logged")
+	require.Len(t, r.fire("CHANNEL_CREATE", room("voice1", "other", ddiscord.ChannelVoice)), 1, "voice outside the category is logged")
+}
+
 func TestLogsRoutingAndSuppression(t *testing.T) {
 	ban := map[string]any{"guild_id": "g1", "user": map[string]any{"id": "u2", "username": "Sam"}}
 	del := map[string]any{"id": "m1", "guild_id": "g1", "channel_id": "c1"}

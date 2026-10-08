@@ -5,13 +5,18 @@ package discordstore
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
+
+var ErrCloneCapReached = errors.New("discordstore: the guild is at its temporary voice room cap")
 
 const voiceTTL = 24 * time.Hour
 
@@ -43,18 +48,28 @@ func occupantsKey(ch Channel) string { return "discord:voiceoccupants:" + ch.ID 
 
 func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
 
+var trackCloneScript = valkey.NewLuaScript(`
+local added = redis.call('SADD', KEYS[2], ARGV[1])
+if redis.call('SCARD', KEYS[2]) > tonumber(ARGV[4]) then
+    if added == 1 then
+        redis.call('SREM', KEYS[2], ARGV[1])
+    end
+    return 0
+end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+redis.call('EXPIRE', KEYS[2], ARGV[3])
+return 1
+`)
+
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
-	ch := Channel{ID: c.ChannelID}
-	g := Guild{ID: c.GuildID}
-	b := s.client.B()
-	for _, r := range s.client.DoMulti(ctx,
-		b.Set().Key(cloneKey(ch)).Value(c.GuildID+"|"+c.OwnerID).ExSeconds(int64(voiceTTL.Seconds())).Build(),
-		b.Sadd().Key(cloneSet(g)).Member(c.ChannelID).Build(),
-		b.Expire().Key(cloneSet(g)).Seconds(int64(voiceTTL.Seconds())).Build(),
-	) {
-		if err := r.Error(); err != nil {
-			return err
-		}
+	keys := []string{cloneKey(Channel{ID: c.ChannelID}), cloneSet(Guild{ID: c.GuildID})}
+	args := []string{c.ChannelID, c.GuildID + "|" + c.OwnerID, voiceTTLArg, strconv.Itoa(ddiscord.VoiceCloneCap)}
+	tracked, err := trackCloneScript.Exec(ctx, s.client, keys, args).AsInt64()
+	if err != nil {
+		return err
+	}
+	if tracked != 1 {
+		return ErrCloneCapReached
 	}
 	return nil
 }
@@ -125,8 +140,13 @@ func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) V
 func (m *Mem) TrackClone(_ context.Context, c Clone) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, tracked := m.clones[c.ChannelID]; !tracked {
+		if m.cloneCount[c.GuildID] >= ddiscord.VoiceCloneCap {
+			return ErrCloneCapReached
+		}
+		m.cloneCount[c.GuildID]++
+	}
 	m.clones[c.ChannelID] = c
-	m.cloneCount[c.GuildID]++
 	return nil
 }
 
@@ -146,8 +166,8 @@ func (m *Mem) CloneCount(_ context.Context, g Guild) int {
 func (m *Mem) ForgetClone(_ context.Context, c Clone) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.clones, c.ChannelID)
-	if m.cloneCount[c.GuildID] > 0 {
+	if _, tracked := m.clones[c.ChannelID]; tracked {
+		delete(m.clones, c.ChannelID)
 		m.cloneCount[c.GuildID]--
 	}
 	return nil
