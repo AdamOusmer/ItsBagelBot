@@ -105,7 +105,7 @@
 <div class="setting-row stacked">
   <span class="tr-text">
     <Text as="span" size="sm">{t('discord.channels.logIgnoredLabel')}</Text>
-    <Text as="span" size="xs" tone="muted" id="dch-logIgnored">{t('discord.channels.logIgnoredHelp', { max: LOG_IGNORED_CHANNELS_MAX })}</Text>
+    <Text as="span" size="xs" tone="muted" id="dch-logIgnored" class="seg-fixed-help">{t('discord.channels.logIgnoredHelp', { max: LOG_IGNORED_CHANNELS_MAX })}</Text>
   </span>
   <div class="chips">
     {#each ignored as id (id)}
