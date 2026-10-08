@@ -107,6 +107,7 @@ type VoiceEvent struct {
 	ChannelID string `json:"channel_id"`
 	UserID    string `json:"user_id"`
 	Member    struct {
+		Nick string  `json:"nick"`
 		User UserRef `json:"user"`
 	} `json:"member"`
 }

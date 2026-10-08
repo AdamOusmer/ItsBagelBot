@@ -13,6 +13,7 @@ type ChannelCreateRequest struct {
 	Name       string                           `json:"name"`
 	Type       int                              `json:"type"`
 	ParentID   string                           `json:"parent_id,omitempty"`
+	UserLimit  int                              `json:"user_limit,omitempty"`
 	Topic      string                           `json:"topic,omitempty"`
 	Overwrites []discordapi.PermissionOverwrite `json:"overwrites,omitempty"`
 }
@@ -35,7 +36,7 @@ type ChannelModifyRequest struct {
 	GuildID    string                           `json:"guild_id"`
 	ChannelID  string                           `json:"channel_id"`
 	Name       string                           `json:"name,omitempty"`
-	UserLimit  int                              `json:"user_limit,omitempty"`
+	UserLimit  *int                             `json:"user_limit,omitempty"`
 	Overwrites []discordapi.PermissionOverwrite `json:"overwrites,omitempty"`
 }
 
