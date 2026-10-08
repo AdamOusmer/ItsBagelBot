@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -155,4 +156,42 @@ func TestValkeyVoiceMoveFailsClosedWhenTheStoreIsDown(t *testing.T) {
 	got := s.UpdateVoiceOccupancy(context.Background(), discordstore.VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
 
 	require.Equal(t, discordstore.VoiceMove{}, got)
+}
+
+func TestValkeyStoreCachesMessagesAndFactsWithTTLs(t *testing.T) {
+	client := valkeyClient(t)
+	s := discordstore.New(client)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().UnixNano(), 36)
+	msg := discordstore.CachedMessage{
+		ID: "m" + run, GuildID: "g" + run, ChannelID: "c1", AuthorID: "u1", AuthorName: "Ada",
+		Content: strings.Repeat("x", 2000), Attachments: []string{"https://cdn/a.png"},
+	}
+	member := discordstore.Member{GuildID: "g" + run, UserID: "u1"}
+	role := discordstore.LabelRef{Kind: discordstore.LabelRole, GuildID: "g" + run, ID: "r1"}
+	keys := []string{"discord:msg:" + msg.ID, "discord:mroles:g" + run + ":u1", "discord:role:g" + run + ":r1"}
+	t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(keys...).Build()) })
+
+	require.NoError(t, s.RememberMessage(ctx, msg))
+	require.NoError(t, s.RememberRoles(ctx, discordstore.MemberRoles{Member: member, Roles: []string{"r1", "r2"}}))
+	require.NoError(t, s.RememberLabel(ctx, discordstore.Label{Ref: role, Name: "Mods"}))
+
+	got, ok := s.RecallMessage(ctx, discordstore.Message{ID: msg.ID})
+	require.True(t, ok)
+	require.Len(t, []rune(got.Content), 1024)
+	msg.Content = got.Content
+	require.Equal(t, msg, got)
+	roles, rolesOK := s.RecallRoles(ctx, member)
+	require.Equal(t, pair([]string{"r1", "r2"}, true), pair(roles, rolesOK))
+	name, nameOK := s.RecallLabel(ctx, role)
+	require.Equal(t, pair("Mods", true), pair(name, nameOK))
+	_, missing := s.RecallMessage(ctx, discordstore.Message{ID: "none" + run})
+	require.False(t, missing)
+
+	wantTTL := []time.Duration{time.Hour, 24 * time.Hour, 24 * time.Hour}
+	for i, key := range keys {
+		ttl, err := client.Do(ctx, client.B().Ttl().Key(key).Build()).AsInt64()
+		require.NoError(t, err, key)
+		require.InDelta(t, wantTTL[i].Seconds(), float64(ttl), 5, key)
+	}
 }

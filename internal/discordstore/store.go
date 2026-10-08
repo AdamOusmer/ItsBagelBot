@@ -103,6 +103,13 @@ type Store interface {
 	Rank(ctx context.Context, m Member) (xp, level int)
 
 	UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) VoiceMove
+
+	RememberMessage(ctx context.Context, msg CachedMessage) error
+	RecallMessage(ctx context.Context, m Message) (CachedMessage, bool)
+	RememberRoles(ctx context.Context, r MemberRoles) error
+	RecallRoles(ctx context.Context, m Member) ([]string, bool)
+	RememberLabel(ctx context.Context, l Label) error
+	RecallLabel(ctx context.Context, r LabelRef) (string, bool)
 }
 
 type valkeyStore struct {
@@ -186,6 +193,9 @@ type Mem struct {
 	seats       map[string]string
 	configs     map[string]memConfig
 	guildsCache map[string][]Binding
+	messages    map[string]CachedMessage
+	memberRoles map[string][]string
+	labels      map[string]string
 }
 
 type memConfig struct {
@@ -210,6 +220,9 @@ func NewMem() *Mem {
 		seats:       map[string]string{},
 		configs:     map[string]memConfig{},
 		guildsCache: map[string][]Binding{},
+		messages:    map[string]CachedMessage{},
+		memberRoles: map[string][]string{},
+		labels:      map[string]string{},
 	}
 }
 

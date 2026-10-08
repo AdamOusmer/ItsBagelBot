@@ -121,6 +121,11 @@ type MessageEvent struct {
 	Member    struct {
 		Roles []string `json:"roles"`
 	} `json:"member"`
+	Attachments []AttachmentRef `json:"attachments"`
+}
+
+type AttachmentRef struct {
+	URL string `json:"url"`
 }
 
 type InteractionOption struct {

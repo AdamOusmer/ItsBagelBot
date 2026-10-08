@@ -112,5 +112,5 @@ func (h linkGuardModule) tripIsOwnInvite(ctx context.Context, guildID, raw strin
 func (h linkGuardModule) act(c *module.Context, emit module.Emit, ev decode.MessageEvent, reason string) {
 	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID), ev.ID, cmd.Reason("linkguard: "+reason)))
 	body := decode.Mention(ev.Author) + " in <#" + ev.ChannelID + "> (" + reason + ")"
-	_ = logLine(c, emit, logEntry{Title: "Link removed", Body: body})
+	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: "Link removed", Body: body, SourceChannelID: ev.ChannelID})
 }
