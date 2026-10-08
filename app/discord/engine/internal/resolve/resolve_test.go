@@ -162,3 +162,42 @@ func TestInvalidConfigFieldsWarnOncePerGuildPerField(t *testing.T) {
 		})
 	}
 }
+
+func TestDroppedGuildsWarnOncePerReason(t *testing.T) {
+	cases := []struct {
+		name  string
+		rig   rig
+		guild string
+	}{
+		{"an unbound guild", oneGuild(tierOf("paid", true)), "stranger"},
+		{"a disabled module", rig{configs: map[string]ddiscord.Config{"g1": {}}, modules: fakeModules{disabled: true}, tier: tierOf("paid", true)}, "g1"},
+		{"a closed premium gate", oneGuild(tierOf("free", true)), "g1"},
+		{"a bound guild without settings", rig{bare: []string{"g1"}, tier: tierOf("paid", true)}, "g1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			core, logs := observer.New(zap.WarnLevel)
+			tc.rig.warned, tc.rig.log = resolve.NewConfigWarnings(), zap.New(core)
+			r := tc.rig.resolver(t)
+
+			for range 3 {
+				_, _, ok := r.ByGuild(context.Background(), tc.guild)
+				require.False(t, ok)
+			}
+
+			entries := logs.All()
+			require.Len(t, entries, 1)
+			require.Equal(t, tc.guild, entries[0].ContextMap()["guild_id"])
+		})
+	}
+}
+
+func TestDirectMessagesAreDroppedSilently(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	r := rig{warned: resolve.NewConfigWarnings(), log: zap.New(core), tier: tierOf("paid", true)}.resolver(t)
+
+	_, _, ok := r.ByGuild(context.Background(), "")
+
+	require.False(t, ok)
+	require.Zero(t, logs.Len())
+}

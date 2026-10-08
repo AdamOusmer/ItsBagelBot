@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func deadLetterJetStream(t *testing.T) nats.JetStreamContext {
@@ -68,7 +69,8 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	js := deadLetterJetStream(t)
 	step := time.Millisecond
 	delay := newBackoffRetryDelay([]time.Duration{step, step, step}).withDeferral(10 * step)
-	s := &concurrentDurableSubscriber{js: js, stream: BagelDataStream.Name, consumer: "loyalty", delay: delay, log: zap.NewNop()}
+	core, logs := observer.New(zap.WarnLevel)
+	s := &concurrentDurableSubscriber{js: js, stream: BagelDataStream.Name, consumer: "loyalty", delay: delay, log: zap.New(core)}
 	_, err := js.Publish("data.loyalty.counters", []byte(`{"batch_id":"b1"}`))
 	require.NoError(t, err)
 	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(int(delay.deliveries())), nats.AckWait(time.Minute))
@@ -85,4 +87,10 @@ func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
 	}
 
 	require.Equal(t, uint64(1), deadLetters(t, js))
+	terminated := logs.FilterMessage("message terminated after max deliveries").All()
+	require.Len(t, terminated, 1)
+	require.Equal(t, map[string]any{
+		"subject": "data.loyalty.counters", "stream": BagelDataStream.Name,
+		"consumer": "loyalty", "deliveries": uint64(delay.deliveries()),
+	}, terminated[0].ContextMap())
 }
