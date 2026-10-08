@@ -53,6 +53,7 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	move := h.store.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{
 		GuildID: ev.GuildID, UserID: ev.UserID, ChannelID: ev.ChannelID,
 	})
+	logVoiceMove(c, emit, ev.UserID, move)
 	if move.LeftEmpty {
 		h.deleteEmptyClone(ctx, move.From)
 	}

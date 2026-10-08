@@ -455,3 +455,25 @@ func inviteDeleted(_ context.Context, c *module.Context, emit module.Emit, ev de
 	})
 	return nil
 }
+
+func logVoiceMove(c *module.Context, emit module.Emit, userID string, move discordstore.VoiceMove) {
+	if move.From == move.To {
+		return
+	}
+	title, body, source := voiceMoveText(userID, move)
+	logTo(c, emit, ddiscord.LogVoice, logEntry{
+		Title: title, Body: body, Footer: idFooter("User", userID), SourceChannelID: source,
+	})
+}
+
+func voiceMoveText(userID string, move discordstore.VoiceMove) (title, body, source string) {
+	user := decode.Mention(decode.UserRef{ID: userID})
+	switch {
+	case move.From == "":
+		return "Joined voice", user + " joined " + channelMention(move.To), move.To
+	case move.To == "":
+		return "Left voice", user + " left " + channelMention(move.From), move.From
+	default:
+		return "Moved voice", user + " moved from " + channelMention(move.From) + " to " + channelMention(move.To), move.To
+	}
+}

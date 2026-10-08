@@ -278,3 +278,83 @@ func TestVoiceLockFollowsConfiguredPrivacy(t *testing.T) {
 		})
 	}
 }
+
+type voiceLog struct {
+	ChannelID string
+	Embed     ddiscord.Embed
+}
+
+func (r *voiceRig) logs() []voiceLog {
+	r.t.Helper()
+	var out []voiceLog
+	for _, cmd := range r.sent {
+		if cmd.Type != ddiscord.TypePostEmbed {
+			continue
+		}
+		var p ddiscord.EmbedPayload
+		require.NoError(r.t, codec.Unmarshal(cmd.Payload, &p))
+		out = append(out, voiceLog{ChannelID: cmd.ChannelID, Embed: p.Embed})
+	}
+	return out
+}
+
+func (r *voiceRig) logsOn() {
+	r.cfg.LogsEnabled, r.cfg.LogChannelID = "on", "log"
+}
+
+func TestVoiceLogsJoinMoveLeave(t *testing.T) {
+	r := newVoiceRig(t, nil)
+	r.logsOn()
+
+	r.state("u1", "A")
+	require.Len(t, r.logs(), 1)
+	require.Equal(t, "log", r.logs()[0].ChannelID)
+	require.Equal(t, "Joined voice", r.logs()[0].Embed.Title)
+	require.Equal(t, "<@u1> joined <#A>", r.logs()[0].Embed.Description)
+
+	r.state("u1", "B")
+	require.Len(t, r.logs(), 2)
+	require.Equal(t, "Moved voice", r.logs()[1].Embed.Title)
+	require.Equal(t, "<@u1> moved from <#A> to <#B>", r.logs()[1].Embed.Description)
+
+	r.state("u1", "")
+	require.Len(t, r.logs(), 3)
+	require.Equal(t, "Left voice", r.logs()[2].Embed.Title)
+	require.Equal(t, "<@u1> left <#B>", r.logs()[2].Embed.Description)
+}
+
+func TestVoiceLogsSkipUnchangedSeat(t *testing.T) {
+	r := newVoiceRig(t, nil)
+	r.logsOn()
+
+	r.state("u1", "A")
+	r.state("u1", "A")
+
+	require.Len(t, r.logs(), 1, "mute, deafen and stream toggles keep the same seat")
+}
+
+func TestVoiceLogsRespectToggleAndRoute(t *testing.T) {
+	cases := []struct {
+		name    string
+		setup   func(*voiceRig)
+		channel string
+		count   int
+	}{
+		{"switched off", func(r *voiceRig) { r.cfg.LogVoiceEnabled = "off" }, "", 0},
+		{"own channel", func(r *voiceRig) { r.cfg.LogVoiceChannelID = "voice-log" }, "voice-log", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newVoiceRig(t, nil)
+			r.logsOn()
+			tc.setup(r)
+
+			r.state("u1", "A")
+
+			require.Len(t, r.logs(), tc.count)
+			if tc.count > 0 {
+				require.Equal(t, tc.channel, r.logs()[0].ChannelID)
+			}
+		})
+	}
+}
