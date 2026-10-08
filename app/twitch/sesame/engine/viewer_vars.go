@@ -122,7 +122,9 @@ func (s viewerSpans) Span(ctx context.Context, login string) string {
 
 func (p *Pipeline) followedAt(c *module.Context) func(context.Context, string) (time.Time, bool, error) {
 	return func(ctx context.Context, login string) (time.Time, bool, error) {
-		res, err := p.followage.Lookup(ctx, c.Env.BroadcasterUserID, viewerIDFor(c, login), login)
+		res, err := p.followage.Lookup(ctx, FollowageQuery{
+			BroadcasterID: c.Env.BroadcasterUserID, TargetID: viewerIDFor(c, login), TargetLogin: login, Trial: c.Env.Origin == "trial",
+		})
 		return res.FollowedAt, res.UserFound && res.Following, err
 	}
 }

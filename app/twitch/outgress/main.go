@@ -218,13 +218,8 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			loaded, err := store.Load(ctx)
 			if err != nil {
 				log.Debug("stored token unavailable", zap.String("account_id", accountID), zap.Error(err))
-				return twitch.StoredLoad{}
 			}
-			return twitch.StoredLoad{
-				RefreshToken:         loaded.RefreshToken,
-				AccessToken:          loaded.AccessToken,
-				AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
-			}
+			return storedLoad(loaded, err)
 		},
 		Persist: func(ctx context.Context, access, refresh string, expiresAt time.Time) error {
 			if err := store.Save(ctx, access, refresh, &expiresAt); err != nil {
@@ -234,6 +229,17 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			return nil
 		},
 	}, d.newMintLease(accountID))
+}
+
+func storedLoad(loaded tokenstore.Loaded, err error) twitch.StoredLoad {
+	if tokenstore.Unavailable(err) {
+		return twitch.StoredLoad{Err: err}
+	}
+	return twitch.StoredLoad{
+		RefreshToken:         loaded.RefreshToken,
+		AccessToken:          loaded.AccessToken,
+		AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
+	}
 }
 
 func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {

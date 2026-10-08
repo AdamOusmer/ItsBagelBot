@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/pkg/codec"
 
@@ -217,4 +218,27 @@ func TestRequestJSONSurfacesRPCReplyErrorsAndMarshalFailures(t *testing.T) {
 	assert.Equal(t, "service draining", typed.Message)
 	assert.EqualError(t, typed, "rpc "+subject+": service draining")
 	assert.ErrorContains(t, marshalErr, "marshal request")
+}
+
+func TestRequestJSONKeepsRefusalCode(t *testing.T) {
+	nc := testnats.Connect(t)
+	subject := rpcSubjectName()
+	want := rpc.Refused(rpc.CodeNotFound, "user account not found")
+	reply, err := codec.FastMarshal(struct {
+		UserID string `json:"user_id"`
+		rpc.Refusal
+	}{UserID: "42", Refusal: want})
+	require.NoError(t, err)
+	_, err = nc.Subscribe(subject, func(msg *nats.Msg) { _ = msg.Respond(reply) })
+	require.NoError(t, err)
+
+	_, err = RequestJSONTimeout[struct{}](t.Context(), nc, subject, struct{}{}, time.Second)
+
+	var got RPCReplyError
+	require.ErrorAs(t, err, &got)
+	assert.Equal(t, RPCReplyError{Subject: subject, Message: want.Error, Code: want.Code}, got)
+}
+
+func TestReplyErrorMessageToleratesNonStringCode(t *testing.T) {
+	assert.Equal(t, "slow down", ReplyErrorMessage([]byte(`{"error":"slow down","code":429}`)))
 }

@@ -119,6 +119,7 @@ type fakeProj struct {
 	userErr  error
 
 	modulesErr error
+	cmdErr     error
 }
 
 func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
@@ -142,6 +143,9 @@ func (f *fakeProj) Module(ctx context.Context, id uint64, name string) (projecti
 }
 
 func (f *fakeProj) Command(_ context.Context, _ uint64, name string) (projection.Command, bool, error) {
+	if f.cmdErr != nil {
+		return projection.Command{}, false, f.cmdErr
+	}
 	cmd, ok := f.commands[name]
 	return cmd, ok, nil
 }

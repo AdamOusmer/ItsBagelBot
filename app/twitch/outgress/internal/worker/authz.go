@@ -160,11 +160,25 @@ func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b block
 	if err != nil {
 		return err
 	}
-	if !found || alreadyBlocked(ch, b) {
+	if !found {
 		return nil
+	}
+	return w.applyBlock(ctx, broadcasterID, b, ch.SubState)
+}
+
+func (w *Worker) blockChannelFrom(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
+	return w.applyBlock(ctx, broadcasterID, b, priorState)
+}
+
+func (w *Worker) applyBlock(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
+	if alreadyBlockedState(priorState, b) {
+		return w.registry.SetSubState(ctx, broadcasterID, b.state, b.reason)
 	}
 
 	if err := w.registry.SetSubState(ctx, broadcasterID, b.state, b.reason); err != nil {
+		return err
+	}
+	if err := w.markBlockedNow(ctx, broadcasterID); err != nil {
 		return err
 	}
 	w.log.Warn("channel blocked until the streamer acts",
@@ -173,18 +187,43 @@ func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b block
 		zap.String("reason", b.reason))
 
 	w.setChannelActive(ctx, broadcasterID, false)
-	if w.reauth != nil {
-		w.reauth.Notify(ctx, broadcasterID, b.notice)
-	}
+	w.notifyBlock(ctx, broadcasterID, b)
 	return nil
 }
 
+func (w *Worker) markBlockedNow(ctx context.Context, broadcasterID string) error {
+	return w.registry.MarkBlocked(ctx, manage.Channel{BroadcasterID: broadcasterID})
+}
+
+func (w *Worker) notifyBlock(ctx context.Context, broadcasterID string, b blockade) {
+	if w.reauth == nil {
+		return
+	}
+	w.reauth.Notify(ctx, broadcasterID, b.notice, w.blockEpisode(ctx, broadcasterID))
+}
+
+func (w *Worker) blockEpisode(ctx context.Context, broadcasterID string) time.Time {
+	ch, found, err := w.registry.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return time.Time{}
+	}
+	return ch.BlockedAt
+}
+
 func alreadyBlocked(ch manage.Channel, b blockade) bool {
-	return ch.SubState == b.state || ch.SubState == subStateRevoked
+	return alreadyBlockedState(ch.SubState, b)
+}
+
+func alreadyBlockedState(state string, b blockade) bool {
+	return state == b.state || state == subStateRevoked
 }
 
 func blockedChannel(ch manage.Channel) bool {
-	return ch.SubState == subStateRevoked || ch.SubState == subStateBanned
+	return blockedState(ch.SubState)
+}
+
+func blockedState(state string) bool {
+	return state == subStateRevoked || state == subStateBanned
 }
 
 func (w *Worker) setChannelActive(ctx context.Context, broadcasterID string, active bool) {

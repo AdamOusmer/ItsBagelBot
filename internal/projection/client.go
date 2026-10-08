@@ -127,10 +127,10 @@ func NewClient(cfg Config) *Client {
 		nc:         cfg.NC,
 		subjects:   cfg.Subjects,
 		log:        cfg.Log,
-		users:      cache.New[User](usersCacheCapacity, cfg.TTL),
-		modules:    cache.New[map[string]ModuleView](modulesCacheCapacity, cfg.TTL),
-		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL),
-		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL),
+		users:      cache.New[User](usersCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
+		modules:    cache.New[map[string]ModuleView](modulesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
+		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
+		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
 	c.commandLookup = perName[CommandView, commandEntry]{
@@ -225,9 +225,13 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 		}
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)
-		if err != nil {
+		if bus.NotFoundReply(err) {
 			loadSource(ctx, "projection.user.source", "standard_fallback")
 			return User{Status: "standard"}, nil
+		}
+		if err != nil {
+			loadSource(ctx, "projection.user.source", "rpc_error")
+			return User{}, err
 		}
 		loadSource(ctx, "projection.user.source", "rpc")
 		return reply, nil
@@ -267,7 +271,7 @@ type perName[V, E any] struct {
 	key     func(uint64, string) string
 	local   func(context.Context, uint64, string) (V, bool, bool, error)
 	entry   func(V, bool) E
-	remote  func(context.Context, uint64, string) E
+	remote  func(context.Context, uint64, string) (E, error)
 }
 
 func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, error) {
@@ -280,7 +284,7 @@ func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, 
 		if view, found, projected, err := l.local(ctx, userID, lname); err == nil && projected {
 			return l.entry(view, found), nil
 		}
-		return l.remote(ctx, userID, lname), nil
+		return l.remote(ctx, userID, lname)
 	})
 }
 
@@ -299,12 +303,12 @@ func commandEntryOf(view CommandView, found bool) commandEntry {
 	return commandEntry{cmd: commandFromView(view), found: true}
 }
 
-func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) commandEntry {
+func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) (commandEntry, error) {
 	reply, err := bus.RequestJSONTimeout[commandsReply](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
-		return commandEntry{found: false}
+		return commandEntry{}, err
 	}
-	return findCommand(reply.Commands, lname)
+	return findCommand(reply.Commands, lname), nil
 }
 
 func findCommand(commands []Command, lname string) commandEntry {
@@ -360,12 +364,12 @@ func fetchEntryOf(view FetchView, found bool) fetchEntry {
 	return fetchEntry{fetch: view, found: found}
 }
 
-func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) fetchEntry {
+func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) (fetchEntry, error) {
 	reply, err := bus.RequestJSONTimeout[fetchesReply](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
-		return fetchEntry{found: false}
+		return fetchEntry{}, err
 	}
-	return findFetch(reply.Fetches, lname)
+	return findFetch(reply.Fetches, lname), nil
 }
 
 func findFetch(fetches []FetchView, lname string) fetchEntry {

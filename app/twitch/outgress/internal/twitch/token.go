@@ -6,6 +6,7 @@ package twitch
 import (
 	"ItsBagelBot/pkg/codec"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -143,6 +144,7 @@ type StoredLoad struct {
 	RefreshToken         string
 	AccessToken          string
 	AccessTokenExpiresAt *time.Time
+	Err                  error
 }
 
 type StoredTokenIO struct {
@@ -163,6 +165,9 @@ func NewStoredUserTokenSource(creds ClientCredentials, fallbackRefresh string, i
 	s.refresh = func(ctx context.Context) (token string, ttl time.Duration, err error) {
 
 		stored := io.Load(ctx)
+		if stored.Err != nil {
+			return "", 0, fmt.Errorf("load stored token: %w", stored.Err)
+		}
 		if stored.RefreshToken != "" {
 			s.setCurrentRefresh(stored.RefreshToken)
 		}

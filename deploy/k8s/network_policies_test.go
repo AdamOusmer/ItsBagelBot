@@ -170,7 +170,7 @@ func TestAppEgressAllowlists(t *testing.T) {
 		{
 			name: "TestHeatWaveEgressAllowlist", policy: "allow-heatwave",
 			wantApps:  sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users"),
-			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
+			wantCIDRs: sorted("204.216.107.73/32"),
 		},
 	}
 	policies := loadNetworkPolicies(t, appPolicies)
