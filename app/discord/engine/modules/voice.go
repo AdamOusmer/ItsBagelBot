@@ -105,7 +105,11 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev dec
 	}
 	cl := discordstore.Clone{ChannelID: reply.ChannelID, GuildID: ev.GuildID, OwnerID: ev.UserID}
 	if err := h.store.TrackClone(ctx, cl); err != nil {
-		h.log.Warn("voice clone tracking failed", zap.Error(err))
+		if errors.Is(err, discordstore.ErrCloneCapReached) {
+			h.log.Info("voice clone cap reached; dropping the new room", zap.String("guild_id", ev.GuildID))
+		} else {
+			h.log.Warn("voice clone tracking failed", zap.Error(err))
+		}
 		h.deleteClone(ctx, cl)
 		return
 	}
@@ -154,27 +158,27 @@ type voiceInvocation struct {
 }
 
 func (h voiceModule) slash(ctx context.Context, c *module.Context, emit module.Emit) error {
-	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
-	if err != nil {
-		return err
-	}
-	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.FirstSub(in.Data.Options))
+	return h.interact(ctx, c, emit, nil)
 }
 
 func (h voiceModule) lockButton(ctx context.Context, c *module.Context, emit module.Emit) error {
-	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
-	if err != nil {
-		return err
-	}
-	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.InteractionOption{Name: "lock"})
+	return h.interact(ctx, c, emit, &decode.InteractionOption{Name: "lock"})
 }
 
 func (h voiceModule) unlockButton(ctx context.Context, c *module.Context, emit module.Emit) error {
+	return h.interact(ctx, c, emit, &decode.InteractionOption{Name: "unlock"})
+}
+
+func (h voiceModule) interact(ctx context.Context, c *module.Context, emit module.Emit, fixed *decode.InteractionOption) error {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {
 		return err
 	}
-	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, decode.InteractionOption{Name: "unlock"})
+	sub := decode.FirstSub(in.Data.Options)
+	if fixed != nil {
+		sub = *fixed
+	}
+	return h.command(ctx, voiceInvocation{Module: c, In: in, Emit: emit}, sub)
 }
 
 func (h voiceModule) command(ctx context.Context, v voiceInvocation, sub decode.InteractionOption) error {

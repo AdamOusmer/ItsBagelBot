@@ -69,22 +69,22 @@ func Logs(store discordstore.Store) module.Module {
 	b.On("MESSAGE_DELETE", logEvent(ddiscord.LogMessages, h.messageDelete))
 	b.On("MESSAGE_UPDATE", logEvent(ddiscord.LogMessages, h.messageEdit))
 	b.On("MESSAGE_DELETE_BULK", logEvent(ddiscord.LogMessages, messageBulkDelete))
-	b.On("GUILD_MEMBER_ADD", logEvent(ddiscord.LogMembers, memberJoined))
-	b.On("GUILD_MEMBER_REMOVE", logEvent(ddiscord.LogMembers, memberLeft))
+	b.On("GUILD_MEMBER_ADD", logEvent(ddiscord.LogMembers, memberLog("Member joined")))
+	b.On("GUILD_MEMBER_REMOVE", logEvent(ddiscord.LogMembers, memberLog("Member left")))
 	b.On("GUILD_MEMBER_UPDATE", logEvent(ddiscord.LogMembers, h.memberUpdate))
-	b.On("GUILD_BAN_ADD", logEvent(ddiscord.LogModeration, banned))
-	b.On("GUILD_BAN_REMOVE", logEvent(ddiscord.LogModeration, unbanned))
-	b.On("CHANNEL_CREATE", logEvent(ddiscord.LogChannels, h.channelCreated))
+	b.On("GUILD_BAN_ADD", logEvent(ddiscord.LogModeration, banLog("Member banned")))
+	b.On("GUILD_BAN_REMOVE", logEvent(ddiscord.LogModeration, banLog("Member unbanned")))
+	b.On("CHANNEL_CREATE", logEvent(ddiscord.LogChannels, h.channelLog(channelCreatedNote)))
 	b.On("CHANNEL_UPDATE", logEvent(ddiscord.LogChannels, h.channelUpdated))
-	b.On("CHANNEL_DELETE", logEvent(ddiscord.LogChannels, channelDeleted))
-	b.On("THREAD_CREATE", logEvent(ddiscord.LogChannels, threadCreated))
-	b.On("THREAD_DELETE", logEvent(ddiscord.LogChannels, threadDeleted))
+	b.On("CHANNEL_DELETE", logEvent(ddiscord.LogChannels, h.channelLog(channelDeletedNote)))
+	b.On("THREAD_CREATE", logEvent(ddiscord.LogChannels, threadLog(threadCreatedNote)))
+	b.On("THREAD_DELETE", logEvent(ddiscord.LogChannels, threadLog(threadDeletedNote)))
 	b.On("GUILD_ROLE_CREATE", logEvent(ddiscord.LogRoles, h.roleCreated))
 	b.On("GUILD_ROLE_UPDATE", logEvent(ddiscord.LogRoles, h.roleUpdated))
 	b.On("GUILD_ROLE_DELETE", logEvent(ddiscord.LogRoles, h.roleDeleted))
 	b.On("GUILD_UPDATE", logEvent(ddiscord.LogServer, h.guildUpdated))
-	b.On("INVITE_CREATE", logEvent(ddiscord.LogServer, inviteCreated))
-	b.On("INVITE_DELETE", logEvent(ddiscord.LogServer, inviteDeleted))
+	b.On("INVITE_CREATE", logEvent(ddiscord.LogServer, inviteLog("Invite created")))
+	b.On("INVITE_DELETE", logEvent(ddiscord.LogServer, inviteLog("Invite deleted")))
 	return b.Build()
 }
 
@@ -244,24 +244,19 @@ func messageBulkDelete(_ context.Context, c *module.Context, emit module.Emit, e
 	return nil
 }
 
-func memberJoined(_ context.Context, c *module.Context, emit module.Emit, ev decode.MemberEvent) error {
-	logMember(c, emit, "Member joined", ev)
-	return nil
-}
-
-func memberLeft(_ context.Context, c *module.Context, emit module.Emit, ev decode.MemberEvent) error {
-	logMember(c, emit, "Member left", ev)
-	return nil
-}
-
-func logMember(c *module.Context, emit module.Emit, title string, ev decode.MemberEvent) {
-	if skipBot(c, ev.User.Bot) {
-		return
+func memberLog(title string) logHandler[decode.MemberEvent] {
+	return func(_ context.Context, c *module.Context, emit module.Emit, ev decode.MemberEvent) error {
+		if skipBot(c, ev.User.Bot) {
+			return nil
+		}
+		logTo(c, emit, ddiscord.LogMembers, userEntry(title, ev.User, ev.Nick))
+		return nil
 	}
-	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
-	logTo(c, emit, ddiscord.LogMembers, logEntry{
-		Title: title, Body: decode.Mention(ev.User) + " (" + shown + ")", Footer: idFooter("User", ev.User.ID),
-	})
+}
+
+func userEntry(title string, user decode.UserRef, nick string) logEntry {
+	shown := decode.DisplayName(decode.Display{User: user, Nick: nick})
+	return logEntry{Title: title, Body: decode.Mention(user) + " (" + shown + ")", Footer: idFooter("User", user.ID)}
 }
 
 func (h logsModule) memberUpdate(ctx context.Context, c *module.Context, emit module.Emit, ev decode.MemberUpdateEvent) error {
@@ -323,34 +318,67 @@ func missingFrom(have, base []string) []string {
 	return out
 }
 
-func banned(_ context.Context, c *module.Context, emit module.Emit, ev decode.BanEvent) error {
-	logBan(c, emit, "Member banned", ev)
-	return nil
-}
-
-func unbanned(_ context.Context, c *module.Context, emit module.Emit, ev decode.BanEvent) error {
-	logBan(c, emit, "Member unbanned", ev)
-	return nil
-}
-
-func logBan(c *module.Context, emit module.Emit, title string, ev decode.BanEvent) {
-	shown := decode.DisplayName(decode.Display{User: ev.User})
-	logTo(c, emit, ddiscord.LogModeration, logEntry{
-		Title: title, Body: decode.Mention(ev.User) + " (" + shown + ")", Footer: idFooter("User", ev.User.ID),
-	})
+func banLog(title string) logHandler[decode.BanEvent] {
+	return func(_ context.Context, c *module.Context, emit module.Emit, ev decode.BanEvent) error {
+		logTo(c, emit, ddiscord.LogModeration, userEntry(title, ev.User, ""))
+		return nil
+	}
 }
 
 func channelRef(guildID, id string) discordstore.LabelRef {
 	return discordstore.LabelRef{Kind: discordstore.LabelChan, GuildID: guildID, ID: id}
 }
 
-func (h logsModule) channelCreated(ctx context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
-	h.rememberName(ctx, channelRef(ev.GuildID, ev.ID), ev.Name)
-	logTo(c, emit, ddiscord.LogChannels, logEntry{
-		Title: "Channel created", Body: channelMention(ev.ID) + " (" + ev.Name + ")",
-		Footer: idFooter("Channel", ev.ID), SourceChannelID: ev.ID,
-	})
-	return nil
+type channelNote struct {
+	Title   string
+	Kind    string
+	Created bool
+}
+
+var (
+	channelCreatedNote = channelNote{Title: "Channel created", Kind: "Channel", Created: true}
+	channelDeletedNote = channelNote{Title: "Channel deleted", Kind: "Channel"}
+	threadCreatedNote  = channelNote{Title: "Thread created", Kind: "Thread", Created: true}
+	threadDeletedNote  = channelNote{Title: "Thread deleted", Kind: "Thread"}
+)
+
+func (n channelNote) entry(ev decode.ChannelEvent, source string) logEntry {
+	body := nameOrID(ev.Name, ev.ID)
+	if n.Created {
+		body = channelMention(ev.ID) + " (" + ev.Name + ")"
+	}
+	return logEntry{Title: n.Title, Body: body, Footer: idFooter(n.Kind, ev.ID), SourceChannelID: source}
+}
+
+func (h logsModule) channelLog(note channelNote) logHandler[decode.ChannelEvent] {
+	return func(ctx context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
+		if note.Created {
+			h.rememberName(ctx, channelRef(ev.GuildID, ev.ID), ev.Name)
+		}
+		if h.isTempVoiceRoom(ctx, c.Config, ev) {
+			return nil
+		}
+		logTo(c, emit, ddiscord.LogChannels, note.entry(ev, ev.ID))
+		return nil
+	}
+}
+
+func threadLog(note channelNote) logHandler[decode.ChannelEvent] {
+	return func(_ context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
+		logTo(c, emit, ddiscord.LogChannels, note.entry(ev, ev.ParentID))
+		return nil
+	}
+}
+
+func (h logsModule) isTempVoiceRoom(ctx context.Context, cfg ddiscord.Config, ev decode.ChannelEvent) bool {
+	if ev.Type != ddiscord.ChannelVoice {
+		return false
+	}
+	if cfg.VoiceCategoryID != "" && ev.ParentID == cfg.VoiceCategoryID && ev.ID != cfg.VoiceHubID {
+		return true
+	}
+	_, tracked := h.store.Clone(ctx, discordstore.Channel{ID: ev.ID})
+	return tracked
 }
 
 func (h logsModule) channelUpdated(ctx context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
@@ -361,30 +389,6 @@ func (h logsModule) channelUpdated(ctx context.Context, c *module.Context, emit 
 	logTo(c, emit, ddiscord.LogChannels, logEntry{
 		Title: "Channel renamed", Body: channelMention(ev.ID),
 		Fields: beforeAfter(old, ev.Name), Footer: idFooter("Channel", ev.ID), SourceChannelID: ev.ID,
-	})
-	return nil
-}
-
-func channelDeleted(_ context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
-	logTo(c, emit, ddiscord.LogChannels, logEntry{
-		Title: "Channel deleted", Body: nameOrID(ev.Name, ev.ID),
-		Footer: idFooter("Channel", ev.ID), SourceChannelID: ev.ID,
-	})
-	return nil
-}
-
-func threadCreated(_ context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
-	logTo(c, emit, ddiscord.LogChannels, logEntry{
-		Title: "Thread created", Body: channelMention(ev.ID) + " (" + ev.Name + ")",
-		Footer: idFooter("Thread", ev.ID), SourceChannelID: ev.ParentID,
-	})
-	return nil
-}
-
-func threadDeleted(_ context.Context, c *module.Context, emit module.Emit, ev decode.ChannelEvent) error {
-	logTo(c, emit, ddiscord.LogChannels, logEntry{
-		Title: "Thread deleted", Body: nameOrID(ev.Name, ev.ID),
-		Footer: idFooter("Thread", ev.ID), SourceChannelID: ev.ParentID,
 	})
 	return nil
 }
@@ -440,30 +444,41 @@ func (h logsModule) guildUpdated(ctx context.Context, c *module.Context, emit mo
 	return nil
 }
 
-func inviteCreated(_ context.Context, c *module.Context, emit module.Emit, ev decode.InviteEvent) error {
-	body := "Invite " + ev.Code + " for " + channelMention(ev.ChannelID)
-	if ev.Inviter.ID != "" {
-		body += " by " + decode.Mention(decode.UserRef{ID: ev.Inviter.ID})
+func inviteLog(title string) logHandler[decode.InviteEvent] {
+	return func(_ context.Context, c *module.Context, emit module.Emit, ev decode.InviteEvent) error {
+		body := "Invite " + ev.Code + " for " + channelMention(ev.ChannelID)
+		if ev.Inviter.ID != "" {
+			body += " by " + decode.Mention(decode.UserRef{ID: ev.Inviter.ID})
+		}
+		logTo(c, emit, ddiscord.LogServer, logEntry{Title: title, Body: body, Footer: idFooter("Invite", ev.Code)})
+		return nil
 	}
-	logTo(c, emit, ddiscord.LogServer, logEntry{Title: "Invite created", Body: body, Footer: idFooter("Invite", ev.Code)})
-	return nil
-}
-
-func inviteDeleted(_ context.Context, c *module.Context, emit module.Emit, ev decode.InviteEvent) error {
-	logTo(c, emit, ddiscord.LogServer, logEntry{
-		Title: "Invite deleted", Body: "Invite " + ev.Code + " for " + channelMention(ev.ChannelID), Footer: idFooter("Invite", ev.Code),
-	})
-	return nil
 }
 
 func logVoiceMove(c *module.Context, emit module.Emit, userID string, move discordstore.VoiceMove) {
-	if move.From == move.To {
+	move, show := hideHub(c.Config.VoiceHubID, move)
+	if !show {
 		return
 	}
 	title, body, source := voiceMoveText(userID, move)
 	logTo(c, emit, ddiscord.LogVoice, logEntry{
 		Title: title, Body: body, Footer: idFooter("User", userID), SourceChannelID: source,
 	})
+}
+
+func hideHub(hub string, move discordstore.VoiceMove) (discordstore.VoiceMove, bool) {
+	switch {
+	case move.From == move.To:
+		return move, false
+	case hub == "":
+		return move, true
+	case move.To == hub, move.From == hub && move.To == "":
+		return move, false
+	case move.From == hub:
+		return discordstore.VoiceMove{To: move.To}, true
+	default:
+		return move, true
+	}
 }
 
 func voiceMoveText(userID string, move discordstore.VoiceMove) (title, body, source string) {

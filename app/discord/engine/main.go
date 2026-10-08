@@ -33,7 +33,10 @@ import (
 
 const serviceName = "discord-engine"
 
-const eventDedupPrefix = "discord:ev:"
+const (
+	eventDedupPrefix = "discord:ev:"
+	eventDedupLRUCap = 100_000
+)
 
 // Must match the serviceName consts in app/discord/ingress/main.go and app/discord/outgress/main.go.
 const (
@@ -91,10 +94,11 @@ func main() {
 		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
-	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log,
-		Dedup: idempotency.NewValkeyStore(valkeyClient, eventDedupPrefix, log)}
+	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
+	dedupStore := idempotency.NewTiered(eventDedupLRUCap, idempotency.NewValkeyStore(valkeyClient, eventDedupPrefix, log))
+	handle := dispatch.Dedup(dedupStore, log, dedupMetrics{app: nrApp})(d.Handle)
 
-	ingressSub, closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, d.Handle)
+	ingressSub, closeIngress := startIngressConsumers(ctx, cfg, nrApp, log, handle)
 	defer closeIngress()
 
 	twitchSub, closeTwitch := startTwitchConsumers(twitchDeps{
@@ -109,6 +113,13 @@ func main() {
 	log.Info("discord engine ready", zap.Strings("ingress_subjects", ingressSubjects))
 
 	core.Await()
+}
+
+type dedupMetrics struct{ app *newrelic.Application }
+
+func (m dedupMetrics) Duplicate() { m.app.RecordCustomMetric("Custom/DiscordEngine/EventDuplicate", 1) }
+func (m dedupMetrics) FailOpen() {
+	m.app.RecordCustomMetric("Custom/DiscordEngine/EventDedupFailOpen", 1)
 }
 
 // Must stay confirmed: bus.PublishJSON hides the errors dispatch uses to decide a republish is safe.

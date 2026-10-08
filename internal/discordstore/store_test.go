@@ -4,12 +4,50 @@
 package discordstore_test
 
 import (
+	"context"
+	"errors"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/internal/discordstore"
+	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"github.com/stretchr/testify/require"
 )
+
+func requireCloneCapHolds(t *testing.T, s discordstore.Store, guild string) {
+	t.Helper()
+	ctx := context.Background()
+	contenders := ddiscord.VoiceCloneCap * 3
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var won, capped int
+	for i := range contenders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.TrackClone(ctx, discordstore.Clone{ChannelID: guild + "-room" + strconv.Itoa(i), GuildID: guild, OwnerID: "u"})
+			mu.Lock()
+			defer mu.Unlock()
+			if err == nil {
+				won++
+			} else if errors.Is(err, discordstore.ErrCloneCapReached) {
+				capped++
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, ddiscord.VoiceCloneCap, won)
+	require.Equal(t, contenders-ddiscord.VoiceCloneCap, capped)
+	require.Equal(t, ddiscord.VoiceCloneCap, s.CloneCount(ctx, discordstore.Guild{ID: guild}))
+}
+
+func TestMemTrackCloneStopsAtTheCap(t *testing.T) {
+	requireCloneCapHolds(t, discordstore.NewMem(), "g1")
+}
 
 func TestMemStoreBehavesLikeTheDurableStore(t *testing.T) {
 	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios(), memCacheScenarios())
