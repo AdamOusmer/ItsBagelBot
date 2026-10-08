@@ -6,6 +6,9 @@ package rpc
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
+	"strings"
 
 	"ItsBagelBot/app/db/discord/repository"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -58,26 +61,34 @@ const (
 )
 
 type field struct {
-	name  string
-	value string
+	name    string
+	value   string
+	min     int
+	max     int
+	choices []string
 }
 
 func validateConfig(c ddiscord.Config) []string {
 	bad := invalidNames(snowflakeFields(c), validSnowflake)
-	return append(bad, invalidNames(toggleFields(c), validToggle)...)
+	bad = append(bad, invalidNames(snowflakeListFields(c), validSnowflakeList)...)
+	bad = append(bad, invalidNames(toggleFields(c), validToggle)...)
+	bad = append(bad, invalidNames(rangeFields(c), validRange)...)
+	return append(bad, invalidNames(voiceTextFields(c), validVoiceText)...)
 }
 
-func invalidNames(fields []field, ok func(string) bool) []string {
+func invalidNames(fields []field, ok func(field) bool) []string {
 	var bad []string
 	for _, f := range fields {
-		if !ok(f.value) {
+		if !ok(f) {
 			bad = append(bad, f.name)
 		}
 	}
 	return bad
 }
 
-func validSnowflake(v string) bool {
+func validSnowflake(f field) bool { return validSnowflakeValue(f.value) }
+
+func validSnowflakeValue(v string) bool {
 	if v == "" {
 		return true
 	}
@@ -92,39 +103,110 @@ func validSnowflake(v string) bool {
 	return true
 }
 
-func validToggle(v string) bool { return v == "" || v == "on" || v == "off" }
+func validSnowflakeList(f field) bool {
+	for _, part := range strings.Split(f.value, ",") {
+		if p := strings.TrimSpace(part); p != "" && !validSnowflakeValue(p) {
+			return false
+		}
+	}
+	return true
+}
+
+func validToggle(f field) bool { return f.value == "" || f.value == "on" || f.value == "off" }
+
+func validRange(f field) bool {
+	if f.value == "" {
+		return true
+	}
+	if len(f.value) > 2 || f.value[0] < '0' || f.value[0] > '9' {
+		return false
+	}
+	n, err := strconv.Atoi(f.value)
+	return err == nil && n >= f.min && n <= f.max
+}
+
+func validVoiceText(f field) bool {
+	if f.choices != nil {
+		return f.value == "" || slices.Contains(f.choices, f.value)
+	}
+	return len([]rune(f.value)) <= f.max
+}
 
 func snowflakeFields(c ddiscord.Config) []field {
 	return []field{
-		{"guildId", c.GuildID},
-		{"liveChannelId", c.LiveChannelID},
-		{"clipsChannelId", c.ClipsChannelID},
-		{"welcomeChannelId", c.WelcomeChannelID},
-		{"voiceHubId", c.VoiceHubID},
-		{"logChannelId", c.LogChannelID},
-		{"ticketChannelId", c.TicketChannelID},
-		{"ticketCategoryId", c.TicketCategoryID},
-		{"ownerRoleId", c.OwnerRoleID},
-		{"leadModRoleId", c.LeadModRoleID},
-		{"modsRoleId", c.ModsRoleID},
-		{"vipRoleId", c.VIPRoleID},
-		{"subscriberRoleId", c.SubscriberRoleID},
-		{"regularsRoleId", c.RegularsRoleID},
-		{"memberRoleId", c.MemberRoleID},
+		{name: "guildId", value: c.GuildID},
+		{name: "liveChannelId", value: c.LiveChannelID},
+		{name: "clipsChannelId", value: c.ClipsChannelID},
+		{name: "welcomeChannelId", value: c.WelcomeChannelID},
+		{name: "voiceHubId", value: c.VoiceHubID},
+		{name: "voiceCategoryId", value: c.VoiceCategoryID},
+		{name: "logChannelId", value: c.LogChannelID},
+		{name: "logMessagesChannelId", value: c.LogMessagesChannelID},
+		{name: "logMembersChannelId", value: c.LogMembersChannelID},
+		{name: "logVoiceChannelId", value: c.LogVoiceChannelID},
+		{name: "logModerationChannelId", value: c.LogModerationChannelID},
+		{name: "ticketChannelId", value: c.TicketChannelID},
+		{name: "ticketCategoryId", value: c.TicketCategoryID},
+		{name: "ticketArchiveCategoryId", value: c.TicketArchiveCategoryID},
+		{name: "ticketLogChannelId", value: c.TicketLogChannelID},
+		{name: "subsChannelId", value: c.SubsChannelID},
+		{name: "subsCategoryId", value: c.SubsCategoryID},
+		{name: "vipChannelId", value: c.VIPChannelID},
+		{name: "vipCategoryId", value: c.VIPCategoryID},
+		{name: "ownerRoleId", value: c.OwnerRoleID},
+		{name: "leadModRoleId", value: c.LeadModRoleID},
+		{name: "modsRoleId", value: c.ModsRoleID},
+		{name: "vipRoleId", value: c.VIPRoleID},
+		{name: "subscriberRoleId", value: c.SubscriberRoleID},
+		{name: "regularsRoleId", value: c.RegularsRoleID},
+		{name: "memberRoleId", value: c.MemberRoleID},
+	}
+}
+
+func snowflakeListFields(c ddiscord.Config) []field {
+	return []field{
+		{name: "ticketStaffRoleIds", value: c.TicketStaffRoles},
+		{name: "logIgnoredChannelIds", value: c.LogIgnoredChannels},
 	}
 }
 
 func toggleFields(c ddiscord.Config) []field {
 	return []field{
-		{"liveEnabled", c.LiveEnabled},
-		{"clipsEnabled", c.ClipsEnabled},
-		{"welcomeEnabled", c.WelcomeEnabled},
-		{"goodbyeEnabled", c.GoodbyeEnabled},
-		{"voiceEnabled", c.VoiceEnabled},
-		{"ticketsEnabled", c.TicketsEnabled},
-		{"logsEnabled", c.LogsEnabled},
-		{"levelsEnabled", c.LevelsEnabled},
-		{"linkGuardEnabled", c.LinkGuardEnabled},
-		{"subscribersEnabled", c.SubscribersEnabled},
+		{name: "liveEnabled", value: c.LiveEnabled},
+		{name: "clipsEnabled", value: c.ClipsEnabled},
+		{name: "welcomeEnabled", value: c.WelcomeEnabled},
+		{name: "goodbyeEnabled", value: c.GoodbyeEnabled},
+		{name: "voiceEnabled", value: c.VoiceEnabled},
+		{name: "ticketsEnabled", value: c.TicketsEnabled},
+		{name: "logsEnabled", value: c.LogsEnabled},
+		{name: "levelsEnabled", value: c.LevelsEnabled},
+		{name: "linkGuardEnabled", value: c.LinkGuardEnabled},
+		{name: "subscribersEnabled", value: c.SubscribersEnabled},
+		{name: "ticketTranscriptEnabled", value: c.TicketTranscriptEnabled},
+		{name: "autoRoleEnabled", value: c.AutoRoleEnabled},
+		{name: "logMessagesEnabled", value: c.LogMessagesEnabled},
+		{name: "logMembersEnabled", value: c.LogMembersEnabled},
+		{name: "logVoiceEnabled", value: c.LogVoiceEnabled},
+		{name: "logModerationEnabled", value: c.LogModerationEnabled},
+		{name: "logChannelsEnabled", value: c.LogChannelsEnabled},
+		{name: "logRolesEnabled", value: c.LogRolesEnabled},
+		{name: "logServerEnabled", value: c.LogServerEnabled},
+		{name: "logIgnoreBots", value: c.LogIgnoreBots},
+	}
+}
+
+func rangeFields(c ddiscord.Config) []field {
+	return []field{
+		{name: "ticketOpenLimit", value: c.TicketOpenLimit, min: 1, max: ddiscord.TicketOpenLimitMax},
+		{name: "voiceUserLimit", value: c.VoiceUserLimit, min: 0, max: ddiscord.VoiceUserLimitMax},
+	}
+}
+
+func voiceTextFields(c ddiscord.Config) []field {
+	return []field{
+		{name: "voiceNameTemplate", value: c.VoiceNameTemplate, max: ddiscord.VoiceNameMax},
+		{name: "voicePrivacy", value: c.VoicePrivacyMode, choices: []string{
+			ddiscord.VoicePrivacyOpen, ddiscord.VoicePrivacyLocked, ddiscord.VoicePrivacyHidden,
+		}},
 	}
 }

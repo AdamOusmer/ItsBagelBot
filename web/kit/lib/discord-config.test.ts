@@ -37,10 +37,17 @@ import {
   parseUserGuilds,
   parseNameList,
   parsePinnedRoles,
+  logCategoryOn,
+  logChannelFor,
+  logIgnoreBotsOn,
+  logIgnores,
   ticketOpenLimitN,
   ticketPanelPayload,
   ticketPanelSpec,
-  ticketStaffRoleIds
+  ticketStaffRoleIds,
+  voiceLimit,
+  voiceName,
+  voicePrivacy
 } from './discord-config';
 
 const ID_A = '123456789012345678';
@@ -116,7 +123,16 @@ describe('merge', () => {
     row('a flag only accepts on/off', {}, { levelsEnabled: 'yes' }, { levelsEnabled: '' }, [{ field: 'levelsEnabled', code: 'flag' }]),
     row('an over-long panel body is refused, not truncated', {}, { ticketPanelBody: 'x'.repeat(TICKET_PANEL_BODY_MAX + 1) }, { ticketPanelBody: '' }, [{ field: 'ticketPanelBody', code: 'length' }]),
     ...['0', '6', '-1', 'two', '3.5'].map((bad) => row(`the open limit ${JSON.stringify(bad)} is refused outside 1..5`, {}, { ticketOpenLimit: bad }, { ticketOpenLimit: '' }, [{ field: 'ticketOpenLimit', code: 'range' }])),
-    row('the open limit 5 is accepted', {}, { ticketOpenLimit: '5' }, { ticketOpenLimit: '5' }, [])
+    row('the open limit 5 is accepted', {}, { ticketOpenLimit: '5' }, { ticketOpenLimit: '5' }, []),
+    row('a log category flag only accepts on/off', {}, { logVoiceEnabled: 'maybe' }, { logVoiceEnabled: '' }, [{ field: 'logVoiceEnabled', code: 'flag' }]),
+    row('a per-category log channel must be a snowflake', {}, { logMembersChannelId: 'logs' }, { logMembersChannelId: '' }, [{ field: 'logMembersChannelId', code: 'snowflake' }]),
+    row('the ignored channel list is canonicalised', {}, { logIgnoredChannelIds: ` ${ID_A} , ${ID_B} , ${ID_A} ` }, { logIgnoredChannelIds: `${ID_A},${ID_B}` }, []),
+    row('a bad ignored channel is refused', {}, { logIgnoredChannelIds: `${ID_A},x` }, { logIgnoredChannelIds: '' }, [{ field: 'logIgnoredChannelIds', code: 'list' }]),
+    row('a voice name over the max is refused', {}, { voiceNameTemplate: 'x'.repeat(101) }, { voiceNameTemplate: '' }, [{ field: 'voiceNameTemplate', code: 'length' }]),
+    ...['100', '-1', '1.5', 'x', '007'].map((bad) => row(`the voice limit ${JSON.stringify(bad)} is refused outside 0..99`, {}, { voiceUserLimit: bad }, { voiceUserLimit: '' }, [{ field: 'voiceUserLimit', code: 'range' }])),
+    row('the voice limit 0 and 99 are accepted', {}, { voiceUserLimit: '0' }, { voiceUserLimit: '0' }, []),
+    row('an unknown voice privacy is refused', {}, { voicePrivacy: 'secret' }, { voicePrivacy: '' }, [{ field: 'voicePrivacy', code: 'choice' }]),
+    row('a known voice privacy is accepted', {}, { voicePrivacy: 'hidden' }, { voicePrivacy: 'hidden' }, [])
   ];
 
   test.each(ROWS)('$name', ({ current, draft, want, errors }) => {
@@ -206,6 +222,45 @@ describe('accessors', () => {
     const base = { ...blankDiscordConfig(), ownerRoleId: ID_A, leadModRoleId: ID_B };
     expect(ticketStaffRoleIds(base)).toEqual([ID_A, ID_B]);
     expect(ticketStaffRoleIds({ ...base, ticketStaffRoleIds: ID_C })).toEqual([ID_C]);
+  });
+});
+
+describe('log and voice readers', () => {
+  const blank = blankDiscordConfig();
+
+  test('a category is on by default and needs the master switch', () => {
+    expect(logCategoryOn(blank, 'roles')).toBe(true);
+    expect(logCategoryOn({ ...blank, logRolesEnabled: 'off' }, 'roles')).toBe(false);
+    expect(logCategoryOn({ ...blank, logsEnabled: 'off' }, 'roles')).toBe(false);
+  });
+
+  test('the category channel falls back to the general log channel', () => {
+    const cfg = { ...blank, logChannelId: ID_A, logVoiceChannelId: ID_B };
+    expect(logChannelFor(cfg, 'voice')).toBe(ID_B);
+    expect(logChannelFor(cfg, 'messages')).toBe(ID_A);
+    expect(logChannelFor(cfg, 'roles')).toBe(ID_A);
+    expect(logChannelFor(blank, 'voice')).toBe('');
+  });
+
+  test('ignored channels and bots', () => {
+    const cfg = { ...blank, logIgnoredChannelIds: `${ID_A},${ID_B}` };
+    expect(logIgnores(cfg, ID_B)).toBe(true);
+    expect(logIgnores(cfg, ID_C)).toBe(false);
+    expect(logIgnores(cfg, '')).toBe(false);
+    expect(logIgnoreBotsOn(blank)).toBe(true);
+    expect(logIgnoreBotsOn({ ...blank, logIgnoreBots: 'off' })).toBe(false);
+  });
+
+  test('voice name, limit and privacy defaults', () => {
+    expect(voiceName(blank, 'Ada')).toBe('Ada');
+    expect(voiceName({ ...blank, voiceNameTemplate: "{owner}'s room" }, 'Ada')).toBe("Ada's room");
+    expect(voiceName({ ...blank, voiceNameTemplate: 'x'.repeat(150) }, 'Ada')).toHaveLength(100);
+    expect(voiceLimit(blank)).toBe(0);
+    expect(voiceLimit({ ...blank, voiceUserLimit: '12' })).toBe(12);
+    expect(voiceLimit({ ...blank, voiceUserLimit: '100' })).toBe(0);
+    expect(voicePrivacy(blank)).toBe('open');
+    expect(voicePrivacy({ ...blank, voicePrivacy: 'locked' })).toBe('locked');
+    expect(voicePrivacy({ ...blank, voicePrivacy: 'bogus' })).toBe('open');
   });
 });
 
