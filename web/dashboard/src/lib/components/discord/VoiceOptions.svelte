@@ -89,6 +89,7 @@
     <Text as="span" size="xs" tone="muted">{t('discord.channels.voicePrivacyHelp')}</Text>
   </span>
   <SegmentedControl
+    class="bb-tabs--even seg-fixed"
     options={privacyOptions}
     label={t('discord.channels.voicePrivacyLabel')}
     bind:value={() => voicePrivacy(draft.config), (v) => draft.set('voicePrivacy', v)}
