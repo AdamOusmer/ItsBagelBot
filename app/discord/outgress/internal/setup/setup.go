@@ -25,6 +25,9 @@ const (
 	overwriteMember        = 1
 	permViewChannel  int64 = 1024
 	permSendMessages int64 = 2048
+	permEmbedLinks   int64 = 16384
+	permAttachFiles  int64 = 32768
+	permBotPost            = permViewChannel | permSendMessages | permEmbedLinks | permAttachFiles
 
 	channelAnnouncement = 5
 
@@ -92,9 +95,6 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 func (f *guildFill) adoptLivedIn(ctx context.Context, out GuildSetupResult) (GuildSetupResult, error) {
 	out.Refused = "this server already has a layout; Bagel adopted the channels it recognised and added only the bound ones it was missing, pick the rest below"
 	f.adopt(&out)
-	if err := f.ensureRoles(ctx, &out); err != nil {
-		return out, err
-	}
 	if err := f.ensureBoundChannels(ctx, &out); err != nil {
 		return out, err
 	}
@@ -355,9 +355,11 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 	}
 }
 
+var livedInCreatable = map[string]bool{"voice": true, "logs": true, "ticketcat": true, "ticketarchive": true}
+
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityChannels() {
-		if spec.Bind == "" || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+		if !livedInCreatable[spec.Bind] || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
 		parent := f.chanByName[strings.ToLower(spec.Parent)]
@@ -570,9 +572,9 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 		return f.gatedOverwrites(spec)
 	}
 	if spec.ReadOnly {
-		return []discapi.PermissionOverwrite{{
+		return f.withBotAccess([]discapi.PermissionOverwrite{{
 			ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permSendMessages),
-		}}
+		}})
 	}
 	return nil
 }
@@ -606,7 +608,7 @@ func (f *guildFill) withBotAccess(in []discapi.PermissionOverwrite) []discapi.Pe
 	}
 	return append(in, discapi.PermissionOverwrite{
 		ID: f.w.botID, Type: overwriteMember,
-		Allow: fmt.Sprintf("%d", permViewChannel|permSendMessages), Deny: "0",
+		Allow: fmt.Sprintf("%d", permBotPost), Deny: "0",
 	})
 }
 
