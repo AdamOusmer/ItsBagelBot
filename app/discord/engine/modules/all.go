@@ -24,6 +24,7 @@ type Deps struct {
 func All(d Deps) []module.Module {
 	return []module.Module{
 		Welcome(),
+		Logs(d.Store),
 		Message(d.Store),
 		Rank(d.Store),
 		Moderation(d.Purge, d.Log),

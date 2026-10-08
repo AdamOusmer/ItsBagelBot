@@ -19,12 +19,15 @@ func TestValidateConfigAcceptsEmptyAndFilled(t *testing.T) {
 		GuildID: goodID, ModsRoleID: goodID, TicketArchiveCategoryID: goodID,
 		TicketStaffRoles: goodID + "," + goodID, TicketOpenLimit: "3",
 		TicketPanelColor: "#C47A3A", TicketPanelTitle: "Help", TicketPanelButton: "Open",
+		LogIgnoredChannels: goodID + "," + goodID, VoiceNameTemplate: "{owner}", VoiceUserLimit: "0", VoicePrivacyMode: "hidden",
+		LogVoiceChannelID: goodID, VoiceCategoryID: goodID, LogIgnoreBots: "off", LogRolesEnabled: "on",
 		PinnedRoles: "mods=" + goodID, AutoRoleEnabled: "off", TicketTranscriptEnabled: "on",
 		TicketPanelBody: strings.Repeat("é", TicketPanelBodyMax),
 	}
 
 	assert.Empty(t, ValidateConfig(Config{}), "a blank config must be storable")
 	assert.Empty(t, ValidateConfig(full), "a valid config (with a body of exactly the max in runes) was rejected")
+	assert.Empty(t, ValidateConfig(Config{VoiceUserLimit: " 5"}), "a padded voice limit was rejected")
 }
 
 func TestValidateConfigFieldErrors(t *testing.T) {
@@ -54,6 +57,17 @@ func TestValidateConfigFieldErrors(t *testing.T) {
 		{"same slot pinned twice", Config{PinnedRoles: "mods=" + goodID + ",mods=" + goodID}, "pinnedRoles", CodeDuplicateSlot},
 		{"pinned id is not a snowflake", Config{PinnedRoles: "mods=Mods"}, "pinnedRoles", CodeInvalidID},
 		{"toggle is not on or off", Config{LevelsEnabled: "yes"}, "levelsEnabled", CodeInvalidFlag},
+		{"log category toggle", Config{LogVoiceEnabled: "maybe"}, "logVoiceEnabled", CodeInvalidFlag},
+		{"ignore bots toggle", Config{LogIgnoreBots: "1"}, "logIgnoreBots", CodeInvalidFlag},
+		{"per category log channel", Config{LogModerationChannelID: "mod-log"}, "logModerationChannelId", CodeInvalidID},
+		{"ignored channel list", Config{LogIgnoredChannels: goodID + ",nope"}, "logIgnoredChannelIds", CodeInvalidID},
+		{"too many ignored channels", Config{LogIgnoredChannels: strings.TrimSuffix(strings.Repeat(goodID+",", LogIgnoredChannelsMax+1), ",")}, "logIgnoredChannelIds", CodeInvalidRange},
+		{"voice category", Config{VoiceCategoryID: "cat"}, "voiceCategoryId", CodeInvalidID},
+		{"voice name too long", Config{VoiceNameTemplate: strings.Repeat("x", VoiceNameMax+1)}, "voiceNameTemplate", CodeTooLong},
+		{"voice limit above max", Config{VoiceUserLimit: "100"}, "voiceUserLimit", CodeInvalidRange},
+		{"voice limit negative", Config{VoiceUserLimit: "-1"}, "voiceUserLimit", CodeInvalidRange},
+		{"voice limit signed", Config{VoiceUserLimit: "+5"}, "voiceUserLimit", CodeInvalidRange},
+		{"voice privacy unknown", Config{VoicePrivacyMode: "secret"}, "voicePrivacy", CodeInvalidChoice},
 		{"new toggle is validated too", Config{AutoRoleEnabled: "true"}, "autoRoleEnabled", CodeInvalidFlag},
 	}
 	for _, tc := range cases {

@@ -28,6 +28,19 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 - **LinkGuard:** cross-channel/cross-guild link-spread detection with deletions,
   distinct from Twitch's Sesame AutoMod gate.
 - **Identity:** applied per-guild bot appearance associated with account tier.
+- **Log category:** a toggleable class of audit log (messages, members, moderation,
+  channels, roles, server, voice) with its own enable flag; each may route to its
+  own **category channel**, falling back to the default log channel.
+- **Ignore list / ignore bots:** channels whose events are never logged, and a
+  switch that drops bot-authored events from message and member logs.
+- **Message cache:** 1h copy of a message (author, content, attachments, bot flag)
+  written by Message on MESSAGE_CREATE only while message logs are on, refreshed by
+  Logs on edit; delete and edit logs read it. **Member roles and labels** (nick,
+  channel, role and guild names) are cached 24h to compute before/after diffs.
+- **Voice occupancy:** one atomic Lua transition per voice-state event returning a
+  `VoiceMove` (from, to, left-empty); it fails closed (empty move) when the store errors.
+- **Temp voice room:** a join-to-create clone created only inside the configured category
+  (no category means no room), honouring the name template, user limit and privacy; capped per guild atomically at track time.
 - **Live/clip fact:** Twitch-derived input, not a Discord gateway dispatch.
 
 ## Code navigation
@@ -35,14 +48,15 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 | Change | Read first |
 | --- | --- |
 | Wiring, consumers and confirmed publication | [main.go](main.go): `confirmedPublisher`, `startIngressConsumers`, `startTwitchConsumers`, `verticalChecks` |
-| Dispatch and failure rules | [internal/dispatch/dispatch.go](internal/dispatch/dispatch.go): `Handle`, `handlersFor`, `publishRetry` |
-| Guild/broadcaster lookup and beta gate | [internal/resolve/resolve.go](internal/resolve/resolve.go): `ByGuild`, `ByBroadcaster`, `configOf`, `gateOpen` |
+| Dispatch and failure rules | [internal/dispatch/dispatch.go](internal/dispatch/dispatch.go): `Dedup`, `Handle`, `handlersFor`, `publishRetry` |
+| Guild/broadcaster lookup and beta gate | [internal/resolve/resolve.go](internal/resolve/resolve.go): `ByGuild`, `ByBroadcaster`, `configOf`, `gateClosed` |
 | Register handlers | [modules/all.go](modules/all.go), [module/module.go](module/module.go), [module/builder.go](module/builder.go), [internal/registry/registry.go](internal/registry/registry.go) |
 | Raw gateway payload slices/permissions | [internal/decode/decode.go](internal/decode/decode.go), [internal/cmd/cmd.go](internal/cmd/cmd.go) |
 | Welcome, messages and rank | [modules/welcome.go](modules/welcome.go), [message.go](modules/message.go), [rank.go](modules/rank.go) |
 | Slash moderation and staff checks | [modules/moderation.go](modules/moderation.go), [modules/staff_test.go](modules/staff_test.go) |
 | Ticket panel/lifecycle | [modules/ticket.go](modules/ticket.go), [shared ticket data](../../../internal/discordstore) |
-| Voice rooms | [modules/voice.go](modules/voice.go), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go) |
+| Voice rooms | [modules/voice.go](modules/voice.go), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go), [voice store](../../../internal/discordstore/store_voice.go) |
+| Audit logs and their caches | [modules/logs.go](modules/logs.go) (`logTo`, `logEvent`), [message.go](modules/message.go) (cache writes), [message store](../../../internal/discordstore/store_message.go) |
 | Link spread/invite exemption | [modules/linkguard.go](modules/linkguard.go), [linkguard_invite.go](modules/linkguard_invite.go), [internal/invitecache/invitecache.go](internal/invitecache/invitecache.go), [shared guard](../../../internal/domain/discord/linkguard) |
 | Twitch live/clip posts | [modules/live.go](modules/live.go), [clip.go](modules/clip.go), [internal/streaminfo/streaminfo.go](internal/streaminfo/streaminfo.go) |
 | Tier appearance | [modules/identity.go](modules/identity.go), [internal/identitystore/identitystore.go](internal/identitystore/identitystore.go) |
@@ -51,8 +65,12 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 ## Inputs, state and outputs
 
 Engine provisions `DISCORD_INGRESS` and binds the six explicit event subjects.
-`Dispatcher.Handle` decodes `Event`, resolves guild binding/master switch/Premium
-access and per-guild config, ensures desk behavior, runs interested handlers and
+`Dispatcher.Handle` is wrapped by `dispatch.Dedup`: the `msg.UUID` is claimed in a
+tiered LRU+Valkey store (`discord:ev:`, 2 min TTL) before anything runs, duplicates
+are acked unhandled, and a store error fails open with a warning and a metric.
+It then decodes `Event`, resolves guild binding/master switch/Premium
+access (`gateClosed` returns a drop reason, logged once per guild and reason)
+and per-guild config, ensures desk behavior, runs interested handlers and
 publishes collected commands. DMs/unbound/disabled/unknown-tier inputs resolve to
 no work. Config is sanitized on read; authoritative binding stamps `GuildID`.
 `ByBroadcaster` fans Twitch facts out to every connected, gated guild.

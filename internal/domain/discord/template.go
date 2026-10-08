@@ -3,7 +3,7 @@
 
 package discord
 
-const BotPermissions = 2 | 4 | 16 | 64 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 67108864 | 268435456 | 2147483648 | 1<<40
+const BotPermissions = 2 | 4 | 16 | 64 | 128 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 67108864 | 268435456 | 2147483648 | 1<<40
 
 const (
 	ChannelText       = 0
@@ -119,7 +119,7 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "VIP", Type: ChannelCategory, AllowRoles: VIPRoles, Bind: "vipcat"},
 		{Name: "vip-lounge", Type: ChannelText, Parent: "VIP", AllowRoles: VIPRoles, Topic: "VIP chat.", Bind: "vip"},
 
-		{Name: "Voice", Type: ChannelCategory},
+		{Name: "Voice", Type: ChannelCategory, Bind: "voicecat"},
 		{Name: "General", Type: ChannelVoice, Parent: "Voice"},
 		{Name: "Watchalong", Type: ChannelVoice, Parent: "Voice"},
 		{Name: "AFK", Type: ChannelVoice, Parent: "Voice"},

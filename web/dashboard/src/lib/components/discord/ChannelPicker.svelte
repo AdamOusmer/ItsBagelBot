@@ -16,7 +16,9 @@
     label,
     help,
     options,
-    prefix = ''
+    prefix = '',
+    required = '',
+    missing = false
   }: {
     draft: GuildDraft;
     invalid: RefusedFields;
@@ -25,6 +27,8 @@
     help: string;
     options: DiscordEntry[];
     prefix?: string;
+    required?: string;
+    missing?: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -63,6 +67,8 @@
   </div>
   {#if savedBlocked}
     <FieldNote {invalid} {field} warning={t('discord.savedChannelBlocked')} quiet={!currentBlocked} />
+  {:else if required}
+    <FieldNote {invalid} {field} warning={required} quiet={!missing} />
   {:else}
     <FieldNote {invalid} {field} />
   {/if}
