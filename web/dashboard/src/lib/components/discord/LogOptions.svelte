@@ -138,8 +138,8 @@
       />
     </div>
   {/key}
-  {#if full}
+  <span style:visibility={full ? 'visible' : 'hidden'} aria-hidden={!full}>
     <Text as="span" size="xs" tone="muted">{t('discord.channels.logIgnoredFull')}</Text>
-  {/if}
+  </span>
   <FieldNote invalid={draft.invalid} field="logIgnoredChannelIds" />
 </div>
