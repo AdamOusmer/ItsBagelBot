@@ -393,11 +393,14 @@ func deskCases() []setupCase {
 
 func configCases() []setupCase {
 	live123 := ddiscord.Config{LiveChannelID: "123"}
-	seeded := func() setupWorld { return setupWorld{rest: &fakeSetupREST{}, owners: boundG1, config: &live123} }
+	rest := func() *fakeSetupREST {
+		return &fakeSetupREST{channels: []discapi.Snowflake{{ID: "123"}, {ID: "456"}}}
+	}
+	seeded := func() setupWorld { return setupWorld{rest: rest(), owners: boundG1, config: &live123} }
 	notBound := outgressrpc.DiscordConfigSetReply{Error: setup.ErrNotBound.Error(), Code: outgressrpc.CodeNotBound}
 	return []setupCase{{
 		name:   "saves a config at version 1",
-		world:  setupWorld{rest: &fakeSetupREST{}, owners: boundG1},
+		world:  setupWorld{rest: rest(), owners: boundG1},
 		verb:   "discord.config.set",
 		req:    outgressrpc.DiscordConfigSetRequest{UserID: "b1", GuildID: "g1", Config: live123},
 		want:   outgressrpc.DiscordConfigSetReply{Version: 1},

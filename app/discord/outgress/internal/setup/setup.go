@@ -355,7 +355,7 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 	}
 }
 
-var livedInCreatable = map[string]bool{"voice": true, "logs": true, "ticketcat": true, "ticketarchive": true}
+var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": true, "ticketcat": true, "ticketarchive": true}
 
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
 	for _, spec := range ddiscord.CommunityChannels() {
@@ -555,6 +555,7 @@ func (out *GuildSetupResult) channelSlot(name string) *string {
 		"clips":         &out.ClipsChannelID,
 		"welcome":       &out.WelcomeChannelID,
 		"voice":         &out.VoiceHubID,
+		"voicecat":      &out.VoiceCategoryID,
 		"logs":          &out.LogChannelID,
 		"tickets":       &out.TicketChannelID,
 		"ticketcat":     &out.TicketCategoryID,
