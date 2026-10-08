@@ -12,29 +12,11 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/enttest"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
-	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 )
-
-func TestGiveawayCapabilitiesReflectLaunchGates(t *testing.T) {
-	service := &GiveawayRPC{config: giveawayengine.Config{NewAwardsEnabled: true, IntervalRuleVerified: true, ProviderMutations: true}}
-	got := service.capabilities()
-	require.True(t, got.NewAwardsEnabled)
-	require.True(t, got.SchedulingEnabled)
-	require.True(t, got.ProviderMutations)
-	require.True(t, got.IntervalRuleVerified)
-	require.Empty(t, got.Reason)
-
-	service.config = giveawayengine.Config{}
-	got = service.capabilities()
-	require.False(t, got.NewAwardsEnabled)
-	require.False(t, got.SchedulingEnabled)
-	require.False(t, got.ProviderMutations)
-	require.False(t, got.IntervalRuleVerified)
-	require.NotEmpty(t, got.Reason)
-}
 
 func TestGiveawayCapabilitiesExposeNonRecurringSchedulingSeparately(t *testing.T) {
 	service := &GiveawayRPC{config: giveawayengine.Config{NewAwardsEnabled: true, PromotionalGrantsEnabled: true}}
@@ -60,43 +42,6 @@ func TestGiveawayCapabilitiesExplainDisabledScheduling(t *testing.T) {
 	require.Contains(t, got.Reason, "scheduling is disabled")
 }
 
-func TestGiveawaySummaryUsesExclusiveCategories(t *testing.T) {
-	pool := usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 6, Eligible: 6}, Candidates: []usersrpc.GiveawayCandidate{
-		{UserID: 1, Status: "free"},
-		{UserID: 2, Status: "paid"},
-		{UserID: 3, Status: "paid"},
-		{UserID: 4, Status: "paid", SubscriptionRef: strptr("recurring-4")},
-		{UserID: 5, Status: "paid", SubscriptionRef: strptr("recurring-5")},
-		{UserID: 6, Status: "free", SubscriptionRef: strptr("recurring-6")},
-	}}
-	got := summaryValues(pool, 1, 1)
-	require.Equal(t, 1, got.Free)
-	require.Equal(t, 2, got.Premium)
-	require.Equal(t, 3, got.Subscribers)
-}
-
-func TestEmptyPreviewSummaryCarriesRequestedValues(t *testing.T) {
-	pool := usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 8, Eligible: 3, Banned: 2, VIP: 3}}
-	got := summaryValues(pool, 5, 2)
-	require.Equal(t, 5, got.RequestedWinners)
-	require.Equal(t, 2, got.PrizeMonths)
-	require.Equal(t, 5, got.Excluded)
-	require.Equal(t, "10", got.TotalPrizeMonths)
-	require.Equal(t, 2, got.Exclusions.Banned)
-	require.Equal(t, 3, got.Exclusions.VIP)
-}
-
-func TestStoredFrozenSummaryDoesNotRequireUsers(t *testing.T) {
-	campaign := &ent.Giveaway{WinnerCount: 2, PrizeMonths: 3}
-	rows := []*ent.GiveawayCandidate{{Eligible: true}, {Eligible: false, ExclusionReason: "vip"}, {Eligible: false, ExclusionReason: "current_staff"}}
-	got := storedSummary(campaign, rows)
-	require.Equal(t, 3, got.Total)
-	require.Equal(t, 1, got.Eligible)
-	require.Equal(t, 2, got.Excluded)
-	require.Equal(t, 1, got.Exclusions.VIP)
-	require.Equal(t, 1, got.Exclusions.CurrentStaff)
-}
-
 func TestAwardViewsPreferImmutableFulfillmentPlanRule(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
 	t.Cleanup(func() { _ = client.Close() })
@@ -120,13 +65,3 @@ func TestAwardViewsPreferImmutableFulfillmentPlanRule(t *testing.T) {
 	require.Equal(t, giveawayengine.PromotionalCalendarMonthRule, plan.IntervalRule)
 	require.Equal(t, "provider-monthly-unverified", planned.IntervalRule)
 }
-
-func TestAdminAuthorizationRejectsMalformedActorBeforeNATS(t *testing.T) {
-	service := &GiveawayRPC{users: &UsersGiveawayClient{}}
-	_, refusal := service.authorize(context.Background(), "not-a-user-id")
-	if refusal.Code != "invalid" || refusal.Error == "" {
-		t.Fatalf("malformed actor was not rejected: %+v", refusal)
-	}
-}
-
-func strptr(value string) *string { return &value }

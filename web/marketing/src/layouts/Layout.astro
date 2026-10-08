@@ -5,6 +5,7 @@
 import { SITE } from '@bagel/kit/site-links';
 
 import '../styles/style.css';
+import '@bagel/ui/styles/elements/fit.css';
 import '../lib/contentGuards';
 
 import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
@@ -33,7 +34,6 @@ import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro'
 import SkipLink from '@bagel/ui/astro/SkipLink.astro'
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro'
 import Cluster from '@bagel/ui/astro/Cluster.astro'
-import Text from '@bagel/ui/astro/Text.astro'
 import TextLink from '@bagel/ui/astro/TextLink.astro'
 import { OWNER_IGN, OWNER_PROFILE_URL } from '../owner';
 import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations, dashLoginHref, localeOptions } from '../i18n/ui';
@@ -150,7 +150,7 @@ const isActive = (href: string) =>
 const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
 const navContext = {
-    path: (path: string) => localizePath(path, lang),
+    path: (path: string, englishOnly?: boolean) => localizePath(path, englishOnly ? defaultLang : lang),
     label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
     langQuery,
     isActive,
@@ -292,12 +292,10 @@ const contentSecurityPolicy = [
         copyright="© 2026 ItsBagelBot"
         note={t('footer.note')}
     >
-        {isHome && <section class="colophon" slot="colophon">
-            <div class="colophon__owner" id="about">
-                <Text size="xs" class="colophon__line">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</Text>
-                <Text>{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</Text>
-            </div>
-        </section>}
+        {isHome && <div slot="colophon" id="about">
+            <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
+            <p><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></p>
+        </div>}
     </Footer>
     <Cursor/>
 
@@ -311,29 +309,32 @@ const contentSecurityPolicy = [
         import '../script/easter-egg';
     </script>
 
+    <script>
+        import { mountTextFit } from '@bagel/ui/lib/text-fit';
+
+        let disposeTextFit: (() => void) | null = null;
+
+        function teardownTextFit() {
+            disposeTextFit?.();
+            disposeTextFit = null;
+        }
+
+        function setupTextFit() {
+            teardownTextFit();
+            disposeTextFit = mountTextFit(document);
+        }
+
+        setupTextFit();
+        document.addEventListener('astro:page-load', setupTextFit);
+        document.addEventListener('astro:before-swap', teardownTextFit);
+        window.addEventListener('pagehide', teardownTextFit);
+    </script>
+
 </body>
 </html>
 
 <style>
     main {
         display: contents;
-    }
-
-    .colophon {
-        position: relative;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding: 28px var(--bb-space-5);
-        border-top: 1px solid var(--bb-border);
-        text-align: center;
-    }
-
-    .colophon__owner {
-        max-width: 760px;
-        margin: 0 auto;
-    }
-
-    .colophon__line {
-        margin: 0 0 var(--bb-space-2);
     }
 </style>

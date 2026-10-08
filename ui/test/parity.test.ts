@@ -726,9 +726,9 @@ const REMAINING: {
       LIGHT_FIELD +
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
-      '<span class="bb-page-hero__eyebrow">Pricing</span>' +
-      '<h1 class="bb-page-hero__title" data-decode="Simple pricing">Simple pricing</h1>' +
-      '<p class="bb-page-hero__desc">One plan.</p></div></header>',
+      '<span class="bb-page-hero__eyebrow"><span data-fit>Pricing</span></span>' +
+      '<h1 class="bb-page-hero__title"><span data-fit="block" data-decode="Simple pricing">Simple pricing</span></h1>' +
+      '<p class="bb-page-hero__desc"><span data-fit="block">One plan.</span></p></div></header>',
   },
   {
     name: 'PageHero: title only',
@@ -740,7 +740,7 @@ const REMAINING: {
       LIGHT_FIELD +
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
-      '<h1 class="bb-page-hero__title" data-decode="Contact">Contact</h1></div></header>',
+      '<h1 class="bb-page-hero__title"><span data-fit="block" data-decode="Contact">Contact</span></h1></div></header>',
   },
   {
     name: 'SectionHeading: left with eyebrow',
@@ -750,8 +750,8 @@ const REMAINING: {
     html:
       '<div class="bb-section-heading bb-section-heading--left">' +
       '<div class="bb-section-heading__meta" data-reveal>' +
-      '<span class="bb-section-heading__eyebrow">Safety</span></div>' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1">Layers</h2></div>',
+      '<span class="bb-section-heading__eyebrow"><span data-fit>Safety</span></span></div>' +
+      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Layers</span></h2></div>',
   },
   {
     name: 'SectionHeading: bare',
@@ -760,7 +760,7 @@ const REMAINING: {
     props: { title: 'Games' },
     html:
       '<div class="bb-section-heading bb-section-heading--center">' +
-      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1">Games</h2></div>',
+      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1"><span data-fit="block">Games</span></h2></div>',
   },
   {
     name: 'TextLink: default',
@@ -1254,7 +1254,7 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\">Live</button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\"><span data-fit>All</span></button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\"><span data-fit>Live</span></button></div>",
   },
   {
     name: "RadioGroup",

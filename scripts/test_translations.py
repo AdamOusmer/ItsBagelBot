@@ -73,8 +73,8 @@ class Fixture(unittest.TestCase):
         for message in messages:
             self.assertIn(message, output)
 
-    def assertFails(self, *messages, strict=()):
-        code, output = run(t.check, self.root, strict)
+    def assertFails(self, *messages, strict=(), strict_catalogs=()):
+        code, output = run(t.check, self.root, strict, False, strict_catalogs)
         self.assertEqual(code, 1, output)
         self.assertOutput(output, *messages)
         return output
@@ -173,6 +173,18 @@ class TreeLayout(Fixture):
 
     def test_unknown_strict_locale_fails(self):
         self.assertFails('unknown strict locale: de', strict=['de'])
+
+    def test_strict_catalogs_requires_catalogs_but_not_long_form_content(self):
+        docs = self.root / 'web/docs/src/content/docs'
+        docs.mkdir(parents=True)
+        (docs / 'index.md').write_text('English docs page')
+        code, output = run(t.check, self.root, (), False, ['fr'])
+        self.assertEqual(code, 0, output)
+        self.assertNotIn('ERROR docs fr', output)
+        (self.root / 'locales/fr/console/admin/users.json').unlink()
+        output = self.assertFails('locales/fr/console/admin/users.json: 1 missing (complete locale required)',
+                                   strict_catalogs=['fr'])
+        self.assertNotIn('ERROR docs fr', output)
 
     def test_manifest_and_embed_are_the_only_top_level_files(self):
         write(self.root, 'locales/.DS_Store', '')

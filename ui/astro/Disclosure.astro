@@ -25,4 +25,4 @@ const classes = [
     .join(' ');
 ---
 
-<details class={classes} open={open} {...rest}><summary class="bb-disclosure__summary">{index && <span class="bb-disclosure__index" aria-hidden="true">{index}</span>}<span class="bb-disclosure__label">{summary}</span><span class="bb-disclosure__icon" aria-hidden="true"></span></summary><div class="bb-disclosure__body"><div class="bb-disclosure__content"><slot /></div></div></details>
+<details class={classes} open={open} {...rest}><summary class="bb-disclosure__summary">{index && <span class="bb-disclosure__index" aria-hidden="true">{index}</span>}<span class="bb-disclosure__label"><span data-fit="block">{summary}</span></span><span class="bb-disclosure__icon" aria-hidden="true"></span></summary><div class="bb-disclosure__body"><div class="bb-disclosure__content"><slot /></div></div></details>

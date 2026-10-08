@@ -1,5 +1,5 @@
 {
   "name": "Account age",
   "hint": "how old their Twitch account is (Account age module)",
-  "desc": "How old their Twitch account is. {accountage:alex} asks about someone else. Needs the Account age module."
+  "desc": "How old their Twitch account is. {accountage:MikanMeerkat} asks about someone else. Needs the Account age module."
 }

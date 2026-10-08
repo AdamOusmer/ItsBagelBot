@@ -7,23 +7,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func chattersTestClient(transport roundTripFunc) *Client {
 	c := NewClient("client", &Source{token: "app-token", expires: time.Now().Add(time.Hour)}, &Source{token: "bot-token", expires: time.Now().Add(time.Hour)}, nil)
 	c.SetTransport(transport)
 	return c
-}
-func chatterResponse(status int, body string) *http.Response {
-	return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}
 }
 
 func TestChattersPageBindsTenantAndBotToken(t *testing.T) {
@@ -38,7 +34,7 @@ func TestChattersPageBindsTenantAndBotToken(t *testing.T) {
 		require.Equal(t, "Bearer bot-token", req.Header.Get("Authorization"))
 		require.Equal(t, "client", req.Header.Get("Client-Id"))
 
-		return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%s","user_login":"alice"}],"pagination":{"cursor":"next"}}`, broadcaster)), nil
+		return respond(200, fmt.Sprintf(`{"data":[{"user_id":"%s","user_login":"alice"}],"pagination":{"cursor":"next"}}`, broadcaster)), nil
 	})
 	for _, id := range []string{"123", "789"} {
 		broadcaster = id
@@ -65,7 +61,7 @@ func numberedChatterPage(t *testing.T, req *http.Request, total int) *http.Respo
 	if page == total {
 		next = "{}"
 	}
-	return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%d","user_login":"viewer"}],"pagination":%s}`, page, next))
+	return respond(200, fmt.Sprintf(`{"data":[{"user_id":"%d","user_login":"viewer"}],"pagination":%s}`, page, next))
 }
 func TestChattersContinuesBeyondThirtyPages(t *testing.T) {
 	calls := 0
@@ -84,7 +80,7 @@ func TestChattersConvenienceListingReportsTruncation(t *testing.T) {
 	calls := 0
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
 		calls++
-		return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%d"}],"pagination":{"cursor":"%d"}}`, calls, calls)), nil
+		return respond(200, fmt.Sprintf(`{"data":[{"user_id":"%d"}],"pagination":{"cursor":"%d"}}`, calls, calls)), nil
 	})
 	list, err := c.GetChatters(t.Context(), "123", "456")
 	require.True(t, errors.Is(err, ErrChattersIncomplete))
@@ -94,7 +90,7 @@ func TestChattersConvenienceListingReportsTruncation(t *testing.T) {
 
 func TestChattersRepeatedCursorRefused(t *testing.T) {
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
-		return chatterResponse(200, `{"data":[],"pagination":{"cursor":"same"}}`), nil
+		return respond(200, `{"data":[],"pagination":{"cursor":"same"}}`), nil
 	})
 	_, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: "same"})
 	require.True(t, errors.Is(err, ErrRepeatedCursor))
@@ -105,9 +101,9 @@ func TestChattersChargesEveryAttemptIncluding401Retry(t *testing.T) {
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
 		calls++
 		if calls == 1 {
-			return chatterResponse(401, `{"message":"invalid token"}`), nil
+			return respond(401, `{"message":"invalid token"}`), nil
 		}
-		return chatterResponse(200, `{"data":[],"pagination":{}}`), nil
+		return respond(200, `{"data":[],"pagination":{}}`), nil
 	})
 	c.user.refresh = func(context.Context) (string, time.Duration, error) { return "renewed", time.Hour, nil }
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error { admitted++; return nil })
@@ -121,7 +117,7 @@ func TestChattersRetryAdmissionDenialPreventsSecondHTTP(t *testing.T) {
 	calls, admitted := 0, 0
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
 		calls++
-		return chatterResponse(401, `{"message":"invalid token"}`), nil
+		return respond(401, `{"message":"invalid token"}`), nil
 	})
 	c.user.refresh = func(context.Context) (string, time.Duration, error) { return "renewed", time.Hour, nil }
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error {
@@ -141,7 +137,7 @@ func TestChattersRetryAdmissionDenialPreventsSecondHTTP(t *testing.T) {
 func TestChatters429PreservesProviderReset(t *testing.T) {
 	reset := time.Now().Add(time.Minute).Truncate(time.Second)
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
-		r := chatterResponse(429, `{}`)
+		r := respond(429, `{}`)
 		r.Header.Set("Ratelimit-Reset", strconv.FormatInt(reset.Unix(), 10))
 		return r, nil
 	})
@@ -158,7 +154,7 @@ func TestChattersExpiredContextDoesNotSpendOrCallHTTP(t *testing.T) {
 	calls, admitted := 0, 0
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
 		calls++
-		return chatterResponse(200, `{"data":[],"pagination":{}}`), nil
+		return respond(200, `{"data":[],"pagination":{}}`), nil
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -176,7 +172,7 @@ func TestChattersFreshLiveReadUsesAppTokenAndAdmission(t *testing.T) {
 		require.Equal(t, "123", req.URL.Query().Get("user_id"))
 		require.Equal(t, "Bearer app-token", req.Header.Get("Authorization"))
 
-		return chatterResponse(200, `{"data":[{"type":"live"}]}`), nil
+		return respond(200, `{"data":[{"type":"live"}]}`), nil
 	})
 	ctx := WithAttemptAdmission(t.Context(), func(_ context.Context, endpoint string) error {
 		admitted++
@@ -193,7 +189,7 @@ func TestChattersFreshLiveReadUsesAppTokenAndAdmission(t *testing.T) {
 func TestChattersRejectsMalformedSuccessEnvelope(t *testing.T) {
 	for _, body := range []string{`{}`, `{"data":[]}`, `{"pagination":{}}`, `{"data":null,"pagination":{}}`, `{"data":[],"pagination":null}`, `{"data":{},"pagination":{}}`, `{"data":[],"pagination":[]}`} {
 		t.Run(body, func(t *testing.T) {
-			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return chatterResponse(200, body), nil })
+			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return respond(200, body), nil })
 			{
 				_, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 				require.Error(t, err)
@@ -218,7 +214,7 @@ func TestReadyCredentialsRevalidateAdmissionBeforeHTTP(t *testing.T) {
 			var revoked atomic.Bool
 			c.SetTransport(roundTripFunc(func(*http.Request) (*http.Response, error) {
 				calls++
-				return chatterResponse(200, `{"data":[],"pagination":{}}`), nil
+				return respond(200, `{"data":[],"pagination":{}}`), nil
 			}))
 			ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error {
 				admissions++
@@ -283,7 +279,7 @@ func TestStreamSessionReturnsProviderIdentityAndValidatesBinding(t *testing.T) {
 		{`{"data":null}`, true},
 	} {
 		t.Run(tc.body, func(t *testing.T) {
-			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return chatterResponse(200, tc.body), nil })
+			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return respond(200, tc.body), nil })
 			id, started, live, err := c.StreamSession(t.Context(), "123")
 			if tc.invalid {
 				require.NotEqual(t, nil, err)
@@ -309,7 +305,7 @@ func TestChattersAuthorizationReasons(t *testing.T) {
 		{"unexpected body", 401, `{"message":"unexpected-secret-provider-content"}`, "", "bot token is not authorized to read chatters"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := decodeChattersPage(chatterResponse(tc.status, tc.body))
+			_, _, err := decodeChattersPage(respond(tc.status, tc.body))
 			var failure *ChatterAuthorizationError
 			require.ErrorAs(t, err, &failure)
 			require.ErrorIs(t, err, ErrMissingScope)
@@ -334,10 +330,10 @@ func TestChattersAdoptsReauthorizedBotTokenAfterMissingScope(t *testing.T) {
 	client.SetTransport(roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests++
 		if req.Header.Get("Authorization") == "Bearer under-scoped" {
-			return chatterResponse(401, `{"message":"Missing scope: moderator:read:chatters"}`), nil
+			return respond(401, `{"message":"Missing scope: moderator:read:chatters"}`), nil
 		}
 		require.Equal(t, "Bearer reauthorized", req.Header.Get("Authorization"))
-		return chatterResponse(200, `{"data":[{"user_id":"viewer","user_login":"viewer"}],"pagination":{}}`), nil
+		return respond(200, `{"data":[{"user_id":"viewer","user_login":"viewer"}],"pagination":{}}`), nil
 	}))
 	request := ChattersPageRequest{BroadcasterID: "channel", ModeratorID: "bot"}
 	_, err := client.GetChattersPage(t.Context(), request)

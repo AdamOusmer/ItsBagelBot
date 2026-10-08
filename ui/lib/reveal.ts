@@ -9,11 +9,13 @@ const REVEALED = 'is-revealed';
 export type RevealOptions = {
     rootMargin?: string;
     threshold?: number;
+    instant?: boolean;
 };
 
 const DEFAULTS: Required<RevealOptions> = {
     rootMargin: '0px 0px -10% 0px',
     threshold: 0.08,
+    instant: false,
 };
 
 function onIntersect(entries: IntersectionObserverEntry[], observer: IntersectionObserver): void {
@@ -31,13 +33,17 @@ function targetsIn(root: ParentNode): HTMLElement[] {
     return found.filter((el) => el.dataset.revealReady !== 'true');
 }
 
+function revealsInstantly(instant: boolean): boolean {
+    return instant || prefersReducedMotion() || typeof IntersectionObserver === 'undefined';
+}
+
 function onScreen(el: HTMLElement): boolean {
     const rect = el.getBoundingClientRect();
     return rect.top < window.innerHeight && rect.bottom > 0;
 }
 
 export function observeReveal(root: ParentNode, options: RevealOptions = {}): () => void {
-    const { rootMargin, threshold } = { ...DEFAULTS, ...options };
+    const { rootMargin, threshold, instant } = { ...DEFAULTS, ...options };
     const targets = targetsIn(root);
     for (const el of targets) el.dataset.revealReady = 'true';
 
@@ -45,7 +51,7 @@ export function observeReveal(root: ParentNode, options: RevealOptions = {}): ()
         for (const el of targets) delete el.dataset.revealReady;
     };
 
-    if (prefersReducedMotion() || typeof IntersectionObserver === 'undefined') {
+    if (revealsInstantly(instant)) {
         for (const el of targets) el.classList.add(REVEALED);
         return release;
     }

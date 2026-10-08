@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.7-beta",
+  "date": "2026-10-05",
+  "title": {
+    "en": "More Languages, Command Permissions and Smarter Timers",
+    "fr": "Plus de langues, permissions des commandes et minuteurs plus malins"
+  },
+  "highlights": {
+    "en": [
+      "The site and dashboard now speak Spanish, Brazilian Portuguese, German and Russian, with a language switcher that remembers your choice.",
+      "Built-in commands can have custom permissions, and per-viewer cooldowns carry over from StreamElements imports.",
+      "Timers gain a sliding chat window and a live-only toggle.",
+      "Song requests verify the title, artist and link, keep the queue correct after skips, and read Spotify less often.",
+      "Chat reactions follow the channel's language, and loyalty counters keep their windows through outages.",
+      "Timers stay armed when Twitch sends a late offline event, and Valorant commands find the right account again.",
+      "The dashboard loads faster from the edge, stats counters hold steady while rates tick, and the site works better on phones."
+    ],
+    "fr": [
+      "Le site et le tableau de bord sont maintenant disponibles en espagnol, portugais brésilien, allemand et russe, avec un sélecteur de langue qui retient votre choix.",
+      "Les commandes intégrées acceptent des permissions personnalisées, et les délais par spectateur sont conservés lors des importations StreamElements.",
+      "Les minuteurs ajoutent une fenêtre de chat glissante et une option pour ne tourner qu'en direct.",
+      "Les demandes de chansons vérifient le titre, l'artiste et le lien, gardent la file correcte après un passage et interrogent Spotify moins souvent.",
+      "Les réactions du chat suivent la langue de la chaîne, et les compteurs de fidélité conservent leurs fenêtres pendant les pannes.",
+      "Les minuteurs restent actifs quand Twitch envoie un événement hors ligne en retard, et les commandes Valorant retrouvent le bon compte.",
+      "Le tableau de bord se charge plus vite depuis l'edge, les compteurs de statistiques restent stables pendant que les taux défilent, et le site s'adapte mieux aux téléphones."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.7-beta"
+}

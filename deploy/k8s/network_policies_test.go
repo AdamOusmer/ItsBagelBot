@@ -5,16 +5,16 @@ package k8s
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
-	"io"
+	"io/fs"
 	"os"
-	"reflect"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,12 +24,9 @@ const (
 )
 
 type networkPolicyManifest struct {
-	Kind     string `yaml:"kind"`
-	Metadata struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	} `yaml:"metadata"`
-	Spec struct {
+	Kind     string     `yaml:"kind"`
+	Metadata objectMeta `yaml:"metadata"`
+	Spec     struct {
 		PodSelector labelSelector `yaml:"podSelector"`
 		PolicyTypes []string      `yaml:"policyTypes"`
 		Ingress     []policyRule  `yaml:"ingress"`
@@ -75,147 +72,28 @@ func loadNetworkPolicies(t *testing.T, path string) map[string]networkPolicyMani
 	return policies
 }
 
-func decodeFile[T any](t *testing.T, path string) []T {
-	t.Helper()
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	var out []T
-	decoder := yaml.NewDecoder(f)
-	for {
-		var manifest T
-		err := decoder.Decode(&manifest)
-		if errors.Is(err, io.EOF) {
-			return out
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		out = append(out, manifest)
-	}
-}
-
-func selectedApps(t *testing.T, policy networkPolicyManifest) []string {
-	t.Helper()
-	for _, expression := range policy.Spec.PodSelector.MatchExpressions {
-		if expression.Key == "app" {
-			apps := slices.Clone(expression.Values)
-			slices.Sort(apps)
-			return apps
-		}
-	}
-	t.Fatal("policy has no app selector")
-	return nil
-}
-
-func sorted(values ...string) []string {
-	slices.Sort(values)
-	return values
-}
-
 func requirePolicy(t *testing.T, policies map[string]networkPolicyManifest, name string) networkPolicyManifest {
 	t.Helper()
 	policy, ok := policies[name]
-	if !ok {
-		t.Fatalf("%s policy is missing", name)
-	}
+	require.True(t, ok, "%s policy is missing", name)
 	return policy
 }
 
-func policyHasPort(policy networkPolicyManifest, target int) bool {
-	for _, rule := range policy.Spec.Egress {
-		for _, port := range rule.Ports {
-			if port.Port == target {
-				return true
-			}
+func (p networkPolicyManifest) selectedApps(t *testing.T) []string {
+	t.Helper()
+	for _, expression := range p.Spec.PodSelector.MatchExpressions {
+		if expression.Key == "app" {
+			return sorted(slices.Clone(expression.Values)...)
 		}
 	}
-	return false
+	require.Fail(t, "policy has no app selector", p.Metadata.Name)
+	return nil
 }
 
-func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
-	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
-	if !slices.Contains(selectedApps(t, base), "notifications-cleanup") {
-		t.Fatal("notifications cleanup job escaped the default-deny policy")
-	}
-	if policyHasPort(base, 443) {
-		t.Fatal("default policy grants blanket external port 443")
-	}
-	if policyHasPort(base, 3306) {
-		t.Fatal("default policy grants blanket external port 3306")
-	}
-}
-
-func TestPublicHTTPSEgressAllowlist(t *testing.T) {
-	publicHTTPS := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "allow-public-https")
-	wantHTTPS := sorted("commands", "console-admin", "console-dashboard", "discord-ingress", "discord-outgress", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users")
-	if got := selectedApps(t, publicHTTPS); !slices.Equal(got, wantHTTPS) {
-		t.Fatalf("public HTTPS allowlist = %v, want %v", got, wantHTTPS)
-	}
-}
-
-func TestHeatWaveEgressAllowlist(t *testing.T) {
-	heatwave := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "allow-heatwave")
-	wantHeatWave := sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users")
-	if got := selectedApps(t, heatwave); !slices.Equal(got, wantHeatWave) {
-		t.Fatalf("HeatWave allowlist = %v, want %v", got, wantHeatWave)
-	}
-	if len(heatwave.Spec.Egress) != 1 {
-		t.Fatal("HeatWave policy must have exactly one egress rule")
-	}
-	var got []string
-	for _, to := range heatwave.Spec.Egress[0].To {
-		if to.IPBlock == nil {
-			t.Fatal("HeatWave egress destinations must all be ipBlocks")
-		}
-		got = append(got, to.IPBlock.CIDR)
-	}
-	want := sorted("204.216.107.73/32")
-	if !slices.Equal(sorted(got...), want) {
-		t.Fatalf("HeatWave egress CIDRs = %v, want %v", got, want)
-	}
-}
-
-func TestDBNamespaceCoversEveryDataService(t *testing.T) {
-	policies := loadNetworkPolicies(t, dbPolicies)
-	want := map[string][]string{
-		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
-			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
-		"allow-probe-ports": sorted("commands", "discord-data", "loyalty", "modules", "notifications",
-			"notifications-cleanup", "projector", "transactions", "users"),
-		"allow-public-https": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
-			"modules", "notifications", "projector", "transactions", "users"),
-		"allow-heatwave": sorted("backup-mysql", "commands", "discord-data", "loyalty", "modules",
-			"notifications", "transactions", "users"),
-	}
-	for name, apps := range want {
-		if got := selectedApps(t, requirePolicy(t, policies, name)); !slices.Equal(got, apps) {
-			t.Fatalf("%s selector = %v, want %v", name, got, apps)
-		}
-	}
-}
-
-func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
-	base := requirePolicy(t, loadNetworkPolicies(t, dbPolicies), "default-deny-db")
-	var namespaces []string
-	for _, rule := range base.Spec.Egress {
-		for _, to := range rule.To {
-			if to.NamespaceSelector != nil {
-				namespaces = append(namespaces, to.NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"])
-			}
-		}
-	}
-	for _, want := range []string{"kube-system", "db", "messaging", "cache"} {
-		if !slices.Contains(namespaces, want) {
-			t.Fatalf("default-deny-db has no egress to %s, got %v", want, namespaces)
-		}
-	}
-	if policyHasPort(base, 443) || policyHasPort(base, 3306) {
-		t.Fatal("default-deny-db must grant neither blanket 443 nor blanket 3306")
-	}
+func (p networkPolicyManifest) grantsEgressPort(target int) bool {
+	return slices.ContainsFunc(p.Spec.Egress, func(rule policyRule) bool {
+		return slices.ContainsFunc(rule.Ports, func(port policyPort) bool { return port.Port == target })
+	})
 }
 
 func (s *labelSelector) render() string {
@@ -240,20 +118,113 @@ func ruleSummary(rules []policyRule) []string {
 		if len(peers) == 0 {
 			peers = []policyPeer{{}}
 		}
-		ports := renderPorts(rule.Ports)
+		ports := make([]string, len(rule.Ports))
+		for i, port := range rule.Ports {
+			ports[i] = fmt.Sprintf("%d/%s", port.Port, cmp.Or(port.Protocol, "TCP"))
+		}
 		for _, peer := range peers {
-			out = append(out, peer.NamespaceSelector.render()+" | "+peer.PodSelector.render()+" | "+ports)
+			out = append(out, peer.NamespaceSelector.render()+" | "+peer.PodSelector.render()+" | "+strings.Join(ports, ","))
 		}
 	}
 	return out
 }
 
-func renderPorts(ports []policyPort) string {
-	out := make([]string, len(ports))
-	for i, port := range ports {
-		out[i] = fmt.Sprintf("%d/%s", port.Port, cmp.Or(port.Protocol, "TCP"))
+func TestLockedNamespacesDenyByDefault(t *testing.T) {
+	for _, namespace := range []string{"cache", "cert-manager", "keda", "networking", "observability", "tailscale"} {
+		t.Run(namespace, func(t *testing.T) {
+			policy := requirePolicy(t, loadNetworkPolicies(t, "../"+namespace+"/network-policies.yaml"), "default-deny-"+namespace)
+
+			assert.Empty(t, policy.Spec.PodSelector.render(), "default-deny-%s must select every pod", namespace)
+			assert.Equal(t, sorted("Egress", "Ingress"), sorted(policy.Spec.PolicyTypes...))
+		})
 	}
-	return strings.Join(out, ",")
+}
+
+func TestOperatorsPoliciesCoverBothDirections(t *testing.T) {
+	policies := loadNetworkPolicies(t, "../operators/network-policies.yaml")
+	for _, name := range []string{"doppler-operator", "cloudflared"} {
+		assert.Equal(t, sorted("Egress", "Ingress"), sorted(requirePolicy(t, policies, name).Spec.PolicyTypes...), name)
+	}
+}
+
+func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
+	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
+
+	assert.Contains(t, base.selectedApps(t), "notifications-cleanup", "notifications cleanup job escaped the default-deny policy")
+	assert.False(t, base.grantsEgressPort(443), "default policy grants blanket external port 443")
+	assert.False(t, base.grantsEgressPort(3306), "default policy grants blanket external port 3306")
+}
+
+func TestAppEgressAllowlists(t *testing.T) {
+	tests := []struct {
+		name      string
+		policy    string
+		wantApps  []string
+		wantCIDRs []string
+	}{
+		{
+			name: "TestPublicHTTPSEgressAllowlist", policy: "allow-public-https",
+			wantApps: sorted("commands", "console-admin", "console-dashboard", "discord-ingress", "discord-outgress", "gossip", "loyalty", "modules",
+				"notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
+		},
+		{
+			name: "TestHeatWaveEgressAllowlist", policy: "allow-heatwave",
+			wantApps:  sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users"),
+			wantCIDRs: sorted("204.216.107.73/32"),
+		},
+	}
+	policies := loadNetworkPolicies(t, appPolicies)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := requirePolicy(t, policies, tc.policy)
+
+			assert.Equal(t, tc.wantApps, policy.selectedApps(t))
+			if tc.wantCIDRs == nil {
+				return
+			}
+			require.Len(t, policy.Spec.Egress, 1, "%s must have exactly one egress rule", tc.policy)
+			var cidrs []string
+			for _, to := range policy.Spec.Egress[0].To {
+				require.NotNil(t, to.IPBlock, "%s egress destinations must all be ipBlocks", tc.policy)
+				cidrs = append(cidrs, to.IPBlock.CIDR)
+			}
+			assert.Equal(t, tc.wantCIDRs, sorted(cidrs...))
+		})
+	}
+}
+
+func TestDBNamespaceCoversEveryDataService(t *testing.T) {
+	policies := loadNetworkPolicies(t, dbPolicies)
+	want := map[string][]string{
+		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
+			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
+		"allow-probe-ports": sorted("commands", "discord-data", "loyalty", "modules", "notifications",
+			"notifications-cleanup", "projector", "transactions", "users"),
+		"allow-public-https": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
+			"modules", "notifications", "projector", "transactions", "users"),
+		"allow-heatwave": sorted("backup-mysql", "commands", "discord-data", "loyalty", "modules",
+			"notifications", "transactions", "users"),
+	}
+	for name, apps := range want {
+		assert.Equal(t, apps, requirePolicy(t, policies, name).selectedApps(t), "%s selector", name)
+	}
+}
+
+func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
+	base := requirePolicy(t, loadNetworkPolicies(t, dbPolicies), "default-deny-db")
+	var namespaces []string
+	for _, rule := range base.Spec.Egress {
+		for _, to := range rule.To {
+			if to.NamespaceSelector != nil {
+				namespaces = append(namespaces, to.NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"])
+			}
+		}
+	}
+
+	for _, want := range []string{"kube-system", "db", "messaging", "cache"} {
+		assert.Contains(t, namespaces, want, "default-deny-db has no egress to %s", want)
+	}
+	assert.False(t, base.grantsEgressPort(443) || base.grantsEgressPort(3306), "default-deny-db must grant neither blanket 443 nor blanket 3306")
 }
 
 func TestDeployerPoliciesAreExact(t *testing.T) {
@@ -266,7 +237,8 @@ func TestDeployerPoliciesAreExact(t *testing.T) {
 		got[name+" ingress"] = ruleSummary(policy.Spec.Ingress)
 		got[name+" egress"] = ruleSummary(policy.Spec.Egress)
 	}
-	want := map[string][]string{
+
+	assert.Equal(t, map[string][]string{
 		"deployer selects": {"ops app in deployer"},
 		"deployer types":   {"Ingress", "Egress"},
 		"deployer ingress": {"any | any | 8080/TCP"},
@@ -276,19 +248,13 @@ func TestDeployerPoliciesAreExact(t *testing.T) {
 		"allow-deployer types":   {"Ingress"},
 		"allow-deployer ingress": {"kubernetes.io/metadata.name=ops | app=deployer | 4222/TCP,8222/TCP"},
 		"allow-deployer egress":  nil,
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("deployer network policies:\n got %v\nwant %v", got, want)
-	}
+	}, got)
 }
 
 type ciliumNetworkPolicy struct {
-	Kind     string `yaml:"kind"`
-	Metadata struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	} `yaml:"metadata"`
-	Spec struct {
+	Kind     string     `yaml:"kind"`
+	Metadata objectMeta `yaml:"metadata"`
+	Spec     struct {
 		EndpointSelector labelSelector      `yaml:"endpointSelector"`
 		Ingress          []any              `yaml:"ingress"`
 		Egress           []ciliumEgressRule `yaml:"egress"`
@@ -351,39 +317,71 @@ func (r ciliumEgressRule) ports() string {
 	return strings.Join(out, ",")
 }
 
-func deployerCiliumPolicy(t *testing.T) ciliumNetworkPolicy {
-	t.Helper()
-	for _, manifest := range decodeFile[ciliumNetworkPolicy](t, deployerManifest) {
-		if manifest.Kind == "CiliumNetworkPolicy" {
-			return manifest
-		}
-	}
-	t.Fatal("deployer.yaml has no CiliumNetworkPolicy")
-	return ciliumNetworkPolicy{}
+func (r ciliumEgressRule) usesDNSProxy() bool {
+	return len(r.ToFQDNs) > 0 || strings.Contains(r.ports(), "l7")
 }
 
-// Any toFQDNs peer or L7 rule routes lookups through Cilium's DNS proxy, which
-// never answers on these nodes: the deployer then resolves nothing.
-func TestDeployerCiliumEgressAvoidsTheDNSProxy(t *testing.T) {
-	policy := deployerCiliumPolicy(t)
-	var got []string
-	for _, rule := range policy.Spec.Egress {
-		ports := rule.ports()
-		for _, peer := range rule.peers() {
-			got = append(got, peer+" | "+ports)
+func ciliumPolicies(t *testing.T, path string) []ciliumNetworkPolicy {
+	t.Helper()
+	var out []ciliumNetworkPolicy
+	for _, manifest := range decodeFile[ciliumNetworkPolicy](t, path) {
+		if manifest.Kind == "CiliumNetworkPolicy" {
+			out = append(out, manifest)
 		}
 	}
-	slices.Sort(got)
-	want := sorted(
+	return out
+}
+
+func (p ciliumNetworkPolicy) egressPeers() []string {
+	var out []string
+	for _, rule := range p.Spec.Egress {
+		for _, peer := range rule.peers() {
+			out = append(out, peer+" | "+rule.ports())
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+func TestDeployerCiliumEgressAvoidsTheDNSProxy(t *testing.T) {
+	policies := ciliumPolicies(t, deployerManifest)
+	require.NotEmpty(t, policies, "deployer.yaml has no CiliumNetworkPolicy")
+	policy := policies[0]
+
+	assert.Equal(t, sorted(
 		"endpoints k8s:io.kubernetes.pod.namespace=kube-system;k8s:k8s-app=kube-dns | 53/UDP,53/TCP",
 		"entity kube-apiserver | 6443/TCP",
 		"entity world | 443/TCP",
-	)
-	scope := policy.Metadata.Namespace + " " + policy.Spec.EndpointSelector.render()
-	if !slices.Equal(got, want) || scope != "ops app=deployer" {
-		t.Fatalf("deployer Cilium egress (%s):\n got %v\nwant %v", scope, got, want)
-	}
-	if len(policy.Spec.Ingress) != 0 {
-		t.Fatal("deployer-egress must stay egress-only; ingress lives in the deployer NetworkPolicy")
+	), policy.egressPeers(), "any toFQDNs peer or L7 rule routes lookups through Cilium's DNS proxy, which never answers on these nodes")
+	assert.Equal(t, "ops app=deployer", policy.Metadata.Namespace+" "+policy.Spec.EndpointSelector.render())
+	assert.Empty(t, policy.Spec.Ingress, "deployer-egress must stay egress-only; ingress lives in the deployer NetworkPolicy")
+}
+
+func isYAMLFile(d fs.DirEntry) bool { return !d.IsDir() && strings.HasSuffix(d.Name(), ".yaml") }
+
+func ciliumPolicyFiles(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	err := filepath.WalkDir("..", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !isYAMLFile(d) {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		if strings.Contains(string(body), "kind: CiliumNetworkPolicy") {
+			out = append(out, path)
+		}
+		return err
+	})
+	require.NoError(t, err)
+	return out
+}
+
+func TestNoPolicyUsesTheCiliumDNSProxy(t *testing.T) {
+	for _, path := range ciliumPolicyFiles(t) {
+		for _, policy := range ciliumPolicies(t, path) {
+			for _, rule := range policy.Spec.Egress {
+				assert.False(t, rule.usesDNSProxy(), "%s: %s routes DNS through the Cilium proxy", path, policy.Metadata.Name)
+			}
+		}
 	}
 }

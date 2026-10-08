@@ -2,8 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { beforeEach, expect, mock, test } from 'bun:test';
+import { stubSvelteKit } from '../../../../test/sveltekit';
 
-class RpcError extends Error {}
+stubSvelteKit();
 
 let rpcFail: (subject: string) => Error | null = () => null;
 let commandFail: (name: string) => Error | null = () => null;
@@ -12,7 +13,9 @@ let modulesDown = false;
 let patches: { configs: { timers: Record<string, unknown>[] } }[] = [];
 let upserted: Record<string, unknown>[] = [];
 
+const { RpcError, ...nats } = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
   RpcError,
   rpc: async (subject: string, payload?: unknown) => {
     patches.push(payload as never);
@@ -21,8 +24,6 @@ mock.module('@bagel/kit/server/nats', () => ({
     return {};
   }
 }));
-mock.module('@bagel/kit/server/logger', () => ({ logger: { info: () => {} } }));
-mock.module('../services', () => ({ invalidate: () => {}, SUB: { modules: 'modules' } }));
 mock.module('../commands-store', () => ({
   listCommands: async () => existing.map((name) => ({ name })),
   listModules: async () => {
@@ -36,7 +37,6 @@ mock.module('../commands-store', () => ({
   }
 }));
 mock.module('../quotes-store', () => ({ addQuote: async () => ({}) }));
-mock.module('./strategy', () => ({ SERVER_STRATEGIES: {} }));
 
 const { commitImport } = await import('./engine');
 

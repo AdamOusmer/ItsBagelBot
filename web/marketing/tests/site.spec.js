@@ -149,7 +149,7 @@ test.describe('ItsBagelBot site', () => {
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
         await page.goto('/pricing');
 
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Everything is on the free plan.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Every finished feature is on the free plan.');
 
         const tiers = page.locator('.tiers [data-card]');
         await expect(tiers).toHaveCount(3);
@@ -285,6 +285,17 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"][aria-current="page"]')).toHaveCount(1);
     });
 
+    test('nav button marker is turned a quarter into a diamond', async ({ page }) => {
+        await page.goto('/');
+        const turn = await page.locator('.bb-nav a.bb-nav__cta').evaluate((el) => {
+            const style = getComputedStyle(el, '::before');
+            const matrix = new DOMMatrix(style.transform === 'none' ? undefined : style.transform);
+            const extra = style.rotate === 'none' ? 0 : parseFloat(style.rotate);
+            return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI + extra);
+        });
+        expect(turn).toBe(45);
+    });
+
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
@@ -310,7 +321,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
         await page.waitForFunction(() => {
-            const title = document.querySelector('.bb-page-hero__title');
+            const title = document.querySelector('.bb-page-hero__title [data-decode]');
             return Boolean(
                 title &&
                 title.dataset.decode &&
@@ -318,7 +329,7 @@ test.describe('ItsBagelBot site', () => {
             );
         });
 
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Everything is on the free plan.', { timeout: 3000 });
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
     });
 
     test('encryption scene boots again when returning home', async ({ page }) => {
@@ -461,15 +472,15 @@ test.describe('guides & command builder', () => {
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
         const tokens = page.locator('[data-vars] .var code');
-        await expect(tokens).toHaveCount(8);
+        await expect(tokens).toHaveCount(6);
         await expect(tokens.first()).toHaveText('{user}');
 
         await page.fill('[data-name]', 'greet');
         await page.fill('[data-template]', 'Hello ');
         await page.click('[data-vars] .var:first-child');
         await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
-        await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello maya_live');
-        await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('maya_live');
+        await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello PrincessBarney');
+        await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('PrincessBarney');
 
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('dashboard.itsbagelbot.com/commands?compose=1');
@@ -497,7 +508,7 @@ test.describe('guides & command builder', () => {
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Des commandes puissantes.');
-        await expect(page.locator('[data-vars] .var code')).toHaveCount(8);
+        await expect(page.locator('[data-vars] .var code')).toHaveCount(6);
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('lang=fr');
     });
@@ -509,7 +520,7 @@ test.describe('guides & command builder', () => {
         await page.click('[data-mode="module"]');
         await page.selectOption('[data-surface]', 'shoutout');
 
-        await expect(page.locator('[data-vars] .var code').first()).toHaveText('{raider}');
+        await expect(page.locator('[data-vars] .var code').first()).toHaveText('{shoutout:raider}');
         await expect(page.locator('[data-send-wrap]')).toBeHidden();
         await expect(page.locator('[data-module-link]')).toHaveAttribute(
             'href',

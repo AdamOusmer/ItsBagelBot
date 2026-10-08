@@ -35,21 +35,19 @@ const enterpriseFeatures = [
     <Card atmo hover tone="accent">
         <div class="tier-free__layout">
             <div class="tier-free__head">
-                <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('pricingTiers.free')}</Heading>
+                <Heading level={5} as="h3" variant="title" uppercase class="tier__name"><span data-fit>{t('pricingTiers.free')}</span></Heading>
                 <div class="tier__price">
                     <Heading level={2} as="span">$0</Heading>
-                    <Text as="span" size="sm" tone="muted" class="tier__suffix">{t('pricingTiers.freeSuffix')}</Text>
+                    <Text as="span" size="sm" tone="muted" class="tier__suffix"><span data-fit>{t('pricingTiers.freeSuffix')}</span></Text>
                 </div>
-                <Text size="sm" tone="muted" class="tier__desc">
-                    {t('pricingTiers.freeDesc')}
-                </Text>
-                <ButtonLink href={dashLoginHref(lang)} target="_blank" rel="noopener noreferrer">{t('pricingTiers.getStarted')}</ButtonLink>
+                <Text size="sm" tone="muted" class="tier__desc"><span data-fit="block">{t('pricingTiers.freeDesc')}</span></Text>
+                <ButtonLink href={dashLoginHref(lang)} target="_blank" rel="noopener noreferrer" class="tier__start"><span data-fit>{t('pricingTiers.getStarted')}</span></ButtonLink>
             </div>
 
             <ul class="tier__features tier-free__features">
                 {freeFeatures.map((feature, fi) => (
                     <li data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <Text as="span" size="sm" tone="soft">{feature}</Text>
+                        <Text as="span" size="sm" tone="soft" class="tier__feat"><span data-fit="block">{feature}</span></Text>
                     </li>
                 ))}
             </ul>
@@ -65,19 +63,17 @@ const enterpriseFeatures = [
                     <Image src={premiumLogo} alt="" class="tier__premium-logo tier__premium-logo--lit" width={160} height={160} loading="lazy" />
                 </span>
             </div>
-            <Badge shape="pill" class="tier__badge">{t('pricingTiers.premiumBadge')}</Badge>
-            <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('pricingTiers.premium')}</Heading>
+            <Badge shape="pill" class="tier__badge"><span data-fit>{t('pricingTiers.premiumBadge')}</span></Badge>
+            <Heading level={5} as="h3" variant="title" uppercase class="tier__name"><span data-fit>{t('pricingTiers.premium')}</span></Heading>
             <div class="tier__price">
                 <Heading level={2} as="span" data-tier-count>7$</Heading>
-                <Text as="span" size="sm" tone="muted" class="tier__suffix">{t('pricingTiers.premiumSuffix')}</Text>
+                <Text as="span" size="sm" tone="muted" class="tier__suffix"><span data-fit>{t('pricingTiers.premiumSuffix')}</span></Text>
             </div>
-            <Text size="sm" tone="muted" class="tier__desc">
-                {t('pricingTiers.premiumDesc')}
-            </Text>
+            <Text size="sm" tone="muted" class="tier__desc"><span data-fit="block">{t('pricingTiers.premiumDesc')}</span></Text>
             <ul class="tier__features">
                 {premiumFeatures.map((feature, fi) => (
                     <li data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <Text as="span" size="sm" tone="muted">{feature}</Text>
+                        <Text as="span" size="sm" tone="muted" class="tier__feat"><span data-fit="block">{feature}</span></Text>
                     </li>
                 ))}
             </ul>
@@ -88,7 +84,7 @@ const enterpriseFeatures = [
                 href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
                 target="_blank"
                 rel="noopener noreferrer"
-            >{t('pricingTiers.chipIn')}</ButtonLink>
+            ><span data-fit>{t('pricingTiers.chipIn')}</span></ButtonLink>
             <Text size="xs" mono tone="muted" class="tier__tebex-note">{t('pricingTiers.tebexNote')}</Text>
         </Card>
 
@@ -106,27 +102,23 @@ const enterpriseFeatures = [
                     </div>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('pricingTiers.enterprise')}</Heading>
+            <Heading level={5} as="h3" variant="title" uppercase class="tier__name"><span data-fit>{t('pricingTiers.enterprise')}</span></Heading>
             <div class="tier__price">
-                <Heading level={2} as="span">{t('pricingTiers.enterpriseAmount')}</Heading>
+                <Heading level={2} as="span" class="tier__amount"><span data-fit>{t('pricingTiers.enterpriseAmount')}</span></Heading>
             </div>
-            <Text size="sm" tone="muted" class="tier__desc">
-                {t('pricingTiers.enterpriseDesc')}
-            </Text>
+            <Text size="sm" tone="muted" class="tier__desc"><span data-fit="block">{t('pricingTiers.enterpriseDesc')}</span></Text>
             <ul class="tier__features">
                 {enterpriseFeatures.map((feature, fi) => (
                     <li data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <Text as="span" size="sm" tone="muted">{feature}</Text>
+                        <Text as="span" size="sm" tone="muted" class="tier__feat"><span data-fit="block">{feature}</span></Text>
                     </li>
                 ))}
             </ul>
-            <ButtonLink variant="secondary" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com">{t('pricingTiers.contactSales')}</ButtonLink>
+            <ButtonLink variant="secondary" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com"><span data-fit>{t('pricingTiers.contactSales')}</span></ButtonLink>
         </Card>
     </div>
 
-    <Text size="xs" mono tone="muted" class="tiers__oath" data-reveal>
-        {t('pricingTiers.oath')}
-    </Text>
+    <Text size="xs" mono tone="muted" class="tiers__oath" data-reveal><span data-fit="block">{t('pricingTiers.oath')}</span></Text>
 </section>
 
 <style>
@@ -203,12 +195,15 @@ const enterpriseFeatures = [
     }
 
     .tier__badge {
+        --badge-pill-size: var(--bb-text-xs);
         --badge-tone: var(--bb-black);
         --badge-bg: var(--bb-tan);
         --badge-tone-rule: var(--bb-tan);
         position: absolute;
         top: 0;
         left: 50%;
+        justify-content: center;
+        width: min(19rem, calc(100% - 32px));
         transform: translate(-50%, -50%);
         z-index: 1;
     }
@@ -301,12 +296,33 @@ const enterpriseFeatures = [
     }
 
     .tier__suffix {
+        flex: 1 1 0;
+        min-width: 0;
         margin-left: 6px;
     }
 
+    .tier__amount {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
     .tier__desc {
+        height: calc(2 * 1lh);
         margin: 0 0 22px;
         max-width: 40ch;
+    }
+
+    .tier__start { --btn-w: 13rem; }
+
+    .tier__feat {
+        display: block;
+        height: 1lh;
+    }
+
+    .tier-free__features .tier__feat { height: calc(2 * 1lh); }
+
+    @media (max-width: 859px) {
+        .tier__feat { height: calc(2 * 1lh); }
     }
 
     .tier__features {
@@ -341,9 +357,10 @@ const enterpriseFeatures = [
         text-align: center;
         border: 1px dashed rgba(var(--bb-tan-rgb), 0.22);
         border-radius: var(--bb-radius-pill);
+        width: min(36rem, 100%);
+        height: calc(2 * 1lh + 24px);
         padding: 12px 24px;
         margin: 12px auto 0;
-        max-width: fit-content;
     }
 </style>
 

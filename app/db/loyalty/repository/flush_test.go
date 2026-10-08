@@ -5,12 +5,11 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,18 +17,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
+
+type execStmt struct {
+	query string
+	args  []driver.NamedValue
+}
 
 type fakeExecDB struct {
 	mu     sync.Mutex
-	execs  []string
+	execs  []execStmt
 	onExec func(call int) error
 }
 
-func (f *fakeExecDB) exec(query string) error {
+func (f *fakeExecDB) exec(query string, args []driver.NamedValue) error {
 	f.mu.Lock()
-	f.execs = append(f.execs, query)
+	f.execs = append(f.execs, execStmt{query, args})
 	call, hook := len(f.execs), f.onExec
 	f.mu.Unlock()
 	if hook == nil {
@@ -44,33 +47,13 @@ func (f *fakeExecDB) count() int {
 	return len(f.execs)
 }
 
-var (
-	fakeDriverOnce sync.Once
-	fakeDBsMu      sync.Mutex
-	fakeDBs        = map[string]*fakeExecDB{}
-	fakeDBSeq      atomic.Int64
-)
-
-type fakeDriver struct{}
-
-func (fakeDriver) Open(dsn string) (driver.Conn, error) {
-	fakeDBsMu.Lock()
-	defer fakeDBsMu.Unlock()
-	f, ok := fakeDBs[dsn]
-	if !ok {
-		return nil, fmt.Errorf("no fake DB registered for %q", dsn)
-	}
-	return &fakeConn{db: f}, nil
+type fakeExecConn struct {
+	unusedConn
+	db *fakeExecDB
 }
 
-type fakeConn struct{ db *fakeExecDB }
-
-func (*fakeConn) Prepare(string) (driver.Stmt, error) { return nil, errors.New("prepare unused") }
-func (*fakeConn) Close() error                        { return nil }
-func (*fakeConn) Begin() (driver.Tx, error)           { return nil, errors.New("transactions unused") }
-
-func (c *fakeConn) ExecContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Result, error) {
-	if err := c.db.exec(query); err != nil {
+func (c *fakeExecConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if err := c.db.exec(query, args); err != nil {
 		return nil, err
 	}
 	return driver.RowsAffected(0), nil
@@ -78,24 +61,7 @@ func (c *fakeConn) ExecContext(_ context.Context, query string, _ []driver.Named
 
 func flushRepo(t *testing.T, f *fakeExecDB) *Loyalty {
 	t.Helper()
-	fakeDriverOnce.Do(func() { sql.Register("loyalty-fake-exec", fakeDriver{}) })
-
-	dsn := fmt.Sprintf("loyalty-flush-%d", fakeDBSeq.Add(1))
-	fakeDBsMu.Lock()
-	fakeDBs[dsn] = f
-	fakeDBsMu.Unlock()
-
-	sqldb, err := sql.Open("loyalty-fake-exec", dsn)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqldb.Close() })
-
-	return &Loyalty{
-		sqldb:    sqldb,
-		log:      zap.NewNop(),
-		earnPend: map[balKey]*earnSum{},
-		bumpPend: map[bumpKey]*bumpSum{},
-		done:     make(chan struct{}),
-	}
+	return fakeLoyalty(t, func() driver.Conn { return &fakeExecConn{db: f} })
 }
 
 func channelBump(name string) data.CounterBumpedDTO {
@@ -186,4 +152,81 @@ func TestCloseWaitsForInFlightLoyaltyFlush(t *testing.T) {
 	}
 	assert.Equal(t, 2, f.count(), "both the in-flight and final snapshots must land")
 	assert.False(t, r.flushing.Load())
+}
+
+type flushLayout struct {
+	prefix string
+	width  int
+	format string
+}
+
+var flushLayouts = []flushLayout{
+	{"INSERT INTO counters (", 6, "counter user=%[1]v name=%[2]v scope=%[3]v delta=%[4]v"},
+	{"INSERT IGNORE INTO counters (", 5, "counter-def user=%[1]v name=%[2]v scope=%[3]v"},
+	{"INSERT INTO counter_entries (", 8, "entry user=%[1]v name=%[2]v command=%[3]q viewer=%[4]v login=%[5]q display=%[6]q delta=%[7]v"},
+}
+
+func (l flushLayout) rows(stmt execStmt) []string {
+	if !strings.HasPrefix(stmt.query, l.prefix) {
+		return nil
+	}
+	var rows []string
+	for start := 0; start+l.width <= len(stmt.args); start += l.width {
+		values := make([]any, l.width)
+		for i := range values {
+			values[i] = stmt.args[start+i].Value
+		}
+		rows = append(rows, fmt.Sprintf(l.format, values...))
+	}
+	return rows
+}
+
+func (f *fakeExecDB) flushedRows() []string {
+	var rows []string
+	for _, stmt := range f.execs {
+		for _, layout := range flushLayouts {
+			rows = append(rows, layout.rows(stmt)...)
+		}
+	}
+	return rows
+}
+
+func TestRecordBumpsFlushesFoldedValidCountersOnly(t *testing.T) {
+	f := &fakeExecDB{}
+	r := flushRepo(t, f)
+	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
+		{Name: "!Deaths", Delta: 1},
+		{Name: "deaths", Delta: 2},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},
+		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2},
+		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},
+		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},
+		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 1},
+		{Name: "bot:x", Delta: 1},
+		{Name: "", Delta: 1},
+		{Name: "noop", Delta: 0},
+	}})
+	r.RecordBumps(data.CounterBumpedDTO{UserID: 0, Bumps: []data.CounterBumpEntry{
+		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 4},
+		{Name: "deaths", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1},
+	}})
+
+	r.Flush(context.Background())
+
+	assert.Equal(t, []string{
+		"counter user=0 name=feeds scope=bot delta=4",
+		"counter user=1 name=deaths scope=channel delta=3",
+		"counter-def user=1 name=hugs scope=viewer",
+		"counter user=1 name=pulls scope=channel delta=2",
+		"counter-def user=1 name=raids scope=command",
+		"counter-def user=1 name=uses scope=viewer_command",
+		`entry user=1 name=hugs command="" viewer=7 login="cool" display="Cool" delta=2`,
+		`entry user=1 name=raids command="raid" viewer=0 login="" display="" delta=3`,
+		`entry user=1 name=uses command="hug" viewer=7 login="" display="" delta=2`,
+	}, f.flushedRows())
+	r.Flush(context.Background())
+	assert.Len(t, f.flushedRows(), 9, "a drained window must not flush twice")
 }

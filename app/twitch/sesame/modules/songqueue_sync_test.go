@@ -18,22 +18,23 @@ func setSkipSnapshots(g *fakeGossip, before, after gossiprpc.SpotifyQueueReply) 
 	g.replies["spotify.playerqueue"] = after
 }
 
-func skipReadyGossip() *fakeGossip {
-	g := srSearchGossip()
-	setSkipSnapshots(g,
-		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}},
-		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}})
-	return g
+func spotifyQueue(current string, upNext ...string) gossiprpc.SpotifyQueueReply {
+	reply := gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: current}}
+	for _, id := range upNext {
+		reply.UpNext = append(reply.UpNext, gossiprpc.SpotifyTrack{ID: id})
+	}
+	return reply
 }
 
 func TestSkipDrivesThePlayer(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
 	}}
-	g := skipReadyGossip()
+	g := srSearchGossip()
+	setSkipSnapshots(g, spotifyQueue("external", "t1"), spotifyQueue("t1"))
 	m := SongQueue(songDeps(store, g))
 
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
+	out := runChat(t, m, chatCtx("9", "mod", "moderator"), "!skip")
 
 	require.NotEmpty(t, g.calls)
 	assert.Equal(t, "next", g.calls[len(g.calls)-2].endpoint)
@@ -41,67 +42,57 @@ func TestSkipDrivesThePlayer(t *testing.T) {
 	require.NotNil(t, store.current)
 }
 
-func TestSkipWaitsForSpotifyBeforePromotingARequest(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{{TrackID: "t1", Title: "Human", RequesterID: "42", RequesterName: "alice"}}}
-	g := srSearchGossip()
-	unchanged := gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}}
-	setSkipSnapshots(g, unchanged, unchanged)
-	m := SongQueue(songDeps(store, g))
-
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
-	assert.Contains(t, chatText(t, out), "Skip sent")
-	assert.Nil(t, store.current)
-	assert.Len(t, store.up, 1)
-}
-
-func TestSkipAnnouncesTrackSpotifyActuallyReached(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "missed", Title: "Missed"},
-		{TrackID: "actual", Title: "Actual", RequesterName: "bob"},
-	}}
-	g := srSearchGossip()
-	setSkipSnapshots(g,
-		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "missed"}, {ID: "actual"}}},
-		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "actual"}})
-	m := SongQueue(songDeps(store, g))
-
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
-	assert.Contains(t, chatText(t, out), "Actual")
-	assert.NotContains(t, chatText(t, out), "Missed")
-	require.NotNil(t, store.current)
-	assert.Equal(t, "actual", store.current.TrackID)
-	assert.Empty(t, store.up)
-}
-
-func TestSkipRefusalLeavesTheListAlone(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
-	}}
-	g := srSearchGossip()
-	g.replies["spotify.next"] = gossiprpc.SpotifyPlayerReply{Error: "Spotify Premium is required for queue control"}
-	m := SongQueue(songDeps(store, g))
-
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
-
-	assert.Contains(t, chatText(t, out), "Premium")
-	assert.Nil(t, store.current, "nothing may be marked played while the music kept playing")
-	assert.Len(t, store.up, 1)
-}
-
-func TestSRViewRenumbersAfterSpotifySkippedPendingTrack(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "a", Title: "Skipped", RequesterName: "alice"},
-		{TrackID: "b", Title: "Survivor", RequesterName: "bob"},
-	}}
-	g := srSearchGossip()
-	g.replies["spotify.playerqueue"] = gossiprpc.SpotifyQueueReply{
-		Current: &gossiprpc.SpotifyTrack{ID: "external"},
-		UpNext:  []gossiprpc.SpotifyTrack{{ID: "b"}},
+func TestSkip(t *testing.T) {
+	human := entry("t1", "Human", "42", "alice")
+	human.Artists = []string{"The Killers"}
+	cases := []struct {
+		name     string
+		text     string
+		store    []engine.SongEntry
+		before   gossiprpc.SpotifyQueueReply
+		after    gossiprpc.SpotifyQueueReply
+		nextErr  string
+		contains []string
+		excludes []string
+		current  string
+		queued   int
+	}{
+		{name: "the skip command promotes the head request", text: "!skip", store: []engine.SongEntry{human},
+			before: spotifyQueue("external", "t1"), after: spotifyQueue("t1"), contains: []string{"Human"}, current: "t1"},
+		{name: "TestSRSkipVerbPromotesHead", text: "!sr skip", store: []engine.SongEntry{human},
+			before: spotifyQueue("external", "t1"), after: spotifyQueue("t1"), contains: []string{"Human"}, current: "t1"},
+		{name: "TestSkipWaitsForSpotifyBeforePromotingARequest", text: "!skip", store: []engine.SongEntry{entry("t1", "Human", "42", "alice")},
+			before: spotifyQueue("external", "t1"), after: spotifyQueue("external", "t1"), contains: []string{"Skip sent"}, queued: 1},
+		{name: "TestSkipAnnouncesTrackSpotifyActuallyReached", text: "!skip",
+			store:  []engine.SongEntry{{TrackID: "missed", Title: "Missed"}, {TrackID: "actual", Title: "Actual", RequesterName: "bob"}},
+			before: spotifyQueue("external", "missed", "actual"), after: spotifyQueue("actual"),
+			contains: []string{"Actual"}, excludes: []string{"Missed"}, current: "actual"},
+		{name: "TestSkipRefusalLeavesTheListAlone", text: "!skip", store: []engine.SongEntry{human}, nextErr: "Spotify Premium is required for queue control",
+			before: spotifyQueue("external", "t1"), after: spotifyQueue("external", "t1"), contains: []string{"Premium"}, queued: 1},
 	}
-	m := SongQueue(songDeps(store, g))
-
-	out := runSR(t, m, songCtx("9", "viewer"), "")
-	text := chatText(t, out)
-	assert.Contains(t, text, "1. Survivor (by bob)")
-	assert.NotContains(t, text, "Skipped")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeSongQueue{up: tc.store}
+			g := srSearchGossip()
+			setSkipSnapshots(g, tc.before, tc.after)
+			if tc.nextErr != "" {
+				g.replies["spotify.next"] = gossiprpc.SpotifyPlayerReply{Error: tc.nextErr}
+			}
+			out := runChat(t, SongQueue(songDeps(store, g)), chatCtx("9", "mod", "moderator"), tc.text)
+			assertText(t, chatText(t, out), textWant{"", tc.contains, tc.excludes})
+			var endpoints []string
+			for _, call := range g.calls {
+				endpoints = append(endpoints, call.endpoint)
+			}
+			assert.Contains(t, endpoints, "next", "the player is asked to skip")
+			assert.Len(t, store.up, tc.queued)
+			if tc.current == "" {
+				assert.Nil(t, store.current, "nothing may be marked played while the music kept playing")
+				return
+			}
+			if assert.NotNil(t, store.current) {
+				assert.Equal(t, tc.current, store.current.TrackID)
+			}
+		})
+	}
 }

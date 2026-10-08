@@ -1,100 +1,61 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package modules
+package modules_test
 
 import (
 	"testing"
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
-	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/app/discord/engine/modules"
+	"ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-func interactionBy(permissions string, roles []string) decode.InteractionEvent {
-	var in decode.InteractionEvent
-	in.GuildID = "g1"
-	in.Member.User = decode.UserRef{ID: "u1", Username: "fan"}
-	in.Member.Permissions = permissions
-	in.Member.Roles = roles
-	return in
+func hasCommand(cmds []ddiscord.Command, kind string) bool {
+	for _, c := range cmds {
+		if c.Type == kind {
+			return true
+		}
+	}
+	return false
 }
 
-func TestIsStaffOrMod(t *testing.T) {
-	cfg := ddiscord.Config{OwnerRoleID: "o", LeadModRoleID: "l", ModsRoleID: "m"}
+func TestModerationAndTicketDeskGates(t *testing.T) {
+	cfg := baseConfig()
+	cfg.OwnerRoleID, cfg.LeadModRoleID = "o", "l"
 	cases := []struct {
-		name  string
-		perms string
-		roles []string
-		want  bool
+		name       string
+		perms      string
+		roles      []string
+		moderates  bool
+		claimsDesk bool
 	}{
-		{"neither", "0", []string{"stranger"}, false},
-		{"permission only", "8", nil, true},
-		{"bagel role only", "0", []string{"l"}, true},
-		{"both", "8", []string{"m"}, true},
-		{"unparseable permissions fall back to roles", "", []string{"o"}, true},
-		{"unparseable permissions and no role", "", nil, false},
+		{"neither a permission nor a role", "0", []string{"stranger"}, false, false},
+		{"a moderation permission alone", "8", nil, true, true},
+		{"a bagel role alone", "0", []string{"l"}, true, true},
+		{"both a permission and a role", "8", []string{"m"}, true, true},
+		{"unparseable permissions fall back to roles", "", []string{"o"}, true, true},
+		{"unparseable permissions and no role", "", nil, false, false},
+		{"TestDeskStaffIsNotModStaff: a ticket desk helper passes the desk gate only", "0", []string{"helper"}, false, true},
+		{"TestDeskStaffIsNotModStaff: mod staff passes both gates", "0", []string{"m"}, true, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := isStaffOrMod(cfg, interactionBy(tc.perms, tc.roles)); got != tc.want {
-				t.Fatalf("isStaffOrMod = %v, want %v", got, tc.want)
-			}
+			member := actor{id: "u1", name: "fan", perms: tc.perms, roles: tc.roles}
+			kick := member.inSupport()
+			kick.Data.Options = []decode.InteractionOption{userOption("u2")}
+			d := newDesk(t, cfg)
+			d.open(ada)
+
+			kicked := hasCommand(runHandler(t, modules.Moderation(nil, zap.NewNop()).Slash["kick"], cfg, kick), ddiscord.TypeKickMember)
+			claim := d.button(discordapi.CustomTicketClaim, member.inTicket())
+
+			require.Equal(t, tc.moderates, kicked, "moderation gate")
+			require.Equal(t, tc.claimsDesk, claim == "Claimed.", "desk gate")
 		})
-	}
-}
-
-func TestDeskStaffIsNotModStaff(t *testing.T) {
-	cfg := ddiscord.Config{OwnerRoleID: "o", ModsRoleID: "m", TicketStaffRoles: "helper"}
-	helper := interactionBy("0", []string{"helper"})
-	if isStaffOrMod(cfg, helper) {
-		t.Fatal("a ticket desk helper must not pass the moderation gate")
-	}
-	if !isTicketStaffOrMod(cfg, helper) {
-		t.Fatal("a ticket desk helper must pass the desk gate")
-	}
-	mod := interactionBy("0", []string{"m"})
-	if !isStaffOrMod(cfg, mod) || !isTicketStaffOrMod(cfg, mod) {
-		t.Fatal("mod staff must pass both gates")
-	}
-}
-
-func TestCanCloseTicket(t *testing.T) {
-	cfg := ddiscord.Config{ModsRoleID: "m", TicketStaffRoles: "helper,m"}
-	ticket := discordstore.Ticket{ChannelID: "c1", OpenerID: "opener"}
-	cases := []struct {
-		name string
-		in   decode.InteractionEvent
-		want bool
-	}{
-		{"stranger", interactionBy("0", []string{"x"}), false},
-		{"mods role", interactionBy("0", []string{"m"}), true},
-		{"permission bit", interactionBy("8", nil), true},
-		{"desk helper", interactionBy("0", []string{"helper"}), true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := canCloseTicket(ticket, tc.in, cfg); got != tc.want {
-				t.Fatalf("canCloseTicket = %v, want %v", got, tc.want)
-			}
-		})
-	}
-	opener := interactionBy("0", nil)
-	opener.Member.User.ID = "opener"
-	if !canCloseTicket(ticket, opener, cfg) {
-		t.Fatal("the opener must always be able to close their own ticket")
-	}
-}
-
-func TestTicketOverwritesUseTheDeskStaffList(t *testing.T) {
-	cfg := ddiscord.Config{OwnerRoleID: "o", ModsRoleID: "m", TicketStaffRoles: "helper"}
-	got := ticketOverwrites(cfg, interactionBy("0", nil))
-
-	var ids []string
-	for _, o := range got {
-		ids = append(ids, o.ID)
-	}
-	if len(ids) != 3 || ids[2] != "helper" {
-		t.Fatalf("overwrite targets = %v, want the desk staff list", ids)
 	}
 }

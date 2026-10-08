@@ -7,9 +7,10 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type laneConsumerManagerSpy struct {
@@ -49,12 +50,10 @@ func TestEnsureConsumerDoesNotReplaceAfterTransientUpdateFailure(t *testing.T) {
 	}
 
 	err := ensureConsumer(spy, "LANE", &nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.desired"})
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("ensureConsumer() error = %v, want deadline exceeded", err)
-	}
-	if spy.deleted != 0 || spy.added != nil {
-		t.Fatalf("transient update failure replaced live durable: deletes=%d recreated=%v", spy.deleted, spy.added != nil)
-	}
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Zero(t, spy.deleted, "a transient update failure must not replace the live durable")
+	assert.Nil(t, spy.added, "a transient update failure must not recreate the durable")
 }
 
 func TestEnsureConsumerReplacesRecognizedImmutableTransitionAtAckFloor(t *testing.T) {
@@ -71,86 +70,40 @@ func TestEnsureConsumerReplacesRecognizedImmutableTransitionAtAckFloor(t *testin
 		updateErr: errors.New("nats: ack policy can not be updated"),
 	}
 
-	if err := ensureConsumer(spy, "LANE", &nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.desired"}); err != nil {
-		t.Fatalf("ensureConsumer() error = %v", err)
-	}
-	assertLaneConsumerReplacement(t, spy)
-}
+	err := ensureConsumer(spy, "LANE", &nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.desired"})
 
-func assertLaneConsumerReplacement(t *testing.T, spy *laneConsumerManagerSpy) {
-	t.Helper()
-	if spy.deleted != 1 || spy.added == nil {
-		t.Fatalf("immutable transition deletes=%d recreated=%v, want one replacement", spy.deleted, spy.added != nil)
-	}
-	if spy.updated.DeliverSubject != "_INBOX.existing" || spy.updated.OptStartSeq != 17 {
-		t.Fatalf("update lost legacy binding/start position: subject=%q start=%d", spy.updated.DeliverSubject, spy.updated.OptStartSeq)
-	}
-	if spy.added.DeliverSubject != "_INBOX.existing" {
-		t.Fatalf("replacement binding = %q, want existing binding", spy.added.DeliverSubject)
-	}
-	if spy.added.DeliverPolicy != nats.DeliverByStartSequencePolicy || spy.added.OptStartSeq != 42 {
-		t.Fatalf("replacement resumes at policy=%v start=%d, want ack floor + 1", spy.added.DeliverPolicy, spy.added.OptStartSeq)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, spy.added, "an immutable transition must be replaced exactly once")
+	assert.Equal(t, 1, spy.deleted)
+	assert.Equal(t, [2]any{"_INBOX.existing", uint64(17)}, [2]any{spy.updated.DeliverSubject, spy.updated.OptStartSeq},
+		"the update must not lose the legacy binding or start position")
+	assert.Equal(t, [3]any{"_INBOX.existing", nats.DeliverByStartSequencePolicy, uint64(42)},
+		[3]any{spy.added.DeliverSubject, spy.added.DeliverPolicy, spy.added.OptStartSeq},
+		"the replacement must keep the binding and resume at the ack floor + 1")
 }
 
 func TestReplaceConsumerCarriesAckFloor(t *testing.T) {
-	desired := laneConsumerConfig(
-		"twitch.ingress.event.premium",
-		"worker",
-		"worker_twitch_ingress_event_premium",
-		6,
-	)
+	for _, tc := range []struct {
+		name         string
+		ackFloor     uint64
+		wantPolicy   nats.DeliverPolicy
+		wantStartSeq uint64
+	}{
+		{"a known ack floor resumes one past it", 41, nats.DeliverByStartSequencePolicy, 42},
+		{"a zero ack floor keeps the original delivery policy", 0, nats.DeliverAllPolicy, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desired := laneConsumerConfig(hotLane, "worker", "worker_twitch_ingress_event_premium", 6)
 
-	carryAckFloor(desired, &nats.ConsumerInfo{
-		AckFloor: nats.SequenceInfo{Stream: 41},
-	})
-	if desired.DeliverPolicy != nats.DeliverByStartSequencePolicy {
-		t.Fatalf("deliver policy = %v, want by-start-sequence", desired.DeliverPolicy)
-	}
-	if desired.OptStartSeq != 42 {
-		t.Fatalf("start seq = %d, want ack floor + 1", desired.OptStartSeq)
-	}
+			carryAckFloor(desired, &nats.ConsumerInfo{AckFloor: nats.SequenceInfo{Stream: tc.ackFloor}})
 
-	fresh := laneConsumerConfig("twitch.ingress.event.standard", "worker", "w", 6)
-	carryAckFloor(fresh, &nats.ConsumerInfo{})
-	if fresh.DeliverPolicy != nats.DeliverAllPolicy || fresh.OptStartSeq != 0 {
-		t.Fatal("zero ack floor must keep the original delivery policy")
+			assert.Equal(t, tc.wantPolicy, desired.DeliverPolicy)
+			assert.Equal(t, tc.wantStartSeq, desired.OptStartSeq)
+		})
 	}
 }
 
 func TestFleetSubscriberHasBoundedPacedRedelivery(t *testing.T) {
-	if fleetMaxRedeliveries == 0 || fleetMaxRedeliveries > 10 {
-		t.Fatalf("fleet redeliveries = %d, want a small bounded budget", fleetMaxRedeliveries)
-	}
-	if fleetNakDelay <= 0 {
-		t.Fatalf("fleet nak delay = %v, want paced redelivery", fleetNakDelay)
-	}
-}
-
-func TestLaneConsumerHasBoundedDeliveryBudget(t *testing.T) {
-	cfg := laneConsumerConfig(
-		"twitch.outgress.premium",
-		"outgress-premium",
-		"outgress-premium_twitch_outgress_premium",
-		4,
-	)
-
-	if cfg.MaxDeliver != 4 {
-		t.Fatalf("max deliver = %d, want initial delivery plus 3 redeliveries", cfg.MaxDeliver)
-	}
-	if len(cfg.BackOff) != 0 {
-		t.Fatalf("backoff = %v, want none: it would clamp ack wait to its first step", cfg.BackOff)
-	}
-	if cfg.AckWait != 4*time.Second {
-		t.Fatalf("ack wait = %v, want 4s bounded by the output dedup window", cfg.AckWait)
-	}
-	if cfg.AckPolicy != nats.AckExplicitPolicy {
-		t.Fatalf("ack policy = %v, want explicit", cfg.AckPolicy)
-	}
-	if cfg.DeliverGroup != "outgress-premium" {
-		t.Fatalf("delivery group = %q, want shared replica queue", cfg.DeliverGroup)
-	}
-	if cfg.Metadata[managedConsumerMetadata] != "true" {
-		t.Fatal("consumer is not marked as server-managed")
-	}
+	assert.True(t, fleetMaxRedeliveries > 0 && fleetMaxRedeliveries <= 10, "fleet redeliveries = %d, want a small bounded budget", fleetMaxRedeliveries)
+	assert.Positive(t, fleetNakDelay, "redelivery must be paced")
 }

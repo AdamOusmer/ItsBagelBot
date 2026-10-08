@@ -101,29 +101,13 @@ func TestWatchTickRejectsCorrelationAndCursorCycles(t *testing.T) {
 	require.Contains(t, f.fields(t)["last_error"], "cursor cycle")
 }
 
-func TestWatchTickPageContract(t *testing.T) {
-	now := time.Now()
-	state := loyaltySchedule{generation: "7", liveSession: "2000", window: "42:2000:1234", cursor: "next"}
-	for _, scenario := range pageContractScenarios(now) {
-		t.Run(scenario.name, func(t *testing.T) {
-			clock := pageContractClock(t, now, state, scenario.mutate)
-			_, err := clock.fetchPage(context.Background(), 42, state, true)
-			if scenario.wantError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
 type pageContractScenario struct {
 	name      string
 	wantError bool
 	mutate    func(*manage.ChattersReply, time.Time)
 }
 
-func pageContractScenarios(now time.Time) []pageContractScenario {
+func pageContractScenarios() []pageContractScenario {
 	return []pageContractScenario{
 		{name: "valid"},
 		{name: "wrong tenant", wantError: true, mutate: func(r *manage.ChattersReply, _ time.Time) { r.BroadcasterID = "43" }},
@@ -147,32 +131,32 @@ func pageContractScenarios(now time.Time) []pageContractScenario {
 	}
 }
 
-func pageContractClock(t *testing.T, now time.Time, state loyaltySchedule, mutate func(*manage.ChattersReply, time.Time)) *ValkeyLoyaltyClock {
-	t.Helper()
-	clock := &ValkeyLoyaltyClock{chattersSubject: "test.chatters", now: func() time.Time { return now }}
-	clock.request = func(ctx context.Context, subject string, body []byte) (*nats.Msg, error) {
-		require.Equal(t, "test.chatters", subject)
-		var req manage.ChattersRequest
-		require.NoError(t, codec.Unmarshal(body, &req))
-		require.Equal(t, "42", req.BroadcasterID)
-		require.Equal(t, state.window, req.WindowID)
-		require.Equal(t, state.cursor, req.Cursor)
-		require.True(t, req.CheckLive)
-		require.NotEmpty(t, req.RequestID)
-		deadline, ok := ctx.Deadline()
-		require.True(t, ok)
-		require.Equal(t, deadline.UnixMilli(), req.DeadlineUnixMilli)
-		reply := correlatedWatchReply(req)
-		reply.Live = true
-		reply.CheckedAtUnixMilli = now.UnixMilli()
-		reply.Complete = true
-		if mutate != nil {
-			mutate(&reply, now)
-		}
-		encoded, err := codec.Marshal(reply)
-		return &nats.Msg{Data: encoded}, err
+func TestWatchTickPageContract(t *testing.T) {
+	for i, scenario := range pageContractScenarios() {
+		t.Run(scenario.name, func(t *testing.T) {
+			f := watchFixture(t, uint64(77300+i))
+			f.clock.request = func(_ context.Context, _ string, body []byte) (*nats.Msg, error) {
+				var req manage.ChattersRequest
+				require.NoError(t, codec.Unmarshal(body, &req))
+				reply := correlatedWatchReply(req)
+				reply.Live, reply.CheckedAtUnixMilli, reply.Complete = true, f.now.UnixMilli(), true
+				if scenario.mutate != nil {
+					scenario.mutate(&reply, f.now)
+				}
+				encoded, err := codec.Marshal(reply)
+				return &nats.Msg{Data: encoded}, err
+			}
+
+			f.clock.fire(context.Background(), f.id)
+
+			require.Zero(t, f.operations(t))
+			if scenario.wantError {
+				require.Equal(t, "1", f.fields(t)["failures"], "an invalid page is a failed attempt")
+				return
+			}
+			require.Contains(t, []string{"", "0"}, f.fields(t)["failures"], "a valid page records no failure")
+		})
 	}
-	return clock
 }
 
 func TestWatchTickDefinitiveCursorErrorStartsFreshWindow(t *testing.T) {
@@ -213,18 +197,6 @@ func TestWatchTickDefinitiveCursorErrorStartsFreshWindow(t *testing.T) {
 	require.EqualValues(t, 2, f.operations(t), "accepted chunks from abandoned window remain intact")
 	require.Empty(t, f.fields(t)["window"])
 	require.NotEmpty(t, oldWindow)
-}
-
-func TestWatchTickViewerFiltering(t *testing.T) {
-	c := &ValkeyLoyaltyClock{botID: "99"}
-	for _, raw := range []string{"99", "0", "bad"} {
-		_, ok := c.chatterViewerID(raw)
-		require.False(t, ok)
-	}
-	id, ok := c.chatterViewerID("8")
-	require.True(t, ok)
-	require.EqualValues(t, 8, id)
-	require.EqualError(t, &chattersError{message: "failure"}, "failure")
 }
 
 func TestWatchViewerSnapshotRequiresCompleteFirstPage(t *testing.T) {

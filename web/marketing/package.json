@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --bun astro dev",
     "build": "bun --bun astro build",
-    "preview": "bun run build && bun --bun astro preview"
+    "preview": "bun run build && bun --bun astro preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",

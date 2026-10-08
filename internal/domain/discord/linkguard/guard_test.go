@@ -6,7 +6,11 @@ package linkguard
 import (
 	"context"
 	"testing"
+	"time"
 
+	"ItsBagelBot/internal/valkeytest"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,104 +35,70 @@ func sightingOwner(a sightingArgs) Sighting {
 
 func newTestGuarder(t *testing.T) (*Guarder, context.Context) {
 	t.Helper()
-	return New(newFakeValkey(t).client), context.Background()
+	return New(valkeytest.New(t).Client()), context.Background()
 }
 
-func TestObserveBelowChannelThresholdAllows(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	for i, ch := range []string{"c1", "c2"} {
-		v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: ch, User: "u1"}))
-		if !v.Allow {
-			t.Fatalf("post %d: Allow = false, want true (verdict %+v)", i, v)
-		}
-		if v.Reason != ReasonBelowThreshold {
-			t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, ReasonBelowThreshold)
-		}
-	}
+type step struct {
+	channel string
+	user    string
+	advance time.Duration
+	want    Verdict
 }
 
-func TestObserveAtChannelThresholdTrips(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
-	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
-	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"}))
-
-	if v.Allow {
-		t.Fatalf("3rd distinct channel: Allow = true, want false (verdict %+v)", v)
+func TestObserveCountsDistinctChannelsAndAuthorsPerWindow(t *testing.T) {
+	below := func(channels, authors int) Verdict {
+		return Verdict{Allow: true, Reason: ReasonBelowThreshold, DistinctChannels: channels, DistinctAuthors: authors}
 	}
-	if v.Reason != ReasonChannelThreshold {
-		t.Errorf("Reason = %q, want %q", v.Reason, ReasonChannelThreshold)
+	tripped := func(reason string, channels, authors int) Verdict {
+		return Verdict{Reason: reason, DistinctChannels: channels, DistinctAuthors: authors, GuildTripped: true}
 	}
-	if v.DistinctChannels != ChannelThreshold {
-		t.Errorf("DistinctChannels = %d, want %d", v.DistinctChannels, ChannelThreshold)
+	cases := []struct {
+		name  string
+		steps []step
+	}{
+		{name: "two distinct channels stay below the threshold", steps: []step{
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c2", user: "u1", want: below(2, 1)},
+		}},
+		{name: "the third distinct channel trips the guild", steps: []step{
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c2", user: "u1", want: below(2, 1)},
+			{channel: "c3", user: "u1", want: tripped(ReasonChannelThreshold, ChannelThreshold, 1)},
+		}},
+		{name: "repeating a channel does not double count", steps: []step{
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c1", user: "u1", want: below(1, 1)},
+		}},
+		{name: "a second distinct author trips at the lower author threshold", steps: []step{
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c1", user: "u2", want: tripped(ReasonAuthorThreshold, 1, AuthorThreshold)},
+		}},
+		{name: "the count resets once the window has passed", steps: []step{
+			{channel: "c1", user: "u1", want: below(1, 1)},
+			{channel: "c2", user: "u1", want: below(2, 1)},
+			{channel: "c3", user: "u1", advance: Window + 1, want: below(1, 1)},
+		}},
 	}
-	if !v.GuildTripped {
-		t.Errorf("GuildTripped = false, want true")
-	}
-}
-
-func TestObserveRepeatedChannelDoesNotDoubleCount(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	for i := 0; i < 5; i++ {
-		v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
-		if !v.Allow {
-			t.Fatalf("post %d in the same channel tripped a channel-count threshold (verdict %+v)", i, v)
-		}
-		if v.DistinctChannels != 1 {
-			t.Errorf("post %d: DistinctChannels = %d, want 1", i, v.DistinctChannels)
-		}
-	}
-}
-
-func TestObserveMultiAuthorLowerThresholdTrips(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	v1 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
-	if !v1.Allow {
-		t.Fatalf("first author: Allow = false, want true (verdict %+v)", v1)
-	}
-
-	v2 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u2"}))
-	if v2.Allow {
-		t.Fatalf("2nd distinct author: Allow = true, want false (verdict %+v)", v2)
-	}
-	if v2.Reason != ReasonAuthorThreshold {
-		t.Errorf("Reason = %q, want %q", v2.Reason, ReasonAuthorThreshold)
-	}
-	if v2.DistinctChannels != 1 {
-		t.Errorf("DistinctChannels = %d, want 1 (only ever posted in c1)", v2.DistinctChannels)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := valkeytest.New(t)
+			g := New(srv.Client())
+			for i, st := range tc.steps {
+				srv.Advance(st.advance)
+				got := g.Observe(t.Context(), sighting(sightingArgs{Guild: "g1", Channel: st.channel, User: st.user}))
+				want := st.want
+				want.NormalizedLink, want.IsInvite = got.NormalizedLink, true
+				assert.Equal(t, want, got, "post %d", i)
+			}
+		})
 	}
 }
 
-func TestObserveWindowExpiryResetsCount(t *testing.T) {
-	fv := newFakeValkey(t)
-	g := New(fv.client)
-	ctx := context.Background()
-
-	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
-	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
-
-	fv.advance(Window + 1)
-
-	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"}))
-	if !v.Allow {
-		t.Fatalf("post after window expiry tripped early (verdict %+v)", v)
-	}
-	if v.DistinctChannels != 1 {
-		t.Errorf("DistinctChannels after window rollover = %d, want 1", v.DistinctChannels)
-	}
-}
-
-func exemptionCases() []struct {
-	name   string
-	user   string
-	setup  func(*Sighting)
-	reason string
-} {
-	return []struct {
+func TestObserveExemptions(t *testing.T) {
+	cases := []struct {
 		name   string
 		user   string
 		setup  func(*Sighting)
@@ -138,10 +108,7 @@ func exemptionCases() []struct {
 		{"moderator", "mod1", func(s *Sighting) { s.Moderator = true }, ReasonModerator},
 		{"allow listed", "u1", func(s *Sighting) { s.Allowed = true }, ReasonAllowListed},
 	}
-}
-
-func TestObserveExemptions(t *testing.T) {
-	for _, tc := range exemptionCases() {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			g, ctx := newTestGuarder(t)
 
@@ -149,15 +116,30 @@ func TestObserveExemptions(t *testing.T) {
 				s := sighting(sightingArgs{Guild: "g1", Channel: ch, User: tc.user})
 				tc.setup(&s)
 				v := g.Observe(ctx, s)
-				if !v.Allow {
-					t.Fatalf("post %d: %s not exempt (verdict %+v)", i, tc.name, v)
-				}
-				if v.Reason != tc.reason {
-					t.Errorf("post %d: Reason = %q, want %q", i, v.Reason, tc.reason)
-				}
+				assert.True(t, v.Allow, "post %d: %s not exempt (verdict %+v)", i, tc.name, v)
+				assert.Equal(t, tc.reason, v.Reason, "post %d", i)
 			}
 		})
 	}
+}
+
+func TestObserveFailsOpenWhenValkeyErrors(t *testing.T) {
+	srv := valkeytest.New(t)
+	srv.Fail(valkeytest.Failure{Cmd: "SADD", Message: "LOADING"})
+	g := New(srv.Client())
+
+	v := g.Observe(t.Context(), sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
+
+	assert.True(t, v.Allow)
+	assert.Equal(t, ReasonValkeyError, v.Reason)
+}
+
+func TestObserveBlankLinkIsNeverCounted(t *testing.T) {
+	g, ctx := newTestGuarder(t)
+
+	v := g.Observe(ctx, Sighting{GuildID: "g1", ChannelID: "c1", UserID: "u1", Link: "   "})
+
+	assert.Equal(t, Verdict{Allow: true, Reason: ReasonBelowThreshold}, v)
 }
 
 func tripGuild(ctx context.Context, g *Guarder, guild, owner string) Verdict {

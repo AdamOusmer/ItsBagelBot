@@ -200,7 +200,7 @@ func (h ticketModule) createTicket(ctx context.Context, call deskCall) error {
 	})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket open failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		h.deleteOrphanChannel(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, in.GuildID, reply.ChannelID)
 		call.reply("Could not open a ticket right now.")
 		return nil
 	}
@@ -216,12 +216,12 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 	if err != nil {
 		h.log.Error("ticket row not recorded; rolling the channel back",
 			zap.String("channel_id", reply.ChannelID), zap.Error(err))
-		h.deleteOrphanChannel(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, in.GuildID, reply.ChannelID)
 		call.reply("Could not open a ticket right now.")
 		return nil
 	}
 	if got.AtLimit {
-		h.deleteOrphanChannel(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, in.GuildID, reply.ChannelID)
 		call.reply(atLimitText(got.OpenCount))
 		return nil
 	}
@@ -235,18 +235,18 @@ func (h ticketModule) nameTicket(ctx context.Context, in decode.InteractionEvent
 		return
 	}
 	name := ddiscord.TicketChannelName(ticketNameBase(in), ticketID)
-	reply, err := h.tickets.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: channelID, Name: name})
+	reply, err := h.tickets.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{GuildID: in.GuildID, ChannelID: channelID, Name: name})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket channel not renamed",
 			zap.String("channel_id", channelID), zap.String("name", name), zap.Error(err))
 	}
 }
 
-func (h ticketModule) deleteOrphanChannel(ctx context.Context, channelID string) {
+func (h ticketModule) deleteOrphanChannel(ctx context.Context, guildID, channelID string) {
 	if channelID == "" {
 		return
 	}
-	reply, err := h.tickets.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: channelID})
+	reply, err := h.tickets.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{GuildID: guildID, ChannelID: channelID})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket delete orphan channel failed", zap.String("channel_id", channelID), zap.Error(err))
 	}
@@ -333,7 +333,7 @@ func (h ticketModule) recordClaim(ctx context.Context, call deskCall, t discords
 	}
 	staff := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
 	reply, err := h.tickets.TicketClaim(ctx, discordoutgress.TicketClaimRequest{
-		ChannelID: t.ChannelID, MessageID: t.PanelMessageID, Content: "<@" + t.OpenerID + ">",
+		GuildID: t.GuildID, ChannelID: t.ChannelID, MessageID: t.PanelMessageID, Content: "<@" + t.OpenerID + ">",
 		Embed: ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{
 			Opener: "<@" + t.OpenerID + ">", ClaimedBy: staff,
 		}),
@@ -439,7 +439,7 @@ func (h ticketModule) add(ctx context.Context, call deskCall, sub decode.Interac
 		call.reply("Name the member to add.")
 		return nil
 	}
-	reply, err := h.tickets.TicketAddMember(ctx, discordoutgress.TicketMemberAddRequest{ChannelID: t.ChannelID, UserID: userID})
+	reply, err := h.tickets.TicketAddMember(ctx, discordoutgress.TicketMemberAddRequest{GuildID: t.GuildID, ChannelID: t.ChannelID, UserID: userID})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket add failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 		call.reply("Could not add them right now.")

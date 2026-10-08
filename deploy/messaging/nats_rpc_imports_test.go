@@ -11,6 +11,10 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var rpcSubjectDefaultPattern = regexp.MustCompile(`env\.Get\("[A-Z0-9_]+",\s*"(bagel\.rpc\.[^"]+)"\)`)
@@ -238,8 +242,7 @@ func TestRPCRequestsAreImportedAndExported(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	for _, user := range sortedManifestUsers() {
 		requester, ok := catalog.byUser[user]
-		if !ok {
-			t.Errorf("manifest names %s but accounts.yaml has no RPC account with that user", user)
+		if !assert.True(t, ok, "manifest names %s but accounts.yaml has no RPC account with that user", user) {
 			continue
 		}
 		for _, req := range rpcRequests[user] {
@@ -266,9 +269,7 @@ func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
 			catalog.assertDefaultGranted(t, subjectDefault{service: service.name, literal: literal, account: requester})
 		}
 	}
-	if checked < 40 {
-		t.Fatalf("checked only %d subject defaults; the source scan likely stopped matching", checked)
-	}
+	assert.GreaterOrEqual(t, checked, 40, "the source scan likely stopped matching")
 }
 
 type rpcCatalog struct {
@@ -311,24 +312,18 @@ func sortedManifestUsers() []string {
 func (c rpcCatalog) accountForService(t *testing.T, service goService) (rpcAccount, bool) {
 	t.Helper()
 	user, ok := rpcServiceUsers[service.name]
-	if !ok {
-		t.Errorf("%s has a main.go but no entry in rpcServiceUsers — map it to its RPC user or list it in rpcServicesWithoutIdentity", service.name)
+	if !assert.True(t, ok, "%s has a main.go but no entry in rpcServiceUsers: map it to its RPC user or list it in rpcServicesWithoutIdentity", service.name) {
 		return rpcAccount{}, false
 	}
 	account, ok := c.byUser[user]
-	if !ok {
-		t.Errorf("%s maps to user %s, which has no RPC account in accounts.yaml", service.name, user)
-		return rpcAccount{}, false
-	}
-	return account, true
+	assert.True(t, ok, "%s maps to user %s, which has no RPC account in accounts.yaml", service.name, user)
+	return account, ok
 }
 
 func (c rpcCatalog) assertRequestGranted(t *testing.T, requester rpcAccount, req rpcRequest) {
 	t.Helper()
 	for _, subject := range []string{req.subject, req.subject + ".node.n1"} {
-		if problem := c.crossAccountProblem(requester, subject); problem != "" {
-			t.Errorf("%s requests %s (%s): %s", requester.users[0], subject, req.source, problem)
-		}
+		assert.Empty(t, c.crossAccountProblem(requester, subject), "%s requests %s (%s)", requester.users[0], subject, req.source)
 	}
 }
 
@@ -361,9 +356,7 @@ func (c rpcCatalog) assertDefaultGranted(t *testing.T, d subjectDefault) {
 		t.Logf("%s: %s — %s", d.service, d.literal, why)
 		return
 	}
-	if problem := d.problem(); problem != "" {
-		t.Errorf("%s loads %q: %s", d.service, d.literal, problem)
-	}
+	assert.Empty(t, d.problem(), "%s loads %q", d.service, d.literal)
 }
 
 func (d subjectDefault) allowlisted() (string, bool) {
@@ -411,67 +404,22 @@ func goServiceDirs(t *testing.T) []goService {
 		filepath.Join(root, "app", "*", "*", "main.go"),
 	} {
 		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		mainFiles = append(mainFiles, matches...)
 	}
-	if len(mainFiles) < 10 {
-		t.Fatalf("found only %d app/**/main.go files; the glob no longer matches the service layout", len(mainFiles))
-	}
+	require.GreaterOrEqual(t, len(mainFiles), 10, "the glob no longer matches the service layout")
 	services := make([]goService, 0, len(mainFiles))
 	for _, mainFile := range mainFiles {
 		dir := filepath.Dir(mainFile)
 		name, err := filepath.Rel(root, dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		services = append(services, goService{name: filepath.ToSlash(name), dir: dir})
 	}
 	return services
 }
 
-func TestSubjectMatches(t *testing.T) {
-	cases := []struct {
-		pattern, subject string
-		want             bool
-	}{
-		{"bagel.rpc.loyalty.counter.get", "bagel.rpc.loyalty.counter.get", true},
-		{"bagel.rpc.loyalty.counter.get", "bagel.rpc.loyalty.counter.set", false},
-		{"bagel.rpc.loyalty.>", "bagel.rpc.loyalty.counter.get", true},
-		{"bagel.rpc.loyalty.>", "bagel.rpc.loyalty", false},
-		{"bagel.rpc.loyalty.counter.>", "bagel.rpc.loyalty.balance.get", false},
-		{"bagel.rpc.health.users.node.*", "bagel.rpc.health.users.node.n1", true},
-		{"bagel.rpc.health.users.node.*", "bagel.rpc.health.users.node.n1.extra", false},
-		{"bagel.rpc.health.users.node.*", "bagel.rpc.health.users", false},
-		{"bagel.rpc.*.get", "bagel.rpc.thing.get", true},
-		{"bagel.rpc.*.get", "bagel.rpc.thing.sub.get", false},
-	}
-	for _, c := range cases {
-		if got := (rpcGrant{kind: "service", subject: c.pattern}).covers(c.subject); got != c.want {
-			t.Errorf("(%q).covers(%q) = %v, want %v", c.pattern, c.subject, got, c.want)
-		}
-	}
-}
-
 func (g rpcGrant) covers(subject string) bool {
-	if g.kind != "service" {
-		return false
-	}
-	p := strings.Split(g.subject, ".")
-	s := strings.Split(subject, ".")
-	for i, tok := range p {
-		if tok == ">" {
-			return i < len(s)
-		}
-		if i >= len(s) {
-			return false
-		}
-		if tok != "*" && tok != s[i] {
-			return false
-		}
-	}
-	return len(p) == len(s)
+	return g.kind == "service" && server.SubjectsCollide(g.subject, subject)
 }
 
 func (a rpcAccount) importCovering(subject string) (rpcImport, bool) {
@@ -532,9 +480,7 @@ func rpcSubjectDefaults(t *testing.T, service goService) map[string]struct{} {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return literals
 }
 

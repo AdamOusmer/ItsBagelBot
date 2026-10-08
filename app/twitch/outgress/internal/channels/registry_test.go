@@ -12,8 +12,56 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/pkg/kvstate/kvtest"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestPausedState(t *testing.T) {
+	tests := []struct {
+		name       string
+		apply      func(t *testing.T, r *Registry)
+		wantPaused bool
+		wantErr    error
+	}{
+		{"fails closed before any pause state is known", func(*testing.T, *Registry) {}, false, ErrPauseStateUnavailable},
+		{"reports a seeded pause", func(_ *testing.T, r *Registry) { r.SeedPause(true) }, true, nil},
+		{
+			name: "does not let an older seed revert a newer durable pause",
+			apply: func(t *testing.T, r *Registry) {
+				ctx, kv := context.Background(), kvtest.New()
+				_, err := kv.Create(ctx, "paused", []byte("false"))
+				require.NoError(t, err)
+				require.NoError(t, r.UseDurablePause(ctx, kv))
+				require.NoError(t, r.SetPaused(ctx, true))
+				r.SeedPause(false)
+			},
+			wantPaused: true,
+		},
+		{
+			name: "lets a same-version seed repair a legacy writer",
+			apply: func(_ *testing.T, r *Registry) {
+				r.SeedPause(false)
+				r.SeedPause(true)
+			},
+			wantPaused: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := New(nil)
+			t.Cleanup(r.Close)
+			tt.apply(t, r)
+
+			paused, err := r.Paused(context.Background())
+
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantPaused, paused)
+		})
+	}
+}
 
 func TestPauseSnapshotOrdering(t *testing.T) {
 	tests := []struct {

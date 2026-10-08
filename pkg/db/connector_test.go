@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -39,80 +37,59 @@ func observeLogs(t *testing.T) *observer.ObservedLogs {
 	return logs
 }
 
-func TestTimedConnectorLogsSuccessfulConnect(t *testing.T) {
-	logs := observeLogs(t)
-	inner := &fakeConnector{}
-
-	conn, err := timedConnector{Connector: inner, addr: testDBAddr}.Connect(context.Background())
-
-	require.NoError(t, err)
-	require.Nil(t, conn)
-	require.Equal(t, 1, inner.calls)
-
-	entries := logs.All()
-	require.Len(t, entries, 1)
-	require.Equal(t, zapcore.InfoLevel, entries[0].Level)
-
-	fields := entries[0].ContextMap()
-	require.Equal(t, testDBAddr, fields["addr"])
-	require.Contains(t, fields, "elapsed")
-	require.Equal(t, true, fields["no_deadline"])
-	require.NotContains(t, fields, "budget")
-}
-
-func TestTimedConnectorLogsFailedConnect(t *testing.T) {
-	logs := observeLogs(t)
+func TestTimedConnectorLogsEveryConnectAttempt(t *testing.T) {
 	failure := errors.New("dial refused")
-	inner := &fakeConnector{err: failure}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	_, err := timedConnector{Connector: inner, addr: testDBAddr}.Connect(ctx)
-
-	require.ErrorIs(t, err, failure)
-	require.Equal(t, 1, inner.calls)
-
-	entries := logs.All()
-	require.Len(t, entries, 1)
-	require.Equal(t, zapcore.WarnLevel, entries[0].Level)
-	fields := entries[0].ContextMap()
-	require.Contains(t, fields, "elapsed")
-	require.NotContains(t, fields, "no_deadline")
-	budget, ok := fields["budget"].(time.Duration)
-	require.True(t, ok)
-	require.Greater(t, budget, 2*time.Second)
-	require.LessOrEqual(t, budget, 3*time.Second)
-}
-
-func TestDatastoreSegmentBuilderTargets(t *testing.T) {
-	cases := []struct {
-		name         string
-		net          string
-		addr         string
-		wantHost     string
-		wantPortPath string
+	tests := []struct {
+		name      string
+		err       error
+		wantLevel zapcore.Level
 	}{
-		{name: "tcp", net: "tcp", addr: testDBAddr, wantHost: "10.0.0.4", wantPortPath: "3306"},
-		{name: "unix", net: "unix", addr: "/tmp/mysql.sock", wantHost: "localhost", wantPortPath: "/tmp/mysql.sock"},
-		{name: "cloudsql", net: "cloudsql", addr: "project:region:instance", wantHost: "project:region:instance"},
-		{name: "unsplittable", net: "tcp", addr: "db.internal", wantHost: "db.internal"},
-		{name: "portonly", net: "tcp", addr: ":3306", wantHost: "localhost", wantPortPath: "3306"},
+		{name: "logs a successful connect at info", wantLevel: zapcore.InfoLevel},
+		{name: "logs a failed connect at warn and returns the error", err: failure, wantLevel: zapcore.WarnLevel},
 	}
-
-	for _, tc := range cases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mc := mysql.NewConfig()
-			mc.Net = tc.net
-			mc.Addr = tc.addr
-			mc.DBName = "bagel_loyalty"
+			logs := observeLogs(t)
+			inner := &fakeConnector{err: tc.err}
 
-			builder := datastoreSegmentBuilder(mc)
+			_, err := timedConnector{Connector: inner, addr: testDBAddr}.Connect(context.Background())
 
-			require.Equal(t, newrelic.DatastoreMySQL, builder.BaseSegment.Product)
-			require.Equal(t, tc.wantHost, builder.BaseSegment.Host)
-			require.Equal(t, tc.wantPortPath, builder.BaseSegment.PortPathOrID)
-			require.Equal(t, "bagel_loyalty", builder.BaseSegment.DatabaseName)
-			require.NotNil(t, builder.ParseQuery)
+			require.ErrorIs(t, err, tc.err)
+			require.Equal(t, 1, inner.calls)
+			entries := logs.All()
+			require.Len(t, entries, 1)
+			require.Equal(t, tc.wantLevel, entries[0].Level)
+			fields := entries[0].ContextMap()
+			require.Equal(t, testDBAddr, fields["addr"])
+			require.Contains(t, fields, "elapsed")
 		})
 	}
+}
+
+func TestTimedConnectorLogsTheCallersRemainingBudget(t *testing.T) {
+	t.Run("without a deadline it says so", func(t *testing.T) {
+		logs := observeLogs(t)
+
+		_, err := timedConnector{Connector: &fakeConnector{}, addr: testDBAddr}.Connect(context.Background())
+
+		require.NoError(t, err)
+		fields := logs.All()[0].ContextMap()
+		require.Equal(t, true, fields["no_deadline"])
+		require.NotContains(t, fields, "budget")
+	})
+	t.Run("with a deadline it logs what was left", func(t *testing.T) {
+		logs := observeLogs(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		_, err := timedConnector{Connector: &fakeConnector{err: errors.New("dial refused")}, addr: testDBAddr}.Connect(ctx)
+
+		require.Error(t, err)
+		fields := logs.All()[0].ContextMap()
+		require.NotContains(t, fields, "no_deadline")
+		budget, ok := fields["budget"].(time.Duration)
+		require.True(t, ok)
+		require.Greater(t, budget, 2*time.Second)
+		require.LessOrEqual(t, budget, 3*time.Second)
+	})
 }

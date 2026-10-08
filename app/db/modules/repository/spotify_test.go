@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
@@ -22,10 +23,10 @@ import (
 func spotifySetup(t *testing.T) (*ent.Client, *repository.SpotifyCreds) {
 	t.Helper()
 	client := testdb.Open(t, "spotifycreds", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-	return client, repository.NewSpotifyCreds(client, newPacker(t))
+	return client, repository.NewSpotifyCreds(client, dbtest.NewPacker(t))
 }
 
-func TestSpotifyTokenRoundTrip(t *testing.T) {
+func TestSpotifyTokenRoundTripSealsAndReplaces(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
 
@@ -37,30 +38,25 @@ func TestSpotifyTokenRoundTrip(t *testing.T) {
 	got, err := creds.Token(ctx, 1001)
 	require.NoError(t, err)
 	assert.Equal(t, "rt-secret-token", got)
-
 	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(1001)).OnlyX(ctx)
 	assert.NotContains(t, string(row.TokenEnc), "rt-secret-token", "token must be sealed at rest")
 	assert.NotEmpty(t, row.TokenEnc)
-}
 
-func TestSpotifyTokenUpsertReplaces(t *testing.T) {
-	client, creds := spotifySetup(t)
-	ctx := context.Background()
-
-	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
 	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "second"}))
 
-	got, err := creds.Token(ctx, 1001)
+	got, err = creds.Token(ctx, 1001)
 	require.NoError(t, err)
 	assert.Equal(t, "second", got, "a reconnect must replace the stored token")
-
-	rows := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(1001)).AllX(ctx)
-	require.Len(t, rows, 1, "a second set must replace, not duplicate")
+	assert.Equal(t, 1, client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(1001)).CountX(ctx), "a second set must replace, not duplicate")
 }
 
 func TestSpotifyTokenStatusAndClear(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
+
+	_, err := creds.Token(ctx, 4242)
+	assert.ErrorIs(t, err, repository.ErrNoSpotifyToken)
+	assert.NoError(t, creds.ClearToken(ctx, 9999), "clearing a missing token is a no-op")
 
 	present, err := creds.HasToken(ctx, 1001)
 	require.NoError(t, err)
@@ -80,12 +76,6 @@ func TestSpotifyTokenStatusAndClear(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyToken)
 }
 
-func TestSpotifyTokenMissing(t *testing.T) {
-	_, creds := spotifySetup(t)
-	_, err := creds.Token(context.Background(), 4242)
-	assert.ErrorIs(t, err, repository.ErrNoSpotifyToken)
-}
-
 func TestSpotifyTokenAADBindsToUser(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -100,47 +90,41 @@ func TestSpotifyTokenAADBindsToUser(t *testing.T) {
 	assert.NotErrorIs(t, err, repository.ErrNoSpotifyToken)
 }
 
-func TestSpotifyTokenClearMissingIsNoop(t *testing.T) {
-	_, creds := spotifySetup(t)
-	assert.NoError(t, creds.ClearToken(context.Background(), 9999))
-}
+func TestSpotifyRotateToken(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		stored   string
+		prev     string
+		next     string
+		wantErr  error
+		anyError bool
+		want     string
+	}{
+		{name: "a matching rotation replaces the stored token", stored: "first", prev: "first", next: "second", want: "second"},
+		{name: "a stale rotation never clobbers the newer token", stored: "newer", prev: "older", next: "rotated-from-older", wantErr: repository.ErrRotateStale, want: "newer"},
+		{name: "a missing row has nothing to rotate", prev: "prev", next: "next", wantErr: repository.ErrNoSpotifyToken},
+		{name: "an empty next token is refused", stored: "first", prev: "first", anyError: true, want: "first"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, creds := spotifySetup(t)
+			ctx := context.Background()
+			if tc.stored != "" {
+				require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: tc.stored}))
+			}
 
-func TestSpotifyRotateTokenSwapsOnMatch(t *testing.T) {
-	_, creds := spotifySetup(t)
-	ctx := context.Background()
+			err := creds.RotateToken(ctx, 1001, tc.prev, tc.next)
 
-	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
-	require.NoError(t, creds.RotateToken(ctx, 1001, "first", "second"))
-
-	got, err := creds.Token(ctx, 1001)
-	require.NoError(t, err)
-	assert.Equal(t, "second", got, "a matching rotation must replace the stored token")
-}
-
-func TestSpotifyRotateTokenStaleRefused(t *testing.T) {
-	_, creds := spotifySetup(t)
-	ctx := context.Background()
-
-	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "newer"}))
-	err := creds.RotateToken(ctx, 1001, "older", "rotated-from-older")
-	require.ErrorIs(t, err, repository.ErrRotateStale)
-
-	got, err := creds.Token(ctx, 1001)
-	require.NoError(t, err)
-	assert.Equal(t, "newer", got, "a stale rotation must never clobber the newer token")
-}
-
-func TestSpotifyRotateTokenMissingRow(t *testing.T) {
-	_, creds := spotifySetup(t)
-	err := creds.RotateToken(context.Background(), 1001, "prev", "next")
-	require.ErrorIs(t, err, repository.ErrNoSpotifyToken)
-}
-
-func TestSpotifyRotateTokenEmptyNextRefused(t *testing.T) {
-	_, creds := spotifySetup(t)
-	ctx := context.Background()
-	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "first"}))
-	require.Error(t, creds.RotateToken(ctx, 1001, "first", ""))
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			}
+			assert.Equal(t, tc.wantErr != nil || tc.anyError, err != nil)
+			if tc.want != "" {
+				got, err := creds.Token(ctx, 1001)
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
 }
 
 const (

@@ -15,20 +15,19 @@ import (
 func TestBindingSetAndGet(t *testing.T) {
 	repo, ctx := newStore(t, "bindingset")
 
-	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{
-		GuildID: "g1", BroadcasterID: 42, InstalledBy: "u1",
-	}))
-
+	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42, InstalledBy: "u1"}))
 	broadcasterID, found, err := repo.BindingGet(ctx, "g1")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, uint64(42), broadcasterID)
 
+	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42, InstalledBy: "u2"}), "the same pair binds idempotently")
+	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g2", BroadcasterID: 42}))
+
 	guilds, err := repo.BindingListByBroadcaster(ctx, 42)
 	require.NoError(t, err)
-	require.Len(t, guilds, 1)
-	assert.Equal(t, "g1", guilds[0].GuildID)
-	assert.Equal(t, "u1", guilds[0].InstalledBy)
+	require.Len(t, guilds, 2, "a broadcaster may bind many guilds")
+	assert.Equal(t, []string{"g1", "g2"}, []string{guilds[0].GuildID, guilds[1].GuildID}, "oldest binding first")
 }
 
 func TestBindingGetMissingIsNotAnError(t *testing.T) {
@@ -41,20 +40,6 @@ func TestBindingGetMissingIsNotAnError(t *testing.T) {
 	guilds, err := repo.BindingListByBroadcaster(ctx, 999)
 	require.NoError(t, err)
 	assert.Empty(t, guilds)
-}
-
-func TestBindingSetIsIdempotentForTheSamePair(t *testing.T) {
-	repo, ctx := newStore(t, "bindingidempotent")
-	params := repository.BindParams{GuildID: "g1", BroadcasterID: 42, InstalledBy: "u1"}
-
-	require.NoError(t, repo.BindingSet(ctx, params))
-	params.InstalledBy = "u2"
-	require.NoError(t, repo.BindingSet(ctx, params))
-
-	broadcasterID, found, err := repo.BindingGet(ctx, "g1")
-	require.NoError(t, err)
-	assert.True(t, found)
-	assert.Equal(t, uint64(42), broadcasterID)
 }
 
 func TestBindingSetRefusesAGuildBoundElsewhere(t *testing.T) {
@@ -70,34 +55,16 @@ func TestBindingSetRefusesAGuildBoundElsewhere(t *testing.T) {
 	assert.Equal(t, uint64(42), broadcasterID, "the losing bind must not move the row")
 }
 
-func TestBindingSetAllowsManyGuildsPerBroadcaster(t *testing.T) {
-	repo, ctx := newStore(t, "bindingmanyguilds")
-
-	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42}))
-	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g2", BroadcasterID: 42}))
-
-	guilds, err := repo.BindingListByBroadcaster(ctx, 42)
-	require.NoError(t, err)
-	require.Len(t, guilds, 2)
-	assert.Equal(t, "g1", guilds[0].GuildID, "oldest binding first")
-	assert.Equal(t, "g2", guilds[1].GuildID)
-}
-
-func TestBindingListByBroadcasterRejectsZero(t *testing.T) {
-	repo, ctx := newStore(t, "bindinglistinvalid")
+func TestBindingRejectsEmptyInput(t *testing.T) {
+	repo, ctx := newStore(t, "bindinginvalid")
 
 	_, err := repo.BindingListByBroadcaster(ctx, 0)
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
-}
-
-func TestBindingSetRejectsEmptyInput(t *testing.T) {
-	repo, ctx := newStore(t, "bindinginvalid")
-
 	assert.ErrorIs(t, repo.BindingSet(ctx, repository.BindParams{BroadcasterID: 1}), repository.ErrInvalidInput)
 	assert.ErrorIs(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1"}), repository.ErrInvalidInput)
 }
 
-func TestBindingDeleteIsGuardedAndIdempotent(t *testing.T) {
+func TestBindingDeleteIsGuardedAndFreesTheBroadcaster(t *testing.T) {
 	repo, ctx := newStore(t, "bindingdelete")
 
 	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42}))
@@ -111,19 +78,13 @@ func TestBindingDeleteIsGuardedAndIdempotent(t *testing.T) {
 	_, found, err = repo.BindingGet(ctx, "g1")
 	require.NoError(t, err)
 	assert.False(t, found)
+	require.NoError(t, repo.BindingDelete(ctx, "g1", 42), "deleting again is idempotent")
 
-	require.NoError(t, repo.BindingDelete(ctx, "g1", 42))
-}
-
-func TestBindingDeleteFreesTheBroadcasterForAnotherGuild(t *testing.T) {
-	repo, ctx := newStore(t, "bindingrebind")
-
-	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42}))
-	require.NoError(t, repo.BindingDelete(ctx, "g1", 0))
-	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g2", BroadcasterID: 42}))
-
-	guilds, err := repo.BindingListByBroadcaster(ctx, 42)
+	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g3", BroadcasterID: 44}))
+	require.NoError(t, repo.BindingDelete(ctx, "g3", 0), "a zero broadcaster deletes unguarded")
+	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g4", BroadcasterID: 44}))
+	guilds, err := repo.BindingListByBroadcaster(ctx, 44)
 	require.NoError(t, err)
 	require.Len(t, guilds, 1)
-	assert.Equal(t, "g2", guilds[0].GuildID)
+	assert.Equal(t, "g4", guilds[0].GuildID)
 }

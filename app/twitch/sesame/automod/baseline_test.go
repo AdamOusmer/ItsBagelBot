@@ -6,12 +6,54 @@ package automod
 import (
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func newTestBaseline() *Baseline {
-	b := NewBaseline(DefaultCeiling())
-	b.nowUnix = func() int64 { return 1_800_000_000 }
-	return b
+func observeConstant(b *Baseline, ch uint64, n int, caps float64) {
+	for i := 0; i < n; i++ {
+		b.Observe(ch, caps, 0.1, 8)
+	}
+}
+
+func observeHypeAlternation(b *Baseline, ch uint64, n int) {
+	for i := 0; i < n; i++ {
+		caps := 0.5
+		if i%2 == 0 {
+			caps = 0.8
+		}
+		b.Observe(ch, caps, 0.1, 10)
+	}
+}
+
+func TestBaselineAdjust(t *testing.T) {
+	const ch = uint64(7)
+	tests := []struct {
+		name   string
+		warm   func(*Baseline)
+		kind   StyleKind
+		static float64
+		raised bool
+	}{
+		{"returns a stricter caller caps static for a cold channel", func(*Baseline) {}, KindCaps, 0.85, false},
+		{"returns a stricter caller symbol static for a cold channel", func(*Baseline) {}, KindSymbol, 0.9, false},
+		{"raises caps above the static for a warm hype channel", func(b *Baseline) { observeHypeAlternation(b, ch, 200) }, KindCaps, 0.7, true},
+		{"keeps a stricter caller threshold through adaptation", func(b *Baseline) { observeConstant(b, ch, 200, 0.5) }, KindCaps, 0.85, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := newTestBaseline()
+			tt.warm(b)
+
+			got := b.Adjust(ch, tt.kind, tt.static)
+
+			if tt.raised {
+				assert.Greater(t, got, tt.static)
+				return
+			}
+			assert.Equal(t, tt.static, got)
+		})
+	}
 }
 
 func TestBaselineColdChannelReturnsCallerStatic(t *testing.T) {
@@ -26,20 +68,6 @@ func TestBaselineColdChannelReturnsCallerStatic(t *testing.T) {
 	}
 	if got := b.Adjust(42, KindCaps, 0.6); got != 0.6 {
 		t.Fatalf("cold strict caps: got %v, want the tighter static 0.6", got)
-	}
-}
-
-func TestBaselineWarmChannelRaisesForHypeCulture(t *testing.T) {
-	b := newTestBaseline()
-	for i := 0; i < 200; i++ {
-		v := 0.55
-		if i%2 == 0 {
-			v = 0.75
-		}
-		b.Observe(7, v-0.05, 0.1, 10)
-	}
-	if got := b.Adjust(7, KindCaps, 0.7); got <= 0.7 {
-		t.Fatalf("hype channel must raise above ceiling, got %v", got)
 	}
 }
 
@@ -62,40 +90,25 @@ func TestBaselineNeverDropsBelowCallerStatic(t *testing.T) {
 	}
 }
 
-func TestBaselineRespectsCallerStaticThreshold(t *testing.T) {
-	b := newTestBaseline()
-	for i := 0; i < 200; i++ {
-		b.Observe(3, 0.5, 0.1, 10)
-	}
-	if got := b.Adjust(3, KindCaps, 0.85); got != 0.85 {
-		t.Fatalf("stricter caller threshold must survive adaptation: got %v want 0.85", got)
-	}
-}
-
 func TestBaselineEvictsStalestHalfAtCap(t *testing.T) {
 	b := newTestBaseline()
 	const shardBase = uint64(1 << 10)
 	for i := uint64(0); i < baselineChanCap+512; i++ {
-		ch := shardBase + i*64
 		b.nowUnix = func() int64 { return int64(1_800_000_000 + i) }
-		b.Observe(ch, 0.3, 0.1, 5)
+		b.Observe(shardBase+i*64, 0.3, 0.1, 5)
 	}
+
 	s := &b.shards[shardBase&baselineShardMask]
-	if len(s.m) > baselineChanCap/baselineShards {
-		t.Fatalf("shard map exceeded its per-shard cap: %d > %d", len(s.m), baselineChanCap/baselineShards)
-	}
-	freshest := shardBase + (baselineChanCap+511)*64
-	if _, ok := s.m[freshest]; !ok {
-		t.Fatal("the most recently seen channel was evicted; eviction must keep the hot half")
-	}
+
+	assert.LessOrEqual(t, len(s.m), baselineChanCap/baselineShards, "shard map exceeded its per-shard cap")
+	assert.Contains(t, s.m, shardBase+(baselineChanCap+511)*64, "eviction must keep the hot half")
 }
 
 func TestBaselineShardsIsolateAndRace(t *testing.T) {
 	b := newTestBaseline()
-	a, c := uint64(100), uint64(101)
-	if (&b.shards[a&baselineShardMask]) == (&b.shards[c&baselineShardMask]) {
-		t.Fatal("adjacent ids must not share a shard or they contend on one lock")
-	}
+	assert.NotSame(t, &b.shards[uint64(100)&baselineShardMask], &b.shards[uint64(101)&baselineShardMask],
+		"adjacent ids must not share a shard or they contend on one lock")
+
 	var wg sync.WaitGroup
 	for g := 0; g < 16; g++ {
 		wg.Add(1)
@@ -107,29 +120,21 @@ func TestBaselineShardsIsolateAndRace(t *testing.T) {
 				b.Adjust(ch, KindCaps, 0.7)
 			}
 			for i := 0; i < 200; i++ {
-				b.Observe(uint64(4096), 0.4, 0.2, 12)
-				b.Adjust(uint64(4096), KindSymbol, 0.6)
+				b.Observe(4096, 0.4, 0.2, 12)
+				b.Adjust(4096, KindSymbol, 0.6)
 			}
 		}(g)
 	}
 	wg.Wait()
 }
 
-func TestBaselineZeroAllocSteadyState(t *testing.T) {
+func TestBaselineSteadyStateAllocatesNothing(t *testing.T) {
 	b := newTestBaseline()
-	ch := uint64(55)
+	const ch = uint64(55)
 	for i := 0; i < 100; i++ {
 		b.Observe(ch, 0.5, 0.3, 11)
 	}
-	b.Adjust(ch, KindCaps, 0.7)
-	if got := testing.AllocsPerRun(1000, func() {
-		b.Observe(ch, 0.5, 0.3, 11)
-	}); got != 0 {
-		t.Fatalf("Observe steady state allocates %v times/run", got)
-	}
-	if got := testing.AllocsPerRun(1000, func() {
-		b.Adjust(ch, KindSymbol, 0.6)
-	}); got != 0 {
-		t.Fatalf("Adjust steady state allocates %v times/run", got)
-	}
+
+	assert.Zero(t, testing.AllocsPerRun(1000, func() { b.Observe(ch, 0.5, 0.3, 11) }), "Observe")
+	assert.Zero(t, testing.AllocsPerRun(1000, func() { b.Adjust(ch, KindSymbol, 0.6) }), "Adjust")
 }

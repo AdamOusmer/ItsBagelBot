@@ -2,27 +2,28 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { beforeEach, expect, mock, test } from 'bun:test';
-import { SwrCache } from '@bagel/kit/server/cache';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 
-const cache = new SwrCache();
+process.env.NEW_RELIC_ENABLED = 'false';
+mock.module('$app/environment', () => ({ dev: false }));
+mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
+
 const modules = [{ name: 'queue', is_enabled: true, revision: 8, configs: {} },
   { name: 'loyalty', is_enabled: true, revision: 4, account_created_at: 100, configs: {} }];
 let projected = modules;
 let projectionFailure = false;
 const calls: Array<{ subject: string; body: any }> = [];
-mock.module('newrelic', () => ({ default: { noticeError: () => {} } }));
-mock.module('./services', () => ({
-  SUB: { modules: 'modules', projector: 'projector' },
-  fabric: { cache }, invalidate: (key: string) => cache.invalidate(key)
-}));
-mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
+const nats = await import('@bagel/kit/server/nats');
+const { SUB, fabric: { cache } } = await import('./services');
+const UPSERT = `${SUB.modules}.upsert`;
+const REPLACE = `${SUB.projector}.modules.replace`;
 mock.module('@bagel/kit/server/nats', () => ({
+  ...nats,
   rpc: async (subject: string, body: any) => {
     calls.push({ subject, body });
-    if (subject === 'modules.upsert') return { modules };
-    if (subject === 'modules.patch') return { modules, rev: 8, conflict: false };
-    if (subject === 'projector.modules.replace') {
+    if (subject === UPSERT) return { modules };
+    if (subject === `${SUB.modules}.patch`) return { modules, rev: 8, conflict: false };
+    if (subject === REPLACE) {
       if (projectionFailure) throw new Error('projection unavailable');
       return { modules: projected };
     }
@@ -41,7 +42,7 @@ beforeEach(() => {
 test('upsert projects persisted revisions and account metadata instead of guessing rows', async () => {
   cache.set('modules:1001', [{ name: 'queue', is_enabled: false, revision: 7 }], POLICY.projected);
   await upsertModule('1001', 'queue', true, {});
-  expect(calls.map((call) => call.subject)).toEqual(['modules.upsert', 'projector.modules.replace']);
+  expect(calls.map((call) => call.subject)).toEqual([UPSERT, REPLACE]);
   expect(calls[1].body.modules).toEqual(modules);
   expect(await cache.getOrLoad('modules:1001', POLICY.projected, async () => [] as typeof modules)).toEqual(modules);
 });

@@ -88,9 +88,9 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: '!cmd add, edit and remove are for the broadcaster and moderators.',
           lines: [
-            { who: 'mod', name: 'mod_sam', text: "!cmd add hype LET'S GOOO 🎉" },
-            { who: 'bot', text: '@mod_sam the command hype has been added' },
-            { who: 'viewer', name: 'maya_live', text: '!hype' },
+            { who: 'mod', name: 'Ayshacinder', text: "!cmd add hype LET'S GOOO 🎉" },
+            { who: 'bot', text: '@Ayshacinder the command hype has been added' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!hype' },
             { who: 'bot', text: "LET'S GOOO 🎉" },
           ],
         },
@@ -136,12 +136,12 @@ const guide: GuideContent = {
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: 'One command, two very different sentences: !hug alone vs !hug alex.',
+          caption: 'One command, two very different sentences: !hug alone vs !hug MikanMeerkat.',
           lines: [
-            { who: 'viewer', name: 'maya_live', text: '!hug' },
-            { who: 'bot', text: 'maya_live gives everyone a warm bagel hug 🥯' },
-            { who: 'viewer', name: 'maya_live', text: '!hug alex' },
-            { who: 'bot', text: 'maya_live gives alex a warm bagel hug 🥯' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!hug' },
+            { who: 'bot', text: 'SnackPackPanda gives everyone a warm bagel hug 🥯' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!hug MikanMeerkat' },
+            { who: 'bot', text: 'SnackPackPanda gives MikanMeerkat a warm bagel hug 🥯' },
           ],
         },
         {
@@ -183,7 +183,7 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'A two-line command: an announcement, then a normal message.',
           lines: [
-            { who: 'viewer', name: 'maya_live', text: '!giveaway' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!giveaway' },
             { who: 'system', text: 'announcement · Giveaway is LIVE! Type !enter to join.' },
             { who: 'bot', text: 'Winner picked at the top of the hour. Good luck! 🍀' },
           ],

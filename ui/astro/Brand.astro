@@ -4,8 +4,9 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/brand-mark.css';
+import { splitWordmark } from '../lib/brand-wordmark';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'title' | 'sub' | 'href' | 'logoSrc' | 'logoAlt' | 'size' | 'logoShape' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'title' | 'sub' | 'href' | 'logoSrc' | 'logoAlt' | 'size' | 'logoShape' | 'wordmark' | 'fit' | 'class'> {
   title: string;
   sub?: string;
   href?: string;
@@ -13,6 +14,8 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'title' | 'sub' | 'href' | '
   logoAlt?: string;
   size?: 'sm' | 'md' | 'lg';
   logoShape?: 'square' | 'circle';
+  wordmark?: boolean;
+  fit?: boolean;
   class?: string;
 }
 
@@ -24,19 +27,22 @@ const {
   logoAlt = '',
   size = 'md',
   logoShape = 'square',
+  wordmark = false,
+  fit = false,
   class: className = '',
   ...rest
 } = Astro.props;
 
-const classes = ['bb-brand', `bb-brand--${size}`, className || null]
+const classes = ['bb-brand', `bb-brand--${size}`, wordmark ? 'bb-brand--wordmark' : null, className || null]
   .filter(Boolean)
   .join(' ');
 
 const px = size === 'sm' ? 26 : size === 'lg' ? 55 : 30;
+const parts = wordmark && logoSrc ? splitWordmark(title) : null;
 ---
 
 {href ? (
-  <a class={classes} href={href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></a>
+  <a class={classes} href={href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <span class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span>}</span></a>
 ) : (
-  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></div>
+  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && !parts && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id">{parts ? <span class="bb-brand__name" role="img" aria-label={title}>{parts[0]}<img class="bb-brand__o" src={logoSrc} alt="" width={px} height={px} />{parts[1]}</span> : <span class="bb-brand__name">{title}</span>}{sub && <span class="bb-brand__sub" data-fit={fit ? '' : undefined}>{sub}</span>}</span></div>
 )}

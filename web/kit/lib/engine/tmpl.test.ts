@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   type Cond,
-  condHolds,
   condText,
   expand,
   lex,
@@ -171,17 +170,13 @@ describe('parseCond (pkg/tmpl/cond.go mirror)', () => {
   });
 
   test('the bare test is non-emptiness, so "0" and "false" are true', () => {
-    const c = cond('{if:count:yes:no}') as Cond;
-    expect(condHolds(c, '0')).toBe(true);
-    expect(condHolds(c, 'false')).toBe(true);
-    expect(condHolds(c, '')).toBe(false);
+    const render = (value: string) => expand('{if:count:yes:no}', () => value);
+    expect([render('0'), render('false'), render('')]).toEqual(['yes', 'yes', 'no']);
   });
 
   test('equality is exact and case-sensitive', () => {
-    const c = cond('{if:game=Chess:yes:no}') as Cond;
-    expect(condHolds(c, 'Chess')).toBe(true);
-    expect(condHolds(c, 'chess')).toBe(false);
-    expect(condHolds(c, 'Chess Boxing')).toBe(false);
+    const render = (value: string) => expand('{if:game=Chess:yes:no}', () => value);
+    expect([render('Chess'), render('chess'), render('Chess Boxing')]).toEqual(['yes', 'no', 'no']);
   });
 });
 

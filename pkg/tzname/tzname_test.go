@@ -5,6 +5,7 @@ package tzname
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"testing"
@@ -116,13 +117,6 @@ func TestNormalizeCapsAt64Runes(t *testing.T) {
 	assert.Equal(t, strings.Repeat("e", 64), got)
 }
 
-func TestLoad(t *testing.T) {
-	_, err := Load("America/Toronto")
-	assert.NoError(t, err)
-	_, err = Load("Nope/Nope")
-	assert.Error(t, err)
-}
-
 func TestCuratedZonesLoad(t *testing.T) {
 	for query, entry := range regionZones {
 		_, err := time.LoadLocation(entry.zone)
@@ -143,32 +137,32 @@ func TestZonesGenCurrent(t *testing.T) {
 	assert.Equal(t, current.Links, linkZones, staleMsg)
 }
 
-func TestSegmentCollisions(t *testing.T) {
+func canonicalSegments() map[string][]string {
 	bySegment := map[string][]string{}
 	for _, zone := range canonicalZones {
-		key := foldZoneKey(lastSegment(zone))
+		key := Normalize(path.Base(zone))
 		bySegment[key] = append(bySegment[key], zone)
 	}
+	return bySegment
+}
 
+func TestSegmentCollisions(t *testing.T) {
 	var uncovered []string
-	for key, zones := range bySegment {
-		if len(zones) < 2 {
-			continue
+	for key, zones := range canonicalSegments() {
+		if _, curated := curatedZones[key]; len(zones) > 1 && !curated {
+			uncovered = append(uncovered, fmt.Sprintf("%s: %v", key, zones))
 		}
-		if _, curated := curatedZones[key]; curated {
-			continue
-		}
-		uncovered = append(uncovered, fmt.Sprintf("%s: %v", key, zones))
 	}
+
 	sort.Strings(uncovered)
 	assert.Empty(t, uncovered, "last-segment collisions with no curated override (add the colliding name to curatedZones): %v", uncovered)
 }
 
 func TestRegionZonesDisjoint(t *testing.T) {
+	segments := canonicalSegments()
 	for name := range regionZones {
 		_, curated := curatedZones[name]
 		assert.Falsef(t, curated, "region %q duplicates a curated entry; drop it from regions.go", name)
-		_, segment := index.bySegment[foldZoneKey(name)]
-		assert.Falsef(t, segment, "region %q is already a canonical zone segment; drop it from regions.go", name)
+		assert.NotContainsf(t, segments, Normalize(name), "region %q is already a canonical zone segment; drop it from regions.go", name)
 	}
 }

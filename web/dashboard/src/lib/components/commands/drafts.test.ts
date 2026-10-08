@@ -1,28 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { commandContentSnapshot, overlayLiveActive } from '../../../../../kit/lib/command-active';
+import { storage, useFakeSessionStorage, withUnavailableSessionStorage } from '../../../../test/session-storage';
 import { discardLegacyDrafts, draftKey, hasDraft, loadDraft, saveDraft, type CommandDraft, type DraftRef } from './drafts';
 
-const storage = new Map<string, string>();
-const fakeStorage = {
-  get length() { return storage.size; },
-  key: (i: number) => [...storage.keys()][i] ?? null,
-  getItem: (key: string) => storage.get(key) ?? null,
-  setItem: (key: string, value: string) => void storage.set(key, value),
-  removeItem: (key: string) => void storage.delete(key)
-};
-const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
-Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fakeStorage });
+useFakeSessionStorage();
+
 const BOARD = '1001';
 const NEW: DraftRef = { board: BOARD, name: '', edit: false };
 const HELLO: DraftRef = { board: BOARD, name: 'hello', edit: true };
-beforeEach(() => storage.clear());
-afterAll(() => {
-  if (originalStorage) Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
-  else Reflect.deleteProperty(globalThis, 'sessionStorage');
-});
 
 const draft: CommandDraft = {
   edit: false,
@@ -101,12 +89,7 @@ describe('command draft restoration', () => {
 
   test('a missing draft and unavailable storage are harmless', () => {
     expect(loadDraft(NEW)).toBeNull();
-    Object.defineProperty(globalThis, 'sessionStorage', {
-      configurable: true,
-      get() { throw new Error('storage unavailable'); }
-    });
-    expect(loadDraft(NEW)).toBeNull();
-    Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fakeStorage });
+    expect(withUnavailableSessionStorage(() => loadDraft(NEW))).toBeNull();
   });
 });
 
@@ -146,5 +129,5 @@ describe('command draft channel scope', () => {
   test('an unreadable stored draft is not carried forward on revert', () => {
     storage.set(draftKey(NEW), '{');
     expect(loadDraft(NEW)).toBeNull();
-});
+  });
 });

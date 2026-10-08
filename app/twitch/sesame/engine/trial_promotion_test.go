@@ -28,7 +28,7 @@ func localValkey(t *testing.T) valkey.Client {
 	port := listener.Addr().(*net.TCPAddr).Port
 	require.NoError(t, listener.Close())
 	dir := t.TempDir()
-	cmd := exec.Command("valkey-server", "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--dir", dir)
+	cmd := exec.Command("valkey-server", "--port", strconv.Itoa(port), "--bind", "127.0.0.1", "--save", "", "--appendonly", "no", "--notify-keyspace-events", "Ex", "--dir", dir)
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait(); _ = os.RemoveAll(filepath.Clean(dir)) })
 	var client valkey.Client

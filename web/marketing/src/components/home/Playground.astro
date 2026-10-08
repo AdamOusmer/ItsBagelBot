@@ -51,31 +51,25 @@ const playStrings = {
 <Section size="page" class="play" id="playground">
     <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
-        <Eyebrow tone="go" class="play__eyebrow" data-reveal>{t('playground.eyebrow')}</Eyebrow>
-        <Heading level={2} class="play__title" data-reveal>{t('playground.title')}</Heading>
-        <Lead class="play__sub" data-reveal>
-            {t('playground.sub')}
-        </Lead>
+        <Eyebrow tone="go" class="play__eyebrow" data-reveal><span data-fit>{t('playground.eyebrow')}</span></Eyebrow>
+        <Heading level={2} class="play__title" data-reveal><span data-fit="block">{t('playground.title')}</span></Heading>
+        <Lead class="play__sub" data-reveal><span data-fit="block">{t('playground.sub')}</span></Lead>
 
         <div class="play__chips" data-reveal>
             {chips.map((chip) => (
-                <Chip data-play-cmd={chip.cmd}>{chip.label}</Chip>
+                <Chip class="play__chip" data-play-cmd={chip.cmd}><span class="play__chip-label"><span data-fit>{chip.label}</span></span></Chip>
             ))}
-            <Chip tone="danger" data-play-spam>
-                {t('playground.sendSpam')}<span aria-hidden="true"> ☠</span>
-            </Chip>
+            <Chip tone="danger" class="play__chip play__chip--spam" data-play-spam><span class="play__chip-label"><span data-fit>{t('playground.sendSpam')}<span class="play__skull" aria-hidden="true">&nbsp;☠</span></span></span></Chip>
         </div>
 
-        <Text size="xs" mono tone="muted" class="play__hint" data-reveal>
-            {t('playground.hint')}
-        </Text>
+        <Text size="xs" mono tone="muted" class="play__hint" data-reveal><span data-fit="block">{t('playground.hint')}</span></Text>
     </div>
 
     <div class="play__stage" data-reveal data-playground>
         <Card flush class="play__window">
             <div class="play__bar">
                 <span class="play__channel">#your_channel</span>
-                <Tag tone="live" class="play__live" mark="solid" sweep>{t('playground.live')}</Tag>
+                <Tag tone="live" class="play__live" mark="solid" sweep><span class="play__live-label"><span data-fit>{t('playground.live')}</span></span></Tag>
             </div>
 
             <div class="play__feed" data-play-feed role="log" aria-label={t('playground.feedAria')}></div>
@@ -113,6 +107,7 @@ const playStrings = {
         max-width: var(--bb-content-max);
         margin: 0 auto;
         z-index: 3;
+        scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     @media (min-width: 960px) {
@@ -130,6 +125,10 @@ const playStrings = {
 
     .play__title {
         --reveal-i: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: safe flex-end;
+        height: calc(var(--play-title-lines, 2) * 1lh);
         font-weight: 800;
         font-size: clamp(2rem, 5vw, 3.2rem);
         letter-spacing: var(--bb-tracking-tight);
@@ -139,19 +138,39 @@ const playStrings = {
     .play__sub {
         --reveal-i: 2;
         max-width: 42ch;
+        height: calc(var(--play-sub-lines, 4) * 1lh);
         margin: 0 0 28px;
     }
 
     .play__chips {
         --reveal-i: 3;
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 112px));
         gap: 10px;
         margin-bottom: 18px;
     }
 
+    .play__chip {
+        min-width: 0;
+    }
+
+    .play__chip-label {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+    }
+
+    .play__skull {
+        transition: none;
+    }
+
+    .play__chip--spam {
+        grid-column: span 2;
+    }
+
     .play__hint {
         --reveal-i: 4;
+        height: calc(var(--play-hint-lines, 2) * 1lh);
         opacity: 0.75;
     }
 
@@ -184,7 +203,14 @@ const playStrings = {
     }
 
     .play__live {
+        flex: none;
+        width: 96px;
         margin-left: auto;
+    }
+
+    .play__live-label {
+        flex: 1 1 0;
+        min-width: 0;
     }
 
     .play__feed {
@@ -330,12 +356,11 @@ const playStrings = {
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
     const VIEWERS: Array<[string, string]> = [
-        ['moth_lamp', '#e0c49a'],
-        ['gg_beans', '#52b788'],
-        ['pixel_pal', '#c9a87c'],
-        ['night_owl_77', '#9ad1b5'],
-        ['soupdream', '#d9c08a'],
-        ['tiny_cactus', '#7cc9a4'],
+        ['PrincessBarney', '#e0c49a'],
+        ['SnackPackPanda', '#52b788'],
+        ['Lotti', '#c9a87c'],
+        ['MikanMeerkat', '#9ad1b5'],
+        ['Ayshacinder', '#d9c08a'],
     ];
 
     const SPAM_LINES = [
@@ -533,8 +558,8 @@ const playStrings = {
 
         document.addEventListener('visibilitychange', scheduleAmbient);
 
-        addChat('gg_beans', '#52b788', S.seed1);
-        addChat('moth_lamp', '#e0c49a', S.seedTry);
+        addChat('SnackPackPanda', '#52b788', S.seed1);
+        addChat('PrincessBarney', '#e0c49a', S.seedTry);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();

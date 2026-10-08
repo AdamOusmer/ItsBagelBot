@@ -4,7 +4,7 @@
     "description": "Guides visuels pour ItsBagelBot: installez le bot, apprenez le tableau de bord et écrivez des commandes personnalisées avec variables et données en direct.",
     "eyebrow": "Guides",
     "heading": "Apprivoisez le bot.",
-    "lead": "Chaque guide fonctionne avec le forfait gratuit, et chacun se lit en dix minutes ou moins."
+    "lead": "Chaque guide fonctionne avec le forfait gratuit, sauf les parties marquées bêta Premium, et chacun se lit en dix minutes ou moins."
   },
   "readCta": "Lire le guide",
   "tool": {
@@ -14,7 +14,7 @@
     "description": "Écrivez le message comme une phrase, cliquez pour insérer les parties intelligentes, regardez la répétition en direct, puis envoyez la commande terminée dans votre tableau de bord.",
     "cta": "Ouvrir le constructeur",
     "demoIn": "Bienvenue, <i>&#123;user&#125;</i>! Vous êtes le visiteur <i>&#123;counter:visites&#125;</i> 🥯",
-    "demoOut": "<b>ItsBagelBot:</b> Bienvenue, maya_live! Vous êtes le visiteur 128 🥯"
+    "demoOut": "<b>ItsBagelBot:</b> Bienvenue, SnackPackPanda! Vous êtes le visiteur 128 🥯"
   },
   "help": {
     "prompt": "Un guide ne couvre pas votre question?",

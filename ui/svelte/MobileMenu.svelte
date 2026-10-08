@@ -59,6 +59,8 @@
             current={link.current}
             external={link.external}
             block
+            fit
+            data-astro-prefetch={link.current || link.external ? undefined : 'viewport'}
           /></li
         >{/each}</ul
     ><div class="bb-mobile-menu__footer" data-menu-footer
@@ -69,6 +71,7 @@
           label={cta.label}
           external={cta.external}
           block
+          fit
         />{/if}{#if footer}{@render footer()}{/if}{#if meta}<span
           class="bb-mobile-menu__meta">{meta}</span
         >{/if}</div

@@ -1,11 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package natsacl
+package natsacl_test
 
 import (
-	"reflect"
 	"testing"
+
+	"ItsBagelBot/internal/natsacl"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const validACLYAML = `
@@ -33,55 +37,7 @@ accounts:
       sys: {}
 `
 
-func parseFixtureACL(t *testing.T) *ACL {
-	t.Helper()
-	acl, err := ParseACL([]byte(validACLYAML))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return acl
-}
-
-func TestParseACLSystemAccount(t *testing.T) {
-	acl := parseFixtureACL(t)
-	if acl.SystemAccount != "SYS" {
-		t.Fatalf("system_account = %q, want SYS", acl.SystemAccount)
-	}
-}
-
-func TestParseACLExportsAndImports(t *testing.T) {
-	outgress := parseFixtureACL(t).Accounts["OUTGRESS_RPC"]
-	wantExports := []ExportSpec{{Service: "bagel.rpc.outgress.>"}}
-	if !reflect.DeepEqual(outgress.Exports, wantExports) {
-		t.Fatalf("OUTGRESS_RPC exports = %+v, want %+v", outgress.Exports, wantExports)
-	}
-	wantImports := []ImportSpec{{Service: "bagel.rpc.internal.tokens.>", From: "USERS_RPC"}}
-	if !reflect.DeepEqual(outgress.Imports, wantImports) {
-		t.Fatalf("OUTGRESS_RPC imports = %+v, want %+v", outgress.Imports, wantImports)
-	}
-}
-
-func TestParseACLJetStreamAndMappings(t *testing.T) {
-	bus := parseFixtureACL(t).Accounts["BUS"]
-	wantJetStream := &JetStreamSpec{ClusterTraffic: "owner"}
-	if !reflect.DeepEqual(bus.JetStream, wantJetStream) {
-		t.Fatalf("BUS jetstream = %+v, want %+v", bus.JetStream, wantJetStream)
-	}
-	if bus.Mappings != "hub-domain" {
-		t.Fatalf("BUS mappings = %q", bus.Mappings)
-	}
-}
-
-func TestParseACLRolePermissions(t *testing.T) {
-	role := parseFixtureACL(t).Accounts["BUS"].Roles["outgress_bus"]
-	want := &PermissionSpec{Allow: []string{"a.>"}, Deny: []string{"a.secret.>"}}
-	if !reflect.DeepEqual(role.Publish, want) {
-		t.Fatalf("outgress_bus publish = %+v, want %+v", role.Publish, want)
-	}
-}
-
-func TestParseKeysRoundTrip(t *testing.T) {
-	const doc = `
+const validKeysYAML = `
 operator: OABCDEF
 accounts:
   BUS: AABCDEF
@@ -89,45 +45,49 @@ roles:
   BUS:
     outgress_bus: AZZZZZZ
 `
-	keys, err := ParseKeys([]byte(doc))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if keys.Operator != "OABCDEF" {
-		t.Fatalf("operator = %q", keys.Operator)
-	}
-	if keys.Accounts["BUS"] != "AABCDEF" {
-		t.Fatalf("accounts[BUS] = %q", keys.Accounts["BUS"])
-	}
-	if keys.Roles["BUS"]["outgress_bus"] != "AZZZZZZ" {
-		t.Fatalf("roles[BUS][outgress_bus] = %q", keys.Roles["BUS"]["outgress_bus"])
-	}
+
+func TestParseACL(t *testing.T) {
+	acl, err := natsacl.ParseACL([]byte(validACLYAML))
+	require.NoError(t, err)
+
+	assert.Equal(t, "SYS", acl.SystemAccount)
+	outgress := acl.Accounts["OUTGRESS_RPC"]
+	assert.Equal(t, []natsacl.ExportSpec{{Service: "bagel.rpc.outgress.>"}}, outgress.Exports)
+	assert.Equal(t, []natsacl.ImportSpec{{Service: "bagel.rpc.internal.tokens.>", From: "USERS_RPC"}}, outgress.Imports)
+	bus := acl.Accounts["BUS"]
+	assert.Equal(t, &natsacl.JetStreamSpec{ClusterTraffic: "owner"}, bus.JetStream)
+	assert.Equal(t, "hub-domain", bus.Mappings)
+	assert.Equal(t, &natsacl.PermissionSpec{Allow: []string{"a.>"}, Deny: []string{"a.secret.>"}}, bus.Roles["outgress_bus"].Publish)
 }
 
-func TestParseRejectsUnknownField(t *testing.T) {
-	const badACL = `
-system_account: SYS
-accounts:
-  BUS:
-    unexpected_field: true
-`
-	const badKeys = `
-operator: OABCDEF
-accounts: {}
-extra: nope
-`
+func TestParseKeys(t *testing.T) {
+	keys, err := natsacl.ParseKeys([]byte(validKeysYAML))
+	require.NoError(t, err)
+
+	assert.Equal(t, &natsacl.Keys{
+		Operator: "OABCDEF",
+		Accounts: map[string]string{"BUS": "AABCDEF"},
+		Roles:    map[string]map[string]string{"BUS": {"outgress_bus": "AZZZZZZ"}},
+	}, keys)
+}
+
+func TestParseRejectsUnknownFields(t *testing.T) {
 	tests := []struct {
 		name  string
 		parse func() error
 	}{
-		{"ACL", func() error { _, err := ParseACL([]byte(badACL)); return err }},
-		{"Keys", func() error { _, err := ParseKeys([]byte(badKeys)); return err }},
+		{"ACL", func() error {
+			_, err := natsacl.ParseACL([]byte("system_account: SYS\naccounts:\n  BUS:\n    unexpected_field: true\n"))
+			return err
+		}},
+		{"Keys", func() error {
+			_, err := natsacl.ParseKeys([]byte("operator: OABCDEF\naccounts: {}\nextra: nope\n"))
+			return err
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.parse() == nil {
-				t.Fatal("expected an error for an unknown field")
-			}
+			assert.Error(t, tt.parse())
 		})
 	}
 }

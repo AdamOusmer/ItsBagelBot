@@ -148,7 +148,7 @@ export const SURFACES: SurfaceDef[] = ([
     dashPath: '/modules/alerts',
     hint: { en: 'Chat Alerts module → follow message.', fr: 'Module Alertes de chat → message de follow.' },
     example: { en: 'Thanks for the follow, {user}!', fr: 'Merci pour le follow, {user}!' },
-    prompt: { en: 'maya_live followed the channel', fr: 'maya_live suit maintenant la chaîne' },
+    prompt: { en: 'SnackPackPanda followed the channel', fr: 'SnackPackPanda suit maintenant la chaîne' },
     vars: moduleSurfaceVars('alerts.follow'),
   },
   {
@@ -158,7 +158,7 @@ export const SURFACES: SurfaceDef[] = ([
     dashPath: '/modules/alerts',
     hint: { en: 'Chat Alerts module → subscription message.', fr: "Module Alertes de chat → message d'abonnement." },
     example: { en: 'Welcome, {user}! Thanks for the tier {tier} sub!', fr: 'Bienvenue, {user}! Merci pour le sub palier {tier}!' },
-    prompt: { en: 'maya_live subscribed', fr: "maya_live s'est abonnée" },
+    prompt: { en: 'SnackPackPanda subscribed', fr: "SnackPackPanda s'est abonnée" },
     vars: moduleSurfaceVars('alerts.sub'),
   },
   {
@@ -168,7 +168,7 @@ export const SURFACES: SurfaceDef[] = ([
     dashPath: '/modules/alerts',
     hint: { en: 'Chat Alerts module → cheer message.', fr: 'Module Alertes de chat → message de cheer.' },
     example: { en: 'Thanks for the {bits} bits, {user}! 💎', fr: 'Merci pour les {bits} bits, {user}! 💎' },
-    prompt: { en: 'maya_live cheered 250 bits', fr: 'maya_live a envoyé 250 bits' },
+    prompt: { en: 'SnackPackPanda cheered 250 bits', fr: 'SnackPackPanda a envoyé 250 bits' },
     vars: moduleSurfaceVars('alerts.cheer'),
   },
   {
@@ -199,7 +199,7 @@ export const SURFACES: SurfaceDef[] = ([
     hint: { en: 'Trigger Words module → the response side of a rule.', fr: 'Module Mots déclencheurs → la partie réponse d’une règle.' },
     example: { en: 'Hey {user}! {choice:Welcome in,Good to see you}!', fr: 'Salut {user}! {choice:Bienvenue,Contente de te voir}!' },
     prompt: { en: 'hello everyone', fr: 'bonjour tout le monde' },
-    vars: [...explicitVars('triggers', [{ name: 'user', sample: 'maya_live' }, { name: 'channel', sample: 'itsmavey' }]), ...dynamicFormVars()],
+    vars: [...explicitVars('triggers', [{ name: 'user', sample: 'SnackPackPanda' }, { name: 'channel', sample: 'itsmavey' }]), ...dynamicFormVars()],
   },
   {
     id: 'clip',
@@ -228,7 +228,7 @@ export const SURFACES: SurfaceDef[] = ([
     dashPath: '/channelpoints',
     hint: { en: 'Channel Points page → the chat line a redemption posts.', fr: 'Page Points de chaîne → la ligne publiée lors d’un échange.' },
     example: { en: '{user} redeemed {reward} ({cost} pts): {input}', fr: '{user} a échangé {reward} ({cost} pts): {input}' },
-    prompt: { en: 'maya_live redeemed Hydrate!', fr: 'maya_live a échangé Hydrate!' },
+    prompt: { en: 'SnackPackPanda redeemed Hydrate!', fr: 'SnackPackPanda a échangé Hydrate!' },
     vars: moduleSurfaceVars('channelpoints.reply'),
   },
   {

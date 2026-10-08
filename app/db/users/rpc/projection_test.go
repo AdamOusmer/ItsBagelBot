@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package rpc
+package rpc_test
 
 import (
 	"context"
@@ -11,32 +11,25 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/app/db/users/rpc"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/testdb"
+	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
-	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 func TestWatchProjectionDistinguishesDeletedUserFromUnavailableSource(t *testing.T) {
-	broker, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true})
-	require.NoError(t, err)
-	broker.Start()
-	t.Cleanup(broker.Shutdown)
-	require.True(t, broker.ReadyForConnections(2*time.Second))
-	nc, err := nats.Connect(broker.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	nc := testnats.Connect(t)
 	client := testdb.Open(t, "watch-projection-rpc", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	repo := repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
-	require.NoError(t, SubscribeProjection(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "projection-test", Log: zap.NewNop()}, Repo: repo}, "projection.users.get"))
+	require.NoError(t, rpc.SubscribeProjection(rpc.Wiring{RPCWiring: bus.RPCWiring{NC: nc, Queue: "projection-test", Log: zap.NewNop()}, Repo: repo}, "projection.users.get"))
 	require.NoError(t, nc.Flush())
 	request := func(id string) projection.UserReply {
 		body, err := codec.Marshal(projection.Request{UserID: id})

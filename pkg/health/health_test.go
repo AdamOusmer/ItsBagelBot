@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/require"
 )
 
 func failing(name string) Check {
@@ -217,37 +220,42 @@ func writePEM(t *testing.T, path, blockType string, der []byte) {
 	}
 }
 
-func serialOf(t *testing.T, cfg *tls.Config) int64 {
-	t.Helper()
-	cert, err := cfg.GetCertificate(nil)
+func presentedSerial(addr string) int64 {
+	// codeql[go/disabled-certificate-check] -- test client dialing a self-signed pair.
+	conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12})
 	if err != nil {
-		t.Fatal(err)
+		return -1
 	}
-	leaf, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	return leaf.SerialNumber.Int64()
+	defer func() { _ = conn.Close() }()
+	return conn.ConnectionState().PeerCertificates[0].SerialNumber.Int64()
 }
 
-func TestTLSConfigReloadsRotatedCert(t *testing.T) {
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	return ln.Addr().String()
+}
+
+func TestServePresentsRotatedCertFromTLSEnv(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeKeyPair(t, dir, 1)
 	t.Setenv("TLS_CERT_FILE", certFile)
 	t.Setenv("TLS_KEY_FILE", keyFile)
+	addr := freeAddr(t)
+	errs := Serve(addr, "svc")
 
-	cfg, err := tlsEnvConfig()
-	if err != nil {
-		t.Fatal(err)
+	serves := func(serial int64) func() bool {
+		return func() bool { return presentedSerial(addr) == serial }
 	}
-	if got := serialOf(t, cfg); got != 1 {
-		t.Fatalf("serial = %d, want 1", got)
-	}
+	require.Eventually(t, serves(1), 5*time.Second, 20*time.Millisecond)
 
 	writeKeyPair(t, dir, 2)
-	if got := serialOf(t, cfg); got != 2 {
-		t.Fatalf("serial after rotation = %d, want 2 (must re-read from disk)", got)
-	}
+	require.Eventually(t, serves(2), 5*time.Second, 20*time.Millisecond, "must re-read the rotated cert from disk")
+	require.Empty(t, errs)
 }
 
 func TestServeRejectsHalfSetTLSPair(t *testing.T) {

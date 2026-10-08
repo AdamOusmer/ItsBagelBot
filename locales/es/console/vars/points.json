@@ -1,5 +1,5 @@
 {
   "name": "Saldo de puntos",
   "hint": "su saldo de puntos, o {points:login} para otra persona (Fidelidad)",
-  "desc": "Lo que ha ganado el espectador. {points:alex} muestra a otra persona, siempre que este canal la haya visto hablar. Solo lectura: nunca concede puntos. Requiere el módulo Puntos de fidelidad."
+  "desc": "Lo que ha ganado el espectador. {points:MikanMeerkat} muestra a otra persona, siempre que este canal la haya visto hablar. Solo lectura: nunca concede puntos. Requiere el módulo Puntos de fidelidad."
 }

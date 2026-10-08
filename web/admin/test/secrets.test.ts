@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 const privateEnv: Record<string, string | undefined> = {};
 const query = mock(async () => [[], []]);
 const end = mock(async () => {});
-const createConnection = mock(async () => ({ query, end }));
+const createConnection = mock(async (_options: unknown) => ({ query, end }));
 
 mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
 mock.module('mysql2/promise', () => ({ default: { createConnection } }));

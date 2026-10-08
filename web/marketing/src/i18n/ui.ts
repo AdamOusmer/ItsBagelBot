@@ -40,7 +40,7 @@ const changelogLocalizedPaths = Object.values(changelogFiles).map(
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   ...guideLocalizedPaths, '/guides/variables', '/command-builder', '/changelog', '/song-requests',
-  '/valorant-stats', '/import', ...changelogLocalizedPaths,
+  '/valorant-stats', '/import', '/govee', ...changelogLocalizedPaths,
 ]);
 
 export function langParam(lang: Lang): Lang | undefined {

@@ -6,12 +6,13 @@ package cluster
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -44,26 +45,18 @@ type jwtFixture struct {
 func newJWTFixture(t *testing.T) jwtFixture {
 	t.Helper()
 	opKp, err := nkeys.CreateOperator()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	seed, err := opKp.Seed()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return jwtFixture{opKp: opKp, opSeed: string(seed), exporterPub: pubKey(t), importerPub: pubKey(t)}
 }
 
 func pubKey(t *testing.T) string {
 	t.Helper()
 	kp, err := nkeys.CreateAccount()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pub, err := kp.PublicKey()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return pub
 }
 
@@ -80,38 +73,26 @@ func (f jwtFixture) keysYAML() []byte {
 func (f jwtFixture) compiled(t *testing.T) []*jwt.AccountClaims {
 	t.Helper()
 	acl, err := natsacl.ParseACL([]byte(jwtACLYAML))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	keys, err := natsacl.ParseKeys(f.keysYAML())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	claims, err := natsacl.Compile(acl, keys)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return claims
 }
 
-func (f jwtFixture) byName(t *testing.T, name string) *jwt.AccountClaims {
+func (f jwtFixture) goLive(t *testing.T, claims *fakeClaims, on []ports.ClusterName, accounts ...string) {
 	t.Helper()
 	for _, c := range f.compiled(t) {
-		if c.Name == name {
-			return c
+		if len(accounts) > 0 && !slices.Contains(accounts, c.Name) {
+			continue
+		}
+		tok, err := c.Encode(f.opKp)
+		require.NoError(t, err)
+		for _, cluster := range on {
+			claims.live[cluster][c.Subject] = tok
 		}
 	}
-	t.Fatalf("no compiled claims named %s", name)
-	return nil
-}
-
-func (f jwtFixture) sign(t *testing.T, c *jwt.AccountClaims) string {
-	t.Helper()
-	tok, err := c.Encode(f.opKp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tok
 }
 
 func testJWTConfig(seed string) ports.Config {
@@ -182,121 +163,96 @@ func jwtHarness(f jwtFixture) (*fakeSink, *fakeClaims, *stage.RunCtx) {
 	return sink, claims, stage.New(deploy.StageACL, deps, sink)
 }
 
-func TestACLJWTPushesOnlyDriftedAccountsInOrderToBothClusters(t *testing.T) {
-	f := newJWTFixture(t)
-	_, claims, rc := jwtHarness(f)
+var (
+	bothClusters = []ports.ClusterName{ports.ClusterHub, ports.ClusterLeaf}
+	hubOnly      = []ports.ClusterName{ports.ClusterHub}
+)
 
-	if err := (aclJWT{}).Run(context.Background(), rc); err != nil {
-		t.Fatalf("Run() error = %v", err)
+func TestACLJWTRun(t *testing.T) {
+	type outcome struct {
+		Pushes []pushRecord
+		Code   string
+		Pushed bool
 	}
-	want := []pushRecord{
-		{ports.ClusterHub, "EXPORTER"}, {ports.ClusterHub, "IMPORTER"},
-		{ports.ClusterLeaf, "EXPORTER"}, {ports.ClusterLeaf, "IMPORTER"},
+	cases := []struct {
+		name    string
+		setup   func(*testing.T, jwtFixture, *fakeClaims)
+		want    outcome
+		errMsgs string
+	}{
+		{
+			name:  "pushes only drifted accounts in order to both clusters",
+			setup: func(*testing.T, jwtFixture, *fakeClaims) {},
+			want: outcome{Pushed: true, Pushes: []pushRecord{
+				{ports.ClusterHub, "EXPORTER"}, {ports.ClusterHub, "IMPORTER"},
+				{ports.ClusterLeaf, "EXPORTER"}, {ports.ClusterLeaf, "IMPORTER"},
+			}},
+		},
+		{
+			name:  "skips accounts already live",
+			setup: func(t *testing.T, f jwtFixture, c *fakeClaims) { f.goLive(t, c, bothClusters, "EXPORTER") },
+			want:  outcome{Pushed: true, Pushes: []pushRecord{{ports.ClusterHub, "IMPORTER"}, {ports.ClusterLeaf, "IMPORTER"}}},
+		},
+		{
+			name:  "records that nothing was pushed when every account is live",
+			setup: func(t *testing.T, f jwtFixture, c *fakeClaims) { f.goLive(t, c, bothClusters) },
+			want:  outcome{},
+		},
+		{
+			name: "fails naming a server that never replied",
+			setup: func(_ *testing.T, _ jwtFixture, c *fakeClaims) {
+				c.servers[ports.ClusterHub] = []string{"s1", "s2"}
+				c.replies[ports.ClusterHub] = []ports.ClaimsReply{{Server: "s1", Code: 200}}
+			},
+			want:    outcome{Code: string(deploy.FailClaimsPush), Pushes: []pushRecord{{ports.ClusterHub, "EXPORTER"}}},
+			errMsgs: "s2",
+		},
+		{
+			name: "fails naming a server that replied non-200",
+			setup: func(_ *testing.T, _ jwtFixture, c *fakeClaims) {
+				c.servers[ports.ClusterHub] = []string{"s1", "s2"}
+				c.replies[ports.ClusterHub] = []ports.ClaimsReply{{Server: "s1", Code: 200}, {Server: "s2", Code: 500}}
+			},
+			want:    outcome{Code: string(deploy.FailClaimsPush), Pushes: []pushRecord{{ports.ClusterHub, "EXPORTER"}}},
+			errMsgs: "s2",
+		},
 	}
-	if !reflect.DeepEqual(claims.pushes, want) {
-		t.Fatalf("pushes = %+v, want %+v", claims.pushes, want)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newJWTFixture(t)
+			sink, claims, rc := jwtHarness(f)
+			tc.setup(t, f, claims)
 
-func TestACLJWTSkipsAccountsAlreadyLive(t *testing.T) {
-	f := newJWTFixture(t)
-	_, claims, rc := jwtHarness(f)
-	exporter := f.byName(t, "EXPORTER")
-	live := f.sign(t, exporter)
-	claims.live[ports.ClusterHub][f.exporterPub] = live
-	claims.live[ports.ClusterLeaf][f.exporterPub] = live
+			err := (aclJWT{}).Run(context.Background(), rc)
 
-	if err := (aclJWT{}).Run(context.Background(), rc); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	want := []pushRecord{{ports.ClusterHub, "IMPORTER"}, {ports.ClusterLeaf, "IMPORTER"}}
-	if !reflect.DeepEqual(claims.pushes, want) {
-		t.Fatalf("pushes = %+v, want %+v (EXPORTER already matches live)", claims.pushes, want)
-	}
-}
-
-func TestACLJWTRecordsWhetherAnythingWasPushed(t *testing.T) {
-	f := newJWTFixture(t)
-	sink, claims, rc := jwtHarness(f)
-	for _, c := range f.compiled(t) {
-		live := f.sign(t, c)
-		claims.live[ports.ClusterHub][c.Subject] = live
-		claims.live[ports.ClusterLeaf][c.Subject] = live
-	}
-
-	if err := (aclJWT{}).Run(context.Background(), rc); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if sink.View().Outputs.ACLPushed {
-		t.Fatal("ACLPushed = true, want false: nothing was drifted")
-	}
-}
-
-func TestACLJWTFailsNamingAMissingReply(t *testing.T) {
-	f := newJWTFixture(t)
-	_, claims, rc := jwtHarness(f)
-	claims.servers[ports.ClusterHub] = []string{"s1", "s2"}
-	claims.replies[ports.ClusterHub] = []ports.ClaimsReply{{Server: "s1", Code: 200}}
-
-	err := (aclJWT{}).Run(context.Background(), rc)
-	if err == nil || !strings.Contains(err.Error(), "s2") {
-		t.Fatalf("err = %v, want it to name s2", err)
-	}
-	f2, ok := ports.AsFail(err)
-	if !ok || f2.Code != deploy.FailClaimsPush {
-		t.Fatalf("failure code = %+v, want %s", f2, deploy.FailClaimsPush)
-	}
-}
-
-func TestACLJWTFailsNamingANon200Reply(t *testing.T) {
-	f := newJWTFixture(t)
-	_, claims, rc := jwtHarness(f)
-	claims.servers[ports.ClusterHub] = []string{"s1", "s2"}
-	claims.replies[ports.ClusterHub] = []ports.ClaimsReply{{Server: "s1", Code: 200}, {Server: "s2", Code: 500}}
-
-	err := (aclJWT{}).Run(context.Background(), rc)
-	if err == nil || !strings.Contains(err.Error(), "s2") {
-		t.Fatalf("err = %v, want it to name s2", err)
+			assert.Equal(t, tc.want, outcome{Pushes: claims.pushes, Code: errCode(err), Pushed: sink.View().Outputs.ACLPushed})
+			if tc.errMsgs != "" {
+				assert.ErrorContains(t, err, tc.errMsgs)
+			}
+		})
 	}
 }
 
 func TestACLJWTDone(t *testing.T) {
-	f := newJWTFixture(t)
 	cases := []struct {
 		name string
-		seed func(claims *fakeClaims)
+		live []ports.ClusterName
 		want bool
 	}{
-		{
-			name: "live matches git on both clusters",
-			seed: func(claims *fakeClaims) {
-				for _, c := range f.compiled(t) {
-					live := f.sign(t, c)
-					claims.live[ports.ClusterHub][c.Subject] = live
-					claims.live[ports.ClusterLeaf][c.Subject] = live
-				}
-			},
-			want: true,
-		},
-		{
-			name: "one cluster missing an account",
-			seed: func(claims *fakeClaims) {
-				for _, c := range f.compiled(t) {
-					claims.live[ports.ClusterHub][c.Subject] = f.sign(t, c)
-				}
-			},
-			want: false,
-		},
-		{name: "nothing live anywhere", seed: func(*fakeClaims) {}, want: false},
+		{"live matches git on both clusters", bothClusters, true},
+		{"one cluster missing an account", hubOnly, false},
+		{"nothing live anywhere", nil, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			f := newJWTFixture(t)
 			_, claims, rc := jwtHarness(f)
-			tc.seed(claims)
+			f.goLive(t, claims, tc.live)
+
 			done, err := (aclJWT{}).Done(context.Background(), rc)
-			if err != nil || done != tc.want {
-				t.Fatalf("Done() = %v, %v; want %v", done, err, tc.want)
-			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, done)
 		})
 	}
 }

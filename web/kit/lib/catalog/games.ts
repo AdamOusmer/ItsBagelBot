@@ -29,7 +29,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'winMessage',
         defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and won {amount} {points}, now at {balance}!',
-        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'sesame_sam', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' })
+        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'PrincessBarney', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' })
       },
       {
         key: 'lost',
@@ -40,7 +40,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'loseMessage',
         defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}.',
-        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'sesame_sam', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' })
+        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'PrincessBarney', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' })
       }
     ],
     commands: [
@@ -73,7 +73,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'openedMessage',
         defaultMessage: 'Pot duel is LIVE! @{user} put up {stake} {points}. Type !duel <amount> to join. Drawing in {secs}s!',
-        tokens: replyTokens(['user', 'stake', 'secs', 'points'], { user: 'sesame_sam', stake: '100', secs: '60', points: 'points' })
+        tokens: replyTokens(['user', 'stake', 'secs', 'points'], { user: 'PrincessBarney', stake: '100', secs: '60', points: 'points' })
       },
       {
         key: 'joined',
@@ -84,18 +84,18 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '250',
         messageKey: 'joinMessage',
         defaultMessage: "@{user} you're in with {stake}! {count} in the duel, {pot} {points} in the pot.",
-        tokens: replyTokens(['user', 'stake', 'count', 'pot', 'points'], { user: 'sesame_sam', stake: '250', count: '4', pot: '700', points: 'points' })
+        tokens: replyTokens(['user', 'stake', 'count', 'pot', 'points'], { user: 'PrincessBarney', stake: '250', count: '4', pot: '700', points: 'points' })
       },
       {
         key: 'challenge',
         label: 'Challenge sent',
         tagline: 'When a viewer challenges another to even stakes.',
-        event: '!duel @maya_live 500',
+        event: '!duel @SnackPackPanda 500',
         command: 'duel',
-        previewArgs: '@maya_live 500',
+        previewArgs: '@SnackPackPanda 500',
         messageKey: 'challengeMessage',
         defaultMessage: '@{user} challenges @{target} for {stake} {points}! @{target}, type !duel accept within {secs}s. Winner takes {pot}!',
-        tokens: replyTokens(['user', 'target', 'stake', 'pot', 'secs', 'points'], { user: 'sesame_sam', target: 'maya_live', stake: '500', pot: '1000', secs: '120', points: 'points' })
+        tokens: replyTokens(['user', 'target', 'stake', 'pot', 'secs', 'points'], { user: 'PrincessBarney', target: 'SnackPackPanda', stake: '500', pot: '1000', secs: '120', points: 'points' })
       },
       {
         key: 'won',
@@ -106,7 +106,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: 'accept',
         messageKey: 'wonMessage',
         defaultMessage: 'The blades fall: @{winner} defeats @{loser} and takes {pot} {points}!',
-        tokens: replyTokens(['winner', 'loser', 'pot', 'points'], { winner: 'maya_live', loser: 'sesame_sam', pot: '1000', points: 'points' })
+        tokens: replyTokens(['winner', 'loser', 'pot', 'points'], { winner: 'SnackPackPanda', loser: 'PrincessBarney', pot: '1000', points: 'points' })
       }
     ],
     commands: [

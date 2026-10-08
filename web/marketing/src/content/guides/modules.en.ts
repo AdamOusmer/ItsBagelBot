@@ -36,10 +36,10 @@ const modules = [
   },
   {
     name: 'Timers',
-    tagline: 'Post repeating chat messages on a schedule while you are live.',
+    tagline: 'Post repeating chat messages on a schedule, while live or offline too.',
     cat: 'Chat',
     start: 'Off by default',
-    needs: 'A live stream. Timers stay quiet when you are offline.',
+    needs: 'A live stream by default. Switch a timer to post offline and it keeps going between streams.',
   },
   {
     name: 'Emote Pyramids & Streaks',
@@ -133,7 +133,7 @@ const modules = [
     tagline: 'Let viewers recolour your Govee lights with channel points.',
     cat: 'Gear',
     start: 'Off by default',
-    needs: 'A Govee API key and a channel-point reward. Works while you are live.',
+    needs: 'A Govee API key and a channel-point reward. Works while you are live unless you switch off Live only.',
   },
   {
     name: 'Discord',
@@ -400,7 +400,7 @@ const guide: GuideContent = {
                 crumbs, whatever chat will say out loud) and set what earns it: a sub, a resub, a
                 gift sub, a cheer, and watch time counted every 5 minutes. Viewers check their
                 balance with <code>!points</code>, hand some over with
-                <code>!points give @maya_live 50</code>, and compare with <code>!leaderboard</code>.
+                <code>!points give @SnackPackPanda 50</code>, and compare with <code>!leaderboard</code>.
                 Mods correct the ledger with <code>!points set</code>, <code>!points add</code> and
                 <code>!points remove</code>.
             </p>
@@ -421,7 +421,7 @@ const guide: GuideContent = {
             [
               'Duels',
               'Stakes from 1 to 1000. A pot stays open 60 s. A named challenge waits 120 s for an answer.',
-              '<code>!duel</code>, <code>!duel 500</code>, <code>!duel @ferret_king 500</code>, <code>!duel accept</code>',
+              '<code>!duel</code>, <code>!duel 500</code>, <code>!duel @Lotti 500</code>, <code>!duel accept</code>',
             ],
           ],
           caption: 'The numbers the bot ships with. Every one of them is yours to change.',
@@ -431,14 +431,14 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'A roll that pays, a roll that does not, and a duel that ends badly for one of them.',
           lines: [
-            { who: 'viewer', name: 'sesame_sam', text: '!gamble 100' },
-            { who: 'bot', text: '@sesame_sam rolled 37 (needed 50 or less) and won 100 bagels, now at 480!' },
-            { who: 'viewer', name: 'ferret_king', text: '!gamble 250' },
-            { who: 'bot', text: '@ferret_king rolled 88 (needed 50 or less) and lost 250 bagels. Now at 90.' },
-            { who: 'viewer', name: 'maya_live', text: '!duel @ferret_king 500' },
-            { who: 'bot', text: '@maya_live challenges @ferret_king for 500 bagels! @ferret_king, type !duel accept within 120s. Winner takes 1000!' },
-            { who: 'viewer', name: 'ferret_king', text: '!duel accept' },
-            { who: 'bot', text: 'The blades fall: @maya_live defeats @ferret_king and takes 1000 bagels!' },
+            { who: 'viewer', name: 'PrincessBarney', text: '!gamble 100' },
+            { who: 'bot', text: '@PrincessBarney rolled 37 (needed 50 or less) and won 100 bagels, now at 480!' },
+            { who: 'viewer', name: 'Lotti', text: '!gamble 250' },
+            { who: 'bot', text: '@Lotti rolled 88 (needed 50 or less) and lost 250 bagels. Now at 90.' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!duel @Lotti 500' },
+            { who: 'bot', text: '@SnackPackPanda challenges @Lotti for 500 bagels! @Lotti, type !duel accept within 120s. Winner takes 1000!' },
+            { who: 'viewer', name: 'Lotti', text: '!duel accept' },
+            { who: 'bot', text: 'The blades fall: @SnackPackPanda defeats @Lotti and takes 1000 bagels!' },
           ],
         },
         {
@@ -474,7 +474,7 @@ const guide: GuideContent = {
               html: `
                 <p>Set your Minecraft username. Seven reply templates, cooldown per command.</p>
                 <p><code>!daily</code> <code>!weekly</code> <code>!monthly</code> <code>!bwstats</code> <code>!sniper</code> <code>!tag</code></p>
-                <p>sesame_sam today: 12W 4L · 210 finals · 34 beds · 3.1 FKDR</p>`,
+                <p>PrincessBarney today: 12W 4L · 210 finals · 34 beds · 3.1 FKDR</p>`,
               chips: ['Hypixel'],
             },
             {
@@ -482,7 +482,7 @@ const guide: GuideContent = {
               html: `
                 <p>Set your Minecraft username. Needs an MCSR Ranked account and a PaceMan account. Per-command toggles.</p>
                 <p><code>!elo</code> <code>!session</code> <code>!lastmatch</code> <code>!record</code> <code>!lb</code> <code>!pace</code> <code>!pb</code></p>
-                <p>sesame_sam: 1650 elo · rank #12 · 40W 20L this season</p>`,
+                <p>PrincessBarney: 1650 elo · rank #12 · 40W 20L this season</p>`,
               chips: ['Minecraft'],
             },
             {
@@ -498,7 +498,7 @@ const guide: GuideContent = {
               html: `
                 <p>Set your Supercell player tag, the one that looks like #P2LQ0GR.</p>
                 <p><code>!cr</code> <code>!crstats</code> <code>!crdecks</code> <code>!crranked</code> <code>!crroad</code></p>
-                <p>sesame_sam · level 42 · 5120W/4380L · 54% WR · 1180 three-crowns · Crust Clan</p>`,
+                <p>PrincessBarney · level 42 · 5120W/4380L · 54% WR · 1180 three-crowns · Crust Clan</p>`,
               chips: ['Supercell'],
             },
             {
@@ -557,8 +557,8 @@ const guide: GuideContent = {
           tone: 'warn',
           html: `
                 <b>Watch out</b>
-                Lights only answer while you are live. A redemption that lands off stream is refunded
-                automatically, so nobody pays for a dark room.`,
+                Lights only answer while you are live unless you switch off Live only on the Govee page.
+                A redemption that lands off stream is refunded automatically, so nobody pays for a dark room.`,
         },
         {
           kind: 'prose',

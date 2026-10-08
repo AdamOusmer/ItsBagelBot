@@ -1,13 +1,20 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package worker
 
 import (
-	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"maps"
 	"testing"
 
+	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/kvstate/kvtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -19,23 +26,30 @@ func observedWorker() (*Worker, *observer.ObservedLogs) {
 	return &Worker{log: log, blocked: &BlockedLog{log: log, pending: map[blockedKey]*blockedTally{}}}, logs
 }
 
+func trialPipeline(t *testing.T) (*Worker, *scriptedTransport, *observer.ObservedLogs) {
+	t.Helper()
+	obs, logs := observedWorker()
+	rt := &scriptedTransport{}
+	w := pipelineWorker(t, rt, withLog(obs.log), withBlocked(obs.blocked), withBatchStore(NewJetStreamBatchStore(kvtest.New())))
+	return w, rt, logs
+}
+
 func TestTrialOriginStopsDirectAndBatchChild(t *testing.T) {
-	w, logs := observedWorker()
-	msg := &outgress.Message{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", TrialGeneration: 3, Payload: codec.RawMessage(`{"message":"hi"}`)}
-	if err := w.processPayload(context.Background(), msg); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.processBatchItem(context.Background(), *msg, "42"); err != nil {
-		t.Fatal(err)
-	}
-	if logs.Len() != 0 {
-		t.Fatal("a blocked output must not log on its own")
-	}
+	w, rt, logs := trialPipeline(t)
+	direct := outgress.Message{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", TrialGeneration: 3, Payload: codec.RawMessage(`{"message":"hi"}`)}
+	batch := testMessage{Type: "batch", Broadcaster: "42", Payload: `{"id":"b","items":[{"type":"chat","broadcaster_id":"42","origin":"trial","trial_generation":3,"payload":{"message":"hi"}}]}`}
+	body, err := codec.Marshal(direct)
+	require.NoError(t, err)
+
+	require.NoError(t, w.Process(bus.NewMessage("trial-direct", body)))
+	require.NoError(t, batch.send(w))
+
+	assert.Zero(t, logs.Len(), "a blocked output must not log on its own")
 	w.blocked.Flush()
 	blocked := logs.FilterMessage("trial output blocked").All()
-	if len(blocked) != 1 || blocked[0].ContextMap()["count"] != int64(2) {
-		t.Fatalf("want one summary counting 2, got %+v", blocked)
-	}
+	require.Len(t, blocked, 1)
+	assert.EqualValues(t, 2, blocked[0].ContextMap()["count"])
+	assert.Empty(t, rt.recorded(), "trial output never reaches Twitch")
 }
 
 func TestProcessRefusesTrialOriginFromTheWire(t *testing.T) {
@@ -111,11 +125,13 @@ func TestBlockedTrialOutputsSummarizePerChannelAndType(t *testing.T) {
 }
 
 func TestAnEmptyMinuteLogsNothing(t *testing.T) {
-	w, logs := observedWorker()
-	w.rejectTrialOutput(context.Background(), blockedTrialBatch(t))
+	w, _, logs := trialPipeline(t)
+	body, err := codec.Marshal(*blockedTrialBatch(t))
+	require.NoError(t, err)
+	require.NoError(t, w.Process(bus.NewMessage("trial-batch", body)))
+
 	w.blocked.Flush()
 	w.blocked.Flush()
-	if n := logs.FilterMessage("trial output blocked").Len(); n != 2 {
-		t.Fatalf("want only the first minute's two lines, got %d", n)
-	}
+
+	assert.Equal(t, 2, logs.FilterMessage("trial output blocked").Len(), "only the first minute's two lines")
 }

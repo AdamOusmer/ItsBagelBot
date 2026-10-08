@@ -2,22 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isolatedLib, snapshotGlobals } from './dom-fakes';
 
 import type { Tick } from "../lib/raf-loop";
 
-const savedGlobals = new Map(
-  ['document', 'requestAnimationFrame', 'cancelAnimationFrame'].map((key) =>
-    [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const),
-);
-afterAll(() => {
-  for (const [key, descriptor] of savedGlobals) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  }
-});
+const restoreGlobals = snapshotGlobals(['document', 'requestAnimationFrame', 'cancelAnimationFrame']);
 
 let queue: Array<(time: number) => void> = [];
 let now = 0;
@@ -50,11 +39,12 @@ globalThis.cancelAnimationFrame = ((handle: number) => {
   removeEventListener() {},
 };
 
-const isolatedDir = mkdtempSync(join(tmpdir(), 'bagel-raf-test-'));
-afterAll(() => rmSync(isolatedDir, { recursive: true, force: true }));
-const schedulerPath = join(isolatedDir, 'raf-loop.ts');
-copyFileSync(new URL('../lib/raf-loop.ts', import.meta.url), schedulerPath);
-const loop = await import(schedulerPath) as typeof import('../lib/raf-loop');
+const lib = isolatedLib('raf', ['raf-loop.ts']);
+afterAll(() => {
+  lib.remove();
+  restoreGlobals();
+});
+const loop = await lib.load<typeof import('../lib/raf-loop')>('raf-loop.ts');
 
 function frames(count = 1): void {
   for (let i = 0; i < count; i += 1) {

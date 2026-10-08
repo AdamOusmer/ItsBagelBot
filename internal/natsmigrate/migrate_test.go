@@ -1,173 +1,109 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package natsmigrate
+package natsmigrate_test
 
 import (
 	"bytes"
-	"context"
 	"testing"
 	"time"
+
+	"ItsBagelBot/internal/natsmigrate"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func startTestServer(t *testing.T, domain string) (*server.Server, *nats.Conn) {
+const (
+	streamName = "ORDERS"
+	published  = 5
+	acked      = 2
+)
+
+func startJetStream(t *testing.T, domain string) (*nats.Conn, jetstream.JetStream) {
 	t.Helper()
-	opts := &server.Options{
-		Host:            "127.0.0.1",
-		Port:            -1,
-		JetStream:       true,
-		JetStreamDomain: domain,
-		StoreDir:        t.TempDir(),
-		NoLog:           true,
-		NoSigs:          true,
-	}
-	s, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatalf("start server: %v", err)
-	}
+	s, err := server.NewServer(&server.Options{
+		Host: "127.0.0.1", Port: -1, JetStream: true, JetStreamDomain: domain,
+		StoreDir: t.TempDir(), NoLog: true, NoSigs: true,
+	})
+	require.NoError(t, err)
 	s.Start()
-	if !s.ReadyForConnections(5 * time.Second) {
-		t.Fatal("server did not become ready")
-	}
 	t.Cleanup(s.Shutdown)
+	require.True(t, s.ReadyForConnections(5*time.Second), "server did not become ready")
 
 	nc, err := nats.Connect(s.ClientURL())
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(nc.Close)
-	return s, nc
-}
 
-func jsFor(t *testing.T, nc *nats.Conn, domain string) jetstream.JetStream {
-	t.Helper()
 	if domain == "" {
 		js, err := jetstream.New(nc)
-		if err != nil {
-			t.Fatalf("jetstream client: %v", err)
-		}
-		return js
+		require.NoError(t, err)
+		return nc, js
 	}
 	js, err := jetstream.NewWithDomain(nc, domain)
-	if err != nil {
-		t.Fatalf("jetstream client: %v", err)
-	}
-	return js
+	require.NoError(t, err)
+	return nc, js
 }
 
-func seedStream(t *testing.T, js jetstream.JetStream, name string, n int) jetstream.Stream {
+func seedOrders(t *testing.T, js jetstream.JetStream) {
 	t.Helper()
-	ctx := context.Background()
-	stream, err := js.CreateStream(ctx, jetstream.StreamConfig{Name: name, Subjects: []string{name + ".>"}})
-	if err != nil {
-		t.Fatalf("create stream %s: %v", name, err)
+	ctx := t.Context()
+	stream, err := js.CreateStream(ctx, jetstream.StreamConfig{Name: streamName, Subjects: []string{streamName + ".>"}})
+	require.NoError(t, err)
+	for range published {
+		_, err := js.Publish(ctx, streamName+".msg", []byte("payload"))
+		require.NoError(t, err)
 	}
-	for i := 0; i < n; i++ {
-		if _, err := js.Publish(ctx, name+".msg", []byte("payload")); err != nil {
-			t.Fatalf("publish to %s: %v", name, err)
-		}
-	}
-	return stream
-}
-
-func seedConsumer(t *testing.T, stream jetstream.Stream, ack int) jetstream.Consumer {
-	t.Helper()
-	ctx := context.Background()
-	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		Durable:   "watcher",
-		AckPolicy: jetstream.AckExplicitPolicy,
-	})
-	if err != nil {
-		t.Fatalf("create consumer: %v", err)
-	}
-	for i := 0; i < ack; i++ {
-		fetchAndAck(t, cons)
-	}
-	return cons
-}
-
-func fetchAndAck(t *testing.T, cons jetstream.Consumer) {
-	t.Helper()
-	msgs, err := cons.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
-	if err != nil {
-		t.Fatalf("fetch: %v", err)
-	}
-	for msg := range msgs.Messages() {
-		if err := msg.Ack(); err != nil {
-			t.Fatalf("ack: %v", err)
+	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{Durable: "watcher", AckPolicy: jetstream.AckExplicitPolicy})
+	require.NoError(t, err)
+	for range acked {
+		msgs, err := cons.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
+		require.NoError(t, err)
+		for msg := range msgs.Messages() {
+			require.NoError(t, msg.Ack())
 		}
 	}
 }
 
-func testSnapshotRestoreRoundTrip(t *testing.T, domain string) {
-	t.Helper()
-	s, nc := startTestServer(t, domain)
-	_ = s
-	js := jsFor(t, nc, domain)
+func TestSnapshotRestoreRoundTrip(t *testing.T) {
+	for _, domain := range []string{"", "hub"} {
+		t.Run("domain="+domain, func(t *testing.T) {
+			nc, js := startJetStream(t, domain)
+			seedOrders(t, js)
 
-	stream := seedStream(t, js, "ORDERS", 5)
-	seedConsumer(t, stream, 2)
+			var buf bytes.Buffer
+			stats, err := natsmigrate.Snapshot(nc, streamName, &buf, natsmigrate.SnapshotOptions{Domain: domain})
+			require.NoError(t, err)
+			assert.NotZero(t, stats.Bytes, "a non-empty stream snapshots to bytes")
+			require.NoError(t, js.DeleteStream(t.Context(), streamName))
 
-	var buf bytes.Buffer
-	stats, err := Snapshot(nc, "ORDERS", &buf, SnapshotOptions{Domain: domain})
-	if err != nil {
-		t.Fatalf("snapshot: %v", err)
-	}
-	if stats.Bytes == 0 {
-		t.Fatal("snapshot captured zero bytes for a non-empty stream")
-	}
+			restored, err := natsmigrate.Restore(nc, &buf, natsmigrate.RestoreOptions{Domain: domain})
+			require.NoError(t, err)
+			assert.Equal(t, streamName, restored.Stream)
 
-	ctx := context.Background()
-	if err := js.DeleteStream(ctx, "ORDERS"); err != nil {
-		t.Fatalf("delete stream before restore: %v", err)
-	}
-
-	restoreStats, err := Restore(nc, &buf, RestoreOptions{Domain: domain})
-	if err != nil {
-		t.Fatalf("restore: %v", err)
-	}
-	if restoreStats.Stream != "ORDERS" {
-		t.Fatalf("restore stats stream = %q, want ORDERS", restoreStats.Stream)
-	}
-	assertOrdersRestored(t, js)
-}
-
-func assertOrdersRestored(t *testing.T, js jetstream.JetStream) {
-	t.Helper()
-	ctx := context.Background()
-	info, err := js.Stream(ctx, "ORDERS")
-	if err != nil {
-		t.Fatalf("stream info after restore: %v", err)
-	}
-	cfg := info.CachedInfo()
-	if cfg.State.Msgs != 5 {
-		t.Fatalf("restored message count = %d, want 5", cfg.State.Msgs)
-	}
-
-	cons, err := info.Consumer(ctx, "watcher")
-	if err != nil {
-		t.Fatalf("consumer after restore: %v", err)
-	}
-	consInfo, err := cons.Info(ctx)
-	if err != nil {
-		t.Fatalf("consumer info after restore: %v", err)
-	}
-	if consInfo.AckFloor.Consumer != 2 {
-		t.Fatalf("restored consumer ack floor = %d, want 2", consInfo.AckFloor.Consumer)
-	}
-	if consInfo.NumPending != 3 {
-		t.Fatalf("restored consumer num pending = %d, want 3", consInfo.NumPending)
+			stream, err := js.Stream(t.Context(), streamName)
+			require.NoError(t, err)
+			assert.EqualValues(t, published, stream.CachedInfo().State.Msgs)
+			cons, err := stream.Consumer(t.Context(), "watcher")
+			require.NoError(t, err)
+			info, err := cons.Info(t.Context())
+			require.NoError(t, err)
+			assert.EqualValues(t, acked, info.AckFloor.Consumer)
+			assert.EqualValues(t, published-acked, info.NumPending)
+		})
 	}
 }
 
-func TestSnapshotRestoreRoundTripPlainDomain(t *testing.T) {
-	testSnapshotRestoreRoundTrip(t, "")
-}
+func TestSnapshotAndRestoreRefuseBadInput(t *testing.T) {
+	nc, js := startJetStream(t, "")
+	seedOrders(t, js)
 
-func TestSnapshotRestoreRoundTripHubDomain(t *testing.T) {
-	testSnapshotRestoreRoundTrip(t, "hub")
+	_, snapErr := natsmigrate.Snapshot(nc, "MISSING", &bytes.Buffer{}, natsmigrate.SnapshotOptions{})
+	_, restoreErr := natsmigrate.Restore(nc, bytes.NewBufferString("not a snapshot"), natsmigrate.RestoreOptions{})
+
+	assert.Error(t, snapErr, "an unknown stream cannot be snapshotted")
+	assert.Error(t, restoreErr, "a stream without the snapshot header cannot be restored")
 }

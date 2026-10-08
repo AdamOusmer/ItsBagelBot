@@ -51,10 +51,8 @@ const t = useTranslations(lang);
 
     <div class="header-material">
         <a class="eyebrow" href={SITE.discord} target="_blank" rel="noopener noreferrer">
-            <Tag tone="live" mark="solid" sweep>
-                {t('hero.devBadge')}
-            </Tag>
-            <Eyebrow tone="go" class="eyebrow__text">{t('hero.topText')}</Eyebrow>
+            <Tag tone="live" mark="solid" sweep class="eyebrow__tag"><span class="eyebrow__tag-label"><span data-fit>{t('hero.devBadge')}</span></span></Tag>
+            <Eyebrow tone="go" class="eyebrow__text"><span data-fit>{t('hero.topText')}</span></Eyebrow>
         </a>
 
         <div class="split">
@@ -64,30 +62,26 @@ const t = useTranslations(lang);
                     { text: t('hero.title2'), cls: '' },
                     { text: t('hero.title3'), cls: 'green' },
                 ].map((line) => (
-                    <span class:list={['line', line.cls]} aria-hidden="true" data-hero-line>
-                        {Array.from(line.text).map((glyph) => (
+                    <span class:list={['line', line.cls]} aria-hidden="true" data-hero-line><span class="text" data-fit data-fit-group="hero">{Array.from(line.text).map((glyph) => (
                             <span class="glyph" data-hero-glyph>{glyph === ' ' ? ' ' : glyph}</span>
-                        ))}
-                    </span>
+                        ))}</span></span>
                 ))}
             </h1>
 
             <div class="aside">
-                <Text tone="muted-soft" class="lede">
-                    {t('hero.lede')}
-                </Text>
+                <Text tone="muted-soft" class="lede"><span data-fit="block">{t('hero.lede')}</span></Text>
 
                 <div class="facts">
-                    <span>{t('hero.badge1')}</span>
-                    <span>{t('hero.badge2')}</span>
-                    <span>{t('hero.badge3')}</span>
-                    <span>{t('hero.badge4')}</span>
+                    <span class="fact"><span data-fit="block">{t('hero.badge1')}</span></span>
+                    <span class="fact"><span data-fit="block">{t('hero.badge2')}</span></span>
+                    <span class="fact"><span data-fit="block">{t('hero.badge3')}</span></span>
+                    <span class="fact"><span data-fit="block">{t('hero.badge4')}</span></span>
                 </div>
 
                 <div class="hero-actions">
-                    <ButtonLink class="hero-cta" href={dashLoginHref(lang)} tone="success">{t('nav.cta')}</ButtonLink>
+                    <ButtonLink class="hero-cta" href={dashLoginHref(lang)} tone="success"><span data-fit>{t('nav.cta')}</span></ButtonLink>
 
-                    <TextLink variant="arrow" tone="go" prose class="migrate" href={localizePath('/import', lang)} label={t('hero.migrateText')} />
+                    <TextLink variant="arrow" tone="go" prose class="migrate" href={localizePath('/import', lang)}><span class="migrate__box"><span data-fit="block">{t('hero.migrateText')}</span></span></TextLink>
                 </div>
             </div>
         </div>
@@ -168,6 +162,7 @@ const t = useTranslations(lang);
 
     header {
         height: 100vh;
+        height: 100svh;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -202,6 +197,13 @@ const t = useTranslations(lang);
 
     .split {
         display: contents;
+    }
+
+    .aside {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
     }
 
     .starfield {
@@ -292,7 +294,19 @@ const t = useTranslations(lang);
         animation: fadeUp 800ms 200ms var(--bb-ease-out-expo) forwards;
     }
 
+    .eyebrow__tag {
+        flex: none;
+        width: 56px;
+    }
+
+    .eyebrow__tag-label {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
     .eyebrow__text {
+        flex: none;
+        width: 440px;
         font-size: 0.9rem;
         transition: color var(--bb-dur-fast);
     }
@@ -307,6 +321,7 @@ const t = useTranslations(lang);
         font-weight: 800;
         line-height: 0.9;
         letter-spacing: 0;
+        width: 100%;
         margin-bottom: 24px;
         position: relative;
     }
@@ -330,6 +345,7 @@ const t = useTranslations(lang);
     h1 .glyph {
         display: inline-block;
         transform-origin: 20% 80%;
+        transition: none;
     }
 
     @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
@@ -340,7 +356,12 @@ const t = useTranslations(lang);
     }
 
     .lede {
-        max-width: 550px;
+        --lede-lines: 3;
+        display: flex;
+        flex-direction: column;
+        justify-content: safe center;
+        width: min(550px, 100%);
+        height: calc(var(--lede-lines) * 1lh);
         line-height: 1.75;
         margin-bottom: 24px;
         opacity: 0;
@@ -349,13 +370,15 @@ const t = useTranslations(lang);
     }
 
     .facts {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
+        --fact-lines: 1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 20px;
+        width: min(100%, 420px);
         margin-top: 26px;
         font-family: var(--bb-font-mono);
         font-size: 0.68rem;
+        line-height: 1.5;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: rgba(var(--bb-tan-rgb), 0.66);
@@ -364,28 +387,43 @@ const t = useTranslations(lang);
         position: relative;
     }
 
-    .facts span:not(:last-child)::after {
-        content: "·";
-        margin: 0 16px;
-        color: rgba(var(--bb-tan-rgb), 0.4);
+    .fact {
+        display: flex;
+        flex-direction: column;
+        justify-content: safe center;
+        height: calc(var(--fact-lines) * 1lh);
     }
 
     .hero-actions {
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
+        width: 100%;
     }
 
     .hero-cta {
+        --btn-w: 216px;
+        --btn-justify: center;
         margin-top: 26px;
         opacity: 0;
         animation: fadeUp 0.9s 0.7s var(--bb-ease-out-expo) forwards;
     }
 
     .migrate {
+        --migrate-lines: 2;
+        width: min(100%, 320px);
         margin-top: 14px;
         opacity: 0;
         animation: fadeUp 0.9s 0.9s var(--bb-ease-out-expo) forwards;
+    }
+
+    .migrate__box {
+        display: flex;
+        flex-direction: column;
+        justify-content: safe center;
+        flex: 1 1 0;
+        min-width: 0;
+        height: calc(var(--migrate-lines) * 1lh);
     }
 
     @keyframes fadeUp {
@@ -419,11 +457,12 @@ const t = useTranslations(lang);
 
     @media (max-width: 900px) {
         header {
-            padding: clamp(72px, 10vh, 92px) 24px 28px;
+            --hero-pad-top: clamp(72px, 10vh, 92px);
+            padding: var(--hero-pad-top) 24px calc(var(--hero-pad-top) + 20px);
         }
 
         .header-material {
-            width: min(100%, 680px);
+            width: min(100%, 720px);
         }
 
         .bg-ring {
@@ -445,16 +484,18 @@ const t = useTranslations(lang);
         .eyebrow {
             flex-direction: column;
             gap: 8px;
+            width: min(100%, 400px);
             margin-bottom: 14px;
         }
 
         .eyebrow__text {
+            width: 100%;
             text-align: center;
             font-size: 0.78rem;
         }
 
         .lede {
-            max-width: min(520px, 100%);
+            width: min(520px, 100%);
             font-size: 0.98rem;
             line-height: 1.58;
             margin-bottom: 18px;
@@ -466,22 +507,21 @@ const t = useTranslations(lang);
             letter-spacing: 0.11em;
         }
 
-        .facts span:not(:last-child)::after {
-            margin: 0 11px;
-        }
-
         .hero-cta {
             margin-top: 20px;
         }
 
         .migrate {
             margin-top: 14px;
+            width: min(100%, 300px);
+            text-wrap: balance;
         }
     }
 
     @media (max-width: 480px) {
         header {
-            padding: clamp(68px, 10vh, 84px) 18px 20px;
+            --hero-pad-top: clamp(68px, 10vh, 84px);
+            padding: var(--hero-pad-top) 18px calc(var(--hero-pad-top) + 20px);
         }
 
         .bg-ring {
@@ -511,12 +551,9 @@ const t = useTranslations(lang);
         }
 
         .facts {
+            gap: 6px 12px;
             margin-top: 14px;
             font-size: 0.56rem;
-        }
-
-        .facts span:not(:last-child)::after {
-            margin: 0 8px;
         }
 
         .hero-cta {
@@ -557,13 +594,14 @@ const t = useTranslations(lang);
 
         .split {
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px);
             gap: 56px;
             align-items: end;
             width: 100%;
         }
 
         .split h1 {
+            align-self: center;
             margin-bottom: 0;
             font-size: clamp(3rem, min(6.1vw, 13vh), 5.5rem);
         }
@@ -576,7 +614,9 @@ const t = useTranslations(lang);
         }
 
         .lede {
-            max-width: 380px;
+            --lede-lines: 3;
+            justify-content: safe flex-end;
+            width: 100%;
             margin-bottom: 24px;
         }
 
@@ -586,9 +626,14 @@ const t = useTranslations(lang);
         }
 
         .facts {
-            justify-content: flex-start;
+            --fact-lines: 2;
+            width: 100%;
             margin-top: 0;
             text-align: left;
+        }
+
+        .hero-actions {
+            align-items: flex-start;
         }
 
         .hero-cta {
@@ -596,11 +641,19 @@ const t = useTranslations(lang);
         }
 
         .migrate {
+            width: 100%;
             margin-top: 16px;
         }
     }
 
+    @media (min-width: 901px) and (max-width: 1180px) {
+        .split {
+            gap: 36px;
+        }
 
-
+        .split h1 {
+            font-size: clamp(2.7rem, min(5vw, 10vh), 4.6rem);
+        }
+    }
 
 </style>

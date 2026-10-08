@@ -22,12 +22,6 @@ import (
 
 const failedRPCReply = `{"error":"request failed","code":"internal"}`
 
-type missingKeys struct{ valkey.Client }
-
-func (missingKeys) Do(context.Context, valkey.Completed) valkey.ValkeyResult {
-	return valkey.NewResult(valkey.ValkeyMessage{}, valkey.Nil)
-}
-
 type refusedWrites struct {
 	valkey.Client
 	mu   sync.Mutex
@@ -50,7 +44,7 @@ func (r *refusedWrites) issued() []string {
 func TestLiveOnlyGateRetriesAfterProjectorError(t *testing.T) {
 	nc := bustest.NATS(t)
 	served := bustest.Respond(t, nc, "test.live", failedRPCReply, `{"live":true,"known":true}`)
-	live := NewValkeyLiveStore(missingKeys{newFakeValkey(t)}, nc, nil, LiveConfig{ProjectorLiveSubject: "test.live"})
+	live := NewValkeyLiveStore(newFakeValkey(t).client, nc, nil, LiveConfig{ProjectorLiveSubject: "test.live"})
 	p := &Pipeline{live: live}
 	c := &module.Context{BroadcasterID: 9}
 	ctx := context.Background()
@@ -68,7 +62,7 @@ func TestLiveOnlyGateRetriesAfterProjectorError(t *testing.T) {
 func TestCounterBumpSkipsWhileScopeIsUnknown(t *testing.T) {
 	nc := bustest.NATS(t)
 	served := bustest.Respond(t, nc, "test.loyalty.counter.get", failedRPCReply, `{"found":true,"counter":{"name":"deaths","scope":"viewer"}}`)
-	writes := &refusedWrites{Client: newFakeValkey(t)}
+	writes := &refusedWrites{Client: newFakeValkey(t).client}
 	store := NewValkeyLoyaltyStore(writes, NewLoyaltyRPC(nc, "test.loyalty"), nil, zap.NewNop())
 	bump := CounterBump{BroadcasterID: 5, Name: "deaths", Viewer: Viewer{ID: 77}, Delta: 1}
 	ctx := context.Background()
@@ -89,7 +83,7 @@ func TestCustomCommandStaysSilentWhileLookupFails(t *testing.T) {
 		`{"commands":[{"name":"hi","response":"hello there","is_active":true,"perm":"everyone"}]}`)
 	users := bustest.Respond(t, nc, "test.users", failedRPCReply)
 	proj := projection.NewClient(projection.Config{
-		Store:    projection.NewStore(newFakeValkey(t)),
+		Store:    projection.NewStore(newFakeValkey(t).client),
 		NC:       nc,
 		Subjects: projection.Subjects{Users: "test.users", Commands: "test.commands"},
 		TTL:      time.Minute,

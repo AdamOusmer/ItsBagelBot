@@ -53,7 +53,7 @@ func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 			cached := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "w"})
 			assert.Equal(t, gossiprpc.FetchBadDef, cached.Status)
 			assert.Equal(t, int32(1), h.hits.Load(), "negative cache must absorb the retry")
-			assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["w"])), "bad authoring caches briefly, not forever")
+			assert.Equal(t, 2*negativeTTL, h.store.Retention(storedResultKey("ch1", h.defs["w"])), "bad authoring caches briefly, not forever")
 		})
 	}
 }
@@ -134,7 +134,7 @@ func TestAdvHostileTargetsDieBeforeAnyTunnel(t *testing.T) {
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "byname"})
 	assert.Equal(t, gossiprpc.FetchDenied, reply.Status)
 
-	assert.Zero(t, h.socks.conns.Load(), "denied definitions must never open a tunnel")
+	assert.Zero(t, h.socks.Conns(), "denied definitions must never open a tunnel")
 }
 
 func TestAdvDryRunCannotBypassTheGate(t *testing.T) {
@@ -148,7 +148,7 @@ func TestAdvDryRunCannotBypassTheGate(t *testing.T) {
 		Def:   &gossiprpc.FetchDef{Name: "draft", URL: "https://169.254.169.254/latest/meta-data/", IsActive: true},
 	})
 	assert.Equal(t, gossiprpc.FetchDenied, reply.Status)
-	assert.Zero(t, h.socks.conns.Load())
+	assert.Zero(t, h.socks.Conns())
 }
 
 func TestAdvKeyMaterialNeverLoggedOrCached(t *testing.T) {
@@ -183,7 +183,7 @@ func TestAdvKeyMaterialNeverLoggedOrCached(t *testing.T) {
 			assert.NotContains(t, fmt.Sprint(f.Interface), secretFixture, "key leaked into log entry %s", e.Message)
 		}
 	}
-	for k, v := range h.store.m {
+	for k, v := range h.store.Snapshot() {
 		assert.NotContains(t, string(v), secretFixture, "key leaked into cache entry %s", k)
 		assert.NotContains(t, k, secretFixture, "key material in cache KEY")
 	}

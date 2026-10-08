@@ -5,181 +5,218 @@ package botstatus
 
 import (
 	"context"
+	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type clock struct{ t time.Time }
+var epoch = time.Unix(1_700_000_000, 0)
 
-func (c *clock) now() time.Time { return c.t }
+func at(d time.Duration) int64 { return epoch.Add(d).UnixMilli() }
 
-func newTestReporter() (*Reporter, *clock) {
-	c := &clock{t: time.Unix(1_700_000_000, 0)}
-	r := New(nil, "pod-1", nil)
-	r.now = c.now
-	return r, c
+type harness struct {
+	t     *testing.T
+	r     *Reporter
+	clock *clock
+	kv    *valkeyFake
 }
 
-func wantField(t *testing.T, name string, got, want any) {
-	t.Helper()
-	if got != want {
-		t.Fatalf("%s = %v, want %v", name, got, want)
-	}
+func newHarness(t *testing.T) *harness {
+	kv, client := newValkeyFake(t)
+	h := &harness{t: t, r: New(client, "pod-1", nil), clock: &clock{t: epoch}, kv: kv}
+	h.r.now = h.clock.now
+	return h
 }
 
-func TestReporterRecordsTransitions(t *testing.T) {
-	r, c := newTestReporter()
+type step interface{ do(h *harness) }
+
+type advance time.Duration
+
+func (d advance) do(h *harness) { h.clock.t = h.clock.t.Add(time.Duration(d)) }
+
+type up gateway.Up
+
+func (u up) do(h *harness) { h.r.Up(context.Background(), gateway.Up(u)) }
+
+type down gateway.Down
+
+func (d down) do(h *harness) { h.r.Down(context.Background(), gateway.Down(d)) }
+
+type budget gateway.Budget
+
+func (b budget) do(h *harness) { h.r.Budget(context.Background(), gateway.Budget(b)) }
+
+type event struct{}
+
+func (event) do(h *harness) { h.r.Event(context.Background()) }
+
+type beat struct{}
+
+func (beat) do(h *harness) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	h.r.Run(ctx)
+}
+
+type probes struct{ ready, live error }
+
+func (w probes) do(h *harness) {
 	ctx := context.Background()
-
-	r.Up(ctx, gateway.Up{SessionID: "sess-1", GuildCount: 7})
-	got := r.Snapshot()
-	wantField(t, "connected after Up", got.Connected, true)
-	wantField(t, "session id", got.SessionID, "sess-1")
-	wantField(t, "guild count", got.GuildCount, 7)
-	wantField(t, "heartbeat", got.HeartbeatUnixMS, c.t.UnixMilli())
-	wantField(t, "pod", got.Pod, "pod-1")
-
-	c.t = c.t.Add(time.Minute)
-	r.Up(ctx, gateway.Up{SessionID: "sess-1", Resumed: true})
-	wantField(t, "resumes", r.Snapshot().Resumes, 1)
-
-	c.t = c.t.Add(time.Minute)
-	r.Down(ctx, gateway.Down{Code: 4000, Reason: "unknown error"})
-	got = r.Snapshot()
-	wantField(t, "connected after Down", got.Connected, false)
-	wantField(t, "last close code", got.LastCloseCode, 4000)
-	wantField(t, "last close reason", got.LastCloseReason, "unknown error")
-
-	r.Up(ctx, gateway.Up{SessionID: "sess-2", GuildCount: 8})
-	got = r.Snapshot()
-	wantField(t, "resumes after a fresh Identify", got.Resumes, 0)
-	wantField(t, "last close code after a reconnect", got.LastCloseCode, 4000)
+	assert.Equal(h.t, w, probes{ready: h.r.ReadyCheck().Probe(ctx), live: h.r.LiveCheck().Probe(ctx)})
 }
 
-func TestFatalCloseFailsReadyThenLiveAfterGrace(t *testing.T) {
-	r, c := newTestReporter()
-	ctx := context.Background()
-	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
-	if err := r.ReadyCheck().Probe(ctx); err != nil {
-		t.Fatalf("ready while connected: %v", err)
-	}
+type status ddiscord.BotStatus
 
-	r.Down(ctx, gateway.Down{Code: ddiscord.CloseDisallowedIntents, Reason: "disallowed intents", Fatal: true})
-	if err := r.ReadyCheck().Probe(ctx); err == nil {
-		t.Fatal("a fatal close must flip readiness immediately")
-	}
-	if err := r.LiveCheck().Probe(ctx); err != nil {
-		t.Fatalf("liveness must survive the grace window: %v", err)
-	}
+func (w status) do(h *harness) { assert.Equal(h.t, ddiscord.BotStatus(w), h.r.Snapshot()) }
 
-	c.t = c.t.Add(ddiscord.BotFatalGrace + time.Second)
-	if err := r.LiveCheck().Probe(ctx); err == nil {
-		t.Fatal("liveness must fail once the fatal close outlives the grace")
-	}
+type stored struct{}
 
-	r.Up(ctx, gateway.Up{SessionID: "sess-2"})
-	if err := r.LiveCheck().Probe(ctx); err != nil {
-		t.Fatalf("liveness after recovery: %v", err)
-	}
+func (stored) do(h *harness) {
+	got, err := ddiscord.DecodeBotStatus([]byte(h.kv.value(ddiscord.BotStatusKey)))
+	require.NoError(h.t, err)
+	assert.Equal(h.t, h.r.Snapshot(), got)
 }
 
-func TestSilentSocketWhileConnectedIsUnhealthy(t *testing.T) {
-	r, c := newTestReporter()
-	ctx := context.Background()
-	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
+type scenario struct {
+	name  string
+	steps []step
+}
 
-	c.t = c.t.Add(ddiscord.BotEventMaxAge - time.Second)
-	if err := r.LiveCheck().Probe(ctx); err != nil {
-		t.Fatalf("one late heartbeat ACK is not a wedge: %v", err)
-	}
-
-	c.t = c.t.Add(2 * time.Second)
-	if err := r.LiveCheck().Probe(ctx); err == nil {
-		t.Fatal("a socket silent for longer than BotEventMaxAge must fail liveness")
-	}
-	if err := r.ReadyCheck().Probe(ctx); err == nil {
-		t.Fatal("a wedged socket must also flip readiness")
-	}
-
-	r.beat(ctx)
-	if err := r.LiveCheck().Probe(ctx); err == nil {
-		t.Fatal("the reporter's own beat cleared a wedge it cannot possibly observe")
-	}
-
-	r.Event(ctx)
-	if err := r.LiveCheck().Probe(ctx); err != nil {
-		t.Fatalf("after an event: %v", err)
+func statusScenarios() []scenario {
+	sixDays := 6 * 24 * time.Hour
+	return []scenario{
+		{
+			name: "records connect, resume, close and a fresh identify",
+			steps: []step{
+				up{SessionID: "sess-1", GuildCount: 7},
+				status{Connected: true, SinceUnixMS: at(0), SessionID: "sess-1", GuildCount: 7,
+					LastEventUnixMS: at(0), HeartbeatUnixMS: at(0), Pod: "pod-1"},
+				stored{},
+				advance(time.Minute),
+				up{SessionID: "sess-1", Resumed: true},
+				status{Connected: true, SinceUnixMS: at(0), SessionID: "sess-1", Resumes: 1, GuildCount: 7,
+					LastEventUnixMS: at(time.Minute), HeartbeatUnixMS: at(time.Minute), Pod: "pod-1"},
+				advance(time.Minute),
+				down{Code: 4000, Reason: "unknown error"},
+				status{SinceUnixMS: at(0), Resumes: 1, GuildCount: 7, LastEventUnixMS: at(time.Minute),
+					LastCloseCode: 4000, LastCloseReason: "unknown error", HeartbeatUnixMS: at(2 * time.Minute), Pod: "pod-1"},
+				stored{},
+				up{SessionID: "sess-2", GuildCount: 8},
+				status{Connected: true, SinceUnixMS: at(2 * time.Minute), SessionID: "sess-2", GuildCount: 8,
+					LastEventUnixMS: at(2 * time.Minute), LastCloseCode: 4000, LastCloseReason: "unknown error",
+					HeartbeatUnixMS: at(2 * time.Minute), Pod: "pod-1"},
+			},
+		},
+		{
+			name: "resume keeps the online-since stamp until the socket drops",
+			steps: []step{
+				up{SessionID: "sess-1", GuildCount: 3},
+				advance(sixDays),
+				up{SessionID: "sess-1", Resumed: true},
+				status{Connected: true, SinceUnixMS: at(0), SessionID: "sess-1", Resumes: 1, GuildCount: 3,
+					LastEventUnixMS: at(sixDays), HeartbeatUnixMS: at(sixDays), Pod: "pod-1"},
+				down{Code: 4000},
+				advance(time.Minute),
+				up{SessionID: "sess-1", Resumed: true},
+				status{Connected: true, SinceUnixMS: at(sixDays + time.Minute), SessionID: "sess-1", Resumes: 2,
+					GuildCount: 3, LastEventUnixMS: at(sixDays + time.Minute), LastCloseCode: 4000,
+					HeartbeatUnixMS: at(sixDays + time.Minute), Pod: "pod-1"},
+				advance(time.Minute),
+				up{SessionID: "sess-2", GuildCount: 4},
+				status{Connected: true, SinceUnixMS: at(sixDays + 2*time.Minute), SessionID: "sess-2", GuildCount: 4,
+					LastEventUnixMS: at(sixDays + 2*time.Minute), LastCloseCode: 4000,
+					HeartbeatUnixMS: at(sixDays + 2*time.Minute), Pod: "pod-1"},
+			},
+		},
 	}
 }
 
-func TestReadinessFailsUntilTheFirstConnect(t *testing.T) {
-	r, _ := newTestReporter()
-	ctx := context.Background()
-
-	if err := r.ReadyCheck().Probe(ctx); err == nil {
-		t.Fatal("a process that has never connected must not be ready")
-	}
-	if err := r.LiveCheck().Probe(ctx); err != nil {
-		t.Fatalf("liveness before the first connect: %v", err)
-	}
-
-	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
-	if err := r.ReadyCheck().Probe(ctx); err != nil {
-		t.Fatalf("ready after the first connect: %v", err)
-	}
-	r.Down(ctx, gateway.Down{Code: 4000})
-	if err := r.ReadyCheck().Probe(ctx); err != nil {
-		t.Fatalf("an ordinary disconnect after a successful connect must stay ready: %v", err)
-	}
-}
-
-func TestResumeDoesNotResetOnlineSince(t *testing.T) {
-	r, c := newTestReporter()
-	ctx := context.Background()
-	r.Up(ctx, gateway.Up{SessionID: "sess-1", GuildCount: 3})
-	since := r.Snapshot().SinceUnixMS
-
-	c.t = c.t.Add(6 * 24 * time.Hour)
-	r.Up(ctx, gateway.Up{SessionID: "sess-1", Resumed: true})
-	if got := r.Snapshot(); got.SinceUnixMS != since {
-		t.Fatalf("since = %d after a RESUMED on a live socket, want the original %d", got.SinceUnixMS, since)
-	}
-
-	r.Down(ctx, gateway.Down{Code: 4000})
-	c.t = c.t.Add(time.Minute)
-	r.Up(ctx, gateway.Up{SessionID: "sess-1", Resumed: true})
-	if got := r.Snapshot(); got.SinceUnixMS != c.t.UnixMilli() {
-		t.Fatalf("since = %d after reconnecting, want %d", got.SinceUnixMS, c.t.UnixMilli())
-	}
-
-	c.t = c.t.Add(time.Minute)
-	r.Up(ctx, gateway.Up{SessionID: "sess-2", GuildCount: 4})
-	if got := r.Snapshot(); got.SinceUnixMS != c.t.UnixMilli() || got.Resumes != 0 {
-		t.Fatalf("after a fresh Identify: %+v", got)
+func keyScenarios() []scenario {
+	return []scenario{
+		{
+			name: "budget state reaches the status key",
+			steps: []step{
+				budget{Flapping: true, Connects: 137, AtCeiling: true, ParkUntil: epoch.Add(6 * time.Hour)},
+				status{HeartbeatUnixMS: at(0), Pod: "pod-1", Flapping: true, ConnectsInWindow: 137, AtCeiling: true,
+					ParkUntilUnixMS: at(6 * time.Hour)},
+				stored{},
+				budget{Connects: 3},
+				status{HeartbeatUnixMS: at(0), Pod: "pod-1", ConnectsInWindow: 3},
+				stored{},
+			},
+		},
+		{
+			name: "a long close reason is trimmed for the status key",
+			steps: []step{
+				down{Code: 4000, Reason: strings.Repeat("x", 250)},
+				status{LastCloseCode: 4000, LastCloseReason: strings.Repeat("x", 200), HeartbeatUnixMS: at(0), Pod: "pod-1"},
+				stored{},
+			},
+		},
 	}
 }
 
-func TestBudgetReachesTheKey(t *testing.T) {
-	r, c := newTestReporter()
-	ctx := context.Background()
-
-	park := c.t.Add(6 * time.Hour)
-	r.Budget(ctx, gateway.Budget{Flapping: true, Connects: 137, AtCeiling: true, ParkUntil: park})
-
-	got := r.Snapshot()
-	wantField(t, "flapping", got.Flapping, true)
-	wantField(t, "connects in window", got.ConnectsInWindow, 137)
-	wantField(t, "at ceiling", got.AtCeiling, true)
-	if got.ParkUntilUnixMS != park.UnixMilli() {
-		t.Fatalf("park_until = %d, want %d", got.ParkUntilUnixMS, park.UnixMilli())
+func healthScenarios() []scenario {
+	intents := errors.New("fatal close 4014: the bot's privileged intents are not enabled")
+	return []scenario{
+		{
+			name: "readiness waits for the first connect, then survives ordinary disconnects",
+			steps: []step{
+				probes{ready: errGatewayNeverUp},
+				up{SessionID: "sess-1"},
+				probes{},
+				down{Code: 4000},
+				probes{},
+				down{Code: 4009, Reason: "session timed out"},
+				probes{},
+			},
+		},
+		{
+			name: "a fatal close fails readiness at once and liveness after the grace",
+			steps: []step{
+				up{SessionID: "sess-1"},
+				probes{},
+				down{Code: ddiscord.CloseDisallowedIntents, Reason: "disallowed intents", Fatal: true},
+				probes{ready: intents},
+				advance(ddiscord.BotFatalGrace + time.Second),
+				probes{ready: intents, live: intents},
+				up{SessionID: "sess-2"},
+				probes{},
+			},
+		},
+		{
+			name: "a socket silent while connected fails both probes until an event, not a beat",
+			steps: []step{
+				up{SessionID: "sess-1"},
+				advance(ddiscord.BotEventMaxAge - time.Second),
+				probes{},
+				advance(2 * time.Second),
+				probes{ready: errGatewayStalled, live: errGatewayStalled},
+				beat{},
+				probes{ready: errGatewayStalled, live: errGatewayStalled},
+				event{},
+				probes{},
+			},
+		},
 	}
+}
 
-	r.Budget(ctx, gateway.Budget{Connects: 3})
-	if got := r.Snapshot(); got.ParkUntilUnixMS != 0 || got.AtCeiling {
-		t.Fatalf("status = %+v, want no park published", got)
+func TestReporterTracksTheGatewayAndJudgesHealth(t *testing.T) {
+	for _, tc := range slices.Concat(statusScenarios(), keyScenarios(), healthScenarios()) {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			for _, s := range tc.steps {
+				s.do(h)
+			}
+		})
 	}
 }
 
@@ -239,36 +276,5 @@ func TestStaleStatusHeartbeatFailsLiveness(t *testing.T) {
 	r.beat(ctx)
 	if err := r.LiveCheck().Probe(ctx); err != nil {
 		t.Fatalf("after a beat: %v", err)
-	}
-}
-
-func TestDisconnectAloneStaysReady(t *testing.T) {
-	r, _ := newTestReporter()
-	ctx := context.Background()
-	r.Up(ctx, gateway.Up{SessionID: "sess-1"})
-	r.Down(ctx, gateway.Down{Code: 4009, Reason: "session timed out"})
-
-	if err := r.ReadyCheck().Probe(ctx); err != nil {
-		t.Fatalf("a reconnectable close must stay ready: %v", err)
-	}
-}
-
-func TestBotStatusRoundTrips(t *testing.T) {
-	want := ddiscord.BotStatus{
-		Connected: true, SinceUnixMS: 12, SessionID: "s", Resumes: 2, GuildCount: 3,
-		LastEventUnixMS: 14, LastCloseCode: 4000, LastCloseReason: "x",
-		HeartbeatUnixMS: 15, Pod: "p",
-		Flapping: true, ConnectsInWindow: 137, AtCeiling: true, ParkUntilUnixMS: 16,
-	}
-	raw, err := ddiscord.EncodeBotStatus(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := ddiscord.DecodeBotStatus(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Fatalf("round trip = %+v, want %+v", got, want)
 	}
 }

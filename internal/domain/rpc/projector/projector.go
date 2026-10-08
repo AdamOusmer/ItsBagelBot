@@ -34,6 +34,7 @@ type LiveReply struct {
 	BroadcasterID string `json:"broadcaster_id"`
 	Live          bool   `json:"live"`
 	Known         bool   `json:"known"`
+	Version       int64  `json:"version,omitempty"`
 	Error         string `json:"error,omitempty"`
 }
 

@@ -5,233 +5,54 @@ package modules
 
 import (
 	"context"
-	"sync"
 	"testing"
 
-	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-type fakeGossip struct {
-	mu        sync.Mutex
-	calls     []fakeGossipCall
-	replies   map[string]any
-	sequences map[string][]any
-	err       error
-	done      chan struct{}
-}
-
-type fakeGossipCall struct {
-	provider, endpoint string
-	req                gossiprpc.Request
-}
-
-func (f *fakeGossip) Call(_ context.Context, route engine.GossipRoute, req gossiprpc.Request, out any) error {
-	f.mu.Lock()
-	f.calls = append(f.calls, fakeGossipCall{route.Provider, route.Endpoint, req})
-	if f.done != nil {
-		close(f.done)
-		f.done = nil
+func TestUrchinCommands(t *testing.T) {
+	sus := gossiprpc.UrchinTagsReply{
+		Player: "Sus",
+		Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
 	}
-	f.mu.Unlock()
-
-	if f.err != nil {
-		return f.err
-	}
-	key := route.Provider + "." + route.Endpoint
-	f.mu.Lock()
-	reply, ok := f.replies[key]
-	if sequence := f.sequences[key]; len(sequence) > 0 {
-		reply, ok = sequence[0], true
-		f.sequences[key] = sequence[1:]
-	}
-	f.mu.Unlock()
-	if !ok {
-		return bus.RPCReplyError{Message: "no responder"}
-	}
-	b, err := codec.Marshal(reply)
-	if err != nil {
-		return err
-	}
-	return codec.Unmarshal(b, out)
+	linked := `{"account":"LinkedAcc","accountUuid":"` + testUUID + `"}`
+	weekly := map[string]any{"urchin.weekly": gossiprpc.UrchinSessionReply{Player: "X"}}
+	notFound := bus.RPCReplyError{Message: "player not found"}
+	runGossipCases(t, []gossipCase{
+		{name: "daily default template", chat: gossipChat{module: "urchin", text: "!daily"},
+			replies: map[string]any{"urchin.daily": gossiprpc.UrchinSessionReply{
+				Player: "Techno", Wins: 5, Losses: 2, FinalKills: 21, FinalDeaths: 3, BedsBroken: 9,
+			}},
+			exact: "Techno today: 5W 2L · 21 finals · 9 beds · 7.00 FKDR",
+			call:  &gossipCall{"urchin.daily", gossiprpc.Request{Account: "streamer"}}},
+		{name: "a linked account is used without an argument", chat: gossipChat{"urchin", "!weekly", `{"account":"LinkedAcc"}`}, replies: weekly,
+			contains: []string{"X"}, call: &gossipCall{"urchin.weekly", gossiprpc.Request{Account: "LinkedAcc"}}},
+		{name: "a typed player beats the linked account", chat: gossipChat{"urchin", "!weekly @SomePlayer extra words", `{"account":"LinkedAcc"}`}, replies: weekly,
+			contains: []string{"X"}, call: &gossipCall{"urchin.weekly", gossiprpc.Request{Account: "SomePlayer"}}},
+		{name: "a stored uuid beats the linked name", chat: gossipChat{"urchin", "!weekly", linked}, replies: weekly,
+			contains: []string{"X"}, call: &gossipCall{"urchin.weekly", gossiprpc.Request{Account: testUUID}}},
+		{name: "an error chats the linked name, not the uuid", chat: gossipChat{"urchin", "!daily", linked}, err: notFound,
+			exact: "LinkedAcc: player not found"},
+		{name: "a reply error chats back with the typed player", chat: gossipChat{module: "urchin", text: "!daily ghostplayer"}, err: notFound,
+			exact: "ghostplayer: player not found"},
+		{name: "an infrastructure error propagates and chats a retry", chat: gossipChat{module: "urchin", text: "!daily"}, err: context.DeadlineExceeded,
+			contains: []string{"try again in a moment"}, wantErr: true},
+		{name: "a toggled off command stays silent", chat: gossipChat{"urchin", "!monthly", `{"monthlyEnabled":"off"}`},
+			replies: map[string]any{"urchin.monthly": gossiprpc.UrchinSessionReply{Player: "X"}}, silent: true},
+		{name: "a custom template fills the stats tokens", chat: gossipChat{"urchin", "!bwstats", `{"statsMessage":"{player} is {stars} stars with {wlr} WLR"}`},
+			replies: map[string]any{"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100}},
+			exact:   "Techno is 402 stars with 10.00 WLR"},
+		{name: "tags list each tag with its date", chat: gossipChat{module: "urchin", text: "!tag"}, replies: map[string]any{"urchin.tags": sus},
+			exact: "Sus: Blatant Cheater (added Jul 3, 2024), Sniper (added Jul 3, 2024)"},
+		{name: "a clean player has no tags", chat: gossipChat{module: "urchin", text: "!tag"},
+			replies: map[string]any{"urchin.tags": gossiprpc.UrchinTagsReply{Player: "Clean"}}, exact: "Clean: No tags"},
+		{name: "tagdescription adds the reasons", chat: gossipChat{module: "urchin", text: "!tagdescription"}, replies: map[string]any{"urchin.tags": sus},
+			exact: "Sus: Blatant Cheater (bhop - added Jul 3, 2024), Sniper (added Jul 3, 2024)"},
+		{name: "sniper reports the score", chat: gossipChat{module: "urchin", text: "!sniper"},
+			replies: map[string]any{"urchin.sniper": gossiprpc.UrchinSniperReply{Player: "Aim", Score: 7.5, Mode: "warn", TagCount: 1}},
+			exact:   "Aim urchin score: 7.5"},
+	})
 }
 
-func (f *fakeGossip) lastCall(t *testing.T) fakeGossipCall {
-	t.Helper()
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	require.NotEmpty(t, f.calls)
-	return f.calls[len(f.calls)-1]
-}
-
-func urchinCtx(config string) *module.Context {
-	c := &module.Context{
-		Env: lane.Envelope{
-			Type:                 "channel.chat.message",
-			BroadcasterUserID:    "2",
-			BroadcasterUserLogin: "streamer",
-			ChatterUserID:        "9",
-			ChatterUserLogin:     "viewer",
-		},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-	}
-	if config != "" {
-		c.Config = []byte(config)
-	}
-	return c
-}
-
-func urchinCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
-	t.Helper()
-	return optInCmd(t, Urchin(gossipDeps(gw)), "urchin", name)
-}
-
-func TestUrchinDailyDefaultTemplate(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"urchin.daily": gossiprpc.UrchinSessionReply{
-			Player: "Techno", Wins: 5, Losses: 2, FinalKills: 21, FinalDeaths: 3, BedsBroken: 9,
-		},
-	}}
-	cmd := urchinCmd(t, gw, "daily")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-	assert.Equal(t, "2", col.out[0].BroadcasterID)
-	assert.Equal(t, "Techno today: 5W 2L · 21 finals · 9 beds · 7.00 FKDR", col.out[0].Text)
-
-	assert.Equal(t, "streamer", gw.lastCall(t).req.Account)
-}
-
-func TestUrchinAccountResolution(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"urchin.weekly": gossiprpc.UrchinSessionReply{Player: "X"}}}
-	cmd := urchinCmd(t, gw, "weekly")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc"}`), "", col.emit))
-	assert.Equal(t, "LinkedAcc", gw.lastCall(t).req.Account)
-
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc"}`), "@SomePlayer extra words", col.emit))
-	assert.Equal(t, "SomePlayer", gw.lastCall(t).req.Account)
-
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`), "", col.emit))
-	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
-}
-
-func TestUrchinErrorChatsLinkedNameNotUUID(t *testing.T) {
-	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
-	cmd := urchinCmd(t, gw, "daily")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "LinkedAcc: player not found", col.out[0].Text, "error prefix must chat the username, not the stored uuid")
-}
-
-func TestUrchinPerCommandToggleOff(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{"urchin.monthly": gossiprpc.UrchinSessionReply{Player: "X"}}}
-	cmd := urchinCmd(t, gw, "monthly")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"monthlyEnabled":"off"}`), "", col.emit))
-	assert.Empty(t, col.out)
-	assert.Empty(t, gw.calls)
-}
-
-func TestUrchinCustomTemplate(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
-	}}
-	cmd := urchinCmd(t, gw, "bwstats")
-
-	var col collector
-	cfg := `{"statsMessage":"{player} is {stars} stars with {wlr} WLR"}`
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Techno is 402 stars with 10.00 WLR", col.out[0].Text)
-}
-
-func TestUrchinReplyErrorChatsBack(t *testing.T) {
-	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
-	cmd := urchinCmd(t, gw, "daily")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "ghostplayer", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
-}
-
-func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {
-	gw := &fakeGossip{err: context.DeadlineExceeded}
-	cmd := urchinCmd(t, gw, "daily")
-
-	var col collector
-	require.Error(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "try again in a moment")
-}
-
-func TestUrchinTagsFormatting(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"urchin.tags": gossiprpc.UrchinTagsReply{
-			Player: "Sus",
-			Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
-		},
-	}}
-	cmd := urchinCmd(t, gw, "tag")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Sus: Blatant Cheater (added Jul 3, 2024), Sniper (added Jul 3, 2024)", col.out[0].Text)
-}
-
-func TestUrchinTagsClean(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"urchin.tags": gossiprpc.UrchinTagsReply{Player: "Clean", Tags: nil},
-	}}
-	cmd := urchinCmd(t, gw, "tag")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Clean: No tags", col.out[0].Text)
-}
-
-func TestUrchinTagDescription(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"urchin.tags": gossiprpc.UrchinTagsReply{
-			Player: "Sus",
-			Tags:   []gossiprpc.UrchinTag{{Type: "blatant_cheater", Reason: "bhop", AddedOn: 1720000000}, {Type: "sniper", AddedOn: 1720000000}},
-		},
-	}}
-	cmd := urchinCmd(t, gw, "tagdescription")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Sus: Blatant Cheater (bhop - added Jul 3, 2024), Sniper (added Jul 3, 2024)", col.out[0].Text)
-}
-
-func TestUrchinSniperScore(t *testing.T) {
-	gw := &fakeGossip{replies: map[string]any{
-		"urchin.sniper": gossiprpc.UrchinSniperReply{Player: "Aim", Score: 7.5, Mode: "warn", TagCount: 1},
-	}}
-	cmd := urchinCmd(t, gw, "sniper")
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), urchinCtx(""), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Aim urchin score: 7.5", col.out[0].Text)
-}
+func urchinChat(text string) gossipChat { return gossipChat{module: "urchin", text: text} }

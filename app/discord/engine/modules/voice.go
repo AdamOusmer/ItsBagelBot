@@ -109,7 +109,7 @@ func (h voiceModule) deleteEmptyClone(ctx context.Context, channelID string) {
 		return
 	}
 	_ = h.store.ForgetClone(ctx, cl)
-	if _, err := h.channels.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: channelID}); err != nil {
+	if _, err := h.channels.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{GuildID: cl.GuildID, ChannelID: channelID}); err != nil {
 		h.log.Warn("empty voice clone delete failed", zap.Error(err))
 	}
 }
@@ -186,7 +186,7 @@ func (h voiceModule) rename(ctx context.Context, v voiceInvocation, cl discordst
 		v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), "Give the channel a name.", true))
 		return nil
 	}
-	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, Name: name})
+	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{GuildID: cl.GuildID, ChannelID: cl.ChannelID, Name: name})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice rename failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
@@ -196,7 +196,7 @@ func (h voiceModule) rename(ctx context.Context, v voiceInvocation, cl discordst
 
 func (h voiceModule) limit(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {
 	n := decode.OptionInt(sub, "count")
-	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, UserLimit: n})
+	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{GuildID: cl.GuildID, ChannelID: cl.ChannelID, UserLimit: n})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice limit failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
@@ -211,7 +211,7 @@ func (h voiceModule) lock(ctx context.Context, v voiceInvocation, cl discordstor
 	if lock {
 		overwrites = append(overwrites, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: cl.GuildID, Kind: 0, Bits: decode.PermConnect}))
 	}
-	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{ChannelID: cl.ChannelID, Overwrites: overwrites})
+	reply, err := h.channels.ModifyChannel(ctx, discordoutgress.ChannelModifyRequest{GuildID: cl.GuildID, ChannelID: cl.ChannelID, Overwrites: overwrites})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("voice lock failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}

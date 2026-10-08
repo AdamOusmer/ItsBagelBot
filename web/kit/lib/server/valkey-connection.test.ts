@@ -14,6 +14,11 @@ import {
   valkeyTLSOptions
 } from './valkey-connection';
 
+const clientPair = (options: ReturnType<typeof valkeyTLSOptions>) => [
+  options?.cert?.toString(),
+  options?.key?.toString()
+];
+
 describe('Valkey native TLS connection policy', () => {
   test('moves data and Sentinel endpoints onto their TLS listeners', () => {
     expect(valkeyEndpoint('valkey.valkey.svc.cluster.local:6379', true, VALKEY_TLS_DATA_PORT)).toEqual({
@@ -56,13 +61,11 @@ describe('Valkey native TLS connection policy', () => {
       tlsClientKeyFile: keyFile
     });
 
-    expect(options?.cert?.toString()).toBe('cert-v1');
-    expect(options?.key?.toString()).toBe('key-v1');
+    expect(clientPair(options)).toEqual(['cert-v1', 'key-v1']);
 
     writeFileSync(certFile, 'cert-v2');
     writeFileSync(keyFile, 'key-v2');
 
-    expect(options?.cert?.toString()).toBe('cert-v2');
-    expect(options?.key?.toString()).toBe('key-v2');
+    expect(clientPair(options)).toEqual(['cert-v2', 'key-v2']);
   });
 });

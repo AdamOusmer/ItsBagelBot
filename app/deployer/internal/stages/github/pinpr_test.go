@@ -4,9 +4,10 @@
 package github
 
 import (
-	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -52,13 +53,20 @@ func (f *fixture) pinResult(t *testing.T, done bool, err error) pinResult {
 }
 
 func (f *fixture) mainHas(pins map[deploy.ImageName]deploy.ImagePin) bool {
-	onMain := pinsByImage(ParsePins(f.gh.trees[f.gh.head()], testRepo))
+	onMain := pinsIn(f.gh.trees[f.gh.head()])
 	for img, pin := range pins {
 		if onMain[img] != pin {
 			return false
 		}
 	}
 	return len(pins) > 0
+}
+
+func bumpOf(images ...deploy.ImageName) func(*testing.T, *deploy.Run) {
+	return func(_ *testing.T, r *deploy.Run) {
+		r.Kind, r.TargetSHA = deploy.KindBump, "abcdef1234567890ff"
+		r.Outputs.Digests = pinsAt("main-1-abcdef123456", images...)
+	}
 }
 
 func TestPinPRStage(t *testing.T) {
@@ -86,14 +94,27 @@ func TestPinPRStage(t *testing.T) {
 			},
 		},
 		{
-			name: "bump names the services it moves",
-			setup: func(_ *testing.T, r *deploy.Run) {
-				r.Kind, r.TargetSHA = deploy.KindBump, "abcdef1234567890ff"
-				r.Outputs.Digests = pinsAt("main-1-abcdef123456", "users", "notifications")
-			},
+			name:  "bump names the services it moves",
+			setup: bumpOf("users", "notifications"),
 			want: pinResult{
 				Title: "chore(deploy): bump notifications and users", Branch: "chore/deploy-bump-abcdef123456-run1", Files: 2,
 				PinPR: 1002, PinSHA: "merge1002", Services: []string{"notifications", "users"}, OnMain: true,
+			},
+		},
+		{
+			name:  "bump maps a sidecar image to its deployment",
+			setup: bumpOf("warp"),
+			want: pinResult{
+				Title: "chore(deploy): bump gossip", Branch: "chore/deploy-bump-abcdef123456-run1", Files: 1,
+				PinPR: 1002, PinSHA: "merge1002", Services: []string{"gossip"}, OnMain: true,
+			},
+		},
+		{
+			name:  "bump lists the services of one file in manifest order",
+			setup: bumpOf("discord-engine", "discord-ingress"),
+			want: pinResult{
+				Title: "chore(deploy): bump discord-ingress and discord-engine", Branch: "chore/deploy-bump-abcdef123456-run1", Files: 1,
+				PinPR: 1002, PinSHA: "merge1002", Services: []string{"discord-ingress", "discord-engine"}, OnMain: true,
 			},
 		},
 		{
@@ -117,16 +138,14 @@ func TestPinPRStage(t *testing.T) {
 			f := newFixture(t, run)
 			f.gh.commitMain("c1", loadManifests(t))
 			done, err := f.runStage(t, deploy.StagePinPR)
-			if got := f.pinResult(t, done, err); !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("result = %+v\nwant %+v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, f.pinResult(t, done, err))
 		})
 	}
 }
 
 func currentPin(t *testing.T, img deploy.ImageName) deploy.ImagePin {
 	t.Helper()
-	return pinsByImage(ParsePins(loadManifests(t), testRepo))[img]
+	return pinsIn(loadManifests(t))[img]
 }
 
 func TestPinPRRollback(t *testing.T) {
@@ -154,10 +173,8 @@ func TestPinPRRollback(t *testing.T) {
 			noWarp := slices.DeleteFunc(manifestImages(t), func(img deploy.ImageName) bool { return img == "warp" })
 			f.publish(noWarp, "v0.2.1-beta", "old")
 			done, err := f.runStage(t, deploy.StagePinPR)
-			got := f.pinResult(t, done, err)
-			if n := len(f.sink.View().Outputs.Digests); !reflect.DeepEqual(got, tc.want) || n != tc.pinned {
-				t.Errorf("result = %+v (%d digests)\nwant %+v (%d digests)", got, n, tc.want, tc.pinned)
-			}
+			assert.Equal(t, tc.want, f.pinResult(t, done, err))
+			assert.Len(t, f.sink.View().Outputs.Digests, tc.pinned)
 		})
 	}
 }

@@ -1,11 +1,13 @@
 ---
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-title: Bien démarrer
-description: Guide rapide pour configurer l'écosystème ItsBagelBot.
+title: Mise en place développeur
+description: Vue d'ensemble de l'architecture et notes d'installation locale pour les contributeurs d'ItsBagelBot.
 sidebar:
   order: 1
 ---
+
+Vous configurez le bot sur votre chaîne ? Suivez plutôt le [guide pour streamers](https://itsbagelbot.com/fr/guides/getting-started/). Cette page s'adresse aux contributeurs.
 
 Bienvenue dans **ItsBagelBot**, un écosystème cloud natif et performant pour Twitch.
 

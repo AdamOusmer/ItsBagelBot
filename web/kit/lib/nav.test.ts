@@ -10,8 +10,7 @@ import {
   moduleSectionLinks,
   sectionForPath,
   delegateAllowedPaths,
-  pathnameAllowed,
-  moduleSubpathAllowed
+  pathnameAllowed
 } from './nav';
 import { MODULE_CATALOG } from './types';
 import { MODULE_CATEGORY_ORDER } from './module-index';
@@ -184,25 +183,15 @@ describe('pathnameAllowed', () => {
   test.each([
     [['modules'], '/modules', true],
     [['modules'], '/modules/quotes', true],
+    [['modules'], '/modules/timers', true],
     [['modules'], '/modules/channelpoints', false],
-    [['modules', 'channelpoints'], '/modules/channelpoints', true]
+    [['modules', 'channelpoints'], '/modules/channelpoints', true],
+    [['commands'], '/quotes', true],
+    [['commands'], '/timers', true],
+    [['billing'], '/quotes', false],
+    [['billing'], '/timers', false]
   ] as [string[], string, boolean][])('%o on %s -> %p', (sections, path, want) => {
     expect(pathnameAllowed(path, delegateAllowedPaths(sections), sections)).toBe(want);
-  });
-});
-
-describe('moduleSubpathAllowed', () => {
-  test.each([
-    ['channelpoints', 'modules', false],
-    ['channelpoints', 'channelpoints', true],
-    ['quotes', 'commands', true],
-    ['quotes', 'modules', true],
-    ['quotes', 'billing', false],
-    ['timers', 'commands', true],
-    ['timers', 'modules', true],
-    ['timers', 'billing', false]
-  ] as [string, string, boolean][])('module %s under a %s grant -> %p', (id, section, want) => {
-    expect(moduleSubpathAllowed(id, [section])).toBe(want);
   });
 });
 

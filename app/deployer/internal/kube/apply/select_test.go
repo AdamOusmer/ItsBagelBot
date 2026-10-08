@@ -4,8 +4,9 @@
 package apply
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 )
@@ -50,9 +51,7 @@ func TestSelect(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.got(objs); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("got %q, want %q", got, tc.want)
-			}
+			assert.Equal(t, tc.want, tc.got(objs))
 		})
 	}
 }

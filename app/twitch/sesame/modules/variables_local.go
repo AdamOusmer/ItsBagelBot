@@ -8,6 +8,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/pkg/cache"
 	"context"
 	"strconv"
 	"strings"
@@ -203,22 +204,24 @@ func raffleVariables(d engine.Deps) variableRead {
 }
 
 func songVariables(d engine.Deps) variableRead {
+	warn := newSpotifyWarnThrottle()
+	players := cache.NewKeyed[uint64, playerSnapshot](songVariableCacheCapacity, songVariableCacheTTL, songVariableCacheKey)
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		qc, ok := newSongQueueCmd(d, c, songQueueLog(d))
+		qc, ok := newSongQueueCmd(d, c, songQueueLog(d), warn)
 		if !ok {
 			return nil, nil
 		}
-		return qc.nowPlayingVariables(ctx)
+		return qc.nowPlayingVariables(ctx, players)
 	}
 }
 
 // A failure resolves empty: chat failure text must never land in a custom command reply.
-func (qc songQueueCmd) nowPlayingVariables(ctx context.Context) (map[string]string, error) {
-	player, failure := qc.readPlayer(ctx)
+func (qc songQueueCmd) nowPlayingVariables(ctx context.Context, players *cache.Keyed[uint64, playerSnapshot]) (map[string]string, error) {
+	track, failure := qc.cachedReadPlayer(ctx, players)
 	if failure != "" {
 		return nil, nil
 	}
-	if track := player.track; track != nil {
+	if track != nil {
 		return songVariableValues(track.Name, track.Artists, track.URL, qc.requesterOf(ctx, track.ID)), nil
 	}
 	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)

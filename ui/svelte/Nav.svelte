@@ -106,6 +106,8 @@
             label={link.label}
             current={link.current}
             external={link.external}
+            fit
+            data-astro-prefetch={link.current || link.external ? undefined : 'hover'}
           /></li
         >{/each}</ul
     ><div class="bb-nav__actions"
@@ -119,6 +121,7 @@
           href={cta.href}
           label={cta.label}
           external={cta.external}
+          fit
         />{/if}{#if actions}{@render actions()}{/if}</div
     >{#if menu}<Hamburger
         label={menuOpen}

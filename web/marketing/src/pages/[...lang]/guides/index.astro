@@ -11,7 +11,6 @@ import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Code from '@bagel/ui/astro/Code.astro';
-import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import { getLangFromUrl, localeStaticPaths, localizePath, useTranslations } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
@@ -35,15 +34,15 @@ const [first, ...rest] = guides;
     <Section size="flush" class="ghub">
         <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-cursor="quiet" data-reveal style="--reveal-i: 1">
             <span class="ghub__tool-demo" slot="band" aria-hidden="true">
-                <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
-                <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>
+                <span class="ghub__tool-line"><span data-fit="block" set:html={hub.tool.demoIn}></span></span>
+                <span class="ghub__tool-line ghub__tool-line--out"><span data-fit="block" set:html={hub.tool.demoOut}></span></span>
             </span>
             <span class="ghub__tool-body">
                 <span class="ghub__tool-copy">
-                    <Heading level={3} variant="card" as="span" class="ghub__tool-name">{hub.tool.name}</Heading>
-                    <Text as="span" tone="muted-light" class="ghub__tool-desc">{hub.tool.description}</Text>
+                    <Heading level={3} variant="card" as="span" class="ghub__tool-name"><span data-fit>{hub.tool.name}</span></Heading>
+                    <Text as="span" tone="muted-light" class="ghub__tool-desc"><span data-fit="block">{hub.tool.description}</span></Text>
                 </span>
-                <Button as="span" class="ghub__tool-btn" data-cursor>{hub.tool.cta}</Button>
+                <Button as="span" class="ghub__tool-btn" data-cursor><span data-fit>{hub.tool.cta}</span></Button>
             </span>
         </Card>
 
@@ -53,10 +52,10 @@ const [first, ...rest] = guides;
             </span>
             <span class="ghub__variables-body">
                 <span class="ghub__variables-copy">
-                    <Heading level={4} as="span" class="ghub__variables-name">{t('guide.variablesTitle')}</Heading>
-                    <Text as="span" tone="muted-light" class="ghub__variables-desc">{t('guide.variablesDescription')}</Text>
+                    <Heading level={4} as="span" class="ghub__variables-name"><span data-fit>{t('guide.variablesTitle')}</span></Heading>
+                    <Text as="span" tone="muted-light" class="ghub__variables-desc"><span data-fit="block">{t('guide.variablesDescription')}</span></Text>
                 </span>
-                <Button as="span" variant="secondary" data-cursor>{t('guide.variablesCta')}</Button>
+                <Button as="span" variant="secondary" class="ghub__variables-btn" data-cursor><span data-fit>{t('guide.variablesCta')}</span></Button>
             </span>
         </Card>
 
@@ -71,12 +70,12 @@ const [first, ...rest] = guides;
         </div>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 6">
-            <Text tone="muted">{hub.help.prompt}</Text>
-            <Cluster gap={5}>
+            <Text tone="muted" class="ghub__help-prompt"><span data-fit>{hub.help.prompt}</span></Text>
+            <div class="ghub__help-links">
                 {hub.help.links.map((link) => (
-                    <TextLink href={link.href} label={link.label} external={link.external} />
+                    <TextLink href={link.href} label={link.label} external={link.external} fit />
                 ))}
-            </Cluster>
+            </div>
         </div>
     </Section>
 </Layout>
@@ -110,7 +109,10 @@ const [first, ...rest] = guides;
     .ghub__tool-desc {
         display: block;
         max-width: 60ch;
+        height: calc(3 * 1lh);
     }
+
+    .ghub__tool-btn { --btn-w: 13rem; --btn-justify: safe center; }
 
     .ghub__tool-demo {
         display: flex;
@@ -124,7 +126,13 @@ const [first, ...rest] = guides;
         line-height: 1.6;
     }
 
-    .ghub__tool-line { color: rgba(var(--bb-white-rgb), 0.85); }
+    .ghub__tool-line {
+        display: flex;
+        flex-direction: column;
+        justify-content: safe center;
+        height: calc(2 * 1lh);
+        color: rgba(var(--bb-white-rgb), 0.85);
+    }
 
     .ghub__tool-line :global(i) {
         font-style: normal;
@@ -136,6 +144,7 @@ const [first, ...rest] = guides;
 
     .ghub__tool-line--out {
         position: relative;
+        height: calc(2 * 1lh + 10px);
         padding-top: 10px;
         color: var(--bb-green-glow);
     }
@@ -159,9 +168,10 @@ const [first, ...rest] = guides;
     .ghub__variables { --card-band-h: 78px; margin-bottom: 40px; }
     .ghub__variables-band { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; height: 100%; padding-right: 48px; font-size: var(--bb-text-sm); }
     .ghub__variables-body { display: flex; align-items: center; justify-content: space-between; gap: var(--bb-space-5); }
-    .ghub__variables-copy { display: block; min-width: 0; }
+    .ghub__variables-copy { display: block; flex: 1 1 0; min-width: 0; }
     .ghub__variables-name { display: block; margin-bottom: 6px; }
-    .ghub__variables-desc { display: block; max-width: 62ch; }
+    .ghub__variables-desc { display: block; max-width: 62ch; height: calc(2 * 1lh); }
+    .ghub__variables-btn { --btn-w: 18rem; --btn-justify: safe center; flex: none; }
 
     .ghub__start {
         --card-band-h: 92px;
@@ -186,11 +196,25 @@ const [first, ...rest] = guides;
         border-top: 1px solid var(--bb-border);
     }
 
+    .ghub__help-prompt { flex: 1 1 100%; min-width: 0; }
+
+    .ghub__help-links {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 20px;
+        width: min(100%, 460px);
+        margin-left: auto;
+    }
+
     @media (max-width: 860px) {
         .ghub__grid { grid-template-columns: 1fr; }
         .ghub__tool-body { grid-template-columns: 1fr; }
         .ghub__tool-demo { padding-right: 0; }
-        .ghub__variables-body { align-items: flex-start; flex-direction: column; }
+        .ghub__variables-body { align-items: stretch; flex-direction: column; }
+        .ghub__variables-copy { flex: none; }
+        .ghub__tool-desc { height: calc(5 * 1lh); }
+        .ghub__variables-desc { height: calc(4 * 1lh); }
     }
 
     @media (max-width: 760px) {

@@ -8,10 +8,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -87,12 +88,12 @@ func TestNATSServers(t *testing.T) {
 				objs = append(objs, p.obj())
 			}
 			got, err := testWatcher(objs...).NATSServers(context.Background())
-			if (err != nil) != c.wantErr {
-				t.Fatalf("NATSServers() error = %v, want error %v", err, c.wantErr)
+			if c.wantErr {
+				assert.Error(t, err)
+				return
 			}
-			if !reflect.DeepEqual(got, c.want) && !c.wantErr {
-				t.Fatalf("NATSServers() = %+v, want %+v", got, c.want)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, c.want, got)
 		})
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testSecret = "webhook-secret"
 
 type fakeStore struct {
 	events    []repository.WebhookEvent
@@ -32,71 +35,268 @@ func (f *fakeStore) SaveWebhookEvent(_ context.Context, event repository.Webhook
 	return nil
 }
 
-func TestValidationWebhookEchoesIDAndStoresState(t *testing.T) {
+func newTestApp(store *fakeStore) http.Handler {
+	return New(store, Config{WebhookSecret: testSecret, ApplyBilling: applyFor(store)}, nil)
+}
 
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{"id":"evt-validation","type":"validation.webhook","date":"2026-07-02T00:00:00+00:00","subject":{}}`
+func applyFor(store *fakeStore) func(context.Context, billingrpc.ApplyRequest) error {
+	return func(_ context.Context, req billingrpc.ApplyRequest) error {
+		store.changes = append(store.changes, req)
+		return nil
+	}
+}
 
+func doWebhook(t *testing.T, app http.Handler, body string, validSignature bool) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/tebex", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if validSignature {
+		req.Header.Set("X-Signature", hex.EncodeToString(tebexSignature([]byte(body), testSecret)))
+	} else {
+		req.Header.Set("X-Signature", strings.Repeat("0", 64))
+	}
+
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+	return rec.Result()
+}
+
+func postWebhook(t *testing.T, app http.Handler, body string) int {
+	t.Helper()
 	resp := doWebhook(t, app, body, true)
 	defer resp.Body.Close()
+	return resp.StatusCode
+}
 
-	payload, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.JSONEq(t, `{"id":"evt-validation"}`, string(payload))
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookValidation, store.events[0].Status)
-	assert.Empty(t, store.changes)
+type appliedChange struct {
+	Action    billingrpc.Action
+	UserID    uint64
+	Expires   string
+	Reference string
+}
+
+type recordedEvent struct {
+	Status        repository.WebhookStatus
+	TransactionID string
+	UserID        uint64
+}
+
+func appliedChanges(changes []billingrpc.ApplyRequest) []appliedChange {
+	var out []appliedChange
+	for _, change := range changes {
+		applied := appliedChange{Action: change.Action, UserID: change.UserID, Reference: change.RecurringReference}
+		if change.ExpiresAt != nil {
+			applied.Expires = change.ExpiresAt.UTC().Format("2006-01-02")
+		}
+		out = append(out, applied)
+	}
+	return out
+}
+
+func recordedEvents(events []repository.WebhookEvent) []recordedEvent {
+	var out []recordedEvent
+	for _, event := range events {
+		out = append(out, recordedEvent{event.Status, event.TransactionID, event.UserID})
+	}
+	return out
 }
 
 func TestWebhookAliasesExposeReachability(t *testing.T) {
-
 	store := &fakeStore{}
 	app := newTestApp(store)
-
 	for _, path := range []string{"/tebex", "/tebex/", "/webhooks/tebex", "/webhooks/tebex/"} {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
-		app.ServeHTTP(rec, req)
-
-		resp := rec.Result()
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode, path)
+		app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusOK, rec.Code, path)
 	}
 	assert.Empty(t, store.changes)
 	assert.Empty(t, store.events)
 }
 
-func TestPaymentCompletedActivatesAndStoresProcessedState(t *testing.T) {
+type webhookCase struct {
+	name         string
+	body         string
+	badSignature bool
+	wantStatus   int
+	wantBody     string
+	wantChanges  []appliedChange
+	wantEvents   []recordedEvent
+	wantError    string
+}
 
+const subjectCustom = `"custom":{"user_id":"1001"}`
+
+func webhookEvent(kind, subject string) string {
+	return `{"id":"evt-1","type":"` + kind + `","date":"2026-07-02T00:00:00+00:00","subject":` + subject + `}`
+}
+
+func processedEvent(txn string) []recordedEvent {
+	return []recordedEvent{{repository.WebhookProcessed, txn, 1001}}
+}
+
+var ignoredEvent = []recordedEvent{{Status: repository.WebhookIgnored}}
+
+func paymentWebhookCases() []webhookCase {
+	return []webhookCase{
+		{
+			name:       "echoes a validation webhook and stores it",
+			body:       webhookEvent("validation.webhook", `{}`),
+			wantStatus: http.StatusOK, wantBody: `{"id":"evt-1"}`,
+			wantEvents: []recordedEvent{{Status: repository.WebhookValidation}},
+		},
+		{
+			name:       "rejects a bad signature before storing anything",
+			body:       webhookEvent("validation.webhook", `{}`),
+			wantStatus: http.StatusUnauthorized, badSignature: true,
+		},
+		{
+			name:        "activates premium for a completed payment with a bounded expiry",
+			body:        webhookEvent("payment.completed", `{"transaction_id":"tbx-1234",`+subjectCustom+`,"products":[]}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionActivate, UserID: 1001, Expires: "2026-08-02"}},
+			wantEvents:  processedEvent("tbx-1234"),
+		},
+		{
+			name:        "TestPaymentCompletedWithExplicitExpiryIsNotOverridden",
+			body:        webhookEvent("payment.completed", `{"transaction_id":"tbx-1234",`+subjectCustom+`,"products":[{"expires_at":"2027-01-01T00:00:00+00:00"}]}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionActivate, UserID: 1001, Expires: "2027-01-01"}},
+			wantEvents:  processedEvent("tbx-1234"),
+		},
+		{
+			name:       "stores a failed event when the payment has no user id",
+			body:       webhookEvent("payment.completed", `{"transaction_id":"tbx-1234","products":[]}`),
+			wantStatus: http.StatusUnprocessableEntity,
+			wantEvents: []recordedEvent{{Status: repository.WebhookFailed, TransactionID: "tbx-1234"}},
+			wantError:  "user id",
+		},
+		{
+			name:        "TestRefundRevokesEntitlementAndStoresProcessedState",
+			body:        webhookEvent("payment.refunded", `{"transaction_id":"tbx-1234",`+subjectCustom+`}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionRevoke, UserID: 1001}},
+			wantEvents:  processedEvent("tbx-1234"),
+		},
+	}
+}
+
+func recurringWebhookCases() []webhookCase {
+	return []webhookCase{
+		{
+			name:        "TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry",
+			body:        webhookEvent("recurring-payment.cancellation.requested", `{"reference":"tbx-r-1234","initial_payment":{"transaction_id":"tbx-init",`+subjectCustom+`}}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionCancelRequested, UserID: 1001, Expires: "2026-08-02", Reference: "tbx-r-1234"}},
+			wantEvents:  processedEvent("tbx-init"),
+		},
+		{
+			name:        "reads a renewal from its last payment",
+			body:        webhookEvent("recurring-payment.renewed", `{"reference":"tbx-r-1234","last_payment":{"transaction_id":"tbx-renewal","custom":{"broadcaster_user_id":1001}}}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionActivate, UserID: 1001, Expires: "2026-08-02", Reference: "tbx-r-1234"}},
+			wantEvents:  processedEvent("tbx-renewal"),
+		},
+		{
+			name:        "activates a trial until the trial ends",
+			body:        webhookEvent("recurring-payment.trial.started", `{"reference":"tbx-r-trial","next_payment_at":"2026-07-16T00:00:00+00:00","initial_payment":{"transaction_id":"tbx-trial",`+subjectCustom+`}}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionActivate, UserID: 1001, Expires: "2026-07-16", Reference: "tbx-r-trial"}},
+			wantEvents:  processedEvent("tbx-trial"),
+		},
+		{
+			name:        "marks a cancelled trial as cancel pending",
+			body:        webhookEvent("recurring-payment.trial.cancelled", `{"reference":"tbx-r-trial","next_payment_at":"2026-07-16T00:00:00+00:00","initial_payment":{"transaction_id":"tbx-trial",`+subjectCustom+`}}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionCancelRequested, UserID: 1001, Expires: "2026-07-16", Reference: "tbx-r-trial"}},
+			wantEvents:  processedEvent("tbx-trial"),
+		},
+	}
+}
+
+func auditedWebhookCases() []webhookCase {
+	return []webhookCase{
+		{
+			name:       "audits a trial end without changing the entitlement",
+			body:       webhookEvent("recurring-payment.trial.ended", `{"reference":"tbx-r-trial"}`),
+			wantStatus: http.StatusNoContent, wantEvents: ignoredEvent,
+		},
+		{
+			name:       "acknowledges a trial start that has no payment",
+			body:       webhookEvent("recurring-payment.trial.started", `{"reference":"tbx-r-trial","next_payment_at":"2026-07-16T00:00:00+00:00"}`),
+			wantStatus: http.StatusNoContent, wantEvents: ignoredEvent, wantError: "no recordable",
+		},
+		{
+			name:       "audits a declined payment as informational",
+			body:       webhookEvent("payment.declined", `{"transaction_id":"tbx-1234",`+subjectCustom+`}`),
+			wantStatus: http.StatusNoContent, wantEvents: []recordedEvent{{Status: repository.WebhookIgnored}},
+		},
+		{
+			name:       "audits a closed dispute as informational",
+			body:       webhookEvent("payment.dispute.closed", `{"transaction_id":"tbx-1234",`+subjectCustom+`}`),
+			wantStatus: http.StatusNoContent, wantEvents: ignoredEvent,
+		},
+		{
+			name:       "audits a provider status change as informational",
+			body:       webhookEvent("recurring-payment.status.changed", `{"transaction_id":"tbx-1234",`+subjectCustom+`}`),
+			wantStatus: http.StatusNoContent, wantEvents: ignoredEvent,
+		},
+		{
+			name:        "maps a declined renewal to a payment failure",
+			body:        webhookEvent("payment.declined", `{"transaction_id":"tbx-1","recurring_payment_reference":"tbx-r-9",`+subjectCustom+`}`),
+			wantStatus:  http.StatusNoContent,
+			wantChanges: []appliedChange{{Action: billingrpc.ActionPaymentFailed, UserID: 1001, Reference: "tbx-r-9"}},
+			wantEvents:  processedEvent("tbx-1"),
+		},
+		{
+			name:       "ignores a declined one-off payment",
+			body:       webhookEvent("payment.declined", `{"transaction_id":"tbx-2",`+subjectCustom+`}`),
+			wantStatus: http.StatusNoContent, wantEvents: []recordedEvent{{repository.WebhookIgnored, "", 0}},
+		},
+		{
+			name:       "ignores a declined renewal without a user",
+			body:       webhookEvent("payment.declined", `{"transaction_id":"tbx-3","recurring_payment_reference":"tbx-r-9"}`),
+			wantStatus: http.StatusNoContent, wantEvents: []recordedEvent{{repository.WebhookIgnored, "", 0}},
+		},
+	}
+}
+
+func webhookCases() []webhookCase {
+	return slices.Concat(paymentWebhookCases(), recurringWebhookCases(), auditedWebhookCases())
+}
+
+func TestWebhookProcessing(t *testing.T) {
+	for _, tc := range webhookCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeStore{}
+			resp := doWebhook(t, newTestApp(store), tc.body, !tc.badSignature)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.wantStatus, resp.StatusCode)
+			if tc.wantBody != "" {
+				payload, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.wantBody, string(payload))
+			}
+			assert.Equal(t, tc.wantChanges, appliedChanges(store.changes))
+			assert.Equal(t, tc.wantEvents, recordedEvents(store.events))
+			if tc.wantError != "" {
+				assert.Contains(t, store.events[0].Error, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestDisputeWonOnOneTimePurchaseCarriesBoundedExpiry(t *testing.T) {
 	store := &fakeStore{}
 	app := newTestApp(store)
-	body := `{
-		"id":"evt-payment",
-		"type":"payment.completed",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"transaction_id":"tbx-1234",
-			"custom":{"user_id":"1001"},
-			"products":[]
-		}
-	}`
 
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
+	assert.Equal(t, http.StatusNoContent, postWebhook(t, app, `{"id":"evt-dispute-open","type":"payment.dispute.opened","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"}}}`))
+	assert.Equal(t, http.StatusNoContent, postWebhook(t, app, `{"id":"evt-dispute-won","type":"payment.dispute.won","date":"2026-07-05T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"},"products":[]}}`))
 
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
-	assert.Equal(t, uint64(1001), store.changes[0].UserID)
-	require.NotNil(t, store.changes[0].ExpiresAt)
-	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
-	assert.Equal(t, "tbx-1234", store.events[0].TransactionID)
-	assert.Equal(t, uint64(1001), store.events[0].UserID)
+	assert.Equal(t, []appliedChange{
+		{Action: billingrpc.ActionRevoke, UserID: 1001},
+		{Action: billingrpc.ActionCancelAborted, UserID: 1001, Expires: "2026-08-05"},
+	}, appliedChanges(store.changes), "a settled one-time payment must not reinstate premium with no expiry")
 }
 
 func TestBillingIncidentReceivesAllowlistedSummary(t *testing.T) {
@@ -139,406 +339,50 @@ func TestBillingIncidentFailureRetriesWebhook(t *testing.T) {
 	assert.Len(t, store.changes, 1, "the paid entitlement is applied before incident reconciliation")
 }
 
-func TestPaymentCompletedWithoutUserIDStoresFailedState(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-missing-user",
-		"type":"payment.completed",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{"transaction_id":"tbx-1234","products":[]}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
-	assert.Empty(t, store.changes)
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookFailed, store.events[0].Status)
-	assert.Equal(t, "tbx-1234", store.events[0].TransactionID)
-	assert.Contains(t, store.events[0].Error, "user id")
+func giftCase(id, kind, subject string) string {
+	return `{"id":"` + id + `","type":"` + kind + `","date":"2026-07-02T00:00:00Z","subject":` + subject + `}`
 }
 
-func TestDisputeWonOnOneTimePurchaseCarriesBoundedExpiry(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-
-	opened := `{"id":"evt-dispute-open","type":"payment.dispute.opened","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"}}}`
-	resp := doWebhook(t, app, opened, true)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	won := `{"id":"evt-dispute-won","type":"payment.dispute.won","date":"2026-07-05T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"},"products":[]}}`
-	resp = doWebhook(t, app, won, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 2)
-	assert.Equal(t, billingrpc.ActionRevoke, store.changes[0].Action)
-	assert.Equal(t, billingrpc.ActionCancelAborted, store.changes[1].Action)
-	require.NotNil(t, store.changes[1].ExpiresAt,
-		"a settled one-time payment must not reinstate premium with no expiry")
-	assert.Equal(t, "2026-08-05", store.changes[1].ExpiresAt.UTC().Format("2006-01-02"))
-}
-
-func TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-cancel-requested",
-		"type":"recurring-payment.cancellation.requested",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"reference":"tbx-r-1234",
-			"initial_payment":{
-				"transaction_id":"tbx-init",
-				"custom":{"user_id":"1001"}
-			}
-		}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionCancelRequested, store.changes[0].Action)
-	require.NotNil(t, store.changes[0].ExpiresAt,
-		"a cancellation without a next payment date must still carry a bounded expiry")
-	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
-}
-
-func TestPaymentCompletedWithExplicitExpiryIsNotOverridden(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-payment-expiry",
-		"type":"payment.completed",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"transaction_id":"tbx-5678",
-			"custom":{"user_id":"1001"},
-			"products":[{"expires_at":"2027-01-01T00:00:00+00:00"}]
-		}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
-	require.NotNil(t, store.changes[0].ExpiresAt)
-	assert.Equal(t, "2027-01-01", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
-}
-
-func TestRefundRevokesEntitlementAndStoresProcessedState(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{"id":"evt-refund","type":"payment.refunded","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-refund","custom":{"user_id":"1001"}}}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionRevoke, store.changes[0].Action)
-}
-
-func TestBadSignatureIsRejectedBeforeStoringState(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{"id":"evt-bad-sig","type":"validation.webhook","date":"2026-07-02T00:00:00+00:00","subject":{}}`
-
-	resp := doWebhook(t, app, body, false)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-	assert.Empty(t, store.changes)
-	assert.Empty(t, store.events)
-}
-
-func TestRecurringRenewedUsesLastPayment(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-renewed",
-		"type":"recurring-payment.renewed",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"reference":"tbx-r-1234",
-			"last_payment":{
-				"transaction_id":"tbx-renewal",
-				"custom":{"broadcaster_user_id":1001}
-			}
-		}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
-	assert.Equal(t, uint64(1001), store.changes[0].UserID)
-	require.Len(t, store.events, 1)
-	assert.Equal(t, "tbx-renewal", store.events[0].TransactionID)
-}
-
-func TestTrialStartedActivatesUntilTrialEnd(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-trial-start",
-		"type":"recurring-payment.trial.started",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"reference":"tbx-r-trial",
-			"next_payment_at":"2026-07-16T00:00:00+00:00",
-			"initial_payment":{
-				"transaction_id":"tbx-trial",
-				"custom":{"user_id":"1001"}
-			}
-		}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
-	assert.Equal(t, uint64(1001), store.changes[0].UserID)
-	require.NotNil(t, store.changes[0].ExpiresAt)
-	assert.Equal(t, "2026-07-16", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookProcessed, store.events[0].Status)
-}
-
-func TestTrialCancelledMarksCancelPending(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{
-		"id":"evt-trial-cancel",
-		"type":"recurring-payment.trial.cancelled",
-		"date":"2026-07-02T00:00:00+00:00",
-		"subject":{
-			"reference":"tbx-r-trial",
-			"next_payment_at":"2026-07-16T00:00:00+00:00",
-			"initial_payment":{
-				"transaction_id":"tbx-trial",
-				"custom":{"user_id":"1001"}
-			}
-		}
-	}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, billingrpc.ActionCancelRequested, store.changes[0].Action)
-}
-
-func TestTrialEndedIsAuditedWithoutEntitlementChange(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{"id":"evt-trial-end","type":"recurring-payment.trial.ended","date":"2026-07-02T00:00:00+00:00","subject":{"reference":"tbx-r-trial"}}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.Empty(t, store.changes)
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookIgnored, store.events[0].Status)
-}
-
-func TestTrialStartedWithoutPaymentIsAcknowledged(t *testing.T) {
-
-	store := &fakeStore{}
-	app := newTestApp(store)
-	body := `{"id":"evt-trial-bare","type":"recurring-payment.trial.started","date":"2026-07-02T00:00:00+00:00","subject":{"reference":"tbx-r-trial","next_payment_at":"2026-07-16T00:00:00+00:00"}}`
-
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.Empty(t, store.changes)
-	require.Len(t, store.events, 1)
-	assert.Equal(t, repository.WebhookIgnored, store.events[0].Status)
-	assert.Contains(t, store.events[0].Error, "no recordable")
-}
-
-func TestInformationalEventsAreAuditedAsIgnored(t *testing.T) {
-
-	for _, eventType := range []string{"payment.declined", "payment.dispute.closed", "recurring-payment.status.changed"} {
-		store := &fakeStore{}
-		app := newTestApp(store)
-		body := `{"id":"evt-info","type":"` + eventType + `","date":"2026-07-02T00:00:00+00:00","subject":{"transaction_id":"tbx-1234","custom":{"user_id":"1001"}}}`
-
-		resp := doWebhook(t, app, body, true)
-		resp.Body.Close()
-
-		assert.Equal(t, http.StatusNoContent, resp.StatusCode, eventType)
-		assert.Empty(t, store.changes, eventType)
-		require.Len(t, store.events, 1, eventType)
-		assert.Equal(t, repository.WebhookIgnored, store.events[0].Status, eventType)
-	}
-}
-
-const testSecret = "webhook-secret"
-
-func newTestApp(store *fakeStore) http.Handler {
-	return New(store, Config{WebhookSecret: testSecret, ApplyBilling: applyFor(store)}, nil)
-}
-
-func applyFor(store *fakeStore) func(context.Context, billingrpc.ApplyRequest) error {
-	return func(_ context.Context, req billingrpc.ApplyRequest) error {
-		store.changes = append(store.changes, req)
-		return nil
-	}
-}
-
-func doWebhook(t *testing.T, app http.Handler, body string, validSignature bool) *http.Response {
-
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/webhooks/tebex", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	if validSignature {
-		req.Header.Set("X-Signature", hex.EncodeToString(tebexSignature([]byte(body), testSecret)))
-	} else {
-		req.Header.Set("X-Signature", strings.Repeat("0", 64))
-	}
-
-	rec := httptest.NewRecorder()
-	app.ServeHTTP(rec, req)
-	return rec.Result()
-}
-
-func TestGiftedPaymentNotifiesRecipientOnce(t *testing.T) {
-
-	store := &fakeStore{}
-	var notices []GiftNotice
-	app := New(store, Config{
-		WebhookSecret: testSecret,
-		ApplyBilling:  applyFor(store),
-		NotifyGift: func(_ context.Context, n GiftNotice) error {
-			notices = append(notices, n)
-			return nil
-		},
-	}, nil)
-
-	body := `{"id":"evt-gift","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey","gift_message":"happy streaming!"}}}`
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-	assert.Equal(t, uint64(111), store.changes[0].UserID)
-	require.Len(t, notices, 1)
-	assert.Equal(t, GiftNotice{
-		WebhookID:     "evt-gift",
-		RecipientID:   111,
-		GiftedByID:    804932984,
-		GiftedByLogin: "mavey",
-		GiftMessage:   "happy streaming!",
-	}, notices[0])
-}
-
-func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
-
-	store := &fakeStore{}
-	var notices []GiftNotice
-	app := New(store, Config{
-		WebhookSecret: testSecret,
-		ApplyBilling:  applyFor(store),
-		NotifyGift: func(_ context.Context, n GiftNotice) error {
-			notices = append(notices, n)
-			return nil
-		},
-	}, nil)
-
-	renewal := `{"id":"evt-renew","type":"recurring-payment.renewed","date":"2026-07-02T00:00:00Z","subject":{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}}`
-	resp := doWebhook(t, app, renewal, true)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	self := `{"id":"evt-self","type":"payment.completed","date":"2026-07-02T00:01:00Z","subject":{"transaction_id":"tbx-3","custom":{"user_id":"222"}}}`
-	resp = doWebhook(t, app, self, true)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	selfGift := `{"id":"evt-selfgift","type":"payment.completed","date":"2026-07-02T00:02:00Z","subject":{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}}`
-	resp = doWebhook(t, app, selfGift, true)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	assert.Len(t, store.changes, 3)
-	assert.Empty(t, notices)
-}
-
-func TestGiftNotificationFailureDoesNotFailWebhook(t *testing.T) {
-
-	store := &fakeStore{}
-	app := New(store, Config{
-		WebhookSecret: testSecret,
-		ApplyBilling:  applyFor(store),
-		NotifyGift: func(_ context.Context, _ GiftNotice) error {
-			return context.DeadlineExceeded
-		},
-	}, nil)
-
-	body := `{"id":"evt-gift-fail","type":"payment.completed","date":"2026-07-02T00:00:00Z","subject":{"transaction_id":"tbx-5","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}`
-	resp := doWebhook(t, app, body, true)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	require.Len(t, store.changes, 1)
-}
-
-func TestPaymentDeclinedMapsOnlyRecurringAttributableDeclines(t *testing.T) {
-	cases := []struct {
-		name       string
-		subject    string
-		wantAction billingrpc.Action
+func TestGiftNotifications(t *testing.T) {
+	gift := giftCase("evt-gift", "payment.completed", `{"transaction_id":"tbx-gift-1","custom":{"user_id":"111","username":"recipient","gifted_by":"804932984","gifted_by_login":"mavey","gift_message":"happy streaming!"}}`)
+	renewal := giftCase("evt-renew", "recurring-payment.renewed", `{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}`)
+	self := giftCase("evt-self", "payment.completed", `{"transaction_id":"tbx-3","custom":{"user_id":"222"}}`)
+	selfGift := giftCase("evt-selfgift", "payment.completed", `{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}`)
+	failing := giftCase("evt-gift-fail", "payment.completed", `{"transaction_id":"tbx-5","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}`)
+	for _, tc := range []struct {
+		name        string
+		bodies      []string
+		notifyErr   error
+		wantChanges int
+		wantNotices []GiftNotice
 	}{
-		{"renewal decline", `{"transaction_id":"tbx-1","recurring_payment_reference":"tbx-r-9","custom":{"user_id":"1001"}}`, billingrpc.ActionPaymentFailed},
-		{"one-off decline", `{"transaction_id":"tbx-2","custom":{"user_id":"1001"}}`, ""},
-		{"recurring decline without user", `{"transaction_id":"tbx-3","recurring_payment_reference":"tbx-r-9"}`, ""},
-	}
-	for _, tc := range cases {
-		store := &fakeStore{}
-		app := newTestApp(store)
-		body := `{"id":"evt-declined","type":"payment.declined","date":"2026-07-02T00:00:00+00:00","subject":` + tc.subject + `}`
+		{
+			name: "notifies the recipient once", bodies: []string{gift}, wantChanges: 1,
+			wantNotices: []GiftNotice{{WebhookID: "evt-gift", RecipientID: 111, GiftedByID: 804932984, GiftedByLogin: "mavey", GiftMessage: "happy streaming!"}},
+		},
+		{name: "skips renewals and self purchases", bodies: []string{renewal, self, selfGift}, wantChanges: 3},
+		{name: "does not fail the webhook when the notification fails", bodies: []string{failing}, notifyErr: context.DeadlineExceeded, wantChanges: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeStore{}
+			var notices []GiftNotice
+			app := New(store, Config{
+				WebhookSecret: testSecret,
+				ApplyBilling:  applyFor(store),
+				NotifyGift: func(_ context.Context, n GiftNotice) error {
+					if tc.notifyErr == nil {
+						notices = append(notices, n)
+					}
+					return tc.notifyErr
+				},
+			}, nil)
 
-		resp := doWebhook(t, app, body, true)
-		resp.Body.Close()
+			for _, body := range tc.bodies {
+				assert.Equal(t, http.StatusNoContent, postWebhook(t, app, body))
+			}
 
-		assert.Equal(t, http.StatusNoContent, resp.StatusCode, tc.name)
-		require.Len(t, store.events, 1, tc.name)
-		if tc.wantAction == "" {
-			assert.Empty(t, store.changes, tc.name)
-			assert.Equal(t, repository.WebhookIgnored, store.events[0].Status, tc.name)
-			continue
-		}
-		require.Len(t, store.changes, 1, tc.name)
-		assert.Equal(t, tc.wantAction, store.changes[0].Action, tc.name)
-		assert.Equal(t, "tbx-r-9", store.changes[0].RecurringReference, tc.name)
-		assert.Nil(t, store.changes[0].ExpiresAt, tc.name)
-		assert.Equal(t, repository.WebhookProcessed, store.events[0].Status, tc.name)
+			assert.Len(t, store.changes, tc.wantChanges)
+			assert.Equal(t, tc.wantNotices, notices)
+		})
 	}
 }

@@ -36,7 +36,7 @@ func TestStoredTokenLoadFailure(t *testing.T) {
 			var mints, persists, loadCalls int32
 			fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
 				atomic.AddInt32(&mints, 1)
-				return fakeOAuthResponse(`{"access_token":"minted","expires_in":14400}`), nil
+				return respond(http.StatusOK, `{"access_token":"minted","expires_in":14400}`), nil
 			})
 			src := NewStoredUserTokenSource(ClientCredentials{}, tc.seed, StoredTokenIO{
 				Load: func(context.Context) StoredLoad {

@@ -4,40 +4,17 @@
 package repository_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/db/loyalty/ent"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/testdb"
-	entsql "entgo.io/ent/dialect/sql"
+
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
-
-func watchRetentionRepo(t *testing.T, raw *sql.DB, dialect string) *loyaltyrepo.Loyalty {
-	t.Helper()
-	drv := entsql.OpenDB(dialect, raw)
-	client := ent.NewClient(ent.Driver(drv))
-	require.NoError(t, client.Schema.Create(t.Context()))
-	r := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
-	require.NoError(t, r.EnsureWatchSchema(t.Context()))
-	t.Cleanup(func() { r.Close(context.Background()) })
-	return r
-}
-
-func sqliteRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
-	t.Helper()
-	raw, err := sql.Open(testdb.Driver, testdb.MemDSN(testdb.Name("watchretention"+strconv.FormatInt(time.Now().UnixNano(), 10))))
-	require.NoError(t, err)
-	raw.SetMaxOpenConns(1)
-	t.Cleanup(func() { raw.Close() })
-	return watchRetentionRepo(t, raw, "sqlite3"), raw
-}
 
 func TestWatchRetentionRejectsReplayAfterPruning(t *testing.T) {
 	r, raw := sqliteRetentionRepo(t)
@@ -62,8 +39,6 @@ func checkWatchRetentionReplay(t *testing.T, r *loyaltyrepo.Loyalty, raw *sql.DB
 		require.NoError(t, raw.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n))
 		require.Zero(t, n)
 	}
-	// Both a byte-for-byte replay and a new operation for the retired window
-	// must be consumed without recreating deleted replay markers or credits.
 	require.NoError(t, r.ApplyWatchAward(ctx, a))
 	a.Chunk++
 	require.NoError(t, r.ApplyWatchAward(ctx, a))
@@ -72,7 +47,6 @@ func checkWatchRetentionReplay(t *testing.T, r *loyaltyrepo.Loyalty, raw *sql.DB
 	require.True(t, found)
 	require.EqualValues(t, 10, row.Points)
 	require.EqualValues(t, 300, row.WatchSeconds)
-	// A lower future maintenance request cannot reopen retired windows.
 	require.NoError(t, r.PruneWatchHistory(ctx, cutoff-1000))
 	var finalized int64
 	require.NoError(t, raw.QueryRowContext(ctx, "SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1").Scan(&finalized))
@@ -90,7 +64,6 @@ func TestWatchRetentionClampsAgeAndPreservesProtectedOutboxWindow(t *testing.T) 
 	ctx := t.Context()
 	now := time.Now()
 	protected := now.Add(-9 * 24 * time.Hour).UnixMilli()
-	// The outbox floor is capped immediately below its oldest unpaid source.
 	require.NoError(t, r.PruneWatchHistory(ctx, protected-1))
 	a := watchAward(72, 82, 100)
 	a.WindowStartedAtUnixMilli = protected
@@ -99,7 +72,6 @@ func TestWatchRetentionClampsAgeAndPreservesProtectedOutboxWindow(t *testing.T) 
 	require.NoError(t, err)
 	require.True(t, found)
 	require.EqualValues(t, 10, row.Points)
-	// Even an unsafe caller's future time cannot shorten seven-day retention.
 	require.NoError(t, r.PruneWatchHistory(ctx, now.UnixMilli()))
 	var finalized int64
 	require.NoError(t, raw.QueryRowContext(ctx, "SELECT finalized_window_ms FROM loyalty_watch_retention WHERE id=1").Scan(&finalized))
@@ -138,8 +110,7 @@ func TestWatchRetentionPreservesWindowAboveBarrierInSameCreatedSecond(t *testing
 	a := watchAward(75, 85, 100)
 	a.WindowStartedAtUnixMilli = cutoff + 1
 	require.NoError(t, r.ApplyWatchAward(ctx, a))
-	// SQL's creation clock can be in the same second or behind the source
-	// clock. Creation-time pruning alone would remove a still-replayable row.
+	// Creation-time pruning alone would drop a still-replayable row.
 	for _, table := range []string{"loyalty_watch_operations", "loyalty_watch_viewers"} {
 		_, err := raw.ExecContext(ctx, "UPDATE "+table+" SET created_at=?", cutoff/1000)
 		require.NoError(t, err)

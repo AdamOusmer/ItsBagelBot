@@ -350,7 +350,7 @@ func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, 
 	if duplicate {
 		return nil
 	}
-	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, req.senderID, req.targetID, req.login, req.value)
+	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, engine.PointTransfer{BroadcasterID: lc.c.BroadcasterID, FromViewerID: req.senderID, TargetViewerID: req.targetID, TargetLogin: req.login, Amount: req.value})
 	if err != nil {
 		release()
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
@@ -516,7 +516,7 @@ func (a accrual) earn(ctx context.Context, d engine.Deps, c *module.Context, cfg
 	if d.Dedup.Duplicate(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}) {
 		return
 	}
-	d.Loyalty.Earn(c.BroadcasterID, viewerID, a.login, a.name, a.points, 0)
+	d.Loyalty.Earn(engine.PointEarning{BroadcasterID: c.BroadcasterID, ViewerID: viewerID, Login: a.login, Name: a.name, Points: a.points})
 }
 
 func (lc loyaltyCmd) runCounter(ctx context.Context, args string) error {

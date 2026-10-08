@@ -16,33 +16,7 @@ import (
 	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
-
-type builtinName string
-
-const (
-	followageBuiltin  builtinName = "followage"
-	accountAgeBuiltin builtinName = "accountage"
-)
-
-func builtinCommand(t *testing.T, d engine.Deps, name builtinName) module.Command {
-	t.Helper()
-	for _, cmd := range Followage(d).Commands {
-		if cmd.Name == string(name) {
-			return cmd
-		}
-	}
-	t.Fatalf("%s command not found", name)
-	return module.Command{}
-}
-
-func lookupContext() *module.Context {
-	return &module.Context{Env: lane.Envelope{
-		BroadcasterUserID: "5", ChatterUserID: "9", ChatterUserLogin: "viewer", ChatterUserName: "Viewer",
-	}, BroadcasterID: 5}
-}
 
 type fakeFollowage struct {
 	result engine.FollowageResult
@@ -55,98 +29,58 @@ func (f *fakeFollowage) Lookup(_ context.Context, query engine.FollowageQuery) (
 	return f.result, f.err
 }
 
-func TestBuiltinDefaultsToChatter(t *testing.T) {
+func lookupContext() *module.Context {
+	return &module.Context{Env: lane.Envelope{
+		BroadcasterUserID: "5", ChatterUserID: "9", ChatterUserLogin: "viewer", ChatterUserName: "Viewer",
+	}, BroadcasterID: 5}
+}
+
+func disabledModule(name string) []projection.ModuleView {
+	return []projection.ModuleView{{Name: name, IsEnabled: false}}
+}
+
+func TestFollowageAndAccountAgeReplies(t *testing.T) {
+	following := engine.FollowageResult{TargetID: "9", UserFound: true, Following: true, FollowedAt: time.Now().Add(-40 * 24 * time.Hour)}
+	oldAccount := engine.AccountAgeResult{TargetID: "9", UserFound: true, CreatedAt: time.Now().Add(-400 * 24 * time.Hour)}
+	boom := errors.New("boom")
 	cases := []struct {
-		name     builtinName
-		deps     engine.Deps
-		want     string
-		cooldown time.Duration
+		name       string
+		text       string
+		followage  engine.FollowageResult
+		followErr  error
+		accountAge engine.AccountAgeResult
+		ageErr     error
+		modules    []projection.ModuleView
+		want       []string
 	}{
-		{
-			name: followageBuiltin,
-			deps: func() engine.Deps {
-				l := &fakeFollowage{result: engine.FollowageResult{TargetID: "9", UserFound: true, Following: true, FollowedAt: time.Now().Add(-40 * 24 * time.Hour)}}
-				return engine.Deps{Followage: l, Log: zap.NewNop()}
-			}(),
-			want:     "@Viewer has followed for 1 month, 10 days.",
-			cooldown: followageCooldown,
-		},
-		{
-			name: accountAgeBuiltin,
-			deps: func() engine.Deps {
-				l := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "9", UserFound: true, CreatedAt: time.Now().Add(-400 * 24 * time.Hour)}}
-				return engine.Deps{AccountAge: l, Log: zap.NewNop()}
-			}(),
-			want:     "@Viewer's account is 1 year, 1 month old.",
-			cooldown: accountAgeCooldown,
-		},
+		{name: "followage defaults to the chatter", text: "!followage", followage: following,
+			want: []string{"@Viewer has followed for 1 month, 10 days."}},
+		{name: "accountage defaults to the chatter", text: "!accountage", accountAge: oldAccount,
+			want: []string{"@Viewer's account is 1 year, 1 month old."}},
+		{name: "followage accepts a target login", text: "!followage @Other ignored",
+			followage: engine.FollowageResult{TargetID: "10", UserFound: true},
+			want:      []string{"@Other is not following this channel."}},
+		{name: "accountage accepts a target login", text: "!accountage @Ghost ignored",
+			want: []string{"@Ghost is not a Twitch user."}},
+		{name: "followage lookup failure replies unavailable", text: "!followage", followErr: boom,
+			want: []string{"Followage is unavailable right now."}},
+		{name: "accountage lookup failure replies unavailable", text: "!accountage", ageErr: boom,
+			want: []string{"Account age is unavailable right now."}},
+		{name: "a disabled followage stays silent", text: "!followage", followage: following, modules: disabledModule("followage")},
+		{name: "a disabled accountage stays silent", text: "!accountage", accountAge: oldAccount, modules: disabledModule("accountage")},
 	}
 	for _, tc := range cases {
-		cmd := builtinCommand(t, tc.deps, tc.name)
-		var col collector
-		require.NoError(t, cmd.Run(context.Background(), lookupContext(), "", col.emit))
-		require.Len(t, col.out, 1)
-		assert.Equal(t, outgress.TypeChat, col.out[0].Type)
-		assert.Equal(t, tc.want, col.out[0].Text)
-		assert.Equal(t, tc.cooldown, cmd.Cooldown)
+		t.Run(tc.name, func(t *testing.T) {
+			d := engine.Deps{
+				Followage:  &fakeFollowage{result: tc.followage, err: tc.followErr},
+				AccountAge: &fakeAccountAge{result: tc.accountAge, err: tc.ageErr},
+				Proj:       &fakeProj{modules: tc.modules},
+			}
+			out := runChat(t, Followage(d), lookupContext(), tc.text)
+			assert.Equal(t, tc.want, texts(out))
+			for _, o := range out {
+				assert.Equal(t, outgress.TypeChat, o.Type)
+			}
+		})
 	}
-}
-
-func TestFollowageAcceptsTargetLogin(t *testing.T) {
-	lookup := &fakeFollowage{result: engine.FollowageResult{TargetID: "10", UserFound: true}}
-	cmd := builtinCommand(t, engine.Deps{Followage: lookup, Log: zap.NewNop()}, followageBuiltin)
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), lookupContext(), "@Other ignored", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Other", lookup.got.targetLogin)
-	assert.Equal(t, "@Other is not following this channel.", col.out[0].Text)
-}
-
-func TestBuiltinLookupFailureRepliesUnavailable(t *testing.T) {
-	cases := []struct {
-		name builtinName
-		deps engine.Deps
-		want string
-	}{
-		{followageBuiltin, engine.Deps{Followage: &fakeFollowage{err: errors.New("boom")}, Log: zap.NewNop()}, "Followage is unavailable right now."},
-		{accountAgeBuiltin, engine.Deps{AccountAge: &fakeAccountAge{err: errors.New("boom")}, Log: zap.NewNop()}, "Account age is unavailable right now."},
-	}
-	for _, tc := range cases {
-		cmd := builtinCommand(t, tc.deps, tc.name)
-		var col collector
-		require.NoError(t, cmd.Run(context.Background(), lookupContext(), "", col.emit))
-		require.Len(t, col.out, 1)
-		assert.Equal(t, tc.want, col.out[0].Text)
-	}
-}
-
-func TestBuiltinToggleSuppressesCommand(t *testing.T) {
-	for _, name := range []builtinName{followageBuiltin, accountAgeBuiltin} {
-		reader := clipReader{modules: []projection.ModuleView{{Name: string(name), IsEnabled: false}}}
-		cmd := builtinCommand(t, engine.Deps{Proj: reader, Log: zap.NewNop()}, name)
-		var col collector
-		require.NoError(t, cmd.Run(context.Background(), lookupContext(), "", col.emit))
-		assert.Empty(t, col.out)
-	}
-}
-
-type fakeAccountAge struct {
-	result engine.AccountAgeResult
-	err    error
-	got    struct{ targetID, targetLogin string }
-}
-
-func (f *fakeAccountAge) Lookup(_ context.Context, targetID, targetLogin string) (engine.AccountAgeResult, error) {
-	f.got = struct{ targetID, targetLogin string }{targetID, targetLogin}
-	return f.result, f.err
-}
-
-func TestAccountAgeAcceptsTargetLogin(t *testing.T) {
-	lookup := &fakeAccountAge{result: engine.AccountAgeResult{UserFound: false}}
-	cmd := builtinCommand(t, engine.Deps{AccountAge: lookup, Log: zap.NewNop()}, accountAgeBuiltin)
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), lookupContext(), "@Ghost ignored", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "Ghost", lookup.got.targetLogin)
-	assert.Equal(t, "@Ghost is not a Twitch user.", col.out[0].Text)
 }

@@ -11,66 +11,103 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-func TestClientViewsSelectRoutingAndPipelineSingleCommands(t *testing.T) {
-	master := &recordingValkeyClient{}
-	local := &recordingValkeyClient{}
-	client := &Client{Client: master, local: local}
-
-	localRoute := client.commandRoute(true, false, singleCommand)
-	assert.Same(t, local, localRoute.client)
-	assert.Equal(t, "valkey.read", localRoute.operation)
-	primaryRoute := client.commandRoute(true, true, singleCommand)
-	assert.Same(t, master, primaryRoute.client)
-	assert.Equal(t, "valkey.read", primaryRoute.operation)
-
-	view := Primary(Throughput(client)).(*clientView)
-	assert.Same(t, client, view.routed)
-	assert.True(t, view.primary)
-	assert.True(t, view.throughput)
-
-	read := (valkey_go.Builder{}).Arbitrary("GET", "key").ReadOnly()
-	view.Do(context.Background(), read)
-	assert.Len(t, master.commands, 1)
-	assert.True(t, master.commands[0].IsReadOnly())
-	assert.False(t, master.commands[0].IsPipe(), "primary reads remain on the consistency and latency path")
-	assert.Empty(t, local.commands)
-
-	view.Do(context.Background(), valkey_go.Completed{})
-	assert.Len(t, master.commands, 2)
-	assert.True(t, master.commands[1].IsPipe())
-
-	view.DoMulti(context.Background(), valkey_go.Completed{}, valkey_go.Completed{})
-	assert.Len(t, master.batches, 1)
-	assert.Len(t, master.batches[0], 2)
-	assert.False(t, master.batches[0][0].IsPipe(), "DoMulti already batches and must not be retagged")
-	assert.False(t, master.batches[0][1].IsPipe(), "DoMulti already batches and must not be retagged")
-
-	view.Close()
-	assert.Zero(t, master.closes.Load(), "a borrowed view must not close its source")
+type routedCall struct {
+	target string
+	piped  bool
 }
 
-func TestThroughputViewDelegatesForeignClientWithoutAnotherPool(t *testing.T) {
-	client := &recordingValkeyClient{}
-	view := Throughput(client)
+type routedPair struct {
+	primary *recordingValkeyClient
+	local   *recordingValkeyClient
+	routed  *Client
+}
 
-	view.Do(context.Background(), valkey_go.Completed{})
-	assert.Len(t, client.commands, 1)
-	assert.True(t, client.commands[0].IsPipe())
-	view.Do(context.Background(), (valkey_go.Builder{}).Arbitrary("GET", "key").ReadOnly())
-	assert.Len(t, client.commands, 2)
-	assert.False(t, client.commands[1].IsPipe(), "read-only commands are not forced into throughput mode")
+func newRoutedPair() routedPair {
+	pair := routedPair{primary: &recordingValkeyClient{}, local: &recordingValkeyClient{}}
+	pair.routed = &Client{Client: pair.primary, local: pair.local}
+	return pair
+}
 
-	view.DoMulti(context.Background(), valkey_go.Completed{})
-	assert.Len(t, client.batches, 1)
-	assert.False(t, client.batches[0][0].IsPipe())
+func (p routedPair) observed() []routedCall {
+	var calls []routedCall
+	for target, recorded := range map[string]*recordingValkeyClient{"primary": p.primary, "local": p.local} {
+		for _, cmd := range recorded.commands {
+			calls = append(calls, routedCall{target, cmd.IsPipe()})
+		}
+		for _, batch := range recorded.batches {
+			for _, cmd := range batch {
+				calls = append(calls, routedCall{target, cmd.IsPipe()})
+			}
+		}
+	}
+	return calls
+}
+
+func readCommand() valkey_go.Completed {
+	return (valkey_go.Builder{}).Arbitrary("GET", "key").ReadOnly()
+}
+
+func TestViewsRouteReadsAndPipelineOnlyThroughputWrites(t *testing.T) {
+	routed := func(p routedPair) valkey_go.Client { return p.routed }
+	foreign := func(p routedPair) valkey_go.Client { return p.primary }
+	read := func(c valkey_go.Client) { c.Do(context.Background(), readCommand()) }
+	write := func(c valkey_go.Client) { c.Do(context.Background(), valkey_go.Completed{}) }
+	batch := func(c valkey_go.Client) {
+		c.DoMulti(context.Background(), valkey_go.Completed{}, valkey_go.Completed{})
+	}
+
+	for _, tc := range []struct {
+		name string
+		base func(routedPair) valkey_go.Client
+		view func(valkey_go.Client) valkey_go.Client
+		act  func(valkey_go.Client)
+		want []routedCall
+	}{
+		{"a bare client reads from the node-local pool", routed, func(c valkey_go.Client) valkey_go.Client { return c }, read, []routedCall{{"local", false}}},
+		{"a bare client writes to the primary unpiped", routed, func(c valkey_go.Client) valkey_go.Client { return c }, write, []routedCall{{"primary", false}}},
+		{"a throughput view alone does not pin reads to the primary", routed, Throughput, read, []routedCall{{"local", false}}},
+		{"a primary view keeps reads on the consistency and latency path", routed, Primary, read, []routedCall{{"primary", false}}},
+		{"a throughput view pipelines writes", routed, Throughput, write, []routedCall{{"primary", true}}},
+		{"a primary throughput view pipelines writes on the primary", routed, PrimaryThroughput, write, []routedCall{{"primary", true}}},
+		{"a batch is never retagged because DoMulti already batches", routed, PrimaryThroughput, batch, []routedCall{{"primary", false}, {"primary", false}}},
+		{"a throughput view over a foreign client pipelines writes", foreign, Throughput, write, []routedCall{{"primary", true}}},
+		{"a throughput view over a foreign client leaves reads unpiped", foreign, Throughput, read, []routedCall{{"primary", false}}},
+		{"a throughput view over a foreign client leaves batches unpiped", foreign, Throughput, batch, []routedCall{{"primary", false}, {"primary", false}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pair := newRoutedPair()
+
+			tc.act(tc.view(tc.base(pair)))
+
+			assert.Equal(t, tc.want, pair.observed())
+		})
+	}
+}
+
+func TestClosingAViewLeavesItsSourceOpen(t *testing.T) {
+	source := &recordingValkeyClient{}
+
+	Primary(Throughput(source)).Close()
+
+	assert.Zero(t, source.closes.Load(), "a borrowed view must not close its source")
 }
 
 func TestIsPrimaryReportsTheReadRouteOfAView(t *testing.T) {
 	client := &recordingValkeyClient{}
 
-	assert.False(t, IsPrimary(client), "a bare client reads wherever its own policy sends it")
-	assert.False(t, IsPrimary(Throughput(client)), "throughput alone does not pin reads to the primary")
-	assert.True(t, IsPrimary(Primary(client)))
-	assert.True(t, IsPrimary(PrimaryThroughput(client)))
-	assert.True(t, IsPrimary(Throughput(Primary(client))), "wrapping a primary view keeps it primary")
+	for _, tc := range []struct {
+		name string
+		view valkey_go.Client
+		want bool
+	}{
+		{"a bare client reads wherever its own policy sends it", client, false},
+		{"throughput alone does not pin reads to the primary", Throughput(client), false},
+		{"a primary view is primary", Primary(client), true},
+		{"a primary throughput view is primary", PrimaryThroughput(client), true},
+		{"wrapping a primary view keeps it primary", Throughput(Primary(client)), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsPrimary(tc.view))
+		})
+	}
 }

@@ -23,6 +23,7 @@ type ChannelCreateReply struct {
 }
 
 type ChannelDeleteRequest struct {
+	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`
 }
 
@@ -31,6 +32,7 @@ type ChannelDeleteReply struct {
 }
 
 type ChannelModifyRequest struct {
+	GuildID    string                           `json:"guild_id"`
 	ChannelID  string                           `json:"channel_id"`
 	Name       string                           `json:"name,omitempty"`
 	UserLimit  int                              `json:"user_limit,omitempty"`
@@ -52,6 +54,7 @@ type MemberMoveReply struct {
 }
 
 type PurgeRequest struct {
+	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`
 	Count     int    `json:"count"`
 }

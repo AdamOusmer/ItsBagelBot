@@ -5,8 +5,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -232,20 +230,12 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return false, err
 	}
 
-	b := r.client.Commands.Create().
-		SetUserID(userID).
-		SetName(spec.Name).
-		SetUses(uses)
-	applyEdit(b.Mutation(), spec.dto(userID))
-
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		return b.OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).DoNothing().Exec(ctx)
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	restored, err := r.createIfAbsent(ctx, userID, spec, uses)
 	if err != nil {
 		return false, err
+	}
+	if !restored {
+		return false, nil
 	}
 
 	r.Invalidate(userID)
@@ -256,6 +246,34 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return true, nil
 	}
 	return true, bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, states[key])
+}
+
+func (r *Commands) createIfAbsent(ctx context.Context, userID uint64, spec CommandSpec, uses int64) (bool, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
+		exists, err := r.client.Commands.Query().
+			Where(commands.UserIDEQ(userID), commands.NameEQ(spec.Name)).
+			Exist(ctx)
+		if err != nil {
+			return false, err
+		}
+		if exists {
+			return false, nil
+		}
+
+		b := r.client.Commands.Create().
+			SetUserID(userID).
+			SetName(spec.Name).
+			SetUses(uses)
+		applyEdit(b.Mutation(), spec.dto(userID))
+
+		if err := b.Exec(ctx); err != nil {
+			if ent.IsConstraintError(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
 }
 
 func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, spec CommandSpec) error {

@@ -24,6 +24,18 @@
         .bb-tabs--wrap > .bb-tab { flex-shrink: 0; }
     }
 
+    .bb-tabs--even {
+        display: grid;
+        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-flow: column;
+        gap: 12px;
+    }
+
+    .bb-tabs--even > .bb-tab {
+        justify-content: safe center;
+        min-width: 0;
+    }
+
     .bb-tab {
         position: relative;
         display: inline-flex;
@@ -103,6 +115,8 @@
         outline: 2px solid var(--bb-green-glow);
         outline-offset: 2px;
     }
+
+    @media (pointer: coarse) { .bb-tab { min-height: 44px; } }
 
     .bb-tabs--vertical {
         display: flex;

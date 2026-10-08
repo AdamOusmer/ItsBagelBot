@@ -6,7 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
-	"strconv"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -33,152 +33,95 @@ func emotePlayDeps(store *stubEmotePlay) engine.Deps {
 	return engine.Deps{Log: zap.NewNop(), EmotePlay: store}
 }
 
-func runEmotePlay(t *testing.T, d engine.Deps, env lane.Envelope) []module.Output {
-	t.Helper()
-	m := EmotePlay(d)
-	require.Equal(t, emoteplayModuleName, m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind, "the module speaks unprompted; it must ship disabled")
-	handler := m.Events["channel.chat.message"]
-	require.NotNil(t, handler)
-	var col collector
-	c := &module.Context{Env: env, BroadcasterID: 42, Log: zap.NewNop()}
-	require.NoError(t, handler(context.Background(), c, col.emit))
-	return col.out
+func emoteLine(emote string, n int) string {
+	return strings.TrimSpace(strings.Repeat(emote+" ", n))
 }
 
-func TestEmoteShape(t *testing.T) {
+func TestEmotePlayChat(t *testing.T) {
+	kappa := engine.EmotePlayUpdate{BroadcasterID: 42, MsgID: "m1", Emote: "Kappa", Width: 1, Copies: 1}
+	line := lane.Sender{ChatterUserID: "2"}
 	cases := []struct {
-		name  string
-		text  string
-		token string
-		width int
-		ok    bool
+		name     string
+		text     string
+		senders  []lane.Sender
+		result   engine.EmotePlayResult
+		err      error
+		noStore  bool
+		updates  []engine.EmotePlayUpdate
+		contains []string
+		excludes []string
 	}{
-		{"single emote", "Kappa", "Kappa", 1, true},
-		{"pyramid line", "Kappa Kappa Kappa", "Kappa", 3, true},
-		{"extra inner spaces", "  Kappa   Kappa  ", "Kappa", 2, true},
-		{"prose", "hello there friends", "", 0, false},
-		{"mixed emotes", "Kappa PogChamp", "", 0, false},
-		{"prefix blend", "Kappa KappaKappa", "", 0, false},
-		{"case differs", "Kappa kappa", "", 0, false},
-		{"punctuation spam", ". . . .", "", 0, false},
-		{"wall over cap", repeatToken("Kappa", maxPyramidWidth+1), "", 0, false},
-		{"exactly at cap", repeatToken("Kappa", maxPyramidWidth), "Kappa", maxPyramidWidth, true},
-		{"empty", "", "", 0, false},
-		{"cjk token", "全員 全員 全員", "全員", 3, true},
+		{name: "a single emote is a line of width one", text: "Kappa", updates: []engine.EmotePlayUpdate{kappa}},
+		{name: "a pyramid line counts its width", text: "Kappa Kappa Kappa", updates: []engine.EmotePlayUpdate{{BroadcasterID: 42, MsgID: "m1", Emote: "Kappa", Width: 3, Copies: 1}}},
+		{name: "extra inner spaces are ignored", text: "  Kappa   Kappa  ", updates: []engine.EmotePlayUpdate{{BroadcasterID: 42, MsgID: "m1", Emote: "Kappa", Width: 2, Copies: 1}}},
+		{name: "a line exactly at the width cap counts", text: emoteLine("Kappa", maxPyramidWidth),
+			updates: []engine.EmotePlayUpdate{{BroadcasterID: 42, MsgID: "m1", Emote: "Kappa", Width: maxPyramidWidth, Copies: 1}}},
+		{name: "a non latin emote token counts", text: "全員 全員 全員", updates: []engine.EmotePlayUpdate{{BroadcasterID: 42, MsgID: "m1", Emote: "全員", Width: 3, Copies: 1}}},
+		{name: "a wall over the cap never touches the store", text: emoteLine("Kappa", maxPyramidWidth+1)},
+		{name: "a prefix blend never touches the store", text: "Kappa KappaKappa"},
+		{name: "a case difference never touches the store", text: "Kappa kappa"},
+		{name: "punctuation spam never touches the store", text: ". . . ."},
+		{name: "empty text never touches the store", text: ""},
+		{name: "whitespace only never touches the store", text: "   "},
+		{name: "prose never touches the store", text: "just chatting"},
+		{name: "mixed emotes never touch the store", text: "Kappa PogChamp Kappa"},
+		{name: "a folded cohort counts its copies", text: "Kappa", senders: []lane.Sender{line, line, line},
+			updates: []engine.EmotePlayUpdate{{BroadcasterID: 42, MsgID: "m1", Emote: "Kappa", Width: 1, Copies: 3}}},
+		{name: "a finished pyramid announces its height", text: "Kappa", result: engine.EmotePlayResult{PyramidDone: true, Apex: 4},
+			updates: []engine.EmotePlayUpdate{kappa}, contains: []string{"Kappa", "4"}},
+		{name: "a streak milestone announces the rung", text: "Kappa", result: engine.EmotePlayResult{StreakMilestone: true, Streak: 10},
+			updates: []engine.EmotePlayUpdate{kappa}, contains: []string{"Kappa", "10"}},
+		{name: "completion wins over a same line streak rung", text: "Kappa", result: engine.EmotePlayResult{PyramidDone: true, Apex: 3, StreakMilestone: true, Streak: 5},
+			updates: []engine.EmotePlayUpdate{kappa}, contains: []string{"pyramid"}},
+		{name: "a silent advance emits nothing", text: "Kappa", updates: []engine.EmotePlayUpdate{kappa}},
+		{name: "a store outage fails open silently", text: "Kappa", err: errors.New("valkey down"), updates: []engine.EmotePlayUpdate{kappa}},
+		{name: "a missing store keeps the module inert", text: "Kappa", noStore: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			tok, w, ok := emoteShape(tc.text)
-			assert.Equal(t, tc.ok, ok)
-			assert.Equal(t, tc.token, tok)
-			assert.Equal(t, tc.width, w)
+			store := &stubEmotePlay{result: tc.result, err: tc.err}
+			d := emotePlayDeps(store)
+			if tc.noStore {
+				d.EmotePlay = nil
+			}
+			c := &module.Context{
+				Env:           lane.Envelope{Type: "channel.chat.message", MsgID: "m1", Text: tc.text, Senders: tc.senders},
+				BroadcasterID: 42,
+				Log:           zap.NewNop(),
+			}
+			out := runEvent(t, EmotePlay(d), c)
+			assert.Equal(t, tc.updates, store.updates)
+			if tc.contains == nil {
+				assert.Empty(t, out)
+				return
+			}
+			require.Len(t, out, 1, "one line must not be celebrated twice")
+			assertText(t, out[0].Text, textWant{"", tc.contains, tc.excludes})
 		})
 	}
 }
 
-func repeatToken(s string, n int) string {
-	out := s
-	for i := 1; i < n; i++ {
-		out += " " + s
-	}
-	return out
-}
-
-func TestEmotePlayCandidateFeedsStoreOnce(t *testing.T) {
-	store := &stubEmotePlay{}
-	runEmotePlay(t, emotePlayDeps(store), lane.Envelope{
-		Type: "channel.chat.message", MsgID: "m1", Text: "Kappa Kappa",
-	})
-	require.Len(t, store.updates, 1)
-	u := store.updates[0]
-	assert.Equal(t, uint64(42), u.BroadcasterID)
-	assert.Equal(t, "m1", u.MsgID)
-	assert.Equal(t, "Kappa", u.Emote)
-	assert.Equal(t, 2, u.Width)
-	assert.Equal(t, 1, u.Copies)
-}
-
-func TestEmotePlayProseNeverTouchesStore(t *testing.T) {
-	store := &stubEmotePlay{}
-	for _, text := range []string{"", "just chatting", "Kappa PogChamp Kappa"} {
-		runEmotePlay(t, emotePlayDeps(store), lane.Envelope{Text: text})
-	}
-	assert.Empty(t, store.updates, "prose must cost zero store round trips")
-}
-
-func TestEmotePlayCohortCountsCopies(t *testing.T) {
-	store := &stubEmotePlay{}
-	line := lane.Sender{ChatterUserID: "2"}
-	runEmotePlay(t, emotePlayDeps(store), lane.Envelope{
-		Text: "Kappa", Senders: []lane.Sender{line, line, line},
-	})
-	require.Len(t, store.updates, 1)
-	assert.Equal(t, 3, store.updates[0].Copies)
-}
-
-func TestEmotePlayAnnouncements(t *testing.T) {
-	base := lane.Envelope{Type: "channel.chat.message", BroadcasterUserID: "42", Text: "Kappa"}
-
-	t.Run("pyramid completion announces height", func(t *testing.T) {
-		store := &stubEmotePlay{result: engine.EmotePlayResult{PyramidDone: true, Apex: 4}}
-		out := runEmotePlay(t, emotePlayDeps(store), base)
-		require.Len(t, out, 1)
-		assert.Contains(t, out[0].Text, "Kappa")
-		assert.Contains(t, out[0].Text, "4")
-	})
-
-	t.Run("streak milestone announces rung", func(t *testing.T) {
-		store := &stubEmotePlay{result: engine.EmotePlayResult{StreakMilestone: true, Streak: 10}}
-		out := runEmotePlay(t, emotePlayDeps(store), base)
-		require.Len(t, out, 1)
-		assert.Contains(t, out[0].Text, "Kappa")
-		assert.Contains(t, out[0].Text, "10")
-	})
-
-	t.Run("completion wins over same-line streak rung", func(t *testing.T) {
-		store := &stubEmotePlay{result: engine.EmotePlayResult{
-			PyramidDone: true, Apex: 3, StreakMilestone: true, Streak: 5}}
-		out := runEmotePlay(t, emotePlayDeps(store), base)
-		require.Len(t, out, 1, "one line must not be celebrated twice")
-		assert.Contains(t, out[0].Text, "pyramid")
-	})
-
-	t.Run("silent advance emits nothing", func(t *testing.T) {
-		store := &stubEmotePlay{}
-		out := runEmotePlay(t, emotePlayDeps(store), base)
-		assert.Empty(t, out)
-	})
-}
-
-func TestEmotePlayStoreErrorFailsOpenSilently(t *testing.T) {
-	store := &stubEmotePlay{err: errors.New("valkey down")}
-	out := runEmotePlay(t, emotePlayDeps(store), lane.Envelope{Text: "Kappa"})
-	assert.Empty(t, out, "an outage must never emit, block or nack chat")
-}
-
-func TestEmotePlayNilStoreInert(t *testing.T) {
-	out := runEmotePlay(t, engine.Deps{Log: zap.NewNop()}, lane.Envelope{Text: "Kappa"})
-	assert.Empty(t, out)
-}
-
 func TestEmotePlayResolvesLocaleOnlyForMilestones(t *testing.T) {
 	for _, milestone := range []bool{false, true} {
-		t.Run(strconv.FormatBool(milestone), func(t *testing.T) {
+		name := "no milestone"
+		if milestone {
+			name = "milestone"
+		}
+		t.Run(name, func(t *testing.T) {
 			store := &stubEmotePlay{result: engine.EmotePlayResult{StreakMilestone: milestone, Streak: 10}}
 			calls := 0
-			c := &module.Context{Env: lane.Envelope{Text: "Kappa", BroadcasterUserID: "42"}, BroadcasterID: 42, LocaleLookup: func(context.Context, uint64) (string, error) { calls++; return "fr", nil }}
-			var col collector
-			require.NoError(t, EmotePlay(emotePlayDeps(store)).Events["channel.chat.message"](context.Background(), c, col.emit))
-			if milestone {
-				require.Equal(t, 1, calls)
-				require.Len(t, col.out, 1)
-				require.Equal(t, "Série Kappa ×10 !", col.out[0].Text)
-				require.Equal(t, "fr", c.Locale)
-			} else {
+			c := &module.Context{Env: lane.Envelope{Type: "channel.chat.message", Text: "Kappa", BroadcasterUserID: "42"}, BroadcasterID: 42,
+				LocaleLookup: func(context.Context, uint64) (string, error) { calls++; return "fr", nil }}
+			out := runEvent(t, EmotePlay(emotePlayDeps(store)), c)
+			if !milestone {
 				require.Zero(t, calls)
-				require.Empty(t, col.out)
+				require.Empty(t, out)
+				return
 			}
+			require.Equal(t, 1, calls)
+			require.Len(t, out, 1)
+			require.Equal(t, "Série Kappa ×10 !", out[0].Text)
+			require.Equal(t, "fr", c.Locale)
 		})
 	}
 }

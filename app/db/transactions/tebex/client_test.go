@@ -4,19 +4,24 @@
 package tebex
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func newTestClient(t *testing.T, handler http.Handler) *Client {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
+type basketRequests struct {
+	create, addPackage map[string]any
+	auth               string
+}
 
-	client, err := New(Config{
+func clientConfig(srv *httptest.Server) Config {
+	return Config{
 		WebstoreToken:   "token-123",
 		PrivateKey:      "private-456",
 		IncludeUsername: true,
@@ -24,274 +29,163 @@ func newTestClient(t *testing.T, handler http.Handler) *Client {
 		CompleteURL:     "https://dashboard.example/billing?checkout=complete",
 		CancelURL:       "https://dashboard.example/billing?checkout=cancelled",
 		BaseURL:         srv.URL,
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
 	}
-	return client
 }
 
-func TestCreateBasket(t *testing.T) {
-	var createBody, packageBody map[string]any
-	var createAuth string
-
+func basketServer(t *testing.T, linksOnCreate bool) (*httptest.Server, *basketRequests) {
+	t.Helper()
+	seen := &basketRequests{}
+	checkout := map[string]any{"checkout": "https://pay.tebex.io/bkt-1-final"}
+	createLinks, packageLinks := any([]any{}), any(checkout)
+	if linksOnCreate {
+		createLinks, packageLinks = checkout, map[string]any{}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		createAuth = r.Header.Get("Authorization")
-		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
-			t.Fatalf("decode create body: %v", err)
+		seen.auth = r.Header.Get("Authorization")
+		if err := codec.NewDecoder(r.Body).Decode(&seen.create); err != nil {
+			t.Errorf("decode create body: %v", err)
 		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-1",
-				"links": []any{},
-			},
-		})
+		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-1", "links": createLinks}})
 	})
 	mux.HandleFunc("POST /api/baskets/bkt-1/packages", func(w http.ResponseWriter, r *http.Request) {
-		if err := codec.NewDecoder(r.Body).Decode(&packageBody); err != nil {
-			t.Fatalf("decode package body: %v", err)
+		if err := codec.NewDecoder(r.Body).Decode(&seen.addPackage); err != nil {
+			t.Errorf("decode package body: %v", err)
 		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-1",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-1-final"},
-			},
-		})
+		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-1", "links": packageLinks}})
 	})
-
-	basket, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 804932984, Username: "mavey", IPAddress: "203.0.113.10"})
-	if err != nil {
-		t.Fatalf("CreateBasket: %v", err)
-	}
-
-	if basket.Ident != "bkt-1" {
-		t.Errorf("ident = %q, want bkt-1", basket.Ident)
-	}
-	if basket.CheckoutURL != "https://pay.tebex.io/bkt-1-final" {
-		t.Errorf("checkout url = %q", basket.CheckoutURL)
-	}
-
-	custom, _ := createBody["custom"].(map[string]any)
-	if custom["user_id"] != "804932984" {
-		t.Errorf("custom.user_id = %v, want 804932984", custom["user_id"])
-	}
-	if _, present := custom["gifted_by"]; present {
-		t.Errorf("self-purchase basket must not carry gifted_by, got %v", custom["gifted_by"])
-	}
-	if createBody["complete_url"] != "https://dashboard.example/billing?checkout=complete" {
-		t.Errorf("complete_url = %v", createBody["complete_url"])
-	}
-	if createBody["username"] != "mavey" {
-		t.Errorf("username = %v, want mavey", createBody["username"])
-	}
-	if createBody["ip_address"] != "203.0.113.10" {
-		t.Errorf("ip_address = %v, want 203.0.113.10", createBody["ip_address"])
-	}
-	if createAuth != "Basic dG9rZW4tMTIzOnByaXZhdGUtNDU2" {
-		t.Errorf("Authorization = %q, want Basic auth with public token/private key", createAuth)
-	}
-
-	if packageBody["package_id"] != float64(42) {
-		t.Errorf("package_id = %v, want 42", packageBody["package_id"])
-	}
-	if packageBody["type"] != "subscription" {
-		t.Errorf("type = %v, want subscription", packageBody["type"])
-	}
-}
-
-func TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP(t *testing.T) {
-	var createBody map[string]any
-	var createAuth string
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		createAuth = r.Header.Get("Authorization")
-		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
-			t.Fatalf("decode create body: %v", err)
-		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-legacy",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
-			},
-		})
-	})
-	mux.HandleFunc("POST /api/baskets/bkt-legacy/packages", func(w http.ResponseWriter, r *http.Request) {
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-legacy",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-legacy"},
-			},
-		})
-	})
-
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-
-	client, err := New(Config{
-		WebstoreToken: "token-123",
-		PackageID:     42,
-		CompleteURL:   "https://dashboard.example/billing?checkout=complete",
-		CancelURL:     "https://dashboard.example/billing?checkout=cancelled",
-		BaseURL:       srv.URL,
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	_, err = client.CreateBasket(context.Background(), BasketSpec{
-		UserID:    804932984,
-		Username:  "mavey",
-		IPAddress: "203.0.113.10",
-	})
-	if err != nil {
-		t.Fatalf("CreateBasket: %v", err)
-	}
-
-	if _, present := createBody["ip_address"]; present {
-		t.Errorf("ip_address must be omitted without private key, got %v", createBody["ip_address"])
-	}
-	if _, present := createBody["username"]; present {
-		t.Errorf("username must be omitted unless IncludeUsername is set, got %v", createBody["username"])
-	}
-	custom, _ := createBody["custom"].(map[string]any)
-	if custom["username"] != "mavey" {
-		t.Errorf("custom.username = %v, want mavey", custom["username"])
-	}
-	if createAuth != "" {
-		t.Errorf("Authorization = %q, want empty without private key", createAuth)
-	}
+	return srv, seen
 }
 
-func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
-	var createBody, packageBody map[string]any
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
-			t.Fatalf("decode create body: %v", err)
-		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-gift",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
-			},
-		})
-	})
-	mux.HandleFunc("POST /api/baskets/bkt-gift/packages", func(w http.ResponseWriter, r *http.Request) {
-		if err := codec.NewDecoder(r.Body).Decode(&packageBody); err != nil {
-			t.Fatalf("decode package body: %v", err)
-		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"ident": "bkt-gift",
-				"links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gift"},
-			},
-		})
-	})
-
-	_, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{
-		UserID:        111,
-		Username:      "recipient",
-		GiftedByID:    804932984,
-		GiftedByLogin: "mavey",
-		PackageType:   "single",
-	})
-	if err != nil {
-		t.Fatalf("CreateBasket: %v", err)
-	}
-
-	custom, _ := createBody["custom"].(map[string]any)
-	if custom["user_id"] != "111" {
-		t.Errorf("custom.user_id = %v, want recipient 111", custom["user_id"])
-	}
-	if custom["gifted_by"] != "804932984" {
-		t.Errorf("custom.gifted_by = %v, want 804932984", custom["gifted_by"])
-	}
-	if custom["gifted_by_login"] != "mavey" {
-		t.Errorf("custom.gifted_by_login = %v, want mavey", custom["gifted_by_login"])
-	}
-	if packageBody["type"] != "single" {
-		t.Errorf("type = %v, want the per-basket single override", packageBody["type"])
-	}
-}
-
-func giftCustom(t *testing.T, spec BasketSpec) map[string]any {
+func requireFields(t *testing.T, got, want map[string]any) {
 	t.Helper()
-	var createBody map[string]any
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/accounts/token-123/baskets", func(w http.ResponseWriter, r *http.Request) {
-		if err := codec.NewDecoder(r.Body).Decode(&createBody); err != nil {
-			t.Fatalf("decode create body: %v", err)
-		}
-		_ = codec.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{"checkout": "https://pay.tebex.io/bkt-gm"}},
+	for key, value := range want {
+		assert.Equal(t, value, got[key], key)
+	}
+}
+
+func requireAbsent(t *testing.T, got map[string]any, keys []string) {
+	t.Helper()
+	for _, key := range keys {
+		assert.NotContains(t, got, key)
+	}
+}
+
+func TestCreateBasketCarriesAttributionAndAuthentication(t *testing.T) {
+	const basicAuth = "Basic dG9rZW4tMTIzOnByaXZhdGUtNDU2"
+	for _, tc := range []struct {
+		name          string
+		spec          BasketSpec
+		noKey         bool
+		noUsername    bool
+		linksOnCreate bool
+		auth          string
+		create        map[string]any
+		custom        map[string]any
+		noCreate      []string
+		noCustom      []string
+		pkg           map[string]any
+	}{
+		{
+			name:   "self purchase carries the buyer, username and authenticated IP",
+			spec:   BasketSpec{UserID: 804932984, Username: "mavey", IPAddress: "203.0.113.10"},
+			auth:   basicAuth,
+			create: map[string]any{"complete_url": "https://dashboard.example/billing?checkout=complete", "username": "mavey", "ip_address": "203.0.113.10"},
+			custom: map[string]any{"user_id": "804932984"}, noCustom: []string{"gifted_by"},
+			pkg: map[string]any{"package_id": float64(42), "type": "subscription"},
+		},
+		{
+			name: "TestCreateBasketWithoutPrivateKeyOmitsAuthenticatedIP", noKey: true, noUsername: true, linksOnCreate: true,
+			spec:     BasketSpec{UserID: 804932984, Username: "mavey", IPAddress: "203.0.113.10"},
+			noCreate: []string{"ip_address", "username"},
+			custom:   map[string]any{"username": "mavey"},
+		},
+		{
+			name:     "a gift carries the recipient and the buyer attribution",
+			spec:     BasketSpec{UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey", PackageType: "single"},
+			auth:     basicAuth,
+			custom:   map[string]any{"user_id": "111", "gifted_by": "804932984", "gifted_by_login": "mavey"},
+			noCustom: []string{"gift_message"},
+			pkg:      map[string]any{"type": "single"},
+		},
+		{
+			name:   "a gift carries its message",
+			spec:   BasketSpec{UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey", PackageType: "single", GiftMessage: "happy streaming!"},
+			auth:   basicAuth,
+			custom: map[string]any{"gift_message": "happy streaming!"},
+		},
+		{
+			name:     "a self purchase ignores a message",
+			spec:     BasketSpec{UserID: 804932984, Username: "mavey", GiftMessage: "note"},
+			auth:     basicAuth,
+			noCustom: []string{"gift_message"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, seen := basketServer(t, tc.linksOnCreate)
+			cfg := clientConfig(srv)
+			if tc.noKey {
+				cfg.PrivateKey = ""
+			}
+			if tc.noUsername {
+				cfg.IncludeUsername = false
+			}
+			client, err := New(cfg)
+			require.NoError(t, err)
+
+			basket, err := client.CreateBasket(context.Background(), tc.spec)
+
+			require.NoError(t, err)
+			assert.Equal(t, Basket{Ident: "bkt-1", CheckoutURL: "https://pay.tebex.io/bkt-1-final"}, basket)
+			assert.Equal(t, tc.auth, seen.auth)
+			custom, _ := seen.create["custom"].(map[string]any)
+			requireFields(t, seen.create, tc.create)
+			requireFields(t, custom, tc.custom)
+			requireFields(t, seen.addPackage, tc.pkg)
+			requireAbsent(t, seen.create, tc.noCreate)
+			requireAbsent(t, custom, tc.noCustom)
 		})
-	})
-	mux.HandleFunc("POST /api/baskets/bkt-gm/packages", func(w http.ResponseWriter, r *http.Request) {
-		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"ident": "bkt-gm", "links": map[string]any{}}})
-	})
-	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), spec); err != nil {
-		t.Fatalf("CreateBasket: %v", err)
-	}
-	custom, _ := createBody["custom"].(map[string]any)
-	return custom
-}
-
-func TestGiftBasketCarriesMessage(t *testing.T) {
-	custom := giftCustom(t, BasketSpec{
-		UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey",
-		PackageType: "single", GiftMessage: "happy streaming!",
-	})
-	if custom["gift_message"] != "happy streaming!" {
-		t.Errorf("custom.gift_message = %v, want the note", custom["gift_message"])
 	}
 }
 
-func TestGiftBasketOmitsEmptyMessage(t *testing.T) {
-	custom := giftCustom(t, BasketSpec{
-		UserID: 111, Username: "recipient", GiftedByID: 804932984, GiftedByLogin: "mavey", PackageType: "single",
-	})
-	if _, present := custom["gift_message"]; present {
-		t.Errorf("empty note must not add gift_message, got %v", custom["gift_message"])
+func TestCreateBasketRefusesAnUnusableUpstream(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"an upstream refusal", http.StatusForbidden, `{"message":"store disabled"}`},
+		{"a basket response without an ident", http.StatusOK, `{"data":{}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(srv.Close)
+			client, err := New(clientConfig(srv))
+			require.NoError(t, err)
+
+			_, err = client.CreateBasket(context.Background(), BasketSpec{UserID: 1})
+
+			require.Error(t, err)
+		})
 	}
 }
 
-func TestSelfPurchaseIgnoresMessage(t *testing.T) {
-	custom := giftCustom(t, BasketSpec{UserID: 804932984, Username: "mavey", GiftMessage: "note"})
-	if _, present := custom["gift_message"]; present {
-		t.Errorf("self-purchase must not carry gift_message, got %v", custom["gift_message"])
-	}
-}
-
-func TestCreateBasketUpstreamError(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"message":"store disabled"}`, http.StatusForbidden)
-	})
-
-	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 1}); err == nil {
-		t.Fatal("expected error on 403 upstream")
-	}
-}
-
-func TestCreateBasketMissingIdent(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_ = codec.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
-	})
-
-	if _, err := newTestClient(t, mux).CreateBasket(context.Background(), BasketSpec{UserID: 1}); err == nil {
-		t.Fatal("expected error on missing ident")
-	}
-}
-
-func TestNewValidation(t *testing.T) {
-	if _, err := New(Config{PackageID: 1}); err == nil {
-		t.Error("expected error without webstore token")
-	}
-	if _, err := New(Config{WebstoreToken: "t"}); err == nil {
-		t.Error("expected error without package id")
+func TestNewRejectsAnIncompleteConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  Config
+	}{
+		{"without a webstore token", Config{PackageID: 1}},
+		{"without a package id", Config{WebstoreToken: "t"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(tc.cfg)
+			require.Error(t, err)
+		})
 	}
 }

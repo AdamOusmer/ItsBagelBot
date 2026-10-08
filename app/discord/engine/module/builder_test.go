@@ -1,55 +1,57 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package module
+package module_test
 
 import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/discord/engine/module"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"github.com/stretchr/testify/require"
 )
 
-func noopHandler(context.Context, *Context, Emit) error { return nil }
+func noopHandler(context.Context, *module.Context, module.Emit) error { return nil }
 
 func TestBuildRegistersAllThreeAxes(t *testing.T) {
-	b := NewModule("ticket")
-	b.On("GUILD_CREATE", noopHandler)
-	b.Slash("ticket", noopHandler)
-	b.Button("bagel:ticket:open", noopHandler)
+	m := module.NewModule("ticket").
+		On("GUILD_CREATE", noopHandler).
+		Slash("ticket", noopHandler).
+		Button("bagel:ticket:open", noopHandler).
+		Build()
 
-	m := b.Build()
-	if m.Name != "ticket" {
-		t.Fatalf("name = %q", m.Name)
-	}
-	if _, ok := m.Events["GUILD_CREATE"]; !ok {
-		t.Fatal("missing event registration")
-	}
-	if _, ok := m.Slash["ticket"]; !ok {
-		t.Fatal("missing slash registration")
-	}
-	if _, ok := m.Buttons["bagel:ticket:open"]; !ok {
-		t.Fatal("missing button registration")
-	}
+	require.Equal(t, "ticket", m.Name)
+	require.Contains(t, m.Events, "GUILD_CREATE")
+	require.Contains(t, m.Slash, "ticket")
+	require.Contains(t, m.Buttons, "bagel:ticket:open")
 }
 
-func TestBuildPanicsOnEmptyName(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic on empty module name")
-		}
-	}()
-	NewModule("").Build()
+func TestBuildRefusesAnInvalidModule(t *testing.T) {
+	cases := []struct {
+		name  string
+		build func() module.Module
+	}{
+		{"empty name", func() module.Module { return module.NewModule("").Build() }},
+		{"nil event handler", func() module.Module { return module.NewModule("x").On("T", nil).Build() }},
+		{"nil slash handler", func() module.Module { return module.NewModule("x").Slash("s", nil).Build() }},
+		{"nil button handler", func() module.Module { return module.NewModule("x").Button("b", nil).Build() }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Panics(t, func() { tc.build() })
+		})
+	}
 }
 
 func TestOnKeepsLastHandlerOnDuplicateRegistration(t *testing.T) {
 	calls := 0
-	first := func(context.Context, *Context, Emit) error { calls += 1; return nil }
-	second := func(context.Context, *Context, Emit) error { calls += 10; return nil }
+	first := func(context.Context, *module.Context, module.Emit) error { calls += 1; return nil }
+	second := func(context.Context, *module.Context, module.Emit) error { calls += 10; return nil }
 
-	m := NewModule("x").On("T", first).On("T", second).Build()
-	_ = m.Events["T"](context.Background(), &Context{}, func(ddiscord.Command) {})
-	if calls != 10 {
-		t.Fatalf("calls = %d, want 10 (second handler should win)", calls)
-	}
+	m := module.NewModule("x").On("T", first).On("T", second).Build()
+	require.NoError(t, m.Events["T"](context.Background(), &module.Context{}, func(ddiscord.Command) {}))
+
+	require.Equal(t, 10, calls, "second handler should win")
 }

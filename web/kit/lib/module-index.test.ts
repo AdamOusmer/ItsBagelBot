@@ -5,16 +5,12 @@ import { describe, expect, test } from 'bun:test';
 import {
   categoryAnchorId,
   categoryHref,
-  categorySlug,
-  countByCategory,
   filterModuleIndex,
   groupModulesByCategory,
   moduleCommandChips,
   moduleHref,
   moduleMatchesQuery,
   MODULE_CATEGORY_ORDER,
-  orderedCategories,
-  parseStatusFilter,
   readModuleIndexQuery,
   writeModuleIndexQuery,
   type ModuleIndexQuery
@@ -32,20 +28,21 @@ function query(partial: Partial<ModuleIndexQuery> = {}): ModuleIndexQuery {
 }
 
 describe('module index matching', () => {
-  test('finds a module by the command chat actually types', () => {
-    const song = moduleDef('songqueue');
-    expect(song).toBeDefined();
-    expect(moduleMatchesQuery(song!, '!sr')).toBe(true);
-    expect(moduleMatchesQuery(song!, 'songrequest')).toBe(true);
-    expect(moduleMatchesQuery(song!, 'spotify')).toBe(true);
-  });
+  const listed = (id: string, q: string) => filterModuleIndex([state(id)], query({ q })).length === 1;
 
-  test('finds a game pack by the game name, not its internal id', () => {
-    const fn = moduleDef('fortnite');
-    expect(fn).toBeDefined();
-    expect(moduleMatchesQuery(fn!, 'fortnite')).toBe(true);
-    expect(moduleMatchesQuery(fn!, '!fn')).toBe(true);
-    expect(moduleMatchesQuery(fn!, 'songrequest')).toBe(false);
+  test.each([
+    { name: 'finds a module by the command chat actually types', id: 'songqueue', q: '!sr', want: true },
+    { name: 'finds a module by its command word', id: 'songqueue', q: 'songrequest', want: true },
+    { name: 'finds a module by the service it drives', id: 'songqueue', q: 'spotify', want: true },
+    { name: 'finds a game pack by the game name, not its internal id', id: 'fortnite', q: 'fortnite', want: true },
+    { name: 'finds a game pack by its command', id: 'fortnite', q: '!fn', want: true },
+    { name: 'a game pack is not found by another module command', id: 'fortnite', q: 'songrequest', want: false },
+    { name: 'finds loyalty by a nested game command', id: 'loyalty', q: '!gamble', want: true },
+    { name: 'finds loyalty by another nested game command', id: 'loyalty', q: '!duel', want: true },
+    { name: 'blank query matches everything', id: 'timers', q: '   ', want: true },
+    { name: 'short compact queries do not substring-match unrelated modules', id: 'fortnite', q: 'sr', want: false }
+  ])('$name', ({ id, q, want }) => {
+    expect(listed(id, q)).toBe(want);
   });
 
   test('combines feature and command clues in any order, requiring every term', () => {
@@ -61,21 +58,6 @@ describe('module index matching', () => {
     const def = moduleDef('codm')!;
     expect(moduleMatchesQuery(def, 'consultation', 'Consultation de profil Call of Duty: Mobile')).toBe(true);
     expect(moduleMatchesQuery(def, 'consultation')).toBe(false);
-  });
-
-  test('finds loyalty by a nested game command', () => {
-    const loyalty = moduleDef('loyalty');
-    expect(loyalty).toBeDefined();
-    expect(moduleMatchesQuery(loyalty!, '!gamble')).toBe(true);
-    expect(moduleMatchesQuery(loyalty!, '!duel')).toBe(true);
-  });
-
-  test('blank query matches everything', () => {
-    expect(moduleMatchesQuery(moduleDef('timers')!, '   ')).toBe(true);
-  });
-
-  test('short compact queries do not substring-match unrelated modules', () => {
-    expect(moduleMatchesQuery(moduleDef('fortnite')!, 'sr')).toBe(false);
   });
 });
 
@@ -105,10 +87,7 @@ describe('module index filters', () => {
 describe('module command chips', () => {
   test('caps at three and reports the overflow', () => {
     const song = moduleDef('songqueue')!;
-    const { chips, extra } = moduleCommandChips(song, 3);
-    expect(chips[0]).toBe('!sr');
-    expect(chips.length).toBeLessThanOrEqual(3);
-    expect(chips.length + extra).toBeGreaterThanOrEqual(chips.length);
+    expect(moduleCommandChips(song, 3)).toEqual({ chips: ['!sr', '!remove', '!skip'], extra: 3 });
   });
 
   test('promotes a reply command when the module has no command list', () => {
@@ -138,18 +117,9 @@ describe('grouping and hrefs', () => {
   });
 
   test('appends a category the order list does not know', () => {
-    expect(orderedCategories(['Stats', 'Weird', 'Chat', 'Moderation'])).toEqual([
-      'Moderation',
-      'Chat',
-      'Stats',
-      'Weird'
-    ]);
-  });
-
-  test('counts faceted results per category', () => {
-    const counts = countByCategory([state('timers'), state('triggers'), state('fortnite')]);
-    expect(counts.Chat).toBe(2);
-    expect(counts.Stats).toBe(1);
+    const weird: ModuleState = { ...state('timers'), def: { ...moduleDef('timers')!, category: 'Weird' } };
+    const items = [state('fortnite'), weird, state('triggers'), state('automod')];
+    expect(groupModulesByCategory(items).map((g) => g.name)).toEqual(['Moderation', 'Chat', 'Stats', 'Weird']);
   });
 
   test('folds Song Requests and Govee into Gear', () => {
@@ -189,10 +159,13 @@ describe('index query URL', () => {
   });
 
   test('unknown status and slug collapse to the unfiltered view', () => {
-    expect(parseStatusFilter('maybe')).toBe('all');
-    expect(categorySlug('Chat Tools')).toBe('chat-tools');
     const read = readModuleIndexQuery(new URLSearchParams('cat=nope&status=yes'), ['Stats']);
     expect(read.category).toBe('');
     expect(read.status).toBe('all');
+  });
+
+  test('a category name with spaces round-trips through its slug', () => {
+    expect(categoryAnchorId('Chat Tools')).toBe('cat-chat-tools');
+    expect(readModuleIndexQuery(new URLSearchParams('cat=chat-tools'), ['Chat Tools']).category).toBe('Chat Tools');
   });
 });

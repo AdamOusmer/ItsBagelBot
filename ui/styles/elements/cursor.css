@@ -19,6 +19,19 @@
         will-change: transform, opacity;
     }
 
+    .bb-cursor[popover],
+    .bb-cursor-ring[popover] {
+        right: auto;
+        bottom: auto;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .bb-cursor[popover] {
+        border: 0;
+    }
+
     .bb-cursor.is-text {
         top: -9px;
         left: -1px;
@@ -35,6 +48,7 @@
         height: 36px;
         border: 2px solid var(--bb-tan);
         border-radius: var(--bb-radius-sm);
+        background: transparent;
         opacity: 0.5;
         pointer-events: none;
         z-index: calc(var(--bb-z-cursor) - 1);

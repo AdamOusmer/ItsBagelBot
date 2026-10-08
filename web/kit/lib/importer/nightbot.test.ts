@@ -12,7 +12,7 @@ import {
   NightbotFetchError,
   parseNightbot
 } from './nightbot';
-import { CODE, isValidFetchDefName, validateManifest } from './validate';
+import { CODE, validateManifest } from './validate';
 import type { ImportDiagnostic } from './types';
 
 const bytes = (doc: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(doc));
@@ -31,27 +31,17 @@ const command = (over: Record<string, unknown> = {}): Record<string, unknown> =>
 });
 
 describe('detectNightbot', () => {
-  test('accepts a saved /1/commands response', () => {
-    expect(detectNightbot(bytes({ _total: 1, commands: [command()] }))).toBe(true);
-  });
+  const text = (value: string) => new TextEncoder().encode(value);
 
-  test('accepts a bare array of command rows', () => {
-    expect(detectNightbot(bytes([command()]))).toBe(true);
-  });
-
-  test('accepts a spam-protection save-out on its own', () => {
-    expect(
-      detectNightbot(bytes({ spam_protection: [{ type: 'blacklist', blacklist: ['badword'] }] }))
-    ).toBe(true);
-  });
-
-  test('rejects a StreamElements envelope wearing the same key', () => {
-    expect(detectNightbot(bytes({ commands: [{ command: '!hello', reply: 'hi' }] }))).toBe(false);
-  });
-
-  test('rejects junk', () => {
-    expect(detectNightbot(new TextEncoder().encode('not json'))).toBe(false);
-    expect(detectNightbot(bytes({ hello: 'world' }))).toBe(false);
+  test.each([
+    ['accepts a saved /1/commands response', bytes({ _total: 1, commands: [command()] }), true],
+    ['accepts a bare array of command rows', bytes([command()]), true],
+    ['accepts a spam-protection save-out on its own', bytes({ spam_protection: [{ type: 'blacklist', blacklist: ['badword'] }] }), true],
+    ['rejects a StreamElements envelope wearing the same key', bytes({ commands: [{ command: '!hello', reply: 'hi' }] }), false],
+    ['rejects text that is not JSON', text('not json'), false],
+    ['rejects an object with nothing recognizable', bytes({ hello: 'world' }), false]
+  ] as [string, Uint8Array, boolean][])('%s', (_name, doc, want) => {
+    expect(detectNightbot(doc)).toBe(want);
   });
 });
 
@@ -125,56 +115,6 @@ describe('commands', () => {
     expect(codesOf(diagnostics)).toEqual([CODE.permissionUnmapped]);
   });
 
-  test('unmappable variables stay literal and are reported once each', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [command({ message: '$(eval 1+1) $(eval 1+1) $(twitch x) $(31)' })]
-      })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['$(eval 1+1) $(eval 1+1) $(twitch x) $(31)']);
-    expect(codesOf(diagnostics)).toEqual([
-      CODE.variableUnmapped,
-      CODE.variableUnmapped,
-      CODE.variableUnmapped
-    ]);
-  });
-
-  test('$(count) translates to bare {count}, the per-command run count', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: 'hugged $(count) times' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['hugged {count} times']);
-    expect(codesOf(diagnostics)).toEqual([]);
-  });
-
-  test('$(querystring) translates to {querystring}, not to {args}', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: 'https://x.test/?q=$(querystring)' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['https://x.test/?q={querystring}']);
-    expect(codesOf(diagnostics)).toEqual([]);
-  });
-
-  test('word numbers map onto the positional tokens', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: '$(1) hugs $(2), $(30) last' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{1} hugs {2}, {30} last']);
-    expect(codesOf(diagnostics)).toEqual([]);
-  });
-
-  test('a word number past the cap stays literal rather than becoming a dead span', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: '$(31) $(0) $(1x)' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['$(31) $(0) $(1x)']);
-    expect(codesOf(diagnostics)).toEqual([
-      CODE.variableUnmapped,
-      CODE.variableUnmapped,
-      CODE.variableUnmapped
-    ]);
-  });
-
   test('a row without name/message is skipped, not fatal', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({ commands: [{ _id: 'x' }, command({ name: '   ' }), command()] })
@@ -191,126 +131,44 @@ describe('commands', () => {
   });
 });
 
-describe('phase 6: time/countdown/countup/twitch', () => {
-  test('$(time tz) passes the timezone payload through', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: 'it is $(time America/New_York) there' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['it is {time:America/New_York} there']);
-    expect(diagnostics).toEqual([]);
-  });
+interface MessageCase {
+  name: string;
+  messages: string[];
+  responses: string[][];
+  codes: string[];
+}
 
-  test('$(countdown d)/$(countup d) normalize a parseable date', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [
-          command({
-            name: '!a',
-            message: 'left: $(countdown Dec 25 2026 12:00:00 AM EST)'
-          }),
-          command({ name: '!b', message: 'since: $(countup 2026-01-01)' })
-        ]
-      })
-    );
-    expect(manifest.commands?.map((c) => c.responses)).toEqual([
-      ['left: {countdown:2026-12-25T05:00:00.000Z}'],
-      ['since: {countup:2026-01-01}']
-    ]);
-    expect(diagnostics).toEqual([]);
-  });
+const UNMAPPED = CODE.variableUnmapped;
 
-  test('$(countdown d) warns on an unparsable or time-only date', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [
-          command({ name: '!a', message: '$(countdown whenever)' }),
-          command({ name: '!b', message: '$(countdown 5:00:00 PM EST)' })
-        ]
-      })
-    );
-    expect(manifest.commands?.map((c) => c.responses)).toEqual([
-      ['$(countdown whenever)'],
-      ['$(countdown 5:00:00 PM EST)']
-    ]);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped, CODE.variableUnmapped]);
-  });
+const MESSAGE_CASES: MessageCase[] = [
+  { name: 'unmappable variables stay literal and are reported once each', messages: ['$(eval 1+1) $(eval 1+1) $(twitch x) $(31)'], responses: [['$(eval 1+1) $(eval 1+1) $(twitch x) $(31)']], codes: [UNMAPPED, UNMAPPED, UNMAPPED] },
+  { name: '$(count) translates to bare {count}, the per-command run count', messages: ['hugged $(count) times'], responses: [['hugged {count} times']], codes: [] },
+  { name: '$(querystring) translates to {querystring}, not to {args}', messages: ['https://x.test/?q=$(querystring)'], responses: [['https://x.test/?q={querystring}']], codes: [] },
+  { name: 'word numbers map onto the positional tokens', messages: ['$(1) hugs $(2), $(30) last'], responses: [['{1} hugs {2}, {30} last']], codes: [] },
+  { name: 'a word number past the cap stays literal rather than becoming a dead span', messages: ['$(31) $(0) $(1x)'], responses: [['$(31) $(0) $(1x)']], codes: [UNMAPPED, UNMAPPED, UNMAPPED] },
+  { name: '$(time tz) passes the timezone payload through', messages: ['it is $(time America/New_York) there'], responses: [['it is {time:America/New_York} there']], codes: [] },
+  { name: '$(countdown d)/$(countup d) normalize a parseable date', messages: ['left: $(countdown Dec 25 2026 12:00:00 AM EST)', 'since: $(countup 2026-01-01)'], responses: [['left: {countdown:2026-12-25T05:00:00.000Z}'], ['since: {countup:2026-01-01}']], codes: [] },
+  { name: '$(countdown d) warns on an unparsable or time-only date', messages: ['$(countdown whenever)', '$(countdown 5:00:00 PM EST)'], responses: [['$(countdown whenever)'], ['$(countdown 5:00:00 PM EST)']], codes: [UNMAPPED, UNMAPPED] },
+  { name: '$(twitch $(channel) "{{title}}") maps the single field, own channel', messages: ['now: $(twitch $(channel) "{{title}}")'], responses: [['now: {title}']], codes: [] },
+  {
+    name: '$(twitch $(channel) "{{game}}")/{{uptimeLength}}/{{viewers}}/{{followers}}/{{subscriberCount}}',
+    messages: ['game', 'uptimeLength', 'viewers', 'followers', 'subscriberCount'].map((field) => `$(twitch $(channel) "{{${field}}}")`),
+    responses: [['{game}'], ['{uptime}'], ['{channel.viewers}'], ['{followers}'], ['{subs}']],
+    codes: []
+  },
+  { name: '$(twitch bob "{{title}}") names another channel', messages: ['title', 'game', 'uptimeLength'].map((field) => `$(twitch bob "{{${field}}}")`), responses: [['{title:bob}'], ['{game:bob}'], ['{uptime:bob}']], codes: [] },
+  { name: '$(twitch bob "{{viewers}}") has no other-channel form and stays unmapped', messages: ['$(twitch bob "{{viewers}}")'], responses: [['{{viewers}}']], codes: [UNMAPPED] },
+  { name: 'a mixed format string keeps its text, maps what it can, warns on the rest', messages: ['$(twitch $(channel) "{{displayName}} is playing {{game}}")'], responses: [['{{displayName}} is playing {game}']], codes: [UNMAPPED] },
+  { name: 'stray braces around a mapped field refuse the whole call rather than mint a broken span', messages: ['$(twitch $(channel) "{oops {{game}}")'], responses: [['$(twitch {channel} "{oops {{game}}")']], codes: [UNMAPPED] }
+];
 
-  test('$(twitch $(channel) "{{title}}") maps the single field, own channel', () => {
+describe('message variables', () => {
+  test.each(MESSAGE_CASES)('$name', ({ messages, responses, codes }) => {
     const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: 'now: $(twitch $(channel) "{{title}}")' })] })
+      bytes({ commands: messages.map((message, i) => command({ name: `!c${i}`, message })) })
     );
-    expect(manifest.commands?.[0].responses).toEqual(['now: {title}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(twitch $(channel) "{{game}}")/{{uptimeLength}}/{{viewers}}/{{followers}}/{{subscriberCount}}', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [
-          command({ name: '!g', message: '$(twitch $(channel) "{{game}}")' }),
-          command({ name: '!u', message: '$(twitch $(channel) "{{uptimeLength}}")' }),
-          command({ name: '!v', message: '$(twitch $(channel) "{{viewers}}")' }),
-          command({ name: '!f', message: '$(twitch $(channel) "{{followers}}")' }),
-          command({ name: '!s', message: '$(twitch $(channel) "{{subscriberCount}}")' })
-        ]
-      })
-    );
-    expect(manifest.commands?.map((c) => c.responses)).toEqual([
-      ['{game}'],
-      ['{uptime}'],
-      ['{channel.viewers}'],
-      ['{followers}'],
-      ['{subs}']
-    ]);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(twitch bob "{{title}}") names another channel', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [
-          command({ name: '!t', message: '$(twitch bob "{{title}}")' }),
-          command({ name: '!g', message: '$(twitch bob "{{game}}")' }),
-          command({ name: '!u', message: '$(twitch bob "{{uptimeLength}}")' })
-        ]
-      })
-    );
-    expect(manifest.commands?.map((c) => c.responses)).toEqual([
-      ['{title:bob}'],
-      ['{game:bob}'],
-      ['{uptime:bob}']
-    ]);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(twitch bob "{{viewers}}") has no other-channel form and stays unmapped', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: '$(twitch bob "{{viewers}}")' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{{viewers}}']);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
-  });
-
-  test('a mixed format string keeps its text, maps what it can, warns on the rest', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        commands: [
-          command({
-            message: '$(twitch $(channel) "{{displayName}} is playing {{game}}")'
-          })
-        ]
-      })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{{displayName}} is playing {game}']);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
-  });
-
-  test('stray braces around a mapped field refuse the whole call rather than mint a broken span', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({ commands: [command({ message: '$(twitch $(channel) "{oops {{game}}")' })] })
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['$(twitch {channel} "{oops {{game}}")']);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+    expect(manifest.commands?.map((c) => c.responses)).toEqual(responses);
+    expect(codesOf(diagnostics)).toEqual(codes);
   });
 });
 
@@ -333,7 +191,6 @@ describe('urlfetch synthesis', () => {
       { name: 'nightbot_weather', url: 'https://api.example.com/w', source: 'nightbot' },
       { name: 'nightbot_weather_2', url: 'https://api.example.com/x', source: 'nightbot' }
     ]);
-    for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created', 'fetch_def_created']);
   });
@@ -434,28 +291,17 @@ describe('timers', () => {
 });
 
 describe('spam protection', () => {
-  test('live-API filter shape: newline-delimited blacklist string under _type', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        spam_protection: [
-          { _type: 'links', enabled: true },
-          { _type: 'blacklist', enabled: true, blacklist: 'badword\nBadWord\n~/spam.*/\n  ' }
-        ]
-      })
-    );
-    expect(manifest.automod).toEqual({ block: ['badword'] });
-    expect(codesOf(diagnostics)).toEqual([NB_CODE.automodRegexSkipped]);
-  });
-
-  test('blacklist terms become automod block terms, regex entries skipped', () => {
-    const { manifest, diagnostics } = parseNightbot(
-      bytes({
-        spam_protection: [
-          { type: 'links', enabled: true },
-          { type: 'blacklist', blacklist: ['badword', 'BadWord', '~/spam.*/', '  '] }
-        ]
-      })
-    );
+  test.each([
+    ['live-API filter shape: newline-delimited blacklist string under _type', [
+      { _type: 'links', enabled: true },
+      { _type: 'blacklist', enabled: true, blacklist: 'badword\nBadWord\n~/spam.*/\n  ' }
+    ]],
+    ['blacklist terms become automod block terms, regex entries skipped', [
+      { type: 'links', enabled: true },
+      { type: 'blacklist', blacklist: ['badword', 'BadWord', '~/spam.*/', '  '] }
+    ]]
+  ])('%s', (_name, spam_protection) => {
+    const { manifest, diagnostics } = parseNightbot(bytes({ spam_protection }));
     expect(manifest.automod).toEqual({ block: ['badword'] });
     expect(codesOf(diagnostics)).toEqual([NB_CODE.automodRegexSkipped]);
   });

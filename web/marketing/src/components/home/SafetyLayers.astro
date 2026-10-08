@@ -30,13 +30,13 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 <Section size="page" class="safe" id="safety-layers" data-motion>
     <LightField class="bb-light-field--bleed" />
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
-        <Badge slot="badge" tone="incoming" mark="plus">{t('badge.beta')}</Badge>
+        <Badge slot="badge" tone="incoming" mark="plus" class="safe__badge"><span class="safe__badge-label"><span data-fit>{t('badge.beta')}</span></span></Badge>
     </SectionHeading>
 
     <div class="safe__grid">
         <Card atmo hover class="safe__card" data-reveal>
             <div class="safe__demo safe__demo--jury" slot="band" aria-hidden="true">
-                <span class="jury__case">{t('safetyLayers.spam')} / {t('safetyLayers.hate')}</span>
+                <span class="jury__case"><span data-fit>{t('safetyLayers.spam')} / {t('safetyLayers.hate')}</span></span>
                 <div class="jury__table">
                     <span class="jury__evidence">msg</span>
                     <span class="jury__seat jury__seat--tl" style="--jury-i: 0"><i></i><em>block</em></span>
@@ -46,34 +46,34 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                     <span class="jury__seat jury__seat--bl" style="--jury-i: 4"><i></i><em>block</em></span>
                     <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
                     <span class="jury__tally">
-                        <small class="jury__verdict">{t('safetyLayers.juryVerdict')}</small>
+                        <small class="jury__verdict"><span data-fit>{t('safetyLayers.juryVerdict')}</span></small>
                         <b class="jury__count">5-1</b>
                         <em>block</em>
                     </span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span>{t('safetyLayers.juryTitle')}</span></Heading>
-            <Text size="sm" tone="muted">{t('safetyLayers.juryDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.juryTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.juryDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="safe__card" data-reveal style="--reveal-i: 1">
             <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
                 <div class="gates__lane bb-track">
                     <span class="gates__packet bb-layers"><span>MSG</span><span class="gates__packet-ok">MSG</span></span>
-                    <span class="gates__gate" style="--gate-i: 0"><i></i><b class="gates__name">{t('safetyLayers.gateRate')}</b></span>
-                    <span class="gates__gate" style="--gate-i: 1"><i></i><b class="gates__name">{t('safetyLayers.gateShape')}</b></span>
-                    <span class="gates__gate" style="--gate-i: 2"><i></i><b class="gates__name">{t('safetyLayers.gateLink')}</b></span>
+                    <span class="gates__gate" style="--gate-i: 0"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateRate')}</span></b></span>
+                    <span class="gates__gate" style="--gate-i: 1"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateShape')}</span></b></span>
+                    <span class="gates__gate" style="--gate-i: 2"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateLink')}</span></b></span>
                     <span class="gates__exit">✓</span>
                 </div>
                 <div class="gates__receipt">
-                    <span class="gates__check">{t('safetyLayers.gateRate')} <b class="gates__ok">✓</b></span>
-                    <span class="gates__check">{t('safetyLayers.gateShape')} <b class="gates__ok">✓</b></span>
-                    <span class="gates__check">{t('safetyLayers.gateLink')} <b class="gates__ok">✓</b></span>
-                    <em>{t('safetyLayers.gatesPassed')}</em>
+                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateRate')}&nbsp;<b class="gates__ok">✓</b></span></span>
+                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateShape')}&nbsp;<b class="gates__ok">✓</b></span></span>
+                    <span class="gates__check"><span data-fit>{t('safetyLayers.gateLink')}&nbsp;<b class="gates__ok">✓</b></span></span>
+                    <em><span data-fit>{t('safetyLayers.gatesPassed')}</span></em>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span>{t('safetyLayers.gatesTitle')}</span></Heading>
-            <Text size="sm" tone="muted">{t('safetyLayers.gatesDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.gatesTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.gatesDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
@@ -108,17 +108,19 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                         <circle class="network__dot" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="8" />
                     </svg>
                 </div>
-                <span class="network__alert">{t('safetyLayers.networkAlert')}</span>
-                <span class="network__status">{t('safetyLayers.networkStatus')}</span>
+                <span class="network__alert"><span data-fit>{t('safetyLayers.networkAlert')}</span></span>
+                <span class="network__status"><span data-fit>{t('safetyLayers.networkStatus')}</span></span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span>{t('safetyLayers.networkTitle')}</span></Heading>
-            <Text size="sm" tone="muted">{t('safetyLayers.networkDesc')}</Text>
+            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.networkTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.networkDesc')}</span></Text>
         </Card>
     </div>
 </Section>
 
 <style>
     .safe {
+        --section-heading-lines: 2;
+        --section-heading-lines-phone: 3;
         position: relative;
         max-width: var(--bb-content-max);
         margin: 0 auto;
@@ -146,6 +148,25 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         margin: 0 0 9px;
     }
 
+    .safe__card-title-text {
+        display: block;
+        align-self: stretch;
+        height: calc(var(--safe-title-lines, 2) * 1lh);
+    }
+
+    .safe__desc {
+        height: calc(var(--safe-desc-lines, 3) * 1lh);
+    }
+
+    .safe__badge {
+        width: 64px;
+    }
+
+    .safe__badge-label {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
     .safe__demo {
         position: relative;
         height: 100%;
@@ -164,6 +185,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         position: absolute;
         top: 9px;
         left: 11px;
+        right: 11px;
         color: rgba(var(--bb-status-danger-rgb), 0.74);
         font-size: 0.54rem;
         letter-spacing: 0.1em;
@@ -302,6 +324,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .jury__verdict {
+        align-self: stretch;
         font-size: 0.44rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -420,6 +443,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         flex-direction: column;
         align-items: center;
         gap: 5px;
+        width: 60px;
+        margin-left: -19px;
         color: var(--bb-muted);
     }
 
@@ -464,7 +489,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .gates__gate:nth-child(3) { --gate-delay: 1.584s; }
     .gates__gate:nth-child(4) { --gate-delay: 3.024s; }
 
-    .gates__name { font-size: 0.52rem; font-weight: 500; text-transform: uppercase; }
+    .gates__name { align-self: stretch; font-size: 0.52rem; font-weight: 500; text-align: center; text-transform: uppercase; }
 
     .gates__exit {
         position: absolute;
@@ -482,7 +507,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .gates__receipt {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr);
         align-items: center;
         gap: 10px;
         color: var(--bb-muted);
@@ -499,9 +525,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .gates__check:nth-child(1) { animation-name: receiptOne; }
     .gates__check:nth-child(2) { animation-name: receiptTwo; }
     .gates__check:nth-child(3) { animation-name: receiptThree; }
-    .gates__ok { color: var(--bb-green-glow); font-weight: 500; }
+    .gates__ok { color: var(--bb-green-glow); font-weight: 500; transition: none; }
     .gates__receipt em {
-        margin-left: auto;
+        text-align: right;
         color: var(--bb-green-glow);
         font-size: 0.58rem;
         font-style: normal;
@@ -657,7 +683,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .network__status {
         position: absolute;
         top: 11px;
+        width: min(160px, calc(50% - 18px));
         padding: 4px 7px;
+        text-align: center;
         border-radius: var(--bb-radius-xs);
         font-size: 0.58rem;
         letter-spacing: 0.05em;
@@ -779,6 +807,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         .network__links,
         .network__lit,
         .network__core-safe { opacity: 1; transform: none; }
+    }
+
+    @media (max-width: 480px) {
     }
 
     @media (max-width: 640px) {

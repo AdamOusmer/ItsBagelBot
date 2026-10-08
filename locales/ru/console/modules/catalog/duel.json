@@ -38,7 +38,7 @@
     "challenge": {
       "label": "Вызов отправлен",
       "tagline": "Когда зритель вызывает другого на дуэль с равными ставками.",
-      "event": "!duel @maya_live 500",
+      "event": "!duel @SnackPackPanda 500",
       "defaultMessage": "@{user} вызывает @{target} на дуэль за {stake} {points}! @{target}, введите !duel accept за {secs}с. Победитель получит {pot}!"
     },
     "won": {

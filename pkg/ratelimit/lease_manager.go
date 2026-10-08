@@ -228,7 +228,8 @@ func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time)
 	if req.Spec.profile == profileHelixSystem {
 		need = NeedSystem
 	}
-	target := borrowTarget{bucketID: bucketID, need: need, shared: req.Spec}
+	_, standard, _ := specsForProfile(req.Spec.profile)
+	target := borrowTarget{bucketID: bucketID, need: need, shared: req.Spec, standard: standard}
 	if m.borrow(ctx, plan, target) == need {
 		return true, nil
 	}

@@ -1,5 +1,5 @@
 {
   "name": "Kontoalter",
   "hint": "wie alt das Twitch-Konto ist (Modul Kontoalter)",
-  "desc": "Wie alt das Twitch-Konto ist. {accountage:alex} fragt nach einer anderen Person. Benötigt das Modul Kontoalter."
+  "desc": "Wie alt das Twitch-Konto ist. {accountage:MikanMeerkat} fragt nach einer anderen Person. Benötigt das Modul Kontoalter."
 }

@@ -27,9 +27,9 @@ const L = {
     builderLinkText: 'Open the command builder',
     builderHref: '/command-builder',
     responseDefault: '{user} gives {touser} a warm bagel hug 🥯',
-    whoDefault: 'sesame_sam',
-    argsDefault: 'ferret_king',
-    outputDefault: 'sesame_sam gives ferret_king a warm bagel hug 🥯',
+    whoDefault: 'PrincessBarney',
+    argsDefault: 'Lotti',
+    outputDefault: 'PrincessBarney gives Lotti a warm bagel hug 🥯',
     botName: 'ItsBagelBot',
     ...labels,
 };
@@ -116,7 +116,7 @@ const L = {
     type Segment = { pill: false; text: string } | { pill: true };
 
     function expand(template: string, who: string, args: string, counterSample: string): Segment[] {
-        const cleanWho = (who.trim() || 'sesame_sam').replace(/^@/, '');
+        const cleanWho = (who.trim() || 'PrincessBarney').replace(/^@/, '');
         const firstArg = args.trim().split(/\s+/)[0] ?? '';
         const touser = firstArg ? firstArg.replace(/^@/, '') : cleanWho;
         const segments: Segment[] = [];

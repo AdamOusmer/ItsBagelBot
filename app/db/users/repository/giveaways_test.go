@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/dbtest"
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
@@ -148,7 +149,7 @@ func TestPremiumGrantCancellationExpiryAndCoverageStack(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 30, "stacked", "stacked", "stacked@example.com"))
-	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	makeGrant := func(award string, from, to time.Time) usersrpc.PremiumGrant {
 		g, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-2", AwardID: award, UserID: 30, StartAt: from, EndAt: to, IntervalRuleVersion: "tebex-monthly-v1"})
 		require.NoError(t, err)
@@ -179,7 +180,7 @@ func TestPremiumGrantBoundarySweepAdvancesProjectionPhase(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 31, "boundary", "boundary", "boundary@example.com"))
-	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	end := start.AddDate(0, 1, 0)
 	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: "g-boundary", AwardID: "a-boundary", UserID: 31, StartAt: start, EndAt: end, IntervalRuleVersion: "tebex-monthly-v1"})
 	require.NoError(t, err)
@@ -224,13 +225,13 @@ func (p *rejectInvalidateStatus) Close() error                    { return p.inn
 func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.T) {
 	client := testdb.Open(t, "grantinvalidate", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	inner := bustest.NewPublisher()
-	repo := repository.NewUsers(client, newPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
+	repo := repository.NewUsers(client, dbtest.NewPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	repo.SetInvalidationPrefix("bagel.cache.invalidate")
 
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 33, "jsboundary", "jsboundary", "jsboundary@example.com"))
-	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, 7)
 	end := start.AddDate(0, 1, 0)
 	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
 		GiveawayID: "g-js", AwardID: "a-js", UserID: 33, StartAt: start, EndAt: end, IntervalRuleVersion: "tebex-monthly-v1",

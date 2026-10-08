@@ -5,6 +5,7 @@ package repository_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"math"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
+
 	baseent "entgo.io/ent"
 	"github.com/stretchr/testify/require"
 )
@@ -74,8 +76,6 @@ func TestBalanceAdjustViewerUsesStableIDAndPreservesMetadata(t *testing.T) {
 func TestBalanceAdjustViewerDeltaIncludesInterleavedEarnings(t *testing.T) {
 	repo, client := newLoyaltyRepo(t)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "blemmyz", Points: 100})
-	// An accrual lands after the adjustment is prepared and before the upsert.
-	// The adjustment must add to the current SQL value, never a prior snapshot.
 	client.Balance.Use(func(next baseent.Mutator) baseent.Mutator {
 		return baseent.MutateFunc(func(ctx context.Context, m baseent.Mutation) (baseent.Value, error) {
 			if m.Op().Is(baseent.OpCreate) {
@@ -152,4 +152,72 @@ func TestBalanceAdjustViewerSignedBigIntRange(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.EqualValues(t, math.MaxInt64, row.Points)
+}
+
+func TestBalanceAdjustViewerSQLiteConcurrentAccrual(t *testing.T) {
+	repo, raw := sqliteRetentionRepo(t)
+	checkConcurrentAdjustmentAccrual(t, repo, raw)
+}
+
+func TestBalanceAdjustViewerMySQLConcurrentAccrual(t *testing.T) {
+	repo, raw := mysqlRetentionRepo(t)
+	checkConcurrentAdjustmentAccrual(t, repo, raw)
+}
+
+func checkConcurrentAdjustmentAccrual(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sql.DB) {
+	t.Helper()
+	target := loyaltyrepo.BalanceAdjustment{UserID: 2, ViewerID: 8, ViewerLogin: "blemmyz"}
+	_, found, err := repo.BalanceAdjustViewer(t.Context(), target)
+	require.NoError(t, err)
+	require.True(t, found)
+	const changes = 20
+	errors := make(chan error, changes*2)
+	start := make(chan struct{})
+	for range changes {
+		go func() {
+			<-start
+			adjustment := target
+			adjustment.Value = 1
+			_, _, err := repo.BalanceAdjustViewer(t.Context(), adjustment)
+			errors <- err
+		}()
+		go func() {
+			<-start
+			_, err := raw.ExecContext(t.Context(), "UPDATE balances SET points=points+1,watch_seconds=watch_seconds+3 WHERE user_id=? AND viewer_id=?", 2, 8)
+			errors <- err
+		}()
+	}
+	close(start)
+	for range changes * 2 {
+		require.NoError(t, <-errors)
+	}
+	row, _, err := repo.BalanceGet(t.Context(), 2, 8)
+	require.NoError(t, err)
+	require.EqualValues(t, changes*2, row.Points)
+	require.EqualValues(t, changes*3, row.WatchSeconds)
+	target.Absolute, target.Value = true, math.MaxInt64
+	row, _, err = repo.BalanceAdjustViewer(t.Context(), target)
+	require.NoError(t, err)
+	require.EqualValues(t, math.MaxInt64, row.Points)
+	target.Absolute, target.Value = false, 1
+	_, _, err = repo.BalanceAdjustViewer(t.Context(), target)
+	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
+	row, _, err = repo.BalanceGet(t.Context(), 2, 8)
+	require.NoError(t, err)
+	require.EqualValues(t, math.MaxInt64, row.Points)
+	require.EqualValues(t, changes*3, row.WatchSeconds)
+}
+
+func TestLegacyBalanceAdjustRejectsOverflow(t *testing.T) {
+	repo, client := newLoyaltyRepo(t)
+	seedBalance(t, client, seedRow{UserID: 17, ViewerID: 77, Login: "viewer", Points: math.MaxInt64})
+	_, found, err := repo.BalanceAdjust(t.Context(), 17, "viewer", 1, false)
+	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
+	require.False(t, found)
+	row, _, err := repo.BalanceGet(t.Context(), 17, 77)
+	require.NoError(t, err)
+	require.EqualValues(t, math.MaxInt64, row.Points)
+	_, found, err = repo.BalanceAdjust(t.Context(), 17, "unseen", 1, false)
+	require.NoError(t, err)
+	require.False(t, found)
 }

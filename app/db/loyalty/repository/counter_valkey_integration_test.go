@@ -18,8 +18,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// Use a disposable local server to exercise the actual Lua engine and expiry,
-// independently of the protocol fake used by the processor's failure tests.
 func counterRealValkey(t *testing.T) valkey_go.Client {
 	t.Helper()
 	binary, err := exec.LookPath("valkey-server")
@@ -80,34 +78,43 @@ func TestCounterProcessorRealValkeyCompletionExpiryAndRollback(t *testing.T) {
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
 	require.EqualValues(t, deliveries, total)
 	event := counterTestEvent("real-0", 1)
-	key := counterReceiptKey(event)
-	value, err := client.Do(t.Context(), client.B().Get().Key(key).Build()).ToString()
-	require.NoError(t, err)
-	require.Equal(t, "done", value)
-	ttl, err := client.Do(t.Context(), client.B().Pttl().Key(key).Build()).ToInt64()
-	require.NoError(t, err)
-	require.Greater(t, ttl, int64((4 * time.Minute).Milliseconds()))
-	require.LessOrEqual(t, ttl, counterCompletedTTL.Milliseconds())
+	keys := receiptKeys(t, client)
+	require.Len(t, keys, deliveries)
+	for _, key := range keys {
+		value, err := client.Do(t.Context(), client.B().Get().Key(key).Build()).ToString()
+		require.NoError(t, err)
+		require.Equal(t, "done", value)
+		ttl, err := client.Do(t.Context(), client.B().Pttl().Key(key).Build()).ToInt64()
+		require.NoError(t, err)
+		require.Greater(t, ttl, int64((4 * time.Minute).Milliseconds()))
+		require.LessOrEqual(t, ttl, counterCompletedTTL.Milliseconds())
+	}
 	require.NoError(t, processor.Process(t.Context(), event))
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
 	require.EqualValues(t, deliveries, total)
-	// A past absolute expiry simulates the TTL horizon without waiting minutes.
-	require.NoError(t, client.Do(t.Context(), client.B().Eval().Script("return redis.call('pexpireat',KEYS[1],1)").Numkeys(1).Key(key).Build()).Error())
+	for _, key := range keys {
+		require.NoError(t, client.Do(t.Context(), client.B().Eval().Script("return redis.call('pexpireat',KEYS[1],1)").Numkeys(1).Key(key).Build()).Error())
+	}
 	require.NoError(t, processor.Process(t.Context(), event))
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
 	require.EqualValues(t, deliveries+1, total)
 
-	// A definite SQL rollback must release the lease and leave the batch retryable.
-	_, err = raw.Exec("CREATE TRIGGER counter_fail BEFORE INSERT ON counters BEGIN SELECT RAISE(ABORT,'temporary SQL unavailable'); END")
+	_, err := raw.Exec("CREATE TRIGGER counter_fail BEFORE INSERT ON counters BEGIN SELECT RAISE(ABORT,'temporary SQL unavailable'); END")
 	require.NoError(t, err)
 	failed := counterTestEvent("real-rollback", 1)
 	require.Error(t, processor.Process(t.Context(), failed))
-	exists, err := client.Do(t.Context(), client.B().Exists().Key(counterReceiptKey(failed)).Build()).ToInt64()
-	require.NoError(t, err)
-	require.Zero(t, exists)
+	require.Len(t, receiptKeys(t, client), 1, "a rolled-back batch must release its lease")
 	_, err = raw.Exec("DROP TRIGGER counter_fail")
 	require.NoError(t, err)
 	require.NoError(t, processor.Process(t.Context(), failed))
 	require.NoError(t, raw.QueryRow("SELECT value FROM counters WHERE user_id=1 AND name='deaths'").Scan(&total))
 	require.EqualValues(t, deliveries+2, total)
+	require.Len(t, receiptKeys(t, client), 2)
+}
+
+func receiptKeys(t *testing.T, client valkey_go.Client) []string {
+	t.Helper()
+	keys, err := client.Do(t.Context(), client.B().Keys().Pattern("loyalty:counter:receipt:1:*").Build()).AsStrSlice()
+	require.NoError(t, err)
+	return keys
 }

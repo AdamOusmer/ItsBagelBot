@@ -4,17 +4,92 @@
 package messaging
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const jetStreamAPI = "$JS.API."
 
 var streamMutationPattern = regexp.MustCompile(`^\$JS\.API\.STREAM\.(CREATE|UPDATE|DELETE|LEADER\.STEPDOWN)\.`)
+
+var flowControlStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+}
+
+var pullFetchStreams = map[string][]string{
+	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+}
+
+var coordinationBuckets = map[string][]string{
+	"outgress_bus": {"outgress_rate", "outgress_batch", "outgress_pause"},
+	"deployer_bus": {"DEPLOY_RUNS"},
+}
+
+type streamGrants struct {
+	consumerStreams []string
+	ownedStreams    []string
+	flowControl     []string
+	pullFetch       []string
+}
+
+func expectedJetStreamSubjects(grants streamGrants) []string {
+	set := make(map[string]struct{})
+	for _, stream := range grants.flowControl {
+		set["$JS.FC."+stream+".>"] = struct{}{}
+	}
+	for _, stream := range grants.pullFetch {
+		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
+	}
+	for _, stream := range grants.consumerStreams {
+		for _, subject := range []string{
+			jetStreamAPI + "STREAM.INFO." + stream,
+			jetStreamAPI + "CONSUMER.INFO." + stream + ".>",
+			jetStreamAPI + "CONSUMER.CREATE." + stream + ".>",
+			jetStreamAPI + "CONSUMER.DURABLE.CREATE." + stream + ".>",
+			jetStreamAPI + "CONSUMER.DELETE." + stream + ".>",
+			"$JS.ACK." + stream + ".>",
+			"$JS.ACK.*.*." + stream + ".>",
+		} {
+			set[subject] = struct{}{}
+		}
+	}
+	for _, stream := range grants.ownedStreams {
+		set[jetStreamAPI+"STREAM.INFO."+stream] = struct{}{}
+		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
+		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
+	}
+	return sortedKeys(set)
+}
+
+func coordinationSubjects(user string) []string {
+	buckets := coordinationBuckets[user]
+	if len(buckets) == 0 {
+		return nil
+	}
+	subjects := []string{jetStreamAPI + "INFO"}
+	for _, bucket := range buckets {
+		for _, verb := range []string{"STREAM.INFO.", "STREAM.CREATE.", "STREAM.UPDATE.", "STREAM.MSG.GET.", "DIRECT.GET."} {
+			subjects = append(subjects, jetStreamAPI+verb+"KV_"+bucket)
+		}
+		subjects = append(subjects, jetStreamAPI+"DIRECT.GET.KV_"+bucket+".>")
+	}
+	return subjects
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
 
 func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	blocks := busUserBlocks(t)
@@ -51,177 +126,90 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	for _, user := range serviceUsers {
 		t.Run(user, func(t *testing.T) {
 			block, ok := blocks[user]
-			if !ok {
-				t.Fatalf("missing %s authorization block", user)
-			}
-			got := block.jetStreamSubjects()
-			want := expectedJetStreamSubjects(streamGrants{
+			require.True(t, ok, "missing %s authorization block", user)
+			want := append(expectedJetStreamSubjects(streamGrants{
 				consumerStreams: consumers[user],
 				ownedStreams:    owners[user],
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
-			})
-			want = append(want, coordinationSubjects(user)...)
+			}), coordinationSubjects(user)...)
 			slices.Sort(want)
-			if !slices.Equal(got, want) {
-				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
-			}
+
+			assert.Equal(t, want, block.jetStreamSubjects(), "JetStream grants differ")
 		})
 	}
 }
 
 func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	block, ok := busUserBlocks(t)["admin_bus"]
-	if !ok {
-		t.Fatal("missing admin_bus authorization block")
-	}
+	require.True(t, ok, "missing admin_bus authorization block")
 
 	var got []string
 	for _, subject := range block.jetStreamSubjects() {
 		if streamMutationPattern.MatchString(subject) {
 			got = append(got, subject)
 		}
-		if strings.Contains(subject, "BENCH") || strings.Contains(subject, "SHADOW") {
-			t.Errorf("admin_bus still grants a benchmark-stream subject: %s", subject)
-		}
+		assert.False(t, strings.Contains(subject, "BENCH") || strings.Contains(subject, "SHADOW"),
+			"admin_bus still grants a benchmark-stream subject: %s", subject)
 	}
-	want := []string{
+
+	assert.Equal(t, []string{
 		"$JS.API.STREAM.CREATE.KV_admin_lanes",
 		"$JS.API.STREAM.LEADER.STEPDOWN.>",
 		"$JS.API.STREAM.UPDATE.KV_admin_lanes",
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("admin stream mutation grants differ (-want +got):\nwant %v\n got %v", want, got)
+	}, got)
+}
+
+func TestCoordinationBucketPublishIsolation(t *testing.T) {
+	blocks := busUserBlocks(t)
+	for owner, buckets := range coordinationBuckets {
+		for _, bucket := range buckets {
+			subject := "$KV." + bucket + ".>"
+			for user, block := range blocks {
+				assert.Equal(t, user == owner, block.grants(subject), "%s permission for %s", user, subject)
+			}
+		}
 	}
 }
 
 func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
-	mainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "main.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	groupedMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "*", "main.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	check := streamOwnershipCheck{
-		want: map[string][]string{
-			"users":     {"[]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}"},
-			"sesame":    {"bus.IngressLaneSpecs()"},
-			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)"},
-			"outgress": {
-				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
-			},
-			"discord-engine":   {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
-			"discord-outgress": {"[]bus.StreamSpec{bus.DiscordOutgressStream}"},
+	want := map[string][]string{
+		"users":     {"[]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}"},
+		"sesame":    {"bus.IngressLaneSpecs()"},
+		"projector": {"append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)"},
+		"outgress": {
+			"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 		},
-		seen: make(map[string]bool, 6),
+		"discord-engine":   {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
+		"discord-outgress": {"[]bus.StreamSpec{bus.DiscordOutgressStream}"},
 	}
+	mainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "main.go"))
+	require.NoError(t, err)
+	groupedMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "*", "main.go"))
+	require.NoError(t, err)
 
-	for _, name := range mainFiles {
-		check.inspect(t, sourceFile{name: name})
-	}
-	for _, name := range groupedMainFiles {
-		check.inspect(t, sourceFile{name: name})
-	}
-	for service := range check.want {
-		if !check.seen[service] {
-			t.Errorf("stream owner %s does not call EnsureStreams", service)
+	seen := map[string]bool{}
+	for _, name := range slices.Concat(mainFiles, groupedMainFiles) {
+		body := readText(t, name)
+		if !strings.Contains(body, "bus.EnsureStreams(") {
+			continue
 		}
-	}
-}
-
-type streamOwnershipCheck struct {
-	want map[string][]string
-	seen map[string]bool
-}
-
-type sourceFile struct {
-	name string
-}
-
-var flowControlStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
-}
-
-var pullFetchStreams = map[string][]string{
-	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-}
-
-type streamGrants struct {
-	consumerStreams []string
-	ownedStreams    []string
-	flowControl     []string
-	pullFetch       []string
-}
-
-func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
-	t.Helper()
-	body := file.read(t)
-	if !strings.Contains(body, "bus.EnsureStreams(") {
-		return
-	}
-	dir := filepath.Dir(file.name)
-	service := filepath.Base(dir)
-	if filepath.Base(filepath.Dir(dir)) == "discord" {
-		service = "discord-" + service
-	}
-	snippets, ok := c.want[service]
-	if !ok {
-		t.Errorf("%s reconciles streams but has no stream-owner ACL", service)
-		return
-	}
-	for _, snippet := range snippets {
-		if !strings.Contains(body, snippet) {
-			t.Errorf("%s does not reconcile only its owned stream(s): want %s", service, snippet)
+		dir := filepath.Dir(name)
+		service := filepath.Base(dir)
+		if filepath.Base(filepath.Dir(dir)) == "discord" {
+			service = "discord-" + service
 		}
-	}
-	c.seen[service] = true
-}
-
-func expectedJetStreamSubjects(grants streamGrants) []string {
-	set := make(map[string]struct{})
-	for _, stream := range grants.flowControl {
-		set["$JS.FC."+stream+".>"] = struct{}{}
-	}
-	for _, stream := range grants.pullFetch {
-		set[jetStreamAPI+"CONSUMER.MSG.NEXT."+stream+".>"] = struct{}{}
-	}
-	for _, stream := range grants.consumerStreams {
-		for _, subject := range []string{
-			jetStreamAPI + "STREAM.INFO." + stream,
-			jetStreamAPI + "CONSUMER.INFO." + stream + ".>",
-			jetStreamAPI + "CONSUMER.CREATE." + stream + ".>",
-			jetStreamAPI + "CONSUMER.DURABLE.CREATE." + stream + ".>",
-			jetStreamAPI + "CONSUMER.DELETE." + stream + ".>",
-			"$JS.ACK." + stream + ".>",
-			"$JS.ACK.*.*." + stream + ".>",
-		} {
-			set[subject] = struct{}{}
+		snippets, owned := want[service]
+		if !assert.True(t, owned, "%s reconciles streams but has no stream-owner ACL", service) {
+			continue
 		}
+		for _, snippet := range snippets {
+			assert.Contains(t, body, snippet, "%s does not reconcile only its owned stream(s)", service)
+		}
+		seen[service] = true
 	}
-	for _, stream := range grants.ownedStreams {
-		set[jetStreamAPI+"STREAM.INFO."+stream] = struct{}{}
-		set[jetStreamAPI+"STREAM.CREATE."+stream] = struct{}{}
-		set[jetStreamAPI+"STREAM.UPDATE."+stream] = struct{}{}
-	}
-	return sortedKeys(set)
-}
 
-func sortedKeys(set map[string]struct{}) []string {
-	keys := make([]string, 0, len(set))
-	for key := range set {
-		keys = append(keys, key)
+	for service := range want {
+		assert.True(t, seen[service], "stream owner %s does not call EnsureStreams", service)
 	}
-	slices.Sort(keys)
-	return keys
-}
-
-func (f sourceFile) read(t *testing.T) string {
-	t.Helper()
-	body, err := os.ReadFile(f.name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(body)
 }

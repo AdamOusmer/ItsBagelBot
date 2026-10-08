@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  eligibilityExclusionTotal,
-  eligibilityTotal,
   giveawaySummary,
   giveawayDrawState,
   parsePrizeMonths,
@@ -26,12 +24,6 @@ describe('giveaway rules', () => {
   it('keeps the summary honest when multiplication overflows', () => {
     expect(giveawaySummary(5, 3).totalMonths).toBe(15);
     expect(giveawaySummary(Number.MAX_SAFE_INTEGER, 2).totalMonths).toBeNull();
-  });
-
-  it('derives the visible population from account categories', () => {
-    const parts = { eligible: 13, free: 7, premium: 4, subscribers: 2, excluded: 9 };
-    expect(eligibilityTotal(parts)).toBe(13);
-    expect(eligibilityExclusionTotal(parts)).toBe(9);
   });
 
   it('allows selection while fulfillment gates are pending', () => {

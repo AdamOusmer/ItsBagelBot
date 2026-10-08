@@ -19,8 +19,10 @@ import {
 import { rumTransform } from '@bagel/kit/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
+import { logger } from '@bagel/kit/server/logger';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
+import { purgeEdgeByTag } from '$lib/server/edge-purge';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 export const init: ServerInit = async () => {
@@ -31,6 +33,7 @@ export const init: ServerInit = async () => {
   warmSessionRevocation();
 
   startInvalidationListener();
+  scheduleDeployPurge();
 };
 
 // Keyed by session user id only: client IPs must never be written to Valkey.
@@ -72,10 +75,34 @@ export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: nu
   '/(public)/user/[channel]': [300, 3600]
 };
 
+export const DEPLOY_CACHE_TAG = 'dashboard-edge-shell';
+
+const DEPLOY_PURGE_DELAY_MS = 30_000;
+
+// Relies on console-dashboard rolling with maxSurge 0: the last new pod's purge lands after every old pod is gone.
+function scheduleDeployPurge(): void {
+  if (!process.env.CF_ZONE_ID || !process.env.CF_CACHE_PURGE_TOKEN) return;
+  setTimeout(purgeDeployShell, DEPLOY_PURGE_DELAY_MS).unref?.();
+}
+
+async function purgeDeployShell(): Promise<void> {
+  if (!(await purgeEdgeByTag(DEPLOY_CACHE_TAG))) logger.error({ tag: DEPLOY_CACHE_TAG }, '[deploy-purge] edge purge failed');
+}
+
 type HookEvent = Parameters<Handle>[0]['event'];
 
 function cacheableStatus(res: Response, event: HookEvent): boolean {
   return res.status === 200 || (res.status === 404 && !!event.locals.edgeCache404);
+}
+
+function cacheableRequest(event: HookEvent): boolean {
+  return event.request.method === 'GET' || event.request.method === 'HEAD';
+}
+
+function cacheableResponse(res: Response, event: HookEvent): boolean {
+  // Expired session cookies get a delete Set-Cookie with no session: caching it would replay to every visitor.
+  if (res.headers.has('set-cookie')) return false;
+  return cacheableStatus(res, event) && !!res.headers.get('content-type')?.includes('text/html');
 }
 
 function anonymousDefaultRender(event: HookEvent): boolean {
@@ -87,13 +114,12 @@ function anonymousDefaultRender(event: HookEvent): boolean {
 // Cloudflare keys the cache on normalized Accept-Language only: cache renders whose locale comes from that header alone.
 export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string, string> | null {
   const ttl = EDGE_CACHE[event.route.id ?? ''];
-  if (!ttl) return null;
-  if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return null;
-  if (!cacheableStatus(res, event) || !res.headers.get('content-type')?.includes('text/html')) return null;
-  if (!anonymousDefaultRender(event)) return null;
+  if (!ttl || !cacheableRequest(event)) return null;
+  if (!cacheableResponse(res, event) || !anonymousDefaultRender(event)) return null;
   return {
     'Cache-Control': 'public, max-age=0',
-    'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`
+    'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`,
+    'Cache-Tag': DEPLOY_CACHE_TAG
   };
 }
 

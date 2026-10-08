@@ -236,6 +236,7 @@
     position: relative;
     z-index: 1;
     min-height: 100vh;
+    min-height: 100svh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -254,6 +255,13 @@
 
   .split {
     display: contents;
+  }
+
+  .aside {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
   }
 
   .bg {
@@ -512,7 +520,7 @@
   }
 
   @media (max-width: 480px) {
-    header { padding: clamp(68px, 10vh, 84px) 18px 20px; }
+    header { padding: clamp(80px, 10vh, 84px) 18px 20px; }
 
     .bg-ring {
       top: 50%;
@@ -584,6 +592,16 @@
 
     .cta { margin-top: 16px; }
     .migrate { margin-top: 16px; }
+  }
+
+  @media (min-width: 901px) and (max-width: 1180px) {
+    .split {
+      gap: 36px;
+    }
+
+    .split h1 {
+      font-size: clamp(2.7rem, min(5vw, 10vh), 4.6rem);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

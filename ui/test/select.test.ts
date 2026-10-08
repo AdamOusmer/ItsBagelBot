@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
-import { createTypeahead, filterSelectOptions, nextEnabledOption, normalizeSelectQuery, typeaheadIndex, TYPEAHEAD_RESET_MS, type SelectOption } from '../lib/select';
+import { createTypeahead, filterSelectOptions, nextEnabledOption, typeaheadIndex, TYPEAHEAD_RESET_MS, type SelectOption } from '../lib/select';
 
 const options: SelectOption[] = [
   { value: 'America/Montreal', label: 'Montréal', group: 'America', searchText: 'Québec Canada' },
@@ -9,12 +9,9 @@ const options: SelectOption[] = [
   { value: 'Europe/Paris', label: 'Paris', group: 'Europe', disabled: true },
 ];
 
-test('normalizes accents, case, underscores and repeated whitespace', () => {
-  expect(normalizeSelectQuery('  QUÉBEC__ City\t ')).toBe('quebec city');
-});
-
 test('matches all search words across aliases, identifiers, labels, descriptions and groups', () => {
   expect(filterSelectOptions(options, 'america quebec')).toEqual([options[0]]);
+  expect(filterSelectOptions(options, '  QUÉBEC__ Canada\t ')).toEqual([options[0]]);
   expect(filterSelectOptions(options, 'new_york eastern')).toEqual([options[1]]);
   expect(filterSelectOptions(options, 'NYC')).toEqual([options[1]]);
   expect(filterSelectOptions(options, 'europe paris')).toEqual([options[2]]);

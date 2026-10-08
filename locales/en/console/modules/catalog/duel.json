@@ -38,7 +38,7 @@
     "challenge": {
       "label": "Challenge sent",
       "tagline": "When a viewer challenges another to even stakes.",
-      "event": "!duel @maya_live 500",
+      "event": "!duel @SnackPackPanda 500",
       "defaultMessage": "@{user} challenges @{target} for {stake} {points}! @{target}, type !duel accept within {secs}s. Winner takes {pot}!"
     },
     "won": {

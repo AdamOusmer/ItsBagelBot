@@ -44,9 +44,9 @@ const steps = [
             <li class="step" data-reveal style={`--reveal-i: ${i + 2}`}>
                 <span class="step__num" aria-hidden="true">{step.num}</span>
                 <div class="step__body">
-                    <Heading level={4} as="h3" class="step__title">{step.title}</Heading>
-                    <Text tone="muted" class="step__text">{step.body}</Text>
-                    <span class="step__receipt" data-decode={step.receipt}>{step.receipt}</span>
+                    <Heading level={4} as="h3" class="step__title"><span data-fit="block">{step.title}</span></Heading>
+                    <Text tone="muted" class="step__text"><span data-fit="block">{step.body}</span></Text>
+                    <span class="step__receipt"><span data-fit data-decode={step.receipt}>{step.receipt}</span></span>
                 </div>
             </li>
         ))}
@@ -55,11 +55,14 @@ const steps = [
 
 <style>
     .steps {
+        --section-heading-lines: 3;
+        --section-heading-lines-phone: 3;
         position: relative;
         padding-inline: 24px;
         max-width: var(--bb-content-hero);
         margin: 0 auto;
         z-index: 3;
+        scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     .steps__list {
@@ -127,20 +130,28 @@ const steps = [
         }
     }
 
+    .step__body {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
     .step__title {
+        height: calc(var(--step-title-lines, 1) * 1lh);
         font-weight: 700;
         margin: 6px 0 8px;
     }
 
     .step__text {
         max-width: 46ch;
+        height: calc(var(--step-text-lines, 3) * 1lh);
         margin: 0 0 12px;
     }
 
     .step__receipt {
-        display: inline-block;
+        display: block;
+        width: min(100%, 300px);
         font-family: var(--bb-font-mono);
-        font-size: 0.7rem;
+        font-size: var(--bb-text-xs);
         letter-spacing: 0.05em;
         color: var(--bb-green-glow);
         background: rgba(var(--bb-green-glow-rgb), 0.06);

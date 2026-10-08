@@ -38,8 +38,10 @@ func TestStoreFaultsDoNotStrandTheRun(t *testing.T) {
 				h.store.inject(tc.fault)
 				beats := h.store.beatCount()
 				for h.store.beatCount() < beats+3 {
-					if err := sleepCtx(ctx, time.Millisecond); err != nil {
-						return err
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(time.Millisecond):
 					}
 				}
 				return nil

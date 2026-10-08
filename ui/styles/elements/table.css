@@ -8,6 +8,11 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         border-radius: var(--bb-radius-sm);
+        background:
+            linear-gradient(to right, var(--tbl-fade-bg) 30%, transparent) left / 32px 100% no-repeat local,
+            linear-gradient(to left, var(--tbl-fade-bg) 30%, transparent) right / 32px 100% no-repeat local,
+            radial-gradient(farthest-side at 0 50%, rgba(var(--bb-white-pure-rgb), 0.12), transparent) left / 16px 100% no-repeat scroll,
+            radial-gradient(farthest-side at 100% 50%, rgba(var(--bb-white-pure-rgb), 0.12), transparent) right / 16px 100% no-repeat scroll;
     }
 
     .bb-tbl-wrap:focus-visible {

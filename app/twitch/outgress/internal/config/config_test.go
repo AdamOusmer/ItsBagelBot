@@ -3,23 +3,24 @@
 
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestLoadRateRegion(t *testing.T) {
-	t.Setenv("TWITCH_CLIENT_ID", "test-client")
-	t.Setenv("TWITCH_CLIENT_SECRET", "test-secret")
+	tests := []struct{ name, region, want string }{
+		{"falls back to local", "", "local"},
+		{"keeps an explicit locality", "node2", "node2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TWITCH_CLIENT_ID", "test-client")
+			t.Setenv("TWITCH_CLIENT_SECRET", "test-secret")
+			t.Setenv("OUTGRESS_REGION", tt.region)
 
-	t.Run("safe fallback", func(t *testing.T) {
-		t.Setenv("OUTGRESS_REGION", "")
-		if got := Load().RateRegion; got != "local" {
-			t.Fatalf("RateRegion = %q, want local", got)
-		}
-	})
-
-	t.Run("explicit locality", func(t *testing.T) {
-		t.Setenv("OUTGRESS_REGION", "node2")
-		if got := Load().RateRegion; got != "node2" {
-			t.Fatalf("RateRegion = %q, want node2", got)
-		}
-	})
+			assert.Equal(t, tt.want, Load().RateRegion)
+		})
+	}
 }

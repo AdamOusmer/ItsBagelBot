@@ -24,7 +24,7 @@ import logoImage from '../../assets/LogoBOT.png';
 import { builderData, builderUI, builderRecipes, LIMITS } from '../../i18n/builder';
 
 const avatarImage = await getImage({ src: logoImage, width: 28, height: 28, format: 'webp' });
-import { localizePath, type Lang } from '../../i18n/ui';
+import { localizePath, defaultLang, type Lang } from '../../i18n/ui';
 
 interface Props {
     lang: Lang;
@@ -50,13 +50,23 @@ const modeOptions = [
 const surfaceOptions = groups.flatMap((g) => g.items.map((item) => ({ value: item.id, label: item.label, group: g.group })));
 const firstSurfaceHint = data.surfaces.find((s) => s.id === surfaceOptions[0]?.value)?.hint ?? '';
 const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label: s.label }));
+
+const MEDIUM_DESC_CHARS = 110;
+const LONG_DESC_CHARS = 250;
+const descSize: Record<string, 'medium' | 'long'> = {};
+for (const surface of builderData(defaultLang).surfaces) {
+    for (const item of surface.vars) {
+        if (item.desc.length > LONG_DESC_CHARS) descSize[`${surface.id} ${item.token}`] = 'long';
+        else if (item.desc.length > MEDIUM_DESC_CHARS) descSize[`${surface.id} ${item.token}`] = 'medium';
+    }
+}
 ---
 
 <div class="builder" data-builder>
     <div class="layout">
         <Card>
             <div class="compose">
-                <SegmentedControl options={modeOptions} value="custom" label={ui.step1Title} data-modes />
+                <SegmentedControl options={modeOptions} value="custom" label={ui.step1Title} class="bb-tabs--even" data-modes />
 
                 <div class="module-pick" hidden data-module-pick>
                     <Field label={ui.surfaceLabel} for="cb-surface" hint={firstSurfaceHint} hintId="cb-surface-hint">
@@ -78,17 +88,17 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
                     </Field>
                     <Text as="small" size="xs" tone="muted" class="response__count"><b data-count>0</b>/{LIMITS.lineMax}</Text>
                 </div>
-                <div class="recipes" data-recipes><Label mono as="span">{ui.recipesLabel}</Label></div>
+                <div class="recipes" data-recipes><Label mono as="span" class="recipes__label"><span data-fit>{ui.recipesLabel}</span></Label></div>
 
                 <section class="palette">
                     <div class="palette__head">
-                        <Heading level={5} as="h3">{ui.step3Title}</Heading>
-                        <Tag tone="live" bare class="bb-tag--wrap" data-scope />
+                        <Heading level={5} as="h3" class="palette__title"><span data-fit>{ui.step3Title}</span></Heading>
+                        <Tag tone="live" bare class="palette__scope"><span data-fit data-scope></span></Tag>
                     </div>
-                    <Text size="sm" tone="muted-light" class="palette__sub">{ui.step3Sub}</Text>
+                    <Text size="sm" tone="muted-light" class="palette__sub"><span data-fit="block">{ui.step3Sub}</span></Text>
                     <div class="vars" data-vars></div>
                     <Disclosure size="sm" summary={ui.bracesSummary} class="palette__braces">
-                        <Text size="xs" tone="muted-light">{ui.bracesBody}</Text>
+                        <Text size="xs" tone="muted-light" class="palette__braces-body"><span data-fit="block">{ui.bracesBody}</span></Text>
                     </Disclosure>
                 </section>
 
@@ -120,30 +130,30 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         <aside>
             <Card>
                 <div class="card-head">
-                    <Label mono as="span"><i class="bb-mark card-head__rec" aria-hidden="true"></i> {ui.previewTitle}</Label>
-                    <Label mono as="span" data-context></Label>
+                    <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><span data-fit>{ui.previewTitle}</span></Label>
+                    <Label mono as="span" class="card-head__end"><span data-fit data-context></span></Label>
                 </div>
                 <div class="chat" data-chat data-avatar={avatarImage.src}>
-                    <Tag tone="live" bare class="chat-tag" data-chat-tag>{ui.rehearsal}</Tag>
+                    <Tag tone="live" bare class="chat-tag" data-chat-tag><span data-fit data-chat-tag-text>{ui.rehearsal}</span></Tag>
                 </div>
-                <Text as="small" size="xs" tone="muted-light" class="preview__note" data-preview-note></Text>
+                <Text as="small" size="xs" tone="muted-light" class="preview__note"><span data-fit="block" data-preview-note></span></Text>
             </Card>
 
             <Card>
                 <div class="card-head">
-                    <Label mono as="span" data-action-title>{ui.sendTitle}</Label>
-                    <Text as="span" size="xs" tone="danger" data-valid aria-live="polite"></Text>
+                    <Label mono as="span" class="card-head__start"><span data-fit data-action-title>{ui.sendTitle}</span></Label>
+                    <Text as="span" size="xs" tone="danger" class="card-head__end"><span data-fit data-valid aria-live="polite"></span></Text>
                 </div>
                 <div class="send" data-send-wrap>
                     <ButtonLink block data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'} tone="success">
-                        {ui.sendCta}<span aria-hidden="true">→</span>
+                        <span data-fit>{ui.sendCta}{' '}<span aria-hidden="true">→</span></span>
                     </ButtonLink>
-                    <Text size="xs" tone="muted" class="send__help">{ui.sendHelp}</Text>
+                    <Text size="xs" tone="muted" class="send__help"><span data-fit="block">{ui.sendHelp}</span></Text>
                 </div>
                 <div class="copyw" data-copy-wrap>
-                    <Label mono as="span" class="copyw__label" data-copy-title>{ui.copyTitleCustom}</Label>
+                    <Label mono as="span" class="copyw__label"><span data-fit="block" data-copy-title>{ui.copyTitleCustom}</span></Label>
                     <Code block wrap maxHeight="150px" data-output />
-                    <Chip class="copyw__btn" data-copy-cta><span data-copy-label>{ui.copyCta}</span></Chip>
+                    <Chip class="copyw__btn" data-copy-cta><span data-fit data-copy-label>{ui.copyCta}</span></Chip>
                     <div class="copyw__module" data-module-wrap hidden>
                         <TextLink variant="quiet" href={data.dashboardOrigin} external data-module-link>{ui.openModule} →</TextLink>
                     </div>
@@ -152,9 +162,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         </aside>
     </div>
 
-    <Text size="sm" tone="muted-light" class="learn">
-        {ui.learnMore}{' '}<TextLink variant="inline" href={guideHref}>{ui.learnMoreCta} →</TextLink>
-    </Text>
+    <Text size="sm" tone="muted-light" class="learn"><span data-fit="block">{ui.learnMore}{' '}<TextLink variant="inline" href={guideHref}>{ui.learnMoreCta} →</TextLink></span></Text>
 
     <script type="application/json" is:inline data-builder-json set:html={JSON.stringify({
         data,
@@ -184,12 +192,14 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             unknownVar: ui.unknownVar,
             recipes: builderRecipes(lang),
         },
+        descSize,
     })} />
 </div>
 
 <script>
     import { bindOnce } from '../../script/bind';
     import { copyFlash } from '@bagel/ui/lib/clipboard';
+    import { mountTextFit } from '@bagel/ui/lib/text-fit';
 
     type CounterScope = { id: string; label: string; hint: string };
     type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[]; pinned?: boolean };
@@ -205,6 +215,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             surfaces: Surface[];
         };
         ui: Record<string, string> & { recipes: { label: string; text: string }[] };
+        descSize: Record<string, 'medium' | 'long'>;
     };
 
     import { rehearseCommand, rehearseReply, resolvedWithoutSample, type RehearsedLine, type Seg } from '@bagel/kit/engine/rehearsal';
@@ -276,10 +287,21 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         const copyWrap = $<HTMLElement>('[data-copy-wrap]');
         const output = $<HTMLElement>('[data-output] code');
         const copyBtn = $<HTMLButtonElement>('[data-copy-cta]');
-        const copyLabel = $<HTMLElement>('[data-copy-label]');
         const chat = $<HTMLElement>('[data-chat]');
         const chatTag = $<HTMLElement>('[data-chat-tag]');
         const avatarSrc = chat.dataset.avatar ?? '';
+
+        const fitted = new Map<Element, () => void>();
+        const fitWithin = (box: Element) => {
+            fitted.get(box)?.();
+            fitted.set(box, mountTextFit(box));
+        };
+        const setFitText = (sel: string, text: string) => {
+            const node = $<HTMLElement>(sel);
+            if (node.textContent === text && node.hasAttribute('data-fit-ready')) return;
+            node.textContent = text;
+            fitWithin(node.parentElement!);
+        };
 
         let mode: 'custom' | 'module' = 'custom';
         let surfaceId = 'custom';
@@ -354,6 +376,14 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             node.className = className;
             if (text !== undefined) node.textContent = text;
             return node;
+        };
+
+        const fitIn = (tag: string, text: string, mode: '' | 'block') => {
+            const box = el(tag, '');
+            const label = el('span', '', text);
+            label.dataset.fit = mode;
+            box.append(label);
+            return box;
         };
 
         function botName(): HTMLElement {
@@ -455,7 +485,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             if (kind === 'event') return null;
             const surface = current();
             const line = el('div', 'line viewer');
-            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'maya_live');
+            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'SnackPackPanda');
             const text = mode === 'custom' ? `!${cleanName() || 'command'}` : surface.prompt;
             const msg = el('span', kind === 'message' ? 'msg plain' : 'msg', text);
             line.append(who, msg);
@@ -464,7 +494,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
 
         function renderReplies() {
             clearChat();
-            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            setFitText('[data-chat-tag-text]', promptKind() === 'event' ? current().prompt : ui.rehearsal);
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
 
@@ -480,7 +510,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
 
         function renderTyping() {
             clearChat();
-            chatTag.textContent = promptKind() === 'event' ? current().prompt : ui.rehearsal;
+            setFitText('[data-chat-tag-text]', promptKind() === 'event' ? current().prompt : ui.rehearsal);
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
             const line = el('div', 'line bot');
@@ -517,9 +547,11 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'var';
+            const size = payload.descSize[`${surfaceId} ${item.token}`];
+            if (size) btn.classList.add(`var--${size}`);
             const code = el('code', '', item.token);
             const span = el('span', '');
-            span.append(el('b', '', item.name), el('small', '', item.desc));
+            span.append(fitIn('b', item.name, ''), fitIn('small', item.desc, 'block'));
             btn.append(code, span, el('i', '', '+'));
             btn.addEventListener('click', () => insert(item.token));
             return btn;
@@ -532,7 +564,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             const card = el('div', 'var var--counter');
 
             const head = el('div', 'ctr-head');
-            head.append(el('b', '', item.name), el('small', '', item.desc));
+            head.append(fitIn('b', item.name, ''), fitIn('small', item.desc, 'block'));
 
             const nameInput = document.createElement('input');
             nameInput.type = 'text';
@@ -558,6 +590,9 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             insertBtn.append(tokenCode, el('i', '', '+'));
 
             const hint = el('small', 'ctr-hint');
+            const hintText = el('span', '');
+            hintText.dataset.fit = 'block';
+            hint.append(hintText);
             const row = el('div', 'ctr-row');
             row.append(inputShell(nameInput), inputShell(scopeSelect), insertBtn);
 
@@ -569,7 +604,8 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             };
             const syncHint = () => {
                 const scope = scopes.find((s) => s.id === scopeSelect.value) ?? scopes[0];
-                hint.textContent = scope?.hint ?? '';
+                hintText.textContent = scope?.hint ?? '';
+                if (hint.isConnected) fitWithin(hint);
             };
 
             nameInput.addEventListener('input', syncToken);
@@ -598,6 +634,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             for (const item of shown) {
                 box.append(item.scopes?.length ? buildCounterVar(item) : buildSimpleVar(item));
             }
+            fitWithin(box);
         }
 
         const recipesBox = $<HTMLElement>('[data-recipes]');
@@ -605,13 +642,16 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'bb-chip bb-chip--muted';
-            btn.textContent = recipe.label;
+            const label = el('span', '', recipe.label);
+            label.dataset.fit = '';
+            btn.append(label);
             btn.addEventListener('click', () => {
                 ta.value = recipe.text;
                 update();
             });
             recipesBox.append(btn);
         }
+        fitWithin(recipesBox);
 
         function problem(): string | null {
             const out = lines();
@@ -649,7 +689,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         }
 
         function showCustomCopy(out: string[]) {
-            $('[data-copy-title]').textContent = ui.copyTitleCustom;
+            setFitText('[data-copy-title]', ui.copyTitleCustom);
             moduleWrap.hidden = true;
             const single = out.length === 1;
             copyWrap.toggleAttribute('hidden', !single);
@@ -657,7 +697,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         }
 
         function showModuleCopy(surface: Surface) {
-            $('[data-copy-title]').textContent = ui.copyBodyModule;
+            setFitText('[data-copy-title]', ui.copyBodyModule);
             copyWrap.removeAttribute('hidden');
             output.textContent = ta.value.trim();
             moduleWrap.hidden = false;
@@ -672,11 +712,11 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
             const custom = mode === 'custom';
 
             $('[data-count]').textContent = String(Math.max(0, ...out.map((l) => l.length), 0));
-            $('[data-context]').textContent = custom ? `!${cleanName() || 'yourcommand'}` : surface.label;
-            $('[data-scope]').textContent = surface.label;
-            $('[data-preview-note]').textContent = surface.hint;
-            $('[data-valid]').textContent = err ?? '';
-            $('[data-action-title]').textContent = custom ? ui.sendTitle : ui.copyTitleModule;
+            setFitText('[data-context]', custom ? `!${cleanName() || 'yourcommand'}` : surface.label);
+            setFitText('[data-scope]', surface.label);
+            setFitText('[data-preview-note]', surface.hint);
+            setFitText('[data-valid]', err ?? '');
+            setFitText('[data-action-title]', custom ? ui.sendTitle : ui.copyTitleModule);
 
             syncSend(err);
             if (custom) showCustomCopy(out);
@@ -706,7 +746,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         }
 
         function showCopyState(label: string, done: boolean) {
-            copyLabel.textContent = label;
+            setFitText('[data-copy-label]', label);
             copyBtn.classList.toggle('is-done', done);
         }
 
@@ -748,7 +788,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
 
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
 
-    .compose { display: grid; gap: 20px; }
+    .compose { display: grid; gap: 20px; container-type: inline-size; }
 
     .module-pick { padding: 14px 16px; background: rgba(var(--bb-white-pure-rgb), 0.02); border-radius: var(--bb-radius-md); }
 
@@ -758,32 +798,53 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
     .response { position: relative; }
     .response__count { position: absolute; top: 0; right: 0; }
 
-    .recipes:not([hidden]) { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: -8px; }
+    .recipes:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; align-items: center; margin-top: -8px; }
+    .recipes__label { grid-column: 1 / -1; }
+    .recipes :global(.bb-chip) { justify-content: safe center; min-width: 0; }
+
+    @container (min-width: 560px) {
+        .recipes:not([hidden]) { grid-template-columns: 8.5rem repeat(4, minmax(0, 1fr)); }
+        .recipes__label { grid-column: auto; }
+    }
 
     .palette { max-width: var(--bb-content-max); margin: 0 auto; padding: 18px 48px 100px; border-top: 1px solid var(--bb-border); }
-    .palette__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-    .palette__sub { margin: 6px 0 14px; }
-    .vars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .palette__head { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: baseline; gap: 12px; }
+    .palette__title { min-width: 0; }
+    .palette__scope { justify-content: flex-end; }
+    .palette__sub { height: calc(2 * 1lh); margin: 6px 0 14px; }
+    .vars { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .palette__braces { margin-top: 14px; }
+    .palette__braces-body { height: calc(4 * 1lh); }
+
+    @container (min-width: 600px) {
+        .vars { grid-template-columns: 1fr 1fr; }
+    }
+
+    .compose :global(.bb-disclosure--sm > .bb-disclosure__summary) { width: 100%; }
+    .compose :global(.bb-disclosure--sm .bb-disclosure__label) { height: 1lh; }
 
     .more { padding-top: 16px; border-top: 1px solid var(--bb-border); }
     .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
     .span2 { grid-column: 1 / -1; }
 
-    .learn { margin-top: 26px; }
+    .learn { height: 1lh; margin-top: 26px; }
 
     aside { position: sticky; top: calc(var(--nav-offset) + 18px); display: grid; gap: 16px; }
 
-    .card-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 16px; }
+    .card-head { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; align-items: baseline; margin-bottom: 16px; }
+    .card-head__start { min-width: 0; white-space: nowrap; }
+    .card-head__end { min-width: 0; text-align: end; white-space: nowrap; }
     .card-head__rec { display: inline-block; margin-right: 6px; color: var(--bb-status-danger); }
-    .preview__note { display: block; margin-top: 11px; }
+    .preview__note { display: block; height: calc(2 * 1lh); margin-top: 11px; }
 
-    .send__help { margin-top: 10px; text-align: center; }
+    .send__help { height: calc(2 * 1lh); margin-top: 10px; text-align: center; }
 
     .copyw { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bb-border); }
     [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
-    .copyw__label { margin-bottom: 10px; }
-    .copyw__btn { justify-content: center; width: 100%; margin-top: 10px; }
+    .copyw__label { display: block; height: calc(2 * 1lh); margin-bottom: 10px; }
+    .copyw :global(.bb-code-block) { height: calc(4 * 1lh + 2 * var(--bb-space-4) + 2px); overflow-y: auto; }
+    .copyw :global(.bb-code-block .bb-code) { display: block; }
+    .copyw__btn { justify-content: safe center; width: 100%; margin-top: 10px; }
     .copyw__module { margin-top: 11px; text-align: center; }
 
     @media (max-width: 1000px) {
@@ -793,8 +854,13 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
 
     @media (max-width: 700px) {
         .builder { --card-pad: 20px 16px; width: calc(100% - 28px); padding-top: 16px; }
-        .vars, .more-grid { grid-template-columns: 1fr; }
+        .more-grid { grid-template-columns: 1fr; }
         .f-name { max-width: none; }
+        .palette__sub { height: calc(3 * 1lh); }
+        .palette__braces-body { height: calc(9 * 1lh); }
+        .compose :global(.bb-disclosure--sm .bb-disclosure__label) { height: calc(2 * 1lh); }
+        .learn { height: calc(2 * 1lh); }
+        .palette { padding-inline: 0; }
     }
 </style>
 
@@ -808,7 +874,8 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         display: flex;
         flex-direction: column;
         gap: 8px;
-        min-height: 96px;
+        height: 9rem;
+        overflow-y: auto;
     }
 
     [data-chat] .chat-tag {
@@ -817,10 +884,13 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         left: 10px;
         display: block;
         overflow: hidden;
-        background: var(--bb-card-bg);
+        width: calc(100% - 20px);
+        padding: 0;
+    }
+
+    [data-chat] .chat-tag > [data-fit] {
         padding: 0 6px;
-        max-width: calc(100% - 20px);
-        text-overflow: ellipsis;
+        background: var(--bb-card-bg);
     }
 
     [data-chat] .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -953,10 +1023,9 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
 <style is:global>
     [data-vars] .var {
         display: grid;
-        grid-template-columns: minmax(104px, auto) 1fr 25px;
-        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) 25px;
+        gap: 10px 12px;
         align-items: center;
-        min-height: 68px;
         padding: 12px 13px;
         text-align: left;
         color: var(--bb-white);
@@ -974,7 +1043,9 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
     }
 
     [data-vars] .var code {
-        max-width: 170px;
+        grid-area: 1 / 1;
+        justify-self: start;
+        max-width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         padding: 7px 9px;
@@ -986,11 +1057,14 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         white-space: nowrap;
     }
 
-    [data-vars] .var span { display: grid; gap: 4px; min-width: 0; }
-    [data-vars] .var b { font: 700 var(--bb-text-sm) var(--bb-font-display); }
-    [data-vars] .var small { color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
+    [data-vars] .var > span { grid-area: 2 / 1 / 3 / -1; display: grid; gap: 4px; min-width: 0; }
+    [data-vars] .var--medium > span small { height: calc(5 * 1lh); }
+    [data-vars] .var--long > span small { height: calc(8 * 1lh); }
+    [data-vars] .var b { min-width: 0; font: 700 var(--bb-text-sm) var(--bb-font-display); }
+    [data-vars] .var small { height: calc(3 * 1lh); color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
 
     [data-vars] .var i {
+        grid-area: 1 / 2;
         display: grid;
         place-items: center;
         width: 25px;
@@ -1013,7 +1087,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
     [data-vars] .var--counter:hover { border-color: var(--bb-border); background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.025), rgba(var(--bb-white-pure-rgb), 0.01)); transform: none; }
 
     [data-vars] .ctr-head { display: grid; gap: 4px; }
-    [data-vars] .ctr-head small { color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
+    [data-vars] .ctr-head small { height: calc(3 * 1lh); color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
 
     [data-vars] .ctr-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px; align-items: center; }
 
@@ -1034,13 +1108,9 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
     [data-vars] .ctr-insert code { padding: 0; background: none; border: 0; color: var(--bb-tan-light); font: 11px var(--bb-font-mono); }
     [data-vars] .ctr-insert i { font-style: normal; color: var(--bb-green-glow); }
 
-    [data-vars] .ctr-hint { display: block; color: var(--bb-muted); font: 11.5px/1.5 var(--bb-font-body); }
+    [data-vars] small.ctr-hint { display: block; height: calc(2 * 1lh); color: var(--bb-muted); font: 11.5px/1.5 var(--bb-font-body); }
 
     @media (max-width: 700px) {
-        [data-vars] .var { grid-template-columns: 1fr 25px; }
-        [data-vars] .var code { grid-column: 1 / -1; width: max-content; max-width: 100%; }
-        [data-vars] .var--counter { grid-template-columns: 1fr; }
-        [data-vars] .var--counter code { grid-column: auto; width: auto; max-width: none; }
         [data-vars] .ctr-row { grid-template-columns: 1fr; }
     }
 

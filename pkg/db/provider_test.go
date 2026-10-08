@@ -4,6 +4,7 @@
 package db
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -23,19 +24,46 @@ import (
 
 const testDBAddr = "10.0.0.4:3306"
 
-func TestRegisterTLSRejectsMissingCA(t *testing.T) {
-	name, err := registerTLS(nil, tlsModeVerifyCA, testDBAddr)
-	require.Empty(t, name)
-	require.ErrorContains(t, err, "DB_CA_CERT is required")
+func TestNewDriverRejectsUnusableTLSConfiguration(t *testing.T) {
+	_, _, caPEM := testCA(t)
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr string
+	}{
+		{name: "rejects a missing pinned CA", wantErr: "DB_CA_CERT is required"},
+		{name: "rejects a blank pinned CA", env: map[string]string{"DB_CA_CERT": " \n\t"}, wantErr: "DB_CA_CERT is required"},
+		{name: "rejects a non-PEM pinned CA", env: map[string]string{"DB_CA_CERT": "not pem"}, wantErr: "DB_CA_CERT did not contain a valid PEM certificate"},
+		{name: "rejects a client cert without its key", env: map[string]string{"DB_CA_CERT": string(caPEM), "DB_CLIENT_CERT": "cert"}, wantErr: "must both be set or both empty"},
+		{name: "rejects an unparsable client key pair", env: map[string]string{"DB_CA_CERT": string(caPEM), "DB_CLIENT_CERT": "cert", "DB_CLIENT_KEY": "key"}, wantErr: "client key pair"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
 
-	name, err = registerTLS([]byte(" \n\t"), tlsModeVerifyCA, testDBAddr)
-	require.Empty(t, name)
-	require.ErrorContains(t, err, "DB_CA_CERT is required")
+			driver, err := NewDriver(Config{Address: testDBAddr, Schema: "bagel_test"})
+
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Nil(t, driver)
+		})
+	}
 }
 
-func TestRegisterTLSRejectsInvalidCA(t *testing.T) {
-	_, err := registerTLS([]byte("not pem"), tlsModeVerifyCA, testDBAddr)
-	require.ErrorContains(t, err, "DB_CA_CERT did not contain a valid PEM certificate")
+func TestNewDriverOpensPoolWhoseHealthProbeReportsAnUnreachableServer(t *testing.T) {
+	_, _, caPEM := testCA(t)
+	t.Setenv("DB_CA_CERT", string(caPEM))
+	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
+
+	driver, err := NewDriver(Config{Address: "127.0.0.1:1", Schema: "bagel_test", MaxConns: 2})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, driver.Close()) })
+
+	err = HealthCheck("mysql", driver.DB()).Probe(context.Background())
+
+	require.ErrorContains(t, err, "db: keepalive")
 }
 
 func TestResolveTLSModeDefaultsToVerifyCA(t *testing.T) {

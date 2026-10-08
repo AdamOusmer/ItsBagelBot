@@ -27,6 +27,7 @@ type TicketOpenReply struct {
 }
 
 type TicketClaimRequest struct {
+	GuildID   string         `json:"guild_id"`
 	ChannelID string         `json:"channel_id"`
 	MessageID string         `json:"message_id"`
 	Content   string         `json:"content,omitempty"`
@@ -68,6 +69,7 @@ type TicketCloseReply struct {
 }
 
 type TicketMemberAddRequest struct {
+	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`
 	UserID    string `json:"user_id"`
 }

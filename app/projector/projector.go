@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strconv"
@@ -271,14 +272,16 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
-	// Assume live on a read error: re-baselining a live stream would reset its counters.
-	wasLive, _, err := p.store.GetStreamLive(msg.Context(), st.BroadcasterID)
+	fold, err := p.store.SetStreamLive(msg.Context(), st.BroadcasterID, projection.StreamLive{
+		Live:    st.Live,
+		Version: cmp.Or(st.Version, livekey.VersionNow()),
+	})
 	if err != nil {
-		wasLive = true
-	}
-
-	if err := p.store.SetStreamLive(msg.Context(), st.BroadcasterID, st.Live); err != nil {
 		return err
+	}
+	if !fold.Applied {
+		log.Info("dropping stream status older than the projected one", zap.Uint64("user_id", st.BroadcasterID), zap.Bool("live", st.Live))
+		return nil
 	}
 
 	p.broadcastLiveInvalidate(st.BroadcasterID)
@@ -292,7 +295,7 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
 	p.hydrator.RefreshAsync(st.BroadcasterID)
 
-	if isGoLiveEdge(wasLive, st.Live) {
+	if isGoLiveEdge(fold.WasLive, st.Live) {
 		p.snapshotCounterBaseline(msg.Context(), st.BroadcasterID, log)
 	}
 	p.warmBroadcasterToken(st.BroadcasterID)

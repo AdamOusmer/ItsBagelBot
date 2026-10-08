@@ -60,7 +60,7 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'One command, one live number.',
           lines: [
-            { who: 'viewer', name: 'sesame_sam', text: '!weather' },
+            { who: 'viewer', name: 'PrincessBarney', text: '!weather' },
             { who: 'bot', text: 'It is 21°C in Montreal right now.' },
           ],
         },
@@ -376,7 +376,7 @@ const guide: GuideContent = {
           labels: {
             legend: 'Pick what went wrong',
             title: '#your_channel',
-            viewer: 'sesame_sam',
+            viewer: 'PrincessBarney',
             viewerText: '!weather',
             botName: 'ItsBagelBot',
           },

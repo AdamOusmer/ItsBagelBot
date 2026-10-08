@@ -102,11 +102,9 @@ export function mountCursor(options: CursorOptions): () => void {
     let overText = false;
     let lastMove = 0;
     let radius = FALLBACK_RADIUS;
-    let measured: Box | null = null;
 
     function setTarget(next: HTMLElement | null): void {
         target = next;
-        measured = null;
         if (next) radius = radiusOf(next);
     }
 
@@ -119,8 +117,7 @@ export function mountCursor(options: CursorOptions): () => void {
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        if (el) measured ??= hoverBox(el, radius);
-        const to = el ? (measured as Box) : idleBox(pointerX, pointerY);
+        const to = el ? hoverBox(el, radius) : idleBox(pointerX, pointerY);
         box = lerpBox(box, to, el ? ease.hover : ease.release);
         paintRing(ring, box, !!el, overText);
         return to;
@@ -130,13 +127,10 @@ export function mountCursor(options: CursorOptions): () => void {
         const el = hovered();
         const to = paint(el);
         if (reduceMotion.matches) return false;
-        if (!arrived(box, to)) return;
-        if (el) {
-            box = to;
-            paintRing(ring, box, true, overText);
-            return false;
-        }
-        if (now - lastMove > IDLE_MS) return false;
+        if (!arrived(box, to) || now - lastMove <= IDLE_MS) return;
+        box = to;
+        paintRing(ring, box, !!el, overText);
+        return false;
     }
 
     const nearest = (event: PointerEvent): HTMLElement | null =>
@@ -170,9 +164,22 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const remeasure = (): void => {
-        if (!target) return;
-        measured = null;
-        wake(tick);
+        if (target) wake(tick);
+    };
+
+    const layered = [ring, dot].filter((el) => typeof el.showPopover === 'function');
+
+    const raise = (): void => {
+        for (const el of layered) {
+            if (el.matches(':popover-open')) el.hidePopover();
+            el.showPopover();
+        }
+    };
+
+    const onToggle = (event: Event): void => {
+        if ((event as ToggleEvent).newState !== 'open') return;
+        if (layered.includes(event.target as HTMLElement)) return;
+        queueMicrotask(raise);
     };
 
     const syncMotion = (): void => {
@@ -181,6 +188,8 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const unsubscribe = subscribe(tick);
+    for (const el of layered) el.popover = 'manual';
+    raise();
     syncMotion();
     reduceMotion.addEventListener('change', syncMotion);
     window.addEventListener('pointermove', onMove, { passive: true });
@@ -188,6 +197,7 @@ export function mountCursor(options: CursorOptions): () => void {
     window.addEventListener('resize', remeasure, { passive: true });
     document.addEventListener('pointerover', onOver, { passive: true });
     document.addEventListener('pointerout', onOut, { passive: true });
+    document.addEventListener('beforetoggle', onToggle, true);
 
     return () => {
         unsubscribe();
@@ -197,6 +207,8 @@ export function mountCursor(options: CursorOptions): () => void {
         window.removeEventListener('resize', remeasure);
         document.removeEventListener('pointerover', onOver);
         document.removeEventListener('pointerout', onOut);
+        document.removeEventListener('beforetoggle', onToggle, true);
+        for (const el of layered) el.removeAttribute('popover');
         document.documentElement.classList.remove('bb-cursor-on');
     };
 }

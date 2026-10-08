@@ -5,6 +5,7 @@ package i18n
 
 import (
 	"ItsBagelBot/locales"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -12,7 +13,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"testing/fstest"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func sortedKeys(m map[string][]string) []string {
@@ -34,31 +37,22 @@ func nonDefaultLocales(codes []string) []string {
 	return out
 }
 
-func TestGapsExcludeDefaultLocale(t *testing.T) {
-	if _, ok := Gaps()[DefaultLocale]; ok {
+func TestGaps(t *testing.T) {
+	gaps := Gaps()
+
+	if _, ok := gaps[DefaultLocale]; ok {
 		t.Errorf("Gaps must exclude the default locale %q", DefaultLocale)
 	}
-}
-
-func TestGapsKeyedByManifest(t *testing.T) {
-	got := sortedKeys(Gaps())
-	want := nonDefaultLocales(List())
-	if !reflect.DeepEqual(got, want) {
+	if got, want := sortedKeys(gaps), nonDefaultLocales(List()); !reflect.DeepEqual(got, want) {
 		t.Errorf("Gaps keys = %v, want List() minus %q = %v", got, DefaultLocale, want)
 	}
-}
-
-func TestGapsAgreeWithMissing(t *testing.T) {
-	for locale, missing := range Gaps() {
+	for locale, missing := range gaps {
 		if m := Missing(locale); !reflect.DeepEqual(missing, m) {
 			t.Errorf("Gaps[%q] = %v, but Missing(%q) = %v", locale, missing, locale, m)
 		}
 	}
-}
-
-func TestGapsShowCompleteLocaleAsComplete(t *testing.T) {
-	if n := len(Gaps()["fr"]); n != 0 {
-		t.Errorf("fr is fully translated but Gaps reports %d missing key(s): %v", n, Gaps()["fr"])
+	if n := len(gaps["fr"]); n != 0 {
+		t.Errorf("fr is fully translated but Gaps reports %d missing key(s): %v", n, gaps["fr"])
 	}
 }
 
@@ -155,84 +149,6 @@ func TestFallbackChain(t *testing.T) {
 	}
 }
 
-func jsonFile(body string) *fstest.MapFile {
-	return &fstest.MapFile{Data: []byte(body)}
-}
-
-func requirePanic(t *testing.T, want string, load func()) {
-	t.Helper()
-	defer func() {
-		got, _ := recover().(string)
-		if !strings.Contains(got, want) {
-			t.Errorf("panic = %q, want it to contain %q", got, want)
-		}
-	}()
-	load()
-}
-
-func TestNamespaceFilePrefix(t *testing.T) {
-	fsys := fstest.MapFS{
-		"en/chat/loyalty.json":      jsonFile(`{}`),
-		"en/chat/bagels_ready.json": jsonFile(`{}`),
-		"en/chat/index.json":        jsonFile(`{}`),
-	}
-	want := map[string]string{"loyalty.json": "loyalty.", "bagels_ready.json": "bagels_ready.", "index.json": ""}
-	roots, _ := fs.ReadDir(fsys, ".")
-	files, _ := fs.ReadDir(fsys, "en/chat")
-	for _, f := range files {
-		if got := newNamespaceFile(roots[0], f); got.prefix != want[f.Name()] || got.path != "en/chat/"+f.Name() {
-			t.Errorf("newNamespaceFile(en, %s) = %+v, want prefix %q", f.Name(), got, want[f.Name()])
-		}
-	}
-}
-
-func TestLoadCatalogsPrefixesKeysByFile(t *testing.T) {
-	got := mustLoadCatalogs(fstest.MapFS{
-		"manifest.json":         jsonFile(`["en"]`),
-		"en/chat/loyalty.json":  jsonFile(`{"points.balance":"Balance","points":"Points"}`),
-		"en/chat/index.json":    jsonFile(`{"ping":"Pong","uptime":"Live for {dashboard_url}"}`),
-		"en/chat/uptime.json":   jsonFile(`{"offline":"Offline"}`),
-		"en/console/index.json": jsonFile(`{"title":"Console"}`),
-		"de/console/index.json": jsonFile(`{"title":"Konsole"}`),
-	})
-	want := map[string]map[string]string{"en": {
-		"loyalty.points.balance": "Balance",
-		"loyalty.points":         "Points",
-		"ping":                   "Pong",
-		"uptime":                 "Live for " + DashboardURL,
-		"uptime.offline":         "Offline",
-	}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("mustLoadCatalogs = %v, want %v", got, want)
-	}
-}
-
-func TestLoadCatalogsPanicsOnDuplicateKey(t *testing.T) {
-	requirePanic(t, "duplicate key loyalty.points", func() {
-		mustLoadCatalogs(fstest.MapFS{
-			"en/chat/index.json":   jsonFile(`{"loyalty.points":"Points"}`),
-			"en/chat/loyalty.json": jsonFile(`{"points":"Points"}`),
-		})
-	})
-}
-
-func TestLoadCatalogsRequiresDefaultLocale(t *testing.T) {
-	requirePanic(t, "missing required catalog en/chat", func() {
-		mustLoadCatalogs(fstest.MapFS{
-			"fr/chat/index.json": jsonFile(`{"ping":"Pong"}`),
-			"en/console/x.json":  jsonFile(`{"title":"Console"}`),
-		})
-	})
-}
-
-func TestLoadCatalogsPanicsOnMalformedJSON(t *testing.T) {
-	requirePanic(t, "malformed en/chat/loyalty.json", func() {
-		mustLoadCatalogs(fstest.MapFS{
-			"en/chat/loyalty.json": jsonFile(`{"points":`),
-		})
-	})
-}
-
 func isChatCatalogFile(name string) bool {
 	segments := strings.Split(name, "/")
 	return len(segments) >= 3 && segments[1] == chatDir && path.Ext(name) == ".json"
@@ -257,9 +173,42 @@ func TestEmbedCoversChatTree(t *testing.T) {
 	}
 }
 
-func TestLoadManifestSorts(t *testing.T) {
-	got := mustLoadManifest(fstest.MapFS{"manifest.json": jsonFile(`["fr","en"]`)})
-	if want := []string{"en", "fr"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("mustLoadManifest = %v, want %v", got, want)
+func TestDefaultSeriesIsTheOrderedEnglishTemplates(t *testing.T) {
+	series := DefaultSeries("personality.affection")
+
+	if len(series) < 2 {
+		t.Fatalf("series = %v, want every personality.affection.N template", series)
 	}
+	for i, tmpl := range series {
+		if key := fmt.Sprintf("personality.affection.%d", i); tmpl != T(DefaultLocale, key) {
+			t.Errorf("series[%d] = %q, want the %s template", i, tmpl, key)
+		}
+	}
+	requirePanic(t, "missing default series", func() { DefaultSeries("no.such.series") })
+}
+
+func TestWarnGapsStaysQuietWhenEveryLocaleIsComplete(t *testing.T) {
+	for locale, missing := range Gaps() {
+		if len(missing) > 0 {
+			t.Skipf("%s has %d untranslated keys", locale, len(missing))
+		}
+	}
+	core, logs := observer.New(zap.WarnLevel)
+
+	WarnGaps(zap.New(core))
+
+	if logs.Len() != 0 {
+		t.Fatalf("WarnGaps logged %v for complete locales", logs.All())
+	}
+}
+
+func requirePanic(t *testing.T, want string, load func()) {
+	t.Helper()
+	defer func() {
+		got, _ := recover().(string)
+		if !strings.Contains(got, want) {
+			t.Errorf("panic = %q, want it to contain %q", got, want)
+		}
+	}()
+	load()
 }

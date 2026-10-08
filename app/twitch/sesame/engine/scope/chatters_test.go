@@ -20,117 +20,9 @@ func (f *fakeRoster) Chatters() []Chatter {
 	return f.people
 }
 
-func roundRobin() func(int) int {
-	at := 0
-	return func(n int) int {
-		i := at % n
-		at++
-		return i
-	}
-}
-
 func room(people ...Chatter) *fakeRoster { return &fakeRoster{people: people} }
 
 func who(id uint64, name string) Chatter { return Chatter{ID: id, Name: name} }
-
-func TestChattersCountsTheRoster(t *testing.T) {
-	chain := Chain{Chatters{Roster: room(who(1, "sam"), who(2, "alex"), who(3, "maya"))}}
-	assert.Equal(t, "3 here", render(t, "{chatters} here", chain, nil))
-}
-
-func TestChattersRendersZeroForAnEmptyRoster(t *testing.T) {
-	assert.Equal(t, "0 here", render(t, "{chatters} here", Chain{Chatters{Roster: room()}}, nil))
-	assert.Equal(t, "0 here", render(t, "{chatters} here", Chain{Chatters{}}, nil))
-}
-
-func TestChattersZeroIsNotAFallback(t *testing.T) {
-	chain := Chain{Chatters{Roster: room()}}
-	assert.Equal(t, "0", render(t, "{chatters|nobody}", chain, nil))
-}
-
-func TestRandomChatterDrawsFromTheRoster(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster: room(who(1, "sam")),
-		Draws:  1,
-		Pick:   roundRobin(),
-	}}
-	assert.Equal(t, "hi sam", render(t, "hi {random.chatter}", chain, nil))
-}
-
-func TestRandomChatterExcludesTheBotAndTheBroadcaster(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster:  room(who(7, "bagelbot"), who(9, "streamer"), who(4, "sam")),
-		Exclude: []uint64{7, 9},
-		Draws:   2,
-		Pick:    roundRobin(),
-	}}
-	assert.Equal(t, "sam and sam", render(t, "{random.chatter} and {random.chatter}", chain, nil))
-}
-
-func TestChattersCountsTheExcludedIdentitiesToo(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster:  room(who(7, "bagelbot"), who(9, "streamer"), who(4, "sam")),
-		Exclude: []uint64{7, 9},
-	}}
-	assert.Equal(t, "3", render(t, "{chatters}", chain, nil))
-}
-
-func TestRandomChatterDrawsIndependentlyPerSpan(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster: room(who(1, "sam"), who(2, "alex")),
-		Draws:  2,
-		Pick:   roundRobin(),
-	}}
-	assert.Equal(t, "sam then alex", render(t, "{random.chatter} then {random.chatter}", chain, nil))
-}
-
-func TestRandomChatterCapsItsDraws(t *testing.T) {
-	roster := room(who(1, "a"), who(2, "b"), who(3, "c"), who(4, "d"))
-	chain := Chain{Chatters{Roster: roster, Draws: 4, Pick: roundRobin()}}
-
-	assert.Equal(t, "a b c c",
-		render(t, "{random.chatter} {random.chatter} {random.chatter} {random.chatter}", chain, nil))
-	assert.Equal(t, MaxChatterDraws, 3, "the cap the row above pins")
-}
-
-func TestRandomChatterRendersItsFallbackWhenNobodyIsDrawable(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster:  room(who(9, "streamer")),
-		Exclude: []uint64{9},
-		Draws:   1,
-	}}
-	assert.Equal(t, "hi someone", render(t, "hi {random.chatter|someone}", chain, nil))
-	assert.Equal(t, "hi ", render(t, "hi {random.chatter}", Chain{Chatters{Roster: room(), Draws: 1}}, nil))
-}
-
-func TestRandomChatterSkipsUnnamedChatters(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster: room(who(1, ""), who(2, "sam")),
-		Draws:  1,
-		Pick:   roundRobin(),
-	}}
-	assert.Equal(t, "sam", render(t, "{random.chatter}", chain, nil))
-}
-
-func TestChatterTokensWithAPayloadStayLiteral(t *testing.T) {
-	chain := Chain{Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()}}
-	assert.Equal(t, "{chatters:5} {random.chatter:mods}",
-		render(t, "{chatters:5} {random.chatter:mods}", chain, nil))
-}
-
-func TestChatterScopeReadsTheRosterOncePerRun(t *testing.T) {
-	roster := room(who(1, "sam"), who(2, "alex"))
-	chain := Chain{Chatters{Roster: roster, Draws: 2, Pick: roundRobin()}}
-
-	assert.Equal(t, "2: sam, alex", render(t, "{chatters}: {random.chatter}, {random.chatter}", chain, nil))
-	assert.Equal(t, 1, roster.reads)
-}
-
-func TestChatterScopeReadsNothingWhenUnused(t *testing.T) {
-	roster := room(who(1, "sam"))
-	assert.Equal(t, "plain", render(t, "plain", Chain{Chatters{Roster: roster}}, nil))
-	assert.Zero(t, roster.reads)
-}
 
 type fakeViewers struct {
 	people []Chatter
@@ -145,45 +37,153 @@ func (f *fakeViewers) Viewers(context.Context) ([]Chatter, bool) {
 
 func viewerPool(people ...Chatter) *fakeViewers { return &fakeViewers{people: people, ok: true} }
 
-func TestRandomViewerDrawsFromItsOwnPool(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster:      room(who(1, "sam")),
-		Draws:       1,
-		Viewers:     viewerPool(who(2, "lurker")),
-		ViewerDraws: 1,
-		Pick:        roundRobin(),
-	}}
-	assert.Equal(t, "sam saw lurker",
-		render(t, "{random.chatter} saw {random.viewer}", chain, nil))
+func TestChattersRender(t *testing.T) {
+	bot := []Chatter{who(7, "bagelbot"), who(9, "streamer"), who(4, "sam")}
+	tests := []struct {
+		name     string
+		chatters Chatters
+		template string
+		want     string
+	}{
+		{
+			name:     "counts the roster",
+			chatters: Chatters{Roster: room(who(1, "sam"), who(2, "alex"), who(3, "maya"))},
+			template: "{chatters} here",
+			want:     "3 here",
+		},
+		{"renders zero for an empty roster", Chatters{Roster: room()}, "{chatters} here", "0 here"},
+		{"renders zero when no roster is wired", Chatters{}, "{chatters} here", "0 here"},
+		{"does not treat zero as a fallback", Chatters{Roster: room()}, "{chatters|nobody}", "0"},
+		{
+			name:     "counts the excluded identities too",
+			chatters: Chatters{Roster: room(bot...), Exclude: []uint64{7, 9}},
+			template: "{chatters}",
+			want:     "3",
+		},
+		{
+			name:     "draws a random chatter from the roster",
+			chatters: Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()},
+			template: "hi {random.chatter}",
+			want:     "hi sam",
+		},
+		{
+			name:     "excludes the bot and the broadcaster from draws",
+			chatters: Chatters{Roster: room(bot...), Exclude: []uint64{7, 9}, Draws: 2, Pick: roundRobin()},
+			template: "{random.chatter} and {random.chatter}",
+			want:     "sam and sam",
+		},
+		{
+			name:     "draws independently per span",
+			chatters: Chatters{Roster: room(who(1, "sam"), who(2, "alex")), Draws: 2, Pick: roundRobin()},
+			template: "{random.chatter} then {random.chatter}",
+			want:     "sam then alex",
+		},
+		{
+			name:     "repeats the last draw past the draw cap",
+			chatters: Chatters{Roster: room(who(1, "a"), who(2, "b"), who(3, "c"), who(4, "d")), Draws: 4, Pick: roundRobin()},
+			template: "{random.chatter} {random.chatter} {random.chatter} {random.chatter}",
+			want:     "a b c c",
+		},
+		{
+			name:     "renders the fallback when nobody is drawable",
+			chatters: Chatters{Roster: room(who(9, "streamer")), Exclude: []uint64{9}, Draws: 1},
+			template: "hi {random.chatter|someone}",
+			want:     "hi someone",
+		},
+		{
+			name:     "renders nothing when nobody is drawable and there is no fallback",
+			chatters: Chatters{Roster: room(), Draws: 1},
+			template: "hi {random.chatter}",
+			want:     "hi ",
+		},
+		{
+			name:     "skips unnamed chatters",
+			chatters: Chatters{Roster: room(who(1, ""), who(2, "sam")), Draws: 1, Pick: roundRobin()},
+			template: "{random.chatter}",
+			want:     "sam",
+		},
+		{
+			name:     "keeps payloaded chatter tokens literal",
+			chatters: Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()},
+			template: "{chatters:5} {random.chatter:mods}",
+			want:     "{chatters:5} {random.chatter:mods}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{tt.chatters}, nil))
+		})
+	}
 }
 
-func TestRandomViewerRendersEmptyOnAColdSnapshot(t *testing.T) {
-	chain := Chain{Chatters{Viewers: &fakeViewers{ok: false}, ViewerDraws: 1}}
-	assert.Equal(t, "hi someone", render(t, "hi {random.viewer|someone}", chain, nil))
+func TestRandomViewerRender(t *testing.T) {
+	tests := []struct {
+		name     string
+		chatters Chatters
+		template string
+		want     string
+	}{
+		{
+			name: "draws a viewer from its own pool",
+			chatters: Chatters{
+				Roster: room(who(1, "sam")), Draws: 1,
+				Viewers: viewerPool(who(2, "lurker")), ViewerDraws: 1, Pick: roundRobin(),
+			},
+			template: "{random.chatter} saw {random.viewer}",
+			want:     "sam saw lurker",
+		},
+		{
+			name:     "renders a viewer empty on a cold snapshot",
+			chatters: Chatters{Viewers: &fakeViewers{ok: false}, ViewerDraws: 1},
+			template: "hi {random.viewer|someone}",
+			want:     "hi someone",
+		},
+		{
+			name: "excludes the viewer set from viewer draws",
+			chatters: Chatters{
+				Roster: room(who(5, "sender")), Draws: 1,
+				Viewers: viewerPool(who(5, "sender"), who(6, "lurker")), ViewerExclude: []uint64{5}, ViewerDraws: 2,
+				Pick: roundRobin(),
+			},
+			template: "{random.chatter} / {random.viewer} and {random.viewer}",
+			want:     "sender / lurker and lurker",
+		},
+		{
+			name:     "renders a viewer empty without the dependency",
+			chatters: Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()},
+			template: "{random.chatter} {random.viewer}",
+			want:     "sam ",
+		},
+		{
+			name:     "renders a viewer fallback without the dependency",
+			chatters: Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()},
+			template: "{random.chatter} {random.viewer|someone}",
+			want:     "sam someone",
+		},
+		{
+			name:     "keeps a payloaded viewer span literal",
+			chatters: Chatters{Viewers: viewerPool(who(1, "sam")), ViewerDraws: 1},
+			template: "{random.viewer:mods}",
+			want:     "{random.viewer:mods}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, render(t, tt.template, Chain{tt.chatters}, nil))
+		})
+	}
 }
 
-func TestRandomViewerExcludesItsOwnSet(t *testing.T) {
-	chain := Chain{Chatters{
-		Roster:        room(who(5, "sender")),
-		Draws:         1,
-		Viewers:       viewerPool(who(5, "sender"), who(6, "lurker")),
-		ViewerExclude: []uint64{5},
-		ViewerDraws:   2,
-		Pick:          roundRobin(),
-	}}
-	assert.Equal(t, "sender / lurker and lurker",
-		render(t, "{random.chatter} / {random.viewer} and {random.viewer}", chain, nil))
-}
+func TestChatterScopeReadsTheRosterOnlyWhenNamedAndOnce(t *testing.T) {
+	roster := room(who(1, "sam"), who(2, "alex"))
+	chain := Chain{Chatters{Roster: roster, Draws: 2, Pick: roundRobin()}}
 
-func TestRandomViewerRendersEmptyWithoutTheDependency(t *testing.T) {
-	chain := Chain{Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()}}
-	assert.Equal(t, "sam ", render(t, "{random.chatter} {random.viewer}", chain, nil))
-	assert.Equal(t, "sam someone", render(t, "{random.chatter} {random.viewer|someone}", chain, nil))
-}
+	assert.Equal(t, "2: sam, alex", render(t, "{chatters}: {random.chatter}, {random.chatter}", chain, nil))
+	assert.Equal(t, 1, roster.reads)
 
-func TestRandomViewerWithAPayloadStaysLiteral(t *testing.T) {
-	chain := Chain{Chatters{Viewers: viewerPool(who(1, "sam")), ViewerDraws: 1}}
-	assert.Equal(t, "{random.viewer:mods}", render(t, "{random.viewer:mods}", chain, nil))
+	idle := room(who(1, "sam"))
+	assert.Equal(t, "plain", render(t, "plain", Chain{Chatters{Roster: idle}}, nil))
+	assert.Zero(t, idle.reads)
 }
 
 func TestChatterScopeReadsViewersOnlyWhenNamed(t *testing.T) {
@@ -193,7 +193,7 @@ func TestChatterScopeReadsViewersOnlyWhenNamed(t *testing.T) {
 	assert.Equal(t, "sam sam", render(t, "{random.viewer} {random.viewer}", chain, nil))
 	assert.Equal(t, 1, viewers.reads)
 
-	viewers2 := viewerPool(who(1, "sam"))
-	render(t, "{chatters}", Chain{Chatters{Roster: room(), Viewers: viewers2}}, nil)
-	assert.Zero(t, viewers2.reads, "ViewerDraws unset (no {random.viewer} span was counted), so the pool is never read")
+	idle := viewerPool(who(1, "sam"))
+	render(t, "{chatters}", Chain{Chatters{Roster: room(), Viewers: idle}}, nil)
+	assert.Zero(t, idle.reads, "ViewerDraws unset (no {random.viewer} span was counted), so the pool is never read")
 }

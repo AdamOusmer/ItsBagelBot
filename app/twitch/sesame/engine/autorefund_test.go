@@ -9,8 +9,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,79 +29,54 @@ func redemptionTestModule() module.Module {
 	return m.Build()
 }
 
-func newRefundPipeline(pub bus.Publisher, channel string) *Pipeline {
-	d := Deps{
-		Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
-		Pub: pub, Log: zap.NewNop(),
-		Special: NewSpecialSet(refundTestSpecialID),
+func TestAutoRefundCancelsSpecialRedemptionsOnTheConfiguredChannel(t *testing.T) {
+	canceled := outgress.Message{
+		Type: outgress.TypeRedemptionUpdate, BroadcasterID: refundTestChannelID, Status: outgress.RedemptionCanceled,
+		RewardID: "reward-1", RedemptionID: "redeem-1",
 	}
-	cfg := Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutoRefundChannel: channel}
-	return NewPipeline(d, NewRegistry(zap.NewNop(), redemptionTestModule()), cfg)
-}
+	handled := func(broadcasterID string) outgress.Message {
+		return outgress.Message{Type: outgress.TypeChat, BroadcasterID: broadcasterID}
+	}
+	cases := []struct {
+		name      string
+		channel   string
+		broadcast string
+		login     string
+		redeemer  string
+		want      outgress.Message
+	}{
+		{"a special redemption is canceled before the modules run", refundTestChannelID, refundTestChannelID, "itsmavey", refundTestSpecialID, canceled},
+		{"the configured channel may be named by login", "ItsMavey", refundTestChannelID, "itsmavey", refundTestSpecialID, canceled},
+		{"other channels still run their handlers", refundTestChannelID, "456", "otherchan", refundTestSpecialID, handled("456")},
+		{"regular redeemers still run the handlers", refundTestChannelID, refundTestChannelID, "itsmavey", "999", handled(refundTestChannelID)},
+		{"nothing is canceled when unconfigured", "", refundTestChannelID, "itsmavey", refundTestSpecialID, handled(refundTestChannelID)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pub := &fakePublisher{}
+			d := Deps{
+				Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{},
+				Pub: pub, Log: zap.NewNop(),
+				Special: NewSpecialSet(refundTestSpecialID),
+			}
+			p := NewPipeline(d, NewRegistry(zap.NewNop(), redemptionTestModule()), Config{
+				OutgressPremium: premiumSubj, OutgressStandard: standardSubj, AutoRefundChannel: tc.channel,
+			})
+			redemption := envelopeMsg(t, "u", map[string]any{
+				"type": redemptionAddType, "broadcaster_user_id": tc.broadcast,
+				"event": map[string]any{
+					"id": "redeem-1", "broadcaster_user_id": tc.broadcast, "broadcaster_user_login": tc.login,
+					"user_id": tc.redeemer, "reward": map[string]any{"id": "reward-1"},
+				},
+			})
 
-func redemptionMessage(t *testing.T, broadcasterID, broadcasterLogin, userID string) *bus.Message {
-	t.Helper()
-	body, err := codec.Marshal(map[string]any{
-		"type":                redemptionAddType,
-		"lane":                "standard",
-		"broadcaster_user_id": broadcasterID,
-		"event": map[string]any{
-			"id":                     "redeem-1",
-			"broadcaster_user_id":    broadcasterID,
-			"broadcaster_user_login": broadcasterLogin,
-			"user_id":                userID,
-			"reward":                 map[string]any{"id": "reward-1"},
-		},
-	})
-	require.NoError(t, err)
-	return bus.NewMessage("u", body)
-}
+			require.NoError(t, p.Process(redemption))
 
-func TestAutoRefundCancelsSpecialRedemption(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newRefundPipeline(pub, refundTestChannelID)
-
-	require.NoError(t, p.Process(redemptionMessage(t, refundTestChannelID, "itsmavey", refundTestSpecialID)))
-	require.Len(t, pub.got, 1, "one cancel, no handler output: the gate precedes the modules")
-	assert.Equal(t, outgress.TypeRedemptionUpdate, pub.got[0].msg.Type)
-	assert.Equal(t, outgress.RedemptionCanceled, pub.got[0].msg.Status)
-	assert.Equal(t, refundTestChannelID, pub.got[0].msg.BroadcasterID)
-	assert.Equal(t, "reward-1", pub.got[0].msg.RewardID)
-	assert.Equal(t, "redeem-1", pub.got[0].msg.RedemptionID)
-}
-
-func TestAutoRefundMatchesChannelLogin(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newRefundPipeline(pub, "ItsMavey")
-
-	require.NoError(t, p.Process(redemptionMessage(t, refundTestChannelID, "itsmavey", refundTestSpecialID)))
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeRedemptionUpdate, pub.got[0].msg.Type)
-}
-
-func TestAutoRefundIgnoresOtherChannels(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newRefundPipeline(pub, refundTestChannelID)
-
-	require.NoError(t, p.Process(redemptionMessage(t, "456", "otherchan", refundTestSpecialID)))
-	require.Len(t, pub.got, 1, "handlers must still run on unmatched channels")
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
-}
-
-func TestAutoRefundIgnoresNonSpecialUsers(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newRefundPipeline(pub, refundTestChannelID)
-
-	require.NoError(t, p.Process(redemptionMessage(t, refundTestChannelID, "itsmavey", "999")))
-	require.Len(t, pub.got, 1, "handlers must still run for regular redeemers")
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
-}
-
-func TestAutoRefundOffWhenUnconfigured(t *testing.T) {
-	pub := &fakePublisher{}
-	p := newRefundPipeline(pub, "")
-
-	require.NoError(t, p.Process(redemptionMessage(t, refundTestChannelID, "itsmavey", refundTestSpecialID)))
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
+			got := pub.snapshot()
+			require.Len(t, got, 1, "one cancel with no handler output, or one handler reply")
+			sent := got[0].msg
+			sent.Payload = nil
+			assert.Equal(t, tc.want, sent)
+		})
+	}
 }

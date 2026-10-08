@@ -4,14 +4,7 @@
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { describe, expect, test } from 'bun:test';
 import type { ShardSnapshot } from '@bagel/kit';
-import {
-  barWidth,
-  eventsPerSecond,
-  pctLabel,
-  resolveCapacity,
-  utilizationPct,
-  utilizationTone
-} from '../src/lib/throughput';
+import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '../src/lib/throughput';
 
 function snapshot(overrides: Partial<ShardSnapshot> = {}): ShardSnapshot {
   return {
@@ -52,19 +45,11 @@ describe('throughput capacity', () => {
     expect(resolveCapacity(snapshot({ capacity: supplied }))).toBe(supplied);
   });
 
-  test('percentage and bar share the same rated denominator', () => {
+  test('utilization is the event rate over the rated capacity', () => {
     const rate = eventsPerSecond(420_000, 60);
-    const utilization = utilizationPct(rate, 16_000);
 
     expect(rate).toBe(7_000);
-    expect(utilization).toBeCloseTo(43.75);
-    expect(barWidth(utilization)).toBe(44);
-  });
-
-  test('75% is the scale target, with warning beginning at 60%', () => {
-    expect(utilizationTone(59.9, 75)).toBe('success');
-    expect(utilizationTone(60, 75)).toBe('warning');
-    expect(utilizationTone(75, 75)).toBe('danger');
+    expect(utilizationPct(rate, 16_000)).toBeCloseTo(43.75);
   });
 });
 

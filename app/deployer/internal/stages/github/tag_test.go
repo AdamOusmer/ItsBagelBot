@@ -4,8 +4,9 @@
 package github
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
@@ -57,9 +58,7 @@ func TestTagStage(t *testing.T) {
 			}
 			done, err := f.runStage(t, deploy.StageTag)
 			res := tagResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, TagAt: f.sink.View().Outputs.TagSHA}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
-			}
+			assert.Equal(t, tc.want, res)
 		})
 	}
 }
@@ -73,13 +72,8 @@ type releaseResult struct {
 }
 
 func TestReleaseStage(t *testing.T) {
-	entry := validEntry()
-	entry.Highlights["en"] = []string{"First.", "Second <b> & more."}
-	entry.Date = "2026-09-23"
-	body, err := newChangelogFile(testConfig(), "v0.2.3-beta", entry).render()
-	if err != nil {
-		t.Fatal(err)
-	}
+	const body = `{"tag":"beta","version":"v0.2.3-beta","date":"2026-09-23","title":{"en":"Deploys page"},
+		"highlights":{"en":["First.","Second <b> & more."]},"github":"https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.3-beta"}`
 	const url = "https://github.test/releases/tag/v0.2.3-beta"
 	cases := []struct {
 		name     string
@@ -100,15 +94,13 @@ func TestReleaseStage(t *testing.T) {
 			run := newRun(deploy.KindHotfix)
 			run.Version, run.Outputs.TagSHA = "v0.2.3-beta", "c1"
 			f := newFixture(t, run)
-			f.gh.commitMain("c1", ports.Files{changelogFilePath: body})
+			f.gh.commitMain("c1", ports.Files{changelogFilePath: []byte(body)})
 			if tc.existing != nil {
 				f.gh.releases["v0.2.3-beta"] = *tc.existing
 			}
 			done, err := f.runStage(t, deploy.StageRelease)
 			res := releaseResult{Done: done, Code: outcome(t, err), Calls: f.gh.calls, Notes: f.gh.notes["v0.2.3-beta"], URL: f.sink.View().Outputs.ReleaseURL}
-			if !reflect.DeepEqual(res, tc.want) {
-				t.Errorf("result = %+v, want %+v", res, tc.want)
-			}
+			assert.Equal(t, tc.want, res)
 		})
 	}
 }

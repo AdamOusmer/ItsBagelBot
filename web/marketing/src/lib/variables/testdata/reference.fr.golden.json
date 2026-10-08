@@ -45,14 +45,14 @@
     "token": "{random.chatter}",
     "syntax": "{random.chatter}",
     "example": "{random.chatter}",
-    "output": "maya_live",
+    "output": "SnackPackPanda",
     "syntaxes": [
       "{random.chatter}"
     ],
     "examples": [
       {
         "syntax": "{random.chatter}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       }
     ],
@@ -127,14 +127,14 @@
     "token": "{touser}",
     "syntax": "{touser}",
     "example": "{touser}",
-    "output": "ferret_king",
+    "output": "Lotti",
     "syntaxes": [
       "{touser}"
     ],
     "examples": [
       {
         "syntax": "{touser}",
-        "output": "ferret_king",
+        "output": "Lotti",
         "surfaceId": "custom"
       }
     ],
@@ -172,14 +172,14 @@
     "token": "{user}",
     "syntax": "{user}",
     "example": "{user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{user}"
     ],
     "examples": [
       {
         "syntax": "{user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       }
     ],
@@ -262,14 +262,14 @@
     "token": "{user.login}",
     "syntax": "{user.login}",
     "example": "{user.login}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{user.login}"
     ],
     "examples": [
       {
         "syntax": "{user.login}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       }
     ],
@@ -303,14 +303,14 @@
     "token": "{args}",
     "syntax": "{args}",
     "example": "{args}",
-    "output": "ferret_king good luck",
+    "output": "Lotti good luck",
     "syntaxes": [
       "{args}"
     ],
     "examples": [
       {
         "syntax": "{args}",
-        "output": "ferret_king good luck",
+        "output": "Lotti good luck",
         "surfaceId": "custom"
       }
     ],
@@ -385,7 +385,7 @@
     "token": "{1}",
     "syntax": "{1}",
     "example": "{1}",
-    "output": "ferret_king",
+    "output": "Lotti",
     "syntaxes": [
       "{1}",
       "{2:}",
@@ -395,7 +395,7 @@
     "examples": [
       {
         "syntax": "{1}",
-        "output": "ferret_king",
+        "output": "Lotti",
         "surfaceId": "custom"
       },
       {
@@ -405,7 +405,7 @@
       },
       {
         "syntax": "{:2}",
-        "output": "ferret_king good",
+        "output": "Lotti good",
         "surfaceId": "custom"
       },
       {
@@ -485,14 +485,14 @@
     "token": "{querystring}",
     "syntax": "{querystring}",
     "example": "{querystring}",
-    "output": "ferret_king+good+luck",
+    "output": "Lotti+good+luck",
     "syntaxes": [
       "{querystring}"
     ],
     "examples": [
       {
         "syntax": "{querystring}",
-        "output": "ferret_king+good+luck",
+        "output": "Lotti+good+luck",
         "surfaceId": "custom"
       }
     ],
@@ -544,7 +544,7 @@
         "surfaceId": "custom"
       },
       {
-        "syntax": "{accountage:alex}",
+        "syntax": "{accountage:MikanMeerkat}",
         "output": "4 years, 2 months",
         "surfaceId": "custom"
       },
@@ -581,7 +581,7 @@
     ],
     "name": "Âge du compte",
     "hint": "l’âge de leur compte Twitch (module Âge du compte)",
-    "description": "L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte.",
+    "description": "L’âge de leur compte Twitch. {accountage:MikanMeerkat} interroge quelqu’un d’autre. Nécessite le module Âge du compte.",
     "group": "stream",
     "groups": [
       "stream"
@@ -754,7 +754,7 @@
         "surfaceId": "custom"
       },
       {
-        "syntax": "{followage:alex}",
+        "syntax": "{followage:MikanMeerkat}",
         "output": "3 months",
         "surfaceId": "custom"
       },
@@ -791,7 +791,7 @@
     ],
     "name": "Temps de follow",
     "hint": "depuis combien de temps la personne suit la chaîne (module Followage)",
-    "description": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage.",
+    "description": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:MikanMeerkat} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage.",
     "group": "stream",
     "groups": [
       "stream"
@@ -2443,7 +2443,7 @@
     "token": "{alerts:user}",
     "syntax": "{alerts:user}",
     "example": "{alerts:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{alerts:user}",
       "{alerts:follow:user}",
@@ -2466,17 +2466,17 @@
     "examples": [
       {
         "syntax": "{alerts:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{alerts:follow:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{alerts:sub:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -2511,7 +2511,7 @@
       },
       {
         "syntax": "{alerts:cheer:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -2551,12 +2551,12 @@
       },
       {
         "syntax": "{alerts:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "follow"
       },
       {
         "syntax": "{alerts:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "subscribe"
       },
       {
@@ -2566,7 +2566,7 @@
       },
       {
         "syntax": "{alerts:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "cheer"
       },
       {
@@ -2647,7 +2647,7 @@
     "token": "{channelpoints:user}",
     "syntax": "{channelpoints:user}",
     "example": "{channelpoints:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{channelpoints:user}",
       "{channelpoints:reply:user}",
@@ -2674,12 +2674,12 @@
     "examples": [
       {
         "syntax": "{channelpoints:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{channelpoints:reply:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -2744,7 +2744,7 @@
       },
       {
         "syntax": "{channelpoints:redeem:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -2779,7 +2779,7 @@
       },
       {
         "syntax": "{channelpoints:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "channelpoints"
       },
       {
@@ -3287,12 +3287,12 @@
       },
       {
         "syntax": "{clip:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{clip:reply:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -3312,7 +3312,7 @@
       },
       {
         "syntax": "{clip:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "clip"
       },
       {
@@ -3548,7 +3548,7 @@
     "token": "{duel:user}",
     "syntax": "{duel:user}",
     "example": "{duel:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{duel:user}",
       "{duel:opened:user}",
@@ -3582,12 +3582,12 @@
     "examples": [
       {
         "syntax": "{duel:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:opened:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -3622,7 +3622,7 @@
       },
       {
         "syntax": "{duel:joined:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -3657,17 +3657,17 @@
       },
       {
         "syntax": "{duel:challenge:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:target}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:challenge:target}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
@@ -3692,22 +3692,22 @@
       },
       {
         "syntax": "{duel:winner}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:won:winner}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:loser}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{duel:won:loser}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -4263,7 +4263,7 @@
     "token": "{gamble:user}",
     "syntax": "{gamble:user}",
     "example": "{gamble:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{gamble:user}",
       "{gamble:won:user}",
@@ -4287,12 +4287,12 @@
     "examples": [
       {
         "syntax": "{gamble:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{gamble:won:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -4347,7 +4347,7 @@
       },
       {
         "syntax": "{gamble:lost:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -4410,7 +4410,7 @@
     "token": "{govee:user}",
     "syntax": "{govee:user}",
     "example": "{govee:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{govee:user}",
       "{govee:reply:user}",
@@ -4424,12 +4424,12 @@
     "examples": [
       {
         "syntax": "{govee:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{govee:reply:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -4454,7 +4454,7 @@
       },
       {
         "syntax": "{govee:redeem:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -4557,12 +4557,12 @@
       },
       {
         "syntax": "{loyalty:user}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{loyalty:balance:user}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
@@ -5637,7 +5637,7 @@
     "token": "{personality:user}",
     "syntax": "{personality:user}",
     "example": "{personality:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{personality:user}",
       "{personality:reply:user}"
@@ -5645,12 +5645,12 @@
     "examples": [
       {
         "syntax": "{personality:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{personality:reply:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       }
     ],
@@ -5688,7 +5688,7 @@
     "token": "{queue:user}",
     "syntax": "{queue:user}",
     "example": "{queue:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{queue:user}",
       "{queue:join:user}",
@@ -5715,12 +5715,12 @@
     "examples": [
       {
         "syntax": "{queue:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{queue:join:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -5745,7 +5745,7 @@
       },
       {
         "syntax": "{queue:already:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -5755,17 +5755,17 @@
       },
       {
         "syntax": "{queue:leave:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{queue:target}",
-        "output": "ferret_king",
+        "output": "Lotti",
         "surfaceId": "custom"
       },
       {
         "syntax": "{queue:next:target}",
-        "output": "ferret_king",
+        "output": "Lotti",
         "surfaceId": "custom"
       },
       {
@@ -5780,7 +5780,7 @@
       },
       {
         "syntax": "{queue:next:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -5800,12 +5800,12 @@
       },
       {
         "syntax": "{queue:entries}",
-        "output": "maya_live, alex",
+        "output": "SnackPackPanda, MikanMeerkat",
         "surfaceId": "custom"
       },
       {
         "syntax": "{queue:status:entries}",
-        "output": "maya_live, alex",
+        "output": "SnackPackPanda, MikanMeerkat",
         "surfaceId": "custom"
       },
       {
@@ -5820,7 +5820,7 @@
       },
       {
         "syntax": "{queue:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "queue-join"
       },
       {
@@ -5835,7 +5835,7 @@
       },
       {
         "syntax": "{queue:target}",
-        "output": "ferret_king",
+        "output": "Lotti",
         "surfaceId": "queue-next"
       },
       {
@@ -5845,7 +5845,7 @@
       },
       {
         "syntax": "{queue:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "queue-next"
       },
       {
@@ -6047,12 +6047,12 @@
       },
       {
         "syntax": "{raffle:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:joined:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -6067,7 +6067,7 @@
       },
       {
         "syntax": "{raffle:already:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -6077,7 +6077,7 @@
       },
       {
         "syntax": "{raffle:noraffle:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -6092,12 +6092,12 @@
       },
       {
         "syntax": "{raffle:targets}",
-        "output": "@maya_live, @crustycrumbs",
+        "output": "@SnackPackPanda, @crustycrumbs",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:won:targets}",
-        "output": "@maya_live, @crustycrumbs",
+        "output": "@SnackPackPanda, @crustycrumbs",
         "surfaceId": "custom"
       },
       {
@@ -6122,7 +6122,7 @@
       },
       {
         "syntax": "{raffle:claimok:user}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       }
     ],
@@ -6257,7 +6257,7 @@
     "token": "{songqueue:user}",
     "syntax": "{songqueue:user}",
     "example": "{songqueue:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{songqueue:user}",
       "{songqueue:redeem:user}",
@@ -6281,12 +6281,12 @@
     "examples": [
       {
         "syntax": "{songqueue:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{songqueue:redeem:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -6361,12 +6361,12 @@
       },
       {
         "syntax": "{songqueue:req}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       },
       {
         "syntax": "{songqueue:current:req}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "custom"
       }
     ],
@@ -6554,7 +6554,7 @@
     "token": "{triggers:user}",
     "syntax": "{triggers:user}",
     "example": "{triggers:user}",
-    "output": "sesame_sam",
+    "output": "PrincessBarney",
     "syntaxes": [
       "{triggers:user}",
       "{triggers:response:user}",
@@ -6564,12 +6564,12 @@
     "examples": [
       {
         "syntax": "{triggers:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
         "syntax": "{triggers:response:user}",
-        "output": "sesame_sam",
+        "output": "PrincessBarney",
         "surfaceId": "custom"
       },
       {
@@ -6584,7 +6584,7 @@
       },
       {
         "syntax": "{triggers:user}",
-        "output": "maya_live",
+        "output": "SnackPackPanda",
         "surfaceId": "triggers"
       },
       {
@@ -7513,14 +7513,14 @@
         "surfaceId": "custom"
       },
       {
-        "syntax": "{points:alex}",
+        "syntax": "{points:MikanMeerkat}",
         "output": "1280",
         "surfaceId": "custom"
       }
     ],
     "name": "Solde de points",
     "hint": "son solde de points, ou {points:login} pour quelqu’un d’autre (Fidélité)",
-    "description": "Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité.",
+    "description": "Ce que le spectateur a gagné. {points:MikanMeerkat} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité.",
     "group": "data",
     "groups": [
       "data"
@@ -7885,14 +7885,14 @@
         "surfaceId": "custom"
       },
       {
-        "syntax": "{watchtime:alex}",
+        "syntax": "{watchtime:MikanMeerkat}",
         "output": "2 hours, 30 minutes",
         "surfaceId": "custom"
       }
     ],
     "name": "Temps de visionnage",
     "hint": "son temps de visionnage, formulé comme !uptime (Fidélité)",
-    "description": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.",
+    "description": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:MikanMeerkat} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.",
     "group": "data",
     "groups": [
       "data"

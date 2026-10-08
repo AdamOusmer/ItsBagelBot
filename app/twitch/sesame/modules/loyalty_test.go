@@ -6,6 +6,8 @@ package modules
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 
 	"github.com/stretchr/testify/assert"
@@ -21,281 +24,230 @@ import (
 	"go.uber.org/zap"
 )
 
-type earnCall struct {
-	broadcasterID, viewerID uint64
-	login, name             string
-	points                  int64
-	watchSeconds            uint64
+type chatter struct {
+	id     string
+	badges []lane.Badge
 }
 
-type bumpCall struct {
-	broadcasterID uint64
-	name          string
-	viewerID      uint64
-	command       string
-	delta         int64
-}
+var (
+	viewer    = chatter{id: "7"}
+	streamer  = chatter{id: "2"}
+	moderator = chatter{id: "9", badges: []lane.Badge{{SetID: "moderator"}}}
+)
 
-type adjustCall struct {
-	viewerID uint64
-	login    string
-	value    int64
-	absolute bool
-}
-
-type spendCall struct {
-	login  string
-	amount int64
-}
-
-type fakeLoyalty struct {
-	earns       []earnCall
-	bumps       []bumpCall
-	adjusts     []adjustCall
-	spends      []spendCall
-	transfers   []transferCall
-	wagers      []engine.PointWager
-	spendBad    bool
-	transferBad bool
-	topViewers  []topViewer
-	balances    map[string]int64
-	bumpVal     int64
-	counters    map[string]loyaltyrpc.Counter
-	deleted     []string
-	setCalls    int
-	setFound    bool
-}
-
-func (f *fakeLoyalty) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
-	f.earns = append(f.earns, earnCall{broadcasterID, viewerID, login, name, points, watchSeconds})
-}
-
-func (f *fakeLoyalty) CounterBump(_ context.Context, b engine.CounterBump) (int64, error) {
-	f.bumps = append(f.bumps, bumpCall{b.BroadcasterID, engine.NormalizeCounterName(b.Name), b.Viewer.ID, b.Command, b.Delta})
-	f.bumpVal += b.Delta
-	return f.bumpVal, nil
-}
-
-func (f *fakeLoyalty) CounterPeek(_ context.Context, target engine.CounterTarget) (loyaltyrpc.Counter, bool, error) {
-	c, ok := f.counters[engine.NormalizeCounterName(target.Name)]
-	return c, ok, nil
-}
-
-func (f *fakeLoyalty) BalanceGet(_ context.Context, _, viewerID uint64) (loyaltyrpc.Balance, error) {
-	return loyaltyrpc.Balance{Points: 1234, WatchSeconds: 7200}, nil
-}
-
-func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	return f.BalanceAdjustViewer(context.Background(), engine.BalanceAdjustment{ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
-}
-
-func (f *fakeLoyalty) BalanceAdjustViewer(_ context.Context, a engine.BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
-	viewerID, viewerLogin, value, absolute := a.ViewerID, a.ViewerLogin, a.Value, a.Absolute
-	f.adjusts = append(f.adjusts, adjustCall{viewerID: viewerID, login: viewerLogin, value: value, absolute: absolute})
-	if viewerLogin == "ghost" {
-		return loyaltyrpc.Balance{}, false, nil
-	}
-	bal := f.standing(viewerLogin)
-	if absolute {
-		bal.Points = value
-	} else {
-		bal.Points += value
-	}
-	f.balances[viewerLogin] = bal.Points
-	return bal, true, nil
-}
-
-func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	f.spends = append(f.spends, spendCall{login: viewerLogin, amount: amount})
-	if viewerLogin == "ghost" {
-		return loyaltyrpc.Balance{}, false, false, nil
-	}
-	bal := f.standing(viewerLogin)
-	if f.spendBad || amount > bal.Points {
-		return bal, true, false, nil
-	}
-	bal.Points -= amount
-	f.balances[viewerLogin] = bal.Points
-	return bal, true, true, nil
-}
-
-type transferCall struct {
-	fromID   uint64
-	targetID uint64
-	login    string
-	amount   int64
-}
-
-func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	f.transfers = append(f.transfers, transferCall{fromViewerID, targetViewerID, targetLogin, amount})
-	if targetLogin == "ghost" {
-		return loyaltyrpc.Balance{}, false, false, nil
-	}
-	bal := f.standing(targetLogin)
-	sender := f.standing("sender")
-	if f.transferBad || amount > sender.Points {
-		return sender, true, false, nil
-	}
-	sender.Points -= amount
-	bal.Points += amount
-	f.balances["sender"] = sender.Points
-	f.balances[targetLogin] = bal.Points
-	return sender, true, true, nil
-}
-
-func (f *fakeLoyalty) Top(_ context.Context, _ uint64, limit int) ([]loyaltyrpc.Balance, error) {
-	rows := make([]loyaltyrpc.Balance, 0, len(f.topViewers))
-	for _, v := range f.topViewers {
-		if len(rows) >= limit {
-			break
-		}
-		rows = append(rows, loyaltyrpc.Balance{ViewerID: v.id, ViewerName: v.name, ViewerLogin: v.login, Points: v.points})
-	}
-	return rows, nil
-}
-
-type topViewer struct {
-	id, login, name string
-	points          int64
-}
-
-func (f *fakeLoyalty) standing(login string) loyaltyrpc.Balance {
-	if f.balances == nil {
-		f.balances = map[string]int64{}
-	}
-	points, seen := f.balances[login]
-	if !seen {
-		points = 1234
-		f.balances[login] = points
-	}
-	return loyaltyrpc.Balance{ViewerID: "9", ViewerLogin: login, Points: points}
-}
-
-func (f *fakeLoyalty) CounterCreate(_ context.Context, _ uint64, name, scope string) (loyaltyrpc.Counter, error) {
-	return loyaltyrpc.Counter{Name: engine.NormalizeCounterName(name), Scope: scope}, nil
-}
-
-func (f *fakeLoyalty) CounterSet(context.Context, uint64, string, uint64, string, int64) (bool, error) {
-	f.setCalls++
-	return f.setFound, nil
-}
-
-func (f *fakeLoyalty) CounterDelete(_ context.Context, _ uint64, name string) error {
-	f.deleted = append(f.deleted, engine.NormalizeCounterName(name))
-	return nil
-}
-
-func (f *fakeLoyalty) CounterList(context.Context, uint64) ([]loyaltyrpc.Counter, error) {
-	out := make([]loyaltyrpc.Counter, 0, len(f.counters))
-	for _, c := range f.counters {
-		out = append(out, c)
-	}
-	return out, nil
-}
-
-func loyaltyCtx(eventType, payload, config string) *module.Context {
-	c := &module.Context{
-		Env: lane.Envelope{
-			Type:              eventType,
-			Event:             []byte(payload),
-			BroadcasterUserID: "2",
-			ChatterUserID:     "7",
-			ChatterUserLogin:  "coolviewer",
-		},
-		BroadcasterID: 2,
-		Log:           zap.NewNop(),
-	}
-	if config != "" {
-		c.Config = []byte(config)
-	}
+func loyaltyCtx(in eventInput) *module.Context {
+	c := eventCtx(in)
+	c.Env.BroadcasterUserID = "2"
+	c.Env.ChatterUserID = "7"
+	c.Env.ChatterUserLogin = "coolviewer"
 	return c
 }
 
-func loyaltyModule(t *testing.T, fake *fakeLoyalty) module.Module {
-	t.Helper()
-	m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Log: zap.NewNop()})
-	assert.Equal(t, engine.LoyaltyModuleName, m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	return m
+func loyaltyChat(who chatter, config string) *module.Context {
+	c := loyaltyCtx(eventInput{"channel.chat.message", "", config})
+	c.Env.ChatterUserID = who.id
+	c.Env.Badges = who.badges
+	return c
 }
 
-func loyaltyCommand(t *testing.T, m module.Module, name string) module.Command {
+func loyaltyDeps(fake *fakeLoyalty) engine.Deps {
+	lookup := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}
+	return engine.Deps{Loyalty: fake, TwitchAccounts: lookup, Log: zap.NewNop()}
+}
+
+func runLoyaltyChat(t *testing.T, fake *fakeLoyalty, c *module.Context, text string) []module.Output {
 	t.Helper()
-	for _, cmd := range m.Commands {
-		if cmd.Name == name {
-			return cmd
-		}
-	}
-	t.Fatalf("loyalty must own the %q command", name)
-	return module.Command{}
+	return runChat(t, Loyalty(loyaltyDeps(fake)), c, text)
 }
 
 const loyaltySubJSON = `{"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","tier":"1000"}`
 
-func TestLoyaltySubAwardsDefaultPoints(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	var col collector
-	require.NoError(t, m.Events["channel.subscribe"](context.Background(), loyaltyCtx("channel.subscribe", loyaltySubJSON, ""), col.emit))
-	require.Len(t, fake.earns, 1)
-	assert.Equal(t, earnCall{2, 7, "coolviewer", "CoolViewer", 500, 0}, fake.earns[0])
-	assert.Empty(t, col.out, "accrual must be silent")
+func TestLoyaltyAccrual(t *testing.T) {
+	cases := []struct {
+		name    string
+		event   string
+		payload string
+		config  string
+		points  int64
+	}{
+		{"a sub earns the default points", "channel.subscribe", loyaltySubJSON, "", 500},
+		{"a tier three sub earns the tier multiple", "channel.subscribe", `{"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","tier":"3000"}`, "", 3000},
+		{"a sub earns nothing when the source is disabled", "channel.subscribe", loyaltySubJSON, `{"subPoints":-1}`, 0},
+		{"a gifter earns for every gifted sub", "channel.subscription.gift", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","total":5,"tier":"1000"}`, "", 500},
+		{"an anonymous gifter earns nothing", "channel.subscription.gift", `{"is_anonymous":true,"total":5,"tier":"1000"}`, "", 0},
+		{"bits are pro rated", "channel.cheer", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","bits":250}`, "", 125},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			out := runEvent(t, Loyalty(loyaltyDeps(fake)), loyaltyCtx(eventInput{tc.event, tc.payload, tc.config}))
+			assert.Empty(t, out, "accrual must be silent")
+			var want []earnCall
+			if tc.points > 0 {
+				want = []earnCall{{2, 7, "coolviewer", "CoolViewer", tc.points, 0}}
+			}
+			assert.Equal(t, want, fake.earns)
+		})
+	}
 }
 
-func TestLoyaltySubTierMultiplier(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	tier3 := `{"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","tier":"3000"}`
-	var col collector
-	require.NoError(t, m.Events["channel.subscribe"](context.Background(), loyaltyCtx("channel.subscribe", tier3, ""), col.emit))
-	require.Len(t, fake.earns, 1)
-	assert.Equal(t, int64(3000), fake.earns[0].points)
+func TestLoyaltyEventStreamerPointsPreference(t *testing.T) {
+	for _, event := range []struct {
+		name   string
+		extra  string
+		points int64
+	}{
+		{"channel.subscribe", `,"tier":"1000"`, 500},
+		{"channel.subscription.message", `,"tier":"2000"`, 1000},
+		{"channel.subscription.gift", `,"total":3`, 300},
+		{"channel.cheer", `,"bits":200`, 100},
+	} {
+		for _, tc := range []struct {
+			name   string
+			viewer string
+			config string
+			earns  bool
+		}{
+			{"streamer default", "2", "", true},
+			{"streamer off", "2", `{"streamerPoints":-1}`, false},
+			{"viewer while streamer off", "7", `{"streamerPoints":-1}`, true},
+		} {
+			t.Run(event.name+"/"+tc.name, func(t *testing.T) {
+				fake := &fakeLoyalty{}
+				payload := fmt.Sprintf(`{"user_id":"%s","user_login":"person"%s}`, tc.viewer, event.extra)
+				runEvent(t, Loyalty(loyaltyDeps(fake)), loyaltyCtx(eventInput{event.name, payload, tc.config}))
+				if !tc.earns {
+					require.Empty(t, fake.earns)
+					return
+				}
+				require.Len(t, fake.earns, 1)
+				require.Equal(t, event.points, fake.earns[0].points)
+			})
+		}
+	}
 }
 
-func TestLoyaltySubSourceDisabled(t *testing.T) {
+func TestLoyaltyRejectsMalformedConfig(t *testing.T) {
 	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
+	m := Loyalty(loyaltyDeps(fake))
 	var col collector
-	require.NoError(t, m.Events["channel.subscribe"](context.Background(), loyaltyCtx("channel.subscribe", loyaltySubJSON, `{"subPoints":-1}`), col.emit))
+	c := loyaltyCtx(eventInput{"channel.subscribe", loyaltySubJSON, `{"subPoints":"bad"}`})
+	require.Error(t, m.Events["channel.subscribe"](context.Background(), c, col.emit))
 	assert.Empty(t, fake.earns)
+
+	_, err := runChatErr(t, m, loyaltyChat(viewer, `{"viewerTransfers":"bad"}`), "!points give @receiver 100")
+	require.Error(t, err)
+	assert.Empty(t, fake.transfers)
 }
 
-func TestLoyaltyGiftCreditsGifter(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	gift := `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","total":5,"tier":"1000"}`
-	var col collector
-	require.NoError(t, m.Events["channel.subscription.gift"](context.Background(), loyaltyCtx("channel.subscription.gift", gift, ""), col.emit))
-	require.Len(t, fake.earns, 1)
-	assert.Equal(t, int64(500), fake.earns[0].points)
+type loyaltyClaims map[string]bool
 
-	anon := `{"is_anonymous":true,"total":5,"tier":"1000"}`
-	require.NoError(t, m.Events["channel.subscription.gift"](context.Background(), loyaltyCtx("channel.subscription.gift", anon, ""), col.emit))
-	assert.Len(t, fake.earns, 1, "anonymous gifter earns nothing")
+func (s loyaltyClaims) Seen(_ context.Context, key string, _ time.Duration) (bool, error) {
+	seen := s[key]
+	s[key] = true
+	return seen, nil
 }
 
-func TestLoyaltyCheerProRatesBits(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	cheer := `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","bits":250}`
-	var col collector
-	require.NoError(t, m.Events["channel.cheer"](context.Background(), loyaltyCtx("channel.cheer", cheer, ""), col.emit))
-	require.Len(t, fake.earns, 1)
-	assert.Equal(t, int64(125), fake.earns[0].points)
+func (s loyaltyClaims) Release(_ context.Context, key string) error {
+	delete(s, key)
+	return nil
 }
 
-func TestLoyaltyPointsCommand(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	cmd := loyaltyCommand(t, m, "points")
-	assert.Equal(t, module.RoleEveryone, cmd.Perm)
+func TestLoyaltyAwardsDeduplicateRedelivery(t *testing.T) {
+	for _, tc := range []struct{ event, body string }{
+		{"channel.subscribe", loyaltySubJSON},
+		{"channel.subscription.message", loyaltySubJSON},
+		{"channel.subscription.gift", `{"user_id":"7","total":5}`},
+		{"channel.cheer", `{"user_id":"7","bits":100}`},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			claims := loyaltyClaims{}
+			c := loyaltyCtx(eventInput{tc.event, tc.body, ""})
+			c.Env.EventID = "event-one"
+			var col collector
+			for range 2 {
+				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+				require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
+			}
+			require.Len(t, fake.earns, 1, "a redelivery on another replica must not award again")
 
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", `{"pointsName":"bagels"}`), "", col.emit))
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "1234")
-	assert.Contains(t, col.out[0].Text, "bagels")
-	assert.Contains(t, col.out[0].Text, "2.0")
+			c.Env.EventID = "event-two"
+			m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+			require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
+			require.Len(t, fake.earns, 2, "a distinct event must still earn")
+		})
+	}
+}
+
+func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
+	for _, verb := range []string{"add", "remove", "set", "give"} {
+		t.Run(verb, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			claims := loyaltyClaims{}
+			c := loyaltyChat(streamer, "")
+			c.Env.MsgID = "chat-one"
+			for range 2 {
+				d := loyaltyDeps(fake)
+				d.Dedup = engine.NewEventDedup(claims, "", time.Hour, nil)
+				runChat(t, Loyalty(d), c, "!points "+verb+" @receiver 100")
+			}
+			assert.Equal(t, 1, len(fake.adjusts)+len(fake.transfers))
+		})
+	}
+}
+
+type versionedWatchTicker struct {
+	version   int64
+	armed     bool
+	completed chan bool
+}
+
+func (f *versionedWatchTicker) Arm(context.Context, uint64) {
+	panic("versioned ticker called through legacy Arm")
+}
+
+func (f *versionedWatchTicker) Disarm(context.Context, uint64) {
+	panic("versioned ticker called through legacy Disarm")
+}
+
+func (f *versionedWatchTicker) ArmVersioned(_ context.Context, _ uint64, version int64) {
+	if version >= f.version {
+		f.version = version
+		f.armed = true
+	}
+	f.completed <- f.armed
+}
+
+func (f *versionedWatchTicker) DisarmVersioned(_ context.Context, _ uint64, version int64) {
+	if version >= f.version {
+		f.version = version
+		f.armed = false
+	}
+	f.completed <- f.armed
+}
+
+func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
+	tick := &versionedWatchTicker{completed: make(chan bool, 1)}
+	m := Loyalty(engine.Deps{LoyaltyTick: tick, Log: zap.NewNop()})
+	events := []struct {
+		event, at string
+		wantArmed bool
+	}{
+		{"stream.online", "2026-09-25T20:01:00Z", true},
+		{"stream.offline", "2026-09-25T20:00:00Z", true},
+		{"stream.offline", "2026-09-25T20:02:00Z", false},
+		{"stream.online", "2026-09-25T20:01:00Z", false},
+	}
+	for _, ev := range events {
+		require.NoError(t, m.Events[ev.event](context.Background(), liveCtx(ev.event, ev.at), func(*module.Output) {}))
+		select {
+		case armed := <-tick.completed:
+			require.Equal(t, ev.wantArmed, armed, ev.event+" "+ev.at)
+		case <-time.After(time.Second):
+			t.Fatal("lifecycle task did not finish")
+		}
+	}
 }
 
 type watchtimeLoyalty struct {
@@ -324,15 +276,13 @@ func TestLoyaltyWatchtimeCommand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &watchtimeLoyalty{seconds: tc.seconds, err: tc.err}
-			cmd := loyaltyCommand(t, Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()}), "watchtime")
+			m := Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
+			cmd := findCmd(t, m, "watchtime")
 			assert.Equal(t, module.RoleEveryone, cmd.Perm)
 			assert.Equal(t, 5*time.Second, cmd.Cooldown)
-			c := loyaltyCtx("channel.chat.message", "", "")
+			c := loyaltyChat(viewer, "")
 			c.Locale = tc.locale
-			var col collector
-			require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
-			require.Len(t, col.out, 1)
-			assert.Equal(t, tc.want, col.out[0].Text)
+			assert.Equal(t, []string{tc.want}, texts(runChat(t, m, c, "!watchtime")))
 			assert.Equal(t, uint64(2), fake.broadcasterID)
 			assert.Equal(t, uint64(7), fake.viewerID)
 			assert.Empty(t, fake.earns)
@@ -340,265 +290,242 @@ func TestLoyaltyWatchtimeCommand(t *testing.T) {
 	}
 }
 
-func TestLoyaltyCounterCommand(t *testing.T) {
-	fake := &fakeLoyalty{
-		counters: map[string]loyaltyrpc.Counter{
-			"deaths": {Name: "deaths", Scope: data.CounterScopeChannel, Value: 42},
-		},
-		setFound: true,
+func TestPointsCommand(t *testing.T) {
+	cases := []struct {
+		name      string
+		text      string
+		as        chatter
+		config    string
+		bad       bool
+		contains  []string
+		transfers []transferCall
+		adjusts   []adjustCall
+	}{
+		{name: "shows the balance with the configured currency name", text: "!points", as: viewer, config: `{"pointsName":"bagels"}`,
+			contains: []string{"1234", "bagels", "2.0"}},
+		{name: "give transfers the chatter's own points", text: "!points give @bagelfan 500", as: viewer,
+			transfers: []transferCall{{7, 8, "bagelfan", 500}}, contains: []string{"bagelfan", "500"}},
+		{name: "give is refused while viewer transfers are off", text: "!points give bagelfan 100", as: viewer,
+			config: `{"viewerTransfers":-1}`, contains: []string{"turned off"}},
+		{name: "give stays allowed when viewer transfers are zero", text: "!points give bagelfan 100", as: viewer,
+			config: `{"viewerTransfers":0}`, transfers: []transferCall{{7, 8, "bagelfan", 100}}, contains: []string{"bagelfan"}},
+		{name: "give to yourself is refused", text: "!points give @CoolViewer 10", as: viewer, contains: []string{"yourself"}},
+		{name: "give above the balance reports the standing", text: "!points give bagelfan 999999", as: viewer, bad: true,
+			transfers: []transferCall{{7, 8, "bagelfan", 999999}}, contains: []string{"1234"}},
+		{name: "give to an unknown viewer asks to retry", text: "!points give ghost 10", as: viewer,
+			transfers: []transferCall{{7, 8, "ghost", 10}}, contains: []string{"try again"}},
+		{name: "give with a non numeric amount prints usage", text: "!points give bagelfan nope", as: viewer, contains: []string{"usage"}},
+		{name: "set grants an absolute balance", text: "!points set @CoolViewer 500", as: streamer,
+			adjusts: []adjustCall{{8, "coolviewer", 500, true}}, contains: []string{"500", "coolviewer"}},
+		{name: "add applies a negative delta", text: "!points add coolviewer -100", as: streamer,
+			adjusts: []adjustCall{{8, "coolviewer", -100, false}}, contains: []string{"1134"}},
+		{name: "remove subtracts", text: "!points remove @CoolViewer 100", as: streamer,
+			adjusts: []adjustCall{{8, "coolviewer", -100, false}}, contains: []string{"1134"}},
+		{name: "set on an unknown viewer asks to retry", text: "!points set ghost 10", as: streamer,
+			adjusts: []adjustCall{{8, "ghost", 10, true}}, contains: []string{"try again"}},
+		{name: "a plain viewer never reaches the adjust path", text: "!points set @CoolViewer 500", as: viewer, contains: []string{"1234"}},
+		{name: "mods cannot set points while modSetPoints is off", text: "!points set coolviewer 50", as: moderator,
+			config: `{"modSetPoints":-1}`, contains: []string{"turned off"}},
+		{name: "mods may still add points while modSetPoints is off", text: "!points add coolviewer 50", as: moderator,
+			config: `{"modSetPoints":-1}`, adjusts: []adjustCall{{8, "coolviewer", 50, false}}, contains: []string{"1284"}},
+		{name: "mods cannot add points while modAdjustPoints is off", text: "!points add coolviewer 50", as: moderator,
+			config: `{"modAdjustPoints":-1}`, contains: []string{"turned off"}},
+		{name: "the streamer bypasses the mod toggles", text: "!points set coolviewer 50", as: streamer,
+			config: `{"modSetPoints":-1}`, adjusts: []adjustCall{{8, "coolviewer", 50, true}}, contains: []string{"50"}},
 	}
-	m := loyaltyModule(t, fake)
-	cmd := loyaltyCommand(t, m, "counter")
-	assert.Equal(t, module.RoleModerator, cmd.Perm)
-	run := func(args string) string {
-		var col collector
-		require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), args, col.emit))
-		require.Len(t, col.out, 1)
-		return col.out[0].Text
-	}
-
-	assert.Contains(t, run(""), "Usage")
-	assert.Contains(t, run("deaths"), "42")
-	assert.Contains(t, run("add deaths 3"), "3")
-	require.Len(t, fake.bumps, 1)
-	assert.Equal(t, bumpCall{2, "deaths", 7, "", 3}, fake.bumps[0])
-	assert.Contains(t, run("set deaths 10"), "10")
-	assert.Equal(t, 1, fake.setCalls)
-	assert.Contains(t, strings.ToLower(run("reset deaths")), "reset")
-	assert.Contains(t, strings.ToLower(run("delete deaths")), "deleted")
-	assert.Equal(t, []string{"deaths"}, fake.deleted)
-	assert.Contains(t, run("list"), "deaths")
-	assert.Contains(t, strings.ToLower(run("nosuch")), "not found")
-	assert.Contains(t, run("create wins"), "channel")
-	assert.Contains(t, run("create wins user"), "per user")
-	assert.Contains(t, run("create hugs user+command"), "per user+command")
-}
-
-func TestLoyaltyPointsModAdjust(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	cmd := loyaltyCommand(t, m, "points")
-
-	modCtx := func() *module.Context {
-		c := loyaltyCtx("channel.chat.message", "", "")
-		c.Env.ChatterUserID = "2"
-		return c
-	}
-
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set @CoolViewer 500", col.emit))
-	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: 500, absolute: true}, fake.adjusts[0])
-	require.Len(t, col.out, 1)
-	assert.Contains(t, col.out[0].Text, "500")
-	assert.Contains(t, col.out[0].Text, "coolviewer")
-
-	col = collector{}
-	require.NoError(t, cmd.Run(context.Background(), modCtx(), "add coolviewer -100", col.emit))
-	require.Len(t, fake.adjusts, 2)
-	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
-	assert.Contains(t, col.out[0].Text, "400")
-
-	col = collector{}
-	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set ghost 10", col.emit))
-	assert.Contains(t, strings.ToLower(col.out[0].Text), "try again")
-
-	col = collector{}
-	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "set @CoolViewer 500", col.emit))
-	assert.Len(t, fake.adjusts, 3, "non-mod must not reach the adjust path")
-	assert.Contains(t, col.out[0].Text, "1234")
-}
-
-func TestChannelPointsPointsAward(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := ChannelPoints(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
-	h := m.Events[redemptionAddType]
-	require.NotNil(t, h)
-
-	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} bought {points} points!","points":250}]}`
-	ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","reward":{"id":"r1","title":"Point Pack","cost":100}}`
-	var col collector
-	require.NoError(t, h(context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
-
-	require.Len(t, fake.earns, 1)
-	assert.Equal(t, earnCall{2, 7, "coolviewer", "CoolViewer", 250, 0}, fake.earns[0])
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "CoolViewer bought 250 points!", col.out[0].Text)
-}
-
-func TestChannelPointsLoyaltyLiveOnly(t *testing.T) {
-	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} +1","counter":"deaths","points":50,"liveOnly":true}]}`
-	ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","reward":{"id":"r1","title":"+1 death","cost":100}}`
-
-	offline := &fakeLoyalty{}
-	m := ChannelPoints(engine.Deps{Loyalty: offline, Live: &fakeLive{live: false}, Log: zap.NewNop()})
-	var col collector
-	require.NoError(t, m.Events[redemptionAddType](context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
-	assert.Empty(t, offline.bumps, "offline redeem must not bump the counter")
-	assert.Empty(t, offline.earns, "offline redeem must not award points")
-	require.Len(t, col.out, 1, "chat reply still runs offline")
-
-	online := &fakeLoyalty{}
-	m = ChannelPoints(engine.Deps{Loyalty: online, Live: &fakeLive{live: true}, Log: zap.NewNop()})
-	col = collector{}
-	require.NoError(t, m.Events[redemptionAddType](context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
-	assert.Len(t, online.bumps, 1, "live redeem bumps the counter")
-	assert.Len(t, online.earns, 1, "live redeem awards points")
-}
-
-func TestChannelPointsCounterBinding(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := ChannelPoints(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
-	h := m.Events[redemptionAddType]
-	require.NotNil(t, h)
-
-	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} death #{counter}","counter":"deaths"}]}`
-	ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","reward":{"id":"r1","title":"+1 death","cost":100}}`
-	var col collector
-	require.NoError(t, h(context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
-
-	require.Len(t, fake.bumps, 1)
-	assert.Equal(t, bumpCall{2, "deaths", 7, "+1 death", 1}, fake.bumps[0])
-	require.Len(t, col.out, 1)
-	assert.Equal(t, "CoolViewer death #1", col.out[0].Text)
-}
-
-func TestLoyaltyRejectsMalformedConfig(t *testing.T) {
-	fake := &fakeLoyalty{}
-	m := loyaltyModule(t, fake)
-	var col collector
-	c := loyaltyCtx("channel.subscribe", loyaltySubJSON, `{"subPoints":"bad"}`)
-	require.Error(t, m.Events["channel.subscribe"](context.Background(), c, col.emit))
-	assert.Empty(t, fake.earns)
-	c.Config = []byte(`{"viewerTransfers":"bad"}`)
-	require.Error(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "give @receiver 100", col.emit))
-	assert.Empty(t, fake.transfers)
-}
-
-type loyaltyClaims map[string]bool
-
-func (s loyaltyClaims) Seen(_ context.Context, key string, _ time.Duration) (bool, error) {
-	seen := s[key]
-	s[key] = true
-	return seen, nil
-}
-
-func (s loyaltyClaims) Release(_ context.Context, key string) error {
-	delete(s, key)
-	return nil
-}
-
-func TestLoyaltyAwardsDeduplicateRedelivery(t *testing.T) {
-	for _, tc := range []struct{ event, body string }{
-		{"channel.subscribe", loyaltySubJSON},
-		{"channel.subscription.message", loyaltySubJSON},
-		{"channel.subscription.gift", `{"user_id":"7","total":5}`},
-		{"channel.cheer", `{"user_id":"7","bits":100}`},
-	} {
-		t.Run(tc.event, func(t *testing.T) {
-			fake := &fakeLoyalty{}
-			claims := loyaltyClaims{}
-			c := loyaltyCtx(tc.event, tc.body, "")
-			c.Env.EventID = "event-one"
-			var col collector
-			for range 2 {
-				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
-				require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{transferBad: tc.bad}
+			out := runLoyaltyChat(t, fake, loyaltyChat(tc.as, tc.config), tc.text)
+			require.Len(t, out, 1)
+			for _, want := range tc.contains {
+				assert.Contains(t, strings.ToLower(out[0].Text), want)
 			}
-			require.Len(t, fake.earns, 1, "a redelivery on another replica must not award again")
-			c.Env.EventID = "event-two"
-			m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
-			require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
-			require.Len(t, fake.earns, 2, "a distinct event must still earn")
+			assert.Equal(t, tc.transfers, fake.transfers)
+			assert.Equal(t, tc.adjusts, fake.adjusts)
 		})
 	}
 }
 
-func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
-	for _, verb := range []string{"add", "remove", "set", "give"} {
+func TestPointsGiveRecipientLookup(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		lookup       *fakeAccountAge
+		wantText     string
+		wantTransfer bool
+	}{
+		{"new recipient", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "42"}}, "you gave", true},
+		{"unknown account", &fakeAccountAge{}, "was not found", false},
+		{"lookup failure", &fakeAccountAge{err: errors.New("unavailable")}, "try again", false},
+		{"missing lookup", nil, "try again", false},
+		{"invalid lookup ID", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "0"}}, "try again", false},
+		{"self under another login", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "7"}}, "yourself", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			deps := engine.Deps{Loyalty: fake, Log: zap.NewNop()}
+			if tc.lookup != nil {
+				deps.TwitchAccounts = tc.lookup
+			}
+			out := runChat(t, Loyalty(deps), loyaltyChat(viewer, ""), "!points give @Blemmyz 500")
+			require.Len(t, out, 1)
+			assert.Contains(t, strings.ToLower(out[0].Text), tc.wantText)
+			if tc.wantTransfer {
+				assert.Equal(t, []transferCall{{fromID: 7, targetID: 42, login: "blemmyz", amount: 500}}, fake.transfers)
+			} else {
+				assert.Empty(t, fake.transfers)
+			}
+			if tc.lookup != nil {
+				assert.Equal(t, "blemmyz", tc.lookup.got.targetLogin)
+			}
+		})
+	}
+}
+
+func TestPointsAdjustCreatesResolvedUsers(t *testing.T) {
+	for _, verb := range []string{"set", "add", "remove"} {
 		t.Run(verb, func(t *testing.T) {
 			fake := &fakeLoyalty{}
-			claims := loyaltyClaims{}
-			c := loyaltyCtx("channel.chat.message", "", "")
-			c.Env.ChatterUserID = c.Env.BroadcasterUserID
-			c.Env.MsgID = "chat-one"
-			var col collector
-			for range 2 {
-				m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
-				require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @receiver 100", col.emit))
+			lookup := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "42", UserFound: true}}
+			m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: lookup, Log: zap.NewNop()})
+			runChat(t, m, loyaltyChat(streamer, ""), "!points "+verb+" @Blemmyz 5000")
+			value := int64(5000)
+			if verb == "remove" {
+				value = -value
 			}
-			assert.Equal(t, 1, len(fake.adjusts)+len(fake.transfers))
+			assert.Equal(t, []adjustCall{{viewerID: 42, login: "blemmyz", value: value, absolute: verb == "set"}}, fake.adjusts)
+			assert.Equal(t, "blemmyz", lookup.got.targetLogin)
 		})
 	}
 }
 
-// This fixture applies the same lifecycle ordering contract as the persisted
-// schedule; legacy methods panic so losing the event version cannot go unnoticed.
-type versionedWatchTicker struct {
-	version   int64
-	armed     bool
-	completed chan bool
-}
-
-func (f *versionedWatchTicker) Arm(context.Context, uint64) {
-	panic("versioned ticker called through legacy Arm")
-}
-func (f *versionedWatchTicker) Disarm(context.Context, uint64) {
-	panic("versioned ticker called through legacy Disarm")
-}
-func (f *versionedWatchTicker) ArmVersioned(_ context.Context, _ uint64, version int64) {
-	if version >= f.version {
-		f.version = version
-		f.armed = true
-	}
-	f.completed <- f.armed
-}
-func (f *versionedWatchTicker) DisarmVersioned(_ context.Context, _ uint64, version int64) {
-	if version >= f.version {
-		f.version = version
-		f.armed = false
-	}
-	f.completed <- f.armed
-}
-func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
-	tick := &versionedWatchTicker{completed: make(chan bool, 1)}
-	m := Loyalty(engine.Deps{LoyaltyTick: tick, Log: zap.NewNop()})
-	events := []struct {
-		event, at string
-		wantArmed bool
+func TestPointsSetAcceptsExactBIGINTAmount(t *testing.T) {
+	for _, tc := range []struct {
+		name, amount, want string
+		adjusts            []adjustCall
 	}{
-		{"stream.online", "2026-09-25T20:01:00Z", true},
-		{"stream.offline", "2026-09-25T20:00:00Z", true},
-		{"stream.offline", "2026-09-25T20:02:00Z", false},
-		{"stream.online", "2026-09-25T20:01:00Z", false},
-	}
-	for _, ev := range events {
-		require.NoError(t, m.Events[ev.event](context.Background(), liveCtx(ev.event, ev.at), func(*module.Output) {}))
-		select {
-		case armed := <-tick.completed:
-			require.Equal(t, ev.wantArmed, armed, ev.event+" "+ev.at)
-		case <-time.After(time.Second):
-			t.Fatal("lifecycle task did not finish")
-		}
+		{"largest signed amount", "9223372036854775807", "9223372036854775807", []adjustCall{{8, "blemmyz", math.MaxInt64, true}}},
+		{"one past the largest amount", "9223372036854775808", "usage", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			out := runLoyaltyChat(t, fake, loyaltyChat(streamer, ""), "!points set blemmyz "+tc.amount)
+			require.Len(t, out, 1)
+			assert.Contains(t, strings.ToLower(out[0].Text), tc.want)
+			assert.Equal(t, tc.adjusts, fake.adjusts)
+		})
 	}
 }
 
-func (f *fakeLoyalty) BalanceWager(_ context.Context, wager engine.PointWager) (engine.WagerOutcome, error) {
-	f.wagers = append(f.wagers, wager)
-	if wager.Login == "ghost" {
-		return engine.WagerOutcome{}, nil
+func TestLeaderboard(t *testing.T) {
+	standings := []topViewer{
+		{id: "8", login: "alpha", name: "Alpha", points: 9000},
+		{id: "9", login: "beta", name: "Beta", points: 800},
+		{id: "10", login: "gamma", name: "", points: 7},
 	}
-	bal := f.standing(wager.Login)
-	out := engine.WagerOutcome{Balance: bal, Found: true}
-	if f.spendBad || bal.Points < wager.Amount {
-		return out, nil
+	cases := []struct {
+		name     string
+		text     string
+		top      []topViewer
+		contains []string
+		excludes []string
+	}{
+		{"shows the top standings up to the limit", "!leaderboard 2", standings, []string{"1. alpha 9000", "2. beta 800"}, []string{"gamma"}},
+		{"reports an empty board", "!leaderboard", nil, []string{"no standings"}, nil},
+		{"rejects a limit above the maximum", "!leaderboard 99", standings[:1], []string{"usage"}, nil},
 	}
-	if wager.Won {
-		bal.Points += wager.Amount
-	} else {
-		bal.Points -= wager.Amount
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runLoyaltyChat(t, &fakeLoyalty{topViewers: tc.top}, loyaltyChat(viewer, ""), tc.text)
+			require.Len(t, out, 1)
+			text := strings.ToLower(out[0].Text)
+			for _, want := range tc.contains {
+				assert.Contains(t, text, want)
+			}
+			for _, bad := range tc.excludes {
+				assert.NotContains(t, text, bad)
+			}
+		})
 	}
-	f.balances[wager.Login] = bal.Points
-	out.Balance, out.Applied = bal, true
-	return out, nil
+}
+
+func TestCounterCommand(t *testing.T) {
+	cases := []struct {
+		name     string
+		args     string
+		contains string
+		bumps    []bumpCall
+		sets     int
+		deleted  []string
+	}{
+		{name: "no arguments prints usage", args: "", contains: "usage"},
+		{name: "a bare name shows the value", args: "deaths", contains: "42"},
+		{name: "add bumps by the amount", args: "add deaths 3", contains: "3", bumps: []bumpCall{{2, "deaths", 7, "", 3}}},
+		{name: "set writes the value", args: "set deaths 10", contains: "10", sets: 1},
+		{name: "reset reports the reset", args: "reset deaths", contains: "reset", sets: 1},
+		{name: "delete removes the counter", args: "delete deaths", contains: "deleted", deleted: []string{"deaths"}},
+		{name: "list names the counters", args: "list", contains: "deaths"},
+		{name: "an unknown counter is not found", args: "nosuch", contains: "not found"},
+		{name: "create defaults to the channel scope", args: "create wins", contains: "channel"},
+		{name: "create accepts a per user scope", args: "create wins user", contains: "per user"},
+		{name: "create accepts a per user and command scope", args: "create hugs user+command", contains: "per user+command"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{
+				counters: map[string]loyaltyrpc.Counter{"deaths": {Name: "deaths", Scope: data.CounterScopeChannel, Value: 42}},
+				setFound: true,
+			}
+			out := runLoyaltyChat(t, fake, loyaltyChat(viewer, ""), strings.TrimSpace("!counter "+tc.args))
+			require.Len(t, out, 1)
+			assert.Contains(t, strings.ToLower(out[0].Text), tc.contains)
+			assert.Equal(t, tc.bumps, fake.bumps)
+			assert.Equal(t, tc.sets, fake.setCalls)
+			assert.Equal(t, tc.deleted, fake.deleted)
+		})
+	}
+}
+
+type variableLoyaltyBalance struct {
+	engine.LoyaltyStore
+	balance loyaltyrpc.Balance
+	reads   int
+}
+
+func (s *variableLoyaltyBalance) BalanceGet(context.Context, uint64, uint64) (loyaltyrpc.Balance, error) {
+	s.reads++
+	return s.balance, nil
+}
+
+func TestLoyaltyVariablesMatchNativeRepliesAtBIGINTLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name, locale, wantPoints string
+		points                   int64
+		seconds                  uint64
+	}{
+		{name: "above float precision", locale: "en", points: 9007199254740993, seconds: 7200, wantPoints: "9007199254740993"},
+		{name: "signed BIGINT maximum", locale: "en", points: 1<<63 - 1, seconds: 9000, wantPoints: "9223372036854775807"},
+		{name: "last whole-second duration", locale: "fr", points: 1<<63 - 1, seconds: uint64((1<<63 - 1) / time.Second), wantPoints: "9223372036854775807"},
+		{name: "watch duration overflows", locale: "en", points: 1<<63 - 1, seconds: ^uint64(0), wantPoints: "9223372036854775807"},
+		{name: "zero balance and duration", locale: "fr", wantPoints: "0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &variableLoyaltyBalance{balance: loyaltyrpc.Balance{Points: tc.points, PointsExact: tc.wantPoints, WatchSeconds: tc.seconds}}
+			deps := engine.Deps{Loyalty: store, Log: zap.NewNop()}
+			c := loyaltyChat(viewer, `{"pointsName":"bagels"}`)
+			c.Locale = tc.locale
+
+			values, err := variableGroupReader(t, deps, "loyalty", "balance")(context.Background(), c)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantPoints, values["points"], "points must remain exact decimal BIGINT text")
+			assert.Equal(t, values["duration"], values["watchtime"])
+			assert.Equal(t, "bagels", values["pointsname"])
+
+			m := Loyalty(deps)
+			palette := module.StringPalette(values)
+			assert.Equal(t, texts(runChat(t, m, c, "!points")), []string{palette.ExpandNamespaced("loyalty", i18n.T(c.Locale, "loyalty.points"))})
+			assert.Equal(t, texts(runChat(t, m, c, "!watchtime")), []string{palette.ExpandNamespaced("loyalty", i18n.T(c.Locale, "loyalty.watchtime"))})
+			assert.Equal(t, 3, store.reads, "one balance read per custom/native response")
+		})
+	}
 }

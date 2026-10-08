@@ -52,11 +52,11 @@ func (s *streamInfoRPC) handleGet(ctx context.Context, req projectorrpc.StreamIn
 
 	live := false
 	if id, perr := strconv.ParseUint(req.BroadcasterID, 10, 64); perr == nil {
-		got, _, liveErr := s.store.GetStreamLive(ctx, id)
+		state, liveErr := s.store.GetStreamLive(ctx, id)
 		if liveErr != nil {
 			log.Warn("stream info rpc: live read failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(liveErr))
 		}
-		live = got
+		live = state.Live
 	}
 
 	return projectorrpc.StreamInfoReply{

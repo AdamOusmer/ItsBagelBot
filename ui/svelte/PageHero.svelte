@@ -27,8 +27,7 @@
     class="bb-page-hero__glow"
     aria-hidden="true"
   ></div><div class="bb-page-hero__inner"
-  >{#if eyebrow}<span class="bb-page-hero__eyebrow">{eyebrow}</span>{/if}<h1
-      class="bb-page-hero__title"
-      data-decode={title}>{title}</h1
-    >{#if description}<p class="bb-page-hero__desc">{description}</p>{/if}</div
+  >{#if eyebrow}<span class="bb-page-hero__eyebrow"><span data-fit="">{eyebrow}</span></span>{/if}<h1
+      class="bb-page-hero__title"><span data-fit="block" data-decode={title}>{title}</span></h1
+    >{#if description}<p class="bb-page-hero__desc"><span data-fit="block">{description}</span></p>{/if}</div
   ></header>

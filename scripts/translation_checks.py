@@ -28,6 +28,7 @@ class CheckConfig:
     strict: tuple = ()
     show_missing: bool = False
     coverage: object = None
+    strict_catalogs: tuple = ()
 
 
 @dataclass
@@ -356,7 +357,7 @@ def check(config):
     except ValueError as exc:
         print(f'ERROR {exc}')
         return 1
-    errors = _unknown_strict_errors(config.strict, codes)
+    errors = _unknown_strict_errors(sorted(set(config.strict) | set(config.strict_catalogs)), codes)
     errors.extend(layout_errors(config.root, codes, surfaces))
     for surface in surfaces:
         errors.extend(_surface_checks(config, codes, surface))
@@ -392,7 +393,7 @@ def _locale_checks(config, english, code, surface):
     if config.show_missing:
         _print_missing(target, missing)
     errors = target.errors + result.errors
-    if code in config.strict:
+    if code in config.strict or code in config.strict_catalogs:
         errors.extend(f'{target.path(relative)}: {len(keys)} missing (complete locale required)'
                       for relative, keys in missing.items())
     return errors

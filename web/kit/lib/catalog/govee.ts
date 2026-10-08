@@ -23,7 +23,7 @@ export const GOVEE_MODULE: ModuleDef =
       defaultMessage: '@{user} set the lights to {color}!',
       tokens: replyTokens(
         ['user', 'input', 'color'],
-        { user: 'sesame_sam', input: 'blue', color: 'Blue' },
+        { user: 'PrincessBarney', input: 'blue', color: 'Blue' },
         'govee.reply'
       )
     }

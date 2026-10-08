@@ -14,8 +14,8 @@ import {
   parseFossabot
 } from './fossabot';
 import { translateVariables } from './fossabot/variables';
-import { CODE, isValidFetchDefName, validateManifest } from './validate';
-import type { ImportDiagnostic } from './types';
+import { CODE, validateManifest } from './validate';
+import type { ImportDiagnostic, ManifestCommand } from './types';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -45,22 +45,17 @@ const feed = (commands: Record<string, unknown>[]): Uint8Array =>
   bytes({ channel: { id: '30602', login: 'myth' }, roles: ROLES, commands });
 
 describe('detectFossabot', () => {
-  test('accepts the stapled fetch envelope', () => {
-    expect(detectFossabot(feed([command()]))).toBe(true);
-  });
+  const text = (value: string) => new TextEncoder().encode(value);
 
-  test('accepts a bare array of rows and a lone commands key', () => {
-    expect(detectFossabot(bytes([command()]))).toBe(true);
-    expect(detectFossabot(bytes({ commands: [command()] }))).toBe(true);
-  });
-
-  test('rejects a Nightbot envelope wearing the same key', () => {
-    expect(detectFossabot(bytes({ commands: [{ name: '!hello', message: 'hi' }] }))).toBe(false);
-  });
-
-  test('rejects junk', () => {
-    expect(detectFossabot(new TextEncoder().encode('not json'))).toBe(false);
-    expect(detectFossabot(bytes({ hello: 'world' }))).toBe(false);
+  test.each([
+    ['accepts the stapled fetch envelope', feed([command()]), true],
+    ['accepts a bare array of rows', bytes([command()]), true],
+    ['accepts a lone commands key', bytes({ commands: [command()] }), true],
+    ['rejects a Nightbot envelope wearing the same key', bytes({ commands: [{ name: '!hello', message: 'hi' }] }), false],
+    ['rejects text that is not JSON', text('not json'), false],
+    ['rejects an object with nothing recognizable', bytes({ hello: 'world' }), false]
+  ] as [string, Uint8Array, boolean][])('%s', (_name, doc, want) => {
+    expect(detectFossabot(doc)).toBe(want);
   });
 
   test('a feed with nothing recognizable throws from the parser', () => {
@@ -88,100 +83,6 @@ describe('commands', () => {
       aliases: ['hi']
     });
     expect(diagnostics).toEqual([]);
-  });
-
-  test('the user subfields map onto the identity tokens', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(user.id) / $(user.login) / $(user)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{user.id} / {user.login} / {user}']);
-    expect(codesOf(diagnostics)).toEqual([]);
-  });
-
-  test('word numbers map onto the positional tokens', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(1) hugs $(2)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{1} hugs {2}']);
-    expect(codesOf(diagnostics)).toEqual([]);
-  });
-
-  test('$(sender) and $(user) both mean the caller', () => {
-    const { manifest } = parseFossabot(feed([command({ response: '$(sender) / $(user)' })]));
-    expect(manifest.commands?.[0].responses).toEqual(['{user} / {user}']);
-  });
-
-  test('unmappable variables stay literal and are reported once each', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual([
-      '$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)'
-    ]);
-    expect(codesOf(diagnostics)).toEqual([
-      CODE.variableUnmapped,
-      CODE.variableUnmapped,
-      CODE.variableUnmapped
-    ]);
-  });
-
-  test('the bare channel facts map, and only those', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: 'live $(uptime) with $(title) - $(game) $(stream.title)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual([
-      'live {uptime} with {title} - {game} $(stream.title)'
-    ]);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
-  });
-
-  test('phase 6: followage/accountage/time/user.followers/chatters map', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([
-        command({
-          response:
-            'here $(followage) $(accountage) $(time) $(user.followers) $(chatters.count) $(chatters.random)'
-        })
-      ])
-    );
-    expect(manifest.commands?.[0].responses).toEqual([
-      'here {followage} {accountage} {time} {followers} {chatters} {random.viewer}'
-    ]);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('phase 6: count.get, randint, math, repeat map; count.increment stays literal', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([
-        command({
-          response:
-            '$(count.get deaths) $(randint 1 100) $(math 2+2) $(repeat 3 go) $(count.increment deaths)'
-        })
-      ])
-    );
-    expect(manifest.commands?.[0].responses).toEqual([
-      '{counter:deaths} {random:1-100} {math:2+2} {repeat:3:go} $(count.increment deaths)'
-    ]);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
-  });
-
-  test('phase 6: randint orders reversed bounds and keeps negative ones', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(randint 100 1) $(randint -5 -1)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{random:1-100} {random:-5--1}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('phase 6: countdown maps a parseable date, warns on an unparseable one', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: 'left: $(countdown 2026-12-25)' }), command({ response: 'left: $(countdown whenever)' })])
-    );
-    expect(manifest.commands?.map((c) => c.responses)).toEqual([
-      ['left: {countdown:2026-12-25}'],
-      ['left: $(countdown whenever)']
-    ]);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
   });
 
   test('a chat-action prefix is dropped and the text kept', () => {
@@ -255,40 +156,78 @@ describe('commands', () => {
   });
 });
 
+interface ResponseCase {
+  name: string;
+  responses: string[];
+  want: string[][];
+  codes: string[];
+}
+
+const UNMAPPED = CODE.variableUnmapped;
+
+const RESPONSE_CASES: ResponseCase[] = [
+  { name: 'the user subfields map onto the identity tokens', responses: ['$(user.id) / $(user.login) / $(user)'], want: [['{user.id} / {user.login} / {user}']], codes: [] },
+  { name: 'word numbers map onto the positional tokens', responses: ['$(1) hugs $(2)'], want: [['{1} hugs {2}']], codes: [] },
+  { name: '$(sender) and $(user) both mean the caller', responses: ['$(sender) / $(user)'], want: [['{user} / {user}']], codes: [] },
+  {
+    name: 'unmappable variables stay literal and are reported once each',
+    responses: ['$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)'],
+    want: [['$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)']],
+    codes: [UNMAPPED, UNMAPPED, UNMAPPED]
+  },
+  { name: 'the bare channel facts map, and only those', responses: ['live $(uptime) with $(title) - $(game) $(stream.title)'], want: [['live {uptime} with {title} - {game} $(stream.title)']], codes: [UNMAPPED] },
+  {
+    name: 'phase 6: followage/accountage/time/user.followers/chatters map',
+    responses: ['here $(followage) $(accountage) $(time) $(user.followers) $(chatters.count) $(chatters.random)'],
+    want: [['here {followage} {accountage} {time} {followers} {chatters} {random.viewer}']],
+    codes: []
+  },
+  {
+    name: 'phase 6: count.get, randint, math, repeat map; count.increment stays literal',
+    responses: ['$(count.get deaths) $(randint 1 100) $(math 2+2) $(repeat 3 go) $(count.increment deaths)'],
+    want: [['{counter:deaths} {random:1-100} {math:2+2} {repeat:3:go} $(count.increment deaths)']],
+    codes: [UNMAPPED]
+  },
+  { name: 'phase 6: randint orders reversed bounds and keeps negative ones', responses: ['$(randint 100 1) $(randint -5 -1)'], want: [['{random:1-100} {random:-5--1}']], codes: [] },
+  {
+    name: 'phase 6: countdown maps a parseable date, warns on an unparseable one',
+    responses: ['left: $(countdown 2026-12-25)', 'left: $(countdown whenever)'],
+    want: [['left: {countdown:2026-12-25}'], ['left: $(countdown whenever)']],
+    codes: [UNMAPPED]
+  },
+  { name: 'phase 6: $(index2) maps to the plain positional word', responses: ['you said $(index2)'], want: [['you said {2}']], codes: [] },
+  { name: 'phase 6: $(index2 everyone) carries the fallback', responses: ['hi $(index2 everyone)'], want: [['hi {2|everyone}']], codes: [] },
+  { name: 'phase 6: $(fromindex2) maps to the rest-from-word-2 slice', responses: ['rest: $(fromindex2)'], want: [['rest: {2:}']], codes: [] },
+  { name: 'phase 6: $(fromindex2 nothing) carries the fallback', responses: ['rest: $(fromindex2 nothing)'], want: [['rest: {2:|nothing}']], codes: [] },
+  { name: 'phase 6: index30 is in range, index31 is past the positional cap and stays literal', responses: ['$(index30) $(index31)'], want: [['{30} $(index31)']], codes: [UNMAPPED] }
+];
+
+describe('response variables', () => {
+  test.each(RESPONSE_CASES)('$name', ({ responses, want, codes }) => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed(responses.map((response, i) => command({ name: `c${i}`, response })))
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual(want);
+    expect(codesOf(diagnostics)).toEqual(codes);
+  });
+});
+
 describe('permissions', () => {
-  test('an empty role list is everyone', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ role_ids: [] })]));
-    expect(manifest.commands?.[0].permission).toBe('everyone');
-    expect(diagnostics).toEqual([]);
+  test.each([
+    ['an empty role list is everyone', [], 'everyone', []],
+    ['several roles resolve to the most permissive mapped tier', ['242753', '242749'], 'mod', []],
+    ['an unrecognized role is named and the mapped ones still decide', ['242755', '242753'], 'broadcaster', [CODE.permissionUnmapped]],
+    ['a role nothing maps lands on everyone with the same warn', ['242755'], 'everyone', [CODE.permissionUnmapped]],
+    ['a role id absent from the roles table warns instead of widening silently', ['404404'], 'everyone', [CODE.permissionUnmapped]]
+  ] as [string, string[], ManifestCommand['permission'], string[]][])('%s', (_name, role_ids, permission, codes) => {
+    const { manifest, diagnostics } = parseFossabot(feed([command({ role_ids })]));
+    expect(manifest.commands?.[0].permission).toBe(permission);
+    expect(codesOf(diagnostics)).toEqual(codes);
   });
 
-  test('several roles resolve to the most permissive mapped tier', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ role_ids: ['242753', '242749'] })])
-    );
-    expect(manifest.commands?.[0].permission).toBe('mod');
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('an unrecognized role is named and the mapped ones still decide', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ role_ids: ['242755', '242753'] })])
-    );
-    expect(manifest.commands?.[0].permission).toBe('broadcaster');
-    expect(codesOf(diagnostics)).toEqual([CODE.permissionUnmapped]);
+  test('an unrecognized role is named in the warning', () => {
+    const { manifest } = parseFossabot(feed([command({ role_ids: ['242755', '242753'] })]));
     expect(manifest.commands?.[0].warnings?.[0]).toContain('[Imported] Channel Editor');
-  });
-
-  test('a role nothing maps lands on everyone with the same warn', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ role_ids: ['242755'] })]));
-    expect(manifest.commands?.[0].permission).toBe('everyone');
-    expect(codesOf(diagnostics)).toEqual([CODE.permissionUnmapped]);
-  });
-
-  test('a role id absent from the roles table warns instead of widening silently', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ role_ids: ['404404'] })]));
-    expect(manifest.commands?.[0].permission).toBe('everyone');
-    expect(codesOf(diagnostics)).toEqual([CODE.permissionUnmapped]);
   });
 });
 
@@ -417,7 +356,6 @@ describe('urlfetch synthesis', () => {
     expect(manifest.fetches).toEqual([
       { name: 'fossabot_weather', url: 'https://api.example.com/w', source: 'fossabot' }
     ]);
-    for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created']);
   });
@@ -558,39 +496,5 @@ describe('fetch flow', () => {
         expect(err.message).toContain('body exceeds');
       }
     );
-  });
-});
-
-describe('phase 6: $(indexN)/$(fromindexN), the coordinator-verified grammar', () => {
-  test('$(index2) maps to the plain positional word', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'you said $(index2)' })]));
-    expect(manifest.commands?.[0].responses).toEqual(['you said {2}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(index2 everyone) carries the fallback', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'hi $(index2 everyone)' })]));
-    expect(manifest.commands?.[0].responses).toEqual(['hi {2|everyone}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(fromindex2) maps to the rest-from-word-2 slice', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'rest: $(fromindex2)' })]));
-    expect(manifest.commands?.[0].responses).toEqual(['rest: {2:}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('$(fromindex2 nothing) carries the fallback', () => {
-    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'rest: $(fromindex2 nothing)' })]));
-    expect(manifest.commands?.[0].responses).toEqual(['rest: {2:|nothing}']);
-    expect(diagnostics).toEqual([]);
-  });
-
-  test('index30 is in range, index31 is past the positional cap and stays literal', () => {
-    const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(index30) $(index31)' })])
-    );
-    expect(manifest.commands?.[0].responses).toEqual(['{30} $(index31)']);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
   });
 });

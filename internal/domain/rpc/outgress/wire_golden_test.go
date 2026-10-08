@@ -71,3 +71,13 @@ func TestWireGolden(t *testing.T) {
 			"if the wire change was intended, rerun with -outgress.write-golden and update discord-store.ts.", wireGoldenPath)
 	}
 }
+
+func TestUnbindReplyWireShape(t *testing.T) {
+	raw, err := codec.Marshal(DiscordUnbindReply{Code: CodeTimeout})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(raw); got != `{"code":"timeout"}` {
+		t.Fatalf("wire = %s", got)
+	}
+}

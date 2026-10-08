@@ -4,13 +4,15 @@
 package bus
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -20,39 +22,18 @@ type testExpectedNack struct{}
 func (testExpectedNack) Error() string      { return "expected" }
 func (testExpectedNack) ExpectedNack() bool { return true }
 
-func TestIsExpectedNack(t *testing.T) {
-	if !isExpectedNack(fmt.Errorf("wrapped: %w", testExpectedNack{})) {
-		t.Fatal("wrapped expected nack was not recognized")
-	}
-	if isExpectedNack(errors.New("failure")) {
-		t.Fatal("ordinary error was classified as expected")
-	}
-}
-
 type testRetryAfter struct{ delay time.Duration }
 
 func (testRetryAfter) Error() string               { return "lease held" }
 func (e testRetryAfter) RetryAfter() time.Duration { return e.delay }
 
-func TestConsumeLaneCarriesTheRequestedRetryDelayToTheNack(t *testing.T) {
-	lane := testLane(newLocalApplication(t, nil), 1000, zap.NewNop(), func(msg *Message) error {
-		if msg.UUID == "leased" {
-			return fmt.Errorf("wrapped: %w", testRetryAfter{45 * time.Second})
-		}
-		return errors.New("boom")
-	})
-	want := map[string]time.Duration{"leased": 45 * time.Second, "failed": 0}
-	for id, delay := range want {
-		msg := NewMessage(id, nil)
-		var got time.Duration
-		nacked := false
-		msg.setResolveHandler(func(acked bool) { nacked, got = !acked, msg.requestedRetryDelay() })
-		lane.process(msg)
-		if !nacked || got != delay {
-			t.Fatalf("%s: nacked=%v delay=%v, want nack after %v", id, nacked, got, delay)
-		}
-	}
+type feedSubscriber struct{ messages chan *Message }
+
+func (s *feedSubscriber) Subscribe(context.Context, string) (<-chan *Message, error) {
+	return s.messages, nil
 }
+
+func (s *feedSubscriber) Close() error { return nil }
 
 func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle func(*Message) error) consumeLane {
 	return consumeLane{
@@ -65,194 +46,73 @@ func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle fu
 	}
 }
 
-func handlerSawTransaction(seen *[]bool, err error) func(*Message) error {
-	return func(msg *Message) error {
-		*seen = append(*seen, newrelic.FromContext(msg.Context()) != nil)
-		return err
-	}
+func TestIsExpectedNack(t *testing.T) {
+	assert.True(t, isExpectedNack(fmt.Errorf("wrapped: %w", testExpectedNack{})), "a wrapped expected nack is recognized")
+	assert.False(t, isExpectedNack(errors.New("failure")), "an ordinary error is not expected")
 }
 
-func TestConsumeLaneSamplesOneMessageInN(t *testing.T) {
-	app := newLocalApplication(t, nil)
-
-	var seen []bool
-	lane := testLane(app, 3, zap.NewNop(), handlerSawTransaction(&seen, nil))
-
-	for i := 0; i < 6; i++ {
-		lane.process(NewMessage("id", nil))
-	}
-
-	want := []bool{true, false, false, true, false, false}
-	for i, expected := range want {
-		if seen[i] != expected {
-			t.Fatalf("delivery %d transaction = %v, want %v (all=%v)", i+1, seen[i], expected, seen)
+func TestConsumeLaneCarriesTheRequestedRetryDelayToTheNack(t *testing.T) {
+	lane := testLane(newLocalApplication(t), 1000, zap.NewNop(), func(msg *Message) error {
+		if msg.UUID == "leased" {
+			return fmt.Errorf("wrapped: %w", testRetryAfter{45 * time.Second})
 		}
-	}
-	if got := lane.stats.ok.Load(); got != 6 {
-		t.Fatalf("counted %d ok deliveries, want 6 — unsampled messages must still be measured", got)
-	}
-}
-
-func TestConsumeLaneAtRateOneInstrumentsEveryMessage(t *testing.T) {
-	app := newLocalApplication(t, nil)
-
-	var seen []bool
-	lane := testLane(app, 1, zap.NewNop(), handlerSawTransaction(&seen, nil))
-
-	messages := make([]*Message, 4)
-	for i := range messages {
-		messages[i] = NewMessage("id", nil)
-		lane.process(messages[i])
-	}
-
-	if consumeNRSampleRate != 100 {
-		t.Fatalf("shipped sample rate = %d, want 100", consumeNRSampleRate)
-	}
-	for i, sampled := range seen {
-		if !sampled {
-			t.Fatalf("delivery %d had no transaction at sample rate 1 (all=%v)", i+1, seen)
-		}
-	}
-	for i, msg := range messages {
-		select {
-		case <-msg.Acked():
-		default:
-			t.Fatalf("delivery %d was not acked", i+1)
-		}
-	}
-}
-
-func TestConsumeLaneInstrumentsUnsampledFailures(t *testing.T) {
-	app := newLocalApplication(t, nil)
-	core, logs := observer.New(zap.DebugLevel)
-
-	lane := testLane(app, 1000, zap.New(core), func(msg *Message) error {
-		if msg.UUID == "boom" {
-			return errors.New("handler exploded")
-		}
-		return nil
-	})
-
-	lane.process(NewMessage("warmup", nil))
-
-	failed := NewMessage("boom", nil)
-	lane.process(failed)
-
-	warnings := logs.FilterMessage("event handling failed, nacking").All()
-	if len(warnings) != 1 {
-		t.Fatalf("got %d warn lines, want exactly 1", len(warnings))
-	}
-	if _, ok := warnings[0].ContextMap()["trace.id"]; !ok {
-		t.Fatalf("unsampled failure logged without a transaction: %v", warnings[0].ContextMap())
-	}
-	select {
-	case <-failed.Nacked():
-	default:
-		t.Fatal("failed delivery was not nacked")
-	}
-	if got := lane.stats.failed.Load(); got != 1 {
-		t.Fatalf("counted %d failures, want 1", got)
-	}
-}
-
-func TestConsumeLaneUnsampledBackpressureCreatesNoTransaction(t *testing.T) {
-	app := newLocalApplication(t, nil)
-	core, logs := observer.New(zap.DebugLevel)
-
-	lane := testLane(app, 1000, zap.New(core), func(msg *Message) error {
-		if msg.UUID == "paused" {
-			return fmt.Errorf("wrapped: %w", testExpectedNack{})
-		}
-		return nil
-	})
-
-	lane.process(NewMessage("warmup", nil))
-
-	deferred := NewMessage("paused", nil)
-	lane.process(deferred)
-
-	debugs := logs.FilterMessage("event deferred by expected backpressure").All()
-	if len(debugs) != 1 {
-		t.Fatalf("got %d debug lines, want exactly 1", len(debugs))
-	}
-	if _, ok := debugs[0].ContextMap()["trace.id"]; ok {
-		t.Fatalf("quiet unsampled nack created a transaction: %v", debugs[0].ContextMap())
-	}
-	if logs.FilterMessage("event handling failed, nacking").Len() != 0 {
-		t.Fatal("expected backpressure was logged as a failure")
-	}
-	select {
-	case <-deferred.Nacked():
-	default:
-		t.Fatal("deferred delivery was not nacked")
-	}
-	if got := lane.stats.deferred.Load(); got != 1 {
-		t.Fatalf("counted %d deferrals, want 1", got)
-	}
-}
-
-func laneOutcomeByID(msg *Message) error {
-	switch msg.UUID {
-	case "deferred":
-		return testExpectedNack{}
-	case "failed":
 		return errors.New("boom")
-	default:
-		return nil
-	}
-}
+	})
 
-func processQueued(lane *consumeLane, queued time.Duration, ids ...string) {
-	for _, id := range ids {
+	for id, delay := range map[string]time.Duration{"leased": 45 * time.Second, "failed": 0} {
 		msg := NewMessage(id, nil)
-		msg.receivedAt = time.Now().Add(-queued)
+		var got time.Duration
+		nacked := false
+		msg.setResolveHandler(func(acked bool) { nacked, got = !acked, msg.requestedRetryDelay() })
+
 		lane.process(msg)
+
+		assert.True(t, nacked, "%s must be nacked", id)
+		assert.Equal(t, delay, got, "%s retry delay", id)
 	}
 }
 
-type laneCounts struct {
-	ok, deferred, failed uint64
+type outcomeCase struct {
+	name          string
+	handler       func(*Message) error
+	wantAcked     bool
+	wantLog       string
+	failureLogged bool
 }
 
-func requireLaneCounters(t *testing.T, stats *laneStats, want laneCounts) {
-	t.Helper()
-	got := laneCounts{ok: stats.ok.Load(), deferred: stats.deferred.Load(), failed: stats.failed.Load()}
-	if got != want {
-		t.Fatalf("counters = ok:%d deferred:%d failed:%d, want %d/%d/%d",
-			got.ok, got.deferred, got.failed, want.ok, want.deferred, want.failed)
+func (c outcomeCase) wantLines() int {
+	if c.wantLog == "" {
+		return 0
 	}
+	return 1
 }
 
-func requireQueueWaitRecorded(t *testing.T, stats *laneStats, wantPeak, wantSum uint64) {
-	t.Helper()
-	if peak := stats.queueMaxMicros.Load(); peak < wantPeak {
-		t.Fatalf("queue high-water mark = %dµs, want at least %d", peak, wantPeak)
-	}
-	if sum := stats.queueMicros.Load(); sum < wantSum {
-		t.Fatalf("queue wait sum = %dµs, want at least %d across four deliveries", sum, wantSum)
-	}
-}
+func TestConsumeResolvesEveryDeliveryByTheHandlerOutcome(t *testing.T) {
+	for _, tc := range []outcomeCase{
+		{"a handler success acks", func(*Message) error { return nil }, true, "", false},
+		{"a handler error nacks and is logged as a failure", func(*Message) error { return errors.New("handler exploded") }, false, "event handling failed, nacking", true},
+		{"expected backpressure nacks without a failure log", func(*Message) error { return fmt.Errorf("wrapped: %w", testExpectedNack{}) }, false, "event deferred by expected backpressure", false},
+		{"a handler panic nacks instead of crashing the lane", func(*Message) error { panic("boom") }, false, "consume handler panic recovered", true},
+	} {
+		for _, app := range []struct {
+			name string
+			app  *newrelic.Application
+		}{{"without an application", nil}, {"with an application", newLocalApplication(t)}} {
+			t.Run(tc.name+" "+app.name, func(t *testing.T) {
+				core, logs := observer.New(zap.DebugLevel)
+				feed := &feedSubscriber{messages: make(chan *Message, 2)}
+				require.NoError(t, Consume(context.Background(), app.app, feed, "bagel.rpc.commands.run", tc.handler, zap.New(core)))
+				msg := NewMessage("delivery", nil)
 
-func TestConsumeLaneCountsEveryOutcomeWithoutAnApplication(t *testing.T) {
-	lane := testLane(nil, 2, zap.NewNop(), laneOutcomeByID)
+				feed.messages <- msg
+				resolved := func() bool { return signalClosed(msg.Acked()) || signalClosed(msg.Nacked()) }
 
-	processQueued(&lane, 3*time.Millisecond, "ok", "deferred", "failed", "ok")
-
-	requireLaneCounters(t, lane.stats, laneCounts{ok: 2, deferred: 1, failed: 1})
-	requireQueueWaitRecorded(t, lane.stats, 3000, 12000)
-}
-
-func TestNewConsumeLaneSharesOneCounterSetPerLane(t *testing.T) {
-	first := newConsumeLane(nil, "twitch.outgress.premium", nil, zap.NewNop())
-	second := newConsumeLane(nil, "twitch.outgress.premium", nil, zap.NewNop())
-
-	if first.stats == nil {
-		t.Fatal("newConsumeLane left the lane without counters")
-	}
-	if first.stats != second.stats {
-		t.Fatal("two units on one lane got separate sampling cursors")
-	}
-	if first.stats.sampleRate != consumeNRSampleRate {
-		t.Fatalf("lane sample rate = %d, want the shipped rate %d", first.stats.sampleRate, consumeNRSampleRate)
+				waitFor(t, resolved, "the delivery was never resolved")
+				assert.Equal(t, tc.wantAcked, signalClosed(msg.Acked()))
+				assert.Equal(t, tc.wantLines(), logs.FilterMessage(tc.wantLog).Len(), "log lines for %q", tc.wantLog)
+				assert.Equal(t, tc.failureLogged, logs.FilterMessage("event handling failed, nacking").Len() > 0, "failure log")
+				close(feed.messages)
+			})
+		}
 	}
 }

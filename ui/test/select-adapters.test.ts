@@ -1,23 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import { expect, test } from 'bun:test';
-import { experimental_AstroContainer } from 'astro/container';
+import { createRawSnippet } from 'svelte';
+import { render } from 'svelte/server';
 import AstroSelect from '../astro/Select.astro';
 import SvelteSelect from '../svelte/Select.svelte';
 import PickerPanel from '../svelte/PickerPanel.svelte';
-import { createRawSnippet } from 'svelte';
-import { render } from 'svelte/server';
-import { normalise } from './normalise';
+import { astroHtml, svelteHtml } from './contract';
 
-// Select adapters deliberately differ during SSR: Astro keeps an immediately
-// usable native fallback, then enhances it into the same interactive picker.
-async function astroSelect(props: Record<string, unknown>, slot?: string) {
-  const container = await experimental_AstroContainer.create();
-  return normalise(await container.renderToString(AstroSelect, {
-    props,
-    ...(slot === undefined ? {} : { slots: { default: slot } }),
-  }));
-}
+const astroSelect = (props: Record<string, unknown>, slot?: string) =>
+  astroHtml(AstroSelect, props, slot === undefined ? {} : { default: slot });
 
 test('Astro Select preserves option slots and native form attributes before enhancement', async () => {
   const html = await astroSelect({ id: 'mode', name: 'mode', required: true, disabled: true, invalid: true, fill: true },
@@ -47,13 +39,13 @@ test('Astro Select serializes optional search labels and option metadata for the
 });
 
 test('Svelte Select keeps selected form value, disabled options, and fallback validation during SSR', () => {
-  const html = normalise(render(SvelteSelect, { props: {
+  const html = svelteHtml(SvelteSelect, {
     id: 'zone', name: 'zone', form: 'timer', value: 'America/Toronto', required: true,
     options: [
       { value: 'UTC', label: 'UTC', disabled: true },
       { value: 'America/Toronto', label: 'Toronto', triggerLabel: 'America/Toronto' },
     ],
-  } }).body);
+  });
   expect(html).toContain('<select id="zone" name="zone" form="timer" required>');
   expect(html).toContain('<option value="UTC" disabled>UTC</option>');
   expect(html).toContain('<option value="America/Toronto" selected>America/Toronto</option>');
@@ -62,9 +54,9 @@ test('Svelte Select keeps selected form value, disabled options, and fallback va
 });
 
 test('Svelte Select submits nothing and shows the placeholder for a value absent from its options', () => {
-  const html = normalise(render(SvelteSelect, { props: {
+  const html = svelteHtml(SvelteSelect, {
     id: 'stored', name: 'stored', value: 'saved-id', options: [{ value: 'live', label: 'Live' }], disabled: true,
-  } }).body);
+  });
   expect(html).toContain('<select id="stored" name="stored" disabled><option value selected disabled hidden>Select…</option><option value="live">Live</option></select>');
   expect(html).not.toContain('saved-id');
   expect(html).toContain('data-placeholder');
@@ -72,9 +64,9 @@ test('Svelte Select submits nothing and shows the placeholder for a value absent
 });
 
 test('Svelte Select omits the placeholder option when the value is offered', () => {
-  const html = normalise(render(SvelteSelect, { props: {
+  const html = svelteHtml(SvelteSelect, {
     name: 'mode', value: '', options: [{ value: '', label: 'None' }, { value: 'a', label: 'A' }],
-  } }).body);
+  });
   expect(html).not.toContain('disabled hidden');
   expect(html).toContain('<option value selected>None</option>');
 });

@@ -4,9 +4,14 @@
 package discord
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+var channelNameShape = regexp.MustCompile(`^([a-z0-9]+(-[a-z0-9]+)*)?$`)
 
 func TestSanitizeChannelName(t *testing.T) {
 	cases := []struct {
@@ -24,40 +29,14 @@ func TestSanitizeChannelName(t *testing.T) {
 		{name: "cyrillic yields nothing usable", in: "Пользователь", want: ""},
 		{name: "emoji only", in: "🍩🍩", want: ""},
 		{name: "mixed script keeps the latin run", in: "ada 日本", want: "ada"},
+		{name: "only separators", in: "___", want: ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := SanitizeChannelName(tc.in); got != tc.want {
-				t.Fatalf("SanitizeChannelName(%q) = %q, want %q", tc.in, got, tc.want)
-			}
+			got := SanitizeChannelName(tc.in)
+			assert.Equal(t, tc.want, got)
+			assert.Regexp(t, channelNameShape, got, "output must be a Discord-acceptable channel name")
 		})
-	}
-}
-
-func TestSanitizeChannelNameOutputIsAlwaysAcceptable(t *testing.T) {
-	inputs := []string{"Ada Lovelace", "Ünïcödé Tïckét", "🍩 donut 🍩", "___", "A-B_C.D"}
-	for _, in := range inputs {
-		wantAcceptableChannelName(t, in, SanitizeChannelName(in))
-	}
-}
-
-func wantAcceptableChannelName(t *testing.T, in, got string) {
-	t.Helper()
-	if strings.Contains(got, "--") {
-		t.Fatalf("SanitizeChannelName(%q) = %q: repeated separator", in, got)
-	}
-	if strings.HasPrefix(got, "-") || strings.HasSuffix(got, "-") {
-		t.Fatalf("SanitizeChannelName(%q) = %q: edge separator", in, got)
-	}
-	wantChannelNameRunes(t, in, got)
-}
-
-func wantChannelNameRunes(t *testing.T, in, got string) {
-	t.Helper()
-	for _, r := range got {
-		if !allowedNameRune(r) && r != '-' {
-			t.Fatalf("SanitizeChannelName(%q) = %q: rune %q is outside [a-z0-9-]", in, got, r)
-		}
 	}
 }
 
@@ -76,24 +55,15 @@ func TestTicketChannelName(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := TicketChannelName(tc.base, tc.ticketID); got != tc.want {
-				t.Fatalf("TicketChannelName(%q, %d) = %q, want %q", tc.base, tc.ticketID, got, tc.want)
-			}
+			assert.Equal(t, tc.want, TicketChannelName(tc.base, tc.ticketID))
 		})
 	}
 }
 
 func TestTicketChannelNameStaysUnderTheCeiling(t *testing.T) {
-	long := strings.Repeat("ada ", 60)
-	got := TicketChannelName(long, 123456)
+	got := TicketChannelName(strings.Repeat("ada ", 60), 123456)
 
-	if len(got) > ChannelNameMax {
-		t.Fatalf("name is %d characters: %q", len(got), got)
-	}
-	if !strings.HasSuffix(got, "-123456") {
-		t.Fatalf("name = %q, want the row id preserved", got)
-	}
-	if strings.Contains(got, "--") || strings.HasSuffix(strings.TrimSuffix(got, "-123456"), "-") {
-		t.Fatalf("name = %q, want no dangling separator", got)
-	}
+	assert.LessOrEqual(t, len(got), ChannelNameMax)
+	assert.True(t, strings.HasSuffix(got, "-123456"), "the row id is preserved: %q", got)
+	assert.Regexp(t, channelNameShape, got, "no dangling separator")
 }

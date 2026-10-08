@@ -16,4 +16,4 @@ const { eyebrow, title, description, class: className = '', ...rest } = Astro.pr
 const classes = ['bb-page-hero', className].filter(Boolean).join(' ');
 ---
 
-<header class={classes} {...rest}><LightField /><div class="bb-page-hero__glow" aria-hidden="true"></div><div class="bb-page-hero__inner">{eyebrow && <span class="bb-page-hero__eyebrow">{eyebrow}</span>}<h1 class="bb-page-hero__title" data-decode={title}>{title}</h1>{description && <p class="bb-page-hero__desc">{description}</p>}</div></header>
+<header class={classes} {...rest}><LightField /><div class="bb-page-hero__glow" aria-hidden="true"></div><div class="bb-page-hero__inner">{eyebrow && <span class="bb-page-hero__eyebrow"><span data-fit>{eyebrow}</span></span>}<h1 class="bb-page-hero__title"><span data-fit="block" data-decode={title}>{title}</span></h1>{description && <p class="bb-page-hero__desc"><span data-fit="block">{description}</span></p>}</div></header>

@@ -51,6 +51,7 @@ floor check is also in Sesame; there is no separate Outgress reply-safety layer.
 | Incoming AutoMod | [automod/gate.go](automod/gate.go), [automod/config.go](automod/config.go), [engine/moderate.go](engine/moderate.go), [modules/automod.go](modules/automod.go) |
 | Manual sweep helpers | [engine/nuke.go](engine/nuke.go), [engine/recent.go](engine/recent.go), [engine/recent_valkey.go](engine/recent_valkey.go), [modules/moderation.go](modules/moderation.go) |
 | Timer cadence/gates/stops | [engine/timers_valkey.go](engine/timers_valkey.go), [engine/timers_rules.go](engine/timers_rules.go), [engine/timer_vars.go](engine/timer_vars.go) |
+| Live state and Twitch rechecks | [engine/live_valkey.go](engine/live_valkey.go), [engine/live_recheck.go](engine/live_recheck.go), [modules/live.go](modules/live.go) |
 | Overview activity/chart observers | [activity_observer.go](activity_observer.go), [chatvolume_observer.go](chatvolume_observer.go), [engine/observe.go](engine/observe.go) |
 
 ## Inputs, state and outputs
@@ -101,6 +102,10 @@ a bare variable token is not necessarily a pure formatting operation.
   quietly when nil. `SESAME_NUKE` being parsed does not prove runtime wiring.
 - Emote/lexicon refreshers and optional adaptive/link-check layers really feed
   the Go gate. Adaptive behavior defaults off; inspect main/config before edits.
+- A `stream.offline` is a claim, not a fact: Twitch can dispatch a restarted
+  stream's old offline after the new online. Each applied offline is rechecked
+  against Helix twice while the channel stays offline, and a cold read that
+  finds a projected offline rechecks at most once per window.
 - Publication IDs alone do not make broker publication replay-safe; inspect current
   [bus publisher semantics](../../../pkg/bus/publish.go) before changing retries.
 

@@ -5,10 +5,7 @@ package codm
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/ratelimit"
@@ -30,189 +28,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	valkeygo "github.com/valkey-io/valkey-go"
-	"go.uber.org/zap"
 )
 
 func init() { core.SetSSRFCheckForTests(false) }
 
-type fakeSOCKS struct {
-	ln net.Listener
-	wg sync.WaitGroup
+func endpoint(t *testing.T, p provider.Provider) provider.HandlerFunc {
+	return providertest.Endpoint(t, p, "profile")
 }
 
-func newFakeSOCKS(t *testing.T) {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	previous := core.WARPProxyAddr()
-	core.SetWARPProxyAddrForTests(ln.Addr().String())
-	f := &fakeSOCKS{ln: ln}
-	f.wg.Add(1)
-	go f.serve()
-	t.Cleanup(func() {
-		core.SetWARPProxyAddrForTests(previous)
-		_ = ln.Close()
-		f.wg.Wait()
-	})
-}
-
-func (f *fakeSOCKS) serve() {
-	defer f.wg.Done()
-	for {
-		conn, err := f.ln.Accept()
-		if err != nil {
-			return
-		}
-		go func() {
-			defer conn.Close()
-			f.handle(conn)
-		}()
-	}
-}
-
-func (f *fakeSOCKS) handle(conn net.Conn) {
-	if err := socksHandshake(conn); err != nil {
-		return
-	}
-	host, err := socksHost(conn)
-	if err != nil {
-		return
-	}
-	port := make([]byte, 2)
-	if _, err := io.ReadFull(conn, port); err != nil {
-		return
-	}
-	target, err := net.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(port)))))
-	if err != nil {
-		_, _ = conn.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0})
-		return
-	}
-	defer target.Close()
-	if _, err := conn.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0}); err != nil {
-		return
-	}
-	go func() { _, _ = io.Copy(target, conn) }()
-	_, _ = io.Copy(conn, target)
-}
-
-func socksHandshake(conn net.Conn) error {
-	header := make([]byte, 2)
-	if _, err := io.ReadFull(conn, header); err != nil {
-		return err
-	}
-	if header[0] != 5 {
-		return errors.New("invalid SOCKS version")
-	}
-	methods := make([]byte, header[1])
-	if _, err := io.ReadFull(conn, methods); err != nil {
-		return err
-	}
-	_, err := conn.Write([]byte{5, 0})
-	return err
-}
-
-func socksHost(conn net.Conn) (string, error) {
-	request := make([]byte, 4)
-	if _, err := io.ReadFull(conn, request); err != nil {
-		return "", err
-	}
-	if request[0] != 5 {
-		return "", errors.New("invalid SOCKS version")
-	}
-	if request[1] != 1 {
-		return "", errors.New("invalid SOCKS command")
-	}
-	switch request[3] {
-	case 1:
-		return socksIP(conn, 4)
-	case 4:
-		return socksIP(conn, 16)
-	case 3:
-		length := make([]byte, 1)
-		if _, err := io.ReadFull(conn, length); err != nil {
-			return "", err
-		}
-		name := make([]byte, length[0])
-		_, err := io.ReadFull(conn, name)
-		return string(name), err
-	default:
-		return "", errors.New("invalid SOCKS address type")
-	}
-}
-
-func socksIP(conn net.Conn, size int) (string, error) {
-	ip := make([]byte, size)
-	_, err := io.ReadFull(conn, ip)
-	return net.IP(ip).String(), err
-}
-
-type memStore struct {
-	mu   sync.Mutex
-	m    map[string][]byte
-	ttls map[string]time.Duration
-}
-
-func newMemStore() *memStore {
-	return &memStore{m: map[string][]byte{}, ttls: map[string]time.Duration{}}
-}
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return append([]byte(nil), b...), ok, nil
-}
-
-func (s *memStore) Set(_ context.Context, key string, val []byte, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	s.ttls[key] = ttl
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
-
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func endpoint(t *testing.T, p provider.Provider) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == "profile" {
-			return ep.Handle
-		}
-	}
-	t.Fatal("profile endpoint not declared")
-	return nil
-}
-
-func replyOf[T any](t *testing.T, value any) T {
-	t.Helper()
-	if reply, ok := value.(T); ok {
-		return reply
-	}
-	raw, ok := value.(codec.RawMessage)
-	require.True(t, ok, "unexpected handler result %T", value)
-	var reply T
-	require.NoError(t, codec.Unmarshal(raw, &reply))
-	return reply
+func newCODM(base string, store *providertest.MemStore) provider.Provider {
+	return New(Config{BaseURL: base}, providertest.Deps(store))
 }
 
 func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	var mu sync.Mutex
 	var bodies []map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -239,15 +68,11 @@ func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	store := newMemStore()
-	p := New(Config{BaseURL: srv.URL, Country: "IN"}, provider.Deps{
-		Cache: core.NewCache(store),
-		Log:   zap.NewNop(),
-	})
+	p := New(Config{BaseURL: srv.URL, Country: "IN"}, providertest.Deps(providertest.NewMemStore()))
 	h := endpoint(t, p)
 	ids := []string{"7000000000000000000", "  Élite玩家  "}
 	for _, id := range ids {
-		got := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: id}))
+		got := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: id}))
 		wantPlayer := strings.TrimSpace(id)
 		assert.Equal(t, gossiprpc.CODMProfileReply{
 			Player: wantPlayer, Level: 414, Rank: "Master I", RankClass: 21,
@@ -275,7 +100,7 @@ func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
 }
 
 func TestProfileNeverFollowsHTTPRedirects(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	for _, status := range []int{301, 302, 303, 307, 308} {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
 			var forbiddenCalls atomic.Int32
@@ -286,8 +111,8 @@ func TestProfileNeverFollowsHTTPRedirects(t *testing.T) {
 				http.Redirect(w, r, "/purchase", status)
 			}))
 			defer srv.Close()
-			p := New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
-			got := replyOf[gossiprpc.CODMProfileReply](t, endpoint(t, p)(context.Background(), gossiprpc.Request{Account: "7081192462291238913"}))
+			p := newCODM(srv.URL, providertest.NewMemStore())
+			got := providertest.Decode[gossiprpc.CODMProfileReply](t, endpoint(t, p)(context.Background(), gossiprpc.Request{Account: "7081192462291238913"}))
 			require.Equal(t, "profile lookup failed", got.Error)
 			assert.Zero(t, forbiddenCalls.Load())
 		})
@@ -295,7 +120,7 @@ func TestProfileNeverFollowsHTTPRedirects(t *testing.T) {
 }
 
 func TestProfileCacheIsCaseSensitiveAndUsesFiveMinuteFreshTTL(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	var calls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -303,11 +128,11 @@ func TestProfileCacheIsCaseSensitiveAndUsesFiveMinuteFreshTTL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	store := newMemStore()
-	h := endpoint(t, New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}))
-	first := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "CaseID"}))
-	second := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "CaseID"}))
-	third := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "caseid"}))
+	store := providertest.NewMemStore()
+	h := endpoint(t, newCODM(srv.URL, store))
+	first := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "CaseID"}))
+	second := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "CaseID"}))
+	third := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "caseid"}))
 
 	assert.Equal(t, first, second)
 	assert.Equal(t, "CaseID", first.Player)
@@ -319,46 +144,59 @@ func TestProfileCacheIsCaseSensitiveAndUsesFiveMinuteFreshTTL(t *testing.T) {
 	assert.Equal(t, first.Country, third.Country)
 	assert.Equal(t, first.ShortID, third.ShortID)
 	assert.Equal(t, 2, calls, "different account case must not share the cache entry")
-	assert.Equal(t, 10*time.Minute, positiveTTL(store))
+	assert.Equal(t, 2*profileTTL, store.Retention("gossip:codm:profile:CaseID"))
 }
 
-func TestProfileRejectsInvalidAndMalformedResponses(t *testing.T) {
-	tests := []struct {
+func TestProfileFailuresAreAnsweredInChat(t *testing.T) {
+	for _, tc := range []struct {
 		name      string
+		account   string
 		body      string
+		wantError string
 		wantCalls int
 	}{
-		{name: "missing result", body: `{"success":true}`, wantCalls: 1},
-		{name: "invalid nested profile", body: `{"result":{"type":"SUCCESS","result":0,"countryId":124}}`, wantCalls: 1},
-		{name: "redirect without country", body: `{"success":false,"errorCode":-200}`, wantCalls: 1},
-	}
-	for _, tc := range tests {
+		{"a response without a result is a lookup failure", "valid", `{"success":true}`, "profile lookup failed", 1},
+		{"a result without a profile is a lookup failure", "valid", `{"result":{"type":"SUCCESS","result":0,"countryId":124}}`, "profile lookup failed", 1},
+		{"a country redirect without a country is a lookup failure", "valid", `{"success":false,"errorCode":-200}`, "profile lookup failed", 1},
+		{"an empty account never leaves the pod", "", `{}`, "invalid account", 0},
+		{"a blank account never leaves the pod", "  ", `{}`, "invalid account", 0},
+		{"an account with a control character never leaves the pod", "bad\nname", `{}`, "invalid account", 0},
+		{"an account that is not utf-8 never leaves the pod", string([]byte{0xff}), `{}`, "invalid account", 0},
+		{"an over-long account never leaves the pod", strings.Repeat("x", maxAccountRunes+1), `{}`, "invalid account", 0},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			newFakeSOCKS(t)
-			calls := 0
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				_, _ = io.WriteString(w, tc.body)
-			}))
+			providertest.NewFakeSOCKS(t)
+			upstream := providertest.NewSequence(t, providertest.Reply{Body: tc.body})
+			if tc.wantCalls == 0 {
+				upstream = providertest.NewSequence(t)
+			}
+			srv := httptest.NewServer(upstream)
 			defer srv.Close()
-			h := endpoint(t, New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}))
-			got := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "valid"}))
-			assert.Equal(t, "profile lookup failed", got.Error)
-			assert.Equal(t, tc.wantCalls, calls)
-		})
-	}
+			h := endpoint(t, newCODM(srv.URL, providertest.NewMemStore()))
 
-	for _, account := range []string{"", "  ", "bad\nname", string([]byte{0xff}), strings.Repeat("x", maxAccountRunes+1)} {
-		t.Run("invalid account", func(t *testing.T) {
-			h := endpoint(t, New(Config{}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}))
-			got := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: account}))
-			assert.Equal(t, "invalid account", got.Error)
+			got := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: tc.account}))
+
+			assert.Equal(t, tc.wantError, got.Error)
+			assert.Equal(t, tc.wantCalls, upstream.Hits())
 		})
 	}
+}
+
+func TestProfileEgressesThroughTheWARPSidecar(t *testing.T) {
+	socks := providertest.NewFakeSOCKS(t)
+	srv := httptest.NewServer(providertest.Respond(http.StatusOK,
+		`{"result":{"type":"SUCCESS","result":0,"countryId":124,"level":1,"nickname":"x","rankClass":1,"customReadableMpRank":"Rookie I","rating":10,"shortId":"TEST01"}}`))
+	defer srv.Close()
+
+	got := providertest.Decode[gossiprpc.CODMProfileReply](t,
+		endpoint(t, newCODM(srv.URL, providertest.NewMemStore()))(context.Background(), gossiprpc.Request{Account: "viaWarp"}))
+
+	assert.Empty(t, got.Error)
+	assert.Positive(t, socks.Conns(), "validation calls must leave through the WARP lane, never direct egress")
 }
 
 func TestProfileRedirectLoopsAreBounded(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -369,8 +207,8 @@ func TestProfileRedirectLoopsAreBounded(t *testing.T) {
 		_, _ = io.WriteString(w, `{"errorCode":-200,"homeBaseCountry2Name":"IN"}`)
 	}))
 	defer srv.Close()
-	h := endpoint(t, New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}))
-	got := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "loop"}))
+	h := endpoint(t, newCODM(srv.URL, providertest.NewMemStore()))
+	got := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "loop"}))
 	assert.Equal(t, "profile lookup failed", got.Error)
 	assert.Equal(t, 2, calls, "redirecting back to the original country must stop immediately")
 
@@ -381,13 +219,13 @@ func TestProfileRedirectLoopsAreBounded(t *testing.T) {
 		country := countries[calls-1]
 		_, _ = io.WriteString(w, `{"errorCode":-200,"homeBaseCountry2Name":"`+country+`"}`)
 	})
-	got = replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "bounded"}))
+	got = providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "bounded"}))
 	assert.Equal(t, "profile lookup failed", got.Error)
 	assert.Equal(t, maxRedirects+1, calls, "country redirects must have a hard bound")
 }
 
 func TestProfileMapsUpstream429AndDoesNotRefetchDuringThrottleCache(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -396,24 +234,24 @@ func TestProfileMapsUpstream429AndDoesNotRefetchDuringThrottleCache(t *testing.T
 		_, _ = io.WriteString(w, `{"error":"too many requests"}`)
 	}))
 	defer srv.Close()
-	store := newMemStore()
-	d := provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}
+	store := providertest.NewMemStore()
+	d := providertest.Deps(store)
 	h := endpoint(t, New(Config{BaseURL: srv.URL}, d))
 
-	first := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
-	second := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
+	first := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
+	second := providertest.Decode[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
 	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", first.Error)
 	assert.Equal(t, first, second)
 	otherReplica := endpoint(t, New(Config{BaseURL: srv.URL}, d))
-	other := replyOf[gossiprpc.CODMProfileReply](t, otherReplica(context.Background(), gossiprpc.Request{Account: "different-player"}))
+	other := providertest.Decode[gossiprpc.CODMProfileReply](t, otherReplica(context.Background(), gossiprpc.Request{Account: "different-player"}))
 	assert.Equal(t, first.Error, other.Error)
-	assert.Equal(t, 90*time.Second, store.ttls[cooldownKey])
+	assert.Equal(t, 90*time.Second, store.Retention(cooldownKey))
 	assert.Equal(t, 1, calls)
 }
 
 func TestLocalDenialDoesNotArmCooldown(t *testing.T) {
-	store := newMemStore()
-	d := provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}
+	store := providertest.NewMemStore()
+	d := providertest.Deps(store)
 	p := newAPI(Config{}, d, provider.NewProvider(providerName, d))
 	p.recordThrottle(context.Background(), &core.UpstreamError{Status: 429, LocalDeny: true})
 	_, found, err := store.Get(context.Background(), cooldownKey)
@@ -422,7 +260,7 @@ func TestLocalDenialDoesNotArmCooldown(t *testing.T) {
 }
 
 func TestValidationRateAccountingIntegration(t *testing.T) {
-	newFakeSOCKS(t)
+	providertest.NewFakeSOCKS(t)
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -481,7 +319,8 @@ func rateTestAPI(t *testing.T, base string) (*api, valkeygo.Client) {
 	client, err := valkey.NewClient(address, os.Getenv("VALKEY_TEST_PASSWORD"))
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
-	d := provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), Limiter: ratelimit.New(client)}
+	d := providertest.Deps(providertest.NewMemStore())
+	d.Limiter = ratelimit.New(client)
 	p := newAPI(Config{BaseURL: base}, d, provider.NewProvider(providerName, d))
 	p.deviceID = uuid.NewString()
 	p.buckets = p.buckets.WithKey("test:codm:" + p.deviceID + ":lookups")
@@ -490,20 +329,3 @@ func rateTestAPI(t *testing.T, base string) (*api, valkeygo.Client) {
 }
 
 func rateTestHTTPKey(p *api) string { return "test:codm:" + p.deviceID + ":http" }
-
-func TestNewUsesProtectedDefaultWARPClient(t *testing.T) {
-	b := provider.NewProvider(providerName, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
-	p := newAPI(Config{}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}, b)
-	assert.Equal(t, core.LaneWARP, p.http.Lane())
-}
-
-func positiveTTL(s *memStore) time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for key, ttl := range s.ttls {
-		if len(s.m[key]) > 0 && ttl > 0 {
-			return ttl
-		}
-	}
-	return 0
-}

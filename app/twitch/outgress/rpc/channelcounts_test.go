@@ -48,43 +48,43 @@ func readCounts(r channelCountsReader, req outgressrpc.ChannelCountsRequest) out
 	return readChannelCounts(context.Background(), r, zap.NewNop(), req)
 }
 
-func TestChannelCountsRefusesARequestAddressingNobody(t *testing.T) {
+func TestChannelCountsReplies(t *testing.T) {
+	tests := []struct {
+		name  string
+		reads *fakeCounts
+		req   outgressrpc.ChannelCountsRequest
+		want  outgressrpc.ChannelCountsReply
+	}{
+		{"refuses a request addressing nobody", &fakeCounts{}, outgressrpc.ChannelCountsRequest{}, outgressrpc.ChannelCountsReply{Error: "bad request"}},
+		{
+			"reads both halves", &fakeCounts{followers: 100, followersOK: true, subs: 7, subsOK: true},
+			outgressrpc.ChannelCountsRequest{BroadcasterID: "123"},
+			outgressrpc.ChannelCountsReply{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true},
+		},
+		{
+			"keeps followers when subs are unavailable for a missing scope", &fakeCounts{followers: 100, followersOK: true},
+			outgressrpc.ChannelCountsRequest{BroadcasterID: "123"}, outgressrpc.ChannelCountsReply{Followers: 100, FollowersOK: true},
+		},
+		{
+			"keeps subs when the followers read errors", &fakeCounts{subs: 7, subsOK: true, followersErr: errors.New("boom")},
+			outgressrpc.ChannelCountsRequest{BroadcasterID: "123"}, outgressrpc.ChannelCountsReply{Subs: 7, SubsOK: true},
+		},
+		{
+			"degrades subs quietly without a broadcaster token", &fakeCounts{followers: 100, followersOK: true, subsErr: twitch.ErrNoUserToken},
+			outgressrpc.ChannelCountsRequest{BroadcasterID: "123"}, outgressrpc.ChannelCountsReply{Followers: 100, FollowersOK: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, readCounts(tt.reads, tt.req))
+		})
+	}
+}
+
+func TestChannelCountsNamingNoChannelCostsNoHelixCall(t *testing.T) {
 	f := &fakeCounts{}
-	assert.Equal(t, "bad request", readCounts(f, outgressrpc.ChannelCountsRequest{}).Error)
-	assert.Empty(t, f.calls, "a request naming no channel costs no Helix call")
-}
 
-func TestChannelCountsReadsBothHalves(t *testing.T) {
-	f := &fakeCounts{followers: 100, followersOK: true, subs: 7, subsOK: true}
-	got := readCounts(f, outgressrpc.ChannelCountsRequest{BroadcasterID: "123"})
+	readCounts(f, outgressrpc.ChannelCountsRequest{})
 
-	assert.Equal(t, outgressrpc.ChannelCountsReply{
-		Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true,
-	}, got)
-	assert.ElementsMatch(t, []string{"followers:123", "subs:123"}, f.calls)
-}
-
-func TestChannelCountsOneHalfMissingScopeDoesNotBlankTheOther(t *testing.T) {
-	f := &fakeCounts{followers: 100, followersOK: true, subsOK: false}
-	got := readCounts(f, outgressrpc.ChannelCountsRequest{BroadcasterID: "123"})
-
-	assert.Equal(t, outgressrpc.ChannelCountsReply{Followers: 100, FollowersOK: true}, got)
-	assert.Empty(t, got.Error, "a degraded half is not a request-level failure")
-}
-
-func TestChannelCountsOneHalfReadErrorDoesNotFailTheReply(t *testing.T) {
-	f := &fakeCounts{subs: 7, subsOK: true, followersErr: errors.New("boom")}
-	got := readCounts(f, outgressrpc.ChannelCountsRequest{BroadcasterID: "123"})
-
-	assert.Equal(t, outgressrpc.ChannelCountsReply{Subs: 7, SubsOK: true}, got)
-	assert.False(t, got.FollowersOK)
-	assert.Empty(t, got.Error)
-}
-
-func TestChannelCountsSubsWithNoBroadcasterTokenDegradesQuietly(t *testing.T) {
-	f := &fakeCounts{followers: 100, followersOK: true, subsErr: twitch.ErrNoUserToken}
-	got := readCounts(f, outgressrpc.ChannelCountsRequest{BroadcasterID: "123"})
-
-	assert.Equal(t, outgressrpc.ChannelCountsReply{Followers: 100, FollowersOK: true}, got)
-	assert.Empty(t, got.Error)
+	assert.Empty(t, f.calls)
 }

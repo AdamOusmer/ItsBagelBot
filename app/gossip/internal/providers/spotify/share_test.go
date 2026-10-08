@@ -4,32 +4,29 @@
 package spotify
 
 import (
-	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func newShareTestProvider(t *testing.T, api, embeds http.Handler) provider.Provider {
 	t.Helper()
 	mint, _ := newMintServer(t, "tok-1")
-	apiServer := httptest.NewServer(api)
-	embedServer := httptest.NewServer(embeds)
-	accountServer := httptest.NewServer(mint)
-	t.Cleanup(apiServer.Close)
-	t.Cleanup(embedServer.Close)
-	t.Cleanup(accountServer.Close)
-	return New(Config{BaseURL: apiServer.URL, AccountsURL: accountServer.URL, EmbedBaseURL: embedServer.URL},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), SpotifyKeys: fakeKeys{key: "rt-1"}})
+	deps := providertest.Deps(providertest.NewMemStore())
+	deps.SpotifyKeys = fakeKeys{key: "rt-1"}
+	return New(Config{
+		BaseURL:      providertest.Upstream(t, api),
+		AccountsURL:  providertest.Upstream(t, mint),
+		EmbedBaseURL: providertest.Upstream(t, embeds),
+	}, deps)
 }
 
 func TestShortSharesResolveCatalogIDsAndCacheResult(t *testing.T) {
@@ -55,9 +52,9 @@ func TestShortSharesResolveCatalogIDsAndCacheResult(t *testing.T) {
 			})
 			p := newShareTestProvider(t, api, embeds)
 			for range 2 {
-				reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+				reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 					ChannelID: "2", Query: link, Limit: 1,
-				}))
+				})
 				require.Empty(t, reply.Error)
 				assert.Equal(t, viaTrackLink, reply.ResolvedAs)
 				require.Len(t, reply.Tracks, 1)
@@ -80,9 +77,9 @@ func TestShortAlbumShareUsesAlbumLookup(t *testing.T) {
 		}))
 	})
 	p := newShareTestProvider(t, api, embeds)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+	reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 		ChannelID: "2", Query: "https://spotify.link/album123", Limit: 1,
-	}))
+	})
 	require.Empty(t, reply.Error)
 	assert.Equal(t, viaAlbum, reply.ResolvedAs)
 	require.Len(t, reply.Tracks, 1)
@@ -101,10 +98,10 @@ func TestShortShareInvalidTargetsNeverBecomeTextSearches(t *testing.T) {
 			embeds := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.NoError(t, codec.NewEncoder(w).Encode(map[string]string{"html": markup}))
 			})
-			p := newShareTestProvider(t, denyAll(t), embeds)
-			reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+			p := newShareTestProvider(t, providertest.Forbid(t), embeds)
+			reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 				ChannelID: "2", Query: "https://spotify.link/invalid123",
-			}))
+			})
 			assert.NotEmpty(t, reply.Error)
 			assert.Empty(t, reply.Tracks)
 		})
@@ -119,18 +116,18 @@ func TestMissingLinksReturnNotFoundWithoutTextFallback(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		})
 		p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-		reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+		reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 			ChannelID: "2", Query: "spotify:track:3n3Ppam7vgaVa1iaRUc9Lp",
-		}))
+		})
 		assert.Equal(t, "not found on Spotify", reply.Error)
 		assert.Empty(t, reply.Tracks)
 	})
 	t.Run("short share", func(t *testing.T) {
 		embeds := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
-		p := newShareTestProvider(t, denyAll(t), embeds)
-		reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+		p := newShareTestProvider(t, providertest.Forbid(t), embeds)
+		reply := providertest.Call[gossiprpc.SpotifySearchReply](t, p, "search", gossiprpc.Request{
 			ChannelID: "2", Query: "https://spotify.link/dead-share",
-		}))
+		})
 		assert.Equal(t, "not found on Spotify", reply.Error)
 		assert.Empty(t, reply.Tracks)
 	})

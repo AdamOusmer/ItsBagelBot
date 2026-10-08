@@ -6,12 +6,14 @@ package worker
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -32,6 +34,52 @@ func (f *fakeGrants) SetGrantState(_ context.Context, _ string, state manage.Gra
 	return nil
 }
 
+func deadTokenSource(string) *twitch.Source {
+	return twitch.NewStoredUserTokenSource(twitch.ClientCredentials{}, "", twitch.StoredTokenIO{
+		Load: func(context.Context) twitch.StoredLoad { return twitch.StoredLoad{} },
+	}, twitch.MintLease{})
+}
+
+func TestGrantStateFollowsTheBroadcasterTokenHealth(t *testing.T) {
+	registered := manage.Channel{BroadcasterID: testBroadcaster}
+	dead := manage.Channel{BroadcasterID: testBroadcaster, GrantState: manage.GrantDead}
+	tests := []struct {
+		name      string
+		as        string
+		deadToken bool
+		channel   manage.Channel
+		found     bool
+		getErr    error
+		want      []manage.GrantState
+	}{
+		{"marks a registered channel dead when its grant is dead", "broadcaster", true, registered, true, nil, []manage.GrantState{manage.GrantDead}},
+		{"does not rewrite a channel that is already dead", "broadcaster", true, dead, true, nil, nil},
+		{"skips an unregistered channel", "broadcaster", true, manage.Channel{}, false, nil, nil},
+		{"leaves state alone when the registry is unreadable", "broadcaster", true, registered, true, errors.New("valkey down"), nil},
+		{"clears a dead marker after a successful call", "broadcaster", false, dead, true, nil, []manage.GrantState{manage.GrantUnknown}},
+		{"writes nothing after a successful call on a healthy channel", "broadcaster", false, registered, true, nil, nil},
+		{"never marks the app identity", "app", true, registered, true, nil, nil},
+		{"never marks the bot identity", "bot", true, registered, true, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			grants := &fakeGrants{channel: tt.channel, found: tt.found, getErr: tt.getErr}
+			var tw *twitch.Client
+			if tt.deadToken {
+				tw = twitch.NewClient("client", deadTokenSource(""), deadTokenSource(""), twitch.NewBroadcasterTokens(deadTokenSource))
+			} else {
+				tw = newTwitch(&scriptedTransport{}, staticBroadcaster)
+			}
+			w := pipelineWorker(t, &scriptedTransport{}, withTwitch(tw))
+			w.grants = grants
+
+			_ = testMessage{Type: "api", Method: http.MethodGet, As: tt.as, Endpoint: "/helix/users"}.send(w)
+
+			assert.Equal(t, tt.want, grants.writes)
+		})
+	}
+}
+
 func testWorker(g grantRegistry) *Worker {
 	return &Worker{log: zap.NewNop(), grants: g}
 }
@@ -47,6 +95,18 @@ func storedTokenErr(load twitch.StoredLoad) error {
 	}, twitch.MintLease{})
 	_, err := src.Token(context.Background())
 	return err
+}
+
+func assertWrites(t *testing.T, got, want []manage.GrantState) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("writes = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("writes = %v, want %v", got, want)
+		}
+	}
 }
 
 func TestNoteGrantHealth(t *testing.T) {
@@ -225,17 +285,5 @@ func TestNoticeRequestPrefixesDiffer(t *testing.T) {
 	if noticeRevoked.request == noticeGrantDead.request {
 		t.Fatalf("both notices share request prefix %q, so one would be deduped away",
 			noticeRevoked.request)
-	}
-}
-
-func assertWrites(t *testing.T, got, want []manage.GrantState) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("writes = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("writes = %v, want %v", got, want)
-		}
 	}
 }

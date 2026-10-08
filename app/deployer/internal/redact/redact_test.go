@@ -1,9 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package redact
+package redact_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"ItsBagelBot/app/deployer/internal/redact"
+)
 
 func TestLine(t *testing.T) {
 	cases := map[string]string{
@@ -20,8 +26,6 @@ func TestLine(t *testing.T) {
 		"panic: runtime error: index out of range":              "panic: runtime error: index out of range",
 	}
 	for in, want := range cases {
-		if got := Line(in); got != want {
-			t.Errorf("Line(%q) = %q, want %q", in, got, want)
-		}
+		assert.Equal(t, want, redact.Line(in), in)
 	}
 }

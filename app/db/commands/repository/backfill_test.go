@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/repository"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
@@ -17,90 +18,49 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestBackfillSetsBumpCounterFromBareToken(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-
-	require.NoError(t, repo.Upsert(1001, spec("!so", "died {counter:deaths} times", false, 0)))
-	repo.Close(ctx)
-	baseline := len(pub.On(data.SubjectCommandChanged))
-
-	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
-	defer repo2.Close(ctx)
-	require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
-
-	row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
-	assert.Equal(t, "deaths", row.BumpCounter)
-
-	events := pub.On(data.SubjectCommandChanged)
-	require.Len(t, events, baseline+1)
-	var dto data.CommandChangedDTO
-	require.NoError(t, codec.Unmarshal(events[baseline].Payload, &dto))
-	assert.Equal(t, "deaths", dto.BumpCounter)
+func announcedBumpCounters(t *testing.T, pub *bustest.Publisher, after int) []string {
+	t.Helper()
+	var counters []string
+	for _, msg := range pub.On(data.SubjectCommandChanged)[after:] {
+		var dto data.CommandChangedDTO
+		require.NoError(t, codec.Unmarshal(msg.Payload, &dto))
+		counters = append(counters, dto.BumpCounter)
+	}
+	return counters
 }
 
-func TestBackfillTakesTheFirstBareTokenInWrittenOrder(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
+func TestBackfillSetsBumpCounterFromTheFirstBareToken(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		response  string
+		preset    string
+		want      string
+		announced []string
+	}{
+		{name: "a bare token", response: "died {counter:deaths} times", want: "deaths", announced: []string{"deaths"}},
+		{name: "the first bare token in written order", response: "{counter:wins} and {counter:deaths}", want: "wins", announced: []string{"wins"}},
+		{name: "target addressed counters are skipped", response: "{counter:target:shutups} times"},
+		{name: "a later bare token after an addressed one", response: "{counter:target:shutups} then {counter:deaths}", want: "deaths", announced: []string{"deaths"}},
+		{name: "an existing choice is never overwritten", response: "{counter:deaths} times", preset: "hugs", want: "hugs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, pub, repo := setup(t)
+			ctx := context.Background()
+			s := spec("!so", tc.response, false, 0)
+			s.BumpCounter = tc.preset
+			require.NoError(t, repo.Upsert(1001, s))
+			repo.Close(ctx)
+			baseline := len(pub.On(data.SubjectCommandChanged))
 
-	require.NoError(t, repo.Upsert(1001, spec("!so", "{counter:wins} and {counter:deaths}", false, 0)))
-	repo.Close(ctx)
+			repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
+			defer repo2.Close(ctx)
+			require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
 
-	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
-	defer repo2.Close(ctx)
-	require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
-
-	row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
-	assert.Equal(t, "wins", row.BumpCounter)
-}
-
-func TestBackfillSkipsTargetAddressedCounters(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-
-	require.NoError(t, repo.Upsert(1001, spec("!so", "{counter:target:shutups} times", false, 0)))
-	repo.Close(ctx)
-	baseline := len(pub.On(data.SubjectCommandChanged))
-
-	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
-	defer repo2.Close(ctx)
-	require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
-
-	row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
-	assert.Empty(t, row.BumpCounter)
-	assert.Len(t, pub.On(data.SubjectCommandChanged), baseline, "an untouched row is never announced")
-}
-
-func TestBackfillSkipsAddressedThenUsesALaterBareToken(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-
-	require.NoError(t, repo.Upsert(1001, spec("!so", "{counter:target:shutups} then {counter:deaths}", false, 0)))
-	repo.Close(ctx)
-
-	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
-	defer repo2.Close(ctx)
-	require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
-
-	row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
-	assert.Equal(t, "deaths", row.BumpCounter)
-}
-
-func TestBackfillLeavesAnAlreadySetOptionAlone(t *testing.T) {
-	client, pub, repo := setup(t)
-	ctx := context.Background()
-
-	s := spec("!so", "{counter:deaths} times", false, 0)
-	s.BumpCounter = "hugs"
-	require.NoError(t, repo.Upsert(1001, s))
-	repo.Close(ctx)
-
-	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
-	defer repo2.Close(ctx)
-	require.NoError(t, repo2.BackfillBumpCounterFromTokens(ctx))
-
-	row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
-	assert.Equal(t, "hugs", row.BumpCounter, "an existing choice is never overwritten")
+			row := client.Commands.Query().Where(commands.NameEQ("so")).OnlyX(ctx)
+			assert.Equal(t, tc.want, row.BumpCounter)
+			assert.Equal(t, tc.announced, announcedBumpCounters(t, pub, baseline), "an untouched row is never announced")
+		})
+	}
 }
 
 func TestBackfillRunsExactlyOnce(t *testing.T) {

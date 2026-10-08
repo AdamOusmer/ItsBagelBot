@@ -13,19 +13,10 @@ import (
 	"ItsBagelBot/app/twitch/sesame/automod/linkcheck"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/pkg/codec"
-)
 
-func waitFor(t *testing.T, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	t.Fatal("condition did not hold within 2s")
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func blockingDoH(t *testing.T) *linkcheck.DoH {
 	t.Helper()
@@ -36,89 +27,60 @@ func blockingDoH(t *testing.T) *linkcheck.DoH {
 	return linkcheck.NewDoH(srv.URL, nil)
 }
 
-func feedChecker(t *testing.T) (*linkcheck.Checker, context.CancelFunc) {
+func startChecker(t *testing.T, feeds *linkcheck.Feeds) *linkcheck.Checker {
+	t.Helper()
+	c := linkcheck.NewChecker(linkcheck.Options{Feeds: feeds, DoH: blockingDoH(t)})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	c.Start(ctx)
+	return c
+}
+
+func feedChecker(t *testing.T) *linkcheck.Checker {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("convicted.example/scam\n"))
 	}))
 	t.Cleanup(srv.Close)
-
 	feeds := linkcheck.NewFeeds([]linkcheck.FeedSource{{Name: "test", URL: srv.URL, Format: linkcheck.FormatLines}}, nil)
-	if _, err := feeds.Refresh(context.Background()); err != nil {
-		t.Fatalf("feed refresh: %v", err)
-	}
-	c := linkcheck.NewChecker(linkcheck.Options{
-		Feeds: feeds,
-		DoH:   blockingDoH(t),
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	c.Start(ctx)
-	return c, cancel
+	_, err := feeds.Refresh(context.Background())
+	require.NoError(t, err)
+	return startChecker(t, feeds)
 }
 
-func TestGatePhishVerdictOnFeedListedHost(t *testing.T) {
-	c, stop := feedChecker(t)
-	defer stop()
+func TestGateLinkCheck(t *testing.T) {
+	tests := []struct {
+		name  string
+		armed bool
+		cfg   string
+		line  string
+		want  Verdict
+	}{
+		{"convicts a feed-listed host with a phish verdict", true, "", "see convicted.example ok friends", Verdict{Action: ActionTimeout, Seconds: 600, Rule: "phish"}},
+		{"lets the floor win over the link check", true, "", "visit grabify.link now", verdictIPLogger},
+		{"skips the link check under a floor-only level", true, `{"level":"none"}`, "see convicted.example ok", Verdict{}},
+		{"stays inert when unarmed", false, "", "see convicted.example ok", Verdict{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := New()
+			if tt.armed {
+				g.SetLinkChecker(feedChecker(t))
+			}
 
-	g := New()
-	g.SetLinkChecker(c)
-
-	line := "see convicted.example ok friends"
-	v := g.InspectWith(module.RoleEveryone, line, nil)
-	if want := (Verdict{Action: ActionTimeout, Seconds: 600, Rule: "phish"}); v != want {
-		t.Fatalf("verdict = %+v, want %+v", v, want)
+			assert.Equal(t, tt.want, g.InspectWith(module.RoleEveryone, tt.line, ParseConfig(codec.RawMessage(tt.cfg))))
+		})
 	}
 }
 
 func TestGateUnknownHostResolvesAsyncThenConvicts(t *testing.T) {
-	c := linkcheck.NewChecker(linkcheck.Options{
-		Feeds: linkcheck.NewFeeds(nil, nil),
-		DoH:   blockingDoH(t),
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	c.Start(ctx)
-
 	g := New()
-	g.SetLinkChecker(c)
-
+	g.SetLinkChecker(startChecker(t, linkcheck.NewFeeds(nil, nil)))
 	line := "doomed.example is live go look"
-	if v := g.InspectWith(module.RoleEveryone, line, nil); v.Action != ActionNone {
-		t.Fatalf("first sight convicted before any oracle ran: %+v", v)
-	}
-	waitFor(t, func() bool {
-		return g.InspectWith(module.RoleEveryone, line, nil).Action == ActionTimeout
-	})
-}
 
-func TestGateFloorStillWinsOverLinkCheck(t *testing.T) {
-	c, stop := feedChecker(t)
-	defer stop()
+	assert.Equal(t, Verdict{}, g.Inspect(module.RoleEveryone, line), "first sight convicts before any oracle ran")
 
-	g := New()
-	g.SetLinkChecker(c)
-
-	if v := g.InspectWith(module.RoleEveryone, "visit grabify.link now", nil); v.Rule != "ip_logger" {
-		t.Fatalf("rule = %q, want ip_logger (floor precedence)", v.Rule)
-	}
-}
-
-func TestGateLinksOffProfileSkipsLinkCheck(t *testing.T) {
-	c, stop := feedChecker(t)
-	defer stop()
-
-	g := New()
-	g.SetLinkChecker(c)
-
-	cfg := ParseConfig(codec.RawMessage(`{"level":"none"}`))
-	if v := g.InspectWith(module.RoleEveryone, "see convicted.example ok", cfg); v.Action != ActionNone {
-		t.Fatalf("floor-only profile judged links: %+v", v)
-	}
-}
-
-func TestGateUnarmedStaysInert(t *testing.T) {
-	g := New()
-	if v := g.InspectWith(module.RoleEveryone, "see convicted.example ok", nil); v.Action != ActionNone {
-		t.Fatalf("unarmed gate acted: %+v", v)
-	}
+	require.Eventually(t, func() bool {
+		return g.Inspect(module.RoleEveryone, line).Action == ActionTimeout
+	}, 2*time.Second, 2*time.Millisecond)
 }

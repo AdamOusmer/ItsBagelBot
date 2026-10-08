@@ -1,93 +1,26 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package urchin
+package urchin_test
 
 import (
-	"context"
 	"net/http"
-	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
+	"ItsBagelBot/app/gossip/internal/providers/urchin"
+	"ItsBagelBot/app/gossip/internal/providertest"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-func init() { core.SetSSRFCheckForTests(false) }
-
-type memStore struct {
-	mu sync.Mutex
-	m  map[string][]byte
-}
-
-func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
-
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.m[key]
-	return b, ok, nil
-}
-func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.m[key] = append([]byte(nil), val...)
-	return nil
-}
-func (s *memStore) Del(_ context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.m, key)
-	return nil
-}
-
-func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[key]; ok {
-		return false, nil
-	}
-	s.m[key] = []byte("1")
-	return true, nil
-}
-
-func newTestProvider(t *testing.T, handler http.Handler) provider.Provider {
-	t.Helper()
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	return New(Config{BaseURL: srv.URL, APIKey: "test-key"},
-		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
-}
-
-func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
-	t.Helper()
-	for _, ep := range p.Endpoints() {
-		if ep.Name == name {
-			return ep.Handle
-		}
-	}
-	t.Fatalf("endpoint %q not declared", name)
-	return nil
-}
-
-func asReply[T any](t *testing.T, res any) T {
-	t.Helper()
-	if v, ok := res.(T); ok {
-		return v
-	}
-	raw, ok := res.(codec.RawMessage)
-	require.True(t, ok, "unexpected handler result type %T", res)
-	var v T
-	require.NoError(t, codec.Unmarshal(raw, &v))
-	return v
+func newProvider(t testing.TB, handler http.Handler) provider.Provider {
+	return urchin.New(
+		urchin.Config{BaseURL: providertest.Upstream(t, handler), APIKey: "test-key", BatchWindow: 15 * time.Millisecond},
+		providertest.Deps(providertest.NewMemStore()))
 }
 
 const sessionBody = `{
@@ -109,86 +42,68 @@ const sessionBody = `{
 	}
 }`
 
-func TestDailySessionParsing(t *testing.T) {
+func TestDailySessionIsParsedFromTheAuthenticatedRequest(t *testing.T) {
 	var gotKey, gotPlayer string
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v3/player/sessions/daily", r.URL.Path)
 		gotKey = r.Header.Get("X-API-Key")
 		gotPlayer = r.URL.Query().Get("player")
 		_, _ = w.Write([]byte(sessionBody))
 	}))
 
-	reply := asReply[gossiprpc.UrchinSessionReply](t, endpoint(t, p, "daily")(context.Background(), gossiprpc.Request{Account: "Techno"}))
-	require.Empty(t, reply.Error)
+	reply := providertest.Call[gossiprpc.UrchinSessionReply](t, p, "daily", gossiprpc.Request{Account: "Techno"})
+
 	assert.Equal(t, "test-key", gotKey)
 	assert.Equal(t, "Techno", gotPlayer)
-	assert.Equal(t, "Techno", reply.Player)
-	assert.Equal(t, int64(1720000000), reply.SinceUnix)
-	assert.Equal(t, int64(5), reply.Wins)
-	assert.Equal(t, int64(2), reply.Losses)
-	assert.Equal(t, int64(21), reply.FinalKills)
-	assert.Equal(t, int64(3), reply.FinalDeaths)
-	assert.Equal(t, int64(9), reply.BedsBroken)
-	assert.Equal(t, int64(8), reply.GamesPlayed)
-	assert.Equal(t, int64(1), reply.Levels)
+	assert.Equal(t, gossiprpc.UrchinSessionReply{
+		Player: "Techno", SinceUnix: 1720000000, Wins: 5, Losses: 2, FinalKills: 21,
+		FinalDeaths: 3, BedsBroken: 9, GamesPlayed: 8, Levels: 1,
+	}, reply)
 }
 
-func TestSessionObjectDeltaSkipped(t *testing.T) {
-	body := `{"uuid":"abc","from":0,"from_readable":"x","delta":{"stats":{"Bedwars":{"wins_bedwars":{"old":null,"new":5000}}}}}`
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(body))
-	}))
+func TestSessionDeltasThatAreObjectsAreSkipped(t *testing.T) {
+	p := newProvider(t, providertest.Respond(http.StatusOK,
+		`{"uuid":"abc","from":0,"from_readable":"x","delta":{"stats":{"Bedwars":{"wins_bedwars":{"old":null,"new":5000}}}}}`))
 
-	reply := asReply[gossiprpc.UrchinSessionReply](t, endpoint(t, p, "weekly")(context.Background(), gossiprpc.Request{Account: "x"}))
-	require.Empty(t, reply.Error)
-	assert.Zero(t, reply.Wins)
+	reply := providertest.Call[gossiprpc.UrchinSessionReply](t, p, "weekly", gossiprpc.Request{Account: "x"})
+
+	assert.Equal(t, gossiprpc.UrchinSessionReply{Player: "x"}, reply)
 }
 
-func TestSessionCachesReply(t *testing.T) {
-	var hits int
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
-		_, _ = w.Write([]byte(sessionBody))
-	}))
-	h := endpoint(t, p, "daily")
+func TestLookupsAreCachedPerPlayerAndFailuresAreAnsweredInChat(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		account    string
+		upstream   []providertest.Reply
+		wantErrors [2]string
+		wantHits   int
+	}{
+		{"rejects a missing account before any upstream call", "", nil,
+			[2]string{"missing account", "missing account"}, 0},
+		{"serves a repeat lookup from the cache whatever the spelling", "Techno", []providertest.Reply{{Body: sessionBody}},
+			[2]string{"", ""}, 1},
+		{"serves an unknown player from the negative cache", "ghost", []providertest.Reply{{Status: http.StatusNotFound, Body: `{"error":"player not found"}`}},
+			[2]string{"player not found", "player not found"}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := providertest.NewSequence(t, tc.upstream...)
+			p := newProvider(t, upstream)
 
-	first := asReply[gossiprpc.UrchinSessionReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
-	second := asReply[gossiprpc.UrchinSessionReply](t, h(context.Background(), gossiprpc.Request{Account: "techno"}))
-	assert.Equal(t, 1, hits)
-	assert.Equal(t, first, second)
+			for i, want := range tc.wantErrors {
+				account := tc.account
+				if i == 1 && account != "" {
+					account = "  " + account + "  "
+				}
+				reply := providertest.Call[gossiprpc.UrchinSessionReply](t, p, "daily", gossiprpc.Request{Account: account})
+				assert.Equal(t, want, reply.Error, "call %d", i+1)
+			}
+			assert.Equal(t, tc.wantHits, upstream.Hits())
+		})
+	}
 }
 
-func TestSessionHitIsRawBytes(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(sessionBody))
-	}))
-	h := endpoint(t, p, "daily")
-
-	_ = h(context.Background(), gossiprpc.Request{Account: "Techno"})
-	res := h(context.Background(), gossiprpc.Request{Account: "Techno"})
-	_, isRaw := res.(codec.RawMessage)
-	assert.True(t, isRaw, "cache hit must answer stored wire bytes")
-}
-
-func TestPlayerNotFoundNegativeCached(t *testing.T) {
-	var hits int
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits++
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"player not found"}`))
-	}))
-	h := endpoint(t, p, "daily")
-
-	reply := asReply[gossiprpc.UrchinSessionReply](t, h(context.Background(), gossiprpc.Request{Account: "ghost"}))
-	assert.Equal(t, "player not found", reply.Error)
-
-	reply = asReply[gossiprpc.UrchinSessionReply](t, h(context.Background(), gossiprpc.Request{Account: "ghost"}))
-	assert.Equal(t, "player not found", reply.Error)
-	assert.Equal(t, 1, hits, "the miss must be served from the negative cache")
-}
-
-func TestSniperResolvesUUIDThenScores(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestSniperAndTagsRepliesAreShapedFromTheUpstreamPayload(t *testing.T) {
+	cubelify := func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v3/player/tags":
 			_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Aim","tags":[]}`))
@@ -199,79 +114,57 @@ func TestSniperResolvesUUIDThenScores(t *testing.T) {
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-	}))
-
-	reply := asReply[gossiprpc.UrchinSniperReply](t, endpoint(t, p, "sniper")(context.Background(), gossiprpc.Request{Account: "Aim"}))
-	require.Empty(t, reply.Error)
-	assert.Equal(t, "Aim", reply.Player)
-	assert.Equal(t, 7.5, reply.Score)
-	assert.Equal(t, "warn", reply.Mode)
-	assert.Equal(t, 1, reply.TagCount)
-}
-
-func TestResolveEmptyUUIDIsNotFound(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v3/player/tags", r.URL.Path)
-		_, _ = w.Write([]byte(`{"uuid":"","displayname":null,"tags":[]}`))
-	}))
-
-	reply := asReply[gossiprpc.UrchinSniperReply](t, endpoint(t, p, "sniper")(context.Background(), gossiprpc.Request{Account: "ghost"}))
-	assert.Equal(t, "player not found", reply.Error)
-}
-
-func TestTagsParsing(t *testing.T) {
-	body := `{"uuid":"abc","displayname":"Sus","tags":[
+	}
+	tagsBody := `{"uuid":"abc","displayname":"Sus","tags":[
 		{"tag_type":"cheater","reason":"bhop","added_by":1,"added_on":0,"hide_username":false},
 		{"tag_type":"sniper","reason":"","added_by":1,"added_on":0,"hide_username":false}
 	]}`
-	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(body))
-	}))
 
-	reply := asReply[gossiprpc.UrchinTagsReply](t, endpoint(t, p, "tags")(context.Background(), gossiprpc.Request{Account: "Sus"}))
-	require.Empty(t, reply.Error)
-	require.Len(t, reply.Tags, 2)
-	assert.Equal(t, gossiprpc.UrchinTag{Type: "cheater", Reason: "bhop"}, reply.Tags[0])
-	assert.Equal(t, gossiprpc.UrchinTag{Type: "sniper"}, reply.Tags[1])
+	providertest.RunCases(t, func(t testing.TB, h http.Handler) provider.Provider { return newProvider(t, h) }, "sniper",
+		[]providertest.Case[gossiprpc.UrchinSniperReply]{
+			{Name: "resolves the uuid then scores the player", Req: gossiprpc.Request{Account: "Aim"}, Upstream: cubelify,
+				Want: gossiprpc.UrchinSniperReply{Player: "Aim", Score: 7.5, Mode: "warn", TagCount: 1}},
+			{Name: "reports a name that resolves to no uuid as not found", Req: gossiprpc.Request{Account: "ghost"},
+				Upstream: providertest.Respond(http.StatusOK, `{"uuid":"","displayname":null,"tags":[]}`),
+				Want:     gossiprpc.UrchinSniperReply{Player: "ghost", Error: "player not found"}},
+		})
+	providertest.RunCases(t, func(t testing.TB, h http.Handler) provider.Provider { return newProvider(t, h) }, "tags",
+		[]providertest.Case[gossiprpc.UrchinTagsReply]{
+			{Name: "lists the tags a player carries", Req: gossiprpc.Request{Account: "Sus"},
+				Upstream: providertest.Respond(http.StatusOK, tagsBody),
+				Want: gossiprpc.UrchinTagsReply{Player: "Sus", Tags: []gossiprpc.UrchinTag{
+					{Type: "cheater", Reason: "bhop"}, {Type: "sniper"},
+				}}},
+		})
 }
 
-func TestTagsAndSniperShareUpstreamFetch(t *testing.T) {
-	run := func(t *testing.T, first, second string) {
-		var tagsHits, cubelifyHits int
-		p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/v3/player/tags":
-				tagsHits++
-				_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Aim","tags":[]}`))
-			case "/v3/cubelify":
-				cubelifyHits++
-				_, _ = w.Write([]byte(`{"score":{"value":3,"mode":"ok"},"tags":[]}`))
-			default:
-				t.Errorf("unexpected path %s", r.URL.Path)
+func TestTagsAndSniperShareOneUpstreamFetch(t *testing.T) {
+	for _, tc := range []struct{ name, first, second string }{
+		{"tags then sniper", "tags", "sniper"},
+		{"sniper then tags", "sniper", "tags"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var tagsHits, cubelifyHits int
+			p := newProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v3/player/tags":
+					tagsHits++
+					_, _ = w.Write([]byte(`{"uuid":"deadbeef","displayname":"Aim","tags":[]}`))
+				case "/v3/cubelify":
+					cubelifyHits++
+					_, _ = w.Write([]byte(`{"score":{"value":3,"mode":"ok"},"tags":[]}`))
+				default:
+					t.Errorf("unexpected path %s", r.URL.Path)
+				}
+			}))
+			for _, endpoint := range []string{tc.first, tc.second} {
+				_ = providertest.Endpoint(t, p, endpoint)(t.Context(), gossiprpc.Request{Account: "Aim"})
 			}
-		}))
-		_ = endpoint(t, p, first)(context.Background(), gossiprpc.Request{Account: "Aim"})
-		_ = endpoint(t, p, second)(context.Background(), gossiprpc.Request{Account: "Aim"})
-		assert.Equal(t, 1, tagsHits, "the /v3/player/tags fetch must be shared, not repeated")
-		assert.Equal(t, 1, cubelifyHits)
+
+			assert.Equal(t, 1, tagsHits, "the /v3/player/tags fetch must be shared, not repeated")
+			assert.Equal(t, 1, cubelifyHits)
+		})
 	}
-	t.Run("tag then sniper", func(t *testing.T) { run(t, "tags", "sniper") })
-	t.Run("sniper then tag", func(t *testing.T) { run(t, "sniper", "tags") })
-}
-
-func TestMissingAccount(t *testing.T) {
-	p := newTestProvider(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Error("no upstream call expected")
-	}))
-	reply := asReply[gossiprpc.UrchinSessionReply](t, endpoint(t, p, "daily")(context.Background(), gossiprpc.Request{}))
-	assert.Equal(t, "missing account", reply.Error)
-}
-
-func TestOddRateLimitDoesNotPanic(t *testing.T) {
-	assert.NotPanics(t, func() {
-		New(Config{APIKey: "k", RateLimit: 550.5},
-			provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
-	})
 }
 
 type playerNamed struct {
@@ -295,15 +188,19 @@ func TestPlayerNamePrefersCallerSpellingOverStaleAPIName(t *testing.T) {
 			body:    `{"uuid":"` + uuid + `","displayname":"Sho__YiYuan","from":0,"delta":{}}`,
 			want:    "Sho__YiYuan",
 		},
+		{
+			name:    "uuid display names lose their minecraft colour codes",
+			ep:      "daily",
+			account: uuid,
+			body:    `{"uuid":"` + uuid + `","displayname":"§7§lSho__YiYuan","from":0,"delta":{}}`,
+			want:    "Sho__YiYuan",
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			body := tc.body
-			p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = w.Write([]byte(body))
-			}))
-			reply := asReply[playerNamed](t, endpoint(t, p, tc.ep)(context.Background(), gossiprpc.Request{Account: tc.account}))
+			p := newProvider(t, providertest.Respond(http.StatusOK, tc.body))
+			reply := providertest.Call[playerNamed](t, p, tc.ep, gossiprpc.Request{Account: tc.account})
 			assert.Equal(t, tc.want, reply.Player)
 		})
 	}

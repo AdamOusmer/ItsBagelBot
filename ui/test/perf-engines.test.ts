@@ -2,11 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { eventTarget as target, isolatedLib, snapshotGlobals } from './dom-fakes';
 
-const GLOBALS = [
+const restoreGlobals = snapshotGlobals([
   'window',
   'document',
   'Element',
@@ -17,29 +15,7 @@ const GLOBALS = [
   'getComputedStyle',
   'IntersectionObserver',
   'ResizeObserver',
-];
-const saved = new Map(GLOBALS.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const));
-
-type Listener = (event: unknown) => void;
-
-function target() {
-  const listeners = new Map<string, Set<Listener>>();
-  return {
-    addEventListener(type: string, fn: Listener) {
-      if (!listeners.has(type)) listeners.set(type, new Set());
-      listeners.get(type)?.add(fn);
-    },
-    removeEventListener(type: string, fn: Listener) {
-      listeners.get(type)?.delete(fn);
-    },
-    dispatch(type: string, event: unknown = {}) {
-      for (const fn of listeners.get(type) ?? []) fn(event);
-    },
-    count(type: string) {
-      return listeners.get(type)?.size ?? 0;
-    },
-  };
-}
+]);
 
 let matchMediaCalls = 0;
 const media = (feature: string) => {
@@ -124,33 +100,24 @@ function fireTimers(): void {
   for (const fn of due) fn();
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'bagel-perf-test-'));
-for (const file of [
+const lib = isolatedLib('perf', [
   'motion-query.ts',
   'raf-loop.ts',
   'rect-cache.ts',
   'magnetic.ts',
   'cursor-engine.ts',
-  'decode.ts',
   'light-field.ts',
   'count-up.ts',
-]) {
-  copyFileSync(new URL(`../lib/${file}`, import.meta.url), join(dir, file));
-}
-const load = <T>(file: string) => import(join(dir, file)) as Promise<T>;
-const { mountCursor } = await load<typeof import('../lib/cursor-engine')>('cursor-engine.ts');
-const { mountMagnetic } = await load<typeof import('../lib/magnetic')>('magnetic.ts');
-const { decode } = await load<typeof import('../lib/decode')>('decode.ts');
-const { field } = await load<typeof import('../lib/light-field')>('light-field.ts');
-const { countUp } = await load<typeof import('../lib/count-up')>('count-up.ts');
-const { isRunning, wake } = await load<typeof import('../lib/raf-loop')>('raf-loop.ts');
+]);
+const { mountCursor } = await lib.load<typeof import('../lib/cursor-engine')>('cursor-engine.ts');
+const { mountMagnetic } = await lib.load<typeof import('../lib/magnetic')>('magnetic.ts');
+const { field } = await lib.load<typeof import('../lib/light-field')>('light-field.ts');
+const { countUp } = await lib.load<typeof import('../lib/count-up')>('count-up.ts');
+const { isRunning, wake } = await lib.load<typeof import('../lib/raf-loop')>('raf-loop.ts');
 
 afterAll(() => {
-  rmSync(dir, { recursive: true, force: true });
-  for (const [key, descriptor] of saved) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-    else Reflect.deleteProperty(globalThis, key);
-  }
+  lib.remove();
+  restoreGlobals();
 });
 
 beforeEach(() => {
@@ -164,7 +131,7 @@ beforeEach(() => {
 });
 
 describe('cursor', () => {
-  function stage() {
+  function stage(top = (_read: number) => 100) {
     let rects = 0;
     const link = {
       isConnected: true,
@@ -172,7 +139,7 @@ describe('cursor', () => {
       closest: () => link,
       getBoundingClientRect: () => {
         rects += 1;
-        return { left: 100, top: 100, width: 80, height: 20 };
+        return { left: 100, top: top(rects), width: 80, height: 20 };
       },
     };
     const paint = () => ({ style: {} as Record<string, string>, classList: { toggle() {} } });
@@ -182,13 +149,17 @@ describe('cursor', () => {
     return { link, ring, dispose, rects: () => rects };
   }
 
-  test('a hovered element is measured once, then the loop sleeps on the settled ring', () => {
-    const { link, ring, dispose, rects } = stage();
+  test('a hovered element that moves mid-hover is tracked, then the loop sleeps on the settled ring', () => {
+    const { link, ring, dispose } = stage((read) => (read < 3 ? 100 : 97));
     doc.dispatch('pointerover', { target: link });
     settle();
-    expect([rects(), styleReads]).toEqual([1, 1]);
+    expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
-    expect([ring.style.width, ring.style.height]).toEqual(['92.0px', '32.0px']);
+    expect([ring.style.transform, ring.style.width, ring.style.height]).toEqual([
+      'translate(94.0px, 91.0px)',
+      '92.0px',
+      '32.0px',
+    ]);
     dispose();
   });
 
@@ -196,12 +167,14 @@ describe('cursor', () => {
     const { link, dispose, rects } = stage();
     doc.dispatch('pointerover', { target: link });
     settle();
+    const hovered = rects();
     win.dispatch('scroll');
     expect(frames.length).toBeGreaterThan(0);
     settle();
+    const scrolled = rects();
     win.dispatch('resize');
     settle();
-    expect(rects()).toBe(3);
+    expect([scrolled > hovered, rects() > scrolled]).toEqual([true, true]);
     expect(styleReads).toBe(1);
     expect(frames).toHaveLength(0);
     dispose();
@@ -215,6 +188,48 @@ describe('cursor', () => {
     expect(frames).toHaveLength(0);
     expect(rects()).toBe(0);
     dispose();
+  });
+
+  test('the cursor re-enters the top layer above any popover that opens', async () => {
+    const shown: string[] = [];
+    const layer = (name: string) => {
+      let open = false;
+      const el = {
+        name,
+        popover: null as string | null,
+        style: {} as Record<string, string>,
+        classList: { toggle() {} },
+        matches: () => open,
+        showPopover: () => {
+          open = true;
+          shown.push(name);
+        },
+        hidePopover: () => {
+          open = false;
+        },
+        removeAttribute: (attr: string) => {
+          if (attr === 'popover') el.popover = null;
+          open = false;
+        },
+      };
+      return el;
+    };
+    const dot = layer('dot');
+    const ring = layer('ring');
+    const dispose = mountCursor({ dot: dot as never, ring: ring as never });
+    expect([dot.popover, ring.popover, shown]).toEqual(['manual', 'manual', ['ring', 'dot']]);
+
+    doc.dispatch('beforetoggle', { newState: 'open', target: {} });
+    expect(shown).toHaveLength(2);
+    await Promise.resolve();
+    expect(shown).toEqual(['ring', 'dot', 'ring', 'dot']);
+    doc.dispatch('beforetoggle', { newState: 'closed', target: {} });
+    doc.dispatch('beforetoggle', { newState: 'open', target: dot });
+    await Promise.resolve();
+    expect(shown).toHaveLength(4);
+
+    dispose();
+    expect([dot.popover, ring.popover, doc.count('beforetoggle')]).toEqual([null, null, 0]);
   });
 });
 
@@ -272,18 +287,6 @@ describe('magnetic', () => {
     flush();
     expect(writes.last).toBe('translate(2.67px, 0.00px)');
     dispose();
-  });
-});
-
-describe('decode', () => {
-  test('a finished decode unsubscribes itself and reports done once', () => {
-    const el = { textContent: '' };
-    let done = 0;
-    decode(el as unknown as HTMLElement, 'hello', { durationMs: 100 }, () => (done += 1));
-    flush(performance.now() + 5000);
-    expect([el.textContent, done]).toEqual(['hello', 1]);
-    wake();
-    expect(isRunning()).toBe(false);
   });
 });
 

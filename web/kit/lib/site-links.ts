@@ -22,6 +22,7 @@ export interface SiteLinkDef {
   path?: string;
   url?: string;
   lang?: boolean;
+  englishOnly?: boolean;
   key?: string;
   label?: string;
 }
@@ -29,6 +30,7 @@ export interface SiteLinkDef {
 export interface SiteColumnDef {
   key: string;
   links: readonly SiteLinkDef[];
+  stacked?: boolean;
 }
 
 export interface SiteLink {
@@ -41,10 +43,11 @@ export interface SiteLink {
 export interface SiteColumn {
   title: string;
   links: SiteLink[];
+  stacked?: boolean;
 }
 
 export interface SiteLinkContext {
-  path(path: string): string;
+  path(path: string, englishOnly?: boolean): string;
   label(key: string): string;
   langQuery: string;
   isActive?(href: string): boolean;
@@ -64,6 +67,9 @@ export const SITE_FOOTER = [
     links: [
       { path: '/pricing', key: 'pricing' },
       { path: '/guides', key: 'guides' },
+      { path: '/song-requests', key: 'songRequests' },
+      { path: '/govee', key: 'govee' },
+      { path: '/import', key: 'import' },
       { path: '/changelog', key: 'changelog' },
       { path: '/command-builder', key: 'builder' },
     ],
@@ -74,6 +80,14 @@ export const SITE_FOOTER = [
       { path: '/contact', key: 'contact' },
       { url: SITE.stats, key: 'stats' },
       { url: SITE.status, key: 'status' },
+    ],
+  },
+  {
+    key: 'compare',
+    stacked: true,
+    links: [
+      { path: '/vs/nightbot', key: 'vsNightbot', englishOnly: true },
+      { path: '/vs/streamelements', key: 'vsStreamelements', englishOnly: true },
     ],
   },
   {
@@ -96,7 +110,7 @@ export const SITE_LEGAL: readonly SiteLinkDef[] = [
 
 export function resolveSiteLink(def: SiteLinkDef, ctx: SiteLinkContext): SiteLink {
   const external = def.url !== undefined;
-  const base = def.url ?? ctx.path(def.path ?? '/');
+  const base = def.url ?? ctx.path(def.path ?? '/', def.englishOnly);
   const href = def.lang ? `${base}${ctx.langQuery}` : base;
   return {
     href,
@@ -120,6 +134,7 @@ export function resolveSiteColumns(
   return defs.map((column) => ({
     title: ctx.label(column.key),
     links: resolveSiteLinks(column.links, ctx),
+    ...(column.stacked ? { stacked: true } : {}),
   }));
 }
 

@@ -3,7 +3,11 @@
 
 package moderation
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestMatchFloorRegressions(t *testing.T) {
 	cases := []struct {
@@ -53,20 +57,6 @@ func TestMatchFloorRegressions(t *testing.T) {
 	}
 }
 
-func TestMatchFloorEmpty(t *testing.T) {
-	if kind, _ := MatchFloor(nil); kind != FloorNone {
-		t.Fatalf("empty skeleton matched: %v", kind)
-	}
-}
-
-func TestMatchFloorZeroAlloc(t *testing.T) {
-	benign := []byte(" a totally normal long chat message about the game we are watching tonight")
-	dirty := []byte(" winner can claim your prize at https://grabify.link/abcd right now")
-	if allocs := testing.AllocsPerRun(200, func() { MatchFloor(benign); MatchFloor(dirty) }); allocs != 0 {
-		t.Fatalf("MatchFloor allocated %.1f/op, want 0", allocs)
-	}
-}
-
 func TestMatchFloorPrescanParity(t *testing.T) {
 	cases := []struct {
 		name string
@@ -93,6 +83,7 @@ func TestMatchFloorPrescanParity(t *testing.T) {
 		{"chemistry joke", "free nitrogen is a gas", FloorNone, ""},
 		{"fused token", "join freenitro giveaway", FloorNone, ""},
 		{"unrelated", "gg wp nice play today", FloorNone, ""},
+		{"empty text", "", FloorNone, ""},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,18 +98,18 @@ func TestMatchFloorPrescanParity(t *testing.T) {
 	}
 }
 
-func TestMatchFloorPrescanEmpty(t *testing.T) {
-	if kind, _ := MatchFloorPrescan(""); kind != FloorNone {
-		t.Fatalf("empty text matched: %v", kind)
+func TestMatchFloorDoesNotAllocate(t *testing.T) {
+	skeletons := [][]byte{
+		[]byte(" a totally normal long chat message about the game we are watching tonight"),
+		[]byte(" winner can claim your prize at https://grabify.link/abcd right now"),
 	}
-}
+	texts := []string{
+		"a totally normal short chat line about the game tonight",
+		"get free nitro at grabify.link now ok",
+	}
 
-func TestMatchFloorPrescanZeroAlloc(t *testing.T) {
-	benign := "a totally normal short chat line about the game tonight"
-	dirty := "get free nitro at grabify.link now ok"
-	if allocs := testing.AllocsPerRun(200, func() { MatchFloorPrescan(benign); MatchFloorPrescan(dirty) }); allocs != 0 {
-		t.Fatalf("MatchFloorPrescan allocated %.1f/op, want 0", allocs)
-	}
+	assert.Zero(t, testing.AllocsPerRun(200, func() { MatchFloor(skeletons[0]); MatchFloor(skeletons[1]) }))
+	assert.Zero(t, testing.AllocsPerRun(200, func() { MatchFloorPrescan(texts[0]); MatchFloorPrescan(texts[1]) }))
 }
 
 func TestCheckFloorSaveTime(t *testing.T) {

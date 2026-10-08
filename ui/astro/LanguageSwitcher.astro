@@ -52,7 +52,7 @@ const Root = action ? 'form' : 'div';
   class="bb-lang-switch__trigger"
   popovertarget={menuId}
   aria-label={`${label}: ${current?.title ?? current?.label}`}
-><span class="bb-lang-switch__flag" aria-hidden="true">{currentFlag && <svg viewBox="0 0 512 512" set:html={currentFlag} />}</span><span class="bb-lang-switch__label">{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</span><Icon name="chevron" size={12} class="bb-lang-switch__chevron" /></button><ul class="bb-lang-switch__menu" id={menuId} popover="auto" role="list" aria-label={label}>{options.map((option) => {
+><span class="bb-lang-switch__flag" aria-hidden="true">{currentFlag && <svg viewBox="0 0 512 512" set:html={currentFlag} />}</span><span class="bb-lang-switch__label" data-fit={variant === 'field' ? undefined : ''}>{variant === 'field' ? (current?.title ?? current?.label) : current?.label}</span><Icon name="chevron" size={12} class="bb-lang-switch__chevron" /></button><ul class="bb-lang-switch__menu" id={menuId} popover="auto" role="list" aria-label={label}>{options.map((option) => {
   const body = flagBody(option.flag);
   const row = (
     <Fragment><span class="bb-lang-switch__flag" aria-hidden="true">{body && <svg viewBox="0 0 512 512" set:html={body} />}</span><span class="bb-lang-switch__name" lang={option.code}>{option.title ?? option.label}</span><Icon name="check" size={14} class="bb-lang-switch__check" /></Fragment>
@@ -61,7 +61,7 @@ const Root = action ? 'form' : 'div';
     <li>{action ? (
       <button type="submit" name={name} value={option.code} class={optClass(option)} aria-pressed={option.current ? 'true' : 'false'}>{row}</button>
     ) : (
-      <a class={optClass(option)} href={option.href} hreflang={option.code} aria-current={option.current ? 'true' : undefined}>{row}</a>
+      <a class={optClass(option)} href={option.href} data-astro-prefetch={option.current ? undefined : 'viewport'} hreflang={option.code} aria-current={option.current ? 'true' : undefined}>{row}</a>
     )}</li>
   );
 })}</ul></Root>

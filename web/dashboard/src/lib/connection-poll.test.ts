@@ -1,32 +1,36 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
-import {
-  CONNECTION_POLL_FAST_MS,
-  connectionPollDelay,
-  connectionPollSettled
-} from './connection-poll';
+import { expect, test } from 'bun:test';
+import { CONNECTION_POLL_FAST_MS, connectionPollDelay, connectionPollSettled, type ConnectionPollGoal } from './connection-poll';
 
-describe('connection polling', () => {
-  test('polls quickly through the ordinary reconnect window, then backs off', () => {
-    assert.equal(connectionPollDelay(0), CONNECTION_POLL_FAST_MS);
-    assert.equal(connectionPollDelay(4999), CONNECTION_POLL_FAST_MS);
-    assert.equal(connectionPollDelay(5000), 2500);
-  });
+test('polls quickly through the ordinary reconnect window, then backs off', () => {
+  expect([0, 4999, 5000].map(connectionPollDelay)).toEqual([CONNECTION_POLL_FAST_MS, CONNECTION_POLL_FAST_MS, 2500]);
+});
 
-  test('connect waits for a transition or a short old-state grace period', () => {
-    assert.equal(connectionPollSettled('connected', 'ok', 500, false), false);
-    assert.equal(connectionPollSettled('connected', 'ok', 500, true), true);
-    assert.equal(connectionPollSettled('connected', 'ok', 1500, false), true);
-    assert.equal(connectionPollSettled('connected', 'pending', 5000, true), false);
-  });
+type Poll = [state: string, elapsedMs: number, sawUnsettled: boolean];
 
-  test('disconnect waits for an inactive subscription state', () => {
-    assert.equal(connectionPollSettled('disconnected', 'ok', 5000, true), false);
-    assert.equal(connectionPollSettled('disconnected', 'unenrolled', 500, false), true);
-    assert.equal(connectionPollSettled('disconnected', 'failing', 500, false), true);
-    assert.equal(connectionPollSettled('disconnected', 'revoked', 500, false), true);
-  });
+const settledFor = (goal: ConnectionPollGoal, polls: Poll[]): boolean[] =>
+  polls.map(([state, elapsedMs, sawUnsettled]) => connectionPollSettled(goal, state, elapsedMs, sawUnsettled));
+
+test('connect waits for a transition or a short old-state grace period', () => {
+  expect(
+    settledFor('connected', [
+      ['ok', 500, false],
+      ['ok', 500, true],
+      ['ok', 1500, false],
+      ['pending', 5000, true]
+    ])
+  ).toEqual([false, true, true, false]);
+});
+
+test('disconnect waits for an inactive subscription state', () => {
+  expect(
+    settledFor('disconnected', [
+      ['ok', 5000, true],
+      ['unenrolled', 500, false],
+      ['failing', 500, false],
+      ['revoked', 500, false]
+    ])
+  ).toEqual([false, true, true, true]);
 });

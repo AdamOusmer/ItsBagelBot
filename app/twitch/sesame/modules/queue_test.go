@@ -6,12 +6,8 @@ package modules
 import (
 	"context"
 	"testing"
-	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
-	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,291 +101,97 @@ func queueDeps(q engine.QueueStore) engine.Deps {
 	return engine.Deps{Queue: q, Log: zap.NewNop()}
 }
 
-func queueCtx(login, badge string) *module.Context {
-	env := lane.Envelope{
-		Type:                 "channel.chat.message",
-		BroadcasterUserID:    "100",
-		BroadcasterUserLogin: "streamer",
-		ChatterUserID:        "42",
-		ChatterUserLogin:     login,
+func TestQueueChat(t *testing.T) {
+	thirteen := make([]string, 13)
+	for i := range thirteen {
+		thirteen[i] = string(rune('a' + i))
 	}
-	if badge != "" {
-		env.Badges = []lane.Badge{{SetID: badge}}
+	cases := []struct {
+		name     string
+		text     string
+		who      string
+		badge    string
+		config   string
+		queue    fakeQueue
+		silent   bool
+		exact    string
+		contains []string
+		excludes []string
+		line     []string
+	}{
+		{name: "joining an open queue takes the next spot", text: "!join", who: "alice", queue: fakeQueue{open: true}, contains: []string{"#1"}, line: []string{"alice"}},
+		{name: "joining a closed queue is refused", text: "!join", who: "alice", contains: []string{"closed"}},
+		{name: "joining twice keeps the spot", text: "!join", who: "alice", queue: fakeQueue{open: true, line: []string{"bob", "alice"}},
+			contains: []string{"already", "#2"}, line: []string{"bob", "alice"}},
+		{name: "the queue subcommand joins too", text: "!queue join", who: "alice", queue: fakeQueue{open: true}, contains: []string{"#1"}, line: []string{"alice"}},
+		{name: "leaving frees the spot", text: "!leave", who: "alice", queue: fakeQueue{open: true, line: []string{"alice", "bob"}}, contains: []string{"alice"}, line: []string{"bob"}},
+		{name: "leaving without a spot says so", text: "!leave", who: "alice", queue: fakeQueue{open: true, line: []string{"bob"}}, contains: []string{"not in the queue"}, line: []string{"bob"}},
+		{name: "an empty list says so", text: "!list", who: "alice", queue: fakeQueue{open: true}, contains: []string{"empty"}},
+		{name: "the list numbers the line", text: "!list", who: "alice", queue: fakeQueue{open: true, line: []string{"a", "b", "c"}},
+			contains: []string{"1. a", "2. b", "3. c"}, line: []string{"a", "b", "c"}},
+		{name: "the queue subcommand lists too", text: "!queue list", who: "bob", queue: fakeQueue{open: true, line: []string{"alice"}}, contains: []string{"1. alice"}, line: []string{"alice"}},
+		{name: "the list truncates to ten with a remainder", text: "!list", who: "alice", queue: fakeQueue{open: true, line: thirteen},
+			contains: []string{"10. j", "+3 more"}, excludes: []string{"11. k"}, line: thirteen},
+		{name: "the list ignores the join template", text: "!list", who: "alice", config: `{"joinMessage":"custom"}`, queue: fakeQueue{open: true, line: []string{"a", "b"}},
+			contains: []string{"1. a", "2. b"}, excludes: []string{"custom"}, line: []string{"a", "b"}},
+		{name: "a mod calls the next viewer", text: "!queue next", who: "mod", badge: "moderator", queue: fakeQueue{open: true, line: []string{"alice", "bob"}},
+			contains: []string{"@alice", "1 still waiting"}, line: []string{"bob"}},
+		{name: "next on an empty queue says so", text: "!queue next", who: "mod", badge: "moderator", queue: fakeQueue{open: true}, contains: []string{"empty"}},
+		{name: "a mod removes a viewer", text: "!queue remove @alice", who: "mod", badge: "moderator", queue: fakeQueue{open: true, line: []string{"alice", "bob"}},
+			contains: []string{"@alice"}, line: []string{"bob"}},
+		{name: "removing an absent viewer says so", text: "!queue remove alice", who: "mod", badge: "moderator", queue: fakeQueue{open: true, line: []string{"bob"}},
+			contains: []string{"not in the queue"}, line: []string{"bob"}},
+		{name: "a viewer's remove is ignored", text: "!queue remove bob", who: "alice", queue: fakeQueue{open: true, line: []string{"alice", "bob"}},
+			silent: true, line: []string{"alice", "bob"}},
+		{name: "a mod clears the line", text: "!queue clear", who: "mod", badge: "moderator", queue: fakeQueue{open: true, line: []string{"a", "b"}}, contains: []string{"clear"}},
+		{name: "the bare command reports the status", text: "!queue", who: "alice", queue: fakeQueue{open: true, line: []string{"a", "b"}},
+			contains: []string{"open", "2"}, line: []string{"a", "b"}},
+		{name: "the join template fills the spot", text: "!join", who: "alice", config: `{"joinMessage":"welcome {user}! spot {pos}"}`, queue: fakeQueue{open: true},
+			exact: "welcome alice! spot 1", line: []string{"alice"}},
+		{name: "the next template fills the target and count", text: "!queue next", who: "mod", badge: "moderator", config: `{"nextMessage":"{target} is up, {count} left"}`,
+			queue: fakeQueue{open: true, line: []string{"alice", "bob"}}, exact: "alice is up, 1 left", line: []string{"bob"}},
 	}
-	return &module.Context{Env: env, BroadcasterID: 100, Log: zap.NewNop()}
-}
-
-func runQueue(t *testing.T, m module.Module, name string, c *module.Context, args string) []module.Output {
-	t.Helper()
-	cmd := findCmd(t, m, name)
-	var col collector
-	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
-	return col.out
-}
-
-func TestQueueJoinOpen(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Contains(t, out[0].Text, "#1")
-	assert.Equal(t, []string{"alice"}, q.line)
-}
-
-func TestQueueJoinClosed(t *testing.T) {
-	q := &fakeQueue{open: false}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "closed")
-	assert.Empty(t, q.line)
-}
-
-func TestQueueJoinTwiceKeepsSpot(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"bob", "alice"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "already")
-	assert.Contains(t, out[0].Text, "#2")
-	assert.Equal(t, []string{"bob", "alice"}, q.line)
-}
-
-func TestQueueLeave(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "leave", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Equal(t, []string{"bob"}, q.line)
-}
-
-func TestQueueLeaveNotIn(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "leave", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "not in the queue")
-}
-
-func TestQueueListEmpty(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "list", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "empty")
-}
-
-func TestQueueListNumbers(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"a", "b", "c"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "list", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "1. a")
-	assert.Contains(t, out[0].Text, "2. b")
-	assert.Contains(t, out[0].Text, "3. c")
-}
-
-func TestQueueListTruncatesToTen(t *testing.T) {
-	line := make([]string, 13)
-	for i := range line {
-		line[i] = string(rune('a' + i))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := tc.queue
+			out := runChat(t, Queue(queueDeps(&q)), withConfig(chatCtx("42", tc.who, tc.badge), tc.config), tc.text)
+			if tc.silent {
+				assert.Empty(t, out)
+			} else {
+				require.Len(t, out, 1)
+				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
+			}
+			assert.Equal(t, tc.line, q.line)
+		})
 	}
-	q := &fakeQueue{open: true, line: line}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "list", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "10. j")
-	assert.NotContains(t, out[0].Text, "11. k")
-	assert.Contains(t, out[0].Text, "+3 more")
 }
 
-func TestQueueOpenRequiresMod(t *testing.T) {
+func TestQueueOpenAndClose(t *testing.T) {
 	q := &fakeQueue{}
 	m := Queue(queueDeps(q))
 
-	out := runQueue(t, m, "queue", queueCtx("alice", ""), "open")
-	assert.Empty(t, out)
-	assert.False(t, q.open)
+	assert.Empty(t, runChat(t, m, chatCtx("42", "alice"), "!queue open"))
+	assert.False(t, q.open, "a viewer cannot open the queue")
 
-	out = runQueue(t, m, "queue", queueCtx("mod", "moderator"), "open")
+	out := runChat(t, m, chatCtx("9", "mod", "moderator"), "!queue open")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "open")
 	assert.True(t, q.open)
+
+	require.Len(t, runChat(t, m, chatCtx("100", "streamer"), "!queue close"), 1)
+	assert.False(t, q.open, "the broadcaster closes it")
 }
 
-func TestQueueCloseByBroadcaster(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	c := queueCtx("streamer", "")
-	c.Env.ChatterUserID = "100"
-	out := runQueue(t, m, "queue", c, "close")
-	require.Len(t, out, 1)
-	assert.False(t, q.open)
-}
-
-func TestQueueNext(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("mod", "moderator"), "next")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@alice")
-	assert.Contains(t, out[0].Text, "1 still waiting")
-	assert.Equal(t, []string{"bob"}, q.line)
-}
-
-func TestQueueNextEmpty(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("mod", "moderator"), "next")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "empty")
-}
-
-func TestQueueRemoveByMod(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("mod", "moderator"), "remove @alice")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "@alice")
-	assert.Equal(t, []string{"bob"}, q.line)
-}
-
-func TestQueueRemoveNotFound(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("mod", "moderator"), "remove alice")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "not in the queue")
-	assert.Equal(t, []string{"bob"}, q.line)
-}
-
-func TestQueueRemoveNonModIgnored(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("alice", ""), "remove bob")
-	assert.Empty(t, out)
-	assert.Equal(t, []string{"alice", "bob"}, q.line)
-}
-
-func TestQueueClear(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"a", "b"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("mod", "moderator"), "clear")
-	require.Len(t, out, 1)
-	assert.Empty(t, q.line)
-}
-
-func TestQueueStatus(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"a", "b"}}
-	m := Queue(queueDeps(q))
-
-	out := runQueue(t, m, "queue", queueCtx("alice", ""), "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "open")
-	assert.Contains(t, out[0].Text, "2")
-}
-
-func TestQueueNilStoreInert(t *testing.T) {
-	m := Queue(queueDeps(nil))
-	out := runQueue(t, m, "join", queueCtx("alice", ""), "")
-	assert.Empty(t, out)
-}
-
-func TestQueueJoinAndListViaSubcommand(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	runQueue(t, m, "queue", queueCtx("alice", ""), "join")
-	assert.Equal(t, []string{"alice"}, q.line)
-
-	out := runQueue(t, m, "queue", queueCtx("bob", ""), "list")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "1. alice")
-}
-
-type fakeCooldown struct {
-	engine.NoopCooldown
-	keys  []string
-	ttls  []time.Duration
-	allow []bool
-	err   error
-}
-
-func (f *fakeCooldown) Allow(_ context.Context, key string, ttl time.Duration) (bool, error) {
-	f.keys = append(f.keys, key)
-	f.ttls = append(f.ttls, ttl)
-	if f.err != nil {
-		return false, f.err
-	}
-	if len(f.allow) == 0 {
-		return true, nil
-	}
-	ok := f.allow[0]
-	f.allow = f.allow[1:]
-	return ok, nil
+func TestQueueStaysSilentWithoutAStore(t *testing.T) {
+	assert.Empty(t, runChat(t, Queue(queueDeps(nil)), chatCtx("42", "alice"), "!join"))
 }
 
 func TestQueueListSubcommandSharesCooldown(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice"}}
 	cd := &fakeCooldown{allow: []bool{true, false}}
-	d := queueDeps(q)
+	d := queueDeps(&fakeQueue{open: true, line: []string{"alice"}})
 	d.Cooldown = cd
 	m := Queue(d)
-
-	out := runQueue(t, m, "queue", queueCtx("alice", ""), "list")
-	require.Len(t, out, 1)
+	require.Len(t, runChat(t, m, chatCtx("42", "alice"), "!queue list"), 1)
 	require.Equal(t, []string{engine.CommandCooldownKey(100, "list")}, cd.keys)
-
-	out = runQueue(t, m, "queue", queueCtx("bob", ""), "list")
-	assert.Empty(t, out)
-}
-
-func TestQueueJoinCustomTemplate(t *testing.T) {
-	q := &fakeQueue{open: true}
-	m := Queue(queueDeps(q))
-
-	c := queueCtx("alice", "")
-	c.Config = []byte(`{"joinMessage":"welcome {user}! spot {pos}"}`)
-	out := runQueue(t, m, "join", c, "")
-	require.Len(t, out, 1)
-	assert.Equal(t, "welcome alice! spot 1", out[0].Text)
-}
-
-func TestQueueNextCustomTemplate(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
-	m := Queue(queueDeps(q))
-
-	c := queueCtx("mod", "moderator")
-	c.Config = []byte(`{"nextMessage":"{target} is up, {count} left"}`)
-	out := runQueue(t, m, "queue", c, "next")
-	require.Len(t, out, 1)
-	assert.Equal(t, "alice is up, 1 left", out[0].Text)
-}
-
-func TestQueueListIgnoresConfig(t *testing.T) {
-	q := &fakeQueue{open: true, line: []string{"a", "b"}}
-	m := Queue(queueDeps(q))
-
-	c := queueCtx("alice", "")
-	c.Config = []byte(`{"joinMessage":"custom"}`)
-	out := runQueue(t, m, "list", c, "")
-	require.Len(t, out, 1)
-	assert.Contains(t, out[0].Text, "1. a")
-	assert.Contains(t, out[0].Text, "2. b")
+	assert.Empty(t, runChat(t, m, chatCtx("43", "bob"), "!queue list"))
 }

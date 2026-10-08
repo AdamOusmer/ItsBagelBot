@@ -2,80 +2,68 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, mock, test } from 'bun:test';
+import { stubSvelteKit } from '../../../../../test/sveltekit';
 
-let resolveLoginReply: (login: string) => Promise<{ userId: string; username?: string } | null> = async () => null;
+stubSvelteKit({ dev: true });
+
+type Resolved = { userId: string; username?: string } | null;
+
+let resolveLoginReply: (login: string) => Promise<Resolved> = async () => null;
 let commandsPageReply: (id: string) => Promise<boolean> = async () => true;
 
-mock.module('$app/environment', () => ({ dev: true }));
-mock.module('$env/dynamic/private', () => ({ env: {} }));
-mock.module('$lib/server/seo-hosts', () => ({ requireHost: () => {} }));
-mock.module('$lib/server/commands-store', () => ({
-  listCommands: async () => [],
-  listModules: async () => []
-}));
-mock.module('$lib/server/public-directory', () => ({
-  channelLabel: (record: { displayName?: string; username?: string } | null | undefined, fallback: string) =>
-    record?.displayName || record?.username || fallback,
-  publicCommands: () => [],
-  publicModules: () => []
-}));
+mock.module('$lib/server/commands-store', () => ({ listCommands: async () => [], listModules: async () => [] }));
 mock.module('$lib/server/services', () => ({
-  accountState: async (userId: string) => ({ active: true, status: 'free', onboarded: true, creatorCode: null, username: '', displayName: '', userId }),
+  accountState: async () => ({ creatorCode: null, username: '', displayName: '' }),
   resolveLogin: (login: string) => resolveLoginReply(login),
   userCommandsPage: (id: string) => commandsPageReply(id)
 }));
 
 const { load } = await import('./+page.server');
 
-type LoadArgs = Parameters<typeof load>[0];
+const found = async (login: string): Promise<Resolved> => ({ userId: '42', username: login });
 
-function makeEvent(channel: string): { event: LoadArgs; locals: Record<string, unknown> } {
+async function outcome(channel: string) {
   const locals: Record<string, unknown> = {};
-  const event = {
-    params: { channel },
-    url: new URL(`https://commands.itsbagelbot.com/user/${channel}`),
-    locals
-  } as unknown as LoadArgs;
-  return { event, locals };
-}
-
-async function runLoad(channel: string): Promise<{ result?: unknown; status?: number; message?: string; locals: Record<string, unknown> }> {
-  const { event, locals } = makeEvent(channel);
+  const event = { params: { channel }, url: new URL(`https://commands.itsbagelbot.com/user/${channel}`), locals };
   try {
-    const result = await load(event);
-    return { result, locals };
+    const result = (await load(event as never)) as { degraded: boolean };
+    return { degraded: result.degraded, edgeCache404: locals.edgeCache404 };
   } catch (e) {
     const err = e as { status?: number; body?: { message?: string } };
-    return { status: err.status, message: err.body?.message, locals };
+    return { status: err.status, message: err.body?.message, edgeCache404: locals.edgeCache404 };
   }
 }
 
-describe('(public)/user/[channel] load: commands-page toggle', () => {
-  test('a hidden channel 404s with the unknown-channel message and sets locals.edgeCache404', async () => {
-    resolveLoginReply = async (login) => ({ userId: '42', username: login });
-    commandsPageReply = async () => false;
-
-    const out = await runLoad('somechannel');
-    expect([out.status, out.message, out.locals.edgeCache404]).toEqual([404, 'Channel not found', true]);
-  });
-
-  test('an unknown login 404s without the flag', async () => {
-    resolveLoginReply = async () => null;
-    commandsPageReply = async () => true;
-
-    const out = await runLoad('nosuchchannel');
-    expect([out.status, out.message, 'edgeCache404' in out.locals]).toEqual([404, 'Channel not found', false]);
-  });
-
-  test('a rejected commands-page read fails open and renders', async () => {
-    resolveLoginReply = async (login) => ({ userId: '42', username: login });
-    commandsPageReply = async () => {
+const cases: { name: string; resolve: typeof resolveLoginReply; page: typeof commandsPageReply; channel: string; want: Awaited<ReturnType<typeof outcome>> }[] = [
+  {
+    name: 'a hidden channel 404s with the unknown-channel message and sets locals.edgeCache404',
+    resolve: found,
+    page: async () => false,
+    channel: 'somechannel',
+    want: { status: 404, message: 'Channel not found', edgeCache404: true }
+  },
+  {
+    name: 'an unknown login 404s without the flag',
+    resolve: async () => null,
+    page: async () => true,
+    channel: 'nosuchchannel',
+    want: { status: 404, message: 'Channel not found', edgeCache404: undefined }
+  },
+  {
+    name: 'a rejected commands-page read fails open and renders',
+    resolve: found,
+    page: async () => {
       throw new Error('users service blip');
-    };
+    },
+    channel: 'somechannel',
+    want: { degraded: false, edgeCache404: undefined }
+  }
+];
 
-    const out = await runLoad('somechannel');
-    expect(out.status).toBeUndefined();
-    expect(out.locals.edgeCache404).toBeUndefined();
-    expect((out.result as { degraded: boolean }).degraded).toBe(false);
+describe('(public)/user/[channel] load: commands-page toggle', () => {
+  test.each(cases)('$name', async ({ resolve, page, channel, want }) => {
+    resolveLoginReply = resolve;
+    commandsPageReply = page;
+    expect(await outcome(channel)).toEqual(want);
   });
 });

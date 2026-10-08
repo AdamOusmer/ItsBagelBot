@@ -10,6 +10,11 @@
     .bb-chip--banned { --tone: var(--bb-tier-banned); --tone-bg: var(--bb-tier-banned-bg); --tone-rule: var(--bb-tier-banned-border); }
     .bb-chip--inactive { --tone: var(--bb-tier-inactive); --tone-bg: var(--bb-tier-inactive-bg); --tone-rule: var(--bb-tier-inactive-border); }
 
+    .bb-chip--cell {
+        justify-content: safe center;
+        min-width: 0;
+    }
+
     .bb-chip {
         display: inline-flex;
         align-items: center;
@@ -31,7 +36,12 @@
     }
 
     .bb-chip:hover { background: rgba(var(--bb-tan-rgb), 0.08); border-color: rgba(var(--bb-tan-rgb), 0.50); color: var(--bb-tan-pale); }
-    .bb-chip--muted { color: var(--bb-muted); font-size: 11.5px; padding: 7px 12px; }
+
+    @media (pointer: coarse) {
+        :is(button, a).bb-chip { min-height: 44px; }
+    }
+
+    .bb-chip--muted { color: var(--bb-muted); font-size: var(--bb-text-xs); padding: 7px 12px; }
     .bb-chip--muted:hover { color: var(--bb-tan-light); }
     .bb-chip--danger { color: var(--bb-status-danger); border-style: dashed; border-color: rgba(var(--bb-status-danger-rgb), 0.40); }
     .bb-chip--danger:hover { background: rgba(var(--bb-status-danger-rgb), 0.08); border-color: rgba(var(--bb-status-danger-rgb), 0.60); color: var(--bb-status-danger); }

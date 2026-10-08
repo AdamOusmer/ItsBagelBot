@@ -5,52 +5,50 @@ import { describe, expect, test } from 'bun:test';
 import { emit, normalizeInstant, positional, slice } from './targets';
 
 describe('normalizeInstant', () => {
-  test('RFC3339 passes through unchanged, calendar validated', () => {
-    expect(normalizeInstant('2026-12-25T05:00:00Z')).toBe('2026-12-25T05:00:00Z');
-    expect(normalizeInstant('2026-12-25T05:00:00.000+02:00')).toBe('2026-12-25T05:00:00.000+02:00');
-    expect(normalizeInstant('2026-02-30T00:00:00Z')).toBeNull();
-  });
+  const GROUPS: [name: string, pairs: [input: string, want: string | null][]][] = [
+    ['RFC3339 passes through unchanged, calendar validated', [
+      ['2026-12-25T05:00:00Z', '2026-12-25T05:00:00Z'],
+      ['2026-12-25T05:00:00.000+02:00', '2026-12-25T05:00:00.000+02:00'],
+      ['2026-02-30T00:00:00Z', null]
+    ]],
+    ['bare YYYY-MM-DD passes through, calendar validated', [
+      ['2026-01-01', '2026-01-01'],
+      ['2026-02-30', null]
+    ]],
+    ['a month-name date with a required zone normalizes to RFC3339 UTC', [
+      ['Dec 25 2026 12:00:00 AM EST', '2026-12-25T05:00:00.000Z'],
+      ['Jan 1 2026 00:00:00 UTC', '2026-01-01T00:00:00.000Z'],
+      ['Jul 4 2026 3:00:00 PM PDT', '2026-07-04T22:00:00.000Z'],
+      ['Dec 25 2026 EST', '2026-12-25T05:00:00.000Z']
+    ]],
+    ['a slash-separated MM/DD/YYYY date with a required zone normalizes', [
+      ['12/25/2026 12:00:00 AM EST', '2026-12-25T05:00:00.000Z'],
+      ['01/01/2026 UTC', '2026-01-01T00:00:00.000Z']
+    ]],
+    ['a date with no zone at all is refused, never read in a local zone', [
+      ['Dec 25 2026 12:00:00 AM', null],
+      ['12/25/2026', null]
+    ]],
+    ['an unrecognized zone abbreviation is refused rather than guessed', [
+      ['Dec 25 2026 12:00:00 CET', null],
+      ['Dec 25 2026 12:00:00 BST', null]
+    ]],
+    ['a bare time with no calendar date is refused, not anchored to today', [
+      ['5:00:00 PM EST', null],
+      ['17:00 UTC', null]
+    ]],
+    ['garbage small integers Date.parse would misread as years are refused', [
+      ['0', null],
+      ['1', null]
+    ]],
+    ['unrelated free text is refused', [
+      ['whenever', null],
+      ['', null]
+    ]]
+  ];
 
-  test('bare YYYY-MM-DD passes through, calendar validated', () => {
-    expect(normalizeInstant('2026-01-01')).toBe('2026-01-01');
-    expect(normalizeInstant('2026-02-30')).toBeNull();
-  });
-
-  test('a month-name date with a required zone normalizes to RFC3339 UTC', () => {
-    expect(normalizeInstant('Dec 25 2026 12:00:00 AM EST')).toBe('2026-12-25T05:00:00.000Z');
-    expect(normalizeInstant('Jan 1 2026 00:00:00 UTC')).toBe('2026-01-01T00:00:00.000Z');
-    expect(normalizeInstant('Jul 4 2026 3:00:00 PM PDT')).toBe('2026-07-04T22:00:00.000Z');
-    expect(normalizeInstant('Dec 25 2026 EST')).toBe('2026-12-25T05:00:00.000Z');
-  });
-
-  test('a slash-separated MM/DD/YYYY date with a required zone normalizes', () => {
-    expect(normalizeInstant('12/25/2026 12:00:00 AM EST')).toBe('2026-12-25T05:00:00.000Z');
-    expect(normalizeInstant('01/01/2026 UTC')).toBe('2026-01-01T00:00:00.000Z');
-  });
-
-  test('a date with no zone at all is refused, never read in a local zone', () => {
-    expect(normalizeInstant('Dec 25 2026 12:00:00 AM')).toBeNull();
-    expect(normalizeInstant('12/25/2026')).toBeNull();
-  });
-
-  test('an unrecognized zone abbreviation is refused rather than guessed', () => {
-    expect(normalizeInstant('Dec 25 2026 12:00:00 CET')).toBeNull();
-    expect(normalizeInstant('Dec 25 2026 12:00:00 BST')).toBeNull();
-  });
-
-  test('a bare time with no calendar date is refused, not anchored to today', () => {
-    expect(normalizeInstant('5:00:00 PM EST')).toBeNull();
-    expect(normalizeInstant('17:00 UTC')).toBeNull();
-  });
-
-  test('garbage small integers Date.parse would misread as years are refused', () => {
-    expect(normalizeInstant('0')).toBeNull();
-    expect(normalizeInstant('1')).toBeNull();
-  });
-
-  test('unrelated free text is refused', () => {
-    expect(normalizeInstant('whenever')).toBeNull();
-    expect(normalizeInstant('')).toBeNull();
+  test.each(GROUPS)('%s', (_name, pairs) => {
+    for (const [input, want] of pairs) expect(normalizeInstant(input)).toBe(want);
   });
 });
 

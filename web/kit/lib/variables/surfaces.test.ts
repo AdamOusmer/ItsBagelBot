@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { lex, type VarToken } from '../engine/tmpl';
-import { ownedByCore } from '../engine/rehearsal';
+import { rehearseCommand } from '../engine/rehearsal';
 import { chipsFor } from './surfaces';
 
 function soleSpan(chip: string): VarToken | null {
@@ -26,7 +26,9 @@ describe('custom-command chip strip (chipsFor(\'custom\'))', () => {
   });
 
   test('every chip names a token the core resolves', () => {
-    for (const chip of chips) expect([chip, ownedByCore(soleSpan(chip)!.name)]).toEqual([chip, true]);
+    const unresolved = (chip: string) =>
+      rehearseCommand(chip).flatMap((line) => line.segments).filter((seg) => seg.kind === 'unknown');
+    for (const chip of chips) expect([chip, unresolved(chip)]).toEqual([chip, []]);
   });
 
   test('no chip carries a fallback', () => {
@@ -35,11 +37,6 @@ describe('custom-command chip strip (chipsFor(\'custom\'))', () => {
 });
 
 describe('pinned chips (was engine/common-tokens.ts\'s five-head cap)', () => {
-  test('at most six pinned chips on the custom surface', () => {
-    const pinned = chipsFor('custom').filter((c) => c.pinned);
-    expect(pinned.length).toBeLessThanOrEqual(6);
-  });
-
   test('pinned chips are exactly user, args, touser, random, uptime, if', () => {
     const pinned = chipsFor('custom')
       .filter((c) => c.pinned)

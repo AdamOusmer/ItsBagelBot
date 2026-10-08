@@ -4,7 +4,7 @@
     "description": "Visual guides for ItsBagelBot: set up the bot, learn the dashboard, and write custom commands with variables and live data.",
     "eyebrow": "Guides",
     "heading": "Learn the bot.",
-    "lead": "Every guide here works on the free plan, and each one runs ten minutes or less."
+    "lead": "Every guide here works on the free plan, except the parts marked Premium beta, and each one runs ten minutes or less."
   },
   "readCta": "Read the guide",
   "tool": {
@@ -14,7 +14,7 @@
     "description": "Write the message like a sentence, click to drop in the smart parts, watch a live chat rehearsal, then send the finished command to your dashboard.",
     "cta": "Open the builder",
     "demoIn": "Welcome in, <i>&lbrace;user&rbrace;</i>! You are visitor <i>&lbrace;counter:visits&rbrace;</i> 🥯",
-    "demoOut": "<b>ItsBagelBot:</b> Welcome in, maya_live! You are visitor 128 🥯"
+    "demoOut": "<b>ItsBagelBot:</b> Welcome in, SnackPackPanda! You are visitor 128 🥯"
   },
   "help": {
     "prompt": "Stuck on something a guide doesn't cover?",

@@ -1,12 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package cache
+package cache_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,59 +16,28 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestLogOccupancyEmitsPerCacheFields(t *testing.T) {
+func TestStartOccupancyLoggerReportsEveryCacheThenStops(t *testing.T) {
 	core, logs := observer.New(zap.InfoLevel)
-	log := zap.New(core)
-
-	users := New[int](4096, time.Minute)
+	users := cache.New[int](4096, time.Minute)
 	defer users.Close()
-	commands := New[int](8192, time.Minute)
+	commands := cache.New[int](8192, time.Minute)
 	defer commands.Close()
-
 	users.Set("a", 1)
-	users.client.Wait()
+	require.Eventually(t, func() bool { return users.Len() == 1 }, time.Second, 5*time.Millisecond)
 
-	logOccupancy(log, map[string]OccupancySource{
+	ctx, cancel := context.WithCancel(context.Background())
+	cache.StartOccupancyLogger(ctx, zap.New(core), 10*time.Millisecond, map[string]cache.OccupancySource{
 		"users":    users,
 		"commands": commands,
 	})
 
-	entries := logs.All()
-	require.Len(t, entries, 1)
-	assert.Equal(t, "cache occupancy", entries[0].Message)
-
-	fields := entries[0].ContextMap()
-	assert.Equal(t, int64(1), fields["users_entries"])
-	assert.Equal(t, int64(4096), fields["users_capacity"])
-	assert.Equal(t, int64(0), fields["commands_entries"])
-	assert.Equal(t, int64(8192), fields["commands_capacity"])
-}
-
-func TestLogOccupancyNoCachesNoLine(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	logOccupancy(zap.New(core), map[string]OccupancySource{})
-	assert.Empty(t, logs.All(), "no caches means no log line")
-}
-
-func TestLogOccupancyNilLoggerIsSafe(t *testing.T) {
-	assert.NotPanics(t, func() {
-		logOccupancy(nil, map[string]OccupancySource{"x": New[int](1, time.Minute)})
-	})
-}
-
-func TestStartOccupancyLoggerTicksThenStops(t *testing.T) {
-	core, logs := observer.New(zap.InfoLevel)
-	log := zap.New(core)
-
-	c := New[int](16, time.Minute)
-	defer c.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	StartOccupancyLogger(ctx, log, 10*time.Millisecond, map[string]OccupancySource{"c": c})
-
-	assert.Eventually(t, func() bool {
-		return logs.Len() >= 1
-	}, time.Second, 5*time.Millisecond, "logger should emit at least one line")
+	require.Eventually(t, func() bool { return logs.Len() >= 1 }, time.Second, 5*time.Millisecond)
+	entry := logs.All()[0]
+	assert.Equal(t, "cache occupancy", entry.Message)
+	assert.Equal(t, map[string]any{
+		"users_entries": int64(1), "users_capacity": int64(4096),
+		"commands_entries": int64(0), "commands_capacity": int64(8192),
+	}, entry.ContextMap())
 
 	cancel()
 	time.Sleep(30 * time.Millisecond)
@@ -75,12 +46,28 @@ func TestStartOccupancyLoggerTicksThenStops(t *testing.T) {
 	assert.Equal(t, settled, logs.Len(), "no more lines after ctx is cancelled")
 }
 
-func TestStartOccupancyLoggerDisabledInterval(t *testing.T) {
+func TestStartOccupancyLoggerStaysOffWhenNothingToReport(t *testing.T) {
+	one := cache.New[int](16, time.Minute)
+	defer one.Close()
 	core, logs := observer.New(zap.InfoLevel)
-	c := New[int](16, time.Minute)
-	defer c.Close()
+	tests := []struct {
+		name     string
+		log      *zap.Logger
+		interval time.Duration
+		caches   map[string]cache.OccupancySource
+	}{
+		{name: "starts nothing for a non-positive interval", log: zap.New(core), caches: map[string]cache.OccupancySource{"c": one}},
+		{name: "starts nothing without caches", log: zap.New(core), interval: 5 * time.Millisecond},
+		{name: "starts nothing without a logger", interval: 5 * time.Millisecond, caches: map[string]cache.OccupancySource{"c": one}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				cache.StartOccupancyLogger(context.Background(), tc.log, tc.interval, tc.caches)
+			})
+		})
+	}
 
-	StartOccupancyLogger(context.Background(), zap.New(core), 0, map[string]OccupancySource{"c": c})
 	time.Sleep(30 * time.Millisecond)
-	assert.Empty(t, logs.All(), "a non-positive interval starts no logger")
+	assert.Empty(t, logs.All())
 }

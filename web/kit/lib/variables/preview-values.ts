@@ -3,18 +3,18 @@
 
 import { queryEscape } from '../engine/pure';
 
-export const USER_SAMPLE = 'sesame_sam';
-export const ARGS_SAMPLE = 'ferret_king good luck';
-export const TOUSER_SAMPLE = 'ferret_king';
+export const USER_SAMPLE = 'PrincessBarney';
+export const ARGS_SAMPLE = 'Lotti good luck';
+export const TOUSER_SAMPLE = 'Lotti';
 export const CHANNEL_SAMPLE = 'bagel_bakery';
 export const USERID_SAMPLE = '48291057';
-export const USER_LOGIN_SAMPLE = 'sesame_sam';
+export const USER_LOGIN_SAMPLE = 'PrincessBarney';
 export const COMMAND_SAMPLE = 'hug';
 
-export const POSITIONAL_WORD_SAMPLE = 'ferret_king';
+export const POSITIONAL_WORD_SAMPLE = 'Lotti';
 export const POSITIONAL_REST_SAMPLE = 'good luck';
 
-export const POSITIONAL_LEADING_SLICE_SAMPLE = 'ferret_king good';
+export const POSITIONAL_LEADING_SLICE_SAMPLE = 'Lotti good';
 export const POSITIONAL_BOUNDED_SLICE_SAMPLE = 'good luck';
 
 export const QUERYSTRING_SAMPLE = queryEscape(ARGS_SAMPLE);
@@ -50,7 +50,7 @@ export const SONG_ARTIST_SAMPLE = 'Radiohead';
 export const SONG_SAMPLE = `${SONG_TITLE_SAMPLE} by ${SONG_ARTIST_SAMPLE}`;
 
 export const CHATTERS_SAMPLE = '37';
-export const RANDOM_CHATTER_SAMPLE = 'maya_live';
+export const RANDOM_CHATTER_SAMPLE = 'SnackPackPanda';
 
 export const RANDOM_VIEWER_SAMPLE = 'quiet_lurker';
 

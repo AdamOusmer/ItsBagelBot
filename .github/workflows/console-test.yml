@@ -42,3 +42,34 @@ jobs:
       - name: Test
         working-directory: web
         run: bun run test
+
+  marketing-e2e:
+    name: marketing playwright
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: web/marketing
+        run: bunx playwright install --with-deps chromium
+
+      - name: Build marketing site
+        working-directory: web/marketing
+        run: bun run build
+
+      - name: Playwright test
+        working-directory: web/marketing
+        run: bun run test:e2e

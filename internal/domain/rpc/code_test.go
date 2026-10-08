@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package rpc
+package rpc_test
 
 import (
 	"context"
@@ -13,30 +13,46 @@ import (
 	"syscall"
 	"testing"
 
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var errSentinel = errors.New("bound elsewhere")
 
+type oldReply struct {
+	Value string `json:"value,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+type newReply struct {
+	Value string `json:"value,omitempty"`
+	rpc.Refusal
+}
+
 func TestFailClassifies(t *testing.T) {
-	rules := []Rule{
-		Is(errSentinel, CodeConflict),
-		When(func(err error) bool { return err.Error() == "gone" }, CodeNotFound),
+	rules := []rpc.Rule{
+		rpc.Is(errSentinel, rpc.CodeConflict),
+		rpc.When(func(err error) bool { return err.Error() == "gone" }, rpc.CodeNotFound),
 	}
-	cases := map[string]struct {
+	cases := []struct {
+		name string
 		err  error
-		want Refusal
+		want rpc.Refusal
 	}{
-		"nil":       {nil, Refusal{}},
-		"sentinel":  {fmt.Errorf("save: %w", errSentinel), Refusal{Error: "save: bound elsewhere", Code: CodeConflict}},
-		"predicate": {errors.New("gone"), Refusal{Error: "gone", Code: CodeNotFound}},
-		"deadline":  {fmt.Errorf("query: %w", context.DeadlineExceeded), Refusal{Error: "query: context deadline exceeded", Code: CodeUnavailable}},
-		"unknown":   {errors.New("boom"), Refusal{Error: "boom", Code: CodeInternal}},
+		{"nil is not a refusal", nil, rpc.Refusal{}},
+		{"a wrapped sentinel maps to its code", fmt.Errorf("save: %w", errSentinel), rpc.Refusal{Error: "save: bound elsewhere", Code: rpc.CodeConflict}},
+		{"a predicate rule maps to its code", errors.New("gone"), rpc.Refusal{Error: "gone", Code: rpc.CodeNotFound}},
+		{"a deadline is unavailable", fmt.Errorf("query: %w", context.DeadlineExceeded), rpc.Refusal{Error: "query: context deadline exceeded", Code: rpc.CodeUnavailable}},
+		{"a cancellation is unavailable", fmt.Errorf("query: %w", context.Canceled), rpc.Refusal{Error: "query: context canceled", Code: rpc.CodeUnavailable}},
+		{"anything else is internal", errors.New("boom"), rpc.Refusal{Error: "boom", Code: rpc.CodeInternal}},
 	}
-	for name, tc := range cases {
-		if got := Fail(tc.err, rules...); got != tc.want {
-			t.Errorf("%s: Fail = %+v, want %+v", name, got, tc.want)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, rpc.Fail(tc.err, rules...))
+		})
 	}
 }
 
@@ -47,87 +63,51 @@ func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return false }
 
 func TestFailClassifiesConnectionErrors(t *testing.T) {
-	rules := []Rule{Is(io.ErrUnexpectedEOF, CodeConflict)}
-	cases := map[string]struct {
+	eofRule := []rpc.Rule{rpc.Is(io.ErrUnexpectedEOF, rpc.CodeConflict)}
+	cases := []struct {
+		name  string
 		err   error
-		rules []Rule
-		want  Code
+		rules []rpc.Rule
+		want  rpc.Code
 	}{
-		"bad conn":         {driver.ErrBadConn, nil, CodeUnavailable},
-		"wrapped bad conn": {fmt.Errorf("query: %w", driver.ErrBadConn), nil, CodeUnavailable},
-		"unexpected eof":   {fmt.Errorf("read: %w", io.ErrUnexpectedEOF), nil, CodeUnavailable},
-		"conn reset":       {fmt.Errorf("read: %w", syscall.ECONNRESET), nil, CodeUnavailable},
-		"broken pipe":      {fmt.Errorf("write: %w", syscall.EPIPE), nil, CodeUnavailable},
-		"op error":         {fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: errors.New("refused")}), nil, CodeUnavailable},
-		"net timeout":      {fmt.Errorf("wait: %w", timeoutError{}), nil, CodeUnavailable},
-		"plain":            {errors.New("boom"), nil, CodeInternal},
-		"plain eof":        {io.EOF, nil, CodeInternal},
-		"rule wins":        {fmt.Errorf("read: %w", io.ErrUnexpectedEOF), rules, CodeConflict},
+		{"a bad conn is unavailable", driver.ErrBadConn, nil, rpc.CodeUnavailable},
+		{"a wrapped bad conn is unavailable", fmt.Errorf("query: %w", driver.ErrBadConn), nil, rpc.CodeUnavailable},
+		{"an unexpected eof is unavailable", fmt.Errorf("read: %w", io.ErrUnexpectedEOF), nil, rpc.CodeUnavailable},
+		{"a connection reset is unavailable", fmt.Errorf("read: %w", syscall.ECONNRESET), nil, rpc.CodeUnavailable},
+		{"a broken pipe is unavailable", fmt.Errorf("write: %w", syscall.EPIPE), nil, rpc.CodeUnavailable},
+		{"a net op error is unavailable", fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: errors.New("refused")}), nil, rpc.CodeUnavailable},
+		{"a net timeout is unavailable", fmt.Errorf("wait: %w", timeoutError{}), nil, rpc.CodeUnavailable},
+		{"a plain error is internal", errors.New("boom"), nil, rpc.CodeInternal},
+		{"a plain eof is internal", io.EOF, nil, rpc.CodeInternal},
+		{"an explicit rule wins over the network default", fmt.Errorf("read: %w", io.ErrUnexpectedEOF), eofRule, rpc.CodeConflict},
 	}
-	for name, tc := range cases {
-		if got := Fail(tc.err, tc.rules...).Code; got != tc.want {
-			t.Errorf("%s: code = %q, want %q", name, got, tc.want)
-		}
-	}
-}
-
-func TestCodesVocabulary(t *testing.T) {
-	want := []Code{"invalid", "not_found", "forbidden", "conflict", "unavailable", "internal"}
-	got := Codes()
-	if len(got) != len(want) {
-		t.Fatalf("Codes() = %v, want %v", got, want)
-	}
-	for i, code := range want {
-		if got[i] != code {
-			t.Fatalf("Codes()[%d] = %q, want %q", i, got[i], code)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, rpc.Fail(tc.err, tc.rules...).Code)
+		})
 	}
 }
 
-type oldReply struct {
-	Value string `json:"value,omitempty"`
-	Error string `json:"error,omitempty"`
-}
+func TestWireContract(t *testing.T) {
+	assert.Equal(t, []rpc.Code{"invalid", "not_found", "forbidden", "conflict", "unavailable", "internal"}, rpc.Codes())
 
-type newReply struct {
-	Value string `json:"value,omitempty"`
-	Refusal
-}
+	t.Run("old and new readers understand each other", func(t *testing.T) {
+		fromNew, err := codec.MarshalToString(newReply{Refusal: rpc.Refused(rpc.CodeNotFound, "no such user")})
+		require.NoError(t, err)
+		var old oldReply
+		require.NoError(t, codec.UnmarshalFromString(fromNew, &old))
+		assert.Equal(t, "no such user", old.Error)
 
-func TestWireCompatBothDirections(t *testing.T) {
-	fromNew := mustEncode(t, newReply{Refusal: Refused(CodeNotFound, "no such user")})
-	var old oldReply
-	decode(t, fromNew, &old)
-	if old.Error != "no such user" {
-		t.Errorf("old reader lost the message: %+v (from %s)", old, fromNew)
-	}
+		fromOld, err := codec.MarshalToString(oldReply{Error: "no such user"})
+		require.NoError(t, err)
+		var fresh newReply
+		require.NoError(t, codec.UnmarshalFromString(fromOld, &fresh))
+		assert.Equal(t, rpc.Refusal{Error: "no such user", Code: rpc.CodeOK}, fresh.Refusal)
+	})
 
-	fromOld := mustEncode(t, oldReply{Error: "no such user"})
-	var fresh newReply
-	decode(t, fromOld, &fresh)
-	if fresh.Error != "no such user" || fresh.Code != CodeOK {
-		t.Errorf("new reader mishandled an old reply: %+v (from %s)", fresh, fromOld)
-	}
-}
-
-func TestSuccessOmitsBothFields(t *testing.T) {
-	if got := mustEncode(t, newReply{Value: "ok"}); got != `{"value":"ok"}` {
-		t.Errorf("success reply = %s, want {\"value\":\"ok\"}", got)
-	}
-}
-
-func mustEncode(t *testing.T, v any) string {
-	t.Helper()
-	raw, err := codec.MarshalToString(v)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	return raw
-}
-
-func decode(t *testing.T, raw string, into any) {
-	t.Helper()
-	if err := codec.UnmarshalFromString(raw, into); err != nil {
-		t.Fatalf("unmarshal %s: %v", raw, err)
-	}
+	t.Run("success omits the refusal fields", func(t *testing.T) {
+		got, err := codec.MarshalToString(newReply{Value: "ok"})
+		require.NoError(t, err)
+		assert.Equal(t, `{"value":"ok"}`, got)
+	})
 }

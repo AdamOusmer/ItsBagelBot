@@ -1,236 +1,125 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package natsacl
+package natsacl_test
 
 import (
-	"errors"
-	"reflect"
 	"testing"
 
+	"ItsBagelBot/internal/natsacl"
+
 	"github.com/nats-io/jwt/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func compileFixture(t *testing.T) ([]*jwt.AccountClaims, *ACL, *Keys) {
-	t.Helper()
-	acl := fixtureACL()
-	keys := fixtureKeys(t, acl)
-	claims, err := Compile(acl, keys)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return claims, acl, keys
-}
+func TestCompileFixtureAccounts(t *testing.T) {
+	claims, keys := compileFixture(t)
 
-func byName(claims []*jwt.AccountClaims, name string) *jwt.AccountClaims {
-	for _, c := range claims {
-		if c.Name == name {
-			return c
+	t.Run("exports carry a stream and an accounts-gated token requirement", func(t *testing.T) {
+		type grant struct {
+			Type     jwt.ExportType
+			TokenReq bool
 		}
-	}
-	return nil
-}
-
-func TestCompileExports(t *testing.T) {
-	claims, _, _ := compileFixture(t)
-	exporter := byName(claims, "EXPORTER")
-	if exporter == nil {
-		t.Fatal("no EXPORTER claims")
-	}
-	if len(exporter.Exports) != 3 {
-		t.Fatalf("got %d exports, want 3", len(exporter.Exports))
-	}
-	var sawStream, sawPrivate bool
-	for _, e := range exporter.Exports {
-		if e.Type == jwt.Stream {
-			sawStream = true
+		var got []grant
+		for _, e := range byName(t, claims, "EXPORTER").Exports {
+			got = append(got, grant{e.Type, e.TokenReq})
 		}
-		if e.TokenReq {
-			sawPrivate = true
+		assert.ElementsMatch(t, []grant{{jwt.Service, false}, {jwt.Stream, false}, {jwt.Service, true}}, got)
+	})
+
+	t.Run("imports point at the exporter's account key", func(t *testing.T) {
+		imports := byName(t, claims, "IMPORTER").Imports
+		require.Len(t, imports, 2)
+		for _, imp := range imports {
+			assert.Equal(t, keys.Accounts["EXPORTER"], imp.Account, string(imp.Subject))
 		}
-	}
-	if !sawStream {
-		t.Error("no stream export compiled")
-	}
-	if !sawPrivate {
-		t.Error("the accounts-gated export did not set TokenReq")
-	}
-}
+	})
 
-func TestCompileImportsPointAtExporterKey(t *testing.T) {
-	claims, _, keys := compileFixture(t)
-	importer := byName(claims, "IMPORTER")
-	if importer == nil {
-		t.Fatal("no IMPORTER claims")
-	}
-	if len(importer.Imports) != 2 {
-		t.Fatalf("got %d imports, want 2", len(importer.Imports))
-	}
-	for _, imp := range importer.Imports {
-		if imp.Account != keys.Accounts["EXPORTER"] {
-			t.Errorf("import %q account = %s, want EXPORTER's key", imp.Subject, imp.Account)
+	t.Run("bus gets unlimited jetstream and the hub domain mappings", func(t *testing.T) {
+		bus := byName(t, claims, "BUS")
+		assert.Equal(t, jwt.ClusterTraffic(jwt.ClusterTrafficOwner), bus.ClusterTraffic)
+		assert.True(t, bus.Limits.JetStreamLimits.IsUnlimited())
+		want := jwt.Mapping{}
+		for _, suffix := range []string{"INFO", "STREAM.>", "CONSUMER.>", "DIRECT.>", "META.>", "SERVER.>", "ACCOUNT.>"} {
+			want[jwt.Subject("$JS.hub.API."+suffix)] = []jwt.WeightedMapping{{Subject: jwt.Subject("$JS.API." + suffix)}}
 		}
-	}
-}
-
-func TestCompileJetStreamAndMappings(t *testing.T) {
-	claims, _, _ := compileFixture(t)
-	bus := byName(claims, "BUS")
-	if bus.ClusterTraffic != jwt.ClusterTrafficOwner {
-		t.Fatalf("ClusterTraffic = %q", bus.ClusterTraffic)
-	}
-	if !bus.Limits.JetStreamLimits.IsUnlimited() {
-		t.Fatalf("JetStreamLimits = %+v, want unlimited", bus.Limits.JetStreamLimits)
-	}
-	// Literal, not hubDomainMappings() itself: a bug in that table must fail here too.
-	want := jwt.Mapping{}
-	for _, suffix := range []string{"INFO", "STREAM.>", "CONSUMER.>", "DIRECT.>", "META.>", "SERVER.>", "ACCOUNT.>", "$KV.>", "$OBJ.>"} {
-		from := jwt.Subject("$JS.hub.API." + suffix)
-		to := jwt.Subject("$JS.API." + suffix)
-		if suffix == "$KV.>" || suffix == "$OBJ.>" {
-			to = jwt.Subject(suffix)
+		for _, suffix := range []string{"$KV.>", "$OBJ.>"} {
+			want[jwt.Subject("$JS.hub.API."+suffix)] = []jwt.WeightedMapping{{Subject: jwt.Subject(suffix)}}
 		}
-		want[from] = []jwt.WeightedMapping{{Subject: to}}
-	}
-	if !reflect.DeepEqual(bus.Mappings, want) {
-		t.Fatalf("Mappings = %+v, want %+v", bus.Mappings, want)
-	}
+		assert.Equal(t, want, bus.Mappings)
+		assert.Zero(t, byName(t, claims, "EXPORTER").Limits.JetStreamLimits.MemoryStorage, "only accounts that ask for jetstream get it")
+	})
 
-	exporter := byName(claims, "EXPORTER")
-	if exporter.Limits.JetStreamLimits.MemoryStorage != 0 {
-		t.Fatalf("EXPORTER should not have JetStream enabled: %+v", exporter.Limits.JetStreamLimits)
-	}
+	t.Run("role templates carry permissions and no limits", func(t *testing.T) {
+		scope, ok := byName(t, claims, "BUS").SigningKeys.GetScope(keys.Roles["BUS"]["worker_bus"])
+		require.True(t, ok)
+		us, ok := scope.(*jwt.UserScope)
+		require.True(t, ok)
+		assert.Equal(t, "worker_bus", us.Role)
+		assert.Equal(t, jwt.Permissions{
+			Pub: jwt.Permission{Allow: []string{"work.>"}, Deny: []string{"work.secret.>"}},
+			Sub: jwt.Permission{Allow: []string{"_INBOX.>"}},
+		}, us.Template.Permissions)
+		assert.True(t, us.Template.UserLimits.Empty())
+	})
+
+	t.Run("exporters compile before importers", func(t *testing.T) {
+		positions := map[string]int{}
+		for i, c := range claims {
+			positions[c.Name] = i
+		}
+		assert.Less(t, positions["EXPORTER"], positions["IMPORTER"])
+	})
 }
 
-func TestCompileRoleTemplateCarriesOnlyPermissions(t *testing.T) {
-	claims, _, keys := compileFixture(t)
-	bus := byName(claims, "BUS")
-	scope, ok := bus.SigningKeys.GetScope(keys.Roles["BUS"]["worker_bus"])
-	if !ok {
-		t.Fatal("worker_bus signing key not found")
-	}
-	us, ok := scope.(*jwt.UserScope)
-	if !ok {
-		t.Fatalf("scope type = %T, want *jwt.UserScope", scope)
-	}
-	if us.Role != "worker_bus" {
-		t.Fatalf("Role = %q", us.Role)
-	}
-	want := jwt.Permissions{
-		Pub: jwt.Permission{Allow: []string{"work.>"}, Deny: []string{"work.secret.>"}},
-		Sub: jwt.Permission{Allow: []string{"_INBOX.>"}},
-	}
-	if !reflect.DeepEqual(us.Template.Permissions, want) {
-		t.Fatalf("Template.Permissions = %+v, want %+v", us.Template.Permissions, want)
-	}
-	if !us.Template.UserLimits.Empty() {
-		t.Fatalf("scoped role template carries its own limits: %+v", us.Template.UserLimits)
-	}
-}
-
-func TestCompileOrdersExportersBeforeImporters(t *testing.T) {
-	claims, _, _ := compileFixture(t)
-	positions := make(map[string]int, len(claims))
-	for i, c := range claims {
-		positions[c.Name] = i
-	}
-	if positions["EXPORTER"] > positions["IMPORTER"] {
-		t.Fatalf("EXPORTER at %d, IMPORTER at %d: exporter must come first", positions["EXPORTER"], positions["IMPORTER"])
-	}
-}
-
-func TestCompileOrdersCycleDeterministically(t *testing.T) {
-	acl := &ACL{Accounts: map[string]AccountSpec{
-		"ALFA": {Imports: []ImportSpec{{Service: "b.>", From: "BETA"}}},
-		"BETA": {Imports: []ImportSpec{{Service: "a.>", From: "ALFA"}}},
+func TestCompileOrdersAnImportCycleDeterministically(t *testing.T) {
+	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
+		"ALFA": {Imports: []natsacl.ImportSpec{{Service: "b.>", From: "BETA"}}},
+		"BETA": {Imports: []natsacl.ImportSpec{{Service: "a.>", From: "ALFA"}}},
 	}}
-	keys := fixtureKeys(t, acl)
 
-	claims, err := Compile(acl, keys)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := []string{claims[0].Name, claims[1].Name}
-	want := []string{"ALFA", "BETA"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("cycle order = %v, want %v (lexicographically first breaks the cycle)", got, want)
-	}
+	claims, err := natsacl.Compile(acl, fixtureKeys(t, acl))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ALFA", "BETA"}, []string{claims[0].Name, claims[1].Name})
 }
 
-func gatedACL() *ACL {
-	return &ACL{Accounts: map[string]AccountSpec{
-		"EXPORTER": {Exports: []ExportSpec{{Service: "svc.gated.>", Accounts: []string{"IMPORTER"}}}},
-		"IMPORTER": {Imports: []ImportSpec{{Service: "svc.gated.>", From: "EXPORTER"}}},
+func TestCompileTokenRequiredImports(t *testing.T) {
+	gated := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
+		"EXPORTER": {Exports: []natsacl.ExportSpec{{Service: "svc.gated.>", Accounts: []string{"IMPORTER"}}}},
+		"IMPORTER": {Imports: []natsacl.ImportSpec{{Service: "svc.gated.>", From: "EXPORTER"}}},
 	}}
+	activation := map[string][]natsacl.Activation{"IMPORTER": {{From: "EXPORTER", Subject: "svc.gated.>", Token: "test-token"}}}
+
+	t.Run("attaches the activation token to the import", func(t *testing.T) {
+		keys := fixtureKeys(t, gated)
+		keys.Activations = activation
+		claims, err := natsacl.Compile(gated, keys)
+		require.NoError(t, err)
+		imports := byName(t, claims, "IMPORTER").Imports
+		require.Len(t, imports, 1)
+		assert.Equal(t, "test-token", imports[0].Token)
+	})
+
+	t.Run("fails when the activation is missing", func(t *testing.T) {
+		_, err := natsacl.Compile(gated, fixtureKeys(t, gated))
+		assert.ErrorIs(t, err, natsacl.ErrMissingActivation)
+	})
 }
 
-func TestCompileAttachesActivationToken(t *testing.T) {
-	acl := gatedACL()
-	keys := fixtureKeys(t, acl)
-	keys.Activations = map[string][]Activation{
-		"IMPORTER": {{From: "EXPORTER", Subject: "svc.gated.>", Token: "test-token"}},
-	}
-
-	claims, err := Compile(acl, keys)
-	if err != nil {
-		t.Fatal(err)
-	}
-	importer := byName(claims, "IMPORTER")
-	if len(importer.Imports) != 1 || importer.Imports[0].Token != "test-token" {
-		t.Fatalf("Imports = %+v, want a single import carrying the activation token", importer.Imports)
-	}
-}
-
-func TestCompileMissingActivationFails(t *testing.T) {
-	acl := gatedACL()
-	keys := fixtureKeys(t, acl)
-
-	_, err := Compile(acl, keys)
-	if !errors.Is(err, ErrMissingActivation) {
-		t.Fatalf("err = %v, want %v", err, ErrMissingActivation)
-	}
-}
-
-func TestCompileValidationErrors(t *testing.T) {
+func TestCompileRejectsInconsistentInput(t *testing.T) {
+	roles := map[string]natsacl.AccountSpec{"A": {Roles: map[string]natsacl.RoleSpec{"role_a": {}, "role_b": {}}}}
 	tests := []struct {
 		name    string
-		acl     *ACL
-		mutate  func(keys *Keys)
+		acl     *natsacl.ACL
+		mutate  func(keys *natsacl.Keys)
 		wantErr error
 	}{
-		{
-			name: "unknown account import",
-			acl: &ACL{Accounts: map[string]AccountSpec{
-				"A": {Imports: []ImportSpec{{Service: "x.>", From: "GHOST"}}},
-			}},
-			wantErr: ErrUnknownAccount,
-		},
-		{
-			name: "missing account key",
-			acl: &ACL{Accounts: map[string]AccountSpec{
-				"A": {},
-			}},
-			mutate:  func(keys *Keys) { delete(keys.Accounts, "A") },
-			wantErr: ErrMissingAccountKey,
-		},
-		{
-			name: "missing role key",
-			acl: &ACL{Accounts: map[string]AccountSpec{
-				"A": {Roles: map[string]RoleSpec{"role_a": {}}},
-			}},
-			mutate:  func(keys *Keys) { delete(keys.Roles["A"], "role_a") },
-			wantErr: ErrMissingRoleKey,
-		},
-		{
-			name: "duplicate role key",
-			acl: &ACL{Accounts: map[string]AccountSpec{
-				"A": {Roles: map[string]RoleSpec{"role_a": {}, "role_b": {}}},
-			}},
-			mutate: func(keys *Keys) {
-				keys.Roles["A"]["role_b"] = keys.Roles["A"]["role_a"]
-			},
-			wantErr: ErrDuplicateRole,
-		},
+		{name: "rejects an import from an unknown account", acl: &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{"A": {Imports: []natsacl.ImportSpec{{Service: "x.>", From: "GHOST"}}}}}, wantErr: natsacl.ErrUnknownAccount},
+		{name: "rejects an account with no key", acl: &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{"A": {}}}, mutate: func(keys *natsacl.Keys) { delete(keys.Accounts, "A") }, wantErr: natsacl.ErrMissingAccountKey},
+		{name: "rejects a role with no key", acl: &natsacl.ACL{Accounts: roles}, mutate: func(keys *natsacl.Keys) { delete(keys.Roles["A"], "role_a") }, wantErr: natsacl.ErrMissingRoleKey},
+		{name: "rejects two roles sharing a key", acl: &natsacl.ACL{Accounts: roles}, mutate: func(keys *natsacl.Keys) { keys.Roles["A"]["role_b"] = keys.Roles["A"]["role_a"] }, wantErr: natsacl.ErrDuplicateRole},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -238,10 +127,35 @@ func TestCompileValidationErrors(t *testing.T) {
 			if tt.mutate != nil {
 				tt.mutate(keys)
 			}
-			_, err := Compile(tt.acl, keys)
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tt.wantErr)
-			}
+			_, err := natsacl.Compile(tt.acl, keys)
+			assert.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestEquivalent(t *testing.T) {
+	claims, _ := compileFixture(t)
+	exporter := byName(t, claims, "EXPORTER")
+	resigned := *exporter
+	resigned.ID, resigned.IssuedAt, resigned.Issuer = "different-jti", 1234, "OACCOUNT"
+	reordered := *exporter
+	reordered.Exports = jwt.Exports{exporter.Exports[2], exporter.Exports[0], exporter.Exports[1]}
+	dropped := *exporter
+	dropped.Exports = append(jwt.Exports{}, exporter.Exports[:len(exporter.Exports)-1]...)
+	tests := []struct {
+		name string
+		a, b *jwt.AccountClaims
+		want bool
+	}{
+		{name: "ignores signing metadata", a: exporter, b: &resigned, want: true},
+		{name: "ignores export order", a: exporter, b: &reordered, want: true},
+		{name: "detects a dropped grant", a: exporter, b: &dropped, want: false},
+		{name: "never equates a claim with nil", a: exporter, b: nil, want: false},
+		{name: "equates nil with nil", a: nil, b: nil, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, natsacl.Equivalent(tt.a, tt.b))
 		})
 	}
 }

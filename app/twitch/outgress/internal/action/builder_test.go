@@ -1,177 +1,144 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package action
+package action_test
 
 import (
 	"context"
 	"net/http"
-	"strings"
 	"testing"
 
+	"ItsBagelBot/app/twitch/outgress/internal/action"
 	"ItsBagelBot/internal/domain/outgress"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func nopRun(context.Context, *outgress.Message) error { return nil }
 
-func route(a Action) [3]string { return [3]string{a.Method, a.Endpoint, a.As} }
+type route struct{ Method, Endpoint, As string }
 
-func TestBuildProducesImmutableRegistry(t *testing.T) {
-	b := NewSet()
+func routeOf(m *outgress.Message) route { return route{m.Method, m.Endpoint, m.As} }
+
+func buildRegistry() action.Registry {
+	b := action.NewSet()
 	b.Action("chat").Post("/helix/chat/messages").As(outgress.AsApp).Run(nopRun)
 	b.Action("unban").Delete("/helix/moderation/bans").As(outgress.AsBot).Run(nopRun)
 	b.Action("pin").Put("/helix/chat/pins").As(outgress.AsApp).Run(nopRun)
 	b.Action("channel").Patch("/helix/channels").As(outgress.AsBroadcaster).Run(nopRun)
 	b.Action("api").Passthrough().Run(nopRun)
 	b.Action("eventsub").Internal().Run(nopRun)
-	registry := b.Build()
+	return b.Build()
+}
 
-	chat, ok := registry.Lookup("chat")
-	if !ok {
-		t.Fatal("chat action missing")
+func TestBuildProducesARegistryOfDeclaredActions(t *testing.T) {
+	registry := buildRegistry()
+	tests := []struct {
+		name     string
+		typ      string
+		want     route
+		wantKind action.Kind
+		missing  bool
+	}{
+		{name: "post", typ: "chat", want: route{http.MethodPost, "/helix/chat/messages", outgress.AsApp}, wantKind: action.KindHelix},
+		{name: "delete", typ: "unban", want: route{http.MethodDelete, "/helix/moderation/bans", outgress.AsBot}, wantKind: action.KindHelix},
+		{name: "put", typ: "pin", want: route{http.MethodPut, "/helix/chat/pins", outgress.AsApp}, wantKind: action.KindHelix},
+		{name: "patch", typ: "channel", want: route{http.MethodPatch, "/helix/channels", outgress.AsBroadcaster}, wantKind: action.KindHelix},
+		{name: "passthrough", typ: "api", wantKind: action.KindPassthrough},
+		{name: "internal", typ: "eventsub", wantKind: action.KindInternal},
+		{name: "unknown type", typ: "unknown", missing: true},
 	}
-	if got, want := route(chat), [3]string{http.MethodPost, "/helix/chat/messages", outgress.AsApp}; got != want {
-		t.Fatalf("chat route = %v, want %v", got, want)
-	}
-	if unban, _ := registry.Lookup("unban"); unban.Method != http.MethodDelete {
-		t.Fatalf("unban method = %q, want DELETE", unban.Method)
-	}
-	if ch, _ := registry.Lookup("channel"); ch.Method != http.MethodPatch {
-		t.Fatalf("channel method = %q, want PATCH", ch.Method)
-	}
-	if api, _ := registry.Lookup("api"); api.Kind != KindPassthrough {
-		t.Fatalf("api kind = %v, want passthrough", api.Kind)
-	}
-	if es, _ := registry.Lookup("eventsub"); es.Kind != KindInternal {
-		t.Fatalf("eventsub kind = %v, want internal", es.Kind)
-	}
-	if _, ok := registry.Lookup("unknown"); ok {
-		t.Fatal("unknown type unexpectedly resolved")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := registry.Lookup(tt.typ)
+
+			require.Equal(t, !tt.missing, ok)
+			if tt.missing {
+				return
+			}
+			assert.Equal(t, tt.wantKind, got.Kind)
+			assert.Equal(t, tt.want, route{got.Method, got.Endpoint, got.As})
+		})
 	}
 }
 
 func TestValidateRejectsMisdeclaredActions(t *testing.T) {
 	tests := []struct {
 		name    string
-		declare func(*Builder)
+		declare func(*action.Builder)
 		wantErr string
 	}{
+		{"empty type", func(b *action.Builder) { b.Action("").Post("/helix/x").Run(nopRun) }, "empty type"},
 		{
-			name:    "empty type",
-			declare: func(b *Builder) { b.Action("").Post("/helix/x").Run(nopRun) },
-			wantErr: "empty type",
-		},
-		{
-			name: "duplicate type",
-			declare: func(b *Builder) {
+			"duplicate type",
+			func(b *action.Builder) {
 				b.Action("chat").Post("/helix/chat/messages").Run(nopRun)
 				b.Action("chat").Post("/helix/chat/messages").Run(nopRun)
 			},
-			wantErr: "duplicate action type",
+			"duplicate action type",
 		},
-		{
-			name:    "no route form",
-			declare: func(b *Builder) { b.Action("chat").Run(nopRun) },
-			wantErr: "no route form",
-		},
-		{
-			name:    "two helix routes",
-			declare: func(b *Builder) { b.Action("chat").Post("/helix/a").Post("/helix/b").Run(nopRun) },
-			wantErr: "more than one route form",
-		},
-		{
-			name:    "internal then helix route",
-			declare: func(b *Builder) { b.Action("chat").Internal().Post("/helix/a").Run(nopRun) },
-			wantErr: "more than one route form",
-		},
-		{
-			name:    "helix route then passthrough",
-			declare: func(b *Builder) { b.Action("chat").Post("/helix/a").Passthrough().Run(nopRun) },
-			wantErr: "more than one route form",
-		},
-		{
-			name:    "non-helix endpoint",
-			declare: func(b *Builder) { b.Action("chat").Post("/v5/chat").Run(nopRun) },
-			wantErr: "invalid route",
-		},
-		{
-			name:    "unknown identity",
-			declare: func(b *Builder) { b.Action("chat").Post("/helix/chat/messages").As("nobody").Run(nopRun) },
-			wantErr: "unknown identity",
-		},
-		{
-			name:    "identity on internal action",
-			declare: func(b *Builder) { b.Action("eventsub").Internal().As(outgress.AsApp).Run(nopRun) },
-			wantErr: "must not carry a token identity",
-		},
-		{
-			name:    "missing run",
-			declare: func(b *Builder) { b.Action("chat").Post("/helix/chat/messages") },
-			wantErr: "has no Run",
-		},
+		{"no route form", func(b *action.Builder) { b.Action("chat").Run(nopRun) }, "no route form"},
+		{"two helix routes", func(b *action.Builder) { b.Action("chat").Post("/helix/a").Post("/helix/b").Run(nopRun) }, "more than one route form"},
+		{"internal then helix route", func(b *action.Builder) { b.Action("chat").Internal().Post("/helix/a").Run(nopRun) }, "more than one route form"},
+		{"helix route then passthrough", func(b *action.Builder) { b.Action("chat").Post("/helix/a").Passthrough().Run(nopRun) }, "more than one route form"},
+		{"non-helix endpoint", func(b *action.Builder) { b.Action("chat").Post("/v5/chat").Run(nopRun) }, "invalid route"},
+		{"unknown identity", func(b *action.Builder) { b.Action("chat").Post("/helix/chat/messages").As("nobody").Run(nopRun) }, "unknown identity"},
+		{"identity on internal action", func(b *action.Builder) { b.Action("eventsub").Internal().As(outgress.AsApp).Run(nopRun) }, "must not carry a token identity"},
+		{"missing run", func(b *action.Builder) { b.Action("chat").Post("/helix/chat/messages") }, "has no Run"},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			b := NewSet()
-			tc.declare(b)
-			err := b.Validate()
-			if err == nil {
-				t.Fatalf("Validate() = nil, want error containing %q", tc.wantErr)
-			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("Validate() = %v, want error containing %q", err, tc.wantErr)
-			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := action.NewSet()
+			tt.declare(b)
+
+			assert.ErrorContains(t, b.Validate(), tt.wantErr)
 		})
 	}
 }
 
 func TestBuildPanicsOnInvalidSet(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Build did not panic on an invalid set")
-		}
-	}()
-	b := NewSet()
+	b := action.NewSet()
 	b.Action("chat").Run(nopRun)
-	b.Build()
+
+	assert.Panics(t, func() { b.Build() })
 }
 
-func TestFillRouteExplicitFieldsWin(t *testing.T) {
-	b := NewSet()
-	b.Action("chat").Post("/helix/chat/messages").As(outgress.AsApp).Run(nopRun)
-	b.Action("api").Passthrough().Run(nopRun)
-	b.Action("eventsub").Internal().Run(nopRun)
-	registry := b.Build()
+func TestFillRoute(t *testing.T) {
+	registry := buildRegistry()
+	tests := []struct {
+		name     string
+		typ      string
+		message  outgress.Message
+		wantFill bool
+		want     route
+	}{
+		{
+			name: "fills a helix route from the declaration", typ: "chat", message: outgress.Message{Type: "chat"},
+			wantFill: true, want: route{http.MethodPost, "/helix/chat/messages", outgress.AsApp},
+		},
+		{
+			name: "keeps explicit fields", typ: "chat",
+			message:  outgress.Message{Type: "chat", Method: http.MethodPut, Endpoint: "/helix/other", As: outgress.AsBot},
+			wantFill: true, want: route{http.MethodPut, "/helix/other", outgress.AsBot},
+		},
+		{name: "refuses a passthrough without an endpoint", typ: "api", message: outgress.Message{Type: "api"}},
+		{
+			name: "admits a passthrough with a full route", typ: "api",
+			message:  outgress.Message{Type: "api", Method: http.MethodGet, Endpoint: "/helix/users"},
+			wantFill: true, want: route{http.MethodGet, "/helix/users", ""},
+		},
+		{name: "admits an internal action", typ: "eventsub", message: outgress.Message{Type: "eventsub"}, wantFill: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			act, ok := registry.Lookup(tt.typ)
+			require.True(t, ok)
 
-	chat, _ := registry.Lookup("chat")
-	m := &outgress.Message{Type: "chat"}
-	if !chat.FillRoute(m) {
-		t.Fatal("chat route did not fill")
-	}
-	filled := [3]string{m.Method, m.Endpoint, m.As}
-	if want := [3]string{http.MethodPost, "/helix/chat/messages", outgress.AsApp}; filled != want {
-		t.Fatalf("filled message route = %v, want %v", filled, want)
-	}
-
-	explicit := &outgress.Message{Type: "chat", Method: http.MethodPut, Endpoint: "/helix/other", As: outgress.AsBot}
-	if !chat.FillRoute(explicit) {
-		t.Fatal("explicit route rejected")
-	}
-	kept := [3]string{explicit.Method, explicit.Endpoint, explicit.As}
-	if want := [3]string{http.MethodPut, "/helix/other", outgress.AsBot}; kept != want {
-		t.Fatalf("explicit fields overwritten: %v, want %v", kept, want)
-	}
-
-	api, _ := registry.Lookup("api")
-	if api.FillRoute(&outgress.Message{Type: "api"}) {
-		t.Fatal("passthrough without an endpoint unexpectedly admitted")
-	}
-	if !api.FillRoute(&outgress.Message{Type: "api", Method: http.MethodGet, Endpoint: "/helix/users"}) {
-		t.Fatal("passthrough with a full route rejected")
-	}
-
-	es, _ := registry.Lookup("eventsub")
-	if !es.FillRoute(&outgress.Message{Type: "eventsub"}) {
-		t.Fatal("internal action rejected")
+			assert.Equal(t, tt.wantFill, act.FillRoute(&tt.message))
+			if tt.wantFill {
+				assert.Equal(t, tt.want, routeOf(&tt.message))
+			}
+		})
 	}
 }

@@ -1,14 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
+import { stubSvelteKit } from '../../../../test/sveltekit';
 
+stubSvelteKit({ dev: true });
+
+type Page = { top: unknown[]; degraded: boolean; commands: unknown[]; modules: unknown[] };
+
+const directoryReads: string[] = [];
 let commandsPageReply: (id: string) => Promise<boolean> = async () => true;
-let listCommandsCalls = 0;
-let listModulesCalls = 0;
 let loyaltyFails = false;
 
-mock.module('$app/environment', () => ({ dev: true }));
 mock.module('$lib/server/loyalty-store', () => ({
   readLoyalty: async () => {
     if (loyaltyFails) throw new Error('loyalty down');
@@ -18,19 +21,13 @@ mock.module('$lib/server/loyalty-store', () => ({
 }));
 mock.module('$lib/server/commands-store', () => ({
   listCommands: async () => {
-    listCommandsCalls++;
-    return [{ trigger: '!hello' }];
+    directoryReads.push('commands');
+    return [{ name: 'hello', response: 'hi', is_active: true }];
   },
   listModules: async () => {
-    listModulesCalls++;
-    return [{ id: 'feed' }];
+    directoryReads.push('modules');
+    return [];
   }
-}));
-mock.module('$lib/server/public-directory', () => ({
-  channelLabel: (record: { displayName?: string; username?: string } | null | undefined, fallback: string) =>
-    record?.displayName || record?.username || fallback,
-  publicCommands: () => [{ trigger: '!hello', aliases: [], response: 'hi', perm: 'everyone' }],
-  publicModules: () => [{ id: 'feed', commands: [{ label: '!feed' }] }]
 }));
 mock.module('$lib/server/services', () => ({
   resolveLogin: async (login: string) => ({ userId: '42', username: login }),
@@ -39,53 +36,58 @@ mock.module('$lib/server/services', () => ({
 
 const { load } = await import('./+page.server');
 
-type LoadArgs = Parameters<typeof load>[0];
-type LoadResult = { top: unknown[]; degraded: boolean; commands: unknown[]; modules: unknown[] };
-
-async function runLoad(): Promise<LoadResult> {
+async function loadPage(): Promise<Page> {
   const event = {
     params: { user: 'somechannel' },
     url: new URL('https://leaderboard.itsbagelbot.com/somechannel'),
     locals: { locale: 'en' }
-  } as unknown as LoadArgs;
-  return (await load(event)) as unknown as LoadResult;
+  };
+  return (await load(event as never)) as unknown as Page;
 }
 
-describe('(public)/[user] load: commands-page toggle', () => {
-  beforeEach(() => {
-    commandsPageReply = async () => true;
-    listCommandsCalls = 0;
-    listModulesCalls = 0;
-    loyaltyFails = false;
-  });
-
-  test('a visible commands page renders commands and modules', async () => {
-    const out = await runLoad();
-    expect([out.commands.length, out.modules.length, listCommandsCalls, listModulesCalls]).toEqual([1, 1, 1, 1]);
-  });
-
-  test('a hidden commands page keeps standings, skips the directory RPCs and returns empty lists', async () => {
-    commandsPageReply = async () => false;
-
-    const out = await runLoad();
-    expect([out.top.length, out.degraded, out.commands, out.modules]).toEqual([1, false, [], []]);
-    expect([listCommandsCalls, listModulesCalls]).toEqual([0, 0]);
-  });
-
-  test('a rejected commands-page read fails open like the commands page', async () => {
-    commandsPageReply = async () => {
+const cases: {
+  name: string;
+  commandsPage: () => Promise<boolean>;
+  loyaltyFails?: boolean;
+  want: { commands: string[]; modulesListed: boolean; top: number; degraded: boolean; reads: string[] };
+}[] = [
+  {
+    name: 'a visible commands page renders commands and modules',
+    commandsPage: async () => true,
+    want: { commands: ['!hello'], modulesListed: true, top: 1, degraded: false, reads: ['commands', 'modules'] }
+  },
+  {
+    name: 'a hidden commands page keeps standings, skips the directory RPCs and returns empty lists',
+    commandsPage: async () => false,
+    want: { commands: [], modulesListed: false, top: 1, degraded: false, reads: [] }
+  },
+  {
+    name: 'a rejected commands-page read fails open like the commands page',
+    commandsPage: async () => {
       throw new Error('users service blip');
-    };
+    },
+    want: { commands: ['!hello'], modulesListed: true, top: 1, degraded: false, reads: ['commands', 'modules'] }
+  },
+  {
+    name: 'a hidden commands page does not hide a degraded standings notice',
+    commandsPage: async () => false,
+    loyaltyFails: true,
+    want: { commands: [], modulesListed: false, top: 0, degraded: true, reads: [] }
+  }
+];
 
-    const out = await runLoad();
-    expect([out.commands.length, out.modules.length]).toEqual([1, 1]);
-  });
-
-  test('a hidden commands page does not hide a degraded standings notice', async () => {
-    commandsPageReply = async () => false;
-    loyaltyFails = true;
-
-    const out = await runLoad();
-    expect([out.degraded, out.top, out.commands]).toEqual([true, [], []]);
+describe('(public)/[user] load: commands-page toggle', () => {
+  test.each(cases)('$name', async ({ commandsPage, loyaltyFails: fails, want }) => {
+    directoryReads.length = 0;
+    commandsPageReply = commandsPage;
+    loyaltyFails = fails ?? false;
+    const page = await loadPage();
+    expect({
+      commands: page.commands.map((c) => (c as { trigger: string }).trigger),
+      modulesListed: page.modules.length > 0,
+      top: page.top.length,
+      degraded: page.degraded,
+      reads: directoryReads
+    }).toEqual(want);
   });
 });

@@ -1,18 +1,18 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package repository
 
 import (
 	"context"
-	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type receiptStore struct {
@@ -24,13 +24,11 @@ type receiptStore struct {
 	onDelete  func()
 }
 
-type receiptDriver struct{ store *receiptStore }
-type receiptConn struct{ store *receiptStore }
+type receiptConn struct {
+	unusedConn
+	store *receiptStore
+}
 
-func (d receiptDriver) Open(string) (driver.Conn, error)   { return &receiptConn{d.store}, nil }
-func (c *receiptConn) Prepare(string) (driver.Stmt, error) { return nil, errors.New("unused") }
-func (c *receiptConn) Close() error                        { return nil }
-func (c *receiptConn) Begin() (driver.Tx, error)           { return nil, errors.New("unused") }
 func (c *receiptConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	if query != pruneBatchReceipts {
 		return nil, fmt.Errorf("unexpected query %q", query)
@@ -40,7 +38,7 @@ func (c *receiptConn) ExecContext(_ context.Context, query string, args []driver
 	defer s.mu.Unlock()
 	if s.deadlocks > 0 {
 		s.deadlocks--
-		return nil, &mysql.MySQLError{Number: mysqlDeadlock, Message: "Deadlock found when trying to get lock"}
+		return nil, deadlockError()
 	}
 	cutoff, limit := args[0].Value.(time.Time), args[1].Value.(int64)
 	s.cutoffs = append(s.cutoffs, cutoff)
@@ -77,12 +75,7 @@ func (s *receiptStore) seenCutoffs() []time.Time {
 
 func receiptRepo(t *testing.T, store *receiptStore) *Loyalty {
 	t.Helper()
-	name := fmt.Sprintf("counter-receipts-%d", fakeDBSeq.Add(1))
-	sql.Register(name, receiptDriver{store})
-	pool, err := sql.Open(name, "")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = pool.Close() })
-	return &Loyalty{sqldb: pool, log: zap.NewNop()}
+	return fakeLoyalty(t, func() driver.Conn { return &receiptConn{store: store} })
 }
 
 func receiptsAt(base time.Time, old, fresh int) []time.Time {
@@ -96,52 +89,46 @@ func receiptsAt(base time.Time, old, fresh int) []time.Time {
 	return rows
 }
 
-func TestPruneBatchReceiptsLoopsUntilShortChunk(t *testing.T) {
+func TestPruneBatchReceipts(t *testing.T) {
 	cutoff := time.Unix(1_700_000_000, 0)
-	store := &receiptStore{createdAt: receiptsAt(cutoff, 2*batchReceiptPruneChunk+500, 7)}
-	repo := receiptRepo(t, store)
+	for _, tc := range []struct {
+		name          string
+		old, fresh    int
+		deadlocks     int
+		cancelOnFirst bool
+		wantDeleted   int64
+		wantErr       error
+		wantRemaining int
+		wantCalls     int
+	}{
+		{name: "TestPruneBatchReceiptsLoopsUntilShortChunk", old: 2*batchReceiptPruneChunk + 500, fresh: 7, wantDeleted: 2*batchReceiptPruneChunk + 500, wantRemaining: 7, wantCalls: 3},
+		{name: "TestPruneBatchReceiptsStopsOnExactChunkBoundary", old: batchReceiptPruneChunk, wantDeleted: batchReceiptPruneChunk, wantCalls: 2},
+		{name: "TestPruneBatchReceiptsRespectsCancellation", old: 3 * batchReceiptPruneChunk, cancelOnFirst: true, wantDeleted: batchReceiptPruneChunk, wantErr: context.Canceled, wantRemaining: 2 * batchReceiptPruneChunk, wantCalls: 1},
+		{name: "TestPruneBatchReceiptsRetriesDeadlock", old: 3, fresh: 2, deadlocks: 1, wantDeleted: 3, wantRemaining: 2, wantCalls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			store := &receiptStore{createdAt: receiptsAt(cutoff, tc.old, tc.fresh), deadlocks: tc.deadlocks}
+			if tc.cancelOnFirst {
+				store.onDelete = cancel
+			}
 
-	deleted, err := repo.PruneBatchReceipts(context.Background(), cutoff)
-	require.NoError(t, err)
-	require.Equal(t, int64(2*batchReceiptPruneChunk+500), deleted)
-	require.Equal(t, 7, store.remaining())
-	require.Equal(t, []time.Time{cutoff, cutoff, cutoff}, store.seenCutoffs())
-	require.Equal(t, []int64{batchReceiptPruneChunk, batchReceiptPruneChunk, batchReceiptPruneChunk}, store.limits)
-}
+			deleted, err := receiptRepo(t, store).PruneBatchReceipts(ctx, cutoff)
 
-func TestPruneBatchReceiptsStopsOnExactChunkBoundary(t *testing.T) {
-	cutoff := time.Unix(1_700_000_000, 0)
-	store := &receiptStore{createdAt: receiptsAt(cutoff, batchReceiptPruneChunk, 0)}
-	repo := receiptRepo(t, store)
-
-	deleted, err := repo.PruneBatchReceipts(context.Background(), cutoff)
-	require.NoError(t, err)
-	require.Equal(t, int64(batchReceiptPruneChunk), deleted)
-	require.Len(t, store.seenCutoffs(), 2)
-}
-
-func TestPruneBatchReceiptsRespectsCancellation(t *testing.T) {
-	cutoff := time.Unix(1_700_000_000, 0)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	store := &receiptStore{createdAt: receiptsAt(cutoff, 3*batchReceiptPruneChunk, 0), onDelete: cancel}
-	repo := receiptRepo(t, store)
-
-	deleted, err := repo.PruneBatchReceipts(ctx, cutoff)
-	require.ErrorIs(t, err, context.Canceled)
-	require.Equal(t, int64(batchReceiptPruneChunk), deleted)
-	require.Equal(t, 2*batchReceiptPruneChunk, store.remaining())
-}
-
-func TestPruneBatchReceiptsRetriesDeadlock(t *testing.T) {
-	cutoff := time.Unix(1_700_000_000, 0)
-	store := &receiptStore{createdAt: receiptsAt(cutoff, 3, 2), deadlocks: 1}
-	repo := receiptRepo(t, store)
-
-	deleted, err := repo.PruneBatchReceipts(context.Background(), cutoff)
-	require.NoError(t, err)
-	require.Equal(t, int64(3), deleted)
-	require.Equal(t, 2, store.remaining())
+			require.ErrorIs(t, err, tc.wantErr)
+			assert.Equal(t, tc.wantDeleted, deleted)
+			assert.Equal(t, tc.wantRemaining, store.remaining())
+			seen := store.seenCutoffs()
+			assert.Len(t, seen, tc.wantCalls)
+			for _, got := range seen {
+				assert.Equal(t, cutoff, got)
+			}
+			for _, limit := range store.limits {
+				assert.EqualValues(t, batchReceiptPruneChunk, limit)
+			}
+		})
+	}
 }
 
 func TestBatchReceiptPrunerUsesRetentionCutoffAndStops(t *testing.T) {

@@ -30,3 +30,15 @@ func awaitSignal[T any](t *testing.T, signal <-chan T, message string) {
 		t.Fatal(message)
 	}
 }
+
+func waitFor(t *testing.T, condition func() bool, message string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal(message)
+}

@@ -36,15 +36,15 @@ const extraGroups: Record<string, { name: string; samples: Record<string, string
   followage: [{ name: 'status', samples: { followage: '2 years, 3 months', followedat: '2024-06-01T12:00:00Z' } }],
   accountage: [{ name: 'status', samples: { accountage: '5 years, 2 months', createdat: '2021-07-01T12:00:00Z' } }],
   quotes: [{ name: 'quote', samples: { quote: 'Quote #12: bagels win (2026-01-31)', num: '12', text: 'bagels win', date: '2026-01-31' } }],
-  songqueue: [{ name: 'current', samples: { song: 'Bagel Song by The Ovens', title: 'Bagel Song', artist: 'The Ovens', url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', req: 'maya_live' } }, { name: 'redeem', samples: { user: 'maya_live', track: 'Bagel Song by The Ovens', input: 'Bagel Song', pos: '3' } }],
-  loyalty: [{ name: 'balance', samples: { points: '1280', pointsname: 'crumbs', watchtime: '2 hours, 15 minutes', duration: '2 hours, 15 minutes', user: 'maya_live', name: 'crumbs', hours: '2' } }],
+  songqueue: [{ name: 'current', samples: { song: 'Bagel Song by The Ovens', title: 'Bagel Song', artist: 'The Ovens', url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', req: 'SnackPackPanda' } }, { name: 'redeem', samples: { user: 'SnackPackPanda', track: 'Bagel Song by The Ovens', input: 'Bagel Song', pos: '3' } }],
+  loyalty: [{ name: 'balance', samples: { points: '1280', pointsname: 'crumbs', watchtime: '2 hours, 15 minutes', duration: '2 hours, 15 minutes', user: 'SnackPackPanda', name: 'crumbs', hours: '2' } }],
   stream: [{ name: 'channel', samples: { uptime: '2 hours, 15 minutes', title: 'bagel baking and chill', game: 'Just Chatting', viewers: '128' } }],
-  queue: [{ name: 'status', samples: { size: '12', entries: 'maya_live, alex', open: 'true' } }],
+  queue: [{ name: 'status', samples: { size: '12', entries: 'SnackPackPanda, MikanMeerkat', open: 'true' } }],
   raffle: [{ name: 'status', samples: { entrants: '18', seconds: '120', open: 'true' } }],
-  govee: [{ name: 'redeem', samples: { user: 'sesame_sam', color: 'blue' } }],
-  channelpoints: [{ name: 'redeem', samples: { user: 'sesame_sam', reward: 'Hydrate', input: 'water please', cost: '500', channel: 'itsmavey', counter: '12', points: '100' } }],
-  triggers: [{ name: 'response', samples: { user: 'sesame_sam', channel: 'itsmavey' } }],
-  personality: [{ name: 'reply', samples: { user: 'sesame_sam' } }]
+  govee: [{ name: 'redeem', samples: { user: 'PrincessBarney', color: 'blue' } }],
+  channelpoints: [{ name: 'redeem', samples: { user: 'PrincessBarney', reward: 'Hydrate', input: 'water please', cost: '500', channel: 'itsmavey', counter: '12', points: '100' } }],
+  triggers: [{ name: 'response', samples: { user: 'PrincessBarney', channel: 'itsmavey' } }],
+  personality: [{ name: 'reply', samples: { user: 'PrincessBarney' } }]
 };
 
 for (const id of Object.keys(extraGroups)) {

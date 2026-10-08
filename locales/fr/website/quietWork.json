@@ -1,16 +1,16 @@
 {
   "eyebrow": "Le travail discret",
   "title": "Ce dont il s'occupe pendant que vous streamez.",
-  "goveeReward": "moth_lamp a échangé · coucher de soleil",
+  "goveeReward": "PrincessBarney a échangé · coucher de soleil",
   "goveeTitle": "Vos lumières, télécommandées par le chat.",
   "goveeDesc": "Les points de chaîne pilotent vos lumières Govee. Un échange, et la pièce glisse vers la couleur choisie par le chat.",
-  "cmdOut": "bienvenue, moth_lamp. installe-toi 🥯",
+  "cmdOut": "bienvenue, PrincessBarney. installe-toi 🥯",
   "cmdTitle": "Il accueille vos habitués par leur nom.",
   "cmdDesc": "Commandes, délais et shout-outs, écrits dans vos mots depuis le tableau de bord.",
   "songTitle": "Les demandes Spotify, pilotées par le chat.",
   "songDesc": "Le viewer tape !sr et le morceau tombe direct dans votre file Spotify. Lecture en direct, !skip, !srlist, et une limite par personne que vous fixez.",
   "songNow": "à l’écoute",
-  "songTrack": "late night lo-fi · demandé par moth_lamp",
+  "songTrack": "late night lo-fi · demandé par PrincessBarney",
   "songAck": "en file · n°2",
   "pollTitle": "Des sondages votés par votre chat.",
   "pollDesc": "Les votes sont comptés en direct, les résultats bougent au fil des messages.",
@@ -18,5 +18,5 @@
   "winTitle": "Chaque participation a les mêmes chances.",
   "winDesc": "Le tirage est aléatoire et le résultat est consigné.",
   "beatTitle": "Il reste dans le chat quand vous êtes hors ligne.",
-  "beatDesc": "Commandes, modération et minuteries continuent de tourner entre les streams."
+  "beatDesc": "Les commandes répondent entre les directs, et chaque minuteur réglé pour publier hors ligne continue de publier."
 }
