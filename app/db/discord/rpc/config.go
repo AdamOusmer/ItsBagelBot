@@ -121,13 +121,14 @@ func validSnowflakeList(f field) bool {
 func validToggle(f field) bool { return f.value == "" || f.value == "on" || f.value == "off" }
 
 func validRange(f field) bool {
-	if f.value == "" {
+	v := strings.TrimSpace(f.value)
+	if v == "" {
 		return true
 	}
-	if len(f.value) > 2 || f.value[0] < '0' || f.value[0] > '9' {
+	if len(v) > 2 || v[0] < '0' || v[0] > '9' {
 		return false
 	}
-	n, err := strconv.Atoi(f.value)
+	n, err := strconv.Atoi(v)
 	return err == nil && n >= f.min && n <= f.max
 }
 

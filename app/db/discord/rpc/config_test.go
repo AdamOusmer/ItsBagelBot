@@ -90,6 +90,7 @@ func TestConfigSetValidatesIdsAndTogglesBeforeStoring(t *testing.T) {
 				LogIgnoreBots: "off", VoiceCategoryID: "12345678901234567", VoiceNameTemplate: "{owner}", VoiceUserLimit: "0", VoicePrivacyMode: "locked",
 			},
 		},
+		{name: "accepts a padded voice limit", cfg: ddiscord.Config{VoiceUserLimit: " 5"}},
 		{
 			name: "refuses more than 25 ignored channels",
 			cfg:  ddiscord.Config{LogIgnoredChannels: strings.TrimSuffix(strings.Repeat("12345678901234567,", 26), ",")},

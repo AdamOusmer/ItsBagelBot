@@ -134,6 +134,8 @@ describe('merge', () => {
     row('a voice name over the max is refused', {}, { voiceNameTemplate: 'x'.repeat(101) }, { voiceNameTemplate: '' }, [{ field: 'voiceNameTemplate', code: 'length' }]),
     ...['100', '-1', '1.5', 'x', '007'].map((bad) => row(`the voice limit ${JSON.stringify(bad)} is refused outside 0..99`, {}, { voiceUserLimit: bad }, { voiceUserLimit: '' }, [{ field: 'voiceUserLimit', code: 'range' }])),
     row('the voice limit 0 and 99 are accepted', {}, { voiceUserLimit: '0' }, { voiceUserLimit: '0' }, []),
+    row('a padded voice limit is accepted', {}, { voiceUserLimit: ' 5' }, { voiceUserLimit: '5' }, []),
+    row('a trailing comma in the ignored channel list is accepted', {}, { logIgnoredChannelIds: `${ID_A},${ID_B},` }, { logIgnoredChannelIds: `${ID_A},${ID_B}` }, []),
     row('an unknown voice privacy is refused', {}, { voicePrivacy: 'secret' }, { voicePrivacy: '' }, [{ field: 'voicePrivacy', code: 'choice' }]),
     row('a known voice privacy is accepted', {}, { voicePrivacy: 'hidden' }, { voicePrivacy: 'hidden' }, [])
   ];

@@ -419,8 +419,8 @@ export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list
 const CHECKS: Record<FieldKind, (field: RuledValue) => boolean> = {
   snowflake: ({ value }) => SNOWFLAKE.test(value),
   snowflakeList: ({ value, rule }) => {
-    const parts = value.split(',');
-    return parts.every((p) => SNOWFLAKE.test(p.trim())) && parts.length <= (rule.max ?? Number.MAX_SAFE_INTEGER);
+    const parts = value.split(',').map((p) => p.trim()).filter((p) => p !== '');
+    return parts.every((p) => SNOWFLAKE.test(p)) && parts.length <= (rule.max ?? Number.MAX_SAFE_INTEGER);
   },
   flag: ({ value }) => value === 'on' || value === 'off',
   limit: ({ value, rule }) => integerInRange(value, { min: rule.min ?? 0, max: rule.max ?? 0 }),
@@ -444,8 +444,10 @@ const CODES: Record<FieldKind, FieldError['code']> = {
 };
 
 function integerInRange(v: FieldText, range: IntRange): boolean {
-  if (!/^\d+$/.test(v) || v.length > String(range.max).length) return false;
-  const n = Number.parseInt(v, 10);
+  const digits = v.trim();
+  if (digits === '') return true;
+  if (!/^\d+$/.test(digits) || digits.length > String(range.max).length) return false;
+  const n = Number.parseInt(digits, 10);
   return n >= range.min && n <= range.max;
 }
 

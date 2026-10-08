@@ -27,6 +27,7 @@ func TestValidateConfigAcceptsEmptyAndFilled(t *testing.T) {
 
 	assert.Empty(t, ValidateConfig(Config{}), "a blank config must be storable")
 	assert.Empty(t, ValidateConfig(full), "a valid config (with a body of exactly the max in runes) was rejected")
+	assert.Empty(t, ValidateConfig(Config{VoiceUserLimit: " 5"}), "a padded voice limit was rejected")
 }
 
 func TestValidateConfigFieldErrors(t *testing.T) {
