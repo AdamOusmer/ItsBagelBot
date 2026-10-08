@@ -30,6 +30,35 @@ var subjectByType = map[string]string{
 	"INTERACTION_CREATE":           ddiscord.SubjectEventInteraction,
 	"GUILD_AUDIT_LOG_ENTRY_CREATE": ddiscord.SubjectEventAudit,
 	"GUILD_CREATE":                 ddiscord.SubjectEventGuild,
+	"MESSAGE_DELETE_BULK":          ddiscord.SubjectEventMessage,
+	"GUILD_MEMBER_UPDATE":          ddiscord.SubjectEventMember,
+	"GUILD_BAN_ADD":                ddiscord.SubjectEventMember,
+	"GUILD_BAN_REMOVE":             ddiscord.SubjectEventMember,
+	"GUILD_UPDATE":                 ddiscord.SubjectEventGuild,
+	"CHANNEL_CREATE":               ddiscord.SubjectEventGuild,
+	"CHANNEL_UPDATE":               ddiscord.SubjectEventGuild,
+	"CHANNEL_DELETE":               ddiscord.SubjectEventGuild,
+	"THREAD_CREATE":                ddiscord.SubjectEventGuild,
+	"THREAD_UPDATE":                ddiscord.SubjectEventGuild,
+	"THREAD_DELETE":                ddiscord.SubjectEventGuild,
+	"GUILD_ROLE_CREATE":            ddiscord.SubjectEventGuild,
+	"GUILD_ROLE_UPDATE":            ddiscord.SubjectEventGuild,
+	"GUILD_ROLE_DELETE":            ddiscord.SubjectEventGuild,
+	"INVITE_CREATE":                ddiscord.SubjectEventGuild,
+	"INVITE_DELETE":                ddiscord.SubjectEventGuild,
+	"GUILD_EMOJIS_UPDATE":          ddiscord.SubjectEventGuild,
+	"GUILD_STICKERS_UPDATE":        ddiscord.SubjectEventGuild,
+}
+
+var guildIsID = map[string]bool{"GUILD_CREATE": true, "GUILD_UPDATE": true}
+
+var channelIsID = map[string]bool{
+	"CHANNEL_CREATE": true,
+	"CHANNEL_UPDATE": true,
+	"CHANNEL_DELETE": true,
+	"THREAD_CREATE":  true,
+	"THREAD_UPDATE":  true,
+	"THREAD_DELETE":  true,
 }
 
 type Relay struct {
@@ -104,10 +133,14 @@ func routeFields(eventType string, raw []byte) (guildID, channelID, userID strin
 	var p idPayload
 	_ = codec.Unmarshal(raw, &p)
 	guildID = p.GuildID
-	if eventType == "GUILD_CREATE" {
+	if guildIsID[eventType] {
 		guildID = p.ID
 	}
-	return guildID, p.Channel, firstNonEmpty(p.UserID, p.Author.ID, p.Member.User.ID, p.User.ID)
+	channelID = p.Channel
+	if channelIsID[eventType] {
+		channelID = p.ID
+	}
+	return guildID, channelID, firstNonEmpty(p.UserID, p.Author.ID, p.Member.User.ID, p.User.ID)
 }
 
 func firstNonEmpty(vals ...string) string {

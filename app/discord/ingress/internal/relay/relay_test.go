@@ -128,3 +128,59 @@ func TestDispatchDefersInteractionsBeforePublishing(t *testing.T) {
 		})
 	}
 }
+
+func TestDispatchForwardsChannelRoleBanMemberAndBulkDeleteEvents(t *testing.T) {
+	cases := []struct {
+		typ     string
+		subject string
+	}{
+		{"MESSAGE_DELETE_BULK", ddiscord.SubjectEventMessage},
+		{"GUILD_MEMBER_UPDATE", ddiscord.SubjectEventMember},
+		{"GUILD_BAN_ADD", ddiscord.SubjectEventMember},
+		{"GUILD_BAN_REMOVE", ddiscord.SubjectEventMember},
+		{"GUILD_UPDATE", ddiscord.SubjectEventGuild},
+		{"CHANNEL_CREATE", ddiscord.SubjectEventGuild},
+		{"CHANNEL_UPDATE", ddiscord.SubjectEventGuild},
+		{"CHANNEL_DELETE", ddiscord.SubjectEventGuild},
+		{"THREAD_CREATE", ddiscord.SubjectEventGuild},
+		{"THREAD_UPDATE", ddiscord.SubjectEventGuild},
+		{"THREAD_DELETE", ddiscord.SubjectEventGuild},
+		{"GUILD_ROLE_CREATE", ddiscord.SubjectEventGuild},
+		{"GUILD_ROLE_UPDATE", ddiscord.SubjectEventGuild},
+		{"GUILD_ROLE_DELETE", ddiscord.SubjectEventGuild},
+		{"INVITE_CREATE", ddiscord.SubjectEventGuild},
+		{"INVITE_DELETE", ddiscord.SubjectEventGuild},
+		{"GUILD_EMOJIS_UPDATE", ddiscord.SubjectEventGuild},
+		{"GUILD_STICKERS_UPDATE", ddiscord.SubjectEventGuild},
+	}
+	for _, tc := range cases {
+		t.Run(tc.typ, func(t *testing.T) {
+			calls := dispatch(t, &recorder{}, gateway.Event{Type: tc.typ, Raw: []byte(`{}`)})
+			require.Len(t, calls, 1)
+			assert.Equal(t, tc.subject, calls[0].(published).Subject)
+		})
+	}
+}
+
+func TestDispatchRoutesNewEventIDs(t *testing.T) {
+	cases := []struct {
+		name    string
+		typ     string
+		subject string
+		raw     []byte
+		ids     routeIDs
+	}{
+		{"guild update takes the payload id as the guild", "GUILD_UPDATE", ddiscord.SubjectEventGuild, []byte(`{"id":"g1"}`), routeIDs{"g1", "", ""}},
+		{"channel delete takes the payload id as the channel", "CHANNEL_DELETE", ddiscord.SubjectEventGuild, []byte(`{"id":"c1","guild_id":"g1"}`), routeIDs{"g1", "c1", ""}},
+		{"ban add takes the user", "GUILD_BAN_ADD", ddiscord.SubjectEventMember, []byte(`{"guild_id":"g1","user":{"id":"u1"}}`), routeIDs{"g1", "", "u1"}},
+		{"bulk delete takes the channel field", "MESSAGE_DELETE_BULK", ddiscord.SubjectEventMessage, []byte(`{"ids":["1","2"],"channel_id":"c1","guild_id":"g1"}`), routeIDs{"g1", "c1", ""}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := published{tc.subject, ddiscord.Event{
+				Type: tc.typ, GuildID: tc.ids.Guild, ChannelID: tc.ids.Channel, UserID: tc.ids.User, Raw: tc.raw,
+			}}
+			assert.Equal(t, []any{want}, dispatch(t, &recorder{}, gateway.Event{Type: tc.typ, Raw: tc.raw}))
+		})
+	}
+}
