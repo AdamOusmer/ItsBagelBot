@@ -27,17 +27,17 @@ func WithRead[T any](ctx context.Context, fn func(context.Context) (T, error)) (
 }
 
 func firstReadAttempt[T any](ctx context.Context, fn func(context.Context) (T, error)) (T, error) {
-	attempt, cancel := context.WithTimeout(ctx, readAttemptTimeout(ctx))
+	if !roomForSecondAttempt(ctx) {
+		return fn(ctx)
+	}
+	attempt, cancel := context.WithTimeout(ctx, readAttemptCap)
 	defer cancel()
 	return fn(attempt)
 }
 
-func readAttemptTimeout(ctx context.Context) time.Duration {
+func roomForSecondAttempt(ctx context.Context) bool {
 	deadline, ok := ctx.Deadline()
-	if !ok {
-		return readAttemptCap
-	}
-	return min(readAttemptCap, time.Until(deadline)/2)
+	return !ok || time.Until(deadline) >= 2*readAttemptCap
 }
 
 func retryableRead(parent context.Context, err error) bool {

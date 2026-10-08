@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const readTestBudget = 200 * time.Millisecond
+const readTestBudget = 3 * readAttemptCap
 
 type outcome func(context.Context) error
 
@@ -183,7 +183,7 @@ func TestWithReadAttemptTimeoutFollowsParentBudget(t *testing.T) {
 		budget time.Duration
 		want   time.Duration
 	}{
-		{name: "half of a short budget", budget: 400 * time.Millisecond, want: 200 * time.Millisecond},
+		{name: "the whole of a budget too short to split", budget: 1500 * time.Millisecond, want: 1500 * time.Millisecond},
 		{name: "capped under a long budget", budget: 10 * time.Second, want: readAttemptCap},
 		{name: "capped without a deadline", want: readAttemptCap},
 	}
