@@ -5,6 +5,7 @@ package valkey
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -14,6 +15,9 @@ const claimValue = "1"
 
 // A plain DEL would free a lock another replica took after our TTL lapsed.
 const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
+
+// A plain PEXPIRE would extend a lock another replica took after our TTL lapsed.
+const renewIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('pexpire',KEYS[1],ARGV[2]) else return 0 end`
 
 type OwnerLock struct {
 	client valkey_go.Client
@@ -29,6 +33,13 @@ func NewOwnerLock(client valkey_go.Client, key, owner string) OwnerLock {
 func (l OwnerLock) Acquire(ctx context.Context, ttl time.Duration) (bool, error) {
 	cmd := l.client.B().Set().Key(l.key).Value(l.owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build()
 	return wonClaim(l.client.Do(ctx, cmd))
+}
+
+func (l OwnerLock) Renew(ctx context.Context, ttl time.Duration) (bool, error) {
+	cmd := l.client.B().Eval().Script(renewIfOwner).Numkeys(1).Key(l.key).
+		Arg(l.owner, strconv.FormatInt(ttl.Milliseconds(), 10)).Build()
+	n, err := l.client.Do(ctx, cmd).AsInt64()
+	return n == 1, err
 }
 
 func (l OwnerLock) Release(ctx context.Context) error {
