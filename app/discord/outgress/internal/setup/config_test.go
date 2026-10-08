@@ -113,6 +113,9 @@ func TestConfigRejectsForeignChannelsBeforeSave(t *testing.T) {
 		func(c *ddiscord.Config) { c.TicketChannelID = "foreign" },
 		func(c *ddiscord.Config) { c.TicketLogChannelID = "foreign" },
 		func(c *ddiscord.Config) { c.TicketArchiveCategoryID = "foreign" },
+		func(c *ddiscord.Config) { c.VoiceCategoryID = "foreign" },
+		func(c *ddiscord.Config) { c.LogVoiceChannelID = "foreign" },
+		func(c *ddiscord.Config) { c.LogIgnoredChannels = "foreign" },
 	} {
 		store := boundStore(owners{"guild-1": "42"})
 		w := newWorker(&fakeDiscord{channelGuilds: map[string]string{"foreign": "guild-2"}}, store)

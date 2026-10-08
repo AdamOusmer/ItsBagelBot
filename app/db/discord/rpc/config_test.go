@@ -4,6 +4,7 @@
 package rpc_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +83,32 @@ func TestConfigSetValidatesIdsAndTogglesBeforeStoring(t *testing.T) {
 		{name: "rejects 16 digits that predate the Discord epoch", cfg: ddiscord.Config{LogChannelID: "1234567890123456"}, bad: []string{"logChannelId"}},
 		{name: "rejects 21 digits that cannot be a 64-bit id", cfg: ddiscord.Config{VIPRoleID: "123456789012345678901"}, bad: []string{"vipRoleId"}},
 		{name: "rejects a non-digit in a snowflake", cfg: ddiscord.Config{MemberRoleID: "1234567890123456a"}, bad: []string{"memberRoleId"}},
+		{
+			name: "accepts the log and voice options",
+			cfg: ddiscord.Config{
+				LogVoiceChannelID: "12345678901234567", LogIgnoredChannels: "12345678901234567,12345678901234568",
+				LogIgnoreBots: "off", VoiceCategoryID: "12345678901234567", VoiceNameTemplate: "{owner}", VoiceUserLimit: "0", VoicePrivacyMode: "locked",
+			},
+		},
+		{
+			name: "refuses more than 25 ignored channels",
+			cfg:  ddiscord.Config{LogIgnoredChannels: strings.TrimSuffix(strings.Repeat("12345678901234567,", 26), ",")},
+			bad:  []string{"logIgnoredChannelIds"},
+		},
+		{
+			name: "names every bad drifted and new field",
+			cfg: ddiscord.Config{
+				TicketLogChannelID: "x", TicketArchiveCategoryID: "x", SubsChannelID: "x", TicketStaffRoles: "1,2",
+				TicketOpenLimit: "9", TicketTranscriptEnabled: "yes", AutoRoleEnabled: "maybe",
+				LogMessagesChannelID: "x", LogIgnoredChannels: "nope", LogRolesEnabled: "1",
+				VoiceUserLimit: "100", VoicePrivacyMode: "secret",
+			},
+			bad: []string{
+				"ticketLogChannelId", "ticketArchiveCategoryId", "subsChannelId", "ticketStaffRoleIds",
+				"ticketOpenLimit", "ticketTranscriptEnabled", "autoRoleEnabled",
+				"logMessagesChannelId", "logIgnoredChannelIds", "logRolesEnabled", "voiceUserLimit", "voicePrivacy",
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)

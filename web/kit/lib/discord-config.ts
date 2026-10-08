@@ -29,6 +29,18 @@ export const TICKET_OPEN_LIMIT_MIN = 1;
 export const TICKET_OPEN_LIMIT_MAX = 5;
 export const TICKET_OPEN_LIMIT_DEFAULT = 1;
 
+export const LOG_IGNORED_CHANNELS_MAX = 25;
+export const VOICE_NAME_MAX = 100;
+export const VOICE_USER_LIMIT_MIN = 0;
+export const VOICE_USER_LIMIT_MAX = 99;
+export const VOICE_PRIVACY_MODES = ['open', 'locked', 'hidden'] as const;
+
+export type VoicePrivacy = (typeof VOICE_PRIVACY_MODES)[number];
+
+export const LOG_CATEGORIES = ['messages', 'members', 'voice', 'moderation', 'channels', 'roles', 'server'] as const;
+
+export type LogCategory = (typeof LOG_CATEGORIES)[number];
+
 export const PINNED_SLOTS = [
   'owner',
   'leadMod',
@@ -49,7 +61,16 @@ export type DiscordConfig = {
   clipsChannelId: string;
   welcomeChannelId: string;
   voiceHubId: string;
+  voiceCategoryId: string;
+  voiceNameTemplate: string;
+  voiceUserLimit: string;
+  voicePrivacy: string;
   logChannelId: string;
+  logMessagesChannelId: string;
+  logMembersChannelId: string;
+  logVoiceChannelId: string;
+  logModerationChannelId: string;
+  logIgnoredChannelIds: string;
 
   subsChannelId: string;
   subsCategoryId: string;
@@ -84,6 +105,14 @@ export type DiscordConfig = {
   voiceEnabled: string;
   ticketsEnabled: string;
   logsEnabled: string;
+  logMessagesEnabled: string;
+  logMembersEnabled: string;
+  logVoiceEnabled: string;
+  logModerationEnabled: string;
+  logChannelsEnabled: string;
+  logRolesEnabled: string;
+  logServerEnabled: string;
+  logIgnoreBots: string;
   subscribersEnabled: string;
   levelsEnabled: string;
   linkGuardEnabled: string;
@@ -94,9 +123,9 @@ export type DiscordConfig = {
   linkAllowList: string;
 };
 
-type FieldKind = 'snowflake' | 'snowflakeList' | 'flag' | 'limit' | 'color' | 'pinned' | 'text';
+type FieldKind = 'snowflake' | 'snowflakeList' | 'flag' | 'limit' | 'color' | 'pinned' | 'text' | 'choice';
 
-type Rule = { kind: FieldKind; max?: number };
+type Rule = { kind: FieldKind; min?: number; max?: number; options?: readonly string[] };
 
 type RuledValue = { rule: Rule; value: FieldText };
 
@@ -113,7 +142,16 @@ export const FIELD_RULES: Record<keyof DiscordConfig, Rule> = {
   clipsChannelId: SNOW,
   welcomeChannelId: SNOW,
   voiceHubId: SNOW,
+  voiceCategoryId: SNOW,
+  voiceNameTemplate: { kind: 'text', max: VOICE_NAME_MAX },
+  voiceUserLimit: { kind: 'limit', min: VOICE_USER_LIMIT_MIN, max: VOICE_USER_LIMIT_MAX },
+  voicePrivacy: { kind: 'choice', options: VOICE_PRIVACY_MODES },
   logChannelId: SNOW,
+  logMessagesChannelId: SNOW,
+  logMembersChannelId: SNOW,
+  logVoiceChannelId: SNOW,
+  logModerationChannelId: SNOW,
+  logIgnoredChannelIds: { kind: 'snowflakeList', max: LOG_IGNORED_CHANNELS_MAX },
 
   subsChannelId: SNOW,
   subsCategoryId: SNOW,
@@ -125,7 +163,7 @@ export const FIELD_RULES: Record<keyof DiscordConfig, Rule> = {
   ticketArchiveCategoryId: SNOW,
   ticketLogChannelId: SNOW,
   ticketStaffRoleIds: { kind: 'snowflakeList' },
-  ticketOpenLimit: { kind: 'limit' },
+  ticketOpenLimit: { kind: 'limit', min: TICKET_OPEN_LIMIT_MIN, max: TICKET_OPEN_LIMIT_MAX },
   ticketTranscriptEnabled: FLAG,
   ticketPanelTitle: { kind: 'text', max: TICKET_PANEL_TITLE_MAX },
   ticketPanelBody: { kind: 'text', max: TICKET_PANEL_BODY_MAX },
@@ -148,6 +186,14 @@ export const FIELD_RULES: Record<keyof DiscordConfig, Rule> = {
   voiceEnabled: FLAG,
   ticketsEnabled: FLAG,
   logsEnabled: FLAG,
+  logMessagesEnabled: FLAG,
+  logMembersEnabled: FLAG,
+  logVoiceEnabled: FLAG,
+  logModerationEnabled: FLAG,
+  logChannelsEnabled: FLAG,
+  logRolesEnabled: FLAG,
+  logServerEnabled: FLAG,
+  logIgnoreBots: FLAG,
   subscribersEnabled: FLAG,
   levelsEnabled: FLAG,
   linkGuardEnabled: FLAG,
@@ -312,25 +358,76 @@ export function ticketStaffRoleIds(config: DiscordConfig): Snowflake[] {
   return parseIdList([config.ownerRoleId, config.leadModRoleId, config.modsRoleId].join(','));
 }
 
+const LOG_CATEGORY_TOGGLE: Record<LogCategory, keyof DiscordConfig> = {
+  messages: 'logMessagesEnabled',
+  members: 'logMembersEnabled',
+  voice: 'logVoiceEnabled',
+  moderation: 'logModerationEnabled',
+  channels: 'logChannelsEnabled',
+  roles: 'logRolesEnabled',
+  server: 'logServerEnabled'
+};
+
+const LOG_CATEGORY_CHANNEL: Partial<Record<LogCategory, keyof DiscordConfig>> = {
+  messages: 'logMessagesChannelId',
+  members: 'logMembersChannelId',
+  voice: 'logVoiceChannelId',
+  moderation: 'logModerationChannelId'
+};
+
+export function logCategoryOn(config: DiscordConfig, category: LogCategory): boolean {
+  return alertOn(config.logsEnabled) && alertOn(config[LOG_CATEGORY_TOGGLE[category]]);
+}
+
+export function logChannelFor(config: DiscordConfig, category: LogCategory): Snowflake {
+  const own = LOG_CATEGORY_CHANNEL[category];
+  return (own ? config[own].trim() : '') || config.logChannelId.trim();
+}
+
+export function logIgnores(config: DiscordConfig, channelId: Snowflake): boolean {
+  return channelId !== '' && parseIdList(config.logIgnoredChannelIds).includes(channelId);
+}
+
+export function logIgnoreBotsOn(config: DiscordConfig): boolean {
+  return alertOn(config.logIgnoreBots);
+}
+
+export function voiceName(config: DiscordConfig, owner: string): string {
+  const template = config.voiceNameTemplate.trim();
+  if (template === '') return owner;
+  const name = template.split('{owner}').join(owner).trim();
+  return name === '' ? owner : [...name].slice(0, VOICE_NAME_MAX).join('');
+}
+
+export function voiceLimit(config: DiscordConfig): number {
+  const raw = config.voiceUserLimit.trim();
+  if (!/^\d{1,2}$/.test(raw)) return VOICE_USER_LIMIT_MIN;
+  return Number.parseInt(raw, 10);
+}
+
+export function voicePrivacy(config: DiscordConfig): VoicePrivacy {
+  const mode = config.voicePrivacy.trim();
+  return (VOICE_PRIVACY_MODES as readonly string[]).includes(mode) ? (mode as VoicePrivacy) : 'open';
+}
+
 export function ticketLogChannel(config: DiscordConfig): Snowflake {
   return config.ticketLogChannelId || config.logChannelId;
 }
 
-export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list' | 'flag' | 'range' | 'color' | 'pinned' | 'length' };
+export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list' | 'flag' | 'range' | 'color' | 'pinned' | 'length' | 'choice' };
 
 const CHECKS: Record<FieldKind, (field: RuledValue) => boolean> = {
   snowflake: ({ value }) => SNOWFLAKE.test(value),
-  snowflakeList: ({ value }) => value.split(',').every((p) => SNOWFLAKE.test(p.trim())),
+  snowflakeList: ({ value, rule }) => {
+    const parts = value.split(',');
+    return parts.every((p) => SNOWFLAKE.test(p.trim())) && parts.length <= (rule.max ?? Number.MAX_SAFE_INTEGER);
+  },
   flag: ({ value }) => value === 'on' || value === 'off',
-  limit: ({ value }) => integerInRange(value, TICKET_OPEN_LIMIT_RANGE),
+  limit: ({ value, rule }) => integerInRange(value, { min: rule.min ?? 0, max: rule.max ?? 0 }),
   color: ({ value }) => HEX_INPUT.test(value.trim()),
   pinned: ({ value }) => value.split(',').every(isPinnedPair),
-  text: ({ value, rule }) => value.length <= (rule.max ?? Number.MAX_SAFE_INTEGER)
-};
-
-const TICKET_OPEN_LIMIT_RANGE: IntRange = {
-  min: TICKET_OPEN_LIMIT_MIN,
-  max: TICKET_OPEN_LIMIT_MAX
+  text: ({ value, rule }) => value.length <= (rule.max ?? Number.MAX_SAFE_INTEGER),
+  choice: ({ value, rule }) => (rule.options ?? []).includes(value)
 };
 
 const HEX_INPUT = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -342,11 +439,12 @@ const CODES: Record<FieldKind, FieldError['code']> = {
   limit: 'range',
   color: 'color',
   pinned: 'pinned',
-  text: 'length'
+  text: 'length',
+  choice: 'choice'
 };
 
 function integerInRange(v: FieldText, range: IntRange): boolean {
-  if (!/^\d+$/.test(v)) return false;
+  if (!/^\d+$/.test(v) || v.length > String(range.max).length) return false;
   const n = Number.parseInt(v, 10);
   return n >= range.min && n <= range.max;
 }

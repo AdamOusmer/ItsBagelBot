@@ -4,6 +4,7 @@
 package discord
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -58,6 +59,26 @@ type Config struct {
 	LinkGuardEnabled   string `json:"linkGuardEnabled"`
 	SubscribersEnabled string `json:"subscribersEnabled"`
 
+	LogMessagesEnabled   string `json:"logMessagesEnabled"`
+	LogMembersEnabled    string `json:"logMembersEnabled"`
+	LogVoiceEnabled      string `json:"logVoiceEnabled"`
+	LogModerationEnabled string `json:"logModerationEnabled"`
+	LogChannelsEnabled   string `json:"logChannelsEnabled"`
+	LogRolesEnabled      string `json:"logRolesEnabled"`
+	LogServerEnabled     string `json:"logServerEnabled"`
+	LogIgnoreBots        string `json:"logIgnoreBots"`
+
+	LogMessagesChannelID   string `json:"logMessagesChannelId"`
+	LogMembersChannelID    string `json:"logMembersChannelId"`
+	LogVoiceChannelID      string `json:"logVoiceChannelId"`
+	LogModerationChannelID string `json:"logModerationChannelId"`
+	LogIgnoredChannels     string `json:"logIgnoredChannelIds"`
+
+	VoiceCategoryID   string `json:"voiceCategoryId"`
+	VoiceNameTemplate string `json:"voiceNameTemplate"`
+	VoiceUserLimit    string `json:"voiceUserLimit"`
+	VoicePrivacyMode  string `json:"voicePrivacy"`
+
 	CategoryAllow string `json:"categoryAllow"`
 	CategoryDeny  string `json:"categoryDeny"`
 
@@ -98,6 +119,100 @@ func (c Config) LevelsOn() bool  { return alertOn(toggleText(c.LevelsEnabled)) }
 func (c Config) TicketTranscriptOn() bool { return alertOn(toggleText(c.TicketTranscriptEnabled)) }
 
 func (c Config) AutoRoleOn() bool { return alertOn(toggleText(c.AutoRoleEnabled)) }
+
+type LogCategory string
+
+const (
+	LogMessages   LogCategory = "messages"
+	LogMembers    LogCategory = "members"
+	LogVoice      LogCategory = "voice"
+	LogModeration LogCategory = "moderation"
+	LogChannels   LogCategory = "channels"
+	LogRoles      LogCategory = "roles"
+	LogServer     LogCategory = "server"
+)
+
+var logToggles = map[LogCategory]func(Config) string{
+	LogMessages:   func(c Config) string { return c.LogMessagesEnabled },
+	LogMembers:    func(c Config) string { return c.LogMembersEnabled },
+	LogVoice:      func(c Config) string { return c.LogVoiceEnabled },
+	LogModeration: func(c Config) string { return c.LogModerationEnabled },
+	LogChannels:   func(c Config) string { return c.LogChannelsEnabled },
+	LogRoles:      func(c Config) string { return c.LogRolesEnabled },
+	LogServer:     func(c Config) string { return c.LogServerEnabled },
+}
+
+var logChannels = map[LogCategory]func(Config) string{
+	LogMessages:   func(c Config) string { return c.LogMessagesChannelID },
+	LogMembers:    func(c Config) string { return c.LogMembersChannelID },
+	LogVoice:      func(c Config) string { return c.LogVoiceChannelID },
+	LogModeration: func(c Config) string { return c.LogModerationChannelID },
+}
+
+func (c Config) LogCategoryOn(cat LogCategory) bool {
+	toggle, ok := logToggles[cat]
+	return ok && c.LogsOn() && alertOn(toggleText(toggle(c)))
+}
+
+func (c Config) LogChannelFor(cat LogCategory) string {
+	if channel, ok := logChannels[cat]; ok {
+		if id := strings.TrimSpace(channel(c)); id != "" {
+			return id
+		}
+	}
+	return strings.TrimSpace(c.LogChannelID)
+}
+
+func (c Config) LogIgnoredChannelIDs() []string { return splitList(listText(c.LogIgnoredChannels)) }
+
+func (c Config) LogIgnores(channelID string) bool {
+	id := strings.TrimSpace(channelID)
+	return id != "" && slices.Contains(c.LogIgnoredChannelIDs(), id)
+}
+
+const LogIgnoredChannelsMax = 25
+
+func (c Config) LogIgnoreBotsOn() bool { return alertOn(toggleText(c.LogIgnoreBots)) }
+
+const (
+	VoiceOwnerToken    = "{owner}"
+	VoiceNameMax       = 100
+	VoiceUserLimitMax  = 99
+	VoicePrivacyOpen   = "open"
+	VoicePrivacyLocked = "locked"
+	VoicePrivacyHidden = "hidden"
+)
+
+func (c Config) VoiceName(owner string) string {
+	tpl := strings.TrimSpace(c.VoiceNameTemplate)
+	if tpl == "" {
+		return owner
+	}
+	name := strings.TrimSpace(strings.ReplaceAll(tpl, VoiceOwnerToken, owner))
+	if name == "" {
+		return owner
+	}
+	if r := []rune(name); len(r) > VoiceNameMax {
+		return string(r[:VoiceNameMax])
+	}
+	return name
+}
+
+func (c Config) VoiceLimit() int {
+	n, err := strconv.Atoi(strings.TrimSpace(c.VoiceUserLimit))
+	if err != nil || n < 0 || n > VoiceUserLimitMax {
+		return 0
+	}
+	return n
+}
+
+func (c Config) VoicePrivacy() string {
+	switch mode := strings.TrimSpace(c.VoicePrivacyMode); mode {
+	case VoicePrivacyLocked, VoicePrivacyHidden:
+		return mode
+	}
+	return VoicePrivacyOpen
+}
 
 type TierRooms struct {
 	SubsChannelID  string

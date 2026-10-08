@@ -69,10 +69,7 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 
 func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg ddiscord.Config) error {
 	seen := make(map[string]bool)
-	for _, id := range []string{cfg.LiveChannelID, cfg.ClipsChannelID, cfg.WelcomeChannelID,
-		cfg.VoiceHubID, cfg.LogChannelID, cfg.TicketChannelID, cfg.TicketCategoryID,
-		cfg.SubsChannelID, cfg.SubsCategoryID, cfg.VIPChannelID, cfg.VIPCategoryID,
-		cfg.TicketArchiveCategoryID, cfg.TicketLogChannelID} {
+	for _, id := range configChannelIDs(cfg) {
 		if id == "" || seen[id] {
 			continue
 		}
@@ -85,6 +82,16 @@ func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg 
 		seen[id] = true
 	}
 	return nil
+}
+
+func configChannelIDs(cfg ddiscord.Config) []string {
+	ids := []string{cfg.LiveChannelID, cfg.ClipsChannelID, cfg.WelcomeChannelID,
+		cfg.VoiceHubID, cfg.VoiceCategoryID, cfg.LogChannelID, cfg.LogMessagesChannelID,
+		cfg.LogMembersChannelID, cfg.LogVoiceChannelID, cfg.LogModerationChannelID,
+		cfg.TicketChannelID, cfg.TicketCategoryID,
+		cfg.SubsChannelID, cfg.SubsCategoryID, cfg.VIPChannelID, cfg.VIPCategoryID,
+		cfg.TicketArchiveCategoryID, cfg.TicketLogChannelID}
+	return append(ids, cfg.LogIgnoredChannelIDs()...)
 }
 
 type GuildListing struct {

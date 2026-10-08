@@ -4,6 +4,7 @@
 package discord
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ func TestToggleDefaults(t *testing.T) {
 		{"levels", func(c *Config, v string) { c.LevelsEnabled = v }, Config.LevelsOn, true},
 		{"ticket transcript", func(c *Config, v string) { c.TicketTranscriptEnabled = v }, Config.TicketTranscriptOn, true},
 		{"autorole", func(c *Config, v string) { c.AutoRoleEnabled = v }, Config.AutoRoleOn, true},
+		{"log ignore bots", func(c *Config, v string) { c.LogIgnoreBots = v }, Config.LogIgnoreBotsOn, true},
 		{"goodbye", func(c *Config, v string) { c.GoodbyeEnabled = v }, Config.GoodbyeOn, false},
 		{"subscribers", func(c *Config, v string) { c.SubscribersEnabled = v }, Config.SubscribersOn, false},
 		{"link guard", func(c *Config, v string) { c.LinkGuardEnabled = v }, Config.LinkGuardOn, false},
@@ -179,5 +181,75 @@ func TestParseHexColor(t *testing.T) {
 		if got != c.want || ok != c.ok {
 			t.Errorf("ParseHexColor(%q) = (%#x, %v), want (%#x, %v)", c.in, got, ok, c.want, c.ok)
 		}
+	}
+}
+
+func TestLogCategoryOnNeedsBothSwitches(t *testing.T) {
+	cases := []struct {
+		cat LogCategory
+		set func(*Config, string)
+	}{
+		{LogMessages, func(c *Config, v string) { c.LogMessagesEnabled = v }},
+		{LogMembers, func(c *Config, v string) { c.LogMembersEnabled = v }},
+		{LogVoice, func(c *Config, v string) { c.LogVoiceEnabled = v }},
+		{LogModeration, func(c *Config, v string) { c.LogModerationEnabled = v }},
+		{LogChannels, func(c *Config, v string) { c.LogChannelsEnabled = v }},
+		{LogRoles, func(c *Config, v string) { c.LogRolesEnabled = v }},
+		{LogServer, func(c *Config, v string) { c.LogServerEnabled = v }},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.cat), func(t *testing.T) {
+			var c Config
+			assert.True(t, c.LogCategoryOn(tc.cat), "blank means on")
+			tc.set(&c, "off")
+			assert.False(t, c.LogCategoryOn(tc.cat))
+			tc.set(&c, "on")
+			c.LogsEnabled = "off"
+			assert.False(t, c.LogCategoryOn(tc.cat), "master switch off wins")
+		})
+	}
+	assert.False(t, Config{}.LogCategoryOn("bogus"))
+}
+
+func TestLogChannelForFallsBackToTheGeneralChannel(t *testing.T) {
+	c := Config{LogChannelID: "general", LogVoiceChannelID: " voice "}
+
+	assert.Equal(t, "voice", c.LogChannelFor(LogVoice))
+	assert.Equal(t, "general", c.LogChannelFor(LogMessages))
+	assert.Equal(t, "general", c.LogChannelFor(LogRoles), "categories without their own channel use the general one")
+	assert.Empty(t, Config{}.LogChannelFor(LogVoice))
+}
+
+func TestLogIgnores(t *testing.T) {
+	c := Config{LogIgnoredChannels: "10, 20,,30"}
+
+	assert.True(t, c.LogIgnores("20"))
+	assert.False(t, c.LogIgnores("40"))
+	assert.False(t, c.LogIgnores(""))
+	assert.False(t, Config{}.LogIgnores("20"))
+}
+
+func TestVoiceName(t *testing.T) {
+	long := strings.Repeat("é", VoiceNameMax+5)
+	cases := []struct{ name, tpl, want string }{
+		{"blank uses the owner", "", "Ada"},
+		{"token replaced", "{owner}'s room", "Ada's room"},
+		{"no token kept literal", "Lounge", "Lounge"},
+		{"blank after trim uses the owner", "   ", "Ada"},
+		{"clipped to the max in runes", long, strings.Repeat("é", VoiceNameMax)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, Config{VoiceNameTemplate: tc.tpl}.VoiceName("Ada"))
+		})
+	}
+}
+
+func TestVoiceLimitAndPrivacyDefaults(t *testing.T) {
+	for raw, want := range map[string]int{"": 0, "0": 0, "7": 7, "99": 99, "100": 0, "-1": 0, "x": 0} {
+		assert.Equal(t, want, Config{VoiceUserLimit: raw}.VoiceLimit(), "limit %q", raw)
+	}
+	for raw, want := range map[string]string{"": "open", "open": "open", "locked": "locked", "hidden": "hidden", "bogus": "open"} {
+		assert.Equal(t, want, Config{VoicePrivacyMode: raw}.VoicePrivacy(), "privacy %q", raw)
 	}
 }
