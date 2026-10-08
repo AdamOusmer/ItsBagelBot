@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var fastLease = leaseTiming{ttl: 200 * time.Millisecond, renew: 10 * time.Millisecond, poll: 5 * time.Millisecond, release: 100 * time.Millisecond}
+var fastLease = leaseTiming{ttl: 200 * time.Millisecond, renew: 10 * time.Millisecond, deadline: 150 * time.Millisecond, poll: 5 * time.Millisecond, release: 100 * time.Millisecond}
 
 type fakeLease struct {
 	mu       sync.Mutex
@@ -50,6 +51,12 @@ func (l *fakeLease) Release(context.Context) error {
 	l.releases++
 	l.held = false
 	return nil
+}
+
+func (l *fakeLease) setRenewErr(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.renewErr = err
 }
 
 func (l *fakeLease) revoke() {
@@ -215,14 +222,60 @@ func TestLostLeaseClosesResumablyAndReturnsToStandbyWithoutDialling(t *testing.T
 	assert.Zero(t, releases)
 }
 
-func TestRenewErrorDeposesTheLeader(t *testing.T) {
-	lease := &fakeLease{free: true, renewErr: errors.New("valkey: connection refused")}
+func TestRenewErrorsPastTheDeadlineDeposeTheLeader(t *testing.T) {
+	lease := &fakeLease{free: true}
 	l := startLeased(t, lease, &fakeCheckpoint{}, readyScript(newFrames(t)))
+	l.waitSaves(t, 1)
 
-	require.Eventually(t, func() bool { return l.dials() == 1 && len(l.conn(0).closeCodes()) > 0 }, 3*time.Second, time.Millisecond)
+	lease.setRenewErr(errors.New("valkey: connection refused"))
+
+	require.Eventually(t, func() bool { return len(l.conn(0).closeCodes()) > 0 }, 3*time.Second, time.Millisecond)
+	l.stop(t)
+	wantCloseCode(t, l.conn(0).closeCodes(), reconnectingClose)
+}
+
+func TestATransientRenewErrorKeepsTheSocket(t *testing.T) {
+	lease := &fakeLease{free: true}
+	l := startLeased(t, lease, &fakeCheckpoint{}, readyScript(newFrames(t)))
+	l.waitSaves(t, 1)
+
+	lease.setRenewErr(errors.New("valkey: timeout"))
+	time.Sleep(30 * time.Millisecond)
+	lease.setRenewErr(nil)
+	time.Sleep(300 * time.Millisecond)
 	l.stop(t)
 
+	assert.Equal(t, 1, l.dials())
 	wantCloseCode(t, l.conn(0).closeCodes(), reconnectingClose)
+	_, releases := l.lease.counts()
+	assert.Equal(t, 1, releases, "the only close is the drain")
+	assert.Len(t, l.ck.saved(), 2, "no demotion happened, so the drain saved")
+}
+
+func TestStandbyRetakesItsOwnLeaseWithoutWaitingForTheTTL(t *testing.T) {
+	l := startLeased(t, &fakeLease{held: true}, &fakeCheckpoint{}, readyScript(newFrames(t)))
+
+	l.waitSaves(t, 1)
+	l.stop(t)
+
+	assert.Equal(t, 1, l.dials())
+}
+
+func TestFatalCloseReturnsFromRunAndReleasesTheLease(t *testing.T) {
+	scripts := []script{{readErr: errClosed, closeCode: ddiscord.CloseDisallowedIntents}}
+	l := startLeased(t, &fakeLease{free: true}, &fakeCheckpoint{}, scripts)
+
+	select {
+	case err := <-l.done:
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return on a fatal close")
+	}
+
+	_, releases := l.lease.counts()
+	assert.Equal(t, 1, releases)
+	assert.Empty(t, l.ck.saved())
 }
 
 func TestSuccessorResumesTheCheckpointedSession(t *testing.T) {

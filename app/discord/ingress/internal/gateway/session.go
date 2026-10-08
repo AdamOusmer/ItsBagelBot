@@ -125,7 +125,7 @@ func (s Session) serve(ctx context.Context, st *resumeState) error {
 		}
 		s.reportDown(ctx, end.code, end.err)
 		if ddiscord.FatalCloseCode(end.code) {
-			return s.parkOnFatal(ctx, end.code, end.err)
+			return s.onFatal(ctx, end)
 		}
 		wait := s.afterSocket(ctx, budgetInputs{bud: bud, rc: rc}, end)
 		if err := waitBeforeReconnect(ctx, wait); err != nil {
@@ -208,6 +208,14 @@ func (s Session) connect(ctx context.Context, url string, st *resumeState) sessi
 	end.resumed = m.resumed
 	end.sessionID = m.sessionID
 	return end
+}
+
+func (s Session) onFatal(ctx context.Context, end sessionEnd) error {
+	if s.Lease == nil {
+		return s.parkOnFatal(ctx, end.code, end.err)
+	}
+	return fmt.Errorf("discord ingress: gateway closed fatally (%d %s): %w",
+		end.code, ddiscord.CloseCodeMessage(end.code), end.err)
 }
 
 func (s Session) parkOnFatal(ctx context.Context, code int, err error) error {

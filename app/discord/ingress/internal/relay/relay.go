@@ -73,6 +73,9 @@ func (r *Relay) publish(ctx context.Context, subject string, ev gateway.Event) e
 	if r.Pub == nil {
 		return nil
 	}
+	if ev.SessionID == "" {
+		return bus.PublishJSON(ctx, r.Pub, subject, event)
+	}
 	body, err := codec.Marshal(event)
 	if err != nil {
 		return err

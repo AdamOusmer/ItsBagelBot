@@ -141,3 +141,15 @@ func TestDispatchPublishesConfirmedWithTheSessionSequenceID(t *testing.T) {
 
 	assert.Equal(t, []string{"sid-42"}, rec.ids)
 }
+
+func TestDispatchWithoutASessionPublishesWithoutAnID(t *testing.T) {
+	rec := &recorder{}
+	r := &relay.Relay{REST: rec, Pub: rec}
+
+	require.NoError(t, r.Dispatch(context.Background(), gateway.Event{
+		Type: "MESSAGE_CREATE", Raw: []byte(`{"guild_id":"g1"}`), Seq: 3,
+	}))
+
+	assert.Empty(t, rec.ids, "an empty session must not mint a colliding ID")
+	assert.Len(t, rec.calls, 1)
+}
