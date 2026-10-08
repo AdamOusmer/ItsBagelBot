@@ -1,5 +1,5 @@
 {
   "name": "Temps de visionnage",
   "hint": "son temps de visionnage, formulé comme !uptime (Fidélité)",
-  "desc": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité."
+  "desc": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:MikanMeerkat} interroge quelqu’un d’autre. Nécessite le module Points de fidélité."
 }

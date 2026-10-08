@@ -1,5 +1,5 @@
 {
   "name": "Points balance",
   "hint": "their points balance, or {points:login} for someone else (Loyalty)",
-  "desc": "What the viewer has earned. {points:alex} shows someone else, as long as this channel has seen them speak. Reading only: it never grants. Needs the Loyalty Points module."
+  "desc": "What the viewer has earned. {points:MikanMeerkat} shows someone else, as long as this channel has seen them speak. Reading only: it never grants. Needs the Loyalty Points module."
 }

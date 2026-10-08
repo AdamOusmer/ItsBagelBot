@@ -53,7 +53,7 @@ const guide: GuideContent = {
           caption: 'What your chat sees, about two seconds after you sign in.',
           lines: [
             { who: 'system', text: 'itsbagelbot joined #your_channel' },
-            { who: 'viewer', name: 'maya_live', text: 'oh a new bot, hi!' },
+            { who: 'viewer', name: 'SnackPackPanda', text: 'oh a new bot, hi!' },
           ],
         },
         {
@@ -137,7 +137,7 @@ const guide: GuideContent = {
           title: '#your_channel',
           caption: 'Thirty seconds later, in chat.',
           lines: [
-            { who: 'viewer', name: 'maya_live', text: '!discord' },
+            { who: 'viewer', name: 'SnackPackPanda', text: '!discord' },
             { who: 'bot', text: 'Come hang out between streams → discord.gg/your-invite' },
           ],
         },

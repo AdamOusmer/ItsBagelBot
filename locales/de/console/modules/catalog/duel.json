@@ -38,7 +38,7 @@
     "challenge": {
       "label": "Herausforderung gesendet",
       "tagline": "Wenn ein Zuschauer einen anderen mit gleichem Einsatz herausfordert.",
-      "event": "!duel @maya_live 500",
+      "event": "!duel @SnackPackPanda 500",
       "defaultMessage": "@{user} fordert @{target} um {stake} {points} heraus! @{target}, gib innerhalb von {secs}s !duel accept ein. Wer gewinnt, erhält {pot}!"
     },
     "won": {

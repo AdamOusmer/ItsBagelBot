@@ -38,7 +38,7 @@
     "challenge": {
       "label": "Défi envoyé",
       "tagline": "Quand un viewer défie un autre à mises égales.",
-      "event": "!duel @maya_live 500",
+      "event": "!duel @SnackPackPanda 500",
       "defaultMessage": "@{user} défie @{target} pour {stake} {points} ! @{target}, tape !duel accept dans les {secs}s. Le vainqueur prend {pot} !"
     },
     "won": {

@@ -1,5 +1,5 @@
 {
   "name": "Punktestand",
   "hint": "der eigene Punktestand oder {points:login} für eine andere Person (Treuepunkte)",
-  "desc": "Was der Zuschauer gesammelt hat. {points:alex} zeigt eine andere Person, sofern dieser Kanal bereits Nachrichten von ihr gesehen hat. Nur lesend: Vergibt nie Punkte. Benötigt das Modul Treuepunkte."
+  "desc": "Was der Zuschauer gesammelt hat. {points:MikanMeerkat} zeigt eine andere Person, sofern dieser Kanal bereits Nachrichten von ihr gesehen hat. Nur lesend: Vergibt nie Punkte. Benötigt das Modul Treuepunkte."
 }

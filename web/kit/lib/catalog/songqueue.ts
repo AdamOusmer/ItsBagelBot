@@ -23,7 +23,7 @@ export const SONGQUEUE_MODULE: ModuleDef = {
       defaultMessage: '@{user} queued {track}, position #{pos}.',
       tokens: replyTokens(
         ['user', 'track', 'input', 'pos'],
-        { user: 'sesame_sam', track: 'Song Title', input: 'song title', pos: '3' },
+        { user: 'PrincessBarney', track: 'Song Title', input: 'song title', pos: '3' },
         'songqueue.redeem'
       )
     }

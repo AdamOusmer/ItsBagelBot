@@ -1,5 +1,5 @@
 {
   "name": "Solde de points",
   "hint": "son solde de points, ou {points:login} pour quelqu’un d’autre (Fidélité)",
-  "desc": "Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité."
+  "desc": "Ce que le spectateur a gagné. {points:MikanMeerkat} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité."
 }

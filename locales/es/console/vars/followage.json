@@ -1,5 +1,5 @@
 {
   "name": "Tiempo siguiendo",
   "hint": "desde hace cuánto sigue al canal (módulo Tiempo siguiendo)",
-  "desc": "Desde hace cuánto te sigue el espectador, con el mismo formato que !followage. {followage:alex} consulta a otra persona; si no sigue el canal, devuelve un valor vacío. Requiere el módulo Tiempo siguiendo."
+  "desc": "Desde hace cuánto te sigue el espectador, con el mismo formato que !followage. {followage:MikanMeerkat} consulta a otra persona; si no sigue el canal, devuelve un valor vacío. Requiere el módulo Tiempo siguiendo."
 }

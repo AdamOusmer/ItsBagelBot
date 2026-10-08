@@ -38,7 +38,7 @@
     "challenge": {
       "label": "Desafío enviado",
       "tagline": "Cuando un espectador desafía a otro con apuestas iguales.",
-      "event": "!duel @maya_live 500",
+      "event": "!duel @SnackPackPanda 500",
       "defaultMessage": "¡@{user} desafía a @{target} por {stake} {points}! @{target}, escribe !duel accept antes de que pasen {secs}s. ¡Quien gane se lleva {pot}!"
     },
     "won": {

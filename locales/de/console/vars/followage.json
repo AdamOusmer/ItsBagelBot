@@ -1,5 +1,5 @@
 {
   "name": "Follower-Dauer",
   "hint": "wie lange die Person dem Kanal folgt (Modul Follower-Dauer)",
-  "desc": "Wie lange der Zuschauer dir folgt, in derselben Formulierung wie bei !followage. {followage:alex} fragt nach jemand anderem; bei jemandem, der nicht folgt, ist das Ergebnis leer. Benötigt das Modul Follower-Dauer."
+  "desc": "Wie lange der Zuschauer dir folgt, in derselben Formulierung wie bei !followage. {followage:MikanMeerkat} fragt nach jemand anderem; bei jemandem, der nicht folgt, ist das Ergebnis leer. Benötigt das Modul Follower-Dauer."
 }
