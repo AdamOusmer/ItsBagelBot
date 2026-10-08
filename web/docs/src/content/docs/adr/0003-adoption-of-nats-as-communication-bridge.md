@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: "0003 - Adoption of NATS as Communication Bridge"
-description: "Architecture decision record: Adoption of NATS (core, JetStream, and KV) as 
-the communication bridge between services for events, RPC, and shard coordination"
+description: "Architecture decision record: Adoption of NATS (core, JetStream, and KV) as the communication bridge between services for events, RPC, and shard coordination"
 ---
 
 **Date:** 2026-05-23
