@@ -26,6 +26,7 @@ type fakeLease struct {
 	renewErr error
 	acquires int
 	releases int
+	renews   int
 }
 
 func (l *fakeLease) Acquire(context.Context, time.Duration) (bool, error) {
@@ -42,6 +43,7 @@ func (l *fakeLease) Acquire(context.Context, time.Duration) (bool, error) {
 func (l *fakeLease) Renew(context.Context, time.Duration) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.renews++
 	return l.held && l.renewErr == nil, l.renewErr
 }
 
@@ -64,6 +66,12 @@ func (l *fakeLease) revoke() {
 	defer l.mu.Unlock()
 	l.held = false
 	l.free = false
+}
+
+func (l *fakeLease) renewCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.renews
 }
 
 func (l *fakeLease) counts() (acquires, releases int) {
@@ -122,6 +130,7 @@ type leased struct {
 	ck      *fakeCheckpoint
 	role    *fakeRole
 	handler *recHandler
+	status  *recStatus
 	dial    *dialer
 	cancel  context.CancelFunc
 	done    chan error
@@ -130,11 +139,11 @@ type leased struct {
 func startLeased(t *testing.T, lease *fakeLease, ck *fakeCheckpoint, scripts []script) *leased {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	l := &leased{lease: lease, ck: ck, role: &fakeRole{}, handler: &recHandler{}, dial: &dialer{scripts: scripts},
+	l := &leased{lease: lease, ck: ck, role: &fakeRole{}, handler: &recHandler{}, status: &recStatus{stop: cancel}, dial: &dialer{scripts: scripts},
 		cancel: cancel, done: make(chan error, 1)}
 	timing := fastLease
 	sess := Session{
-		Token: "bot-token", Dial: l.dial.dial, Handle: l.handler, Lease: lease, Checkpoint: ck, Role: l.role,
+		Token: "bot-token", Dial: l.dial.dial, Handle: l.handler, Lease: lease, Checkpoint: ck, Role: l.role, Status: l.status,
 		budget: fastBudget(10, nil), timing: &timing,
 	}
 	go func() { l.done <- sess.Run(ctx) }()
@@ -261,21 +270,34 @@ func TestStandbyRetakesItsOwnLeaseWithoutWaitingForTheTTL(t *testing.T) {
 	assert.Equal(t, 1, l.dials())
 }
 
-func TestFatalCloseReturnsFromRunAndReleasesTheLease(t *testing.T) {
+func TestFatalCloseParksTheLeaderWhichKeepsTheLease(t *testing.T) {
 	scripts := []script{{readErr: errClosed, closeCode: ddiscord.CloseDisallowedIntents}}
 	l := startLeased(t, &fakeLease{free: true}, &fakeCheckpoint{}, scripts)
+	require.Eventually(t, func() bool {
+		l.status.mu.Lock()
+		defer l.status.mu.Unlock()
+		return len(l.status.downs) > 0
+	}, 3*time.Second, time.Millisecond)
+
+	renewed := l.lease.renewCount()
+	require.Eventually(t, func() bool { return l.lease.renewCount() > renewed+3 }, 3*time.Second, time.Millisecond)
 
 	select {
 	case err := <-l.done:
-		require.Error(t, err)
-		assert.NotErrorIs(t, err, context.Canceled)
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return on a fatal close")
+		t.Fatalf("Run returned %v while parked on a fatal close", err)
+	default:
 	}
+	l.status.mu.Lock()
+	assert.True(t, l.status.downs[0].Fatal)
+	l.status.mu.Unlock()
+	acquires, releases := l.lease.counts()
+	assert.Equal(t, 1, l.dials(), "the parked leader must not redial")
+	assert.Zero(t, releases)
 
-	_, releases := l.lease.counts()
-	assert.Equal(t, 1, releases)
-	assert.Empty(t, l.ck.saved())
+	l.stop(t)
+	_, releases = l.lease.counts()
+	assert.Equal(t, 1, releases, "cancel drains normally")
+	assert.Equal(t, 1, acquires)
 }
 
 func TestSuccessorResumesTheCheckpointedSession(t *testing.T) {

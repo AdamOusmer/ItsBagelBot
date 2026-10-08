@@ -109,14 +109,9 @@ func (s Session) lead(ctx context.Context) error {
 	}()
 	st := &resumeState{}
 	s.loadCheckpoint(lctx, st)
-	serveErr := s.serve(lctx, st)
-	fatal := serveErr != nil && lctx.Err() == nil
+	_ = s.serve(lctx, st)
 	cancel()
 	<-held
-	if fatal {
-		s.release(ctx)
-		return serveErr
-	}
 	if ctx.Err() != nil {
 		s.drain(ctx, st)
 		return ctx.Err()
@@ -169,17 +164,7 @@ func (s Session) drain(ctx context.Context, st *resumeState) {
 	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.leaseTiming().release)
 	defer cancel()
 	s.saveCheckpoint(rctx, st)
-	s.releaseLease(rctx)
-}
-
-func (s Session) release(ctx context.Context) {
-	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.leaseTiming().release)
-	defer cancel()
-	s.releaseLease(rctx)
-}
-
-func (s Session) releaseLease(ctx context.Context) {
-	if err := s.Lease.Release(ctx); err != nil {
+	if err := s.Lease.Release(rctx); err != nil {
 		s.log().Warn("discord gateway lease release failed", zap.Error(err))
 	}
 }
