@@ -66,15 +66,25 @@ func enteredVoiceHub(cfg ddiscord.Config, move discordstore.VoiceMove) bool {
 	return cfg.VoiceOn() && move.To != "" && move.To == cfg.VoiceHubID && move.From != move.To
 }
 
-func voiceOverwrites(cfg ddiscord.Config, ev decode.VoiceEvent) []discordapi.PermissionOverwrite {
+type voiceRoom struct {
+	GuildID string
+	OwnerID string
+	Locked  bool
+}
+
+func voiceOverwrites(cfg ddiscord.Config, room voiceRoom) []discordapi.PermissionOverwrite {
 	out := []discordapi.PermissionOverwrite{
-		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: ev.UserID, Kind: 1, Bits: decode.PermView | decode.PermConnect | decode.PermSend}),
+		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: room.OwnerID, Kind: 1, Bits: decode.PermView | decode.PermConnect | decode.PermSend}),
 	}
-	switch cfg.VoicePrivacy() {
-	case ddiscord.VoicePrivacyLocked:
-		out = append(out, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: ev.GuildID, Kind: 0, Bits: decode.PermConnect}))
-	case ddiscord.VoicePrivacyHidden:
-		out = append(out, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: ev.GuildID, Kind: 0, Bits: decode.PermView}))
+	var deny int64
+	if room.Locked || cfg.VoicePrivacy() == ddiscord.VoicePrivacyLocked {
+		deny |= decode.PermConnect
+	}
+	if cfg.VoicePrivacy() == ddiscord.VoicePrivacyHidden {
+		deny |= decode.PermView
+	}
+	if deny != 0 {
+		out = append(out, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: room.GuildID, Kind: 0, Bits: deny}))
 	}
 	return out
 }
@@ -86,7 +96,7 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev dec
 	owner := decode.DisplayName(decode.Display{User: ev.Member.User, Nick: ev.Member.Nick})
 	reply, err := h.channels.CreateChannel(ctx, discordoutgress.ChannelCreateRequest{
 		GuildID: ev.GuildID, Name: c.Config.VoiceName(owner), Type: ddiscord.ChannelVoice,
-		ParentID: c.Config.VoiceCategoryID, UserLimit: c.Config.VoiceLimit(), Overwrites: voiceOverwrites(c.Config, ev),
+		ParentID: c.Config.VoiceCategoryID, UserLimit: c.Config.VoiceLimit(), Overwrites: voiceOverwrites(c.Config, voiceRoom{GuildID: ev.GuildID, OwnerID: ev.UserID}),
 	})
 	if rpcFailed(err, reply.Error) || reply.ChannelID == "" {
 		h.log.Warn("voice clone create failed", zap.Error(err), zap.String("outgress_error", reply.Error))
@@ -263,14 +273,11 @@ func (h voiceModule) limit(ctx context.Context, v voiceInvocation, cl discordsto
 }
 
 func (h voiceModule) lock(ctx context.Context, v voiceInvocation, cl discordstore.Clone, lock bool) error {
-	overwrites := []discordapi.PermissionOverwrite{
-		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: cl.OwnerID, Kind: 1, Bits: decode.PermView | decode.PermConnect}),
-	}
 	done := "Unlocked."
 	if lock {
-		overwrites = append(overwrites, decode.OverwriteDeny(decode.OverwriteSpec{TargetID: cl.GuildID, Kind: 0, Bits: decode.PermConnect}))
 		done = "Locked."
 	}
+	overwrites := voiceOverwrites(v.Module.Config, voiceRoom{GuildID: cl.GuildID, OwnerID: cl.OwnerID, Locked: lock})
 	req := discordoutgress.ChannelModifyRequest{GuildID: cl.GuildID, ChannelID: cl.ChannelID, Overwrites: overwrites}
 	return h.modify(ctx, v, req, voiceChange{Op: "lock", Done: done})
 }

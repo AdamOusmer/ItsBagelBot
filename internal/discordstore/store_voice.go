@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
 const voiceTTL = 24 * time.Hour
@@ -114,7 +115,9 @@ func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) V
 	args := []string{seat.UserID, seat.ChannelID, occupantsKey(Channel{}), cloneKey(Channel{}), voiceTTLArg}
 	got, err := voiceMoveScript.Exec(ctx, s.client, []string{seatKey(m)}, args).AsStrSlice()
 	if err != nil || len(got) != 2 {
-		return VoiceMove{To: seat.ChannelID}
+		zap.L().Warn("discord voice occupancy update failed; ignoring the event",
+			zap.String("guild_id", seat.GuildID), zap.String("user_id", seat.UserID), zap.Error(err))
+		return VoiceMove{}
 	}
 	return VoiceMove{From: got[0], To: seat.ChannelID, LeftEmpty: got[1] == "1"}
 }

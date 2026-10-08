@@ -141,3 +141,18 @@ func TestValkeyVoiceMoveIsAtomicAndExpires(t *testing.T) {
 	}
 	require.Equal(t, 1, emptied, "exactly one concurrent leaver sees the room empty")
 }
+
+func TestValkeyVoiceMoveFailsClosedWhenTheStoreIsDown(t *testing.T) {
+	addr := os.Getenv("VALKEY_TEST_ADDR")
+	if addr == "" {
+		t.Skip("VALKEY_TEST_ADDR is not set")
+	}
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, Password: os.Getenv("VALKEY_TEST_PASSWORD")})
+	require.NoError(t, err)
+	s := discordstore.New(client)
+	client.Close()
+
+	got := s.UpdateVoiceOccupancy(context.Background(), discordstore.VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
+
+	require.Equal(t, discordstore.VoiceMove{}, got)
+}

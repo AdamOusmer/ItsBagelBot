@@ -57,6 +57,12 @@ func (trackFails) TrackClone(context.Context, discordstore.Clone) error {
 	return errors.New("valkey down")
 }
 
+type storeDown struct{ *discordstore.Mem }
+
+func (storeDown) UpdateVoiceOccupancy(context.Context, discordstore.VoiceSeat) discordstore.VoiceMove {
+	return discordstore.VoiceMove{}
+}
+
 type voiceRig struct {
 	t    *testing.T
 	mem  *discordstore.Mem
@@ -228,4 +234,47 @@ func TestVoiceLimitZeroClearsTheLimit(t *testing.T) {
 	require.Equal(t, "User limit cleared.", reply)
 	require.NotNil(t, r.rpc.modified[0].UserLimit)
 	require.Equal(t, 0, *r.rpc.modified[0].UserLimit)
+}
+
+func TestVoiceHubEntryDuringStoreFailureCreatesNothing(t *testing.T) {
+	r := newVoiceRig(t, func(m *discordstore.Mem) discordstore.Store { return storeDown{m} })
+
+	r.state("u1", "hub")
+
+	require.Empty(t, r.rpc.calls)
+}
+
+func TestVoiceLockFollowsConfiguredPrivacy(t *testing.T) {
+	owner := actor{id: "u1", name: "Ada", perms: "0"}
+	cases := []struct {
+		name    string
+		privacy string
+		sub     string
+		deny    string
+	}{
+		{"hidden unlock stays hidden", ddiscord.VoicePrivacyHidden, "unlock", "1024"},
+		{"hidden lock hides and blocks", ddiscord.VoicePrivacyHidden, "lock", "1049600"},
+		{"open unlock has no deny", "", "unlock", ""},
+		{"open lock denies connect", "", "lock", "1048576"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newVoiceRig(t, nil)
+			r.cfg.VoicePrivacyMode = tc.privacy
+			r.trackRoom()
+
+			r.slash(subcommand(tc.sub), owner)
+
+			var denies []string
+			for _, o := range r.rpc.modified[0].Overwrites[1:] {
+				require.Equal(t, "g1", o.ID)
+				denies = append(denies, o.Deny)
+			}
+			if tc.deny == "" {
+				require.Empty(t, denies)
+				return
+			}
+			require.Equal(t, []string{tc.deny}, denies)
+		})
+	}
 }
