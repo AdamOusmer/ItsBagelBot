@@ -96,6 +96,7 @@ type Session struct {
 
 	budget *connectBudget
 	timing *leaseTiming
+	now    func() time.Time
 }
 
 const defaultPresenceInterval = 5 * time.Minute
@@ -592,4 +593,11 @@ func writeJSON(ctx context.Context, conn Conn, v any) error {
 		return err
 	}
 	return conn.Write(ctx, raw)
+}
+
+func (s Session) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }

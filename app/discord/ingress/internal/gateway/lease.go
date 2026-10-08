@@ -131,14 +131,14 @@ func (s Session) demote(ctx context.Context) {
 func (s Session) renewWhileHeld(ctx context.Context) (lost bool) {
 	t := time.NewTicker(s.leaseTiming().renew)
 	defer t.Stop()
-	lastKept := time.Now()
+	lastKept := s.clock()
 	for {
 		select {
 		case <-ctx.Done():
 			return false
 		case <-t.C:
 		}
-		sent := time.Now()
+		sent := s.clock()
 		kept, err := s.renewOnce(ctx)
 		switch {
 		case ctx.Err() != nil:
@@ -147,7 +147,7 @@ func (s Session) renewWhileHeld(ctx context.Context) (lost bool) {
 			return true
 		case err == nil:
 			lastKept = sent
-		case time.Since(lastKept) >= s.leaseTiming().deadline:
+		case s.clock().Sub(lastKept) >= s.leaseTiming().deadline:
 			return true
 		}
 	}

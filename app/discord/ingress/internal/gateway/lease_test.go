@@ -369,39 +369,43 @@ func TestDefaultLeaseTimingLeavesRoomForARenewBeforeTheTTL(t *testing.T) {
 	assert.GreaterOrEqual(t, d.deadline, 15*time.Second, "a sentinel failover must not depose a healthy leader")
 }
 
-type slowThenFailingLease struct {
+type steppedLease struct {
 	mu    sync.Mutex
+	clock time.Time
 	calls int
-	delay time.Duration
 }
 
-func (l *slowThenFailingLease) Acquire(context.Context, time.Duration) (bool, error) {
-	return false, nil
-}
-
-func (l *slowThenFailingLease) Renew(context.Context, time.Duration) (bool, error) {
+func (l *steppedLease) now() time.Time {
 	l.mu.Lock()
-	l.calls++
-	first := l.calls == 1
-	l.mu.Unlock()
-	if !first {
-		return false, errors.New("valkey: connection refused")
-	}
-	time.Sleep(l.delay)
-	return true, nil
+	defer l.mu.Unlock()
+	return l.clock
 }
 
-func (l *slowThenFailingLease) Release(context.Context) error { return nil }
+func (l *steppedLease) Acquire(context.Context, time.Duration) (bool, error) { return false, nil }
+
+func (l *steppedLease) Renew(context.Context, time.Duration) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls++
+	if l.calls == 1 {
+		l.clock = l.clock.Add(15 * time.Second)
+		return true, nil
+	}
+	l.clock = l.clock.Add(5 * time.Second)
+	return false, errors.New("valkey: connection refused")
+}
+
+func (l *steppedLease) Release(context.Context) error { return nil }
 
 func TestRenewDeadlineMeasuresFromWhenTheLastSuccessfulRenewWasSent(t *testing.T) {
-	timing := leaseTiming{ttl: time.Second, renew: 100 * time.Millisecond, deadline: 200 * time.Millisecond, poll: time.Millisecond, release: time.Millisecond}
-	sess := Session{Lease: &slowThenFailingLease{delay: 90 * time.Millisecond}, timing: &timing}
+	timing := leaseTiming{ttl: 30 * time.Second, renew: time.Millisecond, deadline: 20 * time.Second, poll: time.Millisecond, release: time.Millisecond}
+	lease := &steppedLease{clock: time.Unix(1_700_000_000, 0)}
+	sess := Session{Lease: lease, timing: &timing, now: lease.now}
 
-	start := time.Now()
 	lost := sess.renewWhileHeld(context.Background())
 
 	assert.True(t, lost)
-	assert.Less(t, time.Since(start), 370*time.Millisecond, "a slow success response must not extend the deadline")
+	assert.Equal(t, 2, lease.calls, "a slow success response must not extend the deadline")
 }
 
 type hangingLease struct {
