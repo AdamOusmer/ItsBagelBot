@@ -60,6 +60,7 @@ func TestValidateConfigFieldErrors(t *testing.T) {
 		{"ignore bots toggle", Config{LogIgnoreBots: "1"}, "logIgnoreBots", CodeInvalidFlag},
 		{"per category log channel", Config{LogModerationChannelID: "mod-log"}, "logModerationChannelId", CodeInvalidID},
 		{"ignored channel list", Config{LogIgnoredChannels: goodID + ",nope"}, "logIgnoredChannelIds", CodeInvalidID},
+		{"too many ignored channels", Config{LogIgnoredChannels: strings.TrimSuffix(strings.Repeat(goodID+",", LogIgnoredChannelsMax+1), ",")}, "logIgnoredChannelIds", CodeInvalidRange},
 		{"voice category", Config{VoiceCategoryID: "cat"}, "voiceCategoryId", CodeInvalidID},
 		{"voice name too long", Config{VoiceNameTemplate: strings.Repeat("x", VoiceNameMax+1)}, "voiceNameTemplate", CodeTooLong},
 		{"voice limit above max", Config{VoiceUserLimit: "100"}, "voiceUserLimit", CodeInvalidRange},

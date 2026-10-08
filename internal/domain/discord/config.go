@@ -163,10 +163,14 @@ func (c Config) LogChannelFor(cat LogCategory) string {
 	return strings.TrimSpace(c.LogChannelID)
 }
 
+func (c Config) LogIgnoredChannelIDs() []string { return splitList(listText(c.LogIgnoredChannels)) }
+
 func (c Config) LogIgnores(channelID string) bool {
 	id := strings.TrimSpace(channelID)
-	return id != "" && slices.Contains(splitList(listText(c.LogIgnoredChannels)), id)
+	return id != "" && slices.Contains(c.LogIgnoredChannelIDs(), id)
 }
+
+const LogIgnoredChannelsMax = 25
 
 func (c Config) LogIgnoreBotsOn() bool { return alertOn(toggleText(c.LogIgnoreBots)) }
 

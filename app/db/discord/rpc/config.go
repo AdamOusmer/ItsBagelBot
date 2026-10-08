@@ -104,12 +104,18 @@ func validSnowflakeValue(v string) bool {
 }
 
 func validSnowflakeList(f field) bool {
+	count := 0
 	for _, part := range strings.Split(f.value, ",") {
-		if p := strings.TrimSpace(part); p != "" && !validSnowflakeValue(p) {
+		p := strings.TrimSpace(part)
+		if p == "" {
+			continue
+		}
+		if !validSnowflakeValue(p) {
 			return false
 		}
+		count++
 	}
-	return true
+	return f.max == 0 || count <= f.max
 }
 
 func validToggle(f field) bool { return f.value == "" || f.value == "on" || f.value == "off" }
@@ -166,7 +172,7 @@ func snowflakeFields(c ddiscord.Config) []field {
 func snowflakeListFields(c ddiscord.Config) []field {
 	return []field{
 		{name: "ticketStaffRoleIds", value: c.TicketStaffRoles},
-		{name: "logIgnoredChannelIds", value: c.LogIgnoredChannels},
+		{name: "logIgnoredChannelIds", value: c.LogIgnoredChannels, max: ddiscord.LogIgnoredChannelsMax},
 	}
 }
 

@@ -78,7 +78,7 @@ func idFields(cfg Config) map[string]string {
 func validateIDs(cfg Config) []FieldError {
 	out := invalidIDFields(idFields(cfg))
 	out = append(out, invalidIDList("ticketStaffRoleIds", listText(cfg.TicketStaffRoles))...)
-	return append(out, invalidIDList("logIgnoredChannelIds", listText(cfg.LogIgnoredChannels))...)
+	return append(out, validateIgnoredChannels(cfg)...)
 }
 
 func invalidIDFields(fields map[string]string) []FieldError {
@@ -89,6 +89,17 @@ func invalidIDFields(fields map[string]string) []FieldError {
 		}
 	}
 	return out
+}
+
+func validateIgnoredChannels(cfg Config) []FieldError {
+	const field = "logIgnoredChannelIds"
+	if bad := invalidIDList(field, listText(cfg.LogIgnoredChannels)); len(bad) > 0 {
+		return bad
+	}
+	if len(cfg.LogIgnoredChannelIDs()) > LogIgnoredChannelsMax {
+		return []FieldError{{Field: field, Code: CodeInvalidRange}}
+	}
+	return nil
 }
 
 func invalidIDList(field string, raw listText) []FieldError {

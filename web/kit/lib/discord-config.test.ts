@@ -53,6 +53,7 @@ import {
 const ID_A = '123456789012345678';
 const ID_B = '234567890123456789';
 const ID_C = '345678901234567890';
+const ids = (n: number) => Array.from({ length: n }, (_, i) => `10000000000000${String(i).padStart(4, '0')}`).join(',');
 
 describe('parse / round trip', () => {
   test('a blank config has every declared key, all empty', () => {
@@ -128,6 +129,8 @@ describe('merge', () => {
     row('a per-category log channel must be a snowflake', {}, { logMembersChannelId: 'logs' }, { logMembersChannelId: '' }, [{ field: 'logMembersChannelId', code: 'snowflake' }]),
     row('the ignored channel list is canonicalised', {}, { logIgnoredChannelIds: ` ${ID_A} , ${ID_B} , ${ID_A} ` }, { logIgnoredChannelIds: `${ID_A},${ID_B}` }, []),
     row('a bad ignored channel is refused', {}, { logIgnoredChannelIds: `${ID_A},x` }, { logIgnoredChannelIds: '' }, [{ field: 'logIgnoredChannelIds', code: 'list' }]),
+    row('25 ignored channels are accepted', {}, { logIgnoredChannelIds: ids(25) }, { logIgnoredChannelIds: ids(25) }, []),
+    row('26 ignored channels are refused', {}, { logIgnoredChannelIds: ids(26) }, { logIgnoredChannelIds: '' }, [{ field: 'logIgnoredChannelIds', code: 'list' }]),
     row('a voice name over the max is refused', {}, { voiceNameTemplate: 'x'.repeat(101) }, { voiceNameTemplate: '' }, [{ field: 'voiceNameTemplate', code: 'length' }]),
     ...['100', '-1', '1.5', 'x', '007'].map((bad) => row(`the voice limit ${JSON.stringify(bad)} is refused outside 0..99`, {}, { voiceUserLimit: bad }, { voiceUserLimit: '' }, [{ field: 'voiceUserLimit', code: 'range' }])),
     row('the voice limit 0 and 99 are accepted', {}, { voiceUserLimit: '0' }, { voiceUserLimit: '0' }, []),

@@ -29,6 +29,7 @@ export const TICKET_OPEN_LIMIT_MIN = 1;
 export const TICKET_OPEN_LIMIT_MAX = 5;
 export const TICKET_OPEN_LIMIT_DEFAULT = 1;
 
+export const LOG_IGNORED_CHANNELS_MAX = 25;
 export const VOICE_NAME_MAX = 100;
 export const VOICE_USER_LIMIT_MIN = 0;
 export const VOICE_USER_LIMIT_MAX = 99;
@@ -150,7 +151,7 @@ export const FIELD_RULES: Record<keyof DiscordConfig, Rule> = {
   logMembersChannelId: SNOW,
   logVoiceChannelId: SNOW,
   logModerationChannelId: SNOW,
-  logIgnoredChannelIds: { kind: 'snowflakeList' },
+  logIgnoredChannelIds: { kind: 'snowflakeList', max: LOG_IGNORED_CHANNELS_MAX },
 
   subsChannelId: SNOW,
   subsCategoryId: SNOW,
@@ -417,7 +418,10 @@ export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list
 
 const CHECKS: Record<FieldKind, (field: RuledValue) => boolean> = {
   snowflake: ({ value }) => SNOWFLAKE.test(value),
-  snowflakeList: ({ value }) => value.split(',').every((p) => SNOWFLAKE.test(p.trim())),
+  snowflakeList: ({ value, rule }) => {
+    const parts = value.split(',');
+    return parts.every((p) => SNOWFLAKE.test(p.trim())) && parts.length <= (rule.max ?? Number.MAX_SAFE_INTEGER);
+  },
   flag: ({ value }) => value === 'on' || value === 'off',
   limit: ({ value, rule }) => integerInRange(value, { min: rule.min ?? 0, max: rule.max ?? 0 }),
   color: ({ value }) => HEX_INPUT.test(value.trim()),

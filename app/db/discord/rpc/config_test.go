@@ -4,6 +4,7 @@
 package rpc_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +89,11 @@ func TestConfigSetValidatesIdsAndTogglesBeforeStoring(t *testing.T) {
 				LogVoiceChannelID: "12345678901234567", LogIgnoredChannels: "12345678901234567,12345678901234568",
 				LogIgnoreBots: "off", VoiceCategoryID: "12345678901234567", VoiceNameTemplate: "{owner}", VoiceUserLimit: "0", VoicePrivacyMode: "locked",
 			},
+		},
+		{
+			name: "refuses more than 25 ignored channels",
+			cfg:  ddiscord.Config{LogIgnoredChannels: strings.TrimSuffix(strings.Repeat("12345678901234567,", 26), ",")},
+			bad:  []string{"logIgnoredChannelIds"},
 		},
 		{
 			name: "names every bad drifted and new field",
