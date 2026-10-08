@@ -146,6 +146,9 @@ func (h logsModule) recallName(ctx context.Context, ref discordstore.LabelRef) (
 
 func (h logsModule) messageDelete(ctx context.Context, c *module.Context, emit module.Emit, ev decode.MessageEvent) error {
 	got, cached := h.store.RecallMessage(ctx, discordstore.Message{ID: ev.ID})
+	if cached && skipBot(c, got.Bot) {
+		return nil
+	}
 	logTo(c, emit, ddiscord.LogMessages, logEntry{
 		Title:           "Message deleted",
 		Fields:          deletedFields(ev.ChannelID, got, cached),
@@ -153,6 +156,18 @@ func (h logsModule) messageDelete(ctx context.Context, c *module.Context, emit m
 		SourceChannelID: ev.ChannelID,
 	})
 	return nil
+}
+
+func cacheEntry(ev decode.MessageEvent) discordstore.CachedMessage {
+	attachments := make([]string, len(ev.Attachments))
+	for i, a := range ev.Attachments {
+		attachments[i] = a.URL
+	}
+	return discordstore.CachedMessage{
+		ID: ev.ID, GuildID: ev.GuildID, ChannelID: ev.ChannelID,
+		AuthorID: ev.Author.ID, AuthorName: decode.DisplayName(decode.Display{User: ev.Author}),
+		Bot: ev.Author.Bot, Content: ev.Content, Attachments: attachments,
+	}
 }
 
 func deletedFields(channelID string, got discordstore.CachedMessage, cached bool) []ddiscord.EmbedField {
@@ -172,13 +187,19 @@ func deletedFields(channelID string, got discordstore.CachedMessage, cached bool
 }
 
 func (h logsModule) messageEdit(ctx context.Context, c *module.Context, emit module.Emit, ev decode.MessageEvent) error {
-	if ev.Content == "" || skipBot(c, ev.Author.Bot) {
+	if ev.Content == "" {
 		return nil
 	}
 	got, cached := h.store.RecallMessage(ctx, discordstore.Message{ID: ev.ID})
-	if cached && got.Content == ev.Content {
+	if skipBot(c, ev.Author.Bot || got.Bot) || (cached && got.Content == ev.Content) {
 		return nil
 	}
+	h.logEdit(c, emit, ev, got, cached)
+	h.refresh(ctx, ev, got)
+	return nil
+}
+
+func (h logsModule) logEdit(c *module.Context, emit module.Emit, ev decode.MessageEvent, got discordstore.CachedMessage, cached bool) {
 	before := unknownContent
 	if cached {
 		before = got.Content
@@ -190,7 +211,17 @@ func (h logsModule) messageEdit(ctx context.Context, c *module.Context, emit mod
 		Footer:          idFooter("Message", ev.ID),
 		SourceChannelID: ev.ChannelID,
 	})
-	return nil
+}
+
+func (h logsModule) refresh(ctx context.Context, ev decode.MessageEvent, got discordstore.CachedMessage) {
+	entry := cacheEntry(ev)
+	if entry.AuthorID == "" {
+		entry.AuthorID, entry.AuthorName, entry.Bot = got.AuthorID, got.AuthorName, got.Bot
+	}
+	if entry.AuthorID == "" {
+		return
+	}
+	_ = h.store.RememberMessage(ctx, entry)
 }
 
 func editAuthor(ev decode.MessageEvent, got discordstore.CachedMessage) ddiscord.EmbedField {

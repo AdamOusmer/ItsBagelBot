@@ -24,6 +24,7 @@ type CachedMessage struct {
 	ChannelID   string   `json:"channelId"`
 	AuthorID    string   `json:"authorId"`
 	AuthorName  string   `json:"authorName"`
+	Bot         bool     `json:"bot,omitempty"`
 	Content     string   `json:"content"`
 	Attachments []string `json:"attachments,omitempty"`
 }

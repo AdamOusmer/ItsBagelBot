@@ -17,7 +17,6 @@ func Message(store discordstore.Store) module.Module {
 	h := messageModule{store: store}
 	b := module.NewModule("message")
 	b.On("MESSAGE_CREATE", h.onCreate)
-	b.On("MESSAGE_UPDATE", h.onUpdate)
 	return b.Build()
 }
 
@@ -30,10 +29,13 @@ func (h messageModule) onCreate(ctx context.Context, c *module.Context, emit mod
 	if err != nil {
 		return err
 	}
-	if ev.Author.Bot || ev.GuildID == "" {
+	if ev.GuildID == "" {
 		return nil
 	}
 	h.remember(ctx, c, ev)
+	if ev.Author.Bot {
+		return nil
+	}
 	if !c.Config.LevelsOn() {
 		return nil
 	}
@@ -46,29 +48,9 @@ func (h messageModule) onCreate(ctx context.Context, c *module.Context, emit mod
 	return nil
 }
 
-func (h messageModule) onUpdate(ctx context.Context, c *module.Context, _ module.Emit) error {
-	ev, err := decode.Decode[decode.MessageEvent](c.Event.Raw)
-	if err != nil {
-		return err
-	}
-	if ev.Author.ID == "" || ev.Author.Bot || ev.GuildID == "" || ev.Content == "" {
-		return nil
-	}
-	h.remember(ctx, c, ev)
-	return nil
-}
-
 func (h messageModule) remember(ctx context.Context, c *module.Context, ev decode.MessageEvent) {
 	if !c.Config.LogCategoryOn(ddiscord.LogMessages) {
 		return
 	}
-	attachments := make([]string, len(ev.Attachments))
-	for i, a := range ev.Attachments {
-		attachments[i] = a.URL
-	}
-	_ = h.store.RememberMessage(ctx, discordstore.CachedMessage{
-		ID: ev.ID, GuildID: ev.GuildID, ChannelID: ev.ChannelID,
-		AuthorID: ev.Author.ID, AuthorName: decode.DisplayName(decode.Display{User: ev.Author}),
-		Content: ev.Content, Attachments: attachments,
-	})
+	_ = h.store.RememberMessage(ctx, cacheEntry(ev))
 }

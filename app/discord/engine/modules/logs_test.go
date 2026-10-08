@@ -30,10 +30,15 @@ type logRig struct {
 func newLogRig(t *testing.T) *logRig {
 	t.Helper()
 	store := discordstore.NewMem()
+	return newLogRigWith(t, store, registry.New(modules.Logs(store), modules.Message(store)))
+}
+
+func newLogRigWith(t *testing.T, store *discordstore.Mem, reg *registry.Registry) *logRig {
+	t.Helper()
 	return &logRig{
 		t: t, store: store,
 		cfg: ddiscord.Config{GuildID: "g1", LogsEnabled: "on", LogChannelID: "log-all"},
-		reg: registry.New(modules.Logs(store), modules.Message(store)),
+		reg: reg,
 	}
 }
 
@@ -119,6 +124,42 @@ func TestLogsMessageEditShowsBeforeAndAfterAndSkipsNoise(t *testing.T) {
 
 	again := only(t, r.fire("MESSAGE_UPDATE", message("m1", "third", nil)))
 	require.Equal(t, "second", again.field("Before"), "the cache follows the latest edit")
+}
+
+func TestLogsMessageEditIsIndependentOfModuleOrder(t *testing.T) {
+	store := discordstore.NewMem()
+	r := newLogRigWith(t, store, registry.New(modules.Message(store), modules.Logs(store)))
+	r.fire("MESSAGE_CREATE", message("m1", "first", nil))
+
+	edit := only(t, r.fire("MESSAGE_UPDATE", message("m1", "second", nil)))
+	require.Equal(t, "first", edit.field("Before"))
+	require.Equal(t, "second", edit.field("After"))
+	again := only(t, r.fire("MESSAGE_UPDATE", message("m1", "third", nil)))
+	require.Equal(t, "second", again.field("Before"))
+}
+
+func TestLogsCachedBotMessages(t *testing.T) {
+	botAuthor := map[string]any{"author": map[string]any{"id": "b1", "username": "Beep", "bot": true}}
+	del := map[string]any{"id": "mb", "guild_id": "g1", "channel_id": "c1"}
+
+	t.Run("ignore bots drops a cached bot delete and edit", func(t *testing.T) {
+		r := newLogRig(t)
+		r.fire("MESSAGE_CREATE", message("mb", "beep", botAuthor))
+		require.Empty(t, r.fire("MESSAGE_DELETE", del))
+		require.Empty(t, r.fire("MESSAGE_UPDATE", map[string]any{"id": "mb", "guild_id": "g1", "channel_id": "c1", "content": "boop"}))
+	})
+	t.Run("ignore bots off logs the bot author", func(t *testing.T) {
+		r := newLogRig(t)
+		r.cfg.LogIgnoreBots = "off"
+		r.fire("MESSAGE_CREATE", message("mb", "beep", botAuthor))
+		got := only(t, r.fire("MESSAGE_DELETE", del))
+		require.Equal(t, "<@b1>", got.field("Author"))
+		require.Equal(t, "beep", got.field("Content"))
+	})
+	t.Run("an uncached delete still logs as unknown", func(t *testing.T) {
+		r := newLogRig(t)
+		require.Equal(t, "Unknown author", only(t, r.fire("MESSAGE_DELETE", del)).field("Author"))
+	})
 }
 
 func TestLogsBulkDeleteCountsMessages(t *testing.T) {
@@ -260,17 +301,14 @@ func TestLogsRoutingAndSuppression(t *testing.T) {
 	})
 }
 
-func TestMessageCacheSkipsBotsAndDMsAndClipsContent(t *testing.T) {
+func TestMessageCacheSkipsDMsAndClipsContent(t *testing.T) {
 	r := newLogRig(t)
 	ctx := context.Background()
-	r.fire("MESSAGE_CREATE", message("bot", "beep", map[string]any{"author": map[string]any{"id": "b1", "bot": true}}))
 	r.fire("MESSAGE_CREATE", message("dm", "psst", map[string]any{"guild_id": ""}))
 	r.fire("MESSAGE_CREATE", message("long", strings.Repeat("é", 3000), nil))
 
-	_, bot := r.store.RecallMessage(ctx, discordstore.Message{ID: "bot"})
 	_, dm := r.store.RecallMessage(ctx, discordstore.Message{ID: "dm"})
 	long, cached := r.store.RecallMessage(ctx, discordstore.Message{ID: "long"})
-	require.False(t, bot)
 	require.False(t, dm)
 	require.True(t, cached)
 	require.Len(t, []rune(long.Content), 1024)
