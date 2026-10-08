@@ -65,7 +65,7 @@ func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publishe
 	return &Fetches{
 		client: client,
 		packer: packer,
-		views:  cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL),
+		views:  cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL, cache.StaleOnError(fetchesCacheTTL)),
 		pub:    pub,
 		log:    log,
 	}
@@ -134,7 +134,7 @@ func (s *FetchSpec) dto(userID uint64) data.FetchChangedDTO {
 
 func (r *Fetches) List(ctx context.Context, userID uint64) ([]FetchView, error) {
 	return r.views.GetOrLoad(ctx, cache.UserKey(fetchesKeyPrefix, userID), func(ctx context.Context) ([]FetchView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) ([]FetchView, error) {
+		return db.WithRead(ctx, func(ctx context.Context) ([]FetchView, error) {
 			rows, err := r.client.FetchDefinition.Query().
 				Where(fetchdefinition.UserIDEQ(userID)).
 				All(ctx)

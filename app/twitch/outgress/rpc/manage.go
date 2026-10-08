@@ -5,6 +5,8 @@ package rpc
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
@@ -85,7 +87,7 @@ func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageR
 	if err != nil {
 		return outgressrpc.FollowageReply{Error: "lookup failed"}
 	}
-	return m.readFollowage(ctx, req.BroadcasterID, targetID)
+	return m.readFollowage(ctx, req, targetID)
 }
 
 func validFollowageRequest(req outgressrpc.FollowageRequest) bool {
@@ -106,25 +108,39 @@ func (m *Manage) resolveFollowageTarget(ctx context.Context, req outgressrpc.Fol
 	return targetID, err
 }
 
-func (m *Manage) readFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
+func (m *Manage) readFollowage(ctx context.Context, req outgressrpc.FollowageRequest, targetID string) outgressrpc.FollowageReply {
 	if targetID == "" {
 		return outgressrpc.FollowageReply{UserFound: false}
 	}
-	if targetID == broadcasterID {
+	if targetID == req.BroadcasterID {
 		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true}
 	}
-	return m.fetchFollowage(ctx, broadcasterID, targetID)
+	return m.fetchFollowage(ctx, req, targetID)
 }
 
-func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
-	followedAt, following, err := m.twitch.FollowedAt(ctx, broadcasterID, targetID)
+func (m *Manage) fetchFollowage(ctx context.Context, req outgressrpc.FollowageRequest, targetID string) outgressrpc.FollowageReply {
+	followedAt, following, err := m.twitch.FollowedAt(ctx, req.BroadcasterID, targetID)
 	if err != nil {
-		m.log.Warn("followage lookup failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		m.logFollowageFailure(req, err)
 		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed"}
 	}
 	return outgressrpc.FollowageReply{
 		TargetID: targetID, UserFound: true, Following: following, FollowedAt: followedAt,
 	}
+}
+
+func (m *Manage) logFollowageFailure(req outgressrpc.FollowageRequest, err error) {
+	fields := []zap.Field{zap.String("broadcaster_id", req.BroadcasterID), zap.Error(err)}
+	if req.Trial && twitchUnauthorized(err) {
+		m.log.Info("followage lookup failed", append(fields, zap.Bool("expected", true))...)
+		return
+	}
+	m.log.Warn("followage lookup failed", fields...)
+}
+
+func twitchUnauthorized(err error) bool {
+	var status *twitch.StatusError
+	return errors.As(err, &status) && status.Status == http.StatusUnauthorized
 }
 
 func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAgeRequest) outgressrpc.AccountAgeReply {

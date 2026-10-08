@@ -32,7 +32,7 @@ func TestRPCLookupsAreServedFromSesameCacheOnRepeat(t *testing.T) {
 					},
 				}
 				return func(ctx context.Context) (bool, error) {
-					result, err := f.Lookup(ctx, "channel", "viewer", "")
+					result, err := f.Lookup(ctx, FollowageQuery{BroadcasterID: "channel", TargetID: "viewer"})
 					return result.Following, err
 				}, f.cache.Close
 			},

@@ -70,7 +70,12 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 	}
 
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); found {
+	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	if err != nil {
+		log.Warn("cmd: add lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		return
+	}
+	if found {
 		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterName(), name)
 		return
 	}
@@ -94,7 +99,12 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 	}
 
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); !found {
+	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	if err != nil {
+		log.Warn("cmd: edit lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		return
+	}
+	if !found {
 		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
 		return
 	}

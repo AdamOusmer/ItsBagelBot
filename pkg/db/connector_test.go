@@ -8,6 +8,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -63,4 +64,32 @@ func TestTimedConnectorLogsEveryConnectAttempt(t *testing.T) {
 			require.Contains(t, fields, "elapsed")
 		})
 	}
+}
+
+func TestTimedConnectorLogsTheCallersRemainingBudget(t *testing.T) {
+	t.Run("without a deadline it says so", func(t *testing.T) {
+		logs := observeLogs(t)
+
+		_, err := timedConnector{Connector: &fakeConnector{}, addr: testDBAddr}.Connect(context.Background())
+
+		require.NoError(t, err)
+		fields := logs.All()[0].ContextMap()
+		require.Equal(t, true, fields["no_deadline"])
+		require.NotContains(t, fields, "budget")
+	})
+	t.Run("with a deadline it logs what was left", func(t *testing.T) {
+		logs := observeLogs(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		_, err := timedConnector{Connector: &fakeConnector{err: errors.New("dial refused")}, addr: testDBAddr}.Connect(ctx)
+
+		require.Error(t, err)
+		fields := logs.All()[0].ContextMap()
+		require.NotContains(t, fields, "no_deadline")
+		budget, ok := fields["budget"].(time.Duration)
+		require.True(t, ok)
+		require.Greater(t, budget, 2*time.Second)
+		require.LessOrEqual(t, budget, 3*time.Second)
+	})
 }

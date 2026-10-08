@@ -9,6 +9,7 @@ type FollowageRequest struct {
 	BroadcasterID string `json:"broadcaster_id"`
 	TargetID      string `json:"target_id,omitempty"`
 	TargetLogin   string `json:"target_login,omitempty"`
+	Trial         bool   `json:"trial,omitempty"`
 }
 
 type FollowageReply struct {

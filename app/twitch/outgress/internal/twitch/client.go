@@ -430,16 +430,18 @@ func (c *Client) request(ctx context.Context, src *Source, call HelixCall) (*htt
 
 	unauthorizedBody, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	_ = res.Body.Close()
-	if isMissingScope(unauthorizedBody) {
+	switch {
+	case bytes.Contains(bytes.ToLower(unauthorizedBody), []byte("does not have the required permission")):
+	case isMissingScope(unauthorizedBody):
 		src.Invalidate()
-		res.Body = io.NopCloser(bytes.NewReader(unauthorizedBody))
-		res.ContentLength = int64(len(unauthorizedBody))
-		return res, nil
+	default:
+		src.Invalidate()
+		return c.do(ctx, src, call)
 	}
 
-	src.Invalidate()
-
-	return c.do(ctx, src, call)
+	res.Body = io.NopCloser(bytes.NewReader(unauthorizedBody))
+	res.ContentLength = int64(len(unauthorizedBody))
+	return res, nil
 }
 
 func isMissingScope(body []byte) bool {

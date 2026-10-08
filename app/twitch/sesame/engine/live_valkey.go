@@ -92,6 +92,7 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 		)
 		switch {
 		case err != nil:
+			return false, err
 		case reply.Live:
 			return s.setLiveKey(ctx, broadcasterID, cmp.Or(reply.Version, livekey.VersionNow()))
 		case reply.Known:

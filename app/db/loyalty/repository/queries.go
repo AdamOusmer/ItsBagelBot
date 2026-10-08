@@ -75,7 +75,7 @@ func bucketed(scope string) bool {
 }
 
 func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent.Balance, bool, error) {
-	return getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
+	return readOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
 			Where(balance.UserIDEQ(userID), balance.ViewerIDEQ(viewerID)).
 			Only(ctx)
@@ -234,7 +234,7 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	if err != nil {
 		return nil, 0, false, err
 	}
-	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Counter, error) {
+	row, found, err := readOptional(ctx, func(ctx context.Context) (*ent.Counter, error) {
 		return r.client.Counter.Query().
 			Where(counter.UserIDEQ(userID), counter.NameEQ(n)).
 			Only(ctx)
@@ -246,7 +246,7 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	if !useEntry {
 		return row, row.Value, true, nil
 	}
-	entry, entryFound, err := getOptional(ctx, func(ctx context.Context) (*ent.CounterEntry, error) {
+	entry, entryFound, err := readOptional(ctx, func(ctx context.Context) (*ent.CounterEntry, error) {
 		return r.client.CounterEntry.Query().
 			Where(
 				counterentry.UserIDEQ(userID),
@@ -498,7 +498,14 @@ func (r *Loyalty) DeleteAllForUser(ctx context.Context, userID uint64) error {
 }
 
 func getOptional[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, bool, error) {
-	row, err := db.WithQuery(ctx, fn)
+	return optionalRow(db.WithQuery(ctx, fn))
+}
+
+func readOptional[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, bool, error) {
+	return optionalRow(db.WithRead(ctx, fn))
+}
+
+func optionalRow[T any](row *T, err error) (*T, bool, error) {
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return nil, false, nil
