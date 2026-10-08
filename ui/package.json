@@ -64,9 +64,9 @@
   },
   "devDependencies": {
     "@astrojs/compiler": "^4.0.0",
-    "@iconify-json/circle-flags": "1.2.11",
-    "@iconify-json/lucide": "1.2.137",
-    "@iconify-json/simple-icons": "1.2.98",
+    "@iconify-json/circle-flags": "1.2.12",
+    "@iconify-json/lucide": "1.2.141",
+    "@iconify-json/simple-icons": "1.2.99",
     "@types/bun": "1.4.2",
     "astro": "^7.0.6",
     "svelte": "^5.56.4",
