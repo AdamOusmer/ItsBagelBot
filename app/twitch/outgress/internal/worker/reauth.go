@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -139,13 +138,13 @@ func (r *ReauthNotifier) ChatLine(locale string, n notice) string {
 func (r *ReauthNotifier) ResolveLocale(ctx context.Context, broadcasterID string) (string, bool) {
 	reply, err := bus.RequestJSONTimeout[usersrpc.StateGetReply](ctx, r.nc, r.cfg.StateSubject,
 		usersrpc.StateGetRequest{BroadcasterUserID: broadcasterID}, 3*time.Second)
+	if bus.NotFoundReply(err) {
+		return i18n.DefaultLocale, false
+	}
 	if err != nil {
 		r.log.Debug("locale lookup failed, defaulting to en",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return i18n.DefaultLocale, true
-	}
-	if reply.Code == rpc.CodeNotFound {
-		return i18n.DefaultLocale, false
 	}
 	if reply.Locale == "" {
 		return i18n.DefaultLocale, true

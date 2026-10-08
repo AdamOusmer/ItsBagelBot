@@ -36,7 +36,11 @@ func newTestReauthNotifier(t *testing.T, nc *nats.Conn) *ReauthNotifier {
 func respondState(t *testing.T, nc *nats.Conn, locale string, code rpc.Code) {
 	t.Helper()
 	sub, err := nc.Subscribe(testStateSubject, func(msg *nats.Msg) {
-		reply, _ := codec.Marshal(usersrpc.StateGetReply{Locale: locale, Refusal: rpc.Refusal{Code: code}})
+		refusal := rpc.Refusal{Code: code}
+		if code != rpc.CodeOK {
+			refusal = rpc.Refused(code, "user account not found")
+		}
+		reply, _ := codec.Marshal(usersrpc.StateGetReply{Locale: locale, Refusal: refusal})
 		_ = msg.Respond(reply)
 	})
 	if err != nil {
