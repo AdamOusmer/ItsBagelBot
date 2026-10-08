@@ -39,8 +39,8 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
   channel, role and guild names) are cached 24h to compute before/after diffs.
 - **Voice occupancy:** one atomic Lua transition per voice-state event returning a
   `VoiceMove` (from, to, left-empty); it fails closed (empty move) when the store errors.
-- **Temp voice room:** a join-to-create clone honouring the configured category,
-  name template, user limit and privacy; capped per guild atomically at track time.
+- **Temp voice room:** a join-to-create clone created only inside the configured category
+  (no category means no room), honouring the name template, user limit and privacy; capped per guild atomically at track time.
 - **Live/clip fact:** Twitch-derived input, not a Discord gateway dispatch.
 
 ## Code navigation

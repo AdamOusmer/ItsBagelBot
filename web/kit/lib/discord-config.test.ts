@@ -47,6 +47,7 @@ import {
   ticketStaffRoleIds,
   voiceLimit,
   voiceName,
+  voiceCategoryMissing,
   voicePrivacy
 } from './discord-config';
 
@@ -503,5 +504,14 @@ describe('guild icons', () => {
     expect(guildIconSrc(url, 64)).toBe(`${url}?size=64`);
     expect(guildIconSrc('/logo.png')).toBe('/logo.png');
     expect(guildIconSrc('')).toBe('');
+  });
+});
+
+describe('voiceCategoryMissing', () => {
+  const cfg = (hub: string, category: string) => ({ ...blankDiscordConfig(), voiceHubId: hub, voiceCategoryId: category });
+  test('requires a category only once a hub is set', () => {
+    expect(voiceCategoryMissing(cfg('', ''))).toBe(false);
+    expect(voiceCategoryMissing(cfg('100000000000000005', ''))).toBe(true);
+    expect(voiceCategoryMissing(cfg('100000000000000005', '100000000000000006'))).toBe(false);
   });
 });

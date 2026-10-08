@@ -410,6 +410,10 @@ export function voicePrivacy(config: DiscordConfig): VoicePrivacy {
   return (VOICE_PRIVACY_MODES as readonly string[]).includes(mode) ? (mode as VoicePrivacy) : 'open';
 }
 
+export function voiceCategoryMissing(config: DiscordConfig): boolean {
+  return config.voiceHubId.trim() !== '' && config.voiceCategoryId.trim() === '';
+}
+
 export function ticketLogChannel(config: DiscordConfig): Snowflake {
   return config.ticketLogChannelId || config.logChannelId;
 }

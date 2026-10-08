@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 
 	"ItsBagelBot/app/discord/engine/internal/cmd"
 	"ItsBagelBot/app/discord/engine/internal/decode"
@@ -27,7 +28,7 @@ type voiceClient interface {
 }
 
 func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
-	h := voiceModule{store: store, channels: channels, log: log}
+	h := voiceModule{store: store, channels: channels, log: log, warned: &sync.Map{}}
 	b := module.NewModule("voice")
 	b.On("VOICE_STATE_UPDATE", h.onVoiceState)
 	b.Slash("voice", h.slash)
@@ -40,6 +41,7 @@ type voiceModule struct {
 	store    discordstore.Store
 	channels voiceClient
 	log      *zap.Logger
+	warned   *sync.Map
 }
 
 func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit module.Emit) error {
@@ -58,9 +60,23 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 		h.deleteEmptyClone(ctx, move.From)
 	}
 	if enteredVoiceHub(c.Config, move) {
-		h.cloneAndMove(ctx, c, ev, emit)
+		h.enterHub(ctx, c, ev, emit)
 	}
 	return nil
+}
+
+func (h voiceModule) enterHub(ctx context.Context, c *module.Context, ev decode.VoiceEvent, emit module.Emit) {
+	if !c.Config.VoiceCategorySet() {
+		h.warnNoCategory(ev.GuildID)
+		return
+	}
+	h.cloneAndMove(ctx, c, ev, emit)
+}
+
+func (h voiceModule) warnNoCategory(guildID string) {
+	if _, seen := h.warned.LoadOrStore(guildID, struct{}{}); !seen {
+		h.log.Warn("voice hub entered but no room category is configured; creating nothing", zap.String("guild_id", guildID))
+	}
 }
 
 func enteredVoiceHub(cfg ddiscord.Config, move discordstore.VoiceMove) bool {

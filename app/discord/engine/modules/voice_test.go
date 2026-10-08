@@ -81,7 +81,7 @@ type voiceRig struct {
 func newVoiceRig(t *testing.T, store func(*discordstore.Mem) discordstore.Store) *voiceRig {
 	t.Helper()
 	r := &voiceRig{t: t, mem: discordstore.NewMem(), rpc: &voiceRPC{}}
-	r.cfg = ddiscord.Config{GuildID: "g1", VoiceEnabled: "on", VoiceHubID: "hub", ModsRoleID: "m"}
+	r.cfg = ddiscord.Config{GuildID: "g1", VoiceEnabled: "on", VoiceHubID: "hub", VoiceCategoryID: "cat", ModsRoleID: "m"}
 	var s discordstore.Store = r.mem
 	if store != nil {
 		s = store(r.mem)
@@ -131,6 +131,27 @@ func TestVoiceHubClonesOnlyWhenEntered(t *testing.T) {
 
 	require.Equal(t, []string{"create", "move"}, r.rpc.calls, "mute or stream updates while in the hub must not clone again")
 	require.Len(t, r.sent, 1, "one room panel")
+}
+
+func TestVoiceHubEntryWithoutCategoryCreatesNothing(t *testing.T) {
+	for _, category := range []string{"", "  "} {
+		r := newVoiceRig(t, nil)
+		r.cfg.VoiceCategoryID = category
+
+		r.state("u1", "hub")
+
+		require.Empty(t, r.rpc.calls)
+		require.Empty(t, r.sent)
+	}
+}
+
+func TestVoiceHubEntryCreatesInTheConfiguredCategory(t *testing.T) {
+	r := newVoiceRig(t, nil)
+
+	r.state("u1", "hub")
+
+	require.Equal(t, []string{"create", "move"}, r.rpc.calls)
+	require.Equal(t, "cat", r.rpc.created[0].ParentID)
 }
 
 func TestVoiceCloneUsesConfiguredRoom(t *testing.T) {

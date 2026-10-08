@@ -1578,6 +1578,7 @@ export type KnownMessageKey =
   | 'discord.channels.vipLabel'
   | 'discord.channels.voiceCategoryHelp'
   | 'discord.channels.voiceCategoryLabel'
+  | 'discord.channels.voiceCategoryRequired'
   | 'discord.channels.voiceHubHelp'
   | 'discord.channels.voiceHubLabel'
   | 'discord.channels.voiceLimitHelp'

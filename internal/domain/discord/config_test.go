@@ -245,6 +245,12 @@ func TestVoiceName(t *testing.T) {
 	}
 }
 
+func TestVoiceCategorySet(t *testing.T) {
+	assert.False(t, Config{}.VoiceCategorySet())
+	assert.False(t, Config{VoiceCategoryID: "  "}.VoiceCategorySet())
+	assert.True(t, Config{VoiceCategoryID: "c1"}.VoiceCategorySet())
+}
+
 func TestVoiceLimitAndPrivacyDefaults(t *testing.T) {
 	for raw, want := range map[string]int{"": 0, "0": 0, "7": 7, "99": 99, "100": 0, "-1": 0, "x": 0} {
 		assert.Equal(t, want, Config{VoiceUserLimit: raw}.VoiceLimit(), "limit %q", raw)

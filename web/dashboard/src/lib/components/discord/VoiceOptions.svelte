@@ -6,6 +6,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     getI18n,
+    voiceCategoryMissing,
     voicePrivacy,
     VOICE_NAME_MAX,
     VOICE_PRIVACY_MODES,
@@ -48,6 +49,8 @@
   label={t('discord.channels.voiceCategoryLabel')}
   help={t('discord.channels.voiceCategoryHelp')}
   options={categories}
+  required={t('discord.channels.voiceCategoryRequired')}
+  missing={voiceCategoryMissing(draft.config)}
 />
 
 <div class="setting-row">

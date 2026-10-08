@@ -198,6 +198,8 @@ func (c Config) VoiceName(owner string) string {
 	return name
 }
 
+func (c Config) VoiceCategorySet() bool { return strings.TrimSpace(c.VoiceCategoryID) != "" }
+
 func (c Config) VoiceLimit() int {
 	n, err := strconv.Atoi(strings.TrimSpace(c.VoiceUserLimit))
 	if err != nil || !withinVoiceLimit(n) {
