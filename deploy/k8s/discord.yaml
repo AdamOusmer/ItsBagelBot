@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# discord-ingress is a singleton with Recreate: two Identify sessions on one bot token fight each other.
+# discord-ingress runs two replicas behind a Valkey lease: only the holder opens the gateway socket, the standby waits to resume it.
 
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -26,11 +26,14 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: discord-ingress
@@ -57,6 +60,14 @@ spec:
                   - key: role
                     operator: NotIn
                     values: [cp, worker]
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: discord-ingress
       dnsConfig:
         options:
           - {name: ndots, value: "1"}

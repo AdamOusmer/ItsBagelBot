@@ -25,6 +25,7 @@ type published struct {
 type recorder struct {
 	restErr error
 	calls   []any
+	ids     []string
 }
 
 func (r *recorder) InteractionCallback(_ context.Context, cb discordapi.Callback) error {
@@ -42,7 +43,8 @@ func (r *recorder) PublishOwned(_ context.Context, subject string, payload []byt
 	return nil
 }
 
-func (r *recorder) PublishOwnedWithID(ctx context.Context, subject, _ string, payload []byte) error {
+func (r *recorder) PublishOwnedWithID(ctx context.Context, subject, id string, payload []byte) error {
+	r.ids = append(r.ids, id)
 	return r.PublishOwned(ctx, subject, payload)
 }
 
@@ -183,4 +185,27 @@ func TestDispatchRoutesNewEventIDs(t *testing.T) {
 			assert.Equal(t, []any{want}, dispatch(t, &recorder{}, gateway.Event{Type: tc.typ, Raw: tc.raw}))
 		})
 	}
+}
+
+func TestDispatchPublishesConfirmedWithTheSessionSequenceID(t *testing.T) {
+	rec := &recorder{}
+	r := &relay.Relay{REST: rec, Pub: rec}
+
+	require.NoError(t, r.Dispatch(context.Background(), gateway.Event{
+		Type: "MESSAGE_CREATE", Raw: []byte(`{"guild_id":"g1"}`), SessionID: "sid", Seq: 42,
+	}))
+
+	assert.Equal(t, []string{"sid-42"}, rec.ids)
+}
+
+func TestDispatchWithoutASessionPublishesWithoutAnID(t *testing.T) {
+	rec := &recorder{}
+	r := &relay.Relay{REST: rec, Pub: rec}
+
+	require.NoError(t, r.Dispatch(context.Background(), gateway.Event{
+		Type: "MESSAGE_CREATE", Raw: []byte(`{"guild_id":"g1"}`), Seq: 3,
+	}))
+
+	assert.Empty(t, rec.ids, "an empty session must not mint a colliding ID")
+	assert.Len(t, rec.calls, 1)
 }

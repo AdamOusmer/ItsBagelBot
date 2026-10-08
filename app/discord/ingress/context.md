@@ -10,8 +10,9 @@ presence and gateway health. It wraps selected dispatches as events for Discord
 engine. It does not decide community behavior or execute general Discord REST.
 The one REST exception is deferring an interaction before Discord's three-second
 acknowledgement deadline; engine/outgress finish it later through a webhook.
-Exactly one ingress replica may run per bot token. Engine/outgress can scale
-without additional gateway Identify sessions.
+Two ingress replicas run for availability, but only the Valkey lease holder may
+hold a gateway socket per bot token. The standby holds no socket. Engine/outgress
+can scale without additional gateway Identify sessions.
 
 ## Local nomenclature
 
@@ -24,7 +25,11 @@ without additional gateway Identify sessions.
   it does not mean the command or button action succeeded.
 - **Presence:** gateway activity/status derived from narrow users counts RPC.
 - **Connect budget:** shared restart-resistant cap/backoff for opening sockets.
-- **Bot status:** Valkey projection of this singleton session's actual condition.
+- **Bot status:** Valkey projection of the lease holder's actual session condition.
+- **Lease:** Valkey `OwnerLock` (TTL 15s, renewed every 5s, standby polls every 2s);
+  owner is pod name plus boot ID.
+- **Checkpoint:** `{SessionID, ResumeURL, Seq}` in Valkey, saved on READY/RESUMED
+  and every 5s or 100 seqs; the successor Resumes from it.
 - **Pod/boot ID/connect sequence:** separate process/attempt identity in logs.
 - **Guild:** Discord server, bound to a Twitch broadcaster by the data service;
   ingress does not resolve that relationship.
@@ -76,8 +81,16 @@ BUS connection. Keep those NATS identities/capabilities separated.
 
 - Do not perform welcomes, bans, slash registration or layout setup on this
   gateway receive path; those effects belong in engine/outgress.
-- A second live replica fights the first session; rollout/reconnect work must
-  preserve the singleton and shared connect budget across process restarts.
+- Only the lease holder may dial. Renew failure or a lost lease cancels the session
+  and closes the socket with 4000, then returns to standby; the deposed replica must
+  not write the checkpoint or `BotStatusKey`. A standby reports Ready/Live while its
+  lease loop polls. Rollout/reconnect work must preserve the shared connect budget
+  across process restarts.
+- Close sockets with 4000 on every path including drain. 1000/1001 end the session
+  and the successor's Resume would spend an Identify.
+- Each dispatch is published confirmed with message ID `<SessionID>-<Seq>`; a
+  successor replaying from an older checkpoint republishes the same IDs, so engine
+  dedup (not the broker) absorbs them.
 - Prefer Resume when viable; invalid session/fatal close rules and heartbeat
   watchdogs belong to gateway lifecycle, not module logic.
 - Fatal authentication/session failures park/report down; liveness deliberately
@@ -86,8 +99,8 @@ BUS connection. Keep those NATS identities/capabilities separated.
   logic. An idle pod is not evidence of a connected Discord bot.
 - Main status health feeds engine's vertical report through service token
   `discord-ingress`; keep token, RPC responder and consumers compatible.
-- Current `Relay.publish` uses the asynchronous bus admission path. Do not claim
-  end-to-end exactly-once delivery or PubAck confirmation from its return alone.
+- `Relay.publish` is confirmed (`bus.PublishConfirmed`) but never sets `Nats-Msg-Id`;
+  delivery is at-least-once and consumers dedup on the message ID.
 - Bindings/config/XP/tickets are not ingress state and never belong in local SQL.
 
 ## Local verification

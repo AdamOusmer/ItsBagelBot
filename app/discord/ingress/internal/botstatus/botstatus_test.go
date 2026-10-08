@@ -278,3 +278,29 @@ func TestStaleStatusHeartbeatFailsLiveness(t *testing.T) {
 		t.Fatalf("after a beat: %v", err)
 	}
 }
+
+func TestStandbyIsReadyAndLiveWithoutTouchingTheStatusKey(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	h.r.Standing(ctx)
+	h.r.beat(ctx)
+	h.r.Budget(ctx, gateway.Budget{Connects: 1})
+
+	probes{}.do(h)
+	assert.Empty(t, h.kv.value(ddiscord.BotStatusKey), "a standby must leave the leader's status key alone")
+
+	h.r.Leading(ctx)
+	probes{ready: errGatewayNeverUp}.do(h)
+	h.r.beat(ctx)
+	stored{}.do(h)
+}
+
+func TestStandbyFailsProbesWhenItsLeaseLoopStops(t *testing.T) {
+	h := newHarness(t)
+	h.r.Standing(context.Background())
+
+	advance(ddiscord.BotHeartbeatMaxAge + time.Second).do(h)
+
+	probes{ready: errLeaseLoopStalled, live: errLeaseLoopStalled}.do(h)
+}

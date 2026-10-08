@@ -28,6 +28,8 @@ type Reporter struct {
 	cur        ddiscord.BotStatus
 	fatalSince time.Time
 	everUp     bool
+	standby    bool
+	standbyAt  time.Time
 
 	kv        pkg_valkey.KV
 	publishes bool
@@ -106,6 +108,25 @@ func unixMilli(t time.Time) int64 {
 	return t.UnixMilli()
 }
 
+func (r *Reporter) Standing(context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.standby = true
+	r.standbyAt = r.now()
+}
+
+func (r *Reporter) Leading(context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.standby = false
+}
+
+func (r *Reporter) standing() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.standby
+}
+
 func (r *Reporter) Event(context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -146,7 +167,7 @@ func (r *Reporter) apply(fn func(s *ddiscord.BotStatus, now time.Time)) ddiscord
 }
 
 func (r *Reporter) write(ctx context.Context, s ddiscord.BotStatus) {
-	if !r.publishes {
+	if !r.publishes || r.standing() {
 		return
 	}
 	raw, err := ddiscord.EncodeBotStatus(s)
@@ -177,6 +198,7 @@ var (
 	errGatewayStalled     = errors.New("gateway connected but no event or heartbeat ack within " + ddiscord.BotEventMaxAge.String())
 	errGatewayBeatStalled = errors.New("gateway status key not refreshed within " + ddiscord.BotHeartbeatMaxAge.String())
 	errGatewayNeverUp     = errors.New("gateway has not connected yet")
+	errLeaseLoopStalled   = errors.New("standby lease loop has not polled within " + ddiscord.BotHeartbeatMaxAge.String())
 	errGatewayAtCeiling   = errors.New("gateway connect budget spent; parked until the rolling window frees")
 )
 
@@ -189,7 +211,12 @@ type verdictRules struct {
 func (r *Reporter) verdict(rules verdictRules) error {
 	r.mu.Lock()
 	cur, fatalSince, everUp, now := r.cur, r.fatalSince, r.everUp, r.now()
+	standby, standbyAt := r.standby, r.standbyAt
 	r.mu.Unlock()
+
+	if standby {
+		return standbyVerdict(now.Sub(standbyAt))
+	}
 
 	if !fatalSince.IsZero() && now.Sub(fatalSince) >= rules.grace {
 		return fmt.Errorf("fatal close %d: %s", cur.LastCloseCode, ddiscord.CloseCodeMessage(cur.LastCloseCode))
@@ -201,6 +228,13 @@ func (r *Reporter) verdict(rules verdictRules) error {
 		return errGatewayAtCeiling
 	}
 	return stale(cur, now)
+}
+
+func standbyVerdict(sinceTick time.Duration) error {
+	if sinceTick > ddiscord.BotHeartbeatMaxAge {
+		return errLeaseLoopStalled
+	}
+	return nil
 }
 
 func stale(cur ddiscord.BotStatus, now time.Time) error {

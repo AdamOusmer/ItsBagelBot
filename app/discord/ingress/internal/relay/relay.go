@@ -5,6 +5,7 @@ package relay
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
@@ -101,7 +102,18 @@ func (r *Relay) publish(ctx context.Context, subject string, ev gateway.Event) e
 	if r.Pub == nil {
 		return nil
 	}
-	return bus.PublishJSON(ctx, r.Pub, subject, event)
+	if ev.SessionID == "" {
+		return bus.PublishJSON(ctx, r.Pub, subject, event)
+	}
+	body, err := codec.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return bus.PublishConfirmed(ctx, r.Pub, bus.Publication{
+		Subject: subject,
+		ID:      fmt.Sprintf("%s-%d", ev.SessionID, ev.Seq),
+		Payload: body,
+	})
 }
 
 func (r *Relay) log() *zap.Logger {
