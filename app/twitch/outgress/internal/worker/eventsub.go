@@ -207,10 +207,14 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 		if w.skipFreshEnroll(ctx, e, "enable") || w.skipRevokedEnroll(ctx, e, "enable") {
 			return nil
 		}
-		e.priorState = w.priorSubState(ctx, e.broadcasterID)
+		prior, err := w.priorSubState(ctx, e.broadcasterID)
+		if err != nil {
+			return err
+		}
+		e.priorState = prior
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
-		err := retryTransient(ctx, func() error {
+		err = retryTransient(ctx, func() error {
 			return w.createAllEventSubs(ctx, e)
 		})
 		if err == nil {
@@ -226,12 +230,9 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 	})
 }
 
-func (w *Worker) priorSubState(ctx context.Context, broadcasterID string) string {
-	ch, found, err := w.registry.Get(ctx, broadcasterID)
-	if err != nil || !found {
-		return ""
-	}
-	return ch.SubState
+func (w *Worker) priorSubState(ctx context.Context, broadcasterID string) (string, error) {
+	ch, _, err := w.registry.Get(ctx, broadcasterID)
+	return ch.SubState, err
 }
 
 func (w *Worker) recoverActiveFlag(ctx context.Context, e enrollment) {
@@ -277,7 +278,11 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 		if w.skipFreshEnroll(ctx, e, "reconnect") || w.skipRevokedEnroll(ctx, e, "reconnect") {
 			return nil
 		}
-		e.priorState = w.priorSubState(ctx, e.broadcasterID)
+		prior, err := w.priorSubState(ctx, e.broadcasterID)
+		if err != nil {
+			return err
+		}
+		e.priorState = prior
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		if derr := w.disableEventSubs(ctx, e); derr != nil {
@@ -286,7 +291,7 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 				zap.Error(derr))
 		}
 
-		err := retryTransient(ctx, func() error {
+		err = retryTransient(ctx, func() error {
 			return w.createAllEventSubs(ctx, e)
 		})
 		if err == nil {
