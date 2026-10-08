@@ -200,6 +200,9 @@ func (c *Checker) claim(key string) bool {
 	if c.retryAfterNanos[key] > now {
 		return false
 	}
+	if _, done := c.cache.get(key); done {
+		return false
+	}
 	c.inflight[key] = struct{}{}
 	return true
 }
