@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -83,4 +84,60 @@ func TestValkeyStoreKeepsTicketStateInItsDocumentedFormats(t *testing.T) {
 	require.Equal(t, pair(closing, true), pair(pending, pendingOK))
 	require.Equal(t, pair(discordstore.DeskPanel{GuildID: guild.ID, ChannelID: channel.ID, MessageID: "m2"}, true), pair(desk, deskOK))
 	require.Equal(t, pair(discordstore.DeskPanel{GuildID: other.ID}, true), pair(bareDesk, bareOK), "a bare claim is a desk without a panel")
+}
+
+func ttlOf(t *testing.T, client valkey.Client, key string) time.Duration {
+	t.Helper()
+	secs, err := client.Do(context.Background(), client.B().Ttl().Key(key).Build()).AsInt64()
+	require.NoError(t, err, key)
+	return time.Duration(secs) * time.Second
+}
+
+func TestValkeyVoiceMoveIsAtomicAndExpires(t *testing.T) {
+	client := valkeyClient(t)
+	s := discordstore.New(client)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().UnixNano(), 36)
+	guild, room, hub := "g"+run, "room"+run, "hub"+run
+	const riders = 16
+	keys := []string{
+		"discord:voice:" + room, "discord:voices:" + guild,
+		"discord:voiceoccupants:" + room, "discord:voiceoccupants:" + hub,
+	}
+	for i := range riders {
+		keys = append(keys, "discord:voiceseat:"+guild+":u"+strconv.Itoa(i))
+	}
+	t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(keys...).Build()) })
+	require.NoError(t, s.TrackClone(ctx, discordstore.Clone{ChannelID: room, GuildID: guild, OwnerID: "u0"}))
+
+	joined := s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u0", ChannelID: hub})
+	require.Equal(t, discordstore.VoiceMove{To: hub}, joined)
+	for i := range riders {
+		s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u" + strconv.Itoa(i), ChannelID: room})
+	}
+	for _, key := range keys[:3] {
+		require.Positive(t, ttlOf(t, client, key), key)
+		require.LessOrEqual(t, ttlOf(t, client, key), 24*time.Hour, key)
+	}
+	require.Positive(t, ttlOf(t, client, keys[4]))
+
+	var wg sync.WaitGroup
+	moves := make(chan discordstore.VoiceMove, riders)
+	for i := range riders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			moves <- s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u" + strconv.Itoa(i)})
+		}()
+	}
+	wg.Wait()
+	close(moves)
+	emptied := 0
+	for m := range moves {
+		require.Equal(t, room, m.From)
+		if m.LeftEmpty {
+			emptied++
+		}
+	}
+	require.Equal(t, 1, emptied, "exactly one concurrent leaver sees the room empty")
 }

@@ -33,6 +33,7 @@ func serveEngine(rest *discapi.Client, live kv.LiveStore, wire Wiring) error {
 
 func channelCases() []discordCase {
 	overwrites := []discapi.PermissionOverwrite{{ID: "u1", Type: 1, Allow: "1024", Deny: "0"}}
+	four, zero := 4, 0
 	return []discordCase{{
 		name: "creates a channel with the requested spec",
 		verb: "channel.create",
@@ -67,12 +68,38 @@ func channelCases() []discordCase {
 		name: "modifies a channel of the guild",
 		verb: "channel.modify",
 		req: discordoutgress.ChannelModifyRequest{
-			GuildID: "g1", ChannelID: "c1", Name: "renamed", UserLimit: 4, Overwrites: overwrites,
+			GuildID: "g1", ChannelID: "c1", Name: "renamed", UserLimit: &four, Overwrites: overwrites,
 		},
 		want:  discordoutgress.ChannelModifyReply{},
 		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
 		write: "PATCH /channels/c1",
 		body:  `{"name":"renamed","user_limit":4,"permission_overwrites":[{"id":"u1","type":1,"allow":"1024","deny":"0"}]}`,
+	}, {
+		name:  "a zero user limit is sent so it clears the limit",
+		verb:  "channel.modify",
+		req:   discordoutgress.ChannelModifyRequest{GuildID: "g1", ChannelID: "c1", UserLimit: &zero},
+		want:  discordoutgress.ChannelModifyReply{},
+		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
+		write: "PATCH /channels/c1",
+		body:  `{"user_limit":0}`,
+	}, {
+		name:  "an absent user limit leaves the limit alone",
+		verb:  "channel.modify",
+		req:   discordoutgress.ChannelModifyRequest{GuildID: "g1", ChannelID: "c1", Name: "renamed"},
+		want:  discordoutgress.ChannelModifyReply{},
+		calls: []string{"GET /channels/c1", "PATCH /channels/c1"},
+		write: "PATCH /channels/c1",
+		body:  `{"name":"renamed"}`,
+	}, {
+		name: "creates a voice channel with a user limit",
+		verb: "channel.create",
+		req: discordoutgress.ChannelCreateRequest{
+			GuildID: "g1", Name: "room", Type: 2, ParentID: "cat1", UserLimit: 5,
+		},
+		want:  discordoutgress.ChannelCreateReply{ChannelID: "m-new"},
+		calls: []string{"POST /guilds/g1/channels"},
+		write: "POST /guilds/g1/channels",
+		body:  `{"name":"room","type":2,"parent_id":"cat1","user_limit":5}`,
 	}}
 }
 

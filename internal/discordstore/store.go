@@ -102,7 +102,7 @@ type Store interface {
 	ClaimDaily(ctx context.Context, m Member) (ok bool, xp int)
 	Rank(ctx context.Context, m Member) (xp, level int)
 
-	UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) (left string, leftEmpty bool)
+	UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) VoiceMove
 }
 
 type valkeyStore struct {

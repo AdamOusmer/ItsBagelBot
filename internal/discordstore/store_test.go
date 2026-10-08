@@ -131,14 +131,14 @@ func memMemberScenarios() []scenario {
 	}, {
 		name: "voice moves report the channel left and whether it emptied",
 		steps: []step{
-			{do: at("u1", "hub"), want: seat{}},
-			{do: at("u2", "hub"), want: seat{}},
-			{do: at("u1", "clone-1"), want: seat{Left: "hub"}},
+			{do: at("u1", "hub"), want: seat{To: "hub"}},
+			{do: at("u2", "hub"), want: seat{To: "hub"}},
+			{do: at("u1", "clone-1"), want: seat{Left: "hub", To: "clone-1"}},
 			{do: at("u2", ""), want: seat{Left: "hub", Empty: true}},
 		},
 	}, {
 		name:  "a same-channel voice update is not a leave",
-		steps: []step{{do: at("u1", "hub"), want: seat{}}, {do: at("u1", "hub"), want: seat{Left: "hub"}}},
+		steps: []step{{do: at("u1", "hub"), want: seat{To: "hub"}}, {do: at("u1", "hub"), want: seat{Left: "hub", To: "hub"}}},
 	}}
 }
 

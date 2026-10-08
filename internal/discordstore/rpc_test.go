@@ -296,7 +296,7 @@ func localScenarios() []scenario {
 			{do: call(store.CloneCount, g1), want: 1},
 			{do: call(store.ClaimDesk, g1), want: true},
 			{do: call(store.ClaimDesk, g1), want: false},
-			{do: moveVoice(discordstore.VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "v1"}), want: seat{}},
+			{do: moveVoice(discordstore.VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "v1"}), want: seat{To: "v1"}},
 			{do: ticketsDurable, want: true},
 		},
 	}}

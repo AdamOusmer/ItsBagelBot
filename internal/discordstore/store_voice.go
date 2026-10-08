@@ -5,8 +5,16 @@ package discordstore
 
 import (
 	"context"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/valkey-io/valkey-go"
 )
+
+const voiceTTL = 24 * time.Hour
+
+var voiceTTLArg = strconv.Itoa(int(voiceTTL.Seconds()))
 
 type Clone struct {
 	ChannelID string
@@ -20,6 +28,12 @@ type VoiceSeat struct {
 	ChannelID string
 }
 
+type VoiceMove struct {
+	From      string
+	To        string
+	LeftEmpty bool
+}
+
 func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
 
 func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
@@ -31,10 +45,17 @@ func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
 	ch := Channel{ID: c.ChannelID}
 	g := Guild{ID: c.GuildID}
-	if err := s.client.Do(ctx, s.client.B().Set().Key(cloneKey(ch)).Value(c.GuildID+"|"+c.OwnerID).Build()).Error(); err != nil {
-		return err
+	b := s.client.B()
+	for _, r := range s.client.DoMulti(ctx,
+		b.Set().Key(cloneKey(ch)).Value(c.GuildID+"|"+c.OwnerID).ExSeconds(int64(voiceTTL.Seconds())).Build(),
+		b.Sadd().Key(cloneSet(g)).Member(c.ChannelID).Build(),
+		b.Expire().Key(cloneSet(g)).Seconds(int64(voiceTTL.Seconds())).Build(),
+	) {
+		if err := r.Error(); err != nil {
+			return err
+		}
 	}
-	return s.client.Do(ctx, s.client.B().Sadd().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
+	return nil
 }
 
 func (s valkeyStore) Clone(ctx context.Context, ch Channel) (Clone, bool) {
@@ -67,34 +88,35 @@ func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
 	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
 }
 
-func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) (string, bool) {
+var voiceMoveScript = valkey.NewLuaScript(`
+local user, to, occupants, clones, ttl = ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]
+local from = redis.call('GET', KEYS[1]) or ''
+local empty = 0
+if from ~= '' then
+    redis.call('SREM', occupants .. from, user)
+    if from ~= to and redis.call('SCARD', occupants .. from) == 0 then
+        empty = 1
+    end
+end
+if to == '' then
+    redis.call('DEL', KEYS[1])
+else
+    redis.call('SADD', occupants .. to, user)
+    redis.call('EXPIRE', occupants .. to, ttl)
+    redis.call('EXPIRE', clones .. to, ttl)
+    redis.call('SET', KEYS[1], to, 'EX', ttl)
+end
+return {from, tostring(empty)}
+`)
+
+func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) VoiceMove {
 	m := Member{GuildID: seat.GuildID, UserID: seat.UserID}
-	prev, _ := s.client.Do(ctx, s.client.B().Get().Key(seatKey(m)).Build()).ToString()
-
-	var left string
-	var leftEmpty bool
-	if prev != "" {
-		left = prev
-		leftEmpty = s.leaveVoice(ctx, Channel{ID: prev}, seat.UserID)
+	args := []string{seat.UserID, seat.ChannelID, occupantsKey(Channel{}), cloneKey(Channel{}), voiceTTLArg}
+	got, err := voiceMoveScript.Exec(ctx, s.client, []string{seatKey(m)}, args).AsStrSlice()
+	if err != nil || len(got) != 2 {
+		return VoiceMove{To: seat.ChannelID}
 	}
-
-	if seat.ChannelID == "" {
-		_ = s.client.Do(ctx, s.client.B().Del().Key(seatKey(m)).Build()).Error()
-		return left, leftEmpty
-	}
-
-	_ = s.client.Do(ctx, s.client.B().Sadd().Key(occupantsKey(Channel{ID: seat.ChannelID})).Member(seat.UserID).Build()).Error()
-	_ = s.client.Do(ctx, s.client.B().Set().Key(seatKey(m)).Value(seat.ChannelID).Build()).Error()
-	return left, leftEmpty && prev != seat.ChannelID
-}
-
-func (s valkeyStore) leaveVoice(ctx context.Context, ch Channel, userID string) bool {
-	_ = s.client.Do(ctx, s.client.B().Srem().Key(occupantsKey(ch)).Member(userID).Build()).Error()
-	n, err := s.client.Do(ctx, s.client.B().Scard().Key(occupantsKey(ch)).Build()).AsInt64()
-	if err != nil {
-		return false
-	}
-	return n == 0
+	return VoiceMove{From: got[0], To: seat.ChannelID, LeftEmpty: got[1] == "1"}
 }
 
 func (m *Mem) TrackClone(_ context.Context, c Clone) error {
@@ -128,26 +150,25 @@ func (m *Mem) ForgetClone(_ context.Context, c Clone) error {
 	return nil
 }
 
-func (m *Mem) UpdateVoiceOccupancy(_ context.Context, seat VoiceSeat) (left string, leftEmpty bool) {
+func (m *Mem) UpdateVoiceOccupancy(_ context.Context, seat VoiceSeat) VoiceMove {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	mem := Member{GuildID: seat.GuildID, UserID: seat.UserID}
-	key := mem.key()
-	prev := m.seats[key]
-	if prev != "" {
-		left = prev
-		leftEmpty = m.leaveVoiceLocked(prev, seat.UserID)
+	key := Member{GuildID: seat.GuildID, UserID: seat.UserID}.key()
+	move := VoiceMove{From: m.seats[key], To: seat.ChannelID}
+	if move.From != "" {
+		emptied := m.leaveVoiceLocked(move.From, seat.UserID)
+		move.LeftEmpty = emptied && move.From != seat.ChannelID
 	}
 	if seat.ChannelID == "" {
 		delete(m.seats, key)
-		return left, leftEmpty
+		return move
 	}
 	if m.occupants[seat.ChannelID] == nil {
 		m.occupants[seat.ChannelID] = map[string]struct{}{}
 	}
 	m.occupants[seat.ChannelID][seat.UserID] = struct{}{}
 	m.seats[key] = seat.ChannelID
-	return left, leftEmpty && prev != seat.ChannelID
+	return move
 }
 
 func (m *Mem) leaveVoiceLocked(channelID, userID string) bool {

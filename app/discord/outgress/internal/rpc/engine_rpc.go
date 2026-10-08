@@ -64,7 +64,7 @@ func (h *engineRPC) handleCreate(ctx context.Context, req discordoutgress.Channe
 	got, err := h.rest.CreateChannel(ctx, discapi.GuildChannel{
 		Guild: discapi.Guild{ID: req.GuildID},
 		Spec: discapi.ChannelCreate{
-			Name: req.Name, Type: req.Type, ParentID: req.ParentID, Topic: req.Topic,
+			Name: req.Name, Type: req.Type, ParentID: req.ParentID, Topic: req.Topic, UserLimit: req.UserLimit,
 			PermissionOverwrites: req.Overwrites,
 		},
 	})
