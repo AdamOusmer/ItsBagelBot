@@ -68,18 +68,33 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 }
 
 func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg ddiscord.Config) error {
-	seen := make(map[string]bool)
+	if guildID == "" {
+		return discapi.ErrBadRequest
+	}
+	var wanted []string
 	for _, id := range configChannelIDs(cfg) {
-		if id == "" || seen[id] {
-			continue
+		if id != "" {
+			wanted = append(wanted, id)
 		}
-		if w.discord == nil {
-			return ErrDiscordUnavailable
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
+	if w.discord == nil {
+		return ErrDiscordUnavailable
+	}
+	channels, err := w.discord.ListGuildChannels(ctx, discapi.Guild{ID: guildID})
+	if err != nil {
+		return err
+	}
+	inGuild := make(map[string]bool, len(channels))
+	for _, ch := range channels {
+		inGuild[ch.ID] = true
+	}
+	for _, id := range wanted {
+		if !inGuild[id] {
+			return discapi.ErrForbidden
 		}
-		if err := discapi.RequireGuildChannel(ctx, w.discord, guildID, id); err != nil {
-			return err
-		}
-		seen[id] = true
 	}
 	return nil
 }

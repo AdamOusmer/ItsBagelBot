@@ -75,7 +75,11 @@ package despite describing Discord setup; do not infer Twitch-only ownership
 from that directory name.
 
 Setup reads existing resources and adopts/fills template slots, including pinned
-roles. Config writes have versions and authoritative binding checks. Desk repost
+roles. Lived-in servers get only the missing voice hub, voice category, logs
+channel and ticket/archive categories (no roles, no other channels). Every
+created gated or read-only channel carries an explicit bot member overwrite.
+Config writes verify all configured channel ids (including up to 25 ignored
+channels) against one guild channel listing. Config writes have versions and authoritative binding checks. Desk repost
 remembers the new panel and handles prior deletion independently; ticket close
 orchestration preserves/archive state through its typed RPC/store contract.
 Live/reauth/bot-status/lockdown memos are execution projections, not settings truth.

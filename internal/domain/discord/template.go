@@ -119,7 +119,7 @@ func CommunityChannels() []ChannelSpec {
 		{Name: "VIP", Type: ChannelCategory, AllowRoles: VIPRoles, Bind: "vipcat"},
 		{Name: "vip-lounge", Type: ChannelText, Parent: "VIP", AllowRoles: VIPRoles, Topic: "VIP chat.", Bind: "vip"},
 
-		{Name: "Voice", Type: ChannelCategory},
+		{Name: "Voice", Type: ChannelCategory, Bind: "voicecat"},
 		{Name: "General", Type: ChannelVoice, Parent: "Voice"},
 		{Name: "Watchalong", Type: ChannelVoice, Parent: "Voice"},
 		{Name: "AFK", Type: ChannelVoice, Parent: "Voice"},

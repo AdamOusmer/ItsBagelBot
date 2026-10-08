@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
@@ -96,7 +97,7 @@ func TestSetGuildConfig(t *testing.T) {
 			write := tc.write
 			write.GuildID = "guild-1"
 
-			version, err := workerFor(&fakeDiscord{}, store, tc.offline).SetGuildConfig(context.Background(), write)
+			version, err := workerFor(&fakeDiscord{channels: []discapi.Snowflake{{ID: "123"}}}, store, tc.offline).SetGuildConfig(context.Background(), write)
 
 			require.ErrorIs(t, err, tc.wantErr)
 			require.Equal(t, tc.want, configWrite{Version: version, Stored: readConfig(store)})
@@ -125,6 +126,25 @@ func TestConfigRejectsForeignChannelsBeforeSave(t *testing.T) {
 		require.ErrorIs(t, err, discapi.ErrForbidden, "expected refusal")
 		require.False(t, readConfig(store).Found, "foreign configuration persisted")
 	}
+}
+
+func TestConfigVerifiesManyChannelsWithOneListing(t *testing.T) {
+	ids := make([]string, 0, 25)
+	listed := make([]discapi.Snowflake, 0, 40)
+	for i := range 25 {
+		id := "ignored-" + strconv.Itoa(i)
+		ids = append(ids, id)
+		listed = append(listed, discapi.Snowflake{ID: id})
+	}
+	listed = append(listed, discapi.Snowflake{ID: "live"}, discapi.Snowflake{ID: "logs"})
+	cfg := ddiscord.Config{LiveChannelID: "live", LogChannelID: "logs", LogIgnoredChannels: strings.Join(ids, ",")}
+	store := boundStore(owners{"guild-1": "42"})
+	d := &fakeDiscord{channels: listed}
+
+	_, err := newWorker(d, store).SetGuildConfig(context.Background(), setup.GuildConfigWrite{GuildID: "guild-1", BroadcasterID: "42", Config: cfg})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, d.listCalls)
 }
 
 func guildIDs(n int) []string {

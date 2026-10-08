@@ -83,7 +83,7 @@ func TestCommunityChannelsBindTheRequiredSurfaces(t *testing.T) {
 		binds[ch.Bind] = ch
 	}
 
-	for _, want := range []string{"live", "clips", "welcome", "voice", "logs", "tickets", "ticketcat"} {
+	for _, want := range []string{"live", "clips", "welcome", "voice", "logs", "tickets", "ticketcat", "voicecat"} {
 		assert.Contains(t, binds, want, "template missing bind %q", want)
 	}
 	assert.Equal(t, ChannelVoice, binds["voice"].Type, "the voice bind is the voice hub")
