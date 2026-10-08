@@ -5,13 +5,14 @@ package discordstore_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/internal/discordstore"
 )
 
 func TestMemStoreBehavesLikeTheDurableStore(t *testing.T) {
-	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios())
+	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios(), memCacheScenarios())
 	for _, tc := range scenarios {
 		t.Run(tc.name, func(t *testing.T) {
 			runSteps(t, discordstore.NewMem(), nil, tc.steps)
@@ -153,4 +154,29 @@ func TestTicketOverNamesTheTerminalStates(t *testing.T) {
 			t.Fatalf("%q is not terminal", status)
 		}
 	}
+}
+
+func memCacheScenarios() []scenario {
+	long := discordstore.CachedMessage{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", AuthorName: "Ada", Content: strings.Repeat("é", 2000)}
+	clipped := long
+	clipped.Content = strings.Repeat("é", 1024)
+	role := discordstore.LabelRef{Kind: discordstore.LabelRole, GuildID: "g1", ID: "r1"}
+	return []scenario{{
+		name: "a remembered message is recalled with its content clipped to 1024 runes",
+		steps: []step{
+			{do: callFound(store.RecallMessage, discordstore.Message{ID: "m1"}), want: pair(discordstore.CachedMessage{}, false)},
+			{do: call(store.RememberMessage, long), want: nil},
+			{do: callFound(store.RecallMessage, discordstore.Message{ID: "m1"}), want: pair(clipped, true)},
+		},
+	}, {
+		name: "member roles and labels are recalled after they are remembered",
+		steps: []step{
+			{do: callFound(store.RecallRoles, u1), want: pair([]string(nil), false)},
+			{do: call(store.RememberRoles, discordstore.MemberRoles{Member: u1, Roles: []string{"r1"}}), want: nil},
+			{do: callFound(store.RecallRoles, u1), want: pair([]string{"r1"}, true)},
+			{do: callFound(store.RecallLabel, role), want: pair("", false)},
+			{do: call(store.RememberLabel, discordstore.Label{Ref: role, Name: "Mods"}), want: nil},
+			{do: callFound(store.RecallLabel, role), want: pair("Mods", true)},
+		},
+	}}
 }

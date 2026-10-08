@@ -17,7 +17,6 @@ func Message(store discordstore.Store) module.Module {
 	h := messageModule{store: store}
 	b := module.NewModule("message")
 	b.On("MESSAGE_CREATE", h.onCreate)
-	b.On("MESSAGE_DELETE", h.onDelete)
 	b.On("MESSAGE_UPDATE", h.onUpdate)
 	return b.Build()
 }
@@ -34,6 +33,7 @@ func (h messageModule) onCreate(ctx context.Context, c *module.Context, emit mod
 	if ev.Author.Bot || ev.GuildID == "" {
 		return nil
 	}
+	h.remember(ctx, c, ev)
 	if !c.Config.LevelsOn() {
 		return nil
 	}
@@ -46,29 +46,29 @@ func (h messageModule) onCreate(ctx context.Context, c *module.Context, emit mod
 	return nil
 }
 
-func (h messageModule) onDelete(_ context.Context, c *module.Context, emit module.Emit) error {
+func (h messageModule) onUpdate(ctx context.Context, c *module.Context, _ module.Emit) error {
 	ev, err := decode.Decode[decode.MessageEvent](c.Event.Raw)
 	if err != nil {
 		return err
 	}
-	return logLine(c, emit, logEntry{Title: "Message deleted", Body: messageLogBody(ev)})
-}
-
-func (h messageModule) onUpdate(_ context.Context, c *module.Context, emit module.Emit) error {
-	ev, err := decode.Decode[decode.MessageEvent](c.Event.Raw)
-	if err != nil {
-		return err
-	}
-	if ev.Author.Bot {
+	if ev.Author.ID == "" || ev.Author.Bot || ev.GuildID == "" || ev.Content == "" {
 		return nil
 	}
-	return logLine(c, emit, logEntry{Title: "Message edited", Body: messageLogBody(ev)})
+	h.remember(ctx, c, ev)
+	return nil
 }
 
-func messageLogBody(ev decode.MessageEvent) string {
-	body := "Message " + ev.ID + " in <#" + ev.ChannelID + ">"
-	if ev.Content != "" {
-		body += ": " + decode.Clip(ev.Content, 200)
+func (h messageModule) remember(ctx context.Context, c *module.Context, ev decode.MessageEvent) {
+	if !c.Config.LogCategoryOn(ddiscord.LogMessages) {
+		return
 	}
-	return body
+	attachments := make([]string, len(ev.Attachments))
+	for i, a := range ev.Attachments {
+		attachments[i] = a.URL
+	}
+	_ = h.store.RememberMessage(ctx, discordstore.CachedMessage{
+		ID: ev.ID, GuildID: ev.GuildID, ChannelID: ev.ChannelID,
+		AuthorID: ev.Author.ID, AuthorName: decode.DisplayName(decode.Display{User: ev.Author}),
+		Content: ev.Content, Attachments: attachments,
+	})
 }
