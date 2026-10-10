@@ -1,51 +1,51 @@
 {
   "label": "AutoMod",
-  "tagline": "Detecte golpes, capturadores de IP e spam de raids antes dos seus moderadores.",
-  "description": "AutoMod monitora o chat em busca de mensagens nocivas e enxurradas de raids, para seus moderadores também aproveitarem a transmissão. Conforme a gravidade da mensagem, pode advertir o remetente, remover a mensagem ou aplicar uma restrição temporária no chat ou um banimento. VIPs, moderadores e você sempre são isentos, e casos duvidosos ficam para seus moderadores humanos. Escolha um nível de Nenhum a Todos e ajuste cada verificação abaixo. Uma proteção mínima (ofensas discriminatórias e links que capturam IP) permanece ativa em todos os níveis, mesmo com o módulo desativado, pois esse conteúdo pode colocar seu canal e o bot em risco na Twitch. O resto é com você.",
+  "tagline": "Primeiro suas listas de bloqueio, depois um painel de modelos de IA para o que estiver em dúvida.",
+  "description": "O AutoMod confere cada mensagem do chat com as regras abaixo antes de tudo: seus termos bloqueados, as listas de termos adultos, ofensas e ódio, frases de spam, sites bloqueados ou que capturam IP, contas bloqueadas e a chave de todos os links. Uma mensagem que bate com alguma delas é removida. O que essas regras não resolvem vai para um painel de modelos de IA que avaliam toxicidade e ódio no contexto. Esse painel ainda está aprendendo no chat ao vivo: ele registra o que faria, mas nunca remove, silencia ou bane sozinho, então os casos duvidosos ficam com seus mods.",
   "settings": {
-    "level": {
-      "label": "Nível de aplicação",
-      "help": "Define o padrão de todas as verificações abaixo. A proteção mínima vale em todos os níveis.",
-      "placeholder": "moderate",
-      "options": {
-        "none": "Nenhum - somente proteção mínima",
-        "basic": "Básico - proteção mínima + assédio",
-        "moderate": "Moderado - recomendado (padrão)",
-        "strict": "Todos - todas as verificações, rigor familiar"
-      }
-    },
-    "harassment": {
-      "label": "Assédio",
-      "help": "Mensagens feitas para ferir alguém: o remetente recebe uma advertência e a mensagem é removida. Se continuar, vem uma restrição temporária no chat e depois um banimento."
-    },
-    "sexual": {
-      "label": "Conteúdo sexual",
-      "help": "Remove mensagens com termos sexuais explícitos."
-    },
-    "profanity": {
-      "label": "Palavrões",
-      "help": "Remove palavrões comuns. Desativado por padrão: a maioria dos canais permite."
-    },
-    "style": {
-      "label": "Spam de maiúsculas e símbolos",
-      "help": "Remove gritaria, paredes de símbolos e enxurradas de caracteres. Paredes de emotes (spam de KEKW) são reconhecidas e nunca sinalizadas."
-    },
-    "links": {
-      "label": "Radar de spam de links",
-      "help": "Monitora o mesmo padrão de link publicado por várias contas e remove a onda. Links isolados nunca são afetados."
-    },
-    "clips_only": {
-      "label": "Somente clipes da Twitch",
-      "help": "Remove mensagens com qualquer link que não seja um clipe da Twitch (clips.twitch.tv/… ou twitch.tv/…/clip/…). Desativado por padrão: ative quando o chat só deve compartilhar clipes."
-    },
     "block_terms": {
       "label": "Termos bloqueados",
-      "help": "Palavras ou frases extras para sinalizar no seu canal. Separe por vírgulas ou quebras de linha. Detectadas mesmo com disfarces (l33t, letras parecidas).",
+      "help": "Palavras ou frases removidas no seu canal. Separe com vírgulas ou quebras de linha. Detectadas como palavras inteiras, sem diferenciar maiúsculas.",
       "placeholder": "termo um, termo dois"
     },
-    "allow_terms": {
-      "label": "Termos permitidos",
-      "help": "Palavras aceitas no seu canal: uma linha com uma delas nunca é sinalizada pelas verificações acima ou pelos termos bloqueados. Não pode anular a proteção mínima."
+    "nsfw_terms": {
+      "label": "Termos adultos",
+      "help": "Palavras sexuais ou adultas removidas na hora. Separe com vírgulas ou quebras de linha.",
+      "placeholder": "termo um, termo dois"
+    },
+    "slur_terms": {
+      "label": "Ofensas",
+      "help": "Ofensas que seu canal nunca quer ver. Separe com vírgulas ou quebras de linha.",
+      "placeholder": "termo um, termo dois"
+    },
+    "racism_terms": {
+      "label": "Termos de ódio",
+      "help": "Palavras e frases racistas ou de ódio removidas na hora. Separe com vírgulas ou quebras de linha.",
+      "placeholder": "termo um, termo dois"
+    },
+    "spam_phrases": {
+      "label": "Frases de spam",
+      "help": "Frases que só spammers postam, como venda de seguidores ou espectadores. Separe com vírgulas ou quebras de linha.",
+      "placeholder": "comprar seguidores, espectadores baratos"
+    },
+    "block_links": {
+      "label": "Bloquear todos os links",
+      "help": "Remove qualquer mensagem com link, inclusive um domínio solto como exemplo.com. Desligado por padrão."
+    },
+    "blocked_domains": {
+      "label": "Sites bloqueados",
+      "help": "Remove links para esses sites e todos os subdomínios. Digite domínios simples como exemplo.com, sem https:// nem caminho.",
+      "placeholder": "exemplo.com"
+    },
+    "ip_logger_domains": {
+      "label": "Sites que capturam IP",
+      "help": "Sites de rastreamento ou captura de IP que são removidos. Digite domínios simples como grabify.link.",
+      "placeholder": "grabify.link"
+    },
+    "blocked_accounts": {
+      "label": "Contas bloqueadas",
+      "help": "IDs de usuário da Twitch (números, não nomes de usuário) cujas mensagens são sempre removidas. Separe com vírgulas ou quebras de linha.",
+      "placeholder": "123456789"
     }
   }
 }

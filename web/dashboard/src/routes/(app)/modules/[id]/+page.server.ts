@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
+import { automodConfigIssue, moduleDef, translate, type AutomodIssue, type Locale, type MessageKey, type ModuleDef, MOD } from '@bagel/kit';
 import { listModulesForEditing, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
@@ -97,6 +97,9 @@ export const actions: Actions = {
     const enabled = DEMO ? f.get('is_enabled') === 'on' : await gatedEnabled(uid, def, f.get('is_enabled') === 'on');
     const config = DEMO ? buildConfig(def, f) : await attachLinkedUUID(def, buildConfig(def, f), locals);
 
+    const invalid = automodInvalid(def, config, locals.locale);
+    if (invalid) return invalid;
+
     if (DEMO) return { ok: true, enabled };
 
     try {
@@ -121,12 +124,35 @@ export const actions: Actions = {
     const requested = f.get('is_enabled') === 'on';
     const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
 
-    if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
+    if (DEMO) return automodInvalid(def, partial, locals.locale) ?? { ok: true, rev: expectedRev + 1, conflict: false };
+
+    if (def.id === MOD.automod && Object.keys(partial).length > 0) {
+      const current = (await listModulesForEditing(uid)).find((r) => r.name === def.id);
+      const invalid = automodInvalid(def, { ...moduleEditState(current).config, ...partial }, locals.locale);
+      if (invalid) return invalid;
+    }
 
     const enabled = await gatedEnabled(uid, def, requested);
     return applyPatch(def, uid, { enabled, expectedRev, partial: await attachLinkedUUID(def, partial, locals) }, locals.session);
   }
 };
+
+const AUTOMOD_ISSUE_KEYS: Record<AutomodIssue['code'], MessageKey> = {
+  term: 'serverErrors.automodTerm',
+  domain: 'serverErrors.automodDomain',
+  account: 'serverErrors.automodAccount',
+  tooMany: 'serverErrors.automodTooMany',
+  tooLarge: 'serverErrors.automodTooLarge'
+};
+
+// The Rust AutoMod drops a channel's whole policy when one entry fails to compile, so refuse it here.
+function automodInvalid(def: ModuleDef, config: Record<string, string>, locale: Locale) {
+  if (def.id !== MOD.automod) return null;
+  const issue = automodConfigIssue(config);
+  if (!issue) return null;
+  const error = translate(locale, AUTOMOD_ISSUE_KEYS[issue.code], { entry: issue.entry ?? '' });
+  return fail(400, { ok: false, invalid: true, error, field: issue.field });
+}
 
 async function applyPatch(
   def: ModuleDef,

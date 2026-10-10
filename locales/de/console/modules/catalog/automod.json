@@ -1,51 +1,51 @@
 {
   "label": "AutoMod",
-  "tagline": "Fange Betrugsversuche, IP-Grabber und Raid-Spam ab, bevor deine Mods es tun.",
-  "description": "AutoMod beobachtet den Chat auf schädliche Nachrichten und Raid-Fluten, damit auch deine Mods den Stream genießen können. Je nach Schwere einer Nachricht kann es den Absender warnen, die Nachricht entfernen oder einen Chat-Timeout oder Bann verhängen. VIPs, Mods und du sind immer ausgenommen; Grenzfälle bleiben deinen menschlichen Mods überlassen. Wähle eine Stufe von Keine bis Alle und passe dann die einzelnen Prüfungen unten an. Ein kleiner Basisschutz (Hassbeleidigungen und IP-Grabber-Links) bleibt auf jeder Stufe aktiv, auch bei deaktiviertem Modul, weil solche Inhalte deinen Kanal und den Bot auf Twitch gefährden können. Den Rest entscheidest du.",
+  "tagline": "Zuerst deine Sperrlisten, dann ein Gremium aus KI-Modellen für alles Unklare.",
+  "description": "AutoMod prüft jede Chatnachricht zuerst mit den Regeln unten: deine gesperrten Begriffe, die Listen für Erwachsenen-, Beleidigungs- und Hassbegriffe, Spam-Phrasen, gesperrte oder IP-Grabber-Seiten, gesperrte Konten und den Schalter für alle Links. Eine Nachricht, die auf eine davon passt, wird entfernt. Was diese Regeln nicht klären, geht an ein Gremium aus KI-Modellen, die Toxizität und Hass im Kontext bewerten. Dieses Gremium lernt noch im Live-Chat: Es hält fest, was es tun würde, entfernt, timeoutet oder bannt aber nie selbst, Grenzfälle bleiben also bei deinen Mods.",
   "settings": {
-    "level": {
-      "label": "Eingriffsstufe",
-      "help": "Legt die Voreinstellung für alle folgenden Prüfungen fest. Der Basisschutz gilt auf jeder Stufe.",
-      "placeholder": "moderat",
-      "options": {
-        "none": "Keine – nur Basisschutz",
-        "basic": "Basis – Basisschutz + Belästigung",
-        "moderate": "Moderat – empfohlen (Standard)",
-        "strict": "Alle – jede Prüfung, streng familienfreundlich"
-      }
-    },
-    "harassment": {
-      "label": "Belästigung",
-      "help": "Nachrichten, die jemanden verletzen sollen: Der Absender wird gewarnt und die Nachricht entfernt. Bei Wiederholung folgt ein Chat-Timeout, dann ein Bann."
-    },
-    "sexual": {
-      "label": "Sexuelle Inhalte",
-      "help": "Entfernt Nachrichten mit expliziten sexuellen Begriffen."
-    },
-    "profanity": {
-      "label": "Schimpfwörter",
-      "help": "Entfernt gewöhnliche Schimpfwörter. Standardmäßig aus: Die meisten Kanäle erlauben sie."
-    },
-    "style": {
-      "label": "Großbuchstaben- und Symbol-Spam",
-      "help": "Entfernt Schreien, Symbolwände und Zeichenfluten. Emote-Wände (KEKW-Spam) werden erkannt und nie beanstandet."
-    },
-    "links": {
-      "label": "Link-Spam-Radar",
-      "help": "Erkennt dieselbe Link-Vorlage von vielen verschiedenen Konten und entfernt die Welle. Einzelne Links werden nie angefasst."
-    },
-    "clips_only": {
-      "label": "Nur Twitch-Clips",
-      "help": "Entfernt Nachrichten mit Links, die keine Twitch-Clips sind (clips.twitch.tv/… oder twitch.tv/…/clip/…). Standardmäßig aus: Aktiviere dies, wenn der Chat nur Clips teilen soll."
-    },
     "block_terms": {
-      "label": "Blockierte Begriffe",
-      "help": "Zusätzliche Wörter oder Ausdrücke, die in deinem Kanal beanstandet werden sollen. Mit Kommas oder Zeilenumbrüchen trennen. Werden auch bei Verschleierung erkannt (l33t, ähnlich aussehende Buchstaben).",
-      "placeholder": "erster Begriff, zweiter Begriff"
+      "label": "Gesperrte Begriffe",
+      "help": "Wörter oder Phrasen, die in deinem Kanal entfernt werden. Mit Kommas oder Zeilenumbrüchen trennen. Erkannt als ganze Wörter, ohne Groß- und Kleinschreibung.",
+      "placeholder": "Begriff eins, Begriff zwei"
     },
-    "allow_terms": {
-      "label": "Erlaubte Begriffe",
-      "help": "Wörter, die in deinem Kanal in Ordnung sind: Eine Zeile mit einem davon wird weder von den obigen Prüfungen noch wegen deiner blockierten Begriffe beanstandet. Kann den Basisschutz nicht außer Kraft setzen."
+    "nsfw_terms": {
+      "label": "Erwachsenenbegriffe",
+      "help": "Sexuelle oder nicht jugendfreie Wörter, die sofort entfernt werden. Mit Kommas oder Zeilenumbrüchen trennen.",
+      "placeholder": "Begriff eins, Begriff zwei"
+    },
+    "slur_terms": {
+      "label": "Beleidigungen",
+      "help": "Beleidigungen, die dein Kanal nie sehen will. Mit Kommas oder Zeilenumbrüchen trennen.",
+      "placeholder": "Begriff eins, Begriff zwei"
+    },
+    "racism_terms": {
+      "label": "Hassbegriffe",
+      "help": "Rassistische oder hasserfüllte Wörter und Phrasen, die sofort entfernt werden. Mit Kommas oder Zeilenumbrüchen trennen.",
+      "placeholder": "Begriff eins, Begriff zwei"
+    },
+    "spam_phrases": {
+      "label": "Spam-Phrasen",
+      "help": "Phrasen, die nur Spammer posten, etwa Angebote für Follower oder Zuschauer. Mit Kommas oder Zeilenumbrüchen trennen.",
+      "placeholder": "Follower kaufen, billige Zuschauer"
+    },
+    "block_links": {
+      "label": "Alle Links sperren",
+      "help": "Entfernt jede Nachricht mit einem Link, auch reine Domains wie example.com. Standardmäßig aus."
+    },
+    "blocked_domains": {
+      "label": "Gesperrte Seiten",
+      "help": "Entfernt Links zu diesen Seiten und all ihren Subdomains. Reine Domains wie example.com eingeben, ohne https:// oder Pfad.",
+      "placeholder": "example.com"
+    },
+    "ip_logger_domains": {
+      "label": "IP-Grabber-Seiten",
+      "help": "IP-Logger- oder Tracking-Seiten, die entfernt werden. Reine Domains wie grabify.link eingeben.",
+      "placeholder": "grabify.link"
+    },
+    "blocked_accounts": {
+      "label": "Gesperrte Konten",
+      "help": "Twitch-Nutzer-IDs (Zahlen, keine Nutzernamen), deren Nachrichten immer entfernt werden. Mit Kommas oder Zeilenumbrüchen trennen.",
+      "placeholder": "123456789"
     }
   }
 }

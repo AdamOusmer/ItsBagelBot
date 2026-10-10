@@ -40,6 +40,7 @@ export * from './feature-presets';
 export * from './connection-state';
 export * from './command-active';
 export * from './discord-config';
+export * from './automod-policy';
 export * from './discord-overview';
 export * from './engine/commands-validate';
 export * from './engine/validation-messages';
