@@ -28,7 +28,7 @@
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { getI18n, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -90,7 +90,8 @@
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 4000)]);
   }
 
-  type PatchOutcome = 'saved' | 'conflict' | 'failed';
+  // 'invalid': the server refused a setting value; runPatch already toasted its reason.
+  type PatchOutcome = 'saved' | 'conflict' | 'failed' | 'invalid';
   let writeChain: Promise<unknown> = Promise.resolve();
   let writeGeneration = 0;
   type RefetchEdits = { partial: Record<string, string>; enabled?: boolean };
@@ -121,7 +122,7 @@
     const result = deserialize(await res.text());
     const payload =
       result.type === 'success' || result.type === 'failure'
-        ? (result.data as { ok?: boolean; rev?: number; conflict?: boolean } | undefined)
+        ? (result.data as { ok?: boolean; rev?: number; conflict?: boolean; invalid?: boolean; error?: string } | undefined)
         : undefined;
     if (result.type === 'success' && payload?.ok) {
       if (typeof payload.rev === 'number') rev = payload.rev;
@@ -131,6 +132,10 @@
       await reloadAfterConflict();
       toast('danger', t('modules.patchConflict'));
       return 'conflict';
+    }
+    if (result.type === 'failure' && payload?.invalid && payload.error) {
+      toast('danger', payload.error);
+      return 'invalid';
     }
     return 'failed';
   }
@@ -171,18 +176,13 @@
     if (outcome === 'saved') ackSaved(`setting:${key}`);
     else {
       flagError(`setting:${key}`);
-      if (outcome === 'failed') {
-        config = { ...config, [key]: before };
-        toast('danger', t('modules.saveFailed'));
-      }
+      if (outcome === 'failed' || outcome === 'invalid') config = { ...config, [key]: before };
+      if (outcome === 'failed') toast('danger', t('modules.saveFailed'));
     }
   }
 
   function settingToggleOn(field: ModuleField): boolean {
-    const v = config[field.key] ?? '';
-    if (v === 'on') return true;
-    if (v === 'off') return false;
-    return field.followsLevel ? automodToggleDefault(config['level'] || 'moderate', field.key) : false;
+    return config[field.key] === 'on';
   }
 
   function replyOn(reply: ModuleReply): boolean {

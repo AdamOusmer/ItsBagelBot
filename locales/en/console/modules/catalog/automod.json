@@ -1,51 +1,51 @@
 {
   "label": "AutoMod",
-  "tagline": "Catch scams, IP-grabbers and raid spam before your mods do.",
-  "description": "AutoMod keeps an eye on chat for harmful messages and raid floods, so your mods can enjoy the stream too. Depending on how serious a message is, it can warn the sender, remove the message, or hand out a timeout or ban. VIPs, mods and you are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then adjust each check below. A small safety floor (hate slurs and IP-grabber links) stays on at every level, even with the module off, because that content can put your channel and the bot at risk on Twitch. The rest is up to you.",
+  "tagline": "Your blocklists first, then a panel of AI models on anything uncertain.",
+  "description": "AutoMod checks every chat message against the rules below before anything else: your blocked terms, adult, slur and hate lists, spam phrases, blocked or IP-grabber sites, blocked accounts and the all-links switch. A message that matches one is removed. Anything those rules do not settle goes to a panel of AI models that score toxicity and hate in context. That panel is still learning on live chat: it records what it would do but never removes, times out or bans on its own, so borderline calls stay with your human mods.",
   "settings": {
-    "level": {
-      "label": "Enforcement level",
-      "help": "Sets the default for every check below. The safety floor applies at every level.",
-      "placeholder": "moderate",
-      "options": {
-        "none": "None - safety floor only",
-        "basic": "Basic - floor + harassment",
-        "moderate": "Moderate - recommended (default)",
-        "strict": "All - every check, family-strict"
-      }
-    },
-    "harassment": {
-      "label": "Harassment",
-      "help": "Messages meant to hurt someone: the sender gets a warning and the message is removed. If it keeps happening, a timeout comes next, then a ban."
-    },
-    "sexual": {
-      "label": "Sexual content",
-      "help": "Removes messages with explicit sexual terms."
-    },
-    "profanity": {
-      "label": "Profanity",
-      "help": "Removes plain swearing. Off by default: most channels allow it."
-    },
-    "style": {
-      "label": "Caps & symbol spam",
-      "help": "Removes shouting, symbol walls and character floods. Emote walls (KEKW spam) are recognized and never flagged."
-    },
-    "links": {
-      "label": "Link-spam radar",
-      "help": "Watches for the same link template posted by many different accounts and removes the wave. Single links are never touched."
-    },
-    "clips_only": {
-      "label": "Twitch clips only",
-      "help": "Removes messages that contain any link other than a Twitch clip (clips.twitch.tv/… or twitch.tv/…/clip/…). Off by default: turn on when chat should only share clips."
-    },
     "block_terms": {
       "label": "Blocked terms",
-      "help": "Extra words or phrases to flag in your channel. Separate with commas or new lines. Matched even through obfuscation (l33t, look-alike letters).",
+      "help": "Words or phrases to remove in your channel. Separate with commas or new lines. Matched as whole words, ignoring case.",
       "placeholder": "term one, term two"
     },
-    "allow_terms": {
-      "label": "Allowed terms",
-      "help": "Words that are fine in your channel: a line containing one is never flagged by the checks above or your blocked terms. Cannot override the safety floor."
+    "nsfw_terms": {
+      "label": "Adult terms",
+      "help": "Sexual or adult words to remove on sight. Separate with commas or new lines.",
+      "placeholder": "term one, term two"
+    },
+    "slur_terms": {
+      "label": "Slurs",
+      "help": "Slurs your channel never wants to see. Separate with commas or new lines.",
+      "placeholder": "term one, term two"
+    },
+    "racism_terms": {
+      "label": "Hate terms",
+      "help": "Racist or hateful words and phrases to remove on sight. Separate with commas or new lines.",
+      "placeholder": "term one, term two"
+    },
+    "spam_phrases": {
+      "label": "Spam phrases",
+      "help": "Phrases only spammers post, like follower or viewer sales pitches. Separate with commas or new lines.",
+      "placeholder": "buy followers, cheap viewers"
+    },
+    "block_links": {
+      "label": "Block all links",
+      "help": "Removes every message that contains a link, including bare domains like example.com. Off by default."
+    },
+    "blocked_domains": {
+      "label": "Blocked sites",
+      "help": "Removes links to these sites and all their subdomains. Enter bare domains like example.com, without https:// or a path.",
+      "placeholder": "example.com"
+    },
+    "ip_logger_domains": {
+      "label": "IP-grabber sites",
+      "help": "IP-logger or tracking sites to remove. Enter bare domains like grabify.link.",
+      "placeholder": "grabify.link"
+    },
+    "blocked_accounts": {
+      "label": "Blocked accounts",
+      "help": "Twitch user IDs (numbers, not usernames) whose messages are always removed. Separate with commas or new lines.",
+      "placeholder": "123456789"
     }
   }
 }
