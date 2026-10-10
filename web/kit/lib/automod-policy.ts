@@ -30,20 +30,24 @@ export function splitAutomodList(value: string | undefined): string[] {
     .filter((v) => v !== '');
 }
 
+const ENCODER = new TextEncoder();
+
 // Rust's search view drops invisible format characters before measuring a term.
 const IGNORED = /[\p{Cf}\p{Cc}]/gu;
 
 function validTerm(term: string): boolean {
-  if (byteLength(term) > AUTOMOD_MAX_TERM_BYTES) return false;
-  const visible = term.replace(IGNORED, '');
-  const chars = [...visible.toLowerCase()].length;
+  if (ENCODER.encode(term).length > AUTOMOD_MAX_TERM_BYTES) return false;
+  const chars = [...term.replace(IGNORED, '').toLowerCase()].length;
   return chars > 0 && chars <= AUTOMOD_MAX_TERM_CHARS;
 }
 
-const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
-const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+// Everything Rust's canonical_host refuses before it parses the value.
+const FORBIDDEN_HOST_CHARS = /[\s/@\\?#]/;
+// Up to 253 characters of dot-separated labels, each 1-63 letters, digits or inner hyphens.
+const DNS_NAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
-function urlHost(value: string): string | null {
+// Internationalized names come back in punycode, as Rust checks them.
+function hostOf(value: string): string | null {
   try {
     return new URL(`https://${value}`).hostname;
   } catch {
@@ -51,25 +55,12 @@ function urlHost(value: string): string | null {
   }
 }
 
-// Everything Rust's canonical_host refuses before it parses the value.
-function malformedHost(value: string): boolean {
-  if (!value || byteLength(value) > AUTOMOD_MAX_HOST_BYTES) return true;
-  return /[\s/@\\?#]/.test(value) || value.endsWith('.');
-}
-
-// Internationalized names are checked in their punycode form, as Rust does.
-function validNamedHost(value: string): boolean {
-  if (value.includes(':')) return false;
-  if (IPV4.test(value)) return true;
-  const host = urlHost(value);
-  return host !== null && host.length <= 253 && host.split('.').every((label) => DNS_LABEL.test(label));
-}
-
 /** A bare host such as grabify.link, 1.2.3.4 or [::1]; no scheme, path, port or trailing dot. */
 export function validAutomodDomain(value: string): boolean {
-  if (malformedHost(value)) return false;
-  if (!value.startsWith('[')) return validNamedHost(value);
-  return value.endsWith(']') && urlHost(value) === value.toLowerCase();
+  if (ENCODER.encode(value).length > AUTOMOD_MAX_HOST_BYTES || FORBIDDEN_HOST_CHARS.test(value) || value.endsWith('.')) return false;
+  const host = hostOf(value);
+  if (value.startsWith('[')) return value.endsWith(']') && host === value.toLowerCase();
+  return !value.includes(':') && host !== null && DNS_NAME.test(host);
 }
 
 /** Twitch numeric user id: Rust matches the sender id, never a login. */
@@ -77,8 +68,9 @@ export function validAutomodAccount(value: string): boolean {
   return /^[1-9]\d{0,19}$/.test(value);
 }
 
-function byteLength(value: string): number {
-  return new TextEncoder().encode(value).length;
+interface ListScan {
+  issue: AutomodIssue | null;
+  count: number;
 }
 
 /** First entry across `fields` that `valid` rejects, plus how many entries were seen. */
@@ -87,7 +79,7 @@ function scanLists(
   fields: readonly string[],
   code: AutomodIssueCode,
   valid: (entry: string) => boolean
-): { issue: AutomodIssue | null; count: number } {
+): ListScan {
   let count = 0;
   for (const field of fields) {
     const list = splitAutomodList(config[field]);
@@ -98,16 +90,18 @@ function scanLists(
   return { issue: null, count };
 }
 
+// Rust caps all terms, the categorized static terms, and sites plus accounts at 256 each.
+function budgetIssue(terms: ListScan, blockTerms: number, others: number): AutomodIssue | null {
+  const over = terms.count > AUTOMOD_MAX_RULES || terms.count - blockTerms > AUTOMOD_MAX_RULES || others > AUTOMOD_MAX_RULES;
+  return over ? { code: 'tooMany' } : null;
+}
+
 /** First reason the Rust AutoMod would refuse this config, or null when it compiles. */
 export function automodConfigIssue(config: Record<string, string>): AutomodIssue | null {
-  if (byteLength(JSON.stringify(config)) > AUTOMOD_MAX_CONFIG_BYTES) return { code: 'tooLarge' };
+  if (ENCODER.encode(JSON.stringify(config)).length > AUTOMOD_MAX_CONFIG_BYTES) return { code: 'tooLarge' };
   const terms = scanLists(config, AUTOMOD_TERM_KEYS, 'term', validTerm);
-  if (terms.issue) return terms.issue;
-  const staticTerms = terms.count - splitAutomodList(config.block_terms).length;
-  if (terms.count > AUTOMOD_MAX_RULES || staticTerms > AUTOMOD_MAX_RULES) return { code: 'tooMany' };
   const domains = scanLists(config, AUTOMOD_DOMAIN_KEYS, 'domain', validAutomodDomain);
-  if (domains.issue) return domains.issue;
   const accounts = scanLists(config, [AUTOMOD_ACCOUNT_KEY], 'account', validAutomodAccount);
-  if (accounts.issue) return accounts.issue;
-  return domains.count + accounts.count > AUTOMOD_MAX_RULES ? { code: 'tooMany' } : null;
+  const blockTerms = splitAutomodList(config.block_terms).length;
+  return terms.issue ?? domains.issue ?? accounts.issue ?? budgetIssue(terms, blockTerms, domains.count + accounts.count);
 }
