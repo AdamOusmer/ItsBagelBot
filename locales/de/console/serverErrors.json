@@ -82,5 +82,10 @@
   "fetchRate": "Zu viele Testläufe. Jeder ruft die echte API auf. Warte etwa 10 Sekunden und versuche es erneut.",
   "fixFields": "Korrigiere zuerst die hervorgehobenen Felder.",
   "fetchService": "Der Abrufdienst hat nicht geantwortet. Versuche es gleich erneut.",
-  "premiumAlreadyHeld": "Dieses Konto hat bereits Premium-Zugang. Ein erneutes Abonnement ist gesperrt, solange der aktuelle Gewinn oder Tarif abgeglichen wird."
+  "premiumAlreadyHeld": "Dieses Konto hat bereits Premium-Zugang. Ein erneutes Abonnement ist gesperrt, solange der aktuelle Gewinn oder Tarif abgeglichen wird.",
+  "automodTerm": "„{entry}“ kann nicht als Begriff verwendet werden. Er braucht mindestens ein sichtbares Zeichen und höchstens 128.",
+  "automodDomain": "„{entry}“ ist keine reine Domain. Gib sie wie example.com ein, ohne https:// oder Pfad.",
+  "automodAccount": "„{entry}“ ist keine Twitch-Nutzer-ID. Verwende die numerische ID, nicht den Nutzernamen.",
+  "automodTooMany": "AutoMod erlaubt höchstens 256 Begriffe und höchstens 256 Seiten und Konten zusammen.",
+  "automodTooLarge": "Diese AutoMod-Einstellungen überschreiten das Limit von 16 KB. Kürze einige Listen."
 }

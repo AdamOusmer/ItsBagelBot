@@ -34,7 +34,7 @@ export function splitAutomodList(value: string | undefined): string[] {
 const IGNORED = /[\p{Cf}\p{Cc}]/gu;
 
 function validTerm(term: string): boolean {
-  if (new TextEncoder().encode(term).length > AUTOMOD_MAX_TERM_BYTES) return false;
+  if (byteLength(term) > AUTOMOD_MAX_TERM_BYTES) return false;
   const visible = term.replace(IGNORED, '');
   const chars = [...visible.toLowerCase()].length;
   return chars > 0 && chars <= AUTOMOD_MAX_TERM_CHARS;
@@ -45,7 +45,7 @@ const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1
 
 /** A bare host such as grabify.link, 1.2.3.4 or [::1]; no scheme, path, port or trailing dot. */
 export function validAutomodDomain(value: string): boolean {
-  if (!value || new TextEncoder().encode(value).length > AUTOMOD_MAX_HOST_BYTES) return false;
+  if (!value || byteLength(value) > AUTOMOD_MAX_HOST_BYTES) return false;
   if (/[\s/@\\?#]/.test(value) || value.endsWith('.')) return false;
   if (value.startsWith('[')) {
     if (!value.endsWith(']')) return false;
@@ -72,32 +72,37 @@ export function validAutomodAccount(value: string): boolean {
   return /^[1-9]\d{0,19}$/.test(value);
 }
 
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/** First entry across `fields` that `valid` rejects, plus how many entries were seen. */
+function scanLists(
+  config: Record<string, string>,
+  fields: readonly string[],
+  code: AutomodIssueCode,
+  valid: (entry: string) => boolean
+): { issue: AutomodIssue | null; count: number } {
+  let count = 0;
+  for (const field of fields) {
+    const list = splitAutomodList(config[field]);
+    const entry = list.find((value) => !valid(value));
+    if (entry !== undefined) return { issue: { code, field, entry }, count };
+    count += list.length;
+  }
+  return { issue: null, count };
+}
+
 /** First reason the Rust AutoMod would refuse this config, or null when it compiles. */
 export function automodConfigIssue(config: Record<string, string>): AutomodIssue | null {
-  if (new TextEncoder().encode(JSON.stringify(config)).length > AUTOMOD_MAX_CONFIG_BYTES) {
-    return { code: 'tooLarge' };
-  }
-  let terms = 0;
-  let staticTerms = 0;
-  for (const field of AUTOMOD_TERM_KEYS) {
-    const list = splitAutomodList(config[field]);
-    const bad = list.find((term) => !validTerm(term));
-    if (bad !== undefined) return { code: 'term', field, entry: bad };
-    terms += list.length;
-    if (field !== 'block_terms') staticTerms += list.length;
-  }
-  if (terms > AUTOMOD_MAX_RULES || staticTerms > AUTOMOD_MAX_RULES) return { code: 'tooMany' };
-  let others = 0;
-  for (const field of AUTOMOD_DOMAIN_KEYS) {
-    const list = splitAutomodList(config[field]);
-    const bad = list.find((domain) => !validAutomodDomain(domain));
-    if (bad !== undefined) return { code: 'domain', field, entry: bad };
-    others += list.length;
-  }
-  const accounts = splitAutomodList(config[AUTOMOD_ACCOUNT_KEY]);
-  const bad = accounts.find((id) => !validAutomodAccount(id));
-  if (bad !== undefined) return { code: 'account', field: AUTOMOD_ACCOUNT_KEY, entry: bad };
-  others += accounts.length;
-  if (others > AUTOMOD_MAX_RULES) return { code: 'tooMany' };
-  return null;
+  if (byteLength(JSON.stringify(config)) > AUTOMOD_MAX_CONFIG_BYTES) return { code: 'tooLarge' };
+  const terms = scanLists(config, AUTOMOD_TERM_KEYS, 'term', validTerm);
+  if (terms.issue) return terms.issue;
+  const staticTerms = terms.count - splitAutomodList(config.block_terms).length;
+  if (terms.count > AUTOMOD_MAX_RULES || staticTerms > AUTOMOD_MAX_RULES) return { code: 'tooMany' };
+  const domains = scanLists(config, AUTOMOD_DOMAIN_KEYS, 'domain', validAutomodDomain);
+  if (domains.issue) return domains.issue;
+  const accounts = scanLists(config, [AUTOMOD_ACCOUNT_KEY], 'account', validAutomodAccount);
+  if (accounts.issue) return accounts.issue;
+  return domains.count + accounts.count > AUTOMOD_MAX_RULES ? { code: 'tooMany' } : null;
 }
