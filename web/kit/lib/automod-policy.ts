@@ -43,28 +43,33 @@ function validTerm(term: string): boolean {
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 
-/** A bare host such as grabify.link, 1.2.3.4 or [::1]; no scheme, path, port or trailing dot. */
-export function validAutomodDomain(value: string): boolean {
-  if (!value || byteLength(value) > AUTOMOD_MAX_HOST_BYTES) return false;
-  if (/[\s/@\\?#]/.test(value) || value.endsWith('.')) return false;
-  if (value.startsWith('[')) {
-    if (!value.endsWith(']')) return false;
-    try {
-      return new URL(`https://${value}`).hostname === value.toLowerCase();
-    } catch {
-      return false;
-    }
+function urlHost(value: string): string | null {
+  try {
+    return new URL(`https://${value}`).hostname;
+  } catch {
+    return null;
   }
+}
+
+// Everything Rust's canonical_host refuses before it parses the value.
+function malformedHost(value: string): boolean {
+  if (!value || byteLength(value) > AUTOMOD_MAX_HOST_BYTES) return true;
+  return /[\s/@\\?#]/.test(value) || value.endsWith('.');
+}
+
+// Internationalized names are checked in their punycode form, as Rust does.
+function validNamedHost(value: string): boolean {
   if (value.includes(':')) return false;
   if (IPV4.test(value)) return true;
-  let host: string;
-  try {
-    // Internationalized names are checked in their punycode form, as Rust does.
-    host = new URL(`https://${value}`).hostname;
-  } catch {
-    return false;
-  }
-  return host.length <= 253 && host.split('.').every((label) => DNS_LABEL.test(label));
+  const host = urlHost(value);
+  return host !== null && host.length <= 253 && host.split('.').every((label) => DNS_LABEL.test(label));
+}
+
+/** A bare host such as grabify.link, 1.2.3.4 or [::1]; no scheme, path, port or trailing dot. */
+export function validAutomodDomain(value: string): boolean {
+  if (malformedHost(value)) return false;
+  if (!value.startsWith('[')) return validNamedHost(value);
+  return value.endsWith(']') && urlHost(value) === value.toLowerCase();
 }
 
 /** Twitch numeric user id: Rust matches the sender id, never a login. */
