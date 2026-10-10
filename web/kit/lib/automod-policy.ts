@@ -41,8 +41,8 @@ function validTerm(term: string): boolean {
   return chars > 0 && chars <= AUTOMOD_MAX_TERM_CHARS;
 }
 
-// Everything Rust's canonical_host refuses before it parses the value.
-const FORBIDDEN_HOST_CHARS = /[\s/@\\?#]/;
+// What Rust's canonical_host refuses before it parses: separators, whitespace, a trailing dot.
+const FORBIDDEN_HOST_SHAPE = /[\s/@\\?#]|\.$/;
 // Up to 253 characters of dot-separated labels, each 1-63 letters, digits or inner hyphens.
 const DNS_NAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
@@ -57,7 +57,7 @@ function hostOf(value: string): string | null {
 
 /** A bare host such as grabify.link, 1.2.3.4 or [::1]; no scheme, path, port or trailing dot. */
 export function validAutomodDomain(value: string): boolean {
-  if (ENCODER.encode(value).length > AUTOMOD_MAX_HOST_BYTES || FORBIDDEN_HOST_CHARS.test(value) || value.endsWith('.')) return false;
+  if (ENCODER.encode(value).length > AUTOMOD_MAX_HOST_BYTES || FORBIDDEN_HOST_SHAPE.test(value)) return false;
   const host = hostOf(value);
   if (value.startsWith('[')) return value.endsWith(']') && host === value.toLowerCase();
   return !value.includes(':') && host !== null && DNS_NAME.test(host);
