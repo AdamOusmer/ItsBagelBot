@@ -171,7 +171,9 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error {
+		return repository.MigrateSchema(ctx, client, driver.Dialect())
+	})
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	defer repo.Close(context.Background())

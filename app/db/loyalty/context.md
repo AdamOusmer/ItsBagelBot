@@ -48,6 +48,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
 | [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
 | [ent/schema/](ent/schema/) | Balance, Counter, CounterEntry and CounterBatch schemas; watchtime auxiliary tables use raw SQL. |
+| [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, counters and counter entries are clustered on their natural key. |
 
 Shared contracts: [loyalty RPC](../../../internal/domain/rpc/loyalty/),
 [loyalty events](../../../internal/domain/event/data/loyalty_events.go),
@@ -86,6 +87,10 @@ Generated Ent code is not the schema source.
   are decimal JSON strings; balance replies also carry points_exact. Do not narrow
   these to JavaScript Number or the former 2^53 ceiling. Saturated rows can be
   rejected separately; transient/uncertain commits retry.
+- Migrate through `MigrateSchema`, never `client.Schema.Create` alone: on MySQL the
+  counter tables' primary key is the natural key and Ent's `id` is only a unique
+  auto-increment column. An auto-increment primary key, or a locking read of an
+  absent counter row, makes replicas flushing different channels deadlock.
 - Lock retention barrier before account fences, then other posting rows. Counter
   persistence locks owner fences in ascending order; preserve shared lock order.
 - Prune replay markers only after the same source-window barrier rejects replay

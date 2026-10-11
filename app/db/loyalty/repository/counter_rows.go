@@ -36,6 +36,22 @@ func (r *Loyalty) ensureCounterBatchDefinitions(ctx context.Context, tx *sql.Tx,
 	return writeCounterRows(ctx, tx, upsertSpec{label: "counter definitions", insert: "INSERT INTO counters (user_id,name,scope,value,created_at,updated_at) VALUES ", placeholder: "(?, ?, ?, 0, ?, ?)", suffix: suffix}, rows)
 }
 
+// Locking reads of absent entry keys take gap locks that deadlock other channels' inserts, so rows exist before the saturation read.
+func (r *Loyalty) ensureCounterEntryRows(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
+	now := time.Now()
+	var rows [][]any
+	for _, key := range sortedCounterKeys(bumps) {
+		if sum := bumps[key]; entryScoped(sum.scope) && sum.delta > 0 {
+			rows = append(rows, []any{key.userID, key.name, key.command, key.viewerID, sum.login, sum.name, now})
+		}
+	}
+	suffix := " ON DUPLICATE KEY UPDATE value=value"
+	if r.dialect == "sqlite3" {
+		suffix = " ON CONFLICT(user_id,name,command,viewer_id) DO NOTHING"
+	}
+	return writeCounterRows(ctx, tx, upsertSpec{label: "counter entry rows", insert: "INSERT INTO counter_entries (user_id,name,command,viewer_id,viewer_login,viewer_name,value,updated_at) VALUES ", placeholder: "(?, ?, ?, ?, ?, ?, 0, ?)", suffix: suffix}, rows)
+}
+
 func writeCounterRows(ctx context.Context, tx *sql.Tx, spec upsertSpec, rows [][]any) error {
 	for start := 0; start < len(rows); start += upsertChunk {
 		stmt := spec.render(rows[start:min(start+upsertChunk, len(rows))])
@@ -209,10 +225,12 @@ func (s counterInspection) statement(dialect string, keys []bumpKey) chunkStmt {
 			args = append(args, key.command, key.viewerID)
 		}
 	}
-	query := "SELECT " + s.columns + " FROM " + s.table + " WHERE " + strings.Join(predicates, " OR ") + " ORDER BY " + s.ordering
+	from, lock := s.table, ""
+	// The (name,value) index covers this read once the natural key is primary; scanning it locks other channels' rows.
 	if dialect != "sqlite3" {
-		query += " FOR UPDATE"
+		from, lock = s.table+" FORCE INDEX (PRIMARY)", " FOR UPDATE"
 	}
+	query := "SELECT " + s.columns + " FROM " + from + " WHERE " + strings.Join(predicates, " OR ") + " ORDER BY " + s.ordering + lock
 	return chunkStmt{sql: query, args: args}
 }
 
