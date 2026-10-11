@@ -60,6 +60,10 @@ func pullConsumerConfig(subject, name string) jsapi.ConsumerConfig {
 	}
 }
 
+func PullLaneConsumerConfig(group, subject string) jsapi.ConsumerConfig {
+	return pullConsumerConfig(subject, pullConsumerName(group, subject))
+}
+
 // No pod identity: a pod suffix silently turns distribution back into fan-out.
 func pullConsumerName(group, subject string) string {
 	return durableName(group, subject)

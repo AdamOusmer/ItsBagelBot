@@ -22,9 +22,10 @@ type collector struct {
 	warmEnd  unixNano
 
 	e2e      *latencySeries
-	pub      *latencySeries
-	del      *latencySeries
+	proposed *latencySeries
+	received *latencySeries
 	consumed atomic.Int64
+	perPod   [benchPods]seqAccumulator
 
 	bits     [benchPods][]uint64
 	bitsOnce [benchPods]sync.Once
@@ -49,6 +50,7 @@ func (c *collector) handle(msg *bus.Message) error {
 	sentNs := unixNano(binary.BigEndian.Uint64(p[8:16]))
 	c.record(now, sentNs, storedAt(msg))
 	c.consumed.Add(1)
+	c.noteChecksum(seq)
 	c.noteSeq(seq)
 	return nil
 }
@@ -59,8 +61,8 @@ func (c *collector) record(now, sentNs, storedNs unixNano) {
 	if storedNs == 0 {
 		return
 	}
-	c.pub.note(sec, int64(storedNs-sentNs), warm)
-	c.del.note(sec, int64(now-storedNs), warm)
+	c.proposed.note(sec, int64(storedNs-sentNs), warm)
+	c.received.note(sec, int64(now-storedNs), warm)
 }
 
 func (c *collector) missing(feeders int) uint64 {
@@ -247,8 +249,8 @@ func runConsume(lane benchLane, o consumeOptions) error {
 		winEnd:   winEnd,
 		warmEnd:  winStart + unixNano(o.warmup.Nanoseconds()),
 		e2e:      newLatencySeries(seconds),
-		pub:      newLatencySeries(seconds),
-		del:      newLatencySeries(seconds),
+		proposed: newLatencySeries(seconds),
+		received: newLatencySeries(seconds),
 		tracking: true,
 	}
 
@@ -271,17 +273,18 @@ func runConsume(lane benchLane, o consumeOptions) error {
 	_ = sub.Close()
 
 	emit(consumeReport{
-		Consumed:     uint64(c.consumed.Load()),
-		Rate:         float64(c.consumed.Load()) / o.duration.Seconds(),
-		E2ENs:        summarize(c.e2e.sorted()),
-		PubNs:        summarize(c.pub.sorted()),
-		DelNs:        summarize(c.del.sorted()),
-		PerSecP99:    c.e2e.perSecond(99),
-		PerSecPubP50: c.pub.perSecond(50),
-		PerSecDelP50: c.del.perSecond(50),
-		Duplicates:   c.dupes.Load(),
-		Missing:      c.missing(o.feeders),
-		CPUUsPerMsg:  cpuMicrosPerMessage(uint64(c.consumed.Load())),
+		Consumed:          uint64(c.consumed.Load()),
+		Rate:              float64(c.consumed.Load()) / o.duration.Seconds(),
+		E2ENs:             summarize(c.e2e.sorted()),
+		ProposedNs:        summarize(c.proposed.sorted()),
+		ReceivedNs:        summarize(c.received.sorted()),
+		PerSecP99:         c.e2e.perSecond(99),
+		PerSecProposedP50: c.proposed.perSecond(50),
+		PerSecReceivedP50: c.received.perSecond(50),
+		Duplicates:        c.dupes.Load(),
+		Missing:           c.missing(o.feeders),
+		CPUUsPerMsg:       cpuMicrosPerMessage(uint64(c.consumed.Load())),
+		PerPod:            c.podChecksums(),
 	})
 	return nil
 }

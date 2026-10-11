@@ -62,6 +62,7 @@ func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, du
 
 type retentionTarget struct {
 	maxBytes      int64
+	msgsPer       int64
 	maxAge        time.Duration
 	duplicates    time.Duration
 	hasDuplicates bool
@@ -71,6 +72,9 @@ func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
 	changed := false
 	if t.maxBytes > 0 && cfg.MaxBytes != t.maxBytes {
 		cfg.MaxBytes, changed = t.maxBytes, true
+	}
+	if t.msgsPer != 0 && cfg.MaxMsgsPerSubject != t.msgsPer {
+		cfg.MaxMsgsPerSubject, changed = t.msgsPer, true
 	}
 	ageChanged := t.maxAge > 0 && cfg.MaxAge != t.maxAge
 	if ageChanged {
