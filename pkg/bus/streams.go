@@ -82,12 +82,13 @@ var TwitchIngressStream = StreamSpec{
 		"twitch.ingress.event.stream",
 		"twitch.ingress.status.>",
 	},
-	MaxAge:       10 * time.Second,
+	// Age must bind first: MaxMsgsPer/MaxBytes evict inside stream apply, 40k msg/s vs 59-67k with age binding (2026-10-11); 400k/subject binds at 66k/s.
+	MaxAge:       6 * time.Second,
 	Storage:      nats.MemoryStorage,
 	Replicas:     3,
 	MaxBytes:     384 << 20,
 	MaxMsgsPer:   400_000,
-	Duplicates:   10 * time.Second,
+	Duplicates:   6 * time.Second,
 	BatchPublish: true,
 }
 
