@@ -6,7 +6,6 @@ package repository_test
 import (
 	"context"
 	"database/sql"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -20,7 +19,6 @@ import (
 
 	baseent "entgo.io/ent"
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -60,7 +58,7 @@ func watchRetentionRepo(t *testing.T, raw *sql.DB, dialect string) *loyaltyrepo.
 	t.Helper()
 	drv := entsql.OpenDB(dialect, raw)
 	client := ent.NewClient(ent.Driver(drv))
-	require.NoError(t, client.Schema.Create(t.Context()))
+	require.NoError(t, loyaltyrepo.MigrateSchema(t.Context(), client, dialect))
 	r := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, r.EnsureWatchSchema(t.Context()))
 	t.Cleanup(func() { r.Close(context.Background()) })
@@ -76,42 +74,9 @@ func sqliteRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
 	return watchRetentionRepo(t, raw, "sqlite3"), raw
 }
 
-// MYSQL_TEST_DSN needs CREATE DATABASE rights: each test creates and drops its own database.
 func mysqlRetentionRepo(t *testing.T) (*loyaltyrepo.Loyalty, *sql.DB) {
 	t.Helper()
-	dsn := os.Getenv("MYSQL_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set MYSQL_TEST_DSN to run isolated real-MySQL watchtime tests")
-	}
-	cfg, err := mysql.ParseDSN(dsn)
-	require.NoError(t, err)
-	cfg.DBName = ""
-	cfg.ParseTime = true
-	cfg.Timeout = 5 * time.Second
-	cfg.ReadTimeout = 20 * time.Second
-	cfg.WriteTimeout = 20 * time.Second
-	admin, err := sql.Open("mysql", cfg.FormatDSN())
-	require.NoError(t, err)
-	t.Cleanup(func() { admin.Close() })
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	require.NoError(t, admin.PingContext(ctx))
-	name := "bagel_watch_" + strconv.FormatInt(time.Now().UnixNano(), 36)
-	_, err = admin.ExecContext(ctx, "CREATE DATABASE `"+name+"`")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		cleanup, done := context.WithTimeout(context.Background(), 10*time.Second)
-		defer done()
-		_, err := admin.ExecContext(cleanup, "DROP DATABASE `"+name+"`")
-		if err != nil {
-			t.Errorf("drop temporary watchtime database: %v", err)
-		}
-	})
-	cfg.DBName = name
-	raw, err := sql.Open("mysql", cfg.FormatDSN())
-	require.NoError(t, err)
-	raw.SetMaxOpenConns(24)
-	t.Cleanup(func() { raw.Close() })
+	raw := testdb.MySQL(t, "bagel_watch_")
 	return watchRetentionRepo(t, raw, "mysql"), raw
 }
 

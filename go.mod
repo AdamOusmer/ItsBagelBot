@@ -3,6 +3,7 @@ module ItsBagelBot
 go 1.26.5
 
 require (
+	ariga.io/atlas v1.1.0
 	entgo.io/ent v0.14.6
 	github.com/Yiling-J/theine-go v0.6.2
 	github.com/abadojack/whatlanggo v1.0.1
@@ -43,7 +44,6 @@ require (
 )
 
 require (
-	ariga.io/atlas v1.1.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.8.0-default-no-op // indirect
