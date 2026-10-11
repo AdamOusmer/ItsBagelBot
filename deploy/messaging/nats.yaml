@@ -72,9 +72,8 @@ spec:
 
 
           env:
-            # Equal to the Guaranteed cpu below: a hub hit 4.7 cores against GOMAXPROCS 5 at 57k msg/s (2026-10-11 bench, stock 2.15.0).
             - name: GOMAXPROCS
-              value: "6"
+              value: "5"
             - name: GOGC
               value: "400"
 
@@ -104,9 +103,8 @@ spec:
             - {name: pid, mountPath: /var/run/nats}
           resources:
             # Keep nats-server.conf max_mem under this limit: JetStream cannot see the container limit.
-            # Guaranteed 7Gi: RSS reached 6.4GiB under the old 6656MiB GOMEMLIMIT (2026-10-11 bench); 8Gi leaves 142Mi of node requests free, under the 768Mi a 12-pod sesame+outgress scale-out needs.
-            requests: {cpu: "6", memory: 7Gi}
-            limits: {cpu: "6", memory: 7Gi}
+            requests: {cpu: "1000m", memory: 2Gi}
+            limits: {cpu: "5", memory: 8Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
@@ -151,7 +149,7 @@ spec:
             - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            requests: {cpu: 50m, memory: 64Mi}
+            requests: {cpu: 5m, memory: 16Mi}
             limits: {cpu: 50m, memory: 64Mi}
           securityContext:
             allowPrivilegeEscalation: false
@@ -164,7 +162,7 @@ spec:
           ports:
             - {containerPort: 7777, name: metrics}
           resources:
-            requests: {cpu: 100m, memory: 128Mi}
+            requests: {cpu: 5m, memory: 32Mi}
             limits: {cpu: 100m, memory: 128Mi}
           securityContext:
             allowPrivilegeEscalation: false
