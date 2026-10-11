@@ -16,16 +16,6 @@ patches:
       - op: add
         path: /spec/template/spec/priorityClassName
         value: bagel-operator
-  - target: {kind: Deployment, name: keda-metrics-apiserver, namespace: keda}
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 2
-  - target: {kind: Deployment, name: keda-admission, namespace: keda}
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 2
   - target: {kind: Deployment, name: keda-operator, namespace: keda}
     patch: |
       - op: add
