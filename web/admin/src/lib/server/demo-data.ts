@@ -225,8 +225,8 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
       project: id,
       config: 'prd',
       schema: `bagel_${id}`,
-      expectedUserPrefix: `${id}_svc`,
-      dbUser: `${id}_svc_r1demo00`,
+      expectedUserPrefix: `${id.replace(/-/g, '_')}_svc`,
+      dbUser: `${id.replace(/-/g, '_')}_svc_r1demo00`,
       autoMigrate: 'false',
       canReadDoppler: true,
       tokenSource: 'scoped'
