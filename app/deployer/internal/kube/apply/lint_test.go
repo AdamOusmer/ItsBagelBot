@@ -41,6 +41,24 @@ func TestLint(t *testing.T) {
 			want: []ports.ObjectRef{notificationsRef},
 		},
 		{
+			name: "two replicas with maxSurge 1 fit three hosts",
+			ref:  notificationsRef,
+			mutate: func(o *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "replicas")
+				_ = unstructured.SetNestedField(o.Object, int64(1), "spec", "strategy", "rollingUpdate", "maxSurge")
+			},
+			want: []ports.ObjectRef{},
+		},
+		{
+			name: "two replicas with maxSurge 2 need four hosts",
+			ref:  notificationsRef,
+			mutate: func(o *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "replicas")
+				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "strategy", "rollingUpdate", "maxSurge")
+			},
+			want: []ports.ObjectRef{notificationsRef},
+		},
+		{
 			name: "maxSurge 0% does not surge",
 			ref:  notificationsRef,
 			mutate: func(o *unstructured.Unstructured) {

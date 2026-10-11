@@ -16,15 +16,29 @@ import (
 
 const hostnameKey = "kubernetes.io/hostname"
 
+// Application nodes a one-per-node workload can land on; if the fleet shrinks below this, a deadlocking roll passes lint.
+const eligibleHosts = 3
+
 type strategy struct {
 	path         []string
 	defaultSurge string
+	replicas     func(o *unstructured.Unstructured) int64
 }
 
 var strategies = map[schema.GroupKind]strategy{
-	{Group: "apps", Kind: "Deployment"}: {path: []string{"spec", "strategy"}, defaultSurge: "25%"},
-	{Group: "apps", Kind: "DaemonSet"}:  {path: []string{"spec", "updateStrategy"}, defaultSurge: "0"},
+	{Group: "apps", Kind: "Deployment"}: {path: []string{"spec", "strategy"}, defaultSurge: "25%", replicas: specReplicas},
+	{Group: "apps", Kind: "DaemonSet"}:  {path: []string{"spec", "updateStrategy"}, defaultSurge: "0", replicas: everyHost},
 }
+
+func specReplicas(o *unstructured.Unstructured) int64 {
+	n, found, err := unstructured.NestedInt64(o.Object, "spec", "replicas")
+	if !found || err != nil {
+		return 1
+	}
+	return n
+}
+
+func everyHost(*unstructured.Unstructured) int64 { return eligibleHosts }
 
 func lint(objs ports.Objects) []ports.LintFinding {
 	var out []ports.LintFinding
@@ -45,15 +59,17 @@ func lintOne(o *unstructured.Unstructured, st strategy) (ports.LintFinding, bool
 	if why == "" {
 		return ports.LintFinding{}, false
 	}
-	surge, ok := surgeOf(o, st)
-	if !ok {
+	replicas := st.replicas(o)
+	surge, extra := surgeOf(o, st, replicas)
+	if replicas+extra <= eligibleHosts {
 		return ports.LintFinding{}, false
 	}
 	return ports.LintFinding{
 		Object: refOf(o),
-		Reason: fmt.Sprintf("%s with maxSurge %s: the surge pod has no free node and the rollout deadlocks; "+
-			"use maxSurge 0 / maxUnavailable 1, or scope a DoNotSchedule spread with matchLabelKeys [pod-template-hash]",
-			why, surge.String()),
+		Reason: fmt.Sprintf("%s with %d replicas and maxSurge %s: a roll needs %d nodes but %d are eligible, so the surge pod "+
+			"has no free node and the rollout deadlocks; use maxSurge 0 / maxUnavailable 1, keep replicas + maxSurge <= %d, "+
+			"or scope a DoNotSchedule spread with matchLabelKeys [pod-template-hash]",
+			why, replicas, surge.String(), replicas+extra, eligibleHosts, eligibleHosts),
 	}, true
 }
 
@@ -90,16 +106,19 @@ func anyMap(items []any, pred func(map[string]any) bool) bool {
 	return false
 }
 
-func surgeOf(o *unstructured.Unstructured, st strategy) (intstr.IntOrString, bool) {
+func surgeOf(o *unstructured.Unstructured, st strategy, replicas int64) (intstr.IntOrString, int64) {
 	typ, _, _ := unstructured.NestedString(o.Object, slices.Concat(st.path, []string{"type"})...)
 	if typ == "Recreate" || typ == "OnDelete" {
-		return intstr.FromInt32(0), false
+		return intstr.FromInt32(0), 0
 	}
 	v, found, _ := unstructured.NestedFieldNoCopy(o.Object, slices.Concat(st.path, []string{"rollingUpdate", "maxSurge"})...)
 	if !found {
 		v = st.defaultSurge
 	}
 	surge := intstr.Parse(fmt.Sprint(v))
-	n, err := intstr.GetScaledValueFromIntOrPercent(&surge, 100, true)
-	return surge, err != nil || n > 0
+	n, err := intstr.GetScaledValueFromIntOrPercent(&surge, int(replicas), true)
+	if err != nil {
+		return surge, eligibleHosts
+	}
+	return surge, int64(n)
 }
