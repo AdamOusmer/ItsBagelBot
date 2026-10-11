@@ -46,6 +46,9 @@ func main() {
 		maxBytes     = flag.Int64("max-bytes", 1<<30, "")
 		origMaxBytes = flag.Int64("original-max-bytes", 0, "")
 		maxAge       = flag.Duration("max-age", 0, "setup: set the bench stream's MaxAge (and clamp its duplicate window) for the run; 0 leaves it")
+		duplicates   = flag.Duration("duplicates", -1, "setup: set the bench stream's duplicate window for the run, clamped to MaxAge; negative leaves it; nats-server replaces 0 with min(2m, MaxAge), so the smallest effective value is a small positive duration")
+		origDup      = flag.Duration("original-duplicates", -1, "cleanup: restore this duplicate window, clamped to MaxAge; negative leaves it")
+		ackPolicy    = flag.String("ack-policy", "", "consume mode: none|all sets NATS_PULL_ACK_POLICY for the pull lane; empty leaves the environment alone")
 		origMaxAge   = flag.Duration("original-max-age", 0, "cleanup: restore this MaxAge")
 		routinesMin  = flag.Int("routines-min", 256, "consume mode: weighted lane MinRoutines")
 		warmup       = flag.Duration("warmup", 0, "consume mode: exclude this much of the window start from the whole-run percentiles")
@@ -61,7 +64,7 @@ func main() {
 	var err error
 	switch *mode {
 	case "setup":
-		err = runSetup(lane, *maxBytes, *maxAge)
+		err = runSetup(lane, *maxBytes, newRetentionTarget(0, *maxAge, *duplicates))
 	case "publish":
 		err = runPublish(publishOpts{
 			lane: lane, duration: *duration, startAt: unixNano(*startAt),
@@ -69,9 +72,12 @@ func main() {
 			paceEvery: *paceEvery, podIndex: *podIndex, feeders: *feeders,
 		})
 	case "consume":
+		if err = applyAckPolicy(*ackPolicy); err != nil {
+			break
+		}
 		err = runConsume(lane, consumeOptions{duration: *duration, startAt: unixNano(*startAt), payloadSize: *payloadSize, policy: bus.ScalePolicy{MinRoutines: *routinesMin, MaxRoutines: *routinesMax}, warmup: *warmup, feeders: *feeders})
 	case "cleanup":
-		err = runCleanup(lane, *origMaxBytes, *origMaxAge)
+		err = runCleanup(lane, newRetentionTarget(*origMaxBytes, *origMaxAge, *origDup))
 	default:
 		err = errors.New("-mode must be setup|publish|consume|cleanup")
 	}
@@ -80,6 +86,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "bus-bench:", err)
 		os.Exit(1)
 	}
+}
+
+func newRetentionTarget(maxBytes int64, maxAge, duplicates time.Duration) retentionTarget {
+	return retentionTarget{maxBytes: maxBytes, maxAge: maxAge, duplicates: duplicates, hasDuplicates: duplicates >= 0}
+}
+
+func applyAckPolicy(policy string) error {
+	switch policy {
+	case "":
+		return nil
+	case "none", "all":
+		return os.Setenv("NATS_PULL_ACK_POLICY", policy)
+	}
+	return fmt.Errorf("-ack-policy must be none|all, got %q", policy)
 }
 
 func profiledMode(mode string) bool { return mode == "publish" || mode == "consume" }

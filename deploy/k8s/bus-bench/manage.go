@@ -11,7 +11,7 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-func runSetup(lane benchLane, maxBytes int64, maxAge time.Duration) error {
+func runSetup(lane benchLane, maxBytes int64, retention retentionTarget) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	nc, js, err := mgmtConnect(lane.url)
@@ -31,8 +31,8 @@ func runSetup(lane benchLane, maxBytes int64, maxAge time.Duration) error {
 		return err
 	default:
 		cfg := st.CachedInfo().Config
-		report := setupReport{OriginalMaxBytes: cfg.MaxBytes, OriginalMaxAge: int64(cfg.MaxAge)}
-		target := retentionTarget{maxAge: maxAge}
+		report := setupReport{OriginalMaxBytes: cfg.MaxBytes, OriginalMaxAge: int64(cfg.MaxAge), OriginalDuplicates: int64(cfg.Duplicates)}
+		target := retention
 		if cfg.MaxBytes < maxBytes {
 			target.maxBytes = maxBytes
 		}
@@ -61,8 +61,10 @@ func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, du
 }
 
 type retentionTarget struct {
-	maxBytes int64
-	maxAge   time.Duration
+	maxBytes      int64
+	maxAge        time.Duration
+	duplicates    time.Duration
+	hasDuplicates bool
 }
 
 func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
@@ -70,10 +72,29 @@ func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
 	if t.maxBytes > 0 && cfg.MaxBytes != t.maxBytes {
 		cfg.MaxBytes, changed = t.maxBytes, true
 	}
-	if t.maxAge > 0 && cfg.MaxAge != t.maxAge {
-		cfg.MaxAge, cfg.Duplicates, changed = t.maxAge, min(cfg.Duplicates, t.maxAge), true
+	ageChanged := t.maxAge > 0 && cfg.MaxAge != t.maxAge
+	if ageChanged {
+		cfg.MaxAge, changed = t.maxAge, true
 	}
-	return changed
+	return t.applyDuplicates(cfg, ageChanged) || changed
+}
+
+func (t retentionTarget) applyDuplicates(cfg *jsapi.StreamConfig, ageChanged bool) bool {
+	want := cfg.Duplicates
+	switch {
+	case t.hasDuplicates:
+		want = t.duplicates
+	case !ageChanged:
+		return false
+	}
+	if cfg.MaxAge > 0 {
+		want = min(want, cfg.MaxAge)
+	}
+	if want == cfg.Duplicates {
+		return false
+	}
+	cfg.Duplicates = want
+	return true
 }
 
 func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName string, target retentionTarget) (bool, error) {
@@ -97,7 +118,7 @@ func revertStreamMaxBytes(ctx context.Context, js jsapi.JetStream, streamName st
 	return true, nil
 }
 
-func runCleanup(lane benchLane, originalMaxBytes int64, originalMaxAge time.Duration) error {
+func runCleanup(lane benchLane, original retentionTarget) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	nc, js, err := mgmtConnect(lane.url)
@@ -113,7 +134,7 @@ func runCleanup(lane benchLane, originalMaxBytes int64, originalMaxAge time.Dura
 		return err
 	}
 
-	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, retentionTarget{maxBytes: originalMaxBytes, maxAge: originalMaxAge})
+	reverted, err := revertStreamMaxBytes(ctx, js, lane.stream, original)
 	if err != nil {
 		return err
 	}
@@ -122,7 +143,16 @@ func runCleanup(lane benchLane, originalMaxBytes int64, originalMaxAge time.Dura
 		DeletedConsumer:  deleted,
 		Consumer:         durable,
 		RevertedMaxBytes: reverted,
-		MaxBytes:         originalMaxBytes,
+		MaxBytes:         original.maxBytes,
+		MaxAge:           int64(original.maxAge),
+		Duplicates:       restoredDuplicates(original),
 	})
 	return nil
+}
+
+func restoredDuplicates(t retentionTarget) int64 {
+	if !t.hasDuplicates {
+		return 0
+	}
+	return int64(t.duplicates)
 }
