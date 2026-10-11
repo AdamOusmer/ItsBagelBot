@@ -343,6 +343,7 @@ func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, spe
 		chunk := rows[start:min(start+upsertChunk, len(rows))]
 		guarded := spec
 		if r.watchReady.Load() && r.writeChunk == nil {
+			r.ensureLegacyFences(ctx, txn, spec, chunk)
 			guarded, chunk = r.guardLegacyChunk(spec, chunk)
 		}
 		stmt := guarded.render(chunk)
@@ -534,6 +535,25 @@ func (r *Loyalty) guardLegacyChunk(spec upsertSpec, rows [][]any) (upsertSpec, [
 	}
 	spec.placeholder = "SELECT " + strings.TrimSuffix(strings.TrimPrefix(spec.placeholder, "("), ")") + " WHERE NOT EXISTS (SELECT 1 FROM loyalty_account_fences WHERE user_id = ? AND deleted = 1" + locking + ")"
 	return spec, guarded
+}
+
+// The guard's FOR UPDATE on an absent fence gap-locks other channels' fence inserts, so each channel gets a fence first.
+func (r *Loyalty) ensureLegacyFences(ctx context.Context, txn *newrelic.Transaction, spec upsertSpec, rows [][]any) {
+	if r.dialect == "sqlite3" || !legacyAccountWrite(spec.insert) {
+		return
+	}
+	fences := upsertSpec{label: "legacy account fences", insert: "INSERT INTO loyalty_account_fences (user_id,account_created_at,deleted) VALUES ", placeholder: "(?, 0, 0)", suffix: " ON DUPLICATE KEY UPDATE user_id=user_id"}
+	r.execChunk(ctx, txn, fences.render(legacyChunkUsers(rows)))
+}
+
+func legacyChunkUsers(rows [][]any) [][]any {
+	users := make([][]any, 0, len(rows))
+	for _, row := range rows {
+		if len(users) == 0 || users[len(users)-1][0] != row[0] {
+			users = append(users, []any{row[0]})
+		}
+	}
+	return users
 }
 
 func legacyAccountWrite(insert string) bool {
