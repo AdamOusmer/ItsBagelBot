@@ -55,10 +55,11 @@ func cpuMicrosPerMessage(messages uint64) float64 {
 }
 
 type setupReport struct {
-	Created          bool  `json:"created"`
-	Raised           bool  `json:"raised"`
-	OriginalMaxBytes int64 `json:"original_max_bytes,omitempty"`
-	OriginalMaxAge   int64 `json:"original_max_age,omitempty"`
+	Created            bool  `json:"created"`
+	Raised             bool  `json:"raised"`
+	OriginalMaxBytes   int64 `json:"original_max_bytes,omitempty"`
+	OriginalMaxAge     int64 `json:"original_max_age,omitempty"`
+	OriginalDuplicates int64 `json:"original_duplicates,omitempty"`
 }
 
 type cleanupReport struct {
@@ -66,6 +67,8 @@ type cleanupReport struct {
 	Consumer         string `json:"consumer"`
 	RevertedMaxBytes bool   `json:"reverted_max_bytes"`
 	MaxBytes         int64  `json:"max_bytes,omitempty"`
+	MaxAge           int64  `json:"max_age,omitempty"`
+	Duplicates       int64  `json:"duplicates,omitempty"`
 }
 
 func emit(report any) {
