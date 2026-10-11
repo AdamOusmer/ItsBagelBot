@@ -7,6 +7,7 @@ export const SITE = {
   web: 'https://itsbagelbot.com',
   dashboard: 'https://dashboard.itsbagelbot.com',
   commands: 'https://commands.itsbagelbot.com',
+  leaderboard: 'https://leaderboard.itsbagelbot.com',
   docs: 'https://docs.itsbagelbot.com',
   stats: 'https://stats.itsbagelbot.com',
   status: 'https://status.itsbagelbot.com',
@@ -144,6 +145,10 @@ export function webHref(locale: Locale, path: string): string {
 
 export function commandsHref(segment: string): string {
   return `${SITE.commands}/user/${segment}`;
+}
+
+export function leaderboardHref(segment: string): string {
+  return `${SITE.leaderboard}/${segment}`;
 }
 
 export function dashboardHref(path: string, langQuery: string): string {

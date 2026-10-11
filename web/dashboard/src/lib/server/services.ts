@@ -35,7 +35,7 @@ export const SUB = {
 };
 
 export function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`, `commands_page:${id}`];
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`, `commands_page:${id}`, `leaderboard_page:${id}`];
 }
 
 export const SCOPES: ScopeMap = {
@@ -48,6 +48,7 @@ export const SCOPES: ScopeMap = {
   locale: (id) => [`locale:${id}`],
   cursor: (id) => [`cursor:${id}`],
   commands_page: (id) => [`commands_page:${id}`],
+  leaderboard_page: (id) => [`leaderboard_page:${id}`],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
@@ -427,6 +428,9 @@ export const setCursor = prefWrite<boolean>('cursor_set', 'custom_cursor', 'curs
 
 export const userCommandsPage = prefRead('commands_page', (r) => r.commands_page_hidden !== true);
 export const setCommandsPage = prefWrite<boolean>('commands_page_set', 'commands_page_hidden', 'commands_page');
+
+export const userLeaderboardPage = prefRead('leaderboard_page', (r) => r.leaderboard_page_hidden !== true);
+export const setLeaderboardPage = prefWrite<boolean>('leaderboard_page_set', 'leaderboard_page_hidden', 'leaderboard_page');
 
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
