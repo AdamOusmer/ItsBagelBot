@@ -23,7 +23,9 @@ flowchart TB
     end
 
     Twitch["Twitch<br/><i>EventSub + API Helix</i>"]
+    Discord["Discord<br/><i>passerelle + API REST</i>"]
     Tebex["Tebex<br/><i>achats / monétisation</i>"]
+    Providers["Fournisseurs d'API externes<br/><i>via Gossip</i>"]
     NewRelic["New Relic<br/><i>observabilité</i>"]
 
     Broadcaster -- "utilise la console<br/>(OAuth, réglages)" --> Core
@@ -31,7 +33,10 @@ flowchart TB
 
     Twitch -- "événements EventSub" --> Core
     Core -- "chat + gestion EventSub" --> Twitch
+    Discord -- "événements de la passerelle" --> Core
+    Core -- "actions REST" --> Discord
     Tebex -- "webhooks d'achat" --> Core
+    Core -- "recherches typées" --> Providers
     Core -- "télémétrie" --> NewRelic
 ```
 
@@ -42,7 +47,9 @@ flowchart TB
 | **Broadcaster / chatter** | Pilote le bot via le chat Twitch et EventSub ; le configure via la console (OAuth Twitch avec oauth4webapi). |
 | **Opérateur** | Exploite le bot. Accède à la console admin et à `kubectl` uniquement via le tailnet Tailscale ; aucun chemin public. |
 | **Twitch** | Source des événements EventSub (ingress) et cible des messages de chat et de la gestion EventSub (outgress), via l'API Helix et le jeton du compte du bot. |
+| **Discord** | Source des événements de la passerelle (ingress Discord) et cible des actions REST (outgress Discord). |
+| **Fournisseurs d'API externes** | Sources de données tierces, comme des statistiques de jeux et des services musicaux. Seul Gossip les appelle, avec des identifiants résolus au moment de la requête. |
 | **Tebex** | Monétisation. Les achats alimentent le service transactions et font passer le niveau d'un broadcaster en payant. |
 | **New Relic** | Destination d'observabilité pour les services Go et Elixir. |
 
-La seule surface publique du bot est la console du broadcaster, servie par le tunnel cloudflared sortant. Tout ce qui concerne l'opérateur est limité au tailnet. À l'intérieur de la boîte, les services communiquent exclusivement sur NATS.
+La surface publique du bot comprend la console du broadcaster et ses pages publiques (commandes, statistiques, classements), les points d'état et le récepteur de webhooks Tebex, tous servis par le tunnel cloudflared sortant. Tout ce qui concerne l'opérateur est limité au tailnet. À l'intérieur de la boîte, les services communiquent exclusivement sur NATS.

@@ -27,5 +27,5 @@ links. See [QA reports](/qa/) for the reading and authoring conventions that app
 
 - **Anything that touches a real broadcaster.** Monkey runs use staging tenants with synthetic OAuth grants. A
   monkey run that hits a live broadcaster's chat is a bug in the harness.
-- **Long soak tests.** Soak runs live in the CI nightly job, not here. This subgroup is reserved for bounded,
-  reproducible runs that produce a single artifact set.
+- **Long soak tests.** This subgroup is reserved for bounded, reproducible runs that produce a single artifact
+  set.

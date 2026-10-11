@@ -21,9 +21,10 @@ from exact differences. The projector's `ctr:board:v2:` members encode a
 - Sesame publishes decoded message and event totals with the existing
   `bus.PublishConfirmed` helper and a stable ID derived from the source message.
   Source processing returns an error until the broker confirms publication.
-- Loyalty applies each counter batch and its receipt in one SQL transaction.
-  The existing `bus.Consume` handler returns only after commit, so a broker
-  redelivery cannot increment a committed batch twice.
+- Loyalty applies each counter batch in one SQL transaction and acknowledges
+  only after commit. Deduplication uses a short-lived Valkey receipt
+  (`loyalty:counter:receipt:<user_id>:<sha256(batch_id)>`), not a SQL receipt
+  row. See `docs/operations/counter-valkey-rollout.md` for the replay tradeoff.
 - Command-use batches retain their IDs on retry. The commands service likewise
   commits a receipt and increment together before acknowledging the event.
 - Feed lifetime and channel totals commit together in modules SQL, with an
@@ -49,9 +50,10 @@ the lifetime total remains correct.
 ## Capacity and retention
 
 At 60 source messages per second, decoded bot and channel totals can produce
-up to 120 confirmed events and SQL transactions per second. That is up to
-10,368,000 receipt rows per day. The receipts are deliberately retained for
-replay safety. Before production rollout, benchmark the loyalty write path at
+up to 120 confirmed events and SQL transactions per second. Loyalty counter
+receipts no longer land in SQL (see above). Receipt rows for the commands and
+modules counters, up to 10,368,000 per day at that rate, are deliberately
+retained for replay safety. Before production rollout, benchmark the loyalty write path at
 the expected traffic and budget receipt storage, index growth, and backups.
 Do not delete receipts by age without an enforced maximum replay age covering
 the source, broker, publisher retries, and restored backups. A bounded replay
@@ -64,7 +66,7 @@ policy and receipt cleanup are separate capacity work.
    `counters.value` and `counter_entries.value`; in modules,
    `feed_counters.count` and `channel_feed_counters.count`. Any value above
    `9223372036854775807` needs an explicit correction or migration plan.
-2. Apply the generated Ent schema changes and create the receipt tables before
+2. Apply the generated Ent schema changes and create the commands and modules receipt tables before
    starting the new consumers. Keep receipt tables with counter backups and
    restores.
 3. Roll out services that can read both legacy numeric and new string `uses`

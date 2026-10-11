@@ -9,7 +9,7 @@ description: Un plan privilégiant l'efficacité pour les traces et la télémé
 
 Permettre à New Relic d'expliquer un événement lent ou une surcharge depuis Twitch ingress, à travers NATS et le projector, en distinguant le travail applicatif de l'attente liée au pool de connexions, à la limite de concurrence, au broker, à Valkey, au CPU et au réseau. Le plan réutilise volontairement les agents déjà en production et borne la cardinalité comme le volume de télémétrie ingérée.
 
-Les services propriétaires de bases concernés sont `users`, `modules`, `commands` et `transactions`. Le projector n'interroge pas MySQL : il utilise Valkey.
+Les services propriétaires de bases concernés sont `users`, `modules`, `commands` et `transactions`. Le projector n'interroge pas MySQL : il utilise Valkey. Les services `loyalty`, `notifications` et `discord-data` possèdent désormais aussi des schémas et sont hors du périmètre de ce plan.
 
 ## Instrumentation existante
 
@@ -87,6 +87,8 @@ Modifier `pkg/bus/rpc.go` :
 
 Cela comble les ruptures de traces RPC entre ingress/projector et les services de données, ainsi qu'entre le projector et outgress.
 
+État : fait. `pkg/bus/rpc.go` injecte les en-têtes (`insertTraceHeaders` dans `pkg/bus/telemetry.go`) et l'abonné de file les accepte.
+
 ### Transaction de notification d'ingress
 
 Modifier `Ingress.Dispatcher`, `Ingress.Pipeline`, `Ingress.Nats` et `Ingress.BroadcasterStatus` :
@@ -98,6 +100,8 @@ Modifier `Ingress.Dispatcher`, `Ingress.Pipeline`, `Ingress.Nats` et `Ingress.Br
 5. Classer le résultat et enregistrer le type d'événement fini et la voie. Signaler les erreurs sans considérer le filtrage normal des messages de chat comme une erreur.
 
 Gnat 1.15.1 accepte déjà les en-têtes pour `pub` et `request`, et l'agent Elixir installé expose les API de transaction et d'en-têtes de traces distribuées : aucune dépendance ne doit changer.
+
+État : la transaction `Ingress`/`Notification` et la transmission des en-têtes de trace existent dans `app/twitch/ingress/lib/ingress/trace.ex`.
 
 ### Préchauffage du projector
 
@@ -111,6 +115,8 @@ Les trois goroutines de préchauffage utilisent actuellement `context.Background
 4. Ajouter `prewarm.branch` et `result` ; garder l'identifiant utilisateur uniquement dans le contexte de trace ou de journal.
 
 Cela préserve le lancement sans attente tout en produisant trois transactions enfants liées causalement.
+
+État : les goroutines de préchauffage n'existent plus. Le réchauffement est désormais assuré par l'hydrateur borné de `app/projector/hydration/hydrator.go` ; tout travail de liaison restant porte sur ses récupérations.
 
 ### Acceptation de la phase 1
 
@@ -140,6 +146,8 @@ Ajouter `monitor.ObserveDBPool(ctx, app, service, driver.DB(), 30*time.Second)` 
 - deltas de `WaitCount`, `WaitDuration`, `MaxIdleClosed`, `MaxIdleTimeClosed` et `MaxLifetimeClosed`.
 
 Étendre `pkg/db/gate.go` avec des compteurs atomiques pour les détenteurs courants, les attentes courantes et cumulées, leur durée et les délais d'acquisition dépassés. Les atomiques évitent un second verrou à chaque requête. Le même observateur de 30 secondes rapporte le pool et la limite comme deux composants `ServiceCapacitySample`.
+
+État : l'échantillonnage du pool existe dans `pkg/db/stats.go` sous forme de métriques personnalisées `db/pool/*`, et la limite enregistre un segment `db.gate.wait` dans `pkg/db/gate.go`. `ServiceCapacitySample` et `monitor.ObserveDBPool` n'existent pas.
 
 Conserver `nrmysql` comme source de durée d'exécution des requêtes. N'ajouter des segments au niveau repository que pour les opérations dont les multiples appels au stockage restent ambigus dans les traces ; ne pas envelopper chaque méthode ent générée.
 

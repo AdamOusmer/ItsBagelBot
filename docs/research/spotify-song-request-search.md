@@ -10,7 +10,7 @@ Reviewed on 2026-09-27 for the request `!sr all I wanted paramore`, which queued
 | [Songify](https://github.com/songify-rocks/Songify/blob/master/Songify%20Slim/Util/Spotify/SpotifyApiHandler.cs) | Fetches multiple tracks and scores whole-query, delimiter, first-word artist and last-word artist interpretations. Low-confidence searches can still fall back to the first result. | Trailing artist interpretation addresses this request; the first-result fallback remains a weakness. |
 | [Music Assistant](https://github.com/music-assistant/server/blob/dev/music_assistant/helpers/compare.py) | Checks title and artist evidence and detects recording-version conflicts. Its [track controller](https://github.com/music-assistant/server/blob/dev/music_assistant/controllers/music/media/tracks.py) searches credited artists and deduplicates candidates. | Verify both metadata fields; live, acoustic, demo and remix recordings are meaningful alternatives. |
 | [spotDL](https://github.com/spotDL/spotify-downloader/blob/master/spotdl/types/song.py) | Spotify text lookup selects the first result. Its separate [cross-service matcher](https://github.com/spotDL/spotify-downloader/blob/master/spotdl/utils/matching.py) evaluates artist/title similarity and penalizes unwanted recording variants. | The stronger matcher works from known track metadata; it is not the behavior of spotDL's initial Spotify text lookup. |
-| [Streamer.bot TinySpot](https://github.com/Streamer-bot-Extensions/Streamer.bot-Extensions-Wiki/blob/main/assets/spotify/files/TinySpot.sb) | Public import's embedded C# uses `limit=1` and `items[0]`. Strict requests require an exact token sequence in artist-first order. | Ordinary requests have the same failure mechanism; strict ordering would reject a title-first request. |
+| [TinySpot, a stream-bot extension](https://github.com/Streamer-bot-Extensions/Streamer.bot-Extensions-Wiki/blob/main/assets/spotify/files/TinySpot.sb) | Public import's embedded C# uses `limit=1` and `items[0]`. Strict requests require an exact token sequence in artist-first order. | Ordinary requests have the same failure mechanism; strict ordering would reject a title-first request. |
 | [Mopidy-Spotify](https://github.com/mopidy/mopidy-spotify/blob/main/src/mopidy_spotify/translator.py) | Builds fielded artist/title queries and quotes exact phrases; presents results for selection. | Structured retrieval is useful, but this is not an automatic song-request ranker. |
 | [spotify-cli](https://github.com/jantijn/spotify-cli/blob/main/internal/match/match.go) | Uses structured queries, title/artist token similarity, a confidence threshold and stable ordering for ties. | Useful deterministic metadata ranking, independent of popularity. |
 | [Spotifier](https://github.com/PlayNetwork/spotifier/blob/master/lib/index.js) | Uses artist/title filters, fetches ten candidates and compares normalized artist/title edit distance. | Fetching candidates and evaluating metadata improves on selecting the first hit. |
@@ -18,15 +18,15 @@ Reviewed on 2026-09-27 for the request `!sr all I wanted paramore`, which queued
 
 Additional established streaming tools were checked, with different evidence limits:
 
-- [SAMMI's Spotify documentation](https://docs.christinak.ca/extensions/spotify#song-request)
+- [A stream-automation tool's Spotify documentation](https://docs.christinak.ca/extensions/spotify#song-request)
   supports title followed by artist, including `Kiss from a rose Seal`; it does not
   expose the ranking algorithm.
-- [MM SPOTiFY v2000 for Streamer.bot](https://mustachedmaniac.com/extensions/spotify-v2000)
+- [A third-party Spotify extension (v2000)](https://mustachedmaniac.com/extensions/spotify-v2000)
   documents requests and Spotify links, but its current matching implementation was
   not available for inspection.
-- [Mix It Up](https://mixitup.bot/docs/music-player) currently excludes Spotify from
+- [Another stream tool's music player](https://mixitup.bot/docs/music-player) currently excludes Spotify from
   its music player. Its local-file title matching is a different problem.
-- [StreamerSonglist](https://streamersonglist.com/) searches a streamer's own song
+- [A song-queue service](https://streamersonglist.com/) searches a streamer's own song
   library, rather than documenting Spotify catalog matching.
 
 ## Applied change

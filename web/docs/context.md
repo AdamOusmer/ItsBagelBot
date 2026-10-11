@@ -34,6 +34,7 @@ An old ADR describes the decision at the time; it may have been superseded by la
   Mermaid palette/layout, integration configuration and strict Mermaid security mode.
   UI locale labels/sidebar translations load from root `locales/<lang>/docs/`; English is `root`.
 - [src/content.config.ts](src/content.config.ts): `docsLoader` plus Starlight `docsSchema`.
+- [src/i18n/ui.ts](src/i18n/ui.ts): docs chrome catalogs from root `locales/*/docs/` and the language-switch options.
 - [system-overview.md](src/content/docs/reference/system-overview.md): start for the current service
   topology/data plane, then confirm the particular contract in source.
 - [rpc-contracts.md](src/content/docs/reference/rpc-contracts.md): service RPC surface orientation.

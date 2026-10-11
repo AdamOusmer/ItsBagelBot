@@ -17,9 +17,12 @@ Every message flows through `engine.Pipeline`, an allocation-free (for non-emiss
 1. **Decode**: The JSON payload is unmarshaled into a pooled `lane.Envelope`.
 2. **Eligibility**: Unsupported events and envelopes without a valid broadcaster are discarded before projection or command work.
 3. **Module Views**: If the event requires configurable behavior, the `Projector` is queried for the broadcaster's `ModuleView` set.
-4. **Command Dispatch**: If the event is a chat message (`channel.chat.message`), the pipeline checks the command registry. Baked commands are evaluated for their permissions, cooldowns, and live-only gates.
-5. **Event Handlers**: Non-command event handlers registered by modules are executed in registration order.
-6. **Emission**: Module handlers do not publish directly to NATS. They yield an `Output` struct to an `Emit` callback, which builds the `outgress.Message` wire contract and publishes it to either `twitch.outgress.premium` or `twitch.outgress.standard`.
+4. **Incoming Moderation**: Chat is checked by the AutoMod gate (`automod/`, `engine/moderate.go`). Enforcement defaults off (`SESAME_AUTOMOD_ENFORCE=false`), in which case verdicts are recorded and processing continues. An enforced action consumes the line.
+5. **Command Dispatch**: If the event is a chat message (`channel.chat.message`) and not consumed, the pipeline checks the command registry. Baked and custom commands are evaluated for their permissions, cooldowns, and live-only gates.
+6. **Event Handlers**: Non-command event handlers registered by modules are executed in registration order.
+7. **Emission**: Module handlers do not publish directly to NATS. They yield an `Output` struct to an `Emit` callback, which builds the `outgress.Message` wire contract and publishes it to `twitch.outgress.premium` or `twitch.outgress.standard` (system jobs use `twitch.outgress.system`). Chat, announcement and pin text passes the shared outgoing floor check first.
+
+Events from a trial channel (an observed, unregistered channel) skip moderation, run the handlers, and have their outputs tagged with the trial origin so Twitch Outgress refuses them.
 
 Transport replay does not claim a Valkey key. Outputs derived from an input with
 a stable event ID use a stable publication ID and wait for the NATS confirmation
@@ -56,14 +59,14 @@ func MyModule() module.Module {
 ```
 
 #### Module Kinds
-Modules are declared as one of three kinds, dictating their enablement logic:
+Modules are declared as one of three kinds, dictating their enablement logic. A builder can also mark a module `.Beta()` (runs only for Premium channels; not allowed on Core) or `.Trial()` (Core only, runs for trial channels):
 - **Core**: Always enabled, never toggled, skips projection fetches.
 - **Default**: Enabled by default, can be disabled via the dashboard.
 - **Opt-In**: Disabled by default, must be explicitly enabled via the dashboard.
 
 #### Command Gates
 The `.Command("name")` method returns a `CmdBuilder` allowing you to seamlessly chain execution gates before finalizing with `.Run()`.
-- **Permissions**: `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.Broadcaster()`
+- **Permissions**: `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.LeadMod()`, `.Broadcaster()`, or `.AllowUser(id)` for one named viewer
 - **State**: `.LiveOnly()`, `.Cooldown(time.Duration)`
 - **Routing**: `.Aliases("trigger")`, `.NumericSuffix()` (absorbs trailing digits inline, e.g. `!clip30` resolves to `clip`).
 
@@ -75,7 +78,7 @@ Sesame provides a fast, allocation-light string templating system used for dynam
 
 The system supports passing through literal `{key}` tokens if the callback does not recognize them, instead of silently dropping them. 
 
-Additionally, the `module.ParseDynamic` helper provides built-in support for generic dynamic variables:
+Additionally, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) provides built-in support for generic dynamic variables:
 - `{random}`: Generates a random number between 1 and 100.
 - `{random:min-max}`: Generates a random number between `min` and `max`.
 - `{choice:a,b,c}`: Picks a random string from a comma-separated list of choices.
@@ -97,8 +100,8 @@ Both halves of the key are Twitch numeric IDs, so a rename cannot reopen the win
 suppresses another's. The claim is taken after the enable toggle is read, so a channel with follow alerts off never
 burns a window it would want the moment it turns them back on.
 
-Only follows are gated. Subs, gifts, cheers and raids each cost the sender something, and ad breaks are the
-channel's own event.
+Subscriptions use the same claim with a 15 minute window (`alert:sub:...`, gift subs excluded). Gifts, cheers and raids
+each cost the sender something, and ad breaks are the channel's own event, so they are not gated.
 
 Three properties of the fleet make a multi-day window safe to hold in Valkey:
 

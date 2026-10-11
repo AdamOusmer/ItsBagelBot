@@ -42,10 +42,10 @@ classDiagram
     Packer ..> SecureEnvelope : creates
 
     class Cache~V~ {
-        -shards sharded TTL maps
+        -client theine.Cache
         -group singleflight.Group
         -ttl time.Duration
-        -jitter time.Duration
+        -staleWindow time.Duration
         +GetOrLoad(ctx, key, loader) V
         +Set(key, value) void
         +Invalidate(key) void
@@ -76,15 +76,21 @@ classDiagram
 
     class Publisher {
         <<interface>>
-        +Publish(topic, messages) error
+        +PublishOwned(ctx, subject, payload) error
+        +PublishOwnedWithID(ctx, subject, id, payload) error
+        +Flush(ctx) error
         +Close() error
     }
 
     class UserView {
         +ID uint64
         +Username string
+        +DisplayName string
         +IsActive bool
         +Status string
+        +Banned bool
+        +Locale string
+        +CommandsPageHidden bool
     }
 
     class Users {
@@ -92,11 +98,11 @@ classDiagram
         -views Cache of UserView
         -packer Packer
         -pub Publisher
-        +Register(ctx, id, username, email) error
+        +Register(ctx, id, username, displayName, email) error
         +Get(ctx, id) UserView
         +SetStatus(ctx, id, status) error
         +Delete(ctx, id) error
-        +UpsertToken(ctx, userID, type, platform, access, refresh) error
+        +UpsertToken(ctx, userID, type, platform, access, refresh, expiresAt) error
         +Token(ctx, userID, type, platform) plaintext
         +Reproject(ctx) error
         +Invalidate(id) void
@@ -106,6 +112,7 @@ classDiagram
         +Name string
         +IsEnabled bool
         +Configs json
+        +Revision int
     }
 
     class Modules {
@@ -115,6 +122,8 @@ classDiagram
         -pub Publisher
         +List(ctx, userID) ModuleView slice
         +Set(userID, name, enabled, configs) error
+        +SetNow(ctx, userID, name, enabled, configs) ModuleView slice
+        +Patch(ctx, userID, name, enabled, partial, expectedRev) PatchResult
         +Reproject(ctx) error
         +Invalidate(userID) void
         -flush(ctx, items) error
@@ -135,7 +144,7 @@ interfaces owned elsewhere, injected at construction.
 
 | Pattern | Where | Why |
 |---------|-------|-----|
-| Repository (PoEAA) | `app/*/repository` | One object per aggregate mediating between domain and ent, the seam every test uses |
+| Repository (PoEAA) | `app/db/*/repository` | One object per aggregate mediating between domain and ent, the seam every test uses |
 | Data Transfer Object | `internal/domain/event/data`, the view structs | Full-state payloads across the bus, sensitive-field-free views in the caches |
 | Publish/Subscribe (Observer at system scale) | `pkg/bus` over NATS | Decouples writers from every reader: caches, projector, future consumers |
 | Event-Carried State Transfer | All change events | Consumers update from the event alone; no service reads another's schema |

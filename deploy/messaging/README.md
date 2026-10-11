@@ -3,8 +3,11 @@
 # NATS hubs
 
 Three `nats-server` pods (`nats-0/1/2`, one per worker node) holding every
-JetStream stream at R3 in memory, plus a leaf DaemonSet that apps connect to.
-The hubs run **stock upstream**, pinned by digest in `nats.yaml`. This file
+JetStream stream at R3, plus a leaf DaemonSet that apps connect to. The hot
+event lanes are in memory; the data, dead-letter and system streams are on file
+storage (`pkg/bus/streams.go`). Hub and leaf authenticate in NATS operator (JWT)
+mode (`nats-operator.conf`). The hubs run **stock upstream**, pinned by digest
+in `nats.yaml` (currently 2.15.0). This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.
 
@@ -19,7 +22,7 @@ time, apply 51.1%, both at once 1.1%, union 97.8%. The pod was using 2.9 of its
 That is the ceiling. More publishers, more connections, jumbo frames, disabling
 route compression and moving publishers onto the leader's own node all leave it
 where it is. Two things do move it: making each message cheaper inside that
-path (a patched broker — see below), or using more than one stream.
+path (a patched broker, see below), or using more than one stream.
 
 ## Measured, 2026-09-03
 
@@ -30,7 +33,7 @@ row; only the binary changes.
 
 | binary | admitted | e2e p50 | e2e p99 | produced→stored p50 | stored→received p50 |
 |---|---|---|---|---|---|
-| stock 2.14.6 (what we run) | 87.2k msg/s | 418 ms | 719 ms | 53 ms | 362 ms |
+| stock 2.14.6 (what we ran then) | 87.2k msg/s | 418 ms | 719 ms | 53 ms | 362 ms |
 | patched 2.14.6 | 123.2k msg/s | 43 ms | 81 ms | 37 ms | 4.8 ms |
 | patched 2.14.4 | 141.6k msg/s | ~50 ms | 77 ms | 39 ms | ~10 ms |
 
@@ -47,7 +50,7 @@ release, with no support for the patched paths, and the throughput it buys is
 not what our users feel: the premium and standard lanes are what keep a paying
 broadcaster's commands fast, and those are a routing decision, not a broker
 build. If a lane ever needs more than one stream's worth of ingest, split the
-subject space across streams — that is the supported answer and it scales past
+subject space across streams. That is the supported answer and it scales past
 anything a patch can win.
 
 The patch set lives in this repository's history (PRs #778, #780, #785,
@@ -59,7 +62,7 @@ None of this needs a patched broker; all of it is in `pkg/bus` and the service
 manifests today.
 
 - **Bound the publish queue** (`NATS_PUBLISH_QUEUE_SIZE`, sesame runs 512). The
-  16,384-slot default parked up to 61k messages per pod — 1.5 s of latency no
+  16,384-slot default parked up to 61k messages per pod, 1.5 s of latency no
   caller could see. Bounding it turned a 1.4 s p50 into tens of milliseconds
   and cost no throughput. Use at least two cohorts' worth: a queue equal to one
   cohort starves the batcher on a paced source.

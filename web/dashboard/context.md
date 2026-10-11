@@ -92,6 +92,7 @@ Preserve variable/token/form/surface wording in editors and help copy.
 ## Focused commands
 
 From `web/dashboard`: `bun run dev`, `DEMO=1 bun run dev`, `bun run check`, `bun run build`.
+`bun run test:account-isolation` runs a local HTTP harness against the real guards and RPC client (needs `ISOLATION_NATS_BIN` set to a `nats-server` binary).
 From `web`: `bun test dashboard/src/lib/server/guard.test.ts` for gates,
 `bun test dashboard/src/lib/server/services.test.ts` for adapter/invalidation contracts,
 or `bun test dashboard/src/hooks.server.test.ts` for public caching behavior.

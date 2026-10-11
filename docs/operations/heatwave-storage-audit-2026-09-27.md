@@ -1,4 +1,6 @@
-# HeatWave health and storage audit — September 27, 2026
+# HeatWave health and storage audit: September 27, 2026
+
+Status: point-in-time audit. The Valkey receipt design it recommends is implemented, but with a 70-minute completed-receipt TTL and a one-hour publisher retry horizon, not the five minutes and three minutes described below (`internal/domain/event/data/loyalty_events.go:90`, `app/twitch/sesame/engine/counter_publication.go:29`). See [counter Valkey rollout](counter-valkey-rollout.md).
 
 The live database is healthy. Its reported 2.79 GiB is predominantly MySQL infrastructure overhead. The 34 application accounts occupy approximately 95.5 MiB of application table data and indexes, of which 93.4 MiB is counter replay protection. Ordinary application state outside that ledger occupies approximately 2.1 MiB.
 

@@ -115,12 +115,17 @@ ItsBagelBot is built using a microservices architecture, with each feature being
 zero-downtime updates, as services can be updated independently without affecting the entire system.
 
 The main flow of the bot is as follows:
-- **Ingress Service** (Elixir/OTP): Handles incoming Twitch events and routes them to the appropriate service.
+- **Twitch Ingress** (Elixir/OTP): Handles incoming Twitch events and routes them to the appropriate service.
 It is based on Twitch's Conduit architecture for scalability and reliability. Twitch's EventSub WebSocket connections are managed here, normalized, filtered, and published to the message bus.
+- **Discord Ingress** (Go): Holds the fleet's Discord gateway session and relays Discord events to the message bus.
 - **Message Bus**: NATS is the only inter-service transport, carrying both subject-based events (pub/sub) and request-reply RPC. No service reads another service's database directly.
-- **Services** (Go): Each feature of the bot is implemented as a separate service that owns its own MySQL schema, subscribes to relevant subjects, and answers RPC for cross-service reads.
-- **Outgress Service** (Go): Sends messages back to Twitch based on the processed data from the services, applying per-broadcaster rate limiting and the bot account token lifecycle.
-- **Web Interface** (Astro/Bun): A modern frontend for user interaction and bot management.
+- **Processing services** (Go): Sesame handles Twitch chat, modules, commands and moderation. The Discord engine decides module actions from Discord events.
+- **Data services** (Go): Users, Commands, Modules, Loyalty, Transactions, Notifications and Discord-data each own their own MySQL schema, subscribe to relevant subjects, and answer RPC for cross-service reads.
+- **Projector** (Go): Folds data-owner events into shared Valkey read models and serves cache-oriented reads.
+- **Gossip** (Go): Gateway for external APIs, with caching, upstream budgets and credential resolution. A WARP sidecar image serves its untrusted HTTP route.
+- **Outgress Services** (Go): Twitch Outgress sends messages and runs Twitch API actions, applying per-broadcaster rate limiting and the bot account token lifecycle. Discord Outgress performs Discord REST actions.
+- **Deployer** (Go): Runs release and deployment operations started from the admin console.
+- **Web Interface** (SvelteKit, Astro, Bun): The dashboard and admin console use SvelteKit. The marketing site and documentation use Astro. All run in a Bun workspace.
 
 
 ### Tech Stack
@@ -135,6 +140,7 @@ Currently in development, but will be built with the following technologies:
 
 #### Technologies & Tools
 
+![Svelte](https://img.shields.io/badge/svelte-%23f1413d.svg?style=for-the-badge&logo=svelte&logoColor=white)
 ![Astro](https://img.shields.io/badge/astro-%232C2052.svg?style=for-the-badge&logo=astro&logoColor=white)
 ![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=for-the-badge&logo=bun&logoColor=white)
 ![NATS](https://img.shields.io/badge/NATS-%2327AAE1.svg?style=for-the-badge&logo=natsdotio&logoColor=white)
@@ -145,14 +151,12 @@ Currently in development, but will be built with the following technologies:
 #### Security & Encryption
 
 ![Tink](https://img.shields.io/badge/Tink-4285F4?style=for-the-badge&logo=google&logoColor=white)
-![Linkerd](https://img.shields.io/badge/Linkerd-111111?style=for-the-badge&logo=linkerd&logoColor=white)
 ![Doppler](https://img.shields.io/badge/Doppler-%233426A4.svg?style=for-the-badge&logo=doppler&logoColor=white)
 
 #### DevOps
 
 ![Podman](https://img.shields.io/badge/podman-%23892CA0.svg?style=for-the-badge&logo=podman&logoColor=white)
 ![k3s](https://img.shields.io/badge/k3s-%23FFC61C.svg?style=for-the-badge&logo=k3s&logoColor=black)
-![Flux](https://img.shields.io/badge/flux-%235468FF.svg?style=for-the-badge&logo=flux&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)
 
 #### Infrastructure
@@ -169,9 +173,9 @@ Currently in development, but will be built with the following technologies:
 
 ### Security
 
-I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit. To ensure that I are not using the insecurecleartextkeyset function of Tink, I have acquired a Vault (KMS) from Oracle to secure my keysets. 
+I take security seriously. ItsBagelBot uses Tink for encryption of sensitive data at rest and in transit.
 
-The internal services communicate using a service mesh (Linkerd) to ensure secure communication between services and the NATS message bus.
+Every service connects to the NATS message bus over mutual TLS and authenticates with its own JWT account.
 
 The Oracle VPS hosting the bot is secured using Tailscale VPN, ensuring that only authorized devices can access the services.
 The VPS is completely locked down with a strict firewall allowing only necessary ports. A VCN will eventually be used for

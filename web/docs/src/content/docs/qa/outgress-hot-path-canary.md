@@ -7,6 +7,9 @@ description: Acceptance gates for validating the implemented outgress hot-path o
 
 Status: implementation complete; the production canary and real-Valkey integration run remain outstanding.
 Scope: `app/twitch/outgress` plus expected-nack handling in `pkg/bus`.
+Code locations: the ordered limiter is `AllowOrdered` in `pkg/ratelimit/valkey.go`, the pause snapshot is an
+`atomic.Pointer` in `app/twitch/outgress/internal/channels/registry.go`, response draining is in
+`app/twitch/outgress/internal/twitch/`, and expected nacks are classified in `pkg/bus/consume.go`.
 
 ## Outcome
 

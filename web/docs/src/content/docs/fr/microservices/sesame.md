@@ -17,9 +17,12 @@ Chaque message passe par `engine.Pipeline`, une étape de décodage et de distri
 1. **Décodage** : le payload JSON est désérialisé dans un `lane.Envelope` mis en pool.
 2. **Éligibilité** : les événements non pris en charge et les enveloppes sans broadcaster valide sont écartés avant toute projection ou commande.
 3. **Vues des modules** : si l'événement requiert un comportement configurable, le `Projector` est interrogé pour obtenir l'ensemble `ModuleView` du broadcaster.
-4. **Distribution de commande** : si l'événement est un message de chat (`channel.chat.message`), le pipeline consulte le registre des commandes. Les commandes intégrées sont évaluées selon leurs permissions, leurs cooldowns et leurs conditions d'exécution uniquement en direct.
-5. **Gestionnaires d'événements** : les gestionnaires non liés aux commandes enregistrés par les modules sont exécutés dans l'ordre d'enregistrement.
-6. **Émission** : les gestionnaires de modules ne publient pas directement sur NATS. Ils produisent une structure `Output` pour un callback `Emit`, qui construit le contrat filaire `outgress.Message` et le publie sur `twitch.outgress.premium` ou `twitch.outgress.standard`.
+4. **Modération entrante** : le chat passe par la porte AutoMod (`automod/`, `engine/moderate.go`). L'application des sanctions est désactivée par défaut (`SESAME_AUTOMOD_ENFORCE=false`) : les verdicts sont alors enregistrés et le traitement continue. Une action appliquée consomme la ligne.
+5. **Distribution de commande** : si l'événement est un message de chat (`channel.chat.message`) non consommé, le pipeline consulte le registre des commandes. Les commandes intégrées et personnalisées sont évaluées selon leurs permissions, leurs cooldowns et leurs conditions d'exécution uniquement en direct.
+6. **Gestionnaires d'événements** : les gestionnaires non liés aux commandes enregistrés par les modules sont exécutés dans l'ordre d'enregistrement.
+7. **Émission** : les gestionnaires de modules ne publient pas directement sur NATS. Ils produisent une structure `Output` pour un callback `Emit`, qui construit le contrat filaire `outgress.Message` et le publie sur `twitch.outgress.premium` ou `twitch.outgress.standard` (les tâches système utilisent `twitch.outgress.system`). Le texte de chat, d'annonce et d'épinglage passe d'abord par la vérification partagée du plancher de sortie.
+
+Les événements d'une chaîne d'essai (chaîne observée non inscrite) ignorent la modération, exécutent les gestionnaires, et leurs sorties reçoivent le marqueur d'origine d'essai pour qu'Outgress Twitch les refuse.
 
 La relecture du transport ne revendique aucune clé Valkey. Les sorties dérivées d'une entrée possédant un identifiant d'événement stable utilisent un identifiant de publication stable et attendent la confirmation NATS avant que l'entrée soit acquittée. Valkey reste l'état du domaine, et non un second système d'acquittement du transport.
 
@@ -54,7 +57,7 @@ func MyModule() module.Module {
 
 #### Types de modules
 
-Les modules sont déclarés avec l'un des trois types suivants, qui déterminent leur logique d'activation :
+Les modules sont déclarés avec l'un des trois types suivants, qui déterminent leur logique d'activation. Un builder peut aussi marquer un module `.Beta()` (s'exécute uniquement pour les chaînes Premium ; interdit sur Core) ou `.Trial()` (Core uniquement, s'exécute pour les chaînes d'essai) :
 - **Core** : toujours activé, jamais basculé, et sans lecture de projection.
 - **Default** : activé par défaut, mais désactivable depuis le dashboard.
 - **Opt-In** : désactivé par défaut, et doit être activé explicitement depuis le dashboard.
@@ -62,7 +65,7 @@ Les modules sont déclarés avec l'un des trois types suivants, qui déterminent
 #### Conditions de commande
 
 La méthode `.Command("name")` renvoie un `CmdBuilder` qui permet d'enchaîner les conditions d'exécution avant la finalisation avec `.Run()`.
-- **Permissions** : `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.Broadcaster()`
+- **Permissions** : `.Everyone()`, `.Sub()`, `.VIP()`, `.Mod()`, `.LeadMod()`, `.Broadcaster()`, ou `.AllowUser(id)` pour un seul spectateur nommé
 - **État** : `.LiveOnly()`, `.Cooldown(time.Duration)`
 - **Routage** : `.Aliases("trigger")`, `.NumericSuffix()` (absorbe les chiffres finaux directement ; par exemple `!clip30` devient `clip`).
 
@@ -74,7 +77,7 @@ Sesame fournit un système de modèles de chaînes rapide et économe en allocat
 
 Le système peut laisser passer les jetons littéraux `{key}` si le callback ne les reconnaît pas, au lieu de les supprimer silencieusement.
 
-En outre, l'assistant `module.ParseDynamic` prend en charge les variables dynamiques génériques :
+En outre, `tmpl.Dynamic` (`pkg/tmpl/dynamic.go`) prend en charge les variables dynamiques génériques :
 - `{random}` : génère un nombre aléatoire entre 1 et 100.
 - `{random:min-max}` : génère un nombre aléatoire entre `min` et `max`.
 - `{choice:a,b,c}` : choisit une chaîne aléatoire dans une liste séparée par des virgules.
@@ -90,7 +93,7 @@ Sesame conserve un débit élevé en évitant les lectures de base de données s
 
 Twitch renvoie `channel.follow` lors de chaque nouveau follow ; une boucle unfollow/refollow pourrait donc déclencher l'alerte de chat aussi vite qu'un spectateur peut cliquer. Le module d'alertes revendique `alert:follow:<broadcaster>:<follower>` pendant 72 heures avec la même idiome `SET key 1 NX PX` qu'un cooldown de commande, et ne publie le remerciement que s'il remporte la revendication. Les deux moitiés de la clé sont des identifiants Twitch numériques : un changement de nom ne rouvre donc pas la fenêtre et la revendication d'une chaîne n'en supprime jamais une autre. La revendication est faite après la lecture de l'activation ; une chaîne dont les alertes de follow sont désactivées ne consomme jamais une fenêtre qu'elle voudrait utiliser dès leur réactivation.
 
-Seuls les follows sont soumis à cette règle. Les abonnements, cadeaux, cheers et raids coûtent chacun quelque chose à l'émetteur, tandis que les pauses publicitaires sont l'événement propre à la chaîne.
+Les abonnements utilisent la même réservation avec une fenêtre de 15 minutes (`alert:sub:...`, abonnements offerts exclus). Les cadeaux, cheers et raids coûtent chacun quelque chose à l'émetteur, tandis que les pauses publicitaires sont l'événement propre à la chaîne : ils ne sont donc pas limités.
 
 Trois propriétés de la flotte rendent sûre la conservation d'une fenêtre de plusieurs jours dans Valkey :
 

@@ -44,6 +44,7 @@ Each service owns its schema. Its repository, RPC handlers, and `ent/schema` are
 | Gossip (Go) | External API providers, typed replies, HTTP egress, caches, upstream budgets, and just-in-time credential resolution. | [app/gossip](app/gossip/context.md) |
 | Projector (Go) | Shared Valkey read models, owner-event folds, hydration, status/live/dashboard reads, live counters and leaderboard seeding. | [app/projector](app/projector/context.md) |
 | WARP sidecar image | Vendor client image used by Gossip's untrusted HTTP route; bootstrap lives in the deployment. | [app/warp](app/warp/context.md) |
+| Deployer (Go) | Release and deployment runs (GitHub build/pin stages, cluster rollout, NATS ACL push) driven over the deploy RPC from the admin console. No local guide. | [app/deployer](app/deployer) |
 | Plain | Unfinished Go scaffold; not a wired chat engine. | [app/plain](app/plain/context.md) |
 | YouTube ingress directory | Documentation placeholder with no tracked application implementation. | [app/yt-ingress](app/yt-ingress/context.md) |
 

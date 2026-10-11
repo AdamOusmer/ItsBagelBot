@@ -15,14 +15,14 @@ Les ADR apparaissent dans la barre latérale par ordre numérique. Chaque nom su
 
 ## Rédiger un ADR
 
-Depuis le répertoire `docs/` :
+Depuis le répertoire `web/docs/` :
 
 ```sh
 bun run adr:new "Short title of the decision"
 # ou : npm run adr:new "Short title of the decision"
 ```
 
-Le wrapper utilise le modèle du projet (`docs/.adr/template.md`) et écrit le nouveau fichier dans ce dossier avec le prochain numéro séquentiel.
+Le wrapper utilise le modèle du projet (`web/docs/.adr/template.md`) et écrit le nouveau fichier dans ce dossier avec le prochain numéro séquentiel.
 
 Pour remplacer ou relier un enregistrement existant :
 

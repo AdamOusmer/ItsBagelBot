@@ -11,7 +11,7 @@ Deux mécanismes gardent l'instance HeatWave gratuite hors du hot path : un cach
 
 ## Chemin de lecture
 
-Les lectures sont servies par un cache TTL en processus et réparti entre shards (`pkg/cache`). Deux protections ciblent les deux formes classiques de stampede : les échecs simultanés sur une clé sont regroupés en une seule requête par singleflight, et les TTL reçoivent une gigue aléatoire allant jusqu'à 10 %, afin que les entrées écrites ensemble n'expirent jamais ensemble. Les erreurs ne sont jamais mises en cache.
+Les lectures sont servies par un cache TTL borné en processus (`pkg/cache`, construit sur Theine). Deux protections ciblent les deux formes classiques de stampede : les échecs simultanés sur une clé sont regroupés en une seule requête par singleflight, et les TTL reçoivent une gigue aléatoire allant jusqu'à 10 %, afin que les entrées écrites ensemble n'expirent jamais ensemble. Les erreurs ne sont jamais mises en cache. Les dépôts commands et modules fixent aussi une fenêtre de données périmées en cas d'erreur, égale au TTL : si un rechargement échoue, la valeur précédente continue d'être servie au lieu de faire échouer la lecture.
 
 La séquence montre deux goroutines qui manquent la même clé au même moment. La seconde se bloque sur le flight ouvert par la première et partage son résultat ; la base ne voit exactement qu'une requête.
 
@@ -76,8 +76,8 @@ sequenceDiagram
 
 La fenêtre de flush est aussi la fenêtre de durabilité : une valeur reste en mémoire au plus pendant l'intervalle de flush avant d'être persistée. Ce compromis n'est acceptable que pour un état qu'un utilisateur peut soumettre à nouveau ; le chemin financier ne passe donc jamais par le batcher :
 
-- **Toujours direct :** transactions Tebex (les IDs dupliqués lors des retries webhook sont déjà enregistrés), changements de niveau, écritures de jetons et suppressions de commandes.
-- **Write-behind :** options et configurations de modules, créations et modifications de commandes.
+- **Toujours direct :** accords et événements webhook Tebex (les IDs dupliqués lors des nouvelles tentatives sont déjà enregistrés), enregistrements de facturation et de concours, changements de statut et de bannissement, écritures de jetons et suppressions de commandes.
+- **Write-behind :** options et configurations de modules, créations et modifications de commandes, et préférences utilisateur (activation, langue, curseur, intégration, code créateur). L'écriture des préférences exclut volontairement le statut et le bannissement (`app/db/users/repository/preferences.go`).
 
 ## Cycle de vie d'une écriture groupée
 

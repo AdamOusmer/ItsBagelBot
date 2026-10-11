@@ -1,9 +1,9 @@
 # Premium giveaways and Tebex renewal protection
 
 Date: 2026-09-15
-Status: Product interview decisions accepted; implementation authorized after the interview. Provider scheduling verification remains a separate launch gate. See the [operations runbook](../runbooks/premium-giveaways.md).
+Status: Product interview decisions accepted. Implemented in `app/db/transactions/giveaway/` and `app/db/transactions/giveaways.go`, with the admin console under `web/admin/src/routes/(admin)/giveaways/`. Provider scheduling verification remains a separate launch gate. See the [operations runbook](../runbooks/premium-giveaways.md).
 
-### Confirmed decisions — review rounds 1–3 and follow-ups
+### Confirmed decisions: review rounds 1–3 and follow-ups
 
 - Select winners randomly from eligible registered bot accounts with completed onboarding; VIP, current staff, test, and inactive accounts are excluded. Former staff may enter when otherwise eligible.
 - Subscriber prize months must match the Tebex monthly Premium offer and pass provider verification. The fulfillment correction below enables same-date nonrecurring grants, while ambiguous month-end behavior stays pending; a 30-day approximation is not used.
@@ -21,7 +21,7 @@ Status: Product interview decisions accepted; implementation authorized after th
 
 The sections below apply these decisions and state the proposed implementation approach and operational defaults for final review. Shared terms are recorded in [CONTEXT.md](../../CONTEXT.md).
 
-### Fulfillment correction — September 15
+### Fulfillment correction: September 15
 
 After the first live draw, the user requested that fulfillment be fixed and
 enabled. The global provider-verification switch had incorrectly blocked a
@@ -43,10 +43,10 @@ retries and sent to Users unchanged.
 
 | Question | Confirmed decision |
 | --- | --- |
-| Q9 — Duration limit | Updated during implementation: 1–12 months per winner; the earlier uncapped decision is superseded. |
-| Q10 — Onboarding | Completed onboarding is required to enter. |
-| Q11 — Deactivation after selection | Keep the prize and original schedule unchanged. |
-| Q12 — Former staff | Allowed when otherwise eligible. |
+| Q9: Duration limit | Updated during implementation: 1–12 months per winner; the earlier uncapped decision is superseded. |
+| Q10: Onboarding | Completed onboarding is required to enter. |
+| Q11: Deactivation after selection | Keep the prize and original schedule unchanged. |
+| Q12: Former staff | Allowed when otherwise eligible. |
 
 ## 1. Outcome and recommendation
 
@@ -80,21 +80,21 @@ Reviewed implementation as of the date above:
 
 | Area | Current behavior | Consequence for this feature |
 | --- | --- | --- |
-| [Tebex client](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/transactions/tebex/client.go:24) | Uses the Headless API to create checkout baskets. | A separate server-side subscription-management integration is needed. |
-| [User billing state](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/ent/schema/user.go:67) | One source, expiry, recurring reference, cancellation flag, and billing-event cursor live on the user row. | Cannot represent independent paid access and giveaway access reliably. |
-| [Admin grants](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/repository/billing.go:150) | Setting paid status records an admin source and clears the recurring reference. | A giveaway must preserve subscription identity and billing history. |
-| [Billing updates](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/repository/billing.go:21) | Activations replace paid fields; matching termination events can downgrade a Tebex-sourced user. | Webhooks must update only the entitlement or subscription they concern. |
-| [Expiry worker](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/repository/billing.go:184) | Expires the single stored entitlement. The worker currently gives Tebex 24 hours of grace and defaults to a five-minute sweep. | Expiry must recompute access from all valid grants. |
-| [Dashboard billing](</Users/itsmavey/GolandProjects/ItsBagelBot/web/dashboard/src/routes/(app)/billing/+page.server.ts:115>) | Blocks checkout while premium is held; cancellation visibility depends on the single Tebex source. | Preserve duplicate-purchase protection and keep subscription management visible during a giveaway. |
-| [Admin authorization](/Users/itsmavey/GolandProjects/ItsBagelBot/web/admin/src/lib/access.ts:55) | Moderator/admin/owner roles; premium grants require admin. | Reuse this role ladder and enforce it in the owning service. |
-| [Webhook ledger](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/transactions/ent/schema/tebexwebhookevents.go:13) | Stores event and transaction identifiers, without full payment payloads. | Historical recurring references may require a Tebex payment lookup or operator reconciliation. |
-| [Raffle randomness](/Users/itsmavey/GolandProjects/ItsBagelBot/app/twitch/sesame/engine/raffle_mechanics.go:45) | Uses Go `crypto/rand.Int` to select distinct winners and hashes the pool. | A secure randomness source is already available; the chat raffle's 20-winner cap and other chat policies are not giveaway requirements. |
-| [Transactions email](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/transactions/mail/mail.go:15) | Sends gift email through `resend-go/v4` with idempotency keys. | Reuse the transport and styling with distinct giveaway templates. |
-| [Gift email delivery](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/transactions/rpc/giftnotify.go:46) | Best-effort send; resolves contact email from Users, skips missing addresses, and logs errors without durable retry/delivery records. | Add durable award-email state in Transactions; do not copy the silent failure behavior. |
-| [Admin bell](</Users/itsmavey/GolandProjects/ItsBagelBot/web/admin/src/routes/(admin)/+layout.server.ts:20>) | Shows recently sent user notifications. | Pending-award alerts require persistent unresolved state; the current bell is not an alert lifecycle. |
-| [Account activity](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/repository/users.go:305) | `is_active` is the bot-enable/receive setting; it is not a last-use measurement. | The inactive-account exclusion uses this existing setting. No recent-login or streaming threshold is introduced. |
-| [Staff identity](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/ent/schema/adminuser.go:14) | Users owns a separate staff roster keyed by Twitch ID; removal keeps a disabled row. | Exclude active staff membership. A historical disabled roster row does not exclude an otherwise eligible former staff member. |
-| [Test-account classification](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/users/ent/schema/user.go:22) | No explicit test/system marker exists on the user. | Add an explicit Users-owned classification or ID exclusion registry with an admin management path. |
+| [Tebex client](../../app/db/transactions/tebex/client.go:24) | Uses the Headless API to create checkout baskets. | A separate server-side subscription-management integration is needed. |
+| [User billing state](../../app/db/users/ent/schema/user.go:67) | One source, expiry, recurring reference, cancellation flag, and billing-event cursor live on the user row. | Cannot represent independent paid access and giveaway access reliably. |
+| [Admin grants](../../app/db/users/repository/billing.go:150) | Setting paid status records an admin source and clears the recurring reference. | A giveaway must preserve subscription identity and billing history. |
+| [Billing updates](../../app/db/users/repository/billing.go:21) | Activations replace paid fields; matching termination events can downgrade a Tebex-sourced user. | Webhooks must update only the entitlement or subscription they concern. |
+| [Expiry worker](../../app/db/users/repository/billing.go:184) | Expires the single stored entitlement. The worker currently gives Tebex 24 hours of grace and defaults to a five-minute sweep. | Expiry must recompute access from all valid grants. |
+| [Dashboard billing](<../../web/dashboard/src/routes/(app)/billing/+page.server.ts:115>) | Blocks checkout while premium is held; cancellation visibility depends on the single Tebex source. | Preserve duplicate-purchase protection and keep subscription management visible during a giveaway. |
+| [Admin authorization](../../web/admin/src/lib/access.ts:55) | Moderator/admin/owner roles; premium grants require admin. | Reuse this role ladder and enforce it in the owning service. |
+| [Webhook ledger](../../app/db/transactions/ent/schema/tebexwebhookevents.go:13) | Stores event and transaction identifiers, without full payment payloads. | Historical recurring references may require a Tebex payment lookup or operator reconciliation. |
+| [Raffle randomness](../../app/twitch/sesame/engine/raffle_mechanics.go:45) | Uses Go `crypto/rand.Int` to select distinct winners and hashes the pool. | A secure randomness source is already available; the chat raffle's 20-winner cap and other chat policies are not giveaway requirements. |
+| [Transactions email](../../app/db/transactions/mail/mail.go:15) | Sends gift email through `resend-go/v4` with idempotency keys. | Reuse the transport and styling with distinct giveaway templates. |
+| [Gift email delivery](../../app/db/transactions/rpc/giftnotify.go:46) | Best-effort send; resolves contact email from Users, skips missing addresses, and logs errors without durable retry/delivery records. | Add durable award-email state in Transactions; do not copy the silent failure behavior. |
+| [Admin bell](<../../web/admin/src/routes/(admin)/+layout.server.ts:20>) | Shows recently sent user notifications. | Pending-award alerts require persistent unresolved state; the current bell is not an alert lifecycle. |
+| [Account activity](../../app/db/users/repository/users.go:305) | `is_active` is the bot-enable/receive setting; it is not a last-use measurement. | The inactive-account exclusion uses this existing setting. No recent-login or streaming threshold is introduced. |
+| [Staff identity](../../app/db/users/ent/schema/adminuser.go:14) | Users owns a separate staff roster keyed by Twitch ID; removal keeps a disabled row. | Exclude active staff membership. A historical disabled roster row does not exclude an otherwise eligible former staff member. |
+| [Test-account classification](../../app/db/users/ent/schema/user.go:22) | No explicit test/system marker exists on the user. | Add an explicit Users-owned classification or ID exclusion registry with an admin management path. |
 
 Existing code is the baseline for this proposal. No assumption is made about the live store's API permissions or payment methods.
 
@@ -108,7 +108,7 @@ The Checkout API requires prior approval. Its availability must be established s
 
 The response schema exposes pause timestamps, `next_payment_date`, subscription interval, status, and cancellation information. Use actual returned values rather than the illustrative response examples. [Official Checkout OpenAPI schema](https://github.com/tebexio/TebexCheckout-OpenAPI/blob/main/checkout-api.yaml).
 
-### Read-only access check — September 15, 2026
+### Read-only access check: September 15, 2026
 
 Following a separate request to test access, the configured Headless webstore token was retrieved from Doppler `transactions/prd` directly into process memory and used for a read-only store lookup. Tebex returned **HTTP 200** with a store object. A later public lookup confirmed the store ID matches the project ID supplied by the user. No secret values or store response data were printed or saved.
 
@@ -143,7 +143,7 @@ Obtain Tebex confirmation and validate in a Tebex-supported test environment:
 9. **Test evidence:** save the before/after provider state, observed payment history, and results for each supported method. A mock or synthetic webhook alone cannot prove collection was suppressed.
 10. **Meaning of a month:** verify the actual monthly Premium package interval, month-end and leap-year behavior, billing time zone, and any date changes introduced by pause/reactivation. Use this same month definition for free winners. A local duration parser is not evidence of Tebex's billing contract.
 
-The current webhook path prefers provider expiry/next-payment fields but falls back to `AddDate(0, 1, 0)` when missing; see [Transactions fallback](/Users/itsmavey/GolandProjects/ItsBagelBot/app/db/transactions/web/server.go:309). Go normalizes overflowing dates rather than clamping to the last day, so that fallback cannot establish the intended Tebex month-end policy. [Go date arithmetic](https://pkg.go.dev/time#Time.AddDate).
+The current webhook path prefers provider expiry/next-payment fields but falls back to `AddDate(0, 1, 0)` when missing; see [Transactions fallback](../../app/db/transactions/web/server.go:309). Go normalizes overflowing dates rather than clamping to the last day, so that fallback cannot establish the intended Tebex month-end policy. [Go date arithmetic](https://pkg.go.dev/time#Time.AddDate).
 
 The adapter must translate the required billing date into the behavior Tebex actually supports. **Do not assume `paused_until = prize end` is sufficient** until these checks prove it.
 
@@ -372,21 +372,21 @@ Cross-service operations are not one atomic transaction. Transactions owns recov
 
 ## 10. Migration and delivery plan
 
-### Phase A — Prove Tebex behavior
+### Phase A: Prove Tebex behavior
 
 Complete section 3, document supported payment methods and precise scheduling semantics, and decide whether the preferred mechanism is viable. This is the first milestone, before committing to subscriber automation.
 
-### Phase B — Separate access from billing
+### Phase B: Separate access from billing
 
 Add grant records and agreement identity/history. Backfill current admin/Tebex access with exact stored expiries; preserve VIP. Recover missing recurring references from Tebex using stored transaction IDs where possible. The existing webhook ledger cannot reconstruct full subscription state on its own. Ambiguous accounts remain needs-review.
 
 Make billing updates and expiry source-specific. Compare derived access with the old projection in a read-only validation period. Preserve current customer access during migration; do not manufacture an extra paid month from incomplete data.
 
-### Phase C — Add the award workflow and UI
+### Phase C: Add the award workflow and UI
 
 Implement secure random draws with persisted results in Transactions, durable grants/operations across Transactions and Users, admin views/alerts, and Transactions/Resend winner emails. Test using non-production accounts. Keep subscriber fulfillment gated until Phase A and the end-to-end checks pass.
 
-### Phase D — Enable and observe
+### Phase D: Enable and observe
 
 Start with a small controlled campaign covering free, one-time, active subscriber, and cancellation-pending cases. Observe an original renewal boundary and a post-prize billing boundary through the supported test process before general rollout. Maintain a runbook for uncertain pauses and unexpected charges.
 

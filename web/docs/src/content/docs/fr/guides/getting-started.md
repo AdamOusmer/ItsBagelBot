@@ -15,21 +15,53 @@ Ce guide présente les concepts et les étapes nécessaires pour lancer l'enviro
 
 ## Vue d'ensemble de l'architecture
 
-ItsBagelBot utilise une architecture de microservices découplés qui privilégie la rapidité et la sécurité zero trust :
+ItsBagelBot utilise une architecture de microservices découplés :
 
-* **Services backend :** propulsés par **Go** et **Elixir**.
-* **Architecture événementielle :** **NATS JetStream** gère la messagerie en temps réel entre les services.
-* **Communication temps réel :** les événements principaux passent exclusivement par des **WebSockets**. Les webhooks ne sont pas utilisés.
-* **Frontend découplé :**
-    * **Site web :** frontend statique optimisé pour un déploiement en périphérie avec Cloudflare Pages.
-    * **Tableau de bord :** _en cours de développement_.
-* **Infrastructure :** conçue pour fonctionner sur **k3s** avec un modèle réseau Zero Trust.
-* **Réseau :** entièrement chiffré et sécurisé avec **Tailscale**, **Cloudflare Tunnels** et **Linkerd**.
+* **Services backend :** propulsés par **Go** et **Elixir** (l'ingress Twitch).
+* **Architecture événementielle :** **NATS JetStream** transporte les événements et le **request-reply NATS** transporte les RPC entre services.
+* **Communication temps réel :** les événements Twitch arrivent par des shards **WebSocket** EventSub. Les webhooks d'achat Tebex sont le seul webhook entrant et arrivent sur le service transactions.
+* **Applications web :**
+    * **Tableau de bord et Admin :** applications SvelteKit dans `web/dashboard` et `web/admin`, servies par le cluster.
+    * **Marketing et Docs :** applications Astro dans `web/marketing` et `web/docs`.
+* **Infrastructure :** fonctionne sur **k3s** avec Cilium, des politiques réseau de refus par défaut, **Cloudflare Tunnel** pour l'entrée publique et **Tailscale** pour l'accès des opérateurs.
+
+Voir la [vue d'ensemble du système](/fr/reference/system-overview/) et `CONTEXT-MAP.md` à la racine du dépôt pour la responsabilité de chaque service.
 
 ## Prérequis
 
-> En cours de rédaction.
+* **Go** 1.26.5 (`go.mod`).
+* **Bun** 1.4.2 (`packageManager` dans `web/package.json`).
+* **Elixir** 1.17 ou plus récent, uniquement pour l'ingress Twitch (`app/twitch/ingress/mix.exs`).
 
 ## Installation locale
 
-> En cours de rédaction.
+Services Go, depuis la racine du dépôt :
+
+```sh
+go test ./...
+```
+
+Applications web, depuis `web/` :
+
+```sh
+bun install --frozen-lockfile
+bun run dev:dashboard
+bun run dev:admin
+bun run check
+bun run test
+```
+
+Documentation, depuis `web/docs/` :
+
+```sh
+bun run dev
+```
+
+Ingress Twitch, depuis `app/twitch/ingress/` :
+
+```sh
+mix deps.get
+mix test
+```
+
+Le fichier `context.md` de chaque application liste ses vérifications ciblées.

@@ -49,7 +49,7 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/engine/commands-validate.ts`, `fetch-validate.ts`, `fetch-tokens.ts`: command/data-source validation.
 - `lib/importer/`: adapters for supported bot formats, caps, strategies and canonical import types.
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
-  root `locales/<lang>/{console,modules,website,docs}/`; shared hooks await `ensureCatalog`.
+  root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.
 - `styles/`: console-specific theme glue; shared element contracts live in ui.
 
