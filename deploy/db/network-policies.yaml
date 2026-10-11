@@ -89,6 +89,7 @@ spec:
         - port: 443
           protocol: TCP
 ---
+# 10.0.0.0/16 is the OCI VCN where the self-managed MySQL replacing HeatWave lands; dropping it blocks that cutover.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -104,6 +105,8 @@ spec:
     - Egress
   egress:
     - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16
         - ipBlock:
             cidr: 204.216.107.73/32
       ports:
