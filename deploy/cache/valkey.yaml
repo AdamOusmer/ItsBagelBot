@@ -589,14 +589,16 @@ spec:
           secretName: valkey-server-tls
   # Watchtime due windows, admission tombstones and unpaid award records are
   # authoritative state. Retain each member's AOF across pod replacements;
-  # emptyDir would lose that work during a complete fleet restart. The default
-  # StorageClass must provision these claims. Node-local volumes still need
+  # emptyDir would lose that work during a complete fleet restart. The class is
+  # explicit because claim templates are immutable: the live set was created with
+  # local-path and an apply without it is refused. Node-local volumes still need
   # operator recovery after node loss; see docs/operations/watchtime-rollout.md.
   volumeClaimTemplates:
   - metadata:
       name: valkey-data
     spec:
       accessModes: [ReadWriteOnce]
+      storageClassName: local-path
       resources:
         requests:
           storage: 8Gi
