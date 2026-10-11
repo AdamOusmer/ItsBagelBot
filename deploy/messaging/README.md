@@ -144,6 +144,16 @@ Both still present in 2.14.6, both were part of the patch set:
    discard its result, so a stream that never allows schedules parses one on
    every message (~0.4 s per 10 s at 127k msg/s).
 
+## Client distribution after a hub roll
+
+BUS clients dial the `nats` Service only and ignore the pod IPs hubs advertise
+in `connect_urls`, so every reconnect goes through Kubernetes readiness and the
+node-local preference. After a rolling restart the last hub to come back still
+holds few clients until clients reconnect for their own reasons; on 2026-10-11
+the 227 BUS connections sat 0 / 5 / 222 across nats-0/1/2. Read the count per
+hub with `/connz?limit=1024` on each pod. Lame duck (`nats-server --signal ldm`)
+empties a hub: a maintenance tool, not a balancer.
+
 ## Reproducing
 
 `deploy/k8s/bus-bench` is the rig: `-mode setup|publish|consume|cleanup`, and it

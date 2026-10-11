@@ -49,7 +49,6 @@ func baseOptions(identity connectionIdentity) []nats.Option {
 		nats.MaxPingsOutstanding(3),
 		nats.Timeout(15 * time.Second),
 		nats.RetryOnFailedConnect(true),
-		nats.DontRandomize(),
 		nats.IgnoreAuthErrorAbort(),
 		nats.ErrorHandler(logAsyncError),
 	}
@@ -117,6 +116,8 @@ func rpcOptions(name clientName) []nats.Option {
 		jwt:      env.Get("NATS_RPC_JWT", env.Get("NATS_JWT", "")),
 		nkeySeed: env.Get("NATS_RPC_NKEY_SEED", env.Get("NATS_NKEY_SEED", "")),
 	})
+	// Ordered on the RPC plane only: leaf first, hub second. Unshuffled BUS pools ended 0/5/222 across nats-0/1/2 after a hub roll (2026-10-11).
+	opts = append(opts, nats.DontRandomize())
 	// Failback only on the leaf RPC plane: on the BUS plane it would force a reconnect every interval.
 	if option := leafFailbackOption(); option != nil {
 		opts = append(opts, option)
@@ -125,11 +126,13 @@ func rpcOptions(name clientName) []nats.Option {
 }
 
 func busOptions(name clientName) []nats.Option {
-	return baseOptions(connectionIdentity{
+	opts := baseOptions(connectionIdentity{
 		name:     string(name),
 		jwt:      env.Get("NATS_JWT", ""),
 		nkeySeed: env.Get("NATS_NKEY_SEED", ""),
 	})
+	// Discovered hub pod IPs bypass Service readiness; dialing them piled 222 of 227 BUS clients on one hub (2026-10-11).
+	return append(opts, nats.IgnoreDiscoveredServers())
 }
 
 func Connect(url string, name string) (*nats.Conn, error) {
