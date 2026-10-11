@@ -88,11 +88,11 @@ Avec un plafond vérifié de 90 k, le budget opérationnel est de 63 k événeme
 
 ## Critères d'expansion
 
-Ne pas partitionner NATS, ajouter un serveur, remplacer Valkey ou migrer le CNI tant que l'enveloppe vérifiée n'est pas utilisée à plus de 70 % pendant 15 minutes, ou qu'un SLO de latence n'échoue pas après les réglages applicatifs et serveur. Toute proposition d'expansion doit préciser la télémétrie déclenchante, la marge attendue, le coût, le retour arrière et un test d'acceptation reproductible.
+Ne pas partitionner NATS, ajouter un serveur, remplacer Valkey ou migrer le CNI tant que l'enveloppe vérifiée n'est pas utilisée à plus de 70 % pendant 15 minutes, ou qu'un SLO de latence n'échoue pas après les réglages applicatifs et serveur. Toute proposition d'expansion doit préciser la télémétrie déclenchante, la marge attendue, le coût, le retour arrière et un test d'acceptation reproductible. La migration du CNI vers Cilium est déjà faite (`deploy/cilium/values.yaml`).
 
 ## Nettoyage associé aux phases
 
-- transférer l'identifiant OAuth de l'opérateur Tailscale sous la gestion Doppler/Flux et le renouveler ;
+- transférer l'identifiant OAuth de l'opérateur Tailscale sous la gestion Doppler et le renouveler (Flux ne tourne plus sur le cluster) ;
 - retirer la documentation obsolète sur Watermill, Linkerd, le plan de données Tailscale et la déduplication des rejeux dans Valkey ;
 - faire nettoyer par chaque benchmark ses flux, consommateurs, pods, ACL temporaires et objets de résultat après réussite, échec ou interruption ;
 - rendre les valeurs Helm et les demandes de ressources en CI pour détecter les clés de chart ignorées avant la production ;

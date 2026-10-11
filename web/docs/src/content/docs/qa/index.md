@@ -37,12 +37,10 @@ independent, the same way two ADR logs would.
 
 ## Authoring a new report
 
-Templates live alongside the ADR template:
+The AI review template lives alongside the ADR template at `web/docs/.qa/template-ai-review.md`. A monkey
+template has not been written yet.
 
-- `docs/.qa/template-monkey.md`
-- `docs/.qa/template-ai-review.md`
-
-Copy the appropriate template into the matching subgroup directory, increment the number, and fill the verdict
+Copy the template into the matching subgroup directory, increment the number, and fill the verdict
 block first. The rest of the report should be writable from the run's raw artifacts alone, with no memory of the
 session required.
 

@@ -7,6 +7,7 @@ description: Critères d’acceptation pour valider l’optimisation du chemin c
 
 État : implémentation terminée ; le déploiement canari en production et le test d’intégration avec Valkey réel restent à effectuer.
 Périmètre : `app/twitch/outgress` et gestion des acquittements négatifs attendus dans `pkg/bus`.
+Emplacements dans le code : le limiteur ordonné est `AllowOrdered` dans `pkg/ratelimit/valkey.go`, l'instantané de pause est un `atomic.Pointer` dans `app/twitch/outgress/internal/channels/registry.go`, le drainage des réponses se trouve dans `app/twitch/outgress/internal/twitch/` et les acquittements négatifs attendus sont classés dans `pkg/bus/consume.go`.
 
 ## Résultat attendu
 

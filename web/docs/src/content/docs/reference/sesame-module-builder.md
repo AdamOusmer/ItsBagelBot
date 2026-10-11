@@ -40,6 +40,8 @@ step.
 | Call | Purpose |
 |---|---|
 | `module.NewModule(name, kind)` | Start a module. Returns `*Builder`. |
+| `b.Beta()` | Mark a named module beta. It runs only for Premium broadcasters. A core module cannot be beta. |
+| `b.Trial()` | Mark the trial command set. It must be a core module, cannot be beta, and is gated only by the trial origin. |
 | `b.Command(name)` | Begin a chat command. Returns `*CmdBuilder` to chain gates. Name is lowercased. |
 | `b.On(eventType, fn)` | Register a non-command handler for one EventSub type. Registering the same type twice keeps the last handler. |
 | `b.Build()` | Validate and return the immutable `Module`. **Panics** on a programmer error. |
@@ -77,24 +79,18 @@ Each sets the **minimum** role, so higher roles also pass.
 | `.Sub()` | subscriber |
 | `.VIP()` | VIP |
 | `.Mod()` | moderator |
+| `.LeadMod()` | lead moderator |
 | `.Broadcaster()` | channel owner only |
 
 Ladder order: `RoleEveryone` → `RoleSubscriber` → `RoleVIP` → `RoleModerator` →
 `RoleLeadModerator` → `RoleBroadcaster`.
 
-**There is no `.LeadMod()` builder method**, even though `RoleLeadModerator` sits
-in the ladder. That entry exists for *inclusion*, not gating: Twitch ships the
-`lead_moderator` badge **instead of** `moderator`, so without a rank above
-moderator every lead mod would fail a `.Mod()` gate for want of a recognised
-badge. `.Mod()` therefore already admits lead moderators and above.
+Twitch ships the `lead_moderator` badge instead of `moderator`, so `.Mod()` also admits lead moderators and above. `.LeadMod()` excludes plain moderators.
 
-The tier is otherwise first-class: `permRoles` maps `"lead_mod"`,
+The tier is also used outside the builder: `permRoles` maps `"lead_mod"`,
 `internal/domain/validate` accepts it, the `commands` ent schema stores it, and
-the dashboard offers "Lead moderators & up". So a broadcaster-authored **custom**
-command can be lead-mod-only (the engine gates baked and custom commands through
-the same `gate()`), while a **baked** module currently cannot express "lead mods
-and up, excluding plain mods". Adding `.LeadMod()` would be a one-line
-`CmdBuilder` setter if a built-in ever needs it.
+the dashboard offers "Lead moderators & up". The engine gates baked and custom
+commands through the same `gate()`.
 
 | Method | Purpose |
 |---|---|
@@ -104,7 +100,7 @@ and up, excluding plain mods". Adding `.LeadMod()` would be a one-line
 
 | Method | Purpose |
 |---|---|
-| `.Cooldown(d)` | Shared per-command window. Zero (default) means none. |
+| `.Cooldown(d)` | Shared per-command window. Zero (default) means none. Custom commands can also set a per-viewer window. |
 | `.LiveOnly()` | Only runs while the broadcaster is live. |
 
 ### Matching
@@ -128,13 +124,14 @@ The engine applies gates centrally in `engine/dispatch.go`:
 func (p *Pipeline) gate(ctx, c, r gateRule) (bool, error) {
     if !permits(c, r.allowedUserID, r.perm) { return false, nil }          // 1
     if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok { return false, err }  // 2
-    return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)          // 3
+    if c.Env.Origin == "trial" { return true, nil }                         // no cooldown claim
+    return p.cooldownOK(ctx, c, r)                                          // 3
 }
 ```
 
 1. permission
 2. live-only
-3. cooldown
+3. cooldown (skipped for trial-origin messages)
 
 **Cooldown is last on purpose.** `cooldownOK` *claims* the window when it passes.
 If it ran first, a chatter who fails the permission check would still burn
@@ -154,7 +151,7 @@ type RunFunc func(ctx context.Context, c *Context, args string, emit Emit) error
 - `c.Env` is the chat envelope: `BroadcasterUserID`, `ChatterUserID`,
   `ChatterUserLogin`, `ChatterName()`, badges.
 - `c.Chatter()` resolves the chatter's role, parsed once and cached.
-- `c.Locale` is the broadcaster's language. Use `i18n.T(c.Locale, "key")`.
+- `c.Locale` is the broadcaster's language, loaded on demand. Call `c.EnsureLocale(ctx)` before reading it, then use `i18n.T(c.Locale, "key")`.
 - `c.Config` is this module's raw config blob; `c.Decode(&out)` unmarshals it.
   Empty for core modules, and a missing config is not an error.
 - `c.Num` is the inline numeric suffix, set only for a `NumericSuffix` command.
@@ -194,6 +191,8 @@ silently misbehaving in production. It rejects:
 
 - a named kind with an empty name
 - an unknown kind
+- a core module marked beta
+- a trial module that is not core or is also beta
 - an empty command name or empty alias
 - a duplicate trigger **within the same module**
 - a command with no `Run` (reported as "chain .Run to finish it")

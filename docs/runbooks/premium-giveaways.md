@@ -47,7 +47,7 @@ Subscriber awards remain pending until provider protection is verified. The
 admin draw preview must show this limitation before selection. Disabling new
 awards must not stop recovery of existing ones.
 
-### Verification evidence — September 15, 2026
+### Verification evidence: September 15, 2026
 
 - Rechecked three saved agreements through the live Checkout API: all reads
   returned HTTP 200 and reference comparisons matched. All three were monthly

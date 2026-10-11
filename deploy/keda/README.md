@@ -10,6 +10,8 @@ Flux (#588); this is the same thing as plain manifests.
   that the three images carry the digests their tags resolved to. Do not edit.
 - `kustomization.yaml`: every local change (placement, priority, spread, resources).
 - `availability.yaml`: one PodDisruptionBudget per component.
+- `network-policies.yaml`: default-deny for the `keda` namespace, plus the
+  operator's egress to NATS monitor port 8222.
 
 ```bash
 kubectl apply -f deploy/k8s/priorityclasses.yaml        # bagel-operator, referenced by the pods

@@ -23,4 +23,4 @@ Chaque entrée ci-dessous est un rapport d’exécution daté. Ouvrez le rapport
 ## Tests exclus
 
 - **Tout ce qui touche un véritable diffuseur.** Les tests aléatoires utilisent des locataires de préproduction avec des autorisations OAuth synthétiques. Une campagne qui atteint le chat d’un diffuseur en direct révèle un bug de l’outil de test.
-- **Tests d’endurance prolongés.** Ils relèvent de la tâche CI nocturne. Cette catégorie est réservée aux exécutions bornées et reproductibles qui produisent un ensemble unique d’artefacts.
+- **Tests d’endurance prolongés.** Cette catégorie est réservée aux exécutions bornées et reproductibles qui produisent un ensemble unique d’artefacts.

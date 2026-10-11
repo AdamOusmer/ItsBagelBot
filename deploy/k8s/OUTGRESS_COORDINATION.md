@@ -55,6 +55,6 @@ Batch tests cover checkpoint continuity and stale-owner fencing. Pause tests
 cover outage, restart and missing-state rejection.
 
 `TestSendingCoordinationQuorumIntegration` is opt-in with
-`OUTGRESS_COORDINATION_TEST_URL` pointing to a disposable, loopback-only
-three-node NATS fixture using the reviewed ACL and dummy `test-password`
-credentials. Never point this test at production.
+`OUTGRESS_COORDINATION_TEST_URL` and `OUTGRESS_COORDINATION_TEST_CREDS` (an
+`outgress_bus` creds file), pointing to a disposable, loopback-only three-node
+NATS fixture using the reviewed ACL. Never point this test at production.

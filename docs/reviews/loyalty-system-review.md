@@ -28,7 +28,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 ## Prioritized fixes
 
-### 1. P1 — Make point awards survive write failures and process crashes
+### 1. P1: Make point awards survive write failures and process crashes
 
 **Evidence:** [earning claims dedup before handoff](../../app/twitch/sesame/modules/loyalty.go), [reporter drains its maps](../../app/twitch/sesame/engine/loyalty_reporter.go), [publish failures are dropped](../../app/twitch/sesame/engine/loyalty_reporter.go), [consumer returns success after RAM accumulation](../../app/db/loyalty/main.go), [SQL flush drains pending work](../../app/db/loyalty/repository/loyalty.go), [failed SQL chunks are discarded](../../app/db/loyalty/repository/loyalty.go).
 
@@ -38,7 +38,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Restart after acceptance, interrupt publication, and inject storage failures. Every input award is eventually applied once, or remains visibly pending with its original ID.
 
-### 2. P1 — Make retries return the original result instead of moving points again
+### 2. P1: Make retries return the original result instead of moving points again
 
 **Evidence:** [award DTO has no source/batch ID](../../internal/domain/event/data/loyalty_events.go), [received rewards are added unconditionally](../../app/db/loyalty/repository/loyalty.go), [mutation requests have no operation ID](../../internal/domain/rpc/loyalty/loyalty.go), [grant claim released on RPC errors](../../app/twitch/sesame/modules/loyalty.go), [transfer claim released on RPC errors](../../app/twitch/sesame/modules/loyalty.go).
 
@@ -48,7 +48,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Replay the identical event concurrently, after a restart, after cooldown expiry and after a lost response. Observe one balance movement, one wager outcome and one history entry.
 
-### 3. P1 — Settle a gamble as one operation
+### 3. P1: Settle a gamble as one operation
 
 **Evidence:** [stake debited before rolling](../../app/twitch/sesame/modules/gamble.go), [roll failure returns after debit](../../app/twitch/sesame/modules/gamble.go), [winning payout is a separate request](../../app/twitch/sesame/modules/gamble.go), [post-debit read can fail](../../app/db/loyalty/repository/queries.go), [RPC then discards the successful spend outcome](../../app/db/loyalty/rpc/rpc.go).
 
@@ -58,7 +58,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Interrupt the worker before execution and after execution but before the reply. The wager is either unapplied or fully settled, and replay reports the same roll and balance.
 
-### 4. P1 prerequisite — Give authoritative Valkey state appropriate durability
+### 4. P1 prerequisite: Give authoritative Valkey state appropriate durability
 
 **Evidence:** [deployment explicitly uses ephemeral `emptyDir`](../../deploy/cache/valkey.yaml:732), [AOF uses every-second fsync](../../deploy/cache/config/tuning.conf:10), [replica lag gate is asynchronous](../../deploy/cache/config/tuning.conf:61), [TTL keys are eviction candidates](../../deploy/cache/config/valkey.conf:42), [read-only commands normally use a node-local replica](../../pkg/valkey/routing.go).
 
@@ -70,7 +70,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Test primary failure immediately after an acknowledged mutation, replica promotion, complete pod recreation, restore/replay, memory pressure and lost acknowledgement. No success response may promise a stronger guarantee than the tested configuration provides.
 
-### 5. P1 — Use Twitch IDs throughout point mutations
+### 5. P1: Use Twitch IDs throughout point mutations
 
 **Evidence:** [gamble reads by authenticated viewer ID](../../app/twitch/sesame/modules/gamble.go), [escrow uses login](../../app/twitch/sesame/modules/gamble.go), [spending picks a stored row by login/freshness](../../app/db/loyalty/repository/queries.go), [transfer recipient uses the same lookup pattern](../../app/db/loyalty/repository/transfer.go).
 
@@ -80,7 +80,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Rename/recycle a login while delaying identity updates. Only the authenticated viewer's account can fund their wager, and typed-target grants/transfers resolve to the intended current account.
 
-### 6. P2 — Enforce balance and arithmetic bounds at every mutation boundary
+### 6. P2: Enforce balance and arithmetic bounds at every mutation boundary
 
 **Evidence:** [bet limits have no upper numeric cap](../../app/twitch/sesame/engine/gamble.go), [unchecked doubled payout](../../app/twitch/sesame/modules/gamble.go), [adjustments accept negative final balances](../../app/db/loyalty/repository/queries.go), [balance schema has no nonnegative/range constraint](../../app/db/loyalty/ent/schema/balance.go).
 
@@ -90,7 +90,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Test minimum/maximum balances, large bets/rates, overflow, negative sets, over-removal and concurrent credits near the ceiling. Reject invalid operations without changing points or audit state.
 
-### 7. P2 — Resolve affordability and results from authoritative state
+### 7. P2: Resolve affordability and results from authoritative state
 
 **Evidence:** [one-minute cached balance](../../app/twitch/sesame/engine/loyalty_valkey.go), [gamble refuses before attempting a fresh spend](../../app/twitch/sesame/modules/gamble.go), [adjustment reply uses stale pre-update arithmetic](../../app/db/loyalty/repository/queries.go).
 
@@ -100,7 +100,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Earn points and immediately gamble with a previously cached zero. Concurrent awards cannot make the operation report a balance computed from an obsolete read.
 
-### 8. P2 — Preserve fractional bits earnings
+### 8. P2: Preserve fractional bits earnings
 
 **Evidence:** [each cheer is rounded independently](../../app/twitch/sesame/modules/loyalty.go), [zero awards are discarded](../../app/twitch/sesame/modules/loyalty.go).
 
@@ -110,7 +110,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Splitting an identical total of bits into smaller cheers produces the same total reward under unchanged settings. Duplicate events do not advance the remainder twice.
 
-### 9. P2 — Recover watch windows that miss their expiry notification
+### 9. P2: Recover watch windows that miss their expiry notification
 
 **Evidence:** [reconciler only rearms missing timers](../../app/twitch/sesame/engine/loyalty_tick.go), [arming installs a fresh five-to-six-minute timer](../../app/twitch/sesame/engine/loyalty_tick.go), [production uses a thirty-second claim](../../app/twitch/sesame/engine/loyalty_tick.go), [each snapshot pays a fixed 300 seconds](../../app/twitch/sesame/engine/loyalty_tick.go).
 
@@ -120,7 +120,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Miss expiry across restart, run two workers, resume after a lease expires, and interrupt a partially paid window. Every eligible recorded window is paid once, without inventing unobserved presence.
 
-### 10. P2 — Give set/reset an ordering contract
+### 10. P2: Give set/reset an ordering contract
 
 **Evidence:** [three independent loyalty replicas](../../deploy/k8s/loyalty.yaml:29), [absolute SQL set](../../app/db/loyalty/repository/queries.go), [delayed additive award flush](../../app/db/loyalty/repository/loyalty.go).
 
@@ -130,7 +130,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Delay a pre-reset award on another worker, set/reset the account and deliver that award afterward. The result matches the documented policy across retries and recovery.
 
-### 11. P2 — Separate viewer query cooldowns from management operations
+### 11. P2: Separate viewer query cooldowns from management operations
 
 **Evidence:** [all `!points` verbs share a five-second cooldown](../../app/twitch/sesame/modules/loyalty.go), [cooldown key contains channel and command only](../../app/twitch/sesame/engine/dispatch.go).
 
@@ -140,7 +140,7 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Two viewers can query balances independently; point queries cannot silently block moderator writes.
 
-### 12. P2 — Expose failures instead of presenting disabled or empty state
+### 12. P2: Expose failures instead of presenting disabled or empty state
 
 **Evidence:** [configuration lookup/decode failures become quiet disabled state](../../app/twitch/sesame/engine/loyalty_config.go), [watch processing then stops quietly](../../app/twitch/sesame/engine/loyalty_tick.go), [dashboard silently converts failed standings reads to an empty leaderboard](<../../web/dashboard/src/routes/(app)/loyalty/+page.server.ts:42>), [point-query errors return no reply](../../app/twitch/sesame/modules/loyalty.go).
 
@@ -148,16 +148,16 @@ Validate key types, ranges and all expected failure cases before the first write
 
 **Acceptance:** Remove chatters permissions, break a config read and stop the history projector. The dashboard identifies the failing component and affected work rather than claiming no viewers earned points.
 
-## Product work to approach StreamElements polish
+## Product work to approach Hosted bot A polish
 
-These are feature/semantics gaps, not evidence about StreamElements' internal reliability.
+These are feature/semantics gaps, not evidence about Hosted bot A's internal reliability.
 
-1. **Subscriber earning controls.** Add a configurable subscriber watch multiplier and an exclusion list for other bots/accounts. The current watch loop excludes only this bot and gives every other chatter the same rate. Keep watchtime tracking independently configurable from currency earning. StreamElements documents subscriber multipliers and earning exclusions in its [loyalty overview](https://support.streamelements.com/hc/en-us/articles/10474478470290-Loyalty-System-Overview).
-2. **A complete management view.** Search/paginate viewers, show current points, lifetime earned points, watchtime and a reasoned transaction history. Add grant/set/remove, watchtime correction, import/export and deliberate account-transfer tools with actor attribution. The current page has rates and a read-only top ten. StreamElements documents [leaderboard management](https://support.streamelements.com/hc/en-us/articles/10474478802578-Loyalty-Leaderboard-Overview) and [point/watchtime adjustments](https://support.streamelements.com/hc/en-us/articles/12428772165394-Manually-Move-Someone-Else-s-Points-and-Watch-Time-Data).
-3. **Familiar chat commands.** Add `!watchtime [user]`, `!points [user]`, rank and watchtime/lifetime leaderboards. Add percentage wagers and `k`/`m` shorthand. Say explicitly when `all`/`half` is capped by the maximum wager. StreamElements documents [loyalty commands](https://docs.streamelements.com/chatbot/commands/default/) and [roulette arguments](https://docs.streamelements.com/chatbot/modules/roulette).
+1. **Subscriber earning controls.** Add a configurable subscriber watch multiplier and an exclusion list for other bots/accounts. The current watch loop excludes only this bot and gives every other chatter the same rate. Keep watchtime tracking independently configurable from currency earning. Hosted bot A documents subscriber multipliers and earning exclusions in its [loyalty overview](https://support.streamelements.com/hc/en-us/articles/10474478470290-Loyalty-System-Overview).
+2. **A complete management view.** Search/paginate viewers, show current points, lifetime earned points, watchtime and a reasoned transaction history. Add grant/set/remove, watchtime correction, import/export and deliberate account-transfer tools with actor attribution. The current page has rates and a read-only top ten. Hosted bot A documents [leaderboard management](https://support.streamelements.com/hc/en-us/articles/10474478802578-Loyalty-Leaderboard-Overview) and [point/watchtime adjustments](https://support.streamelements.com/hc/en-us/articles/12428772165394-Manually-Move-Someone-Else-s-Points-and-Watch-Time-Data).
+3. **Familiar chat commands.** Add `!watchtime [user]`, `!points [user]`, rank and watchtime/lifetime leaderboards. Add percentage wagers and `k`/`m` shorthand. Say explicitly when `all`/`half` is capped by the maximum wager. Hosted bot A documents [loyalty commands](https://docs.streamelements.com/chatbot/commands/default/) and [roulette arguments](https://docs.streamelements.com/chatbot/modules/roulette).
 4. **Subscription semantics.** Label the current resub source as a shared resub message: it does not observe every automatic renewal. Decide whether to support renewal reconciliation, tier-specific gifter rewards and duration-based awards. Current recipient sub/resub rewards use tier multipliers; gifter rewards use gift count without tier. This is a policy decision. Twitch's [EventSub reference](https://dev.twitch.tv/docs/eventsub/eventsub-reference/) defines the shared-message and gift payloads; gift events do not supply subscription duration.
 5. **Modern Bits coverage.** The bot consumes `channel.cheer`, with no `channel.bits.use` handler. Add loyalty support for `power_up` and `custom_power_up` if Bits spending should count. Choose one canonical source for ordinary cheers or filter overlap so two topics cannot double-award them. Twitch documents these types in the [Channel Bits Use event](https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-bits-use-event).
-6. **Clear economy controls.** Replace hidden zero/default and negative/off conventions with visible enabled switches and effective rates; make tier multipliers, win chance, payout and limits explicit. Show expected earning per hour and the effect of odds on point supply. Current StreamElements intervals vary by channel rather than universally using ten minutes, so cadence alone is not a quality benchmark. [StreamElements changelog, July 25, 2024](https://docs.streamelements.com/changelog).
+6. **Clear economy controls.** Replace hidden zero/default and negative/off conventions with visible enabled switches and effective rates; make tier multipliers, win chance, payout and limits explicit. Show expected earning per hour and the effect of odds on point supply. Current Hosted bot A intervals vary by channel rather than universally using ten minutes, so cadence alone is not a quality benchmark. [Hosted bot A changelog, July 25, 2024](https://docs.streamelements.com/changelog).
 
 ## Implementation order
 

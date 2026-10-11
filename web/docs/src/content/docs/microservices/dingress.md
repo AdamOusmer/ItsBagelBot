@@ -2,47 +2,43 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Dingress
-description: Discord gateway singleton for welcomes, voice, tickets, logs, and slash commands.
+description: Discord ingress, the gateway receiver of the Discord vertical, and how it hands off to the engine and outgress.
 ---
 
-Dingress (`app/dingress/`) is the Discord **gateway** half of Bagel. Outgress keeps REST (go-live embeds, clip archive, 1-click guild fill, raid/gift copies). Dingress holds the one Identify session for the fleet bot token and turns gateway events into community ops.
+Dingress (`app/discord/ingress/`, deployed as `discord-ingress`) is the Discord **gateway** receiver. It holds the fleet bot token's Identify session, wraps selected gateway events, and publishes them to NATS. It does not decide community behavior and it does not run general Discord REST calls.
 
-Two Identify sessions on the same token fight. That is why the gateway is its own Deployment with **replicas: 1** and a Recreate strategy, not a replica of outgress.
+The Discord side is three services plus a data service:
 
-## What it replaces
-
-One Bagel bot stands in for the usual streamer Discord stack:
-
-| Instead of | Bagel does |
-|---|---|
-| Welcomer | Welcome embed in `#welcome`, Member autorole, optional goodbye |
-| TempVoice | Join-to-create on `+ Create voice`, cap 12 clones, Lock/Unlock buttons in the room |
-| Ticket Tool | Support-desk embed with **Open a ticket**; each ticket is an embed with **Close ticket** |
-| Sapphire (mod/logs) | `/timeout` `/kick` `/ban` `/purge` and `#logs` |
-| OwO | Chat crumbs (15/msg, 60s cooldown); rank and daily are embed cards with **Claim daily** |
-| Urchin | Already a Twitch sesame module (`!daily` and friends). Discord slash for Urchin is deferred until gossip can answer from dingress. |
-
-Go-live, clips, raids, gifts, and milestone copies stay on the companion REST path in [Outgress](/microservices/outgress/).
+| Service | Path | Role |
+|---|---|---|
+| Discord Ingress (this page) | `app/discord/ingress/` | Gateway session, event relay, immediate interaction defer. |
+| Discord Engine | `app/discord/engine/` | Decides what to do: welcomes, tickets, voice rooms, audit logs, link guard, live and clip posts. Emits described commands; makes no Discord REST call. |
+| Discord Outgress | `app/discord/outgress/` | Executes the commands over Discord REST, runs guild setup and layout, registers slash commands. |
+| Discord data | `app/db/discord/` | Owns guild bindings, per-guild settings, tickets and member XP. |
 
 ## Architecture
 
-Dingress does **not** subscribe to NATS. It:
+1. Ingress dials the Discord gateway with the fleet bot token and keeps the session alive (heartbeat, Resume, reconnect).
+2. For each recognized dispatch it publishes a wrapped event to one of six subjects: `discord.ingress.event.{message,member,voice,interaction,audit,guild}`. Unknown event types are dropped. Ingress only publishes; the Discord Engine provisions the `DISCORD_INGRESS` stream and binds its consumers.
+3. The engine resolves the guild binding and settings (from Discord data over RPC, with Valkey caches) and publishes commands to `discord.outgress.mod` (urgent moderation) or `discord.outgress.default`.
+4. Outgress consumes both lanes, moderation first, and calls Discord REST.
 
-1. Dials `wss://gateway.discord.gg/?v=10&encoding=json` with intents guilds, members, voice states, guild messages, and message content.
-2. Resolves each guild through Valkey `discord:guild:{id}` (the reverse index outgress writes on setup/unbind).
-3. Loads the Discord module blob from the projector store so dashboard toggles apply without an RPC hop.
-4. Writes clones, tickets, and crumb counters back to Valkey (`discord:voice:`, `discord:ticket:`, `discord:xp:`).
+Two replicas run for availability, but a Valkey lease decides which one holds the gateway socket. The standby holds none and takes over from the lease holder's saved Resume checkpoint, so a rollout does not spend a fresh Identify. This is why one bot token never has two live sessions.
 
-Empty `DISCORD_BOT_TOKEN` leaves the process idle: health still serves, the gateway stays dark.
+### Interaction defer
+
+Ingress makes one REST call itself: for `INTERACTION_CREATE` it defers the interaction before Discord's three-second deadline. If the defer fails, the event is dropped. The engine and outgress finish the interaction later through a followup. The defer shares the fleet-wide Valkey rate budget with outgress.
+
+### Presence
+
+Ingress sets the bot's presence from the public users counts RPC (`NATS_INTERNAL_USERS_COUNTS_SUBJECT`, default `bagel.rpc.internal.users.counts.get`).
 
 ### Privileged intents
 
-Server Members Intent and Message Content Intent must be enabled on the Discord application. Without them, welcomes and crumb ranks never fire.
-
-### Member-facing panels
-
-Tickets, voice rooms, and crumbs are **embeds with buttons**. Slash commands still register (`/ticket`, `/voice`, `/timeout`, `/kick`, `/ban`, `/purge`, `/daily`, `/rank`) as a fallback and for rename/limit, which need typed input.
+The gateway session requests the Guilds, Guild Members, Guild Moderation, Guild Expressions, Guild Invites, Guild Voice States, Guild Messages and Message Content intents. Server Members Intent and Message Content Intent are privileged and must be enabled on the Discord application. Without them, welcomes and crumb ranks never fire.
 
 ## Deploy
 
-Doppler project `dingress-env` carries `DISCORD_BOT_TOKEN` (same value as `outgress-env`), `VALKEY_PASSWORD`, and New Relic. The bot token is the only Discord credential; it never lives in the module blob.
+`deploy/k8s/discord.yaml` runs `discord-ingress` (2 replicas), `discord-engine` (3) and `discord-outgress` (3), all with rolling updates. Their secrets come from the Doppler project behind the `discord-env` secret. `DISCORD_BOT_TOKEN` is the only Discord credential and reaches ingress and outgress; it never lives in a module blob. An empty `DISCORD_BOT_TOKEN` leaves ingress idle: health still serves, the gateway stays dark.
+
+The dashboard's Discord setup RPC keeps its historical `bagel.rpc.dingress` prefix, but it is served by Discord Outgress, not by this service.

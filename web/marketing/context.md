@@ -19,8 +19,8 @@ This Astro package builds the public product site, localized guides and command 
 | --- | --- |
 | Locale / Lang | Catalog-discovered language code; English is unprefixed, others use `/<code>/`. |
 | Localized path | Page with translated twins used by routing, switchers and hreflang emission. |
-| Guide structure | English typed content describing blocks/screens; translations replace copy. |
-| Guide strings | Locale-specific copy mapped onto that fixed guide structure. |
+| Guide structure | English typed content (`<slug>.en.ts`) describing blocks/screens; translations replace copy. |
+| Guide strings | Locale-specific flat id-to-text JSON (`<slug>.<lang>.json`) mapped onto that fixed guide structure. |
 | Screen | Static instructional depiction of a dashboard area, not the live dashboard component. |
 | Command builder | Public custom-command/module-reply composer with sample chat rehearsal. |
 | Recipe | Example configuration for the builder, separate from persisted broadcaster state. |
@@ -45,9 +45,9 @@ Preview samples illustrate behavior; availability and variable grammar come from
 - [contentGuards.ts](src/lib/contentGuards.ts): content/locale safety checks imported by every layout.
 - [lib/guides/registry.ts](src/lib/guides/registry.ts): `getGuide`, `getHub`, slugs and build-time parity checks.
 - `src/lib/guides/types.ts`, `translate.ts`, `parity.ts`, `slugs.ts`: guide shape/copy contracts and URLs.
-- `src/content/guides/`: `*.en.ts` guide structures, locale JSON strings and `hub.<lang>.json`.
+- `src/content/guides/`: `*.en.ts` guide structures, `<slug>.<lang>.json` strings and `hub.<lang>.json`.
 - `src/components/guides/blocks/` renders prose, steps, tables, cards and callouts;
-  `screens/` renders instructional dashboard depictions.
+  `screens/` renders instructional dashboard depictions; `widgets/` holds interactive blocks.
 - [CommandBuilder.astro](src/components/builder/CommandBuilder.astro): composer UI and client behavior.
 - `src/lib/variables/`: marketing presentation adapters over shared variable inventory.
 - `src/script/`: navigation bindings, reveal/scroll effects, WebGL geometry and other site interaction.
@@ -55,7 +55,7 @@ Preview samples illustrate behavior; availability and variable grammar come from
 
 ## Route/content areas and data flow
 
-- `src/pages/[...lang]/` emits home, pricing, contact, import, song requests and Valorant pages.
+- `src/pages/[...lang]/` emits home, pricing, contact, import, song requests, Govee and Valorant pages.
 - `guides/index.astro`, `guides/[slug].astro`, `guides/variables.astro` emit tutorial/reference pages.
 - `command-builder.astro` exposes the workbench; `changelog/` includes index and version pages.
 - `terms.astro`, `privacy.astro`, `creator-terms.astro` assemble structured legal documents.
@@ -87,5 +87,5 @@ Preview samples illustrate behavior; availability and variable grammar come from
 From `web/marketing`: `bun run dev`, `bun run build`, `bun run preview` (preview builds first).
 For browser tests from `web/marketing`: build first, then `bunx playwright test`.
 [playwright.config.js](playwright.config.js) serves existing `dist/` on port 4399 and uses `tests/`.
-This package has no `check` or `test` script; do not infer those from workspace-wide scripts.
-`tests/site.spec.js` checks rendered site behavior; `tests/compareVersion.spec.js` covers version comparison.
+`bun run test:e2e` runs Playwright (it skips `compareVersion.spec.js`, a `bun:test` file). The package has no `check` or `test` script; do not infer those from workspace-wide scripts.
+`tests/site.spec.js` checks rendered site behavior; `tests/locale-layout.spec.js` diffs layout boxes across locales; `tests/compareVersion.spec.js` covers version comparison.

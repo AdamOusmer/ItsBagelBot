@@ -13,7 +13,7 @@ The plan deliberately reuses the agents already running in production and keeps 
 bounded.
 
 The database-owning services in scope are `users`, `modules`, `commands`, and `transactions`. The projector does not
-query MySQL; its datastore is Valkey.
+query MySQL; its datastore is Valkey. The `loyalty`, `notifications` and `discord-data` services now own schemas as well and are outside this plan.
 
 ## Existing baseline
 
@@ -104,6 +104,8 @@ Update `pkg/bus/rpc.go`:
 
 This closes the current ingress/projector-to-data-service and projector-to-outgress RPC trace gaps.
 
+Status: done. `pkg/bus/rpc.go` injects the headers (`insertTraceHeaders` in `pkg/bus/telemetry.go`) and the queue subscriber accepts them.
+
 ### Ingress notification transaction
 
 Update `Ingress.Dispatcher`, `Ingress.Pipeline`, `Ingress.Nats`, and `Ingress.BroadcasterStatus`:
@@ -120,6 +122,9 @@ Update `Ingress.Dispatcher`, `Ingress.Pipeline`, `Ingress.Nats`, and `Ingress.Br
 Gnat 1.15.1 already supports headers for `pub` and `request`, and the installed Elixir agent exposes both transaction
 and distributed-trace header APIs, so this requires no dependency change.
 
+Status: the `Ingress`/`Notification` transaction and the trace-header pass-through exist in
+`app/twitch/ingress/lib/ingress/trace.ex`.
+
 ### Projector prewarm
 
 The three prewarm goroutines currently use `context.Background()`, so their RPC and Valkey work is invisible to the
@@ -135,6 +140,9 @@ Instead:
 4. Add `prewarm.branch` and `result`; keep user ID only in trace/log context.
 
 This preserves the fire-and-forget behavior while producing three causally linked child transactions.
+
+Status: the prewarm goroutines no longer exist. Warming is now done by the bounded hydrator in
+`app/projector/hydration/hydrator.go`, so any remaining linkage work applies to its fetches.
 
 ### Phase 1 acceptance
 
@@ -168,6 +176,9 @@ The observer samples the standard `sql.DBStats` values:
 Extend `pkg/db/gate.go` with atomics for current holders, current waiters, cumulative waits, wait duration, and acquire
 timeouts. Atomics avoid a second lock on every query. The same 30-second observer reports the pool and gate as two
 `ServiceCapacitySample` components.
+
+Status: pool sampling exists in `pkg/db/stats.go` as `db/pool/*` custom metrics, and the gate records a
+`db.gate.wait` segment in `pkg/db/gate.go`. `ServiceCapacitySample` and `monitor.ObserveDBPool` do not exist.
 
 Keep `nrmysql` as the source of query execution timing. Add repository-level segments only for operations whose
 multiple datastore calls remain ambiguous in traces; do not wrap every generated ent method.

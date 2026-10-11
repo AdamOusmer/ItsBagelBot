@@ -2,97 +2,79 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Matériel et cluster
-description: Nœuds ARM, orchestration K3s, limites de ressources et organisation du cluster.
+description: Nœud de plan de contrôle, nœuds de travail, orchestration K3s, classes de priorité et organisation du cluster.
 ---
 
-Le cluster est volontairement petit, orienté ARM et autohébergé. Cette page décrit son organisation physique, le choix de la distribution Kubernetes et le modèle de ressources commun à toutes les charges de travail.
+Le cluster est volontairement petit et autohébergé. Cette page décrit son organisation physique, le choix de la distribution Kubernetes et le modèle d'ordonnancement commun à toutes les charges de travail.
 
 ## Organisation physique
 
-L'ensemble des nœuds utilise plusieurs architectures : **`node1`** est **ARM** (aarch64) et **`node2`** est **Intel** (x86_64). Toutes les charges sont réparties entre les deux nœuds pour assurer la haute disponibilité (HA) ; chaque nœud exécute l'image compilée nativement pour son architecture.
+Le cluster compte un nœud de plan de contrôle et un groupe de nœuds de travail.
 
-Le trafic des pods et des Services passe par le WireGuard natif de K3s, directement entre les adresses des nœuds. Tailscale est réservé à SSH et aux routes privées explicites : administration Kubernetes, accès privé à l'interface d'administration et base de données externe. NATS, Valkey, les RPC, les flux, la télémétrie et l'autoscaling restent sur le réseau natif des pods. Voir [Réseau →](/fr/infrastructure/networking/).
+- **`cp1`** est un nœud ARM à 2 cœurs qui exécute le serveur K3s. Il porte une taint : les charges de travail first-party ne s'y planifient pas. Les étiquettes de nœud utilisent la clé `role`, et `cp1` porte `role=cp`.
+- Les **nœuds de travail** portent `role=node` et exécutent toutes les charges. NATS exécute un membre par nœud de travail (trois), et la plupart des services tournent en trois réplicas répartis sur ces nœuds. Les manifestes des services de production excluent les nœuds dont le `role` vaut `cp` ou `worker` (blocs `affinity` de `deploy/k8s/*.yaml`).
+
+Les charges choisissent leurs nœuds par `role`, jamais par nom d'hôte (`deploy/k8s/workloads_test.go`, `TestNoWorkloadSelectsNodesByHostname`).
+
+Les images sont compilées nativement pour Intel et ARM sur des runners GitHub (`.github/workflows/publish-images.yml`) : chaque nœud exécute l'image de sa propre architecture.
+
+Le réseau des pods et des Services repose sur Cilium en mode de routage natif, avec remplacement de kube-proxy (`deploy/cilium/values.yaml`). Tailscale est réservé à l'accès privé : l'adresse du serveur d'API Kubernetes dans les valeurs Cilium est une adresse du tailnet, et le namespace `tailscale` porte les proxys privés. NATS, Valkey, les RPC et la télémétrie restent sur le réseau des pods. Voir [Réseau →](/fr/infrastructure/networking/).
 
 ## Distribution Kubernetes : K3s
 
-Nous utilisons [K3s](https://k3s.io/) plutôt que Kubernetes amont pour les raisons suivantes :
+Nous exécutons [K3s](https://k3s.io/) plutôt que Kubernetes standard, pour les raisons suivantes :
 
-- **Installation avec un seul binaire.** Une commande suffit pour amorcer un nouveau nœud ARM ; reconstruire un nœud est une opération documentée d'environ 15 minutes.
-- **Faible consommation de ressources.** Le processus serveur K3s héberge le plan de contrôle dans environ 512 Mo de mémoire résidente ; Kubernetes amont consommerait une part importante du nœud avant même le lancement des charges.
-- **Stockage interne reposant sur SQLite.** Le plan de contrôle n'est pas hautement disponible ; un serveur unique convient à une charge destinée à un seul streamer. Si plusieurs plans de contrôle deviennent nécessaires, K3s documente la migration vers etcd embarqué.
-- **Composants par défaut désactivés.** Nous désactivons Traefik, remplacé par Cloudflare Tunnel pour l'entrée dans le cluster, ainsi que ServiceLB, puisque Tailscale assure l'équilibrage fondé sur l'identité.
+- **Installation en un seul binaire.** Amorcer un nœud tient en une commande.
+- **Empreinte légère.** Le plan de contrôle est assez petit pour partager un nœud à 2 cœurs.
+- **Datastore SQLite.** Le plan de contrôle est un serveur unique, pas un plan de contrôle HA. Le datastore est la base SQLite de K3s (kine), et `deploy/k8s/backup-k3s.yaml` en fait un instantané avec `sqlite3 .backup`, le vérifie, puis l'envoie hors du cluster.
 
-Options K3s importantes (`/etc/rancher/k3s/config.yaml`) :
+## Modèle d'ordonnancement
 
-```yaml
-disable:
-  - traefik
-  - servicelb
-flannel-backend: wireguard-native
-flannel-external-ip: true
-disable-network-policy: false
-write-kubeconfig-mode: "0640"
-node-label:
-  - "node.bagelbot.io/role=worker"
-```
+Chaque Deployment first-party déclare ses requêtes et ses limites dans son manifeste, et chaque pod first-party porte l'une des quatre classes de priorité (`deploy/k8s/priorityclasses.yaml`) :
 
-Le kubeconfig local d'un nœud est réservé au groupe d'exploitation `bagelbot`. Celui distribué aux appareils des opérateurs cible l'adresse de l'interface Tailscale du serveur, pas son adresse LAN.
+| Classe de priorité | Valeur | Utilisée par |
+|---|---|---|
+| `bagel-data-plane` | 900000 | Valkey et NATS |
+| `bagel-service` | 800000 | twitch-ingress, sesame, outgress, projector, gossip et les services adossés à une base de données |
+| `bagel-edge` | 700000 | Les consoles dashboard et admin |
+| `bagel-operator` | 600000 | L'outillage du cluster, comme KEDA et le deployer |
 
-## Modèle de ressources
+L'ordre est voulu : les services dépendent du plan de données, qui est donc évincé en dernier. Une console brièvement non planifiable coûte à l'opérateur un rafraîchissement de page, alors qu'évincer un service d'exécution coupe du trafic de chat en direct.
 
-Chaque charge **doit** déclarer ses demandes et ses limites de ressources. Un `LimitRange` par namespace et une politique d'admission imposent cette règle en rejetant les spécifications de pods sans limites CPU ou mémoire.
+Un arrêt par manque de mémoire (OOM) est traité comme un signal de charge, pas comme une panne : on relève la limite du service concerné au lieu d'ajouter de la marge partout.
 
-### Valeurs par défaut
+### Namespaces
 
-```yaml
-# applied to any container that doesn't specify
-resources:
-  requests:
-    cpu: "100m"
-    memory: "64Mi"
-  limits:
-    cpu: "500m"
-    memory: "256Mi"
-```
+| Namespace | Contenu |
+|---|---|
+| `app` | twitch-ingress, sesame, outgress, les services Discord, gossip, les consoles |
+| `db` | Les services adossés à une base (users, commands, modules, loyalty, transactions, notifications, discord-data), le projector et les jobs de sauvegarde |
+| `cache` | Valkey avec Sentinel |
+| `messaging` | Les hubs NATS et les nœuds leaf |
+| `ops` | Le deployer |
+| `operators` | cloudflared et l'opérateur Doppler |
+| `networking` | Traefik |
+| `tailscale`, `keda`, `observability` | Les proxys Tailscale, KEDA et les agents New Relic |
 
-Ces valeurs sont des **points de départ**, pas des objectifs : chaque service doit les adapter à sa charge mesurée.
+## Répartition et placement
 
-### Pourquoi les limites sont strictes
-
-Les binaires natifs rendent des limites serrées réalistes ([ADR-0002](/adr/0002-native-compilation/)). Un service Go traitant un flux Twitch normal reste aisément sous 50 Mo de mémoire résidente ; le service Kotlin compilé avec GraalVM reste sous 150 Mo. Des valeurs généreuses gaspilleraient une part importante d'un nœud de 8 Go.
-
-Les arrêts OOM sont considérés comme un signal de charge plutôt que comme des pannes : si un service est arrêté pendant un train de la hype, on augmente sa limite au lieu d'ajouter de la marge partout.
-
-### Catégorie de charge → namespace
-
-| Namespace | Catégorie | Qualité de service attendue |
-| --- | --- | --- |
-| `bagelbot-system` | Services du cluster (cloudflared, tailscale-operator, cert-manager) | Guaranteed ; jamais évincés. |
-| `bagelbot-data` | Services avec état (Postgres, Redis) | Guaranteed ; affectés aux nœuds avec SSD local. |
-| `bagelbot-app` | Services du bot | Burstable ; éviction possible sous pression mémoire. |
-| `bagelbot-build` | Constructions d'images et tâches ponctuelles | Best-effort ; facilement préemptées. |
-
-Les classes de priorité des pods suivent ces attentes : `system-cluster-critical` pour le système, la classe personnalisée `bagelbot-data-critical` pour les données et la classe par défaut pour les applications.
-
-## Sélection des nœuds et tolérances
-
-- **Les charges de stockage**, notamment la persistance Postgres et Redis, portent un `nodeSelector` exigeant `node.bagelbot.io/storage=true`. Cette étiquette est attribuée aux nœuds équipés de SSD.
-- **Le déploiement cloudflared** applique une règle d'anti-affinité pour répartir les réplicas entre les nœuds ; la perte d'un nœud ne doit pas couper l'accès public.
-- **GPU et accélération :** aucun dans le parc actuel. Un futur nœud doté d'un Coral ou d'un équipement similaire recevrait son propre taint et des tolérances explicites pour les charges concernées.
+- **Répartition stricte.** Les services à plusieurs réplicas utilisent une répartition de topologie sur `kubernetes.io/hostname` avec `DoNotSchedule`, limitée par `pod-template-hash`, sans `minDomains`. Ces deux choix viennent d'incidents consignés dans `TestSpreadIsHardWithoutMinDomains`.
+- **NATS et Valkey** tournent en StatefulSets avec anti-affinité obligatoire : la perte d'un nœud coûte un membre, jamais le quorum (`deploy/messaging/nats.yaml`, `deploy/cache/valkey.yaml`).
+- **cloudflared** tourne en DaemonSet sur chaque nœud hors plan de contrôle (`deploy/operators/cloudflared.yaml`), si bien que la perte d'un nœud ne coupe pas l'entrée publique.
+- **Les volumes épinglés** sont évités. Un volume local-path abandonne son pod quand le nœud meurt ; les membres avec état se reconstruisent donc par réplication.
 
 ## Ce qui ne s'exécute pas sur ce cluster
 
-- **Les constructions CI.** GitHub Actions les exécute sur des runners ARM hébergés ; le cluster télécharge uniquement les images. Voir [CI/CD →](/infrastructure/cicd-pipeline/).
-- **Les sauvegardes à long terme.** Les snapshots sont envoyés hors du cluster vers [à définir : destination de sauvegarde, par exemple Backblaze B2 avec restic]. Le calcul est considéré comme éphémère ; seuls les volumes de données doivent être préservés.
-- **Le stockage des journaux et de l'observabilité.** Journaux et métriques sont envoyés vers [à définir : Grafana Cloud externe ou installation autohébergée hors cluster]. Garder l'observabilité à l'extérieur permet de diagnostiquer une panne du cluster.
+- **Les builds CI.** GitHub Actions compile les images et les pousse vers GHCR. Le cluster ne fait que les tirer. Voir [Démarrage](/fr/guides/getting-started/) pour le flux de travail local.
+- **La base de données relationnelle.** MySQL HeatWave est un service géré ([ADR 0005](/fr/adr/0005-adoption-of-mysql-heatwave/)). Le job `backup-mysql` du namespace `db` en fait une copie toutes les six heures vers un stockage objet.
+- **Le stockage d'observabilité.** Les journaux et métriques partent vers New Relic ([ADR 0010](/fr/adr/0010-adoption-of-new-relic-for-observability/)), ce qui garde une panne du cluster diagnostiquable.
 
 ## Marge de capacité
 
-Le cluster vise **environ 50 % d'utilisation en régime stable**, afin qu'une pointe liée à un train de la hype ou la perte d'un nœud ne provoque pas immédiatement des évictions. Si l'utilisation soutenue dépasse environ 65 %, la réponse est d'ajouter un nœud plutôt que de réduire les limites.
+Les décisions d'extension suivent les seuils de la [feuille de route de performance](/fr/infrastructure/performance-roadmap/) : pas de nouveau serveur, de partitionnement ou de remplacement tant que l'enveloppe d'exploitation vérifiée ne dépasse pas 70 % pendant 15 minutes ou qu'un objectif de latence échoue après réglage.
 
 ## Pour aller plus loin
 
-- **[Réseau →](/fr/infrastructure/networking/)** : détails du maillage Tailscale et de Cloudflare Tunnel.
-- **[Pipeline CI/CD →](/infrastructure/cicd-pipeline/)** : parcours des images, du `git push` jusqu'aux nœuds.
-- **[ADR-0001 →](/adr/0001-zero-trust-network/)** : décision relative au réseau Zero Trust.
-- **[ADR-0002 →](/adr/0002-native-compilation/)** : influence des binaires natifs sur le modèle de ressources.
+- **[Réseau →](/fr/infrastructure/networking/)** : détails sur Cilium, Tailscale et Cloudflare Tunnel.
+- **[ADR 0004 →](/fr/adr/0004-adoption-of-oracle-cloud/)** : la décision d'hébergement.
+- **[ADR 0002 →](/fr/adr/0002-adoption-of-go-as-primary-service-language/)** : pourquoi les services Go façonnent le modèle de ressources.

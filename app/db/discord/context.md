@@ -69,6 +69,8 @@ Edit schemas rather than generated Ent clients.
 - Config writes verify binding ownership before version details. Expected version
   zero means no existing row; first save becomes 1. Stale or racing saves conflict.
   Keep the conditional `UPDATE ... WHERE version = expected`, not read-then-write.
+- `rpc/config.go` rejects a config save with an invalid snowflake, toggle, range or
+  voice-text field, and caps the ignored-channel list at `LogIgnoredChannelsMax`.
 - XP totals and levels are durable; per-message earning cooldown remains Valkey
   state elsewhere. Derive levels with the existing domain curve on writes.
 - Ticket channel ID is globally unique and history outlives its Discord channel.

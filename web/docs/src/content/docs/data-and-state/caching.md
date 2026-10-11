@@ -14,9 +14,11 @@ from the [overview](/data-and-state/), so a fleet of instances stays coherent wi
 
 ## Read path
 
-Reads are served from a sharded in-process TTL cache (`pkg/cache`). Two protections target the two classic stampede
-vectors: concurrent misses on one key collapse into a single query through singleflight, and TTLs carry a random
-jitter of up to 10% so entries written together never expire together. Errors are never cached.
+Reads are served from a bounded in-process TTL cache (`pkg/cache`, built on Theine). Two protections target the two
+classic stampede vectors: concurrent misses on one key collapse into a single query through singleflight, and TTLs
+carry a random jitter of up to 10% so entries written together never expire together. Errors are never cached.
+The commands and modules repositories also set a stale-on-error window equal to the TTL: when a reload fails, the
+previous value keeps being served instead of failing the read.
 
 The sequence below shows two goroutines missing the same key at the same time. The second one blocks on the flight
 opened by the first and shares its result; the database sees exactly one query.
@@ -88,9 +90,11 @@ The flush window is also the durability window: a value sits in memory for at mo
 persisted. That trade is acceptable only for state a user can re-submit, so the money path never goes through the
 batcher:
 
-- **Always direct:** Tebex transactions (duplicate IDs from webhook retries count as already recorded), tier status
-  changes, token writes, command deletions.
-- **Write-behind:** module toggles and configs, command creations and edits.
+- **Always direct:** Tebex agreements and webhook events (duplicate IDs from retries count as already recorded),
+  billing and giveaway records, status and ban changes, token writes, command deletions.
+- **Write-behind:** module toggles and configs, command creations and edits, and user preferences (active flag,
+  locale, cursor, onboarding, creator code). The preference writer excludes status and ban by design
+  (`app/db/users/repository/preferences.go`).
 
 ## Lifecycle of a batched write
 

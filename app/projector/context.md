@@ -29,7 +29,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 | [counters.go](counters.go) | Counter-bump folding, seed timestamps, live totals, board initialization/retry and account cleanup. |
 | [hydration/hydrator.go](hydration/hydrator.go) | Background section filling/refreshing with bounded concurrency, per-user gates, and fetch retries. |
 | [rpc/dashboard.go](rpc/dashboard.go) | Commands/modules projection reads and replacements; cold reads call owners and seed hydration. |
-| [rpc/status.go](rpc/status.go) | Broadcaster account-status read with cache and Users fallback. |
+| [rpc/status.go](rpc/status.go) | Broadcaster account-status read with cache and Users fallback. A Users not-found reply reads as standard; any other fallback failure replies standard with a `status unavailable` error. |
 | [rpc/live.go](rpc/live.go) | Live reads and cold-read escalation to Twitch Outgress's system lane. |
 | [rpc/streaminfo.go](rpc/streaminfo.go) | Stream metadata projection reads. |
 | [shared projection storage/client](../../internal/projection/) | Actual key layout, serialization, revision checks, TTLs, read-client caches, and fetch definitions. |
@@ -49,7 +49,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 
 - A projected empty commands/modules list differs from an absent section. Preserve marker/seed semantics so empty configurations do not trigger repeated owner reads.
 - `EnsureAsync` fills missing sections; `RefreshAsync` forces refresh. Waiting for hydration gates belongs in background work, not an RPC handler.
-- Hydration fetch retries are bounded; store failures do not replay stale snapshots blindly. Protect newer events from older hydration responses.
+- Hydration fetch retries are bounded and stop at once on an owner not-found reply, which logs at debug; store failures do not replay stale snapshots blindly. Protect newer events from older hydration responses.
 - Emit invalidations after successful shared-store mutation. Core NATS broadcasts evict every process cache; a queue subscription would notify only one replica.
 - Stream lifecycle writes must remain synchronous before acknowledging the source event. Go-live side effects are best effort and must not turn into lifecycle redelivery requirements.
 - This service aggregates Users, Commands, Modules, Loyalty, Notifications, and Discord-data health. Transactions has its separate billing endpoint.

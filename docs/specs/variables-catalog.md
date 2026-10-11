@@ -1,7 +1,7 @@
 # Variables catalog: one manifest, one guide
 
 Date: 2026-09-18
-Status: Accepted. Implementation in stacked branches, phase 1 first.
+Status: Implemented through the guide redesign (§5 phases 1 to 4): manifest in `web/kit/lib/variables/`, Go golden in `app/twitch/sesame/engine/scope/testdata/token_catalog.golden.json`, parity test in `web/kit/lib/variables/parity.test.ts`. Phase 5 (Go export of module reply token maps) is now `internal/domain/modulevars/`.
 
 ## 1. Outcome
 

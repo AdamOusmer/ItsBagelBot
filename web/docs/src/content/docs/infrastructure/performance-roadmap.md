@@ -125,12 +125,12 @@ Do not shard NATS, add a server, replace Valkey, or migrate the CNI until either
 the verified operating envelope exceeds 70% for 15 minutes or a latency SLO
 fails after application and server tuning. Any expansion proposal must include
 the triggering telemetry, the expected headroom, cost, rollback, and a repeatable
-acceptance run.
+acceptance run. The CNI migration to Cilium is already done (`deploy/cilium/values.yaml`).
 
 ## Cleanup that travels with the phases
 
-- move the Tailscale operator OAuth credential into Doppler/Flux ownership and
-  rotate it;
+- move the Tailscale operator OAuth credential into Doppler ownership and
+  rotate it (Flux no longer runs on the cluster);
 - remove stale Watermill, Linkerd, Tailscale-data-plane, and Valkey replay-dedup
   documentation;
 - make every benchmark clean its stream, consumers, pods, temporary ACL, and

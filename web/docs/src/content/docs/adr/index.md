@@ -17,14 +17,14 @@ ADRs are listed in the sidebar in numerical order. Each filename follows the pat
 
 ## Writing a new ADR
 
-From the `docs/` directory:
+From the `web/docs/` directory:
 
 ```sh
 bun run adr:new "Short title of the decision"
 # or: npm run adr:new "Short title of the decision"
 ```
 
-The wrapper points `adr-tools` at the project template (`docs/.adr/template.md`) and writes the new file into this
+The wrapper points `adr-tools` at the project template (`web/docs/.adr/template.md`) and writes the new file into this
 folder with the next sequential number.
 
 To supersede or link to an existing record:

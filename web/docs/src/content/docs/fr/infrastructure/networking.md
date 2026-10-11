@@ -2,137 +2,100 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Réseau
-description: Maillage Tailscale, tunnels Cloudflare et modèle Zero Trust reliant le cluster.
+description: Entrée par Cloudflare Tunnel, accès privé par Tailscale, Cilium et le modèle de refus par défaut qui relie le cluster.
 ---
 
-ItsBagelBot n'a **aucune IP publique**, **aucun port ouvert sur le routeur** et **aucune confiance fondée uniquement sur le LAN**. Chaque connexion entrante ou sortante traverse une frontière Zero Trust contrôlant l'identité plutôt que la position sur le réseau.
+Le trafic public n'atteint le cluster que par un Cloudflare Tunnel sortant. L'accès des opérateurs passe par Tailscale. Dans le cluster, chaque namespace part d'une politique réseau de refus par défaut et n'ouvre que les chemins nécessaires. Aucune connexion n'obtient de confiance par sa seule position sur le réseau.
 
-La décision architecturale figure dans [ADR-0001](/adr/0001-zero-trust-network/) ; cette page sert de référence opérationnelle.
+La décision d'hébergement et de tailnet figure dans l'[ADR 0004](/fr/adr/0004-adoption-of-oracle-cloud/) ; cette page sert de référence opérationnelle.
 
 ## Les deux plans
 
 ```mermaid
 flowchart LR
-    subgraph Public["Public plane"]
-        Twitch[Twitch EventSub]
-        Browser["Visitor browser<br/><i>docs site</i>"]
-        OperatorOff["Operator<br/><i>off-tailnet device</i>"]
+    subgraph Public["Plan public"]
+        Browser["Navigateur d'un visiteur"]
+        Tebex["Webhooks Tebex"]
     end
 
-    subgraph Edge["Cloudflare edge"]
+    subgraph Edge["Bordure Cloudflare"]
         Tunnel[Cloudflare Tunnel]
-        Access[Cloudflare Access]
     end
 
-    subgraph Tailnet["Tailnet (private overlay)"]
-        direction LR
-        Nodes["Cluster nodes<br/><i>K3s API,<br/>node SSH,<br/>internal services</i>"]
-        OperatorOn["Operator<br/><i>on-tailnet device</i>"]
-        Runner["CI runner<br/><i>image pulls,<br/>kubectl apply</i>"]
+    subgraph Cluster["Cluster"]
+        Cloudflared["cloudflared<br/><i>DaemonSet</i>"]
+        Traefik["Traefik<br/><i>namespace networking</i>"]
+        Services["Services"]
     end
 
-    Twitch --> Tunnel
+    subgraph Tailnet["Tailnet (réseau privé superposé)"]
+        OperatorOn["Appareil opérateur"]
+        Proxies["Proxys Tailscale<br/><i>console admin,<br/>supervision NATS</i>"]
+    end
+
     Browser --> Tunnel
-    OperatorOff --> Access
-    Access --> Tunnel
-    Tunnel --> Nodes
+    Tebex --> Tunnel
+    Tunnel --> Cloudflared
+    Cloudflared --> Traefik
+    Traefik --> Services
 
-    OperatorOn -. WireGuard .-> Nodes
-    Runner -. WireGuard .-> Nodes
+    OperatorOn -. WireGuard .-> Proxies
+    Proxies --> Services
 ```
 
-- **Plan public (Cloudflare) :** tout ce qu'une partie que nous ne contrôlons pas doit pouvoir joindre : Twitch, les visiteurs anonymes de la documentation et, parfois, un opérateur depuis un appareil hors du tailnet.
-- **Plan privé (Tailscale) :** tout le reste, notamment les échanges entre nœuds, de l'opérateur vers le cluster et de la CI vers le cluster. WireGuard fournit le transport, Tailscale coordonne les identités.
-
-## Tailscale : le réseau privé superposé
-
-### Membres du tailnet
-
-| Membre | Rôle | Étiquette ACL |
-| --- | --- | --- |
-| `node1`, `node2` (nœuds k3s) | Échanges entre nœuds (plan de contrôle k3s, CNI), destination SSH | `tag:itsbagelbot` |
-| `witness1` (micro-VM OCI) | Routeur de sous-réseau OCI VCN pour l'accès à la base de données | `tag:witness` |
-| Appareils des opérateurs | SSH, interface d'administration, `kubectl` via le proxy opérateur | `tag:Macbook` |
-| `k8s-operator` (dans le cluster) | Opérateur Kubernetes Tailscale et proxy du serveur d'API Kubernetes | `tag:k8s-operator` |
-| Proxies `ts-ingress-*` (dans le cluster) | Publication des Services Tailscale (`svc:admin`) | `tag:k8s` |
-
-### Organisation des ACL
-
-La politique est versionnée dans `deploy/infra/tailscale/policy.hujson`, puis copiée ou appliquée dans la console d'administration. Elle **refuse par défaut** et ne contient que des autorisations. En une phrase : **les machines physiques n'acceptent que SSH depuis les appareils des opérateurs ; les services hébergés dans Kubernetes sont accessibles par les proxies de l'opérateur Tailscale.**
-
-- Appareils des opérateurs → nœuds du cluster et témoin : `tcp:22` uniquement.
-- Appareils des opérateurs → `svc:admin:443` (interface d'administration) et → `tag:k8s-operator:443`, avec la capacité `tailscale.com/cap/kubernetes` (`kubectl` usurpant l'identité `system:masters`).
-- Nœuds ↔ nœuds : sans restriction ; le plan de contrôle k3s et le CNI utilisent le tailnet.
-- Témoin ↔ nœuds : uniquement le trafic privé de base de données et de routage de sous-réseau requis par la route OCI VCN ; le quorum Sentinel reste entièrement dans le cluster.
-- Tailscale SSH contrôle l'identité de l'opérateur à partir d'une liste explicite d'utilisateurs.
-
-Accès d'urgence si l'opérateur est indisponible : SSH vers `node1`, puis `sudo k3s kubectl`.
-
-### Adresses d'écoute des nœuds
-
-Les services internes écoutent sur **l'adresse de l'interface Tailscale** (`tailscale0`), pas sur `0.0.0.0`. Les unités systemd concernées imposent `IPAddressDeny=any` et limitent `IPAddressAllow=` à la plage CGNAT de Tailscale (`100.64.0.0/10`).
-
-Le serveur d'API Kubernetes démarre avec `--bind-address` fixé à l'IP du nœud sur le tailnet ; une ACL Tailscale mal configurée n'expose donc pas l'API au LAN.
-
-### MagicDNS
-
-Les noms `*.tail451e6d.ts.net` ne se résolvent que pour les membres du tailnet. Les principaux sont :
-
-- `admin.tail451e6d.ts.net` : interface d'administration réservée aux opérateurs (Service Tailscale `svc:admin`, haute disponibilité sur les deux nœuds et TLS Let's Encrypt).
-- `k8s-operator.tail451e6d.ts.net` : proxy du serveur d'API Kubernetes (`tailscale configure kubeconfig k8s-operator`).
-
-Nous n'utilisons **pas** MagicDNS pour le routage entre services dans le cluster : ce rôle appartient aux Services Kubernetes et à CoreDNS. MagicDNS sert uniquement au confort des opérateurs.
+- **Plan public (Cloudflare) :** tout ce qui doit être joint par une partie que nous ne contrôlons pas, comme les diffuseurs qui ouvrent le tableau de bord et Tebex qui envoie ses webhooks d'achat. Les événements Twitch n'arrivent pas par là : l'ingress ouvre des connexions WebSocket EventSub sortantes.
+- **Plan privé (Tailscale) :** l'accès des opérateurs à la console d'administration, à la supervision NATS et à l'API Kubernetes.
 
 ## Cloudflare Tunnel : l'entrée publique
 
+`cloudflared` tourne en DaemonSet sur chaque nœud sauf le plan de contrôle (`deploy/operators/cloudflared.yaml`). Chaque règle d'entrée redirige vers le Service Traefik du namespace `networking` en TLS. Le connecteur ne fait confiance qu'à l'autorité Cloudflare Origin CA et force le SNI sur le domaine racine de la zone, de sorte que le routage ne dépend jamais des noms d'hôte publics existants.
+
 ### Services exposés
 
-| Nom d'hôte | Service cible | Authentification en amont |
-| --- | --- | --- |
-| `eventsub.bagelbot.[domain]` | `bot-gateway.bagelbot-app:8080/eventsub` | Aucune (Twitch ne peut pas utiliser le SSO) ; vérification de signature HMAC à la passerelle. |
-| `bagelbot.[domain]` | `web-ui.bagelbot-app:80` | Cloudflare Access (identités du streamer et du mainteneur). |
-| `docs.bagelbot.[domain]` | Site Starlight construit à partir de ce dépôt | Aucune ; site volontairement public. |
+| Nom d'hôte | Rôle |
+| --- | --- |
+| `dashboard.itsbagelbot.com` | La console des diffuseurs (SvelteKit). Les routes `/status`, `/healthz` et `/readyz` de l'application sont masquées par Traefik. |
+| `stats.itsbagelbot.com` | La page publique de statistiques. |
+| `commands.itsbagelbot.com`, `leaderboard.itsbagelbot.com` | Pages publiques de commandes et classements, servies par l'application du tableau de bord via la règle générique. |
+| `health.itsbagelbot.com` | Points `/status` par service lus par la page d'état hébergée (`deploy/k8s/status-routes.yaml`). |
+| `webhooks.itsbagelbot.com` | Webhooks Tebex vers le service transactions. |
+| `itsbagelbot.com` et `*.itsbagelbot.com` | Tout le reste de la zone. Traefik décide du routage, et les hôtes sans route retombent sur le site marketing. |
 
-Le démon `cloudflared` s'exécute dans un Deployment avec deux réplicas et une anti-affinité entre nœuds, afin que la perte d'un nœud ne coupe pas l'entrée. Les identifiants sont montés depuis un Secret Kubernetes reposant sur [à définir : sealed-secrets ou manifests chiffrés avec SOPS].
+`status.itsbagelbot.com` est la page d'état hébergée elle-même. Son DNS pointe vers le fournisseur d'état, donc le tunnel ne la revendique pas.
 
-### Pourquoi ne pas utiliser Tailscale Funnel ?
+La configuration du tunnel se termine par la règle obligatoire `http_status:404`.
 
-Funnel est une option viable pour les interfaces publiques et a été étudié. Cloudflare Tunnel a été retenu pour les raisons suivantes :
+### Pourquoi un tunnel
 
-- L'absorption des attaques DDoS et la terminaison TLS se font sur le réseau Cloudflare, ce qui compte pour un récepteur public de webhooks.
-- Cloudflare Access est déjà intégré à notre SSO ; pour le tableau de bord, il suffit de définir la politique.
-- Twitch s'accommode mieux d'une URL de webhook stable à notre nom que d'un nom d'hôte `*.ts.net`.
+Un tunnel garde les nœuds hors de l'internet public et apporte la terminaison TLS en bordure et l'absorption des attaques DDoS pour le récepteur de webhooks public. Tebex dispose d'une URL de webhook stable et de marque plutôt que d'une adresse de nœud.
 
-Voir [ADR-0001](/adr/0001-zero-trust-network/) pour la discussion complète des compromis.
+## Tailscale : le réseau privé superposé
 
-### Politiques Cloudflare Access
+L'opérateur Kubernetes de Tailscale publie certains Services sur le tailnet via des ressources Ingress avec `ingressClassName: tailscale` :
 
-Les noms d'hôte non publics sont protégés par les politiques suivantes :
+| Service | Où il est défini |
+| --- | --- |
+| Console d'administration | `deploy/k8s/console-admin.yaml` |
+| Supervision NATS | `deploy/messaging/nats.yaml` |
+| Tableau de bord Traefik et interface Falco | Autorisés par `deploy/networking/network-policies.yaml` et `deploy/observability/network-policies.yaml` |
 
-- **`bagelbot.[domain]` → streamer et mainteneur.** SSO GitHub, WebAuthn obligatoire et session de 24 h.
-- **`grafana.[domain]` → mainteneur uniquement.** WebAuthn et session de 8 h.
-- **Aucun contournement pour les « réseaux de confiance ».** La position sur le réseau ne constitue précisément pas une preuve de confiance.
+La console d'administration n'a donc aucun nom d'hôte public. Les opérateurs l'atteignent uniquement depuis un appareil du tailnet.
 
-Ces politiques sont versionnées en Terraform et appliquées en CI ; les modifications faites dans l'interface sont réconciliées avec git à chaque plan.
+La configuration Cilium pointe l'adresse du serveur d'API Kubernetes vers une adresse du tailnet (`deploy/cilium/values.yaml`). La politique du tailnet elle-même n'est pas stockée dans ce dépôt.
 
-## Accès d'urgence
+## Dans le cluster
 
-Tailscale et Cloudflare sont deux dépendances externes. Si le serveur de coordination ou le réseau périphérique devient inaccessible, une procédure documentée permet d'utiliser la console physique :
-
-1. Brancher un clavier et un écran HDMI au nœud du plan de contrôle, ou utiliser un KVM local disponible.
-2. Utiliser l'identifiant d'urgence de l'opérateur conservé localement, hors ligne, dans une enveloppe scellée dans la même pièce que le cluster.
-3. Remettre le cluster dans un état sûr depuis la console, ou démarrer un environnement de récupération depuis la carte microSD du SBC.
-
-L'identifiant d'urgence est renouvelé chaque année et après toute suspicion de compromission. Il ne dépend **pas** de la disponibilité de Tailscale ou de Cloudflare.
+- **CNI :** Cilium en mode de routage natif avec remplacement de kube-proxy, gestion de bande passante BBR et BIG TCP (`deploy/cilium/values.yaml`).
+- **Politiques réseau :** chaque namespace porte une politique de refus par défaut et des autorisations explicites (`deploy/*/network-policies.yaml`, `deploy/k8s/network-policies.yaml`). Les chemins entre namespaces nomment le namespace source et les étiquettes de pod.
+- **Transport entre services :** NATS porte tout le trafic interservices ([ADR 0003](/fr/adr/0003-adoption-of-nats-as-communication-bridge/)). Valkey et NATS utilisent TLS avec des certificats émis par cert-manager (`deploy/cache/certificates.yaml`, `deploy/messaging/certificates.yaml`). La connexion MySQL épingle l'autorité de HeatWave via `DB_CA_CERT`. Traefik rechiffre vers la console du tableau de bord, donc ce saut est en TLS de bout en bout.
+- **Secrets :** l'opérateur Doppler synchronise les secrets dans les namespaces qui en ont besoin (ressources `DopplerSecret` à côté de chaque charge).
 
 ## Ce qui est volontairement absent
 
-- **Une entrée LAN.** Aucun service `NodePort` n'est accessible sur le LAN. Si le tunnel et Tailscale sont indisponibles, le service est inaccessible ; c'est le choix explicite.
-- **Un concentrateur VPN dans le cluster.** Tailscale remplit ce rôle ; nous n'en exécutons pas un second.
-- **La découverte `mDNS`, `Avahi` ou Bonjour sur le LAN.** Elle est inutile et constituerait une fuite passive d'informations.
+- **Une entrée par le LAN.** Aucun Service `NodePort` ou `LoadBalancer` n'existe dans `deploy/`.
+- **Un concentrateur VPN dans le cluster.** Tailscale est le VPN ; nous n'en exécutons pas un second.
 
 ## Pour aller plus loin
 
-- **[Matériel et cluster →](/fr/infrastructure/hardware-and-cluster/)** : caractéristiques des nœuds et organisation de K3s.
-- **[Pipeline CI/CD →](/infrastructure/cicd-pipeline/)** : accès du runner CI au tailnet pour déployer.
-- **[ADR-0001 →](/adr/0001-zero-trust-network/)** : décision complète à l'origine de ce modèle.
+- **[Matériel et cluster →](/fr/infrastructure/hardware-and-cluster/)** : ce que sont les nœuds et comment K3s est organisé.
+- **[ADR 0004 →](/fr/adr/0004-adoption-of-oracle-cloud/)** : la décision d'hébergement et de tailnet.

@@ -9,7 +9,7 @@ sidebar:
 ---
 
 The design follows the classic two-step: a conceptual entity-relationship model first, then its mapping to physical
-relational schemas. The twist is that the mapping is split across four isolated MySQL schemas
+relational schemas. The twist is that the mapping is split across isolated MySQL schemas, one per data service
 ([ADR 0005](/adr/0005-adoption-of-mysql-heatwave/)), so relationships that cross a service boundary exist only in
 the conceptual model and are enforced by the application, never by a foreign key.
 
@@ -23,16 +23,30 @@ erDiagram
     USER ||--o{ TOKEN : "owns, cascade delete"
     USER ||..o{ COMMAND : "logical reference"
     USER ||..o{ MODULE : "logical reference"
-    USER ||..o{ TEBEX_TRANSACTION : "logical reference"
+    USER ||..o{ TEBEX_AGREEMENT : "logical reference"
+
+    USER ||--o{ PREMIUM_GRANT : "owns, cascade delete"
 
     USER {
         uint64 id PK "Twitch user ID, natural key"
         string username
+        string display_name
         string email UK "sensitive"
         bool is_active
+        bool banned
         enum status "free, paid, vip"
+        string locale
+        bool commands_page_hidden
+        int64 state_revision
         datetime created_at
         datetime updated_at
+    }
+    PREMIUM_GRANT {
+        int id PK
+        uint64 user_id FK
+        string giveaway_id
+        string award_id
+        enum state "prepared, committed, cancelled, expired"
     }
     TOKEN {
         int id PK
@@ -40,12 +54,14 @@ erDiagram
         bytes token "Tink AEAD ciphertext"
         bytes refresh_token "nullable, ciphertext"
         enum platform "twitch"
+        datetime access_token_expires_at "nullable"
         uint64 user_tokens FK "owning user"
     }
     COMMAND {
         int id PK
         uint64 user_id "indexed, no FK"
         string name
+        json aliases "nullable"
         string response
         bool is_active
         bool stream_online_only
@@ -53,6 +69,8 @@ erDiagram
         uint cooldown
         uint user_cooldown
         uint64 allowed_user_id
+        int64 uses
+        string bump_counter
         datetime created_at
         datetime updated_at
     }
@@ -62,12 +80,15 @@ erDiagram
         string name
         bool is_enabled
         json configs "nullable"
+        int revision
         datetime updated_at
     }
-    TEBEX_TRANSACTION {
-        string id PK "Tebex transaction ID"
+    TEBEX_AGREEMENT {
+        string id PK "Tebex agreement ID"
         uint64 user_id "indexed, no FK"
-        datetime created_at
+        string recurring_reference UK
+        string provider_status
+        datetime paid_through_at
     }
 ```
 
@@ -79,8 +100,10 @@ UTC.
 
 ### `bagel_users` (users service)
 
-The only schema with a real foreign key, because users and tokens live in the same bounded context and change
-together (a login refreshes both inside one transaction).
+The only schema with real foreign keys, because users, tokens and Premium grants live in the same bounded context
+and change together (a login refreshes both user and token inside one transaction). Both edges cascade on delete.
+The diagram shows the columns that matter for the model; `app/db/users/ent/schema/` has the full set, including
+subscription, billing-event, onboarding and test-account fields.
 
 ```mermaid
 erDiagram
@@ -90,7 +113,9 @@ erDiagram
         string username
         string email UK
         bool is_active
+        bool banned
         enum status
+        string locale
         datetime created_at
         datetime updated_at
     }
@@ -100,12 +125,14 @@ erDiagram
         bytes token
         bytes refresh_token
         enum platform
+        datetime access_token_expires_at
         uint64 user_tokens FK
     }
 ```
 
-Indexes: unique on `email`, composite on `(id, is_active)`, and a unique composite on `(type, platform, user)` so a
-user holds at most one token per type and platform. The token columns store only Tink AEAD ciphertext; the
+Indexes: unique on `email`, composite on `(status, subscription_source, subscription_expires_at)`, a deliberately non-unique index on `username` (a rename frees the old login while the row still
+carries it), and a unique composite on `(type, platform, user)` so a user holds at most one token per type and
+platform. The token columns store only Tink AEAD ciphertext; the
 associated data binds each envelope to its owner, type, and platform, so a ciphertext copied onto another row fails
 authentication on decrypt.
 
@@ -117,6 +144,7 @@ erDiagram
         int id PK
         uint64 user_id "indexed"
         string name
+        json aliases
         string response
         bool is_active
         bool stream_online_only
@@ -124,12 +152,15 @@ erDiagram
         uint cooldown
         uint user_cooldown
         uint64 allowed_user_id
+        int64 uses
+        string bump_counter
         datetime created_at
         datetime updated_at
     }
 ```
 
-Indexes: unique composite on `(user_id, name)`, which both enforces "one command name per channel" and serves the
+The service also owns the custom-fetch definitions and their key labels (`fetchdefinition`, `fetchkey`) and the
+command-use batch receipts (`commandusebatch`). Indexes: unique composite on `(user_id, name)`, which both enforces "one command name per channel" and serves the
 per-channel lookup.
 
 ### `bagel_modules` (modules service)
@@ -142,10 +173,12 @@ erDiagram
         string name
         bool is_enabled
         json configs
+        int revision
         datetime updated_at
     }
 ```
 
+The service also owns quotes, integration credentials and feed counters (`app/db/modules/ent/schema/`).
 Indexes: unique composite on `(user_id, name)`. The `configs` column is opaque JSON owned by the module that reads
 it; the database only guarantees it is valid JSON of bounded size (see the integrity rules below).
 
@@ -153,20 +186,39 @@ it; the database only guarantees it is valid JSON of bounded size (see the integ
 
 ```mermaid
 erDiagram
-    TEBEX_TRANSACTIONS {
+    TEBEX_AGREEMENTS {
         string id PK
         uint64 user_id "indexed"
-        datetime created_at
+        string recurring_reference UK
+        string provider_status
+        datetime paid_through_at
+    }
+    TEBEX_WEBHOOK_EVENTS {
+        string id PK
+        string event_type
+        enum status
+        string transaction_id
+        uint64 user_id
     }
 ```
 
-The natural key is the Tebex transaction ID itself. Inserting an existing ID is treated as "already recorded", which
-makes webhook retries idempotent without a read before the write.
+Billing is idempotent by construction: webhook events and agreements use the provider's ID as the natural key, so
+a retried webhook finds the existing row. The same schema holds the giveaway ledger (giveaways, draws, candidates,
+awards, fulfillment plans, outbox, alerts, user leases), billing operations and award emails. See
+[ADR 0011](/adr/0011-transactions-owns-giveaway-winner-records/).
+
+### Other schemas
+
+| Schema | Service | Holds |
+|---|---|---|
+| `bagel_loyalty` | loyalty | Viewer balances, counters, counter entries and batch receipts |
+| `bagel_notifications` | notifications | Notification records and read state |
+| `bagel_discord` | discord-data | Guild bindings and configuration, member XP, tickets and transcripts |
 
 ## Integrity rules
 
 Integrity is enforced in two layers. The schema layer carries what the database can express: primary keys, unique
-constraints, enum domains, NOT NULL, and the single in-schema foreign key with cascade. The application layer
+constraints, enum domains, NOT NULL, and the in-schema foreign keys with cascade. The application layer
 (`internal/domain/validate`) carries the domain constraints the database cannot, applied at every repository
 boundary, rejecting rather than rewriting:
 
@@ -176,10 +228,12 @@ boundary, rejecting rather than rewriting:
 | Username | 1-25 characters of `[a-zA-Z0-9_]` |
 | Email | RFC 5322 address, 254 max, no smuggled display name or CRLF |
 | Command name | 1-64 printable ASCII characters, no whitespace |
-| Command response | 1-500 characters, no control characters |
+| Command aliases | At most 25, each a valid command name, unique |
+| Command response | 1-5 lines, each 1-500 characters, no control characters |
+| Command permission | One of `everyone`, `sub`, `vip`, `mod`, `lead_mod`, `broadcaster` |
+| Command cooldown | 0 to 86400 seconds |
 | Module name | 1-64 characters of `[a-z0-9_-]`, strict because it becomes part of a Valkey hash field |
 | Module config | Valid JSON, 16 KiB cap |
-| Transaction ID | 1-64 characters of `[a-zA-Z0-9_-]` |
 | Token | 1 byte to 8 KiB, stored only as ciphertext |
 
 ent parameterizes every query, so SQL injection is closed at the access layer; the rules above target domain
@@ -195,7 +249,7 @@ Every table is in BCNF. The argument is short because the schemas are deliberate
   for ent's benefit, not as a hiding place for dependencies.
 - `commands` and `modules`: all attributes depend on the candidate key `(user_id, name)` in full; there are no
   partial or transitive dependencies.
-- `tebex_transactions`: two attributes, one key, nothing to decompose.
+- `tebex_agreements` and `tebex_webhook_events`: every attribute depends on the provider's ID alone, nothing to decompose.
 
 The one deliberate denormalization in the system lives outside MySQL: the Valkey projection duplicates status and
 module state as a read model (see [Settings projection](/data-and-state/projection/)). That copy is a cache,
