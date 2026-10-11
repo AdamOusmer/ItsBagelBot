@@ -32,40 +32,10 @@ func TestLint(t *testing.T) {
 			mutate: func(*unstructured.Unstructured) {},
 			want:   []ports.ObjectRef{},
 		},
-		{
-			name: "required anti-affinity with maxSurge 1",
-			ref:  notificationsRef,
-			mutate: func(o *unstructured.Unstructured) {
-				_ = unstructured.SetNestedField(o.Object, int64(1), "spec", "strategy", "rollingUpdate", "maxSurge")
-			},
-			want: []ports.ObjectRef{notificationsRef},
-		},
-		{
-			name: "two replicas with maxSurge 1 fit three hosts",
-			ref:  notificationsRef,
-			mutate: func(o *unstructured.Unstructured) {
-				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "replicas")
-				_ = unstructured.SetNestedField(o.Object, int64(1), "spec", "strategy", "rollingUpdate", "maxSurge")
-			},
-			want: []ports.ObjectRef{},
-		},
-		{
-			name: "two replicas with maxSurge 2 need four hosts",
-			ref:  notificationsRef,
-			mutate: func(o *unstructured.Unstructured) {
-				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "replicas")
-				_ = unstructured.SetNestedField(o.Object, int64(2), "spec", "strategy", "rollingUpdate", "maxSurge")
-			},
-			want: []ports.ObjectRef{notificationsRef},
-		},
-		{
-			name: "maxSurge 0% does not surge",
-			ref:  notificationsRef,
-			mutate: func(o *unstructured.Unstructured) {
-				_ = unstructured.SetNestedField(o.Object, "0%", "spec", "strategy", "rollingUpdate", "maxSurge")
-			},
-			want: []ports.ObjectRef{},
-		},
+		{name: "required anti-affinity with maxSurge 1", ref: notificationsRef, mutate: rollout(3, int64(1)), want: []ports.ObjectRef{notificationsRef}},
+		{name: "two replicas with maxSurge 1 fit three hosts", ref: notificationsRef, mutate: rollout(2, int64(1)), want: []ports.ObjectRef{}},
+		{name: "two replicas with maxSurge 2 need four hosts", ref: notificationsRef, mutate: rollout(2, int64(2)), want: []ports.ObjectRef{notificationsRef}},
+		{name: "maxSurge 0% does not surge", ref: notificationsRef, mutate: rollout(3, "0%"), want: []ports.ObjectRef{}},
 		{
 			name: "Recreate never surges",
 			ref:  notificationsRef,
@@ -103,5 +73,12 @@ func TestLint(t *testing.T) {
 			}
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+func rollout(replicas int64, maxSurge any) func(o *unstructured.Unstructured) {
+	return func(o *unstructured.Unstructured) {
+		_ = unstructured.SetNestedField(o.Object, replicas, "spec", "replicas")
+		_ = unstructured.SetNestedField(o.Object, maxSurge, "spec", "strategy", "rollingUpdate", "maxSurge")
 	}
 }
