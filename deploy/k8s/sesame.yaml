@@ -287,6 +287,7 @@ spec:
           stabilizationWindowSeconds: 300
           policies:
             - {type: Pods, value: 1, periodSeconds: 120}
+  # Lag is num_pending+num_ack_pending: premium leaves 3 pods past 4500 (113ms at 40k/s), but AckNone pull lanes held both near 0 while e2e p50 hit 0.3-5.5s (2026-10-11 bench), so cpu is the trigger that fires.
   triggers:
     - type: cpu
       metricType: AverageValue
