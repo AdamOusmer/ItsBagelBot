@@ -49,16 +49,6 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: observability
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falcosidekick
-              app.kubernetes.io/component: ui
-      ports:
-        - port: 2802
-    - to:
-        - namespaceSelector:
-            matchLabels:
               kubernetes.io/metadata.name: messaging
           podSelector:
             matchLabels:

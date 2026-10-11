@@ -86,7 +86,6 @@ data:
       # the app's own 404 page), not here: a tunnel-level http_status:404
       # would answer with a bare edge error instead of the branded page.
       - hostname: dashboard.itsbagelbot.com
-      - hostname: dashboard.itsbagelbot.com
         service: https://traefik.networking.svc.cluster.local:443
 
       # Public stats page (SSE odometer).

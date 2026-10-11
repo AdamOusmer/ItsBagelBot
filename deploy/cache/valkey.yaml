@@ -218,8 +218,8 @@ spec:
           # 2026-08-20). A BGREWRITEAOF that forks while the dataset is at
           # maxmemory can approach 2x in the worst case, so the headroom has
           # to be roughly the same size as the budget itself.
-          # Note repl-backlog-size 128mb IS counted inside used_memory, so
-          # usable key space is maxmemory minus 128 MiB.
+          # Note repl-backlog-size 64mb IS counted inside used_memory, so
+          # usable key space is maxmemory minus 64 MiB.
           # Appended after the include so it beats both tuning.conf and any
           # CONFIG REWRITE retained on the PVC -- last assignment wins.
           if [ -n "${MEM_LIMIT_MI}" ] && [ "${MEM_LIMIT_MI}" -gt 0 ] 2>/dev/null; then

@@ -24,7 +24,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3
+  replicas: 1
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
@@ -271,7 +271,7 @@ metadata:
   name: console-admin
   namespace: app
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
       app: console-admin

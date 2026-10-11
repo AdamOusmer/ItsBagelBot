@@ -35,11 +35,11 @@ defmodule Ingress.Dispatcher.Worker do
           Ingress.Config.Dispatcher.completion_flush_ms()
         ),
       completed_by_broadcaster: %{},
-      completed_total: 0
+      completed_total: 0,
+      flush_armed: false
     }
 
     send(state.dispatcher, {:worker_up, state.index, self()})
-    schedule_flush(state.completion_flush_ms)
     {:ok, state}
   end
 
@@ -58,9 +58,7 @@ defmodule Ingress.Dispatcher.Worker do
   end
 
   def handle_info(:flush_completions, state) do
-    state = flush_completions(state)
-    schedule_flush(state.completion_flush_ms)
-    {:noreply, state}
+    {:noreply, flush_completions(%{state | flush_armed: false})}
   end
 
   @impl true
@@ -77,11 +75,23 @@ defmodule Ingress.Dispatcher.Worker do
         completed_total: state.completed_total + 1
     }
 
-    if state.completed_total >= state.completion_batch_size do
-      flush_completions(state)
-    else
-      state
-    end
+    state
+    |> flush_full_batch()
+    |> arm_flush()
+  end
+
+  defp flush_full_batch(%{completed_total: total, completion_batch_size: size} = state)
+       when total >= size,
+       do: flush_completions(state)
+
+  defp flush_full_batch(state), do: state
+
+  defp arm_flush(%{completed_total: 0} = state), do: state
+  defp arm_flush(%{flush_armed: true} = state), do: state
+
+  defp arm_flush(state) do
+    Process.send_after(self(), :flush_completions, state.completion_flush_ms)
+    %{state | flush_armed: true}
   end
 
   defp flush_completions(%{completed_total: 0} = state), do: state
@@ -96,6 +106,4 @@ defmodule Ingress.Dispatcher.Worker do
 
     %{state | completed_by_broadcaster: %{}, completed_total: 0}
   end
-
-  defp schedule_flush(ms), do: Process.send_after(self(), :flush_completions, ms)
 end

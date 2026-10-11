@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# maxUnavailable 1 against 2 replicas: a drain must never take both replicas of an apiserver dependency.
+# maxUnavailable, never minAvailable 1: every component runs one replica, and minAvailable 1 blocks every node drain.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

@@ -63,7 +63,7 @@ func newTTLLRU(capacity int, now func() time.Time) *ttlLRU {
 	return &ttlLRU{
 		cap:   capacity,
 		ll:    list.New(),
-		items: make(map[claimKey]*list.Element, capacity),
+		items: make(map[claimKey]*list.Element),
 		now:   now,
 	}
 }
