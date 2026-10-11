@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: descheduler-policy-configmap
+  namespace: kube-system
+data:
+  policy.yaml: |
+    apiVersion: "descheduler/v1alpha2"
+    kind: "DeschedulerPolicy"
+    nodeSelector: "role=node"
+    maxNoOfPodsToEvictPerNode: 2
+    maxNoOfPodsToEvictPerNamespace: 2
+    profiles:
+      - name: default
+        pluginConfig:
+          - name: "DefaultEvictor"
+            args:
+              nodeFit: true
+              namespaceLabelSelector:
+                matchExpressions:
+                  - key: kubernetes.io/metadata.name
+                    operator: In
+                    values: [app, db, cache, messaging]
+              podProtections:
+                extraEnabled:
+                  - "PodsWithPVC"
+          - name: "RemovePodsViolatingTopologySpreadConstraint"
+            args:
+              constraints:
+                - DoNotSchedule
+                - ScheduleAnyway
+          - name: "LowNodeUtilization"
+            args:
+              thresholds:
+                cpu: 20
+                memory: 20
+                pods: 20
+              targetThresholds:
+                cpu: 50
+                memory: 50
+                pods: 50
+        plugins:
+          balance:
+            enabled:
+              - "RemovePodsViolatingTopologySpreadConstraint"
+              - "LowNodeUtilization"
