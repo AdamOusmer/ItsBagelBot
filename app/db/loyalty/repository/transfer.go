@@ -155,20 +155,25 @@ func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Tx, sender, reci
 	if r.dialect == "sqlite3" {
 		return nil
 	}
+	pair := transferPair{sender: sender, recipient: recipient}
 	for _, viewerID := range transferLockOrder(sender.ViewerID, recipient.ViewerID) {
-		if err := lockTransferRow(ctx, tx, sender, recipient, viewerID); err != nil {
+		if err := pair.lock(ctx, tx, viewerID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+type transferPair struct {
+	sender, recipient *ent.Balance
+}
+
 // A locking read of an absent recipient gap-locks other channels' inserts, so the recipient is locked by creating it.
-func lockTransferRow(ctx context.Context, tx *ent.Tx, sender, recipient *ent.Balance, viewerID uint64) error {
-	if viewerID == recipient.ViewerID {
-		return ensureRecipient(ctx, tx, recipient)
+func (p transferPair) lock(ctx context.Context, tx *ent.Tx, viewerID uint64) error {
+	if viewerID == p.recipient.ViewerID {
+		return ensureRecipient(ctx, tx, p.recipient)
 	}
-	_, err := tx.Balance.Query().Where(balance.UserIDEQ(sender.UserID), balance.ViewerIDEQ(viewerID)).ForUpdate().IDs(ctx)
+	_, err := tx.Balance.Query().Where(balance.UserIDEQ(p.sender.UserID), balance.ViewerIDEQ(viewerID)).ForUpdate().IDs(ctx)
 	return err
 }
 
