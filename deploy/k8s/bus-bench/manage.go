@@ -69,18 +69,18 @@ type retentionTarget struct {
 }
 
 func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
-	changed := false
-	if t.maxBytes > 0 && cfg.MaxBytes != t.maxBytes {
-		cfg.MaxBytes, changed = t.maxBytes, true
+	changed := setWhen(&cfg.MaxBytes, t.maxBytes, t.maxBytes > 0)
+	changed = setWhen(&cfg.MaxMsgsPerSubject, t.msgsPer, t.msgsPer != 0) || changed
+	ageChanged := setWhen(&cfg.MaxAge, t.maxAge, t.maxAge > 0)
+	return t.applyDuplicates(cfg, ageChanged) || ageChanged || changed
+}
+
+func setWhen[T comparable](field *T, want T, enabled bool) bool {
+	if !enabled || *field == want {
+		return false
 	}
-	if t.msgsPer != 0 && cfg.MaxMsgsPerSubject != t.msgsPer {
-		cfg.MaxMsgsPerSubject, changed = t.msgsPer, true
-	}
-	ageChanged := t.maxAge > 0 && cfg.MaxAge != t.maxAge
-	if ageChanged {
-		cfg.MaxAge, changed = t.maxAge, true
-	}
-	return t.applyDuplicates(cfg, ageChanged) || changed
+	*field = want
+	return true
 }
 
 func (t retentionTarget) applyDuplicates(cfg *jsapi.StreamConfig, ageChanged bool) bool {

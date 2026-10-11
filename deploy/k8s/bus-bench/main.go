@@ -28,7 +28,7 @@ func main() {
 		urlDefault = fallbackURL
 	}
 	var (
-		mode         = flag.String("mode", "", "setup|publish|consume|cleanup (required)")
+		mode         = flag.String("mode", "", "setup|publish|consume|seat-consumer|cleanup (required)")
 		url          = flag.String("url", urlDefault, "")
 		subject      = flag.String("subject", "twitch.ingress.retry.benchrig", "")
 		group        = flag.String("group", "benchrig", "")
@@ -66,27 +66,28 @@ func main() {
 	stopProfile := startCPUProfile(*pprofPath, *mode)
 	startPprofServer(*pprofAddr, *mode)
 
-	var err error
-	switch *mode {
-	case "setup":
-		err = runSetup(lane, *maxBytes, newRetentionTarget(0, *msgsPer, *maxAge, *duplicates))
-	case "publish":
-		err = runPublish(publishOpts{
-			lane: lane, duration: *duration, startAt: unixNano(*startAt),
-			payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate, idPad: *idPad,
-			paceEvery: *paceEvery, podIndex: *podIndex, feeders: *feeders,
-		})
-	case "consume":
-		if err = applyAckPolicy(*ackPolicy); err != nil {
-			break
-		}
-		err = runConsume(lane, consumeOptions{duration: *duration, startAt: unixNano(*startAt), payloadSize: *payloadSize, policy: bus.ScalePolicy{MinRoutines: *routinesMin, MaxRoutines: *routinesMax}, warmup: *warmup, feeders: *feeders})
-	case "seat-consumer":
-		err = runSeatConsumer(lane, *preferred)
-	case "cleanup":
-		err = runCleanup(lane, newRetentionTarget(*origMaxBytes, *origMsgsPer, *origMaxAge, *origDup))
-	default:
-		err = errors.New("-mode must be setup|publish|consume|seat-consumer|cleanup")
+	modes := map[string]func() error{
+		"setup": func() error {
+			return runSetup(lane, *maxBytes, newRetentionTarget(0, *msgsPer, *maxAge, *duplicates))
+		},
+		"publish": func() error {
+			return runPublish(publishOpts{
+				lane: lane, duration: *duration, startAt: unixNano(*startAt),
+				payloadSize: *payloadSize, confirmEvery: *confirmEvery, rate: *rate, idPad: *idPad,
+				paceEvery: *paceEvery, podIndex: *podIndex, feeders: *feeders,
+			})
+		},
+		"consume": func() error {
+			return runConsumeWithPolicy(*ackPolicy, lane, consumeOptions{duration: *duration, startAt: unixNano(*startAt), payloadSize: *payloadSize, policy: bus.ScalePolicy{MinRoutines: *routinesMin, MaxRoutines: *routinesMax}, warmup: *warmup, feeders: *feeders})
+		},
+		"seat-consumer": func() error { return runSeatConsumer(lane, *preferred) },
+		"cleanup": func() error {
+			return runCleanup(lane, newRetentionTarget(*origMaxBytes, *origMsgsPer, *origMaxAge, *origDup))
+		},
+	}
+	err := errors.New("-mode must be setup|publish|consume|seat-consumer|cleanup")
+	if run, ok := modes[*mode]; ok {
+		err = run()
 	}
 	stopProfile()
 	if err != nil {
@@ -97,6 +98,13 @@ func main() {
 
 func newRetentionTarget(maxBytes, msgsPer int64, maxAge, duplicates time.Duration) retentionTarget {
 	return retentionTarget{maxBytes: maxBytes, msgsPer: msgsPer, maxAge: maxAge, duplicates: duplicates, hasDuplicates: duplicates >= 0}
+}
+
+func runConsumeWithPolicy(policy string, lane benchLane, o consumeOptions) error {
+	if err := applyAckPolicy(policy); err != nil {
+		return err
+	}
+	return runConsume(lane, o)
 }
 
 func applyAckPolicy(policy string) error {
