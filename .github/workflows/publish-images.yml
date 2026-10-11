@@ -37,6 +37,7 @@ on:
           - twitch-ingress
           - console-dashboard
           - console-admin
+          - nats-server
 
 # Queue, never cancel: Flux's digest-pin commits land on main right after a
 # merge and share this group — with cancel-in-progress they killed the very
@@ -191,6 +192,12 @@ jobs:
               "containerfile": "web/admin/Containerfile",
               "ignorefile": "web/admin/Containerfile.ignore",
               "description": "ItsBagelBot console admin (SvelteKit SSR)"
+            },
+            {
+              "image": "nats-server",
+              "context": "deploy/messaging/nats-server",
+              "containerfile": "deploy/messaging/nats-server/Containerfile",
+              "description": "nats-server 2.15.1 with the ItsBagelBot patch set (x86-64-v3 on Intel)"
             }
           ]'
 
@@ -245,6 +252,7 @@ jobs:
             add "twitch-ingress"
             add "console-dashboard"
             add "console-admin"
+            add "nats-server"
           }
 
           select_for_path() {
@@ -325,6 +333,9 @@ jobs:
                 ;;
               app/warp/*)
                 add "warp"
+                ;;
+              deploy/messaging/nats-server/*)
+                add "nats-server"
                 ;;
               ui/*|web/kit/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js)
                 add "console-dashboard"
