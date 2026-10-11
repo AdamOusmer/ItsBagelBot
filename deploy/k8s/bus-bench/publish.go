@@ -57,7 +57,7 @@ func runPublish(o publishOpts) error {
 	samples := run.drive(ctx)
 
 	flushCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	_ = pub.Flush(flushCtx)
+	flushErr := pub.Flush(flushCtx)
 	cancel()
 
 	elapsed := time.Since(windowStart)
@@ -70,8 +70,12 @@ func runPublish(o publishOpts) error {
 		OfferedRate:    float64(run.tally.admitted) / elapsed.Seconds(),
 		ConfirmSkipped: run.tally.confirmSkipped,
 		AvgCohort:      avgCohort(),
-		CommitNs:       summarize(samples),
+		CommittedNs:    summarize(samples),
 		CPUUsPerMsg:    cpuMicrosPerMessage(run.tally.admitted),
+		PodIndex:       o.podIndex,
+		SeqSum:         run.sums.sum.Load(),
+		SeqXor:         run.sums.xor.Load(),
+		FlushError:     errorText(flushErr),
 	})
 	return nil
 }
@@ -103,6 +107,7 @@ type benchMessage struct {
 	subject   string
 	id        string
 	body      []byte
+	globalSeq uint64
 	confirmed bool
 }
 
@@ -159,6 +164,7 @@ type sampleRun struct {
 	pub      bus.Publisher
 	opts     publishOpts
 	deadline time.Time
+	sums     seqAccumulator
 	tally    struct {
 		admitted       uint64
 		errors         uint64
@@ -191,17 +197,19 @@ func (r *sampleRun) message(seq uint64) benchMessage {
 	return benchMessage{
 		subject:   r.opts.lane.subject,
 		id:        fmt.Sprintf("bench-%d-%d", r.opts.podIndex, seq) + r.pad,
+		globalSeq: globalSeq,
 		body:      buildPayload(globalSeq, unixNano(time.Now().UnixNano()), r.opts.payloadSize),
 		confirmed: r.opts.confirmEvery > 0 && seq%uint64(r.opts.confirmEvery) == 0,
 	}
 }
 
-func (r *sampleRun) count(err error) {
+func (r *sampleRun) count(err error, globalSeq uint64) {
 	if err != nil {
 		atomic.AddUint64(&r.tally.errors, 1)
 		return
 	}
 	atomic.AddUint64(&r.tally.admitted, 1)
+	r.sums.add(globalSeq)
 }
 
 func (r *sampleRun) confirmAsync(ctx context.Context, lane *confirmLane, m benchMessage) {
@@ -210,7 +218,7 @@ func (r *sampleRun) confirmAsync(ctx context.Context, lane *confirmLane, m bench
 		defer lane.wg.Done()
 		defer lane.release()
 		elapsed, err := r.sendOne(ctx, m)
-		r.count(err)
+		r.count(err, m.globalSeq)
 		if err == nil {
 			lane.record(elapsed.Nanoseconds())
 		}
@@ -235,7 +243,7 @@ func (r *sampleRun) feeder(ctx context.Context, f int) []int64 {
 			msg.confirmed = false
 		}
 		_, err := r.sendOne(ctx, msg)
-		r.count(err)
+		r.count(err, msg.globalSeq)
 	}
 	return lane.drain()
 }
