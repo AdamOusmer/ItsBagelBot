@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -33,6 +34,30 @@ func TestConnectPrefersTheLeafOverTheGivenURL(t *testing.T) {
 			require.NoError(t, err)
 			defer nc.Close()
 			assert.Equal(t, tc.want, nc.ConnectedServerName())
+		})
+	}
+}
+
+func TestOnlyTheRPCPlaneKeepsAnOrderedPoolAndOnlyTheBusPlaneIgnoresDiscoveredServers(t *testing.T) {
+	t.Setenv("NATS_CA_PEM", "")
+
+	for _, tc := range []struct {
+		name             string
+		options          []nats.Option
+		ordered          bool
+		ignoreDiscovered bool
+	}{
+		{"the RPC plane walks leaf then hub and follows discovery", rpcOptions("rpc-plane"), true, false},
+		{"the BUS plane shuffles and dials only the hub Service", busOptions("bus-plane"), false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := nats.GetDefaultOptions()
+			for _, apply := range tc.options {
+				require.NoError(t, apply(&opts))
+			}
+
+			assert.Equal(t, tc.ordered, opts.NoRandomize)
+			assert.Equal(t, tc.ignoreDiscovered, opts.IgnoreDiscoveredServers)
 		})
 	}
 }
