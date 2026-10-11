@@ -36,7 +36,7 @@ func readInnodbLocks(t *testing.T, raw *sql.DB) innodbLocks {
 	return locks
 }
 
-func counterMySQLReplica(t *testing.T, raw *sql.DB) *CounterProcessor {
+func mysqlReplica(t *testing.T, raw *sql.DB) *Loyalty {
 	t.Helper()
 	drv := entsql.OpenDB("mysql", raw)
 	client := ent.NewClient(ent.Driver(drv))
@@ -44,7 +44,12 @@ func counterMySQLReplica(t *testing.T, raw *sql.DB) *CounterProcessor {
 	repo := NewLoyalty(client, drv, nil, zap.NewNop())
 	require.NoError(t, repo.EnsureWatchSchema(t.Context()))
 	t.Cleanup(func() { repo.Close(context.Background()) })
-	return counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	return repo
+}
+
+func counterMySQLReplica(t *testing.T, raw *sql.DB) *CounterProcessor {
+	t.Helper()
+	return counterTestProcessor(t, mysqlReplica(t, raw), newCounterFakeValkey(t))
 }
 
 func replicaChannel(replica, writer, batch int) uint64 {

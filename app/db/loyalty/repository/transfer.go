@@ -114,7 +114,7 @@ func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balanc
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return retryTx(ctx, func(ctx context.Context) error {
 			return withTx(ctx, r.client, func(tx *ent.Tx) error {
-				if err := r.lockTransferRows(ctx, tx, sender.UserID, transferLockOrder(sender.ViewerID, recipient.ViewerID)); err != nil {
+				if err := r.lockTransferRows(ctx, tx, sender, recipient); err != nil {
 					return err
 				}
 				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
@@ -151,27 +151,40 @@ func transferLockOrder(senderViewerID, recipientViewerID uint64) [2]uint64 {
 	return [2]uint64{senderViewerID, recipientViewerID}
 }
 
-func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Tx, userID uint64, viewerIDs [2]uint64) error {
+func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Tx, sender, recipient *ent.Balance) error {
 	if r.dialect == "sqlite3" {
 		return nil
 	}
-	for _, viewerID := range viewerIDs {
-		if _, err := tx.Balance.Query().Where(balance.UserIDEQ(userID), balance.ViewerIDEQ(viewerID)).ForUpdate().IDs(ctx); err != nil {
+	for _, viewerID := range transferLockOrder(sender.ViewerID, recipient.ViewerID) {
+		if err := lockTransferRow(ctx, tx, sender, recipient, viewerID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// The conflict write locks an existing recipient before checking integer capacity.
-// No floating SQL arithmetic is used at the signed BIGINT boundary.
-func creditTransfer(ctx context.Context, tx *ent.Tx, recipient *ent.Balance, amount int64) error {
-	if err := tx.Balance.Create().
+// A locking read of an absent recipient gap-locks other channels' inserts, so the recipient is locked by creating it.
+func lockTransferRow(ctx context.Context, tx *ent.Tx, sender, recipient *ent.Balance, viewerID uint64) error {
+	if viewerID == recipient.ViewerID {
+		return ensureRecipient(ctx, tx, recipient)
+	}
+	_, err := tx.Balance.Query().Where(balance.UserIDEQ(sender.UserID), balance.ViewerIDEQ(viewerID)).ForUpdate().IDs(ctx)
+	return err
+}
+
+func ensureRecipient(ctx context.Context, tx *ent.Tx, recipient *ent.Balance) error {
+	return tx.Balance.Create().
 		SetUserID(recipient.UserID).
 		SetViewerID(recipient.ViewerID).
 		SetViewerLogin(recipient.ViewerLogin).
 		OnConflictColumns(balance.FieldUserID, balance.FieldViewerID).
-		Ignore().Exec(ctx); err != nil {
+		Ignore().Exec(ctx)
+}
+
+// The conflict write locks an existing recipient before checking integer capacity.
+// No floating SQL arithmetic is used at the signed BIGINT boundary.
+func creditTransfer(ctx context.Context, tx *ent.Tx, recipient *ent.Balance, amount int64) error {
+	if err := ensureRecipient(ctx, tx, recipient); err != nil {
 		return err
 	}
 	row, err := tx.Balance.Query().Where(balance.UserIDEQ(recipient.UserID), balance.ViewerIDEQ(recipient.ViewerID)).Only(ctx)
