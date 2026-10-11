@@ -32,7 +32,7 @@
   import DeleteAccountDialog from '$lib/components/settings/DeleteAccountDialog.svelte';
   import { busyEnhance } from '$lib/components/settings/busy-enhance';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { commandsHref } from '@bagel/kit/site-links';
+  import { commandsHref, leaderboardHref } from '@bagel/kit/site-links';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
@@ -43,6 +43,8 @@
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
   const commandsPageUrl = $derived(commandsHref((data.login ?? '').toLowerCase()));
+  const leaderboardPageUrl = $derived(leaderboardHref((data.login ?? '').toLowerCase()));
+  const leaderboardPageDelayed = $derived(form?.action === 'leaderboard_page' && !!form?.edgeDelayed);
   const commandsPageDelayed = $derived(form?.action === 'commands_page' && !!form?.edgeDelayed);
   const LEVEL_LABEL = {
     info: 'settings.level.info',
@@ -227,6 +229,21 @@
       commandsPageBusy = false;
       if (result.type === 'success') {
         toast('success', t(enabling ? 'settings.toastCommandsPageOn' : 'settings.toastCommandsPageOff'));
+      } else if (result.type === 'error') {
+        toast('danger', t('serverErrors.updateRetry'));
+      }
+    };
+  };
+
+  let leaderboardPageBusy = $state(false);
+  const leaderboardPageSubmit: SubmitFunction = ({ formData }) => {
+    leaderboardPageBusy = true;
+    const enabling = formData.get('enabled') === 'on';
+    return async ({ result, update }) => {
+      await update();
+      leaderboardPageBusy = false;
+      if (result.type === 'success') {
+        toast('success', t(enabling ? 'settings.toastLeaderboardPageOn' : 'settings.toastLeaderboardPageOff'));
       } else if (result.type === 'error') {
         toast('danger', t('serverErrors.updateRetry'));
       }
@@ -530,6 +547,19 @@
       <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
         <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
         <Switch type="submit" checked={!!data.commandsPage} busy={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
+      </form>
+    </div>
+    <div class="row">
+      <div class="row-text">
+        <Text as="span" size="sm" id="leaderboard-page-label">{t('settings.leaderboardPage')}</Text>
+        <Text size="sm" tone="muted" id="leaderboard-page-hint">{t('settings.leaderboardPageHint', { url: leaderboardPageUrl })}</Text>
+        {#if leaderboardPageDelayed}
+          <Text size="sm" tone="muted">{t('settings.leaderboardPageDelayed')}</Text>
+        {/if}
+      </div>
+      <form method="POST" action="?/setLeaderboardPage" use:enhance={leaderboardPageSubmit}>
+        <input type="hidden" name="enabled" value={data.leaderboardPage ? '' : 'on'} />
+        <Switch type="submit" checked={!!data.leaderboardPage} busy={leaderboardPageBusy} label={t('settings.leaderboardPage')} describedby="leaderboard-page-hint" />
       </form>
     </div>
   </Card>

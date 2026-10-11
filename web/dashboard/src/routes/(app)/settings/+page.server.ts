@@ -19,6 +19,8 @@ import {
   userLocale,
   userCommandsPage,
   setCommandsPage,
+  userLeaderboardPage,
+  setLeaderboardPage,
   accountState,
   hasGrant,
   type NotificationWire
@@ -44,10 +46,28 @@ function ownerSession(s: Session | null): s is Session {
   return !!s && !s.delegate_of && !s.impersonator_id;
 }
 
-async function purgeCommandsPage(userId: string): Promise<boolean> {
+async function purgeChannelPages(userId: string): Promise<boolean> {
   const account = await accountState(userId).catch(() => null);
   if (!account?.username) return false;
   return purgeEdge(channelPageUrls(account.username.toLowerCase()));
+}
+
+function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
+  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const s = locals.session;
+    if (DEMO) return { ok: true, action, edgeDelayed: false };
+    if (!ownerSession(s)) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+
+    const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
+
+    try {
+      await write(s.user_id, !enabled);
+    } catch {
+      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
+    }
+
+    return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
+  };
 }
 
 function ownerAction<R>(
@@ -90,6 +110,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       notifications: d.demoNotifications,
       savedLocale: locals.locale,
       commandsPage: true,
+      leaderboardPage: true,
       twitchConnected: true as boolean | null,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
@@ -101,12 +122,13 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, fetchKeyResult, grantResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, leaderboardPageResult, fetchKeyResult, grantResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
     userLocale(self),
     userCommandsPage(self),
+    userLeaderboardPage(self),
     listFetches(self),
     hasGrant(self)
   ]);
@@ -120,8 +142,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     notifications,
     savedLocale: savedLocaleOf(localeResult),
     commandsPage: settledOr(commandsPageResult, true),
+    leaderboardPage: settledOr(leaderboardPageResult, true),
     twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
-    degraded: [givenResult, receivedResult, localeResult, commandsPageResult].some(rejected),
+    degraded: [givenResult, receivedResult, localeResult, commandsPageResult, leaderboardPageResult].some(rejected),
     ...readFetchKeys(fetchKeyResult)
   };
 };
@@ -236,21 +259,9 @@ export const actions: Actions = {
     }
   },
 
-  setCommandsPage: async ({ request, locals }) => {
-    const s = locals.session;
-    if (DEMO) return { ok: true, action: 'commands_page', edgeDelayed: false };
-    if (!ownerSession(s)) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+  setCommandsPage: pageToggle(setCommandsPage, 'commands_page'),
 
-    const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
-
-    try {
-      await setCommandsPage(s.user_id, !enabled);
-    } catch {
-      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
-    }
-
-    return { ok: true, action: 'commands_page', edgeDelayed: !(await purgeCommandsPage(s.user_id)) };
-  },
+  setLeaderboardPage: pageToggle(setLeaderboardPage, 'leaderboard_page'),
 
   markAllRead: async ({ request, locals }) => {
     const s = locals.session;

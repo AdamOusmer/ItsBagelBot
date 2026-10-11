@@ -38,6 +38,8 @@ const (
 	FieldCustomCursor = "custom_cursor"
 	// FieldCommandsPageHidden holds the string denoting the commands_page_hidden field in the database.
 	FieldCommandsPageHidden = "commands_page_hidden"
+	// FieldLeaderboardPageHidden holds the string denoting the leaderboard_page_hidden field in the database.
+	FieldLeaderboardPageHidden = "leaderboard_page_hidden"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -100,6 +102,7 @@ var Columns = []string{
 	FieldLocale,
 	FieldCustomCursor,
 	FieldCommandsPageHidden,
+	FieldLeaderboardPageHidden,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -156,6 +159,8 @@ var (
 	DefaultCustomCursor bool
 	// DefaultCommandsPageHidden holds the default value on creation for the "commands_page_hidden" field.
 	DefaultCommandsPageHidden bool
+	// DefaultLeaderboardPageHidden holds the default value on creation for the "leaderboard_page_hidden" field.
+	DefaultLeaderboardPageHidden bool
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -261,6 +266,11 @@ func ByCustomCursor(opts ...sql.OrderTermOption) OrderOption {
 // ByCommandsPageHidden orders the results by the commands_page_hidden field.
 func ByCommandsPageHidden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCommandsPageHidden, opts...).ToFunc()
+}
+
+// ByLeaderboardPageHidden orders the results by the leaderboard_page_hidden field.
+func ByLeaderboardPageHidden(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLeaderboardPageHidden, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

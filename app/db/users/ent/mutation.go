@@ -3989,6 +3989,7 @@ type UserMutation struct {
 	locale                      *string
 	custom_cursor               *bool
 	commands_page_hidden        *bool
+	leaderboard_page_hidden     *bool
 	creator_code                *string
 	subscription_source         *string
 	subscription_expires_at     *time.Time
@@ -4546,6 +4547,42 @@ func (m *UserMutation) OldCommandsPageHidden(ctx context.Context) (v bool, err e
 // ResetCommandsPageHidden resets all changes to the "commands_page_hidden" field.
 func (m *UserMutation) ResetCommandsPageHidden() {
 	m.commands_page_hidden = nil
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (m *UserMutation) SetLeaderboardPageHidden(b bool) {
+	m.leaderboard_page_hidden = &b
+}
+
+// LeaderboardPageHidden returns the value of the "leaderboard_page_hidden" field in the mutation.
+func (m *UserMutation) LeaderboardPageHidden() (r bool, exists bool) {
+	v := m.leaderboard_page_hidden
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaderboardPageHidden returns the old "leaderboard_page_hidden" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLeaderboardPageHidden(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaderboardPageHidden is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaderboardPageHidden requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaderboardPageHidden: %w", err)
+	}
+	return oldValue.LeaderboardPageHidden, nil
+}
+
+// ResetLeaderboardPageHidden resets all changes to the "leaderboard_page_hidden" field.
+func (m *UserMutation) ResetLeaderboardPageHidden() {
+	m.leaderboard_page_hidden = nil
 }
 
 // SetCreatorCode sets the "creator_code" field.
@@ -5243,7 +5280,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 25)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -5276,6 +5313,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.commands_page_hidden != nil {
 		fields = append(fields, user.FieldCommandsPageHidden)
+	}
+	if m.leaderboard_page_hidden != nil {
+		fields = append(fields, user.FieldLeaderboardPageHidden)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -5346,6 +5386,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.CustomCursor()
 	case user.FieldCommandsPageHidden:
 		return m.CommandsPageHidden()
+	case user.FieldLeaderboardPageHidden:
+		return m.LeaderboardPageHidden()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -5403,6 +5445,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldCustomCursor(ctx)
 	case user.FieldCommandsPageHidden:
 		return m.OldCommandsPageHidden(ctx)
+	case user.FieldLeaderboardPageHidden:
+		return m.OldLeaderboardPageHidden(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -5514,6 +5558,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCommandsPageHidden(v)
+		return nil
+	case user.FieldLeaderboardPageHidden:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaderboardPageHidden(v)
 		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
@@ -5753,6 +5804,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldCommandsPageHidden:
 		m.ResetCommandsPageHidden()
+		return nil
+	case user.FieldLeaderboardPageHidden:
+		m.ResetLeaderboardPageHidden()
 		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()

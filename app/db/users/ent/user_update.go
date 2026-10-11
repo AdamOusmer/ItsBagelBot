@@ -189,6 +189,20 @@ func (_u *UserUpdate) SetNillableCommandsPageHidden(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_u *UserUpdate) SetLeaderboardPageHidden(v bool) *UserUpdate {
+	_u.mutation.SetLeaderboardPageHidden(v)
+	return _u
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLeaderboardPageHidden(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetLeaderboardPageHidden(*v)
+	}
+	return _u
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_u *UserUpdate) SetCreatorCode(v string) *UserUpdate {
 	_u.mutation.SetCreatorCode(v)
@@ -610,6 +624,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
 	}
@@ -932,6 +949,20 @@ func (_u *UserUpdateOne) SetCommandsPageHidden(v bool) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableCommandsPageHidden(v *bool) *UserUpdateOne {
 	if v != nil {
 		_u.SetCommandsPageHidden(*v)
+	}
+	return _u
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_u *UserUpdateOne) SetLeaderboardPageHidden(v bool) *UserUpdateOne {
+	_u.mutation.SetLeaderboardPageHidden(v)
+	return _u
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLeaderboardPageHidden(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetLeaderboardPageHidden(*v)
 	}
 	return _u
 }
@@ -1386,6 +1417,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

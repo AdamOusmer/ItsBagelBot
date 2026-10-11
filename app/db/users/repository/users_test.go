@@ -132,28 +132,52 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	assert.Len(t, pub.On(data.SubjectUserChanged), 2, "register and status change must both announce state")
 }
 
-func TestSetCommandsPageHiddenWritesThroughAndPublishes(t *testing.T) {
-	_, pub, repo := setup(t)
-	ctx := context.Background()
+func TestSetPageHiddenWritesThroughAndPublishes(t *testing.T) {
+	tests := []struct {
+		name string
+		set  func(*repository.Users, context.Context, uint64, bool) error
+		get  func(repository.UserView) bool
+		dto  func(data.UserChangedDTO) bool
+	}{
+		{
+			name: "commands page",
+			set:  (*repository.Users).SetCommandsPageHidden,
+			get:  func(v repository.UserView) bool { return v.CommandsPageHidden },
+			dto:  func(d data.UserChangedDTO) bool { return d.CommandsPageHidden },
+		},
+		{
+			name: "leaderboard page",
+			set:  (*repository.Users).SetLeaderboardPageHidden,
+			get:  func(v repository.UserView) bool { return v.LeaderboardPageHidden },
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, pub, repo := setup(t)
+			ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+			require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
-	view, err := repo.Get(ctx, 1001)
-	require.NoError(t, err)
-	assert.False(t, view.CommandsPageHidden, "default is visible (D2)")
+			view, err := repo.Get(ctx, 1001)
+			require.NoError(t, err)
+			assert.False(t, tc.get(view), "default is visible (D2)")
 
-	require.NoError(t, repo.SetCommandsPageHidden(ctx, 1001, true))
+			require.NoError(t, tc.set(repo, ctx, 1001, true))
 
-	view, err = repo.Get(ctx, 1001)
-	require.NoError(t, err)
-	assert.True(t, view.CommandsPageHidden, "write-through: no batcher window to wait out")
+			view, err = repo.Get(ctx, 1001)
+			require.NoError(t, err)
+			assert.True(t, tc.get(view), "write-through: no batcher window to wait out")
 
-	msgs := pub.On(data.SubjectUserChanged)
-	require.Len(t, msgs, 2, "register and the flag change must both announce state")
+			msgs := pub.On(data.SubjectUserChanged)
+			require.Len(t, msgs, 2, "register and the flag change must both announce state")
 
-	var dto data.UserChangedDTO
-	require.NoError(t, codec.Unmarshal(msgs[1].Payload, &dto))
-	assert.True(t, dto.CommandsPageHidden, "publishChanged must carry the new value")
+			if tc.dto != nil {
+				var dto data.UserChangedDTO
+				require.NoError(t, codec.Unmarshal(msgs[1].Payload, &dto))
+				assert.True(t, tc.dto(dto), "publishChanged must carry the new value")
+			}
+		})
+	}
 }
 
 func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {

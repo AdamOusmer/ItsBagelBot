@@ -221,6 +221,11 @@ type CommandsPageSetRequest struct {
 	Hidden            bool   `json:"commands_page_hidden"`
 }
 
+type LeaderboardPageSetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	Hidden            bool   `json:"leaderboard_page_hidden"`
+}
+
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`
 	OwnerLogin  string   `json:"owner_login"`

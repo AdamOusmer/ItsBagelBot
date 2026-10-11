@@ -154,6 +154,20 @@ func (_c *UserCreate) SetNillableCommandsPageHidden(v *bool) *UserCreate {
 	return _c
 }
 
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_c *UserCreate) SetLeaderboardPageHidden(v bool) *UserCreate {
+	_c.mutation.SetLeaderboardPageHidden(v)
+	return _c
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLeaderboardPageHidden(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetLeaderboardPageHidden(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -441,6 +455,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultCommandsPageHidden
 		_c.mutation.SetCommandsPageHidden(v)
 	}
+	if _, ok := _c.mutation.LeaderboardPageHidden(); !ok {
+		v := user.DefaultLeaderboardPageHidden
+		_c.mutation.SetLeaderboardPageHidden(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -543,6 +561,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.CommandsPageHidden(); !ok {
 		return &ValidationError{Name: "commands_page_hidden", err: errors.New(`ent: missing required field "User.commands_page_hidden"`)}
+	}
+	if _, ok := _c.mutation.LeaderboardPageHidden(); !ok {
+		return &ValidationError{Name: "leaderboard_page_hidden", err: errors.New(`ent: missing required field "User.leaderboard_page_hidden"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -649,6 +670,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
 		_node.CommandsPageHidden = value
+	}
+	if value, ok := _c.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
+		_node.LeaderboardPageHidden = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -927,6 +952,18 @@ func (u *UserUpsert) SetCommandsPageHidden(v bool) *UserUpsert {
 // UpdateCommandsPageHidden sets the "commands_page_hidden" field to the value that was provided on create.
 func (u *UserUpsert) UpdateCommandsPageHidden() *UserUpsert {
 	u.SetExcluded(user.FieldCommandsPageHidden)
+	return u
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsert) SetLeaderboardPageHidden(v bool) *UserUpsert {
+	u.Set(user.FieldLeaderboardPageHidden, v)
+	return u
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLeaderboardPageHidden() *UserUpsert {
+	u.SetExcluded(user.FieldLeaderboardPageHidden)
 	return u
 }
 
@@ -1335,6 +1372,20 @@ func (u *UserUpsertOne) SetCommandsPageHidden(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateCommandsPageHidden() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCommandsPageHidden()
+	})
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsertOne) SetLeaderboardPageHidden(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLeaderboardPageHidden(v)
+	})
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLeaderboardPageHidden() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLeaderboardPageHidden()
 	})
 }
 
@@ -1941,6 +1992,20 @@ func (u *UserUpsertBulk) SetCommandsPageHidden(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateCommandsPageHidden() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCommandsPageHidden()
+	})
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsertBulk) SetLeaderboardPageHidden(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLeaderboardPageHidden(v)
+	})
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLeaderboardPageHidden() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLeaderboardPageHidden()
 	})
 }
 

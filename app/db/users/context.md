@@ -23,6 +23,7 @@ Modules, Commands and Loyalty own their separate feature records.
 | `subscription_source` | Access/billing origin such as Tebex, admin or giveaway; not a campaign identity. |
 | Subscription reference | Provider recurring identity used to reject stale lifecycle events. |
 | `commands_page_hidden` | Inverted visibility flag; false preserves public-page default. |
+| `leaderboard_page_hidden` | Inverted visibility flag for the public leaderboard; false preserves public-page default. |
 | Account instance / `AccountCreatedAt` | Account creation Unix **microseconds**, distinguishes delete/recreate incarnations. |
 | State revision | Monotonic mutation version emitted with user projection/change events. |
 | Token / grant | Twitch OAuth token custody; in giveaway files, grant means a Premium interval. |

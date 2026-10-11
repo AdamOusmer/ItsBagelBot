@@ -53,6 +53,7 @@ type UserView struct {
 	Locale                    string     `json:"locale"`
 	CustomCursor              bool       `json:"custom_cursor"`
 	CommandsPageHidden        bool       `json:"commands_page_hidden"`
+	LeaderboardPageHidden     bool       `json:"leaderboard_page_hidden"`
 	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
@@ -198,6 +199,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Locale:                    u.Locale,
 				CustomCursor:              u.CustomCursor,
 				CommandsPageHidden:        u.CommandsPageHidden,
+				LeaderboardPageHidden:     u.LeaderboardPageHidden,
 				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
@@ -312,6 +314,10 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 // Must write through: Get does not overlay pending preference writes.
 func (r *Users) SetCommandsPageHidden(ctx context.Context, id uint64, hidden bool) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCommandsPageHidden(hidden) })
+}
+
+func (r *Users) SetLeaderboardPageHidden(ctx context.Context, id uint64, hidden bool) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLeaderboardPageHidden(hidden) })
 }
 
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
