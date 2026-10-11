@@ -167,9 +167,9 @@ spec:
               value: 1ms
             - name: NATS_ATOMIC_ACK_FIRST
               value: "true"
-
+            # The fleet's in-flight cohorts become the stream leader's apply backlog: 16 -> 8 cut commit p50 840 -> 485 ms at equal 68k msg/s (2026-10-11).
             - name: NATS_PUBLISH_INFLIGHT_COHORTS
-              value: "16"
+              value: "8"
             - name: NATS_PUBLISH_QUEUE_SIZE
               value: "512"
             # An expired commit wait is an at-most-once loss: keep it above every commit tail.
