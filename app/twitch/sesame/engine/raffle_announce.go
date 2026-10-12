@@ -121,7 +121,7 @@ func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text
 	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
 		subject = s.cfg.OutgressPremiumSubject
 	}
-	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
+	body, err := buildOutgress(ctx, s.cfg.Runtime, &module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
 	if err != nil {
 		s.log.Warn("raffle: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
 		return

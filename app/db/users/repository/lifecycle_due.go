@@ -114,8 +114,14 @@ func appendLifecycleWork(reply *usersrpc.LifecycleReply, work usersrpc.Lifecycle
 	if lifecycleTimeDue(work.State.NormalCleanupAt, now) {
 		reply.Cleanup = append(reply.Cleanup, work)
 	}
-	if work.State.RuntimeState == lifecycle.Recovering || lifecycleTimeDue(work.State.NoticeNextAttemptAt, now) {
+	if recoveryDue(work.State, now) || lifecycleTimeDue(work.State.NoticeNextAttemptAt, now) {
 		reply.Items = append(reply.Items, work)
 	}
+}
+func recoveryDue(s lifecycle.State, now time.Time) bool {
+	if s.RuntimeState == lifecycle.Recovering {
+		return true
+	}
+	return s.RuntimeState == lifecycle.Degraded && lifecycleTimeDue(s.NextAttemptAt, now)
 }
 func lifecycleTimeDue(at, now time.Time) bool { return !at.IsZero() && !now.Before(at) }

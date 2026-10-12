@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
@@ -166,4 +168,20 @@ func TestPrepareJSONPreservesTheEnvelopeWireShape(t *testing.T) {
 	assert.Equal(t, "hello 👋", env.Text)
 	assert.Equal(t, "moderator", env.Senders[0].Badges[0].SetID)
 	assert.JSONEq(t, `{"nested":true}`, string(env.Event))
+}
+
+type announcementRuntime struct{ snapshot channelruntime.Snapshot }
+
+func (r announcementRuntime) Get(context.Context, uint64) (channelruntime.Snapshot, error) {
+	return r.snapshot, nil
+}
+
+func TestAnnouncementsCarryCurrentAdmission(t *testing.T) {
+	rt := announcementRuntime{channelruntime.Snapshot{Registered: true, AccountCreatedAt: 101, State: lifecycle.State{AdmissionGeneration: 7}}}
+	body, err := buildOutgress(context.Background(), rt, &module.Output{Type: outgress.TypeChat, BroadcasterID: "42", Text: "hi"})
+	require.NoError(t, err)
+	var msg outgress.Message
+	require.NoError(t, codec.Unmarshal(body, &msg))
+	assert.Equal(t, int64(101), msg.AccountCreatedAt)
+	assert.Equal(t, int64(7), msg.AdmissionGeneration)
 }

@@ -27,9 +27,7 @@ func (t *lifecycleTransition) claimRecovery() (bool, error) {
 		return false, nil
 	}
 	if s.Attempts >= lifecycle.MaxRecoveryAttempts {
-		s.RuntimeState = lifecycle.Degraded
-		s.NextAttemptAt = time.Time{}
-		t.bump()
+		t.degradeRecovery()
 	} else {
 		s.Attempts++
 		s.NextAttemptAt = t.now.Add(time.Minute)
@@ -92,8 +90,17 @@ func (t *lifecycleTransition) failRecovery() (bool, error) {
 }
 func (t *lifecycleTransition) degradeRecovery() {
 	t.state.RuntimeState = lifecycle.Degraded
-	t.state.NextAttemptAt = time.Time{}
+	t.state.NextAttemptAt = t.now.Add(degradedRetryDelay)
 	t.bump()
+}
+
+const degradedRetryDelay = time.Hour
+
+func (t *lifecycleTransition) retryDegraded() (bool, error) {
+	if t.state.RuntimeState != lifecycle.Degraded || !lifecycleTimeDue(t.state.NextAttemptAt, t.now) {
+		return false, nil
+	}
+	return t.retryRecovery()
 }
 
 func (t *lifecycleTransition) claimControlRepair() (bool, error) {

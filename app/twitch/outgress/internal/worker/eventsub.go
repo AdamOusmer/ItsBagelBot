@@ -262,9 +262,7 @@ func (w *Worker) recoverActiveFlag(ctx context.Context, e enrollment) {
 
 func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op string, err error) {
 	switch {
-	case isChatBanned(err):
-		_ = w.blockChannelFrom(ctx, e.broadcasterID, blockBanned.because(op+": "+err.Error()), e.priorState)
-	case isAuthRevoked(err):
+	case w.lifecycleNC == nil && isAuthRevoked(err):
 		_ = w.blockChannelFrom(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()), e.priorState)
 	default:
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
@@ -516,7 +514,3 @@ type createError struct {
 
 func (e *createError) Error() string { return "create " + e.subType + ": " + e.err.Error() }
 func (e *createError) Unwrap() error { return e.err }
-
-// A missing authorization 403 is ambiguous (scope, moderator role, or grant).
-// Only the trusted moderation event or chat_user_banned revocation proves a ban.
-func isChatBanned(err error) bool { return false }

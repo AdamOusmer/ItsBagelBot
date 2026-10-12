@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -95,6 +96,7 @@ type RaffleStore interface {
 }
 
 type RaffleConfig struct {
+	Runtime                 channelruntime.Reader
 	OutgressPremiumSubject  string
 	OutgressStandardSubject string
 	Pub                     bus.Publisher

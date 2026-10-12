@@ -49,6 +49,8 @@ defmodule Ingress.Config do
 
   def special_user_ids, do: Application.get_env(:ingress, :special_user_ids, MapSet.new())
 
+  def bot_user_id, do: Application.get_env(:ingress, :bot_user_id)
+
   def lane_subject(:premium), do: Application.fetch_env!(:ingress, :lane_subject_premium)
   def lane_subject(:standard), do: Application.fetch_env!(:ingress, :lane_subject_standard)
   def lane_subject(:stream), do: Application.fetch_env!(:ingress, :lane_subject_stream)

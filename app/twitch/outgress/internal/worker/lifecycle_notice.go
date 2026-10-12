@@ -2,6 +2,7 @@ package worker
 
 import (
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/internal/domain/lifecycle"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -20,7 +21,7 @@ func (w *Worker) reconcileNotice(ctx context.Context, uid uint64, current usersr
 	}
 	req := noticeRequest(uid, current, "notice_claim")
 	claimed, err := w.lifecycleRequest(ctx, req)
-	if err != nil || !claimed.Applied {
+	if err != nil || !claimed.Applied || claimed.State.IncidentAnnounced {
 		return
 	}
 	if w.sendNotice(ctx, uid, current) {
@@ -56,7 +57,7 @@ func (w *Worker) sendNotice(ctx context.Context, uid uint64, current usersrpc.Li
 	}
 	s := current.State
 	n := noticeRevoked
-	if s.ChatRestriction != "none" {
+	if s.ChatRestriction == lifecycle.RestrictionBanned {
 		n = noticeBanned
 	}
 	request := notificationsrpc.ConnectionRequest{AccountID: uid, AccountCreatedAt: current.AccountCreatedAt, IncidentID: s.IncidentID, DeliveryDeadline: s.NoticeDeadline, ExpiresAt: s.NoticeDeadline.Add(90 * 24 * time.Hour), Title: i18n.T(locale, n.title), Body: i18n.T(locale, n.body), Level: "warning"}

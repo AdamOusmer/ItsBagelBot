@@ -370,6 +370,9 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 			return
 		}
 		state.ordinal++
+		if state.mctx != nil {
+			state.mctx.Emitted++
+		}
 		replayID := state.replayID()
 		if err := p.publishOutput(ctx, state, replayID, o); err != nil {
 			state.err = err
@@ -559,12 +562,20 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 		if handle == nil {
 			continue
 		}
+		before := mctx.Emitted
 		if err := handle(ctx, mctx, emit); err != nil {
 			p.handlerFailed(ctx, mctx, m, err)
-		} else if eventType != chatType && strings.HasPrefix(eventType, "channel.") {
+		} else if viewerEngagement(eventType) && (mctx.Emitted > before || m.Kind == module.KindOptIn) {
 			mctx.Engaged = true
 		}
 	}
+}
+
+func viewerEngagement(eventType string) bool {
+	if eventType == chatType || strings.HasPrefix(eventType, "channel.ad_break.") {
+		return false
+	}
+	return strings.HasPrefix(eventType, "channel.")
 }
 
 func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m module.Module, err error) {

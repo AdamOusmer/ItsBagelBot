@@ -191,6 +191,7 @@ func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 
 func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
 	raffle := engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{
+		Runtime:                 newRuntime(w),
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
 		Pub:                     w.in.pub,
@@ -202,6 +203,7 @@ func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
 	duel := engine.NewValkeyDuelStore(w.in.vc, engine.DuelConfig{
+		Runtime:                 newRuntime(w),
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
 		Pub:                     w.in.pub,

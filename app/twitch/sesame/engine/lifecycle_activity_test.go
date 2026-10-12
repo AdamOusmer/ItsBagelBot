@@ -56,3 +56,27 @@ func TestLifecycleActivityRequiresEnabledViewerFeature(t *testing.T) {
 		})
 	}
 }
+
+func TestLifecycleActivityIgnoresSilentDefaultsAndAdBreaks(t *testing.T) {
+	for _, tc := range []struct {
+		name, event string
+		reply, want bool
+	}{
+		{"silent default feature", "channel.follow", false, false},
+		{"default feature that replied", "channel.follow", true, true},
+		{"automatic ad break", "channel.ad_break.begin", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := module.Module{Name: "alerts", Kind: module.KindDefault, Events: map[string]module.EventHandler{tc.event: func(_ context.Context, _ *module.Context, emit module.Emit) error {
+				if tc.reply {
+					emit(&module.Output{})
+				}
+				return nil
+			}}}
+			p := &Pipeline{registry: NewRegistry(zap.NewNop(), m), log: zap.NewNop()}
+			c := &module.Context{Env: lane.Envelope{Type: tc.event}}
+			p.runHandlers(context.Background(), map[string]projection.ModuleView{"alerts": {IsEnabled: true}}, c, func(*module.Output) { c.Emitted++ })
+			require.Equal(t, tc.want, c.Engaged)
+		})
+	}
+}

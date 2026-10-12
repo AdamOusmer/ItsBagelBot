@@ -79,6 +79,7 @@ func (w *Worker) ReconcileLifecycle(ctx context.Context) {
 	}
 }
 func (w *Worker) reconcileLifecycleDue(ctx context.Context) {
+	_ = w.registry.RenewHot(ctx, w.backgroundAllowed)
 	_ = w.registry.PruneHot(ctx)
 	due, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{Action: "due"})
 	if err != nil {
@@ -107,11 +108,22 @@ func (w *Worker) reconcileDueRecovery(ctx context.Context, items []usersrpc.Life
 			return
 		}
 		current := usersrpc.LifecycleReply{AccountCreatedAt: item.AccountCreatedAt, State: item.State}
+		if current.State.RuntimeState == lifecycle.Degraded {
+			current = w.retryDegraded(ctx, item)
+		}
 		if current.State.RuntimeState == lifecycle.Recovering {
 			_ = w.recoverLifecycle(ctx, item.UserID, current)
 		}
 		w.reconcileNotice(ctx, item.UserID, current)
 	}
+}
+
+func (w *Worker) retryDegraded(ctx context.Context, item usersrpc.LifecycleWork) usersrpc.LifecycleReply {
+	retried, err := w.mutateLifecycle(ctx, workRequest(item, "degraded_retry"))
+	if err != nil || !retried.Applied {
+		return usersrpc.LifecycleReply{AccountCreatedAt: item.AccountCreatedAt, State: item.State}
+	}
+	return retried
 }
 
 func moderationMatchesIncarnation(ev botModeration, current usersrpc.LifecycleReply) bool {
