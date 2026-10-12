@@ -4,6 +4,8 @@
 package engine
 
 import (
+	"slices"
+
 	"ItsBagelBot/app/twitch/sesame/module"
 
 	"go.uber.org/zap"
@@ -16,19 +18,24 @@ type BoundCommand struct {
 
 type Registry struct {
 	variableModules map[string]module.Module
+	byName          map[string]module.Module
 	byEvent         map[string][]module.Module
-	commands        map[string]BoundCommand
+	commands        map[string][]BoundCommand
 	needViews       map[string]bool
 }
 
 func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 	r := &Registry{
 		variableModules: make(map[string]module.Module),
+		byName:          make(map[string]module.Module),
 		byEvent:         make(map[string][]module.Module),
-		commands:        make(map[string]BoundCommand),
+		commands:        make(map[string][]BoundCommand),
 		needViews:       make(map[string]bool),
 	}
 	for _, m := range mods {
+		if m.Name != "" {
+			r.byName[m.Name] = m
+		}
 		if len(m.Variables) > 0 {
 			r.variableModules[m.Name] = m
 		}
@@ -63,17 +70,19 @@ func (r *Registry) bind(log *zap.Logger, m module.Module, cmd module.Command, tr
 	if trigger == "" {
 		return
 	}
-	if existing, dup := r.commands[trigger]; dup {
-		if log != nil {
-			log.Warn("engine: duplicate command trigger ignored",
-				zap.String("trigger", trigger),
-				zap.String("module", moduleLabel(m)),
-				zap.String("kept_owner", moduleLabel(existing.Owner)),
-			)
-		}
-		return
+	owners := r.commands[trigger]
+	if i := slices.IndexFunc(owners, alwaysClaims); i >= 0 && log != nil {
+		log.Warn("engine: shadowed command trigger is unreachable",
+			zap.String("trigger", trigger),
+			zap.String("module", moduleLabel(m)),
+			zap.String("kept_owner", moduleLabel(owners[i].Owner)),
+		)
 	}
-	r.commands[trigger] = BoundCommand{Cmd: cmd, Owner: m}
+	r.commands[trigger] = append(owners, BoundCommand{Cmd: cmd, Owner: m})
+}
+
+func alwaysClaims(bc BoundCommand) bool {
+	return bc.Owner.Kind == module.KindCore && !bc.Owner.Trial && bc.Cmd.When == nil
 }
 
 func (r *Registry) For(eventType string) []module.Module { return r.byEvent[eventType] }
@@ -81,25 +90,36 @@ func (r *Registry) For(eventType string) []module.Module { return r.byEvent[even
 func (r *Registry) NeedsModuleViews(eventType string) bool { return r.needViews[eventType] }
 
 func (r *Registry) Command(name string) (BoundCommand, bool) {
-	bc, ok := r.commands[name]
-	return bc, ok
+	owners := r.commands[name]
+	if len(owners) == 0 {
+		return BoundCommand{}, false
+	}
+	return owners[0], true
 }
 
 func (r *Registry) ResolveCommand(name string) (bc BoundCommand, num string, ok bool) {
-	if bc, ok := r.commands[name]; ok {
-		return bc, "", true
+	owners, num := r.resolveOwners(name)
+	if len(owners) == 0 {
+		return BoundCommand{}, "", false
+	}
+	return owners[0], num, true
+}
+
+func (r *Registry) resolveOwners(name string) (owners []BoundCommand, num string) {
+	if owners := r.commands[name]; len(owners) > 0 {
+		return owners, ""
 	}
 	base, digits := splitTrailingDigits(name)
 	if digits == "" || base == "" {
-		return BoundCommand{}, "", false
+		return nil, ""
 	}
-	if bc, ok := r.commands[base]; ok && bc.Cmd.NumericSuffix {
-		return bc, digits, true
+	if owners := r.commands[base]; len(owners) > 0 && owners[0].Cmd.NumericSuffix {
+		return owners, digits
 	}
-	return BoundCommand{}, "", false
+	return nil, ""
 }
 
-func (r *Registry) Commands() map[string]BoundCommand { return r.commands }
+func (r *Registry) Commands() map[string][]BoundCommand { return r.commands }
 
 func moduleLabel(m module.Module) string {
 	if m.Name != "" {
