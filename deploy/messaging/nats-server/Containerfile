@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+FROM docker.io/library/golang:1.27.1-bookworm@sha256:69a7b9788769bec032d238959b61854e9ae87f57be9029ec04e9885fabf99195 AS build
+
+ENV GOTOOLCHAIN=local GOFLAGS=-mod=readonly
+WORKDIR /src
+ARG NATS_SERVER_REPO=https://github.com/AdamOusmer/nats-server.git
+ARG NATS_SERVER_COMMIT=2d39d1d2ce901c24d7fc4ef586013515d62be3d5
+ARG NATS_FORK_TAG=bagel/v2.15.1-bench
+RUN git init -q . \
+ && git remote add origin "${NATS_SERVER_REPO}" \
+ && for i in 1 2 3 4 5; do git fetch -q --depth 1 origin "refs/tags/${NATS_FORK_TAG}" && break; echo "git fetch failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done \
+ && git checkout -q FETCH_HEAD \
+ && test "$(git rev-parse HEAD)" = "${NATS_SERVER_COMMIT}"
+RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
+# The Intel binary needs x86-64-v3 (AVX2) on every node that runs it.
+RUN if [ "$(go env GOARCH)" = "amd64" ]; then export GOAMD64=v3; fi; \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /nats-server . \
+ && /nats-server --version | grep -qx 'nats-server: v2.15.1-bench'
+
+FROM docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+
+RUN apk add --no-cache ca-certificates tzdata \
+ && printf '%s\n' '#!/bin/sh' 'set -e' 'if [ "$#" -eq 0 ] || [ "${1#-}" != "$1" ]; then' '    set -- nats-server "$@"' 'fi' 'exec "$@"' > /usr/local/bin/docker-entrypoint.sh \
+ && chmod 0755 /usr/local/bin/docker-entrypoint.sh
+COPY --from=build /nats-server /usr/local/bin/nats-server
+
+EXPOSE 4222 8222 6222
+USER 1000:1000
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["nats-server"]
