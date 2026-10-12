@@ -74,7 +74,7 @@ func Mcsr(d engine.Deps) module.Module {
 		Run(mcsrLastMatchRun(d))
 	m.Command("record").Everyone().Cooldown(mcsrCooldown).Aliases("matchrecord").
 		Run(mcsrRecordRun(d))
-	m.Command("lb").Everyone().Cooldown(mcsrCooldown).Aliases("leaderboard", "rankedlb").
+	m.Command("lb").Everyone().Cooldown(mcsrCooldown).Aliases("rankedlb", "mcsrlb").
 		Run(mcsrLbRun(d))
 	m.Command("race").Everyone().Cooldown(mcsrCooldown).Aliases("weeklyrace").
 		Run(mcsrRaceRun(d))
