@@ -16,6 +16,8 @@ const (
 	FieldID = "id"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
+	// FieldIncarnation holds the string denoting the incarnation field in the database.
+	FieldIncarnation = "incarnation"
 	// FieldReadAt holds the string denoting the read_at field in the database.
 	FieldReadAt = "read_at"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
@@ -37,6 +39,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldUserID,
+	FieldIncarnation,
 	FieldReadAt,
 	FieldExpiresAt,
 }
@@ -63,6 +66,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultIncarnation holds the default value on creation for the "incarnation" field.
+	DefaultIncarnation string
 	// DefaultReadAt holds the default value on creation for the "read_at" field.
 	DefaultReadAt func() time.Time
 )
@@ -78,6 +83,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByUserID orders the results by the user_id field.
 func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByIncarnation orders the results by the incarnation field.
+func ByIncarnation(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIncarnation, opts...).ToFunc()
 }
 
 // ByReadAt orders the results by the read_at field.

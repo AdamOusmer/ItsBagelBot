@@ -9,28 +9,29 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/channelruntime"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
 const rewardHandleTimeout = 6 * time.Second
 
 type channelPoints struct {
-	twitch *twitch.Client
-	log    *zap.Logger
+	runtime channelruntime.Reader
+	twitch  *twitch.Client
+	log     *zap.Logger
 }
 
-func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	cp := &channelPoints{twitch: tw, log: log}
+func SubscribeChannelPoints(cfg SubscriptionConfig, tw *twitch.Client) error {
+	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
+	cp := &channelPoints{twitch: tw, log: log, runtime: cfg.Runtime}
 
 	verbs := []struct {
 		verb    string
-		handler func(context.Context, manage.RewardRequest) manage.RewardReply
+		handler rewardHandler
 	}{
 		{"channelpoints.list", cp.handleList},
 		{"channelpoints.create", cp.handleCreate},
@@ -39,11 +40,22 @@ func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup
 	}
 	for _, v := range verbs {
 		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[manage.RewardRequest, manage.RewardReply](nc, subject, queueGroup, rewardHandleTimeout, app, log, v.handler); err != nil {
+		if err := bus.QueueSubscribeJSON[manage.RewardRequest, manage.RewardReply](nc, subject, queueGroup, rewardHandleTimeout, app, log, cp.admitted(v.handler)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+type rewardHandler func(context.Context, manage.RewardRequest) manage.RewardReply
+
+func (cp *channelPoints) admitted(next rewardHandler) rewardHandler {
+	return func(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
+		if !runtimeAdmitted(ctx, cp.runtime, req.BroadcasterID) {
+			return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "channel unavailable")}
+		}
+		return next(runtimeContext(ctx, cp.runtime, req.BroadcasterID), req)
+	}
 }
 
 func (cp *channelPoints) handleList(ctx context.Context, req manage.RewardRequest) manage.RewardReply {

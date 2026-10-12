@@ -44,6 +44,18 @@ func (f DelegationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DelegationMutation", m)
 }
 
+// The LifecycleErasureFunc type is an adapter to allow the use of ordinary
+// function as LifecycleErasure mutator.
+type LifecycleErasureFunc func(context.Context, *ent.LifecycleErasureMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LifecycleErasureFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LifecycleErasureMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LifecycleErasureMutation", m)
+}
+
 // The PremiumGrantFunc type is an adapter to allow the use of ordinary
 // function as PremiumGrant mutator.
 type PremiumGrantFunc func(context.Context, *ent.PremiumGrantMutation) (ent.Value, error)

@@ -98,6 +98,36 @@ var (
 			},
 		},
 	}
+	// LifecycleErasuresColumns holds the columns for the "lifecycle_erasures" table.
+	LifecycleErasuresColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "account_created_at", Type: field.TypeInt64},
+		{Name: "deleted_at", Type: field.TypeTime},
+		{Name: "lifecycle", Type: field.TypeJSON, Nullable: true},
+		{Name: "notifications_done", Type: field.TypeBool, Default: false},
+		{Name: "outgress_done", Type: field.TypeBool, Default: false},
+		{Name: "next_attempt_at", Type: field.TypeTime},
+		{Name: "completed_at", Type: field.TypeTime, Nullable: true},
+	}
+	// LifecycleErasuresTable holds the schema information for the "lifecycle_erasures" table.
+	LifecycleErasuresTable = &schema.Table{
+		Name:       "lifecycle_erasures",
+		Columns:    LifecycleErasuresColumns,
+		PrimaryKey: []*schema.Column{LifecycleErasuresColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "lifecycleerasure_user_id_account_created_at",
+				Unique:  true,
+				Columns: []*schema.Column{LifecycleErasuresColumns[1], LifecycleErasuresColumns[2]},
+			},
+			{
+				Name:    "lifecycleerasure_completed_at_next_attempt_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{LifecycleErasuresColumns[8], LifecycleErasuresColumns[7], LifecycleErasuresColumns[0]},
+			},
+		},
+	}
 	// PremiumGrantsColumns holds the columns for the "premium_grants" table.
 	PremiumGrantsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -178,6 +208,13 @@ var (
 		{Name: "email_enc", Type: field.TypeBytes, Nullable: true},
 		{Name: "state_revision", Type: field.TypeInt64, Default: 1},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
+		{Name: "lifecycle", Type: field.TypeJSON, Nullable: true},
+		{Name: "lifecycle_state", Type: field.TypeString, Default: ""},
+		{Name: "lifecycle_projection_pending", Type: field.TypeBool, Default: false},
+		{Name: "lifecycle_migration_pending", Type: field.TypeBool, Default: false},
+		{Name: "dormant_after", Type: field.TypeTime, Nullable: true},
+		{Name: "lifecycle_due_at", Type: field.TypeTime, Nullable: true},
+		{Name: "notice_due_at", Type: field.TypeTime, Nullable: true},
 		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
 		{Name: "locale", Type: field.TypeString, Size: 8, Default: "en"},
@@ -207,12 +244,37 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[8], UsersColumns[14], UsersColumns[15]},
+				Columns: []*schema.Column{UsersColumns[15], UsersColumns[21], UsersColumns[22]},
 			},
 			{
 				Name:    "user_username",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[1]},
+			},
+			{
+				Name:    "user_lifecycle_state_dormant_after_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[8], UsersColumns[11], UsersColumns[0]},
+			},
+			{
+				Name:    "user_lifecycle_state_lifecycle_due_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[8], UsersColumns[12], UsersColumns[0]},
+			},
+			{
+				Name:    "user_notice_due_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[13], UsersColumns[0]},
+			},
+			{
+				Name:    "user_lifecycle_projection_pending_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[9], UsersColumns[0]},
+			},
+			{
+				Name:    "user_lifecycle_migration_pending_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[10], UsersColumns[0]},
 			},
 		},
 	}
@@ -221,6 +283,7 @@ var (
 		AdminAuditsTable,
 		AdminUsersTable,
 		DelegationsTable,
+		LifecycleErasuresTable,
 		PremiumGrantsTable,
 		TokensTable,
 		UsersTable,

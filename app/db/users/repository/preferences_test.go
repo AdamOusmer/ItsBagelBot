@@ -36,31 +36,31 @@ func TestPreferenceWritesAreWriteBehind(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 	baseline := len(decodeChanged(t, pub))
 
-	require.NoError(t, repo.SetActive(ctx, 1001, false))
+	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
 	require.NoError(t, repo.SetLocale(ctx, 1001, "fr"))
 
 	assert.Len(t, decodeChanged(t, pub), baseline, "no event may precede the flush commit")
 
 	row := client.User.Query().OnlyX(ctx)
-	assert.True(t, row.IsActive, "no row write may precede the flush commit")
+	assert.True(t, row.CustomCursor, "no preference write may precede the flush commit")
 	assert.Equal(t, "en", row.Locale)
 
 	repo.Close(context.Background())
 
 	row = client.User.Query().OnlyX(ctx)
-	assert.False(t, row.IsActive)
+	assert.False(t, row.CustomCursor)
 	assert.Equal(t, "fr", row.Locale)
 
 	events := decodeChanged(t, pub)
 	require.Len(t, events, baseline+1, "the window announces exactly once")
 	last := events[len(events)-1]
 	assert.Equal(t, uint64(1001), last.UserID)
-	assert.False(t, last.IsActive)
+	assert.True(t, last.IsActive)
 	assert.Equal(t, "fr", last.Locale)
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
-	assert.False(t, view.IsActive)
+	assert.True(t, view.IsActive)
 	assert.Equal(t, "fr", view.Locale)
 }
 
@@ -72,7 +72,7 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 	repo.Close(context.Background())
 	baseline := len(decodeChanged(t, pub))
 
-	require.NoError(t, repo.SetActive(ctx, 1001, false))
+	require.NoError(t, repo.SetCustomCursor(ctx, 1001, false))
 	require.NoError(t, repo.SetLocale(ctx, 1001, "de"))
 	require.NoError(t, repo.SetCustomCursor(ctx, 1001, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 1001, true))
@@ -83,7 +83,7 @@ func TestPreferenceWindowMergesPerUser(t *testing.T) {
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
-	assert.False(t, view.IsActive)
+	assert.True(t, view.IsActive)
 	assert.Equal(t, "de", view.Locale)
 	assert.True(t, view.CustomCursor)
 	assert.True(t, view.Onboarded)

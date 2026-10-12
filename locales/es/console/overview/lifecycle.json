@@ -1,0 +1,18 @@
+{
+  "dormant": "Inactivo",
+  "issueDormant": "El bot se activa automáticamente cuando usas una función habilitada. Tus ajustes se conservan.",
+  "recovering": "Reconectando…",
+  "issueRecovering": "Verificando el acceso antes de reanudar el funcionamiento.",
+  "timedOut": "Suspensión temporal",
+  "issueTimedOut": "El bot permanece en pausa hasta que termine la suspensión y se verifique el acceso.",
+  "verifyUnban": "Ya lo desbaneé — reintentar",
+  "retryConnection": "Reintentar la verificación",
+  "disabledByYou": "Desactivado por ti",
+  "retainedBan": "El bot sigue baneado. Desbanearlo no lo activará automáticamente.",
+  "connectionCheckFailed": "Falló la verificación de conexión",
+  "issueConnectionCheckFailed": "No se pudo confirmar el acceso. Reintenta cuando se haya solucionado el problema.",
+  "secondaryGrantMissing": "También debes renovar la autorización de Twitch.",
+  "enableAndVerify": "Activar y verificar el desbaneo",
+  "issueBotBannedAutomatic": "Desbanea el bot en Twitch. Se reconectará automáticamente. También puedes reintentar para verificar el desbaneo.",
+  "issueBotBannedUnavailable": "La recuperación automática tras el desbaneo no está disponible. Renueva la autorización de Twitch, o desbanea el bot y reintenta para verificar el acceso."
+}

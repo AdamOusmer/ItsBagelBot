@@ -11,6 +11,8 @@ import (
 
 	"ItsBagelBot/app/db/notifications/ent/migrate"
 
+	"ItsBagelBot/app/db/notifications/ent/connectionguard"
+	"ItsBagelBot/app/db/notifications/ent/connectionreceipt"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
 
@@ -25,6 +27,10 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// ConnectionGuard is the client for interacting with the ConnectionGuard builders.
+	ConnectionGuard *ConnectionGuardClient
+	// ConnectionReceipt is the client for interacting with the ConnectionReceipt builders.
+	ConnectionReceipt *ConnectionReceiptClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// NotificationRead is the client for interacting with the NotificationRead builders.
@@ -40,6 +46,8 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.ConnectionGuard = NewConnectionGuardClient(c.config)
+	c.ConnectionReceipt = NewConnectionReceiptClient(c.config)
 	c.Notification = NewNotificationClient(c.config)
 	c.NotificationRead = NewNotificationReadClient(c.config)
 }
@@ -132,10 +140,12 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		Notification:     NewNotificationClient(cfg),
-		NotificationRead: NewNotificationReadClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		ConnectionGuard:   NewConnectionGuardClient(cfg),
+		ConnectionReceipt: NewConnectionReceiptClient(cfg),
+		Notification:      NewNotificationClient(cfg),
+		NotificationRead:  NewNotificationReadClient(cfg),
 	}, nil
 }
 
@@ -153,17 +163,19 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		Notification:     NewNotificationClient(cfg),
-		NotificationRead: NewNotificationReadClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		ConnectionGuard:   NewConnectionGuardClient(cfg),
+		ConnectionReceipt: NewConnectionReceiptClient(cfg),
+		Notification:      NewNotificationClient(cfg),
+		NotificationRead:  NewNotificationReadClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Notification.
+//		ConnectionGuard.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -185,6 +197,8 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.ConnectionGuard.Use(hooks...)
+	c.ConnectionReceipt.Use(hooks...)
 	c.Notification.Use(hooks...)
 	c.NotificationRead.Use(hooks...)
 }
@@ -192,6 +206,8 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.ConnectionGuard.Intercept(interceptors...)
+	c.ConnectionReceipt.Intercept(interceptors...)
 	c.Notification.Intercept(interceptors...)
 	c.NotificationRead.Intercept(interceptors...)
 }
@@ -199,12 +215,282 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *ConnectionGuardMutation:
+		return c.ConnectionGuard.mutate(ctx, m)
+	case *ConnectionReceiptMutation:
+		return c.ConnectionReceipt.mutate(ctx, m)
 	case *NotificationMutation:
 		return c.Notification.mutate(ctx, m)
 	case *NotificationReadMutation:
 		return c.NotificationRead.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// ConnectionGuardClient is a client for the ConnectionGuard schema.
+type ConnectionGuardClient struct {
+	config
+}
+
+// NewConnectionGuardClient returns a client for the ConnectionGuard from the given config.
+func NewConnectionGuardClient(c config) *ConnectionGuardClient {
+	return &ConnectionGuardClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `connectionguard.Hooks(f(g(h())))`.
+func (c *ConnectionGuardClient) Use(hooks ...Hook) {
+	c.hooks.ConnectionGuard = append(c.hooks.ConnectionGuard, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `connectionguard.Intercept(f(g(h())))`.
+func (c *ConnectionGuardClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ConnectionGuard = append(c.inters.ConnectionGuard, interceptors...)
+}
+
+// Create returns a builder for creating a ConnectionGuard entity.
+func (c *ConnectionGuardClient) Create() *ConnectionGuardCreate {
+	mutation := newConnectionGuardMutation(c.config, OpCreate)
+	return &ConnectionGuardCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ConnectionGuard entities.
+func (c *ConnectionGuardClient) CreateBulk(builders ...*ConnectionGuardCreate) *ConnectionGuardCreateBulk {
+	return &ConnectionGuardCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ConnectionGuardClient) MapCreateBulk(slice any, setFunc func(*ConnectionGuardCreate, int)) *ConnectionGuardCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ConnectionGuardCreateBulk{err: fmt.Errorf("calling to ConnectionGuardClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ConnectionGuardCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ConnectionGuardCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ConnectionGuard.
+func (c *ConnectionGuardClient) Update() *ConnectionGuardUpdate {
+	mutation := newConnectionGuardMutation(c.config, OpUpdate)
+	return &ConnectionGuardUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ConnectionGuardClient) UpdateOne(_m *ConnectionGuard) *ConnectionGuardUpdateOne {
+	mutation := newConnectionGuardMutation(c.config, OpUpdateOne, withConnectionGuard(_m))
+	return &ConnectionGuardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ConnectionGuardClient) UpdateOneID(id int) *ConnectionGuardUpdateOne {
+	mutation := newConnectionGuardMutation(c.config, OpUpdateOne, withConnectionGuardID(id))
+	return &ConnectionGuardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ConnectionGuard.
+func (c *ConnectionGuardClient) Delete() *ConnectionGuardDelete {
+	mutation := newConnectionGuardMutation(c.config, OpDelete)
+	return &ConnectionGuardDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ConnectionGuardClient) DeleteOne(_m *ConnectionGuard) *ConnectionGuardDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ConnectionGuardClient) DeleteOneID(id int) *ConnectionGuardDeleteOne {
+	builder := c.Delete().Where(connectionguard.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ConnectionGuardDeleteOne{builder}
+}
+
+// Query returns a query builder for ConnectionGuard.
+func (c *ConnectionGuardClient) Query() *ConnectionGuardQuery {
+	return &ConnectionGuardQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeConnectionGuard},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ConnectionGuard entity by its id.
+func (c *ConnectionGuardClient) Get(ctx context.Context, id int) (*ConnectionGuard, error) {
+	return c.Query().Where(connectionguard.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ConnectionGuardClient) GetX(ctx context.Context, id int) *ConnectionGuard {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ConnectionGuardClient) Hooks() []Hook {
+	return c.hooks.ConnectionGuard
+}
+
+// Interceptors returns the client interceptors.
+func (c *ConnectionGuardClient) Interceptors() []Interceptor {
+	return c.inters.ConnectionGuard
+}
+
+func (c *ConnectionGuardClient) mutate(ctx context.Context, m *ConnectionGuardMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ConnectionGuardCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ConnectionGuardUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ConnectionGuardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ConnectionGuardDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ConnectionGuard mutation op: %q", m.Op())
+	}
+}
+
+// ConnectionReceiptClient is a client for the ConnectionReceipt schema.
+type ConnectionReceiptClient struct {
+	config
+}
+
+// NewConnectionReceiptClient returns a client for the ConnectionReceipt from the given config.
+func NewConnectionReceiptClient(c config) *ConnectionReceiptClient {
+	return &ConnectionReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `connectionreceipt.Hooks(f(g(h())))`.
+func (c *ConnectionReceiptClient) Use(hooks ...Hook) {
+	c.hooks.ConnectionReceipt = append(c.hooks.ConnectionReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `connectionreceipt.Intercept(f(g(h())))`.
+func (c *ConnectionReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ConnectionReceipt = append(c.inters.ConnectionReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a ConnectionReceipt entity.
+func (c *ConnectionReceiptClient) Create() *ConnectionReceiptCreate {
+	mutation := newConnectionReceiptMutation(c.config, OpCreate)
+	return &ConnectionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ConnectionReceipt entities.
+func (c *ConnectionReceiptClient) CreateBulk(builders ...*ConnectionReceiptCreate) *ConnectionReceiptCreateBulk {
+	return &ConnectionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ConnectionReceiptClient) MapCreateBulk(slice any, setFunc func(*ConnectionReceiptCreate, int)) *ConnectionReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ConnectionReceiptCreateBulk{err: fmt.Errorf("calling to ConnectionReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ConnectionReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ConnectionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ConnectionReceipt.
+func (c *ConnectionReceiptClient) Update() *ConnectionReceiptUpdate {
+	mutation := newConnectionReceiptMutation(c.config, OpUpdate)
+	return &ConnectionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ConnectionReceiptClient) UpdateOne(_m *ConnectionReceipt) *ConnectionReceiptUpdateOne {
+	mutation := newConnectionReceiptMutation(c.config, OpUpdateOne, withConnectionReceipt(_m))
+	return &ConnectionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ConnectionReceiptClient) UpdateOneID(id int) *ConnectionReceiptUpdateOne {
+	mutation := newConnectionReceiptMutation(c.config, OpUpdateOne, withConnectionReceiptID(id))
+	return &ConnectionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ConnectionReceipt.
+func (c *ConnectionReceiptClient) Delete() *ConnectionReceiptDelete {
+	mutation := newConnectionReceiptMutation(c.config, OpDelete)
+	return &ConnectionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ConnectionReceiptClient) DeleteOne(_m *ConnectionReceipt) *ConnectionReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ConnectionReceiptClient) DeleteOneID(id int) *ConnectionReceiptDeleteOne {
+	builder := c.Delete().Where(connectionreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ConnectionReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for ConnectionReceipt.
+func (c *ConnectionReceiptClient) Query() *ConnectionReceiptQuery {
+	return &ConnectionReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeConnectionReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ConnectionReceipt entity by its id.
+func (c *ConnectionReceiptClient) Get(ctx context.Context, id int) (*ConnectionReceipt, error) {
+	return c.Query().Where(connectionreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ConnectionReceiptClient) GetX(ctx context.Context, id int) *ConnectionReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ConnectionReceiptClient) Hooks() []Hook {
+	return c.hooks.ConnectionReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *ConnectionReceiptClient) Interceptors() []Interceptor {
+	return c.inters.ConnectionReceipt
+}
+
+func (c *ConnectionReceiptClient) mutate(ctx context.Context, m *ConnectionReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ConnectionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ConnectionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ConnectionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ConnectionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ConnectionReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -509,9 +795,10 @@ func (c *NotificationReadClient) mutate(ctx context.Context, m *NotificationRead
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Notification, NotificationRead []ent.Hook
+		ConnectionGuard, ConnectionReceipt, Notification, NotificationRead []ent.Hook
 	}
 	inters struct {
-		Notification, NotificationRead []ent.Interceptor
+		ConnectionGuard, ConnectionReceipt, Notification,
+		NotificationRead []ent.Interceptor
 	}
 )

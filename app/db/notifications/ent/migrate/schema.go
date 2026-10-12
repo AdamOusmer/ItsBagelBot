@@ -8,11 +8,71 @@ import (
 )
 
 var (
+	// ConnectionGuardsColumns holds the columns for the "connection_guards" table.
+	ConnectionGuardsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_id", Type: field.TypeUint64},
+		{Name: "incarnation", Type: field.TypeString},
+		{Name: "last_created_at", Type: field.TypeTime, Nullable: true},
+		{Name: "retain_until", Type: field.TypeTime},
+		{Name: "erased_at", Type: field.TypeTime, Nullable: true},
+		{Name: "erased", Type: field.TypeBool, Default: false},
+	}
+	// ConnectionGuardsTable holds the schema information for the "connection_guards" table.
+	ConnectionGuardsTable = &schema.Table{
+		Name:       "connection_guards",
+		Columns:    ConnectionGuardsColumns,
+		PrimaryKey: []*schema.Column{ConnectionGuardsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "connectionguard_account_id_incarnation",
+				Unique:  true,
+				Columns: []*schema.Column{ConnectionGuardsColumns[1], ConnectionGuardsColumns[2]},
+			},
+			{
+				Name:    "connectionguard_retain_until_id",
+				Unique:  false,
+				Columns: []*schema.Column{ConnectionGuardsColumns[4], ConnectionGuardsColumns[0]},
+			},
+		},
+	}
+	// ConnectionReceiptsColumns holds the columns for the "connection_receipts" table.
+	ConnectionReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "account_id", Type: field.TypeUint64},
+		{Name: "incarnation", Type: field.TypeString},
+		{Name: "incident_id", Type: field.TypeString},
+		{Name: "outcome", Type: field.TypeString},
+		{Name: "notification_id", Type: field.TypeInt, Nullable: true},
+		{Name: "delivery_deadline", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "retain_until", Type: field.TypeTime},
+	}
+	// ConnectionReceiptsTable holds the schema information for the "connection_receipts" table.
+	ConnectionReceiptsTable = &schema.Table{
+		Name:       "connection_receipts",
+		Columns:    ConnectionReceiptsColumns,
+		PrimaryKey: []*schema.Column{ConnectionReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "connectionreceipt_account_id_incarnation_incident_id",
+				Unique:  true,
+				Columns: []*schema.Column{ConnectionReceiptsColumns[1], ConnectionReceiptsColumns[2], ConnectionReceiptsColumns[3]},
+			},
+			{
+				Name:    "connectionreceipt_retain_until_id",
+				Unique:  false,
+				Columns: []*schema.Column{ConnectionReceiptsColumns[8], ConnectionReceiptsColumns[0]},
+			},
+		},
+	}
 	// NotificationsColumns holds the columns for the "notifications" table.
 	NotificationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "scope", Type: field.TypeEnum, Enums: []string{"broadcast", "direct"}},
 		{Name: "target_user_id", Type: field.TypeUint64, Nullable: true},
+		{Name: "incarnation", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "incident_id", Type: field.TypeString, Nullable: true},
 		{Name: "title", Type: field.TypeString},
 		{Name: "body", Type: field.TypeString, Size: 2147483647},
 		{Name: "level", Type: field.TypeEnum, Enums: []string{"info", "success", "warning", "critical"}, Default: "info"},
@@ -36,7 +96,17 @@ var (
 			{
 				Name:    "notification_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{NotificationsColumns[9]},
+				Columns: []*schema.Column{NotificationsColumns[11]},
+			},
+			{
+				Name:    "notification_expires_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[12], NotificationsColumns[0]},
+			},
+			{
+				Name:    "notification_target_user_id_incarnation",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[2], NotificationsColumns[3]},
 			},
 		},
 	}
@@ -44,6 +114,7 @@ var (
 	NotificationReadsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "incarnation", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "read_at", Type: field.TypeTime},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "notification_reads", Type: field.TypeInt},
@@ -56,21 +127,23 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "notification_reads_notifications_reads",
-				Columns:    []*schema.Column{NotificationReadsColumns[4]},
+				Columns:    []*schema.Column{NotificationReadsColumns[5]},
 				RefColumns: []*schema.Column{NotificationsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "notificationread_user_id_notification_reads",
+				Name:    "notificationread_user_id_incarnation_notification_reads",
 				Unique:  true,
-				Columns: []*schema.Column{NotificationReadsColumns[1], NotificationReadsColumns[4]},
+				Columns: []*schema.Column{NotificationReadsColumns[1], NotificationReadsColumns[2], NotificationReadsColumns[5]},
 			},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		ConnectionGuardsTable,
+		ConnectionReceiptsTable,
 		NotificationsTable,
 		NotificationReadsTable,
 	}

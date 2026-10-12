@@ -8,6 +8,30 @@ import (
 	"fmt"
 )
 
+// The ConnectionGuardFunc type is an adapter to allow the use of ordinary
+// function as ConnectionGuard mutator.
+type ConnectionGuardFunc func(context.Context, *ent.ConnectionGuardMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ConnectionGuardFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ConnectionGuardMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ConnectionGuardMutation", m)
+}
+
+// The ConnectionReceiptFunc type is an adapter to allow the use of ordinary
+// function as ConnectionReceipt mutator.
+type ConnectionReceiptFunc func(context.Context, *ent.ConnectionReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ConnectionReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ConnectionReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ConnectionReceiptMutation", m)
+}
+
 // The NotificationFunc type is an adapter to allow the use of ordinary
 // function as Notification mutator.
 type NotificationFunc func(context.Context, *ent.NotificationMutation) (ent.Value, error)

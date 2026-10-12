@@ -152,3 +152,21 @@ func TestStreamLiveReadTakesTheNewestVerdict(t *testing.T) {
 		})
 	}
 }
+
+func TestStreamBaselinePendingCannotOverwriteNewerOfflineFact(t *testing.T) {
+	f := newStreamLiveFixture(t)
+	f.fold(true, 1000)
+	pending, err := f.store.StreamBaselinePending(f.ctx, f.user, 1000)
+	require.NoError(t, err)
+	require.True(t, pending)
+	f.twitchVerdict(livekey.ClearScript, 2000)
+	require.NoError(t, f.store.SetStreamCounterBaselineForVersion(f.ctx, f.user, 1000, StreamCounters{Messages: 99}))
+	_, found, err := f.store.GetStreamCounterBaseline(f.ctx, strconv.FormatUint(f.user, 10))
+	require.NoError(t, err)
+	require.False(t, found, "newer flat offline tombstone fences a delayed pending baseline")
+	f.fold(false, 2000)
+	pending, err = f.store.StreamBaselinePending(f.ctx, f.user, 1000)
+	require.NoError(t, err)
+	require.False(t, pending)
+	require.False(t, f.fold(true, 1000).Applied)
+}

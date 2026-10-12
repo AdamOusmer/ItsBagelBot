@@ -3,6 +3,8 @@
 
 package data
 
+import "ItsBagelBot/internal/domain/lifecycle"
+
 import "ItsBagelBot/pkg/codec"
 
 const (
@@ -18,8 +20,9 @@ const (
 )
 
 type UserChangedDTO struct {
-	StateRevision int64  `json:"state_revision,omitempty"`
-	UserID        uint64 `json:"user_id"`
+	Lifecycle     *lifecycle.State `json:"lifecycle,omitempty"`
+	StateRevision int64            `json:"state_revision,omitempty"`
+	UserID        uint64           `json:"user_id"`
 	// AccountCreatedAt identifies this incarnation of a broadcaster account.
 	// A deleted Twitch ID may register again; old events must not restore or
 	// remove the newer account. Unix microseconds stay exact in Valkey Lua.

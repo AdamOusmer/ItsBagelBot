@@ -117,6 +117,9 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	if err != nil {
 		return err
 	}
+	if emitErr == nil {
+		c.Engaged = true
+	}
 	return emitErr
 }
 
@@ -201,6 +204,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 
 	p.recordUse(ctx, c, cc.Name)
 	p.bumpCommandCounter(ctx, c, cc)
+	c.Engaged = true
 	return nil
 }
 

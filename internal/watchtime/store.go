@@ -37,6 +37,7 @@ func NewStore(client valkey.Client) *Store { return &Store{client: pkgvalkey.Pri
 const admission = `
 if redis.call('HGET',KEYS[2],'deleted') == '1' then return false end
 if redis.call('HGET',KEYS[1],'active') ~= '1' or redis.call('HGET',KEYS[1],'banned') == '1' or redis.call('HGET',KEYS[1],'module:loyalty:enabled') ~= '1' then return false end
+if redis.call('HGET',KEYS[1],'runtime_background') == '0' then return false end
 if redis.call('SISMEMBER',KEYS[4],ARGV[1]) == 1 then return false end
 local session=redis.call('GET',KEYS[3]); if not session then return false end
 local generation=redis.call('HGET',KEYS[2],'epoch') or '0'

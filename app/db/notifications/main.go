@@ -40,7 +40,7 @@ func main() {
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return repository.MigrateSchema(ctx, client) })
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
@@ -65,13 +65,15 @@ func main() {
 		UserGetSubject:     userGetSubject,
 		DefaultTTL:         defaultTTL,
 	}
+	svcboot.FatalIf(log, rpc.SubscribeConnection(wiring, invalidationPrefix), "failed to subscribe connection rpc")
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
 	userCfg := rpc.UserConfig{
-		Prefix:      userPrefix,
-		FullReadTTL: fullReadTTL,
-		PeekTTL:     peekTTL,
+		UserGetSubject: userGetSubject,
+		Prefix:         userPrefix,
+		FullReadTTL:    fullReadTTL,
+		PeekTTL:        peekTTL,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeUser(wiring, userCfg), "failed to subscribe user rpc")
 

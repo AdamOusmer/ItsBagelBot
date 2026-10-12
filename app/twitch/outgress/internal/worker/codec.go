@@ -12,22 +12,24 @@ import (
 )
 
 type wireMessage struct {
-	Type            string                 `json:"type"`
-	BroadcasterID   string                 `json:"broadcaster_id"`
-	Locale          string                 `json:"locale,omitempty"`
-	SenderID        string                 `json:"sender_id"`
-	Endpoint        string                 `json:"endpoint"`
-	Method          string                 `json:"method"`
-	Payload         codec.NoCopyRawMessage `json:"payload"`
-	As              string                 `json:"as,omitempty"`
-	Color           string                 `json:"color,omitempty"`
-	To              string                 `json:"to,omitempty"`
-	MsgID           string                 `json:"msg_id,omitempty"`
-	RewardID        string                 `json:"reward_id,omitempty"`
-	RedemptionID    string                 `json:"redemption_id,omitempty"`
-	Status          string                 `json:"status,omitempty"`
-	Origin          string                 `json:"origin,omitempty"`
-	TrialGeneration uint64                 `json:"trial_generation,omitempty"`
+	AccountCreatedAt    int64                  `json:"account_created_at,omitempty"`
+	AdmissionGeneration int64                  `json:"admission_generation,omitempty"`
+	Type                string                 `json:"type"`
+	BroadcasterID       string                 `json:"broadcaster_id"`
+	Locale              string                 `json:"locale,omitempty"`
+	SenderID            string                 `json:"sender_id"`
+	Endpoint            string                 `json:"endpoint"`
+	Method              string                 `json:"method"`
+	Payload             codec.NoCopyRawMessage `json:"payload"`
+	As                  string                 `json:"as,omitempty"`
+	Color               string                 `json:"color,omitempty"`
+	To                  string                 `json:"to,omitempty"`
+	MsgID               string                 `json:"msg_id,omitempty"`
+	RewardID            string                 `json:"reward_id,omitempty"`
+	RedemptionID        string                 `json:"redemption_id,omitempty"`
+	Status              string                 `json:"status,omitempty"`
+	Origin              string                 `json:"origin,omitempty"`
+	TrialGeneration     uint64                 `json:"trial_generation,omitempty"`
 }
 
 func PrepareJSON() error {
@@ -45,6 +47,7 @@ func decodeMessage(data []byte, destination *outgress.Message) error {
 		return err
 	}
 	*destination = outgress.Message{
+		AccountCreatedAt: wire.AccountCreatedAt, AdmissionGeneration: wire.AdmissionGeneration,
 		Type: wire.Type, BroadcasterID: wire.BroadcasterID, Locale: wire.Locale, SenderID: wire.SenderID,
 		Endpoint: wire.Endpoint, Method: wire.Method, Payload: codec.RawMessage(wire.Payload),
 		As: wire.As, Color: wire.Color, To: wire.To, MsgID: wire.MsgID,

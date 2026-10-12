@@ -654,12 +654,17 @@ accounts:
             modules_rpc: {}
     NOTIFICATIONS_RPC:
         exports:
+            - service: bagel.rpc.internal.notifications.connection.>
             - service: bagel.rpc.health.notifications
             - service: bagel.rpc.health.notifications.node.*
             - service: bagel.rpc.notifications.>
             - service: bagel.rpc.admin.notifications.>
             - stream: bagel.cache.invalidate.notifications
         imports:
+            - service: bagel.rpc.internal.users.lifecycle
+              from: USERS_RPC
+            - service: bagel.rpc.internal.users.lifecycle.node.*
+              from: USERS_RPC
             - service: bagel.rpc.internal.users.get
               from: USERS_RPC
             - service: bagel.rpc.internal.users.get.node.*
@@ -672,6 +677,16 @@ accounts:
             - service: bagel.rpc.health.outgress.node.*
             - service: bagel.rpc.outgress.>
         imports:
+            - service: bagel.rpc.internal.users.lifecycle
+              from: USERS_RPC
+            - service: bagel.rpc.internal.users.lifecycle.node.*
+              from: USERS_RPC
+            - service: bagel.rpc.internal.projection.users.get
+              from: USERS_RPC
+            - service: bagel.rpc.internal.projection.users.get.node.*
+              from: USERS_RPC
+            - service: bagel.rpc.internal.notifications.connection.>
+              from: NOTIFICATIONS_RPC
             - service: bagel.rpc.internal.tokens.>
               from: USERS_RPC
             - service: bagel.rpc.ingress.conduit.get
@@ -707,6 +722,10 @@ accounts:
             - stream: bagel.cache.invalidate.modules
             - stream: bagel.cache.invalidate.live
         imports:
+            - service: bagel.rpc.internal.users.lifecycle
+              from: USERS_RPC
+            - service: bagel.rpc.internal.users.lifecycle.node.*
+              from: USERS_RPC
             - service: bagel.rpc.health.users
               from: USERS_RPC
             - service: bagel.rpc.health.users.node.*
@@ -812,6 +831,8 @@ accounts:
             twitch_ingress_rpc: {}
     USERS_RPC:
         exports:
+            - service: bagel.rpc.internal.users.lifecycle
+            - service: bagel.rpc.internal.users.lifecycle.node.*
             - service: bagel.rpc.health.users
             - service: bagel.rpc.health.users.node.*
             - service: bagel.rpc.dashboard.>
@@ -840,6 +861,10 @@ accounts:
             - service: bagel.rpc.health.sesame
             - service: bagel.rpc.health.sesame.node.*
         imports:
+            - service: bagel.rpc.internal.users.lifecycle
+              from: USERS_RPC
+            - service: bagel.rpc.internal.users.lifecycle.node.*
+              from: USERS_RPC
             - service: bagel.rpc.health.ingress
               from: TWITCH_INGRESS_RPC
             - service: bagel.rpc.health.ingress.node.*

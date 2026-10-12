@@ -1,3 +1,4 @@
+import type { ChannelLifecycle } from '@bagel/kit/connection-state';
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
@@ -235,7 +236,7 @@ function unknownSubState(): ChannelSubState {
   return { state: 'unknown', error: '', checkedAt: null };
 }
 
-// Keep 'revoked' and 'chat_banned' known: unknown reads as 'unenrolled' and triggers futile enables.
+// Missing and unrecognized subscription observations remain unknown.
 const KNOWN_SUB_STATES = ['ok', 'pending', 'failing', 'revoked', 'chat_banned'] as const;
 
 function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
@@ -250,7 +251,7 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
     }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
     const c = r.found ? r.channel : undefined;
     if (!c || !isKnownSubState(c.sub_state)) {
-      return { state: 'unenrolled', error: '', checkedAt: null };
+      return unknownSubState();
     }
     return {
       state: c.sub_state,
@@ -352,24 +353,32 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
+export type AccountState = { lifecycleRevision?: number; accountCreatedAt?: number; lifecycle?: ChannelLifecycle; active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
   return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
 }
 
-export const accountState = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: {
+type AccountStateReply = {
     active: boolean;
     status: string;
     onboarded?: boolean;
     creator_code?: string | null;
     username?: string | null;
     display_name?: string | null;
-  }): AccountState => ({
+    lifecycle?: ChannelLifecycle;
+    state_revision?: number;
+    account_created_at?: number;
+  };
+
+export const accountState = defineRead({
+  subject: `${SUB.dashboard}.state_get`,
+  request: (userId: string) => ({ broadcaster_user_id: userId }),
+  map: (r: AccountStateReply): AccountState => ({
+    lifecycle: r.lifecycle,
+    lifecycleRevision: r.state_revision,
+    accountCreatedAt: r.account_created_at,
     active: !!r.active,
     status: normalizeStatus(r.status),
     onboarded: !!r.onboarded,
@@ -590,3 +599,10 @@ export async function deleteSelf(userId: string): Promise<void> {
 export function startInvalidationListener(): void {
   fabric.start();
 }
+
+type LifecycleRetryRequest = { broadcaster_user_id: string };
+export const retryLifecycle = defineWrite({
+ subject: `${SUB.dashboard}.lifecycle_retry`,
+ request: (request: LifecycleRetryRequest) => request,
+ after: (_result: unknown, request: LifecycleRetryRequest) => invalidate(`account:${request.broadcaster_user_id}`)
+});

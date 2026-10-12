@@ -24,6 +24,7 @@ func SubscribeProjection(w Wiring, subject string) error {
 				return projection.UserReply{}, err
 			}
 			return projection.UserReply{
+				Lifecycle:          view.Lifecycle,
 				AccountCreatedAt:   view.AccountCreatedAt,
 				StateRevision:      view.StateRevision,
 				UserID:             req.UserID,

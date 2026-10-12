@@ -265,6 +265,9 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 		}
 	}
 
+	if err := r.retainHot(ctx, ch.BroadcasterID); err != nil {
+		return err
+	}
 	r.cache.Set(ch.BroadcasterID, ch)
 	r.publishInvalidation(ch.BroadcasterID)
 
@@ -336,6 +339,9 @@ func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string,
 		}
 	}
 
+	if err := r.retainHot(ctx, broadcasterID); err != nil {
+		return err
+	}
 	r.cache.Invalidate(broadcasterID)
 	r.publishInvalidation(broadcasterID)
 
@@ -393,35 +399,28 @@ func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
 }
 
 func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
-
-	ids, err := r.client.Do(ctx, r.client.B().Smembers().Key(indexKey).Build()).AsStrSlice()
-	if err != nil {
+	if err := r.PruneHot(ctx); err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return nil, nil
-	}
-
-	gets := make([]valkey.Completed, 0, len(ids))
-	for _, id := range ids {
-		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
-	}
-
-	out := make([]manage.Channel, 0, len(ids))
-	for i, res := range r.client.DoMulti(ctx, gets...) {
-		fields, err := res.AsStrMap()
+	out := []manage.Channel{}
+	for offset := 0; ; offset += hotBatch {
+		ids, err := r.client.Do(ctx, r.client.B().Zrange().Key(hotIndexKey).Min(strconv.Itoa(offset)).Max(strconv.Itoa(offset+hotBatch-1)).Build()).AsStrSlice()
 		if err != nil {
 			return nil, err
 		}
-		ch := channelFromFields(ids[i], fields)
+		if len(ids) == 0 {
+			return out, nil
+		}
+		channels, err := r.listChannels(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, channels...)
 
-		r.cache.Set(ids[i], ch)
-		if ch.BroadcasterID != "" {
-			out = append(out, ch)
+		if len(ids) < hotBatch {
+			return out, nil
 		}
 	}
-
-	return out, nil
 }
 
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
@@ -621,4 +620,25 @@ func unixField(v string) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(sec, 0)
+}
+
+type channelIDs []string
+
+func (r *Registry) listChannels(ctx context.Context, ids channelIDs) ([]manage.Channel, error) {
+	gets := make([]valkey.Completed, 0, len(ids))
+	for _, id := range ids {
+		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+	}
+	out := make([]manage.Channel, 0, len(ids))
+	for i, res := range r.client.DoMulti(ctx, gets...) {
+		fields, err := res.AsStrMap()
+		if err != nil {
+			return nil, err
+		}
+		ch := channelFromFields(ids[i], fields)
+		if ch.BroadcasterID != "" {
+			out = append(out, ch)
+		}
+	}
+	return out, nil
 }

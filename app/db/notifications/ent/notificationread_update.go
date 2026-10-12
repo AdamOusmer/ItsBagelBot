@@ -50,6 +50,26 @@ func (_u *NotificationReadUpdate) AddUserID(v int64) *NotificationReadUpdate {
 	return _u
 }
 
+// SetIncarnation sets the "incarnation" field.
+func (_u *NotificationReadUpdate) SetIncarnation(v string) *NotificationReadUpdate {
+	_u.mutation.SetIncarnation(v)
+	return _u
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_u *NotificationReadUpdate) SetNillableIncarnation(v *string) *NotificationReadUpdate {
+	if v != nil {
+		_u.SetIncarnation(*v)
+	}
+	return _u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (_u *NotificationReadUpdate) ClearIncarnation() *NotificationReadUpdate {
+	_u.mutation.ClearIncarnation()
+	return _u
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_u *NotificationReadUpdate) SetExpiresAt(v time.Time) *NotificationReadUpdate {
 	_u.mutation.SetExpiresAt(v)
@@ -145,6 +165,12 @@ func (_u *NotificationReadUpdate) sqlSave(ctx context.Context) (_node int, err e
 	if value, ok := _u.mutation.AddedUserID(); ok {
 		_spec.AddField(notificationread.FieldUserID, field.TypeUint64, value)
 	}
+	if value, ok := _u.mutation.Incarnation(); ok {
+		_spec.SetField(notificationread.FieldIncarnation, field.TypeString, value)
+	}
+	if _u.mutation.IncarnationCleared() {
+		_spec.ClearField(notificationread.FieldIncarnation, field.TypeString)
+	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(notificationread.FieldExpiresAt, field.TypeTime, value)
 	}
@@ -218,6 +244,26 @@ func (_u *NotificationReadUpdateOne) SetNillableUserID(v *uint64) *NotificationR
 // AddUserID adds value to the "user_id" field.
 func (_u *NotificationReadUpdateOne) AddUserID(v int64) *NotificationReadUpdateOne {
 	_u.mutation.AddUserID(v)
+	return _u
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (_u *NotificationReadUpdateOne) SetIncarnation(v string) *NotificationReadUpdateOne {
+	_u.mutation.SetIncarnation(v)
+	return _u
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_u *NotificationReadUpdateOne) SetNillableIncarnation(v *string) *NotificationReadUpdateOne {
+	if v != nil {
+		_u.SetIncarnation(*v)
+	}
+	return _u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (_u *NotificationReadUpdateOne) ClearIncarnation() *NotificationReadUpdateOne {
+	_u.mutation.ClearIncarnation()
 	return _u
 }
 
@@ -345,6 +391,12 @@ func (_u *NotificationReadUpdateOne) sqlSave(ctx context.Context) (_node *Notifi
 	}
 	if value, ok := _u.mutation.AddedUserID(); ok {
 		_spec.AddField(notificationread.FieldUserID, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.Incarnation(); ok {
+		_spec.SetField(notificationread.FieldIncarnation, field.TypeString, value)
+	}
+	if _u.mutation.IncarnationCleared() {
+		_spec.ClearField(notificationread.FieldIncarnation, field.TypeString)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(notificationread.FieldExpiresAt, field.TypeTime, value)

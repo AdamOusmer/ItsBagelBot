@@ -3,6 +3,8 @@
 
 package projection
 
+import "ItsBagelBot/internal/domain/lifecycle"
+
 import "ItsBagelBot/internal/domain/rpc"
 
 import "ItsBagelBot/pkg/codec"
@@ -38,13 +40,14 @@ type ModuleView struct {
 
 // internal/projection.Client decodes this into projection.User; keep the tags in sync.
 type UserReply struct {
-	StateRevision    int64  `json:"state_revision,omitempty"`
-	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
-	UserID           string `json:"user_id"`
-	Status           string `json:"status"`
-	IsActive         bool   `json:"is_active"`
-	Banned           bool   `json:"banned"`
-	Locale           string `json:"locale,omitempty"`
+	Lifecycle        *lifecycle.State `json:"lifecycle,omitempty"`
+	StateRevision    int64            `json:"state_revision,omitempty"`
+	AccountCreatedAt int64            `json:"account_created_at,omitempty"`
+	UserID           string           `json:"user_id"`
+	Status           string           `json:"status"`
+	IsActive         bool             `json:"is_active"`
+	Banned           bool             `json:"banned"`
+	Locale           string           `json:"locale,omitempty"`
 	// CommandsPageHidden mirrors internal/projection.User's field of the same
 	// name; field set and json tag match exactly so the worker's cold-key RPC
 	// reply decodes without conversion (see CommandView's comment above).

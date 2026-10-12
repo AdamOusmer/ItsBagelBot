@@ -25,12 +25,16 @@ func runCleanup(ctx context.Context, log *zap.Logger) error {
 
 	subject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
 
-	reply, err := bus.RequestJSONTimeout[notificationsrpc.CleanupReply](
-		ctx, nc, subject, notificationsrpc.CleanupRequest{}, 30*time.Second)
-	if err != nil {
-		return err
-	}
+	for {
+		reply, err := bus.RequestJSONTimeout[notificationsrpc.CleanupReply](
+			ctx, nc, subject, notificationsrpc.CleanupRequest{}, 30*time.Second)
+		if err != nil {
+			return err
+		}
 
-	log.Info("notification cleanup done", zap.Int("deleted", reply.Deleted))
-	return nil
+		log.Info("notification cleanup done", zap.Int("deleted", reply.Deleted))
+		if !reply.HasMore {
+			return nil
+		}
+	}
 }

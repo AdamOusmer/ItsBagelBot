@@ -60,6 +60,11 @@ func UserID(v uint64) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldEQ(FieldUserID, v))
 }
 
+// Incarnation applies equality check predicate on the "incarnation" field. It's identical to IncarnationEQ.
+func Incarnation(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldEQ(FieldIncarnation, v))
+}
+
 // ReadAt applies equality check predicate on the "read_at" field. It's identical to ReadAtEQ.
 func ReadAt(v time.Time) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldEQ(FieldReadAt, v))
@@ -108,6 +113,81 @@ func UserIDLT(v uint64) predicate.NotificationRead {
 // UserIDLTE applies the LTE predicate on the "user_id" field.
 func UserIDLTE(v uint64) predicate.NotificationRead {
 	return predicate.NotificationRead(sql.FieldLTE(FieldUserID, v))
+}
+
+// IncarnationEQ applies the EQ predicate on the "incarnation" field.
+func IncarnationEQ(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldEQ(FieldIncarnation, v))
+}
+
+// IncarnationNEQ applies the NEQ predicate on the "incarnation" field.
+func IncarnationNEQ(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNEQ(FieldIncarnation, v))
+}
+
+// IncarnationIn applies the In predicate on the "incarnation" field.
+func IncarnationIn(vs ...string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldIn(FieldIncarnation, vs...))
+}
+
+// IncarnationNotIn applies the NotIn predicate on the "incarnation" field.
+func IncarnationNotIn(vs ...string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNotIn(FieldIncarnation, vs...))
+}
+
+// IncarnationGT applies the GT predicate on the "incarnation" field.
+func IncarnationGT(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldGT(FieldIncarnation, v))
+}
+
+// IncarnationGTE applies the GTE predicate on the "incarnation" field.
+func IncarnationGTE(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldGTE(FieldIncarnation, v))
+}
+
+// IncarnationLT applies the LT predicate on the "incarnation" field.
+func IncarnationLT(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldLT(FieldIncarnation, v))
+}
+
+// IncarnationLTE applies the LTE predicate on the "incarnation" field.
+func IncarnationLTE(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldLTE(FieldIncarnation, v))
+}
+
+// IncarnationContains applies the Contains predicate on the "incarnation" field.
+func IncarnationContains(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldContains(FieldIncarnation, v))
+}
+
+// IncarnationHasPrefix applies the HasPrefix predicate on the "incarnation" field.
+func IncarnationHasPrefix(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldHasPrefix(FieldIncarnation, v))
+}
+
+// IncarnationHasSuffix applies the HasSuffix predicate on the "incarnation" field.
+func IncarnationHasSuffix(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldHasSuffix(FieldIncarnation, v))
+}
+
+// IncarnationIsNil applies the IsNil predicate on the "incarnation" field.
+func IncarnationIsNil() predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldIsNull(FieldIncarnation))
+}
+
+// IncarnationNotNil applies the NotNil predicate on the "incarnation" field.
+func IncarnationNotNil() predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldNotNull(FieldIncarnation))
+}
+
+// IncarnationEqualFold applies the EqualFold predicate on the "incarnation" field.
+func IncarnationEqualFold(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldEqualFold(FieldIncarnation, v))
+}
+
+// IncarnationContainsFold applies the ContainsFold predicate on the "incarnation" field.
+func IncarnationContainsFold(v string) predicate.NotificationRead {
+	return predicate.NotificationRead(sql.FieldContainsFold(FieldIncarnation, v))
 }
 
 // ReadAtEQ applies the EQ predicate on the "read_at" field.

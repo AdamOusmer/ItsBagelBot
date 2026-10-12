@@ -70,6 +70,46 @@ func (_u *NotificationUpdate) ClearTargetUserID() *NotificationUpdate {
 	return _u
 }
 
+// SetIncarnation sets the "incarnation" field.
+func (_u *NotificationUpdate) SetIncarnation(v string) *NotificationUpdate {
+	_u.mutation.SetIncarnation(v)
+	return _u
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_u *NotificationUpdate) SetNillableIncarnation(v *string) *NotificationUpdate {
+	if v != nil {
+		_u.SetIncarnation(*v)
+	}
+	return _u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (_u *NotificationUpdate) ClearIncarnation() *NotificationUpdate {
+	_u.mutation.ClearIncarnation()
+	return _u
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (_u *NotificationUpdate) SetIncidentID(v string) *NotificationUpdate {
+	_u.mutation.SetIncidentID(v)
+	return _u
+}
+
+// SetNillableIncidentID sets the "incident_id" field if the given value is not nil.
+func (_u *NotificationUpdate) SetNillableIncidentID(v *string) *NotificationUpdate {
+	if v != nil {
+		_u.SetIncidentID(*v)
+	}
+	return _u
+}
+
+// ClearIncidentID clears the value of the "incident_id" field.
+func (_u *NotificationUpdate) ClearIncidentID() *NotificationUpdate {
+	_u.mutation.ClearIncidentID()
+	return _u
+}
+
 // SetTitle sets the "title" field.
 func (_u *NotificationUpdate) SetTitle(v string) *NotificationUpdate {
 	_u.mutation.SetTitle(v)
@@ -289,6 +329,18 @@ func (_u *NotificationUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.TargetUserIDCleared() {
 		_spec.ClearField(notification.FieldTargetUserID, field.TypeUint64)
 	}
+	if value, ok := _u.mutation.Incarnation(); ok {
+		_spec.SetField(notification.FieldIncarnation, field.TypeString, value)
+	}
+	if _u.mutation.IncarnationCleared() {
+		_spec.ClearField(notification.FieldIncarnation, field.TypeString)
+	}
+	if value, ok := _u.mutation.IncidentID(); ok {
+		_spec.SetField(notification.FieldIncidentID, field.TypeString, value)
+	}
+	if _u.mutation.IncidentIDCleared() {
+		_spec.ClearField(notification.FieldIncidentID, field.TypeString)
+	}
 	if value, ok := _u.mutation.Title(); ok {
 		_spec.SetField(notification.FieldTitle, field.TypeString, value)
 	}
@@ -419,6 +471,46 @@ func (_u *NotificationUpdateOne) AddTargetUserID(v int64) *NotificationUpdateOne
 // ClearTargetUserID clears the value of the "target_user_id" field.
 func (_u *NotificationUpdateOne) ClearTargetUserID() *NotificationUpdateOne {
 	_u.mutation.ClearTargetUserID()
+	return _u
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (_u *NotificationUpdateOne) SetIncarnation(v string) *NotificationUpdateOne {
+	_u.mutation.SetIncarnation(v)
+	return _u
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_u *NotificationUpdateOne) SetNillableIncarnation(v *string) *NotificationUpdateOne {
+	if v != nil {
+		_u.SetIncarnation(*v)
+	}
+	return _u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (_u *NotificationUpdateOne) ClearIncarnation() *NotificationUpdateOne {
+	_u.mutation.ClearIncarnation()
+	return _u
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (_u *NotificationUpdateOne) SetIncidentID(v string) *NotificationUpdateOne {
+	_u.mutation.SetIncidentID(v)
+	return _u
+}
+
+// SetNillableIncidentID sets the "incident_id" field if the given value is not nil.
+func (_u *NotificationUpdateOne) SetNillableIncidentID(v *string) *NotificationUpdateOne {
+	if v != nil {
+		_u.SetIncidentID(*v)
+	}
+	return _u
+}
+
+// ClearIncidentID clears the value of the "incident_id" field.
+func (_u *NotificationUpdateOne) ClearIncidentID() *NotificationUpdateOne {
+	_u.mutation.ClearIncidentID()
 	return _u
 }
 
@@ -670,6 +762,18 @@ func (_u *NotificationUpdateOne) sqlSave(ctx context.Context) (_node *Notificati
 	}
 	if _u.mutation.TargetUserIDCleared() {
 		_spec.ClearField(notification.FieldTargetUserID, field.TypeUint64)
+	}
+	if value, ok := _u.mutation.Incarnation(); ok {
+		_spec.SetField(notification.FieldIncarnation, field.TypeString, value)
+	}
+	if _u.mutation.IncarnationCleared() {
+		_spec.ClearField(notification.FieldIncarnation, field.TypeString)
+	}
+	if value, ok := _u.mutation.IncidentID(); ok {
+		_spec.SetField(notification.FieldIncidentID, field.TypeString, value)
+	}
+	if _u.mutation.IncidentIDCleared() {
+		_spec.ClearField(notification.FieldIncidentID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Title(); ok {
 		_spec.SetField(notification.FieldTitle, field.TypeString, value)

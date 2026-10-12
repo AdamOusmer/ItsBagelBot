@@ -454,10 +454,38 @@ defmodule Ingress.ShardSession do
          _which,
          "notification",
          %{"subscription" => %{"type" => "user.authorization." <> action}} = payload,
-         _meta,
+         meta,
          state
        ) do
-    publish_authz(action, payload["event"] || %{})
+    publish_authz(action, payload["event"] || %{}, meta)
+    {:noreply, state |> count_notification() |> pet_watchdog()}
+  end
+
+  # Moderation control facts bypass normal processing admission. Only the
+  # configured bot's moderation leaves Ingress; viewer bans are dropped here.
+  defp handle_twitch(
+         _which,
+         "notification",
+         %{"subscription" => %{"type" => type}} = payload,
+         meta,
+         state
+       )
+       when type in ["channel.ban", "channel.unban"] do
+    user_id = get_in(payload, ["event", "user_id"])
+
+    if bot_moderation?(user_id) do
+      Nats.publish("twitch.ingress.status.authz.bot_moderation", %{
+        type: type,
+        subscription_id: get_in(payload, ["subscription", "id"]),
+        broadcaster_id: get_in(payload, ["event", "broadcaster_user_id"]),
+        user_id: user_id,
+        event_id: meta["message_id"],
+        observed_at: meta["message_timestamp"],
+        is_permanent: get_in(payload, ["event", "is_permanent"]),
+        ends_at: get_in(payload, ["event", "ends_at"])
+      })
+    end
+
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
@@ -474,7 +502,7 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
-  defp handle_twitch(_which, "revocation", payload, _meta, state) do
+  defp handle_twitch(_which, "revocation", payload, meta, state) do
     sub = payload["subscription"] || %{}
     Logger.warning("subscription revoked: #{inspect(sub)}")
     Metrics.count("Shard/Revocations")
@@ -482,6 +510,10 @@ defmodule Ingress.ShardSession do
     Nats.publish("twitch.ingress.status.authz.subrevoked", %{
       broadcaster_id: revoked_broadcaster(sub),
       type: sub["type"],
+      subscription_id: sub["id"],
+      user_id: get_in(sub, ["condition", "user_id"]),
+      event_id: meta["message_id"],
+      observed_at: meta["message_timestamp"],
       status: sub["status"],
       at: DateTime.utc_now()
     })
@@ -522,18 +554,27 @@ defmodule Ingress.ShardSession do
 
   def permanent_bind_error?(_reason), do: false
 
-  defp publish_authz(action, event) when action in ["grant", "revoke"] do
+  defp bot_moderation?(user_id) do
+    case Ingress.Config.bot_user_id() do
+      bot when bot in [nil, ""] -> true
+      bot -> user_id == bot
+    end
+  end
+
+  defp publish_authz(action, event, meta) when action in ["grant", "revoke"] do
     Metrics.count("Shard/Authz/#{action}")
     outcome = if action == "grant", do: "granted", else: "revoked"
 
     Nats.publish("twitch.ingress.status.authz.#{outcome}", %{
       user_id: event["user_id"],
       user_login: event["user_login"],
+      event_id: meta["message_id"],
+      observed_at: meta["message_timestamp"],
       at: DateTime.utc_now()
     })
   end
 
-  defp publish_authz(action, _event) do
+  defp publish_authz(action, _event, _meta) do
     Logger.debug("unhandled user.authorization action #{action}")
   end
 

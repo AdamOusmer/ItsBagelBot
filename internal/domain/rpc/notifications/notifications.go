@@ -91,6 +91,8 @@ type MarkPeekedReply struct {
 type CleanupRequest struct{}
 
 type CleanupReply struct {
-	Deleted int `json:"deleted"`
+	Deleted         int  `json:"deleted"`
+	ReceiptsDeleted int  `json:"receipts_deleted"`
+	HasMore         bool `json:"has_more"`
 	rpc.Refusal
 }

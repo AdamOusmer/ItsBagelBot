@@ -51,6 +51,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"active_get":           d.handleActiveGet,
 		"status_get":           d.handleStatusGet,
 		"state_get":            d.handleStateGet,
+		"lifecycle_retry":      d.handleLifecycleRetry,
 		"login_resolve":        d.handleLoginResolve,
 		"onboarded_set":        d.handleOnboardedSet,
 		"locale_set":           d.handleLocaleSet,
@@ -234,6 +235,9 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
 		return map[string]any{
 			"active":                      view.IsActive,
+			"lifecycle":                   view.Lifecycle,
+			"state_revision":              view.StateRevision,
+			"account_created_at":          view.AccountCreatedAt,
 			"username":                    view.Username,
 			"display_name":                view.DisplayName,
 			"status":                      view.Status,
@@ -380,4 +384,28 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 
 	d.publishInvalidate("user", req.UserID, "delete_self")
 	respondOK(msg)
+}
+
+func (d *dashboardRPC) handleLifecycleRetry(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.StateGetRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.BroadcasterUserID, "broadcaster_user_id")
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(ctx)
+	defer cancel()
+	view, err := d.repo.Get(ctx, id)
+	if err != nil {
+		respondFail(msg, err)
+		return
+	}
+	rep, err := d.repo.Lifecycle(ctx, usersrpc.LifecycleRequest{UserID: id, AccountCreatedAt: view.AccountCreatedAt, Action: "retry"})
+	if err != nil {
+		respondFail(msg, err)
+		return
+	}
+	bus.Respond(msg, rep)
 }

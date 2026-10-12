@@ -11,14 +11,12 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
-
-	"github.com/newrelic/go-agent/v3/newrelic"
-
-	"github.com/nats-io/nats.go"
+	"strconv"
 
 	"go.uber.org/zap"
 )
@@ -27,14 +25,22 @@ const handleTimeout = 1500 * time.Millisecond
 const followageHandleTimeout = 4 * time.Second
 
 type Manage struct {
+	runtime  channelruntime.Reader
 	registry *channels.Registry
 	twitch   *twitch.Client
 	log      *zap.Logger
 }
 
-func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+type SubscriptionConfig struct {
+	bus.RPCWiring
+	Prefix  string
+	Runtime channelruntime.Reader
+}
 
-	m := &Manage{registry: registry, twitch: tw, log: log}
+func SubscribeManage(cfg SubscriptionConfig, registry *channels.Registry, tw *twitch.Client) error {
+	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
+
+	m := &Manage{registry: registry, twitch: tw, log: log, runtime: cfg.Runtime}
 
 	return subscribeAll(
 		func() error {
@@ -80,6 +86,10 @@ func subscribeAll(register ...func() error) error {
 }
 
 func (m *Manage) handleFollowage(ctx context.Context, req outgressrpc.FollowageRequest) outgressrpc.FollowageReply {
+	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+		return outgressrpc.FollowageReply{Error: "channel unavailable"}
+	}
+	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	if !validFollowageRequest(req) {
 		return outgressrpc.FollowageReply{Error: "bad request"}
 	}
@@ -160,6 +170,10 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 }
 
 func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {
+	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+		return outgressrpc.UptimeReply{Error: "channel unavailable"}
+	}
+	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" {
 		return outgressrpc.UptimeReply{Error: "bad request"}
 	}
@@ -172,10 +186,18 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 }
 
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
+	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+		return outgressrpc.StreamInfoReply{Error: "channel unavailable"}
+	}
+	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	return readStreamInfo(ctx, m.twitch, m.log, req)
 }
 
 func (m *Manage) handleChannelCounts(ctx context.Context, req outgressrpc.ChannelCountsRequest) outgressrpc.ChannelCountsReply {
+	if !runtimeAdmitted(ctx, m.runtime, req.BroadcasterID) {
+		return outgressrpc.ChannelCountsReply{Error: "channel unavailable"}
+	}
+	ctx = runtimeContext(ctx, m.runtime, req.BroadcasterID)
 	return readChannelCounts(ctx, m.twitch, m.log, req)
 }
 
@@ -264,4 +286,50 @@ func (m *Manage) handleSystemPause(ctx context.Context, req manage.SystemPauseRe
 
 	log.Info("outgress pause state changed", zap.Bool("paused", req.Paused))
 	return manage.SystemPauseReply{Paused: req.Paused}
+}
+
+func runtimeAdmitted(ctx context.Context, r channelruntime.Reader, id string) bool {
+	if r == nil {
+		return true
+	}
+	uid, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return false
+	}
+	s, err := r.Get(ctx, uid)
+	return err == nil && s.AllowsRuntime()
+}
+
+func runtimeContext(ctx context.Context, r channelruntime.Reader, id string) context.Context {
+	if r == nil {
+		return ctx
+	}
+	uid, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return ctx
+	}
+	initial, initialErr := r.Get(ctx, uid)
+	return twitch.WithChannelAdmission(ctx, func(ctx context.Context) error {
+		if initialErr != nil {
+			return initialErr
+		}
+		current, err := r.Get(ctx, uid)
+		if err != nil {
+			return err
+		}
+		if !runtimeSnapshotMatches(current, initial) {
+			return errors.New("channel unavailable")
+		}
+		return nil
+	})
+}
+
+func runtimeSnapshotMatches(current, initial channelruntime.Snapshot) bool {
+	if !current.AllowsRuntime() {
+		return false
+	}
+	if current.AccountCreatedAt != initial.AccountCreatedAt {
+		return false
+	}
+	return current.State.AdmissionGeneration == initial.State.AdmissionGeneration
 }

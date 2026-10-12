@@ -14,7 +14,7 @@ function requiredTwitchConfig(value: string | undefined): string {
 export function scopes(): string[] {
   const override = (env.DASHBOARD_LOGIN_SCOPES ?? '').split(/\s+/).filter(Boolean);
   if (override.length) return override;
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
+  const bot = 'moderation:read channel:moderate channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];
