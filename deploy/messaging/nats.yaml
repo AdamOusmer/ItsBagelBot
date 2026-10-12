@@ -85,6 +85,27 @@ spec:
             # Integer bytes only: the Go runtime aborts on a value like "6.5GiB".
             - name: GOMEMLIMIT
               value: "3584MiB"
+            # Knobs for the patched image (deploy/messaging/nats-server); stock ignores them. EVICT_BATCH stays off: it trims below MaxBytes.
+            - name: NATS_BENCH_TLS_COLLAPSE
+              value: "1"
+            - name: NATS_BENCH_PROPOSE_COALESCE
+              value: "200us"
+            - name: NATS_BENCH_ACKNONE_PROPOSE_EVERY
+              value: "64"
+            - name: NATS_BENCH_DELIVER_BATCH
+              value: "32"
+            - name: NATS_BENCH_SIGNAL_COALESCE
+              value: "1"
+            - name: NATS_BENCH_HDR_INDEX
+              value: "1"
+            - name: NATS_BENCH_STAGE_ARENA
+              value: "1"
+            - name: NATS_BENCH_RING_INDEX
+              value: "1"
+            - name: NATS_BENCH_STORE_SLAB
+              value: "1"
+            - name: NATS_BENCH_INTERN
+              value: "1"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
