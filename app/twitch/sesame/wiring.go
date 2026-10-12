@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/channelruntime"
 	"context"
 	"time"
 
@@ -71,6 +72,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	accountsRPC := engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix)
 	return engine.Deps{
+		Runtime:        newRuntime(w),
 		TrialStore:     in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
@@ -151,6 +153,7 @@ func newProjection(w wireCtx) *projection.Client {
 
 func newLive(w wireCtx) *engine.ValkeyLiveStore {
 	live := engine.NewValkeyLiveStore(w.in.vc, w.in.nc, w.in.pub, engine.LiveConfig{
+		Runtime:               newRuntime(w),
 		TTL:                   w.cfg.LiveTTL,
 		CacheTTL:              projectionCacheTTL,
 		ProjectorLiveSubject:  w.cfg.ProjectionLiveSubject,
@@ -164,8 +167,13 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 	return live
 }
 
+func newRuntime(w wireCtx) *channelruntime.Client {
+	return channelruntime.NewClient(projection.NewStore(w.in.vc), w.in.nc, w.cfg.ProjectionUsersSubject)
+}
+
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
 	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
+		Runtime:                  newRuntime(w),
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
 		KeyspaceDB:               0,

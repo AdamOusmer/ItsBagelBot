@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
@@ -27,6 +28,7 @@ import (
 const liveCacheCapacity int64 = 4096
 
 type LiveConfig struct {
+	Runtime               channelruntime.Reader
 	TTL                   time.Duration
 	CacheTTL              time.Duration
 	ProjectorLiveSubject  string
@@ -75,6 +77,15 @@ func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, 
 func liveKey(id uint64) string { return livekey.Key(id) }
 
 func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (bool, error) {
+	if s.cfg.Runtime != nil {
+		state, err := s.cfg.Runtime.Get(ctx, broadcasterID)
+		if err != nil {
+			return false, err
+		}
+		if !state.AllowsRuntime() {
+			return false, nil
+		}
+	}
 	return s.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
 		_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
 		if err == nil {
@@ -222,18 +233,44 @@ func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 	if confirmation && s.liveKeyExists(ctx, broadcasterID) {
 		return
 	}
+	if confirmation && s.cfg.Runtime != nil {
+		state, err := s.cfg.Runtime.Get(ctx, broadcasterID)
+		if err != nil || !state.AllowsRuntime() {
+			return
+		}
+		fence, err := s.client.Do(ctx, s.client.B().Get().Key(offlineConfirmKeyPrefix+"admission:"+id).Build()).ToString()
+		if err != nil || fence != strconv.FormatInt(state.AccountCreatedAt, 10)+":"+strconv.FormatInt(state.State.AdmissionGeneration, 10) {
+			return
+		}
+	}
 	s.claimRecheck(ctx, recheckClaim{key: recheckKeyPrefix + suffix, window: expiryRecheckWindow, broadcasterID: id})
 }
 
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {
+	var admission channelruntime.Snapshot
+	if s.cfg.Runtime != nil {
+		id, err := strconv.ParseUint(broadcasterID, 10, 64)
+		if err != nil {
+			return err
+		}
+		admission, err = s.cfg.Runtime.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !admission.AllowsRuntime() {
+			return nil
+		}
+	}
 	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
 		return err
 	}
 	return bus.PublishJSON(ctx, s.pub, s.cfg.OutgressSystemSubject, outgress.Message{
-		Type:          outgress.TypeStreamStatus,
-		BroadcasterID: broadcasterID,
-		Payload:       body,
+		AccountCreatedAt:    admission.AccountCreatedAt,
+		AdmissionGeneration: admission.State.AdmissionGeneration,
+		Type:                outgress.TypeStreamStatus,
+		BroadcasterID:       broadcasterID,
+		Payload:             body,
 	})
 }
 

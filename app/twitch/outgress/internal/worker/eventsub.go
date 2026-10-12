@@ -37,6 +37,9 @@ const (
 )
 
 type enrollment struct {
+	incarnation   int64
+	generation    int64
+	operationID   string
 	broadcasterID string
 	conduitID     string
 	// priorState must be read before this attempt's "pending" write clobbers it.
@@ -64,7 +67,10 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 		return nil
 	}
 
-	e := enrollment{broadcasterID: payload.BroadcasterID, conduitID: conduitID}
+	e := enrollment{broadcasterID: payload.BroadcasterID, conduitID: conduitID, incarnation: payload.AccountCreatedAt, generation: payload.AdmissionGeneration}
+	if !w.enrollmentIdentityMatches(ctx, e) {
+		return nil
+	}
 	switch effectiveMode(job) {
 	case outgress.ModeEnable:
 		return w.enableEventSubs(ctx, e)
@@ -146,6 +152,9 @@ func waitForEnrollLock(
 }
 
 func (w *Worker) skipRevokedEnroll(ctx context.Context, e enrollment, op string) bool {
+	if w.runtime != nil && !w.backgroundAllowed(ctx, e.broadcasterID) {
+		return true
+	}
 	ch, found, err := w.registry.Get(ctx, e.broadcasterID)
 	if err != nil || !found {
 		return false
@@ -225,6 +234,9 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 			return nil
 		}
 
+		if errors.Is(err, errLifecycleStopped) {
+			return nil
+		}
 		w.recordEnrollFailure(ctx, e, "enable", err)
 		return nil
 	})
@@ -236,6 +248,9 @@ func (w *Worker) priorSubState(ctx context.Context, broadcasterID string) (strin
 }
 
 func (w *Worker) recoverActiveFlag(ctx context.Context, e enrollment) {
+	if w.lifecycleNC != nil {
+		return
+	}
 	if blockedState(e.priorState) {
 		w.setChannelActive(ctx, e.broadcasterID, true)
 	}
@@ -265,6 +280,9 @@ func (w *Worker) disableChannel(ctx context.Context, e enrollment) error {
 			return nil
 		}
 
+		if errors.Is(err, errLifecycleStopped) {
+			return nil
+		}
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error("disable: eventsubs not fully removed, marked failing",
 			zap.String("broadcaster_id", e.broadcasterID),
@@ -286,6 +304,9 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStatePending, "")
 
 		if derr := w.disableEventSubs(ctx, e); derr != nil {
+			if errors.Is(derr, errLifecycleStopped) {
+				return nil
+			}
 			w.log.Warn("reconnect: drop phase failed, proceeding to recreate",
 				zap.String("broadcaster_id", e.broadcasterID),
 				zap.Error(derr))
@@ -317,12 +338,18 @@ func (w *Worker) reconnectEventSubs(ctx context.Context, e enrollment) error {
 }
 
 func (w *Worker) disableEventSubs(ctx context.Context, e enrollment) error {
-	ids, err := w.ownedSubIDs(ctx, e)
+	if !w.enrollmentIdentityMatches(ctx, e) {
+		return errLifecycleStopped
+	}
+	ids, err := w.deletionIDs(ctx, e)
 	if err != nil {
 		return w.eventSubFailure(ctx, err, "eventsub list", e.broadcasterID)
 	}
 
 	for _, id := range ids {
+		if !w.enrollmentIdentityMatches(ctx, e) {
+			return errLifecycleStopped
+		}
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}
@@ -337,9 +364,15 @@ func (w *Worker) disableEventSubs(ctx context.Context, e enrollment) error {
 }
 
 func (w *Worker) ownedSubIDs(ctx context.Context, e enrollment) ([]string, error) {
+	if !w.enrollmentIdentityMatches(ctx, e) {
+		return nil, errLifecycleStopped
+	}
 	var ids []string
 	cursor := ""
 	for {
+		if !w.enrollmentIdentityMatches(ctx, e) {
+			return nil, errLifecycleStopped
+		}
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return nil, err
 		}
@@ -369,15 +402,24 @@ func ownedSub(sub twitch.EventSubEntry, e enrollment) bool {
 	if sub.Transport.ConduitID != e.conduitID {
 		return false
 	}
-	return sub.Condition.BroadcasterUserID == "" || sub.Condition.BroadcasterUserID == e.broadcasterID
+	return sub.Condition.BroadcasterUserID == e.broadcasterID || sub.Condition.ToBroadcasterUserID == e.broadcasterID
 }
 
 func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
+	defer w.recordChatOwnership(ctx, e)
 	if w.botID == "" {
 		return fmt.Errorf("bot user id not configured: channel.chat.message cannot be created")
 	}
 
+	// Recovery listener permissions are independent of ordinary chat permissions.
+	_ = w.createControlListeners(ctx, e)
 	for _, spec := range twitch.ChannelSubscriptions(e.broadcasterID, w.botID) {
+		if controlSubscription(spec.Type) {
+			continue
+		}
+		if !w.enrollmentAllowed(ctx, e) {
+			return errLifecycleStopped
+		}
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}
@@ -391,6 +433,9 @@ func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 }
 
 func (w *Worker) ensureOptionalEventSubs(ctx context.Context, e enrollment) error {
+	if !w.backgroundAllowed(ctx, e.broadcasterID) {
+		return nil
+	}
 	return w.underEnrollLock(ctx, "ensure-optional", e, func() error {
 		if err := w.createOptionalEventSubs(ctx, e); err != nil {
 			w.log.Warn("ensure-optional eventsubs failed, will retry",
@@ -404,6 +449,9 @@ func (w *Worker) ensureOptionalEventSubs(ctx context.Context, e enrollment) erro
 
 func (w *Worker) createOptionalEventSubs(ctx context.Context, e enrollment) error {
 	for _, spec := range twitch.ChannelOptionalSubscriptions(e.broadcasterID) {
+		if !w.enrollmentAllowed(ctx, e) {
+			return errLifecycleStopped
+		}
 		if err := w.takeSystemHelix(ctx); err != nil {
 			return err
 		}
@@ -465,10 +513,6 @@ type createError struct {
 func (e *createError) Error() string { return "create " + e.subType + ": " + e.err.Error() }
 func (e *createError) Unwrap() error { return e.err }
 
-func isChatBanned(err error) bool {
-	var ce *createError
-	if !errors.As(err, &ce) || ce.subType != twitch.ChatMessageType {
-		return false
-	}
-	return isAuthRevoked(err)
-}
+// A missing authorization 403 is ambiguous (scope, moderator role, or grant).
+// Only the trusted moderation event or chat_user_banned revocation proves a ban.
+func isChatBanned(err error) bool { return false }

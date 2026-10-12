@@ -4,8 +4,10 @@
 package worker
 
 import (
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
@@ -20,14 +22,20 @@ import (
 var errBotAuthRevoked = errors.New("bot account authorization revoked")
 
 type authzUser struct {
-	UserID    string `json:"user_id"`
-	UserLogin string `json:"user_login"`
+	UserID     string    `json:"user_id"`
+	UserLogin  string    `json:"user_login"`
+	EventID    string    `json:"event_id"`
+	ObservedAt time.Time `json:"observed_at"`
 }
 
 type authzSubRevoked struct {
-	BroadcasterID string `json:"broadcaster_id"`
-	Type          string `json:"type"`
-	Status        string `json:"status"`
+	BroadcasterID  string    `json:"broadcaster_id"`
+	Type           string    `json:"type"`
+	Status         string    `json:"status"`
+	SubscriptionID string    `json:"subscription_id"`
+	UserID         string    `json:"user_id"`
+	EventID        string    `json:"event_id"`
+	ObservedAt     time.Time `json:"observed_at"`
 }
 
 func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
@@ -37,6 +45,9 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, ev.UserID, "grant_restored", ev.EventID, ev.ObservedAt)
+	}
 	ch, found, err := w.registry.Get(ctx, ev.UserID)
 	if err != nil {
 		return err
@@ -103,6 +114,9 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, ev.UserID, "grant_missing", ev.EventID, ev.ObservedAt)
+	}
 	return w.blockChannel(ctx, ev.UserID, blockRevoked.because("authorization_revoked"))
 }
 
@@ -122,11 +136,54 @@ func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		uid, err := strconv.ParseUint(ev.BroadcasterID, 10, 64)
+		if err != nil {
+			return nil
+		}
+		current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
+		if err != nil {
+			return err
+		}
+		if !moderationMatchesIncarnation(botModeration{SubscriptionID: ev.SubscriptionID, ObservedAt: ev.ObservedAt}, current) {
+			return nil
+		}
+		if controlSubscription(ev.Type) {
+			w.persistControlHealth(ctx, enrollment{broadcasterID: ev.BroadcasterID, incarnation: current.AccountCreatedAt, generation: current.State.AdmissionGeneration}, false, "listener_revoked")
+		}
+	}
 	reason := ev.Status + ": " + ev.Type
 	switch {
 	case consentRevokedStatus(ev.Status):
+		if w.lifecycleNC != nil {
+			return w.observeGrant(ctx, ev.BroadcasterID, "grant_missing", ev.EventID, ev.ObservedAt)
+		}
 		return w.blockChannel(ctx, ev.BroadcasterID, blockRevoked.because(reason))
 	case ev.Status == statusChatUserBanned:
+		if w.lifecycleNC != nil {
+			if ev.Type != twitch.ChatMessageType || ev.UserID != w.botID || ev.SubscriptionID == "" || ev.ObservedAt.IsZero() || ev.EventID == "" {
+				return nil
+			}
+			uid, err := strconv.ParseUint(ev.BroadcasterID, 10, 64)
+			if err != nil {
+				return nil
+			}
+			current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
+			if err != nil {
+				return err
+			}
+			if current.State.ChatSubscriptionID != ev.SubscriptionID {
+				return nil
+			}
+			changed, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, AccountCreatedAt: current.AccountCreatedAt, AdmissionGeneration: current.State.AdmissionGeneration, Action: "ban", SubscriptionID: ev.SubscriptionID, EventID: ev.EventID, ObservedAt: ev.ObservedAt, Reason: "bot_banned"})
+			if err != nil {
+				return err
+			}
+			if changed.Applied && w.runtime != nil {
+				return w.runtime.Apply(ctx, uid, changed)
+			}
+			return nil
+		}
 		return w.blockChannel(ctx, ev.BroadcasterID, blockBanned.because(reason))
 	default:
 		return w.markSubDropped(ctx, ev)
@@ -171,6 +228,9 @@ func (w *Worker) blockChannelFrom(ctx context.Context, broadcasterID string, b b
 }
 
 func (w *Worker) applyBlock(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, broadcasterID, "grant_missing", b.reason)
+	}
 	if alreadyBlockedState(priorState, b) {
 		return w.registry.SetSubState(ctx, broadcasterID, b.state, b.reason)
 	}

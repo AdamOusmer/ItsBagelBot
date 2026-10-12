@@ -16,6 +16,7 @@ defmodule Ingress.BroadcasterStatus do
              {:ok, reply} <- JSON.decode(body) do
           case reply do
             %{"banned" => true} -> {:ok, :drop}
+            %{"runtime_allowed" => false} -> {:ok, :drop}
             %{"tier" => "premium"} -> {:ok, :premium}
             %{"error" => error} -> {:error, {:rpc, error}}
             _ -> {:ok, :standard}

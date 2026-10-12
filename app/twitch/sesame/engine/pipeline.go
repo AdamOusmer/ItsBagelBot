@@ -8,12 +8,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/confcache"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
@@ -41,6 +43,7 @@ type Config struct {
 }
 
 type Pipeline struct {
+	runtime      *channelruntime.Client
 	trialCounts  CounterBumper
 	log          *zap.Logger
 	pub          bus.Publisher
@@ -91,6 +94,7 @@ type Pipeline struct {
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	p := &Pipeline{
+		runtime:           d.Runtime,
 		trialCounts:       d.Stats,
 		log:               d.Log,
 		pub:               d.Pub,
@@ -201,6 +205,17 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	if env.Origin == "trial" {
 		return p.processTrial(ctx, env, broadcasterID)
 	}
+	var admission channelruntime.Snapshot
+	if p.runtime != nil {
+		var err error
+		admission, err = p.runtime.Get(ctx, broadcasterID)
+		if err != nil {
+			return err
+		}
+		if !admission.AllowsRuntime() {
+			return nil
+		}
+	}
 
 	p.feedChatGate(ctx, env, broadcasterID)
 
@@ -219,15 +234,21 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	}
 
 	emission := emitState{
-		subject: p.laneSubject(mctx.Regress),
-		env:     env,
-		locale:  mctx.Locale,
-		mctx:    mctx,
+		admission: admission,
+		subject:   p.laneSubject(mctx.Regress),
+		env:       env,
+		locale:    mctx.Locale,
+		mctx:      mctx,
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	started := time.Now()
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
+	if p.runtime != nil && (mctx.Engaged || emission.ordinal > 0) && env.Type != "stream.online" && env.Type != "stream.offline" {
+		if _, err := p.runtime.Engage(ctx, broadcasterID, emission.admission, env.EventID, started); err != nil {
+			p.log.Warn("lifecycle activity update failed", module.BIDField(broadcasterID), zap.Error(err))
+		}
+	}
 
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
@@ -318,6 +339,7 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 }
 
 type emitState struct {
+	admission  channelruntime.Snapshot
 	subject    string
 	replayBase string
 	locale     string
@@ -421,6 +443,16 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 }
 
 func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
+	if p.runtime != nil && state.admission.Registered && state.env != nil && state.env.Type != "stream.online" && state.env.Type != "stream.offline" {
+		next, err := p.runtime.Engage(ctx, state.mctx.BroadcasterID, state.admission, state.env.EventID, time.Now())
+		if err != nil {
+			return err
+		}
+		if !next.AllowsRuntime() {
+			return nil
+		}
+		state.admission = next
+	}
 	encodeSegment := startStage(ctx, "sesame.output.encode")
 	output, err := buildOutgressMessage(o)
 	if err != nil {
@@ -429,6 +461,10 @@ func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID
 	}
 	if state.env != nil && state.env.Origin == "trial" {
 		p.addTrial(ctx, state.env.BroadcasterUserID, "blocked", int64(markTrialOutput(&output, state.env.TrialGeneration)))
+	}
+	if state.admission.Registered {
+		output.AccountCreatedAt = state.admission.AccountCreatedAt
+		output.AdmissionGeneration = state.admission.State.AdmissionGeneration
 	}
 	body, err := codec.Marshal(&output)
 	if err != nil {
@@ -534,6 +570,8 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 		}
 		if err := handle(ctx, mctx, emit); err != nil {
 			p.handlerFailed(ctx, mctx, m, err)
+		} else if eventType != chatType && strings.HasPrefix(eventType, "channel.") {
+			mctx.Engaged = true
 		}
 	}
 }

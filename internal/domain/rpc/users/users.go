@@ -3,6 +3,8 @@
 
 package usersrpc
 
+import "ItsBagelBot/internal/domain/lifecycle"
+
 import "ItsBagelBot/internal/domain/rpc"
 
 import "time"
@@ -26,19 +28,20 @@ type AdminRequest struct {
 }
 
 type AdminUserView struct {
-	ID                        uint64     `json:"id"`
-	Username                  string     `json:"username"`
-	IsActive                  bool       `json:"is_active"`
-	Status                    string     `json:"status"`
-	Banned                    bool       `json:"banned"`
-	CreatorCode               *string    `json:"creator_code,omitempty"`
-	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
-	SubscriptionSource        string     `json:"subscription_source,omitempty"`
-	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
-	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
-	TestAccount               bool       `json:"test_account"`
-	CreatedAt                 time.Time  `json:"created_at"`
-	UpdatedAt                 time.Time  `json:"updated_at"`
+	Lifecycle                 *lifecycle.State `json:"lifecycle,omitempty"`
+	ID                        uint64           `json:"id"`
+	Username                  string           `json:"username"`
+	IsActive                  bool             `json:"is_active"`
+	Status                    string           `json:"status"`
+	Banned                    bool             `json:"banned"`
+	CreatorCode               *string          `json:"creator_code,omitempty"`
+	SubscriptionExpiresAt     *time.Time       `json:"subscription_expires_at,omitempty"`
+	SubscriptionSource        string           `json:"subscription_source,omitempty"`
+	SubscriptionRef           *string          `json:"subscription_ref,omitempty"`
+	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
+	TestAccount               bool             `json:"test_account"`
+	CreatedAt                 time.Time        `json:"created_at"`
+	UpdatedAt                 time.Time        `json:"updated_at"`
 }
 
 type AdminStats struct {

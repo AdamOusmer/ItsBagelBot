@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
@@ -26,10 +27,13 @@ const (
 )
 
 type User struct {
-	Status             string `json:"status"`
-	IsActive           bool   `json:"is_active"`
-	Locale             string `json:"locale,omitempty"`
-	CommandsPageHidden bool   `json:"commands_page_hidden,omitempty"`
+	AccountCreatedAt   int64            `json:"account_created_at,omitempty"`
+	Lifecycle          *lifecycle.State `json:"lifecycle,omitempty"`
+	Banned             bool             `json:"banned"`
+	Status             string           `json:"status"`
+	IsActive           bool             `json:"is_active"`
+	Locale             string           `json:"locale,omitempty"`
+	CommandsPageHidden bool             `json:"commands_page_hidden,omitempty"`
 }
 
 func (u User) Premium() bool {
@@ -218,10 +222,10 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	return c.users.GetOrLoad(ctx, key("user", userID), func(ctx context.Context) (User, error) {
-		status, active, _, locale, commandsPageHidden, err := c.store.GetUser(ctx, userID)
-		if err == nil && status != "" {
+		user, found, err := c.store.GetUserRuntime(ctx, userID)
+		if err == nil && found {
 			loadSource(ctx, "projection.user.source", "valkey")
-			return User{Status: status, IsActive: active, Locale: locale, CommandsPageHidden: commandsPageHidden}, nil
+			return user, nil
 		}
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)

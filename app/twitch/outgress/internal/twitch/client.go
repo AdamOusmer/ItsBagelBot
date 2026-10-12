@@ -450,6 +450,9 @@ func isMissingScope(body []byte) bool {
 
 func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Response, error) {
 
+	if err := admitChannel(ctx); err != nil {
+		return nil, err
+	}
 	token, err := src.Token(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("twitch token: %w", err)

@@ -124,7 +124,9 @@ func TestAdminActiveToggleEchoesCommittedState(t *testing.T) {
 		reply := a.setActive(t.Context(), usersrpc.AdminRequest{UserID: "9000", Active: active})
 		require.Empty(t, reply.Error)
 		require.NotNil(t, reply.User)
-		require.Equal(t, active, reply.User.IsActive, "action reply must not restore the old optimistic toggle value")
-		require.Equal(t, active, client.User.GetX(t.Context(), 9000).IsActive)
+		require.NotNil(t, reply.User.Lifecycle)
+		require.Equal(t, active, reply.User.Lifecycle.DesiredEnabled)
+		require.False(t, reply.User.IsActive, "enable must verify access before serving")
+		require.False(t, client.User.GetX(t.Context(), 9000).IsActive)
 	}
 }

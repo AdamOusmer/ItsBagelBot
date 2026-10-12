@@ -3,6 +3,8 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/notifications/ent/connectionguard"
+	"ItsBagelBot/app/db/notifications/ent/connectionreceipt"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
 	"ItsBagelBot/app/db/notifications/ent/schema"
@@ -13,28 +15,60 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	connectionguardFields := schema.ConnectionGuard{}.Fields()
+	_ = connectionguardFields
+	// connectionguardDescIncarnation is the schema descriptor for incarnation field.
+	connectionguardDescIncarnation := connectionguardFields[1].Descriptor()
+	// connectionguard.IncarnationValidator is a validator for the "incarnation" field. It is called by the builders before save.
+	connectionguard.IncarnationValidator = connectionguardDescIncarnation.Validators[0].(func(string) error)
+	// connectionguardDescErased is the schema descriptor for erased field.
+	connectionguardDescErased := connectionguardFields[5].Descriptor()
+	// connectionguard.DefaultErased holds the default value on creation for the erased field.
+	connectionguard.DefaultErased = connectionguardDescErased.Default.(bool)
+	connectionreceiptFields := schema.ConnectionReceipt{}.Fields()
+	_ = connectionreceiptFields
+	// connectionreceiptDescIncarnation is the schema descriptor for incarnation field.
+	connectionreceiptDescIncarnation := connectionreceiptFields[1].Descriptor()
+	// connectionreceipt.IncarnationValidator is a validator for the "incarnation" field. It is called by the builders before save.
+	connectionreceipt.IncarnationValidator = connectionreceiptDescIncarnation.Validators[0].(func(string) error)
+	// connectionreceiptDescIncidentID is the schema descriptor for incident_id field.
+	connectionreceiptDescIncidentID := connectionreceiptFields[2].Descriptor()
+	// connectionreceipt.IncidentIDValidator is a validator for the "incident_id" field. It is called by the builders before save.
+	connectionreceipt.IncidentIDValidator = connectionreceiptDescIncidentID.Validators[0].(func(string) error)
+	// connectionreceiptDescOutcome is the schema descriptor for outcome field.
+	connectionreceiptDescOutcome := connectionreceiptFields[3].Descriptor()
+	// connectionreceipt.OutcomeValidator is a validator for the "outcome" field. It is called by the builders before save.
+	connectionreceipt.OutcomeValidator = connectionreceiptDescOutcome.Validators[0].(func(string) error)
 	notificationFields := schema.Notification{}.Fields()
 	_ = notificationFields
+	// notificationDescIncarnation is the schema descriptor for incarnation field.
+	notificationDescIncarnation := notificationFields[2].Descriptor()
+	// notification.DefaultIncarnation holds the default value on creation for the incarnation field.
+	notification.DefaultIncarnation = notificationDescIncarnation.Default.(string)
 	// notificationDescTitle is the schema descriptor for title field.
-	notificationDescTitle := notificationFields[2].Descriptor()
+	notificationDescTitle := notificationFields[4].Descriptor()
 	// notification.TitleValidator is a validator for the "title" field. It is called by the builders before save.
 	notification.TitleValidator = notificationDescTitle.Validators[0].(func(string) error)
 	// notificationDescBody is the schema descriptor for body field.
-	notificationDescBody := notificationFields[3].Descriptor()
+	notificationDescBody := notificationFields[5].Descriptor()
 	// notification.BodyValidator is a validator for the "body" field. It is called by the builders before save.
 	notification.BodyValidator = notificationDescBody.Validators[0].(func(string) error)
 	// notificationDescCreatedByLogin is the schema descriptor for created_by_login field.
-	notificationDescCreatedByLogin := notificationFields[6].Descriptor()
+	notificationDescCreatedByLogin := notificationFields[8].Descriptor()
 	// notification.CreatedByLoginValidator is a validator for the "created_by_login" field. It is called by the builders before save.
 	notification.CreatedByLoginValidator = notificationDescCreatedByLogin.Validators[0].(func(string) error)
 	// notificationDescCreatedAt is the schema descriptor for created_at field.
-	notificationDescCreatedAt := notificationFields[8].Descriptor()
+	notificationDescCreatedAt := notificationFields[10].Descriptor()
 	// notification.DefaultCreatedAt holds the default value on creation for the created_at field.
 	notification.DefaultCreatedAt = notificationDescCreatedAt.Default.(func() time.Time)
 	notificationreadFields := schema.NotificationRead{}.Fields()
 	_ = notificationreadFields
+	// notificationreadDescIncarnation is the schema descriptor for incarnation field.
+	notificationreadDescIncarnation := notificationreadFields[1].Descriptor()
+	// notificationread.DefaultIncarnation holds the default value on creation for the incarnation field.
+	notificationread.DefaultIncarnation = notificationreadDescIncarnation.Default.(string)
 	// notificationreadDescReadAt is the schema descriptor for read_at field.
-	notificationreadDescReadAt := notificationreadFields[1].Descriptor()
+	notificationreadDescReadAt := notificationreadFields[2].Descriptor()
 	// notificationread.DefaultReadAt holds the default value on creation for the read_at field.
 	notificationread.DefaultReadAt = notificationreadDescReadAt.Default.(func() time.Time)
 }

@@ -22,6 +22,10 @@ import (
 )
 
 func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Message) error {
+	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+		return err
+	}
+
 	if w.live == nil {
 		w.log.Error("dropping stream_status job off the system lane")
 		return nil
@@ -40,6 +44,9 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
 	}
 
+	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+		return err
+	}
 	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
 		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
 	}
@@ -93,7 +100,17 @@ func nextStreamInfo(prev projection.StreamInfo, isLive bool, details twitch.Stre
 }
 
 func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
+	if !w.backgroundAllowed(ctx, broadcasterID) {
+		return
+	}
 	if w.live == nil {
+		return
+	}
+	seed := &outgress.Message{BroadcasterID: broadcasterID}
+	if w.stampCurrent(ctx, seed) != nil {
+		return
+	}
+	if allowed, err := w.admitPayload(ctx, seed); err != nil || !allowed {
 		return
 	}
 	if err := w.takeSystemHelix(ctx); err != nil {
@@ -105,6 +122,12 @@ func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
 	if err != nil {
 		w.log.Warn("live seed: stream check failed",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return
+	}
+	if allowed, err := w.admitPayload(ctx, seed); err != nil || !allowed {
+		return
+	}
+	if !w.backgroundAllowed(ctx, broadcasterID) {
 		return
 	}
 	if err := w.live.Write(ctx, broadcasterID, isLive); err != nil {
@@ -158,8 +181,10 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 
+	if !w.backgroundAllowed(msg.Context(), broadcasterID) {
+		return nil
+	}
 	w.scheduleModStatus(broadcasterID, "")
-	w.reauthBeaconOnLive(msg.Context(), broadcasterID)
 
 	log.Debug("mod status refresh scheduled on go-live",
 		zap.String("broadcaster_id", broadcasterID))

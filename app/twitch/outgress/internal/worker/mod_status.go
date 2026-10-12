@@ -24,6 +24,7 @@ const (
 )
 
 type ModVerifier struct {
+	Admit    func(context.Context, string) bool
 	registry modRegistry
 	twitch   moderatorClient
 	botID    string
@@ -75,6 +76,9 @@ func (v *ModVerifier) Status(ch manage.Channel, found bool, broadcasterID, sende
 }
 
 func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
+	if v != nil && v.Admit != nil && !v.Admit(context.Background(), broadcasterID) {
+		return
+	}
 	if v == nil || broadcasterID == "" || !v.twitch.HasUserToken() {
 		return
 	}
@@ -142,6 +146,9 @@ func (v *ModVerifier) verify(broadcasterID, botID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), modCheckTimeout)
 	defer cancel()
 
+	if v.Admit != nil && !v.Admit(ctx, broadcasterID) {
+		return
+	}
 	got, err := v.registry.AcquireModCheckLock(ctx, broadcasterID, v.owner, modCheckErrorBackoff)
 	if err != nil {
 		failed = true
@@ -153,6 +160,9 @@ func (v *ModVerifier) verify(broadcasterID, botID string) {
 		return
 	}
 
+	if v.Admit != nil && !v.Admit(ctx, broadcasterID) {
+		return
+	}
 	isMod, err := v.twitch.IsModerator(ctx, botID, broadcasterID)
 	if err != nil {
 		failed = true

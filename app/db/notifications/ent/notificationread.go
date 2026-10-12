@@ -20,6 +20,8 @@ type NotificationRead struct {
 	ID int `json:"id,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID uint64 `json:"user_id,omitempty"`
+	// Incarnation holds the value of the "incarnation" field.
+	Incarnation string `json:"incarnation,omitempty"`
 	// ReadAt holds the value of the "read_at" field.
 	ReadAt time.Time `json:"read_at,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
@@ -58,6 +60,8 @@ func (*NotificationRead) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case notificationread.FieldID, notificationread.FieldUserID:
 			values[i] = new(sql.NullInt64)
+		case notificationread.FieldIncarnation:
+			values[i] = new(sql.NullString)
 		case notificationread.FieldReadAt, notificationread.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
 		case notificationread.ForeignKeys[0]: // notification_reads
@@ -88,6 +92,12 @@ func (_m *NotificationRead) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value.Valid {
 				_m.UserID = uint64(value.Int64)
+			}
+		case notificationread.FieldIncarnation:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field incarnation", values[i])
+			} else if value.Valid {
+				_m.Incarnation = value.String
 			}
 		case notificationread.FieldReadAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -152,6 +162,9 @@ func (_m *NotificationRead) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
+	builder.WriteString(", ")
+	builder.WriteString("incarnation=")
+	builder.WriteString(_m.Incarnation)
 	builder.WriteString(", ")
 	builder.WriteString("read_at=")
 	builder.WriteString(_m.ReadAt.Format(time.ANSIC))

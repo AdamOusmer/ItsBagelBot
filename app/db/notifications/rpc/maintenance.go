@@ -35,5 +35,9 @@ func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.Cleanup
 	if deleted > 0 {
 		log.Info("notification cleanup swept expired rows", zap.Int("deleted", deleted))
 	}
-	return notificationsrpc.CleanupReply{Deleted: deleted}
+	receipts, more, err := m.repo.CleanupDelivery(ctx, time.Now())
+	if err != nil {
+		return notificationsrpc.CleanupReply{Deleted: deleted, Refusal: bus.Classify(err)}
+	}
+	return notificationsrpc.CleanupReply{Deleted: deleted, ReceiptsDeleted: receipts, HasMore: more || deleted == repository.CleanupBatchSize}
 }

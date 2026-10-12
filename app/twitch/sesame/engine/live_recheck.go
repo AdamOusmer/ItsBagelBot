@@ -45,8 +45,23 @@ func (s *ValkeyLiveStore) claimRecheck(ctx context.Context, claim recheckClaim) 
 }
 
 func (s *ValkeyLiveStore) armOfflineConfirm(ctx context.Context, broadcasterID uint64) {
+	admissionFence := ""
+	if s.cfg.Runtime != nil {
+		state, err := s.cfg.Runtime.Get(ctx, broadcasterID)
+		if err != nil || !state.AllowsRuntime() {
+			return
+		}
+		admissionFence = strconv.FormatInt(state.AccountCreatedAt, 10) + ":" + strconv.FormatInt(state.State.AdmissionGeneration, 10)
+	}
 	id := strconv.FormatUint(broadcasterID, 10)
 	cmds := make(valkey.Commands, 0, len(s.cfg.OfflineConfirmDelays)+1)
+	if admissionFence != "" {
+		retention := time.Minute
+		for _, delay := range s.cfg.OfflineConfirmDelays {
+			retention = max(retention, delay+time.Minute)
+		}
+		cmds = append(cmds, s.client.B().Set().Key(offlineConfirmKeyPrefix+"admission:"+id).Value(admissionFence).Px(retention).Build())
+	}
 	cmds = append(cmds, s.client.B().Set().Key(demandRecheckKeyPrefix+id).Value("1").Px(demandRecheckWindow).Build())
 	for stage, delay := range s.cfg.OfflineConfirmDelays {
 		key := offlineConfirmKeyPrefix + strconv.Itoa(stage) + ":" + id

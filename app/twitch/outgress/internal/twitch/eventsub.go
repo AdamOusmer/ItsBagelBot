@@ -19,7 +19,7 @@ type SubSpec struct {
 }
 
 func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
-	specs := make([]SubSpec, 0, 10)
+	specs := make([]SubSpec, 0, 12)
 
 	specs = append(specs,
 		SubSpec{"stream.online", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
@@ -33,6 +33,7 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
 	)
 
+	specs = append(specs[:4], append(ChannelControlSubscriptions(broadcasterID), specs[4:]...)...)
 	if botID != "" {
 		specs = append(specs,
 			SubSpec{ChatMessageType, "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
@@ -40,6 +41,15 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 	}
 
 	return specs
+}
+
+// Control subscriptions precede chat enrollment so a chat ban cannot prevent
+// enrollment of the signal that restores service.
+func ChannelControlSubscriptions(broadcasterID string) []SubSpec {
+	return []SubSpec{
+		{"channel.ban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		{"channel.unban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+	}
 }
 
 const ChatMessageType = "channel.chat.message"
@@ -84,12 +94,17 @@ func (c *Client) CreateEventSub(ctx context.Context, spec SubSpec, conduitID str
 
 type EventSubEntry struct {
 	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Version   string `json:"version"`
+	Status    string `json:"status"`
 	Transport struct {
 		Method    string `json:"method"`
 		ConduitID string `json:"conduit_id"`
 	} `json:"transport"`
 	Condition struct {
-		BroadcasterUserID string `json:"broadcaster_user_id"`
+		BroadcasterUserID   string `json:"broadcaster_user_id"`
+		ToBroadcasterUserID string `json:"to_broadcaster_user_id"`
+		UserID              string `json:"user_id"`
 	} `json:"condition"`
 }
 

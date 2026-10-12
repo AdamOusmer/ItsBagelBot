@@ -87,6 +87,8 @@ spec:
               value: /etc/nats-client/tls/tls.crt
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
+            - name: DASHBOARD_LOGIN_SCOPES
+              value: "openid user:read:email channel:bot channel:moderate moderation:read moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads"
             - name: NODE_ENV
               value: production
             - name: PROTOCOL_HEADER

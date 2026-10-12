@@ -149,6 +149,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
 	svcboot.FatalIf(log, rpc.SubscribeAdminAuth(wiring, client, authPrefix, auditPrefix), "failed to subscribe admin auth rpc")
 
+	svcboot.FatalIf(log, rpc.SubscribeLifecycle(wiring), "failed to subscribe lifecycle rpc")
 	svcboot.FatalIf(log, rpc.SubscribeProjection(wiring, s.projection), "failed to subscribe projection rpc")
 	svcboot.FatalIf(log, rpc.SubscribeEmail(wiring, env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")),
 		"failed to subscribe email rpc")

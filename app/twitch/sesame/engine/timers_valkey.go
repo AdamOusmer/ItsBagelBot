@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
@@ -71,10 +72,11 @@ type timersConfig struct {
 }
 
 type ValkeyTimerStore struct {
-	client valkey.Client
-	pub    bus.Publisher
-	proj   projection.Reader
-	live   IsLiveChecker
+	runtime channelruntime.Reader
+	client  valkey.Client
+	pub     bus.Publisher
+	proj    projection.Reader
+	live    IsLiveChecker
 
 	nc           *nats.Conn
 	rearmSubject string
@@ -104,6 +106,7 @@ func (s *ValkeyTimerStore) WirePipeline(p *Pipeline) {
 }
 
 type TimersConfig struct {
+	Runtime                  channelruntime.Reader
 	OutgressPremiumSubject   string
 	OutgressStandardSubject  string
 	KeyspaceDB               int
@@ -118,6 +121,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		log = zap.NewNop()
 	}
 	return &ValkeyTimerStore{
+		runtime:          cfg.Runtime,
 		client:           client,
 		pub:              pub,
 		proj:             proj,
@@ -158,8 +162,9 @@ func (r timerRef) firesKey() string {
 }
 
 type armedTimer struct {
-	ref timerRef
-	def timerDef
+	admission channelruntime.Snapshot
+	ref       timerRef
+	def       timerDef
 }
 
 func chatLog(broadcasterID uint64) pkg_valkey.RecentLog {
@@ -192,6 +197,9 @@ func (s *ValkeyTimerStore) armOffline(ctx context.Context, broadcasterID uint64)
 }
 
 func (s *ValkeyTimerStore) eachTimer(ctx context.Context, broadcasterID uint64, step func(armedTimer)) {
+	if !s.admitted(ctx, broadcasterID) {
+		return
+	}
 	cfg, ok := s.config(ctx, broadcasterID)
 	if !ok {
 		return
@@ -216,6 +224,9 @@ func (s *ValkeyTimerStore) armOne(ctx context.Context, at armedTimer) {
 }
 
 func (s *ValkeyTimerStore) Rearm(ctx context.Context, broadcasterID uint64) {
+	if !s.admitted(ctx, broadcasterID) {
+		return
+	}
 	if broadcasterID == 0 {
 		return
 	}
@@ -302,7 +313,17 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 	if !at.def.Enabled || at.ref.id == "" {
 		return
 	}
-	err := s.client.Do(ctx, s.client.B().Set().Key(at.ref.scheduleKey()).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
+	var err error
+	if s.runtime != nil {
+		state, readErr := s.runtime.Get(ctx, at.ref.broadcasterID)
+		if readErr != nil || !state.AllowsBackground() {
+			return
+		}
+		generation := strconv.FormatInt(state.AccountCreatedAt, 10) + ":" + strconv.FormatInt(state.State.AdmissionGeneration, 10)
+		err = s.client.Do(ctx, s.client.B().Eval().Script(timerAdmissionArm).Numkeys(2).Key(at.ref.scheduleKey(), at.ref.admissionKey()).Arg(generation, strconv.FormatInt(int64(ex.Seconds()), 10)).Build()).Error()
+	} else {
+		err = s.client.Do(ctx, s.client.B().Set().Key(at.ref.scheduleKey()).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
+	}
 	if err != nil && !valkey.IsValkeyNil(err) {
 		s.log.Warn("timers: failed to arm", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 	}
@@ -450,6 +471,18 @@ func parseTimerKey(key string) (timerRef, bool) {
 }
 
 func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (armedTimer, bool) {
+	var admission channelruntime.Snapshot
+	if s.runtime != nil {
+		var err error
+		admission, err = s.runtime.Get(ctx, ref.broadcasterID)
+		if err != nil || !admission.AllowsBackground() {
+			return armedTimer{}, false
+		}
+		generation, err := s.client.Do(ctx, s.client.B().Get().Key(ref.admissionKey()).Build()).ToString()
+		if err != nil || generation != strconv.FormatInt(admission.AccountCreatedAt, 10)+":"+strconv.FormatInt(admission.State.AdmissionGeneration, 10) {
+			return armedTimer{}, false
+		}
+	}
 	cfg, ok := s.config(ctx, ref.broadcasterID)
 	if !ok {
 		return armedTimer{}, false
@@ -458,7 +491,7 @@ func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (arme
 	if !ok || !td.Enabled {
 		return armedTimer{}, false
 	}
-	return armedTimer{ref: ref, def: td}, true
+	return armedTimer{ref: ref, def: td, admission: admission}, true
 }
 
 func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {
@@ -615,6 +648,9 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 }
 
 func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
+	if !s.admitted(ctx, at.ref.broadcasterID) {
+		return
+	}
 	if term, hit := moderation.CheckFloor(at.def.Message); hit {
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.String("term", term))
@@ -668,7 +704,15 @@ func (s *ValkeyTimerStore) timerOutputs(idStr, text string) []module.Output {
 }
 
 func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) {
-	body, err := buildOutgress(&out)
+	message, err := buildOutgressMessage(&out)
+	if at.admission.Registered {
+		message.AccountCreatedAt = at.admission.AccountCreatedAt
+		message.AdmissionGeneration = at.admission.State.AdmissionGeneration
+	}
+	if err != nil {
+		return
+	}
+	body, err := codec.Marshal(message)
 	if err != nil {
 		s.log.Warn("timers: failed to build outgress message", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 		return
@@ -677,3 +721,21 @@ func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subj
 		s.log.Warn("timers: failed to publish", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 	}
 }
+
+func (s *ValkeyTimerStore) admitted(ctx context.Context, id uint64) bool {
+	if s.runtime == nil {
+		return true
+	}
+	state, err := s.runtime.Get(ctx, id)
+	return err == nil && state.AllowsBackground()
+}
+
+func (r timerRef) admissionKey() string {
+	return cache.PairKey(timerAuxPrefix+"admission:", r.broadcasterID, r.id)
+}
+
+const timerAdmissionArm = `
+local previous=redis.call('GET',KEYS[2])
+if previous~=ARGV[1] then redis.call('DEL',KEYS[1]) end
+redis.call('SET',KEYS[2],ARGV[1],'EX',172800)
+return redis.call('SET',KEYS[1],'1','NX','EX',ARGV[2])`

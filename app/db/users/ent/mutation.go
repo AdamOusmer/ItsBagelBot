@@ -6,10 +6,12 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
 	"fmt"
@@ -29,12 +31,13 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAdminAudit   = "AdminAudit"
-	TypeAdminUser    = "AdminUser"
-	TypeDelegation   = "Delegation"
-	TypePremiumGrant = "PremiumGrant"
-	TypeTokens       = "Tokens"
-	TypeUser         = "User"
+	TypeAdminAudit       = "AdminAudit"
+	TypeAdminUser        = "AdminUser"
+	TypeDelegation       = "Delegation"
+	TypeLifecycleErasure = "LifecycleErasure"
+	TypePremiumGrant     = "PremiumGrant"
+	TypeTokens           = "Tokens"
+	TypeUser             = "User"
 )
 
 // AdminAuditMutation represents an operation that mutates the AdminAudit nodes in the graph.
@@ -2452,6 +2455,820 @@ func (m *DelegationMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Delegation edge %s", name)
 }
 
+// LifecycleErasureMutation represents an operation that mutates the LifecycleErasure nodes in the graph.
+type LifecycleErasureMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	user_id               *uint64
+	adduser_id            *int64
+	account_created_at    *int64
+	addaccount_created_at *int64
+	deleted_at            *time.Time
+	lifecycle             **lifecycle.State
+	notifications_done    *bool
+	outgress_done         *bool
+	next_attempt_at       *time.Time
+	completed_at          *time.Time
+	clearedFields         map[string]struct{}
+	done                  bool
+	oldValue              func(context.Context) (*LifecycleErasure, error)
+	predicates            []predicate.LifecycleErasure
+}
+
+var _ ent.Mutation = (*LifecycleErasureMutation)(nil)
+
+// lifecycleerasureOption allows management of the mutation configuration using functional options.
+type lifecycleerasureOption func(*LifecycleErasureMutation)
+
+// newLifecycleErasureMutation creates new mutation for the LifecycleErasure entity.
+func newLifecycleErasureMutation(c config, op Op, opts ...lifecycleerasureOption) *LifecycleErasureMutation {
+	m := &LifecycleErasureMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeLifecycleErasure,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withLifecycleErasureID sets the ID field of the mutation.
+func withLifecycleErasureID(id int) lifecycleerasureOption {
+	return func(m *LifecycleErasureMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *LifecycleErasure
+		)
+		m.oldValue = func(ctx context.Context) (*LifecycleErasure, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().LifecycleErasure.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withLifecycleErasure sets the old LifecycleErasure of the mutation.
+func withLifecycleErasure(node *LifecycleErasure) lifecycleerasureOption {
+	return func(m *LifecycleErasureMutation) {
+		m.oldValue = func(context.Context) (*LifecycleErasure, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m LifecycleErasureMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m LifecycleErasureMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *LifecycleErasureMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *LifecycleErasureMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().LifecycleErasure.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *LifecycleErasureMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *LifecycleErasureMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *LifecycleErasureMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *LifecycleErasureMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *LifecycleErasureMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetAccountCreatedAt sets the "account_created_at" field.
+func (m *LifecycleErasureMutation) SetAccountCreatedAt(i int64) {
+	m.account_created_at = &i
+	m.addaccount_created_at = nil
+}
+
+// AccountCreatedAt returns the value of the "account_created_at" field in the mutation.
+func (m *LifecycleErasureMutation) AccountCreatedAt() (r int64, exists bool) {
+	v := m.account_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountCreatedAt returns the old "account_created_at" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldAccountCreatedAt(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountCreatedAt: %w", err)
+	}
+	return oldValue.AccountCreatedAt, nil
+}
+
+// AddAccountCreatedAt adds i to the "account_created_at" field.
+func (m *LifecycleErasureMutation) AddAccountCreatedAt(i int64) {
+	if m.addaccount_created_at != nil {
+		*m.addaccount_created_at += i
+	} else {
+		m.addaccount_created_at = &i
+	}
+}
+
+// AddedAccountCreatedAt returns the value that was added to the "account_created_at" field in this mutation.
+func (m *LifecycleErasureMutation) AddedAccountCreatedAt() (r int64, exists bool) {
+	v := m.addaccount_created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountCreatedAt resets all changes to the "account_created_at" field.
+func (m *LifecycleErasureMutation) ResetAccountCreatedAt() {
+	m.account_created_at = nil
+	m.addaccount_created_at = nil
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (m *LifecycleErasureMutation) SetDeletedAt(t time.Time) {
+	m.deleted_at = &t
+}
+
+// DeletedAt returns the value of the "deleted_at" field in the mutation.
+func (m *LifecycleErasureMutation) DeletedAt() (r time.Time, exists bool) {
+	v := m.deleted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletedAt returns the old "deleted_at" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldDeletedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletedAt: %w", err)
+	}
+	return oldValue.DeletedAt, nil
+}
+
+// ResetDeletedAt resets all changes to the "deleted_at" field.
+func (m *LifecycleErasureMutation) ResetDeletedAt() {
+	m.deleted_at = nil
+}
+
+// SetLifecycle sets the "lifecycle" field.
+func (m *LifecycleErasureMutation) SetLifecycle(l *lifecycle.State) {
+	m.lifecycle = &l
+}
+
+// Lifecycle returns the value of the "lifecycle" field in the mutation.
+func (m *LifecycleErasureMutation) Lifecycle() (r *lifecycle.State, exists bool) {
+	v := m.lifecycle
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycle returns the old "lifecycle" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldLifecycle(ctx context.Context) (v *lifecycle.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycle: %w", err)
+	}
+	return oldValue.Lifecycle, nil
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (m *LifecycleErasureMutation) ClearLifecycle() {
+	m.lifecycle = nil
+	m.clearedFields[lifecycleerasure.FieldLifecycle] = struct{}{}
+}
+
+// LifecycleCleared returns if the "lifecycle" field was cleared in this mutation.
+func (m *LifecycleErasureMutation) LifecycleCleared() bool {
+	_, ok := m.clearedFields[lifecycleerasure.FieldLifecycle]
+	return ok
+}
+
+// ResetLifecycle resets all changes to the "lifecycle" field.
+func (m *LifecycleErasureMutation) ResetLifecycle() {
+	m.lifecycle = nil
+	delete(m.clearedFields, lifecycleerasure.FieldLifecycle)
+}
+
+// SetNotificationsDone sets the "notifications_done" field.
+func (m *LifecycleErasureMutation) SetNotificationsDone(b bool) {
+	m.notifications_done = &b
+}
+
+// NotificationsDone returns the value of the "notifications_done" field in the mutation.
+func (m *LifecycleErasureMutation) NotificationsDone() (r bool, exists bool) {
+	v := m.notifications_done
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNotificationsDone returns the old "notifications_done" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldNotificationsDone(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNotificationsDone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNotificationsDone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNotificationsDone: %w", err)
+	}
+	return oldValue.NotificationsDone, nil
+}
+
+// ResetNotificationsDone resets all changes to the "notifications_done" field.
+func (m *LifecycleErasureMutation) ResetNotificationsDone() {
+	m.notifications_done = nil
+}
+
+// SetOutgressDone sets the "outgress_done" field.
+func (m *LifecycleErasureMutation) SetOutgressDone(b bool) {
+	m.outgress_done = &b
+}
+
+// OutgressDone returns the value of the "outgress_done" field in the mutation.
+func (m *LifecycleErasureMutation) OutgressDone() (r bool, exists bool) {
+	v := m.outgress_done
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOutgressDone returns the old "outgress_done" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldOutgressDone(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOutgressDone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOutgressDone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOutgressDone: %w", err)
+	}
+	return oldValue.OutgressDone, nil
+}
+
+// ResetOutgressDone resets all changes to the "outgress_done" field.
+func (m *LifecycleErasureMutation) ResetOutgressDone() {
+	m.outgress_done = nil
+}
+
+// SetNextAttemptAt sets the "next_attempt_at" field.
+func (m *LifecycleErasureMutation) SetNextAttemptAt(t time.Time) {
+	m.next_attempt_at = &t
+}
+
+// NextAttemptAt returns the value of the "next_attempt_at" field in the mutation.
+func (m *LifecycleErasureMutation) NextAttemptAt() (r time.Time, exists bool) {
+	v := m.next_attempt_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextAttemptAt returns the old "next_attempt_at" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldNextAttemptAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextAttemptAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextAttemptAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextAttemptAt: %w", err)
+	}
+	return oldValue.NextAttemptAt, nil
+}
+
+// ResetNextAttemptAt resets all changes to the "next_attempt_at" field.
+func (m *LifecycleErasureMutation) ResetNextAttemptAt() {
+	m.next_attempt_at = nil
+}
+
+// SetCompletedAt sets the "completed_at" field.
+func (m *LifecycleErasureMutation) SetCompletedAt(t time.Time) {
+	m.completed_at = &t
+}
+
+// CompletedAt returns the value of the "completed_at" field in the mutation.
+func (m *LifecycleErasureMutation) CompletedAt() (r time.Time, exists bool) {
+	v := m.completed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompletedAt returns the old "completed_at" field's value of the LifecycleErasure entity.
+// If the LifecycleErasure object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LifecycleErasureMutation) OldCompletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompletedAt: %w", err)
+	}
+	return oldValue.CompletedAt, nil
+}
+
+// ClearCompletedAt clears the value of the "completed_at" field.
+func (m *LifecycleErasureMutation) ClearCompletedAt() {
+	m.completed_at = nil
+	m.clearedFields[lifecycleerasure.FieldCompletedAt] = struct{}{}
+}
+
+// CompletedAtCleared returns if the "completed_at" field was cleared in this mutation.
+func (m *LifecycleErasureMutation) CompletedAtCleared() bool {
+	_, ok := m.clearedFields[lifecycleerasure.FieldCompletedAt]
+	return ok
+}
+
+// ResetCompletedAt resets all changes to the "completed_at" field.
+func (m *LifecycleErasureMutation) ResetCompletedAt() {
+	m.completed_at = nil
+	delete(m.clearedFields, lifecycleerasure.FieldCompletedAt)
+}
+
+// Where appends a list predicates to the LifecycleErasureMutation builder.
+func (m *LifecycleErasureMutation) Where(ps ...predicate.LifecycleErasure) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the LifecycleErasureMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *LifecycleErasureMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.LifecycleErasure, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *LifecycleErasureMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *LifecycleErasureMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (LifecycleErasure).
+func (m *LifecycleErasureMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *LifecycleErasureMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.user_id != nil {
+		fields = append(fields, lifecycleerasure.FieldUserID)
+	}
+	if m.account_created_at != nil {
+		fields = append(fields, lifecycleerasure.FieldAccountCreatedAt)
+	}
+	if m.deleted_at != nil {
+		fields = append(fields, lifecycleerasure.FieldDeletedAt)
+	}
+	if m.lifecycle != nil {
+		fields = append(fields, lifecycleerasure.FieldLifecycle)
+	}
+	if m.notifications_done != nil {
+		fields = append(fields, lifecycleerasure.FieldNotificationsDone)
+	}
+	if m.outgress_done != nil {
+		fields = append(fields, lifecycleerasure.FieldOutgressDone)
+	}
+	if m.next_attempt_at != nil {
+		fields = append(fields, lifecycleerasure.FieldNextAttemptAt)
+	}
+	if m.completed_at != nil {
+		fields = append(fields, lifecycleerasure.FieldCompletedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *LifecycleErasureMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		return m.UserID()
+	case lifecycleerasure.FieldAccountCreatedAt:
+		return m.AccountCreatedAt()
+	case lifecycleerasure.FieldDeletedAt:
+		return m.DeletedAt()
+	case lifecycleerasure.FieldLifecycle:
+		return m.Lifecycle()
+	case lifecycleerasure.FieldNotificationsDone:
+		return m.NotificationsDone()
+	case lifecycleerasure.FieldOutgressDone:
+		return m.OutgressDone()
+	case lifecycleerasure.FieldNextAttemptAt:
+		return m.NextAttemptAt()
+	case lifecycleerasure.FieldCompletedAt:
+		return m.CompletedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *LifecycleErasureMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		return m.OldUserID(ctx)
+	case lifecycleerasure.FieldAccountCreatedAt:
+		return m.OldAccountCreatedAt(ctx)
+	case lifecycleerasure.FieldDeletedAt:
+		return m.OldDeletedAt(ctx)
+	case lifecycleerasure.FieldLifecycle:
+		return m.OldLifecycle(ctx)
+	case lifecycleerasure.FieldNotificationsDone:
+		return m.OldNotificationsDone(ctx)
+	case lifecycleerasure.FieldOutgressDone:
+		return m.OldOutgressDone(ctx)
+	case lifecycleerasure.FieldNextAttemptAt:
+		return m.OldNextAttemptAt(ctx)
+	case lifecycleerasure.FieldCompletedAt:
+		return m.OldCompletedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown LifecycleErasure field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LifecycleErasureMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case lifecycleerasure.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountCreatedAt(v)
+		return nil
+	case lifecycleerasure.FieldDeletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletedAt(v)
+		return nil
+	case lifecycleerasure.FieldLifecycle:
+		v, ok := value.(*lifecycle.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycle(v)
+		return nil
+	case lifecycleerasure.FieldNotificationsDone:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNotificationsDone(v)
+		return nil
+	case lifecycleerasure.FieldOutgressDone:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOutgressDone(v)
+		return nil
+	case lifecycleerasure.FieldNextAttemptAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextAttemptAt(v)
+		return nil
+	case lifecycleerasure.FieldCompletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompletedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown LifecycleErasure field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *LifecycleErasureMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, lifecycleerasure.FieldUserID)
+	}
+	if m.addaccount_created_at != nil {
+		fields = append(fields, lifecycleerasure.FieldAccountCreatedAt)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *LifecycleErasureMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		return m.AddedUserID()
+	case lifecycleerasure.FieldAccountCreatedAt:
+		return m.AddedAccountCreatedAt()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LifecycleErasureMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case lifecycleerasure.FieldAccountCreatedAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown LifecycleErasure numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *LifecycleErasureMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(lifecycleerasure.FieldLifecycle) {
+		fields = append(fields, lifecycleerasure.FieldLifecycle)
+	}
+	if m.FieldCleared(lifecycleerasure.FieldCompletedAt) {
+		fields = append(fields, lifecycleerasure.FieldCompletedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *LifecycleErasureMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *LifecycleErasureMutation) ClearField(name string) error {
+	switch name {
+	case lifecycleerasure.FieldLifecycle:
+		m.ClearLifecycle()
+		return nil
+	case lifecycleerasure.FieldCompletedAt:
+		m.ClearCompletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown LifecycleErasure nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *LifecycleErasureMutation) ResetField(name string) error {
+	switch name {
+	case lifecycleerasure.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case lifecycleerasure.FieldAccountCreatedAt:
+		m.ResetAccountCreatedAt()
+		return nil
+	case lifecycleerasure.FieldDeletedAt:
+		m.ResetDeletedAt()
+		return nil
+	case lifecycleerasure.FieldLifecycle:
+		m.ResetLifecycle()
+		return nil
+	case lifecycleerasure.FieldNotificationsDone:
+		m.ResetNotificationsDone()
+		return nil
+	case lifecycleerasure.FieldOutgressDone:
+		m.ResetOutgressDone()
+		return nil
+	case lifecycleerasure.FieldNextAttemptAt:
+		m.ResetNextAttemptAt()
+		return nil
+	case lifecycleerasure.FieldCompletedAt:
+		m.ResetCompletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown LifecycleErasure field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *LifecycleErasureMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *LifecycleErasureMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *LifecycleErasureMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *LifecycleErasureMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *LifecycleErasureMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *LifecycleErasureMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *LifecycleErasureMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown LifecycleErasure unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *LifecycleErasureMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown LifecycleErasure edge %s", name)
+}
+
 // PremiumGrantMutation represents an operation that mutates the PremiumGrant nodes in the graph.
 type PremiumGrantMutation struct {
 	config
@@ -3974,46 +4791,53 @@ func (m *TokensMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                          Op
-	typ                         string
-	id                          *uint64
-	username                    *string
-	display_name                *string
-	email                       *string
-	email_enc                   *[]byte
-	state_revision              *int64
-	addstate_revision           *int64
-	is_active                   *bool
-	banned                      *bool
-	status                      *user.Status
-	locale                      *string
-	custom_cursor               *bool
-	commands_page_hidden        *bool
-	leaderboard_page_hidden     *bool
-	creator_code                *string
-	subscription_source         *string
-	subscription_expires_at     *time.Time
-	subscription_ref            *string
-	subscription_cancel_pending *bool
-	subscription_payment_failed *bool
-	billing_event_at            *time.Time
-	billing_event_id            *string
-	gifts_sent                  *uint32
-	addgifts_sent               *int32
-	onboarded                   *bool
-	test_account                *bool
-	created_at                  *time.Time
-	updated_at                  *time.Time
-	clearedFields               map[string]struct{}
-	tokens                      map[int]struct{}
-	removedtokens               map[int]struct{}
-	clearedtokens               bool
-	premium_grants              map[int]struct{}
-	removedpremium_grants       map[int]struct{}
-	clearedpremium_grants       bool
-	done                        bool
-	oldValue                    func(context.Context) (*User, error)
-	predicates                  []predicate.User
+	op                           Op
+	typ                          string
+	id                           *uint64
+	username                     *string
+	display_name                 *string
+	email                        *string
+	email_enc                    *[]byte
+	state_revision               *int64
+	addstate_revision            *int64
+	is_active                    *bool
+	lifecycle                    **lifecycle.State
+	lifecycle_state              *string
+	lifecycle_projection_pending *bool
+	lifecycle_migration_pending  *bool
+	dormant_after                *time.Time
+	lifecycle_due_at             *time.Time
+	notice_due_at                *time.Time
+	banned                       *bool
+	status                       *user.Status
+	locale                       *string
+	custom_cursor                *bool
+	commands_page_hidden         *bool
+	leaderboard_page_hidden      *bool
+	creator_code                 *string
+	subscription_source          *string
+	subscription_expires_at      *time.Time
+	subscription_ref             *string
+	subscription_cancel_pending  *bool
+	subscription_payment_failed  *bool
+	billing_event_at             *time.Time
+	billing_event_id             *string
+	gifts_sent                   *uint32
+	addgifts_sent                *int32
+	onboarded                    *bool
+	test_account                 *bool
+	created_at                   *time.Time
+	updated_at                   *time.Time
+	clearedFields                map[string]struct{}
+	tokens                       map[int]struct{}
+	removedtokens                map[int]struct{}
+	clearedtokens                bool
+	premium_grants               map[int]struct{}
+	removedpremium_grants        map[int]struct{}
+	clearedpremium_grants        bool
+	done                         bool
+	oldValue                     func(context.Context) (*User, error)
+	predicates                   []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -4367,6 +5191,310 @@ func (m *UserMutation) OldIsActive(ctx context.Context) (v bool, err error) {
 // ResetIsActive resets all changes to the "is_active" field.
 func (m *UserMutation) ResetIsActive() {
 	m.is_active = nil
+}
+
+// SetLifecycle sets the "lifecycle" field.
+func (m *UserMutation) SetLifecycle(l *lifecycle.State) {
+	m.lifecycle = &l
+}
+
+// Lifecycle returns the value of the "lifecycle" field in the mutation.
+func (m *UserMutation) Lifecycle() (r *lifecycle.State, exists bool) {
+	v := m.lifecycle
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycle returns the old "lifecycle" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLifecycle(ctx context.Context) (v *lifecycle.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycle: %w", err)
+	}
+	return oldValue.Lifecycle, nil
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (m *UserMutation) ClearLifecycle() {
+	m.lifecycle = nil
+	m.clearedFields[user.FieldLifecycle] = struct{}{}
+}
+
+// LifecycleCleared returns if the "lifecycle" field was cleared in this mutation.
+func (m *UserMutation) LifecycleCleared() bool {
+	_, ok := m.clearedFields[user.FieldLifecycle]
+	return ok
+}
+
+// ResetLifecycle resets all changes to the "lifecycle" field.
+func (m *UserMutation) ResetLifecycle() {
+	m.lifecycle = nil
+	delete(m.clearedFields, user.FieldLifecycle)
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (m *UserMutation) SetLifecycleState(s string) {
+	m.lifecycle_state = &s
+}
+
+// LifecycleState returns the value of the "lifecycle_state" field in the mutation.
+func (m *UserMutation) LifecycleState() (r string, exists bool) {
+	v := m.lifecycle_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycleState returns the old "lifecycle_state" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLifecycleState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycleState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycleState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycleState: %w", err)
+	}
+	return oldValue.LifecycleState, nil
+}
+
+// ResetLifecycleState resets all changes to the "lifecycle_state" field.
+func (m *UserMutation) ResetLifecycleState() {
+	m.lifecycle_state = nil
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (m *UserMutation) SetLifecycleProjectionPending(b bool) {
+	m.lifecycle_projection_pending = &b
+}
+
+// LifecycleProjectionPending returns the value of the "lifecycle_projection_pending" field in the mutation.
+func (m *UserMutation) LifecycleProjectionPending() (r bool, exists bool) {
+	v := m.lifecycle_projection_pending
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycleProjectionPending returns the old "lifecycle_projection_pending" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLifecycleProjectionPending(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycleProjectionPending is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycleProjectionPending requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycleProjectionPending: %w", err)
+	}
+	return oldValue.LifecycleProjectionPending, nil
+}
+
+// ResetLifecycleProjectionPending resets all changes to the "lifecycle_projection_pending" field.
+func (m *UserMutation) ResetLifecycleProjectionPending() {
+	m.lifecycle_projection_pending = nil
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (m *UserMutation) SetLifecycleMigrationPending(b bool) {
+	m.lifecycle_migration_pending = &b
+}
+
+// LifecycleMigrationPending returns the value of the "lifecycle_migration_pending" field in the mutation.
+func (m *UserMutation) LifecycleMigrationPending() (r bool, exists bool) {
+	v := m.lifecycle_migration_pending
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycleMigrationPending returns the old "lifecycle_migration_pending" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLifecycleMigrationPending(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycleMigrationPending is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycleMigrationPending requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycleMigrationPending: %w", err)
+	}
+	return oldValue.LifecycleMigrationPending, nil
+}
+
+// ResetLifecycleMigrationPending resets all changes to the "lifecycle_migration_pending" field.
+func (m *UserMutation) ResetLifecycleMigrationPending() {
+	m.lifecycle_migration_pending = nil
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (m *UserMutation) SetDormantAfter(t time.Time) {
+	m.dormant_after = &t
+}
+
+// DormantAfter returns the value of the "dormant_after" field in the mutation.
+func (m *UserMutation) DormantAfter() (r time.Time, exists bool) {
+	v := m.dormant_after
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDormantAfter returns the old "dormant_after" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDormantAfter(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDormantAfter is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDormantAfter requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDormantAfter: %w", err)
+	}
+	return oldValue.DormantAfter, nil
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (m *UserMutation) ClearDormantAfter() {
+	m.dormant_after = nil
+	m.clearedFields[user.FieldDormantAfter] = struct{}{}
+}
+
+// DormantAfterCleared returns if the "dormant_after" field was cleared in this mutation.
+func (m *UserMutation) DormantAfterCleared() bool {
+	_, ok := m.clearedFields[user.FieldDormantAfter]
+	return ok
+}
+
+// ResetDormantAfter resets all changes to the "dormant_after" field.
+func (m *UserMutation) ResetDormantAfter() {
+	m.dormant_after = nil
+	delete(m.clearedFields, user.FieldDormantAfter)
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (m *UserMutation) SetLifecycleDueAt(t time.Time) {
+	m.lifecycle_due_at = &t
+}
+
+// LifecycleDueAt returns the value of the "lifecycle_due_at" field in the mutation.
+func (m *UserMutation) LifecycleDueAt() (r time.Time, exists bool) {
+	v := m.lifecycle_due_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLifecycleDueAt returns the old "lifecycle_due_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldLifecycleDueAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLifecycleDueAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLifecycleDueAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLifecycleDueAt: %w", err)
+	}
+	return oldValue.LifecycleDueAt, nil
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (m *UserMutation) ClearLifecycleDueAt() {
+	m.lifecycle_due_at = nil
+	m.clearedFields[user.FieldLifecycleDueAt] = struct{}{}
+}
+
+// LifecycleDueAtCleared returns if the "lifecycle_due_at" field was cleared in this mutation.
+func (m *UserMutation) LifecycleDueAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldLifecycleDueAt]
+	return ok
+}
+
+// ResetLifecycleDueAt resets all changes to the "lifecycle_due_at" field.
+func (m *UserMutation) ResetLifecycleDueAt() {
+	m.lifecycle_due_at = nil
+	delete(m.clearedFields, user.FieldLifecycleDueAt)
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (m *UserMutation) SetNoticeDueAt(t time.Time) {
+	m.notice_due_at = &t
+}
+
+// NoticeDueAt returns the value of the "notice_due_at" field in the mutation.
+func (m *UserMutation) NoticeDueAt() (r time.Time, exists bool) {
+	v := m.notice_due_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNoticeDueAt returns the old "notice_due_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldNoticeDueAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNoticeDueAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNoticeDueAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNoticeDueAt: %w", err)
+	}
+	return oldValue.NoticeDueAt, nil
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (m *UserMutation) ClearNoticeDueAt() {
+	m.notice_due_at = nil
+	m.clearedFields[user.FieldNoticeDueAt] = struct{}{}
+}
+
+// NoticeDueAtCleared returns if the "notice_due_at" field was cleared in this mutation.
+func (m *UserMutation) NoticeDueAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldNoticeDueAt]
+	return ok
+}
+
+// ResetNoticeDueAt resets all changes to the "notice_due_at" field.
+func (m *UserMutation) ResetNoticeDueAt() {
+	m.notice_due_at = nil
+	delete(m.clearedFields, user.FieldNoticeDueAt)
 }
 
 // SetBanned sets the "banned" field.
@@ -5280,7 +6408,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 32)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -5298,6 +6426,27 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.is_active != nil {
 		fields = append(fields, user.FieldIsActive)
+	}
+	if m.lifecycle != nil {
+		fields = append(fields, user.FieldLifecycle)
+	}
+	if m.lifecycle_state != nil {
+		fields = append(fields, user.FieldLifecycleState)
+	}
+	if m.lifecycle_projection_pending != nil {
+		fields = append(fields, user.FieldLifecycleProjectionPending)
+	}
+	if m.lifecycle_migration_pending != nil {
+		fields = append(fields, user.FieldLifecycleMigrationPending)
+	}
+	if m.dormant_after != nil {
+		fields = append(fields, user.FieldDormantAfter)
+	}
+	if m.lifecycle_due_at != nil {
+		fields = append(fields, user.FieldLifecycleDueAt)
+	}
+	if m.notice_due_at != nil {
+		fields = append(fields, user.FieldNoticeDueAt)
 	}
 	if m.banned != nil {
 		fields = append(fields, user.FieldBanned)
@@ -5376,6 +6525,20 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.StateRevision()
 	case user.FieldIsActive:
 		return m.IsActive()
+	case user.FieldLifecycle:
+		return m.Lifecycle()
+	case user.FieldLifecycleState:
+		return m.LifecycleState()
+	case user.FieldLifecycleProjectionPending:
+		return m.LifecycleProjectionPending()
+	case user.FieldLifecycleMigrationPending:
+		return m.LifecycleMigrationPending()
+	case user.FieldDormantAfter:
+		return m.DormantAfter()
+	case user.FieldLifecycleDueAt:
+		return m.LifecycleDueAt()
+	case user.FieldNoticeDueAt:
+		return m.NoticeDueAt()
 	case user.FieldBanned:
 		return m.Banned()
 	case user.FieldStatus:
@@ -5435,6 +6598,20 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldStateRevision(ctx)
 	case user.FieldIsActive:
 		return m.OldIsActive(ctx)
+	case user.FieldLifecycle:
+		return m.OldLifecycle(ctx)
+	case user.FieldLifecycleState:
+		return m.OldLifecycleState(ctx)
+	case user.FieldLifecycleProjectionPending:
+		return m.OldLifecycleProjectionPending(ctx)
+	case user.FieldLifecycleMigrationPending:
+		return m.OldLifecycleMigrationPending(ctx)
+	case user.FieldDormantAfter:
+		return m.OldDormantAfter(ctx)
+	case user.FieldLifecycleDueAt:
+		return m.OldLifecycleDueAt(ctx)
+	case user.FieldNoticeDueAt:
+		return m.OldNoticeDueAt(ctx)
 	case user.FieldBanned:
 		return m.OldBanned(ctx)
 	case user.FieldStatus:
@@ -5523,6 +6700,55 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsActive(v)
+		return nil
+	case user.FieldLifecycle:
+		v, ok := value.(*lifecycle.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycle(v)
+		return nil
+	case user.FieldLifecycleState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycleState(v)
+		return nil
+	case user.FieldLifecycleProjectionPending:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycleProjectionPending(v)
+		return nil
+	case user.FieldLifecycleMigrationPending:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycleMigrationPending(v)
+		return nil
+	case user.FieldDormantAfter:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDormantAfter(v)
+		return nil
+	case user.FieldLifecycleDueAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLifecycleDueAt(v)
+		return nil
+	case user.FieldNoticeDueAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNoticeDueAt(v)
 		return nil
 	case user.FieldBanned:
 		v, ok := value.(bool)
@@ -5717,6 +6943,18 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldEmailEnc) {
 		fields = append(fields, user.FieldEmailEnc)
 	}
+	if m.FieldCleared(user.FieldLifecycle) {
+		fields = append(fields, user.FieldLifecycle)
+	}
+	if m.FieldCleared(user.FieldDormantAfter) {
+		fields = append(fields, user.FieldDormantAfter)
+	}
+	if m.FieldCleared(user.FieldLifecycleDueAt) {
+		fields = append(fields, user.FieldLifecycleDueAt)
+	}
+	if m.FieldCleared(user.FieldNoticeDueAt) {
+		fields = append(fields, user.FieldNoticeDueAt)
+	}
 	if m.FieldCleared(user.FieldCreatorCode) {
 		fields = append(fields, user.FieldCreatorCode)
 	}
@@ -5748,6 +6986,18 @@ func (m *UserMutation) ClearField(name string) error {
 	switch name {
 	case user.FieldEmailEnc:
 		m.ClearEmailEnc()
+		return nil
+	case user.FieldLifecycle:
+		m.ClearLifecycle()
+		return nil
+	case user.FieldDormantAfter:
+		m.ClearDormantAfter()
+		return nil
+	case user.FieldLifecycleDueAt:
+		m.ClearLifecycleDueAt()
+		return nil
+	case user.FieldNoticeDueAt:
+		m.ClearNoticeDueAt()
 		return nil
 	case user.FieldCreatorCode:
 		m.ClearCreatorCode()
@@ -5789,6 +7039,27 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldIsActive:
 		m.ResetIsActive()
+		return nil
+	case user.FieldLifecycle:
+		m.ResetLifecycle()
+		return nil
+	case user.FieldLifecycleState:
+		m.ResetLifecycleState()
+		return nil
+	case user.FieldLifecycleProjectionPending:
+		m.ResetLifecycleProjectionPending()
+		return nil
+	case user.FieldLifecycleMigrationPending:
+		m.ResetLifecycleMigrationPending()
+		return nil
+	case user.FieldDormantAfter:
+		m.ResetDormantAfter()
+		return nil
+	case user.FieldLifecycleDueAt:
+		m.ResetLifecycleDueAt()
+		return nil
+	case user.FieldNoticeDueAt:
+		m.ResetNoticeDueAt()
 		return nil
 	case user.FieldBanned:
 		m.ResetBanned()

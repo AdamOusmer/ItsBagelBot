@@ -4,6 +4,8 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/domain/lifecycle"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -29,6 +31,20 @@ type User struct {
 	StateRevision int64 `json:"state_revision,omitempty"`
 	// IsActive holds the value of the "is_active" field.
 	IsActive bool `json:"is_active,omitempty"`
+	// Lifecycle holds the value of the "lifecycle" field.
+	Lifecycle *lifecycle.State `json:"lifecycle,omitempty"`
+	// LifecycleState holds the value of the "lifecycle_state" field.
+	LifecycleState string `json:"lifecycle_state,omitempty"`
+	// LifecycleProjectionPending holds the value of the "lifecycle_projection_pending" field.
+	LifecycleProjectionPending bool `json:"lifecycle_projection_pending,omitempty"`
+	// LifecycleMigrationPending holds the value of the "lifecycle_migration_pending" field.
+	LifecycleMigrationPending bool `json:"lifecycle_migration_pending,omitempty"`
+	// DormantAfter holds the value of the "dormant_after" field.
+	DormantAfter *time.Time `json:"dormant_after,omitempty"`
+	// LifecycleDueAt holds the value of the "lifecycle_due_at" field.
+	LifecycleDueAt *time.Time `json:"lifecycle_due_at,omitempty"`
+	// NoticeDueAt holds the value of the "notice_due_at" field.
+	NoticeDueAt *time.Time `json:"notice_due_at,omitempty"`
 	// Banned holds the value of the "banned" field.
 	Banned bool `json:"banned,omitempty"`
 	// Status holds the value of the "status" field.
@@ -107,15 +123,15 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldEmailEnc:
+		case user.FieldEmailEnc, user.FieldLifecycle:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
+		case user.FieldIsActive, user.FieldLifecycleProjectionPending, user.FieldLifecycleMigrationPending, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
+		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldLifecycleState, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
-		case user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
+		case user.FieldDormantAfter, user.FieldLifecycleDueAt, user.FieldNoticeDueAt, user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -173,6 +189,53 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field is_active", values[i])
 			} else if value.Valid {
 				_m.IsActive = value.Bool
+			}
+		case user.FieldLifecycle:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field lifecycle", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Lifecycle); err != nil {
+					return fmt.Errorf("unmarshal field lifecycle: %w", err)
+				}
+			}
+		case user.FieldLifecycleState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field lifecycle_state", values[i])
+			} else if value.Valid {
+				_m.LifecycleState = value.String
+			}
+		case user.FieldLifecycleProjectionPending:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field lifecycle_projection_pending", values[i])
+			} else if value.Valid {
+				_m.LifecycleProjectionPending = value.Bool
+			}
+		case user.FieldLifecycleMigrationPending:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field lifecycle_migration_pending", values[i])
+			} else if value.Valid {
+				_m.LifecycleMigrationPending = value.Bool
+			}
+		case user.FieldDormantAfter:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field dormant_after", values[i])
+			} else if value.Valid {
+				_m.DormantAfter = new(time.Time)
+				*_m.DormantAfter = value.Time
+			}
+		case user.FieldLifecycleDueAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field lifecycle_due_at", values[i])
+			} else if value.Valid {
+				_m.LifecycleDueAt = new(time.Time)
+				*_m.LifecycleDueAt = value.Time
+			}
+		case user.FieldNoticeDueAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field notice_due_at", values[i])
+			} else if value.Valid {
+				_m.NoticeDueAt = new(time.Time)
+				*_m.NoticeDueAt = value.Time
 			}
 		case user.FieldBanned:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -354,6 +417,33 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("is_active=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsActive))
+	builder.WriteString(", ")
+	builder.WriteString("lifecycle=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Lifecycle))
+	builder.WriteString(", ")
+	builder.WriteString("lifecycle_state=")
+	builder.WriteString(_m.LifecycleState)
+	builder.WriteString(", ")
+	builder.WriteString("lifecycle_projection_pending=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LifecycleProjectionPending))
+	builder.WriteString(", ")
+	builder.WriteString("lifecycle_migration_pending=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LifecycleMigrationPending))
+	builder.WriteString(", ")
+	if v := _m.DormantAfter; v != nil {
+		builder.WriteString("dormant_after=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.LifecycleDueAt; v != nil {
+		builder.WriteString("lifecycle_due_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.NoticeDueAt; v != nil {
+		builder.WriteString("notice_due_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("banned=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Banned))

@@ -98,9 +98,17 @@ defmodule Ingress.Pipeline do
 
       true ->
         case decide(text, event["chatter_user_id"], hot.special_user_ids) do
-          :special -> chat_message(:premium, event, text, meta, hot)
-          :command -> broadcaster_lane_publish(event, text, meta, hot)
-          :chat -> plain_chat(event, text, meta, hot)
+          :special ->
+            case BroadcasterCache.lane(event["broadcaster_user_id"]) do
+              :drop -> :drop
+              _ -> chat_message(:premium, event, text, meta, hot)
+            end
+
+          :command ->
+            broadcaster_lane_publish(event, text, meta, hot)
+
+          :chat ->
+            plain_chat(event, text, meta, hot)
         end
     end
   end

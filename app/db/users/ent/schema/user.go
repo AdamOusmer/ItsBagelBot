@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"time"
 
@@ -35,6 +36,13 @@ func (User) Fields() []ent.Field {
 		field.Int64("state_revision").Default(1).Positive(),
 
 		field.Bool("is_active").Default(true),
+		field.JSON("lifecycle", &lifecycle.State{}).Optional(),
+		field.String("lifecycle_state").Default(""),
+		field.Bool("lifecycle_projection_pending").Default(false),
+ field.Bool("lifecycle_migration_pending").Default(false),
+		field.Time("dormant_after").Optional().Nillable(),
+		field.Time("lifecycle_due_at").Optional().Nillable(),
+		field.Time("notice_due_at").Optional().Nillable(),
 
 		field.Bool("banned").Default(false),
 
@@ -95,6 +103,11 @@ func (User) Indexes() []ent.Index {
 
 		// Must stay non-unique: a rename frees the old login while our row still carries it.
 		index.Fields("username"),
+		index.Fields("lifecycle_state", "dormant_after", "id"),
+		index.Fields("lifecycle_state", "lifecycle_due_at", "id"),
+		index.Fields("notice_due_at", "id"),
+		index.Fields("lifecycle_projection_pending", "id"),
+ index.Fields("lifecycle_migration_pending", "id"),
 	}
 }
 
@@ -109,6 +122,19 @@ func (User) Hooks() []ent.Hook {
 				}
 			}
 			if m.Op().Is(ent.OpUpdate | ent.OpUpdateOne) {
+				// A delivery acknowledgment changes no account read-model state.
+				markerOnly := false
+				if value, exists := m.Field("lifecycle_projection_pending"); exists && value == false {
+					markerOnly = true
+					for _, name := range m.Fields() {
+						if name != "lifecycle_projection_pending" && name != "updated_at" {
+							markerOnly = false
+						}
+					}
+				}
+				if markerOnly {
+					return next.Mutate(ctx, m)
+				}
 				if err := m.ResetField("state_revision"); err != nil {
 					return nil, err
 				}

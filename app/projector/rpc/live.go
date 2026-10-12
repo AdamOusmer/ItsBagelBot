@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/outgress"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
@@ -21,14 +22,18 @@ import (
 )
 
 type liveRPC struct {
+	runtime       channelruntime.Reader
 	store         *projection.Store
 	pub           bus.Publisher
 	systemSubject string
 	log           *zap.Logger
 }
 
-func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger, runtime ...channelruntime.Reader) error {
 	l := &liveRPC{store: store, pub: pub, systemSubject: systemSubject, log: log}
+	if len(runtime) > 0 {
+		l.runtime = runtime[0]
+	}
 	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, l.handleGet)
 }
 
@@ -59,14 +64,31 @@ func (l *liveRPC) escalate(ctx context.Context, broadcasterID string) {
 	if l.pub == nil || l.systemSubject == "" {
 		return
 	}
+	var admission channelruntime.Snapshot
+	if l.runtime != nil {
+		id, err := strconv.ParseUint(broadcasterID, 10, 64)
+		if err != nil {
+			return
+		}
+		admission, err = l.runtime.Get(ctx, id)
+		if err != nil || !admission.AllowsRuntime() {
+			return
+		}
+		won, err := l.store.ClaimUnknownLive(ctx, id)
+		if err != nil || !won {
+			return
+		}
+	}
 	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
 		return
 	}
 	if err := bus.PublishJSON(ctx, l.pub, l.systemSubject, outgress.Message{
-		Type:          outgress.TypeStreamStatus,
-		BroadcasterID: broadcasterID,
-		Payload:       body,
+		AccountCreatedAt:    admission.AccountCreatedAt,
+		AdmissionGeneration: admission.State.AdmissionGeneration,
+		Type:                outgress.TypeStreamStatus,
+		BroadcasterID:       broadcasterID,
+		Payload:             body,
 	}); err != nil {
 		l.log.Warn("live rpc: failed to escalate to outgress", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	}

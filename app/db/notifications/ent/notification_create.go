@@ -43,6 +43,34 @@ func (_c *NotificationCreate) SetNillableTargetUserID(v *uint64) *NotificationCr
 	return _c
 }
 
+// SetIncarnation sets the "incarnation" field.
+func (_c *NotificationCreate) SetIncarnation(v string) *NotificationCreate {
+	_c.mutation.SetIncarnation(v)
+	return _c
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_c *NotificationCreate) SetNillableIncarnation(v *string) *NotificationCreate {
+	if v != nil {
+		_c.SetIncarnation(*v)
+	}
+	return _c
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (_c *NotificationCreate) SetIncidentID(v string) *NotificationCreate {
+	_c.mutation.SetIncidentID(v)
+	return _c
+}
+
+// SetNillableIncidentID sets the "incident_id" field if the given value is not nil.
+func (_c *NotificationCreate) SetNillableIncidentID(v *string) *NotificationCreate {
+	if v != nil {
+		_c.SetIncidentID(*v)
+	}
+	return _c
+}
+
 // SetTitle sets the "title" field.
 func (_c *NotificationCreate) SetTitle(v string) *NotificationCreate {
 	_c.mutation.SetTitle(v)
@@ -173,6 +201,10 @@ func (_c *NotificationCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *NotificationCreate) defaults() {
+	if _, ok := _c.mutation.Incarnation(); !ok {
+		v := notification.DefaultIncarnation
+		_c.mutation.SetIncarnation(v)
+	}
 	if _, ok := _c.mutation.Level(); !ok {
 		v := notification.DefaultLevel
 		_c.mutation.SetLevel(v)
@@ -265,6 +297,14 @@ func (_c *NotificationCreate) createSpec() (*Notification, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.TargetUserID(); ok {
 		_spec.SetField(notification.FieldTargetUserID, field.TypeUint64, value)
 		_node.TargetUserID = &value
+	}
+	if value, ok := _c.mutation.Incarnation(); ok {
+		_spec.SetField(notification.FieldIncarnation, field.TypeString, value)
+		_node.Incarnation = value
+	}
+	if value, ok := _c.mutation.IncidentID(); ok {
+		_spec.SetField(notification.FieldIncidentID, field.TypeString, value)
+		_node.IncidentID = value
 	}
 	if value, ok := _c.mutation.Title(); ok {
 		_spec.SetField(notification.FieldTitle, field.TypeString, value)
@@ -399,6 +439,42 @@ func (u *NotificationUpsert) AddTargetUserID(v uint64) *NotificationUpsert {
 // ClearTargetUserID clears the value of the "target_user_id" field.
 func (u *NotificationUpsert) ClearTargetUserID() *NotificationUpsert {
 	u.SetNull(notification.FieldTargetUserID)
+	return u
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationUpsert) SetIncarnation(v string) *NotificationUpsert {
+	u.Set(notification.FieldIncarnation, v)
+	return u
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationUpsert) UpdateIncarnation() *NotificationUpsert {
+	u.SetExcluded(notification.FieldIncarnation)
+	return u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationUpsert) ClearIncarnation() *NotificationUpsert {
+	u.SetNull(notification.FieldIncarnation)
+	return u
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (u *NotificationUpsert) SetIncidentID(v string) *NotificationUpsert {
+	u.Set(notification.FieldIncidentID, v)
+	return u
+}
+
+// UpdateIncidentID sets the "incident_id" field to the value that was provided on create.
+func (u *NotificationUpsert) UpdateIncidentID() *NotificationUpsert {
+	u.SetExcluded(notification.FieldIncidentID)
+	return u
+}
+
+// ClearIncidentID clears the value of the "incident_id" field.
+func (u *NotificationUpsert) ClearIncidentID() *NotificationUpsert {
+	u.SetNull(notification.FieldIncidentID)
 	return u
 }
 
@@ -573,6 +649,48 @@ func (u *NotificationUpsertOne) UpdateTargetUserID() *NotificationUpsertOne {
 func (u *NotificationUpsertOne) ClearTargetUserID() *NotificationUpsertOne {
 	return u.Update(func(s *NotificationUpsert) {
 		s.ClearTargetUserID()
+	})
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationUpsertOne) SetIncarnation(v string) *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.SetIncarnation(v)
+	})
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationUpsertOne) UpdateIncarnation() *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.UpdateIncarnation()
+	})
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationUpsertOne) ClearIncarnation() *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.ClearIncarnation()
+	})
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (u *NotificationUpsertOne) SetIncidentID(v string) *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.SetIncidentID(v)
+	})
+}
+
+// UpdateIncidentID sets the "incident_id" field to the value that was provided on create.
+func (u *NotificationUpsertOne) UpdateIncidentID() *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.UpdateIncidentID()
+	})
+}
+
+// ClearIncidentID clears the value of the "incident_id" field.
+func (u *NotificationUpsertOne) ClearIncidentID() *NotificationUpsertOne {
+	return u.Update(func(s *NotificationUpsert) {
+		s.ClearIncidentID()
 	})
 }
 
@@ -927,6 +1045,48 @@ func (u *NotificationUpsertBulk) UpdateTargetUserID() *NotificationUpsertBulk {
 func (u *NotificationUpsertBulk) ClearTargetUserID() *NotificationUpsertBulk {
 	return u.Update(func(s *NotificationUpsert) {
 		s.ClearTargetUserID()
+	})
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationUpsertBulk) SetIncarnation(v string) *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.SetIncarnation(v)
+	})
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationUpsertBulk) UpdateIncarnation() *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.UpdateIncarnation()
+	})
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationUpsertBulk) ClearIncarnation() *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.ClearIncarnation()
+	})
+}
+
+// SetIncidentID sets the "incident_id" field.
+func (u *NotificationUpsertBulk) SetIncidentID(v string) *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.SetIncidentID(v)
+	})
+}
+
+// UpdateIncidentID sets the "incident_id" field to the value that was provided on create.
+func (u *NotificationUpsertBulk) UpdateIncidentID() *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.UpdateIncidentID()
+	})
+}
+
+// ClearIncidentID clears the value of the "incident_id" field.
+func (u *NotificationUpsertBulk) ClearIncidentID() *NotificationUpsertBulk {
+	return u.Update(func(s *NotificationUpsert) {
+		s.ClearIncidentID()
 	})
 }
 

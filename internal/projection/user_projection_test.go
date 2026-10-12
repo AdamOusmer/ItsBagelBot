@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/lifecycle"
 	contract "ItsBagelBot/internal/domain/rpc/projection"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,7 @@ import (
 )
 
 var fullUser = UserProjection{
+	Lifecycle:          &lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, AdmissionGeneration: 3},
 	StateRevision:      7,
 	AccountCreatedAt:   101,
 	Status:             "paid",
@@ -34,6 +36,7 @@ func TestFullUserSetsEveryField(t *testing.T) {
 
 func TestUserFromReplyCopiesEveryField(t *testing.T) {
 	got := UserFromReply(contract.UserReply{
+		Lifecycle:          fullUser.Lifecycle,
 		StateRevision:      7,
 		AccountCreatedAt:   101,
 		UserID:             "42",
@@ -48,6 +51,7 @@ func TestUserFromReplyCopiesEveryField(t *testing.T) {
 
 func TestUserFromChangedCopiesEveryField(t *testing.T) {
 	got := UserFromChanged(data.UserChangedDTO{
+		Lifecycle:          fullUser.Lifecycle,
 		StateRevision:      7,
 		UserID:             42,
 		AccountCreatedAt:   101,

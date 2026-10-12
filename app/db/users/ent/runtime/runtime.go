@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
 	"ItsBagelBot/app/db/users/ent/user"
@@ -76,6 +77,24 @@ func init() {
 	delegationDescCreatedAt := delegationFields[7].Descriptor()
 	// delegation.DefaultCreatedAt holds the default value on creation for the created_at field.
 	delegation.DefaultCreatedAt = delegationDescCreatedAt.Default.(func() time.Time)
+	lifecycleerasureFields := schema.LifecycleErasure{}.Fields()
+	_ = lifecycleerasureFields
+	// lifecycleerasureDescDeletedAt is the schema descriptor for deleted_at field.
+	lifecycleerasureDescDeletedAt := lifecycleerasureFields[2].Descriptor()
+	// lifecycleerasure.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	lifecycleerasure.DefaultDeletedAt = lifecycleerasureDescDeletedAt.Default.(func() time.Time)
+	// lifecycleerasureDescNotificationsDone is the schema descriptor for notifications_done field.
+	lifecycleerasureDescNotificationsDone := lifecycleerasureFields[4].Descriptor()
+	// lifecycleerasure.DefaultNotificationsDone holds the default value on creation for the notifications_done field.
+	lifecycleerasure.DefaultNotificationsDone = lifecycleerasureDescNotificationsDone.Default.(bool)
+	// lifecycleerasureDescOutgressDone is the schema descriptor for outgress_done field.
+	lifecycleerasureDescOutgressDone := lifecycleerasureFields[5].Descriptor()
+	// lifecycleerasure.DefaultOutgressDone holds the default value on creation for the outgress_done field.
+	lifecycleerasure.DefaultOutgressDone = lifecycleerasureDescOutgressDone.Default.(bool)
+	// lifecycleerasureDescNextAttemptAt is the schema descriptor for next_attempt_at field.
+	lifecycleerasureDescNextAttemptAt := lifecycleerasureFields[6].Descriptor()
+	// lifecycleerasure.DefaultNextAttemptAt holds the default value on creation for the next_attempt_at field.
+	lifecycleerasure.DefaultNextAttemptAt = lifecycleerasureDescNextAttemptAt.Default.(func() time.Time)
 	premiumgrantFields := schema.PremiumGrant{}.Fields()
 	_ = premiumgrantFields
 	// premiumgrantDescGiveawayID is the schema descriptor for giveaway_id field.
@@ -172,62 +191,74 @@ func init() {
 	userDescIsActive := userFields[6].Descriptor()
 	// user.DefaultIsActive holds the default value on creation for the is_active field.
 	user.DefaultIsActive = userDescIsActive.Default.(bool)
+	// userDescLifecycleState is the schema descriptor for lifecycle_state field.
+	userDescLifecycleState := userFields[8].Descriptor()
+	// user.DefaultLifecycleState holds the default value on creation for the lifecycle_state field.
+	user.DefaultLifecycleState = userDescLifecycleState.Default.(string)
+	// userDescLifecycleProjectionPending is the schema descriptor for lifecycle_projection_pending field.
+	userDescLifecycleProjectionPending := userFields[9].Descriptor()
+	// user.DefaultLifecycleProjectionPending holds the default value on creation for the lifecycle_projection_pending field.
+	user.DefaultLifecycleProjectionPending = userDescLifecycleProjectionPending.Default.(bool)
+	// userDescLifecycleMigrationPending is the schema descriptor for lifecycle_migration_pending field.
+	userDescLifecycleMigrationPending := userFields[10].Descriptor()
+	// user.DefaultLifecycleMigrationPending holds the default value on creation for the lifecycle_migration_pending field.
+	user.DefaultLifecycleMigrationPending = userDescLifecycleMigrationPending.Default.(bool)
 	// userDescBanned is the schema descriptor for banned field.
-	userDescBanned := userFields[7].Descriptor()
+	userDescBanned := userFields[14].Descriptor()
 	// user.DefaultBanned holds the default value on creation for the banned field.
 	user.DefaultBanned = userDescBanned.Default.(bool)
 	// userDescLocale is the schema descriptor for locale field.
-	userDescLocale := userFields[9].Descriptor()
+	userDescLocale := userFields[16].Descriptor()
 	// user.DefaultLocale holds the default value on creation for the locale field.
 	user.DefaultLocale = userDescLocale.Default.(string)
 	// user.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
 	user.LocaleValidator = userDescLocale.Validators[0].(func(string) error)
 	// userDescCustomCursor is the schema descriptor for custom_cursor field.
-	userDescCustomCursor := userFields[10].Descriptor()
+	userDescCustomCursor := userFields[17].Descriptor()
 	// user.DefaultCustomCursor holds the default value on creation for the custom_cursor field.
 	user.DefaultCustomCursor = userDescCustomCursor.Default.(bool)
 	// userDescCommandsPageHidden is the schema descriptor for commands_page_hidden field.
-	userDescCommandsPageHidden := userFields[11].Descriptor()
+	userDescCommandsPageHidden := userFields[18].Descriptor()
 	// user.DefaultCommandsPageHidden holds the default value on creation for the commands_page_hidden field.
 	user.DefaultCommandsPageHidden = userDescCommandsPageHidden.Default.(bool)
 	// userDescLeaderboardPageHidden is the schema descriptor for leaderboard_page_hidden field.
-	userDescLeaderboardPageHidden := userFields[12].Descriptor()
+	userDescLeaderboardPageHidden := userFields[19].Descriptor()
 	// user.DefaultLeaderboardPageHidden holds the default value on creation for the leaderboard_page_hidden field.
 	user.DefaultLeaderboardPageHidden = userDescLeaderboardPageHidden.Default.(bool)
 	// userDescCreatorCode is the schema descriptor for creator_code field.
-	userDescCreatorCode := userFields[13].Descriptor()
+	userDescCreatorCode := userFields[20].Descriptor()
 	// user.CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	user.CreatorCodeValidator = userDescCreatorCode.Validators[0].(func(string) error)
 	// userDescSubscriptionSource is the schema descriptor for subscription_source field.
-	userDescSubscriptionSource := userFields[14].Descriptor()
+	userDescSubscriptionSource := userFields[21].Descriptor()
 	// user.DefaultSubscriptionSource holds the default value on creation for the subscription_source field.
 	user.DefaultSubscriptionSource = userDescSubscriptionSource.Default.(string)
 	// userDescSubscriptionCancelPending is the schema descriptor for subscription_cancel_pending field.
-	userDescSubscriptionCancelPending := userFields[17].Descriptor()
+	userDescSubscriptionCancelPending := userFields[24].Descriptor()
 	// user.DefaultSubscriptionCancelPending holds the default value on creation for the subscription_cancel_pending field.
 	user.DefaultSubscriptionCancelPending = userDescSubscriptionCancelPending.Default.(bool)
 	// userDescSubscriptionPaymentFailed is the schema descriptor for subscription_payment_failed field.
-	userDescSubscriptionPaymentFailed := userFields[18].Descriptor()
+	userDescSubscriptionPaymentFailed := userFields[25].Descriptor()
 	// user.DefaultSubscriptionPaymentFailed holds the default value on creation for the subscription_payment_failed field.
 	user.DefaultSubscriptionPaymentFailed = userDescSubscriptionPaymentFailed.Default.(bool)
 	// userDescGiftsSent is the schema descriptor for gifts_sent field.
-	userDescGiftsSent := userFields[21].Descriptor()
+	userDescGiftsSent := userFields[28].Descriptor()
 	// user.DefaultGiftsSent holds the default value on creation for the gifts_sent field.
 	user.DefaultGiftsSent = userDescGiftsSent.Default.(uint32)
 	// userDescOnboarded is the schema descriptor for onboarded field.
-	userDescOnboarded := userFields[22].Descriptor()
+	userDescOnboarded := userFields[29].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
 	// userDescTestAccount is the schema descriptor for test_account field.
-	userDescTestAccount := userFields[23].Descriptor()
+	userDescTestAccount := userFields[30].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[24].Descriptor()
+	userDescCreatedAt := userFields[31].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[25].Descriptor()
+	userDescUpdatedAt := userFields[32].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

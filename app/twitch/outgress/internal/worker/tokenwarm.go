@@ -37,6 +37,9 @@ func (w *Worker) SubscribeTokenWarm(nc *nats.Conn, prefix string) (*nats.Subscri
 }
 
 func (w *Worker) scheduleTokenWarm(broadcasterID string) {
+	if !w.backgroundAllowed(context.Background(), broadcasterID) {
+		return
+	}
 	select {
 	case w.tokenWarm <- struct{}{}:
 	default:
@@ -52,6 +55,9 @@ func (w *Worker) scheduleTokenWarm(broadcasterID string) {
 }
 
 func (w *Worker) warmBroadcasterToken(ctx context.Context, broadcasterID string) {
+	if !w.backgroundAllowed(ctx, broadcasterID) {
+		return
+	}
 	if err := w.takeSystemHelix(ctx); err != nil {
 		w.log.Warn("token-warm: no system budget, skipping",
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))

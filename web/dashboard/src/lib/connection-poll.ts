@@ -23,9 +23,10 @@ export function connectionPollSettled(
   sawUnsettled: boolean
 ): boolean {
   if (goal === 'disconnected') {
-    return state === 'unenrolled' || state === 'failing' || state === 'revoked';
+    return state === 'unenrolled' || state === 'failing' || state === 'revoked' || state === 'disabled';
   }
   return (
+    state !== 'recovering' &&
     state !== 'pending' &&
     state !== 'unenrolled' &&
     state !== 'unknown' &&

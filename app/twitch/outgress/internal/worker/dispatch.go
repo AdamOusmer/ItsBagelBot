@@ -28,6 +28,9 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
+	if allowed, err := w.admitPayload(ctx, &payload); err != nil || !allowed {
+		return err
+	}
 	if w.rejectTrialOutput(ctx, &payload) {
 		return nil
 	}
@@ -42,12 +45,23 @@ func (w *Worker) Process(msg *bus.Message) error {
 			noticeError(ctx, err)
 			return nil
 		}
+		for i := range batch.Items {
+			if batch.Items[i].AccountCreatedAt == 0 {
+				batch.Items[i].AccountCreatedAt = payload.AccountCreatedAt
+			}
+			if batch.Items[i].AdmissionGeneration == 0 {
+				batch.Items[i].AdmissionGeneration = payload.AdmissionGeneration
+			}
+		}
 		return w.processBatch(ctx, &batch, payload.BroadcasterID, msg.UUID)
 	}
 	return w.processPayload(ctx, &payload)
 }
 
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
+	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
+		return err
+	}
 	if w.rejectTrialOutput(ctx, payload) {
 		return nil
 	}
@@ -63,6 +77,7 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 			zap.String("method", payload.Method))
 		return nil
 	}
+	ctx = context.WithValue(ctx, admissionFenceKey{}, admissionFence{payload.AccountCreatedAt, payload.AdmissionGeneration})
 	return act.Run(ctx, payload)
 }
 

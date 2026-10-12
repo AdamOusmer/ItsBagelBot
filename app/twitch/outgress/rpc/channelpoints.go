@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/channelruntime"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
@@ -21,12 +22,16 @@ import (
 const rewardHandleTimeout = 6 * time.Second
 
 type channelPoints struct {
-	twitch *twitch.Client
-	log    *zap.Logger
+	runtime channelruntime.Reader
+	twitch  *twitch.Client
+	log     *zap.Logger
 }
 
-func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
+func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger, runtime ...channelruntime.Reader) error {
 	cp := &channelPoints{twitch: tw, log: log}
+	if len(runtime) > 0 {
+		cp.runtime = runtime[0]
+	}
 
 	verbs := []struct {
 		verb    string
@@ -47,6 +52,10 @@ func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup
 }
 
 func (cp *channelPoints) handleList(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
+	if !runtimeAdmitted(ctx, cp.runtime, req.BroadcasterID) {
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "channel unavailable")}
+	}
+	ctx = runtimeContext(ctx, cp.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" {
 		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
@@ -62,6 +71,10 @@ func (cp *channelPoints) handleList(ctx context.Context, req manage.RewardReques
 }
 
 func (cp *channelPoints) handleCreate(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
+	if !runtimeAdmitted(ctx, cp.runtime, req.BroadcasterID) {
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "channel unavailable")}
+	}
+	ctx = runtimeContext(ctx, cp.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" || req.Reward == nil {
 		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
@@ -74,6 +87,10 @@ func (cp *channelPoints) handleCreate(ctx context.Context, req manage.RewardRequ
 }
 
 func (cp *channelPoints) handleUpdate(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
+	if !runtimeAdmitted(ctx, cp.runtime, req.BroadcasterID) {
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "channel unavailable")}
+	}
+	ctx = runtimeContext(ctx, cp.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" || req.RewardID == "" || req.Reward == nil {
 		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
@@ -86,6 +103,10 @@ func (cp *channelPoints) handleUpdate(ctx context.Context, req manage.RewardRequ
 }
 
 func (cp *channelPoints) handleDelete(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
+	if !runtimeAdmitted(ctx, cp.runtime, req.BroadcasterID) {
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "channel unavailable")}
+	}
+	ctx = runtimeContext(ctx, cp.runtime, req.BroadcasterID)
 	if req.BroadcasterID == "" || req.RewardID == "" {
 		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}

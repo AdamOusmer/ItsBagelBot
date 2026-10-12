@@ -488,6 +488,7 @@ func (a *adminRPC) invalidate(id uint64) {
 
 func viewOf(u *ent.User) usersrpc.AdminUserView {
 	return usersrpc.AdminUserView{
+		Lifecycle:                 u.Lifecycle,
 		ID:                        u.ID,
 		Username:                  u.Username,
 		IsActive:                  u.IsActive,

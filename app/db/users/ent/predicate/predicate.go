@@ -15,6 +15,9 @@ type AdminUser func(*sql.Selector)
 // Delegation is the predicate function for delegation builders.
 type Delegation func(*sql.Selector)
 
+// LifecycleErasure is the predicate function for lifecycleerasure builders.
+type LifecycleErasure func(*sql.Selector)
+
 // PremiumGrant is the predicate function for premiumgrant builders.
 type PremiumGrant func(*sql.Selector)
 

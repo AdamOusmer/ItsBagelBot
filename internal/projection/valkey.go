@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/cache"
@@ -34,6 +35,7 @@ func NewStore(client valkey.Client) *Store {
 }
 
 type UserProjection struct {
+	Lifecycle        *lifecycle.State
 	StateRevision    int64
 	AccountCreatedAt int64
 	Status           string
@@ -65,7 +67,16 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	args := []string{utils.BoolField(u.IsActive), utils.BoolField(u.Banned), u.Status, utils.BoolField(u.CommandsPageHidden), u.Locale, strconv.FormatInt(max(1, int64(ttl/time.Second)), 10), strconv.FormatInt(u.AccountCreatedAt, 10), strconv.FormatInt(u.StateRevision, 10)}
+	runtime, err := codec.Marshal(u.Lifecycle)
+	if err != nil {
+		return err
+	}
+	args := []string{utils.BoolField(u.IsActive), utils.BoolField(u.Banned), u.Status, utils.BoolField(u.CommandsPageHidden), u.Locale, strconv.FormatInt(max(1, int64(ttl/time.Second)), 10), strconv.FormatInt(u.AccountCreatedAt, 10), strconv.FormatInt(u.StateRevision, 10), string(runtime)}
+	background := u.IsActive && !u.Banned
+	if u.Lifecycle != nil {
+		background = background && u.Lifecycle.AllowsBackground()
+	}
+	args = append(args, utils.BoolField(background))
 	return v.primary.Do(ctx, v.primary.B().Eval().Script(userAdmissionWrite).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Arg(args...).Build()).Error()
 }
 
@@ -78,8 +89,16 @@ local incoming=tonumber(ARGV[8])
 if incoming < revision then return 0 end
 if incoming > 0 then redis.call('HSET',KEYS[2],'state_revision',ARGV[8]) end
 local active=redis.call('HGET',KEYS[1],'active'); local banned=redis.call('HGET',KEYS[1],'banned')
-if active ~= ARGV[1] or banned ~= ARGV[2] then redis.call('HINCRBY',KEYS[2],'epoch',1) end
+local prior=redis.call('HGET',KEYS[1],'lifecycle')
+local changed=false
+if prior and prior ~= 'null' and ARGV[9] ~= 'null' then
+ local old=cjson.decode(prior); local new=cjson.decode(ARGV[9])
+ changed=old.admission_generation ~= new.admission_generation
+end
+if active ~= ARGV[1] or banned ~= ARGV[2] or changed then redis.call('HINCRBY',KEYS[2],'epoch',1) end
 redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'commands_page_hidden',ARGV[4])
+redis.call('HSET',KEYS[1],'account_created_at',ARGV[7],'lifecycle',ARGV[9])
+redis.call('HSET',KEYS[1],'runtime_background',ARGV[10])
 if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
 local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
 return 1`

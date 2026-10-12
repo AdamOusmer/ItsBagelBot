@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"go.uber.org/zap"
@@ -20,6 +21,37 @@ type grantRegistry interface {
 }
 
 func (w *Worker) callTwitch(ctx context.Context, id twitch.Identity, broadcasterID string, call twitch.HelixCall) (*http.Response, error) {
+	if w.runtime != nil && broadcasterID != "" {
+		fence, _ := ctx.Value(admissionFenceKey{}).(admissionFence)
+		payload := &outgress.Message{BroadcasterID: broadcasterID, AccountCreatedAt: fence.incarnation, AdmissionGeneration: fence.generation}
+		if _, present := ctx.Value(admissionFenceKey{}).(admissionFence); !present {
+			if err := w.stampCurrent(ctx, payload); err != nil {
+				return nil, err
+			}
+			ctx = context.WithValue(ctx, admissionFenceKey{}, admissionFence{payload.AccountCreatedAt, payload.AdmissionGeneration})
+		}
+		allowed, err := w.admitPayload(ctx, payload)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, errLifecycleStopped
+		}
+	}
+	if w.runtime != nil && broadcasterID != "" {
+		fence, _ := ctx.Value(admissionFenceKey{}).(admissionFence)
+		ctx = twitch.WithChannelAdmission(ctx, func(ctx context.Context) error {
+			p := &outgress.Message{BroadcasterID: broadcasterID, AccountCreatedAt: fence.incarnation, AdmissionGeneration: fence.generation}
+			allowed, err := w.admitPayload(ctx, p)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return errLifecycleStopped
+			}
+			return nil
+		})
+	}
 	res, err := w.twitch.ExecuteAs(ctx, id, broadcasterID, call)
 	w.noteGrantHealth(ctx, id, broadcasterID, err)
 	return res, err
@@ -72,6 +104,12 @@ func (w *Worker) setGrantState(ctx context.Context, broadcasterID string, state 
 		zap.String("from", string(current)),
 		zap.String("to", string(state)))
 
+	if w.lifecycleNC != nil {
+		if state == manage.GrantDead {
+			_ = w.observeGrant(ctx, broadcasterID, "grant_missing", "dead-grant")
+		}
+		return
+	}
 	w.notifyGrantDead(ctx, broadcasterID, state)
 }
 

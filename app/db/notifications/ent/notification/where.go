@@ -60,6 +60,16 @@ func TargetUserID(v uint64) predicate.Notification {
 	return predicate.Notification(sql.FieldEQ(FieldTargetUserID, v))
 }
 
+// Incarnation applies equality check predicate on the "incarnation" field. It's identical to IncarnationEQ.
+func Incarnation(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEQ(FieldIncarnation, v))
+}
+
+// IncidentID applies equality check predicate on the "incident_id" field. It's identical to IncidentIDEQ.
+func IncidentID(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEQ(FieldIncidentID, v))
+}
+
 // Title applies equality check predicate on the "title" field. It's identical to TitleEQ.
 func Title(v string) predicate.Notification {
 	return predicate.Notification(sql.FieldEQ(FieldTitle, v))
@@ -163,6 +173,156 @@ func TargetUserIDIsNil() predicate.Notification {
 // TargetUserIDNotNil applies the NotNil predicate on the "target_user_id" field.
 func TargetUserIDNotNil() predicate.Notification {
 	return predicate.Notification(sql.FieldNotNull(FieldTargetUserID))
+}
+
+// IncarnationEQ applies the EQ predicate on the "incarnation" field.
+func IncarnationEQ(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEQ(FieldIncarnation, v))
+}
+
+// IncarnationNEQ applies the NEQ predicate on the "incarnation" field.
+func IncarnationNEQ(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldNEQ(FieldIncarnation, v))
+}
+
+// IncarnationIn applies the In predicate on the "incarnation" field.
+func IncarnationIn(vs ...string) predicate.Notification {
+	return predicate.Notification(sql.FieldIn(FieldIncarnation, vs...))
+}
+
+// IncarnationNotIn applies the NotIn predicate on the "incarnation" field.
+func IncarnationNotIn(vs ...string) predicate.Notification {
+	return predicate.Notification(sql.FieldNotIn(FieldIncarnation, vs...))
+}
+
+// IncarnationGT applies the GT predicate on the "incarnation" field.
+func IncarnationGT(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldGT(FieldIncarnation, v))
+}
+
+// IncarnationGTE applies the GTE predicate on the "incarnation" field.
+func IncarnationGTE(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldGTE(FieldIncarnation, v))
+}
+
+// IncarnationLT applies the LT predicate on the "incarnation" field.
+func IncarnationLT(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldLT(FieldIncarnation, v))
+}
+
+// IncarnationLTE applies the LTE predicate on the "incarnation" field.
+func IncarnationLTE(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldLTE(FieldIncarnation, v))
+}
+
+// IncarnationContains applies the Contains predicate on the "incarnation" field.
+func IncarnationContains(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldContains(FieldIncarnation, v))
+}
+
+// IncarnationHasPrefix applies the HasPrefix predicate on the "incarnation" field.
+func IncarnationHasPrefix(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldHasPrefix(FieldIncarnation, v))
+}
+
+// IncarnationHasSuffix applies the HasSuffix predicate on the "incarnation" field.
+func IncarnationHasSuffix(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldHasSuffix(FieldIncarnation, v))
+}
+
+// IncarnationIsNil applies the IsNil predicate on the "incarnation" field.
+func IncarnationIsNil() predicate.Notification {
+	return predicate.Notification(sql.FieldIsNull(FieldIncarnation))
+}
+
+// IncarnationNotNil applies the NotNil predicate on the "incarnation" field.
+func IncarnationNotNil() predicate.Notification {
+	return predicate.Notification(sql.FieldNotNull(FieldIncarnation))
+}
+
+// IncarnationEqualFold applies the EqualFold predicate on the "incarnation" field.
+func IncarnationEqualFold(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEqualFold(FieldIncarnation, v))
+}
+
+// IncarnationContainsFold applies the ContainsFold predicate on the "incarnation" field.
+func IncarnationContainsFold(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldContainsFold(FieldIncarnation, v))
+}
+
+// IncidentIDEQ applies the EQ predicate on the "incident_id" field.
+func IncidentIDEQ(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEQ(FieldIncidentID, v))
+}
+
+// IncidentIDNEQ applies the NEQ predicate on the "incident_id" field.
+func IncidentIDNEQ(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldNEQ(FieldIncidentID, v))
+}
+
+// IncidentIDIn applies the In predicate on the "incident_id" field.
+func IncidentIDIn(vs ...string) predicate.Notification {
+	return predicate.Notification(sql.FieldIn(FieldIncidentID, vs...))
+}
+
+// IncidentIDNotIn applies the NotIn predicate on the "incident_id" field.
+func IncidentIDNotIn(vs ...string) predicate.Notification {
+	return predicate.Notification(sql.FieldNotIn(FieldIncidentID, vs...))
+}
+
+// IncidentIDGT applies the GT predicate on the "incident_id" field.
+func IncidentIDGT(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldGT(FieldIncidentID, v))
+}
+
+// IncidentIDGTE applies the GTE predicate on the "incident_id" field.
+func IncidentIDGTE(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldGTE(FieldIncidentID, v))
+}
+
+// IncidentIDLT applies the LT predicate on the "incident_id" field.
+func IncidentIDLT(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldLT(FieldIncidentID, v))
+}
+
+// IncidentIDLTE applies the LTE predicate on the "incident_id" field.
+func IncidentIDLTE(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldLTE(FieldIncidentID, v))
+}
+
+// IncidentIDContains applies the Contains predicate on the "incident_id" field.
+func IncidentIDContains(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldContains(FieldIncidentID, v))
+}
+
+// IncidentIDHasPrefix applies the HasPrefix predicate on the "incident_id" field.
+func IncidentIDHasPrefix(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldHasPrefix(FieldIncidentID, v))
+}
+
+// IncidentIDHasSuffix applies the HasSuffix predicate on the "incident_id" field.
+func IncidentIDHasSuffix(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldHasSuffix(FieldIncidentID, v))
+}
+
+// IncidentIDIsNil applies the IsNil predicate on the "incident_id" field.
+func IncidentIDIsNil() predicate.Notification {
+	return predicate.Notification(sql.FieldIsNull(FieldIncidentID))
+}
+
+// IncidentIDNotNil applies the NotNil predicate on the "incident_id" field.
+func IncidentIDNotNil() predicate.Notification {
+	return predicate.Notification(sql.FieldNotNull(FieldIncidentID))
+}
+
+// IncidentIDEqualFold applies the EqualFold predicate on the "incident_id" field.
+func IncidentIDEqualFold(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldEqualFold(FieldIncidentID, v))
+}
+
+// IncidentIDContainsFold applies the ContainsFold predicate on the "incident_id" field.
+func IncidentIDContainsFold(v string) predicate.Notification {
+	return predicate.Notification(sql.FieldContainsFold(FieldIncidentID, v))
 }
 
 // TitleEQ applies the EQ predicate on the "title" field.
