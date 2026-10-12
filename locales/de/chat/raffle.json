@@ -10,6 +10,7 @@
   "err.usage": "Verwendung: !raffle <open [minutes] [winners]|draw|cancel|status>. Zuschauer nehmen mit !join teil",
   "join.already": "@{raffle:user} du nimmst bereits an dieser Verlosung teil (Teilnehmerzahl: {raffle:count}).",
   "join.closed": "@{raffle:user} gerade läuft keine Verlosung.",
+  "join.queue_hint": "Warteschlange: !queue join",
   "joined": "@{raffle:user} du bist dabei! Bisherige Teilnehmerzahl: {raffle:count}. Viel Glück!",
   "last": "Letzte Verlosung – Gewinner: {raffle:targets}. Teilnahmen: {raffle:entrants}.",
   "last.confirmed": "Letzte Verlosung – Gewinner: {raffle:targets}. Teilnahmen: {raffle:entrants} ({raffle:confirmed}/{raffle:total} bestätigt).",

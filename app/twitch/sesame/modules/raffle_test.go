@@ -90,26 +90,52 @@ func raffleDeps(r engine.RaffleStore) engine.Deps {
 }
 
 func TestRaffleJoin(t *testing.T) {
+	openQueue := &fakeQueue{open: true}
 	cases := []struct {
 		name     string
+		text     string
 		config   string
 		raffle   fakeRaffle
+		queue    *fakeQueue
+		queueOn  bool
 		exact    string
 		contains []string
+		excludes []string
 		pool     []string
 	}{
-		{name: "joining an open raffle counts the entry", raffle: fakeRaffle{open: true}, contains: []string{"@alice", "1 entered"}, pool: []string{"alice"}},
+		{name: "joining an open raffle counts the entry", raffle: fakeRaffle{open: true}, contains: []string{"@alice", "1 entered"}, excludes: []string{"!queue join"}, pool: []string{"alice"}},
 		{name: "joining a closed raffle is refused", contains: []string{"no raffle"}},
 		{name: "joining twice keeps one entry", raffle: fakeRaffle{open: true, pool: []string{"bob", "alice"}}, contains: []string{"already"}, pool: []string{"bob", "alice"}},
 		{name: "the join template fills the count", config: `{"joinMessage":"welcome {user}! {count} in so far"}`, raffle: fakeRaffle{open: true},
 			exact: "welcome alice! 1 in so far", pool: []string{"alice"}},
+		{name: "the raffle subcommand joins too", text: "!raffle join", raffle: fakeRaffle{open: true}, contains: []string{"1 entered"}, pool: []string{"alice"}},
+		{name: "an open queue is pointed to", raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
+			contains: []string{"1 entered", "!queue join"}, pool: []string{"alice"}},
+		{name: "a repeat entry also points to the queue", raffle: fakeRaffle{open: true, pool: []string{"alice"}}, queue: openQueue, queueOn: true,
+			contains: []string{"already", "!queue join"}, pool: []string{"alice"}},
+		{name: "a closed queue is not pointed to", raffle: fakeRaffle{open: true}, queue: &fakeQueue{}, queueOn: true,
+			excludes: []string{"!queue join"}, pool: []string{"alice"}},
+		{name: "a disabled queue module is not pointed to", raffle: fakeRaffle{open: true}, queue: openQueue,
+			excludes: []string{"!queue join"}, pool: []string{"alice"}},
+		{name: "a custom join template gets no queue hint", config: `{"joinMessage":"in!"}`, raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
+			exact: "in!", pool: []string{"alice"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := tc.raffle
-			out := runChat(t, Raffle(raffleDeps(&r)), withConfig(chatCtx("42", "alice"), tc.config), "!join")
+			d := raffleDeps(&r)
+			if tc.queue != nil {
+				d.Queue = tc.queue
+			}
+			c := withConfig(chatCtx("42", "alice"), tc.config)
+			c.ModuleLookup = func(name string) bool { return tc.queueOn && name == queueModuleName }
+			text := tc.text
+			if text == "" {
+				text = "!join"
+			}
+			out := runChat(t, Raffle(d), c, text)
 			require.Len(t, out, 1)
-			assertText(t, out[0].Text, textWant{tc.exact, tc.contains, nil})
+			assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
 			assert.Equal(t, tc.pool, r.pool)
 		})
 	}

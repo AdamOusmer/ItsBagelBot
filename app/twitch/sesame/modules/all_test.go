@@ -170,9 +170,10 @@ func TestShippedModuleContract(t *testing.T) {
 	assert.Equal(t, want, shippedModules(mods))
 }
 
-func TestRaffleOwnsStandaloneJoinOverQueue(t *testing.T) {
+func TestRaffleClaimsStandaloneJoinBeforeQueue(t *testing.T) {
 	reg, _ := allRegistry(t)
 	bound, ok := reg.Command("join")
 	require.True(t, ok)
-	assert.Equal(t, raffleModuleName, bound.Owner.Name, "raffle must register before queue to own !join")
+	assert.Equal(t, raffleModuleName, bound.Owner.Name, "raffle must register before queue to claim !join while a raffle runs")
+	assert.NotNil(t, bound.Cmd.When, "raffle must yield !join to the queue when no raffle runs")
 }

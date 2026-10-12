@@ -456,6 +456,48 @@ func TestBakedCommandFollowsItsModuleGate(t *testing.T) {
 	}
 }
 
+func TestSharedTriggerGoesToTheFirstOwnerThatClaimsIt(t *testing.T) {
+	both := []projection.ModuleView{{Name: "raffle", IsEnabled: true}, {Name: "queue", IsEnabled: true}}
+	cases := []struct {
+		name       string
+		modules    []projection.ModuleView
+		running    bool
+		want       []string
+		wantChecks int
+	}{
+		{"a running raffle takes the join and sees the queue module", both, true, []string{"raffle+queue"}, 1},
+		{"no raffle hands the join to the queue", both, false, []string{"queue"}, 1},
+		{"a disabled raffle is never asked", []projection.ModuleView{{Name: "queue", IsEnabled: true}}, true, []string{"queue"}, 0},
+		{"a lone raffle still answers with no raffle running", []projection.ModuleView{{Name: "raffle", IsEnabled: true}}, false, []string{"raffle"}, 1},
+		{"neither module stays silent", nil, true, nil, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			checks := 0
+			raffle := module.NewModule("raffle", module.KindOptIn)
+			raffle.Command("join").Everyone().When(func(context.Context, *module.Context) bool {
+				checks++
+				return tc.running
+			}).Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+				text := "raffle"
+				if c.ModuleOn("queue") {
+					text += "+queue"
+				}
+				emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
+				return nil
+			})
+			pub := &fakePublisher{}
+			reader := fakeReader{modules: projection.ModuleMap(tc.modules)}
+			p := newPipelineWith(pub, reader, raffle.Build(), cmdEmit("queue", module.KindOptIn, "join", "queue"))
+
+			require.NoError(t, p.Process(chatMsg(t, "standard", "!join")))
+
+			assert.Equal(t, tc.want, pub.chatTexts(t))
+			assert.Equal(t, tc.wantChecks, checks)
+		})
+	}
+}
+
 func TestCommandBumpCounterOption(t *testing.T) {
 	cases := []struct {
 		name      string

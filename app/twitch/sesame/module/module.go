@@ -55,6 +55,8 @@ type RunFunc func(ctx context.Context, c *Context, args string, emit Emit) error
 
 type EventHandler func(ctx context.Context, c *Context, emit Emit) error
 
+type ClaimFunc func(ctx context.Context, c *Context) bool
+
 type Command struct {
 	Name          string
 	Aliases       []string
@@ -63,6 +65,7 @@ type Command struct {
 	LiveOnly      bool
 	AllowedUserID string
 	NumericSuffix bool
+	When          ClaimFunc
 	Run           RunFunc
 }
 
