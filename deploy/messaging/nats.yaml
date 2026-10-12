@@ -75,16 +75,16 @@ spec:
             - name: GOMAXPROCS
               value: "5"
             - name: GOGC
-              value: "400"
+              value: "150"
 
 
 
 
 
-            # Must stay above max_mem 3GB: streams reserve 1.5GiB, ~200MiB live (2026-10-10); the cap bounds GOGC=400 heap growth.
+            # Above max_mem 3GB plus the ~1.3GiB working set at the 99k msg/s ceiling, under the 5Gi limit with non-heap room; GOGC 150 keeps the ~2.5x-live heap target under it, so the limit is a safety net, not the steady state.
             # Integer bytes only: the Go runtime aborts on a value like "6.5GiB".
             - name: GOMEMLIMIT
-              value: "3584MiB"
+              value: "4608MiB"
             # Knobs for the patched image (deploy/messaging/nats-server); stock ignores them. EVICT_BATCH stays off: it trims below MaxBytes.
             - name: NATS_BENCH_TLS_COLLAPSE
               value: "1"
@@ -124,8 +124,8 @@ spec:
             - {name: pid, mountPath: /var/run/nats}
           resources:
             # Keep nats-server.conf max_mem under this limit: JetStream cannot see the container limit.
-            requests: {cpu: "1000m", memory: 2Gi}
-            limits: {cpu: "5", memory: 8Gi}
+            requests: {cpu: "1000m", memory: 3Gi}
+            limits: {cpu: "5", memory: 5Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}
