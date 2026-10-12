@@ -127,19 +127,27 @@ func (t *lifecycleTransition) removeBan() (bool, error) {
 }
 func (t *lifecycleTransition) applyRestriction() (bool, error) {
 	s, r := t.state, t.request
+	if r.Action == "timeout" {
+		return t.applyTimeout()
+	}
 	s.ChatRestriction = lifecycle.RestrictionBanned
 	s.TimeoutUntil = time.Time{}
-	reason := "bot_banned"
-	if r.Action == "timeout" {
-		if !r.TimeoutUntil.After(r.ObservedAt) {
-			return false, errors.New("timeout deadline must follow observation")
-		}
-		s.ChatRestriction = lifecycle.RestrictionTimeout
-		s.TimeoutUntil = r.TimeoutUntil
-		reason = "bot_timed_out"
-	}
-	t.incident(reason)
+	t.incident("bot_banned")
 	t.restrict()
+	t.bump()
+	return true, nil
+}
+
+// A timeout pauses admission without an owner notice or subscription teardown.
+func (t *lifecycleTransition) applyTimeout() (bool, error) {
+	s, r := t.state, t.request
+	if !r.TimeoutUntil.After(r.ObservedAt) {
+		return false, errors.New("timeout deadline must follow observation")
+	}
+	s.ChatRestriction = lifecycle.RestrictionTimeout
+	s.TimeoutUntil = r.TimeoutUntil
+	t.restrict()
+	s.NormalCleanupAt = time.Time{}
 	t.bump()
 	return true, nil
 }

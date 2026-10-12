@@ -369,7 +369,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if p.floorSuppressed(o) {
 			return
 		}
-		state.ordinal++
+		state.countOutput()
 		replayID := state.replayID()
 		if err := p.publishOutput(ctx, state, replayID, o); err != nil {
 			state.err = err
@@ -555,16 +555,44 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 		if !p.enabled(m, views, mctx) {
 			continue
 		}
-		handle := m.Events[eventType]
-		if handle == nil {
-			continue
-		}
-		if err := handle(ctx, mctx, emit); err != nil {
-			p.handlerFailed(ctx, mctx, m, err)
-		} else if eventType != chatType && strings.HasPrefix(eventType, "channel.") {
-			mctx.Engaged = true
-		}
+		p.runHandler(ctx, mctx, m, emit)
 	}
+}
+
+func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, m module.Module, emit module.Emit) {
+	handle := m.Events[mctx.Env.Type]
+	if handle == nil {
+		return
+	}
+	before := mctx.Emitted
+	if err := handle(ctx, mctx, emit); err != nil {
+		p.handlerFailed(ctx, mctx, m, err)
+		return
+	}
+	if engagedBy(mctx, m, before) {
+		mctx.Engaged = true
+	}
+}
+
+func engagedBy(mctx *module.Context, m module.Module, emittedBefore int) bool {
+	if !viewerEngagement(mctx.Env.Type) {
+		return false
+	}
+	return mctx.Emitted > emittedBefore || m.Kind == module.KindOptIn
+}
+
+func (s *emitState) countOutput() {
+	s.ordinal++
+	if s.mctx != nil {
+		s.mctx.Emitted++
+	}
+}
+
+func viewerEngagement(eventType string) bool {
+	if eventType == chatType || strings.HasPrefix(eventType, "channel.ad_break.") {
+		return false
+	}
+	return strings.HasPrefix(eventType, "channel.")
 }
 
 func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m module.Module, err error) {

@@ -36,6 +36,9 @@ func (w *Worker) seedLegacyBlocked(ctx context.Context, item usersrpc.LifecycleW
 }
 
 func legacyBlockedReason(ch manage.Channel) string {
+	if !ch.Enabled {
+		return ""
+	}
 	if ch.SubState == subStateBanned {
 		if strings.Contains(ch.SubError, "chat_user_banned") {
 			return "bot_banned"

@@ -35,6 +35,7 @@ type Context struct {
 	// Engaged means an admitted command or enabled feature handled real activity.
 	// Parsing an unknown command and background stream bookkeeping do not qualify.
 	Engaged bool
+	Emitted int
 
 	role    Role
 	roleSet bool
@@ -124,6 +125,7 @@ func (c *Context) Reset() {
 	c.Num = ""
 	c.Command = ""
 	c.Engaged = false
+	c.Emitted = 0
 	c.role = RoleEveryone
 	c.roleSet = false
 	c.emoteCodes = nil

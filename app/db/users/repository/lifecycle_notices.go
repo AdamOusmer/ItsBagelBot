@@ -23,16 +23,49 @@ func (t *lifecycleTransition) claimNotice() (bool, error) {
 	if !t.noticeClaimAllowed() {
 		return false, nil
 	}
+	t.expireUndeliveredNotices()
 	s.NoticeNextAttemptAt = t.now.Add(time.Minute)
+	if t.noticeWorkComplete() {
+		s.NoticeNextAttemptAt = time.Time{}
+	}
 	return true, nil
 }
 
-func (t *lifecycleTransition) acknowledgeRetraction() (bool, error) {
+func (t *lifecycleTransition) expireUndeliveredNotices() {
+	if t.noticeUndeliverable() {
+		t.state.IncidentAnnounced = true
+	}
+	if t.retractionUndeliverable() {
+		t.popRetraction()
+	}
+}
+
+func (t *lifecycleTransition) noticeUndeliverable() bool {
 	s := t.state
+	if s.IncidentID == "" || s.IncidentAnnounced {
+		return false
+	}
+	return lifecycleTimeDue(s.NoticeDeadline, t.now)
+}
+
+func (t *lifecycleTransition) retractionUndeliverable() bool {
+	return t.state.RetractionIncidentID != "" && lifecycleTimeDue(t.state.RetractionExpiresAt, t.now)
+}
+
+func (t *lifecycleTransition) acknowledgeRetraction() (bool, error) {
 	r := t.request
-	if r.IncidentID == "" || r.IncidentID != s.RetractionIncidentID {
+	if r.IncidentID == "" || r.IncidentID != t.state.RetractionIncidentID {
 		return false, nil
 	}
+	t.popRetraction()
+	if t.noticeWorkComplete() {
+		t.state.NoticeNextAttemptAt = time.Time{}
+	}
+	return true, nil
+}
+
+func (t *lifecycleTransition) popRetraction() {
+	s := t.state
 	s.RetractionIncidentID = ""
 	if len(s.Retractions) > 0 {
 		s.Retractions = append([]lifecycle.Retraction(nil), s.Retractions[1:]...)
@@ -45,10 +78,6 @@ func (t *lifecycleTransition) acknowledgeRetraction() (bool, error) {
 	if s.RetractionIncidentID != "" {
 		s.NoticeNextAttemptAt = t.now
 	}
-	if t.noticeWorkComplete() {
-		s.NoticeNextAttemptAt = time.Time{}
-	}
-	return true, nil
 }
 
 func (t *lifecycleTransition) noticeAcknowledgmentAllowed() bool {

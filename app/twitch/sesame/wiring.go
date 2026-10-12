@@ -189,27 +189,28 @@ func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 	go timers.StartReconciler(w.ctx)
 }
 
-func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
-	raffle := engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{
+func announcementConfig(w wireCtx, proj *projection.Client) engine.AnnouncementConfig {
+	return engine.AnnouncementConfig{
+		Runtime:                 newRuntime(w),
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
 		Pub:                     w.in.pub,
 		Proj:                    proj,
-	}, w.log)
-	go raffle.StartExpiryWatcher(w.ctx)
-	return raffle
+	}
+}
+
+func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, store T) T {
+	go store.StartExpiryWatcher(w.ctx)
+	return store
+}
+
+func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
+	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj)}, w.log))
 }
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
-	duel := engine.NewValkeyDuelStore(w.in.vc, engine.DuelConfig{
-		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
-		OutgressStandardSubject: w.cfg.OutgressStandardSubject,
-		Pub:                     w.in.pub,
-		Proj:                    proj,
-		Wallet:                  engine.NewLoyaltyWallet(loyalty),
-	}, w.log)
-	go duel.StartExpiryWatcher(w.ctx)
-	return duel
+	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: engine.NewLoyaltyWallet(loyalty)}
+	return watchExpiry(w, engine.NewValkeyDuelStore(w.in.vc, cfg, w.log))
 }
 
 type loyaltyDeps struct {

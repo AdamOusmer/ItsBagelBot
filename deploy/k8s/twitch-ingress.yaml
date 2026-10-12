@@ -140,6 +140,11 @@ spec:
                 secretKeyRef:
                   name: outgress-env
                   key: VALKEY_PASSWORD
+            - name: TWITCH_BOT_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: outgress-env
+                  key: TWITCH_BOT_USER_ID
             - name: POD_IP
               valueFrom:
                 fieldRef:

@@ -99,8 +99,14 @@ func TestLifecycleDormancyWakeAndBoundedRecovery(t *testing.T) {
 		now = now.Add(10 * time.Minute)
 	}
 	require.Equal(t, lifecycle.Degraded, s.RuntimeState)
-	require.True(t, s.NextAttemptAt.IsZero())
 	require.False(t, s.AllowsRuntime())
+	changed, err = transitionLifecycle(&s, usersrpc.LifecycleRequest{Action: "degraded_retry"}, now, false)
+	require.NoError(t, err)
+	require.False(t, changed, "degraded channels wait out the retry delay")
+	changed, err = transitionLifecycle(&s, usersrpc.LifecycleRequest{Action: "degraded_retry"}, s.NextAttemptAt, false)
+	require.NoError(t, err)
+	require.True(t, changed, "degraded channels retry automatically after a transient failure")
+	require.Equal(t, lifecycle.Recovering, s.RuntimeState)
 	require.Empty(t, s.IncidentID, "transport failures must not create incidents")
 }
 
@@ -235,7 +241,8 @@ func TestLifecycleLegacySeedIsBoundedAndSuppressed(t *testing.T) {
 	seeded, err := repo.Lifecycle(ctx, usersrpc.LifecycleRequest{Action: "seed_blocked", UserID: row.ID, AccountCreatedAt: row.CreatedAt.UnixMicro(), AdmissionGeneration: client.User.GetX(ctx, row.ID).Lifecycle.AdmissionGeneration, Reason: "bot_banned"})
 	require.NoError(t, err)
 	require.True(t, seeded.State.IncidentAnnounced)
-	require.False(t, seeded.State.DesiredEnabled)
+	require.True(t, seeded.State.DesiredEnabled, "legacy blocking cleared is_active without an owner decision")
+	require.Equal(t, lifecycle.Blocked, seeded.State.RuntimeState)
 	require.Equal(t, lifecycle.RestrictionBanned, seeded.State.ChatRestriction)
 	_, err = repo.Lifecycle(ctx, usersrpc.LifecycleRequest{Action: "seed_ack", UserID: row.ID, AccountCreatedAt: row.CreatedAt.UnixMicro()})
 	require.NoError(t, err)

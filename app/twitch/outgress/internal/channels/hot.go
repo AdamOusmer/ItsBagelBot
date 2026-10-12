@@ -10,6 +10,9 @@ import (
 const hotIndexKey = "outgress:channels:hot"
 const hotRetention = 7 * 24 * time.Hour
 const hotBatch = 500
+const hotRenewWindow = 24 * time.Hour
+const hotRenewInterval = time.Hour
+const hotRenewLockKey = "outgress:channels:hot:renew"
 
 var retainHot = valkey.NewLuaScript(`
 if redis.call('EXISTS',KEYS[1])==1 then
@@ -35,6 +38,53 @@ return #ids`)
 func (r *Registry) retainHot(ctx context.Context, id string) error {
 	return retainHot.Exec(ctx, r.client, []string{keyPrefix + id, hotIndexKey}, []string{id, strconv.FormatInt(int64(hotRetention/time.Second), 10), strconv.FormatInt(time.Now().Add(hotRetention).Unix(), 10)}).Error()
 }
+func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, string) bool) error {
+	claimed, err := r.claimRenewPass(ctx)
+	if err != nil || !claimed {
+		return err
+	}
+	due, err := r.renewalCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range due {
+		if err := r.renewIfKept(ctx, id, keep); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Registry) claimRenewPass(ctx context.Context) (bool, error) {
+	err := r.client.Do(ctx, r.client.B().Set().Key(hotRenewLockKey).Value("1").Nx().ExSeconds(int64(hotRenewInterval/time.Second)).Build()).Error()
+	if valkey.IsValkeyNil(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (r *Registry) renewalCandidates(ctx context.Context) ([]string, error) {
+	before := strconv.FormatInt(time.Now().Add(hotRenewWindow).Unix(), 10)
+	var due []string
+	for offset := int64(0); ; offset += hotBatch {
+		ids, err := r.client.Do(ctx, r.client.B().Zrangebyscore().Key(hotIndexKey).Min("-inf").Max(before).Limit(offset, hotBatch).Build()).AsStrSlice()
+		if err != nil {
+			return nil, err
+		}
+		due = append(due, ids...)
+		if len(ids) < hotBatch {
+			return due, nil
+		}
+	}
+}
+
+func (r *Registry) renewIfKept(ctx context.Context, id string, keep func(context.Context, string) bool) error {
+	if !keep(ctx, id) {
+		return nil
+	}
+	return r.retainHot(ctx, id)
+}
+
 func (r *Registry) PruneHot(ctx context.Context) error {
 	if err := migrateHot.Exec(ctx, r.client, []string{indexKey, hotIndexKey, "outgress:channels:migration-cursor"}, []string{strconv.Itoa(hotBatch), keyPrefix, strconv.FormatInt(int64(hotRetention/time.Second), 10), strconv.FormatInt(time.Now().Unix(), 10)}).Error(); err != nil {
 		return err

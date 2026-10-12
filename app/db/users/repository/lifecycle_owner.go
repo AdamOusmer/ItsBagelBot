@@ -35,6 +35,8 @@ func (t *lifecycleTransition) seedBlocked() (bool, error) {
 	default:
 		return false, errors.New("unverified migration reason")
 	}
+	// Legacy blocking cleared is_active; only an enabled registry entry is seeded here.
+	s.DesiredEnabled = true
 	t.incident(r.Reason)
 	s.IncidentAnnounced = true
 	s.NoticeNextAttemptAt = time.Time{}

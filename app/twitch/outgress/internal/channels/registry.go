@@ -622,7 +622,9 @@ func unixField(v string) time.Time {
 	return time.Unix(sec, 0)
 }
 
-func (r *Registry) listChannels(ctx context.Context, ids []string) ([]manage.Channel, error) {
+type channelIDs []string
+
+func (r *Registry) listChannels(ctx context.Context, ids channelIDs) ([]manage.Channel, error) {
 	gets := make([]valkey.Completed, 0, len(ids))
 	for _, id := range ids {
 		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())

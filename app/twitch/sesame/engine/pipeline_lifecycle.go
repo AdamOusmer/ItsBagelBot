@@ -4,6 +4,7 @@ package engine
 import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/channelruntime"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"go.uber.org/zap"
 	"time"
@@ -36,6 +37,9 @@ func (p *Pipeline) recordActivity(ctx context.Context, mctx *module.Context, emi
 
 func (s *emitState) outputCanWake() bool {
 	if !s.admission.Registered || s.env == nil {
+		return false
+	}
+	if s.admission.State.RuntimeState != lifecycle.Dormant {
 		return false
 	}
 	return !isStreamLifecycle(s.env.Type)
