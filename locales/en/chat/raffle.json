@@ -10,6 +10,7 @@
   "err.usage": "Usage: !raffle <open [minutes] [winners]|draw|cancel|status>. Viewers enter with !join",
   "join.already": "@{raffle:user} you are already in this raffle ({raffle:count} entered).",
   "join.closed": "@{raffle:user} no raffle is running right now.",
+  "join.queue_hint": "Queue: !queue join",
   "joined": "@{raffle:user} you're in! {raffle:count} entered so far. Good luck!",
   "last": "Last raffle: {raffle:targets} won from {raffle:entrants} entries.",
   "last.confirmed": "Last raffle: {raffle:targets} won from {raffle:entrants} entries ({raffle:confirmed}/{raffle:total} confirmed).",

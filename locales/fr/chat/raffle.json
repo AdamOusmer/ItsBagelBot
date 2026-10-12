@@ -10,6 +10,7 @@
   "err.usage": "Utilisation : !raffle <open [minutes] [gagnants]|draw|cancel|status> ; les spectateurs participent avec !join",
   "join.already": "@{raffle:user} tu participes déjà à cette loterie ({raffle:count} inscrits).",
   "join.closed": "@{raffle:user} aucune loterie en cours pour le moment.",
+  "join.queue_hint": "File d'attente : !queue join",
   "joined": "@{raffle:user} c'est bon, tu participes ! {raffle:count} inscrits pour l'instant. Bonne chance !",
   "last": "Dernière loterie : {raffle:targets} ont gagné parmi {raffle:entrants} participants.",
   "last.confirmed": "Dernière loterie : {raffle:targets} ont gagné parmi {raffle:entrants} participants ({raffle:confirmed}/{raffle:total} confirmés).",
