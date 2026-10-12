@@ -11,11 +11,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/channelruntime"
-	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/valkey-io/valkey-go"
@@ -188,12 +185,8 @@ type DuelStore interface {
 }
 
 type DuelConfig struct {
-	Runtime                 channelruntime.Reader
-	OutgressPremiumSubject  string
-	OutgressStandardSubject string
-	Pub                     bus.Publisher
-	Proj                    projection.Reader
-	Wallet                  DuelWallet
+	AnnouncementConfig
+	Wallet DuelWallet
 }
 
 type ValkeyDuelStore struct {

@@ -16,18 +16,29 @@ func (w *Worker) reconcileNotice(ctx context.Context, uid uint64, current usersr
 		return
 	}
 	w.retractNotice(ctx, uid, current)
-	if current.State.IncidentID == "" || current.State.IncidentAnnounced {
-		return
+	if noticePending(current.State) {
+		w.deliverNotice(ctx, uid, current)
 	}
+}
+
+func noticePending(s lifecycle.State) bool {
+	return s.IncidentID != "" && !s.IncidentAnnounced
+}
+
+func (w *Worker) deliverNotice(ctx context.Context, uid uint64, current usersrpc.LifecycleReply) {
 	req := noticeRequest(uid, current, "notice_claim")
-	claimed, err := w.lifecycleRequest(ctx, req)
-	if err != nil || !claimed.Applied || claimed.State.IncidentAnnounced {
+	if !w.noticeClaimed(ctx, req) {
 		return
 	}
 	if w.sendNotice(ctx, uid, current) {
 		req.Action = "notice_ack"
 		_, _ = w.lifecycleRequest(ctx, req)
 	}
+}
+
+func (w *Worker) noticeClaimed(ctx context.Context, req usersrpc.LifecycleRequest) bool {
+	claimed, err := w.lifecycleRequest(ctx, req)
+	return err == nil && claimed.Applied && !claimed.State.IncidentAnnounced
 }
 
 func noticeRequest(uid uint64, current usersrpc.LifecycleReply, action string) usersrpc.LifecycleRequest {

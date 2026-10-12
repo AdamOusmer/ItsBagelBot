@@ -37,27 +37,38 @@ func (r *Registry) retainHot(ctx context.Context, id string) error {
 	return retainHot.Exec(ctx, r.client, []string{keyPrefix + id, hotIndexKey}, []string{id, strconv.FormatInt(int64(hotRetention/time.Second), 10), strconv.FormatInt(time.Now().Add(hotRetention).Unix(), 10)}).Error()
 }
 func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, string) bool) error {
+	due, err := r.renewalCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range due {
+		if err := r.renewIfKept(ctx, id, keep); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Registry) renewalCandidates(ctx context.Context) ([]string, error) {
 	before := strconv.FormatInt(time.Now().Add(hotRenewWindow).Unix(), 10)
 	var due []string
 	for offset := int64(0); ; offset += hotBatch {
 		ids, err := r.client.Do(ctx, r.client.B().Zrangebyscore().Key(hotIndexKey).Min("-inf").Max(before).Limit(offset, hotBatch).Build()).AsStrSlice()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		due = append(due, ids...)
 		if len(ids) < hotBatch {
-			break
+			return due, nil
 		}
 	}
-	for _, id := range due {
-		if !keep(ctx, id) {
-			continue
-		}
-		if err := r.retainHot(ctx, id); err != nil {
-			return err
-		}
+}
+
+func (r *Registry) renewIfKept(ctx context.Context, id string, keep func(context.Context, string) bool) error {
+	if !keep(ctx, id) {
+		return nil
 	}
-	return nil
+	return r.retainHot(ctx, id)
 }
 
 func (r *Registry) PruneHot(ctx context.Context) error {

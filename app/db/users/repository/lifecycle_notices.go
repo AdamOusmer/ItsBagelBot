@@ -32,13 +32,24 @@ func (t *lifecycleTransition) claimNotice() (bool, error) {
 }
 
 func (t *lifecycleTransition) expireUndeliveredNotices() {
-	s := t.state
-	if s.IncidentID != "" && !s.IncidentAnnounced && lifecycleTimeDue(s.NoticeDeadline, t.now) {
-		s.IncidentAnnounced = true
+	if t.noticeUndeliverable() {
+		t.state.IncidentAnnounced = true
 	}
-	if s.RetractionIncidentID != "" && lifecycleTimeDue(s.RetractionExpiresAt, t.now) {
+	if t.retractionUndeliverable() {
 		t.popRetraction()
 	}
+}
+
+func (t *lifecycleTransition) noticeUndeliverable() bool {
+	s := t.state
+	if s.IncidentID == "" || s.IncidentAnnounced {
+		return false
+	}
+	return lifecycleTimeDue(s.NoticeDeadline, t.now)
+}
+
+func (t *lifecycleTransition) retractionUndeliverable() bool {
+	return t.state.RetractionIncidentID != "" && lifecycleTimeDue(t.state.RetractionExpiresAt, t.now)
 }
 
 func (t *lifecycleTransition) acknowledgeRetraction() (bool, error) {

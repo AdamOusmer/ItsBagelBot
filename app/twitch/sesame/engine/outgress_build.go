@@ -10,8 +10,18 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
+
+type AnnouncementConfig struct {
+	Runtime                 channelruntime.Reader
+	OutgressPremiumSubject  string
+	OutgressStandardSubject string
+	Pub                     bus.Publisher
+	Proj                    projection.Reader
+}
 
 type banData struct {
 	UserID   string `json:"user_id"`
