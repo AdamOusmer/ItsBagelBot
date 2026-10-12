@@ -160,3 +160,21 @@ func TestLeafServicesKeepPublishedClientPorts(t *testing.T) {
 		assert.Equal(t, want, strings.Count(manifest, entry), "%q must appear in nats-leaf + nats-leaf-local", entry)
 	}
 }
+
+var jetStreamTrigger = regexp.MustCompile(`(?m)^    - type: nats-jetstream\n((?:      .*\n)+)`)
+
+func TestScaledObjectsTargetTheBusAccountByID(t *testing.T) {
+	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
+	require.NoError(t, err)
+	index := slices.IndexFunc(compiled, func(claims *jwt.AccountClaims) bool { return claims.Name == "BUS" })
+	require.GreaterOrEqual(t, index, 0, "accounts.yaml has no BUS account")
+	want := "accountID: " + compiled[index].Subject
+
+	for _, path := range []string{"../k8s/outgress.yaml", "../k8s/sesame.yaml"} {
+		matches := jetStreamTrigger.FindAllStringSubmatch(readText(t, path), -1)
+		require.NotEmpty(t, matches, "%s declares no nats-jetstream trigger", path)
+		for _, m := range matches {
+			assert.Contains(t, m[1], want, "%s: a nats-jetstream trigger must carry the BUS public key, /jsz ignores the account name in operator mode", path)
+		}
+	}
+}
