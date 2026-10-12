@@ -27,6 +27,8 @@ type Context struct {
 	// only when a matched reply requires the broadcaster's language.
 	LocaleLookup func(context.Context, uint64) (string, error)
 
+	ModuleLookup func(name string) bool
+
 	Config codec.RawMessage
 
 	Num string
@@ -64,6 +66,10 @@ func (c *Context) EnsureLocale(ctx context.Context) {
 	if locale, err := c.LocaleLookup(ctx, c.BroadcasterID); err == nil {
 		c.Locale = locale
 	}
+}
+
+func (c *Context) ModuleOn(name string) bool {
+	return c.ModuleLookup != nil && c.ModuleLookup(name)
 }
 
 func (c *Context) Chatter() Role {
@@ -121,6 +127,7 @@ func (c *Context) Reset() {
 	c.Locale = ""
 	c.LocaleLoaded = false
 	c.LocaleLookup = nil
+	c.ModuleLookup = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""

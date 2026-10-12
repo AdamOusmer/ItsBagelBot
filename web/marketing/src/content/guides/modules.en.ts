@@ -157,7 +157,7 @@ const modules = [
     cat: 'Stats',
     start: 'Off by default',
     needs: 'Your Minecraft username, an MCSR Ranked account and a PaceMan account.',
-    commands: '!elo [player], !lastmatch, !record <a> <b>, !matchrecord, !lb, !leaderboard, !rankedlb, !session, !mcsrsession, !race, !weeklyrace, !pb, !personalbest daily, !pace, !nethers, !lastfort',
+    commands: '!elo [player], !lastmatch, !record <a> <b>, !matchrecord, !lb, !rankedlb, !mcsrlb, !session, !mcsrsession, !race, !weeklyrace, !pb, !personalbest daily, !pace, !nethers, !lastfort',
   },
   {
     name: 'Fortnite Stats',

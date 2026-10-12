@@ -116,7 +116,7 @@ var shippedContract = map[string]moduleSpec{
 	"mcsr": {module.KindOptIn, []commandSpec{
 		command("elo", roleEveryone, "mcsr", "ranked"), command("session", roleEveryone, "mcsrsession"),
 		command("lastmatch", roleEveryone, "rankedmatch"), command("record", roleEveryone, "matchrecord"),
-		command("lb", roleEveryone, "leaderboard", "rankedlb"), command("race", roleEveryone, "weeklyrace"),
+		command("lb", roleEveryone, "rankedlb", "mcsrlb"), command("race", roleEveryone, "weeklyrace"),
 		command("pb", roleEveryone, "personalbest"), command("pace", roleEveryone, "pacesession", "splits"),
 		command("nethers", roleEveryone, "nph"), command("lastfort", roleEveryone, "lastpace", "previousfort"),
 	}},
@@ -142,7 +142,7 @@ var shippedContract = map[string]moduleSpec{
 	}},
 	"quotes": {module.KindOptIn, []commandSpec{command("quote", roleEveryone, "quotes"), command("quoteadd", roleEveryone, "addquote")}},
 	"loyalty": {module.KindOptIn, []commandSpec{
-		command("points", roleEveryone), command("watchtime", roleEveryone), command("leaderboard", roleEveryone), command("counter", roleModerator),
+		command("points", roleEveryone), command("watchtime", roleEveryone), command("leaderboard", roleEveryone, "top"), command("counter", roleModerator),
 	}},
 	"gamble": {module.KindOptIn, []commandSpec{command("gamble", roleEveryone)}},
 	"duel":   {module.KindOptIn, []commandSpec{command("duel", roleEveryone)}},
@@ -170,9 +170,19 @@ func TestShippedModuleContract(t *testing.T) {
 	assert.Equal(t, want, shippedModules(mods))
 }
 
-func TestRaffleOwnsStandaloneJoinOverQueue(t *testing.T) {
+func TestRaffleClaimsStandaloneJoinBeforeQueue(t *testing.T) {
 	reg, _ := allRegistry(t)
 	bound, ok := reg.Command("join")
 	require.True(t, ok)
-	assert.Equal(t, raffleModuleName, bound.Owner.Name, "raffle must register before queue to own !join")
+	assert.Equal(t, raffleModuleName, bound.Owner.Name, "raffle must register before queue to claim !join while a raffle runs")
+	assert.NotNil(t, bound.Cmd.When, "raffle must yield !join to the queue when no raffle runs")
+}
+
+func TestLoyaltyAloneOwnsLeaderboard(t *testing.T) {
+	reg, _ := allRegistry(t)
+	for _, trigger := range []string{"leaderboard", "top"} {
+		owners := reg.Commands()[trigger]
+		require.Len(t, owners, 1, trigger)
+		assert.Equal(t, "loyalty", owners[0].Owner.Name, trigger)
+	}
 }
