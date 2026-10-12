@@ -91,7 +91,7 @@ func Loyalty(d engine.Deps) module.Module {
 	m.Command("points").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.pointsRun))
 	m.Command("watchtime").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.watchtimeShow))
 
-	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
+	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Aliases("top").Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
 
 	m.Command("counter").Mod().Run(loyaltyRun(d, log, loyaltyCmd.runCounter))
 

@@ -126,7 +126,7 @@
   "catalog.b1.props.modules.2.start": "Inactif par défaut",
   "catalog.b1.props.modules.2.tagline": "Viewers ask what time it is for you with !time.",
   "catalog.b1.props.modules.20.cat": "Stats",
-  "catalog.b1.props.modules.20.commands": "!elo [joueur], !lastmatch, !record <a> <b>, !matchrecord, !lb, !leaderboard, !rankedlb, !session, !mcsrsession, !race, !weeklyrace, !pb, !personalbest daily, !pace, !nethers, !lastfort",
+  "catalog.b1.props.modules.20.commands": "!elo [joueur], !lastmatch, !record <a> <b>, !matchrecord, !lb, !rankedlb, !mcsrlb, !session, !mcsrsession, !race, !weeklyrace, !pb, !personalbest daily, !pace, !nethers, !lastfort",
   "catalog.b1.props.modules.20.name": "MCSR Ranked",
   "catalog.b1.props.modules.20.needs": "Votre pseudo Minecraft, un compte MCSR Ranked et un compte PaceMan.",
   "catalog.b1.props.modules.20.start": "Inactif par défaut",
