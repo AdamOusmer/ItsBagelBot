@@ -15,9 +15,12 @@ func (w *Worker) reconcileNotice(ctx context.Context, uid uint64, current usersr
 	if w.reauth == nil || w.lifecycleNC == nil {
 		return
 	}
-	w.retractNotice(ctx, uid, current)
-	if noticePending(current.State) {
+	stuck := w.retractNotice(ctx, uid, current)
+	switch {
+	case noticePending(current.State):
 		w.deliverNotice(ctx, uid, current)
+	case stuck:
+		_, _ = w.lifecycleRequest(ctx, noticeRequest(uid, current, "notice_claim"))
 	}
 }
 
@@ -44,22 +47,20 @@ func (w *Worker) noticeClaimed(ctx context.Context, req usersrpc.LifecycleReques
 func noticeRequest(uid uint64, current usersrpc.LifecycleReply, action string) usersrpc.LifecycleRequest {
 	return usersrpc.LifecycleRequest{UserID: uid, AccountCreatedAt: current.AccountCreatedAt, AdmissionGeneration: current.State.AdmissionGeneration, Action: action, IncidentID: current.State.IncidentID}
 }
-func (w *Worker) retractNotice(ctx context.Context, uid uint64, current usersrpc.LifecycleReply) {
+func (w *Worker) retractNotice(ctx context.Context, uid uint64, current usersrpc.LifecycleReply) bool {
 	s := current.State
 	if s.RetractionIncidentID == "" {
-		return
+		return false
 	}
 	request := notificationsrpc.ConnectionRequest{AccountID: uid, AccountCreatedAt: current.AccountCreatedAt, IncidentID: s.RetractionIncidentID, DeliveryDeadline: s.RetractionDeadline, ExpiresAt: s.RetractionExpiresAt}
 	result, err := bus.RequestJSONTimeout[notificationsrpc.ConnectionReply](ctx, w.lifecycleNC, notificationsrpc.ConnectionSubject+".retract", request, 3*time.Second)
-	if err != nil {
-		return
-	}
-	if result.Outcome != "retracted" {
-		return
+	if err != nil || result.Outcome != "retracted" {
+		return true
 	}
 	req := noticeRequest(uid, current, "retraction_ack")
 	req.IncidentID = s.RetractionIncidentID
 	_, _ = w.lifecycleRequest(ctx, req)
+	return false
 }
 func (w *Worker) sendNotice(ctx context.Context, uid uint64, current usersrpc.LifecycleReply) bool {
 	locale, found := w.reauth.ResolveLocale(ctx, strconv.FormatUint(uid, 10))

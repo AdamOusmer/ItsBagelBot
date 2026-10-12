@@ -11,6 +11,8 @@ const hotIndexKey = "outgress:channels:hot"
 const hotRetention = 7 * 24 * time.Hour
 const hotBatch = 500
 const hotRenewWindow = 24 * time.Hour
+const hotRenewInterval = time.Hour
+const hotRenewLockKey = "outgress:channels:hot:renew"
 
 var retainHot = valkey.NewLuaScript(`
 if redis.call('EXISTS',KEYS[1])==1 then
@@ -37,6 +39,10 @@ func (r *Registry) retainHot(ctx context.Context, id string) error {
 	return retainHot.Exec(ctx, r.client, []string{keyPrefix + id, hotIndexKey}, []string{id, strconv.FormatInt(int64(hotRetention/time.Second), 10), strconv.FormatInt(time.Now().Add(hotRetention).Unix(), 10)}).Error()
 }
 func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, string) bool) error {
+	claimed, err := r.claimRenewPass(ctx)
+	if err != nil || !claimed {
+		return err
+	}
 	due, err := r.renewalCandidates(ctx)
 	if err != nil {
 		return err
@@ -47,6 +53,14 @@ func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, stri
 		}
 	}
 	return nil
+}
+
+func (r *Registry) claimRenewPass(ctx context.Context) (bool, error) {
+	err := r.client.Do(ctx, r.client.B().Set().Key(hotRenewLockKey).Value("1").Nx().ExSeconds(int64(hotRenewInterval/time.Second)).Build()).Error()
+	if valkey.IsValkeyNil(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (r *Registry) renewalCandidates(ctx context.Context) ([]string, error) {

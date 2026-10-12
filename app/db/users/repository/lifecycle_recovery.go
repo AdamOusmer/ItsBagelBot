@@ -100,6 +100,10 @@ func (t *lifecycleTransition) retryDegraded() (bool, error) {
 	if t.state.RuntimeState != lifecycle.Degraded || !lifecycleTimeDue(t.state.NextAttemptAt, t.now) {
 		return false, nil
 	}
+	if t.recoveryRetryBlocked() {
+		t.state.NextAttemptAt = t.now.Add(degradedRetryDelay)
+		return true, nil
+	}
 	return t.retryRecovery()
 }
 
