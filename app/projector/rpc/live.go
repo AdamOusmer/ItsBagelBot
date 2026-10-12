@@ -16,8 +16,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -29,12 +27,15 @@ type liveRPC struct {
 	log           *zap.Logger
 }
 
-func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger, runtime ...channelruntime.Reader) error {
-	l := &liveRPC{store: store, pub: pub, systemSubject: systemSubject, log: log}
-	if len(runtime) > 0 {
-		l.runtime = runtime[0]
-	}
-	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, l.handleGet)
+type LiveDependencies struct {
+	Store   *projection.Store
+	Pub     bus.Publisher
+	Runtime channelruntime.Reader
+}
+
+func SubscribeLive(w bus.RPCWiring, d LiveDependencies, subject, systemSubject string) error {
+	l := &liveRPC{store: d.Store, pub: d.Pub, systemSubject: systemSubject, log: w.Log, runtime: d.Runtime}
+	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](w.NC, subject, w.Queue, 1500*time.Millisecond, w.App, w.Log, l.handleGet)
 }
 
 func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) projectorrpc.LiveReply {
@@ -64,20 +65,9 @@ func (l *liveRPC) escalate(ctx context.Context, broadcasterID string) {
 	if l.pub == nil || l.systemSubject == "" {
 		return
 	}
-	var admission channelruntime.Snapshot
-	if l.runtime != nil {
-		id, err := strconv.ParseUint(broadcasterID, 10, 64)
-		if err != nil {
-			return
-		}
-		admission, err = l.runtime.Get(ctx, id)
-		if err != nil || !admission.AllowsRuntime() {
-			return
-		}
-		won, err := l.store.ClaimUnknownLive(ctx, id)
-		if err != nil || !won {
-			return
-		}
+	admission, allowed := l.claimEscalation(ctx, broadcasterID)
+	if !allowed {
+		return
 	}
 	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
@@ -92,4 +82,20 @@ func (l *liveRPC) escalate(ctx context.Context, broadcasterID string) {
 	}); err != nil {
 		l.log.Warn("live rpc: failed to escalate to outgress", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	}
+}
+
+func (l *liveRPC) claimEscalation(ctx context.Context, broadcasterID string) (channelruntime.Snapshot, bool) {
+	if l.runtime == nil {
+		return channelruntime.Snapshot{}, true
+	}
+	id, err := strconv.ParseUint(broadcasterID, 10, 64)
+	if err != nil {
+		return channelruntime.Snapshot{}, false
+	}
+	admission, err := l.runtime.Get(ctx, id)
+	if err != nil || !admission.AllowsRuntime() {
+		return admission, false
+	}
+	won, err := l.store.ClaimUnknownLive(ctx, id)
+	return admission, err == nil && won
 }

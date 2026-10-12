@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/notifications/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
 
@@ -50,16 +51,16 @@ func SubscribeUser(w Wiring, cfg UserConfig) error {
 }
 
 func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest) notificationsrpc.UserListReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
 
-	_, incarnation, createdAt, err := notificationAccount(ctx, u.nc, u.userGetSubject, req.UserID, "")
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
 	if err != nil {
 		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
-	rows, read, err := u.repo.ListForIncarnation(ctx, userID, incarnation, createdAt, repository.UserListLimit)
+	rows, read, err := u.repo.ListForIncarnation(ctx, recipient, repository.UserListLimit)
 	if err != nil {
 		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
@@ -78,7 +79,7 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 }
 
 func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
@@ -86,26 +87,26 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "notification_id must be numeric")}
 	}
-	_, incarnation, _, err := notificationAccount(ctx, u.nc, u.userGetSubject, req.UserID, "")
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
-	if err := u.repo.MarkReadForIncarnation(ctx, notifID, userID, incarnation, time.Now().Add(u.fullReadTTL)); err != nil {
+	if err := u.repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
 	return notificationsrpc.MarkReadReply{}
 }
 
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
-	_, incarnation, createdAt, err := notificationAccount(ctx, u.nc, u.userGetSubject, req.UserID, "")
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
-	peeked, err := u.repo.MarkPeekedForIncarnation(ctx, userID, incarnation, createdAt, time.Now().Add(u.peekTTL))
+	peeked, err := u.repo.MarkPeekedForIncarnation(ctx, recipient, time.Now().Add(u.peekTTL))
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}

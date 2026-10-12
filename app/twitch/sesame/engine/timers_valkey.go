@@ -313,20 +313,22 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 	if !at.def.Enabled || at.ref.id == "" {
 		return
 	}
-	var err error
-	if s.runtime != nil {
-		state, readErr := s.runtime.Get(ctx, at.ref.broadcasterID)
-		if readErr != nil || !state.AllowsBackground() {
-			return
-		}
-		generation := strconv.FormatInt(state.AccountCreatedAt, 10) + ":" + strconv.FormatInt(state.State.AdmissionGeneration, 10)
-		err = s.client.Do(ctx, s.client.B().Eval().Script(timerAdmissionArm).Numkeys(2).Key(at.ref.scheduleKey(), at.ref.admissionKey()).Arg(generation, strconv.FormatInt(int64(ex.Seconds()), 10)).Build()).Error()
-	} else {
-		err = s.client.Do(ctx, s.client.B().Set().Key(at.ref.scheduleKey()).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
-	}
+	err := s.armSchedule(ctx, at.ref, ex)
 	if err != nil && !valkey.IsValkeyNil(err) {
 		s.log.Warn("timers: failed to arm", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 	}
+}
+
+func (s *ValkeyTimerStore) armSchedule(ctx context.Context, ref timerRef, ex time.Duration) error {
+	if s.runtime == nil {
+		return s.client.Do(ctx, s.client.B().Set().Key(ref.scheduleKey()).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
+	}
+	state, err := s.runtime.Get(ctx, ref.broadcasterID)
+	if err != nil || !state.AllowsBackground() {
+		return nil
+	}
+	generation := runtimeFence(state)
+	return s.client.Do(ctx, s.client.B().Eval().Script(timerAdmissionArm).Numkeys(2).Key(ref.scheduleKey(), ref.admissionKey()).Arg(generation, strconv.FormatInt(int64(ex.Seconds()), 10)).Build()).Error()
 }
 
 func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) {
@@ -471,17 +473,9 @@ func parseTimerKey(key string) (timerRef, bool) {
 }
 
 func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (armedTimer, bool) {
-	var admission channelruntime.Snapshot
-	if s.runtime != nil {
-		var err error
-		admission, err = s.runtime.Get(ctx, ref.broadcasterID)
-		if err != nil || !admission.AllowsBackground() {
-			return armedTimer{}, false
-		}
-		generation, err := s.client.Do(ctx, s.client.B().Get().Key(ref.admissionKey()).Build()).ToString()
-		if err != nil || generation != strconv.FormatInt(admission.AccountCreatedAt, 10)+":"+strconv.FormatInt(admission.State.AdmissionGeneration, 10) {
-			return armedTimer{}, false
-		}
+	admission, allowed := s.timerAdmission(ctx, ref)
+	if !allowed {
+		return armedTimer{}, false
 	}
 	cfg, ok := s.config(ctx, ref.broadcasterID)
 	if !ok {
@@ -492,6 +486,22 @@ func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (arme
 		return armedTimer{}, false
 	}
 	return armedTimer{ref: ref, def: td, admission: admission}, true
+}
+
+func (s *ValkeyTimerStore) timerAdmission(ctx context.Context, ref timerRef) (channelruntime.Snapshot, bool) {
+	if s.runtime == nil {
+		return channelruntime.Snapshot{}, true
+	}
+	admission, err := s.runtime.Get(ctx, ref.broadcasterID)
+	if err != nil || !admission.AllowsBackground() {
+		return admission, false
+	}
+	generation, err := s.client.Do(ctx, s.client.B().Get().Key(ref.admissionKey()).Build()).ToString()
+	return admission, err == nil && generation == runtimeFence(admission)
+}
+
+func runtimeFence(state channelruntime.Snapshot) string {
+	return strconv.FormatInt(state.AccountCreatedAt, 10) + ":" + strconv.FormatInt(state.State.AdmissionGeneration, 10)
 }
 
 func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {

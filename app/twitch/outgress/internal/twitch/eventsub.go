@@ -33,7 +33,11 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
 	)
 
-	specs = append(specs[:4], append(ChannelControlSubscriptions(broadcasterID), specs[4:]...)...)
+	controls := []SubSpec{
+		{"channel.ban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		{"channel.unban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+	}
+	specs = append(specs[:4], append(controls, specs[4:]...)...)
 	if botID != "" {
 		specs = append(specs,
 			SubSpec{ChatMessageType, "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
@@ -45,11 +49,15 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 
 // Control subscriptions precede chat enrollment so a chat ban cannot prevent
 // enrollment of the signal that restores service.
-func ChannelControlSubscriptions(broadcasterID string) []SubSpec {
-	return []SubSpec{
-		{"channel.ban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		{"channel.unban", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+func ControlSubscriptions(specs []SubSpec) []SubSpec {
+	controls := make([]SubSpec, 0, 2)
+	for _, spec := range specs {
+		switch spec.Type {
+		case "channel.ban", "channel.unban":
+			controls = append(controls, spec)
+		}
 	}
+	return controls
 }
 
 const ChatMessageType = "channel.chat.message"

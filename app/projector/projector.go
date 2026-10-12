@@ -295,37 +295,45 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	if !st.Live {
 		return nil
 	}
-	if p.runtime != nil {
-		state, err := p.runtime.Get(msg.Context(), st.BroadcasterID)
-		if err != nil {
-			return err
-		}
-		if !state.AllowsRuntime() {
-			return p.store.DiscardStreamBaseline(msg.Context(), st.BroadcasterID, streamVersion)
-		}
-		state, err = p.runtime.Engage(msg.Context(), st.BroadcasterID, state, msg.UUID, time.Now())
-		if err != nil {
-			return err
-		}
-		if !state.AllowsRuntime() {
-			return p.store.DiscardStreamBaseline(msg.Context(), st.BroadcasterID, streamVersion)
-		}
+	allowed, err := p.engageStream(msg.Context(), st.BroadcasterID, msg.UUID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return p.store.DiscardStreamBaseline(msg.Context(), st.BroadcasterID, streamVersion)
 	}
 
+	return p.refreshStream(msg.Context(), st.BroadcasterID, streamVersion)
+}
+
+func (p *Projector) refreshStream(ctx context.Context, id uint64, streamVersion int64) error {
+	log := monitor.TxnLogger(ctx, p.log)
 	// Launch the independent settings fill before the synchronous loyalty reads.
 	// The durable live write and invalidation stay ahead of both operations.
-	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
-	p.hydrator.RefreshAsync(st.BroadcasterID)
+	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", id))
+	p.hydrator.RefreshAsync(id)
 
-	pending, err := p.store.StreamBaselinePending(msg.Context(), st.BroadcasterID, streamVersion)
+	pending, err := p.store.StreamBaselinePending(ctx, id, streamVersion)
 	if err != nil {
 		return err
 	}
 	if pending {
-		p.snapshotCounterBaseline(msg.Context(), st.BroadcasterID, streamVersion, log)
+		p.snapshotCounterBaseline(ctx, id, streamVersion, log)
 	}
-	p.warmBroadcasterToken(st.BroadcasterID)
+	p.warmBroadcasterToken(id)
 	return nil
+}
+
+func (p *Projector) engageStream(ctx context.Context, id uint64, eventID string) (bool, error) {
+	if p.runtime == nil {
+		return true, nil
+	}
+	state, err := p.runtime.Get(ctx, id)
+	if err != nil || !state.AllowsRuntime() {
+		return false, err
+	}
+	state, err = p.runtime.Engage(ctx, id, state, channelruntime.Activity{EventID: eventID, At: time.Now()})
+	return state.AllowsRuntime(), err
 }
 
 var baselineCounters = []projection.CounterName{data.CounterMessagesProcessed, data.CounterCommandsAnswered, data.CounterModActionsTaken}

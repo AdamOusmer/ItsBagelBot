@@ -14,8 +14,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -27,11 +25,9 @@ type channelPoints struct {
 	log     *zap.Logger
 }
 
-func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger, runtime ...channelruntime.Reader) error {
-	cp := &channelPoints{twitch: tw, log: log}
-	if len(runtime) > 0 {
-		cp.runtime = runtime[0]
-	}
+func SubscribeChannelPoints(cfg SubscriptionConfig, tw *twitch.Client) error {
+	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
+	cp := &channelPoints{twitch: tw, log: log, runtime: cfg.Runtime}
 
 	verbs := []struct {
 		verb    string

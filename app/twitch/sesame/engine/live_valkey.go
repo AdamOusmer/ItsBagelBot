@@ -87,30 +87,34 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 		}
 	}
 	return s.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
-		_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
-		if err == nil {
-			return true, nil
-		}
-		if !valkey.IsValkeyNil(err) {
-			return false, err
-		}
-
-		id := strconv.FormatUint(broadcasterID, 10)
-		reply, err := bus.RequestJSONTimeout[projectorrpc.LiveReply](
-			ctx, s.nc, s.cfg.ProjectorLiveSubject,
-			projectorrpc.LiveRequest{BroadcasterID: id},
-			s.rpcTimeout,
-		)
-		switch {
-		case err != nil:
-			return false, err
-		case reply.Live:
-			return s.setLiveKey(ctx, broadcasterID, cmp.Or(reply.Version, livekey.VersionNow()))
-		case reply.Known:
-			s.claimRecheck(ctx, recheckClaim{key: demandRecheckKeyPrefix + id, window: demandRecheckWindow, broadcasterID: id})
-		}
-		return false, nil
+		return s.loadLive(ctx, broadcasterID)
 	})
+}
+
+func (s *ValkeyLiveStore) loadLive(ctx context.Context, broadcasterID uint64) (bool, error) {
+	_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
+	if err == nil {
+		return true, nil
+	}
+	if !valkey.IsValkeyNil(err) {
+		return false, err
+	}
+
+	id := strconv.FormatUint(broadcasterID, 10)
+	reply, err := bus.RequestJSONTimeout[projectorrpc.LiveReply](
+		ctx, s.nc, s.cfg.ProjectorLiveSubject,
+		projectorrpc.LiveRequest{BroadcasterID: id},
+		s.rpcTimeout,
+	)
+	switch {
+	case err != nil:
+		return false, err
+	case reply.Live:
+		return s.setLiveKey(ctx, broadcasterID, cmp.Or(reply.Version, livekey.VersionNow()))
+	case reply.Known:
+		s.claimRecheck(ctx, recheckClaim{key: demandRecheckKeyPrefix + id, window: demandRecheckWindow, broadcasterID: id})
+	}
+	return false, nil
 }
 
 func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
@@ -230,20 +234,26 @@ func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 	if err != nil || broadcasterID == 0 {
 		return
 	}
-	if confirmation && s.liveKeyExists(ctx, broadcasterID) {
+	if confirmation && !s.confirmationAllowed(ctx, broadcasterID) {
 		return
 	}
-	if confirmation && s.cfg.Runtime != nil {
-		state, err := s.cfg.Runtime.Get(ctx, broadcasterID)
-		if err != nil || !state.AllowsRuntime() {
-			return
-		}
-		fence, err := s.client.Do(ctx, s.client.B().Get().Key(offlineConfirmKeyPrefix+"admission:"+id).Build()).ToString()
-		if err != nil || fence != strconv.FormatInt(state.AccountCreatedAt, 10)+":"+strconv.FormatInt(state.State.AdmissionGeneration, 10) {
-			return
-		}
-	}
 	s.claimRecheck(ctx, recheckClaim{key: recheckKeyPrefix + suffix, window: expiryRecheckWindow, broadcasterID: id})
+}
+
+func (s *ValkeyLiveStore) confirmationAllowed(ctx context.Context, broadcasterID uint64) bool {
+	if s.liveKeyExists(ctx, broadcasterID) {
+		return false
+	}
+	if s.cfg.Runtime == nil {
+		return true
+	}
+	state, err := s.cfg.Runtime.Get(ctx, broadcasterID)
+	if err != nil || !state.AllowsRuntime() {
+		return false
+	}
+	id := strconv.FormatUint(broadcasterID, 10)
+	fence, err := s.client.Do(ctx, s.client.B().Get().Key(offlineConfirmKeyPrefix+"admission:"+id).Build()).ToString()
+	return err == nil && fence == runtimeFence(state)
 }
 
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {

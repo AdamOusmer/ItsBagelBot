@@ -77,7 +77,7 @@ func TestOwnerHydrationInFlightCannotReturnPreBanAdmission(t *testing.T) {
 	banned.RuntimeState = lifecycle.Blocked
 	banned.ChatRestriction = lifecycle.RestrictionBanned
 	banned.AdmissionGeneration = 2
-	require.NoError(t, store.SetLifecycle(ctx, id, banned, 101, 2))
+	require.NoError(t, store.SetLifecycle(ctx, id, projection.LifecycleProjection{State: banned, AccountCreatedAt: 101, StateRevision: 2}))
 	close(release)
 	select {
 	case got := <-done:
@@ -125,28 +125,13 @@ func TestEngageRetriesRacedDormancyOnlyOnce(t *testing.T) {
 				}
 				n++
 				calls <- req
-				next := old
-				next.RuntimeState = terminal
-				next.AdmissionGeneration = 2
-				applied := false
-				if terminal == lifecycle.Blocked {
-					next.ChatRestriction = lifecycle.RestrictionBanned
-				}
-				if terminal == lifecycle.Disabled {
-					next.DesiredEnabled = false
-				}
-				if n == 2 {
-					next.RuntimeState = lifecycle.Active
-					next.AdmissionGeneration = 3
-					applied = true
-				}
-				body, _ := codec.Marshal(usersrpc.LifecycleReply{State: next, AccountCreatedAt: 101, StateRevision: int64(n + 1), Applied: applied})
+				body, _ := codec.Marshal(racedEngagementReply(old, terminal, n))
 				_ = msg.Respond(body)
 			})
 			require.NoError(t, err)
 			require.NoError(t, nc.Flush())
 			client := NewClient(store, nc, "")
-			got, err := client.Engage(ctx, id, Snapshot{Registered: true, AccountCreatedAt: 101, State: old}, "viewer", time.Now())
+			got, err := client.Engage(ctx, id, Snapshot{Registered: true, AccountCreatedAt: 101, State: old}, Activity{EventID: "viewer", At: time.Now()})
 			require.NoError(t, err)
 			require.Equal(t, int64(1), (<-calls).AdmissionGeneration)
 			if terminal == lifecycle.Dormant {
@@ -158,4 +143,21 @@ func TestEngageRetriesRacedDormancyOnlyOnce(t *testing.T) {
 			require.Empty(t, calls, "ban or disable must never generate a wake retry; dormancy is bounded to one retry")
 		})
 	}
+}
+
+func racedEngagementReply(old lifecycle.State, terminal string, attempt int) usersrpc.LifecycleReply {
+	next := old
+	next.RuntimeState = terminal
+	next.AdmissionGeneration = 2
+	if terminal == lifecycle.Blocked {
+		next.ChatRestriction = lifecycle.RestrictionBanned
+	}
+	if terminal == lifecycle.Disabled {
+		next.DesiredEnabled = false
+	}
+	if attempt == 2 {
+		next.RuntimeState = lifecycle.Active
+		next.AdmissionGeneration = 3
+	}
+	return usersrpc.LifecycleReply{State: next, AccountCreatedAt: 101, StateRevision: int64(attempt + 1), Applied: attempt == 2}
 }

@@ -75,11 +75,11 @@ func (v *ModVerifier) Status(ch manage.Channel, found bool, broadcasterID, sende
 	return found && ch.IsMod
 }
 
+type moderatorCheck struct{ broadcasterID, botID string }
+
 func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
-	if v != nil && v.Admit != nil && !v.Admit(context.Background(), broadcasterID) {
-		return
-	}
-	if v == nil || broadcasterID == "" || !v.twitch.HasUserToken() {
+	check := moderatorCheck{broadcasterID: broadcasterID}
+	if !v.canSchedule(check) {
 		return
 	}
 	botID := v.botID
@@ -90,27 +90,12 @@ func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
 		return
 	}
 
-	now := time.Now()
-	v.mu.Lock()
-	if v.closed {
-		v.mu.Unlock()
+	if !v.reserveCheck(check) {
 		return
 	}
-	if _, ok := v.pending[broadcasterID]; ok || now.Before(v.backoff[broadcasterID]) {
-		v.mu.Unlock()
-		return
-	}
-	select {
-	case v.slots <- struct{}{}:
-		v.pending[broadcasterID] = struct{}{}
-	default:
-		v.mu.Unlock()
-		return
-	}
-	v.wg.Add(1)
-	v.mu.Unlock()
 
-	go v.verify(broadcasterID, botID)
+	check.botID = botID
+	go v.verify(check)
 }
 
 func (v *ModVerifier) Close() {
@@ -120,39 +105,20 @@ func (v *ModVerifier) Close() {
 	v.wg.Wait()
 }
 
-func (v *ModVerifier) verify(broadcasterID, botID string) {
+func (v *ModVerifier) verify(check moderatorCheck) {
 	failed := false
-	defer func() {
-		defer v.wg.Done()
-		<-v.slots
-		v.mu.Lock()
-		delete(v.pending, broadcasterID)
-		now := time.Now()
-		if failed {
-			v.backoff[broadcasterID] = now.Add(modCheckErrorBackoff)
-		} else {
-			delete(v.backoff, broadcasterID)
-		}
-		if len(v.backoff) > backoffPruneAbove {
-			for id, until := range v.backoff {
-				if now.After(until) {
-					delete(v.backoff, id)
-				}
-			}
-		}
-		v.mu.Unlock()
-	}()
+	defer func() { v.finishCheck(check, failed) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), modCheckTimeout)
 	defer cancel()
 
-	if v.Admit != nil && !v.Admit(ctx, broadcasterID) {
+	if !v.admitted(ctx, check) {
 		return
 	}
-	got, err := v.registry.AcquireModCheckLock(ctx, broadcasterID, v.owner, modCheckErrorBackoff)
+	got, err := v.registry.AcquireModCheckLock(ctx, check.broadcasterID, v.owner, modCheckErrorBackoff)
 	if err != nil {
 		failed = true
-		v.log.Warn("mod status lock failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		v.log.Warn("mod status lock failed", zap.String("broadcaster_id", check.broadcasterID), zap.Error(err))
 		return
 	}
 	if !got {
@@ -160,27 +126,95 @@ func (v *ModVerifier) verify(broadcasterID, botID string) {
 		return
 	}
 
-	if v.Admit != nil && !v.Admit(ctx, broadcasterID) {
+	if !v.admitted(ctx, check) {
 		return
 	}
-	isMod, err := v.twitch.IsModerator(ctx, botID, broadcasterID)
+	isMod, err := v.twitch.IsModerator(ctx, check.botID, check.broadcasterID)
 	if err != nil {
 		failed = true
 		v.log.Warn("mod status verification failed; preserving last known state",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+			zap.String("broadcaster_id", check.broadcasterID), zap.Error(err))
 		return
 	}
-	if err := v.registry.SetMod(ctx, broadcasterID, isMod); err != nil {
+	if err := v.registry.SetMod(ctx, check.broadcasterID, isMod); err != nil {
 		failed = true
-		v.log.Warn("failed to persist mod status", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		v.log.Warn("failed to persist mod status", zap.String("broadcaster_id", check.broadcasterID), zap.Error(err))
 		return
 	}
 
 	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer releaseCancel()
-	if err := v.registry.ReleaseModCheckLock(releaseCtx, broadcasterID, v.owner); err != nil {
-		v.log.Warn("failed to release mod status lock", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	if err := v.registry.ReleaseModCheckLock(releaseCtx, check.broadcasterID, v.owner); err != nil {
+		v.log.Warn("failed to release mod status lock", zap.String("broadcaster_id", check.broadcasterID), zap.Error(err))
 	}
 	v.log.Debug("mod status refreshed",
-		zap.String("broadcaster_id", broadcasterID), zap.Bool("is_mod", isMod))
+		zap.String("broadcaster_id", check.broadcasterID), zap.Bool("is_mod", isMod))
+}
+
+func (v *ModVerifier) canSchedule(check moderatorCheck) bool {
+	if v == nil {
+		return false
+	}
+	if !v.admitted(context.Background(), check) {
+		return false
+	}
+	if check.broadcasterID == "" {
+		return false
+	}
+	return v.twitch.HasUserToken()
+}
+func (v *ModVerifier) admitted(ctx context.Context, check moderatorCheck) bool {
+	if v.Admit == nil {
+		return true
+	}
+	return v.Admit(ctx, check.broadcasterID)
+}
+func (v *ModVerifier) reserveCheck(check moderatorCheck) bool {
+	now := time.Now()
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.closed {
+		return false
+	}
+	if _, ok := v.pending[check.broadcasterID]; ok {
+		return false
+	}
+	if now.Before(v.backoff[check.broadcasterID]) {
+		return false
+	}
+	select {
+	case v.slots <- struct{}{}:
+		v.pending[check.broadcasterID] = struct{}{}
+	default:
+		return false
+	}
+	v.wg.Add(1)
+	return true
+}
+
+func (v *ModVerifier) finishCheck(check moderatorCheck, failed bool) {
+	defer v.wg.Done()
+	<-v.slots
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	delete(v.pending, check.broadcasterID)
+	now := time.Now()
+	if failed {
+		v.backoff[check.broadcasterID] = now.Add(modCheckErrorBackoff)
+	} else {
+		delete(v.backoff, check.broadcasterID)
+	}
+	v.pruneBackoff(now)
+}
+
+// Called while the verifier mutex is held.
+func (v *ModVerifier) pruneBackoff(now time.Time) {
+	if len(v.backoff) <= backoffPruneAbove {
+		return
+	}
+	for id, until := range v.backoff {
+		if now.After(until) {
+			delete(v.backoff, id)
+		}
+	}
 }

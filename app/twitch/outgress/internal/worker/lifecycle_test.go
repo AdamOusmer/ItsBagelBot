@@ -6,8 +6,8 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"context"
-	"encoding/json"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
@@ -55,7 +55,7 @@ func TestLifecycleSuppressesInactiveBackground(t *testing.T) {
 }
 func TestModerationOtherViewersCauseNoWork(t *testing.T) {
 	w := &Worker{botID: "bot"}
-	body, err := json.Marshal(botModeration{Type: "channel.ban", BroadcasterID: "42", UserID: "viewer"})
+	body, err := codec.Marshal(botModeration{Type: "channel.ban", BroadcasterID: "42", UserID: "viewer"})
 	require.NoError(t, err)
 	require.NoError(t, w.HandleBotModeration(&bus.Message{Payload: body}))
 }

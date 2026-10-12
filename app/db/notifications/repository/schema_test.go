@@ -23,29 +23,8 @@ func TestReadIncarnationMigrationUpgradesOnlyObsoleteIndex(t *testing.T) {
 	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.SQLite, db)))
 	t.Cleanup(func() { client.Close() })
 	// Start with the pre-incarnation read table, including its exact old unique index.
-	legacy := func(next entschema.Creator) entschema.Creator {
-		return entschema.CreateFunc(func(ctx context.Context, tables ...*entschema.Table) error {
-			migrated := make([]*entschema.Table, len(tables))
-			for i, table := range tables {
-				migrated[i] = table
-				if table.Name != "notification_reads" {
-					continue
-				}
-				clone := *table
-				clone.Columns = nil
-				for _, column := range table.Columns {
-					if column.Name != "incarnation" {
-						clone.Columns = append(clone.Columns, column)
-					}
-				}
-				clone.Indexes = nil
-				clone.AddIndex("notificationread_user_id_notification_reads", true, []string{"user_id", "notification_reads"})
-				migrated[i] = &clone
-			}
-			return next.Create(ctx, migrated...)
-		})
-	}
-	require.NoError(t, client.Schema.Create(ctx, entschema.WithHooks(legacy)))
+
+	require.NoError(t, client.Schema.Create(ctx, entschema.WithHooks(legacyReadSchema)))
 	parent := client.Notification.Create().SetScope(notification.ScopeBroadcast).SetTitle("announcement").SetBody("body").SetCreatedBy(1).SetCreatedByLogin("admin").SaveX(ctx)
 	_, err = db.ExecContext(ctx, "INSERT INTO notification_reads (user_id,read_at,notification_reads) VALUES (?,?,?)", alice, time.Now().Add(-time.Hour), parent.ID)
 	require.NoError(t, err)
@@ -60,7 +39,32 @@ func TestReadIncarnationMigrationUpgradesOnlyObsoleteIndex(t *testing.T) {
 	require.NoError(t, db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_index_list('notification_reads') WHERE name='keep_read_history_index'").Scan(&count))
 	require.Equal(t, 1, count)
 	repo := repository.New(client)
-	require.NoError(t, repo.MarkReadForIncarnation(ctx, parent.ID, alice, "123", time.Now().Add(time.Hour)))
-	require.NoError(t, repo.MarkReadForIncarnation(ctx, parent.ID, alice, "456", time.Now().Add(time.Hour)))
+	require.NoError(t, repo.MarkReadForIncarnation(ctx, parent.ID, repository.Recipient{UserID: alice, Incarnation: "123"}, time.Now().Add(time.Hour)))
+	require.NoError(t, repo.MarkReadForIncarnation(ctx, parent.ID, repository.Recipient{UserID: alice, Incarnation: "456"}, time.Now().Add(time.Hour)))
 	require.Equal(t, 3, client.NotificationRead.Query().Where(notificationread.UserIDEQ(alice)).CountX(ctx), "legacy and replacement acknowledgments coexist without rebinding another incarnation")
+}
+
+func legacyReadSchema(next entschema.Creator) entschema.Creator {
+	return entschema.CreateFunc(func(ctx context.Context, tables ...*entschema.Table) error {
+		migrated := make([]*entschema.Table, len(tables))
+		for i, table := range tables {
+			migrated[i] = legacyReadTable(table)
+		}
+		return next.Create(ctx, migrated...)
+	})
+}
+func legacyReadTable(table *entschema.Table) *entschema.Table {
+	if table.Name != "notification_reads" {
+		return table
+	}
+	clone := *table
+	clone.Columns = nil
+	for _, column := range table.Columns {
+		if column.Name != "incarnation" {
+			clone.Columns = append(clone.Columns, column)
+		}
+	}
+	clone.Indexes = nil
+	clone.AddIndex("notificationread_user_id_notification_reads", true, []string{"user_id", "notification_reads"})
+	return &clone
 }

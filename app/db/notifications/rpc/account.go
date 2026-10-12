@@ -1,22 +1,25 @@
 package rpc
 
 import (
+	"ItsBagelBot/app/db/notifications/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	"context"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"strconv"
-	"time"
 )
 
-func notificationAccount(ctx context.Context, nc *nats.Conn, subject, userID, username string) (uint64, string, time.Time, error) {
-	reply, err := bus.RequestJSONTimeout[usersrpc.AdminReply](ctx, nc, subject, usersrpc.AdminRequest{UserID: userID, Username: username}, readBudget)
+func notificationAccount(ctx context.Context, nc *nats.Conn, subject string, req usersrpc.AdminRequest) (repository.Recipient, error) {
+	reply, err := bus.RequestJSONTimeout[usersrpc.AdminReply](ctx, nc, subject, req, readBudget)
 	if err != nil {
-		return 0, "", time.Time{}, err
+		return repository.Recipient{}, err
 	}
-	if reply.User == nil || reply.User.CreatedAt.IsZero() {
-		return 0, "", time.Time{}, fmt.Errorf("notification recipient incarnation unavailable")
+	if reply.User == nil {
+		return repository.Recipient{}, fmt.Errorf("notification recipient unavailable")
 	}
-	return reply.User.ID, strconv.FormatInt(reply.User.CreatedAt.UnixMicro(), 10), reply.User.CreatedAt, nil
+	if reply.User.CreatedAt.IsZero() {
+		return repository.Recipient{}, fmt.Errorf("notification recipient incarnation unavailable")
+	}
+	return repository.Recipient{UserID: reply.User.ID, Incarnation: strconv.FormatInt(reply.User.CreatedAt.UnixMicro(), 10), CreatedAt: reply.User.CreatedAt}, nil
 }

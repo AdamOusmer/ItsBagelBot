@@ -19,19 +19,11 @@ func (w *Worker) botOwnedSubscription(sub twitch.EventSubEntry) bool {
 		return false
 	case twitch.ChatMessageType:
 		return sub.Condition.UserID == w.botID
-	default:
-		for _, spec := range twitch.ChannelSubscriptions(sub.Condition.BroadcasterUserID, w.botID) {
-			if spec.Type == sub.Type {
-				return true
-			}
-		}
-		for _, spec := range twitch.ChannelOptionalSubscriptions(sub.Condition.BroadcasterUserID) {
-			if spec.Type == sub.Type {
-				return true
-			}
-		}
-		return false
 	}
+	if subscriptionSpecContains(twitch.ChannelSubscriptions(sub.Condition.BroadcasterUserID, w.botID), sub.Type) {
+		return true
+	}
+	return subscriptionSpecContains(twitch.ChannelOptionalSubscriptions(sub.Condition.BroadcasterUserID), sub.Type)
 }
 func (w *Worker) enrollmentIdentityMatches(ctx context.Context, e enrollment) bool {
 	if w.runtime == nil {
@@ -79,24 +71,9 @@ func (w *Worker) createControlListeners(ctx context.Context, e enrollment) error
 	if !w.recoveryListenersAllowed(ctx, e) {
 		return errLifecycleStopped
 	}
-	for _, spec := range twitch.ChannelControlSubscriptions(e.broadcasterID) {
-		if !w.recoveryListenersAllowed(ctx, e) {
-			return errLifecycleStopped
-		}
-		if err := w.takeSystemHelix(ctx); err != nil {
-			w.persistControlHealth(ctx, e, false, "listener_transient")
-			return err
-		}
-		if err := w.twitch.CreateEventSub(ctx, spec, e.conduitID); err != nil {
-			reason := "listener_transient"
-			if isPermanent(err) {
-				reason = "listener_permission"
-			}
-			w.persistControlHealth(ctx, e, false, reason)
-			if isPermanent(err) {
-				return nil
-			}
-			return err
+	for _, spec := range twitch.ControlSubscriptions(twitch.ChannelSubscriptions(e.broadcasterID, w.botID)) {
+		if err := w.createControlListener(ctx, e, spec); err != nil {
+			return w.recordControlFailure(ctx, e, err)
 		}
 	}
 	return nil
@@ -134,41 +111,71 @@ func (w *Worker) reconcileRecoveryListeners(ctx context.Context, uid uint64, cur
 			return err
 		}
 		w.recordChatOwnership(ctx, e)
-		if w.lifecycleNC != nil {
-			observed, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
-			if err != nil {
-				return err
-			}
-			if !observed.State.ControlListenersHealthy && !observed.State.ControlRepairAt.IsZero() {
-				return errors.New("control listeners not yet verified enabled")
-			}
-		}
-		return nil
+		return w.verifyControlHealth(ctx, uid)
+
 	})
 }
 
 func (w *Worker) reconcileControlRepair(ctx context.Context, item usersrpc.LifecycleWork) error {
-	req := usersrpc.LifecycleRequest{UserID: item.UserID, AccountCreatedAt: item.AccountCreatedAt, AdmissionGeneration: item.State.AdmissionGeneration, Action: "control_claim"}
+	req := workRequest(item, "control_claim")
 	claimed, err := w.lifecycleRequest(ctx, req)
 	if err != nil || !claimed.Applied {
 		return err
 	}
-	if w.runtime != nil {
-		if err := w.runtime.Apply(ctx, item.UserID, claimed); err != nil {
-			return err
-		}
+	if err := w.applyLifecycle(ctx, item.UserID, claimed); err != nil {
+		return err
 	}
 	repairErr := w.reconcileRecoveryListeners(ctx, item.UserID, claimed)
 	req.Action = "control_success"
 	if repairErr != nil {
 		req.Action = "control_failed"
 	}
-	done, err := w.lifecycleRequest(ctx, req)
+	_, err = w.mutateLifecycle(ctx, req)
+	return err
+}
+
+func (w *Worker) recordControlFailure(ctx context.Context, e enrollment, err error) error {
+	reason := "listener_transient"
+	if isPermanent(err) {
+		reason = "listener_permission"
+	}
+	w.persistControlHealth(ctx, e, false, reason)
+	if isPermanent(err) {
+		return nil
+	}
+	return err
+}
+func (w *Worker) verifyControlHealth(ctx context.Context, uid uint64) error {
+	if w.lifecycleNC == nil {
+		return nil
+	}
+	observed, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
 	if err != nil {
 		return err
 	}
-	if w.runtime != nil {
-		return w.runtime.Apply(ctx, item.UserID, done)
+	if observed.State.ControlListenersHealthy {
+		return nil
 	}
-	return nil
+	if observed.State.ControlRepairAt.IsZero() {
+		return nil
+	}
+	return errors.New("control listeners not yet verified enabled")
+}
+
+func subscriptionSpecContains(specs []twitch.SubSpec, kind string) bool {
+	for _, spec := range specs {
+		if spec.Type == kind {
+			return true
+		}
+	}
+	return false
+}
+func (w *Worker) createControlListener(ctx context.Context, e enrollment, spec twitch.SubSpec) error {
+	if !w.recoveryListenersAllowed(ctx, e) {
+		return errLifecycleStopped
+	}
+	if err := w.takeSystemHelix(ctx); err != nil {
+		return err
+	}
+	return w.twitch.CreateEventSub(ctx, spec, e.conduitID)
 }

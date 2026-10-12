@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
@@ -10,72 +11,66 @@ import (
 // This removes only exact recorded bot subscriptions. Independent streams and
 // ban/unban recovery signals survive automatic restriction cleanup.
 func (w *Worker) reconcileNormalCleanup(ctx context.Context, item usersrpc.LifecycleWork) {
-	req := usersrpc.LifecycleRequest{UserID: item.UserID, AccountCreatedAt: item.AccountCreatedAt, AdmissionGeneration: item.State.AdmissionGeneration, Action: "cleanup_claim"}
-	claimed, err := w.lifecycleRequest(ctx, req)
+	req := workRequest(item, "cleanup_claim")
+	claimed, err := w.mutateLifecycle(ctx, req)
 	if err != nil || !claimed.Applied {
 		return
 	}
-	if w.runtime != nil {
-		if w.runtime.Apply(ctx, item.UserID, claimed) != nil {
-			return
-		}
-	}
 	e := enrollment{broadcasterID: strconv.FormatUint(item.UserID, 10), incarnation: item.AccountCreatedAt, generation: claimed.State.AdmissionGeneration}
-	cleanupErr := w.underEnrollLock(ctx, "normal-cleanup", e, func() error {
-		if !w.enrollmentIdentityMatches(ctx, e) {
-			return errLifecycleStopped
-		}
-		if claimed.State.ChatRestriction == lifecycle.RestrictionNone && claimed.State.AllowsRuntime() {
-			return errLifecycleStopped
-		}
-		conduit, err := w.conduit.Get(ctx)
-		if err != nil {
-			return err
-		}
-		e.conduitID = conduit
-		owned := map[string]bool{}
-		for _, id := range claimed.State.OwnedSubscriptions {
-			owned[id] = true
-		}
-		cursor := ""
-		for page := 0; page < 10; page++ {
-			if !w.enrollmentIdentityMatches(ctx, e) {
-				return errLifecycleStopped
-			}
-			if err := w.takeSystemHelix(ctx); err != nil {
-				return err
-			}
-			subs, next, err := w.twitch.ListEventSubs(ctx, e.broadcasterID, cursor)
-			if err != nil {
-				return err
-			}
-			for _, sub := range subs {
-				if !owned[sub.ID] || !ownedSub(sub, e) || !w.botOwnedSubscription(sub) || (claimed.State.DesiredEnabled && controlSubscription(sub.Type)) {
-					continue
-				}
-				if !w.enrollmentIdentityMatches(ctx, e) {
-					return errLifecycleStopped
-				}
-				if err := w.takeSystemHelix(ctx); err != nil {
-					return err
-				}
-				if err := w.twitch.DeleteEventSub(ctx, sub.ID); err != nil {
-					return err
-				}
-			}
-			if next == "" {
-				return nil
-			}
-			cursor = next
-		}
-		return errLifecycleStopped
-	})
+	cleanupErr := w.underEnrollLock(ctx, "normal-cleanup", e, func() error { return w.cleanupRestrictedSubscriptions(ctx, e, claimed.State) })
 	req.Action = "cleanup_success"
 	if cleanupErr != nil {
 		req.Action = "cleanup_failed"
 	}
-	done, err := w.lifecycleRequest(ctx, req)
-	if err == nil && w.runtime != nil {
-		_ = w.runtime.Apply(ctx, item.UserID, done)
+	_, _ = w.mutateLifecycle(ctx, req)
+}
+
+func (w *Worker) cleanupRestrictedSubscriptions(ctx context.Context, e enrollment, state lifecycle.State) error {
+	if !w.enrollmentIdentityMatches(ctx, e) {
+		return errLifecycleStopped
 	}
+	if state.ChatRestriction == lifecycle.RestrictionNone && state.AllowsRuntime() {
+		return errLifecycleStopped
+	}
+	conduit, err := w.conduit.Get(ctx)
+	if err != nil {
+		return err
+	}
+	e.conduitID = conduit
+	owned := recordedSubscriptionIDs(state.OwnedSubscriptions)
+	return w.visitSubscriptionPages(ctx, e, func(sub twitch.EventSubEntry) error {
+		if !w.normalCleanupOwned(sub, e, owned) {
+			return nil
+		}
+		if state.DesiredEnabled && controlSubscription(sub.Type) {
+			return nil
+		}
+		return w.deleteFencedSubscription(ctx, e, sub.ID)
+	})
+}
+func (w *Worker) normalCleanupOwned(sub twitch.EventSubEntry, e enrollment, owned map[string]bool) bool {
+	if !owned[sub.ID] {
+		return false
+	}
+	if !ownedSub(sub, e) {
+		return false
+	}
+	return w.botOwnedSubscription(sub)
+}
+func (w *Worker) deleteFencedSubscription(ctx context.Context, e enrollment, id string) error {
+	if !w.enrollmentIdentityMatches(ctx, e) {
+		return errLifecycleStopped
+	}
+	if err := w.takeSystemHelix(ctx); err != nil {
+		return err
+	}
+	return w.twitch.DeleteEventSub(ctx, id)
+}
+
+func recordedSubscriptionIDs(ids []string) map[string]bool {
+	owned := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		owned[id] = true
+	}
+	return owned
 }

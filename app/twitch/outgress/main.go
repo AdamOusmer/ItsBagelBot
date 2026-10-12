@@ -139,14 +139,19 @@ func main() {
 	go system.EnsureClientEventSubs(ctx)
 	go system.ReconcileLifecycle(ctx)
 
-	svcboot.FatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc"), channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, "")),
+	rpcConfig := rpc.SubscriptionConfig{
+		RPCWiring: bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log.Named("rpc")},
+		Prefix:    cfg.RPCPrefix,
+		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, ""),
+	}
+	svcboot.FatalIf(log, rpc.SubscribeManage(rpcConfig, registry, tw),
 		"failed to subscribe management rpc")
 	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
 		NC: nc, App: nrApp, Queue: "outgress-trial-subscription", Log: log.Named("trial-rpc"), Timeout: 5 * time.Second,
 	}, valkeyClient, tw, cfg.TwitchBotUserID),
 		"failed to subscribe trial subscription rpc")
 
-	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc"), channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, "")),
+	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(rpcConfig, tw),
 		"failed to subscribe channel-points rpc")
 
 	svcboot.FatalIf(log, d.subscribeChatters(tw, limiter), "failed to subscribe chatters rpc")

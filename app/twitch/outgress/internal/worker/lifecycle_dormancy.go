@@ -19,84 +19,144 @@ type dormancyLiveReader interface {
 // A newer offline version wins over an old online projection. A stale positive
 // merits one durable probe per outage window, never one check per sweep/replica.
 func dormancyDecision(s lifecycle.State, live projection.StreamLive, unavailable bool, now time.Time) string {
-	if !unavailable && live.Known && !live.Live {
+	if dormancyOffline(live, unavailable) {
 		return "offline"
 	}
-	if !unavailable && live.Known && live.Live && live.Version > 0 && now.Sub(time.UnixMilli(live.Version)) <= dormancyLiveFreshness {
+	if dormancyFreshLive(live, unavailable, now) {
 		return "live"
 	}
-	if !s.DormancyUnknownSince.IsZero() && !now.Before(s.DormancyUnknownSince.Add(dormancyUnavailableLimit)) {
+	if dormancyOutageExpired(s, now) {
 		return "unavailable"
 	}
-	if !unavailable && live.Known && live.Live && (s.DormancyProbeAt.IsZero() || now.Sub(s.DormancyProbeAt) >= dormancyUnavailableLimit) {
+	if dormancyProbeDue(s, live, unavailable, now) {
 		return "probe"
 	}
 	return "defer"
 }
 
-func (w *Worker) dormancyRequest(ctx context.Context, r usersrpc.LifecycleRequest) (usersrpc.LifecycleReply, error) {
-	reply, err := w.lifecycleRequest(ctx, r)
-	if err == nil && reply.AccountCreatedAt != 0 && w.runtime != nil {
-		err = w.runtime.Apply(ctx, r.UserID, reply)
+func (w *Worker) dormancyRequest(ctx context.Context, req usersrpc.LifecycleRequest) (usersrpc.LifecycleReply, error) {
+	reply, err := w.lifecycleRequest(ctx, req)
+	if err != nil {
+		return reply, err
 	}
-	return reply, err
+	if reply.AccountCreatedAt == 0 {
+		return reply, nil
+	}
+	return reply, w.applyLifecycle(ctx, req.UserID, reply)
 }
 
 func (w *Worker) reconcileDormancy(parent context.Context, item usersrpc.LifecycleWork) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	r := usersrpc.LifecycleRequest{UserID: item.UserID, AccountCreatedAt: item.AccountCreatedAt, AdmissionGeneration: item.State.AdmissionGeneration, Action: "dormancy_claim"}
-	claimed, err := w.dormancyRequest(ctx, r)
+	req := workRequest(item, "dormancy_claim")
+	claimed, err := w.dormancyRequest(ctx, req)
 	if err != nil || !claimed.Applied {
 		return
 	}
 	reader, ok := w.runtime.(dormancyLiveReader)
-	live := projection.StreamLive{}
-	unavailable := !ok
-	if ok {
-		live, err = reader.GetStreamLive(ctx, item.UserID)
-		unavailable = err != nil
+	live, unavailable := readDormancyLive(ctx, reader, item.UserID)
+	if !ok {
+		unavailable = true
 	}
 	decision := dormancyDecision(claimed.State, live, unavailable, time.Now().UTC())
 	if decision == "probe" {
-		r.Action = "dormancy_probe"
-		probe, err := w.dormancyRequest(ctx, r)
-		if err != nil || !probe.Applied {
+		decision = w.probeDormancy(ctx, item, reader, live)
+		if decision == "stopped" {
 			return
-		}
-		current, err := w.runtime.Get(ctx, item.UserID)
-		if err != nil || !current.AllowsBackground() || current.AccountCreatedAt != item.AccountCreatedAt || current.State.AdmissionGeneration != item.State.AdmissionGeneration {
-			return
-		}
-		if w.takeSystemHelix(ctx) != nil {
-			decision = "defer"
-		} else {
-			isLive, checkErr := w.twitch.IsStreamLive(ctx, strconv.FormatUint(item.UserID, 10))
-			if checkErr != nil {
-				decision = "defer"
-			} else if isLive {
-				decision = "live"
-			} else {
-				decision = "offline"
-			}
-			// A control/stream observation accepted during the call supersedes its
-			// reply. No old result is restamped into the global live projection.
-			latest, readErr := reader.GetStreamLive(ctx, item.UserID)
-			if readErr != nil {
-				decision = "defer"
-			} else if latest.Version > live.Version {
-				decision = dormancyDecision(probe.State, latest, false, time.Now().UTC())
-			}
 		}
 	}
+	req = dormancyCompletion(req, decision)
+	_, _ = w.dormancyRequest(ctx, req)
+}
+
+func dormancyOffline(live projection.StreamLive, unavailable bool) bool {
+	if unavailable {
+		return false
+	}
+	if !live.Known {
+		return false
+	}
+	return !live.Live
+}
+func dormancyFreshLive(live projection.StreamLive, unavailable bool, now time.Time) bool {
+	if unavailable {
+		return false
+	}
+	if !live.Known || !live.Live {
+		return false
+	}
+	if live.Version <= 0 {
+		return false
+	}
+	return now.Sub(time.UnixMilli(live.Version)) <= dormancyLiveFreshness
+}
+func dormancyOutageExpired(s lifecycle.State, now time.Time) bool {
+	if s.DormancyUnknownSince.IsZero() {
+		return false
+	}
+	return !now.Before(s.DormancyUnknownSince.Add(dormancyUnavailableLimit))
+}
+func dormancyProbeDue(s lifecycle.State, live projection.StreamLive, unavailable bool, now time.Time) bool {
+	if unavailable {
+		return false
+	}
+	if !live.Known || !live.Live {
+		return false
+	}
+	if s.DormancyProbeAt.IsZero() {
+		return true
+	}
+	return now.Sub(s.DormancyProbeAt) >= dormancyUnavailableLimit
+}
+func readDormancyLive(ctx context.Context, reader dormancyLiveReader, uid uint64) (projection.StreamLive, bool) {
+	if reader == nil {
+		return projection.StreamLive{}, true
+	}
+	live, err := reader.GetStreamLive(ctx, uid)
+	return live, err != nil
+}
+func dormancyCompletion(req usersrpc.LifecycleRequest, decision string) usersrpc.LifecycleRequest {
 	switch decision {
 	case "offline", "unavailable":
-		r.Action = "dormancy"
-		r.Reason = decision
+		req.Action = "dormancy"
+		req.Reason = decision
 	case "live":
-		r.Action = "dormancy_live"
+		req.Action = "dormancy_live"
 	default:
-		r.Action = "dormancy_defer"
+		req.Action = "dormancy_defer"
 	}
-	_, _ = w.dormancyRequest(ctx, r)
+	return req
+}
+func (w *Worker) probeDormancy(ctx context.Context, item usersrpc.LifecycleWork, reader dormancyLiveReader, live projection.StreamLive) string {
+	probe, err := w.dormancyRequest(ctx, workRequest(item, "dormancy_probe"))
+	if err != nil || !probe.Applied {
+		return "stopped"
+	}
+	e := enrollment{broadcasterID: strconv.FormatUint(item.UserID, 10), incarnation: item.AccountCreatedAt, generation: item.State.AdmissionGeneration}
+	if !w.enrollmentAllowed(ctx, e) {
+		return "stopped"
+	}
+	if w.takeSystemHelix(ctx) != nil {
+		return "defer"
+	}
+	decision := w.probeStreamDecision(ctx, e.broadcasterID)
+	// New stream observations supersede the provider reply; never restamp it globally.
+	latest, readErr := reader.GetStreamLive(ctx, item.UserID)
+	if readErr != nil {
+		return "defer"
+	}
+	if latest.Version > live.Version {
+		return dormancyDecision(probe.State, latest, false, time.Now().UTC())
+	}
+	return decision
+}
+func (w *Worker) probeStreamDecision(ctx context.Context, id string) string {
+	live, err := w.twitch.IsStreamLive(ctx, id)
+	if err != nil {
+		return "defer"
+	}
+	if live {
+		return "live"
+	}
+	return "offline"
 }

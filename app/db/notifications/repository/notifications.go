@@ -30,6 +30,12 @@ func New(client *ent.Client) *Notifications {
 	return &Notifications{client: client}
 }
 
+type Recipient struct {
+	UserID      uint64
+	Incarnation string
+	CreatedAt   time.Time
+}
+
 type CreateParams struct {
 	Incarnation    string
 	RequestID      string
@@ -44,43 +50,42 @@ type CreateParams struct {
 }
 
 func (r *Notifications) Create(ctx context.Context, p CreateParams) (*ent.Notification, bool, error) {
-	client := r.client
-	var tx *ent.Tx
-	if p.Incarnation != "" && p.TargetUserID != nil {
-		var err error
-		tx, err = r.client.Tx(ctx)
-		if err != nil {
-			return nil, false, err
-		}
-		defer tx.Rollback()
-		client = tx.Client()
-		if err = lockNotificationIncarnation(ctx, tx, *p.TargetUserID, p.Incarnation); err != nil {
-			return nil, false, err
-		}
+	if p.Incarnation == "" || p.TargetUserID == nil {
+		return createNotification(ctx, r.client, p)
 	}
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback()
+	if err = lockNotificationIncarnation(ctx, tx, Recipient{UserID: *p.TargetUserID, Incarnation: p.Incarnation}); err != nil {
+		return nil, false, err
+	}
+	row, created, err := createNotification(ctx, tx.Client(), p)
+	if err != nil {
+		return nil, false, err
+	}
+	return row, created, tx.Commit()
+}
+func createNotification(ctx context.Context, client *ent.Client, p CreateParams) (*ent.Notification, bool, error) {
 	q := client.Notification.Create().SetScope(p.Scope).SetTitle(p.Title).SetBody(p.Body).SetLevel(p.Level).SetCreatedBy(p.CreatedBy).SetCreatedByLogin(p.CreatedByLogin).SetNillableTargetUserID(p.TargetUserID).SetNillableExpiresAt(p.ExpiresAt).SetIncarnation(p.Incarnation)
 	if p.RequestID != "" {
 		q.SetRequestID(p.RequestID)
 	}
 	row, err := q.Save(ctx)
 	if err == nil {
-		if tx != nil {
-			err = tx.Commit()
-		}
-		return row, true, err
+		return row, true, nil
 	}
 	if !ent.IsConstraintError(err) || p.RequestID == "" {
 		return nil, false, err
 	}
 	row, err = client.Notification.Query().Where(notification.RequestIDEQ(p.RequestID)).Only(ctx)
-	if err == nil && tx != nil {
-		err = tx.Commit()
-	}
 	return row, false, err
 }
 
 // Both acknowledgement and direct-send transactions serialize against erasure.
-func lockNotificationIncarnation(ctx context.Context, tx *ent.Tx, id uint64, incarnation string) error {
+func lockNotificationIncarnation(ctx context.Context, tx *ent.Tx, recipient Recipient) error {
+	id, incarnation := recipient.UserID, recipient.Incarnation
 	if err := tx.ConnectionGuard.Create().SetAccountID(id).SetIncarnation(incarnation).SetRetainUntil(time.Now().Add(8*24*time.Hour)).OnConflictColumns(connectionguard.FieldAccountID, connectionguard.FieldIncarnation).Update(func(u *ent.ConnectionGuardUpsert) { u.SetAccountID(id) }).Exec(ctx); err != nil {
 		return err
 	}
@@ -132,17 +137,18 @@ func lapsedForUser(userID uint64, now time.Time) predicate.Notification {
 }
 
 func (r *Notifications) ListForUser(ctx context.Context, userID uint64, limit int) ([]*ent.Notification, map[int]bool, error) {
-	return r.ListForIncarnation(ctx, userID, "", time.Time{}, limit)
+	return r.ListForIncarnation(ctx, Recipient{UserID: userID}, limit)
 }
-func (r *Notifications) ListForIncarnation(ctx context.Context, userID uint64, incarnation string, createdAt time.Time, limit int) ([]*ent.Notification, map[int]bool, error) {
+func (r *Notifications) ListForIncarnation(ctx context.Context, recipient Recipient, limit int) ([]*ent.Notification, map[int]bool, error) {
 	now := time.Now()
+	userID, incarnation, createdAt := recipient.UserID, recipient.Incarnation, recipient.CreatedAt
 
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Notification, error) {
 		return r.client.Notification.Query().
 			Where(
 				visibleForUser(userID, now),
 				notification.Or(notification.ScopeEQ(notification.ScopeBroadcast), notification.IncarnationEQ(incarnation), notification.And(notification.Or(notification.IncarnationEQ(""), notification.IncarnationIsNil()), notification.CreatedAtGTE(createdAt))),
-				notification.Not(lapsedForIncarnation(userID, incarnation, createdAt, now)),
+				notification.Not(lapsedForIncarnation(recipient, now)),
 			).
 			Order(ent.Desc(notification.FieldCreatedAt)).
 			Limit(limit).
@@ -164,7 +170,7 @@ func (r *Notifications) ListForIncarnation(ctx context.Context, userID uint64, i
 		return r.client.NotificationRead.Query().
 			Where(
 				notificationread.UserIDEQ(userID),
-				receiptIncarnation(incarnation, createdAt),
+				receiptIncarnation(recipient),
 				notificationread.HasNotificationWith(notification.IDIn(ids...)),
 			).
 			WithNotification().
@@ -184,25 +190,32 @@ func (r *Notifications) ListForIncarnation(ctx context.Context, userID uint64, i
 	return rows, read, nil
 }
 
+type readAcknowledgment struct {
+	NotificationID int
+	Recipient      Recipient
+	ExpiresAt      time.Time
+	Peek           bool
+}
+
 func (r *Notifications) MarkRead(ctx context.Context, notificationID int, userID uint64, expiresAt time.Time) error {
-	return r.MarkReadForIncarnation(ctx, notificationID, userID, "", expiresAt)
+	return r.MarkReadForIncarnation(ctx, notificationID, Recipient{UserID: userID}, expiresAt)
 }
-func (r *Notifications) MarkReadForIncarnation(ctx context.Context, notificationID int, userID uint64, incarnation string, expiresAt time.Time) error {
-	return r.acknowledgeIncarnation(ctx, notificationID, userID, incarnation, expiresAt, false)
+func (r *Notifications) MarkReadForIncarnation(ctx context.Context, notificationID int, recipient Recipient, expiresAt time.Time) error {
+	return r.acknowledgeIncarnation(ctx, readAcknowledgment{NotificationID: notificationID, Recipient: recipient, ExpiresAt: expiresAt})
 }
-func (r *Notifications) acknowledgeIncarnation(ctx context.Context, notificationID int, userID uint64, incarnation string, expiresAt time.Time, peek bool) (err error) {
+func (r *Notifications) acknowledgeIncarnation(ctx context.Context, ack readAcknowledgment) error {
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if incarnation != "" {
-		if err = lockNotificationIncarnation(ctx, tx, userID, incarnation); err != nil {
+	if ack.Recipient.Incarnation != "" {
+		if err = lockNotificationIncarnation(ctx, tx, ack.Recipient); err != nil {
 			return err
 		}
 	}
-	upsert := tx.NotificationRead.Create().SetNotificationID(notificationID).SetUserID(userID).SetIncarnation(incarnation).SetExpiresAt(expiresAt).OnConflict()
-	if peek {
+	upsert := tx.NotificationRead.Create().SetNotificationID(ack.NotificationID).SetUserID(ack.Recipient.UserID).SetIncarnation(ack.Recipient.Incarnation).SetExpiresAt(ack.ExpiresAt).OnConflict()
+	if ack.Peek {
 		err = upsert.Ignore().Exec(ctx)
 	} else {
 		err = upsert.UpdateNewValues().Exec(ctx)
@@ -212,112 +225,101 @@ func (r *Notifications) acknowledgeIncarnation(ctx context.Context, notification
 	}
 	return tx.Commit()
 }
-func receiptIncarnation(incarnation string, createdAt time.Time) predicate.NotificationRead {
-	return notificationread.Or(notificationread.IncarnationEQ(incarnation), notificationread.And(notificationread.Or(notificationread.IncarnationEQ(""), notificationread.IncarnationIsNil()), notificationread.ReadAtGTE(createdAt)))
+func receiptIncarnation(recipient Recipient) predicate.NotificationRead {
+	return notificationread.Or(notificationread.IncarnationEQ(recipient.Incarnation), notificationread.And(notificationread.Or(notificationread.IncarnationEQ(""), notificationread.IncarnationIsNil()), notificationread.ReadAtGTE(recipient.CreatedAt)))
 }
-func lapsedForIncarnation(id uint64, incarnation string, createdAt, now time.Time) predicate.Notification {
-	return notification.HasReadsWith(notificationread.UserIDEQ(id), receiptIncarnation(incarnation, createdAt), notificationread.ExpiresAtLTE(now))
+func lapsedForIncarnation(recipient Recipient, now time.Time) predicate.Notification {
+	return notification.HasReadsWith(notificationread.UserIDEQ(recipient.UserID), receiptIncarnation(recipient), notificationread.ExpiresAtLTE(now))
 }
 
 func (r *Notifications) MarkPeeked(ctx context.Context, userID uint64, expiresAt time.Time) (int, error) {
-	return r.MarkPeekedForIncarnation(ctx, userID, "", time.Time{}, expiresAt)
+	return r.MarkPeekedForIncarnation(ctx, Recipient{UserID: userID}, expiresAt)
 }
-func (r *Notifications) MarkPeekedForIncarnation(ctx context.Context, userID uint64, incarnation string, createdAt time.Time, expiresAt time.Time) (int, error) {
-	if incarnation != "" {
-		rows, read, err := r.ListForIncarnation(ctx, userID, incarnation, createdAt, UserListLimit)
-		if err != nil {
-			return 0, err
-		}
-		count := 0
-		for _, row := range rows {
-			if read[row.ID] {
-				continue
-			}
-			if err = r.acknowledgeIncarnation(ctx, row.ID, userID, incarnation, expiresAt, true); err != nil {
-				return count, err
-			}
-			count++
-		}
-		return count, nil
+func (r *Notifications) MarkPeekedForIncarnation(ctx context.Context, recipient Recipient, expiresAt time.Time) (int, error) {
+	if recipient.Incarnation == "" {
+		return r.markLegacyPeeked(ctx, recipient, expiresAt)
 	}
-
-	now := time.Now()
-
+	rows, read, err := r.ListForIncarnation(ctx, recipient, UserListLimit)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, row := range rows {
+		if read[row.ID] {
+			continue
+		}
+		ack := readAcknowledgment{NotificationID: row.ID, Recipient: recipient, ExpiresAt: expiresAt, Peek: true}
+		if err = r.acknowledgeIncarnation(ctx, ack); err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+func (r *Notifications) markLegacyPeeked(ctx context.Context, recipient Recipient, expiresAt time.Time) (int, error) {
 	ids, err := db.WithQuery(ctx, func(ctx context.Context) ([]int, error) {
-		return r.client.Notification.Query().
-			Where(visibleForUser(userID, now)).
-			Limit(UserListLimit).
-			IDs(ctx)
+		return r.client.Notification.Query().Where(visibleForUser(recipient.UserID, time.Now())).Limit(UserListLimit).IDs(ctx)
+	})
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	readRows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.NotificationRead, error) {
+		return r.client.NotificationRead.Query().Where(notificationread.UserIDEQ(recipient.UserID), notificationread.HasNotificationWith(notification.IDIn(ids...))).WithNotification().All(ctx)
 	})
 	if err != nil {
 		return 0, err
 	}
-	if len(ids) == 0 {
+	missing := unacknowledgedIDs(ids, readRows)
+	if len(missing) == 0 {
 		return 0, nil
 	}
-
-	readRows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.NotificationRead, error) {
-		return r.client.NotificationRead.Query().
-			Where(
-				notificationread.UserIDEQ(userID),
-				notificationread.HasNotificationWith(notification.IDIn(ids...)),
-			).
-			WithNotification().
-			All(ctx)
-	})
-	if err != nil {
-		return 0, err
-	}
-	already := make(map[int]bool, len(readRows))
-	for _, rr := range readRows {
-		if rr.Edges.Notification != nil {
-			already[rr.Edges.Notification.ID] = true
+	return r.insertLegacyPeeks(ctx, recipient, missing, expiresAt)
+}
+func acknowledgedNotificationIDs(reads []*ent.NotificationRead) map[int]bool {
+	already := make(map[int]bool, len(reads))
+	for _, read := range reads {
+		if read.Edges.Notification != nil {
+			already[read.Edges.Notification.ID] = true
 		}
 	}
-
+	return already
+}
+func unacknowledgedIDs(ids []int, reads []*ent.NotificationRead) []int {
+	already := acknowledgedNotificationIDs(reads)
 	missing := make([]int, 0, len(ids))
 	for _, id := range ids {
 		if !already[id] {
 			missing = append(missing, id)
 		}
 	}
-	if len(missing) == 0 {
-		return 0, nil
+	return missing
+}
+func (r *Notifications) insertLegacyPeeks(ctx context.Context, recipient Recipient, ids []int, expiresAt time.Time) (int, error) {
+	builders := make([]*ent.NotificationReadCreate, len(ids))
+	for i, id := range ids {
+		builders[i] = r.client.NotificationRead.Create().SetNotificationID(id).SetUserID(recipient.UserID).SetExpiresAt(expiresAt)
 	}
-
-	builders := make([]*ent.NotificationReadCreate, len(missing))
-	for i, id := range missing {
-		builders[i] = r.client.NotificationRead.Create().
-			SetNotificationID(id).
-			SetUserID(userID).
-			SetExpiresAt(expiresAt)
-	}
-
-	err = db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.NotificationRead.CreateBulk(builders...).Exec(ctx)
-	})
+	err := db.WithExec(ctx, func(ctx context.Context) error { return r.client.NotificationRead.CreateBulk(builders...).Exec(ctx) })
 	if err == nil {
-		return len(missing), nil
+		return len(ids), nil
 	}
 	if !ent.IsConstraintError(err) {
 		return 0, err
 	}
-
+	return r.insertLegacyPeeksIndividually(ctx, recipient, ids, expiresAt)
+}
+func (r *Notifications) insertLegacyPeeksIndividually(ctx context.Context, recipient Recipient, ids []int, expiresAt time.Time) (int, error) {
 	peeked := 0
-	for _, id := range missing {
-		insErr := db.WithExec(ctx, func(ctx context.Context) error {
-			return r.client.NotificationRead.Create().
-				SetNotificationID(id).
-				SetUserID(userID).
-				SetExpiresAt(expiresAt).
-				Exec(ctx)
+	for _, id := range ids {
+		err := db.WithExec(ctx, func(ctx context.Context) error {
+			return r.client.NotificationRead.Create().SetNotificationID(id).SetUserID(recipient.UserID).SetExpiresAt(expiresAt).Exec(ctx)
 		})
-		if insErr == nil {
+		if err == nil {
 			peeked++
 			continue
 		}
-		if !ent.IsConstraintError(insErr) {
-			return peeked, insErr
+		if !ent.IsConstraintError(err) {
+			return peeked, err
 		}
 	}
 	return peeked, nil

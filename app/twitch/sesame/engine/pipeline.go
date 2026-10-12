@@ -205,16 +205,9 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	if env.Origin == "trial" {
 		return p.processTrial(ctx, env, broadcasterID)
 	}
-	var admission channelruntime.Snapshot
-	if p.runtime != nil {
-		var err error
-		admission, err = p.runtime.Get(ctx, broadcasterID)
-		if err != nil {
-			return err
-		}
-		if !admission.AllowsRuntime() {
-			return nil
-		}
+	admission, allowed, err := p.runtimeAdmission(ctx, broadcasterID)
+	if err != nil || !allowed {
+		return err
 	}
 
 	p.feedChatGate(ctx, env, broadcasterID)
@@ -244,11 +237,7 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	started := time.Now()
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
-	if p.runtime != nil && (mctx.Engaged || emission.ordinal > 0) && env.Type != "stream.online" && env.Type != "stream.offline" {
-		if _, err := p.runtime.Engage(ctx, broadcasterID, emission.admission, env.EventID, started); err != nil {
-			p.log.Warn("lifecycle activity update failed", module.BIDField(broadcasterID), zap.Error(err))
-		}
-	}
+	p.recordActivity(ctx, mctx, &emission, started)
 
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
@@ -443,21 +432,26 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 }
 
 func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
-	if p.runtime != nil && state.admission.Registered && state.env != nil && state.env.Type != "stream.online" && state.env.Type != "stream.offline" {
-		next, err := p.runtime.Engage(ctx, state.mctx.BroadcasterID, state.admission, state.env.EventID, time.Now())
-		if err != nil {
-			return err
-		}
-		if !next.AllowsRuntime() {
-			return nil
-		}
-		state.admission = next
+	allowed, err := p.wakeForOutput(ctx, state)
+	if err != nil || !allowed {
+		return err
 	}
+	body, err := p.encodeOutput(ctx, state, o)
+	if err != nil {
+		return err
+	}
+	if replayID == "" {
+		return bus.PublishRaw(ctx, p.pub, state.subject, body)
+	}
+	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
+}
+
+func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module.Output) ([]byte, error) {
 	encodeSegment := startStage(ctx, "sesame.output.encode")
 	output, err := buildOutgressMessage(o)
 	if err != nil {
 		endStage(encodeSegment, "error")
-		return err
+		return nil, err
 	}
 	if state.env != nil && state.env.Origin == "trial" {
 		p.addTrial(ctx, state.env.BroadcasterUserID, "blocked", int64(markTrialOutput(&output, state.env.TrialGeneration)))
@@ -469,13 +463,10 @@ func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID
 	body, err := codec.Marshal(&output)
 	if err != nil {
 		endStage(encodeSegment, "error")
-		return err
+		return nil, err
 	}
 	endStage(encodeSegment, "ok")
-	if replayID == "" {
-		return bus.PublishRaw(ctx, p.pub, state.subject, body)
-	}
-	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
+	return body, nil
 }
 
 func outputReplayBase(env *lane.Envelope) string {

@@ -99,12 +99,12 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	}
 
 	if params.Scope == notification.ScopeDirect {
-		id, incarnation, _, err := notificationAccount(ctx, a.nc, a.userGetSubject, req.TargetUserID, req.TargetUsername)
+		recipient, err := notificationAccount(ctx, a.nc, a.userGetSubject, usersrpc.AdminRequest{UserID: req.TargetUserID, Username: req.TargetUsername})
 		if err != nil {
 			return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 		}
-		params.TargetUserID = &id
-		params.Incarnation = incarnation
+		params.TargetUserID = &recipient.UserID
+		params.Incarnation = recipient.Incarnation
 	}
 
 	if params.ExpiresAt == nil && a.defaultTTL > 0 {

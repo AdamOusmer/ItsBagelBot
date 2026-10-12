@@ -44,6 +44,9 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
 	}
 
+	return w.publishStreamStatus(ctx, payload, details, isLive)
+}
+func (w *Worker) publishStreamStatus(ctx context.Context, payload *outgress.Message, details twitch.StreamDetails, isLive bool) error {
 	if allowed, err := w.admitPayload(ctx, payload); err != nil || !allowed {
 		return err
 	}
@@ -110,36 +113,14 @@ func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
 	if w.stampCurrent(ctx, seed) != nil {
 		return
 	}
-	if allowed, err := w.admitPayload(ctx, seed); err != nil || !allowed {
+	if w.checkAttemptAdmission(ctx, seed) != nil {
 		return
 	}
-	if err := w.takeSystemHelix(ctx); err != nil {
-		w.log.Warn("live seed: no system budget, skipping",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	isLive, err := w.twitch.IsStreamLive(ctx, broadcasterID)
+	isLive, err := w.checkLiveSeed(ctx, broadcasterID)
 	if err != nil {
-		w.log.Warn("live seed: stream check failed",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return
 	}
-	if allowed, err := w.admitPayload(ctx, seed); err != nil || !allowed {
-		return
-	}
-	if !w.backgroundAllowed(ctx, broadcasterID) {
-		return
-	}
-	if err := w.live.Write(ctx, broadcasterID, isLive); err != nil {
-		w.log.Warn("live seed: projection write failed",
-			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	if isLive {
-		w.scheduleModStatus(broadcasterID, "")
-	}
-	w.log.Info("live state seeded after enroll",
-		zap.String("broadcaster_id", broadcasterID), zap.Bool("live", isLive))
+	w.publishLiveSeed(ctx, seed, isLive)
 }
 
 func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, err error) error {
@@ -270,4 +251,32 @@ func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale strin
 		return nil
 	}
 	return w.sendBotChat(ctx, broadcasterID, w.reauth.ChatLine(locale, n))
+}
+
+func (w *Worker) checkLiveSeed(ctx context.Context, broadcasterID string) (bool, error) {
+	if err := w.takeSystemHelix(ctx); err != nil {
+		w.log.Warn("live seed: no system budget, skipping", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+		return false, err
+	}
+	isLive, err := w.twitch.IsStreamLive(ctx, broadcasterID)
+	if err != nil {
+		w.log.Warn("live seed: stream check failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
+	return isLive, err
+}
+func (w *Worker) publishLiveSeed(ctx context.Context, seed *outgress.Message, isLive bool) {
+	if w.checkAttemptAdmission(ctx, seed) != nil {
+		return
+	}
+	if !w.backgroundAllowed(ctx, seed.BroadcasterID) {
+		return
+	}
+	if err := w.live.Write(ctx, seed.BroadcasterID, isLive); err != nil {
+		w.log.Warn("live seed: projection write failed", zap.String("broadcaster_id", seed.BroadcasterID), zap.Error(err))
+		return
+	}
+	if isLive {
+		w.scheduleModStatus(seed.BroadcasterID, "")
+	}
+	w.log.Info("live state seeded after enroll", zap.String("broadcaster_id", seed.BroadcasterID), zap.Bool("live", isLive))
 }

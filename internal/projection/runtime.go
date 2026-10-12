@@ -40,14 +40,20 @@ func (v *Store) GetUserRuntime(ctx context.Context, id uint64) (User, bool, erro
 
 // SetLifecycle makes an acknowledged owner transition visible before control
 // processing returns. Full owner snapshots use the same revision fence.
-func (v *Store) SetLifecycle(ctx context.Context, id uint64, state lifecycle.State, instance, revision int64) error {
-	body, err := codec.Marshal(state)
+type LifecycleProjection struct {
+	State            lifecycle.State
+	AccountCreatedAt int64
+	StateRevision    int64
+}
+
+func (v *Store) SetLifecycle(ctx context.Context, id uint64, update LifecycleProjection) error {
+	body, err := codec.Marshal(update.State)
 	if err != nil {
 		return err
 	}
 	return v.primary.Do(ctx, v.primary.B().Eval().Script(runtimeWrite).Numkeys(2).
 		Key(cache.UserKey(settingsKeyPrefix, id), watchtime.AdmissionKey(id)).
-		Arg(strconv.FormatInt(instance, 10), strconv.FormatInt(revision, 10), string(body), utils.BoolField(state.AllowsRuntime()), utils.BoolField(state.AllowsBackground())).Build()).Error()
+		Arg(strconv.FormatInt(update.AccountCreatedAt, 10), strconv.FormatInt(update.StateRevision, 10), string(body), utils.BoolField(update.State.AllowsRuntime()), utils.BoolField(update.State.AllowsBackground())).Build()).Error()
 }
 
 const runtimeWrite = `

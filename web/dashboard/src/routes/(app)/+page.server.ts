@@ -185,8 +185,8 @@ function ownerAction({ name, audit, run }: OwnerAction) {
 }
 
 export const actions: Actions = {
-  retry: ownerAction({ name: 'retry', audit: true, run: (uid) => retryLifecycle(uid) }),
-  enableAndVerify: ownerAction({ name: 'enableAndVerify', audit: true, run: async(uid)=>{ await setActive(uid,true); await retryLifecycle(uid); } }),
+  retry: ownerAction({ name: 'retry', audit: true, run: (uid) => retryLifecycle({broadcaster_user_id:uid}) }),
+  enableAndVerify: ownerAction({ name: 'enableAndVerify', audit: true, run: async(uid)=>{ await setActive(uid,true); await retryLifecycle({broadcaster_user_id:uid}); } }),
   // A plain create, not a reconnect: drop-then-recreate resets Twitch's conduit routing.
   enable: ownerAction({
     name: 'enable',

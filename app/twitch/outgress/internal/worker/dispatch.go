@@ -19,7 +19,6 @@ import (
 
 func (w *Worker) Process(msg *bus.Message) error {
 	ctx := msg.Context()
-	log := monitor.TxnLogger(ctx, w.log)
 	processStarted := time.Now()
 	defer recordStageDuration(ctx, "outgress.total_ms", processStarted)
 
@@ -39,21 +38,7 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return err
 	}
 	if payload.Type == outgress.TypeBatch {
-		var batch outgress.Batch
-		if err := decodeBatch(payload.Payload, &batch); err != nil {
-			log.Error("dropping malformed outgress batch", zap.Error(err))
-			noticeError(ctx, err)
-			return nil
-		}
-		for i := range batch.Items {
-			if batch.Items[i].AccountCreatedAt == 0 {
-				batch.Items[i].AccountCreatedAt = payload.AccountCreatedAt
-			}
-			if batch.Items[i].AdmissionGeneration == 0 {
-				batch.Items[i].AdmissionGeneration = payload.AdmissionGeneration
-			}
-		}
-		return w.processBatch(ctx, &batch, payload.BroadcasterID, msg.UUID)
+		return w.processBatchMessage(ctx, &payload, msg.UUID)
 	}
 	return w.processPayload(ctx, &payload)
 }
@@ -213,4 +198,26 @@ func (w *Worker) checkPaused(ctx context.Context) error {
 		return ErrPaused
 	}
 	return nil
+}
+
+func (w *Worker) processBatchMessage(ctx context.Context, payload *outgress.Message, uuid string) error {
+	var batch outgress.Batch
+	if err := decodeBatch(payload.Payload, &batch); err != nil {
+		monitor.TxnLogger(ctx, w.log).Error("dropping malformed outgress batch", zap.Error(err))
+		noticeError(ctx, err)
+		return nil
+	}
+	inheritBatchAdmission(&batch, payload)
+	return w.processBatch(ctx, &batch, payload.BroadcasterID, uuid)
+}
+func inheritBatchAdmission(batch *outgress.Batch, payload *outgress.Message) {
+	for i := range batch.Items {
+		item := &batch.Items[i]
+		if item.AccountCreatedAt == 0 {
+			item.AccountCreatedAt = payload.AccountCreatedAt
+		}
+		if item.AdmissionGeneration == 0 {
+			item.AdmissionGeneration = payload.AdmissionGeneration
+		}
+	}
 }

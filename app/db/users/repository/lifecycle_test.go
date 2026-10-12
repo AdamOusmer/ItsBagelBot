@@ -305,7 +305,14 @@ func TestLifecycleCASRejectsRecreatedAccountWithSameRevision(t *testing.T) {
 	var intercepted atomic.Bool
 	client.User.Use(func(next entcore.Mutator) entcore.Mutator {
 		return entcore.MutateFunc(func(ctx context.Context, m entcore.Mutation) (entcore.Value, error) {
-			if _, hasLifecycle := m.Field("lifecycle"); hasLifecycle && m.Op().Is(entcore.OpUpdate) && intercepted.CompareAndSwap(false, true) {
+			_, hasLifecycle := m.Field("lifecycle")
+			if !hasLifecycle {
+				return next.Mutate(ctx, m)
+			}
+			if !m.Op().Is(entcore.OpUpdate) {
+				return next.Mutate(ctx, m)
+			}
+			if intercepted.CompareAndSwap(false, true) {
 				close(entered)
 				<-resume
 			}

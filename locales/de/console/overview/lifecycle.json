@@ -1,0 +1,18 @@
+{
+  "dormant": "Ruhezustand",
+  "issueDormant": "Der Bot wird automatisch aktiv, wenn eine aktivierte Funktion verwendet wird. Deine Einstellungen bleiben erhalten.",
+  "recovering": "Verbindung wird wiederhergestellt…",
+  "issueRecovering": "Der Zugriff wird vor der Wiederaufnahme geprüft.",
+  "timedOut": "Vorübergehend gesperrt",
+  "issueTimedOut": "Der Bot pausiert, bis die Sperre endet und der Zugriff geprüft wurde.",
+  "verifyUnban": "Ich habe ihn entsperrt — erneut prüfen",
+  "retryConnection": "Verbindung erneut prüfen",
+  "disabledByYou": "Von dir deaktiviert",
+  "retainedBan": "Der Bot ist weiterhin gesperrt. Eine Entsperrung aktiviert ihn nicht automatisch.",
+  "connectionCheckFailed": "Verbindungsprüfung fehlgeschlagen",
+  "issueConnectionCheckFailed": "Der Zugriff konnte nicht bestätigt werden. Versuche es erneut, sobald das Problem behoben ist.",
+  "secondaryGrantMissing": "Die Twitch-Autorisierung muss ebenfalls erneuert werden.",
+  "enableAndVerify": "Aktivieren und Entsperrung prüfen",
+  "issueBotBannedAutomatic": "Entsperre den Bot auf Twitch. Er verbindet sich automatisch wieder. Du kannst die Entsperrung auch manuell prüfen.",
+  "issueBotBannedUnavailable": "Die automatische Wiederherstellung nach einer Entsperrung ist nicht verfügbar. Erneuere die Twitch-Autorisierung oder entsperre den Bot und prüfe den Zugriff erneut."
+}

@@ -55,16 +55,16 @@
 
   const title = $derived.by(() => {
     switch (kind) {
-      case 'dormant': return t('overview.dormant');
-      case 'recovering': return t('overview.recovering');
-      case 'timed_out': return t('overview.timedOut');
-      case 'disabled': return t('overview.disabledByYou');
+      case 'dormant': return t('overview.lifecycle.dormant');
+      case 'recovering': return t('overview.lifecycle.recovering');
+      case 'timed_out': return t('overview.lifecycle.timedOut');
+      case 'disabled': return t('overview.lifecycle.disabledByYou');
       case 'online':
         return t('overview.onlineInChat');
       case 'connecting':
         return t('overview.connecting');
       case 'degraded':
-        return t('overview.connectionCheckFailed');
+        return t('overview.lifecycle.connectionCheckFailed');
       case 'reauth_required':
         return t('overview.twitchAccessLost');
       case 'bot_banned':
@@ -80,21 +80,21 @@
 
   const detail = $derived.by(() => {
     switch (kind) {
-      case 'dormant': return t('overview.issueDormant');
-      case 'recovering': return t('overview.issueRecovering');
-      case 'timed_out': return t('overview.issueTimedOut');
+      case 'dormant': return t('overview.lifecycle.issueDormant');
+      case 'recovering': return t('overview.lifecycle.issueRecovering');
+      case 'timed_out': return t('overview.lifecycle.issueTimedOut');
       case 'online':
         return t('overview.allGood');
       case 'degraded':
-        return t('overview.issueConnectionCheckFailed');
+        return t('overview.lifecycle.issueConnectionCheckFailed');
       case 'reauth_required':
         return t('overview.issueReauth');
       case 'bot_banned':
-        return ui?.automaticRecovery ? t('overview.issueBotBannedAutomatic') : t('overview.issueBotBannedUnavailable');
+        return ui?.automaticRecovery ? t('overview.lifecycle.issueBotBannedAutomatic') : t('overview.lifecycle.issueBotBannedUnavailable');
       case 'sub_unknown':
         return t('overview.issueIdle');
       case 'disabled':
-        return ui?.retainedBan ? t('overview.retainedBan') : t('overview.statusPausedDetail');
+        return ui?.retainedBan ? t('overview.lifecycle.retainedBan') : t('overview.statusPausedDetail');
       case 'auth_required':
         return t('overview.issueNoAuth');
       case 'unavailable':
@@ -166,7 +166,7 @@
             <span class="state-text">{title}</span>
           </p>
           {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
-          {#if ui?.grantNeedsReconnect}<p class="ov-status__detail">{t('overview.secondaryGrantMissing')} <a href="/settings#account">{t('common.reconnect')}</a></p>{/if}
+          {#if ui?.grantNeedsReconnect}<p class="ov-status__detail">{t('overview.lifecycle.secondaryGrantMissing')} <a href="/settings#account">{t('common.reconnect')}</a></p>{/if}
           {#if ui?.timeoutUntil}<p class="ov-status__detail"><time datetime={ui.timeoutUntil}>{new Date(ui.timeoutUntil).toLocaleString()}</time></p>{/if}
 
           {#if planLabel}
@@ -190,12 +190,12 @@
               <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.verifyRepair}
               <form method="POST" action="?/retry" use:enhance={enableSubmit}>
-                <Button variant="primary" type="submit" busy={busy}>{kind === 'bot_banned' ? t('overview.verifyUnban') : t('overview.retryConnection')}</Button>
+                <Button variant="primary" type="submit" busy={busy}>{kind === 'bot_banned' ? t('overview.lifecycle.verifyUnban') : t('overview.lifecycle.retryConnection')}</Button>
               </form>
               <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.showEnable}
               <form method="POST" action={ui.retainedBan ? "?/enableAndVerify" : "?/enable"} use:enhance={enableSubmit}>
-                <Button variant="primary" type="submit" busy={busy}>{ui.retainedBan ? t('overview.enableAndVerify') : t('overview.enable')}</Button>
+                <Button variant="primary" type="submit" busy={busy}>{ui.retainedBan ? t('overview.lifecycle.enableAndVerify') : t('overview.enable')}</Button>
               </form>
             {:else if ui.showConnect}
               <ButtonLink href="/settings#account" variant="primary"

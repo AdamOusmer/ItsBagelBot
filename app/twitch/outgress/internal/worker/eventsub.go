@@ -71,6 +71,10 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 	if !w.enrollmentIdentityMatches(ctx, e) {
 		return nil
 	}
+	return w.dispatchEventSub(ctx, e, job)
+}
+
+func (w *Worker) dispatchEventSub(ctx context.Context, e enrollment, job outgress.EventSubJob) error {
 	switch effectiveMode(job) {
 	case outgress.ModeEnable:
 		return w.enableEventSubs(ctx, e)
@@ -83,7 +87,7 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 	default:
 		w.log.Error("dropping eventsub job with unknown mode",
 			zap.String("mode", job.Mode),
-			zap.String("broadcaster_id", payload.BroadcasterID))
+			zap.String("broadcaster_id", e.broadcasterID))
 		return nil
 	}
 }

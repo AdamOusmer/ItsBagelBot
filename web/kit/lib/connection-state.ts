@@ -49,28 +49,51 @@ export type ConnUi = {
 };
 
 export function connectionUiState(s: ConnSignals): ConnUi {
-  const l = s.lifecycle;
-  if (l && l.version !== 1) return ui('unavailable');
-  if (l) {
-    if (!l.desired_enabled) return { ...ui('disabled'), showEnable: true, retainedBan: l.chat_restriction === 'banned', grantNeedsReconnect: l.grant_health === 'missing' };
-    if (l.chat_restriction === 'banned') return { ...ui('bot_banned'), grantNeedsReconnect: l.grant_health === 'missing', automaticRecovery: l.control_listeners_healthy === true };
-    if (l.chat_restriction === 'timeout') return { ...ui('timed_out'), timeoutUntil: l.timeout_until };
-    if (l.runtime_state === 'recovering') return ui('recovering');
-    if (l.runtime_state === 'degraded') return ui('degraded');
-    if (l.runtime_state === 'dormant') return ui('dormant');
-    if (l.grant_health === 'missing') return ui('reauth_required');
-    if (l.runtime_state === 'blocked') return ui('degraded');
-  }
-  if (l?.runtime_state === 'active') {
-    return ui(activeKind(s.sub === 'chat_banned' || s.sub === 'revoked' ? 'unknown' : s.sub));
-  }
-  if (s.sub === 'chat_banned') return ui('bot_banned');
-  if (s.grant === 'unknown' || s.active === 'unknown') return ui('unavailable');
-  if (!s.grant) return ui('auth_required');
-  const blocked = blockedKind(s.sub);
-  if (blocked) return ui(blocked);
-  if (!s.active) return ui('disabled');
-  return ui(activeKind(s.sub));
+ const lifecycle=s.lifecycle;
+ if (!lifecycle) return legacyConnectionUi(s);
+ if (lifecycle.version !== 1) return ui('unavailable');
+ return lifecycleConnectionUi(s,lifecycle);
+}
+function lifecycleConnectionUi(s: ConnSignals,l: ChannelLifecycle): ConnUi {
+ if (!l.desired_enabled) return disabledLifecycleUi(l);
+ const restriction=restrictionUi(l);
+ if (restriction) return restriction;
+ const transition=transitionUi(l);
+ if (transition) return transition;
+ if (l.grant_health === 'missing') return ui('reauth_required');
+ if (l.runtime_state === 'blocked') return ui('degraded');
+ if (l.runtime_state === 'active') return activeLifecycleUi(s);
+ return legacyConnectionUi(s);
+}
+function disabledLifecycleUi(l: ChannelLifecycle): ConnUi {
+ return {...ui('disabled'),showEnable:true,retainedBan:l.chat_restriction === 'banned',grantNeedsReconnect:l.grant_health === 'missing'};
+}
+function restrictionUi(l: ChannelLifecycle): ConnUi | undefined {
+ if (l.chat_restriction === 'banned') return {...ui('bot_banned'),grantNeedsReconnect:l.grant_health === 'missing',automaticRecovery:l.control_listeners_healthy === true};
+ if (l.chat_restriction === 'timeout') return {...ui('timed_out'),timeoutUntil:l.timeout_until};
+ return undefined;
+}
+function transitionUi(l: ChannelLifecycle): ConnUi | undefined {
+ switch(l.runtime_state) {
+  case 'recovering': return ui('recovering');
+  case 'degraded': return ui('degraded');
+  case 'dormant': return ui('dormant');
+  default: return undefined;
+ }
+}
+function activeLifecycleUi(s: ConnSignals): ConnUi {
+ // The authoritative healthy lifecycle outranks stale compatibility flags.
+ const sub=s.sub === 'chat_banned' || s.sub === 'revoked' ? 'unknown' : s.sub;
+ return ui(activeKind(sub));
+}
+function legacyConnectionUi(s: ConnSignals): ConnUi {
+ if (s.sub === 'chat_banned') return ui('bot_banned');
+ if (s.grant === 'unknown' || s.active === 'unknown') return ui('unavailable');
+ if (!s.grant) return ui('auth_required');
+ const blocked=blockedKind(s.sub);
+ if (blocked) return ui(blocked);
+ if (!s.active) return ui('disabled');
+ return ui(activeKind(s.sub));
 }
 
 function blockedKind(sub: SubState): ConnKind | null {
@@ -121,8 +144,10 @@ function ui(kind: ConnKind): ConnUi {
 // Poll replies and loader refreshes use the same Users revision and incarnation.
 export function mergeConnectionSignals(loader: ConnSignals, polled?: Partial<ConnSignals> | null): ConnSignals {
  if (!polled) return loader;
- const newerIncarnation = (loader.accountCreatedAt ?? 0) > (polled.accountCreatedAt ?? 0);
- const newerRevision = (loader.lifecycleRevision ?? 0) >= (polled.lifecycleRevision ?? 0);
- if (loader.lifecycle && (newerIncarnation || (loader.accountCreatedAt === polled.accountCreatedAt && newerRevision))) return loader;
- return { ...loader, ...polled, lifecycle: polled.lifecycle ?? loader.lifecycle };
+ const merged={...loader,...polled,lifecycle:polled.lifecycle ?? loader.lifecycle};
+ if (!loader.lifecycle) return merged;
+ if ((loader.accountCreatedAt ?? 0) > (polled.accountCreatedAt ?? 0)) return loader;
+ if (loader.accountCreatedAt !== polled.accountCreatedAt) return merged;
+ if ((loader.lifecycleRevision ?? 0) >= (polled.lifecycleRevision ?? 0)) return loader;
+ return merged;
 }

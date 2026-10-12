@@ -134,21 +134,5 @@
   "invitesPendingCta": "Review invites",
   "setupConnectCta": "Connect",
   "setupCommandCta": "Create command",
-  "setupModuleCta": "Browse modules",
-  "dormant": "Dormant",
-  "issueDormant": "The bot wakes automatically when an enabled feature is used. Your settings are preserved.",
-  "recovering": "Reconnecting…",
-  "issueRecovering": "Checking access before restoring operation.",
-  "timedOut": "Timed out",
-  "issueTimedOut": "Normal bot work pauses until the timeout ends and access is verified.",
-  "verifyUnban": "I unbanned it — retry",
-  "retryConnection": "Retry connection check",
-  "disabledByYou": "Disabled by you",
-  "retainedBan": "The bot is still banned. Unbanning it will not automatically enable it.",
-  "connectionCheckFailed": "Connection check failed",
-  "issueConnectionCheckFailed": "Access could not be confirmed. Retry when the problem is fixed.",
-  "secondaryGrantMissing": "Twitch authorization also needs reconnecting.",
-  "enableAndVerify": "Enable and verify unban",
-  "issueBotBannedAutomatic": "Unban the bot in Twitch. It will reconnect automatically. You can also retry to verify the unban.",
-  "issueBotBannedUnavailable": "Automatic unban recovery is unavailable. Reconnect Twitch authorization, or unban the bot and retry to verify access."
+  "setupModuleCta": "Browse modules"
 }

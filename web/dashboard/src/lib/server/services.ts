@@ -360,10 +360,7 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
   return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
 }
 
-export const accountState = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: {
+type AccountStateReply = {
     active: boolean;
     status: string;
     onboarded?: boolean;
@@ -373,7 +370,12 @@ export const accountState = defineRead({
     lifecycle?: ChannelLifecycle;
     state_revision?: number;
     account_created_at?: number;
-  }): AccountState => ({
+  };
+
+export const accountState = defineRead({
+  subject: `${SUB.dashboard}.state_get`,
+  request: (userId: string) => ({ broadcaster_user_id: userId }),
+  map: (r: AccountStateReply): AccountState => ({
     lifecycle: r.lifecycle,
     lifecycleRevision: r.state_revision,
     accountCreatedAt: r.account_created_at,
@@ -598,8 +600,9 @@ export function startInvalidationListener(): void {
   fabric.start();
 }
 
+type LifecycleRetryRequest = { broadcaster_user_id: string };
 export const retryLifecycle = defineWrite({
  subject: `${SUB.dashboard}.lifecycle_retry`,
- request: (userId: string) => ({ broadcaster_user_id: userId }),
- after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
+ request: (request: LifecycleRetryRequest) => request,
+ after: (_result: unknown, request: LifecycleRetryRequest) => invalidate(`account:${request.broadcaster_user_id}`)
 });

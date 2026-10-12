@@ -19,33 +19,43 @@ func (w *Worker) reconcileErasure(ctx context.Context, e usersrpc.LifecycleErasu
 		return
 	}
 	if !e.NotificationsDone {
-		result, err := bus.RequestJSONTimeout[notificationsrpc.ConnectionReply](ctx, w.lifecycleNC, notificationsrpc.ConnectionSubject+".erase", notificationsrpc.ConnectionRequest{AccountID: e.UserID, AccountCreatedAt: e.AccountCreatedAt, ErasedAt: e.DeletedAt}, 3*time.Second)
-		if err == nil && result.Outcome == "erased" {
-			req.Action = "erase_ack"
-			req.Reason = "notifications"
-			_, _ = w.lifecycleRequest(ctx, req)
+		w.eraseNotifications(ctx, e)
+	}
+	if e.OutgressDone {
+		return
+	}
+	if w.eraseOwnedSubscriptions(ctx, e) != nil {
+		return
+	}
+	w.ackErasure(ctx, e, "outgress")
+}
+
+func (w *Worker) ackErasure(ctx context.Context, e usersrpc.LifecycleErasure, reason string) {
+	_, _ = w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: e.UserID, AccountCreatedAt: e.AccountCreatedAt, Action: "erase_ack", Reason: reason})
+}
+func (w *Worker) eraseNotifications(ctx context.Context, e usersrpc.LifecycleErasure) {
+	req := notificationsrpc.ConnectionRequest{AccountID: e.UserID, AccountCreatedAt: e.AccountCreatedAt, ErasedAt: e.DeletedAt}
+	result, err := bus.RequestJSONTimeout[notificationsrpc.ConnectionReply](ctx, w.lifecycleNC, notificationsrpc.ConnectionSubject+".erase", req, 3*time.Second)
+	if err != nil {
+		return
+	}
+	if result.Outcome == "erased" {
+		w.ackErasure(ctx, e, "notifications")
+	}
+}
+func (w *Worker) eraseOwnedSubscriptions(ctx context.Context, e usersrpc.LifecycleErasure) error {
+	ids := e.State.OwnedSubscriptions
+	if len(ids) == 0 && e.State.ChatSubscriptionID != "" {
+		ids = []string{e.State.ChatSubscriptionID}
+	}
+	for _, id := range ids {
+		if err := w.takeSystemHelix(ctx); err != nil {
+			return err
+		}
+		if err := w.twitch.DeleteEventSub(ctx, id); err != nil {
+			return err
 		}
 	}
-	if !e.OutgressDone {
-		ids := e.State.OwnedSubscriptions
-		if len(ids) == 0 && e.State.ChatSubscriptionID != "" {
-			ids = []string{e.State.ChatSubscriptionID}
-		}
-		for _, id := range ids {
-			if w.takeSystemHelix(ctx) != nil {
-				return
-			}
-			if w.twitch.DeleteEventSub(ctx, id) != nil {
-				return
-			}
-		}
-		// Runtime registry entries are deleted only when the embedded incarnation
-		// matches. A newly registered account's hot entry survives this tombstone.
-		if err := w.registry.EraseIncarnation(ctx, strconv.FormatUint(e.UserID, 10), e.AccountCreatedAt); err != nil {
-			return
-		}
-		req.Action = "erase_ack"
-		req.Reason = "outgress"
-		_, _ = w.lifecycleRequest(ctx, req)
-	}
+	// Matching incarnation only: a replacement account's registry entry survives.
+	return w.registry.EraseIncarnation(ctx, strconv.FormatUint(e.UserID, 10), e.AccountCreatedAt)
 }

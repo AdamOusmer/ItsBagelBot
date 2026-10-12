@@ -411,20 +411,12 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 		if len(ids) == 0 {
 			return out, nil
 		}
-		gets := make([]valkey.Completed, 0, len(ids))
-		for _, id := range ids {
-			gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+		channels, err := r.listChannels(ctx, ids)
+		if err != nil {
+			return nil, err
 		}
-		for i, res := range r.client.DoMulti(ctx, gets...) {
-			fields, err := res.AsStrMap()
-			if err != nil {
-				return nil, err
-			}
-			ch := channelFromFields(ids[i], fields)
-			if ch.BroadcasterID != "" {
-				out = append(out, ch)
-			}
-		}
+		out = append(out, channels...)
+
 		if len(ids) < hotBatch {
 			return out, nil
 		}
@@ -628,4 +620,23 @@ func unixField(v string) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(sec, 0)
+}
+
+func (r *Registry) listChannels(ctx context.Context, ids []string) ([]manage.Channel, error) {
+	gets := make([]valkey.Completed, 0, len(ids))
+	for _, id := range ids {
+		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+	}
+	out := make([]manage.Channel, 0, len(ids))
+	for i, res := range r.client.DoMulti(ctx, gets...) {
+		fields, err := res.AsStrMap()
+		if err != nil {
+			return nil, err
+		}
+		ch := channelFromFields(ids[i], fields)
+		if ch.BroadcasterID != "" {
+			out = append(out, ch)
+		}
+	}
+	return out, nil
 }

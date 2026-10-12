@@ -2,7 +2,7 @@
 
 Local branch: `feature/inactive-channel-lifecycle`.
 Baseline: `985b8f150c0898be716c3e77f1753caf6f9665ae`, including Twitch race fix PR #1246.
-Status: implementation complete; final Astra reviews clear and checks passed. Prepared for pull-request review. No deployment or production cleanup was performed.
+Status: implementation complete; final Astra reviews clear and checks passed. [PR #1278](https://github.com/AdamOusmer/ItsBagelBot/pull/1278) is open. No production deployment or cleanup was performed.
 
 ## Behavior
 
@@ -37,11 +37,16 @@ Implementation was split among GPT-6.1 Sol agents. Independent GPT-6 Astra revie
 
 Review-driven fixes include account-recreation races, timeout preservation, stale poll/SSE ordering, erasure reply contracts, legacy receipt migration, listener permission degradation, obsolete subscription cleanup, engagement racing dormancy and go-live retry baseline capture. Regression tests accompany the fixes.
 
+The CodeScene follow-up separates lifecycle transitions, due selection, subscription effects and notification transaction steps into named domain helpers. Shared activity and recipient values keep related identity fields together. It retains all state fences and transaction boundaries without changing CodeScene rules. Astra reviewed the refactor against the initial implementation commit.
+
 ## Validation
 
+- Final local CodeScene delta against `origin/main` reports zero introduced or degraded findings. Existing rule configuration was unchanged.
 - Combined Go race suite passed with disposable real Valkey at `127.0.0.1:16387`: lifecycle/live/RPC domains, channelruntime, projection, watchtime, Users, Notifications, Projector, Twitch Outgress, Sesame and NATS configuration tests. This includes the original PR #1246 regressions and new lifecycle ordering cases. The NATS tests run disposable brokers and generated test identities.
 - All 281 Ingress ExUnit tests passed.
 - All 24 focused dashboard/kit Bun tests passed; Svelte checks reported zero errors and zero warnings.
+- Translation catalogs pass for all six configured locales. Existing overview keys retain their paths; new lifecycle strings are grouped under `overview.lifecycle`.
+- Container builds now include `internal/channelruntime` for Projector, Outgress and Sesame. Tests use the shared `pkg/codec` JSON API, including the repository-wide import guard.
 - Notification migration tests begin with the old schema and prove receipt uniqueness upgrades without dropping unrelated indexes. SQL repository tests use SQLite; deployed MySQL upgrade and representative-cardinality query plans remain staging checks.
 - `git diff --check` passed. The disposable Valkey instance was stopped after validation.
 

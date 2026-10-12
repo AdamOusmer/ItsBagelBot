@@ -17,61 +17,95 @@ func MigrateSchema(ctx context.Context, client *ent.Client) error {
 }
 func dropObsoleteReadIndex(next entschema.Differ) entschema.Differ {
 	return entschema.DiffFunc(func(current, desired *atlas.Schema) ([]atlas.Change, error) {
-		// SQLite may rebuild a table when adding the incarnation column. Carry
-		// unrelated indexes into that target so its rebuild also preserves them.
-		if prior, ok := current.Table("notification_reads"); ok {
-			if target, ok := desired.Table("notification_reads"); ok {
-				for _, idx := range prior.Indexes {
-					if idx.Name == obsoleteReadIndex {
-						continue
-					}
-					if _, exists := target.Index(idx.Name); exists {
-						continue
-					}
-					clone := *idx
-					clone.Table = target
-					clone.Parts = nil
-					for _, part := range idx.Parts {
-						copied := *part
-						if part.C != nil {
-							copied.C, _ = target.Column(part.C.Name)
-						}
-						clone.Parts = append(clone.Parts, &copied)
-					}
-					target.Indexes = append(target.Indexes, &clone)
-				}
-			}
-		}
+		preserveReadIndexes(current, desired)
 		changes, err := next.Diff(current, desired)
 		if err != nil {
 			return nil, err
 		}
-		table, ok := current.Table("notification_reads")
-		if !ok {
+		drop := obsoleteReadIndexDrop(current, desired)
+		if drop == nil {
 			return changes, nil
 		}
-		old, ok := table.Index(obsoleteReadIndex)
-		if !ok {
-			return changes, nil
-		}
-		replacement, ok := desired.Table("notification_reads")
-		if !ok {
-			return changes, nil
-		}
-		if _, ok = replacement.Index(incarnationReadIndex); !ok {
-			return changes, nil
-		}
-		for _, change := range changes {
-			if modify, ok := change.(*atlas.ModifyTable); ok && modify.T.Name == table.Name {
-				for _, c := range modify.Changes {
-					if drop, ok := c.(*atlas.DropIndex); ok && drop.I.Name == obsoleteReadIndex {
-						return changes, nil
-					}
-				}
-				modify.Changes = append(modify.Changes, &atlas.DropIndex{I: old})
-				return changes, nil
-			}
-		}
-		return append(changes, &atlas.ModifyTable{T: replacement, Changes: []atlas.Change{&atlas.DropIndex{I: old}}}), nil
+		return appendReadIndexDrop(changes, drop), nil
 	})
+}
+func preserveReadIndexes(current, desired *atlas.Schema) {
+	prior, found := current.Table("notification_reads")
+	if !found {
+		return
+	}
+	target, found := desired.Table("notification_reads")
+	if !found {
+		return
+	}
+	// SQLite can rebuild the table when adding the incarnation column. Carry
+	// unrelated indexes into that target so the rebuild also preserves them.
+	for _, index := range prior.Indexes {
+		if index.Name == obsoleteReadIndex {
+			continue
+		}
+		if _, exists := target.Index(index.Name); exists {
+			continue
+		}
+		target.Indexes = append(target.Indexes, cloneReadIndex(index, target))
+	}
+}
+func cloneReadIndex(index *atlas.Index, target *atlas.Table) *atlas.Index {
+	clone := *index
+	clone.Table = target
+	clone.Parts = nil
+	for _, part := range index.Parts {
+		copied := *part
+		if part.C != nil {
+			copied.C, _ = target.Column(part.C.Name)
+		}
+		clone.Parts = append(clone.Parts, &copied)
+	}
+	return &clone
+}
+func obsoleteReadIndexDrop(current, desired *atlas.Schema) *atlas.ModifyTable {
+	table, found := current.Table("notification_reads")
+	if !found {
+		return nil
+	}
+	old, found := table.Index(obsoleteReadIndex)
+	if !found {
+		return nil
+	}
+	replacement, found := desired.Table("notification_reads")
+	if !found {
+		return nil
+	}
+	if _, found = replacement.Index(incarnationReadIndex); !found {
+		return nil
+	}
+	return &atlas.ModifyTable{T: replacement, Changes: []atlas.Change{&atlas.DropIndex{I: old}}}
+}
+func appendReadIndexDrop(changes []atlas.Change, drop *atlas.ModifyTable) []atlas.Change {
+	for _, change := range changes {
+		modify, ok := change.(*atlas.ModifyTable)
+		if !ok {
+			continue
+		}
+		if modify.T.Name != drop.T.Name {
+			continue
+		}
+		if !hasObsoleteReadIndexDrop(modify) {
+			modify.Changes = append(modify.Changes, drop.Changes...)
+		}
+		return changes
+	}
+	return append(changes, drop)
+}
+func hasObsoleteReadIndexDrop(modify *atlas.ModifyTable) bool {
+	for _, change := range modify.Changes {
+		drop, ok := change.(*atlas.DropIndex)
+		if !ok {
+			continue
+		}
+		if drop.I.Name == obsoleteReadIndex {
+			return true
+		}
+	}
+	return false
 }

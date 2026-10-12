@@ -18,10 +18,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 	"strconv"
 
-	"github.com/newrelic/go-agent/v3/newrelic"
-
-	"github.com/nats-io/nats.go"
-
 	"go.uber.org/zap"
 )
 
@@ -35,12 +31,16 @@ type Manage struct {
 	log      *zap.Logger
 }
 
-func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger, runtime ...channelruntime.Reader) error {
+type SubscriptionConfig struct {
+	bus.RPCWiring
+	Prefix  string
+	Runtime channelruntime.Reader
+}
 
-	m := &Manage{registry: registry, twitch: tw, log: log}
-	if len(runtime) > 0 {
-		m.runtime = runtime[0]
-	}
+func SubscribeManage(cfg SubscriptionConfig, registry *channels.Registry, tw *twitch.Client) error {
+	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
+
+	m := &Manage{registry: registry, twitch: tw, log: log, runtime: cfg.Runtime}
 
 	return subscribeAll(
 		func() error {
@@ -317,9 +317,19 @@ func runtimeContext(ctx context.Context, r channelruntime.Reader, id string) con
 		if err != nil {
 			return err
 		}
-		if !current.AllowsRuntime() || current.AccountCreatedAt != initial.AccountCreatedAt || current.State.AdmissionGeneration != initial.State.AdmissionGeneration {
+		if !runtimeSnapshotMatches(current, initial) {
 			return errors.New("channel unavailable")
 		}
 		return nil
 	})
+}
+
+func runtimeSnapshotMatches(current, initial channelruntime.Snapshot) bool {
+	if !current.AllowsRuntime() {
+		return false
+	}
+	if current.AccountCreatedAt != initial.AccountCreatedAt {
+		return false
+	}
+	return current.State.AdmissionGeneration == initial.State.AdmissionGeneration
 }

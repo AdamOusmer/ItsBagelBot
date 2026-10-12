@@ -479,18 +479,22 @@ func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Res
 		return nil, err
 	}
 
+	return c.performAttempt(ctx, req, call.Endpoint)
+}
+func (c *Client) performAttempt(ctx context.Context, req *http.Request, endpoint string) (*http.Response, error) {
 	seg := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
 	res, err := c.http.Do(req)
 	seg.Response = res
 	seg.End()
-	if err == nil {
-		if admissionErr := observeAttempt(ctx, res); admissionErr != nil {
-			observedErr := publishProviderReset(ctx, call.Endpoint, admissionErr)
-			drain(res)
-			return nil, observedErr
-		}
+	if err != nil {
+		return res, err
 	}
-	return res, err
+	if admissionErr := observeAttempt(ctx, res); admissionErr != nil {
+		observedErr := publishProviderReset(ctx, endpoint, admissionErr)
+		drain(res)
+		return nil, observedErr
+	}
+	return res, nil
 }
 
 func RetryAfter(res *http.Response) time.Duration {
