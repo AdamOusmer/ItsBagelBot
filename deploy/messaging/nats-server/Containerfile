@@ -6,7 +6,7 @@ FROM docker.io/library/golang:1.27.1-bookworm@sha256:69a7b9788769bec032d238959b6
 ENV GOTOOLCHAIN=local GOFLAGS=-mod=readonly
 WORKDIR /src
 ARG NATS_SERVER_REPO=https://github.com/AdamOusmer/nats-server.git
-ARG NATS_SERVER_COMMIT=977c6e6266f517a7a47774095dbcaf7add170efb
+ARG NATS_SERVER_COMMIT=2d39d1d2ce901c24d7fc4ef586013515d62be3d5
 ARG NATS_FORK_TAG=bagel/v2.15.1-bench
 RUN git init -q . \
  && git remote add origin "${NATS_SERVER_REPO}" \
