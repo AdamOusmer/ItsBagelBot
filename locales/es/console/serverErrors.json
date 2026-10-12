@@ -82,5 +82,10 @@
   "fetchRate": "Demasiadas pruebas. Cada una consulta la API real. Espera unos 10 segundos e inténtalo de nuevo.",
   "fixFields": "Corrige primero los campos resaltados.",
   "fetchService": "El servicio de consultas no respondió. Inténtalo de nuevo en un momento.",
-  "premiumAlreadyHeld": "Esta cuenta ya tiene cobertura de Premium. No puedes volver a suscribirte mientras se concilia el premio o plan actual."
+  "premiumAlreadyHeld": "Esta cuenta ya tiene cobertura de Premium. No puedes volver a suscribirte mientras se concilia el premio o plan actual.",
+  "automodTerm": "«{entry}» no se puede usar como término. Necesita al menos un carácter visible y como máximo 128.",
+  "automodDomain": "«{entry}» no es un dominio simple. Escríbelo como ejemplo.com, sin https:// ni ruta.",
+  "automodAccount": "«{entry}» no es un ID de usuario de Twitch. Usa el ID numérico, no el nombre de usuario.",
+  "automodTooMany": "AutoMod admite como máximo 256 términos, y como máximo 256 sitios y cuentas en total.",
+  "automodTooLarge": "Estos ajustes de AutoMod superan el límite de 16 KB. Acorta algunas listas."
 }

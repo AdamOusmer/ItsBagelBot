@@ -11,18 +11,6 @@ export interface ModuleField {
   help?: string;
   options?: { value: string; label: string }[];
   hidden?: boolean;
-  followsLevel?: boolean;
-}
-
-export const AUTOMOD_LEVEL_DEFAULTS: Record<string, Record<string, boolean>> = {
-  none: { harassment: false, sexual: false, profanity: false, style: false, links: false },
-  basic: { harassment: true, sexual: false, profanity: false, style: false, links: false },
-  moderate: { harassment: true, sexual: true, profanity: false, style: true, links: true },
-  strict: { harassment: true, sexual: true, profanity: true, style: true, links: true }
-};
-
-export function automodToggleDefault(level: string, key: string): boolean {
-  return (AUTOMOD_LEVEL_DEFAULTS[level] ?? AUTOMOD_LEVEL_DEFAULTS.moderate)[key] ?? false;
 }
 
 export interface ReplyToken {

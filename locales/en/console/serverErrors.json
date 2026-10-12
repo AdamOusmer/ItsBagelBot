@@ -82,5 +82,10 @@
   "fetchRate": "Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.",
   "fixFields": "Fix the highlighted fields first.",
   "fetchService": "The fetch service did not answer. Try again in a moment.",
-  "premiumAlreadyHeld": "This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled."
+  "premiumAlreadyHeld": "This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled.",
+  "automodTerm": "“{entry}” can't be used as a term. It needs at least one visible character and at most 128.",
+  "automodDomain": "“{entry}” isn't a bare domain. Enter it like example.com, without https:// or a path.",
+  "automodAccount": "“{entry}” isn't a Twitch user ID. Use the numeric ID, not the username.",
+  "automodTooMany": "AutoMod holds at most 256 terms, and at most 256 sites and accounts combined.",
+  "automodTooLarge": "These AutoMod settings are over the 16 KB limit. Shorten some lists."
 }

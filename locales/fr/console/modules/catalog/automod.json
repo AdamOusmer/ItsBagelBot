@@ -1,51 +1,51 @@
 {
   "label": "AutoMod",
-  "tagline": "Attrapez les arnaques, les voleurs d'IP et le spam de raid avant vos modos.",
-  "description": "AutoMod garde un œil sur le chat pour repérer les messages nuisibles et les vagues de raid, pour que vos modos profitent aussi du stream. Selon la gravité du message, il peut avertir l'auteur, retirer le message, ou donner une exclusion ou un ban. Les VIP, les modos et vous êtes toujours exemptés, et tout ce qui est limite est laissé à vos modos humains. Choisissez un niveau de Aucun à Tout, puis ajustez chaque contrôle ci-dessous. Un petit plancher de sécurité (insultes haineuses et liens voleurs d'IP) reste actif à chaque niveau, même avec le module éteint, car ces contenus peuvent mettre votre chaîne et le bot en danger sur Twitch. Le reste est à vous.",
+  "tagline": "Vos listes de blocage d'abord, puis un panel de modèles d'IA pour tout ce qui reste incertain.",
+  "description": "AutoMod vérifie chaque message du chat avec les règles ci-dessous avant toute autre chose : vos termes bloqués, les listes de termes adultes, d'insultes et de haine, les phrases de spam, les sites bloqués ou voleurs d'IP, les comptes bloqués et l'interrupteur de tous les liens. Un message qui correspond à l'une d'elles est retiré. Ce que ces règles ne tranchent pas passe devant un panel de modèles d'IA qui évaluent la toxicité et la haine en contexte. Ce panel apprend encore sur le chat en direct : il note ce qu'il ferait, mais ne retire, n'exclut ni ne bannit jamais de lui-même, donc les cas limites restent à vos modos humains.",
   "settings": {
-    "level": {
-      "label": "Niveau d'application",
-      "help": "Définit le défaut de chaque contrôle ci-dessous. Le plancher de sécurité s'applique à tous les niveaux.",
-      "placeholder": "moderate",
-      "options": {
-        "none": "Aucun : plancher de sécurité seulement",
-        "basic": "Basique : plancher + harcèlement",
-        "moderate": "Modéré (recommandé par défaut)",
-        "strict": "Tout : chaque contrôle, strict famille"
-      }
-    },
-    "harassment": {
-      "label": "Harcèlement",
-      "help": "Messages destinés à blesser quelqu'un : l'auteur reçoit un avertissement et le message est retiré. Si ça continue, une exclusion suit, puis un ban."
-    },
-    "sexual": {
-      "label": "Contenu sexuel",
-      "help": "Retire les messages avec des termes sexuels explicites."
-    },
-    "profanity": {
-      "label": "Grossièretés",
-      "help": "Retire les jurons simples. Désactivé par défaut : la plupart des chaînes les autorisent."
-    },
-    "style": {
-      "label": "Spam de majuscules et de symboles",
-      "help": "Retire les cris, les murs de symboles et les inondations de caractères. Les murs d'emotes (spam KEKW) sont reconnus et jamais signalés."
-    },
-    "links": {
-      "label": "Radar anti-liens en masse",
-      "help": "Surveille le même modèle de lien posté par beaucoup de comptes différents et retire la vague. Un lien isolé n'est jamais touché."
-    },
-    "clips_only": {
-      "label": "Clips Twitch seulement",
-      "help": "Retire les messages qui contiennent un lien autre qu'un clip Twitch (clips.twitch.tv/… ou twitch.tv/…/clip/…). Désactivé par défaut : activez-le si le chat ne doit partager que des clips."
-    },
     "block_terms": {
       "label": "Termes bloqués",
-      "help": "Mots ou phrases supplémentaires à signaler sur votre chaîne. Séparez par des virgules ou des sauts de ligne. Correspond même à travers l'obfuscation (l33t, lettres ressemblantes).",
+      "help": "Mots ou expressions à retirer de votre chaîne. Séparez-les par des virgules ou des retours à la ligne. Reconnus comme mots entiers, sans tenir compte de la casse.",
       "placeholder": "terme un, terme deux"
     },
-    "allow_terms": {
-      "label": "Termes autorisés",
-      "help": "Mots qui passent sur votre chaîne : une ligne qui en contient un n'est jamais signalée par les contrôles ci-dessus ni par vos termes bloqués. Ne peut pas outrepasser le plancher de sécurité."
+    "nsfw_terms": {
+      "label": "Termes adultes",
+      "help": "Mots sexuels ou adultes à retirer d'office. Séparez-les par des virgules ou des retours à la ligne.",
+      "placeholder": "terme un, terme deux"
+    },
+    "slur_terms": {
+      "label": "Insultes",
+      "help": "Insultes que votre chaîne ne veut jamais voir. Séparez-les par des virgules ou des retours à la ligne.",
+      "placeholder": "terme un, terme deux"
+    },
+    "racism_terms": {
+      "label": "Termes haineux",
+      "help": "Mots et expressions racistes ou haineux à retirer d'office. Séparez-les par des virgules ou des retours à la ligne.",
+      "placeholder": "terme un, terme deux"
+    },
+    "spam_phrases": {
+      "label": "Phrases de spam",
+      "help": "Phrases que seuls les spammeurs publient, comme la vente d'abonnés ou de spectateurs. Séparez-les par des virgules ou des retours à la ligne.",
+      "placeholder": "acheter des abonnés, spectateurs pas chers"
+    },
+    "block_links": {
+      "label": "Bloquer tous les liens",
+      "help": "Retire tout message contenant un lien, y compris un domaine seul comme exemple.com. Désactivé par défaut."
+    },
+    "blocked_domains": {
+      "label": "Sites bloqués",
+      "help": "Retire les liens vers ces sites et tous leurs sous-domaines. Saisissez des domaines simples comme exemple.com, sans https:// ni chemin.",
+      "placeholder": "exemple.com"
+    },
+    "ip_logger_domains": {
+      "label": "Sites voleurs d'IP",
+      "help": "Sites de traçage ou voleurs d'IP à retirer. Saisissez des domaines simples comme grabify.link.",
+      "placeholder": "grabify.link"
+    },
+    "blocked_accounts": {
+      "label": "Comptes bloqués",
+      "help": "Identifiants Twitch (des nombres, pas des noms d'utilisateur) dont les messages sont toujours retirés. Séparez-les par des virgules ou des retours à la ligne.",
+      "placeholder": "123456789"
     }
   }
 }

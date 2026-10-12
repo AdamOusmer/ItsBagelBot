@@ -82,5 +82,10 @@
   "fetchRate": "Trop de tests. Chacun appelle la véritable API. Attendez environ 10 secondes et réessayez.",
   "fixFields": "Corrigez d’abord les champs signalés.",
   "fetchService": "Le service de récupération n’a pas répondu. Réessayez dans un instant.",
-  "premiumAlreadyHeld": "Ce compte bénéficie déjà de Premium. Un nouvel abonnement est bloqué pendant la vérification du prix ou du forfait en cours."
+  "premiumAlreadyHeld": "Ce compte bénéficie déjà de Premium. Un nouvel abonnement est bloqué pendant la vérification du prix ou du forfait en cours.",
+  "automodTerm": "« {entry} » ne peut pas servir de terme. Il faut au moins un caractère visible et au plus 128.",
+  "automodDomain": "« {entry} » n’est pas un domaine simple. Saisissez-le comme exemple.com, sans https:// ni chemin.",
+  "automodAccount": "« {entry} » n’est pas un identifiant Twitch. Utilisez l’identifiant numérique, pas le nom d’utilisateur.",
+  "automodTooMany": "AutoMod accepte au plus 256 termes, et au plus 256 sites et comptes au total.",
+  "automodTooLarge": "Ces réglages AutoMod dépassent la limite de 16 Ko. Raccourcissez certaines listes."
 }
