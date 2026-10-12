@@ -293,10 +293,12 @@ spec:
       metricType: AverageValue
       metadata:
         value: "300m"
+    # Operator mode: /jsz keys accounts by public key, so a name-only lookup finds nothing and KEDA sits on fallback.
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
         lagThreshold: "1500"
@@ -305,6 +307,7 @@ spec:
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD
         consumer: worker_twitch_ingress_event_standard
         lagThreshold: "6000"
