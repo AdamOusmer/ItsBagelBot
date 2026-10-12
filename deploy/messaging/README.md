@@ -257,8 +257,9 @@ Against stock 2.15.0 on the same hubs:
   shape lost nothing, unpaced included.
 - **Memory is unchanged where it binds.** Premium-shape cells peaked at 2.2-3.3
   GiB hub RSS (was 2.3-3.4 GiB); 32 MiB cells at 0.86-1.3 GiB (the 2.9 GiB in
-  the 75k row is heap left over from the premium cells just before). After the runs
-  the idle hubs held 2.3-2.4 GiB, against 250-285 MiB before the roll.
+  the 75k row is heap left over from the premium cells just before). The idle
+  hubs held 2.3-2.4 GiB right after the runs and were back to 190-286 MiB about
+  15 minutes later, the same as before the roll.
 
 ## Why we run stock anyway
 
