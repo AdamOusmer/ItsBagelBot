@@ -6,8 +6,9 @@ Three `nats-server` pods (`nats-0/1/2`, one per worker node) holding every
 JetStream stream at R3, plus a leaf DaemonSet that apps connect to. The hot
 event lanes are in memory; the data, dead-letter and system streams are on file
 storage (`pkg/bus/streams.go`). Hub and leaf authenticate in NATS operator (JWT)
-mode (`nats-operator.conf`). The hubs run **stock upstream**, pinned by digest
-in `nats.yaml` (currently 2.15.0). This file
+mode (`nats-operator.conf`). The hubs run nats-server 2.15.1 with our patch set
+(`deploy/messaging/nats-server`), pinned by digest in `nats.yaml`; the leaves
+run stock 2.15.0. This file
 records what the broker can actually do, because the number is lower than it
 looks and the way past it is not a broker setting.
 
@@ -200,6 +201,64 @@ Not shipped:
 - Header trimming (+64 B of header moved nothing), larger cohorts (+5%
   admitted, twice the commit latency), more publisher connections, ACK_FIRST
   off, and a 1-replica durable: none beat noise.
+
+## Measured, 2026-10-12 (patched 2.15.1-bench)
+
+Production hubs on the patched build (`deploy/messaging/nats-server`, fork tag
+`bagel/v2.15.1-bench`, the `NATS_BENCH_*` knobs in `nats.yaml`, eviction
+batching off), same rig and lane as 2026-10-11: TWITCH_INGRESS_RETRY at R3, one
+shared R3 AckNone pull durable on the canary subject, three publisher pods with
+8 in-flight cohorts, three consumer pods with six pumps of 250, 735 B payload.
+60 s cells, each run twice; ranges cover both runs. Colocated seats the
+durable's leader on the stream leader, separated seats it on a follower. Loss
+is admitted minus received after reconciling every sequence; no run duplicated
+a message, no hub restarted and every stream and consumer stayed current.
+
+| shape | placement | offered | admitted | loss | e2e p50 / p99 ms | commit p50 / p99 ms | apply lag peak | hub RSS peak MiB | leader cores |
+|---|---|---|---|---|---|---|---|---|---|
+| 32 MiB / 2 m | separated | 60k | 60.0k | 0, 0 | 17-20 / 55-58 | 12-15 / 61-65 | 8-39 | 856-977 | 2.60-2.67 |
+| 32 MiB / 2 m | separated | 70k | 70.0k | 0, 0 | 13 / 28-30 | 10-12 / 29-34 | 9 | 881-903 | 2.70-2.89 |
+| 32 MiB / 2 m | separated | 75k | 75.0k | 0, 0 | 13-15 / 35-36 | 10-11 / 30-52 | 8-36 | 934-2885 | 2.74-2.83 |
+| 32 MiB / 2 m | separated | 80k | 80.0k | 0, 0 | 13-14 / 118-184 | 11-12 / 39-306 | 60-94 | 981-1141 | 3.04-3.08 |
+| 32 MiB / 2 m | separated | 100k | 93.3k-96.2k | 0, 6443 | 105-119 / 195-418 | 306-348 / 459-529 | 93-94 | 1295-1333 | 3.30-3.32 |
+| 32 MiB / 2 m | separated | 120k | 93.4k-101.9k | 42137, 0 | 106-114 / 259-398 | 323-357 / 480-502 | 92-94 | 1263-1309 | 3.31-3.33 |
+| 32 MiB / 2 m | separated | unpaced | 93.9k-98.9k | 0, 0 | 106-112 / 203-220 | 324-360 / 502-571 | 93 | 1329-1332 | 3.34-3.36 |
+| 32 MiB / 2 m | colocated | 50k | 50.0k | 0, 0 | 14-20 / 28-34 | 12-17 / 28-31 | 6-8 | 855-863 | 2.56 |
+| 32 MiB / 2 m | colocated | 55k | 54.9k-55.0k | 0, 0 | 18 / 27-58 | 15-16 / 26-30 | 6-7 | 908-920 | 2.68-2.72 |
+| 32 MiB / 2 m | colocated | 60k | 60.0k | 0, 0 | 25-134 / 350-351 | 19 / 245-342 | 10-14 | 996-1020 | 3.19-3.26 |
+| 32 MiB / 2 m | colocated | 80k | 67.7k-69.7k | 0, 0 | 195-200 / 278-302 | 202-218 / 322-336 | 11-13 | 1058-1101 | 3.30-3.31 |
+| 32 MiB / 2 m | colocated | 100k | 68.0k-69.9k | 0, 0 | 195-200 / 275-276 | 214-221 / 326-334 | 11-17 | 1133-1179 | 3.29-3.30 |
+| 32 MiB / 2 m | colocated | 120k | 68.9k-73.5k | 0, 0 | 186-190 / 268-345 | 206 / 308-428 | 12-13 | 1173-1309 | 3.36 |
+| 32 MiB / 2 m | colocated | unpaced | 69.0k-76.1k | 0, 0 | 178-199 / 279-305 | 199-216 / 328-366 | 10-15 | 1135-1228 | 3.33-3.34 |
+| 384 MiB / 6 s / 400k | separated | 50k | 50.0k | 0, 0 | 15-16 / 36-44 | 12 / 40-44 | 5-6 | 2202-2806 | 2.02-2.04 |
+| 384 MiB / 6 s / 400k | separated | 80k | 80.0k | 0, 0 | 14-18 / 33-53 | 12-14 / 31-72 | 52-87 | 2838-2918 | 2.98-3.02 |
+| 384 MiB / 6 s / 400k | separated | 100k | 96.2k-99.5k | 0, 0 | 98-106 / 177-488 | 15-256 / 423-453 | 92-93 | 3160-3180 | 3.34-3.37 |
+| 384 MiB / 6 s / 400k | separated | unpaced | 98.7k-99.4k | 0, 0 | 103-111 / 195-348 | 339-342 / 463-500 | 93-94 | 3181-3278 | 3.35-3.38 |
+| 384 MiB / 6 s / 400k | colocated | 50k | 50.0k | 0, 0 | 15-18 / 37-40 | 13-15 / 32-34 | 6-10 | 2285-2304 | 2.49-2.53 |
+| 384 MiB / 6 s / 400k | colocated | 60k | 59.8k-59.9k | 0, 0 | 18-26 / 113-314 | 12-14 / 77-224 | 6-7 | 2659-2890 | 2.97-3.15 |
+| 384 MiB / 6 s / 400k | colocated | 80k | 71.1k-72.4k | 0, 0 | 187 / 274-294 | 145-166 / 310-346 | 10-14 | 3050-3103 | 3.34-3.35 |
+| 384 MiB / 6 s / 400k | colocated | 100k | 72.1k-72.5k | 0, 0 | 188-194 / 276-305 | 201-205 / 347-369 | 10-18 | 3079-3105 | 3.32-3.34 |
+| 384 MiB / 6 s / 400k | colocated | unpaced | 72.5k-75.7k | 0, 0 | 184-194 / 270-272 | 199-211 / 305-314 | 12-14 | 3019-3104 | 3.31-3.35 |
+
+Against stock 2.15.0 on the same hubs:
+
+- **The ceiling moved by half.** Unpaced, one stream admitted 94-99k msg/s with
+  the durable separated (was 62-67k) and 69-76k colocated (was 42-46k at 32 MiB,
+  62-64k in the premium shape). The stream leader still sat at 3.3-3.4 of its 5
+  cores at the ceiling: the same serialized path, each message cheaper.
+- **Clean rate (p99 under 100 ms, zero loss)**: 75k separated and 55k colocated
+  at 32 MiB; 80k separated and 50k colocated in the premium shape, where 60k
+  colocated reached a 113-314 ms p99. So one stream holds **50k msg/s wherever
+  the durable's leader lands**, as before, and 75-80k once it sits on a
+  follower. Colocation, not the binary, still sets the floor.
+- **At 50k** e2e is 15-18 ms p50 and 36-44 ms p99 (was 17-23 / 55-97 ms).
+- **32 MiB still loses messages under consumer lag.** Separated at 100k and 120k
+  offered, two of four runs evicted 6.4k and 42k messages unread. The premium
+  shape lost nothing, unpaced included.
+- **Memory is unchanged where it binds.** Premium-shape cells peaked at 2.2-3.3
+  GiB hub RSS (was 2.3-3.4 GiB); 32 MiB cells at 0.86-1.3 GiB (the 2.9 GiB in
+  the 75k row is heap left over from the premium cells just before). After the runs
+  the idle hubs held 2.3-2.4 GiB, against 250-285 MiB before the roll.
 
 ## Why we run stock anyway
 
