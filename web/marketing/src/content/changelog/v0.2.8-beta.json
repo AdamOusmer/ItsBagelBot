@@ -1,0 +1,32 @@
+{
+  "tag": "beta",
+  "version": "v0.2.8-beta",
+  "date": "2026-10-13",
+  "title": {
+    "en": "Discord Rooms, Setup Guides and Cleaner Account Deletion",
+    "fr": "Salons Discord, guides de configuration et suppression de compte plus complète"
+  },
+  "highlights": {
+    "en": [
+      "Discord join-to-create voice rooms land in the category you pick, with log channels and room options in the dashboard.",
+      "Setup guides for Spotify, Govee and Discord, plus a Govee setup wizard in the dashboard.",
+      "Stuck on a setup? Ask your own AI: the dashboard copies a ready prompt, and ai.itsbagelbot.com gives assistants step-by-step instructions for Spotify and Govee.",
+      "Deleting your account now also clears your Discord server settings, commands and backups.",
+      "Inactive channels are paused automatically, and the bot recovers by itself after an unban.",
+      "Raffles and queues can share !join, and !leaderboard now comes from loyalty.",
+      "Clearer errors for Spotify and Twitch sign-ins, and Spotify and Govee failures are explained in chat.",
+      "Steadier during database and network hiccups, and the mobile menu no longer breaks words."
+    ],
+    "fr": [
+      "Les salons vocaux Discord créés à la demande arrivent dans la catégorie de votre choix, avec salons de logs et options de salon dans le tableau de bord.",
+      "Des guides de configuration pour Spotify, Govee et Discord, et un assistant de configuration Govee dans le tableau de bord.",
+      "Bloqué pendant une configuration ? Demandez à votre IA : le tableau de bord copie une question prête, et ai.itsbagelbot.com donne aux assistants les étapes pour Spotify et Govee.",
+      "Supprimer votre compte efface maintenant aussi vos réglages de serveur Discord, vos commandes et vos sauvegardes.",
+      "Les chaînes inactives sont mises en pause automatiquement, et le bot reprend tout seul après un débannissement.",
+      "Les tirages et les files d'attente peuvent partager !join, et !leaderboard vient maintenant de la fidélité.",
+      "Des erreurs plus claires pour les connexions Spotify et Twitch, et les échecs Spotify et Govee sont expliqués dans le chat.",
+      "Plus stable pendant les ralentissements de base de données et de réseau, et le menu mobile ne coupe plus les mots."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.8-beta"
+}
