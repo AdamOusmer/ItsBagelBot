@@ -144,6 +144,7 @@ func discordCode(err error) rpc.Code {
 
 type reauthReader interface {
 	NeedsReauth(ctx context.Context, guildID kv.GuildID) bool
+	ClearNeedsReauth(ctx context.Context, guildID kv.GuildID) error
 }
 
 func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSetupRequest) outgressrpc.DiscordSetupReply {
@@ -166,6 +167,7 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
 	}
+	d.clearFixedReauth(ctx, req.GuildID)
 	return outgressrpc.DiscordSetupReply{
 		DiscordSetupIDs: got.DiscordSetupIDs,
 		DroppedPins:     got.DroppedPins,
@@ -334,6 +336,16 @@ func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPost
 func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
 	flag, _ := d.reauthFlag(ctx, guildID)
 	return flag
+}
+
+func (d *discordRPC) clearFixedReauth(ctx context.Context, guildID string) {
+	id := kv.GuildID(guildID)
+	if !d.needsReauth(ctx, id) || !d.w.BotCanRename(ctx, guildID) {
+		return
+	}
+	if err := d.reauth.ClearNeedsReauth(ctx, id); err != nil {
+		d.logger().Warn("failed to clear discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+	}
 }
 
 func (d *discordRPC) reauthFlag(ctx context.Context, guildID kv.GuildID) (flag, known bool) {

@@ -148,6 +148,22 @@ func (w *Worker) botMember(ctx context.Context, guild discapi.Guild) (discapi.Me
 	return discapi.MemberPermissions{GuildID: guild.ID, UserID: w.botID, Roles: info.Roles}, true
 }
 
+func (w *Worker) BotCanRename(ctx context.Context, guildID string) bool {
+	if w.discord == nil {
+		return false
+	}
+	guild := discapi.Guild{ID: guildID}
+	member, ok := w.botMember(ctx, guild)
+	if !ok {
+		return false
+	}
+	roles, err := w.discord.ListGuildRoles(ctx, guild)
+	if err != nil {
+		return false
+	}
+	return discapi.HasPermissions(discapi.BasePermissions(member, roles), discapi.PermChangeNickname)
+}
+
 func annotateBotAccess(out []GuildEntry, channels []discapi.Snowflake, member discapi.MemberPermissions, roles []discapi.Snowflake) {
 	base := discapi.BasePermissions(member, roles)
 	for i, ch := range channels {

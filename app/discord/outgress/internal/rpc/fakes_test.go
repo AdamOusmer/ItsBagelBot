@@ -359,6 +359,11 @@ type flaggedReauth map[string]bool
 
 func (f flaggedReauth) NeedsReauth(_ context.Context, g kv.GuildID) bool { return f[string(g)] }
 
+func (f flaggedReauth) ClearNeedsReauth(_ context.Context, g kv.GuildID) error {
+	delete(f, string(g))
+	return nil
+}
+
 type unavailableStore struct{ *discordstore.Mem }
 
 func (unavailableStore) GuildsOf(context.Context, discordstore.Broadcaster) ([]discordstore.Binding, error) {
