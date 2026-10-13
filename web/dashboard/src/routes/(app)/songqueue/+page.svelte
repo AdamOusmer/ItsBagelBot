@@ -125,6 +125,7 @@
   const ERROR_SLUG_KEYS: Record<string, string> = {
     state: 'spotify.errors.state',
     oauth: 'spotify.errors.oauth',
+    declined: 'spotify.errors.declined',
     notoken: 'spotify.errors.noToken',
     noapp: 'spotify.errors.noApp',
     unconfigured: 'spotify.errors.unconfigured',
@@ -137,8 +138,9 @@
     mod: 'spotify.quota.mod'
   };
 
-  type SongQueueActionOk = ActionOk & { missingScope?: boolean };
+  type SongQueueActionOk = ActionOk & { missingScope?: boolean; missingSpotifyScope?: boolean };
   let missingScope = $state(false);
+  let missingSpotifyScope = $state(false);
 
   const isOk = (result: { type: string }, payload: SongQueueActionOk | undefined) =>
     result.type === 'success' && payload?.ok !== false;
@@ -146,7 +148,12 @@
   function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
-      toast('danger', t('spotify.connection.reconnect'));
+      toast('danger', t('spotify.connection.twitchScopeGap'));
+      return;
+    }
+    if (payload?.missingSpotifyScope) {
+      missingSpotifyScope = true;
+      toast('danger', t('spotify.connection.scopeGap'));
       return;
     }
     failed(payload, fallbackKey);
@@ -426,9 +433,18 @@
 
   {#if missingScope}
     <AlertBanner tone="warning">
-      {t('spotify.connection.reconnect')}
+      {t('spotify.connection.twitchScopeGap')}
       {#snippet actions()}
-        <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.connection.reconnectCta')}</ButtonLink>
+        <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.connection.reconnectTwitchCta')}</ButtonLink>
+      {/snippet}
+    </AlertBanner>
+  {/if}
+
+  {#if missingSpotifyScope && scopeGap.length === 0}
+    <AlertBanner tone="warning">
+      {t('spotify.connection.scopeGap')}
+      {#snippet actions()}
+        <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.reconnectSpotify')}</ButtonLink>
       {/snippet}
     </AlertBanner>
   {/if}
