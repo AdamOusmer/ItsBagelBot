@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/discord/outgress/internal/identity"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -146,6 +147,34 @@ func (w *Worker) botMember(ctx context.Context, guild discapi.Guild) (discapi.Me
 		return discapi.MemberPermissions{}, false
 	}
 	return discapi.MemberPermissions{GuildID: guild.ID, UserID: w.botID, Roles: info.Roles}, true
+}
+
+func (w *Worker) BotCanRename(ctx context.Context, guildID string) bool {
+	if w.discord == nil {
+		return false
+	}
+	guild := discapi.Guild{ID: guildID}
+	member, ok := w.botMember(ctx, guild)
+	if !ok {
+		return false
+	}
+	roles, err := w.discord.ListGuildRoles(ctx, guild)
+	if err != nil {
+		return false
+	}
+	return discapi.HasPermissions(discapi.BasePermissions(member, roles), discapi.PermChangeNickname)
+}
+
+type currentMemberWriter interface {
+	ModifyCurrentMember(ctx context.Context, m discapi.CurrentMember) error
+}
+
+func (w *Worker) ApplyIdentity(ctx context.Context, guildID string, want ddiscord.GuildIdentity) error {
+	writer, ok := w.discord.(currentMemberWriter)
+	if !ok {
+		return ErrDiscordUnavailable
+	}
+	return writer.ModifyCurrentMember(ctx, identity.Member(guildID, want))
 }
 
 func annotateBotAccess(out []GuildEntry, channels []discapi.Snowflake, member discapi.MemberPermissions, roles []discapi.Snowflake) {

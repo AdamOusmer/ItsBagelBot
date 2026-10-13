@@ -1,7 +1,7 @@
 {
-  "boundElsewhere": "That Discord server is already linked to another Twitch channel.",
+  "boundElsewhere": "That Discord server is already linked to another Twitch channel. Ask that channel's owner to open this server in Bagel, go to Settings and choose Disconnect. Then add it here again.",
   "conflict": "Someone else saved this server first. Reload and try again.",
-  "forbidden": "Discord refused that. Bagel is missing a permission in this server.",
+  "forbidden": "Discord refused that because Bagel is missing a permission in this server. In Discord, open Server Settings, then Roles, and drag Bagel's role above the roles it manages. If you unchecked a permission when adding Bagel, choose Re-authorize on this server's Settings page, then choose Add Bagel again next to this server and keep every permission checked.",
   "invalid": "Some settings were not valid, so they were left as they were.",
   "invalidFields": "Saved, but these were left as they were: {fields}.",
   "locked": "Discord is in beta and open to Premium channels only.",
@@ -16,5 +16,6 @@
   "timeout": "This took too long. Some of it may be missing; reload to see the rest.",
   "notFound": "That channel or role is gone from the server. Pick another one.",
   "unknown": "Something went wrong on our side. Try again, and tell support if it keeps happening.",
-  "unconfigured": "Discord is not configured on this deployment (missing client id or redirect)."
+  "unconfigured": "Discord is not configured on this deployment (missing client id or redirect).",
+  "declined": "You cancelled on Discord's screen, so nothing was added. Choose Add a server to try again."
 }

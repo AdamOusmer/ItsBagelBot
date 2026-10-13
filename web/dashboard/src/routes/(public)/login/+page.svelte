@@ -36,7 +36,12 @@
     banned: t('login.noticeBanned'),
     link: t('login.noticeLink'),
     retry: t('login.noticeRetry'),
-    imp: t('login.noticeImpersonation')
+    imp: t('login.noticeImpersonation'),
+    declined: t('login.noticeDeclined'),
+    state: t('login.noticeState'),
+    oauth: t('login.noticeOauth'),
+    bot: t('login.noticeBot'),
+    scope: t('login.noticeScope')
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
 

@@ -18,7 +18,7 @@ import {
   returnIfDeclined,
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
-import { listGuilds } from '$lib/server/discord-store';
+import { listGuilds, type DiscordGuildSummary } from '$lib/server/discord-store';
 import { canManageGuild, guildIconURL, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
 import { gateModulePage } from '$lib/server/module-gate';
 import { dev } from '$app/environment';
@@ -31,6 +31,7 @@ export type PickChoice = {
   name: string;
   iconUrl: string;
   badge: GuildPickerBadge;
+  repair: boolean;
   installURL: string;
   openURL: string;
 };
@@ -46,30 +47,31 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
   const state = generateState();
   putDiscordState({ cookies, url, leg: DISCORD_INSTALL_LEG, uid }, state);
 
-  const bound = await listGuilds({ userId: uid })
-    .then((rows) => rows.map((g) => g.guildId))
+  const rows = await listGuilds({ userId: uid })
     .catch((e) => {
       logger.warn({ err: e }, '[discord-pick] bound guilds unavailable');
-      return [] as string[];
+      return [] as DiscordGuildSummary[];
     });
+  const bound = rows.map((g) => g.guildId);
+  const repair = rows.filter((g) => g.needsReauth || !g.botPresent).map((g) => g.guildId);
 
   const elsewhere = boundElsewhereIds(cookies);
-  return { choices: guilds.map((g) => choice(g, bound, elsewhere, state)) };
+  return { choices: guilds.map((g) => choice(g, { bound, elsewhere, repair }, state)) };
 };
 
 function choice(
   g: DiscordUserGuild,
-  bound: string[],
-  elsewhere: string[],
+  lists: { bound: string[]; elsewhere: string[]; repair: string[] },
   state: string
 ): PickChoice {
-  const badge = guildPickerBadge(g.id, { bound, elsewhere });
+  const badge = guildPickerBadge(g.id, { bound: lists.bound, elsewhere: lists.elsewhere });
   return {
     guildId: g.id,
     name: g.name,
     iconUrl: guildIconURL(g.id, g.icon),
     badge,
-    installURL: badge === 'addable' ? discordInstallURL(state, g.id) : '',
+    repair: badge === 'mine' && lists.repair.includes(g.id),
+    installURL: badge === 'addable' || badge === 'mine' ? discordInstallURL(state, g.id) : '',
     openURL: badge === 'mine' ? `/discord/${g.id}` : ''
   };
 }
@@ -92,11 +94,13 @@ async function demoPick(cookies: Cookies): Promise<{ choices: PickChoice[] }> {
   const { demoDiscordPicker, demoDiscordGuilds, demoDiscordBlocked } = await import(
     '$lib/server/demo-data'
   );
-  const bound = demoDiscordGuilds().map((g) => g.guildId);
+  const rows = demoDiscordGuilds();
+  const bound = rows.map((g) => g.guildId);
+  const repair = rows.filter((g) => g.needsReauth || !g.botPresent).map((g) => g.guildId);
   const elsewhere = [...boundElsewhereIds(cookies), ...demoDiscordBlocked()];
   return {
     choices: demoDiscordPicker()
       .filter(canManageGuild)
-      .map((g) => choice({ ...g, permissions: g.permissions }, bound, elsewhere, 'demo'))
+      .map((g) => choice({ ...g, permissions: g.permissions }, { bound, elsewhere, repair }, 'demo'))
   };
 }

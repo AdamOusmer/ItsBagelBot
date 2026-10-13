@@ -13,10 +13,12 @@
 
   let {
     receiving,
+    needsAuth,
     hasCommands,
     modulesOn
   }: {
     receiving: boolean;
+    needsAuth: boolean;
     hasCommands: boolean;
     modulesOn: boolean;
   } = $props();
@@ -24,7 +26,7 @@
   type Step = { id: string; label: string; cta: string; href: string; done: boolean };
 
   const steps = $derived.by<Step[]>(() => [
-    { id: 'connect', label: t('overview.setupConnect'), cta: t('overview.setupConnectCta'), href: '/settings#account', done: receiving },
+    { id: 'connect', label: t('overview.setupConnect'), cta: needsAuth ? t('overview.setupConnectCta') : t('overview.setupStatusCta'), href: needsAuth ? '/settings#account' : '#ov-status-h', done: receiving },
     { id: 'command', label: t('overview.setupCommand'), cta: t('overview.setupCommandCta'), href: '/commands', done: hasCommands },
     { id: 'module', label: t('overview.setupModule'), cta: t('overview.setupModuleCta'), href: '/modules', done: modulesOn }
   ]);

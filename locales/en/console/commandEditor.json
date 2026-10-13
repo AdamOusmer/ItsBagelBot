@@ -28,7 +28,7 @@
   "userCooldownS": "Per-viewer cooldown (s)",
   "userCooldownHint": "Each viewer waits this long between their own runs.",
   "restrictUser": "Restrict to user ID",
-  "restrictPlaceholder": "Twitch user ID. Only they can run it",
+  "restrictPlaceholder": "Numbers only. This is the Twitch user ID, not the username. Search the username on a Twitch user ID lookup site to get it.",
   "active": "Active",
   "onlyWhileLive": "Only while live",
   "bumpCounter": "Bump a counter",

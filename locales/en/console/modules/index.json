@@ -10,6 +10,7 @@
   "betaLockedBody": "This is in beta and open to Premium channels only for now. It unlocks for everyone when the beta ends; anything you set up during beta keeps working.",
   "betaPremium": "Premium only",
   "betaUpgrade": "See plans",
+  "betaAskOwner": "Premium for this channel is managed by {login}. Ask them to upgrade on their Billing page.",
   "breadcrumbLabel": "Breadcrumb",
   "catChannel": "Channel",
   "catChannelHint": "Channel points, follow and sub alerts, and raid shoutouts.",

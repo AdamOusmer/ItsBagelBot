@@ -1,7 +1,7 @@
 {
-  "boundElsewhere": "Ce serveur Discord est déjà lié à une autre chaîne Twitch.",
+  "boundElsewhere": "Ce serveur Discord est déjà lié à une autre chaîne Twitch. Demandez au propriétaire de cette chaîne d’ouvrir ce serveur dans Bagel, d’aller dans Réglages et de choisir Déconnecter. Ajoutez-le ensuite ici à nouveau.",
   "conflict": "Quelqu’un d’autre a enregistré ce serveur avant vous. Rechargez et réessayez.",
-  "forbidden": "Discord a refusé. Il manque une permission à Bagel sur ce serveur.",
+  "forbidden": "Discord a refusé cette action car il manque une permission à Bagel sur ce serveur. Dans Discord, ouvrez Paramètres du serveur, puis Rôles, et faites glisser le rôle de Bagel au-dessus des rôles qu’il gère. Si vous avez décoché une permission en ajoutant Bagel, choisissez Réautoriser sur la page Réglages de ce serveur, puis choisissez Ajouter Bagel à nouveau à côté de ce serveur et gardez toutes les permissions cochées.",
   "invalid": "Certains réglages n’étaient pas valides, ils ont été laissés tels quels.",
   "invalidFields": "Enregistré, mais ces réglages ont été laissés tels quels : {fields}.",
   "locked": "Discord est en bêta et réservé aux chaînes Premium.",
@@ -16,5 +16,6 @@
   "timeout": "L’opération a été trop longue. Il en manque peut-être une partie : rechargez pour voir le reste.",
   "notFound": "Ce salon ou ce rôle n’existe plus sur le serveur. Choisissez-en un autre.",
   "unknown": "Un problème est survenu de notre côté. Réessayez, et prévenez le support si cela persiste.",
-  "unconfigured": "Discord n’est pas configuré sur ce déploiement (identifiant client ou redirection manquant)."
+  "unconfigured": "Discord n’est pas configuré sur ce déploiement (identifiant client ou redirection manquant).",
+  "declined": "Vous avez annulé sur l’écran de Discord, donc rien n’a été ajouté. Choisissez Ajouter un serveur pour réessayer."
 }

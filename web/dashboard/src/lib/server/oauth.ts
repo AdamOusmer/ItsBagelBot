@@ -59,6 +59,10 @@ export function spotifyScopeGap(granted: readonly string[]): string[] {
   return scopeGap(spotifyScopes(), granted);
 }
 
+export function twitchScopeGap(granted: readonly string[] | undefined): boolean {
+  return !!granted && scopeGap(scopes().filter((s) => s !== 'openid'), granted).length > 0;
+}
+
 export async function fetchAccountEmail(accessToken: string): Promise<string | null> {
   const clientId = env.TWITCH_CLIENT_ID;
   if (!clientId) return null;

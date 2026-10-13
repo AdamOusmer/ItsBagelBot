@@ -7,6 +7,9 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"sync"
+
+	discapi "ItsBagelBot/internal/discordapi"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
 //go:embed premium-avatar.png
@@ -17,3 +20,15 @@ var dataURI = sync.OnceValue(func() string {
 })
 
 func PremiumAvatarDataURI() string { return dataURI() }
+
+func Member(guildID string, want ddiscord.GuildIdentity) discapi.CurrentMember {
+	m := discapi.CurrentMember{GuildID: guildID}
+	if nick, ok := want.Nick(); ok {
+		m.Nick = &nick
+	}
+	if want.Premium {
+		uri := PremiumAvatarDataURI()
+		m.AvatarDataURI = &uri
+	}
+	return m
+}
