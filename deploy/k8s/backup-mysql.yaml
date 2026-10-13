@@ -127,7 +127,7 @@ data:
 
     # Retention is NOT done here: the 30d expiry is an R2 lifecycle rule on
     # daily/, which keeps pruning if this CronJob is broken or deleted. The
-    # privacy policy promises backups are gone within 35d: no longer-lived copy.
+    # privacy policy promises backups expire after 30 days: no longer-lived copy.
     rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
 ---
 apiVersion: batch/v1
