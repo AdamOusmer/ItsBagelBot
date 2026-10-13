@@ -18,8 +18,8 @@
   "missingDashboard": "Missing dashboard.",
   "noEditableReply": "This command has no editable reply.",
   "unknownBuiltin": "Unknown built-in command.",
-  "subscriptionsUnavailable": "Subscriptions are not available right now.",
-  "subscriptionManagementUnavailable": "Subscription management is not available right now.",
+  "subscriptionsUnavailable": "Checkout could not open right now. Nothing was charged. Wait a minute, then try again.",
+  "subscriptionManagementUnavailable": "Subscription management could not open right now. Your plan has not changed. Try again later.",
   "discordPremiumOnly": "Discord is in beta and open to Premium channels only.",
   "billingOwnerOnly": "You do not have access to manage billing.",
   "giftUsername": "Enter the Twitch username to gift to.",
@@ -27,6 +27,12 @@
   "planVerify": "Could not verify the current plan. Try again in a moment.",
   "noSubscription": "There is no Tebex subscription to cancel for this account.",
   "giftUnavailable": "Gifting is not available right now. Try again in a moment.",
+  "giftNotRegistered": "That streamer has not signed in to ItsBagelBot yet. Ask them to sign in once, then send the gift again.",
+  "giftNotEligible": "That account cannot receive Premium. Pick a different streamer.",
+  "giftAlreadyPremium": "That streamer already has Premium. Pick someone else to gift to.",
+  "giftLookup": "Could not check that username right now. Wait a moment, then try again.",
+  "giftSelf": "That is your own account. To get Premium yourself, choose Subscribe monthly or Buy one month.",
+  "checkoutInProgress": "A checkout for that account is already open. Wait 30 seconds, then try again.",
   "importRate": "Too many import attempts. Wait a minute and try again.",
   "importTooLarge": "The parsed import is too large to verify.",
   "importDecode": "The parsed import could not be decoded. Run the preview again.",
@@ -82,5 +88,5 @@
   "fetchRate": "Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.",
   "fixFields": "Fix the highlighted fields first.",
   "fetchService": "The fetch service did not answer. Try again in a moment.",
-  "premiumAlreadyHeld": "This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled."
+  "premiumAlreadyHeld": "This account already has Premium, or a prize month is on the way. Refresh this page to see your current plan."
 }

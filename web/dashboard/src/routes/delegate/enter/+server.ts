@@ -18,7 +18,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   try {
     grants = await delegationAccess(s.user_id);
   } catch {
-    throw redirect(302, '/settings?e=access');
+    throw redirect(302, '/settings?e=accessretry');
   }
 
   const grant = grants.find((g) => g.owner_user_id === owner);

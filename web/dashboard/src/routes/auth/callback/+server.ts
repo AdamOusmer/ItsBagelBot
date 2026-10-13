@@ -7,7 +7,7 @@ import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
-import { rpc } from '@bagel/kit/server/nats';
+import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
@@ -78,12 +78,21 @@ function streamerSession(id: Identity) {
   };
 }
 
-async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<void> {
+async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<string | null> {
   const pending = cookies.get('pending_delegation');
-  if (!pending) return;
+  if (!pending) return null;
 
   cookies.delete('pending_delegation', { path: '/' });
-  const result = await delegationConsume(pending, id.userId, id.login);
+  let result: Awaited<ReturnType<typeof delegationConsume>>;
+  try {
+    result = await delegationConsume(pending, id.userId, id.login);
+  } catch (err) {
+    if (err instanceof RpcError) {
+      if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
+      throw redirect(302, '/login?e=link');
+    }
+    throw redirect(302, '/login?e=retry');
+  }
   if (!result.ok) throw redirect(302, '/login?e=link');
 
   setSessionCookie(cookies, url, {
@@ -174,9 +183,9 @@ function callbackGate(
   return { ok: true, code, storedNonce };
 }
 
-async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
   try {
-    await completeLogin(cookies, url, code, storedNonce);
+    return await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
     if (!isOAuthProtocolError(e)) throw e;
     throw redirect(302, '/login?e=oauth');
@@ -197,12 +206,12 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   if (!gate.ok) throw redirect(302, `/login?e=${gate.slug}`);
 
-  await runLogin(cookies, url, gate.code, gate.storedNonce);
+  const landing = await runLogin(cookies, url, gate.code, gate.storedNonce);
 
-  throw redirect(302, next ?? '/');
+  throw redirect(302, landing ?? next ?? '/');
 };
 
-async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
   const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
   const claims = tokens.claims() as unknown as IdTokenClaims;
   verifyClaims(claims, storedNonce);
@@ -219,10 +228,11 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   const email = await fetchAccountEmail(tokens.accessToken());
   await registerUser(identity, email);
 
-  await acceptPendingDelegation(cookies, url, identity);
+  const landing = await acceptPendingDelegation(cookies, url, identity);
 
   setSessionCookie(cookies, url, streamerSession(identity));
   await seedLocaleCookie(cookies, url, identity.userId);
   await seedCursorCookie(cookies, url, identity.userId);
   await persistGrant(identity.userId, tokens);
+  return landing;
 }
