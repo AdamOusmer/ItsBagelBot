@@ -2,7 +2,7 @@
   "boundElsewhere": "Dieser Discord-Server ist bereits mit einem anderen Twitch-Kanal verknüpft. Bitte den Inhaber dieses Kanals, diesen Server in Bagel zu öffnen, zu Einstellungen zu gehen und „Trennen“ zu wählen. Füge ihn danach hier erneut hinzu.",
   "conflict": "Jemand anderes hat diesen Server zuerst gespeichert. Lade neu und versuche es erneut.",
   "declined": "Du hast auf Discords Seite abgebrochen, daher wurde nichts hinzugefügt. Wähle „Server hinzufügen“, um es erneut zu versuchen.",
-  "forbidden": "Discord hat das abgelehnt, weil Bagel auf diesem Server eine Berechtigung fehlt. Öffne in Discord die Servereinstellungen und dann Rollen, und ziehe Bagels Rolle über die Rollen, die er verwaltet. Wenn du beim Hinzufügen von Bagel eine Berechtigung abgewählt hast, wähle auf der Seite Einstellungen dieses Servers „Erneut autorisieren“ und lass alle Berechtigungen ausgewählt.",
+  "forbidden": "Discord hat das abgelehnt, weil Bagel auf diesem Server eine Berechtigung fehlt. Öffne in Discord die Servereinstellungen und dann Rollen, und ziehe Bagels Rolle über die Rollen, die er verwaltet. Wenn du beim Hinzufügen von Bagel eine Berechtigung abgewählt hast, wähle auf der Seite Einstellungen dieses Servers „Erneut autorisieren“, wähle dann neben diesem Server „Bagel erneut hinzufügen“ und lass alle Berechtigungen ausgewählt.",
   "invalid": "Einige Einstellungen waren ungültig und wurden unverändert gelassen.",
   "invalidFields": "Gespeichert, aber unverändert gelassen: {fields}.",
   "locked": "Discord ist in der Beta und nur für Premium-Kanäle verfügbar.",

@@ -2,7 +2,7 @@
   "boundElsewhere": "Esse servidor do Discord já está vinculado a outro canal da Twitch. Peça ao proprietário desse canal para abrir este servidor no Bagel, ir a Configurações e escolher Desconectar. Depois, adicione-o aqui novamente.",
   "conflict": "Outra pessoa salvou este servidor primeiro. Recarregue e tente novamente.",
   "declined": "Você cancelou na tela do Discord, então nada foi adicionado. Escolha Adicionar servidor para tentar novamente.",
-  "forbidden": "O Discord recusou a ação porque falta uma permissão ao Bagel neste servidor. No Discord, abra Configurações do servidor, depois Cargos, e arraste o cargo de Bagel para cima dos cargos que ele gerencia. Se você desmarcou uma permissão ao adicionar Bagel, escolha Autorizar novamente na página Configurações deste servidor e mantenha todas marcadas.",
+  "forbidden": "O Discord recusou a ação porque falta uma permissão ao Bagel neste servidor. No Discord, abra Configurações do servidor, depois Cargos, e arraste o cargo de Bagel para cima dos cargos que ele gerencia. Se você desmarcou uma permissão ao adicionar Bagel, escolha Autorizar novamente na página Configurações deste servidor, depois escolha Adicionar Bagel novamente ao lado deste servidor e mantenha todas as permissões marcadas.",
   "invalid": "Algumas configurações eram inválidas e foram mantidas como estavam.",
   "invalidFields": "Salvo, mas estes campos foram mantidos como estavam: {fields}.",
   "locked": "O Discord está em beta e disponível apenas para canais Premium.",
