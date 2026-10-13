@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
+	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/internal/domain/event/data"
@@ -124,12 +125,22 @@ func (r *Users) republishRecent(ctx context.Context, rows []*ent.User, pending m
 		if present[ref.userID] || now.Sub(recordedAt) > erasureRepublishWindow {
 			continue
 		}
-		dto := data.UserDeletedDTO{UserID: ref.userID, AccountCreatedAt: ref.accountCreatedAt, DeletedAt: recordedAt}
+		dto := data.UserDeletedDTO{UserID: ref.userID, AccountCreatedAt: ref.accountCreatedAt, DeletedAt: r.deletedAt(ctx, ref, recordedAt)}
 		if err := bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, dto); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// The ledger record precedes the commit by the token revokes; consumers fence
+// on the deletion time, so prefer the committed one.
+func (r *Users) deletedAt(ctx context.Context, ref erasureRef, recordedAt time.Time) time.Time {
+	row, err := r.client.LifecycleErasure.Query().Where(lifecycleerasure.UserIDEQ(ref.userID), lifecycleerasure.AccountCreatedAtEQ(ref.accountCreatedAt)).Only(ctx)
+	if err != nil {
+		return recordedAt
+	}
+	return row.DeletedAt
 }
 
 func (r *Users) settledErasures(ctx context.Context, now time.Time) (map[erasureRef]time.Time, error) {

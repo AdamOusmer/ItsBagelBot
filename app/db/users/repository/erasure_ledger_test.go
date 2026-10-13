@@ -162,6 +162,29 @@ func TestReplayErasuresWaitsForInFlightDeletes(t *testing.T) {
 	assert.True(t, client.User.Query().Where(user.IDEQ(1001)).ExistX(ctx))
 }
 
+func TestReplayErasuresResendsWithCommittedDeletionTime(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+	store := newFakeErasureStore()
+	repo.SetErasureStore(store)
+
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
+	require.NoError(t, repo.Delete(ctx, 1001))
+	committed := client.LifecycleErasure.Query().OnlyX(ctx).DeletedAt
+	for key := range store.objects {
+		store.objects[key] = committed.Add(-2 * time.Minute)
+	}
+
+	_, err := repo.ReplayErasures(ctx, time.Now())
+
+	require.NoError(t, err)
+	events := pub.On(data.SubjectUserDeleted)
+	require.Len(t, events, 2)
+	var resent data.UserDeletedDTO
+	require.NoError(t, codec.Unmarshal(events[1].Payload, &resent))
+	assert.True(t, resent.DeletedAt.Equal(committed), "a revoke-delayed commit must not shrink the consumers' cutoff")
+}
+
 func TestReplayErasuresResendsRecentlyLostDeletionEvents(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
