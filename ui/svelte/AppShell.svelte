@@ -15,6 +15,7 @@
     crumbs?: UiCrumb[];
     groups?: UiNavGroup[];
     dockItems?: UiNavLink[];
+    dockQuick?: number;
     rail?: boolean;
     offset?: boolean;
     stacked?: boolean;
@@ -36,6 +37,7 @@
     crumbs = [],
     groups = [],
     dockItems = [],
+    dockQuick,
     rail = false,
     offset = false,
     stacked = false,
@@ -100,6 +102,6 @@
     </main>
   </div>
   <div class="bb-shell__dock-slot">
-    <Dock {items} {groups} label={dockLabel} />
+    <Dock {items} {groups} quick={dockQuick} label={dockLabel} />
   </div>
 </div>

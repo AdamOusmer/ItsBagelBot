@@ -31,6 +31,7 @@
   crumbs={[{ label: crumbRoot, href: '/' }, { label: crumb }]}
   groups={withHints}
   dockItems={mobileItems}
+  dockQuick={4}
   {rail}
   {offset}
   {stacked}
