@@ -1,31 +1,47 @@
 ---
-title: Set up {{console:setupAi.featureGovee}}
+title: Setup reference for AI assistants: {{console:setupAi.featureGovee}}
 description: Four dashboard steps to get a Govee API key from the Govee Home app, paste it, and see your lights. Read this first.
-updated: 2026-10-12
+updated: 2026-10-13
+kind: setup
+human: https://itsbagelbot.com/guides/govee-lights/
 ---
 
-## For assistants
+[Human guide](https://itsbagelbot.com/guides/govee-lights/).
+
+Get a Govee API key from Govee Home, save it in the dashboard, and load your colour lights.
+Then create a channel-points reward for each light viewers can control.
+
+<page type="setup">
+
+<audience>
 
 The user is in the {{console:common.appName}} dashboard, running the Govee setup ("{{console:goveeSetup.regionLabel}}"). It has four steps, numbered 01 to 04 in the step indicator at the top right: "{{console:goveeSetup.railNeed}}", "{{console:goveeSetup.railKey}}", "{{console:goveeSetup.railPaste}}", "{{console:goveeSetup.railLights}}". {{console:setupAi.guideStep}}
 
-Rules:
+</audience>
 
-- Give one step at a time. Wait for the user to confirm.
+<assistant_rules>
+
+- Present one step at a time. Wait for the user to confirm or describe the result before continuing.
 - {{console:setupAi.guideControls}}
-- Never ask for, accept or repeat the Govee API key. The user pastes it only into the dashboard field "{{console:govee.keyFieldLabel}}". If the user pastes it into the chat, tell them to apply for a new key in the Govee Home app and paste the new one in the dashboard.
-- If the user shows an error message, find it in https://ai.itsbagelbot.com/govee/errors.md and follow that section.
-- The Govee Home app changes. Where this page says a menu label may differ, tell the user to look for the closest match and describe what they see.
+- Do not request, accept, or output the Govee API key. Direct the user to paste it only into the dashboard field "{{console:govee.keyFieldLabel}}". If a key is pasted into chat, tell the user to apply for a new key in the Govee Home app and paste only the new one into the dashboard.
+- A new Govee key deactivates older keys, so suggest a new key only when needed.
+- If an error appears, match it against [Govee errors](https://ai.itsbagelbot.com/govee/errors.md) and follow that section.
+- The Govee Home app changes. If a menu label differs, tell the user to look for the closest match and describe what they see.
+- Follow only the buttons, fields, and limits documented on this page. If a setting is not covered, say so.
+- {{console:setupAi.guideLanguage}}
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
 
-Do not:
+</assistant_rules>
 
-- Invent menu names or limits that are not on this page.
-- Tell the user to apply for a new key unless needed. A new key turns off older keys.
+<facts>
 
 ## Before you start
 
 - A Govee Home account.
 - Govee lights already set up in the Govee Home app. The dashboard says: {{console:goveeSetup.needNoteBody}}
 - Only lights that can change colour are used.
+
+</facts>
 
 <a id="step-1"></a>
 ## Step 1: {{console:goveeSetup.railNeed}}
@@ -42,6 +58,8 @@ How to tell it worked: the step indicator moves to the next number ("{{console:g
 Common problems at this step:
 
 - Lights are missing later: see [No Govee devices found](errors.md#no-devices).
+
+Ask the user to confirm completion or describe what they see before continuing.
 
 <a id="step-2"></a>
 ## Step 2: {{console:goveeSetup.railKey}}
@@ -74,6 +92,8 @@ Common problems at this step:
 - Key never arrives: check spam, then apply again.
 - Older key stopped working: see [Govee no longer accepts the key](errors.md#key-rejected).
 
+Ask the user to confirm completion or describe what they see before continuing.
+
 <a id="step-3"></a>
 ## Step 3: {{console:goveeSetup.railPaste}}
 
@@ -95,6 +115,8 @@ Common problems at this step:
 - Govee did not answer: see [Key saved but not checked](errors.md#key-unchecked).
 - Save failed: see [Could not save the key](errors.md#key-save-failed).
 
+Ask the user to confirm completion or describe what they see before continuing.
+
 <a id="step-4"></a>
 ## Step 4: {{console:goveeSetup.railLights}}
 
@@ -104,9 +126,9 @@ The page says: {{console:goveeSetup.lightsBody}}
 
 1. Wait for the list to load ("{{console:govee.loadingLights}}").
 2. The page shows the number of colour lights found and their names. The text has the form "{{console:goveeSetup.lightsFound}}", with n replaced by the count.
-3. Select "{{console:goveeSetup.readyCta}}" to go to the Govee Lights page.
+3. Select "{{console:goveeSetup.readyCta}}" to go to the "{{console:modules.catalog.govee.label}}" page.
 
-On the Govee Lights page the user turns on "{{console:govee.masterLabel}}" and creates one reward per light. Viewers type a colour when they redeem it. "{{console:govee.liveOnlyLabel}}" is on by default, so redemptions work only while the stream is live.
+On the "{{console:modules.catalog.govee.label}}" page the user turns on "{{console:govee.masterLabel}}" and creates one reward per light. Viewers type a colour when they redeem it. "{{console:govee.liveOnlyLabel}}" is on by default, so redemptions work only while the stream is live.
 
 How to tell it worked: at least one light is listed under "{{console:govee.lightsTitle}}", and the page shows "{{console:govee.keyOnFile}}".
 
@@ -116,3 +138,18 @@ Common problems at this step:
 - Could not reach Govee: see [Could not reach Govee](errors.md#devices-error).
 - No devices: see [No Govee devices found](errors.md#no-devices).
 - No colour lights: see [No colour-capable lights](errors.md#no-lights).
+
+
+Ask the user to confirm completion or describe what they see before continuing.
+
+<related>
+
+- [Feature reference](../features/govee.md).
+- [Setup](setup.md).
+- [Errors](errors.md).
+- [Human guide](https://itsbagelbot.com/guides/govee-lights/).
+- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+
+</related>
+
+</page>
