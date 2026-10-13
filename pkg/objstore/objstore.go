@@ -73,10 +73,24 @@ func (s *Store) PutNew(ctx context.Context, key string, body []byte) error {
 	switch {
 	case resp.StatusCode == http.StatusPreconditionFailed:
 		return ErrExists
+	case resp.StatusCode == http.StatusConflict:
+		return conflictError(resp)
 	case resp.StatusCode/100 != 2:
 		return statusError(resp)
 	}
 	return nil
+}
+
+// R2 checks a bucket lock before If-None-Match, and only an existing object
+// can be locked.
+func conflictError(resp *http.Response) error {
+	var body struct {
+		Code string `xml:"Code"`
+	}
+	if xml.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && body.Code == "ObjectLockedByBucketPolicy" {
+		return ErrExists
+	}
+	return fmt.Errorf("objstore: %s %s: %d %s", resp.Request.Method, resp.Request.URL.Path, resp.StatusCode, body.Code)
 }
 
 func (s *Store) List(ctx context.Context, prefix string) ([]Object, error) {

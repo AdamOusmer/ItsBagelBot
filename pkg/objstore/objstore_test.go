@@ -43,6 +43,26 @@ func TestPutNewIsCreateOnly(t *testing.T) {
 	assert.True(t, existing["/ledger/erasures/1-2"])
 }
 
+func TestPutNewTreatsLockedObjectAsExisting(t *testing.T) {
+	s := newStore(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>ObjectLockedByBucketPolicy</Code><Message>The object is locked by the bucket policy.</Message></Error>`)
+	})
+
+	assert.ErrorIs(t, s.PutNew(context.Background(), "erasures/1-2", nil), objstore.ErrExists)
+}
+
+func TestPutNewKeepsOtherConflicts(t *testing.T) {
+	s := newStore(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		fmt.Fprint(w, `<Error><Code>OperationAborted</Code></Error>`)
+	})
+
+	err := s.PutNew(context.Background(), "erasures/1-2", nil)
+	assert.NotErrorIs(t, err, objstore.ErrExists)
+	assert.ErrorContains(t, err, "409 OperationAborted")
+}
+
 func TestListFollowsContinuationTokens(t *testing.T) {
 	s := newStore(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/ledger", r.URL.Path)
