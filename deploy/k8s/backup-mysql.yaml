@@ -125,20 +125,9 @@ data:
     rclone copy /work "r2:${R2_BUCKET}/mysql/daily/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    # The privacy policy promises backups expire after 30 days: the monthly/
-    # lifecycle rule must stay at 30d, never longer.
-    if [ "$(date -u +%d)" = "01" ]; then
-      rclone copy /work "r2:${R2_BUCKET}/mysql/monthly/" \
-        --include "*.enc" --include "*.sha256" --stats-one-line
-    fi
-
-    # Retention is NOT done here. R2 implements PutBucketLifecycleConfiguration
-    # (verified 2026-08-20; it does not implement object lock or versioning), so
-    # the 30d expiry lives as bucket lifecycle rules on the daily/ and
-    # monthly/ prefixes. A rule keeps pruning if this CronJob is broken,
-    # suspended, or deleted -- an `rclone delete` here would not, and would put
-    # a second copy of the retention policy somewhere it can drift from the
-    # first. It also means this job never needs a delete on the happy path.
+    # Retention is NOT done here: the 30d expiry is an R2 lifecycle rule on
+    # daily/, which keeps pruning if this CronJob is broken or deleted. The
+    # privacy policy promises backups expire after 30 days: no longer-lived copy.
     rclone lsf "r2:${R2_BUCKET}/mysql/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
 ---
 apiVersion: batch/v1

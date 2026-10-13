@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: "0009 - Adoption of Valkey for the Settings Projection"
-description: "Architecture decision record: Adoption of Valkey as the read-side projection
-of all settings and tier status, fed by a dedicated projector service"
+description: "Architecture decision record: Adoption of Valkey as the read-side projection of all settings and tier status, fed by a dedicated projector service"
 ---
 
 **Date:** 2026-06-09

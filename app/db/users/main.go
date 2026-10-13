@@ -59,6 +59,7 @@ func main() {
 	defer closeIntake() // stops intake before the repo flush above
 
 	startConsumers(ctx, n, repo, log)
+	wireErasure(ctx, repo, log)
 
 	go expireSubscriptions(ctx, repo, log)
 	go expirePremiumGrants(ctx, repo, log)
