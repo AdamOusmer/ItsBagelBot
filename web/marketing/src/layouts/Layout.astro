@@ -291,6 +291,8 @@ const contentSecurityPolicy = [
         legal={footerLegal}
         copyright="© 2026 ItsBagelBot"
         note={t('footer.note')}
+        class="bb-footer--raised"
+        studio={t('footer.studio')}
     >
         {isHome && <div slot="colophon" id="about">
             <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
