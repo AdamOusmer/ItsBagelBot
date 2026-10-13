@@ -129,37 +129,46 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 	}
 	b, err := cachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
 		b, ttl, _, err := core.BuildReplyWithMapper(ctx, devicesTTL, negativeTTL,
-			func(ctx context.Context) (any, error) {
-				var resp deviceListResponse
-				req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
-				if err := p.http.Do(ctx, req, &resp); err != nil {
-					return nil, err
-				}
-				if err := goveeCodeError(resp.Code, resp.Message); err != nil {
-					return nil, err
-				}
-				return buildDevicesReply(resp), nil
-			},
+			p.fetchDevices(key),
 			func(msg string) any { return gossiprpc.GoveeDevicesReply{Error: msg} },
-			func(err error) (string, core.Pin) {
-				var ue *core.UpstreamError
-				if errors.As(err, &ue) && (ue.Status == 401 || ue.Status == 403) {
-					return "", core.PinNone
-				}
-				return core.FriendlyUpstream(err)
-			},
+			devicesErrMapper,
 		)
 		return b, ttl, err
 	})
-	if err != nil {
-		log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
-		var ue *core.UpstreamError
-		if errors.As(err, &ue) && (ue.Status == 401 || ue.Status == 403) {
-			return gossiprpc.GoveeDevicesReply{Error: "Govee did not accept this API key", KeyRejected: true}
-		}
-		return gossiprpc.GoveeDevicesReply{Error: "device lookup failed"}
+	if err == nil {
+		return codec.RawMessage(b)
 	}
-	return codec.RawMessage(b)
+	log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+	if keyRejected(err) {
+		return gossiprpc.GoveeDevicesReply{Error: "Govee did not accept this API key", KeyRejected: true}
+	}
+	return gossiprpc.GoveeDevicesReply{Error: "device lookup failed"}
+}
+
+func keyRejected(err error) bool {
+	var ue *core.UpstreamError
+	return errors.As(err, &ue) && (ue.Status == http.StatusUnauthorized || ue.Status == http.StatusForbidden)
+}
+
+func devicesErrMapper(err error) (string, core.Pin) {
+	if keyRejected(err) {
+		return "", core.PinNone
+	}
+	return core.FriendlyUpstream(err)
+}
+
+func (p *api) fetchDevices(key string) func(context.Context) (any, error) {
+	return func(ctx context.Context) (any, error) {
+		var resp deviceListResponse
+		req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
+		if err := p.http.Do(ctx, req, &resp); err != nil {
+			return nil, err
+		}
+		if err := goveeCodeError(resp.Code, resp.Message); err != nil {
+			return nil, err
+		}
+		return buildDevicesReply(resp), nil
+	}
 }
 
 func buildDevicesReply(resp deviceListResponse) gossiprpc.GoveeDevicesReply {

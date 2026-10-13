@@ -47,18 +47,12 @@ func CachedBytesFresh(ctx context.Context, c *Cache, key string, admit func(cont
 	if err := spend(ctx, admit); err != nil {
 		return nil, err
 	}
-	res, err, _ := c.sf.Do(key, func() (any, error) {
-		payload, ttl, berr := build(ctx)
-		if berr != nil {
-			return nil, berr
-		}
-		c.storeEntry(ctx, key, payload, ttl)
-		return payload, nil
-	})
+	payload, ttl, err := build(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return res.([]byte), nil
+	c.storeEntry(ctx, key, payload, ttl)
+	return payload, nil
 }
 
 func (c *Cache) readBytes(ctx context.Context, key string) (payload []byte, stale, ok bool) {
