@@ -136,7 +136,9 @@ func TestReplayErasuresDeletesOnlyRestoredIncarnations(t *testing.T) {
 	var deleted data.UserDeletedDTO
 	require.Len(t, pub.On(data.SubjectUserDeleted), 1)
 	require.NoError(t, codec.Unmarshal(pub.On(data.SubjectUserDeleted)[0].Payload, &deleted))
-	assert.Equal(t, data.UserDeletedDTO{UserID: 1001, AccountCreatedAt: restored.UnixMicro()}, deleted)
+	assert.Equal(t, uint64(1001), deleted.UserID)
+	assert.Equal(t, restored.UnixMicro(), deleted.AccountCreatedAt)
+	assert.False(t, deleted.DeletedAt.IsZero())
 
 	again, err := repo.ReplayErasures(ctx, time.Now())
 	require.NoError(t, err)
