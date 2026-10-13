@@ -34,7 +34,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
-| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFooter`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
+| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFooter`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | stable | `styles/elements/deck-layout.css` |
@@ -101,7 +101,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **Brand** | `title*`: string<br>`sub`: string<br>`href`: string<br>`logoSrc`: string<br>`logoAlt`: string<br>`size`: 'sm' \| 'md' \| 'lg'<br>`logoShape`: 'square' \| 'circle'<br>`wordmark`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/brand-mark.css` |
-| **Dock** | `items`: UiNavLink[]<br>`groups`: UiNavGroup[]<br>`label`: string<br>`homeHref`: string<br>`fallbackIcon`: IconName | svelte + astro | stable | `styles/elements/shell.css` |
+| **Dock** | `items`: UiNavLink[]<br>`groups`: UiNavGroup[]<br>`label`: string<br>`homeHref`: string<br>`fallbackIcon`: IconName<br>`quick`: number | svelte + astro | stable | `styles/elements/shell.css` |
 | **EditorFooter** | `status`: 'idle' \| 'saving' \| 'saved' \| 'error' \| 'conflict'<br>`dirty`: boolean<br>`canSave`: boolean<br>`saveLabel`: string<br>`cancelLabel`: string<br>`savingLabel`: string<br>`savedLabel`: string<br>`errorLabel`: string<br>`dirtyLabel`: string<br>`onCancel*`: () => void | svelte + astro | stable | `styles/elements/editor-footer.css` |
 | **Footer** | `brand*`: UiBrand<br>`signoff`: { line: string; sub?: string }<br>`columns`: UiFooterColumn[]<br>`legal`: UiNavLink[]<br>`copyright*`: string<br>`note`: string<br>`studio`: string<br>`colophon`: Snippet | svelte + astro | stable | `styles/elements/footer.css` |
 | **Hamburger** | `label`: string<br>`closeLabel`: string<br>`controls`: string | svelte + astro | stable | `styles/elements/nav.css` |

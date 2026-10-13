@@ -10,11 +10,12 @@ import Dock from './Dock.astro';
 import Rail from './Rail.astro';
 import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups' | 'dockItems' | 'rail' | 'offset' | 'skipLabel' | 'crumbLabel' | 'dockLabel' | 'railLabel' | 'clock' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups' | 'dockItems' | 'dockQuick' | 'rail' | 'offset' | 'skipLabel' | 'crumbLabel' | 'dockLabel' | 'railLabel' | 'clock' | 'class'> {
   brand: UiBrand;
   crumbs?: UiCrumb[];
   groups?: UiNavGroup[];
   dockItems?: UiNavLink[];
+  dockQuick?: number;
   rail?: boolean;
   offset?: boolean;
   stacked?: boolean;
@@ -31,6 +32,7 @@ const {
   crumbs = [],
   groups = [],
   dockItems = [],
+  dockQuick,
   rail = false,
   offset = false,
   stacked = false,
@@ -50,4 +52,4 @@ const classes = ['bb-shell', offset ? 'bb-shell--offset' : null, stacked ? 'bb-s
 const items = dockItems.length ? dockItems : groups.flatMap((group) => group.items);
 ---
 
-<SkipLink href="#main-content" label={skipLabel} class="bb-shell__skip" /><slot name="banner" /><div class={classes} {...rest}>{rail && (<Rail brand={brand} groups={groups} label={railLabel}><Fragment slot="footer"><slot name="railFooter" /></Fragment></Rail>)}<div class="bb-shell__stage"><Topbar brand={brand} crumbs={crumbs} crumbLabel={crumbLabel} clock={clock} railed={rail}><Fragment slot="account"><slot name="account" /></Fragment><Fragment slot="actions"><slot name="topActions" /></Fragment></Topbar><main class="bb-shell__main" id="main-content" tabindex="-1"><div class="bb-shell__canvas"><slot /></div></main></div><div class="bb-shell__dock-slot"><Dock items={items} groups={groups} label={dockLabel} /></div></div>
+<SkipLink href="#main-content" label={skipLabel} class="bb-shell__skip" /><slot name="banner" /><div class={classes} {...rest}>{rail && (<Rail brand={brand} groups={groups} label={railLabel}><Fragment slot="footer"><slot name="railFooter" /></Fragment></Rail>)}<div class="bb-shell__stage"><Topbar brand={brand} crumbs={crumbs} crumbLabel={crumbLabel} clock={clock} railed={rail}><Fragment slot="account"><slot name="account" /></Fragment><Fragment slot="actions"><slot name="topActions" /></Fragment></Topbar><main class="bb-shell__main" id="main-content" tabindex="-1"><div class="bb-shell__canvas"><slot /></div></main></div><div class="bb-shell__dock-slot"><Dock items={items} groups={groups} quick={dockQuick} label={dockLabel} /></div></div>

@@ -14,16 +14,18 @@ import {
   groupIcon,
   hoistHome,
   isGrouped,
+  overflowStart,
 } from '../lib/dock-groups';
 import type { IconName } from '../lib/icons';
 import type { UiNavGroup, UiNavLink } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'nav'>, 'items' | 'groups' | 'label' | 'homeHref' | 'fallbackIcon' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'items' | 'groups' | 'label' | 'homeHref' | 'fallbackIcon' | 'quick' | 'class'> {
   items?: UiNavLink[];
   groups?: UiNavGroup[];
   label?: string;
   homeHref?: string;
   fallbackIcon?: IconName;
+  quick?: number;
   class?: string;
 }
 
@@ -34,6 +36,7 @@ const {
   label = t('nav.main'),
   homeHref = '/',
   fallbackIcon,
+  quick,
   class: className = '',
   ...rest
 } = Astro.props;
@@ -43,14 +46,16 @@ const grouped = isGrouped(groups);
 const home = grouped ? hoistHome(groups, homeHref) : null;
 const folded = grouped ? dockGroups(groups, homeHref) : [];
 const flat = grouped ? [] : items;
+const cut = overflowStart(flat.length, quick);
+const overflow: UiNavGroup | null = cut < flat.length ? { label: t('nav.menu'), items: flat.slice(cut) } : null;
 ---
 
-<nav class={classes} aria-label={label} {...rest}><div class="bb-dock__inner">{home && <a class="bb-dock-item" href={home.href} data-active={home.current ? '' : undefined} aria-current={home.current ? 'page' : undefined}>{home.icon && <Icon name={home.icon} size={18} />}<span class="bb-dock-item__label">{home.label}</span></a>}{folded.map((group) => (
+<nav class={classes} aria-label={label} {...rest}><div class="bb-dock__inner">{home && <a class="bb-dock-item" href={home.href} data-active={home.current ? '' : undefined} aria-current={home.current ? 'page' : undefined}>{home.icon && <Icon name={home.icon} size={18} />}<span class="bb-dock-item__label"><span data-fit="block" data-fit-group="dock">{home.label}</span></span>{home.count && <span class="bb-dock-item__count" aria-hidden="true">{home.count}</span>}</a>}{folded.map((group) => (
   group.items.length === 1 ? (
-    <a class="bb-dock-item" href={group.items[0].href} data-active={group.items[0].current ? '' : undefined} aria-current={group.items[0].current ? 'page' : undefined}>{group.items[0].icon && <Icon name={group.items[0].icon} size={18} />}<span class="bb-dock-item__label">{group.items[0].label}</span>{group.items[0].count && <span class="bb-dock-item__count" aria-hidden="true">{group.items[0].count}</span>}</a>
+    <a class="bb-dock-item" href={group.items[0].href} data-active={group.items[0].current ? '' : undefined} aria-current={group.items[0].current ? 'page' : undefined}>{group.items[0].icon && <Icon name={group.items[0].icon} size={18} />}<span class="bb-dock-item__label"><span data-fit="block" data-fit-group="dock">{group.items[0].label}</span></span>{group.items[0].count && <span class="bb-dock-item__count" aria-hidden="true">{group.items[0].count}</span>}</a>
   ) : (
-    <div class="bb-dock__group"><button type="button" class="bb-dock-item" data-active={groupActive(group) ? '' : undefined} aria-expanded="false" aria-haspopup="menu">{groupIcon(group, fallbackIcon) && <Icon name={groupIcon(group, fallbackIcon) as IconName} size={18} />}<span class="bb-dock-item__label">{group.label}</span>{groupCount(group) && <span class="bb-dock-item__count" aria-hidden="true">{groupCount(group)}</span>}</button></div>
+    <div class="bb-dock__group"><button type="button" class="bb-dock-item" data-active={groupActive(group) ? '' : undefined} aria-expanded="false" aria-haspopup="menu">{groupIcon(group, fallbackIcon) && <Icon name={groupIcon(group, fallbackIcon) as IconName} size={18} />}<span class="bb-dock-item__label"><span data-fit="block" data-fit-group="dock">{group.label}</span></span>{groupCount(group) && <span class="bb-dock-item__count" aria-hidden="true">{groupCount(group)}</span>}</button></div>
   )
-))}{flat.map((item) => (
-  <a class="bb-dock-item" href={item.href} data-active={item.current ? '' : undefined} aria-current={item.current ? 'page' : undefined}>{item.icon && <Icon name={item.icon} size={18} />}<span class="bb-dock-item__label">{item.label}</span>{item.count && <span class="bb-dock-item__count" aria-hidden="true">{item.count}</span>}</a>
-))}</div></nav>
+))}{flat.map((item, index) => (
+  <a class="bb-dock-item" href={item.href} data-active={item.current ? '' : undefined} aria-current={item.current ? 'page' : undefined} data-dock-fold={index >= cut ? '' : undefined}>{item.icon && <Icon name={item.icon} size={18} />}<span class="bb-dock-item__label"><span data-fit="block" data-fit-group="dock">{item.label}</span></span>{item.count && <span class="bb-dock-item__count" aria-hidden="true">{item.count}</span>}</a>
+))}{overflow && <div class="bb-dock__group bb-dock__more"><button type="button" class="bb-dock-item" data-active={groupActive(overflow) ? '' : undefined} aria-expanded="false" aria-haspopup="menu">{'list' && <Icon name={'list' as IconName} size={18} />}<span class="bb-dock-item__label"><span data-fit="block" data-fit-group="dock">{overflow.label}</span></span>{groupCount(overflow) && <span class="bb-dock-item__count" aria-hidden="true">{groupCount(overflow)}</span>}</button></div>}</div></nav>
