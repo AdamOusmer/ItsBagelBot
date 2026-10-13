@@ -46,6 +46,7 @@ func TestLiveACLPermissions(t *testing.T) {
 		}{
 			{roleEndpoint{"BUS", "users_bus"}, "$JS.API.STREAM.DELETE.BAGEL_DATA"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "twitch.ingress.event.premium"},
+			{roleEndpoint{"BUS", "discord_data_bus"}, "data.users.deleted"},
 		} {
 			err := server.publishOutcome(t, probe.role, probe.subject, 500*time.Millisecond)
 

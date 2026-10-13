@@ -75,7 +75,7 @@ Edit schemas rather than generated Ent code.
 - Committed mutations publish full `data.users.changed`; broadcasts invalidate
   each instance's local safe-view cache. Grouped reprojection requests replay
   persisted account state for downstream rebuilding.
-- Deletion publishes `data.users.deleted` with account instance after deleting the
+- Deletion publishes `data.users.deleted` with account instance and deletion time after deleting the
   owning account/token rows; feature services perform their own eventual cleanup.
 - Transactions calls `bagel.rpc.internal.billing.apply` and Users' internal
   giveaway prefix for eligibility, coverage and grant lifecycle. `main.go` holds
