@@ -36,6 +36,7 @@
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
+  import GoveeSetup from '$lib/components/govee/GoveeSetup.svelte';
   import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '$lib/components/govee/govee-draft';
 
   let { data } = $props();
@@ -45,6 +46,9 @@
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
   let keyPresent = $state<boolean>(data.keyPresent ?? false);
+  // svelte-ignore state_referenced_locally
+  let setupOpen = $state(!(data.keyPresent ?? false));
+  const showSetup = $derived(!data.degraded && (!keyPresent || setupOpen));
   // svelte-ignore state_referenced_locally
   let bindings = $state([...(data.bindings ?? [])]);
   // svelte-ignore state_referenced_locally
@@ -112,6 +116,7 @@
         return;
       }
       keyPresent = false;
+      setupOpen = true;
       doClose();
       toast('success', t('govee.keyRemoved'));
       await invalidateAll();
@@ -223,13 +228,16 @@
   const colorDevices = (devices: GoveeDevice[]) => devices.filter((d) => d.color);
 </script>
 
-{#snippet devicesError()}
+{#snippet devicesError(code?: string)}
   <div class="err-block" role="alert">
-    <Text size="sm" tone="danger">{t('govee.devicesError')}</Text>
+    <Text size="sm" tone="danger">{t(code === 'key_rejected' ? 'govee.devicesKeyRejected' : 'govee.devicesError')}</Text>
     <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
   </div>
 {/snippet}
 
+{#if showSetup}
+  <GoveeSetup name={data.displayName} devices={data.devices} preview={data.setupPreview === true} onFinish={() => (setupOpen = false)} />
+{:else}
 <section class="screen active">
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
@@ -296,7 +304,11 @@
           {:then dr}
             {@const lights = colorDevices(dr.devices ?? [])}
             {#if dr.error}
-              {@render devicesError()}
+              {@render devicesError(dr.code)}
+            {:else if (dr.devices ?? []).length === 0}
+              <EmptyState title={t('govee.noDevices')} body={t('govee.noDevicesBody')}>
+                <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
+              </EmptyState>
             {:else if lights.length === 0}
               <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
                 <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
@@ -369,6 +381,7 @@
     </div>
   {/if}
 </section>
+{/if}
 
 <ConfirmDialog
   open={discard.open}

@@ -7,7 +7,7 @@
   "howEyebrow": "How it works",
   "howTitle": "Set it up once, then chat drives it.",
   "step1Title": "Get a Govee API key.",
-  "step1Desc": "In the Govee Home app, open Profile, tap the settings gear, then Apply for API Key. Govee emails the key within a few minutes.",
+  "step1Desc": "In the Govee Home app, go to Profile → Settings → \"Apply for API Key\" and fill in the short form. Govee usually sends the key by email. If it does not arrive, check your spam folder.",
   "step2Title": "Paste it and pick a light.",
   "step2Desc": "On the Govee page of the dashboard, paste the key and choose a light. The key is stored encrypted and never shown back.",
   "step3Title": "Create the reward.",

@@ -149,10 +149,14 @@ export interface GoveeStore {
   read(): Promise<GoveeView>;
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
-  listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }>;
+  listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
   deleteReward(deviceId: string): Promise<GoveeResult>;
+}
+
+function deviceLookupFailure(e: unknown): { devices: GoveeDevice[]; error: string; code: 'key_rejected' | 'unreachable' } {
+  return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed', code: (e as { keyRejected?: boolean } | null)?.keyRejected === true ? 'key_rejected' : 'unreachable' };
 }
 
 export function goveeStore(userId: string): GoveeStore {
@@ -211,20 +215,22 @@ export function goveeStore(userId: string): GoveeStore {
     return { ok: true };
   }
 
-  async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
+  async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }> {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
-        const r = await rpc<{ devices?: GoveeDevice[] }>(
+        const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean; error?: string }>(
           `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
           // Just over gossip's 8 s devices handler budget.
           9000
         );
-        return Array.isArray(r.devices) ? r.devices : [];
+        if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
+        else if (r.error) throw new Error(r.error);
+        else return Array.isArray(r.devices) ? r.devices : [];
       });
       return { devices };
     } catch (e) {
-      return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed' };
+      return deviceLookupFailure(e);
     }
   }
 

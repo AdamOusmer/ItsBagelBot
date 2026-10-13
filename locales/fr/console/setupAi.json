@@ -1,0 +1,16 @@
+{
+  "description": "Copie un message sur cette étape. Colle-le dans ChatGPT, Claude ou Gemini.",
+  "copy": "Demande de l’aide à ton IA",
+  "copied": "Copié. Colle-le dans ton IA.",
+  "copyFailed": "Impossible de copier. Réessaie.",
+  "genericError": "Le tableau de bord a affiché une erreur à cette étape.",
+  "featureSpotify": "les demandes de chansons Spotify",
+  "featureGovee": "les lumières Govee",
+  "promptIntro": "Je configure {feature} dans le tableau de bord d’ItsBagelBot, un bot de chat Twitch.",
+  "promptStep": "Je suis à l’étape de configuration appelée « {step} ».",
+  "promptError": "Le tableau de bord affiche ce message : « {error} »",
+  "promptRedirect": "Le tableau de bord me donne cette URI de redirection pour mon application Spotify : {uri}",
+  "promptGuide": "Lis d’abord ce guide et base ta réponse dessus : {url}",
+  "promptRules": "Ne devine pas les noms des boutons ou des menus. Si quelque chose ne figure pas dans le guide, dis-le. Aide-moi une étape à la fois et attends ma confirmation avant de passer à la suivante.",
+  "promptPrivate": "Ne me demande jamais de coller un secret client, une clé API ou un mot de passe dans ce chat."
+}

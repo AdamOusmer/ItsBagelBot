@@ -549,8 +549,8 @@ const guide: GuideContent = {
             <p>
                 Viewers spend channel points to recolour the Govee lights in your room. You paste a
                 Govee API key, pick the device, and bind a reward. The key is encrypted and never
-                shown back to you, not even to the dashboard. To get one: Govee Home app &gt;
-                Profile &gt; gear &gt; "Apply for API Key".
+                shown back to you, not even to the dashboard. To get one: in the Govee Home app, go to
+                Profile → Settings → "Apply for API Key".
             </p>`,
         },
         {

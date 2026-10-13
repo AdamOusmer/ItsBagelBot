@@ -7,7 +7,7 @@
   "howEyebrow": "Como funciona",
   "howTitle": "Configure uma vez, depois o chat comanda.",
   "step1Title": "Pegue uma chave de API da Govee.",
-  "step1Desc": "No app Govee Home, abra Profile, toque na engrenagem e depois em Apply for API Key. A Govee envia a chave por e-mail em poucos minutos.",
+  "step1Desc": "No aplicativo Govee Home, vá para Perfil → Configurações → \"Apply for API Key\" e preencha o formulário curto. A Govee geralmente envia a chave por e-mail. Se ela não chegar, confira sua pasta de spam.",
   "step2Title": "Cole e escolha uma luz.",
   "step2Desc": "Na página Govee do painel, cole a chave e escolha uma luz. A chave fica guardada criptografada e nunca é mostrada de novo.",
   "step3Title": "Crie a recompensa.",
