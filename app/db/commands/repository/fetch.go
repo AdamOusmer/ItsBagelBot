@@ -373,15 +373,15 @@ func fetchDefName(tok tmpl.Token) string {
 	return def
 }
 
-func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64) error {
+func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		if _, err := r.client.FetchDefinition.Delete().
-			Where(fetchdefinition.UserIDEQ(userID)).
+			Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.CreatedAtLTE(cutoff)).
 			Exec(ctx); err != nil {
 			return err
 		}
 		_, err := r.client.FetchKey.Delete().
-			Where(fetchkey.UserIDEQ(userID)).
+			Where(fetchkey.UserIDEQ(userID), fetchkey.CreatedAtLTE(cutoff)).
 			Exec(ctx)
 		return err
 	}); err != nil {

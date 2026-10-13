@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -74,11 +75,11 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 }
 
 func deleteAllForUser(repo *repository.Commands, fetches *repository.Fetches, log *zap.Logger) func(*bus.Message) error {
-	return consumers.OnUserDeleted(serviceName, log, func(ctx context.Context, userID uint64) error {
-		if err := repo.DeleteAllForUser(ctx, userID); err != nil {
+	return consumers.OnUserDeleted(serviceName, log, func(ctx context.Context, userID uint64, cutoff time.Time) error {
+		if err := repo.DeleteAllForUser(ctx, userID, cutoff); err != nil {
 			return err
 		}
-		return fetches.DeleteAllForUser(ctx, userID)
+		return fetches.DeleteAllForUser(ctx, userID, cutoff)
 	})
 }
 

@@ -5,6 +5,7 @@ package consumers
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -17,7 +18,11 @@ import (
 
 type Service string
 
-func OnUserDeleted(svc Service, log *zap.Logger, sweep func(context.Context, uint64) error) func(*bus.Message) error {
+// MySQL timestamps round to whole seconds and pod clocks differ.
+const erasureClockSlack = 5 * time.Second
+
+// Rows written after cutoff belong to a re-registered account and must survive.
+func OnUserDeleted(svc Service, log *zap.Logger, sweep func(ctx context.Context, userID uint64, cutoff time.Time) error) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 
@@ -30,13 +35,25 @@ func OnUserDeleted(svc Service, log *zap.Logger, sweep func(context.Context, uin
 			log.Warn(string(svc)+": invalid user_id in user_deleted", zap.Error(err))
 			return nil
 		}
-		if err := sweep(msg.Context(), dto.UserID); err != nil {
+		deletedAt := deletionTime(dto, msg)
+		if deletedAt.IsZero() {
+			log.Warn(string(svc)+": user_deleted without a deletion time", zap.Uint64("user_id", dto.UserID))
+			return nil
+		}
+		if err := sweep(msg.Context(), dto.UserID, deletedAt.Add(erasureClockSlack)); err != nil {
 			return err
 		}
 
 		log.Info(string(svc)+": deleted all for user", zap.Uint64("user_id", dto.UserID))
 		return nil
 	}
+}
+
+func deletionTime(dto data.UserDeletedDTO, msg *bus.Message) time.Time {
+	if dto.DeletedAt.IsZero() {
+		return msg.StoredAt()
+	}
+	return dto.DeletedAt
 }
 
 func OnChangeInvalidate[DTO any](userID func(DTO) uint64, invalidate func(uint64)) func(*bus.Message) error {
