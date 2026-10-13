@@ -1,5 +1,5 @@
 {
-  "declined": "Vous avez fermé l'écran des autorisations Spotify avant d'accepter. Choisissez Connecter Spotify, puis Accepter pour terminer.",
+  "declined": "Vous avez fermé l'écran des autorisations Spotify avant de les approuver. Reconnectez-vous et approuvez les autorisations pour terminer.",
   "noApp": "Ajoutez votre application Spotify avant de connecter votre compte.",
   "noToken": "Spotify a réutilisé votre consentement, aucun nouveau jeton n'a été émis. Révoquez cette application sur la page de votre compte Spotify, puis reconnectez-vous.",
   "oauth": "Spotify a refusé la connexion. Vérifiez que l'identifiant client et le secret client correspondent à votre application Spotify et que l'URI de redirection affichée sur cette page est enregistrée dans cette application. Puis reconnectez-vous.",

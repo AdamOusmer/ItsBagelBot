@@ -1,5 +1,5 @@
 {
-  "declined": "You closed the Spotify permission screen before agreeing. Choose Connect Spotify and select Agree to finish.",
+  "declined": "You closed the Spotify permission screen before approving. Connect again and approve the permissions to finish.",
   "noApp": "Add your Spotify app before connecting your account.",
   "noToken": "Spotify reused your consent, so no fresh token was issued. Revoke this app in your Spotify account page, then connect again.",
   "oauth": "Spotify refused the sign-in. Check that the Client ID and Client Secret match your Spotify app, and that the redirect URI shown on this page is saved in that app. Then connect again.",

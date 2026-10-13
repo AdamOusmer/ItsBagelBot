@@ -440,7 +440,7 @@
     </AlertBanner>
   {/if}
 
-  {#if missingSpotifyScope}
+  {#if missingSpotifyScope && scopeGap.length === 0}
     <AlertBanner tone="warning">
       {t('spotify.connection.scopeGap')}
       {#snippet actions()}
