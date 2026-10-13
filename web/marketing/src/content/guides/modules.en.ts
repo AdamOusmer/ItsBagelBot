@@ -189,9 +189,9 @@ const modules = [
 const guide: GuideContent = {
   slug: 'modules',
   meta: {
-    title: 'Modules - ItsBagelBot Guides',
+    title: 'Set Up Twitch Bot Modules and Game Stats | ItsBagelBot',
     description:
-      'The ItsBagelBot modules page explained: the seven categories, the row shapes, how a module is configured, points and games, game stats in chat, and the nine built-in commands.',
+      'Enable Twitch bot modules and configure game stats in chat. Follow dashboard examples and check which modules need Premium during beta.',
     eyebrow: 'Guide',
     heading: 'Modules',
     lead: 'Every feature on your channel is a row with a switch. Here is what each one does, what it needs first, and what the odd rows mean.',

@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Guides - ItsBagelBot",
-    "description": "Visual guides for ItsBagelBot: set up the bot, learn the dashboard, and write custom commands with variables and live data.",
+    "title": "Twitch Bot Setup Tutorials | ItsBagelBot",
+    "description": "Follow visual Twitch bot setup tutorials for commands, API data, counters, Spotify requests, Govee lights, Discord and shared dashboard access.",
     "eyebrow": "Guides",
     "heading": "Learn the bot.",
     "lead": "Every guide here works on the free plan, except the parts marked Premium beta, and each one runs ten minutes or less."

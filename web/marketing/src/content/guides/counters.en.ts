@@ -6,9 +6,9 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'counters',
   meta: {
-    title: 'Counters - ItsBagelBot Guides',
+    title: 'Twitch Counters and Death Counter Setup | ItsBagelBot',
     description:
-      'How ItsBagelBot counters work: the {counter:name} token, the four scopes (whole channel, per user, per command, per user + command), managing them with !counter, and binding one to a channel-point reward.',
+      'Create a Twitch death counter, use counters in commands and connect channel-point rewards. Follow examples for updating and displaying counts.',
     eyebrow: 'Guide',
     heading: 'Counters',
     lead: "Track anything that happens more than once: deaths, hugs, redemptions. Choose how it's counted once, and the bot remembers forever.",

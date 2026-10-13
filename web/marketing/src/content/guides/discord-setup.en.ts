@@ -6,8 +6,8 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: "discord-setup",
   meta: {
-    title: "Add Bagel to Discord - ItsBagelBot Guides",
-    description: "Step by step: add ItsBagelBot to your Discord server, the permissions it asks for, the Create missing channels and roles button, fixing the role order, disconnecting, removing the bot, and the error messages you may see.",
+    title: "Discord Bot Setup and Permissions | ItsBagelBot Guide",
+    description: "Add ItsBagelBot to Discord, check permissions and set up channels and roles. Fix role order and setup errors. Requires ItsBagelBot Premium during beta.",
     eyebrow: "Guide",
     heading: "Add Bagel to Discord",
     lead: "Connect a Discord server to your channel, let Bagel set it up, and know what to do when Discord says no.",

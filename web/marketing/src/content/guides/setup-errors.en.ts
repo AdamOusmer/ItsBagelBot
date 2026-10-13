@@ -7,8 +7,8 @@ const guide: GuideContent = {
   "slug": "setup-errors",
   "meta": {
     "aiDoc": "https://ai.itsbagelbot.com/llms.txt",
-    "title": "Setup errors - ItsBagelBot Guides",
-    "description": "The setup and error messages ItsBagelBot shows for sign-in, Spotify, Govee, Discord, share access, commands, data sources, channel points and bot status, with what it means and what to do.",
+    "title": "Fix Twitch Bot Setup and Connection Errors | ItsBagelBot",
+    "description": "Find your ItsBagelBot setup or connection error, check its cause and follow the fix. Troubleshoot Twitch bot, Spotify, Govee and Discord connections.",
     "eyebrow": "Guide",
     "heading": "Setup errors",
     "lead": "Paste the message you saw, find it in the list, and follow the fix. Each row links to the guide that covers the whole flow.",

@@ -24,9 +24,9 @@ const SAMPLE = `{
 const guide: GuideContent = {
   slug: 'data-sources',
   meta: {
-    title: 'Data sources - ItsBagelBot Guides',
+    title: 'Twitch Commands with API Data | ItsBagelBot Guide',
     description:
-      'Read a live value from any web API into a chat command with {urlfetch}: add a data source, pick the value with a JSON path, attach an API key, and learn the caching and rate limits before chat finds them.',
+      'Connect API data to Twitch commands. Learn JSON paths, API keys, caching and request limits with dashboard examples and error fixes.',
     eyebrow: 'Guide',
     heading: 'Data sources',
     lead: 'Point the bot at a web address once, click the value you want, and a command reads it out live.',
