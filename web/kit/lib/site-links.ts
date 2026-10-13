@@ -23,7 +23,7 @@ export interface SiteLinkDef {
   path?: string;
   url?: string;
   lang?: boolean;
-  englishOnly?: boolean;
+  locales?: readonly Locale[];
   key?: string;
   label?: string;
 }
@@ -48,10 +48,16 @@ export interface SiteColumn {
 }
 
 export interface SiteLinkContext {
-  path(path: string, englishOnly?: boolean): string;
+  path(path: string, locales?: readonly Locale[]): string;
   label(key: string): string;
   langQuery: string;
   isActive?(href: string): boolean;
+}
+
+export const COMPARE_LOCALES: readonly Locale[] = ['en', 'fr'];
+
+export function linkLocale(locale: Locale, only?: readonly Locale[]): Locale {
+  return only && !only.includes(locale) ? 'en' : locale;
 }
 
 export const SITE_NAV = [
@@ -88,8 +94,8 @@ export const SITE_FOOTER = [
     key: 'compare',
     stacked: true,
     links: [
-      { path: '/vs/nightbot', key: 'vsNightbot', englishOnly: true },
-      { path: '/vs/streamelements', key: 'vsStreamelements', englishOnly: true },
+      { path: '/vs/nightbot', key: 'vsNightbot', locales: COMPARE_LOCALES },
+      { path: '/vs/streamelements', key: 'vsStreamelements', locales: COMPARE_LOCALES },
     ],
   },
   {
@@ -112,7 +118,7 @@ export const SITE_LEGAL: readonly SiteLinkDef[] = [
 
 export function resolveSiteLink(def: SiteLinkDef, ctx: SiteLinkContext): SiteLink {
   const external = def.url !== undefined;
-  const base = def.url ?? ctx.path(def.path ?? '/', def.englishOnly);
+  const base = def.url ?? ctx.path(def.path ?? '/', def.locales);
   const href = def.lang ? `${base}${ctx.langQuery}` : base;
   return {
     href,

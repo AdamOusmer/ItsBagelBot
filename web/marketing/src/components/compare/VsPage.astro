@@ -5,127 +5,189 @@
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Section from '@bagel/ui/astro/Section.astro';
+import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import Table from '@bagel/ui/astro/Table.astro';
-import VisuallyHidden from '@bagel/ui/astro/VisuallyHidden.astro';
+import Disclosure from '@bagel/ui/astro/Disclosure.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Grid from '@bagel/ui/astro/Grid.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
+import type { CompareContent } from '../../lib/compare/content';
 
-interface Row {
-    label: string;
-    us: string;
-    them: string;
+interface Labels {
+    title: string;
+    reviewed: string;
+    suitsTitle: string;
+    suitsUs: string;
+    suitsThem: string;
+    tableEyebrow: string;
+    tableTitle: string;
+    colFeature: string;
+    colSource: string;
+    sourceLink: string;
+    migrateEyebrow: string;
+    faqEyebrow: string;
+    faqTitle: string;
+    sourcesTitle: string;
+    competitor: string;
+    cta: string;
 }
 
 interface Props {
-    competitor: string;
-    intro: string;
-    rows: Row[];
-    switchReasons: string[];
-    otherVs: { href: string; label: string };
+    content: CompareContent;
+    labels: Labels;
+    loginHref: string;
+    importHref: string;
+    other: { href: string; label: string };
 }
 
-const { competitor, intro, rows, switchReasons, otherVs } = Astro.props;
-const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
-const title = `ItsBagelBot vs ${competitor}`;
+const { content, labels, loginHref, importHref, other } = Astro.props;
+const { hero, suits, rows, migrate, faq, sources, reviewed } = content;
+const columns = [
+    { heading: labels.suitsUs, items: suits.us },
+    { heading: labels.suitsThem, items: suits.them },
+];
 ---
 
-<PageHero
-    class="vs-hero"
-    eyebrow="Comparison"
-    title={title}
-    description={intro}
-/>
+<PageHero eyebrow={hero.eyebrow} title={hero.title} description={hero.lead} />
+
+<Text size="xs" mono tone="muted" class="vs__reviewed"><time datetime={reviewed}>{labels.reviewed}</time></Text>
 
 <Section class="vs">
-    <div class="vs__table" data-reveal>
-        <Table roomy label={title}>
+    <SectionHeading title={labels.suitsTitle} />
+    <Grid cols={2} gap={5} stackAt="md" class="vs__suits">
+        {columns.map((column, i) => (
+            <Card class="vs__suit" data-reveal style={`--reveal-i: ${i}`}>
+                <Heading level={5} as="h3">{column.heading}</Heading>
+                <ul class="vs__list">
+                    {column.items.map((item) => <li><Text size="sm" tone="muted" as="span">{item}</Text></li>)}
+                </ul>
+            </Card>
+        ))}
+    </Grid>
+</Section>
+
+<Section class="vs">
+    <SectionHeading eyebrow={labels.tableEyebrow} title={labels.tableTitle} />
+    <Card flush class="vs__table" data-reveal>
+        <Table roomy label={labels.title} minWidth="52rem">
             <thead>
                 <tr>
-                    <th scope="col"><VisuallyHidden>Feature</VisuallyHidden></th>
+                    <th scope="col">{labels.colFeature}</th>
                     <th scope="col">ItsBagelBot</th>
-                    <th scope="col">{competitor}</th>
+                    <th scope="col">{labels.competitor}</th>
+                    <th scope="col">{labels.colSource}</th>
                 </tr>
             </thead>
             <tbody>
                 {rows.map((row) => (
                     <tr>
-                        <th scope="row" class="vs__feature">{row.label}</th>
+                        <th scope="row" class="vs__feature">{row.feature}</th>
                         <td class="acc">{row.us}</td>
                         <td class="mut">{row.them}</td>
+                        <td><TextLink variant="inline" href={row.source} external>{labels.sourceLink}</TextLink></td>
                     </tr>
                 ))}
             </tbody>
         </Table>
-    </div>
+    </Card>
+</Section>
 
-    <Heading level={3} as="h2" class="vs__subtitle" data-reveal>Why streamers switch</Heading>
-    <ul class="vs__reasons">
-        {switchReasons.map((reason, i) => (
-            <li data-reveal style={`--reveal-i: ${i}`}><Text as="span" tone="muted">{reason}</Text></li>
+<Section class="vs">
+    <SectionHeading eyebrow={labels.migrateEyebrow} title={migrate.title} />
+    <Grid as="ol" cols={3} gap={5} stackAt="md" class="vs__steps">
+        {migrate.steps.map((step, i) => (
+            <li>
+                <Card atmo hover class="vs__step" data-reveal style={`--reveal-i: ${i}`}>
+                    <Eyebrow aria-hidden="true">{String(i + 1).padStart(2, '0')}</Eyebrow>
+                    <Text size="sm" tone="muted">{step}</Text>
+                </Card>
+            </li>
+        ))}
+    </Grid>
+    <Cluster justify="center" gap={3} class="vs__actions" data-reveal>
+        <ButtonLink href={importHref}>{migrate.cta}</ButtonLink>
+        <ButtonLink variant="secondary" href={loginHref}>{labels.cta}</ButtonLink>
+        <ButtonLink variant="secondary" href={other.href}>{other.label}</ButtonLink>
+    </Cluster>
+</Section>
+
+<Section class="vs">
+    <SectionHeading eyebrow={labels.faqEyebrow} title={labels.faqTitle} />
+    <div class="vs__faq">
+        {faq.map((item, i) => (
+            <Disclosure summary={item.q} index={String(i + 1).padStart(2, '0')} data-reveal style={`--reveal-i: ${i}`}>
+                <Text size="sm" tone="muted">{item.a}</Text>
+            </Disclosure>
+        ))}
+    </div>
+</Section>
+
+<Section class="vs vs--last">
+    <Heading level={5} as="h2" class="vs__sources-title">{labels.sourcesTitle}</Heading>
+    <ul class="vs__sources">
+        {sources.map((source) => (
+            <li><TextLink href={source.url} external>{source.label}</TextLink></li>
         ))}
     </ul>
-
-    <Cluster justify="center" gap={3} class="vs__actions" data-reveal>
-        <ButtonLink href={DASHBOARD_LOGIN}>Add to Twitch</ButtonLink>
-        <ButtonLink variant="secondary" href="/import/">Import your setup</ButtonLink>
-        <ButtonLink variant="secondary" href={otherVs.href}>{otherVs.label}</ButtonLink>
-    </Cluster>
-
-    <Text size="xs" mono tone="muted" class="vs__disclaimer">
-        {competitor} is a well-made bot and this table plays fair: it reflects
-        publicly documented features as of September 2026. Spotted something
-        out of date? Tell us and we will fix it.
-    </Text>
 </Section>
 
 <style>
     .vs {
         max-width: var(--bb-content-max);
         margin-inline: auto;
-        padding: var(--bb-space-section-sm) var(--bb-space-7) var(--bb-space-section);
+        padding: var(--bb-space-section-sm) var(--bb-space-7);
     }
 
-    .vs__table {
-        --tbl-head-size: var(--bb-text-xs);
-        --tbl-fade-bg: var(--bb-black);
+    .vs--last { padding-bottom: var(--bb-space-section); }
 
-        max-width: 900px;
-        margin: 0 auto;
-    }
-
-    .vs__feature { white-space: nowrap; }
-
-    @media (max-width: 480px) {
-        :global(.vs-hero) {
-            --page-hero-title-size: 6.6vw;
-        }
-    }
-
-    .vs__subtitle {
+    .vs__reviewed {
+        margin: -8px 0 0;
         text-align: center;
-        margin: 64px 0 20px;
     }
 
-    .vs__reasons {
+    .vs__suits,
+    .vs__faq {
         max-width: var(--bb-content-hero);
-        margin: 0 auto;
-        padding: 0 0 0 1.2em;
+        margin-inline: auto;
     }
 
-    .vs__actions {
-        margin-top: 48px;
+    .vs__suit { --card-pad: 28px; height: 100%; }
+
+    .vs__list {
+        display: grid;
+        gap: 10px;
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
     }
 
-    .vs__disclaimer {
-        max-width: var(--bb-content-hero);
-        margin: 40px auto 0;
-        opacity: 0.75;
-        text-align: center;
+    .vs__table { max-width: var(--bb-content-max); margin-inline: auto; }
+
+    .vs__feature { min-width: 9rem; }
+
+    .vs__steps { --card-pad: 28px; }
+
+    .vs__step { height: 100%; }
+
+    .vs__actions { margin-top: 40px; }
+
+    .vs__sources-title { margin: 0 0 16px; text-align: center; }
+
+    .vs__sources {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px 28px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
     }
 
     @media (max-width: 860px) {
         .vs { padding-inline: var(--bb-space-5); }
-        .vs__feature { white-space: normal; }
     }
 </style>

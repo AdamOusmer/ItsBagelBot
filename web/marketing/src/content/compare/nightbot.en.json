@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Nightbot | A Twitch Bot Alternative",
+    "description": "Compare commands, moderation, music, game stats and price. See when Nightbot suits you and how to import commands and timers into ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Twitch bot comparison",
+    "title": "ItsBagelBot vs Nightbot",
+    "lead": "Looking for a Nightbot alternative? Start with what your chat needs: Spotify queue control, game lookups, spam filters or giveaways. Compare the documented options, then review your existing commands before switching."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "You want viewers to add tracks to your actual Spotify queue, and you have Spotify Premium.",
+      "You stream Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale or CODM and want built-in game lookups.",
+      "You want Twitch Channel Point rewards for Spotify requests or compatible Govee lights.",
+      "You want to review imported commands and timers before saving them."
+    ],
+    "them": [
+      "You want configurable spam filters included in a free bot. Filter reference: https://docs.nightbot.tv/control-panel/spam-protection. Price reference: https://community.nightdev.com/t/messages-command/1534655926634549409.",
+      "You prefer YouTube and SoundCloud requests in a media player. Reference: https://docs.nightbot.tv/control-panel/song-requests.",
+      "You want active-user, keyword or random-number giveaways. Reference: https://docs.nightbot.tv/control-panel/giveaways.",
+      "You also need a bot for YouTube, Trovo or SOOP. Reference: https://docs.nightbot.tv/."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat commands",
+      "us": "Custom responses with variables, permissions and cooldowns, plus a visual Command Builder and built-in commands such as !uptime and !clip.",
+      "them": "Custom commands have responses, permission levels, cooldowns and aliases. Moderators can manage commands directly in chat.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Variables and external data",
+      "us": "Command responses support variables and counters; game modules expose fields for their replies.",
+      "them": "Variables cover users, arguments, counters, time and external URL responses. Eval supports JavaScript, useful if you want to write custom logic.",
+      "source": "https://docs.nightbot.tv/variables"
+    },
+    {
+      "feature": "Timers",
+      "us": "Configure repeating messages with an interval for each timer while you are live.",
+      "them": "Timers combine an interval with a minimum chat-line threshold and can call a command through an alias. The activity threshold is useful for quiet chats.",
+      "source": "https://docs.nightbot.tv/control-panel/timers"
+    },
+    {
+      "feature": "Moderation and spam filters",
+      "us": "AutoMod is a Premium beta module with configurable checks and warnings, message removal, timeouts or bans. A small safety floor remains active when the module is off.",
+      "them": "Filters cover blocked terms, caps, emotes, links with allowlisting, symbols and repetition. For free configurable spam filtering, Nightbot has the clearer fit.",
+      "source": "https://docs.nightbot.tv/control-panel/spam-protection"
+    },
+    {
+      "feature": "Song requests",
+      "us": "!sr adds a track to your real Spotify player queue. Viewers can see requests with !srlist; moderators can skip or clear. Spotify Premium, your own Spotify app and an active playback device are required.",
+      "them": "Requests use YouTube or SoundCloud in Nightbot's media player, with queue limits and a fallback playlist. This suits media requests from those services rather than Spotify queue control.",
+      "source": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "feature": "Game stats",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "them": "Built-in rank variables cover League of Legends and Teamfight Tactics. TFT reference: https://docs.nightbot.tv/variables/teamfighttactics.",
+      "source": "https://docs.nightbot.tv/variables/leagueoflegends"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "Create native Twitch rewards tied to bot actions, including Spotify requests and compatible Govee light control, with fulfillment or refund handling.",
+      "them": "The current command reference documents chat-triggered actions; it does not document native Twitch Channel Point reward bindings. Check your reward workflow separately before switching.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Giveaways",
+      "us": "Timed raffles accept !join entries and draw automatically. Each entrant counts once, and winners confirm with !claim.",
+      "them": "Choose active-user, keyword or random-number giveaways, with optional extra luck for subscribers and regulars. Nightbot offers more entry formats than ItsBagelBot's timed raffle.",
+      "source": "https://docs.nightbot.tv/control-panel/giveaways"
+    },
+    {
+      "feature": "Import into ItsBagelBot",
+      "us": "Connect Nightbot through OAuth to import commands and timers. Select items, review converted variables and warnings, then save. Your old setup stays untouched.",
+      "them": "Custom commands can use aliases and variables. Review their behavior after conversion, especially commands that depend on external data or custom logic.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
+      "them": "Nightbot documents Discord command access, role mapping and optional spam filtering. This suits carrying existing commands into a server.",
+      "source": "https://docs.nightbot.tv/discord"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "them": "Free service, as described by Nightbot's developer in the linked official support answer from March 2025. This is a developer statement rather than a published pricing table.",
+      "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    }
+  ],
+  "migrate": {
+    "title": "Import your Nightbot commands and timers",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch, open the import wizard and connect Nightbot through OAuth.",
+      "Select the commands and timers you want. Review converted variables and warnings; unsupported variables remain literal text.",
+      "Save your selection, test command replies in chat and check timer intervals and offline settings.",
+      "Turn off matching commands and timers in your old bot after testing to prevent duplicate messages. Configure Spotify and channel-point rewards separately."
+    ],
+    "cta": "Review your Nightbot import"
+  },
+  "faq": [
+    {
+      "q": "When is ItsBagelBot a useful Nightbot alternative?",
+      "a": "Consider it if your Twitch setup needs Spotify queue requests, built-in lookups for the supported games or channel-point actions for Govee lights. Commands, timers and the import wizard are finished features on the free plan. AutoMod and Discord are Premium beta modules."
+    },
+    {
+      "q": "When should I keep Nightbot?",
+      "a": "If its current setup meets your needs, migration may add work without helping your stream. Its giveaway panel offers more entry formats than ItsBagelBot's timed raffle: active users, keywords and random numbers. Reference: https://docs.nightbot.tv/control-panel/giveaways."
+    },
+    {
+      "q": "Are free Spotify requests available without Spotify Premium?",
+      "a": "ItsBagelBot charges nothing for song requests, but Spotify Premium is required for queue control. Both the connected account and the account owning your Spotify developer app need Premium. Spotify must be playing on a device."
+    },
+    {
+      "q": "Will every imported command work unchanged?",
+      "a": "Supported variables convert to ItsBagelBot syntax. Variables without an equivalent stay as literal text with a warning. Review before saving, then test your replies, permissions and cooldowns. Importing leaves the old bot untouched."
+    },
+    {
+      "q": "Can I test ItsBagelBot before removing my old bot?",
+      "a": "Yes. Importing does not remove or alter your old setup. Test the selected items, then disable matching replies and timers in the old bot so chat receives one response."
+    }
+  ],
+  "sources": [
+    { "label": "Nightbot: supported streaming platforms", "url": "https://docs.nightbot.tv/" },
+    { "label": "Nightbot: commands, permissions and aliases", "url": "https://docs.nightbot.tv/control-panel/commands" },
+    { "label": "Nightbot: variables and game lookups", "url": "https://docs.nightbot.tv/variables" },
+    { "label": "Nightbot: League of Legends rank variable", "url": "https://docs.nightbot.tv/variables/leagueoflegends" },
+    { "label": "Nightbot: Teamfight Tactics rank variable", "url": "https://docs.nightbot.tv/variables/teamfighttactics" },
+    { "label": "Nightbot: timers and chat activity thresholds", "url": "https://docs.nightbot.tv/control-panel/timers" },
+    { "label": "Nightbot: spam protection", "url": "https://docs.nightbot.tv/control-panel/spam-protection" },
+    { "label": "Nightbot: YouTube and SoundCloud song requests", "url": "https://docs.nightbot.tv/control-panel/song-requests" },
+    { "label": "Nightbot: giveaway formats", "url": "https://docs.nightbot.tv/control-panel/giveaways" },
+    { "label": "Nightbot: Discord integration", "url": "https://docs.nightbot.tv/discord" },
+    { "label": "Nightbot: official developer statement on the free service (March 2025)", "url": "https://community.nightdev.com/t/messages-command/1534655926634549409" }
+  ]
+}

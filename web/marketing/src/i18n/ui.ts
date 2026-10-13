@@ -4,6 +4,7 @@
 import { dashboardHref, localeFlag } from '@bagel/kit/site-links';
 import { flatCatalogs, type FlatTree } from '@bagel/kit/i18n/flat';
 import { guideLocalizedPaths } from '../lib/guides/slugs';
+import { compareLocales, compareLocalizedPaths } from '../lib/compare/slugs';
 import { defaultLang, type Lang } from './lang';
 export { defaultLang, type Lang };
 
@@ -40,8 +41,12 @@ const changelogLocalizedPaths = Object.values(changelogFiles).map(
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   ...guideLocalizedPaths, '/guides/variables', '/command-builder', '/changelog', '/song-requests',
-  '/valorant-stats', '/import', '/govee', ...changelogLocalizedPaths,
+  '/valorant-stats', '/import', '/govee', ...changelogLocalizedPaths, ...compareLocalizedPaths,
 ]);
+
+const PATH_LOCALES: ReadonlyMap<string, readonly Lang[]> = new Map(
+  compareLocalizedPaths.map((path) => [path, compareLocales]),
+);
 
 export function langParam(lang: Lang): Lang | undefined {
   return lang === defaultLang ? undefined : lang;
@@ -89,7 +94,9 @@ export function localeOptions(url: URL) {
   return locales.map((code) => ({
     code,
     href:
-      code === defaultLang || !LOCALIZED_PATHS.has(path) ? localizePath(path, defaultLang) : localizePath(path, code),
+      code === defaultLang || !LOCALIZED_PATHS.has(path) || PATH_LOCALES.get(path)?.includes(code) === false
+        ? localizePath(path, defaultLang)
+        : localizePath(path, code),
     label: code.toUpperCase(),
     title: languageName(code),
     flag: localeFlag(code),

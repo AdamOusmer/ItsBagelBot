@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Vergleich",
+  "vsTitle": "ItsBagelBot gegen {name}",
+  "reviewed": "Geprüft am {date}",
+  "suitsTitle": "Für wen passt was",
+  "suitsUs": "ItsBagelBot passt, wenn",
+  "suitsThem": "{name} passt, wenn",
+  "tableEyebrow": "Im Vergleich",
+  "tableTitle": "Funktion für Funktion",
+  "colFeature": "Funktion",
+  "colSource": "Quelle",
+  "sourceLink": "Quelle",
+  "migrateEyebrow": "Umstieg",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Fragen zum Umstieg",
+  "sourcesTitle": "Quellen",
+  "crumbHome": "Startseite",
+  "otherVs": "Vergleich mit {name}"
+}

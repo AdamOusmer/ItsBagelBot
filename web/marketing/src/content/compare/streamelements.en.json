@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs StreamElements | Twitch Bot Comparison",
+    "description": "Compare Spotify requests, commands, filters, game stats, rewards and price. See where StreamElements suits you and how to import into ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Twitch bot comparison",
+    "title": "ItsBagelBot vs StreamElements",
+    "lead": "Considering ItsBagelBot as a StreamElements alternative for your Twitch chat? Compare music playback, game lookups, moderation and rewards, then decide which parts of your setup you want to move."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "You want chat requests to control your actual Spotify queue, and you have Spotify Premium.",
+      "You want built-in Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale or CODM lookups.",
+      "You want Twitch Channel Point actions for Spotify requests or compatible Govee lights.",
+      "You want to review imported commands, timers and keyword triggers before saving."
+    ],
+    "them": [
+      "You want overlays, visual alerts, tipping and a chatbot in one platform. Reference: https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide.",
+      "You want YouTube requests with queue approval or tipped requests. Reference: https://docs.streamelements.com/chatbot/modules/songrequest.",
+      "You want giveaways with ticket costs, entry limits and subscriber luck. Reference: https://docs.streamelements.com/chatbot/modules/giveaways.",
+      "You want timers that cycle messages and use category or title conditions. Reference: https://docs.streamelements.com/chatbot/timers."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat commands",
+      "us": "Custom responses with variables, permissions and cooldowns, a visual Command Builder and built-in commands such as !uptime and !clip.",
+      "them": "Create and edit commands in the dashboard or directly in chat with !command. Command options include cooldowns and permission levels.",
+      "source": "https://docs.streamelements.com/chatbot/commands/custom"
+    },
+    {
+      "feature": "Variables and external data",
+      "us": "Variables and counters personalize command responses; game modules expose fields for their replies.",
+      "them": "Variables cover users, uptime, counters, quotes, conditional replies, maths and custom API responses. Both $(...) and ${...} syntax are supported.",
+      "source": "https://docs.streamelements.com/chatbot/variables"
+    },
+    {
+      "feature": "Timers",
+      "us": "Set repeating chat messages with an interval for each timer while you are live.",
+      "them": "Timers can cycle multiple messages, require a chat-activity threshold and use category or title conditions. StreamElements offers more scheduling conditions for these workflows.",
+      "source": "https://docs.streamelements.com/chatbot/timers"
+    },
+    {
+      "feature": "Moderation and spam filters",
+      "us": "AutoMod is a Premium beta module with configurable checks and warnings, removals, timeouts or bans. A small safety floor remains active when the module is off.",
+      "them": "Filters include links, caps, banned terms, repetition, single-user spam and language restrictions. Configure warnings, deletion, timeouts or bans, with escalating timeouts for repeat violations.",
+      "source": "https://docs.streamelements.com/chatbot/filters"
+    },
+    {
+      "feature": "Song requests",
+      "us": "!sr adds a track to your real Spotify queue. !srlist shows requests, and moderators can skip or clear. Spotify Premium, your own Spotify app and an active playback device are required.",
+      "them": "Media Request uses its own player, with approval queues, skip voting, backup playlists and optional loyalty costs or tipped requests. The module docs specify YouTube only, without Spotify or SoundCloud integration.",
+      "source": "https://docs.streamelements.com/chatbot/modules/songrequest"
+    },
+    {
+      "feature": "Game stats",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM, using the relevant player identifier.",
+      "them": "The variable reference lists built-in League of Legends, Teamfight Tactics and PUBG lookups. Customapi can call an external service for other game data.",
+      "source": "https://docs.streamelements.com/chatbot/variables"
+    },
+    {
+      "feature": "Valorant rank command",
+      "us": "Enable the Valorant module, link a Riot ID such as Name#Tag and use !val or !valrank. The module also covers recent ranked matches and leaderboards.",
+      "them": "Its official Valorant guide describes a custom !rank command using a third-party API. That is a documented setup route, rather than a dedicated Valorant module; check the provider before using the example.",
+      "source": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "Create native Twitch rewards tied to bot actions, including Spotify requests and compatible Govee light control, with fulfillment or refund handling.",
+      "them": "StreamElements documents tracking and managing Twitch Channel Points through its Activity Feed. Review that workflow separately from the chatbot's loyalty currency.",
+      "source": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview"
+    },
+    {
+      "feature": "Loyalty currency",
+      "us": "Viewers earn a configurable currency through watch time, subscriptions and cheers. It powers Gamble and Duels and is separate from Twitch Channel Points.",
+      "them": "!points reports the balance and rank in your configured loyalty system. Even when that currency is named ChannelPoints, the command refers to StreamElements loyalty points, not Twitch's native reward balance.",
+      "source": "https://docs.streamelements.com/chatbot/commands/default/points"
+    },
+    {
+      "feature": "Giveaways",
+      "us": "Timed raffles accept !join entries, draw automatically and give each entrant one entry. Winners confirm with !claim.",
+      "them": "Giveaways offer loyalty-point tickets, free-entry options, per-viewer limits, subscriber luck and refunds. StreamElements has more ticket and eligibility controls for this format.",
+      "source": "https://docs.streamelements.com/chatbot/modules/giveaways"
+    },
+    {
+      "feature": "Import into ItsBagelBot",
+      "us": "Paste your StreamElements JWT into ItsBagelBot's import wizard to read commands, timers and keyword triggers. Review selected items and warnings before saving. The source setup stays untouched.",
+      "them": "Custom commands can be managed from the dashboard or chat. After conversion, test the responses and their permission and cooldown settings in your new setup.",
+      "source": "https://docs.streamelements.com/chatbot/commands/custom"
+    },
+    {
+      "feature": "Production tools",
+      "us": "Chat Alerts post customizable messages for follows, subscriptions, cheers, raids and ad breaks.",
+      "them": "The platform includes an overlay manager, visual alerts, tipping and a chatbot. StreamElements suits streamers who want those production tools together.",
+      "source": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and beta access, currently AutoMod and Discord. Spotify Premium is required separately.",
+      "them": "The official site advertises its chatbot, alerts and overlays as free. This compares bot access; tips and sponsorship payments are separate from the chatbot price.",
+      "source": "https://streamelements.com/"
+    }
+  ],
+  "migrate": {
+    "title": "Import your StreamElements chat setup",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch and choose StreamElements in the import wizard. Paste the JWT from your StreamElements dashboard there.",
+      "Select commands, timers and keyword triggers. Check converted variables and warnings; unsupported variables remain literal text.",
+      "Save the selected items and test replies, permissions, cooldowns, timer intervals and offline settings. Configure Spotify and native Twitch rewards separately.",
+      "After testing, turn off matching commands, timers and triggers in the old bot to avoid duplicate messages. The import leaves its source configuration untouched."
+    ],
+    "cta": "Review your StreamElements import"
+  },
+  "faq": [
+    {
+      "q": "When is ItsBagelBot a useful StreamElements alternative?",
+      "a": "Consider it for Spotify queue requests, built-in lookups for its supported games or native Twitch Channel Point actions for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+    },
+    {
+      "q": "When does StreamElements suit me more?",
+      "a": "It suits a setup that needs an overlay manager, visual alerts, tipping and a chatbot within one platform. If you already use these tools, compare the chat features you need before moving. Reference: https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide."
+    },
+    {
+      "q": "Does StreamElements !sr control Spotify?",
+      "a": "Its current module docs specify YouTube playback in Media Request, without Spotify or SoundCloud integration. ItsBagelBot's !sr controls your actual Spotify queue and requires Spotify Premium. Reference: https://docs.streamelements.com/chatbot/modules/songrequest."
+    },
+    {
+      "q": "Is Spotify Premium separate from ItsBagelBot Premium?",
+      "a": "Yes. Song requests are free in ItsBagelBot. Spotify Premium is required for the connected playback account and the account owning your Spotify developer app. ItsBagelBot Premium provides priority handling and beta access; it does not replace the Spotify requirement."
+    },
+    {
+      "q": "What can I bring over from StreamElements?",
+      "a": "The importer reads commands, timers and keyword triggers. Choose items and review warnings before saving. Supported variables are converted; others stay literal. Treat this as a chat-configuration import, and set up music and reward actions separately."
+    },
+    {
+      "q": "Must I remove my old bot before testing?",
+      "a": "You can test first. Importing leaves the source setup untouched. Once your replies and schedules work as intended, disable matching commands, timers and triggers in the old bot so both bots do not answer together."
+    }
+  ],
+  "sources": [
+    { "label": "StreamElements: platform overview and free tools", "url": "https://streamelements.com/" },
+    { "label": "StreamElements: custom commands", "url": "https://docs.streamelements.com/chatbot/commands/custom" },
+    { "label": "StreamElements: variables and game lookups", "url": "https://docs.streamelements.com/chatbot/variables" },
+    { "label": "StreamElements: timer messages and conditions", "url": "https://docs.streamelements.com/chatbot/timers" },
+    { "label": "StreamElements: spam filters and penalties", "url": "https://docs.streamelements.com/chatbot/filters" },
+    { "label": "StreamElements: Song Request module and media sources", "url": "https://docs.streamelements.com/chatbot/modules/songrequest" },
+    { "label": "StreamElements: Valorant custom API command guide", "url": "https://support.streamelements.com/hc/en-us/articles/12362107401234-How-to-add-a-rank-command-for-VALORANT" },
+    { "label": "StreamElements: Activity Feed and Twitch Channel Points", "url": "https://support.streamelements.com/hc/en-us/articles/10474542090770-Activity-Feed-Overview" },
+    { "label": "StreamElements: loyalty points command", "url": "https://docs.streamelements.com/chatbot/commands/default/points" },
+    { "label": "StreamElements: giveaway tickets and entry controls", "url": "https://docs.streamelements.com/chatbot/modules/giveaways" },
+    { "label": "StreamElements: overlays, alerts, tipping and chatbot overview", "url": "https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide" }
+  ]
+}
