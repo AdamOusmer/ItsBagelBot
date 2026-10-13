@@ -10,7 +10,7 @@ const temporaryDirs: string[] = [];
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'bagel-ai-docs-'));
   temporaryDirs.push(dir);
-  return { srcDir: join(packageDir, 'src'), distDir: join(dir, 'dist'), date: '2026-10-12' };
+  return { srcDir: join(packageDir, 'src'), distDir: join(dir, 'dist') };
 }
 
 async function outputFiles(dir: string): Promise<string[]> {
@@ -57,15 +57,70 @@ describe('AI documentation build', () => {
     await build(options);
     const sitemap = await readFile(join(options.distDir, 'sitemap.xml'), 'utf8');
     const index = await readFile(join(options.distDir, 'index.html'), 'utf8');
-    expect(sitemap).toContain('<loc>https://ai.itsbagelbot.com/</loc>');
     for (const path of ['llms.txt', 'spotify/setup.md', 'spotify/errors.md', 'govee/setup.md', 'govee/errors.md']) {
       expect(await Bun.file(join(options.distDir, path)).exists()).toBe(true);
-      expect(sitemap).toContain(`https://ai.itsbagelbot.com/${path}`);
+      if (path !== 'llms.txt') expect(sitemap).toContain(`https://ai.itsbagelbot.com/${path}`);
       expect(index).toContain(`href="/${path}"`);
     }
-    expect(sitemap).toContain('<lastmod>2026-10-12</lastmod>');
+    expect(sitemap).not.toContain('xmlns:ai');
+    expect(sitemap).not.toContain('<ai:');
+    expect(sitemap).not.toContain('llms.txt');
+    expect(sitemap).not.toContain('<loc>https://ai.itsbagelbot.com/</loc>');
+    for (const path of ['spotify/setup.md', 'govee/errors.md']) {
+      const source = await readFile(join(options.srcDir, path), 'utf8');
+      const updated = /^updated:\s*(\S+)$/m.exec(source)![1];
+      expect(sitemap).toContain(`<loc>https://ai.itsbagelbot.com/${path}</loc><lastmod>${updated}</lastmod>`);
+    }
     expect(await readFile(join(options.distDir, 'robots.txt'), 'utf8')).toContain('Sitemap: https://ai.itsbagelbot.com/sitemap.xml');
     expect(await readFile(join(options.distDir, '_headers'), 'utf8')).toContain('/*.md\n  Content-Type: text/markdown; charset=utf-8');
+    expect(index).toContain('<meta name="robots" content="noindex, follow">');
+    expect(index).toContain('<link rel="canonical" href="https://ai.itsbagelbot.com/">');
+    expect(index).toContain('href="https://itsbagelbot.com/"');
+  });
+
+  test('emits canonical and noindex headers, the 404 page and the IndexNow key', async () => {
+    const options = await fixture();
+    await build(options);
+    const headers = await readFile(join(options.distDir, '_headers'), 'utf8');
+    expect(headers).toContain('/spotify/setup.md\n  Link: <https://ai.itsbagelbot.com/spotify/setup.md>; rel="canonical"\n');
+    expect(headers).toContain('/llms.txt\n  Content-Type: text/plain; charset=utf-8\n  Cache-Control: public, max-age=300\n  X-Robots-Tag: noindex, follow\n');
+    expect(headers).toContain('\n/\n  X-Robots-Tag: noindex, follow\n');
+    expect(headers).not.toContain('llms.txt>; rel="canonical"');
+    const notFound = await readFile(join(options.distDir, '404.html'), 'utf8');
+    expect(notFound).toContain('noindex');
+    expect(notFound).toContain('href="/"');
+    expect(notFound).toContain('https://itsbagelbot.com/');
+    const publicDir = join(packageDir, 'public');
+    const names = await readdir(publicDir);
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      expect(await readFile(join(options.distDir, name), 'utf8')).toBe(await readFile(join(publicDir, name), 'utf8'));
+    }
+  });
+
+  test('groups the llms.txt task list by kind', async () => {
+    const options = await fixture();
+    options.srcDir = join(options.distDir, '../src');
+    await mkdir(options.srcDir, { recursive: true });
+    const page = (title: string, extra: string) => `---\ntitle: ${title}\ndescription: Test\nupdated: 2026-09-01\n${extra}---\nBody\n`;
+    await writeFile(join(options.srcDir, 'llms.txt.md'), page('Index', ''));
+    await writeFile(join(options.srcDir, 'b.md'), page('Bee', 'kind: setup\n'));
+    await writeFile(join(options.srcDir, 'a.md'), page('Ay', 'kind: setup\nhuman: https://itsbagelbot.com/a/\n'));
+    await writeFile(join(options.srcDir, 'c.md'), page('Sea', ''));
+    await build(options);
+    const llms = await readFile(join(options.distDir, 'llms.txt'), 'utf8');
+    expect(llms).toContain('## Setup\n\n- [Ay](https://ai.itsbagelbot.com/a.md): Test\n- [Bee](https://ai.itsbagelbot.com/b.md): Test\n\n## Tasks\n\n- [Sea](https://ai.itsbagelbot.com/c.md): Test\n');
+    const sitemap = await readFile(join(options.distDir, 'sitemap.xml'), 'utf8');
+    expect(sitemap).toContain('<lastmod>2026-09-01</lastmod>');
+  });
+
+  test('rejects a human link outside the marketing site', async () => {
+    const options = await fixture();
+    options.srcDir = join(options.distDir, '../src');
+    await mkdir(options.srcDir, { recursive: true });
+    await writeFile(join(options.srcDir, 'llms.txt.md'), '---\ntitle: Index\ndescription: Test\nupdated: 2026-09-01\n---\nBody\n');
+    await writeFile(join(options.srcDir, 'bad.md'), '---\ntitle: Bad\ndescription: Test\nupdated: 2026-09-01\nhuman: https://example.com/\n---\nBody\n');
+    await expect(build(options)).rejects.toThrow('bad.md: front matter human must start with https://itsbagelbot.com/');
   });
 
   test('has no em dash in any built output', async () => {

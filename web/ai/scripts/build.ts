@@ -1,18 +1,20 @@
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const packageDir = resolve(import.meta.dir, '..');
 const origin = 'https://ai.itsbagelbot.com';
+const humanOrigin = 'https://itsbagelbot.com/';
+const publicDir = join(packageDir, 'public');
+const kindHeadings: Record<string, string> = { overview: 'Overview', feature: 'Features', setup: 'Setup', errors: 'Errors', migration: 'Migration' };
 
 type BuildOptions = {
   srcDir?: string;
   distDir?: string;
   localeDir?: string;
-  date?: string;
 };
 
 type Template = { path: string; text: string };
-type Page = { path: string; title: string; description: string; updated: string; body: string };
+type Page = { path: string; title: string; description: string; updated: string; kind?: string; human?: string; body: string };
 type CatalogCache = Map<string, unknown>;
 type PlaceholderOptions = { localeDir: string; cache: CatalogCache };
 type CatalogReference = { surface: string; keys: string[] };
@@ -29,28 +31,11 @@ async function files(dir: string): Promise<string[]> {
   return paths;
 }
 
-function validIsoDay(value: string, date: Date): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-function dateString(value: string): string {
+function dateString(value: string, path: string): string {
   const date = new Date(`${value}T00:00:00Z`);
-  if (!validIsoDay(value, date)) throw new Error(`Invalid build date: ${value}`);
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  if (!valid) throw new Error(`${path}: invalid front matter updated ${value}`);
   return value;
-}
-
-function validEpoch(raw: string, seconds: number, date: Date): boolean {
-  return Number.isInteger(seconds) && Number.isFinite(date.getTime()) && raw.trim() !== '';
-}
-
-function buildDate(options: BuildOptions): string | undefined {
-  if (options.date !== undefined) return dateString(options.date);
-  const raw = process.env.SOURCE_DATE_EPOCH;
-  if (raw === undefined) return undefined;
-  const seconds = Number(raw);
-  const date = new Date(seconds * 1000);
-  if (!validEpoch(raw, seconds, date)) throw new Error(`Invalid SOURCE_DATE_EPOCH: ${raw}`);
-  return date.toISOString().slice(0, 10);
 }
 
 function escapeHtml(value: string): string {
@@ -109,32 +94,54 @@ async function resolvePlaceholders(template: Template, options: PlaceholderOptio
 
 function parseFrontMatter(lines: string[]): Record<string, string> {
   const metadata: Record<string, string> = {};
-  const fields = lines.map((line) => /^(title|description|updated):\s*(.*)$/.exec(line));
+  const fields = lines.map((line) => /^(title|description|updated|kind|human):\s*(.*)$/.exec(line));
   for (const field of fields.filter((field): field is RegExpExecArray => field !== null)) {
     metadata[field[1]] = field[2].replace(/^(['"])(.*)\1$/, '$2');
   }
   return metadata;
 }
 
-function parsePage(template: Template, options: BuildOptions): Page {
+function checkOptionalFields(metadata: Record<string, string>, path: string): void {
+  if (metadata.kind !== undefined && !Object.hasOwn(kindHeadings, metadata.kind)) throw new Error(`${path}: invalid front matter kind ${metadata.kind}`);
+  if (metadata.human !== undefined && !metadata.human.startsWith(humanOrigin)) throw new Error(`${path}: front matter human must start with ${humanOrigin}`);
+}
+
+function parsePage(template: Template): Page {
   const frontMatter = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(template.text);
   if (!frontMatter) throw new Error(`${template.path}: missing front matter`);
   const metadata = parseFrontMatter(frontMatter[1].split('\n'));
   const missing = ['title', 'description', 'updated'].find((field) => !metadata[field]);
   if (missing) throw new Error(`${template.path}: missing front matter ${missing}`);
+  checkOptionalFields(metadata, template.path);
   return {
     path: template.path === 'llms.txt.md' ? 'llms.txt' : template.path,
     title: metadata.title,
     description: metadata.description,
-    updated: options.date ?? dateString(metadata.updated),
+    updated: dateString(metadata.updated, template.path),
+    kind: metadata.kind,
+    human: metadata.human,
     body: template.text.slice(frontMatter[0].length).trim(),
   };
+}
+
+function taskLine(task: Page): string {
+  return `- [${task.title}](${origin}/${task.path}): ${task.description}`;
+}
+
+function renderTasks(tasks: Page[]): string {
+  const sorted = [...tasks].sort((a, b) => a.path.localeCompare(b.path, 'en'));
+  const groups = [...Object.entries(kindHeadings).map(([kind, heading]) => ({ heading, kind })), { heading: 'Tasks', kind: undefined }];
+  return groups
+    .map(({ heading, kind }) => ({ heading, items: sorted.filter((task) => task.kind === kind) }))
+    .filter((group) => group.items.length > 0)
+    .map((group) => `## ${group.heading}\n\n${group.items.map(taskLine).join('\n')}\n`)
+    .join('\n');
 }
 
 function renderPage(page: Page, index: Page, tasks: Page[]): string {
   const markdown = `# ${page.title}\n\n${page.body}`.trimEnd() + '\n';
   if (page !== index) return markdown;
-  return markdown + '\n' + tasks.map((task) => `- [${task.title}](${origin}/${task.path}): ${task.description}`).join('\n') + '\n';
+  return markdown + '\n' + renderTasks(tasks);
 }
 
 async function writePage(page: Page, site: SiteOutput): Promise<void> {
@@ -143,40 +150,59 @@ async function writePage(page: Page, site: SiteOutput): Promise<void> {
   await writeFile(output, renderPage(page, site.index, site.tasks));
 }
 
-function renderSitemap(index: Page, pages: Page[]): string {
-  const urls = [{ ...index, path: '' }, ...pages].map((page) => `  <url><loc>${escapeHtml(`${origin}/${page.path}`)}</loc><lastmod>${page.updated}</lastmod><ai:title>${escapeHtml(page.title)}</ai:title><ai:description>${escapeHtml(page.description)}</ai:description></url>`).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:ai="${origin}/">\n${urls}\n</urlset>\n`;
+function renderSitemap(pages: Page[]): string {
+  const urls = pages.filter((page) => page.path !== 'llms.txt').map((page) => `  <url><loc>${escapeHtml(`${origin}/${page.path}`)}</loc><lastmod>${page.updated}</lastmod></url>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
-function renderHeaders(): string {
-  return '/*.md\n  Content-Type: text/markdown; charset=utf-8\n  Cache-Control: public, max-age=300\n  X-Robots-Tag: all\n\n/llms.txt\n  Content-Type: text/plain; charset=utf-8\n  Cache-Control: public, max-age=300\n  X-Robots-Tag: all\n';
+function headerBlock(path: string, headers: string[]): string {
+  return `${path}\n${headers.map((header) => `  ${header}`).join('\n')}\n`;
+}
+
+function renderHeaders(tasks: Page[]): string {
+  const markdown = headerBlock('/*.md', ['Content-Type: text/markdown; charset=utf-8', 'Cache-Control: public, max-age=300', 'X-Robots-Tag: all']);
+  const canonicals = tasks.map((task) => headerBlock(`/${task.path}`, [`Link: <${origin}/${task.path}>; rel="canonical"`]));
+  const noindex = ['X-Robots-Tag: noindex, follow'];
+  const text = headerBlock('/llms.txt', ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: public, max-age=300', ...noindex]);
+  return [markdown, ...canonicals, text, headerBlock('/', noindex)].join('\n');
+}
+
+function renderLinks(tasks: Page[]): string {
+  const links = [{ path: 'llms.txt', title: 'llms.txt' }, ...tasks].map((page) => `<li><a href="/${escapeHtml(page.path)}">${escapeHtml(page.title)}</a></li>`);
+  return `<ul>${links.join('')}</ul>`;
 }
 
 function renderIndex(index: Page, tasks: Page[]): string {
-  const links = [{ path: 'llms.txt', title: 'llms.txt' }, ...tasks].map((page) => `<li><a href="/${escapeHtml(page.path)}">${escapeHtml(page.title)}</a></li>`).join('');
-  return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="description" content="${escapeHtml(index.description)}"><title>${escapeHtml(index.title)}</title></head><body><h1>${escapeHtml(index.title)}</h1><ul>${links}</ul></body></html>\n`;
+  const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><link rel="canonical" href="${origin}/"><meta name="description" content="${escapeHtml(index.description)}"><title>${escapeHtml(index.title)}</title>`;
+  const human = `<p>This site is written for AI assistants. For the human site, go to <a href="${humanOrigin}">${humanOrigin}</a>.</p>`;
+  return `<!doctype html>\n<html lang="en"><head>${head}</head><body><h1>${escapeHtml(index.title)}</h1>${human}${renderLinks(tasks)}</body></html>\n`;
+}
+
+function renderNotFound(): string {
+  const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><title>Page not found</title>';
+  return `<!doctype html>\n<html lang="en"><head>${head}</head><body><h1>Page not found</h1><p>Start from the <a href="/">index of pages</a> or visit <a href="${humanOrigin}">${humanOrigin}</a>.</p></body></html>\n`;
 }
 
 async function writeDiscovery(site: SiteOutput, pages: Page[]): Promise<void> {
   const { distDir, index, tasks } = site;
-  await writeFile(join(distDir, 'sitemap.xml'), renderSitemap(index, pages));
+  await writeFile(join(distDir, 'sitemap.xml'), renderSitemap(pages));
   await writeFile(join(distDir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`);
-  await writeFile(join(distDir, '_headers'), renderHeaders());
+  await writeFile(join(distDir, '_headers'), renderHeaders(tasks));
   await writeFile(join(distDir, 'index.html'), renderIndex(index, tasks));
+  await writeFile(join(distDir, '404.html'), renderNotFound());
 }
 
 export async function build(options: BuildOptions = {}): Promise<void> {
   const srcDir = options.srcDir ?? join(packageDir, 'src');
   const distDir = options.distDir ?? join(packageDir, 'dist');
   const localeDir = options.localeDir ?? resolve(packageDir, '../../locales/en');
-  const date = buildDate(options);
   const cache: CatalogCache = new Map();
   const pages: Page[] = [];
   for (const file of (await files(srcDir)).filter((file) => file.endsWith('.md'))) {
     const path = relative(srcDir, file);
     const template = { path, text: (await readFile(file, 'utf8')).replace(/\r\n/g, '\n') };
     const text = await resolvePlaceholders(template, { localeDir, cache });
-    pages.push(parsePage({ path, text }, { date }));
+    pages.push(parsePage({ path, text }));
   }
   const index = pages.find((page) => page.path === 'llms.txt');
   if (!index) throw new Error('Missing llms.txt.md template');
@@ -186,15 +212,7 @@ export async function build(options: BuildOptions = {}): Promise<void> {
   await mkdir(distDir, { recursive: true });
   for (const page of pages) await writePage(page, site);
   await writeDiscovery(site, pages);
+  await cp(publicDir, distDir, { recursive: true }).catch(missingCatalog);
 }
 
-function validArgs(args: string[]): boolean {
-  return args.length === 0 || args.length === 2 && args[0] === '--date';
-}
-
-function cliOptions(args: string[]): BuildOptions {
-  if (!validArgs(args)) throw new Error('Usage: bun scripts/build.ts [--date YYYY-MM-DD]');
-  return { date: args[1] };
-}
-
-if (import.meta.main) await build(cliOptions(process.argv.slice(2)));
+if (import.meta.main) await build();
