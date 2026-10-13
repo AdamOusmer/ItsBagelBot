@@ -7,6 +7,7 @@ import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import { setOnboarded } from '$lib/server/services';
 import { applyFeaturePreset } from '$lib/server/feature-presets';
 import { SERVER_STRATEGIES } from '$lib/server/importer';
+import { actionError } from '$lib/server/action-errors';
 import type { Session } from '$lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -36,8 +37,8 @@ function setupPreset(value: FormDataEntryValue | null): SetupPreset | null {
 
 function owner(locals: App.Locals) {
   const s = locals.session;
-  if (!s) return { failure: fail(401, { error: 'Sign in to finish setup.' }) };
-  if (!isOwner(s)) return { failure: fail(403, { error: 'Only the channel owner can finish setup.' }) };
+  if (!s) return { failure: fail(401, { error: actionError(locals.locale, 'Sign in to finish setup.') }) };
+  if (!isOwner(s)) return { failure: fail(403, { error: actionError(locals.locale, 'Only the channel owner can finish setup.') }) };
   return { uid: s.user_id };
 }
 
@@ -64,9 +65,9 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 export const actions: Actions = {
   done: async ({ locals, request }) => {
     const form = await request.formData();
-    if (!consented(form)) return fail(400, { error: 'Accept the agreement.' });
+    if (!consented(form)) return fail(400, { error: actionError(locals.locale, 'Accept the agreement.') });
     const preset = setupPreset(form.get('preset'));
-    if (!preset) return fail(400, { error: 'Choose a setup.' });
+    if (!preset) return fail(400, { error: actionError(locals.locale, 'Choose a setup.') });
     if (DEMO) throw redirect(303, '/');
     const who = owner(locals);
     if ('failure' in who) return who.failure;
@@ -80,7 +81,7 @@ export const actions: Actions = {
   },
   finishImport: async ({ locals, request }) => {
     const form = await request.formData();
-    if (!consented(form)) return fail(400, { error: 'Accept the agreement.' });
+    if (!consented(form)) return fail(400, { error: actionError(locals.locale, 'Accept the agreement.') });
     if (DEMO) return { ok: true };
     const who = owner(locals);
     if ('failure' in who) return who.failure;

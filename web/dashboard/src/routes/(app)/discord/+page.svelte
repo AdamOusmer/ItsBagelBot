@@ -21,6 +21,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
+  const canUpgrade = $derived(!data.delegateOf || (data.sections ?? []).includes('billing'));
 
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
@@ -72,7 +73,11 @@
         <div class="locked">
           <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
           <Text size="sm" tone="muted">{t('modules.betaLockedBody')}</Text>
-          <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
+          {#if canUpgrade}
+            <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
+          {:else}
+            <Text size="sm" tone="muted">{t('modules.betaAskOwner', { login: data.delegateLogin ?? '' })}</Text>
+          {/if}
         </div>
       </Card>
     </section>

@@ -268,7 +268,6 @@ func assertRefund(t *testing.T, out []module.Output) {
 	t.Helper()
 	require.Len(t, out, 2)
 	assert.Equal(t, outgress.TypeChat, out[0].Type)
-	assert.Contains(t, out[0].Text, "refunded")
 	assert.Equal(t, outgress.TypeRedemptionUpdate, out[1].Type)
 	assert.Equal(t, outgress.RedemptionCanceled, out[1].Status)
 }

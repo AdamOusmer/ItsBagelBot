@@ -133,6 +133,7 @@ accounts:
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
                         - dlq.data.commands.>
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - data.commands.>
@@ -155,6 +156,20 @@ accounts:
                         - $JS.API.DIRECT.GET.KV_DEPLOY_RUNS.>
                         - $JS.API.DIRECT.GET.KV_DEPLOY_RUNS
                         - $KV.DEPLOY_RUNS.>
+                subscribe:
+                    allow:
+                        - _INBOX.>
+            discord_data_bus:
+                publish:
+                    allow:
+                        - $JS.API.STREAM.INFO.BAGEL_DATA
+                        - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
+                        - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
+                        - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
+                        - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
+                        - $JS.ACK.BAGEL_DATA.>
+                        - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -261,6 +276,7 @@ accounts:
                         - $JS.ACK.*.*.BAGEL_DATA.>
                         - dlq.data.modules.>
                         - dlq.data.reproject.request
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - data.modules.>

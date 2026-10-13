@@ -149,7 +149,7 @@ type accountChange struct {
 	apply   func(ctx context.Context, userID uint64, accountCreatedAt int64) error
 }
 
-// UserChangedDTO carries every UserDeletedDTO field under the same JSON names.
+// UserChangedDTO carries UserDeletedDTO's identity fields under the same JSON names.
 func accountEvents(change accountChange, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		var dto data.UserChangedDTO

@@ -23,7 +23,7 @@
   "invalidFieldBanner": "Das Feld {field} war ungültig und hat daher seinen bisherigen Wert behalten. Es ist unten markiert.",
   "fieldInvalid": "Ungültig, daher wurde der bisherige Wert beibehalten.",
   "reauthCta": "Bagel erneut autorisieren",
-  "reauthNeeded": "Dieser Server wurde hinzugefügt, bevor Bagel die Berechtigung zum Ändern des Nicknames angefordert hat. Daher kann der Premium-Name hier nicht angewendet werden. Der Premium-Avatar funktioniert weiterhin. Autorisiere Bagel erneut, um dies abzuschließen.",
+  "reauthNeeded": "Dieser Server wurde hinzugefügt, bevor Bagel die Berechtigung „Nickname ändern“ angefordert hat, daher kann der Premium-Name hier nicht angewendet werden. Der Premium-Avatar funktioniert weiterhin. Wähle „Bagel erneut autorisieren“ und dann neben diesem Server „Bagel erneut hinzufügen“.",
   "save": "Einstellungen speichern",
   "serversHelp": "Jeder Server behält seine eigenen Kanäle, Rollen und Einstellungen. Öffne einen, um ihn zu ändern.",
   "serversTitle": "Deine Server",

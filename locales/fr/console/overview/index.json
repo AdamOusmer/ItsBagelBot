@@ -5,6 +5,8 @@
   "attentionHeading": "À vérifier",
   "issueAllDisabled": "Toutes vos commandes sont désactivées, le bot reste donc silencieux.",
   "issueAllDisabledCta": "Voir les commandes",
+  "issueTwitchScope": "Votre bot a besoin d’une nouvelle autorisation Twitch. Connectez-vous à nouveau avec Twitch pour l’accorder.",
+  "issueTwitchScopeCta": "Se connecter avec Twitch",
   "quickHeading": "Actions rapides",
   "summaryHeading": "En un coup d’œil",
   "summaryCommands": "Gérer {active} commandes actives",
@@ -32,8 +34,7 @@
   "reconnectNeeded": "Reconnexion nécessaire",
   "twitchAccessLost": "Accès Twitch perdu",
   "issueReauth": "Twitch a révoqué l’accès du bot à votre chaîne. Cela arrive après un changement de mot de passe ou si l’application a été déconnectée sur Twitch. Reconnectez votre compte Twitch pour rétablir le bot.",
-  "botBanned": "Bot banni — désactivé",
-  "issueBotBanned": "Débannissez le bot sur Twitch, puis réessayez pour vérifier l’accès. La reprise automatique nécessite un abonnement de débannissement autorisé.",
+  "botBanned": "Bot banni de votre chat",
   "reconnecting": "Reconnexion…",
   "connecting": "Connexion…",
   "unavailable": "État de connexion indisponible",
@@ -133,6 +134,7 @@
   "feedReconnecting": "Reconnexion",
   "invitesPendingCta": "Voir les invitations",
   "setupConnectCta": "Connecter",
+  "setupStatusCta": "Aller à « État du bot »",
   "setupCommandCta": "Créer une commande",
   "setupModuleCta": "Parcourir les modules"
 }

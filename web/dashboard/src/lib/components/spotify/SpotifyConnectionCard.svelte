@@ -59,6 +59,7 @@
   }
 
   const appSubmit: SubmitFunction = () => {
+    const changed = clientId.trim() !== app.clientId;
     saving = true;
     return async ({ result }) => {
       saving = false;
@@ -69,7 +70,7 @@
       }
       clientSecret = '';
       replacing = false;
-      toast('success', t('spotify.app.saved'));
+      toast(changed ? 'info' : 'success', t(changed ? 'spotify.app.savedReconnect' : 'spotify.app.saved'));
       await invalidateAll();
     };
   };
@@ -103,6 +104,8 @@
     </AlertBanner></div>
   {/if}
 
+  <div class="premium-note"><Text size="xs" tone="muted">{t('spotifySetup.premiumBody')}</Text></div>
+
   <div class="line">
     <span class="line-label"><Text as="span" size="sm" tone="muted">{t('spotify.app.label')}</Text></span>
     <Code>{app.clientId}</Code>
@@ -119,6 +122,7 @@
         <Code>{redirectUri}</Code>
         <Button variant="ghost" type="button" onclick={copyRedirect}>{t('spotify.app.redirectCopy')}</Button>
       </Text>
+      <Text size="xs" tone="muted">{t('spotify.app.replaceReconnect')}</Text>
       <Field label={t('spotify.app.clientIdLabel')} hint={t('spotify.app.clientIdHint')}>
         <Input fill name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
       </Field>
@@ -136,7 +140,7 @@
 <style>
   .head { margin-bottom: 10px; }
   .line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 44px; }
-  .line + .line, .alert-slot { margin-top: 8px; }
+  .alert-slot, .premium-note, .premium-note + .line { margin-top: 8px; }
   .line-label { min-width: 110px; }
   .line-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
   .replace { display: grid; gap: 12px; margin-top: 14px; }

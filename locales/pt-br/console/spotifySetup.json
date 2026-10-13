@@ -1,13 +1,13 @@
 {
   "premiumTitle": "Spotify Premium é necessário",
-  "premiumBody": "O Spotify exige que a conta conectada tenha Premium para Bagel controlar a reprodução e adicionar pedidos de música à sua fila.",
+  "premiumBody": "A conta Spotify que você conectar precisa de Premium para Bagel controlar a reprodução e adicionar pedidos de música à sua fila. A conta proprietária do seu aplicativo Spotify também precisa de Premium, e o Spotify permite conectar no máximo 5 contas por aplicativo.",
   "previewKeys": "Experimentar com chaves de exemplo",
   "welcomeTitle": "Dê uma trilha sonora à sua transmissão.",
   "welcomeBody": "Deixe sua comunidade escolher o que toca a seguir. Vou ajudar a conectar o Spotify, um pequeno passo por vez.",
   "appTitle": "Um pequeno aplicativo. Muita música.",
-  "appBody": "Seu aplicativo Spotify é a ponte entre Bagel e suas músicas. Crie-o no painel de desenvolvedores do Spotify e adicione esta URL de redirecionamento às configurações dele.",
+  "appBody": "Crie um aplicativo no painel de desenvolvedores do Spotify. Cole a Redirect URI abaixo no campo Redirect URIs do seu aplicativo e salve. Ela deve corresponder exatamente, sem barras ou espaços extras.",
   "credentialsTitle": "Vamos fazer a conexão.",
-  "credentialsBody": "Abra as configurações do seu aplicativo no Spotify e copie as duas chaves abaixo. Bagel guardará seu segredo com segurança.",
+  "credentialsBody": "No Spotify, abra Settings do seu aplicativo e copie o Client ID e o Client Secret nos campos abaixo. Bagel mantém seu segredo criptografado.",
   "connectTitle": "Última parada: Spotify.",
   "connectBody": "Seu aplicativo está pronto. Agora conecte a conta Spotify em que você toca músicas e voltaremos aqui para configurar os pedidos.",
   "readyTitle": "Tudo em sintonia.",
@@ -27,6 +27,6 @@
   "previewHint": "Experimente o fluxo sem conectar uma conta.",
   "footer": "Uma trilha sonora escolhida em conjunto.",
   "later": "Vou fazer isso depois",
-  "redirectMissing": "A URL de retorno ainda não está disponível. Você pode continuar quando os pedidos de música estiverem configurados.",
+  "redirectMissing": "A Redirect URI está indisponível do nosso lado agora, então você ainda não pode continuar. Tente novamente mais tarde.",
   "redirectLabel": "Redirect URI"
 }

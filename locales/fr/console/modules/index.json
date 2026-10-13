@@ -10,6 +10,7 @@
   "betaLockedBody": "C'est en bêta et réservé aux chaînes Premium pour l'instant. Cela s'ouvrira à tout le monde à la fin de la bêta ; ce que vous configurez pendant la bêta continuera de fonctionner.",
   "betaPremium": "Premium seulement",
   "betaUpgrade": "Voir les offres",
+  "betaAskOwner": "Premium pour cette chaîne est géré par {login}. Demandez à cette personne de passer à Premium sur sa page Facturation.",
   "breadcrumbLabel": "Fil d’Ariane",
   "catChannel": "Chaîne",
   "catChannelHint": "Points de chaîne, alertes de follow et de sub, et shoutouts de raid.",

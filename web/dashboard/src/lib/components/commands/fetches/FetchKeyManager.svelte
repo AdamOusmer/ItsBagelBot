@@ -36,6 +36,8 @@
   let newLabel = $state('');
   let newValue = $state('');
   let err = $state('');
+  const labelSlug = $derived(slugifyName(newLabel));
+  const showSlug = $derived(labelSlug !== '' && labelSlug !== newLabel.trim());
 
   let rotating = $state('');
   let rotateValue = $state('');
@@ -162,6 +164,7 @@
   </span>
   <Button type="submit" variant="secondary" disabled={busy}>{t('fetches.keyAdd')}</Button>
 </form>
+<Text size="xs" tone="muted" aria-live="polite">{showSlug ? t('fetches.keyLabelSavesAs', { label: labelSlug }) : ' '}</Text>
 <Text size="xs" tone="muted">{t('fetches.keyNote')}</Text>
 
 <ConfirmDialog
@@ -178,7 +181,7 @@
     <Text size="sm">{t('fetches.keyDeleteRefs')}</Text>
     <ul class="ref-list">
       {#each referencing as name (name)}
-        <li><Code tone="danger">!{name}</Code></li>
+        <li><Code tone="danger">{`{urlfetch:${name}}`}</Code></li>
       {/each}
     </ul>
   {:else}

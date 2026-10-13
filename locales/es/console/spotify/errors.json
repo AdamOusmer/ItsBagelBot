@@ -1,11 +1,14 @@
 {
+  "connectOwnerPremium": "Spotify se conectó, pero denegó el acceso a esta cuenta. En el modo de desarrollo, la cuenta propietaria de tu aplicación de Spotify necesita Premium. Pasa esa cuenta a Premium en Spotify y vuelve a conectar.",
+  "connectNotRegistered": "Spotify se conectó, pero esta cuenta no está entre los usuarios permitidos de tu aplicación. En el panel de desarrolladores de Spotify, añade esta cuenta a los usuarios de tu aplicación y vuelve a conectar.",
+  "declined": "Cerraste la pantalla de permisos de Spotify antes de autorizarlos. Vuelve a conectar y autoriza los permisos para terminar.",
   "noApp": "Añade tu aplicación de Spotify antes de conectar tu cuenta.",
-  "noToken": "Spotify reutilizó tu consentimiento, por lo que no emitió un token nuevo. Revoca esta aplicación en la página de tu cuenta de Spotify y vuelve a conectar.",
-  "oauth": "Spotify rechazó el inicio de sesión. Intenta conectar de nuevo.",
+  "noToken": "Spotify no envió un nuevo token de inicio de sesión. Abre spotify.com/account/apps, elimina el acceso de tu aplicación, elige Conectar Spotify y acepta de nuevo.",
+  "oauth": "Spotify rechazó el inicio de sesión. Comprueba que el ID de cliente y el secreto de cliente correspondan a tu aplicación de Spotify y que la URI de redirección que aparece en esta página esté guardada en esa aplicación. Luego vuelve a conectar.",
   "state": "El enlace de inicio de sesión caducó o se reutilizó. Inicia la conexión de nuevo.",
   "store": "No se pudo almacenar el token. Vuelve a intentarlo en un momento.",
   "titleRequired": "Pon un título a la recompensa.",
-  "unconfigured": "Las solicitudes de canciones aún no están configuradas en este despliegue: falta la URL de retorno de Spotify. Pide al operador que configure SPOTIFY_REDIRECT_URI.",
+  "unconfigured": "La configuración de Spotify no está disponible de nuestro lado ahora mismo. Inténtalo más tarde. Si dura más de un día, escribe a support@itsbagelbot.com.",
   "cost": "Introduce un número entero de puntos, como mínimo 1.",
   "cooldown": "Introduce una espera de entre 0 segundos y 7 días."
 }

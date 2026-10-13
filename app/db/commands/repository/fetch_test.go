@@ -6,6 +6,7 @@ package repository_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/enttest"
@@ -353,7 +354,11 @@ func TestDeleteAllForUserClearsDefsAndKeys(t *testing.T) {
 	_, err = repo.SetKey(ctx, 2002, repository.KeyEntry{Label: "other", Value: "untouched-value"})
 	require.NoError(t, err)
 
-	require.NoError(t, repo.DeleteAllForUser(ctx, 1001))
+	require.NoError(t, repo.DeleteAllForUser(ctx, 1001, time.Now().Add(-time.Hour)))
+	assert.Equal(t, 1, client.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(1001)).CountX(ctx), "rows a re-registered account wrote survive")
+	assert.Equal(t, 1, countKeysFor(client, 1001))
+
+	require.NoError(t, repo.DeleteAllForUser(ctx, 1001, time.Now()))
 
 	assert.Zero(t, client.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(1001)).CountX(ctx))
 	assert.Zero(t, countKeysFor(client, 1001), "keys for 1001 gone")

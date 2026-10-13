@@ -99,6 +99,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"commands_bus":         {"BAGEL_DATA"},
 		"modules_bus":          {"BAGEL_DATA"},
 		"loyalty_bus":          {"BAGEL_DATA"},
+		"discord_data_bus":     {"BAGEL_DATA"},
 		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS"},
 		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
@@ -120,7 +121,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"projector_bus", "worker_bus", "outgress_bus",
 		"twitch_ingress_bus", "dashboard_bus",
 		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
-		"deployer_bus",
+		"discord_data_bus", "deployer_bus",
 	}
 
 	for _, user := range serviceUsers {

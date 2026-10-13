@@ -21,22 +21,24 @@ import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
 
-type DeviceList = { devices: GoveeDevice[]; error?: string };
+type DeviceList = { devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' };
 type GoveePage = {
   enabled: boolean;
   keyPresent: boolean;
+  setupPreview?: boolean;
   bindings: GoveeView['bindings'];
   devices: DeviceList | Promise<DeviceList>;
   colors: string[];
 };
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = ({ locals, url }) => {
   const colors = [...GOVEE_COLOR_NAMES];
   return moduleLoad<GoveePage>('govee', locals.session, {
     demo: DEMO
       ? async () => {
           const { demoGoveeView, demoGoveeDevices } = await import('$lib/server/demo-data');
-          return { ...demoGoveeView(), devices: { devices: demoGoveeDevices(), error: undefined }, colors };
+          const setupPreview = url.searchParams.get('setup') === '1';
+          return { ...demoGoveeView(), keyPresent: !setupPreview, setupPreview, devices: { devices: demoGoveeDevices(), error: undefined }, colors };
         }
       : undefined,
     read: async (uid) => {
@@ -121,11 +123,17 @@ function done(res: GoveeResult, detail: string): string | MutationRefusal {
 }
 
 export const actions: Actions = {
-  saveKey: mutate('key_set', 'Enter your Govee API key.', async (store, f) => {
-    const key = String(f.get('key') ?? '').trim();
-    if (!key) return null;
-    return done(await store.setKey(key), '');
-  }),
+  saveKey: async (event) => {
+    let unchecked = false;
+    const result = await mutate('key_set', 'Enter your Govee API key.', async (store, f) => {
+      const key = String(f.get('key') ?? '').trim();
+      if (!key) return null;
+      const res = await store.setKey(key);
+      unchecked = !res.ok && res.code === 'key_unchecked';
+      return unchecked ? '' : done(res, '');
+    })(event);
+    return 'ok' in result && unchecked ? { ...result, code: 'key_unchecked' } : result;
+  },
 
   clearKey: mutate('key_clear', 'Invalid request.', async (store) => done(await store.clearKey(), '')),
 

@@ -4,7 +4,7 @@
   "needsSetup": "Requiere configuración",
   "needsSetupHint": "Módulos activados que aún necesitan un canal o un rol: {n}. Abre el que quieras y selecciona lo que falte.",
   "configure": "Configurar",
-  "notSetUp": "Este servidor nunca se ha configurado. Ejecuta la configuración automática y Bagel creará los canales y roles que necesita.",
+  "notSetUp": "Este servidor nunca se ha configurado. Elige Crear los canales y roles que faltan y Bagel añadirá lo que necesita.",
   "botState": "Bot",
   "modulesOn": "Módulos activados",
   "tiles": {

@@ -11,11 +11,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 var ErrMissingScope = errors.New("broadcaster grant missing channel:manage:redemptions scope")
 
 var ErrDuplicateReward = errors.New("a reward with this title already exists on the channel")
+
+var ErrNotAffiliate = errors.New("broadcaster is not a twitch partner or affiliate")
 
 var duplicateRewardMarker = []byte("DUPLICATE_REWARD")
 
@@ -219,6 +222,9 @@ func rewardStatusError(res *http.Response, op string) error {
 	}
 	if res.StatusCode == http.StatusBadRequest && bytes.Contains(body, duplicateRewardMarker) {
 		return ErrDuplicateReward
+	}
+	if res.StatusCode == http.StatusForbidden && strings.HasPrefix(op, http.MethodPost+" ") {
+		return ErrNotAffiliate
 	}
 	return &StatusError{Status: res.StatusCode, Op: op, Body: string(body)}
 }

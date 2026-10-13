@@ -52,7 +52,6 @@ var noBus = map[string]bool{
 	"gossip":        true,
 	"notifications": true,
 	"transactions":  true,
-	"discord_data":  true,
 }
 
 // roleRef names one role inside its account, e.g. account BUS, role

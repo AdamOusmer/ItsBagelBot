@@ -23,7 +23,7 @@
   "invalidFieldBanner": "{field} was not valid, so it kept the value it already had. It is marked below.",
   "fieldInvalid": "Not valid, so this kept the value it already had.",
   "reauthCta": "Re-authorize Bagel",
-  "reauthNeeded": "This server was added before Bagel asked for the Change Nickname permission, so the premium name cannot be applied here. The premium avatar still works. Re-authorize to finish it.",
+  "reauthNeeded": "This server was added before Bagel asked for the Change Nickname permission, so the premium name cannot be applied here. The premium avatar still works. Choose Re-authorize Bagel, then choose Add Bagel again next to this server.",
   "save": "Save settings",
   "serversHelp": "Each server keeps its own channels, roles and settings. Open one to change it.",
   "serversTitle": "Your servers",

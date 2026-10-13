@@ -7799,8 +7799,8 @@
       }
     ],
     "name": "Valeur récupérée",
-    "hint": "Insère une valeur récupérée depuis une définition d’API enregistrée",
-    "description": "Une valeur d’une définition de source de données enregistrée (page Sources de données). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin en pointillés pour atteindre un champ précis d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}.",
+    "hint": "Insère une valeur en direct depuis l’une de vos sources de données",
+    "description": "Une valeur provenant de l’une de vos sources de données (cliquez sur Source de données dans l’éditeur de commandes). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin avec des points pour atteindre un champ d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}.",
     "group": "data",
     "groups": [
       "data"

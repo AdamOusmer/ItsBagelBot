@@ -1,11 +1,14 @@
 {
+  "connectOwnerPremium": "Spotify ist verbunden, hat aber den Zugriff auf dieses Konto verweigert. Im Entwicklungsmodus braucht das Konto, dem deine Spotify-App gehört, Premium. Wechsle mit diesem Konto in Spotify zu Premium und verbinde dich dann erneut.",
+  "connectNotRegistered": "Spotify ist verbunden, aber dieses Konto gehört nicht zu den zugelassenen Nutzern deiner App. Füge dieses Konto im Spotify-Entwicklerdashboard zu den Nutzern deiner App hinzu und verbinde dich dann erneut.",
+  "declined": "Du hast den Spotify-Berechtigungsbildschirm geschlossen, bevor du die Berechtigungen erteilt hast. Verbinde dich erneut und erteile die Berechtigungen, um die Verbindung abzuschließen.",
   "noApp": "Füge deine Spotify-App hinzu, bevor du dein Konto verbindest.",
-  "noToken": "Spotify hat deine Zustimmung wiederverwendet, daher wurde kein neues Token ausgestellt. Widerrufe diese App auf deiner Spotify-Kontoseite und stelle die Verbindung dann erneut her.",
-  "oauth": "Spotify hat die Anmeldung abgelehnt. Versuche die Verbindung erneut.",
+  "noToken": "Spotify hat kein neues Anmeldetoken gesendet. Öffne spotify.com/account/apps, entferne den Zugriff für deine App, wähle dann Spotify verbinden und stimme erneut zu.",
+  "oauth": "Spotify hat die Anmeldung abgelehnt. Prüfe, ob die Client-ID und das Client-Secret zu deiner Spotify-App gehören und ob die auf dieser Seite angezeigte Weiterleitungs-URI in dieser App gespeichert ist. Verbinde dich dann erneut.",
   "state": "Der Anmeldelink ist abgelaufen oder wurde erneut verwendet. Starte die Verbindung erneut.",
   "store": "Das Token konnte nicht gespeichert werden. Versuche es gleich noch mal.",
   "titleRequired": "Gib der Belohnung einen Titel.",
-  "unconfigured": "Songwünsche sind in diesem Deployment noch nicht konfiguriert: Die Spotify-Callback-URL fehlt. Bitte den Betreiber, SPOTIFY_REDIRECT_URI festzulegen.",
+  "unconfigured": "Die Spotify-Einrichtung ist auf unserer Seite gerade nicht verfügbar. Versuche es später erneut. Wenn das länger als einen Tag dauert, schreibe an support@itsbagelbot.com.",
   "cost": "Gib eine ganze Punktzahl von mindestens 1 ein.",
   "cooldown": "Gib eine Abklingzeit zwischen 0 Sekunden und 7 Tagen ein."
 }

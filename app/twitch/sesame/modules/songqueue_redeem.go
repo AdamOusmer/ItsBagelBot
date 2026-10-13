@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
@@ -26,11 +27,11 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger, warn *cache.Keyed[strin
 		}
 		r := songqueueRedeemRun{qc: qc, cfg: cfg, ev: ev, emit: emit}
 		if !cfg.Enabled {
-			r.refund("song requests via channel points are turned off, your points were refunded")
+			r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.off"))
 			return nil
 		}
 		if !qc.livePermits(ctx, cfg.AllowOffline) {
-			r.refund("song requests only work while live, your points were refunded")
+			r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.offline"))
 			return nil
 		}
 		return r.apply(ctx)
@@ -88,7 +89,7 @@ type songqueueRedeemRun struct {
 func (r songqueueRedeemRun) apply(ctx context.Context) error {
 	query := strings.TrimSpace(r.ev.UserInput)
 	if query == "" {
-		r.refund("type a song name or Spotify link, your points were refunded")
+		r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.empty"))
 		return nil
 	}
 	r.qc.c.Env.ChatterUserID = r.ev.UserID
@@ -97,7 +98,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 
 	track, failure := r.qc.resolveTrack(ctx, query)
 	if failure != "" {
-		r.refund(failure + ", your points were refunded")
+		r.refund(failure + " " + i18n.T(r.qc.c.Locale, "songqueue.refund.suffix"))
 		return nil
 	}
 	r.qc.syncWithPlayer(ctx)
@@ -105,12 +106,12 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, engine.ErrSongQuotaReached):
-			r.refund("you are at your song limit for now, your points were refunded")
+			r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.quota"))
 		case errors.Is(err, engine.ErrSongQueueFull):
-			r.refund("the song queue is full, your points were refunded")
+			r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.full"))
 		default:
 			r.qc.log.Warn("songqueue: redeem add failed", r.qc.c.BID(), zap.Error(err))
-			r.refund("could not queue that track, your points were refunded")
+			r.refund(i18n.T(r.qc.c.Locale, "songqueue.refund.failed"))
 		}
 		return nil
 	}
@@ -118,7 +119,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		if _, _, rbErr := r.qc.store.RetractOwn(ctx, r.qc.c.BroadcasterID, r.ev.UserID); rbErr != nil {
 			r.qc.log.Warn("songqueue: redeem rollback after player refusal failed", r.qc.c.BID(), zap.Error(rbErr))
 		}
-		r.refund(failure + ", your points were refunded")
+		r.refund(failure + " " + i18n.T(r.qc.c.Locale, "songqueue.refund.suffix"))
 		return nil
 	}
 	r.chat(renderSongqueueRedeemReply(songqueueRedeemReplyParams{

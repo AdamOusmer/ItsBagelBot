@@ -4,7 +4,7 @@
   "needsSetup": "À configurer",
   "needsSetupHint": "{n} de ces modules sont actifs mais attendent encore un salon ou un rôle. Ouvrez celui qui vous intéresse pour le choisir.",
   "configure": "Configurer",
-  "notSetUp": "Ce serveur n’a jamais été configuré. Lancez la préparation et Bagel crée les salons et les rôles dont il a besoin.",
+  "notSetUp": "Ce serveur n’a jamais été configuré. Choisissez Créer les salons et rôles manquants et Bagel ajoute ce dont il a besoin.",
   "botState": "Bot",
   "modulesOn": "Modules actifs",
   "tiles": {

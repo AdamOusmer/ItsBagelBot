@@ -259,7 +259,7 @@
   {:then [meta, counters, volume, cd, c, md]}
     {@const fresh = isFreshChannel(meta, cd)}
     {#if fresh}
-      {@render setup(c, cd.total > 0, md.on > 0)}
+      {@render setup(c, cd.total > 0, md.switchedOn > 0)}
     {/if}
     <StreamSection
       meta={live.stream ?? meta}
@@ -294,6 +294,7 @@
           commandsOk={cd.ok}
           pendingShares={sh.pending}
           sharesOk={sh.ok}
+          twitchScopeGap={data.twitchScopeGap}
         />
       {/await}
 
@@ -337,13 +338,13 @@
     {:else if cd.top.length}
       <TopCommands top={cd.top} />
     {:else if !isFreshChannel(meta, cd)}
-      {@render setup(c, cd.total > 0, md.on > 0)}
+      {@render setup(c, cd.total > 0, md.switchedOn > 0)}
     {/if}
   {/await}
 </section>
 
 {#snippet setup(c: Conn, hasCommands: boolean, modulesOn: boolean)}
-  <SetupProgress receiving={liveUi(c).live} {hasCommands} {modulesOn} />
+  <SetupProgress receiving={liveUi(c).live} needsAuth={liveUi(c).showConnect} {hasCommands} {modulesOn} />
 {/snippet}
 
 <Modal open={pending !== null} title={modalTitle} onClose={closeModal}>

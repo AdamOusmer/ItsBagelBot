@@ -12,6 +12,7 @@ const modules = [
     cat: 'Moderation',
     plan: 'premium',
     start: 'On by default',
+    needs: 'Premium while in beta. Free channels get only the safety floor: hate slurs and IP-grabber links.',
   },
   {
     name: 'Trigger Words',
@@ -66,7 +67,7 @@ const modules = [
     tagline: 'Turn channel-point redemptions into bot actions.',
     cat: 'Channel',
     start: 'Off by default',
-    needs: 'Affiliate or partner. The bot creates the rewards itself.',
+    needs: 'Twitch Affiliate or Partner. The bot creates the rewards itself, and the counter a reward bumps is created with it.',
   },
   {
     name: 'Stream Management',
@@ -125,7 +126,7 @@ const modules = [
     tagline: '!sr and a channel-points reward that queue songs from Spotify.',
     cat: 'Gear',
     start: 'Off by default',
-    needs: 'Your own Spotify app, plus a Spotify login.',
+    needs: 'Spotify Premium, your own Spotify app, plus a Spotify login.',
     commands: '!sr <song or link>, !remove, !srlist, !songlist, !current, !song, !nowplaying, !np, !skip, !next, !clear',
   },
   {
@@ -548,8 +549,8 @@ const guide: GuideContent = {
             <p>
                 Viewers spend channel points to recolour the Govee lights in your room. You paste a
                 Govee API key, pick the device, and bind a reward. The key is encrypted and never
-                shown back to you, not even to the dashboard. To get one: Govee Home app &gt;
-                Profile &gt; gear &gt; "Apply for API Key".
+                shown back to you, not even to the dashboard. To get one: in the Govee Home app, go to
+                Profile → Settings → "Apply for API Key".
             </p>`,
         },
         {

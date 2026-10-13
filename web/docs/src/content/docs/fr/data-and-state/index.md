@@ -75,7 +75,7 @@ Les sujets et DTO de contenu résident dans `internal/domain/event/data` et cons
 | Sujet | Contenu | Moment de publication |
 |---------|---------|----------------|
 | `data.users.changed` | identifiant, nom, activation, statut, bannissement, langue, page de commandes masquée, révision d’état, incarnation du compte | Inscription, renommage, changement de statut, de bannissement, de langue ou de préférence |
-| `data.users.deleted` | identifiant utilisateur et incarnation du compte | Suppression de l’utilisateur |
+| `data.users.deleted` | identifiant utilisateur, incarnation du compte et heure de suppression | Suppression de l’utilisateur |
 | `data.modules.changed` | identifiant utilisateur, nom du module, activation, configuration JSON, révision | Chaque ligne de module enregistrée lors d’un vidage |
 | `data.commands.changed` | identifiant utilisateur, nom, alias, réponse, activation, restriction au direct, permissions, délais, utilisateur autorisé, utilisations, compteur associé, indicateur de suppression | Chaque ligne de commande enregistrée lors d’un vidage, et les suppressions |
 | `data.commands.fetch_changed` | identifiant utilisateur, nom du fetch, URL, chemin JSON, étiquette de clé, activation, indicateur de suppression | Une définition de fetch personnalisé change |

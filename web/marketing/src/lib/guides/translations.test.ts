@@ -14,6 +14,7 @@ describe('data-only guide translations', () => {
       expect(Array.isArray(copy)).toBe(false);
       expect(Object.values(copy).every((value) => typeof value === 'string')).toBe(true);
       const { ids, blocks } = guideIds(english);
+      expect(ids).not.toContain('meta.aiDoc');
       for (const id of ids) expect(copy[id]).toBeString();
       for (const id of Object.keys(copy)) {
         const marker = id.indexOf('.labels.');
@@ -22,6 +23,7 @@ describe('data-only guide translations', () => {
       const localized = translate(english, copy);
       expect(localized.sections.map((section) => section.id)).toEqual(english.sections.map((section) => section.id));
       expect(localized.meta.title).toBe(copy['meta.title']);
+      expect(localized.meta.aiDoc).toBe(english.meta.aiDoc);
     });
   }
   test('French hub preserves navigation and content structure', async () => {

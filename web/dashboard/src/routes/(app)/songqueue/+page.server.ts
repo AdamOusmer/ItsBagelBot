@@ -26,9 +26,11 @@ const DEMO = dev && env.DEMO === '1';
 export const load: PageServerLoad = ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
   const rawSlug = url.searchParams.get('e') ?? '';
-  const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store'].includes(rawSlug)
+  const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store', 'declined'].includes(rawSlug)
     ? rawSlug
     : '';
+  const rawWarning = url.searchParams.get('w') ?? '';
+  const connectWarning = ['owner_premium', 'not_registered'].includes(rawWarning) ? rawWarning : '';
 
   return moduleLoad('songqueue', locals.session, {
     demo: DEMO
@@ -52,7 +54,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
             app: { present: !setupPreview, clientId: setupPreview ? '' : 'demo-client-id' },
             redirectUri: 'https://console.example/spotify/callback',
             justConnected: false,
-            errorSlug: ''
+            errorSlug: '',
+            connectWarning
           };
         }
       : undefined,
@@ -74,7 +77,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
         app,
         redirectUri,
         justConnected,
-        errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
+        errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : ''),
+        connectWarning
       };
     },
     blank: () => ({
@@ -89,13 +93,15 @@ export const load: PageServerLoad = ({ locals, url }) => {
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
-      errorSlug: ''
+      errorSlug: '',
+      connectWarning
     })
   });
 };
 
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.missingSpotifyScope) return fail(403, { ok: false, missingSpotifyScope: true });
   if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
@@ -183,10 +189,10 @@ function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string
 }
 
 export const actions: Actions = {
-  saveApp: mutate('app', 'Both the client ID and the client secret are required.', async (store, f) => {
+  saveApp: mutate('app', "That does not look like a Client ID and Client Secret. Copy both again from your app's Settings page in the Spotify Developer Dashboard, with no spaces.", async (store, f) => {
     const clientId = String(f.get('client_id') ?? '').trim();
     const clientSecret = String(f.get('client_secret') ?? '').trim();
-    if (!clientId || !clientSecret) return null;
+    if (!/^[A-Za-z0-9]{16,128}$/.test(clientId) || !/^[A-Za-z0-9]{16,128}$/.test(clientSecret)) return null;
     return done(await store.saveApp(clientId, clientSecret), clientId);
   }),
 

@@ -8,6 +8,7 @@
     toastFailure,
     type Locale
   } from '@bagel/kit';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -39,6 +40,13 @@
 
   const { t, locale } = getI18n();
   const failed = toastFailure(toast, t);
+  const NOTICES = $derived<Record<string, string>>({
+    access: t('settings.noticeAccess'),
+    accessretry: t('settings.noticeAccessRetry'),
+    self: t('settings.noticeSelfLink')
+  });
+  const noticeKey = $derived(page.url.searchParams.get('e') ?? '');
+  const notice = $derived(Object.hasOwn(NOTICES, noticeKey) ? NOTICES[noticeKey] : null);
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
@@ -297,6 +305,7 @@
       errorId={`edit-error-${g.token}`}
       compact
     />
+    <div class="hint"><Text size="sm" tone="muted">{t('settings.sectionsHint')}</Text></div>
     <div class="grant-edit-actions">
       <Button variant="ghost" size="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
       <Button type="submit" variant="primary" size="sm">{t('common.save')}</Button>
@@ -306,6 +315,7 @@
 
 <section class="screen active">
   <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
+  {#if notice}<AlertBanner tone="warning" role="status">{notice}</AlertBanner>{/if}
 
   <div class="layout">
     <aside class="rail" data-lenis-prevent>
@@ -382,6 +392,7 @@
           error={createError}
           errorId="create-error"
         />
+        <div class="hint"><Text size="sm" tone="muted">{t('settings.sectionsHint')}</Text></div>
         <div class="create-actions">
           <Button variant="ghost" onclick={() => (creating = false)}>{t('common.cancel')}</Button>
           <Button type="submit" variant="primary">{t('common.generate')}</Button>
@@ -415,6 +426,7 @@
 
     {#if pending.length > 0}
       <div class="group-label"><Eyebrow>{t('settings.inviteLinks')}</Eyebrow></div>
+      <div class="hint"><Text size="sm" tone="muted">{t('settings.inviteLinksHint')}</Text></div>
       <ul class="grants">
         {#each pending as g (g.token)}
           <li class="grant pending">

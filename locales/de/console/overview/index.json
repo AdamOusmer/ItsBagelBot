@@ -5,6 +5,8 @@
   "attentionHeading": "Handlungsbedarf",
   "issueAllDisabled": "Alle deine Befehle sind ausgeschaltet, daher bleibt der Bot still.",
   "issueAllDisabledCta": "Befehle prüfen",
+  "issueTwitchScope": "Dein Bot braucht eine neue Twitch-Berechtigung. Melde dich erneut mit Twitch an, um sie zu erteilen.",
+  "issueTwitchScopeCta": "Mit Twitch anmelden",
   "quickHeading": "Schnellaktionen",
   "summaryHeading": "Auf einen Blick",
   "summaryCommands": "Aktive Befehle verwalten: {active}",
@@ -32,8 +34,7 @@
   "reconnectNeeded": "Erneute Verbindung nötig",
   "twitchAccessLost": "Twitch-Zugriff verloren",
   "issueReauth": "Twitch hat dem Bot den Zugriff auf deinen Kanal entzogen. Dies passiert nach einer Passwortänderung oder wenn die App auf Twitch getrennt wurde. Verbinde dein Twitch-Konto erneut, um den Bot zurückzubringen.",
-  "botBanned": "Bot im Chat gesperrt",
-  "issueBotBanned": "Dein Twitch-Chat hat den Bot gesperrt, daher kann er keine Nachrichten lesen oder beantworten. Der Twitch-Zugriff selbst funktioniert. Entsperre den Bot in deinem Chat und klicke dann auf „Aktivieren“.",
+  "botBanned": "Bot in deinem Chat gesperrt",
   "reconnecting": "Verbindung wird wiederhergestellt…",
   "connecting": "Verbindung wird hergestellt…",
   "unavailable": "Verbindungsstatus nicht verfügbar",
@@ -134,5 +135,6 @@
   "invitesPendingCta": "Einladungen prüfen",
   "setupConnectCta": "Verbinden",
   "setupCommandCta": "Befehl erstellen",
-  "setupModuleCta": "Module durchsuchen"
+  "setupModuleCta": "Module durchsuchen",
+  "setupStatusCta": "Zum Bot-Status"
 }

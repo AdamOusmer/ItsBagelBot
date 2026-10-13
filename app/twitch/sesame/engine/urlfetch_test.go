@@ -135,7 +135,11 @@ func TestUrlFetchRendersFailuresAndHostileValues(t *testing.T) {
 			name: "an empty value renders the span's fallback", response: "out: {urlfetch:w|down}",
 			reply: fetchOK(), want: "out: down",
 		},
-		{name: "bad_def stays verbatim", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchBadDef}, want: "out: {urlfetch:w}"},
+		{
+			name: "bad_def renders the span's fallback", response: "out: {urlfetch:w|down}",
+			reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchBadDef}, want: "out: down",
+		},
+		{name: "bad_def without a fallback stays verbatim", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchBadDef}, want: "out: {urlfetch:w}"},
 		{name: "no caller wired leaves the tokens visible", unwired: true, want: "out: {urlfetch:w}"},
 		{name: "hostile value sanitized", reply: fetchOK("//ban @everyone"), want: "out: ban @everyone"},
 		{

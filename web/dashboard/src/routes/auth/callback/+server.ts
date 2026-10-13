@@ -7,7 +7,7 @@ import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
-import { rpc } from '@bagel/kit/server/nats';
+import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
@@ -78,12 +78,31 @@ function streamerSession(id: Identity) {
   };
 }
 
-async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<void> {
+function grantedScopes(tokens: { scopes(): string[] }): { scopes?: string[] } {
+  const granted = tokens.scopes();
+  return granted.length ? { scopes: granted } : {};
+}
+
+function delegationErrorLanding(err: unknown): string {
+  if (!(err instanceof RpcError)) throw redirect(302, '/login?e=retry');
+  if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
+  if (['link already used', 'ent: delegation not found'].includes(err.message)) {
+    throw redirect(302, '/login?e=link');
+  }
+  throw redirect(302, '/login?e=retry');
+}
+
+async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<string | null> {
   const pending = cookies.get('pending_delegation');
-  if (!pending) return;
+  if (!pending) return null;
 
   cookies.delete('pending_delegation', { path: '/' });
-  const result = await delegationConsume(pending, id.userId, id.login);
+  let result: Awaited<ReturnType<typeof delegationConsume>>;
+  try {
+    result = await delegationConsume(pending, id.userId, id.login);
+  } catch (err) {
+    return delegationErrorLanding(err);
+  }
   if (!result.ok) throw redirect(302, '/login?e=link');
 
   setSessionCookie(cookies, url, {
@@ -163,20 +182,24 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
 }
 
 function callbackGate(
-  code: string | null,
-  state: string | null,
-  storedState: string | undefined,
-  storedNonce: string | undefined
+  params: URLSearchParams,
+  cookies: Cookies
 ): { ok: true; code: string; storedNonce: string } | { ok: false; slug: string } {
+  const error = params.get('error');
+  const code = params.get('code');
+  const state = params.get('state');
+  const storedState = cookies.get('oauth_state');
+  const storedNonce = cookies.get('oauth_nonce');
+  if (error) return { ok: false, slug: error === 'access_denied' ? 'declined' : 'oauth' };
   if (!validOAuthState(code, state, storedState)) return { ok: false, slug: 'state' };
   // The nonce cookie is mandatory: a flow that lost it must fail, not log in without replay protection.
   if (!storedNonce) return { ok: false, slug: 'state' };
   return { ok: true, code, storedNonce };
 }
 
-async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
   try {
-    await completeLogin(cookies, url, code, storedNonce);
+    return await completeLogin(cookies, url, code, storedNonce);
   } catch (e) {
     if (!isOAuthProtocolError(e)) throw e;
     throw redirect(302, '/login?e=oauth');
@@ -185,24 +208,19 @@ async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: s
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const next = safeNextPath(cookies.get('login_next'));
-  const gate = callbackGate(
-    url.searchParams.get('code'),
-    url.searchParams.get('state'),
-    cookies.get('oauth_state'),
-    cookies.get('oauth_nonce')
-  );
+  const gate = callbackGate(url.searchParams, cookies);
   cookies.delete('oauth_state', { path: '/' });
   cookies.delete('oauth_nonce', { path: '/' });
   cookies.delete('login_next', { path: '/' });
 
   if (!gate.ok) throw redirect(302, `/login?e=${gate.slug}`);
 
-  await runLogin(cookies, url, gate.code, gate.storedNonce);
+  const landing = await runLogin(cookies, url, gate.code, gate.storedNonce);
 
-  throw redirect(302, next ?? '/');
+  throw redirect(302, landing ?? next ?? '/');
 };
 
-async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
+async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<string | null> {
   const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
   const claims = tokens.claims() as unknown as IdTokenClaims;
   verifyClaims(claims, storedNonce);
@@ -219,10 +237,11 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   const email = await fetchAccountEmail(tokens.accessToken());
   await registerUser(identity, email);
 
-  await acceptPendingDelegation(cookies, url, identity);
+  const landing = await acceptPendingDelegation(cookies, url, identity);
 
-  setSessionCookie(cookies, url, streamerSession(identity));
+  setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
   await seedLocaleCookie(cookies, url, identity.userId);
   await seedCursorCookie(cookies, url, identity.userId);
   await persistGrant(identity.userId, tokens);
+  return landing;
 }

@@ -20,6 +20,7 @@
 ## Related
 
 - [Product site](https://itsbagelbot.com/): features, pricing, user guides.
+- [AI setup help](https://ai.itsbagelbot.com/llms.txt): task pages for AI assistants helping streamers set up Spotify song requests and Govee lights.
 - [Dashboard](https://dashboard.itsbagelbot.com/): sign in with Twitch to configure the bot.
 - [GitHub](https://github.com/AdamOusmer/ItsBagelBot): source code and issue tracker.
 - [Discord community](https://discord.gg/SZ2remwSDv): fastest support channel.
