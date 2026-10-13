@@ -67,6 +67,10 @@ describe('cooldown scopes', () => {
   });
 });
 
+test('rejects usernames as user restrictions', () => {
+  expect(validateCommand({ ...validFields, response: 'hi', allowedUserId: 'modbot_77' }).allowed_user_id).toBeDefined();
+});
+
 describe('bump_counter option validation', () => {
   test.each([
     ['empty is valid: it means the command bumps nothing', '', undefined],
