@@ -1,4 +1,6 @@
 {
+  "connectOwnerPremium": "Spotify ist verbunden, hat aber den Zugriff auf dieses Konto verweigert. Im Entwicklungsmodus braucht das Konto, dem deine Spotify-App gehört, Premium. Wechsle mit diesem Konto in Spotify zu Premium und verbinde dich dann erneut.",
+  "connectNotRegistered": "Spotify ist verbunden, aber dieses Konto gehört nicht zu den zugelassenen Nutzern deiner App. Füge dieses Konto im Spotify-Entwicklerdashboard zu den Nutzern deiner App hinzu und verbinde dich dann erneut.",
   "declined": "Du hast den Spotify-Berechtigungsbildschirm geschlossen, bevor du die Berechtigungen erteilt hast. Verbinde dich erneut und erteile die Berechtigungen, um die Verbindung abzuschließen.",
   "noApp": "Füge deine Spotify-App hinzu, bevor du dein Konto verbindest.",
   "noToken": "Spotify hat kein neues Anmeldetoken gesendet. Öffne spotify.com/account/apps, entferne den Zugriff für deine App, wähle dann Spotify verbinden und stimme erneut zu.",

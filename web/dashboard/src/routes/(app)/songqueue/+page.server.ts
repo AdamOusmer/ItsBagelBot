@@ -29,6 +29,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
   const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store', 'declined'].includes(rawSlug)
     ? rawSlug
     : '';
+  const rawWarning = url.searchParams.get('w') ?? '';
+  const connectWarning = ['owner_premium', 'not_registered'].includes(rawWarning) ? rawWarning : '';
 
   return moduleLoad('songqueue', locals.session, {
     demo: DEMO
@@ -52,7 +54,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
             app: { present: !setupPreview, clientId: setupPreview ? '' : 'demo-client-id' },
             redirectUri: 'https://console.example/spotify/callback',
             justConnected: false,
-            errorSlug: ''
+            errorSlug: '',
+            connectWarning
           };
         }
       : undefined,
@@ -74,7 +77,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
         app,
         redirectUri,
         justConnected,
-        errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
+        errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : ''),
+        connectWarning
       };
     },
     blank: () => ({
@@ -89,7 +93,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
-      errorSlug: ''
+      errorSlug: '',
+      connectWarning
     })
   });
 };
