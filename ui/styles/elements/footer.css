@@ -12,7 +12,7 @@
     --footer-colophon-lines: 1;
     --footer-cols-max: 920px;
     --footer-col-gap: 56px;
-    --bb-footer-bg: transparent;
+    --bb-footer-bg: var(--bb-bg-0);
 
     position: relative;
     isolation: isolate;
@@ -246,6 +246,10 @@
     margin: 0;
     font: inherit;
     color: inherit;
+  }
+
+  :root[data-theme="light"] .bb-footer {
+    --bb-footer-bg: var(--bb-paper-warm);
   }
 
   :root[data-theme="light"] :is(.bb-footer__signoff-line, .bb-footer__col-title) {
