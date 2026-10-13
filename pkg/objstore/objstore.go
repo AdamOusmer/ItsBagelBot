@@ -47,7 +47,7 @@ func New(cfg Config) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if base.Scheme == "" || base.Host == "" || cfg.Bucket == "" {
+	if !complete(base, cfg.Bucket) {
 		return nil, errors.New("objstore: endpoint and bucket are required")
 	}
 	if cfg.Region == "" {
@@ -59,8 +59,19 @@ func New(cfg Config) (*Store, error) {
 	return &Store{cfg: cfg, base: base, now: time.Now}, nil
 }
 
+func complete(base *url.URL, bucket string) bool {
+	return base.Scheme != "" && base.Host != "" && bucket != ""
+}
+
+type operation struct {
+	method string
+	key    string
+	query  url.Values
+	body   []byte
+}
+
 func (s *Store) PutNew(ctx context.Context, key string, body []byte) error {
-	req, err := s.request(ctx, http.MethodPut, key, nil, body)
+	req, err := s.request(ctx, operation{method: http.MethodPut, key: key, body: body})
 	if err != nil {
 		return err
 	}
@@ -125,7 +136,7 @@ func (s *Store) listPage(ctx context.Context, prefix, token string) (listResult,
 	if token != "" {
 		query.Set("continuation-token", token)
 	}
-	req, err := s.request(ctx, http.MethodGet, "", query, nil)
+	req, err := s.request(ctx, operation{method: http.MethodGet, query: query})
 	if err != nil {
 		return listResult{}, err
 	}
@@ -142,15 +153,15 @@ func (s *Store) listPage(ctx context.Context, prefix, token string) (listResult,
 	return page, err
 }
 
-func (s *Store) request(ctx context.Context, method, key string, query url.Values, body []byte) (*http.Request, error) {
+func (s *Store) request(ctx context.Context, op operation) (*http.Request, error) {
 	u := *s.base
 	u.Path = "/" + s.cfg.Bucket
-	if key != "" {
-		u.Path += "/" + key
+	if op.key != "" {
+		u.Path += "/" + op.key
 	}
 	u.RawPath = escapePath(u.Path)
-	u.RawQuery = canonicalQuery(query)
-	return http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
+	u.RawQuery = canonicalQuery(op.query)
+	return http.NewRequestWithContext(ctx, op.method, u.String(), bytes.NewReader(op.body))
 }
 
 func (s *Store) do(req *http.Request, body []byte) (*http.Response, error) {
@@ -206,10 +217,12 @@ func escapePath(p string) string {
 	return strings.Join(segments, "/")
 }
 
+const unreserved = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~"
+
 func escape(s string) string {
 	var b strings.Builder
 	for _, c := range []byte(s) {
-		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte("-_.~", c) >= 0 {
+		if strings.IndexByte(unreserved, c) >= 0 {
 			b.WriteByte(c)
 			continue
 		}
