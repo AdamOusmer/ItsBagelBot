@@ -26,6 +26,11 @@
     text-align: center;
   }
 
+  /* Clears a sticky page hero (z-index 5) that stays stuck through the footer. */
+  .bb-footer--raised {
+    z-index: 6;
+  }
+
   .bb-footer::before {
     content: "";
     position: absolute;

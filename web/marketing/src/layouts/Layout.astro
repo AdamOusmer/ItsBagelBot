@@ -291,6 +291,7 @@ const contentSecurityPolicy = [
         legal={footerLegal}
         copyright="© 2026 ItsBagelBot"
         note={t('footer.note')}
+        class="bb-footer--raised"
         studio={t('footer.studio')}
     >
         {isHome && <div slot="colophon" id="about">
@@ -337,10 +338,5 @@ const contentSecurityPolicy = [
 <style>
     main {
         display: contents;
-    }
-
-    /* Above the sticky home hero (z-index 5), which stays stuck through the footer. */
-    :global(.bb-footer) {
-        z-index: 6;
     }
 </style>
