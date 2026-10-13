@@ -36,7 +36,7 @@
   "importService": "Le service d’import n’a pas répondu. Réessayez dans un instant.",
   "importNothing": "Aucune sélection à importer.",
   "importSelection": "La sélection n’a pas pu être décodée. Relancez l’aperçu.",
-  "sealKey": "Impossible de protéger la clé.",
+  "sealKey": "Impossible d’enregistrer la clé.",
   "deleteKey": "Impossible de supprimer la clé.",
   "updateFailed": "Impossible de modifier.",
   "idRequired": "Un identifiant valide est requis.",

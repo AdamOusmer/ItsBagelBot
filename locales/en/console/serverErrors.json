@@ -36,7 +36,7 @@
   "importService": "The importer service did not answer. Try again in a moment.",
   "importNothing": "Nothing selected to import.",
   "importSelection": "The selection could not be decoded. Run the preview again.",
-  "sealKey": "Could not seal the key.",
+  "sealKey": "Could not save the key.",
   "deleteKey": "Could not delete the key.",
   "updateFailed": "Could not update.",
   "idRequired": "A valid id is required.",

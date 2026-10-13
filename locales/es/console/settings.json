@@ -87,7 +87,7 @@
   "boardShared": "Compartidos contigo: {n}",
   "markAllRead": "Marcar todo como leído",
   "toastAllRead": "Todas las notificaciones marcadas como leídas.",
-  "keysHint": "Secretos de la cuenta para fuentes de datos. Las personas con acceso delegado pueden usarlos, pero nunca leerlos.",
+  "keysHint": "Claves API que tus fuentes de datos envían con cada solicitud. Las personas con acceso compartido pueden usarlas, pero nunca verlas.",
   "importNav": "Importar",
   "level": {
     "info": "Información",

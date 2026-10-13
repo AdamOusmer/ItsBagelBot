@@ -3,7 +3,10 @@
 
 package scope
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 const urlFetchName = "urlfetch"
 
@@ -21,9 +24,9 @@ func (External) Owns(v Var) bool { return v.Name == urlFetchName }
 func (e External) Plan(ctx context.Context, wants []Var) (Values, error) {
 	names := fetchNames(wants, e.Max)
 	if len(names) == 0 {
-		return urlValues(nil), nil
+		return urlValues{}, nil
 	}
-	return urlValues(e.Fetcher.Fetch(ctx, names)), nil
+	return urlValues{values: e.Fetcher.Fetch(ctx, names), asked: names}, nil
 }
 
 func fetchNames(wants []Var, max int) []string {
@@ -50,13 +53,18 @@ func fetchName(v Var) string {
 	return NormalizeName(v.Payload)
 }
 
-type urlValues map[string]string
+type urlValues struct {
+	values map[string]string
+	asked  []string
+}
 
 func (m urlValues) Get(v Var) (string, bool) {
 	name := fetchName(v)
 	if name == "" {
 		return "", false
 	}
-	value, ok := m[name]
-	return value, ok
+	if value, ok := m.values[name]; ok {
+		return value, true
+	}
+	return "", v.HasFallback && slices.Contains(m.asked, name)
 }

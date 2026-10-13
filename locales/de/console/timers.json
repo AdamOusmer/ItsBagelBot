@@ -20,7 +20,7 @@
   "toggleAria": "Timer pausieren oder fortsetzen: {name}",
   "deleteAria": "Timer löschen: {name}",
   "fieldMessage": "Nachricht",
-  "fieldMessagePh": "z. B. Folge mir in den sozialen Medien: {link}",
+  "fieldMessagePh": "z. B. Folge mir, damit du weißt, wann ich live gehe.",
   "fieldInterval": "Wiederholen alle",
   "fieldIntervalHint": "Mindestens 1 Minute, höchstens 24 Stunden.",
   "unitMinutes": "Minuten",

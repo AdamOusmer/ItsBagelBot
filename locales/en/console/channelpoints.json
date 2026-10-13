@@ -74,6 +74,7 @@
   "toastDeleted": "Reward “{name}” deleted.",
   "toastSaveFailed": "Could not save the reward.",
   "toastDuplicateTitle": "A reward with this title already exists on your channel. Pick another title.",
+  "toastNotAffiliate": "Twitch only lets Affiliate and Partner channels create channel point rewards. Once your channel is an Affiliate, click Create reward again.",
   "toastDeleteFailed": "Could not delete the reward.",
   "toastToggleFailed": "Could not update the reward.",
   "errCost": "Enter a whole number of points, at least 1.",

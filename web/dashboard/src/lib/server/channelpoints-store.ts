@@ -35,13 +35,14 @@ interface RewardReplyWire {
   reward?: RewardWire;
   rewards?: RewardWire[];
   missing_scope?: boolean;
+  not_affiliate?: boolean;
   error?: string;
   code?: string;
 }
 
 export type RewardResult =
   | { ok: true; reward?: ChannelPointReward }
-  | { ok: false; missingScope?: boolean; duplicateTitle?: boolean; error?: string };
+  | { ok: false; missingScope?: boolean; duplicateTitle?: boolean; notAffiliate?: boolean; error?: string };
 
 type RewardFailure = Extract<RewardResult, { ok: false }>;
 
@@ -123,6 +124,7 @@ async function callReward(verb: string, req: Record<string, unknown>): Promise<R
 
 function refusal(reply: RewardReplyWire): RewardFailure | null {
   if (reply.missing_scope) return { ok: false, missingScope: true };
+  if (reply.not_affiliate) return { ok: false, notAffiliate: true };
   if (replyCode(reply) === 'conflict') return { ok: false, duplicateTitle: true };
   const err = rpcRefusal(reply);
   if (err) throw err;

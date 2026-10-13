@@ -74,6 +74,7 @@
   "toastDeleted": "Recompensa “{name}” eliminada.",
   "toastSaveFailed": "No se pudo guardar la recompensa.",
   "toastDuplicateTitle": "Ya existe una recompensa con este título en tu canal. Elige otro título.",
+  "toastNotAffiliate": "Twitch solo permite que los canales de afiliados y socios creen recompensas de puntos del canal. Cuando tu canal sea afiliado, vuelve a hacer clic en Crear recompensa.",
   "toastDeleteFailed": "No se pudo eliminar la recompensa.",
   "toastToggleFailed": "No se pudo actualizar la recompensa.",
   "errCost": "Escribe un número entero de puntos, como mínimo 1.",
