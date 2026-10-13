@@ -92,6 +92,7 @@ Ask the user to confirm the observed reply.
 
 <related>
 
+- [Command errors](../errors/commands.md).
 - [Commands reference](../features/commands.md).
 - [Getting started](getting-started.md).
 - [Connection errors](../errors/connection.md).

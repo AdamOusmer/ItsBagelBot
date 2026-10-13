@@ -173,6 +173,7 @@ Assistants answering game-stat questions or helping a streamer configure this mo
 
 <related>
 
+- [Module errors](../errors/modules.md).
 - [Getting started](../setup/getting-started.md).
 - [Connection errors](../errors/connection.md).
 - [Human guide](https://itsbagelbot.com/guides/modules/).

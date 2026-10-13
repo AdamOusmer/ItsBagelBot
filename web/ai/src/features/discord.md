@@ -169,6 +169,7 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 <related>
 
+- [Discord setup](../setup/discord.md), [Discord errors](../errors/discord.md).
 - [Getting started](../setup/getting-started.md).
 - [Commands setup](../setup/commands.md).
 - [Connection errors](../errors/connection.md).
