@@ -1,13 +1,13 @@
 {
   "premiumTitle": "Spotify Premium ist erforderlich",
-  "premiumBody": "Spotify verlangt Premium für das verbundene Konto, damit Bagel die Wiedergabe steuern und Songwünsche deiner Warteschlange hinzufügen kann.",
+  "premiumBody": "Das Spotify-Konto, das du verbindest, braucht Premium, damit Bagel die Wiedergabe steuern und Songwünsche deiner Warteschlange hinzufügen kann. Auch das Konto, dem deine Spotify-App gehört, braucht Premium. Spotify erlaubt jeder App höchstens 5 verbundene Konten.",
   "previewKeys": "Mit Beispielschlüsseln ausprobieren",
   "welcomeTitle": "Gib deinem Stream einen Soundtrack.",
   "welcomeBody": "Lass deine Community wählen, was als Nächstes läuft. Ich helfe dir, Spotify zu verbinden, Schritt für Schritt.",
   "appTitle": "Eine kleine App. Viel Musik.",
-  "appBody": "Deine Spotify-App verbindet Bagel mit deiner Musik. Erstelle sie im Spotify-Entwicklerdashboard und füge dann diese Weiterleitungs-URL in ihren Einstellungen hinzu.",
+  "appBody": "Erstelle eine App im Spotify-Entwicklerdashboard. Füge die Redirect URI unten in das Feld Redirect URIs deiner App ein und speichere. Sie muss genau übereinstimmen, ohne zusätzlichen Schrägstrich oder Leerzeichen.",
   "credentialsTitle": "Stellen wir die Verbindung her.",
-  "credentialsBody": "Öffne die Einstellungen deiner App in Spotify und kopiere die beiden Schlüssel unten. Bagel bewahrt dein Secret sicher auf.",
+  "credentialsBody": "Öffne in Spotify die Settings deiner App und kopiere die Client ID und das Client Secret in die Felder unten. Bagel speichert dein Secret verschlüsselt.",
   "connectTitle": "Letzter Halt: Spotify.",
   "connectBody": "Deine App ist bereit. Verbinde jetzt das Spotify-Konto, über das du Musik abspielst. Danach bringen wir dich hierher zurück, um Songwünsche einzurichten.",
   "readyTitle": "Du bist im Takt.",
@@ -27,6 +27,6 @@
   "previewHint": "Probiere den Ablauf aus, ohne ein Konto zu verbinden.",
   "footer": "Ein Soundtrack, gemeinsam gewählt.",
   "later": "Das mache ich später",
-  "redirectMissing": "Die Callback-URL ist noch nicht verfügbar. Du kannst fortfahren, sobald Songwünsche konfiguriert sind.",
+  "redirectMissing": "Die Redirect URI ist auf unserer Seite gerade nicht verfügbar, deshalb kannst du noch nicht fortfahren. Versuche es später erneut.",
   "redirectLabel": "Redirect URI"
 }

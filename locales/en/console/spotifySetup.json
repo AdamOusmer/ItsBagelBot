@@ -1,13 +1,13 @@
 {
   "premiumTitle": "Spotify Premium is required",
-  "premiumBody": "Spotify requires the connected account to have Premium so Bagel can control playback and add song requests to your queue.",
+  "premiumBody": "The Spotify account you connect needs Premium so Bagel can control playback and add song requests to your queue. The account that owns your Spotify app needs Premium too, and Spotify lets each app connect at most 5 accounts.",
   "previewKeys": "Try with sample keys",
   "welcomeTitle": "Give your stream a soundtrack.",
   "welcomeBody": "Let your community pick what plays next. I’ll help you connect Spotify, one little step at a time.",
   "appTitle": "A little app. A lot of music.",
-  "appBody": "Your Spotify app is the bridge between Bagel and your music. Create it in the Spotify developer dashboard, then add this redirect URL in its settings.",
+  "appBody": "Create an app in the Spotify developer dashboard. Paste the Redirect URI below into the app’s Redirect URIs field, then save. It must match exactly, with no extra slash or space.",
   "credentialsTitle": "Let’s make the connection.",
-  "credentialsBody": "Open your app’s settings in Spotify and copy the two keys below. Bagel will keep your secret safely tucked away.",
+  "credentialsBody": "In Spotify, open your app’s Settings, then copy the Client ID and the Client Secret into the fields below. Bagel keeps your secret encrypted.",
   "connectTitle": "One last stop: Spotify.",
   "connectBody": "Your app is ready. Now connect the Spotify account you play music from, and we’ll bring you back here to set up song requests.",
   "readyTitle": "You’re in tune.",
@@ -27,6 +27,6 @@
   "previewHint": "Try the flow without connecting an account.",
   "footer": "A soundtrack, picked together.",
   "later": "I’ll do this later",
-  "redirectMissing": "The callback URL is not available yet. You can continue once song requests are configured.",
+  "redirectMissing": "The Redirect URI is unavailable on our side right now, so you cannot continue yet. Try again later.",
   "redirectLabel": "Redirect URI"
 }

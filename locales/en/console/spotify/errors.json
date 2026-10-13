@@ -1,12 +1,12 @@
 {
   "declined": "You closed the Spotify permission screen before approving. Connect again and approve the permissions to finish.",
   "noApp": "Add your Spotify app before connecting your account.",
-  "noToken": "Spotify reused your consent, so no fresh token was issued. Revoke this app in your Spotify account page, then connect again.",
+  "noToken": "Spotify did not send a new sign-in token. Open spotify.com/account/apps, remove access for your app, then choose Connect Spotify and agree again.",
   "oauth": "Spotify refused the sign-in. Check that the Client ID and Client Secret match your Spotify app, and that the redirect URI shown on this page is saved in that app. Then connect again.",
   "state": "The sign-in link expired or was replayed. Start the connect again.",
   "store": "The token could not be stored. Try again in a moment.",
   "titleRequired": "Give the reward a title.",
-  "unconfigured": "Song requests are not configured on this deployment yet: the Spotify callback URL is missing. Ask the operator to set SPOTIFY_REDIRECT_URI.",
+  "unconfigured": "Spotify setup is unavailable on our side right now. Try again later. If it lasts more than a day, email support@itsbagelbot.com.",
   "cost": "Enter a whole number of points, at least 1.",
   "cooldown": "Enter a cooldown between 0 seconds and 7 days."
 }

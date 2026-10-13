@@ -7,7 +7,7 @@
   "howEyebrow": "So funktioniert es",
   "howTitle": "Einmal einrichten, dann steuert der Chat.",
   "step1Title": "Hol dir einen Govee-API-Schlüssel.",
-  "step1Desc": "Öffne in der Govee-Home-App Profile, tippe auf das Zahnrad, dann auf Apply for API Key. Govee schickt den Schlüssel innerhalb weniger Minuten per E-Mail.",
+  "step1Desc": "Gehe in der Govee Home-App zu Profil → Einstellungen → „Apply for API Key“ und fülle das kurze Formular aus. Govee schickt dir den Schlüssel normalerweise per E-Mail. Wenn er nicht ankommt, prüfe deinen Spam-Ordner.",
   "step2Title": "Einfügen und Licht wählen.",
   "step2Desc": "Füge den Schlüssel auf der Govee-Seite im Dashboard ein und wähle ein Licht. Der Schlüssel wird verschlüsselt gespeichert und nie wieder angezeigt.",
   "step3Title": "Belohnung erstellen.",

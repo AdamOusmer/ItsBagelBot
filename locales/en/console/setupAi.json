@@ -1,0 +1,16 @@
+{
+  "description": "Copies a prompt about this step. Paste it into ChatGPT, Claude or Gemini.",
+  "copy": "Ask your AI for help",
+  "copied": "Copied. Paste it into your AI.",
+  "copyFailed": "Could not copy. Try again.",
+  "genericError": "The dashboard showed an error on this step.",
+  "featureSpotify": "Spotify song requests",
+  "featureGovee": "Govee lights",
+  "promptIntro": "I am setting up {feature} in the dashboard of ItsBagelBot, a Twitch chat bot.",
+  "promptStep": "I am on the setup step called \"{step}\".",
+  "promptError": "The dashboard shows this message: \"{error}\"",
+  "promptRedirect": "The dashboard gives me this Redirect URI for my Spotify app: {uri}",
+  "promptGuide": "Read this guide first and base your answer on it: {url}",
+  "promptRules": "Do not guess button or menu names. If something is not in the guide, say so. Help me one step at a time and wait for me to confirm before the next step.",
+  "promptPrivate": "Never ask me to paste a client secret, an API key or a password into this chat."
+}
