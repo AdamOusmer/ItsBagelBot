@@ -36,13 +36,14 @@ type songQueueFailureCase struct {
 	endpoint string
 	text     string
 	reason   string
+	want     string
 }
 
 var songQueueFailureCases = []songQueueFailureCase{
-	{"search", "!sr Human", "no Spotify connection on file"},
-	{"queue", "!sr Human", "no active Spotify device, start playing something first"},
-	{"next", "!skip", "Spotify Premium is required for queue control"},
-	{"nowplaying", "!song", "your Spotify connection needs to be set up again"},
+	{"search", "!sr Human", "no Spotify connection on file", "@Cardistry song requests are not set up yet."},
+	{"queue", "!sr Human", "no active Spotify device, start playing something first", "@Cardistry Spotify is not playing on any device right now."},
+	{"next", "!skip", "Spotify Premium is required for queue control", "@Cardistry song requests need Spotify Premium on this channel."},
+	{"nowplaying", "!song", "your Spotify connection needs to be set up again", "@Cardistry song requests are paused until the streamer reconnects Spotify."},
 }
 
 func songQueueFailureReply(t *testing.T, tc songQueueFailureCase, g engine.GossipCaller) string {
@@ -79,7 +80,7 @@ func songQueueFailureGossip(tc songQueueFailureCase, failure error) songQueueErr
 	}
 }
 
-func TestSongQueueRPCFailuresReplyWithProviderReason(t *testing.T) {
+func TestSongQueueRPCFailuresReplyWithChatKeys(t *testing.T) {
 	for _, tc := range songQueueFailureCases {
 		t.Run(tc.endpoint, func(t *testing.T) {
 			failure := fmt.Errorf("gossip call: %w", bus.RPCReplyError{
@@ -87,7 +88,7 @@ func TestSongQueueRPCFailuresReplyWithProviderReason(t *testing.T) {
 				Message: tc.reason,
 			})
 			text := songQueueFailureReply(t, tc, songQueueFailureGossip(tc, failure))
-			assert.Equal(t, tc.reason, text)
+			assert.Equal(t, tc.want, text)
 			assert.NotContains(t, text, "bagel.rpc")
 		})
 	}

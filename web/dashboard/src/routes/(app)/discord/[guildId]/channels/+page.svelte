@@ -4,6 +4,8 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import { getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
+  import LogOptions from '$lib/components/discord/LogOptions.svelte';
+  import VoiceOptions from '$lib/components/discord/VoiceOptions.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
   import { CHANNEL_FIELDS } from '$lib/discord/guild-fields';
@@ -55,23 +57,9 @@
     options={textChannels}
     prefix="#"
   />
-  <ChannelPicker
-    {draft}
-    invalid={draft.invalid}
-    field="voiceHubId"
-    label={t('discord.channels.voiceHubLabel')}
-    help={t('discord.channels.voiceHubHelp')}
-    options={voiceChannels}
-  />
-  <ChannelPicker
-    {draft}
-    invalid={draft.invalid}
-    field="logChannelId"
-    label={t('discord.channels.logLabel')}
-    help={t('discord.channels.logHelp')}
-    options={textChannels}
-    prefix="#"
-  />
+
+  <VoiceOptions {draft} {voiceChannels} {categories} />
+  <LogOptions {draft} {textChannels} {voiceChannels} />
 
   <h3 class="group">{t('discord.channels.groupSubs')}</h3>
   <ChannelPicker

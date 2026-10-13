@@ -30,3 +30,12 @@ kubeProxyReplacement: true
 # Without this, Cilium ignores kube-dns trafficDistribution: PreferSameNode.
 loadBalancer:
   serviceTopology: true
+
+hubble:
+  enabled: false
+
+# Off because no policy uses L7 or toFQDNs rules; turn l7Proxy and envoy back on before adding one.
+l7Proxy: false
+
+envoy:
+  enabled: false

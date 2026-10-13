@@ -24,6 +24,7 @@ export interface Session {
   delegate_of?: string;
   delegate_login?: string;
   sections?: string[];
+  scopes?: string[];
 }
 
 const codec = createSessionCodec<Session>(() => decodeKey(process.env.SESSION_KEY), 'dashboard-session');

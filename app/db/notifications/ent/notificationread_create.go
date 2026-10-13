@@ -29,6 +29,20 @@ func (_c *NotificationReadCreate) SetUserID(v uint64) *NotificationReadCreate {
 	return _c
 }
 
+// SetIncarnation sets the "incarnation" field.
+func (_c *NotificationReadCreate) SetIncarnation(v string) *NotificationReadCreate {
+	_c.mutation.SetIncarnation(v)
+	return _c
+}
+
+// SetNillableIncarnation sets the "incarnation" field if the given value is not nil.
+func (_c *NotificationReadCreate) SetNillableIncarnation(v *string) *NotificationReadCreate {
+	if v != nil {
+		_c.SetIncarnation(*v)
+	}
+	return _c
+}
+
 // SetReadAt sets the "read_at" field.
 func (_c *NotificationReadCreate) SetReadAt(v time.Time) *NotificationReadCreate {
 	_c.mutation.SetReadAt(v)
@@ -103,6 +117,10 @@ func (_c *NotificationReadCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *NotificationReadCreate) defaults() {
+	if _, ok := _c.mutation.Incarnation(); !ok {
+		v := notificationread.DefaultIncarnation
+		_c.mutation.SetIncarnation(v)
+	}
 	if _, ok := _c.mutation.ReadAt(); !ok {
 		v := notificationread.DefaultReadAt()
 		_c.mutation.SetReadAt(v)
@@ -150,6 +168,10 @@ func (_c *NotificationReadCreate) createSpec() (*NotificationRead, *sqlgraph.Cre
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(notificationread.FieldUserID, field.TypeUint64, value)
 		_node.UserID = value
+	}
+	if value, ok := _c.mutation.Incarnation(); ok {
+		_spec.SetField(notificationread.FieldIncarnation, field.TypeString, value)
+		_node.Incarnation = value
 	}
 	if value, ok := _c.mutation.ReadAt(); ok {
 		_spec.SetField(notificationread.FieldReadAt, field.TypeTime, value)
@@ -246,6 +268,24 @@ func (u *NotificationReadUpsert) AddUserID(v uint64) *NotificationReadUpsert {
 	return u
 }
 
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationReadUpsert) SetIncarnation(v string) *NotificationReadUpsert {
+	u.Set(notificationread.FieldIncarnation, v)
+	return u
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationReadUpsert) UpdateIncarnation() *NotificationReadUpsert {
+	u.SetExcluded(notificationread.FieldIncarnation)
+	return u
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationReadUpsert) ClearIncarnation() *NotificationReadUpsert {
+	u.SetNull(notificationread.FieldIncarnation)
+	return u
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (u *NotificationReadUpsert) SetExpiresAt(v time.Time) *NotificationReadUpsert {
 	u.Set(notificationread.FieldExpiresAt, v)
@@ -327,6 +367,27 @@ func (u *NotificationReadUpsertOne) AddUserID(v uint64) *NotificationReadUpsertO
 func (u *NotificationReadUpsertOne) UpdateUserID() *NotificationReadUpsertOne {
 	return u.Update(func(s *NotificationReadUpsert) {
 		s.UpdateUserID()
+	})
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationReadUpsertOne) SetIncarnation(v string) *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetIncarnation(v)
+	})
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationReadUpsertOne) UpdateIncarnation() *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateIncarnation()
+	})
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationReadUpsertOne) ClearIncarnation() *NotificationReadUpsertOne {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.ClearIncarnation()
 	})
 }
 
@@ -580,6 +641,27 @@ func (u *NotificationReadUpsertBulk) AddUserID(v uint64) *NotificationReadUpsert
 func (u *NotificationReadUpsertBulk) UpdateUserID() *NotificationReadUpsertBulk {
 	return u.Update(func(s *NotificationReadUpsert) {
 		s.UpdateUserID()
+	})
+}
+
+// SetIncarnation sets the "incarnation" field.
+func (u *NotificationReadUpsertBulk) SetIncarnation(v string) *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.SetIncarnation(v)
+	})
+}
+
+// UpdateIncarnation sets the "incarnation" field to the value that was provided on create.
+func (u *NotificationReadUpsertBulk) UpdateIncarnation() *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.UpdateIncarnation()
+	})
+}
+
+// ClearIncarnation clears the value of the "incarnation" field.
+func (u *NotificationReadUpsertBulk) ClearIncarnation() *NotificationReadUpsertBulk {
+	return u.Update(func(s *NotificationReadUpsert) {
+		s.ClearIncarnation()
 	})
 }
 

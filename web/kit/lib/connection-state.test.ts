@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { connectionUiState, type ConnSignals, type SubState } from './connection-state';
+import { connectionUiState, mergeConnectionSignals, type ConnSignals, type SubState } from './connection-state';
 
 const base: ConnSignals = { grant: true, active: true, status: 'vip', sub: 'ok' };
 
@@ -15,7 +15,7 @@ const ROWS: Row[] = [
 	['failing reads as degraded, never online', { sub: 'failing' }, { kind: 'degraded', live: false, showEnable: false }],
 	['an unknown sub reads as sub_unknown, never online', { sub: 'unknown' }, { kind: 'sub_unknown', live: false, showEnable: false }],
 	['revoked → reauth_required (reconnect via settings, no enable, no retry)', { sub: 'revoked' }, { kind: 'reauth_required', showConnect: true, showEnable: false, canRetry: false, live: false }],
-	['chat_banned → bot_banned (enable after the unban, no reconnect, no restart)', { sub: 'chat_banned' }, { kind: 'bot_banned', showEnable: true, showConnect: false, canManage: false, canRetry: false, live: false }],
+	['chat_banned → bot_banned (enable after the unban, no reconnect, no restart)', { sub: 'chat_banned' }, { kind: 'bot_banned', showEnable: false, showConnect: false, canManage: false, canRetry: false, live: false }],
 	['a revoked sub outranks the active flag outgress cleared', { active: false, sub: 'revoked' }, { kind: 'reauth_required' }],
 	['a chat ban outranks the active flag outgress cleared', { active: false, sub: 'chat_banned' }, { kind: 'bot_banned' }],
 	['an unenrolled sub outranks the active flag outgress cleared', { active: false, sub: 'unenrolled' }, { kind: 'disabled' }],
@@ -71,4 +71,34 @@ describe('connectionUiState', () => {
 					}
 				}
 	});
+});
+
+test('durable lifecycle outranks missing grants and preserves owner intent', () => {
+ const lifecycle = { version: 1, desired_enabled: true, runtime_state: 'blocked', chat_restriction: 'banned', grant_health: 'missing' };
+ expect(connectionUiState({ ...base, grant: false, active: false, lifecycle })).toMatchObject({kind:'bot_banned', showEnable:false, verifyRepair:true});
+ expect(connectionUiState({ ...base, lifecycle:{...lifecycle, desired_enabled:false} })).toMatchObject({kind:'disabled', retainedBan:true});
+ expect(connectionUiState({ ...base, lifecycle:{...lifecycle, chat_restriction:'none', grant_health:'healthy', runtime_state:'dormant'} }).kind).toBe('dormant');
+ expect(connectionUiState({ ...base, lifecycle:{...lifecycle, chat_restriction:'none', runtime_state:'recovering'} }).kind).toBe('recovering');
+ expect(connectionUiState({ ...base, lifecycle:{...lifecycle, version:2} }).kind).toBe('unavailable');
+});
+
+test('new loader bans outrank old poll state and new repair polls override old inactive flags',()=>{
+ const active={version:1,desired_enabled:true,runtime_state:'active',chat_restriction:'none',grant_health:'healthy'};
+ const blocked={...active,runtime_state:'blocked',chat_restriction:'banned'};
+ const ban={...base,accountCreatedAt:101,lifecycleRevision:3,lifecycle:blocked};
+ const oldPoll={...base,accountCreatedAt:101,lifecycleRevision:2,lifecycle:active};
+ expect(connectionUiState(mergeConnectionSignals(ban,oldPoll)).kind).toBe('bot_banned');
+ const oldLoader={...base,active:false,accountCreatedAt:101,lifecycleRevision:3,lifecycle:blocked};
+ const repaired={...base,accountCreatedAt:101,lifecycleRevision:4,lifecycle:active};
+ expect(connectionUiState(mergeConnectionSignals(oldLoader,repaired)).kind).toBe('online');
+ expect(connectionUiState({...base,active:false,lifecycle:active}).kind).toBe('online');
+ expect(connectionUiState({...base,lifecycle:{...blocked,desired_enabled:false}})).toMatchObject({kind:'disabled',showEnable:true,retainedBan:true});
+});
+
+test('automatic unban promise requires healthy recovery listeners',()=>{
+ const lifecycle={version:1,desired_enabled:true,runtime_state:'blocked',chat_restriction:'banned',grant_health:'healthy'};
+ expect(connectionUiState({...base,lifecycle}).automaticRecovery).toBe(false);
+ expect(connectionUiState({...base,lifecycle:{...lifecycle,control_listeners_healthy:false}}).automaticRecovery).toBe(false);
+ expect(connectionUiState({...base,lifecycle:{...lifecycle,control_listeners_healthy:true}}).automaticRecovery).toBe(true);
+ expect(connectionUiState({...base,lifecycle:{...lifecycle,control_listeners_healthy:true,desired_enabled:false}}).automaticRecovery).toBe(false);
 });

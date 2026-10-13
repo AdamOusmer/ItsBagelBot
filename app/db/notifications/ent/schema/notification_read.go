@@ -20,6 +20,7 @@ func (NotificationRead) Fields() []ent.Field {
 	return []ent.Field{
 
 		field.Uint64("user_id"),
+		field.String("incarnation").Default("").Optional(),
 
 		field.Time("read_at").Default(time.Now).Immutable(),
 
@@ -38,7 +39,7 @@ func (NotificationRead) Edges() []ent.Edge {
 
 func (NotificationRead) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("user_id").
+		index.Fields("user_id", "incarnation").
 			Edges("notification").
 			Unique(),
 	}

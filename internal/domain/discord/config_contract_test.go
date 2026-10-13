@@ -62,6 +62,23 @@ var configReaders = map[string]string{
 	"TicketPanelButton":       "Config.TicketPanel",
 	"PinnedRoles":             "Config.PinnedRole",
 	"AutoRoleEnabled":         "Config.AutoRoleOn",
+	"LogMessagesEnabled":      "Config.LogCategoryOn",
+	"LogMembersEnabled":       "Config.LogCategoryOn",
+	"LogVoiceEnabled":         "Config.LogCategoryOn",
+	"LogModerationEnabled":    "Config.LogCategoryOn",
+	"LogChannelsEnabled":      "Config.LogCategoryOn",
+	"LogRolesEnabled":         "Config.LogCategoryOn",
+	"LogServerEnabled":        "Config.LogCategoryOn",
+	"LogIgnoreBots":           "Config.LogIgnoreBotsOn",
+	"LogMessagesChannelID":    "Config.LogChannelFor",
+	"LogMembersChannelID":     "Config.LogChannelFor",
+	"LogVoiceChannelID":       "Config.LogChannelFor",
+	"LogModerationChannelID":  "Config.LogChannelFor",
+	"LogIgnoredChannels":      "Config.LogIgnores",
+	"VoiceCategoryID":         "app/discord/engine/modules.Voice (clone parent)",
+	"VoiceNameTemplate":       "Config.VoiceName",
+	"VoiceUserLimit":          "Config.VoiceLimit",
+	"VoicePrivacyMode":        "Config.VoicePrivacy",
 }
 
 func configFields() []reflect.StructField {

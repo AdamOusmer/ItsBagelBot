@@ -250,10 +250,12 @@ spec:
       metricType: Utilization
       metadata:
         value: "75"
+    # Operator mode: /jsz keys accounts by public key, so a name-only lookup finds nothing and KEDA sits on fallback.
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_OUTGRESS
         consumer: outgress-premium_twitch_outgress_premium
         lagThreshold: "30"
@@ -262,6 +264,7 @@ spec:
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_OUTGRESS
         consumer: outgress-standard_twitch_outgress_standard
         lagThreshold: "150"
@@ -270,6 +273,7 @@ spec:
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_OUTGRESS_SYSTEM
         consumer: outgress-system_twitch_outgress_system
         lagThreshold: "20"

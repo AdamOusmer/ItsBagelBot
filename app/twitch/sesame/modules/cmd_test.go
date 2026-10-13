@@ -58,6 +58,7 @@ func TestCmdManagement(t *testing.T) {
 		text      string
 		viewer    bool
 		existing  []string
+		lookupErr error
 		upsertErr error
 		deleteErr error
 		upserts   []upsertCall
@@ -87,13 +88,17 @@ func TestCmdManagement(t *testing.T) {
 			upserts: []upsertCall{{"100", "test", "Hi"}}},
 		{name: "stays silent when the remove RPC fails", text: "!cmd remove test", deleteErr: errors.New("rpc timeout"),
 			deletes: []deleteCall{{"100", "test"}}},
+		{name: "add stays silent and writes nothing when the lookup fails", text: "!cmd add hello Hi",
+			lookupErr: errors.New("projection unavailable")},
+		{name: "edit stays silent and writes nothing when the lookup fails", text: "!cmd edit hello Hi",
+			lookupErr: errors.New("projection unavailable")},
 		{name: "viewers get the page link instead of managing", text: "!cmd add hi yo", viewer: true,
 			contains: []string{"/user/streamer"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cmds := &fakeCommandManager{upsertErr: tc.upsertErr, deleteErr: tc.deleteErr}
-			m := Cmd(cmdDeps(&fakeProj{commands: existingCommands(tc.existing...)}, cmds))
+			m := Cmd(cmdDeps(&fakeProj{commands: existingCommands(tc.existing...), cmdErr: tc.lookupErr}, cmds))
 			c := chatCtx("42", "alice", "moderator")
 			if tc.viewer {
 				c = chatCtx("42", "alice")

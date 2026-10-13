@@ -34,3 +34,9 @@ test('disconnect waits for an inactive subscription state', () => {
     ])
   ).toEqual([false, true, true, true]);
 });
+
+test('lifecycle recovery remains pending and owner disable terminates disconnect polling', () => {
+ expect(connectionPollSettled('connected','recovering',5000,true)).toBe(false);
+ expect(connectionPollSettled('connected','degraded',5000,true)).toBe(true);
+ expect(connectionPollSettled('disconnected','disabled',5000,true)).toBe(true);
+});

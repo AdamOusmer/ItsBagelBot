@@ -14,7 +14,7 @@ function requiredTwitchConfig(value: string | undefined): string {
 export function scopes(): string[] {
   const override = (env.DASHBOARD_LOGIN_SCOPES ?? '').split(/\s+/).filter(Boolean);
   if (override.length) return override;
-  const bot = 'channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
+  const bot = 'moderation:read channel:moderate channel:bot moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads'
     .split(/\s+/)
     .filter(Boolean);
   return ['openid', 'user:read:email', ...bot];
@@ -57,6 +57,10 @@ export function spotifyAuthorizeURL(clientId: string, state: string): string {
 
 export function spotifyScopeGap(granted: readonly string[]): string[] {
   return scopeGap(spotifyScopes(), granted);
+}
+
+export function twitchScopeGap(granted: readonly string[] | undefined): boolean {
+  return !!granted && scopeGap(scopes().filter((s) => s !== 'openid'), granted).length > 0;
 }
 
 export async function fetchAccountEmail(accessToken: string): Promise<string | null> {

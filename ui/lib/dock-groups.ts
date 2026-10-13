@@ -29,3 +29,7 @@ export function groupCount(group: UiNavGroup): number | undefined {
 export function groupIcon(group: UiNavGroup, fallback?: IconName): IconName | undefined {
   return group.items[0]?.icon ?? fallback;
 }
+
+export function overflowStart(count: number, quick?: number): number {
+  return quick !== undefined && count > quick + 1 ? quick : count;
+}

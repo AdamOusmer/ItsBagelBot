@@ -6,6 +6,12 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// ConnectionGuard is the predicate function for connectionguard builders.
+type ConnectionGuard func(*sql.Selector)
+
+// ConnectionReceipt is the predicate function for connectionreceipt builders.
+type ConnectionReceipt func(*sql.Selector)
+
 // Notification is the predicate function for notification builders.
 type Notification func(*sql.Selector)
 

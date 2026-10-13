@@ -29,8 +29,15 @@ const services: Record<SecretServiceId, ServiceDef> = {
   modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', schema: 'bagel_modules', expectedUserPrefix: 'modules_svc' },
   transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', schema: 'bagel_transactions', expectedUserPrefix: 'transactions_svc' },
   notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' },
-  'discord-data': { id: 'discord-data', label: 'Discord data', project: 'discord-data', config: 'prd', schema: 'bagel_discord', expectedUserPrefix: 'discord_svc' }
+  'discord-data': { id: 'discord-data', label: 'Discord data', project: 'discord-data', config: 'prd', schema: 'bagel_discord', expectedUserPrefix: 'discord_data_svc' }
 };
+
+// Every live service account is `<svc>_svc@'10.0.%' ... REQUIRE X509`: reachable only from the
+// VCN and only with the client certificate (CN=<svc>.db.itsbagelbot) each service carries in its
+// Doppler DB_CLIENT_CERT/DB_CLIENT_KEY. Accounts the console creates must match, or a rotation
+// quietly downgrades a service to password-only access from anywhere.
+const SERVICE_ACCOUNT_HOST = '10.0.%';
+const SERVICE_ACCOUNT_TLS = 'REQUIRE X509';
 
 export function serviceIds(): SecretServiceId[] {
   return Object.keys(services) as SecretServiceId[];
@@ -43,7 +50,8 @@ export function serviceOf(raw: string): SecretServiceId | null {
 export type TokenSource = 'scoped' | 'missing';
 
 export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
-  const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase()}`] ?? '').trim();
+  // Doppler keys cannot carry a hyphen: discord-data reads DOPPLER_TOKEN_DISCORD_DATA.
+  const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase().replace(/-/g, '_')}`] ?? '').trim();
   if (scoped) return { token: scoped, source: 'scoped' };
   return { token: '', source: 'missing' };
 }
@@ -185,12 +193,26 @@ function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc: ServiceD
   }
 }
 
+// The account is created with REQUIRE X509, so a service with no client certificate in Doppler
+// would be locked out the moment it restarts onto the new user. Refuse up front instead.
+async function assertClientIdentity(svc: ServiceDef): Promise<void> {
+  const secrets = await dopplerSecrets(svc);
+  const configured = ['DB_CLIENT_CERT', 'DB_CLIENT_KEY'].every((key) => (secrets[key] ?? '').trim());
+  if (!configured) {
+    throw new Error(
+      `${svc.id} has no DB_CLIENT_CERT/DB_CLIENT_KEY in Doppler (${svc.project}/${svc.config}); ` +
+        `the new account would ${SERVICE_ACCOUNT_TLS} and lock the service out. Issue its client certificate first.`
+    );
+  }
+}
+
 export async function rotateCredential(id: SecretServiceId): Promise<{ dbUser: string }> {
   const svc = services[id];
   const cred: DbCredentialInput = {
     dbUser: `${svc.expectedUserPrefix}_r${Date.now().toString(36).slice(-8)}`,
     dbPass: generatePassword()
   };
+  await assertClientIdentity(svc);
   await provisionDbUser(cred, svc);
   try {
     await updateDoppler(svc, dbEnvOf(cred, svc));
@@ -208,6 +230,7 @@ export async function setCredential(
   const svc = services[id];
   assertManageable(cred, svc);
   assertFormat(cred.dbPass, FORMATS.dbPassword);
+  await assertClientIdentity(svc);
   await provisionDbUser(cred, svc);
   await updateDoppler(svc, dbEnvOf(cred, svc));
   return { dbUser: cred.dbUser };
@@ -243,8 +266,12 @@ async function provisionDbUser(cred: DbCredentialInput, svc: ServiceDef): Promis
   const account = accountSql(cred);
   const conn = await adminConnection();
   try {
-    await conn.query(`CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ?`, [cred.dbPass]);
-    await conn.query(`ALTER USER ${account} IDENTIFIED BY ?`, [cred.dbPass]);
+    // ALTER repeats the TLS clause so re-pointing at an existing password-only account tightens it too.
+    await conn.query(
+      `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ? ${SERVICE_ACCOUNT_TLS}`,
+      [cred.dbPass]
+    );
+    await conn.query(`ALTER USER ${account} IDENTIFIED BY ? ${SERVICE_ACCOUNT_TLS}`, [cred.dbPass]);
     await conn.query(`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account}`).catch(() => {});
     await conn.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schemaSql(svc)}.* TO ${account}`);
   } finally {
@@ -335,7 +362,7 @@ function generatePassword(): string {
 
 function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
   assertFormat(cred.dbUser, FORMATS.dbUser);
-  return `'${cred.dbUser}'@'%'`;
+  return `'${cred.dbUser}'@'${SERVICE_ACCOUNT_HOST}'`;
 }
 
 function schemaSql(svc: ServiceDef): string {

@@ -23,8 +23,7 @@ function wipe(event: RequestEvent): void {
   event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
 }
 
-// Keep '': users state_get answers a deleted account with no code; dropping it loops /goodbye.
-const GONE_CODES: ReadonlySet<string> = new Set(['not_found', '']);
+const GONE_CODES: ReadonlySet<string> = new Set(['not_found']);
 
 function accountGone(state: PromiseSettledResult<AccountState>): boolean {
   if (state.status !== 'rejected') return false;

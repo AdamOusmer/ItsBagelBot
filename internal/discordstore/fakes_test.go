@@ -163,6 +163,7 @@ type rank struct{ XP, Level int }
 
 type seat struct {
 	Left  string
+	To    string
 	Empty bool
 }
 
@@ -220,7 +221,7 @@ func readRank(ctx context.Context, s store) any {
 
 func moveVoice(to discordstore.VoiceSeat) op {
 	return func(ctx context.Context, s store) any {
-		left, empty := s.UpdateVoiceOccupancy(ctx, to)
-		return seat{Left: left, Empty: empty}
+		got := s.UpdateVoiceOccupancy(ctx, to)
+		return seat{Left: got.From, To: got.To, Empty: got.LeftEmpty}
 	}
 }

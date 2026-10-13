@@ -6,6 +6,7 @@
     "clips_channel_id": "ClipsChannelID",
     "welcome_channel_id": "WelcomeChannelID",
     "voice_hub_id": "VoiceHubID",
+    "voice_category_id": "VoiceCategoryID",
     "log_channel_id": "LogChannelID",
     "ticket_channel_id": "TicketChannelID",
     "ticket_category_id": "TicketCategoryID",

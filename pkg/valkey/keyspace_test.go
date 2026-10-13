@@ -28,6 +28,9 @@ func TestKeyspaceHelpersReportBackendFailure(t *testing.T) {
 		{"owner lock acquire", func(c valkey_go.Client) (bool, error) {
 			return NewOwnerLock(c, lockKey, "pod-a").Acquire(ctx, time.Minute)
 		}},
+		{"owner lock renew", func(c valkey_go.Client) (bool, error) {
+			return NewOwnerLock(c, lockKey, "pod-a").Renew(ctx, time.Minute)
+		}},
 		{"claim once", func(c valkey_go.Client) (bool, error) {
 			return ClaimOnce(ctx, c, "test:claim", 30*time.Second)
 		}},
@@ -156,6 +159,40 @@ func TestOwnerLockIsExclusiveAndReleasedOnlyByItsOwner(t *testing.T) {
 	won, err = other.Acquire(ctx, time.Minute)
 	require.NoError(t, err)
 	assert.True(t, won, "the lock is free once its owner releases it")
+}
+
+func TestOwnerLockRenewExtendsOnlyTheOwnersLease(t *testing.T) {
+	f := newFakeValkey(t)
+	ctx := context.Background()
+	holder := NewOwnerLock(f.client, lockKey, "pod-a")
+	other := NewOwnerLock(f.client, lockKey, "pod-b")
+
+	kept, err := holder.Renew(ctx, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, kept, "renewing a lock nobody holds must not create it")
+
+	won, err := holder.Acquire(ctx, 10*time.Second)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	kept, err = other.Renew(ctx, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, kept, "a foreign renew must not extend the holder's lock")
+
+	f.advance(8 * time.Second)
+	kept, err = holder.Renew(ctx, 10*time.Second)
+	require.NoError(t, err)
+	assert.True(t, kept)
+
+	f.advance(8 * time.Second)
+	won, err = other.Acquire(ctx, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, won, "the renewed lease outlives the original TTL")
+
+	f.advance(3 * time.Second)
+	kept, err = holder.Renew(ctx, 10*time.Second)
+	require.NoError(t, err)
+	assert.False(t, kept, "a lapsed lease cannot be renewed")
 }
 
 func TestOwnerLockReleaseOfAbsentKeyIsNoError(t *testing.T) {

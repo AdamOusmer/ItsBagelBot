@@ -60,6 +60,7 @@ Twitch moderation privileges and ItsBagelBot staff roles are separate concepts.
   and `lanes/` pipeline operations.
 - `users/` inspects accounts, bans, grants, test flags, restarts and view-as links.
 - `giveaways/` and `giveaways/[id]/` manage promotion creation, freeze, draw and retries.
+- `events/` renders a live event feed backed by the `events/stream` SSE endpoint.
 - `trials/`, `counters/`, `notifications/`, `audit/`, `staff/`, and `secrets/` own their named areas.
 - `data/`, `snapshot/`, `history/`, and similar `+server.ts` routes serve live/detail reads.
 - `auth/login`, `auth/callback`, `auth/logout`, and `login` handle operator sign-in.

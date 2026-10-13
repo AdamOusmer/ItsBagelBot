@@ -266,10 +266,30 @@ func LevelUpEmbed(in LevelUp) Embed {
 }
 
 type LogLine struct {
-	Title string
-	Body  string
+	Category LogCategory
+	Title    string
+	Body     string
+	Fields   []EmbedField
+	Footer   string
+}
+
+var logColors = map[LogCategory]int{
+	LogMessages:   0x6B8CAE,
+	LogMembers:    0x6FA37A,
+	LogVoice:      0x4FA3A5,
+	LogModeration: LiveColor,
+	LogChannels:   0x7F8FA6,
+	LogRoles:      0xA38B5C,
+	LogServer:     0x9AA0A6,
 }
 
 func LogEmbed(in LogLine) Embed {
-	return Embed{Title: in.Title, Description: in.Body, Color: LiveColor}
+	e := Embed{Title: in.Title, Description: in.Body, Fields: in.Fields, Color: LiveColor}
+	if color, ok := logColors[in.Category]; ok {
+		e.Color = color
+	}
+	if in.Footer != "" {
+		e.Footer = &EmbedFooter{Text: in.Footer}
+	}
+	return e
 }

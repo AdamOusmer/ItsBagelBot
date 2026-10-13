@@ -17,6 +17,8 @@ type resumeState struct {
 	opened    openMode
 	resumedUp bool
 	lastID    string
+	savedSeq  int
+	savedAt   time.Time
 }
 
 type sessionMark struct {

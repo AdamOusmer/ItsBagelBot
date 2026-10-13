@@ -192,8 +192,9 @@ type GoveeDevice struct {
 }
 
 type GoveeDevicesReply struct {
-	Devices []GoveeDevice `json:"devices"`
-	Error   string        `json:"error,omitempty"`
+	Devices     []GoveeDevice `json:"devices"`
+	Error       string        `json:"error,omitempty"`
+	KeyRejected bool          `json:"key_rejected,omitempty"`
 }
 
 type GoveeControlReply struct {
@@ -257,6 +258,7 @@ type SpotifyQueueReply struct {
 type SpotifyExchangeReply struct {
 	RefreshToken string   `json:"refresh_token,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`
+	Warning      string   `json:"warning,omitempty"`
 	Error        string   `json:"error,omitempty"`
 }
 

@@ -5,7 +5,7 @@ package gateway
 
 import "ItsBagelBot/pkg/codec"
 
-const Intents = 1 | 2 | 128 | 512 | 32768
+const Intents = 1 | 2 | 4 | 8 | 64 | 128 | 512 | 32768
 
 const (
 	opDispatch             = 0

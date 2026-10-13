@@ -31,7 +31,22 @@ type AttemptAdmission func(context.Context, string) error
 func WithAttemptAdmission(ctx context.Context, admit AttemptAdmission) context.Context {
 	return context.WithValue(ctx, attemptAdmissionKey{}, admit)
 }
+
+type channelAdmissionKey struct{}
+
+func WithChannelAdmission(ctx context.Context, admit func(context.Context) error) context.Context {
+	return context.WithValue(ctx, channelAdmissionKey{}, admit)
+}
+func admitChannel(ctx context.Context) error {
+	if f, ok := ctx.Value(channelAdmissionKey{}).(func(context.Context) error); ok && f != nil {
+		return f(ctx)
+	}
+	return nil
+}
 func admitAttempt(ctx context.Context, endpoint string) error {
+	if err := admitChannel(ctx); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

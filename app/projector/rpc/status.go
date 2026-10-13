@@ -26,8 +26,9 @@ const (
 )
 
 type statusEntry struct {
-	Tier   string
-	Banned bool
+	RuntimeAllowed *bool
+	Tier           string
+	Banned         bool
 }
 
 type statusRPC struct {
@@ -81,12 +82,16 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}
 
-	entry := s.tierOf(ctx, id)
+	entry, err := s.tierOf(ctx, id)
+	if err != nil {
+		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard", Error: "status unavailable"}
+	}
 
 	return projectorrpc.StatusReply{
-		BroadcasterID: req.BroadcasterID,
-		Tier:          entry.Tier,
-		Banned:        entry.Banned,
+		RuntimeAllowed: entry.RuntimeAllowed,
+		BroadcasterID:  req.BroadcasterID,
+		Tier:           entry.Tier,
+		Banned:         entry.Banned,
 	}
 }
 
@@ -98,40 +103,48 @@ func tierFromStatus(status string) string {
 }
 
 func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry, bool) {
-	statusStr, active, banned, _, _, err := s.valkey.GetUser(ctx, id)
-	if err == nil && statusStr != "" {
-		if !active {
-			return statusEntry{Tier: "standard", Banned: banned}, true
+	u, found, err := s.valkey.GetUserRuntime(ctx, id)
+	if err == nil && found {
+		entry := statusEntry{Tier: tierFromStatus(u.Status), Banned: u.Banned}
+		if !u.IsActive {
+			entry.Tier = "standard"
 		}
-		return statusEntry{Tier: tierFromStatus(statusStr), Banned: banned}, true
+		if u.Lifecycle != nil {
+			allowed := !u.Banned && u.Lifecycle.AllowsRuntime()
+			entry.RuntimeAllowed = &allowed
+		}
+		return entry, true
 	}
 	return statusEntry{}, false
 }
 
-func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
+func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) (statusEntry, error) {
 	reply, err := bus.RequestJSON[rpcprojection.UserReply](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
+	if bus.NotFoundReply(err) {
+		return statusEntry{Tier: "standard"}, nil
+	}
 	if err != nil {
-		return statusEntry{Tier: "standard"}
+		return statusEntry{}, err
 	}
 
 	_ = s.valkey.SetUser(ctx, id, projection.UserFromReply(reply))
 
+	entry := statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}
 	if !reply.IsActive {
-		return statusEntry{Tier: "standard", Banned: reply.Banned}
+		entry.Tier = "standard"
 	}
-	return statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}
+	if reply.Lifecycle != nil {
+		allowed := !reply.Banned && reply.Lifecycle.AllowsRuntime()
+		entry.RuntimeAllowed = &allowed
+	}
+	return entry, nil
 }
 
-func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
-	entry, err := s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
+func (s *statusRPC) tierOf(ctx context.Context, id uint64) (statusEntry, error) {
+	return s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
 		if entry, found := s.tierFromValkey(ctx, id); found {
 			return entry, nil
 		}
-		return s.fetchUserFallback(ctx, id), nil
+		return s.fetchUserFallback(ctx, id)
 	})
-
-	if err != nil {
-		return statusEntry{Tier: "standard"}
-	}
-	return entry
 }

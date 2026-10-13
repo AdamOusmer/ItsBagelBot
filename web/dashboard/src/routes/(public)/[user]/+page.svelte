@@ -58,16 +58,18 @@
 
 <main class="lb-page">
   <header class="hero">
-    <Eyebrow tone="go" class="reveal">{t('leaderboard.eyebrow')}</Eyebrow>
+    <Eyebrow tone="go" class="reveal eyebrow"><span data-fit="">{t('leaderboard.eyebrow')}</span></Eyebrow>
     <Heading level={1} class="headline">
-      <span class="word pre reveal">{t('leaderboard.headlinePrefix')}</span>
+      <span class="word pre reveal"><span data-fit="">{t('leaderboard.headlinePrefix')}</span></span>
       <span class="word name reveal">{data.channelName}&nbsp;</span>
     </Heading>
     <div class="lede reveal">
-      <Lead>{t('leaderboard.tagline', { channel: data.channelName })}</Lead>
+      <Lead class="tagline"><span data-fit="block">{t('leaderboard.tagline', { channel: data.channelName })}</span></Lead>
     </div>
-    <div class="channel-link reveal">
-      <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')} />
+    <div class="channel-link reveal" data-fit-box aria-hidden={!data.commandsPage}>
+      {#if data.commandsPage}
+        <TextLink variant="arrow" tone="go" class="visit" href={channelHref} label={t('leaderboard.visitChannel')}><span data-fit="">{t('leaderboard.visitChannel')}</span></TextLink>
+      {/if}
     </div>
   </header>
 
@@ -89,13 +91,15 @@
             <div class="spot">
               <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
               <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
-              <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
-              <span class="points">
-                <span class="num">{formatPointValue(viewer.points, locale)}</span>
-                <span class="currency">{data.currencyName}</span>
+              <span class="viewer-name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
+              <span class="points" data-fit-box>
+                <span data-fit="">
+                  <span class="num">{formatPointValue(viewer.points, locale)}</span>
+                  <span class="currency">{data.currencyName}</span>
+                </span>
               </span>
               <span class="watched">
-                {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
+                <span data-fit="">{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</span>
               </span>
             </div>
           </Card>
@@ -109,20 +113,26 @@
           <header class="board-head">
             <div class="board-titles">
               <Heading level={4} as="h2">{t('leaderboard.boardTitle')}</Heading>
-              <Text size="sm" tone="muted">{t('leaderboard.boardNote')}</Text>
+              <Text size="sm" tone="muted"><span data-fit="">{t('leaderboard.boardNote', { channel: data.channelName })}</span></Text>
             </div>
           </header>
         {/snippet}
         {#if rest.length === 0}
           <Text size="sm" tone="muted">{t('leaderboard.soloNote')}</Text>
         {:else}
-          <Table label={t('leaderboard.boardTitle')}>
+          <Table label={t('leaderboard.boardTitle')} class="standings">
+            <colgroup>
+              <col class="c-rank" />
+              <col />
+              <col class="c-watched" />
+              <col class="c-points" />
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col">{t('leaderboard.colRank')}</th>
-                <th scope="col">{t('leaderboard.colViewer')}</th>
-                <th class="r" scope="col">{t('leaderboard.colWatched')}</th>
-                <th class="r" scope="col">{t('leaderboard.colPoints')}</th>
+                <th scope="col"><span data-fit="">{t('leaderboard.colRank')}</span></th>
+                <th scope="col"><span data-fit="">{t('leaderboard.colViewer')}</span></th>
+                <th class="r" scope="col"><span data-fit="">{t('leaderboard.colWatched')}</span></th>
+                <th class="r" scope="col"><span data-fit="">{t('leaderboard.colPoints')}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -135,15 +145,15 @@
                       <Text as="span" size="sm" truncate>{rowName(viewer)}</Text>
                     </span>
                   </td>
-                  <td class="r">
-                    <Text as="span" size="xs" tone="muted" mono>{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</Text>
+                  <td class="r" data-fit-box>
+                    <Text as="span" size="xs" tone="muted" mono><span data-fit="">{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</span></Text>
                   </td>
-                  <td class="r"><strong>{formatPointValue(viewer.points, locale)}</strong></td>
+                  <td class="r" data-fit-box><strong><span data-fit="">{formatPointValue(viewer.points, locale)}</span></strong></td>
                 </tr>
               {/each}
             </tbody>
           </Table>
-          <Text size="xs" tone="muted" mono>{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length) })}</Text>
+          <Text size="xs" tone="muted" mono><span data-fit="">{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length), channel: data.channelName })}</span></Text>
         {/if}
       </Card>
     </section>
@@ -154,17 +164,22 @@
       <Card atmo label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
-            <Heading level={6} as="h2">{t('leaderboard.commandsTitle')}</Heading>
+            <Heading level={6} as="h2" class="cmds-title"><span data-fit="">{t('leaderboard.commandsTitle')}</span></Heading>
           </header>
         {/snippet}
 
         {#if data.commands.length > 0}
-          <Table label={t('leaderboard.commandsTitle')}>
+          <Table label={t('leaderboard.commandsTitle')} class="commands">
+            <colgroup>
+              <col class="c-command" />
+              <col />
+              <col class="c-perm" />
+            </colgroup>
             <thead>
               <tr>
-                <th scope="col">{t('leaderboard.colCommand')}</th>
-                <th scope="col">{t('leaderboard.colResponse')}</th>
-                <th scope="col" class="r">{t('leaderboard.colPerm')}</th>
+                <th scope="col"><span data-fit="">{t('leaderboard.colCommand')}</span></th>
+                <th scope="col"><span data-fit="">{t('leaderboard.colResponse')}</span></th>
+                <th scope="col" class="r"><span data-fit="">{t('leaderboard.colPerm')}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -177,7 +192,7 @@
                     {/if}
                   </td>
                   <td class="response">{cmd.response}</td>
-                  <td class="r"><Text as="span" size="xs" tone="muted" mono>{cmd.perm}</Text></td>
+                  <td class="r" data-fit-box><Text as="span" size="xs" tone="muted" mono><span data-fit="">{cmd.perm}</span></Text></td>
                 </tr>
               {/each}
             </tbody>
@@ -196,7 +211,7 @@
   {/if}
 
   <footer class="foot reveal">
-    <Tag tone="live" mark="solid" sweep class="bb-tag--wrap">{t('leaderboard.earnNote')}</Tag>
+    <Tag tone="live" mark="solid" sweep class="bb-tag--wrap earn"><span class="earn-note" data-fit-box><span data-fit="block">{t('leaderboard.earnNote')}</span></span></Tag>
   </footer>
 </main>
 
@@ -232,6 +247,7 @@
     overflow-wrap: anywhere;
   }
   .hero :global(.headline) { max-width: 24ch; }
+  .hero :global(.eyebrow) { width: 10em; text-align: center; }
 
   .word { display: inline-block; }
   .word.pre {
@@ -243,11 +259,19 @@
     vertical-align: middle;
     margin-right: 0.35em;
     text-transform: lowercase;
+    width: 9em;
+    text-align: end;
   }
   .word.name { --i: 1; }
 
-  .lede { --i: 2; }
-  .channel-link { --i: 2.5; }
+  .lede { --i: 2; width: 100%; }
+  .lede :global(.tagline) { height: calc(2 * 1lh); }
+  @media (max-width: 720px) {
+    .lede :global(.tagline) { height: calc(4 * 1lh); }
+  }
+  .channel-link { --i: 2.5; width: 240px; min-height: 1.75rem; display: flex; align-items: center; justify-content: center; }
+  .channel-link :global(.visit) { width: 100%; }
+  .channel-link :global(.visit > [data-fit]) { flex: 1; min-width: 0; justify-content: center; }
 
   .notice { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
   .empty { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
@@ -346,7 +370,7 @@
     background: rgba(var(--bb-tan-rgb), 0.12);
   }
 
-  .name {
+  .viewer-name {
     font-family: var(--bb-font-body);
     font-weight: 600;
     font-size: 15px;
@@ -358,27 +382,38 @@
     white-space: nowrap;
   }
 
-  .points { display: flex; align-items: baseline; gap: 7px; min-width: 0; justify-content: center; }
+  .points {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    font-size: clamp(26px, 3.4vw, 40px);
+    line-height: 1;
+  }
+  .place-1 .points { font-size: clamp(32px, 4vw, 50px); }
+  .points > [data-fit] { align-items: baseline; gap: 0.18em; }
   .points .num {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    font-size: clamp(26px, 3.4vw, 40px);
-    line-height: 1;
+    font-size: 1em;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
     font-variant-numeric: tabular-nums;
   }
-  .place-1 .points .num { font-size: clamp(32px, 4vw, 50px); color: var(--bb-tan-light); }
+  .place-1 .points .num { color: var(--bb-tan-light); }
   .points .currency {
     font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
+    font-size: 0.3em;
     letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     color: var(--bb-muted);
   }
+  .place-1 .points .currency { font-size: 0.24em; }
 
   .watched {
     display: inline-flex;
+    width: 100%;
+    justify-content: center;
     align-items: center;
     gap: 6px;
     font-family: var(--bb-font-mono);
@@ -402,9 +437,22 @@
   }
 
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
-  .board-titles { display: flex; flex-direction: column; gap: var(--bb-space-1); min-width: 0; }
+  .board-titles { display: flex; flex: 1; flex-direction: column; gap: var(--bb-space-1); min-width: 0; }
 
-  .rank { width: 2.5ch; }
+  .board-wrap :global(.standings),
+  .cmds-wrap :global(.commands) { table-layout: fixed; }
+  .c-rank { width: 88px; }
+  .c-watched { width: 112px; }
+  .c-points { width: 112px; }
+  .c-command { width: 160px; }
+  .c-perm { width: 104px; }
+  @media (max-width: 720px) {
+    .c-rank { width: 52px; }
+    .c-watched { width: 92px; }
+    .c-points { width: 76px; }
+    .c-command { width: 104px; }
+    .c-perm { width: 72px; }
+  }
 
   .viewer { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
 
@@ -426,6 +474,7 @@
   }
 
   .cmds-wrap { --i: 6; }
+  .cmds-head :global(.cmds-title) { flex: 1; min-width: 0; }
   .cmds-head {
     display: flex;
     align-items: center;
@@ -443,7 +492,16 @@
     gap: var(--bb-space-2);
   }
 
+  .foot :global(.earn) { width: min(100%, 36rem); }
+  .earn-note { display: block; flex: 1; height: 1lh; text-align: center; }
+  @media (max-width: 720px) {
+    .earn-note { height: calc(2 * 1lh); }
+  }
+
   @media (max-width: 900px) {
     .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }
+  }
+  @media (max-width: 720px) {
+    .avatar-sm { display: none; }
   }
 </style>

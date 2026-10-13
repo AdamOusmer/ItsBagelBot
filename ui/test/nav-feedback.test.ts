@@ -396,6 +396,22 @@ describe('Dock grouping', () => {
     expect(badges(await dock({ groups: [counted, zero] }))).toEqual(['4']);
   });
 
+  test('a quick limit marks the tail for folding and repeats it behind a current menu', async () => {
+    const pages = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => link(`/${id}`, id.toUpperCase(), { current: id === 'f' }));
+    const html = await dock({ items: pages, quick: 4 });
+    expect([...html.matchAll(/href="\/(\w)" (?:data-active )?(?:aria-current="page" )?data-dock-fold/g)].map((m) => m[1])).toEqual(['e', 'f']);
+    expect(html).toContain('<div class="bb-dock__group bb-dock__more">');
+    expect(buttons(html)).toEqual([expect.stringContaining('data-active')]);
+    expect(html).toContain('>Menu</span>');
+  });
+
+  test('a single extra page stays in the dock instead of hiding behind a menu', async () => {
+    const pages = ['a', 'b', 'c', 'd', 'e'].map((id) => link(`/${id}`, id));
+    const html = await dock({ items: pages, quick: 4 });
+    expect(html).not.toContain('data-dock-fold');
+    expect(html).not.toContain('bb-dock__more');
+  });
+
   test('the group glyph falls back to the caller, never to a name from the bot', async () => {
     const bare = { label: 'Bare', items: [link('/x', 'X'), link('/y', 'Y')] };
     const drawn = { label: 'Drawn', items: [link('/z', 'Z', { icon: 'audit' }), link('/w', 'W')] };

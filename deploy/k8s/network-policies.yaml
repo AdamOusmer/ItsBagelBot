@@ -101,7 +101,7 @@ spec:
         - port: 443
           protocol: UDP
 ---
-# 10.0.0.0/16 stays for a DB_ADDR rollback to the direct VCN path; removing it breaks that rollback.
+# 10.0.0.0/16 is the OCI VCN where the self-managed MySQL replacing HeatWave lands; dropping it blocks that cutover.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

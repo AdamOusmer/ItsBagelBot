@@ -99,7 +99,7 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 
 	r := &Commands{
 		client: client,
-		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL),
+		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL, cache.StaleOnError(commandsCacheTTL)),
 		pub:    pub,
 		app:    app,
 		log:    log,
@@ -113,7 +113,7 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(commandsKeyPrefix, userID), func(ctx context.Context) ([]CommandView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) ([]CommandView, error) {
+		return db.WithRead(ctx, func(ctx context.Context) ([]CommandView, error) {
 
 			rows, err := r.client.Commands.Query().
 				Where(commands.UserIDEQ(userID)).
@@ -380,11 +380,11 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	})
 }
 
-func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
+func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Commands.Delete().
-			Where(commands.UserIDEQ(userID)).
+			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
 			Exec(ctx)
 		return err
 	}); err != nil {

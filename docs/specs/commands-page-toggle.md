@@ -1,7 +1,7 @@
 # Public commands page: per-channel off switch
 
 Date: 2026-09-18
-Status: Reviewed 2026-09-18, all defaults accepted. Implementation in progress as the stacked PRs in §10.
+Status: Reviewed 2026-09-18, all defaults accepted. Implemented: users flag in `app/db/users/repository/users.go` (`SetCommandsPageHidden`), dashboard verb `commands_page_set` in `app/db/users/rpc/dashboard.go`, Sesame gate in `app/twitch/sesame/modules/cmd.go`, and the settings toggle and public 404 under `web/dashboard/src/routes/`. The stacked PR plan in §10 is historical.
 
 ## 1. Outcome
 

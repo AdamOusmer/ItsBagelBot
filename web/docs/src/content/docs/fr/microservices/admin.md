@@ -2,93 +2,33 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Administration
-description: Service Go réservé aux opérateurs qui affiche l'état en direct de chaque shard Twitch ingress, accessible exclusivement via le tailnet.
+description: Console SvelteKit réservée au staff pour les comptes, la flotte de shards, les voies, les concours, les essais et les déploiements, accessible via le tailnet.
 ---
 
-Le service Admin est la fenêtre de l'opérateur sur [Twitch Ingress](/fr/microservices/twitch-ingress/) : l'état en direct de chaque shard Conduit (nœud BEAM qui le possède, session EventSub, arrivée de sa dernière trame), l'emplacement du singleton conduit-manager et le flux brut des événements de montée et descente des shards. Il lit tout via NATS et ne possède aucune donnée propre.
+La console Admin (`web/admin/`) est l’application SvelteKit (SSR) des opérateurs. Elle remplace l’ancien outil Go d’administration en lecture seule. Elle ne possède aucune donnée : chaque lecture et chaque écriture est un RPC NATS vers le service propriétaire, et elle n’ouvre jamais MySQL.
 
-Il est volontairement simple : aucune couche d'authentification, aucune base de données, aucun identifiant Twitch. Le réseau forme le périmètre : le service est accessible **uniquement via Tailscale**, et les ACL du tailnet (`tag:operator` → `tag:cluster-node`) servent de contrôle d'accès. Voir [Réseau](/fr/infrastructure/networking/) pour le contexte.
+L’accès comporte deux couches. La première est le réseau : l’application n’est servie que par l’ingress Tailscale (`ORIGIN` est le nom du tailnet, `deploy/k8s/console-admin.yaml`), sans nom d’hôte public. La seconde est l’identité : l’opérateur se connecte avec Twitch et doit être un membre actif du staff. Chaque action refait sa propre vérification de rôle.
 
 ## Responsabilités
 
-- Afficher la **page de la flotte de shards** : une carte par shard Conduit avec son état calculé (`connected`, `migrating`, `binding`, `connecting`, `backoff`, `unregistered`, `unresponsive`), son nœud BEAM, l'identifiant de session EventSub, les âges depuis l'association et la dernière trame, la fenêtre keepalive et les tentatives de reconnexion.
-- Afficher le **résumé du cluster** : membres du cluster BEAM, emplacement du singleton conduit-manager et identifiant du conduit, tels que les rapporte la réplique ingress qui a répondu.
-- Transmettre les **événements live des shards** (`twitch.ingress.status.>`) au navigateur via SSE ; un événement déclenche l'actualisation immédiate de l'instantané, avec une interrogation régulière toutes les 5 secondes en secours.
-- **Gérer les utilisateurs** : rechercher un utilisateur par identifiant Twitch ou nom d'utilisateur (avec une liste des utilisateurs récents), accorder le statut **VIP** (premium permanent), marquer un premium payé, revenir au statut **free** et **réinitialiser l'état** (effacer les jetons Twitch stockés ; le compte, le niveau et l'historique des transactions restent). Toutes les actions passent par NATS vers le service users, propriétaire du schéma, qui publie la clé d'invalidation du cache broadcaster afin que les voies ingress réagissent immédiatement.
+- **Shards** : état en direct de la flotte de shards de [Twitch Ingress](/fr/microservices/twitch-ingress/) (`twitch.ingress.admin.shards.get`, avec des commandes de mise à l’échelle et d’autoscale), actualisé par les événements `twitch.ingress.status.>`.
+- **Utilisateurs** : consulter les comptes, bannir, accorder un accès, définir des indicateurs de test, réinitialiser un compte, relancer ses abonnements EventSub et ouvrir une session « voir en tant que » sur le tableau de bord d’un diffuseur (`bagel.rpc.admin.user.*`).
+- **Voies** : inspecter et administrer les pipelines JetStream et leurs débits de livraison.
+- **Concours** : créer des campagnes, prévisualiser et figer l’ensemble des candidats, tirer les gagnants et relancer les attributions via [Transactions](/fr/microservices/transactions/).
+- **Essais** : gérer les chaînes d’essai observées (`twitch.ingress.admin.trials.*`).
+- **Notifications, audit, staff et secrets** : envoyer des annonces via [Notifications](/fr/microservices/notifications/), lire le journal d’audit des opérateurs, gérer les rôles du staff et renouveler les identifiants des services.
+- **Déploiements** : exécutions de déploiement réservées au propriétaire, avec plan, approbation et événements en direct, appuyées par les adaptateurs RPC de déploiement.
 
-Ce service ne touche pas à l'infrastructure. Aucun redémarrage de shard ni reconfiguration de conduit : les opérations sur la flotte restent dans `kubectl`, où elles sont auditées et révisables. Il n'ouvre jamais MySQL ; chaque lecture et écriture est un RPC NATS vers le service propriétaire.
+## Contrôle d’accès
 
-Le seul endpoint HTTP de mutation exige un en-tête de requête personnalisé. Les ACL du tailnet contrôlent l'accès, mais l'en-tête force toute requête de navigateur cross-origin à passer par un preflight CORS que ce serveur n'accorde jamais ; un site public malveillant ouvert dans le navigateur d'un opérateur ne peut donc pas envoyer de POST vers l'adresse privée.
-
-## Forme externe
-
-```mermaid
-flowchart LR
-    Operator["Operator browser<br/><i>tailnet device</i>"]
-
-    subgraph Cluster
-        Admin["admin ×2<br/><i>Go</i>"]
-        NATS[(NATS)]
-        Ingress["twitch-ingress ×2<br/><i>Elixir / BEAM</i>"]
-    end
-
-    Operator -- "http://admin.itsbagelbot.com<br/><i>(traefik, tailnet only)</i>" --> Admin
-    Admin -- "request-reply<br/>admin.shards.get" --> NATS
-    Admin -- "subscribe<br/>status.>" --> NATS
-    NATS <--> Ingress
-```
-
-L'instantané des shards est servi par `Ingress.AdminRpc` à l'intérieur de l'ingress : toute réplique peut répondre (un groupe de files en choisit une) et parcourt le registre Horde ; la réponse couvre donc les shards de chaque nœud BEAM, quelle que soit la réplique qui répond.
-
-## Contrats NATS
-
-| Sujet | Direction | Payload |
-|---|---|---|
-| `twitch.ingress.admin.shards.get` | requête-réponse | réponse : `{generated_at, reporter, nodes, shard_count, conduit_manager, shards[]}` |
-| `twitch.ingress.status.>` | abonnement | événements de montée/descente des shards, transmis tels quels au navigateur comme SSE |
-| `bagel.rpc.admin.user.get` | requête-réponse | `{user_id}` ou `{username}` → `{user}` |
-| `bagel.rpc.admin.user.list` | requête-réponse | `{limit}` → `{users[]}` (modifiés le plus récemment en premier) |
-| `bagel.rpc.admin.user.set_status` | requête-réponse | `{user_id, status: free\|paid\|vip}` → `{user}` (crée la ligne si elle n'existe pas) |
-| `bagel.rpc.admin.user.reset` | requête-réponse | `{user_id}` → `{user}` (efface les jetons stockés) |
-| `bagel.rpc.admin.user.stats` | requête-réponse | `{}` → `{stats}` |
-| `bagel.rpc.admin.user.token_set` / `token_status` / `token_clear` | requête-réponse | gestion des jetons du compte bot ; `{token: {present}}` |
-| `bagel.rpc.admin.user.delete` | requête-réponse | `{user_id}` ou `{username}` → `{}` (supprime l'utilisateur en cascade) |
-
-Chaque entrée de `shards[]` contient `{shard_id, state, node, session_id, bound, handshake_in_flight, keepalive_ms, attempts, bound_at, last_frame_at}`. Les verbes utilisateurs sont possédés et traités par broadcaster-data ; un utilisateur est `{id, username, is_active, tier, premium_kind, updated_at}`, où `tier` (premium|standard) pilote les voies et `premium_kind` indique l'origine du premium (`vip` = accord de l'opérateur, permanent ; `paid` = Tebex).
-
-## Configuration
-
-Tout vient de l'environnement, sans secret ; le manifeste définit directement ces variables (aucun projet Doppler).
-
-| Variable | Rôle | Valeur par défaut |
-|---|---|---|
-| `ADMIN_LISTEN_ADDR` | Adresse HTTP d'écoute dans le pod. | `:8080` |
-| `NATS_HOST` / `NATS_PORT` | Endpoint NATS. | `127.0.0.1` / `4222` |
-| `NATS_ADMIN_SUBJECT` | Sujet requête-réponse traité par l'ingress. | `twitch.ingress.admin.shards.get` |
-| `NATS_STATUS_SUBJECT_PREFIX` | Préfixe des sujets d'état transmis par SSE. | `twitch.ingress.status` |
+Les rôles du staff sont `moderator`, `admin` et `owner`. Une table de rôles unique associe chaque clé d’accès nommée au rôle minimal autorisé. Les mutations passent par des assistants audités. Un bouton masqué dans l’interface est une commodité, pas une protection.
 
 ## Déploiement
 
-`deploy/k8s/admin.yaml`. Même forme HA que le reste de la flotte : 2 répliques, anti-affinité des pods entre `node1` (ARM) et `node2` (Intel), PodDisruptionBudget `minAvailable: 1`, image distroless, utilisateur non root et toutes les capacités supprimées. Les images sont construites par nœud : ARM nativement sur le Mac de l'opérateur, Intel nativement sur `node2` — aucune émulation inter-architecture dans le pipeline.
-
-Le service est exposé par l'opérateur Kubernetes Tailscale sous un seul nom :
-
-| URL | Cible |
-|---|---|
-| `https://admin.tail451e6d.ts.net` | Service Tailscale `svc:admin` → ProxyGroup ingress ×2 → les deux pods admin |
-
-L'exposition limitée au tailnet est structurelle :
-
-1. **DNS** : le nom est fourni par MagicDNS. Il ne se résout que pour les membres du tailnet ; aucun enregistrement DNS public n'existe et les IP tailnet des nœuds ne figurent dans aucune zone publique.
-2. **Plan de données** : l'Ingress de classe `tailscale` s'attache au ProxyGroup `ts-ingress` (`deploy/infra/tailscale/proxies.yaml`), deux pods proxy répartis entre `node1` et `node2` qui annoncent le Service Tailscale `svc:admin`. Le chemin ne partage rien avec l'ingress public : aucune route traefik, aucun nom cloudflared, aucun listener sur une interface de nœud.
-3. **Contrôle d'accès** : la politique tailnet (`deploy/infra/tailscale/policy.hujson`) accorde `svc:admin:443` uniquement aux appareils des opérateurs ; le bare metal n'accepte que SSH depuis ceux-ci.
-4. **TLS** : le proxy termine HTTPS avec un certificat Let's Encrypt fourni par l'opérateur pour le nom MagicDNS ; les navigateurs affichent un cadenas normal sans installation d'une CA privée.
-
-Chaque réplique proxy continue de servir `svc:admin` après la perte d'un nœud, et le Service admin répartit les requêtes entre les deux pods admin. L'injection Linkerd est volontairement désactivée : l'outil sert à diagnostiquer la flotte et ne doit donc pas partager les modes de panne du mesh.
+`deploy/k8s/console-admin.yaml` exécute 3 réplicas avec des mises à jour progressives et un PodDisruptionBudget (`minAvailable: 1`). Il est exposé par un Ingress de classe `tailscale`. La configuration (secret Doppler `console-admin-env`) comprend les points d’accès NATS et Valkey et les préfixes de sujets RPC utilisés (`NATS_ADMIN_SUBJECT`, `NATS_ADMIN_USER_SUBJECT_PREFIX`, `NATS_ADMIN_DEPLOY_SUBJECT_PREFIX`, entre autres). Voir [Réseau](/fr/infrastructure/networking/) pour le modèle à deux plans qui donne son sens à « tailnet uniquement ».
 
 ## Références
 
-- [Twitch Ingress](/fr/microservices/twitch-ingress/) : le service observé, notamment `Ingress.AdminRpc`.
-- [Réseau](/fr/infrastructure/networking/) : le modèle à deux plans qui donne un sens à « uniquement tailnet ».
-- [Contrats RPC](/fr/reference/rpc-contracts/) : toute la surface `bagel.rpc.admin.user.*` et des instantanés de shards.
-- [ADR 0004](/fr/adr/0004-adoption-of-oracle-cloud/) : la flotte tailnet sur laquelle repose cette exposition.
+- [Twitch Ingress](/fr/microservices/twitch-ingress/) : le service dont cette console observe les shards.
+- [Réseau](/fr/infrastructure/networking/) : la posture du tailnet.
+- [Contrats RPC](/fr/reference/rpc-contracts/) : la surface `bagel.rpc.admin.*`.

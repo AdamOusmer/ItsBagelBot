@@ -82,7 +82,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: sesame
-          image: ghcr.io/adamousmer/itsbagelbot/sesame:v0.2.7-beta@sha256:3ce7ce7ea4d842657c582eb065509a78a05b807dc052d1d279f364d46091e8e0
+          image: ghcr.io/adamousmer/itsbagelbot/sesame:sha-98cde704b9d4@sha256:ccc75cac87e7a061df97334c4988c603739cd2f4aa62d7a000dc00405781bfd5
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
@@ -167,9 +167,9 @@ spec:
               value: 1ms
             - name: NATS_ATOMIC_ACK_FIRST
               value: "true"
-
+            # The fleet's in-flight cohorts become the stream leader's apply backlog: 16 -> 8 cut commit p50 840 -> 485 ms at equal 68k msg/s (2026-10-11).
             - name: NATS_PUBLISH_INFLIGHT_COHORTS
-              value: "16"
+              value: "8"
             - name: NATS_PUBLISH_QUEUE_SIZE
               value: "512"
             # An expired commit wait is an at-most-once loss: keep it above every commit tail.
@@ -287,15 +287,18 @@ spec:
           stabilizationWindowSeconds: 300
           policies:
             - {type: Pods, value: 1, periodSeconds: 120}
+  # Lag is num_pending+num_ack_pending: premium leaves 3 pods past 4500 (113ms at 40k/s), but AckNone pull lanes held both near 0 while e2e p50 hit 0.3-5.5s (2026-10-11 bench), so cpu is the trigger that fires.
   triggers:
     - type: cpu
       metricType: AverageValue
       metadata:
         value: "300m"
+    # Operator mode: /jsz keys accounts by public key, so a name-only lookup finds nothing and KEDA sits on fallback.
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS
         consumer: worker_twitch_ingress_event_premium
         lagThreshold: "1500"
@@ -304,6 +307,7 @@ spec:
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
+        accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD
         consumer: worker_twitch_ingress_event_standard
         lagThreshold: "6000"

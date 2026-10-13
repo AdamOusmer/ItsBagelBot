@@ -1,7 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const guideSlugs = ['getting-started', 'commands', 'data-sources', 'modules', 'counters'] as const;
+export const guideSlugs = [
+  'getting-started',
+  'commands',
+  'data-sources',
+  'modules',
+  'counters',
+  'spotify-song-requests',
+  'govee-lights',
+  'discord-setup',
+  'share-access',
+  'setup-errors',
+] as const;
 
 export type GuideSlug = (typeof guideSlugs)[number];
 

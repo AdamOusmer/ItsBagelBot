@@ -18,11 +18,8 @@ spec:
       ports:
         - port: 8765
         - port: 2801
-        - port: 2802
-        - port: 6379
         - port: 8080
         - port: 8081
-        - port: 2020
         - port: 9090
   egress:
     - to:
@@ -71,34 +68,6 @@ spec:
               app.kubernetes.io/name: falco
       ports:
         - port: 2801
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falcosidekick
-              app.kubernetes.io/component: core
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: tailscale
-          podSelector:
-            matchLabels:
-              tailscale.com/parent-resource: falco-ui
-      ports:
-        - port: 2802
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falcosidekick
-              app.kubernetes.io/component: ui
-      ports:
-        - port: 6379
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: falcosidekick
-      ports:
-        - port: 2802
-        - port: 6379
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -129,7 +98,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [newrelic-infrastructure, newrelic-logging, newrelic-prometheus-agent]
+        values: [newrelic-infrastructure, newrelic-prometheus-agent]
   policyTypes: [Egress]
   egress:
     - ports:
@@ -190,7 +159,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [newrelic-infrastructure, newrelic-logging, newrelic-prometheus-agent, kube-state-metrics]
+        values: [newrelic-infrastructure, newrelic-prometheus-agent, kube-state-metrics]
   egress:
     - toEntities: [kube-apiserver]
       toPorts:

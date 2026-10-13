@@ -77,7 +77,7 @@ func (s *ValkeyDuelStore) post(ctx context.Context, broadcasterID uint64, text s
 	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil && u.Premium() {
 		subject = s.cfg.OutgressPremiumSubject
 	}
-	body, err := buildOutgress(&module.Output{
+	body, err := buildOutgress(ctx, s.cfg.Runtime, &module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: strconv.FormatUint(broadcasterID, 10),
 		Text:          text,

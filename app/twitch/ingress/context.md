@@ -82,8 +82,6 @@ in `application.ex`; consult `rpc.ex` before changing subject aliases.
 - Atomic publish wire resolves a whole cohort; one ambiguous verdict can lose up
   to the batch bound. Single wire reduces that blast radius to one event.
 - Root vocabulary distinguishes Twitch VIP badges from ItsBagelBot VIP accounts.
-- The README has historical routing prose; `pipeline.ex` is authoritative for
-  dual-published stream events.
 
 ## Local verification
 

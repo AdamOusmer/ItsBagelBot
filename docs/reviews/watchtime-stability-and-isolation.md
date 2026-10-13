@@ -28,7 +28,7 @@ The broadcaster/viewer namespaces and bot-token routing are correct in the paths
 
 ## Fix list, in priority order
 
-### 1. P1 — Fence awards when an account is paused, removed or changes eligibility
+### 1. P1: Fence awards when an account is paused, removed or changes eligibility
 
 **Evidence:** [Arm](../../app/twitch/sesame/engine/loyalty_tick.go), [fire](../../app/twitch/sesame/engine/loyalty_tick.go), [accrue](../../app/twitch/sesame/engine/loyalty_tick.go), [account pause semantics](../../app/db/users/repository/users.go), [deletion](../../app/db/loyalty/repository/queries.go), [later INSERT/upsert](../../app/db/loyalty/repository/loyalty.go).
 
@@ -40,7 +40,7 @@ Deleting an account's SQL loyalty rows also leaves pending earnings untouched. A
 
 **Acceptance:** Pause or delete during pagination; deliver buffered rewards from two replicas afterward; recreate the account. Old work must not award or resurrect deleted data. Test that changing channel A's admission does not stop channel B.
 
-### 2. P1 — Charge every chatter page against the existing shared bot-token budget
+### 2. P1: Charge every chatter page against the existing shared bot-token budget
 
 **Evidence:** [direct ExecuteAs call](../../app/twitch/outgress/internal/twitch/chatters.go), [direct client execution](../../app/twitch/outgress/internal/twitch/client.go), [worker bot-token budget](../../app/twitch/outgress/internal/worker/buckets.go), [normal admission](../../app/twitch/outgress/internal/worker/buckets.go).
 
@@ -50,7 +50,7 @@ Chatter RPC bypasses the worker's Valkey rate admission. A 30-page watch listing
 
 **Acceptance:** Run paginated watch reads and ordinary bot requests from multiple outgress replicas against one quota. Every attempt must be accounted for, and small channels must make progress during a large listing.
 
-### 3. P2 — Bound chatter concurrency and honor the caller's deadline while queued
+### 3. P2: Bound chatter concurrency and honor the caller's deadline while queued
 
 **Evidence:** [serial subscription](../../app/twitch/outgress/rpc/chatters.go), [inline handler contract](../../pkg/bus/rpc.go), [fresh background timeout after dequeue](../../pkg/bus/rpc.go), [12-second caller timeout](../../app/twitch/sesame/engine/loyalty_tick.go).
 
@@ -60,7 +60,7 @@ Requests on a subscription run sequentially. With three simultaneous eight-secon
 
 **Acceptance:** A slow large channel must not block a small channel for the entire listing. Expired queued requests must issue zero HTTP calls. Test pool saturation, shutdown and duplicate requests across replicas.
 
-### 4. P2 — Stop reporting incomplete chatter lists as successful attendance
+### 4. P2: Stop reporting incomplete chatter lists as successful attendance
 
 **Evidence:** [30-page cap and cursor reset](../../app/twitch/outgress/internal/twitch/chatters.go), [success with continuation discarded](../../app/twitch/outgress/internal/twitch/chatters.go), [reply lacks completeness metadata](../../internal/domain/rpc/manage/manage.go).
 
@@ -70,7 +70,7 @@ Reproduced with a mocked 40,000-chatter listing: exactly 30 pages were requested
 
 **Acceptance:** A stable 31+ page dataset must not repeatedly exclude the same tail. Verify deadlines, cursor expiry/repetition, changing attendance and one award per viewer/window across resumed pages.
 
-### 5. P2 — Prevent old offline events from deleting newer session schedules
+### 5. P2: Prevent old offline events from deleting newer session schedules
 
 **Evidence:** [loyalty lifecycle handler drops event version](../../app/twitch/sesame/modules/loyalty.go), [unconditional DEL](../../app/twitch/sesame/engine/loyalty_tick.go).
 
@@ -80,7 +80,7 @@ Reproduced through the production loyalty handler: the versioned live store reje
 
 **Acceptance:** Deliver old offline after new online on different replicas, including immediately before a due window. The newer schedule and accrued window must survive.
 
-### 6. P1 — Persist due windows and apply each viewer/window award once
+### 6. P1: Persist due windows and apply each viewer/window award once
 
 **Evidence:** [expiry-triggered work](../../app/twitch/sesame/engine/loyalty_tick.go), [reconciliation only rearms](../../app/twitch/sesame/engine/loyalty_tick.go), [award has no window ID](../../app/twitch/sesame/engine/loyalty_tick.go), [unused production identity helper](../../app/twitch/sesame/engine/loyalty_tick.go).
 
@@ -90,7 +90,7 @@ The expiring key is the only due-time record. A missed notification loses that w
 
 **Acceptance:** Disconnect notifications, crash after a partial batch, expire a lease and retry an ambiguous write. Work remains recoverable, each observed viewer/window posts once, and channel identities never share dedup keys. Define lateness policy explicitly; a later snapshot cannot reconstruct unknown attendance during an outage.
 
-### 7. P2 — Keep retry/error state and Twitch reset time in Valkey
+### 7. P2: Keep retry/error state and Twitch reset time in Valkey
 
 **Evidence:** [HTTP errors discard reset metadata](../../app/twitch/outgress/internal/twitch/chatters.go), [RPC collapses failure category](../../app/twitch/outgress/rpc/chatters.go), [per-replica streak](../../app/twitch/sesame/engine/loyalty_tick.go).
 
@@ -100,7 +100,7 @@ Rate-limited replies become generic failures, so the scheduler cannot follow Twi
 
 **Acceptance:** Alternate winners across replicas and verify one continuous retry policy. A 429 must suppress token-wide requests until the appropriate reset; one channel's lost moderator status must not suppress other channels.
 
-### 8. P2 — Separate a requested live recheck from a successful confirmation
+### 8. P2: Separate a requested live recheck from a successful confirmation
 
 **Evidence:** [hour-long guard](../../app/twitch/sesame/engine/loyalty_tick.go), [asynchronous publish](../../app/twitch/sesame/engine/loyalty_tick.go).
 

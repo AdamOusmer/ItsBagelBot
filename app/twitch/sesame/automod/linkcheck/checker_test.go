@@ -190,6 +190,32 @@ func TestEvaluateQueriesTheOracleOncePerRegistrableDomain(t *testing.T) {
 	assert.Equal(t, []string{"a.fine.example"}, h.doh.asked())
 }
 
+func TestEvaluateNeverAsksTheOracleTwiceWhileALookupCompletes(t *testing.T) {
+	h := newHarness(t, nil, sinkholeDohbad)
+	const domains = dohBurst
+	host := func(i int) string { return fmt.Sprintf("x.race%d.example", i) }
+
+	for i := range domains {
+		var wg sync.WaitGroup
+		for range 8 {
+			wg.Go(func() {
+				for !h.doh.answered(host(i)) {
+					h.checker.Evaluate(host(i), 1, "u")
+				}
+				for range 200 {
+					h.checker.Evaluate(host(i), 1, "u")
+				}
+			})
+		}
+		wg.Wait()
+	}
+	h.settle(t)
+
+	for i := range domains {
+		assert.Equal(t, 1, h.queries(host(i)), host(i))
+	}
+}
+
 func TestEvaluateDoHConvictionLandsAsync(t *testing.T) {
 	h := newHarness(t, nil, sinkholeDohbad)
 	line := "dohbad.example is up go look"

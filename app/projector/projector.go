@@ -8,8 +8,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"ItsBagelBot/app/projector/hydration"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/twitch"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -26,6 +28,7 @@ import (
 )
 
 type Projector struct {
+	runtime               *channelruntime.Client
 	store                 *projection.Store
 	nc                    *nats.Conn
 	invalidateSubject     string
@@ -37,6 +40,7 @@ type Projector struct {
 }
 
 type Deps struct {
+	Runtime               *channelruntime.Client
 	Store                 *projection.Store
 	NC                    *nats.Conn
 	InvalidateSubject     string
@@ -49,6 +53,7 @@ type Deps struct {
 
 func NewProjector(d Deps) *Projector {
 	return &Projector{
+		runtime:               d.Runtime,
 		store:                 d.Store,
 		nc:                    d.NC,
 		invalidateSubject:     d.InvalidateSubject,
@@ -272,9 +277,10 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
+	streamVersion := cmp.Or(st.Version, livekey.VersionNow())
 	fold, err := p.store.SetStreamLive(msg.Context(), st.BroadcasterID, projection.StreamLive{
 		Live:    st.Live,
-		Version: cmp.Or(st.Version, livekey.VersionNow()),
+		Version: streamVersion,
 	})
 	if err != nil {
 		return err
@@ -289,26 +295,50 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	if !st.Live {
 		return nil
 	}
+	allowed, err := p.engageStream(msg.Context(), st.BroadcasterID, msg.UUID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return p.store.DiscardStreamBaseline(msg.Context(), st.BroadcasterID, streamVersion)
+	}
 
+	return p.refreshStream(msg.Context(), st.BroadcasterID, streamVersion)
+}
+
+func (p *Projector) refreshStream(ctx context.Context, id uint64, streamVersion int64) error {
+	log := monitor.TxnLogger(ctx, p.log)
 	// Launch the independent settings fill before the synchronous loyalty reads.
 	// The durable live write and invalidation stay ahead of both operations.
-	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
-	p.hydrator.RefreshAsync(st.BroadcasterID)
+	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", id))
+	p.hydrator.RefreshAsync(id)
 
-	if isGoLiveEdge(fold.WasLive, st.Live) {
-		p.snapshotCounterBaseline(msg.Context(), st.BroadcasterID, log)
+	pending, err := p.store.StreamBaselinePending(ctx, id, streamVersion)
+	if err != nil {
+		return err
 	}
-	p.warmBroadcasterToken(st.BroadcasterID)
+	if pending {
+		p.snapshotCounterBaseline(ctx, id, streamVersion, log)
+	}
+	p.warmBroadcasterToken(id)
 	return nil
 }
 
-func isGoLiveEdge(wasLive, isLive bool) bool {
-	return isLive && !wasLive
+func (p *Projector) engageStream(ctx context.Context, id uint64, eventID string) (bool, error) {
+	if p.runtime == nil {
+		return true, nil
+	}
+	state, err := p.runtime.Get(ctx, id)
+	if err != nil || !state.AllowsRuntime() {
+		return false, err
+	}
+	state, err = p.runtime.Engage(ctx, id, state, channelruntime.Activity{EventID: eventID, At: time.Now()})
+	return state.AllowsRuntime(), err
 }
 
 var baselineCounters = []projection.CounterName{data.CounterMessagesProcessed, data.CounterCommandsAnswered, data.CounterModActionsTaken}
 
-func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID uint64, log *zap.Logger) {
+func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID uint64, version int64, log *zap.Logger) {
 	vals, ok := p.liveTotals(ctx, broadcasterID, baselineCounters)
 	if !ok {
 		log.Warn("skipping stream counter baseline: live counters unavailable", zap.Uint64("user_id", broadcasterID))
@@ -320,7 +350,7 @@ func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID u
 		Answered:   vals[data.CounterCommandsAnswered],
 		ModActions: vals[data.CounterModActionsTaken],
 	}
-	if err := p.store.SetStreamCounterBaseline(ctx, strconv.FormatUint(broadcasterID, 10), b); err != nil {
+	if err := p.store.SetStreamCounterBaselineForVersion(ctx, broadcasterID, version, b); err != nil {
 		log.Warn("failed to write stream counter baseline", zap.Uint64("user_id", broadcasterID), zap.Error(err))
 	}
 }

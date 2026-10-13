@@ -40,6 +40,7 @@
   let { data } = $props();
 
   const { t } = getI18n();
+  const canUpgrade = $derived(!data.delegateOf || (data.sections ?? []).includes('billing'));
   const def = $derived(data.def);
   const modLabel = $derived(tModuleLabel(t, def));
   const modDescription = $derived(tModuleDescription(t, def));
@@ -528,9 +529,11 @@
 
   {#if data.locked}
     <AlertBanner tone="warning">
-      {t('modules.betaLockedBody')}
+      {t('modules.betaLockedBody')}{#if !canUpgrade} {t('modules.betaAskOwner', { login: data.delegateLogin ?? '' })}{/if}
       {#snippet actions()}
-        <ButtonLink href="/billing" variant="ghost">{t('modules.betaUpgrade')}</ButtonLink>
+        {#if canUpgrade}
+          <ButtonLink href="/billing" variant="ghost">{t('modules.betaUpgrade')}</ButtonLink>
+        {/if}
       {/snippet}
     </AlertBanner>
   {/if}

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"ItsBagelBot/app/discord/ingress/internal/botstatus"
@@ -13,10 +14,12 @@ import (
 	"ItsBagelBot/app/discord/ingress/internal/relay"
 	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/svcboot"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -55,7 +58,8 @@ func main() {
 
 	health.ServeSet(cfg.ListenAddr, healthSet(core, rpcConn, status))
 
-	gwLog := log.With(zap.String("pod", pod), zap.Int64("boot_id", time.Now().UnixMilli()))
+	bootID := time.Now().UnixMilli()
+	gwLog := log.With(zap.String("pod", pod), zap.Int64("boot_id", bootID))
 
 	sess := gateway.Session{
 		Token:    cfg.DiscordBotToken,
@@ -64,6 +68,10 @@ func main() {
 		Log:      gwLog,
 		Status:   status,
 		Connects: botstatus.NewConnectLog(valkeyClient, pod),
+		Lease: pkg_valkey.NewOwnerLock(valkeyClient, ddiscord.BotLeaseKey,
+			fmt.Sprintf("%s-%d", pod, bootID)),
+		Checkpoint: gateway.NewCheckpointStore(valkeyClient),
+		Role:       status,
 		Presence: &presence.Source{
 			Fetch: presence.NewFetch(rpcConn, cfg.UsersCountsSubject),
 			Log:   log,

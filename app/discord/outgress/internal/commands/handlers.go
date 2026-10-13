@@ -202,14 +202,7 @@ func (h *Handlers) setGuildIdentity(ctx context.Context, c ddiscord.Command) err
 	if err := codec.Unmarshal(c.Payload, &p); err != nil {
 		return err
 	}
-	m := discapi.CurrentMember{GuildID: c.GuildID}
-	if nick, ok := p.Identity.Nick(); ok {
-		m.Nick = &nick
-	}
-	if p.Identity.Premium {
-		uri := identity.PremiumAvatarDataURI()
-		m.AvatarDataURI = &uri
-	}
+	m := identity.Member(c.GuildID, p.Identity)
 	err := h.Rest.ModifyCurrentMember(ctx, m)
 	if err == nil {
 		h.clearReauth(ctx, kv.GuildID(c.GuildID))

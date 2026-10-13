@@ -393,11 +393,14 @@ func deskCases() []setupCase {
 
 func configCases() []setupCase {
 	live123 := ddiscord.Config{LiveChannelID: "123"}
-	seeded := func() setupWorld { return setupWorld{rest: &fakeSetupREST{}, owners: boundG1, config: &live123} }
+	rest := func() *fakeSetupREST {
+		return &fakeSetupREST{channels: []discapi.Snowflake{{ID: "123"}, {ID: "456"}}}
+	}
+	seeded := func() setupWorld { return setupWorld{rest: rest(), owners: boundG1, config: &live123} }
 	notBound := outgressrpc.DiscordConfigSetReply{Error: setup.ErrNotBound.Error(), Code: outgressrpc.CodeNotBound}
 	return []setupCase{{
 		name:   "saves a config at version 1",
-		world:  setupWorld{rest: &fakeSetupREST{}, owners: boundG1},
+		world:  setupWorld{rest: rest(), owners: boundG1},
 		verb:   "discord.config.set",
 		req:    outgressrpc.DiscordConfigSetRequest{UserID: "b1", GuildID: "g1", Config: live123},
 		want:   outgressrpc.DiscordConfigSetReply{Version: 1},
@@ -591,6 +594,51 @@ func TestGuildEntriesNeverGuessAReauthFlag(t *testing.T) {
 		if got.NeedsReauth || !got.ReauthUnknown {
 			t.Fatalf("unread entry = %+v, want reauth_unknown rather than a false", got)
 		}
+	}
+}
+
+func TestSetupClearsTheReauthFlagOnlyWhenTheBotMayRename(t *testing.T) {
+	cases := []struct {
+		name      string
+		perm      string
+		want      bool
+		renamed   bool
+		modifyErr error
+	}{
+		{"re-added with the nickname permission", strconv.Itoa(1 << 26), false, true, nil},
+		{"re-added without it", strconv.Itoa(1 << 10), true, false, nil},
+		{"rename refused by Discord keeps the flag", strconv.Itoa(1 << 26), true, true, discapi.ErrForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rest := &fakeSetupREST{
+				roles:     []discapi.Snowflake{{ID: rpcGuildID}, {ID: "bot-role", Permissions: tc.perm}},
+				member:    discapi.GuildMemberInfo{Roles: []string{"bot-role"}},
+				modifyErr: tc.modifyErr,
+			}
+			w := setup.New(setup.Config{
+				Store:   boundStore(t, map[string]string{rpcGuildID: "b1"}),
+				Discord: rest, BotID: "bot", Log: zap.NewNop(),
+			})
+			flags := flaggedReauth{rpcGuildID: true}
+			d := &discordRPC{
+				w: w, reauth: flags,
+				tier: func(context.Context, string) (string, bool) { return ddiscord.StatusPaid, true },
+				log:  zap.NewNop(),
+			}
+
+			got := d.handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{GuildID: rpcGuildID, UserID: "b1"})
+
+			require.Equal(t, "", got.Error)
+			require.Equal(t, tc.want, flags[rpcGuildID])
+			if tc.renamed {
+				require.Len(t, rest.members, 1)
+				require.NotNil(t, rest.members[0].Nick)
+				require.Equal(t, ddiscord.PremiumNick, *rest.members[0].Nick)
+			} else {
+				require.Empty(t, rest.members)
+			}
+		})
 	}
 }
 

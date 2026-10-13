@@ -16,19 +16,11 @@ export function connectionPollDelay(elapsedMs: number): number {
     : CONNECTION_POLL_SLOW_MS;
 }
 
-export function connectionPollSettled(
-  goal: ConnectionPollGoal,
-  state: string,
-  elapsedMs: number,
-  sawUnsettled: boolean
-): boolean {
-  if (goal === 'disconnected') {
-    return state === 'unenrolled' || state === 'failing' || state === 'revoked';
-  }
-  return (
-    state !== 'pending' &&
-    state !== 'unenrolled' &&
-    state !== 'unknown' &&
-    (sawUnsettled || elapsedMs >= CONNECTION_SETTLE_GRACE_MS)
-  );
+const DISCONNECTED_STATES=['unenrolled','failing','revoked','disabled'];
+const CONNECTING_STATES=['recovering','pending','unenrolled','unknown'];
+
+export function connectionPollSettled(goal:ConnectionPollGoal,state:string,elapsedMs:number,sawUnsettled:boolean):boolean {
+ if (goal === 'disconnected') return DISCONNECTED_STATES.includes(state);
+ if (CONNECTING_STATES.includes(state)) return false;
+ return sawUnsettled || elapsedMs >= CONNECTION_SETTLE_GRACE_MS;
 }

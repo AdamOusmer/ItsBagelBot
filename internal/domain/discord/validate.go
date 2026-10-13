@@ -6,6 +6,7 @@ package discord
 import (
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -23,6 +24,7 @@ const (
 	CodeInvalidFlag   = "invalid_flag"
 	CodeDuplicateSlot = "duplicate_slot"
 	CodeMalformedPair = "malformed_pair"
+	CodeInvalidChoice = "invalid_choice"
 )
 
 const pinnedRolesField = "pinnedRoles"
@@ -38,6 +40,7 @@ func ValidateConfig(cfg Config) []FieldError {
 	out = append(out, validateTicket(cfg)...)
 	out = append(out, validatePinnedRoles(listText(cfg.PinnedRoles))...)
 	out = append(out, validateToggles(cfg)...)
+	out = append(out, validateVoice(cfg)...)
 	return out
 }
 
@@ -48,7 +51,12 @@ func idFields(cfg Config) map[string]string {
 		"clipsChannelId":          cfg.ClipsChannelID,
 		"welcomeChannelId":        cfg.WelcomeChannelID,
 		"voiceHubId":              cfg.VoiceHubID,
+		"voiceCategoryId":         cfg.VoiceCategoryID,
 		"logChannelId":            cfg.LogChannelID,
+		"logMessagesChannelId":    cfg.LogMessagesChannelID,
+		"logMembersChannelId":     cfg.LogMembersChannelID,
+		"logVoiceChannelId":       cfg.LogVoiceChannelID,
+		"logModerationChannelId":  cfg.LogModerationChannelID,
 		"ticketChannelId":         cfg.TicketChannelID,
 		"ticketCategoryId":        cfg.TicketCategoryID,
 		"ticketArchiveCategoryId": cfg.TicketArchiveCategoryID,
@@ -69,7 +77,8 @@ func idFields(cfg Config) map[string]string {
 
 func validateIDs(cfg Config) []FieldError {
 	out := invalidIDFields(idFields(cfg))
-	return append(out, validateStaffRoleIDs(listText(cfg.TicketStaffRoles))...)
+	out = append(out, invalidIDList("ticketStaffRoleIds", listText(cfg.TicketStaffRoles))...)
+	return append(out, validateIgnoredChannels(cfg)...)
 }
 
 func invalidIDFields(fields map[string]string) []FieldError {
@@ -82,10 +91,21 @@ func invalidIDFields(fields map[string]string) []FieldError {
 	return out
 }
 
-func validateStaffRoleIDs(raw listText) []FieldError {
+func validateIgnoredChannels(cfg Config) []FieldError {
+	const field = "logIgnoredChannelIds"
+	if bad := invalidIDList(field, listText(cfg.LogIgnoredChannels)); len(bad) > 0 {
+		return bad
+	}
+	if len(cfg.LogIgnoredChannelIDs()) > LogIgnoredChannelsMax {
+		return []FieldError{{Field: field, Code: CodeInvalidRange}}
+	}
+	return nil
+}
+
+func invalidIDList(field string, raw listText) []FieldError {
 	for _, id := range splitList(raw) {
 		if !ValidSnowflake(id) {
-			return []FieldError{{Field: "ticketStaffRoleIds", Code: CodeInvalidID}}
+			return []FieldError{{Field: field, Code: CodeInvalidID}}
 		}
 	}
 	return nil
@@ -116,6 +136,38 @@ func validLimit(raw string) bool {
 		return false
 	}
 	return v[0] >= '1' && v[0] <= byte('0'+TicketOpenLimitMax)
+}
+
+func validateVoice(cfg Config) []FieldError {
+	out := tooLong("voiceNameTemplate", cfg.VoiceNameTemplate, VoiceNameMax)
+	if !validVoiceLimit(cfg.VoiceUserLimit) {
+		out = append(out, FieldError{Field: "voiceUserLimit", Code: CodeInvalidRange})
+	}
+	switch cfg.VoicePrivacyMode {
+	case "", VoicePrivacyOpen, VoicePrivacyLocked, VoicePrivacyHidden:
+	default:
+		out = append(out, FieldError{Field: "voicePrivacy", Code: CodeInvalidChoice})
+	}
+	return out
+}
+
+func validVoiceLimit(raw string) bool {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return true
+	}
+	if !shortDigits(v) {
+		return false
+	}
+	n, err := strconv.Atoi(v)
+	return err == nil && n <= VoiceUserLimitMax
+}
+
+func shortDigits(v string) bool {
+	if len(v) > 2 {
+		return false
+	}
+	return v[0] >= '0' && v[0] <= '9'
 }
 
 func tooLong(field, value string, max int) []FieldError {
@@ -166,6 +218,14 @@ func toggleFields(cfg Config) map[string]string {
 		"subscribersEnabled":      cfg.SubscribersEnabled,
 		"ticketTranscriptEnabled": cfg.TicketTranscriptEnabled,
 		"autoRoleEnabled":         cfg.AutoRoleEnabled,
+		"logMessagesEnabled":      cfg.LogMessagesEnabled,
+		"logMembersEnabled":       cfg.LogMembersEnabled,
+		"logVoiceEnabled":         cfg.LogVoiceEnabled,
+		"logModerationEnabled":    cfg.LogModerationEnabled,
+		"logChannelsEnabled":      cfg.LogChannelsEnabled,
+		"logRolesEnabled":         cfg.LogRolesEnabled,
+		"logServerEnabled":        cfg.LogServerEnabled,
+		"logIgnoreBots":           cfg.LogIgnoreBots,
 	}
 }
 

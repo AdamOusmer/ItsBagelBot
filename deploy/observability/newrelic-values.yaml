@@ -96,9 +96,10 @@ newrelic-infrastructure:
   kubelet:
     agent:
       resources:
+        # 128Mi OOMKilled the agent 4-5 times per worker pod in 16 days (2026-10-10).
         limits:
           cpu: 100m
-          memory: 128Mi
+          memory: 256Mi
         requests:
           cpu: 10m
           memory: 64Mi
@@ -151,26 +152,7 @@ newrelic-infrastructure:
 newrelic-k8s-metrics-adapter:
   enabled: false
 newrelic-logging:
-  enabled: true
-  lowDataMode: true
-  resources:
-    limits:
-      cpu: 100m
-      memory: 128Mi
-    requests:
-      cpu: 10m
-      memory: 64Mi
-  tolerations:
-  - effect: NoSchedule
-    key: node-role.kubernetes.io/control-plane
-    operator: Exists
-  - effect: NoSchedule
-    key: node-role.kubernetes.io/master
-    operator: Exists
-  - key: role
-    operator: Equal
-    value: cp
-    effect: NoSchedule
+  enabled: false
 newrelic-pixie:
   enabled: false
 newrelic-prometheus-agent:

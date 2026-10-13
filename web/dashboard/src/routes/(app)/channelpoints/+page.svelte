@@ -100,7 +100,7 @@
     discard.guard(doClose);
   }
 
-  type RewardActionOk = ActionOk & { missingScope?: boolean; duplicateTitle?: boolean };
+  type RewardActionOk = ActionOk & { missingScope?: boolean; duplicateTitle?: boolean; notAffiliate?: boolean };
 
   function failed(payload: RewardActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
@@ -110,6 +110,10 @@
     }
     if (payload?.duplicateTitle) {
       toast('danger', t('channelpoints.toastDuplicateTitle'));
+      return;
+    }
+    if (payload?.notAffiliate) {
+      toast('danger', t('channelpoints.toastNotAffiliate'));
       return;
     }
     toast('danger', payload?.error ?? t(fallbackKey));

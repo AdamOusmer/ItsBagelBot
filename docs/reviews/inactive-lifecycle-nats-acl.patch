@@ -1,0 +1,32 @@
+Local configuration change approved by the user and applied; NOT deployed.
+Purpose: allow only the existing services participating in lifecycle recovery
+to reach the new Users lifecycle and Notifications connection RPCs.
+File: deploy/messaging/accounts.yaml
+
+USERS_RPC exports:
+  add service: bagel.rpc.internal.users.lifecycle
+  add service: bagel.rpc.internal.users.lifecycle.node.*
+
+NOTIFICATIONS_RPC exports:
+  add service: bagel.rpc.internal.notifications.connection.>
+NOTIFICATIONS_RPC imports:
+  add service: bagel.rpc.internal.users.lifecycle, from: USERS_RPC
+  add service: bagel.rpc.internal.users.lifecycle.node.*, from: USERS_RPC
+
+OUTGRESS_RPC imports:
+  add service: bagel.rpc.internal.users.lifecycle, from: USERS_RPC
+  add service: bagel.rpc.internal.users.lifecycle.node.*, from: USERS_RPC
+  add service: bagel.rpc.internal.projection.users.get, from: USERS_RPC
+  add service: bagel.rpc.internal.projection.users.get.node.*, from: USERS_RPC
+  add service: bagel.rpc.internal.notifications.connection.>, from: NOTIFICATIONS_RPC
+
+PROJECTOR_RPC imports:
+  add service: bagel.rpc.internal.users.lifecycle, from: USERS_RPC
+  add service: bagel.rpc.internal.users.lifecycle.node.*, from: USERS_RPC
+
+WORKER_RPC imports:
+  add service: bagel.rpc.internal.users.lifecycle, from: USERS_RPC
+  add service: bagel.rpc.internal.users.lifecycle.node.*, from: USERS_RPC
+
+No account, credential, public client grant, token, signed JWT, or running
+broker is changed. Signing/deployment remain separate operational steps.

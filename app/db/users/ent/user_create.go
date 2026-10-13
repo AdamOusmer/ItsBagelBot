@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
 	"fmt"
@@ -84,6 +85,96 @@ func (_c *UserCreate) SetNillableIsActive(v *bool) *UserCreate {
 	return _c
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (_c *UserCreate) SetLifecycle(v *lifecycle.State) *UserCreate {
+	_c.mutation.SetLifecycle(v)
+	return _c
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (_c *UserCreate) SetLifecycleState(v string) *UserCreate {
+	_c.mutation.SetLifecycleState(v)
+	return _c
+}
+
+// SetNillableLifecycleState sets the "lifecycle_state" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLifecycleState(v *string) *UserCreate {
+	if v != nil {
+		_c.SetLifecycleState(*v)
+	}
+	return _c
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (_c *UserCreate) SetLifecycleProjectionPending(v bool) *UserCreate {
+	_c.mutation.SetLifecycleProjectionPending(v)
+	return _c
+}
+
+// SetNillableLifecycleProjectionPending sets the "lifecycle_projection_pending" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLifecycleProjectionPending(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetLifecycleProjectionPending(*v)
+	}
+	return _c
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (_c *UserCreate) SetLifecycleMigrationPending(v bool) *UserCreate {
+	_c.mutation.SetLifecycleMigrationPending(v)
+	return _c
+}
+
+// SetNillableLifecycleMigrationPending sets the "lifecycle_migration_pending" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLifecycleMigrationPending(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetLifecycleMigrationPending(*v)
+	}
+	return _c
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (_c *UserCreate) SetDormantAfter(v time.Time) *UserCreate {
+	_c.mutation.SetDormantAfter(v)
+	return _c
+}
+
+// SetNillableDormantAfter sets the "dormant_after" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDormantAfter(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetDormantAfter(*v)
+	}
+	return _c
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (_c *UserCreate) SetLifecycleDueAt(v time.Time) *UserCreate {
+	_c.mutation.SetLifecycleDueAt(v)
+	return _c
+}
+
+// SetNillableLifecycleDueAt sets the "lifecycle_due_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLifecycleDueAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetLifecycleDueAt(*v)
+	}
+	return _c
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (_c *UserCreate) SetNoticeDueAt(v time.Time) *UserCreate {
+	_c.mutation.SetNoticeDueAt(v)
+	return _c
+}
+
+// SetNillableNoticeDueAt sets the "notice_due_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableNoticeDueAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetNoticeDueAt(*v)
+	}
+	return _c
+}
+
 // SetBanned sets the "banned" field.
 func (_c *UserCreate) SetBanned(v bool) *UserCreate {
 	_c.mutation.SetBanned(v)
@@ -150,6 +241,20 @@ func (_c *UserCreate) SetCommandsPageHidden(v bool) *UserCreate {
 func (_c *UserCreate) SetNillableCommandsPageHidden(v *bool) *UserCreate {
 	if v != nil {
 		_c.SetCommandsPageHidden(*v)
+	}
+	return _c
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_c *UserCreate) SetLeaderboardPageHidden(v bool) *UserCreate {
+	_c.mutation.SetLeaderboardPageHidden(v)
+	return _c
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_c *UserCreate) SetNillableLeaderboardPageHidden(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetLeaderboardPageHidden(*v)
 	}
 	return _c
 }
@@ -421,6 +526,18 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultIsActive
 		_c.mutation.SetIsActive(v)
 	}
+	if _, ok := _c.mutation.LifecycleState(); !ok {
+		v := user.DefaultLifecycleState
+		_c.mutation.SetLifecycleState(v)
+	}
+	if _, ok := _c.mutation.LifecycleProjectionPending(); !ok {
+		v := user.DefaultLifecycleProjectionPending
+		_c.mutation.SetLifecycleProjectionPending(v)
+	}
+	if _, ok := _c.mutation.LifecycleMigrationPending(); !ok {
+		v := user.DefaultLifecycleMigrationPending
+		_c.mutation.SetLifecycleMigrationPending(v)
+	}
 	if _, ok := _c.mutation.Banned(); !ok {
 		v := user.DefaultBanned
 		_c.mutation.SetBanned(v)
@@ -440,6 +557,10 @@ func (_c *UserCreate) defaults() error {
 	if _, ok := _c.mutation.CommandsPageHidden(); !ok {
 		v := user.DefaultCommandsPageHidden
 		_c.mutation.SetCommandsPageHidden(v)
+	}
+	if _, ok := _c.mutation.LeaderboardPageHidden(); !ok {
+		v := user.DefaultLeaderboardPageHidden
+		_c.mutation.SetLeaderboardPageHidden(v)
 	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
@@ -519,6 +640,15 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.IsActive(); !ok {
 		return &ValidationError{Name: "is_active", err: errors.New(`ent: missing required field "User.is_active"`)}
 	}
+	if _, ok := _c.mutation.LifecycleState(); !ok {
+		return &ValidationError{Name: "lifecycle_state", err: errors.New(`ent: missing required field "User.lifecycle_state"`)}
+	}
+	if _, ok := _c.mutation.LifecycleProjectionPending(); !ok {
+		return &ValidationError{Name: "lifecycle_projection_pending", err: errors.New(`ent: missing required field "User.lifecycle_projection_pending"`)}
+	}
+	if _, ok := _c.mutation.LifecycleMigrationPending(); !ok {
+		return &ValidationError{Name: "lifecycle_migration_pending", err: errors.New(`ent: missing required field "User.lifecycle_migration_pending"`)}
+	}
 	if _, ok := _c.mutation.Banned(); !ok {
 		return &ValidationError{Name: "banned", err: errors.New(`ent: missing required field "User.banned"`)}
 	}
@@ -543,6 +673,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.CommandsPageHidden(); !ok {
 		return &ValidationError{Name: "commands_page_hidden", err: errors.New(`ent: missing required field "User.commands_page_hidden"`)}
+	}
+	if _, ok := _c.mutation.LeaderboardPageHidden(); !ok {
+		return &ValidationError{Name: "leaderboard_page_hidden", err: errors.New(`ent: missing required field "User.leaderboard_page_hidden"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -630,6 +763,34 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
 		_node.IsActive = value
 	}
+	if value, ok := _c.mutation.Lifecycle(); ok {
+		_spec.SetField(user.FieldLifecycle, field.TypeJSON, value)
+		_node.Lifecycle = value
+	}
+	if value, ok := _c.mutation.LifecycleState(); ok {
+		_spec.SetField(user.FieldLifecycleState, field.TypeString, value)
+		_node.LifecycleState = value
+	}
+	if value, ok := _c.mutation.LifecycleProjectionPending(); ok {
+		_spec.SetField(user.FieldLifecycleProjectionPending, field.TypeBool, value)
+		_node.LifecycleProjectionPending = value
+	}
+	if value, ok := _c.mutation.LifecycleMigrationPending(); ok {
+		_spec.SetField(user.FieldLifecycleMigrationPending, field.TypeBool, value)
+		_node.LifecycleMigrationPending = value
+	}
+	if value, ok := _c.mutation.DormantAfter(); ok {
+		_spec.SetField(user.FieldDormantAfter, field.TypeTime, value)
+		_node.DormantAfter = &value
+	}
+	if value, ok := _c.mutation.LifecycleDueAt(); ok {
+		_spec.SetField(user.FieldLifecycleDueAt, field.TypeTime, value)
+		_node.LifecycleDueAt = &value
+	}
+	if value, ok := _c.mutation.NoticeDueAt(); ok {
+		_spec.SetField(user.FieldNoticeDueAt, field.TypeTime, value)
+		_node.NoticeDueAt = &value
+	}
 	if value, ok := _c.mutation.Banned(); ok {
 		_spec.SetField(user.FieldBanned, field.TypeBool, value)
 		_node.Banned = value
@@ -649,6 +810,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
 		_node.CommandsPageHidden = value
+	}
+	if value, ok := _c.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
+		_node.LeaderboardPageHidden = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -870,6 +1035,114 @@ func (u *UserUpsert) UpdateIsActive() *UserUpsert {
 	return u
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (u *UserUpsert) SetLifecycle(v *lifecycle.State) *UserUpsert {
+	u.Set(user.FieldLifecycle, v)
+	return u
+}
+
+// UpdateLifecycle sets the "lifecycle" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLifecycle() *UserUpsert {
+	u.SetExcluded(user.FieldLifecycle)
+	return u
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (u *UserUpsert) ClearLifecycle() *UserUpsert {
+	u.SetNull(user.FieldLifecycle)
+	return u
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (u *UserUpsert) SetLifecycleState(v string) *UserUpsert {
+	u.Set(user.FieldLifecycleState, v)
+	return u
+}
+
+// UpdateLifecycleState sets the "lifecycle_state" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLifecycleState() *UserUpsert {
+	u.SetExcluded(user.FieldLifecycleState)
+	return u
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (u *UserUpsert) SetLifecycleProjectionPending(v bool) *UserUpsert {
+	u.Set(user.FieldLifecycleProjectionPending, v)
+	return u
+}
+
+// UpdateLifecycleProjectionPending sets the "lifecycle_projection_pending" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLifecycleProjectionPending() *UserUpsert {
+	u.SetExcluded(user.FieldLifecycleProjectionPending)
+	return u
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (u *UserUpsert) SetLifecycleMigrationPending(v bool) *UserUpsert {
+	u.Set(user.FieldLifecycleMigrationPending, v)
+	return u
+}
+
+// UpdateLifecycleMigrationPending sets the "lifecycle_migration_pending" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLifecycleMigrationPending() *UserUpsert {
+	u.SetExcluded(user.FieldLifecycleMigrationPending)
+	return u
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (u *UserUpsert) SetDormantAfter(v time.Time) *UserUpsert {
+	u.Set(user.FieldDormantAfter, v)
+	return u
+}
+
+// UpdateDormantAfter sets the "dormant_after" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDormantAfter() *UserUpsert {
+	u.SetExcluded(user.FieldDormantAfter)
+	return u
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (u *UserUpsert) ClearDormantAfter() *UserUpsert {
+	u.SetNull(user.FieldDormantAfter)
+	return u
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (u *UserUpsert) SetLifecycleDueAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldLifecycleDueAt, v)
+	return u
+}
+
+// UpdateLifecycleDueAt sets the "lifecycle_due_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLifecycleDueAt() *UserUpsert {
+	u.SetExcluded(user.FieldLifecycleDueAt)
+	return u
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (u *UserUpsert) ClearLifecycleDueAt() *UserUpsert {
+	u.SetNull(user.FieldLifecycleDueAt)
+	return u
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (u *UserUpsert) SetNoticeDueAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldNoticeDueAt, v)
+	return u
+}
+
+// UpdateNoticeDueAt sets the "notice_due_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateNoticeDueAt() *UserUpsert {
+	u.SetExcluded(user.FieldNoticeDueAt)
+	return u
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (u *UserUpsert) ClearNoticeDueAt() *UserUpsert {
+	u.SetNull(user.FieldNoticeDueAt)
+	return u
+}
+
 // SetBanned sets the "banned" field.
 func (u *UserUpsert) SetBanned(v bool) *UserUpsert {
 	u.Set(user.FieldBanned, v)
@@ -927,6 +1200,18 @@ func (u *UserUpsert) SetCommandsPageHidden(v bool) *UserUpsert {
 // UpdateCommandsPageHidden sets the "commands_page_hidden" field to the value that was provided on create.
 func (u *UserUpsert) UpdateCommandsPageHidden() *UserUpsert {
 	u.SetExcluded(user.FieldCommandsPageHidden)
+	return u
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsert) SetLeaderboardPageHidden(v bool) *UserUpsert {
+	u.Set(user.FieldLeaderboardPageHidden, v)
+	return u
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsert) UpdateLeaderboardPageHidden() *UserUpsert {
+	u.SetExcluded(user.FieldLeaderboardPageHidden)
 	return u
 }
 
@@ -1268,6 +1553,132 @@ func (u *UserUpsertOne) UpdateIsActive() *UserUpsertOne {
 	})
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (u *UserUpsertOne) SetLifecycle(v *lifecycle.State) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycle(v)
+	})
+}
+
+// UpdateLifecycle sets the "lifecycle" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLifecycle() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycle()
+	})
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (u *UserUpsertOne) ClearLifecycle() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearLifecycle()
+	})
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (u *UserUpsertOne) SetLifecycleState(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleState(v)
+	})
+}
+
+// UpdateLifecycleState sets the "lifecycle_state" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLifecycleState() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleState()
+	})
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (u *UserUpsertOne) SetLifecycleProjectionPending(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleProjectionPending(v)
+	})
+}
+
+// UpdateLifecycleProjectionPending sets the "lifecycle_projection_pending" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLifecycleProjectionPending() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleProjectionPending()
+	})
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (u *UserUpsertOne) SetLifecycleMigrationPending(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleMigrationPending(v)
+	})
+}
+
+// UpdateLifecycleMigrationPending sets the "lifecycle_migration_pending" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLifecycleMigrationPending() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleMigrationPending()
+	})
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (u *UserUpsertOne) SetDormantAfter(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDormantAfter(v)
+	})
+}
+
+// UpdateDormantAfter sets the "dormant_after" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDormantAfter() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDormantAfter()
+	})
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (u *UserUpsertOne) ClearDormantAfter() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDormantAfter()
+	})
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (u *UserUpsertOne) SetLifecycleDueAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleDueAt(v)
+	})
+}
+
+// UpdateLifecycleDueAt sets the "lifecycle_due_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLifecycleDueAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleDueAt()
+	})
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (u *UserUpsertOne) ClearLifecycleDueAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearLifecycleDueAt()
+	})
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (u *UserUpsertOne) SetNoticeDueAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetNoticeDueAt(v)
+	})
+}
+
+// UpdateNoticeDueAt sets the "notice_due_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateNoticeDueAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateNoticeDueAt()
+	})
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (u *UserUpsertOne) ClearNoticeDueAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearNoticeDueAt()
+	})
+}
+
 // SetBanned sets the "banned" field.
 func (u *UserUpsertOne) SetBanned(v bool) *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
@@ -1335,6 +1746,20 @@ func (u *UserUpsertOne) SetCommandsPageHidden(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateCommandsPageHidden() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCommandsPageHidden()
+	})
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsertOne) SetLeaderboardPageHidden(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLeaderboardPageHidden(v)
+	})
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateLeaderboardPageHidden() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLeaderboardPageHidden()
 	})
 }
 
@@ -1874,6 +2299,132 @@ func (u *UserUpsertBulk) UpdateIsActive() *UserUpsertBulk {
 	})
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (u *UserUpsertBulk) SetLifecycle(v *lifecycle.State) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycle(v)
+	})
+}
+
+// UpdateLifecycle sets the "lifecycle" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLifecycle() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycle()
+	})
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (u *UserUpsertBulk) ClearLifecycle() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearLifecycle()
+	})
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (u *UserUpsertBulk) SetLifecycleState(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleState(v)
+	})
+}
+
+// UpdateLifecycleState sets the "lifecycle_state" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLifecycleState() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleState()
+	})
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (u *UserUpsertBulk) SetLifecycleProjectionPending(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleProjectionPending(v)
+	})
+}
+
+// UpdateLifecycleProjectionPending sets the "lifecycle_projection_pending" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLifecycleProjectionPending() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleProjectionPending()
+	})
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (u *UserUpsertBulk) SetLifecycleMigrationPending(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleMigrationPending(v)
+	})
+}
+
+// UpdateLifecycleMigrationPending sets the "lifecycle_migration_pending" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLifecycleMigrationPending() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleMigrationPending()
+	})
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (u *UserUpsertBulk) SetDormantAfter(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDormantAfter(v)
+	})
+}
+
+// UpdateDormantAfter sets the "dormant_after" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDormantAfter() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDormantAfter()
+	})
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (u *UserUpsertBulk) ClearDormantAfter() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDormantAfter()
+	})
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (u *UserUpsertBulk) SetLifecycleDueAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLifecycleDueAt(v)
+	})
+}
+
+// UpdateLifecycleDueAt sets the "lifecycle_due_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLifecycleDueAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLifecycleDueAt()
+	})
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (u *UserUpsertBulk) ClearLifecycleDueAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearLifecycleDueAt()
+	})
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (u *UserUpsertBulk) SetNoticeDueAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetNoticeDueAt(v)
+	})
+}
+
+// UpdateNoticeDueAt sets the "notice_due_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateNoticeDueAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateNoticeDueAt()
+	})
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (u *UserUpsertBulk) ClearNoticeDueAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearNoticeDueAt()
+	})
+}
+
 // SetBanned sets the "banned" field.
 func (u *UserUpsertBulk) SetBanned(v bool) *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
@@ -1941,6 +2492,20 @@ func (u *UserUpsertBulk) SetCommandsPageHidden(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateCommandsPageHidden() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCommandsPageHidden()
+	})
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (u *UserUpsertBulk) SetLeaderboardPageHidden(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetLeaderboardPageHidden(v)
+	})
+}
+
+// UpdateLeaderboardPageHidden sets the "leaderboard_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateLeaderboardPageHidden() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateLeaderboardPageHidden()
 	})
 }
 

@@ -16,6 +16,13 @@ const BotConnectsKey = "discord:bot:connects"
 
 const BotConnectsTTL = 25 * time.Hour
 
+const BotLeaseKey = "discord:bot:lease"
+
+// Must stay in Valkey: the successor resumes the dead leader's session from this.
+const BotCheckpointKey = "discord:bot:checkpoint"
+
+const BotCheckpointTTL = time.Hour
+
 type BotStatus struct {
 	Connected        bool   `json:"connected"`
 	SinceUnixMS      int64  `json:"since_unix_ms,omitempty"`

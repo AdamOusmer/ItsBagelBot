@@ -10,6 +10,7 @@
   "err.usage": "Uso: !raffle <open [minutes] [winners]|draw|cancel|status>. Los espectadores participan con !join",
   "join.already": "@{raffle:user} ya estás en este sorteo (participaciones: {raffle:count}).",
   "join.closed": "@{raffle:user} no hay ningún sorteo en curso.",
+  "join.queue_hint": "Cola: !queue join",
   "joined": "¡@{raffle:user} ya participas! Participaciones hasta ahora: {raffle:count}. ¡Suerte!",
   "last": "Último sorteo — ganadores: {raffle:targets}; participaciones: {raffle:entrants}.",
   "last.confirmed": "Último sorteo — ganadores: {raffle:targets}; participaciones: {raffle:entrants}; confirmaciones: {raffle:confirmed}/{raffle:total}.",

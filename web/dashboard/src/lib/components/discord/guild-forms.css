@@ -78,6 +78,15 @@
   min-width: 0;
 }
 
+.dc .seg-fixed {
+  width: min(280px, 52vw);
+  justify-self: end;
+}
+
+.dc .seg-fixed-help {
+  min-height: 2lh;
+}
+
 .dc .role-controls {
   display: flex;
   align-items: center;

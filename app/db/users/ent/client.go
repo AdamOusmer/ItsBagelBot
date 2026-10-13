@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
@@ -35,6 +36,8 @@ type Client struct {
 	AdminUser *AdminUserClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
+	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
 	// Tokens is the client for interacting with the Tokens builders.
@@ -55,6 +58,7 @@ func (c *Client) init() {
 	c.AdminAudit = NewAdminAuditClient(c.config)
 	c.AdminUser = NewAdminUserClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
+	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -148,14 +152,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		AdminAudit:   NewAdminAuditClient(cfg),
-		AdminUser:    NewAdminUserClient(cfg),
-		Delegation:   NewDelegationClient(cfg),
-		PremiumGrant: NewPremiumGrantClient(cfg),
-		Tokens:       NewTokensClient(cfg),
-		User:         NewUserClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		AdminAudit:       NewAdminAuditClient(cfg),
+		AdminUser:        NewAdminUserClient(cfg),
+		Delegation:       NewDelegationClient(cfg),
+		LifecycleErasure: NewLifecycleErasureClient(cfg),
+		PremiumGrant:     NewPremiumGrantClient(cfg),
+		Tokens:           NewTokensClient(cfg),
+		User:             NewUserClient(cfg),
 	}, nil
 }
 
@@ -173,14 +178,15 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		AdminAudit:   NewAdminAuditClient(cfg),
-		AdminUser:    NewAdminUserClient(cfg),
-		Delegation:   NewDelegationClient(cfg),
-		PremiumGrant: NewPremiumGrantClient(cfg),
-		Tokens:       NewTokensClient(cfg),
-		User:         NewUserClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		AdminAudit:       NewAdminAuditClient(cfg),
+		AdminUser:        NewAdminUserClient(cfg),
+		Delegation:       NewDelegationClient(cfg),
+		LifecycleErasure: NewLifecycleErasureClient(cfg),
+		PremiumGrant:     NewPremiumGrantClient(cfg),
+		Tokens:           NewTokensClient(cfg),
+		User:             NewUserClient(cfg),
 	}, nil
 }
 
@@ -210,7 +216,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAudit, c.AdminUser, c.Delegation, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.Delegation, c.LifecycleErasure, c.PremiumGrant,
+		c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -220,7 +227,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAudit, c.AdminUser, c.Delegation, c.PremiumGrant, c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.Delegation, c.LifecycleErasure, c.PremiumGrant,
+		c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -235,6 +243,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AdminUser.mutate(ctx, m)
 	case *DelegationMutation:
 		return c.Delegation.mutate(ctx, m)
+	case *LifecycleErasureMutation:
+		return c.LifecycleErasure.mutate(ctx, m)
 	case *PremiumGrantMutation:
 		return c.PremiumGrant.mutate(ctx, m)
 	case *TokensMutation:
@@ -642,6 +652,139 @@ func (c *DelegationClient) mutate(ctx context.Context, m *DelegationMutation) (V
 		return (&DelegationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Delegation mutation op: %q", m.Op())
+	}
+}
+
+// LifecycleErasureClient is a client for the LifecycleErasure schema.
+type LifecycleErasureClient struct {
+	config
+}
+
+// NewLifecycleErasureClient returns a client for the LifecycleErasure from the given config.
+func NewLifecycleErasureClient(c config) *LifecycleErasureClient {
+	return &LifecycleErasureClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `lifecycleerasure.Hooks(f(g(h())))`.
+func (c *LifecycleErasureClient) Use(hooks ...Hook) {
+	c.hooks.LifecycleErasure = append(c.hooks.LifecycleErasure, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `lifecycleerasure.Intercept(f(g(h())))`.
+func (c *LifecycleErasureClient) Intercept(interceptors ...Interceptor) {
+	c.inters.LifecycleErasure = append(c.inters.LifecycleErasure, interceptors...)
+}
+
+// Create returns a builder for creating a LifecycleErasure entity.
+func (c *LifecycleErasureClient) Create() *LifecycleErasureCreate {
+	mutation := newLifecycleErasureMutation(c.config, OpCreate)
+	return &LifecycleErasureCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of LifecycleErasure entities.
+func (c *LifecycleErasureClient) CreateBulk(builders ...*LifecycleErasureCreate) *LifecycleErasureCreateBulk {
+	return &LifecycleErasureCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *LifecycleErasureClient) MapCreateBulk(slice any, setFunc func(*LifecycleErasureCreate, int)) *LifecycleErasureCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &LifecycleErasureCreateBulk{err: fmt.Errorf("calling to LifecycleErasureClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*LifecycleErasureCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &LifecycleErasureCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for LifecycleErasure.
+func (c *LifecycleErasureClient) Update() *LifecycleErasureUpdate {
+	mutation := newLifecycleErasureMutation(c.config, OpUpdate)
+	return &LifecycleErasureUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LifecycleErasureClient) UpdateOne(_m *LifecycleErasure) *LifecycleErasureUpdateOne {
+	mutation := newLifecycleErasureMutation(c.config, OpUpdateOne, withLifecycleErasure(_m))
+	return &LifecycleErasureUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LifecycleErasureClient) UpdateOneID(id int) *LifecycleErasureUpdateOne {
+	mutation := newLifecycleErasureMutation(c.config, OpUpdateOne, withLifecycleErasureID(id))
+	return &LifecycleErasureUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for LifecycleErasure.
+func (c *LifecycleErasureClient) Delete() *LifecycleErasureDelete {
+	mutation := newLifecycleErasureMutation(c.config, OpDelete)
+	return &LifecycleErasureDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LifecycleErasureClient) DeleteOne(_m *LifecycleErasure) *LifecycleErasureDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LifecycleErasureClient) DeleteOneID(id int) *LifecycleErasureDeleteOne {
+	builder := c.Delete().Where(lifecycleerasure.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LifecycleErasureDeleteOne{builder}
+}
+
+// Query returns a query builder for LifecycleErasure.
+func (c *LifecycleErasureClient) Query() *LifecycleErasureQuery {
+	return &LifecycleErasureQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLifecycleErasure},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a LifecycleErasure entity by its id.
+func (c *LifecycleErasureClient) Get(ctx context.Context, id int) (*LifecycleErasure, error) {
+	return c.Query().Where(lifecycleerasure.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LifecycleErasureClient) GetX(ctx context.Context, id int) *LifecycleErasure {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *LifecycleErasureClient) Hooks() []Hook {
+	return c.hooks.LifecycleErasure
+}
+
+// Interceptors returns the client interceptors.
+func (c *LifecycleErasureClient) Interceptors() []Interceptor {
+	return c.inters.LifecycleErasure
+}
+
+func (c *LifecycleErasureClient) mutate(ctx context.Context, m *LifecycleErasureMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LifecycleErasureCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LifecycleErasureUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LifecycleErasureUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LifecycleErasureDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown LifecycleErasure mutation op: %q", m.Op())
 	}
 }
 
@@ -1112,9 +1255,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAudit, AdminUser, Delegation, PremiumGrant, Tokens, User []ent.Hook
+		AdminAudit, AdminUser, Delegation, LifecycleErasure, PremiumGrant, Tokens,
+		User []ent.Hook
 	}
 	inters struct {
-		AdminAudit, AdminUser, Delegation, PremiumGrant, Tokens, User []ent.Interceptor
+		AdminAudit, AdminUser, Delegation, LifecycleErasure, PremiumGrant, Tokens,
+		User []ent.Interceptor
 	}
 )

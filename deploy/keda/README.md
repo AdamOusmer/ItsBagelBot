@@ -6,10 +6,12 @@ Event-driven autoscaling for `sesame` and `outgress`, which scale on JetStream
 consumer lag rather than CPU. KEDA arrived as a Flux HelmRelease and left with
 Flux (#588); this is the same thing as plain manifests.
 
-- `keda-2.20.2.yaml` — the upstream release manifest, vendored verbatim except
+- `keda-2.20.2.yaml`: the upstream release manifest, vendored verbatim except
   that the three images carry the digests their tags resolved to. Do not edit.
-- `kustomization.yaml` — every local change: placement, priority, HA, resources.
-- `availability.yaml` — one PodDisruptionBudget per component.
+- `kustomization.yaml`: every local change (placement, priority, spread, resources).
+- `availability.yaml`: one PodDisruptionBudget per component.
+- `network-policies.yaml`: default-deny for the `keda` namespace, plus the
+  operator's egress to NATS monitor port 8222.
 
 ```bash
 kubectl apply -f deploy/k8s/priorityclasses.yaml        # bagel-operator, referenced by the pods
@@ -66,10 +68,13 @@ calls its metrics adapter synchronously; since the 2026-08 rebuild
 metrics-server has run unpinned on a worker with `v1beta1.metrics.k8s.io`
 healthy, which is the same hop.
 
-**Availability.** The adapter and the webhook run two replicas, spread one per
-worker, with a PDB apiece: both are stateless and sit in a synchronous
-apiserver path, where a single replica turns a node drain into failing HPA
-reads and rejected `ScaledObject` writes.
+**Availability.** The adapter and the webhook run one replica each (upstream
+default, cut from two on 2026-10-10 to reclaim memory), with a
+`maxUnavailable: 1` PDB apiece so a drain is never blocked. Both sit in a
+synchronous apiserver path: while the adapter reschedules after a drain, HPA
+reads of the external metric fail and the services hold their current replica
+count. The webhooks use `failurePolicy: Ignore`, so a missing webhook pod skips
+validation instead of rejecting `ScaledObject` writes.
 
 The operator runs **one** replica, and that is deliberate. Upstream allows a
 leader-elected standby, but the standby still answers the metrics adapter's
@@ -80,14 +85,14 @@ replica read 6/6 with `ScalingActive=ValidMetricFound`. If you scale it up,
 expect scaling to become unreliable while every pod looks healthy.
 
 **Priority.** `bagel-operator` (600000), below every first-party class: losing
-KEDA degrades a control loop, not a request path — the services it scales keep
-serving at their current replica count — so evicting it to seat a runtime
+KEDA degrades a control loop, not a request path (the services it scales keep
+serving at their current replica count), so evicting it to seat a runtime
 service is the right trade. It still outranks unclassified pods, because a
 scaler that cannot schedule leaves the fleet frozen at its last decision.
 
 **The NATS grant is scoped to the operator pod**, not the namespace: the two
 selectors sit in one `from` element so they AND together. Only `keda-operator`
-scrapes NATS — the adapter asks the operator over gRPC — so nothing else in
+scrapes NATS (the adapter asks the operator over gRPC), so nothing else in
 that namespace inherits a monitor grant.
 
 **`spec.replicas` still lives in the Deployments.** Both services pin

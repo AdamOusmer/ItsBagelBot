@@ -5,7 +5,11 @@ package rpc
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"io"
+	"net"
+	"syscall"
 )
 
 type Code string
@@ -61,7 +65,7 @@ func classify(err error, rules []Rule) Code {
 			return rule.Code
 		}
 	}
-	if timedOut(err) {
+	if transient(err) {
 		return CodeUnavailable
 	}
 	return CodeInternal
@@ -69,4 +73,25 @@ func classify(err error, rules []Rule) Code {
 
 func timedOut(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+func transient(err error) bool {
+	return timedOut(err) || connectionLost(err)
+}
+
+func connectionLost(err error) bool {
+	return errors.Is(err, driver.ErrBadConn) || brokenStream(err) || networkFault(err)
+}
+
+func brokenStream(err error) bool {
+	return errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
+}
+
+func networkFault(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }

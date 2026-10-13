@@ -24,14 +24,14 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: console-dashboard
@@ -74,7 +74,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:sha-9b82e92dfb56@sha256:6cb0e1811cf6735aa1e9b0f24ea359579246946832b70b1b001f6979faebca47
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1791692418-fd9f210b6cd0@sha256:0b674ade1c8b9bdba633fb78934971a1b224d842517b36d60e5be3e8f4d8571c
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -87,6 +87,8 @@ spec:
               value: /etc/nats-client/tls/tls.crt
             - name: NATS_CLIENT_KEY_FILE
               value: /etc/nats-client/tls/tls.key
+            - name: DASHBOARD_LOGIN_SCOPES
+              value: "openid user:read:email channel:bot channel:moderate moderation:read moderator:read:followers user:read:chat user:write:chat channel:read:subscriptions bits:read user:read:moderated_channels clips:edit channel:manage:broadcast channel:edit:commercial channel:manage:redemptions channel:read:ads"
             - name: NODE_ENV
               value: production
             - name: PROTOCOL_HEADER

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"ItsBagelBot/app/projector/hydration"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/testnats"
 	"ItsBagelBot/internal/watchtime"
@@ -110,6 +112,9 @@ func TestStreamEventsBaselineCountersOnlyOnTheGoLiveEdge(t *testing.T) {
 			}
 			_, err := store.SetStreamLive(ctx, broadcasterID, projection.StreamLive{Live: tc.wasLive, Version: 1})
 			require.NoError(t, err)
+			if tc.wasLive {
+				require.NoError(t, store.DiscardStreamBaseline(ctx, broadcasterID, 1))
+			}
 			eventType := map[bool]string{true: "stream.online", false: "stream.offline"}[tc.live]
 
 			err = NewProjector(deps).HandleStreamEvent(message(t, "evt", map[string]any{
@@ -158,4 +163,46 @@ func TestWatchIgnoredDeletionPreservesLiveCounters(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, active)
 	}
+}
+
+func TestStreamBaselineSurvivesLifecycleFailureAndSameVersionRedelivery(t *testing.T) {
+	store := projection.NewStore(testValkey(t))
+	nc := testnats.Connect(t)
+	ctx := t.Context()
+	id := uint64(time.Now().UnixNano())
+	hydrator := hydration.New(store, nc, projection.Subjects{Users: "test.baseline.owner", Modules: "test.baseline.modules", Commands: "test.baseline.commands"}, time.Hour, time.Hour, 1, zap.NewNop())
+	live := newFakeLiveStore()
+	live.totals[id] = map[projection.CounterName]int64{data.CounterMessagesProcessed: 77, data.CounterCommandsAnswered: 8, data.CounterModActionsTaken: 2}
+	runtime := channelruntime.NewClient(store, nc, "test.baseline.unavailable")
+	p := NewProjector(Deps{Runtime: runtime, Store: store, Hydrator: hydrator, Live: live, Log: zap.NewNop()})
+	at := time.Now().UTC().Truncate(time.Millisecond)
+	event := message(t, "online", map[string]any{"type": "stream.online", "event": map[string]string{"broadcaster_user_id": strconv.FormatUint(id, 10)}, "received_at": at.Format(time.RFC3339Nano)})
+	require.Error(t, p.HandleStreamEvent(event))
+	facts, err := store.GetStreamLive(ctx, id)
+	require.NoError(t, err)
+	require.True(t, facts.Live)
+	pending, err := store.StreamBaselinePending(ctx, id, at.UnixMilli())
+	require.NoError(t, err)
+	require.True(t, pending)
+	state := lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: time.Now()}
+	require.NoError(t, store.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 101, StateRevision: 1, Status: "free", IsActive: true, Lifecycle: &state}))
+	require.NoError(t, p.HandleStreamEvent(event))
+	baseline, found, err := store.GetStreamCounterBaseline(ctx, strconv.FormatUint(id, 10))
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, int64(77), baseline.Messages)
+	live.totals[id][data.CounterMessagesProcessed] = 99
+	require.NoError(t, p.HandleStreamEvent(event))
+	baseline, _, err = store.GetStreamCounterBaseline(ctx, strconv.FormatUint(id, 10))
+	require.NoError(t, err)
+	require.Equal(t, int64(77), baseline.Messages, "same-version replay must not reset the baseline")
+	// An offline accepted after a pending online cancels that baseline work.
+	later := at.Add(time.Second)
+	_, err = store.SetStreamLive(ctx, id, projection.StreamLive{Live: false, Version: later.UnixMilli()})
+	require.NoError(t, err)
+	require.NoError(t, p.HandleStreamEvent(event))
+	facts, err = store.GetStreamLive(ctx, id)
+	require.NoError(t, err)
+	require.False(t, facts.Live)
+	require.Equal(t, later.UnixMilli(), facts.Version)
 }

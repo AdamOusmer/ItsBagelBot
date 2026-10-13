@@ -25,6 +25,7 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import {
@@ -40,11 +41,13 @@
   let {
     defs = [],
     keys = [],
+    canManageKeys,
     onInsert,
     onDefsChanged
   }: {
     defs?: SourceDef[];
     keys?: { label: string }[];
+    canManageKeys: boolean;
     onInsert: (token: string) => void;
     onDefsChanged?: (defs: SourceDef[]) => void;
   } = $props();
@@ -331,15 +334,21 @@
       />
     </Field>
 
-    {#if keys.length > 0}
-      <Field label={t('fetches.auth')}>
+    <Field label={t('fetches.auth')}>
+      {#if keys.length === 0}
+        {#if canManageKeys}
+          <Text size="xs" tone="muted">{t('fetches.authEmpty')} <TextLink variant="inline" href="/settings#api-keys" external>{t('fetches.authEmptyCta')}</TextLink></Text>
+        {:else}
+          <Text size="xs" tone="muted">{t('fetches.authEmptyDelegate')}</Text>
+        {/if}
+      {:else}
         <Select
           fill
           bind:value={keyLabel}
           options={[{ value: '', label: t('fetches.authNone') }, ...keys.toSorted((a, b) => a.label.localeCompare(b.label)).map((k) => ({ value: k.label, label: k.label }))]}
         />
-      </Field>
-    {/if}
+      {/if}
+    </Field>
 
     <div class="sample-row">
       <Button variant="secondary" busy={fetching} onclick={fetchSample}>

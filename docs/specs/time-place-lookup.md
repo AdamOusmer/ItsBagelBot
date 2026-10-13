@@ -1,7 +1,7 @@
 # Local Time module: place lookup
 
 Date: 2026-09-18
-Status: Implementation in progress
+Status: Implemented in `pkg/tzname` and `app/twitch/sesame/modules/timeofday.go`, with reply templates in `app/twitch/sesame/engine/time_config.go`.
 
 ## 1. Outcome
 
@@ -18,7 +18,7 @@ The Local Time module (`time`) keeps answering a bare `!time` with **home time**
 | D5 | Lookup works even when the home zone is unset. A bare `!time` with no home zone still answers that the zone is unset. | The two replies are independent: a lookup needs only the place the viewer named, not the channel's own configuration. |
 | D6 | Second reply template `lookupMessage`, default `It is currently {time} in {place}.`, variables `{time} {date} {place} {timezone} {user}`. `{timezone}` is the resolved IANA name, or the offset as typed (`UTC+2`) when the place is an offset. `{place}` is the display label the bot names it by (`Toronto`, `Eastern Time`, `UTC+2`). The home template (`message`, `{time} {date} {timezone} {user}`) is unchanged. | Keeping `{place}` distinct from `{timezone}` lets a broadcaster write a reply that reads naturally ("It is {time} in {place}") without spelling out the raw zone name. |
 | D7 | No broadcaster opt-out toggle for lookup in v1. | Nothing about a curious viewer asking for another city's time needs gating; a toggle can follow if broadcasters ask for one. |
-| D8 | Out of scope for this change: a `{time:<place>}` payload for custom-command variables, a Discord `!time`, and importer mapping of Nightbot/Fossabot `$(time <tz>)`. | Each is a separate surface with its own resolver wiring; bundling them here would block this feature on unrelated decisions. |
+| D8 | Out of scope for this change: a `{time:<place>}` payload for custom-command variables, a Discord `!time`, and importer mapping of other bots' `$(time <tz>)` variables. | Each is a separate surface with its own resolver wiring; bundling them here would block this feature on unrelated decisions. |
 | D9 | Coverage source: the IANA zone list generated from the Go toolchain's zoneinfo.zip ([pkg/tzname/zones_gen.go](../../pkg/tzname/zones_gen.go), golden-tested), plus the curated alias table. No external dataset, no geocoding API. `Etc/*` zones are excluded (their sign is inverted from common use, e.g. `Etc/GMT+5` is five hours *behind* UTC). Link names (`Asia/Calcutta`) are accepted only as full names, never abbreviated further; the segment index (city-name lookup) covers canonical zone names only. Collisions between two canonical zones sharing a city segment (`Asia/Istanbul` vs `Europe/Istanbul`) are resolved by curated entries, and a test asserts zero unresolved collisions. | A dataset or geocoding dependency would need its own update cadence and failure mode; the Go toolchain's own zoneinfo is already vendored and versioned with the build. |
 | D10 | The clock face for a lookup follows the broadcaster's 12/24 `format` setting, same as home time. Both modes share the same 15 second command cooldown. | One clock-format setting per channel, not two; a viewer asking about Tokyo should see the same hour notation the channel already uses. |
 | D11 | Argument normalization: trim, collapse internal whitespace, cap at 64 runes, strip a leading `@` or `#`, strip trailing `?`, `!`, `.`, accent-fold (`São Paulo`, `Montréal`), case-fold, treat `_` as a space. The whole remainder (after normalization) is the place; multi-word places are fine. | Chat input is messy (mentions, punctuation, casing); normalizing once at the front means every matcher downstream sees a clean string. |
@@ -101,5 +101,5 @@ Copy: [locales/en/console/modules/catalog/time.json](../../locales/en/console/mo
 
 - `{time:<place>}` as a custom-command template variable (D8).
 - A Discord `!time` command (D8).
-- Importer mapping of Nightbot/Fossabot `$(time <tz>)` (D8).
+- Importer mapping of other bots' `$(time <tz>)` variables (D8).
 - A broadcaster opt-out toggle for place lookup (D7).

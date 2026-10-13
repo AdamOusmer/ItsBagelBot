@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
@@ -87,6 +88,15 @@ func deadGrantErr() error {
 	return &twitch.TokenError{Status: 400, Body: `{"status":400,"message":"Invalid refresh token"}`}
 }
 
+func storedTokenErr(load twitch.StoredLoad) error {
+	src := twitch.NewStoredUserTokenSource(twitch.ClientCredentials{}, "", twitch.StoredTokenIO{
+		Load:    func(context.Context) twitch.StoredLoad { return load },
+		Persist: func(context.Context, string, string, time.Time) error { return nil },
+	}, twitch.MintLease{})
+	_, err := src.Token(context.Background())
+	return err
+}
+
 func assertWrites(t *testing.T, got, want []manage.GrantState) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -135,6 +145,18 @@ func TestNoteGrantHealth(t *testing.T) {
 			"transport failure does not mark",
 			twitch.IdentityBroadcaster, registered, true,
 			errors.New("dial tcp: i/o timeout"), nil,
+		},
+
+		{
+			"failed token load does not mark",
+			twitch.IdentityBroadcaster, registered, true,
+			storedTokenErr(twitch.StoredLoad{Err: errors.New("tokens get rpc: nats: timeout")}), nil,
+		},
+		{
+			"no stored token marks dead",
+			twitch.IdentityBroadcaster, registered, true,
+			storedTokenErr(twitch.StoredLoad{}),
+			[]manage.GrantState{manage.GrantDead},
 		},
 
 		{
@@ -222,12 +244,38 @@ func TestLiveNotice(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := liveNotice(tc.channel)
+			got, _, ok := liveNotice(tc.channel)
 			if ok != tc.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
 			}
 			if got != tc.want {
 				t.Errorf("notice = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLiveNoticeEpisodeMatchesTriggeringState(t *testing.T) {
+	blockedAt := time.Unix(1700000000, 0)
+	grantAt := time.Unix(1700000500, 0)
+
+	tests := []struct {
+		name    string
+		channel manage.Channel
+		want    time.Time
+	}{
+		{"banned uses BlockedAt", manage.Channel{SubState: subStateBanned, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, blockedAt},
+		{"revoked uses BlockedAt", manage.Channel{SubState: subStateRevoked, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, blockedAt},
+		{"grant dead uses GrantCheckedAt", manage.Channel{SubState: "ok", GrantState: manage.GrantDead, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, grantAt},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, episode, ok := liveNotice(tc.channel)
+			if !ok {
+				t.Fatal("liveNotice() ok = false, want true")
+			}
+			if !episode.Equal(tc.want) {
+				t.Errorf("episode = %v, want %v", episode, tc.want)
 			}
 		})
 	}

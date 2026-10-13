@@ -2,121 +2,108 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Hardware & cluster
-description: ARM nodes, K3s orchestration, resource limits, and how the cluster is shaped.
+description: The control-plane and worker nodes, K3s orchestration, priority classes, and how the cluster is shaped.
 ---
 
-The cluster is intentionally small, intentionally ARM, and intentionally self-hosted. This page documents the physical
-layout, the Kubernetes distribution choice, and the resource model every workload inherits.
+The cluster is intentionally small and self-hosted. This page documents the physical
+layout, the Kubernetes distribution choice, and the scheduling model every workload inherits.
 
 ## Physical layout
 
-All nodes are mixed-architecture: **`node1`** is **ARM** (aarch64) and **`node2`** is **Intel** (x86_64). All workloads are scheduled across both nodes for high availability (HA); each node runs the image built natively for its architecture.
+The cluster has one control-plane node and a pool of worker nodes.
 
-Pod and Service traffic uses K3s native WireGuard over direct node endpoints.
-Tailscale is reserved for SSH and explicit private routes: Kubernetes
-management, private admin ingress, and the external database. NATS, Valkey,
-RPC, streams, telemetry, and autoscaling stay on the native pod network.
+- **`cp1`** is a 2-core ARM node that runs the K3s server. It is tainted, so first-party
+  workloads do not schedule on it. Node labels use the key `role`, and `cp1` carries `role=cp`.
+- **Workers** carry `role=node` and run every workload. NATS runs one member per worker
+  (three), and most services run three replicas spread across them.
+  Manifests exclude any node whose `role` is `cp` or `worker` from the production services
+  (`deploy/k8s/*.yaml`, `affinity` blocks).
+
+Workloads select nodes by `role`, never by hostname (`deploy/k8s/workloads_test.go`,
+`TestNoWorkloadSelectsNodesByHostname`).
+
+Images are built natively for both Intel and ARM on GitHub runners
+(`.github/workflows/publish-images.yml`), so each node runs the image for its own architecture.
+
+Pod and Service networking runs on Cilium in native routing mode with kube-proxy replacement
+(`deploy/cilium/values.yaml`). Tailscale is reserved for private access: the Kubernetes API
+server address in the Cilium values is a tailnet address, and the `tailscale` namespace
+carries the private proxies. NATS, Valkey, RPC and telemetry stay on the pod network.
 See [Networking →](/infrastructure/networking/).
 
 ## Kubernetes distribution: K3s
 
 We run [K3s](https://k3s.io/) rather than upstream Kubernetes. Reasons:
 
-- **Single-binary install.** Bootstrap on a fresh ARM node is one shell command; rebuilding a node from scratch is a
-  documented, ~15-minute operation.
-- **Lightweight resource footprint.** The K3s server process holds the control-plane in ~512 MB resident; upstream
-  Kubernetes would consume a meaningful fraction of a node before any workload runs.
-- **SQLite-backed datastore** (we don't run HA control-plane; a single server is acceptable for a single-streamer
-  workload). If we ever grow to multi-control-plane, the migration to embedded etcd is a documented K3s path.
-- **Sensible defaults stripped out.** We disable Traefik (we use Cloudflare Tunnel instead, so cluster ingress is
-  irrelevant) and ServiceLB (Tailscale is our LB-by-identity).
+- **Single-binary install.** Bootstrapping a node is one command.
+- **Lightweight footprint.** The control plane is small enough to share a 2-core node.
+- **SQLite-backed datastore.** The control plane is a single server, not an HA control plane.
+  The datastore is the K3s SQLite database (kine), and `deploy/k8s/backup-k3s.yaml` snapshots it
+  with `sqlite3 .backup`, verifies it, and ships it off the cluster.
 
-K3s flags of note (`/etc/rancher/k3s/config.yaml`):
+## Scheduling model
 
-```yaml
-disable:
-  - traefik
-  - servicelb
-flannel-backend: wireguard-native
-flannel-external-ip: true
-disable-network-policy: false
-write-kubeconfig-mode: "0640"
-node-label:
-  - "node.bagelbot.io/role=worker"
-```
+Every first-party Deployment declares requests and limits in its manifest, and every
+first-party pod carries one of four priority classes (`deploy/k8s/priorityclasses.yaml`):
 
-A node-local kubeconfig is restricted to the operator group (group `bagelbot`); the kubeconfig distributed to operator
-devices binds to the Tailscale interface address of the server, not the LAN address.
+| Priority class | Value | Used by |
+|---|---|---|
+| `bagel-data-plane` | 900000 | Valkey and NATS |
+| `bagel-service` | 800000 | twitch-ingress, sesame, outgress, projector, gossip, and the database-backed services |
+| `bagel-edge` | 700000 | The dashboard and admin consoles |
+| `bagel-operator` | 600000 | Cluster tooling such as KEDA and the deployer |
 
-## Resource model
+The order is deliberate: services depend on the data plane, so the data plane is evicted last.
+A console that is briefly unschedulable costs an operator a page refresh, while evicting a
+runtime service drops live chat traffic.
 
-Every workload **must** declare requests and limits. This is enforced by a `LimitRange` per namespace and an admission
-policy that rejects pod specs missing CPU or memory limits.
+OOM-kills are treated as a load signal, not as failures: the response is to raise the limit of
+the service that was killed, not to add slack everywhere.
 
-### Defaults
+### Namespaces
 
-```yaml
-# applied to any container that doesn't specify
-resources:
-  requests:
-    cpu: "100m"
-    memory: "64Mi"
-  limits:
-    cpu: "500m"
-    memory: "256Mi"
-```
+| Namespace | Contents |
+|---|---|
+| `app` | twitch-ingress, sesame, outgress, the Discord services, gossip, the consoles |
+| `db` | The database-backed services (users, commands, modules, loyalty, transactions, notifications, discord-data), the projector, and the backup jobs |
+| `cache` | Valkey with Sentinel |
+| `messaging` | NATS hubs and leaf nodes |
+| `ops` | The deployer |
+| `operators` | cloudflared and the Doppler operator |
+| `networking` | Traefik |
+| `tailscale`, `keda`, `observability` | Tailscale proxies, KEDA, and the New Relic agents |
 
-These are **starting points**, not targets — services are expected to set their own values based on measured load.
+## Spreading and placement
 
-### Why we limit aggressively
+- **Hard spread.** Multi-replica services use a `kubernetes.io/hostname` topology spread with
+  `DoNotSchedule`, scoped by `pod-template-hash`, and no `minDomains`. Both choices come from
+  incidents recorded in `TestSpreadIsHardWithoutMinDomains`.
+- **NATS and Valkey** run as StatefulSets with required anti-affinity, so a node loss costs one
+  member and never the quorum (`deploy/messaging/nats.yaml`, `deploy/cache/valkey.yaml`).
+- **cloudflared** runs as a DaemonSet on every non-control-plane node
+  (`deploy/operators/cloudflared.yaml`), so the loss of a node does not sever public ingress.
+- **Pinned volumes** are avoided. A local-path volume strands its pod when the node dies, so
+  stateful members rebuild from replication instead.
 
-Native binaries make tight limits realistic ([ADR-0002](/adr/0002-native-compilation/)). A Go service handling a normal
-Twitch event stream sits comfortably under 50 MB resident; the GraalVM-compiled Kotlin service sits under 150 MB.
-Generous defaults would waste a meaningful fraction of an 8 GB node.
+## What does not run on this cluster
 
-OOM-kills are treated as a load signal, not as failures: if a service is OOM-killed during a hype train, the response is
-to raise its limit, not to add slack everywhere.
-
-### Class of workload → namespace
-
-| Namespace         | Class                                                            | QoS expectation                                  |
-|-------------------|------------------------------------------------------------------|--------------------------------------------------|
-| `bagelbot-system` | Cluster services (cloudflared, tailscale-operator, cert-manager) | Guaranteed; never evicted.                       |
-| `bagelbot-data`   | Stateful (Postgres, Redis)                                       | Guaranteed; pinned to nodes with local SSD.      |
-| `bagelbot-app`    | The bot services themselves                                      | Burstable; can be evicted under memory pressure. |
-| `bagelbot-build`  | Image builds and one-shot jobs                                   | Best-effort; preempted readily.                  |
-
-Pod priority classes line up with the QoS expectation — system pods are `system-cluster-critical`, data pods are a
-custom `bagelbot-data-critical`, app pods are default.
-
-## Node selection & tolerations
-
-- **Storage workloads** (Postgres, Redis persistence) carry a `nodeSelector` requiring `node.bagelbot.io/storage=true`.
-  This is set on nodes with attached SSD.
-- **The cloudflared deployment** carries an anti-affinity rule to spread replicas across nodes; a single-node outage
-  shouldn't sever public ingress.
-- **GPU / acceleration:** none in the current fleet. If we add a node with a Coral or similar later, it'll get its own
-  taint and an explicit toleration on the workloads that use it.
-
-## What does *not* run on this cluster
-
-- **CI builds.** GitHub Actions runs build jobs on hosted ARM runners; the cluster only pulls.
-  See [CI/CD →](/infrastructure/cicd-pipeline/).
-- **Long-term backups.** Snapshots are pushed off-cluster to [TBD: backup target — e.g., Backblaze B2 via restic]. The
-  cluster is treated as ephemeral compute; only data volumes are sacred.
-- **Logging/observability storage.** Logs and metrics are shipped
-  to [TBD: external Grafana Cloud / self-hosted off-cluster]. Keeping observability *off* the cluster means we can still
-  debug a cluster outage.
+- **CI builds.** GitHub Actions builds the images and pushes them to GHCR. The cluster only
+  pulls. See [Getting started](/guides/getting-started/) for the local workflow.
+- **The relational database.** MySQL HeatWave is a managed service
+  ([ADR 0005](/adr/0005-adoption-of-mysql-heatwave/)). The `backup-mysql` job in the `db`
+  namespace dumps it every six hours to object storage.
+- **Observability storage.** Logs and metrics ship to New Relic
+  ([ADR 0010](/adr/0010-adoption-of-new-relic-for-observability/)), so a cluster outage stays debuggable.
 
 ## Capacity headroom
 
-The cluster targets **~50% steady-state utilization** so that a hype-train burst or a single-node failure doesn't
-immediately cause evictions. If sustained utilization climbs above ~65%, the response is to add a node, not to tune
-limits down.
+Expansion decisions follow the gates in the
+[performance roadmap](/infrastructure/performance-roadmap/): no new server, sharding or
+replacement until the verified operating envelope exceeds 70% for 15 minutes or a latency
+objective fails after tuning.
 
 ## Where to next
 
-- **[Networking →](/infrastructure/networking/)** — Tailscale mesh and Cloudflare Tunnel details.
-- **[CI/CD pipeline →](/infrastructure/cicd-pipeline/)** — how images get from a `git push` onto these nodes.
-- **[ADR-0001 →](/adr/0001-zero-trust-network/)** — the Zero-Trust networking decision.
-- **[ADR-0002 →](/adr/0002-native-compilation/)** — why native binaries shape the resource model.
+- **[Networking →](/infrastructure/networking/)**: Cilium, Tailscale and Cloudflare Tunnel details.
+- **[ADR 0004 →](/adr/0004-adoption-of-oracle-cloud/)**: the hosting decision.
+- **[ADR 0002 →](/adr/0002-adoption-of-go-as-primary-service-language/)**: why Go services shape the resource model.

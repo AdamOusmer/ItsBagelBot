@@ -39,6 +39,7 @@ type ChannelCreate struct {
 	Type                 int                   `json:"type"`
 	Topic                string                `json:"topic,omitempty"`
 	ParentID             string                `json:"parent_id,omitempty"`
+	UserLimit            int                   `json:"user_limit,omitempty"`
 	PermissionOverwrites []PermissionOverwrite `json:"permission_overwrites,omitempty"`
 }
 
@@ -321,7 +322,7 @@ func (c *Client) MoveMember(ctx context.Context, move VoiceMove) error {
 type ChannelPatch struct {
 	ID                   string
 	Name                 string
-	UserLimit            int
+	UserLimit            *int
 	PermissionOverwrites []PermissionOverwrite
 	ParentID             *string
 }
@@ -331,8 +332,8 @@ func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
 	if patch.Name != "" {
 		body["name"] = patch.Name
 	}
-	if patch.UserLimit > 0 {
-		body["user_limit"] = patch.UserLimit
+	if patch.UserLimit != nil {
+		body["user_limit"] = *patch.UserLimit
 	}
 	if patch.PermissionOverwrites != nil {
 		body["permission_overwrites"] = patch.PermissionOverwrites

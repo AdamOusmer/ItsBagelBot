@@ -89,6 +89,17 @@ describe('options() credential wiring', () => {
   });
 });
 
+describe('options() server pool order', () => {
+  test.each([
+    ['rpc', true, false],
+    ['bus', false, true]
+  ] as const)('%s plane', (role, noRandomize, ignoreClusterUpdates) => {
+    const opts = options(role);
+    expect(opts.noRandomize).toBe(noRandomize);
+    expect(opts.ignoreClusterUpdates).toBe(ignoreClusterUpdates);
+  });
+});
+
 describe('local leaf failback probe', () => {
   const server = Bun.serve({
     port: 0,

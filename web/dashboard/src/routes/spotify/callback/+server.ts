@@ -11,10 +11,11 @@ import { SPOTIFY_STATE_COOKIE, requireSongqueueActor, songqueueFail } from '$lib
 interface SpotifyGrantReply {
   refreshToken?: string;
   scopes: string[];
+  warning?: string;
 }
 
 async function exchangeCode(uid: string, code: string): Promise<SpotifyGrantReply> {
-  let reply: { refresh_token?: string; scopes?: string[]; error?: string };
+  let reply: { refresh_token?: string; scopes?: string[]; warning?: string; error?: string };
   try {
     reply = await rpc(
       `${SUB.gossip}.spotify.exchange`,
@@ -31,7 +32,8 @@ async function exchangeCode(uid: string, code: string): Promise<SpotifyGrantRepl
   }
   return {
     refreshToken: reply.refresh_token || undefined,
-    scopes: Array.isArray(reply.scopes) ? reply.scopes : []
+    scopes: Array.isArray(reply.scopes) ? reply.scopes : [],
+    warning: reply.warning || undefined
   };
 }
 
@@ -79,6 +81,10 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const storedState = cookies.get(SPOTIFY_STATE_COOKIE);
   cookies.delete(SPOTIFY_STATE_COOKIE, { path: '/' });
 
+  const error = url.searchParams.get('error');
+  if (error === 'access_denied') songqueueFail('declined');
+  if (error) songqueueFail('oauth');
+
   const accepted = verifiedCode(code, state, storedState);
   if (!accepted) songqueueFail('state');
 
@@ -87,5 +93,5 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   else await requireStoredToken(uid);
 
   auditDashboardImpersonation(locals.session, 'spotify:connect', '');
-  throw redirect(302, '/songqueue?connected=1');
+  throw redirect(302, grant.warning ? `/songqueue?connected=1&w=${encodeURIComponent(grant.warning)}` : '/songqueue?connected=1');
 };

@@ -90,14 +90,8 @@ data:
     rclone copy /work "r2:${R2_BUCKET}/k3s/daily/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    if [ "$(date -u +%d)" = "01" ]; then
-      rclone copy /work "r2:${R2_BUCKET}/k3s/monthly/" \
-        --include "*.enc" --include "*.sha256" --stats-one-line
-    fi
-
-    # Retention lives in R2 lifecycle rules on k3s/daily and k3s/monthly, same
-    # rationale as the MySQL job: rules keep pruning when this job is broken or
-    # deleted, and the job never needs a delete on the happy path.
+    # Retention lives in the R2 lifecycle rule on k3s/daily (30d), same as the
+    # MySQL job. It holds the token keyset, so it never outlives MySQL dumps.
     rclone lsf "r2:${R2_BUCKET}/k3s/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
 ---
 apiVersion: batch/v1

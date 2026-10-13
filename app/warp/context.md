@@ -25,7 +25,7 @@ See the [shared vocabulary](../../CONTEXT.md) and [context map](../../CONTEXT-MA
 
 - Keep the listener on pod loopback; Gossip routes pinned, locally validated destination IPs through it. The proxy itself is not a substitute for the application's destination checks.
 - Preserve proxy mode and the deployment's restricted capabilities. A dead WARP route must not silently switch untrusted fetches to direct cluster egress.
-- Do not remove package dependencies such as `gnupg` through cleanup/autoremove; the Containerfile explains how doing so can uninstall WARP itself.
+- Do not add package cleanup/autoremove steps to the Containerfile without checking that `warp-cli --version` still passes; the install keeps `gnupg` and `curl` in the image.
 - The package channel is resolved at build time; the deployed image digest controls rollout. Check the manifest rather than guessing the live vendor version from this source.
 - Listener reachability proves a bound socket, not a healthy external tunnel. Memory conclusions require same-process observations over time; a restart resetting RSS is not proof of a leak fix.
 

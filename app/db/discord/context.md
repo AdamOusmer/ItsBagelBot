@@ -6,8 +6,9 @@ Agent guide for `app/db/discord` (runtime name `discord-data`). See the
 ## Responsibility and boundaries
 
 Owns durable guild-to-broadcaster bindings, per-guild settings, member XP, ticket
-lifecycle rows and transcripts in `bagel_discord`. This is an RPC-only data
-service: no gateway connection, Discord REST calls or JetStream event consumers.
+lifecycle rows and transcripts in `bagel_discord`. This is an RPC data service
+with one JetStream consumer, `data.users.deleted`; it has no gateway connection
+or Discord REST calls.
 Discord Engine and Outgress use [internal/discordstore](../../../internal/discordstore/)
 to reach it; their Valkey caches and cooldowns remain outside this service.
 
@@ -32,13 +33,14 @@ to reach it; their Valkey caches and cooldowns remain outside this service.
 
 | File | Role |
 | --- | --- |
-| [main.go](main.go) | Driver → migration → RPC → health wiring; RPC endpoint resolution. |
+| [main.go](main.go) | Driver → migration → deletion consumer → RPC → health wiring; RPC endpoint resolution. |
 | [repository/repository.go](repository/repository.go) | Store, domain errors, dialect-dependent row locks and transaction helper. |
 | [repository/binding.go](repository/binding.go) | Bind, guarded unbind, lookup and multi-guild broadcaster listing. |
 | [repository/config.go](repository/config.go) | Ownership verification and conditional versioned settings writes. |
 | [repository/xp.go](repository/xp.go) | XP addition, level derivation, daily cooldown and leaderboard. |
 | [repository/ticket.go](repository/ticket.go) | Open/claim/close transitions, live counts and cursor paging. |
 | [repository/transcript.go](repository/transcript.go) | Transcript persistence/readback. |
+| [repository/erase.go](repository/erase.go) | Account-deletion erasure of a broadcaster's bindings and configs. |
 | [rpc/rpc.go](rpc/rpc.go) | Consumer-side interfaces, wiring, common request budget and error mapping. |
 | [rpc/binding.go](rpc/binding.go), [config.go](rpc/config.go), [xp.go](rpc/xp.go), [ticket.go](rpc/ticket.go) | Wire validation and response views for each feature. |
 | [ent/schema/](ent/schema/) | Five entities and their durable uniqueness/index constraints. |
@@ -57,8 +59,11 @@ Edit schemas rather than generated Ent clients.
 - Per-guild settings moved out of the broadcaster-keyed Discord module blob.
   The Modules service retains the channel master switch; this service owns guild
   channels, roles and feature settings.
-- Health checks the SQL pool and RPC connection. No BUS identity or event lane
-  should be introduced by substituting `svcboot.MustNATS` for the RPC-only boot.
+- `data.users.deleted` erases the account's bindings and configs through the
+  `discord-data` durable. The `discord_data_bus` role consumes BAGEL_DATA and
+  dead-letters that subject only, so keep the subscriber-only boot rather than
+  `svcboot.MustNATS`.
+- Health checks the SQL pool, RPC connection and the data lane.
 
 ## Invariants and pitfalls
 
@@ -69,6 +74,8 @@ Edit schemas rather than generated Ent clients.
 - Config writes verify binding ownership before version details. Expected version
   zero means no existing row; first save becomes 1. Stale or racing saves conflict.
   Keep the conditional `UPDATE ... WHERE version = expected`, not read-then-write.
+- `rpc/config.go` rejects a config save with an invalid snowflake, toggle, range or
+  voice-text field, and caps the ignored-channel list at `LogIgnoredChannelsMax`.
 - XP totals and levels are durable; per-message earning cooldown remains Valkey
   state elsewhere. Derive levels with the existing domain curve on writes.
 - Ticket channel ID is globally unique and history outlives its Discord channel.
@@ -77,6 +84,10 @@ Edit schemas rather than generated Ent clients.
   opens can race when there are no existing rows to lock. `ticket.go` documents it.
 - Transcript RPC caps body size at 2 MiB. The same-schema Ent edge cascades the
   transcript when its ticket is deleted. SQLite tests do not exercise MySQL locks.
+- Erasure deletes only rows whose `updated_at` is not after the event's
+  `deleted_at` (plus clock slack), so a redelivered event cannot remove a
+  re-registered account's newer bindings. XP, tickets and transcripts are
+  guild-keyed and are not erased with the owner.
 - Keep `ent/runtime` in boot so field defaults/hooks initialize.
 
 ## Focused checks

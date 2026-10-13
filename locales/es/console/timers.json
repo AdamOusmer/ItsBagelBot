@@ -20,7 +20,7 @@
   "toggleAria": "Pausar o reanudar el temporizador: {name}",
   "deleteAria": "Eliminar el temporizador: {name}",
   "fieldMessage": "Mensaje",
-  "fieldMessagePh": "p. ej., Sígueme en redes: {link}",
+  "fieldMessagePh": "p. ej., Sígueme para saber cuándo estoy en directo.",
   "fieldInterval": "Repetir cada",
   "fieldIntervalHint": "Mínimo 1 minuto, máximo 24 horas.",
   "unitMinutes": "minutos",

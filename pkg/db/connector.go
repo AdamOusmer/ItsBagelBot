@@ -25,23 +25,32 @@ type timedConnector struct {
 
 func (c timedConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	segment := startConnectSegment(ctx)
+	budget := connectBudget(ctx)
 	started := time.Now()
 
 	conn, err := c.Connector.Connect(ctx)
 
 	endConnectSegment(segment)
-	c.logConnect(time.Since(started), err)
+	c.logConnect(time.Since(started), budget, err)
 	return conn, err
 }
 
-func (c timedConnector) logConnect(elapsed time.Duration, err error) {
+func (c timedConnector) logConnect(elapsed time.Duration, budget zap.Field, err error) {
 	if err != nil {
 		zap.L().Warn("db: connect failed",
-			zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), zap.Error(err))
+			zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget, zap.Error(err))
 		return
 	}
 	zap.L().Info("db: opened connection",
-		zap.String("addr", c.addr), zap.Duration("elapsed", elapsed))
+		zap.String("addr", c.addr), zap.Duration("elapsed", elapsed), budget)
+}
+
+func connectBudget(ctx context.Context) zap.Field {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return zap.Bool("no_deadline", true)
+	}
+	return zap.Duration("budget", time.Until(deadline))
 }
 
 func startConnectSegment(ctx context.Context) *newrelic.Segment {

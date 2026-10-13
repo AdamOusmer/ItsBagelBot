@@ -1,0 +1,42 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+resources:
+  - descheduler-v0.36.0.yaml
+  - policy.yaml
+patches:
+  - target: {kind: CronJob, name: descheduler-cronjob, namespace: kube-system}
+    patch: |
+      - op: replace
+        path: /spec/schedule
+        value: "*/20 * * * *"
+      - op: add
+        path: /spec/successfulJobsHistoryLimit
+        value: 1
+      - op: add
+        path: /spec/failedJobsHistoryLimit
+        value: 3
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/nodeSelector
+        value: {role: node}
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/priorityClassName
+        value: bagel-operator
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {cpu: 500m, memory: 256Mi}
+  # Upstream Role/RoleBinding grant kube-system secrets read; nothing here needs it.
+  - patch: |
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata: {name: descheduler-role}
+  - patch: |
+      $patch: delete
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata: {name: descheduler-role-binding}

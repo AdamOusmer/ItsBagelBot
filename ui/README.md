@@ -13,19 +13,20 @@ is split up. Nothing in here knows anything about the bot.
 
 ```
 fonts/     self-hosted latin woff2
-styles/    layers.css, brand.css, card-atmosphere.css, elements/*.css
+styles/    layers.css, brand.css, semantic.css, a11y.css, card-atmosphere.css, elements/*.css, …
 lib/       framework-free browser engines (cursor-engine, light-field, reveal, …)
 svelte/    Svelte adapters, plus `use:` actions over the lib/ engines
 astro/     Astro adapters
-scripts/   assert-framework-free.mjs, size.ts
-test/      parity.test.ts
+locales/   default strings per language (generated index.ts)
+scripts/   assert-*.mjs gates, gen-catalog.mjs, gen-locales.mjs, size.ts
+test/      parity.test.ts, golden fixtures, engine and adapter tests
 ```
 
 `lib/` and `styles/` are the domain half: no `svelte`, no `$app/*`, no
 `astro:*`, no `node:*` builtin. `svelte/` and `astro/` are adapters and exist
 precisely to import their framework. `ui/scripts/assert-framework-free.mjs`
 fails the check if that is violated, or if anything in the package imports
-`@bagel/kit` — the dependency direction is `ui -> nothing internal`,
+`@bagel/kit`. The dependency direction is `ui -> nothing internal`,
 `kit -> ui`.
 
 ## Consuming it
@@ -135,11 +136,11 @@ props and whether it ships one adapter or both (`stable` or `svelte-only`).
 ```bash
 cd ui
 bun install --frozen-lockfile
-bun run check   # tsc --noEmit + assert-framework-free.mjs
-bun run test    # parity test + per-entry gzip budgets
+bun run check   # tsc, svelte-check, assert-*.mjs gates, generated locale and catalog freshness
+bun run test    # bun test (parity, golden, engines) + per-entry gzip budgets
 ```
 
-`svelte-check` runs as part of `check`, from the first adapter pair onwards.
+`svelte-check` runs as part of `check`.
 Two things about it are worth knowing before you trust its output:
 
 - it needs a `svelte.config.js` to exist at all, even an empty default export;
@@ -153,5 +154,5 @@ The Astro adapters have no standalone type check here either; the marketing
 build is their gate. The parity test does render them: `test/loaders.ts`
 compiles `.astro` through `@astrojs/compiler` and `.svelte` through
 `svelte/compiler` for `bun test`, which is why `astro` is a devDependency. It
-never reaches a console image — the Containerfiles install this package with
+never reaches a console image: the Containerfiles install this package with
 `--production`, which leaves only `lenis`.

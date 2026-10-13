@@ -158,25 +158,31 @@ func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 func TestAppEgressAllowlists(t *testing.T) {
 	tests := []struct {
 		name      string
+		path      string
 		policy    string
 		wantApps  []string
 		wantCIDRs []string
 	}{
 		{
-			name: "TestPublicHTTPSEgressAllowlist", policy: "allow-public-https",
+			name: "TestPublicHTTPSEgressAllowlist", path: appPolicies, policy: "allow-public-https",
 			wantApps: sorted("commands", "console-admin", "console-dashboard", "discord-ingress", "discord-outgress", "gossip", "loyalty", "modules",
 				"notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users"),
 		},
 		{
-			name: "TestHeatWaveEgressAllowlist", policy: "allow-heatwave",
+			name: "TestHeatWaveEgressAllowlist", path: appPolicies, policy: "allow-heatwave",
 			wantApps:  sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users"),
 			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
 		},
+		{
+			name: "TestDBHeatWaveEgressAllowlist", path: dbPolicies, policy: "allow-heatwave",
+			wantApps: sorted("backup-mysql", "commands", "discord-data", "loyalty", "modules",
+				"notifications", "transactions", "users"),
+			wantCIDRs: sorted("10.0.0.0/16", "204.216.107.73/32"),
+		},
 	}
-	policies := loadNetworkPolicies(t, appPolicies)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := requirePolicy(t, policies, tc.policy)
+			policy := requirePolicy(t, loadNetworkPolicies(t, tc.path), tc.policy)
 
 			assert.Equal(t, tc.wantApps, policy.selectedApps(t))
 			if tc.wantCIDRs == nil {

@@ -29,13 +29,11 @@ func onMemberAdd(_ context.Context, c *module.Context, emit module.Emit) error {
 	}
 	autorole(c, ev, emit)
 	if !shouldWelcome(c.Config) {
-		logJoin(c, ev, emit)
 		return nil
 	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
 	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID),
 		ddiscord.WelcomeEmbed(ddiscord.WelcomeCard{Display: shown, AvatarURL: decode.AvatarURL(ev.User)})))
-	logJoin(c, ev, emit)
 	return nil
 }
 
@@ -65,7 +63,7 @@ func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) erro
 	if shouldGoodbye(c.Config) {
 		emit(cmd.PostChat(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID), ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown})))
 	}
-	return logLine(c, emit, logEntry{Title: "Member left", Body: shown + " (" + ev.User.ID + ")"})
+	return nil
 }
 
 func shouldGoodbye(cfg ddiscord.Config) bool {
@@ -73,26 +71,4 @@ func shouldGoodbye(cfg ddiscord.Config) bool {
 		return false
 	}
 	return cfg.WelcomeChannelID != ""
-}
-
-func logJoin(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
-	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
-	_ = logLine(c, emit, logEntry{Title: "Member joined", Body: shown + " (" + ev.User.ID + ")"})
-}
-
-type logEntry struct {
-	Title string
-	Body  string
-}
-
-func logLine(c *module.Context, emit module.Emit, entry logEntry) error {
-	if !c.Config.LogsOn() {
-		return nil
-	}
-	if c.Config.LogChannelID == "" {
-		return nil
-	}
-	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, c.Config.LogChannelID),
-		ddiscord.LogEmbed(ddiscord.LogLine{Title: entry.Title, Body: entry.Body})))
-	return nil
 }

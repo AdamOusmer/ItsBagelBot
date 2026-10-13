@@ -18,6 +18,8 @@ type Tx struct {
 	AdminUser *AdminUserClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
+	LifecycleErasure *LifecycleErasureClient
 	// PremiumGrant is the client for interacting with the PremiumGrant builders.
 	PremiumGrant *PremiumGrantClient
 	// Tokens is the client for interacting with the Tokens builders.
@@ -158,6 +160,7 @@ func (tx *Tx) init() {
 	tx.AdminAudit = NewAdminAuditClient(tx.config)
 	tx.AdminUser = NewAdminUserClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
+	tx.LifecycleErasure = NewLifecycleErasureClient(tx.config)
 	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)

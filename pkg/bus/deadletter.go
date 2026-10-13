@@ -37,12 +37,25 @@ func deadLettersStream(stream string) bool {
 }
 
 func (s *concurrentDurableSubscriber) terminate(msg *nats.Msg, reason string) {
+	if reason == deadLetterMaxDeliveries {
+		s.logMaxDeliveries(msg)
+	}
 	if deadLettersStream(s.stream) && s.js != nil {
 		s.deadLetter(msg, reason)
 	}
 	if err := msg.Term(); err != nil {
 		s.log.Warn("durable message TERM failed", zap.String("subject", msg.Subject), zap.Error(err))
 	}
+}
+
+func (s *concurrentDurableSubscriber) logMaxDeliveries(msg *nats.Msg) {
+	var deliveries uint64
+	if meta, err := msg.Metadata(); err == nil {
+		deliveries = meta.NumDelivered
+	}
+	s.log.Warn("message terminated after max deliveries",
+		zap.String("subject", msg.Subject), zap.String("stream", s.stream),
+		zap.String("consumer", s.consumer), zap.Uint64("deliveries", deliveries))
 }
 
 func (s *concurrentDurableSubscriber) deadLetter(msg *nats.Msg, reason string) {

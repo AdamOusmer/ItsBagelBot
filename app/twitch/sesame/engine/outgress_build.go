@@ -4,10 +4,24 @@
 package engine
 
 import (
+	"context"
+	"strconv"
+
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 )
+
+type AnnouncementConfig struct {
+	Runtime                 channelruntime.Reader
+	OutgressPremiumSubject  string
+	OutgressStandardSubject string
+	Pub                     bus.Publisher
+	Proj                    projection.Reader
+}
 
 type banData struct {
 	UserID   string `json:"user_id"`
@@ -15,10 +29,22 @@ type banData struct {
 	Reason   string `json:"reason,omitempty"`
 }
 
-func buildOutgress(o *module.Output) ([]byte, error) {
+func buildOutgress(ctx context.Context, runtime channelruntime.Reader, o *module.Output) ([]byte, error) {
 	msg, err := buildOutgressMessage(o)
 	if err != nil {
 		return nil, err
+	}
+	if runtime != nil {
+		id, err := strconv.ParseUint(o.BroadcasterID, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		admission, err := runtime.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		msg.AccountCreatedAt = admission.AccountCreatedAt
+		msg.AdmissionGeneration = admission.State.AdmissionGeneration
 	}
 	return codec.Marshal(&msg)
 }

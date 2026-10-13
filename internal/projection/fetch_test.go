@@ -6,7 +6,6 @@ package projection
 import (
 	"context"
 	"testing"
-	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 
@@ -176,22 +175,19 @@ func TestLegacyFetchProjectedFieldDecaysHarmlessly(t *testing.T) {
 func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
-	client, evict := invalidatedClient(t, store)
+	client, _ := invalidatedClient(t, store)
 
 	_, found, err := client.FetchDefs(ctx, 46, "late")
-	require.NoError(t, err)
+	require.Error(t, err, "an unprojected row with no RPC reachable is a retryable failure")
 	assert.False(t, found)
 
 	require.NoError(t, store.SetFetches(ctx, 46, []FetchView{
 		{Name: "late", URL: "https://late.example", KeyLabel: "k", IsActive: true},
 	}))
-	evict("fetches", 46, "late")
-	var view FetchView
-	require.Eventually(t, func() bool {
-		var ok bool
-		view, ok, err = client.FetchDefs(ctx, 46, "Late")
-		return err == nil && ok
-	}, 2*time.Second, 5*time.Millisecond, "an invalidated negative entry is refilled from the projection")
+
+	view, found, err := client.FetchDefs(ctx, 46, "Late")
+	require.NoError(t, err)
+	require.True(t, found, "tier-2 hit once the section is projected")
 	assert.Equal(t, "https://late.example", view.URL)
 	assert.Equal(t, "k", view.KeyLabel, "label projects; key material never does")
 

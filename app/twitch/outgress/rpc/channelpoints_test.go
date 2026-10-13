@@ -22,6 +22,7 @@ func TestChannelPointsFailWireShape(t *testing.T) {
 		wire map[string]bool
 	}{
 		"duplicate title": {fmt.Errorf("create: %w", twitch.ErrDuplicateReward), map[string]bool{`"error":"`: true, `"code":"conflict"`: true, "missing_scope": false}},
+		"not affiliate":   {fmt.Errorf("create: %w", twitch.ErrNotAffiliate), map[string]bool{`"code":"forbidden"`: true, `"not_affiliate":true`: true, "missing_scope": false}},
 		"missing scope":   {twitch.ErrMissingScope, map[string]bool{`"error":"`: true, `"code":"forbidden"`: true, `"missing_scope":true`: true}},
 		"other":           {&twitch.StatusError{Status: 500, Op: "POST", Body: "boom"}, map[string]bool{`"error":"`: true, `"code":"internal"`: true, "missing_scope": false}},
 	}

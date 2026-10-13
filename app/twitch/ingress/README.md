@@ -3,16 +3,16 @@
 # Twitch Ingress
 
 Elixir/BEAM service that owns the Twitch EventSub **Conduit** and its WebSocket shards, filters incoming payloads,
-and forwards normalized events to NATS. Design rationale: [ADR 0006](../../docs/src/content/docs/adr/0006-adoption-of-elixir-for-twitch-ingress.md),
-full design: [microservices/twitch-ingress](../../docs/src/content/docs/microservices/twitch-ingress.md).
+and forwards normalized events to NATS. Design rationale: [ADR 0006](../../../web/docs/src/content/docs/adr/0006-adoption-of-elixir-for-twitch-ingress.md),
+full design: [microservices/twitch-ingress](../../../web/docs/src/content/docs/microservices/twitch-ingress.md).
 
 ## What it does
 
-- Forms a BEAM cluster via **libcluster** (EPMD strategy when `BAGELBOT_CLUSTER_HOSTS` is set, Gossip multicast
-  auto-discovery otherwise). Shard ownership is distributed across nodes with **Horde**; when a node dies its shards
+- Forms a BEAM cluster via **libcluster** (Kubernetes DNS strategy when `BAGELBOT_K8S_HEADLESS_SERVICE` is set, EPMD
+  strategy when `BAGELBOT_CLUSTER_HOSTS` is set, Gossip multicast auto-discovery otherwise). Shard ownership is distributed across nodes with **Horde**; when a node dies its shards
   re-home to survivors in seconds.
 - A cluster-singleton `ConduitManager` reconciles the Conduit against Twitch (creates it, grows shard count, heals
-  missing shard sessions) every 30s.
+  missing shard sessions) every 15s.
 - One `ShardSession` GenServer per Conduit shard owns one WebSocket (raw Mint socket, no hidden lifecycle):
   - **Fresh connect:** waits for `session_welcome`, then binds the `session_id` to the shard via
     `PATCH /eventsub/conduits/shards`.
@@ -29,14 +29,15 @@ There are exactly three outbound lane subjects (`NATS_SUBJECT_LANE_*`). Every pu
 `type` in the payload; consumers filter on the payload, not the subject.
 
 - `twitch.ingress.event.premium` / `twitch.ingress.event.standard`: all events, laned by broadcaster status.
-- `twitch.ingress.event.stream`: **only** `stream.online` and `stream.offline`, regardless of broadcaster status
-  (no cache lookup on this path).
+- `twitch.ingress.event.stream`: **only** `stream.online` and `stream.offline`. Each of those events is published
+  to the stream subject and also to the broadcaster's premium or standard subject. Banned broadcasters lose the
+  second copy.
 
 For `channel.chat.message` notifications there are exactly three outcomes (`Ingress.Pipeline`):
 
 1. Chatter is one of the **special user IDs** (`TWITCH_SPECIAL_USER_IDS`, from the secret store): publish to the
    **premium** lane, always, even when the broadcaster is on the free tier.
-2. Message text starts with `!`: publish to the lane matching the **broadcaster's** status.
+2. Message text starts with `!` (leading whitespace is ignored): publish to the lane matching the **broadcaster's** status.
 3. Plain chat: publish the first line immediately and fold identical lines into
    sender cohorts through the scheduler-sharded `Ingress.Squash.Pool`.
 
@@ -66,7 +67,7 @@ to standard.
 | `INGRESS_PUBLISH_BATCH_SIZE`          | Scheduler-local JetStream publish cohort size.                 | `128`                                         |
 | `INGRESS_PUBLISH_SEND_CONCURRENCY`    | Persistent Gnat send lanes per publisher connection.           | `22`                                          |
 | `INGRESS_PUBLISH_BATCH_WAIT_MS`       | Maximum wait for a partially full publish cohort.               | `1`                                           |
-| `INGRESS_PUBLISH_WIRE`                | Cohort wire: `atomic` (one commit PubAck per cohort, ADR-050) or `single` (per-event PubAck). An ambiguous outcome drops the whole cohort on `atomic` (up to `INGRESS_PUBLISH_BATCH_SIZE` = 128 events) against exactly 1 on `single` — see the blast-radius note below. Anything else warns on stderr and stays `atomic`. | `atomic` |
+| `INGRESS_PUBLISH_WIRE`                | Cohort wire: `atomic` (one commit PubAck per cohort, ADR-050) or `single` (per-event PubAck). An ambiguous outcome drops the whole cohort on `atomic` (up to `INGRESS_PUBLISH_BATCH_SIZE` = 128 events) against exactly 1 on `single` (see the blast-radius note below). Anything else warns on stderr and stays `atomic`. | `atomic` |
 | `INGRESS_PUBLISH_BATCH_INFLIGHT`      | Unresolved atomic batches per shard. Sized by the FLEET budget, not by local latency: the broker caps open batches at 50 per stream and 3 replicas × 2 schedulers × 8 = 48. Cohorts over budget publish individually. | `8` |
 | `INGRESS_PUBLISH_BATCH_HOLD_MS`       | How long a swept atomic batch keeps its local in-flight slot. Nothing on the wire cancels an open batch, so this must match the broker's batch inactivity timeout. | `10000`                  |
 | `TWITCH_EVENTSUB_WSS_URL`           | EventSub WebSocket endpoint.                                   | `wss://eventsub.wss.twitch.tv/ws?...`         |
@@ -84,6 +85,9 @@ to standard.
 | `INGRESS_SQUASH_PARTITIONS`         | Independent duplicate-cohort owners.                           | Online scheduler count                        |
 | `INGRESS_DISPATCHER_MAX_RUNNING`    | Fixed direct-dispatch worker count.                             | `512`                                         |
 | `INGRESS_DISPATCHER_MAX_QUEUE`      | Total bounded worker-mailbox allowance.                         | `20000`                                       |
+| `INGRESS_DISPATCHER_MAX_PER_BROADCASTER` | Per-broadcaster cap on in-flight dispatcher work.               | `2048`                                        |
+| `INGRESS_PUBLISH_ACK_TIMEOUT_MS`    | PubAck wait before an outcome counts as ambiguous.              | `2000`                                        |
+| `INGRESS_PUBLISH_ATTEMPTS`          | Publish attempts per event after a definite negative PubAck.    | `3`                                           |
 | `INGRESS_DISPATCHER_COMPLETION_BATCH_SIZE` | Worker-local completion batch bound.                     | `4`                                           |
 | `INGRESS_DISPATCHER_COMPLETION_FLUSH_MS` | Maximum wait for a partial completion batch.                | `25`                                          |
 | `INGRESS_PUBLISH_CONNECTIONS`       | Independent NATS writers and PubAck collectors.                 | Online scheduler count                        |
@@ -92,7 +96,7 @@ to standard.
 
 ### Atomic-wire blast radius
 
-Both wires are structurally dedup-free — no `Nats-Msg-Id` is ever attached — so
+Both wires are structurally dedup-free (no `Nats-Msg-Id` is ever attached), so
 both follow the same rule: an *ambiguous* outcome (ack timeout, malformed
 PubAck, a send error after part of the write is on the socket) drops rather
 than replays, because a replay could double-store. Only a *definite* negative
@@ -104,7 +108,7 @@ commit PubAck, so it drops up to `INGRESS_PUBLISH_BATCH_SIZE` = 128.
 
 Nothing is lost silently: every dropped event is counted in
 `Nats/PublishFailed`. The operator signal is that counter's **shape**, not its
-existence — on `atomic` it moves in cohort-sized steps, on `single` one event
+existence: on `atomic` it moves in cohort-sized steps, on `single` one event
 at a time. `Nats/PublishFailed` climbing in steps is the cue to set
 `INGRESS_PUBLISH_WIRE=single` (a value edit in `deploy/k8s/twitch-ingress.yaml`,
 no rebuild), which buys per-event granularity back at one RAFT quorum round trip
@@ -113,7 +117,7 @@ per event.
 Two neighbouring counters mean different things and should not be alarmed
 together: `Nats/PublishBatchBypassed` is the local in-flight window filling (a
 commit-latency signal), while `Nats/PublishBatchFallback` is the broker
-refusing or rejecting a batch and the cohort re-driving per message — if it
+refusing or rejecting a batch and the cohort re-driving per message. If it
 climbs with 10210/429s, the fleet has crossed the broker's 50-per-stream cap and
 the replica or scheduler count no longer matches the arithmetic above.
 `Nats/PublishBatchHeadersIgnored` is neither failure nor fallback: the broker

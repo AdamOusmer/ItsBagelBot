@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
+	"ItsBagelBot/internal/channelruntime"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
@@ -33,6 +34,7 @@ type QuotesStore interface {
 }
 
 type Deps struct {
+	Runtime        *channelruntime.Client
 	TrialStore     valkey.Client
 	Proj           projection.Reader
 	Live           LiveStore

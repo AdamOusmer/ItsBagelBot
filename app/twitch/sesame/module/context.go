@@ -27,11 +27,17 @@ type Context struct {
 	// only when a matched reply requires the broadcaster's language.
 	LocaleLookup func(context.Context, uint64) (string, error)
 
+	ModuleLookup func(name string) bool
+
 	Config codec.RawMessage
 
 	Num string
 
 	Command string
+	// Engaged means an admitted command or enabled feature handled real activity.
+	// Parsing an unknown command and background stream bookkeeping do not qualify.
+	Engaged bool
+	Emitted int
 
 	role    Role
 	roleSet bool
@@ -60,6 +66,10 @@ func (c *Context) EnsureLocale(ctx context.Context) {
 	if locale, err := c.LocaleLookup(ctx, c.BroadcasterID); err == nil {
 		c.Locale = locale
 	}
+}
+
+func (c *Context) ModuleOn(name string) bool {
+	return c.ModuleLookup != nil && c.ModuleLookup(name)
 }
 
 func (c *Context) Chatter() Role {
@@ -117,9 +127,12 @@ func (c *Context) Reset() {
 	c.Locale = ""
 	c.LocaleLoaded = false
 	c.LocaleLookup = nil
+	c.ModuleLookup = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""
+	c.Engaged = false
+	c.Emitted = 0
 	c.role = RoleEveryone
 	c.roleSet = false
 	c.emoteCodes = nil

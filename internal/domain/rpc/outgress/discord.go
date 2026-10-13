@@ -37,6 +37,7 @@ type DiscordSetupIDs struct {
 	ClipsChannelID          string `json:"clips_channel_id,omitempty"`
 	WelcomeChannelID        string `json:"welcome_channel_id,omitempty"`
 	VoiceHubID              string `json:"voice_hub_id,omitempty"`
+	VoiceCategoryID         string `json:"voice_category_id,omitempty"`
 	LogChannelID            string `json:"log_channel_id,omitempty"`
 	TicketChannelID         string `json:"ticket_channel_id,omitempty"`
 	TicketCategoryID        string `json:"ticket_category_id,omitempty"`

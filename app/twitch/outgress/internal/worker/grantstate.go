@@ -6,8 +6,10 @@ package worker
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
 
 	"go.uber.org/zap"
@@ -19,6 +21,11 @@ type grantRegistry interface {
 }
 
 func (w *Worker) callTwitch(ctx context.Context, id twitch.Identity, broadcasterID string, call twitch.HelixCall) (*http.Response, error) {
+	var err error
+	ctx, err = w.channelAttemptContext(ctx, broadcasterID)
+	if err != nil {
+		return nil, err
+	}
 	res, err := w.twitch.ExecuteAs(ctx, id, broadcasterID, call)
 	w.noteGrantHealth(ctx, id, broadcasterID, err)
 	return res, err
@@ -71,6 +78,12 @@ func (w *Worker) setGrantState(ctx context.Context, broadcasterID string, state 
 		zap.String("from", string(current)),
 		zap.String("to", string(state)))
 
+	if w.lifecycleNC != nil {
+		if state == manage.GrantDead {
+			_ = w.observeGrant(ctx, grantObservation{userID: broadcasterID, action: "grant_missing", eventID: "dead-grant"})
+		}
+		return
+	}
 	w.notifyGrantDead(ctx, broadcasterID, state)
 }
 
@@ -90,5 +103,45 @@ func (w *Worker) notifyGrantDead(ctx context.Context, broadcasterID string, stat
 	if state != manage.GrantDead || w.reauth == nil {
 		return
 	}
-	w.reauth.Notify(ctx, broadcasterID, noticeGrantDead)
+	w.reauth.Notify(ctx, broadcasterID, noticeGrantDead, w.grantEpisode(ctx, broadcasterID))
+}
+
+func (w *Worker) grantEpisode(ctx context.Context, broadcasterID string) time.Time {
+	ch, found, err := w.grants.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return time.Time{}
+	}
+	return ch.GrantCheckedAt
+}
+
+func (w *Worker) channelAttemptContext(ctx context.Context, broadcasterID string) (context.Context, error) {
+	if w.runtime == nil || broadcasterID == "" {
+		return ctx, nil
+	}
+	fence, present := ctx.Value(admissionFenceKey{}).(admissionFence)
+	payload := &outgress.Message{BroadcasterID: broadcasterID, AccountCreatedAt: fence.incarnation, AdmissionGeneration: fence.generation}
+	if !present {
+		if err := w.stampCurrent(ctx, payload); err != nil {
+			return ctx, err
+		}
+		fence = admissionFence{payload.AccountCreatedAt, payload.AdmissionGeneration}
+		ctx = context.WithValue(ctx, admissionFenceKey{}, fence)
+	}
+	if err := w.checkAttemptAdmission(ctx, payload); err != nil {
+		return ctx, err
+	}
+	return twitch.WithChannelAdmission(ctx, func(ctx context.Context) error {
+		p := &outgress.Message{BroadcasterID: broadcasterID, AccountCreatedAt: fence.incarnation, AdmissionGeneration: fence.generation}
+		return w.checkAttemptAdmission(ctx, p)
+	}), nil
+}
+func (w *Worker) checkAttemptAdmission(ctx context.Context, payload *outgress.Message) error {
+	allowed, err := w.admitPayload(ctx, payload)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return errLifecycleStopped
+	}
+	return nil
 }

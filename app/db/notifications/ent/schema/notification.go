@@ -25,6 +25,8 @@ func (Notification) Fields() []ent.Field {
 
 		field.Uint64("target_user_id").Optional().Nillable(),
 
+		field.String("incarnation").Default("").Optional(),
+		field.String("incident_id").Optional(),
 		field.String("title").NotEmpty(),
 
 		field.Text("body").NotEmpty(),
@@ -56,5 +58,7 @@ func (Notification) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("scope", "target_user_id"),
 		index.Fields("created_at"),
+		index.Fields("expires_at", "id"),
+		index.Fields("target_user_id", "incarnation"),
 	}
 }

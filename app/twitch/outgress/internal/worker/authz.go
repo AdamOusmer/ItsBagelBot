@@ -4,8 +4,10 @@
 package worker
 
 import (
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
@@ -20,14 +22,20 @@ import (
 var errBotAuthRevoked = errors.New("bot account authorization revoked")
 
 type authzUser struct {
-	UserID    string `json:"user_id"`
-	UserLogin string `json:"user_login"`
+	UserID     string    `json:"user_id"`
+	UserLogin  string    `json:"user_login"`
+	EventID    string    `json:"event_id"`
+	ObservedAt time.Time `json:"observed_at"`
 }
 
 type authzSubRevoked struct {
-	BroadcasterID string `json:"broadcaster_id"`
-	Type          string `json:"type"`
-	Status        string `json:"status"`
+	BroadcasterID  string    `json:"broadcaster_id"`
+	Type           string    `json:"type"`
+	Status         string    `json:"status"`
+	SubscriptionID string    `json:"subscription_id"`
+	UserID         string    `json:"user_id"`
+	EventID        string    `json:"event_id"`
+	ObservedAt     time.Time `json:"observed_at"`
 }
 
 func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
@@ -37,6 +45,9 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, grantObservation{userID: ev.UserID, action: "grant_restored", eventID: ev.EventID, observedAt: ev.ObservedAt, provider: true})
+	}
 	ch, found, err := w.registry.Get(ctx, ev.UserID)
 	if err != nil {
 		return err
@@ -103,6 +114,9 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, grantObservation{userID: ev.UserID, action: "grant_missing", eventID: ev.EventID, observedAt: ev.ObservedAt, provider: true})
+	}
 	return w.blockChannel(ctx, ev.UserID, blockRevoked.because("authorization_revoked"))
 }
 
@@ -122,11 +136,32 @@ func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 		return nil
 	}
 
+	if w.lifecycleNC != nil {
+		valid, err := w.admitSubscriptionRevocation(ctx, ev)
+		if err != nil {
+			return err
+		}
+		if !valid {
+			return nil
+		}
+	}
+
+	return w.applySubscriptionRevocation(ctx, ev)
+}
+
+func (w *Worker) applySubscriptionRevocation(ctx context.Context, ev authzSubRevoked) error {
 	reason := ev.Status + ": " + ev.Type
 	switch {
 	case consentRevokedStatus(ev.Status):
+		if w.lifecycleNC != nil {
+			return w.observeGrant(ctx, grantObservation{userID: ev.BroadcasterID, action: "grant_missing", eventID: ev.EventID, observedAt: ev.ObservedAt, provider: true})
+		}
 		return w.blockChannel(ctx, ev.BroadcasterID, blockRevoked.because(reason))
 	case ev.Status == statusChatUserBanned:
+		if w.lifecycleNC != nil {
+			return w.observeChatRevocation(ctx, ev)
+		}
+
 		return w.blockChannel(ctx, ev.BroadcasterID, blockBanned.because(reason))
 	default:
 		return w.markSubDropped(ctx, ev)
@@ -160,11 +195,28 @@ func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b block
 	if err != nil {
 		return err
 	}
-	if !found || alreadyBlocked(ch, b) {
+	if !found {
 		return nil
+	}
+	return w.applyBlock(ctx, broadcasterID, b, ch.SubState)
+}
+
+func (w *Worker) blockChannelFrom(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
+	return w.applyBlock(ctx, broadcasterID, b, priorState)
+}
+
+func (w *Worker) applyBlock(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
+	if w.lifecycleNC != nil {
+		return w.observeGrant(ctx, grantObservation{userID: broadcasterID, action: "grant_missing", eventID: b.reason})
+	}
+	if alreadyBlockedState(priorState, b) {
+		return w.registry.SetSubState(ctx, broadcasterID, b.state, b.reason)
 	}
 
 	if err := w.registry.SetSubState(ctx, broadcasterID, b.state, b.reason); err != nil {
+		return err
+	}
+	if err := w.markBlockedNow(ctx, broadcasterID); err != nil {
 		return err
 	}
 	w.log.Warn("channel blocked until the streamer acts",
@@ -173,18 +225,43 @@ func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b block
 		zap.String("reason", b.reason))
 
 	w.setChannelActive(ctx, broadcasterID, false)
-	if w.reauth != nil {
-		w.reauth.Notify(ctx, broadcasterID, b.notice)
-	}
+	w.notifyBlock(ctx, broadcasterID, b)
 	return nil
 }
 
+func (w *Worker) markBlockedNow(ctx context.Context, broadcasterID string) error {
+	return w.registry.MarkBlocked(ctx, manage.Channel{BroadcasterID: broadcasterID})
+}
+
+func (w *Worker) notifyBlock(ctx context.Context, broadcasterID string, b blockade) {
+	if w.reauth == nil {
+		return
+	}
+	w.reauth.Notify(ctx, broadcasterID, b.notice, w.blockEpisode(ctx, broadcasterID))
+}
+
+func (w *Worker) blockEpisode(ctx context.Context, broadcasterID string) time.Time {
+	ch, found, err := w.registry.Get(ctx, broadcasterID)
+	if err != nil || !found {
+		return time.Time{}
+	}
+	return ch.BlockedAt
+}
+
 func alreadyBlocked(ch manage.Channel, b blockade) bool {
-	return ch.SubState == b.state || ch.SubState == subStateRevoked
+	return alreadyBlockedState(ch.SubState, b)
+}
+
+func alreadyBlockedState(state string, b blockade) bool {
+	return state == b.state || state == subStateRevoked
 }
 
 func blockedChannel(ch manage.Channel) bool {
-	return ch.SubState == subStateRevoked || ch.SubState == subStateBanned
+	return blockedState(ch.SubState)
+}
+
+func blockedState(state string) bool {
+	return state == subStateRevoked || state == subStateBanned
 }
 
 func (w *Worker) setChannelActive(ctx context.Context, broadcasterID string, active bool) {
@@ -280,4 +357,62 @@ func backoffDelay(attempt int) time.Duration {
 		return time.Minute
 	}
 	return d
+}
+
+func (w *Worker) admitSubscriptionRevocation(ctx context.Context, ev authzSubRevoked) (bool, error) {
+	uid, err := strconv.ParseUint(ev.BroadcasterID, 10, 64)
+	if err != nil {
+		return false, nil
+	}
+	current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
+	if err != nil {
+		return false, err
+	}
+	if !moderationMatchesIncarnation(botModeration{SubscriptionID: ev.SubscriptionID, ObservedAt: ev.ObservedAt}, current) {
+		return false, nil
+	}
+	if controlSubscription(ev.Type) {
+		w.persistControlHealth(ctx, enrollment{broadcasterID: ev.BroadcasterID, incarnation: current.AccountCreatedAt, generation: current.State.AdmissionGeneration}, false, "listener_revoked")
+	}
+	return true, nil
+}
+func (ev authzSubRevoked) chatBanObservation(botID string) bool {
+	if ev.Type != twitch.ChatMessageType {
+		return false
+	}
+	if ev.UserID != botID {
+		return false
+	}
+	if ev.SubscriptionID == "" {
+		return false
+	}
+	if ev.ObservedAt.IsZero() {
+		return false
+	}
+	return ev.EventID != ""
+}
+func (w *Worker) observeChatRevocation(ctx context.Context, ev authzSubRevoked) error {
+	if !ev.chatBanObservation(w.botID) {
+		return nil
+	}
+	uid, err := strconv.ParseUint(ev.BroadcasterID, 10, 64)
+	if err != nil {
+		return nil
+	}
+	current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
+	if err != nil {
+		return err
+	}
+	if current.State.ChatSubscriptionID != ev.SubscriptionID {
+		return nil
+	}
+	req := usersrpc.LifecycleRequest{UserID: uid, AccountCreatedAt: current.AccountCreatedAt, AdmissionGeneration: current.State.AdmissionGeneration, Action: "ban", SubscriptionID: ev.SubscriptionID, EventID: ev.EventID, ObservedAt: ev.ObservedAt, Reason: "bot_banned"}
+	changed, err := w.lifecycleRequest(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !changed.Applied {
+		return nil
+	}
+	return w.applyLifecycle(ctx, uid, changed)
 }

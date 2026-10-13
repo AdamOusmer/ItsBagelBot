@@ -63,7 +63,7 @@ func TestNewDriverOpensPoolWhoseHealthProbeReportsAnUnreachableServer(t *testing
 
 	err = HealthCheck("mysql", driver.DB()).Probe(context.Background())
 
-	require.ErrorContains(t, err, "db: ping failed")
+	require.ErrorContains(t, err, "db: keepalive")
 }
 
 func TestResolveTLSModeDefaultsToVerifyCA(t *testing.T) {
@@ -223,6 +223,7 @@ func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
 	require.Equal(t, dialTimeout, mc.Timeout)
 	require.Equal(t, readTimeout, mc.ReadTimeout)
 	require.Equal(t, writeTimeout, mc.WriteTimeout)
+	require.NotNil(t, mc.DialFunc)
 }
 
 func captureGlobalLogs(t *testing.T) *observer.ObservedLogs {

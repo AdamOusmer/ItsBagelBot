@@ -28,6 +28,20 @@ const (
 	FieldStateRevision = "state_revision"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
+	// FieldLifecycle holds the string denoting the lifecycle field in the database.
+	FieldLifecycle = "lifecycle"
+	// FieldLifecycleState holds the string denoting the lifecycle_state field in the database.
+	FieldLifecycleState = "lifecycle_state"
+	// FieldLifecycleProjectionPending holds the string denoting the lifecycle_projection_pending field in the database.
+	FieldLifecycleProjectionPending = "lifecycle_projection_pending"
+	// FieldLifecycleMigrationPending holds the string denoting the lifecycle_migration_pending field in the database.
+	FieldLifecycleMigrationPending = "lifecycle_migration_pending"
+	// FieldDormantAfter holds the string denoting the dormant_after field in the database.
+	FieldDormantAfter = "dormant_after"
+	// FieldLifecycleDueAt holds the string denoting the lifecycle_due_at field in the database.
+	FieldLifecycleDueAt = "lifecycle_due_at"
+	// FieldNoticeDueAt holds the string denoting the notice_due_at field in the database.
+	FieldNoticeDueAt = "notice_due_at"
 	// FieldBanned holds the string denoting the banned field in the database.
 	FieldBanned = "banned"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -38,6 +52,8 @@ const (
 	FieldCustomCursor = "custom_cursor"
 	// FieldCommandsPageHidden holds the string denoting the commands_page_hidden field in the database.
 	FieldCommandsPageHidden = "commands_page_hidden"
+	// FieldLeaderboardPageHidden holds the string denoting the leaderboard_page_hidden field in the database.
+	FieldLeaderboardPageHidden = "leaderboard_page_hidden"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -95,11 +111,19 @@ var Columns = []string{
 	FieldEmailEnc,
 	FieldStateRevision,
 	FieldIsActive,
+	FieldLifecycle,
+	FieldLifecycleState,
+	FieldLifecycleProjectionPending,
+	FieldLifecycleMigrationPending,
+	FieldDormantAfter,
+	FieldLifecycleDueAt,
+	FieldNoticeDueAt,
 	FieldBanned,
 	FieldStatus,
 	FieldLocale,
 	FieldCustomCursor,
 	FieldCommandsPageHidden,
+	FieldLeaderboardPageHidden,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -146,6 +170,12 @@ var (
 	StateRevisionValidator func(int64) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
 	DefaultIsActive bool
+	// DefaultLifecycleState holds the default value on creation for the "lifecycle_state" field.
+	DefaultLifecycleState string
+	// DefaultLifecycleProjectionPending holds the default value on creation for the "lifecycle_projection_pending" field.
+	DefaultLifecycleProjectionPending bool
+	// DefaultLifecycleMigrationPending holds the default value on creation for the "lifecycle_migration_pending" field.
+	DefaultLifecycleMigrationPending bool
 	// DefaultBanned holds the default value on creation for the "banned" field.
 	DefaultBanned bool
 	// DefaultLocale holds the default value on creation for the "locale" field.
@@ -156,6 +186,8 @@ var (
 	DefaultCustomCursor bool
 	// DefaultCommandsPageHidden holds the default value on creation for the "commands_page_hidden" field.
 	DefaultCommandsPageHidden bool
+	// DefaultLeaderboardPageHidden holds the default value on creation for the "leaderboard_page_hidden" field.
+	DefaultLeaderboardPageHidden bool
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -238,6 +270,36 @@ func ByIsActive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsActive, opts...).ToFunc()
 }
 
+// ByLifecycleState orders the results by the lifecycle_state field.
+func ByLifecycleState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLifecycleState, opts...).ToFunc()
+}
+
+// ByLifecycleProjectionPending orders the results by the lifecycle_projection_pending field.
+func ByLifecycleProjectionPending(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLifecycleProjectionPending, opts...).ToFunc()
+}
+
+// ByLifecycleMigrationPending orders the results by the lifecycle_migration_pending field.
+func ByLifecycleMigrationPending(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLifecycleMigrationPending, opts...).ToFunc()
+}
+
+// ByDormantAfter orders the results by the dormant_after field.
+func ByDormantAfter(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDormantAfter, opts...).ToFunc()
+}
+
+// ByLifecycleDueAt orders the results by the lifecycle_due_at field.
+func ByLifecycleDueAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLifecycleDueAt, opts...).ToFunc()
+}
+
+// ByNoticeDueAt orders the results by the notice_due_at field.
+func ByNoticeDueAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNoticeDueAt, opts...).ToFunc()
+}
+
 // ByBanned orders the results by the banned field.
 func ByBanned(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBanned, opts...).ToFunc()
@@ -261,6 +323,11 @@ func ByCustomCursor(opts ...sql.OrderTermOption) OrderOption {
 // ByCommandsPageHidden orders the results by the commands_page_hidden field.
 func ByCommandsPageHidden(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCommandsPageHidden, opts...).ToFunc()
+}
+
+// ByLeaderboardPageHidden orders the results by the leaderboard_page_hidden field.
+func ByLeaderboardPageHidden(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLeaderboardPageHidden, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/channelruntime"
 	"context"
 	"time"
 
@@ -92,6 +93,7 @@ func main() {
 		Commands: topics.commands,
 	}, topics.queryHydrationTTL, topics.liveHydrationTTL, topics.hydrationConcurr, log)
 	projector := NewProjector(Deps{
+		Runtime:               channelruntime.NewClient(valkeyStore, nc, topics.users),
 		Store:                 valkeyStore,
 		NC:                    nc,
 		InvalidateSubject:     topics.invalidate,
@@ -184,7 +186,7 @@ func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
 	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
 		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe dashboard projector rpc")
-	svcboot.FatalIf(rt.log, rpc.SubscribeLive(rt.nc, rt.store, rt.pub, topics.live, topics.outgressSystem, queueGroup, rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeLive(bus.RPCWiring{NC: rt.nc, App: rt.nrApp, Queue: queueGroup, Log: rt.log}, rpc.LiveDependencies{Store: rt.store, Pub: rt.pub, Runtime: channelruntime.NewClient(rt.store, rt.nc, topics.users)}, topics.live, topics.outgressSystem),
 		"failed to subscribe live rpc")
 	svcboot.FatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
 		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,

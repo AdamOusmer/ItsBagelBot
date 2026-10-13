@@ -23,6 +23,7 @@ Modules, Commands and Loyalty own their separate feature records.
 | `subscription_source` | Access/billing origin such as Tebex, admin or giveaway; not a campaign identity. |
 | Subscription reference | Provider recurring identity used to reject stale lifecycle events. |
 | `commands_page_hidden` | Inverted visibility flag; false preserves public-page default. |
+| `leaderboard_page_hidden` | Inverted visibility flag for the public leaderboard; false preserves public-page default. |
 | Account instance / `AccountCreatedAt` | Account creation Unix **microseconds**, distinguishes delete/recreate incarnations. |
 | State revision | Monotonic mutation version emitted with user projection/change events. |
 | Token / grant | Twitch OAuth token custody; in giveaway files, grant means a Premium interval. |
@@ -30,7 +31,7 @@ Modules, Commands and Loyalty own their separate feature records.
 | Premium grant | Users-owned promotional interval identified by giveaway+award. |
 | Staff / `AdminUser` | Active role membership: moderator, admin or owner; distinct from Premium/VIP. |
 | Delegation | Single-use invitation leading to scoped access to an owner's dashboard. |
-| Preference write | Background SetActive and locale/cursor/onboarding/creator-code batching; interactive active changes persist immediately. |
+| Preference write | Locale/cursor/onboarding/creator-code batching; active intent changes persist immediately through lifecycle CAS. |
 | Payment failed | Separate billing condition; does not itself mean access has expired. |
 
 ## Where to start
@@ -67,18 +68,25 @@ Edit schemas rather than generated Ent code.
   `bagel.rpc.admin.user.*`, with `.auth` and `.audit` surfaces for staff operations.
 - Registration persists identity immediately; contact-email capture is a separate
   best-effort step. Sensitive token/email reads use internal RPCs, not projections.
-- Locale/cursor/onboarded/creator-code preferences and background SetActive coalesce
+- Locale/cursor/onboarded/creator-code preferences coalesce
   per user/field over 2 seconds / 256 items. Each user gets one merged UPDATE per
   flush window. Dashboard/admin active changes use SetActiveNow and persist
   immediately, as do status, banned state, tokens and commands-page visibility.
 - Committed mutations publish full `data.users.changed`; broadcasts invalidate
   each instance's local safe-view cache. Grouped reprojection requests replay
   persisted account state for downstream rebuilding.
-- Deletion publishes `data.users.deleted` with account instance after deleting the
+- Deletion publishes `data.users.deleted` with account instance and deletion time after deleting the
   owning account/token rows; feature services perform their own eventual cleanup.
+- Deletion first writes `erasures/<id>-<accountCreatedAt>` to the R2 erasure
+  ledger (`ERASURE_R2_*`) and fails if that write fails, then revokes Twitch
+  tokens. `ReplayErasures` (boot + every 15m) re-deletes any account a database
+  restore brought back and resends `data.users.deleted` for records under 1h
+  whose account is gone; the ledger lives outside MySQL so it survives losing it.
 - Transactions calls `bagel.rpc.internal.billing.apply` and Users' internal
   giveaway prefix for eligibility, coverage and grant lifecycle. `main.go` holds
   subject overrides, token/email/count reads and the projection subject.
+
+Lifecycle authority: `repository/lifecycle.go` owns immediate intent, independent bot moderation/grant facts, admission generations, incident suppression, bounded recovery and indexed due replay. `lifecycle_projection_pending` persists publication failures without changing read revision on acknowledgment. Legacy seeds run 200 per due pass and unknown access stays degraded. `LifecycleErasure` retains incarnation-fenced cleanup after deletion; completed markers expire after seven days.
 
 ## Invariants and pitfalls
 

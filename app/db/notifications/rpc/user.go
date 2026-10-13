@@ -8,29 +8,37 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
 
 type userRPC struct {
-	repo        *repository.Notifications
-	fullReadTTL time.Duration
-	peekTTL     time.Duration
-	log         *zap.Logger
+	nc             *nats.Conn
+	userGetSubject string
+	repo           *repository.Notifications
+	fullReadTTL    time.Duration
+	peekTTL        time.Duration
+	log            *zap.Logger
 }
 
 type UserConfig struct {
-	Prefix      string
-	FullReadTTL time.Duration
-	PeekTTL     time.Duration
+	UserGetSubject string
+	Prefix         string
+	FullReadTTL    time.Duration
+	PeekTTL        time.Duration
 }
 
 func SubscribeUser(w Wiring, cfg UserConfig) error {
-	u := &userRPC{repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
+	if cfg.UserGetSubject == "" {
+		cfg.UserGetSubject = "bagel.rpc.internal.users.get"
+	}
+	u := &userRPC{nc: w.NC, userGetSubject: cfg.UserGetSubject, repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
 
 	read := w.Within(readBudget)
 	if err := bus.Serve(read, cfg.Prefix+".list", u.list); err != nil {
@@ -43,12 +51,16 @@ func SubscribeUser(w Wiring, cfg UserConfig) error {
 }
 
 func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest) notificationsrpc.UserListReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
 
-	rows, read, err := u.repo.ListForUser(ctx, userID, repository.UserListLimit)
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+	if err != nil {
+		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
+	}
+	rows, read, err := u.repo.ListForIncarnation(ctx, recipient, repository.UserListLimit)
 	if err != nil {
 		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
@@ -67,7 +79,7 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 }
 
 func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
@@ -75,18 +87,26 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "notification_id must be numeric")}
 	}
-	if err := u.repo.MarkRead(ctx, notifID, userID, time.Now().Add(u.fullReadTTL)); err != nil {
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+	if err != nil {
+		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
+	}
+	if err := u.repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
 	return notificationsrpc.MarkReadReply{}
 }
 
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
-	userID, err := parseUserID(req.UserID)
+	_, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
-	peeked, err := u.repo.MarkPeeked(ctx, userID, time.Now().Add(u.peekTTL))
+	recipient, err := notificationAccount(ctx, u.nc, u.userGetSubject, usersrpc.AdminRequest{UserID: req.UserID})
+	if err != nil {
+		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
+	}
+	peeked, err := u.repo.MarkPeekedForIncarnation(ctx, recipient, time.Now().Add(u.peekTTL))
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}

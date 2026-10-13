@@ -430,16 +430,18 @@ func (c *Client) request(ctx context.Context, src *Source, call HelixCall) (*htt
 
 	unauthorizedBody, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	_ = res.Body.Close()
-	if isMissingScope(unauthorizedBody) {
+	switch {
+	case bytes.Contains(bytes.ToLower(unauthorizedBody), []byte("does not have the required permission")):
+	case isMissingScope(unauthorizedBody):
 		src.Invalidate()
-		res.Body = io.NopCloser(bytes.NewReader(unauthorizedBody))
-		res.ContentLength = int64(len(unauthorizedBody))
-		return res, nil
+	default:
+		src.Invalidate()
+		return c.do(ctx, src, call)
 	}
 
-	src.Invalidate()
-
-	return c.do(ctx, src, call)
+	res.Body = io.NopCloser(bytes.NewReader(unauthorizedBody))
+	res.ContentLength = int64(len(unauthorizedBody))
+	return res, nil
 }
 
 func isMissingScope(body []byte) bool {
@@ -448,6 +450,9 @@ func isMissingScope(body []byte) bool {
 
 func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Response, error) {
 
+	if err := admitChannel(ctx); err != nil {
+		return nil, err
+	}
 	token, err := src.Token(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("twitch token: %w", err)
@@ -474,18 +479,22 @@ func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Res
 		return nil, err
 	}
 
+	return c.performAttempt(ctx, req, call.Endpoint)
+}
+func (c *Client) performAttempt(ctx context.Context, req *http.Request, endpoint string) (*http.Response, error) {
 	seg := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
 	res, err := c.http.Do(req)
 	seg.Response = res
 	seg.End()
-	if err == nil {
-		if admissionErr := observeAttempt(ctx, res); admissionErr != nil {
-			observedErr := publishProviderReset(ctx, call.Endpoint, admissionErr)
-			drain(res)
-			return nil, observedErr
-		}
+	if err != nil {
+		return res, err
 	}
-	return res, err
+	if admissionErr := observeAttempt(ctx, res); admissionErr != nil {
+		observedErr := publishProviderReset(ctx, endpoint, admissionErr)
+		drain(res)
+		return nil, observedErr
+	}
+	return res, nil
 }
 
 func RetryAfter(res *http.Response) time.Duration {

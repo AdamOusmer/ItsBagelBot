@@ -34,6 +34,7 @@ type fakeDiscord struct {
 	deleted         []discapi.Message
 	chats           []discapi.ChatPost
 	guildLookups    int
+	listCalls       int
 }
 
 func (f *fakeDiscord) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
@@ -76,6 +77,7 @@ func (f *fakeDiscord) CreateRole(_ context.Context, role discapi.GuildRole) (dis
 }
 
 func (f *fakeDiscord) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
+	f.listCalls++
 	return append([]discapi.Snowflake(nil), f.channels...), nil
 }
 

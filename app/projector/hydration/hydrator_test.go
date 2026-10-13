@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 const (
@@ -300,4 +302,35 @@ func TestEnsureAsyncLeavesFailedSectionUnprojectedForRetry(t *testing.T) {
 	require.Never(t, func() bool { return up.hits["commands"].Load() > attempts }, 500*time.Millisecond, 10*time.Millisecond,
 		"an always-failing section must be retried a bounded number of times")
 	store.neverWrites(t, 10*time.Millisecond)
+}
+
+func TestMissingAccountIsFinalAndQuiet(t *testing.T) {
+	const attempts = 3
+	for _, tc := range []struct {
+		name        string
+		code        string
+		wantFetches int32
+		wantWarns   int
+	}{
+		{"a not_found account is fetched once and not warned about", "not_found", 1, 0},
+		{"any other failure is retried and warned about", "internal", attempts, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			nc, up := newUpstream(t, replies{
+				"users": func(int) any { return map[string]string{"error": "user account not found", "code": tc.code} },
+			})
+			store := newMemStore(projection.HydrationState{})
+			core, logs := observer.New(zapcore.InfoLevel)
+			h := hydration.New(store, nc, up.subjects, queryTTL, liveTTL, 1, zap.New(core))
+
+			h.EnsureAsync(42, hydration.Seed{})
+
+			assert.NotContains(t, store.collect(t, 2), "user")
+			require.Eventually(t, func() bool { return up.hits["users"].Load() == tc.wantFetches }, 3*time.Second, 10*time.Millisecond)
+			require.Never(t, func() bool { return up.hits["users"].Load() > tc.wantFetches }, 500*time.Millisecond, 10*time.Millisecond)
+			store.neverWrites(t, 10*time.Millisecond)
+			assert.Equal(t, tc.wantWarns, logs.FilterMessage("hydration: section failed").Len())
+			assert.Equal(t, tc.wantWarns, logs.Len())
+		})
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/domain/lifecycle"
 	"context"
 	"errors"
 	"fmt"
@@ -119,6 +120,120 @@ func (_u *UserUpdate) SetNillableIsActive(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (_u *UserUpdate) SetLifecycle(v *lifecycle.State) *UserUpdate {
+	_u.mutation.SetLifecycle(v)
+	return _u
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (_u *UserUpdate) ClearLifecycle() *UserUpdate {
+	_u.mutation.ClearLifecycle()
+	return _u
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (_u *UserUpdate) SetLifecycleState(v string) *UserUpdate {
+	_u.mutation.SetLifecycleState(v)
+	return _u
+}
+
+// SetNillableLifecycleState sets the "lifecycle_state" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLifecycleState(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetLifecycleState(*v)
+	}
+	return _u
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (_u *UserUpdate) SetLifecycleProjectionPending(v bool) *UserUpdate {
+	_u.mutation.SetLifecycleProjectionPending(v)
+	return _u
+}
+
+// SetNillableLifecycleProjectionPending sets the "lifecycle_projection_pending" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLifecycleProjectionPending(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetLifecycleProjectionPending(*v)
+	}
+	return _u
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (_u *UserUpdate) SetLifecycleMigrationPending(v bool) *UserUpdate {
+	_u.mutation.SetLifecycleMigrationPending(v)
+	return _u
+}
+
+// SetNillableLifecycleMigrationPending sets the "lifecycle_migration_pending" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLifecycleMigrationPending(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetLifecycleMigrationPending(*v)
+	}
+	return _u
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (_u *UserUpdate) SetDormantAfter(v time.Time) *UserUpdate {
+	_u.mutation.SetDormantAfter(v)
+	return _u
+}
+
+// SetNillableDormantAfter sets the "dormant_after" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDormantAfter(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetDormantAfter(*v)
+	}
+	return _u
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (_u *UserUpdate) ClearDormantAfter() *UserUpdate {
+	_u.mutation.ClearDormantAfter()
+	return _u
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (_u *UserUpdate) SetLifecycleDueAt(v time.Time) *UserUpdate {
+	_u.mutation.SetLifecycleDueAt(v)
+	return _u
+}
+
+// SetNillableLifecycleDueAt sets the "lifecycle_due_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLifecycleDueAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetLifecycleDueAt(*v)
+	}
+	return _u
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (_u *UserUpdate) ClearLifecycleDueAt() *UserUpdate {
+	_u.mutation.ClearLifecycleDueAt()
+	return _u
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (_u *UserUpdate) SetNoticeDueAt(v time.Time) *UserUpdate {
+	_u.mutation.SetNoticeDueAt(v)
+	return _u
+}
+
+// SetNillableNoticeDueAt sets the "notice_due_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableNoticeDueAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetNoticeDueAt(*v)
+	}
+	return _u
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (_u *UserUpdate) ClearNoticeDueAt() *UserUpdate {
+	_u.mutation.ClearNoticeDueAt()
+	return _u
+}
+
 // SetBanned sets the "banned" field.
 func (_u *UserUpdate) SetBanned(v bool) *UserUpdate {
 	_u.mutation.SetBanned(v)
@@ -185,6 +300,20 @@ func (_u *UserUpdate) SetCommandsPageHidden(v bool) *UserUpdate {
 func (_u *UserUpdate) SetNillableCommandsPageHidden(v *bool) *UserUpdate {
 	if v != nil {
 		_u.SetCommandsPageHidden(*v)
+	}
+	return _u
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_u *UserUpdate) SetLeaderboardPageHidden(v bool) *UserUpdate {
+	_u.mutation.SetLeaderboardPageHidden(v)
+	return _u
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableLeaderboardPageHidden(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetLeaderboardPageHidden(*v)
 	}
 	return _u
 }
@@ -595,6 +724,39 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.Lifecycle(); ok {
+		_spec.SetField(user.FieldLifecycle, field.TypeJSON, value)
+	}
+	if _u.mutation.LifecycleCleared() {
+		_spec.ClearField(user.FieldLifecycle, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.LifecycleState(); ok {
+		_spec.SetField(user.FieldLifecycleState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.LifecycleProjectionPending(); ok {
+		_spec.SetField(user.FieldLifecycleProjectionPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LifecycleMigrationPending(); ok {
+		_spec.SetField(user.FieldLifecycleMigrationPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DormantAfter(); ok {
+		_spec.SetField(user.FieldDormantAfter, field.TypeTime, value)
+	}
+	if _u.mutation.DormantAfterCleared() {
+		_spec.ClearField(user.FieldDormantAfter, field.TypeTime)
+	}
+	if value, ok := _u.mutation.LifecycleDueAt(); ok {
+		_spec.SetField(user.FieldLifecycleDueAt, field.TypeTime, value)
+	}
+	if _u.mutation.LifecycleDueAtCleared() {
+		_spec.ClearField(user.FieldLifecycleDueAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.NoticeDueAt(); ok {
+		_spec.SetField(user.FieldNoticeDueAt, field.TypeTime, value)
+	}
+	if _u.mutation.NoticeDueAtCleared() {
+		_spec.ClearField(user.FieldNoticeDueAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.Banned(); ok {
 		_spec.SetField(user.FieldBanned, field.TypeBool, value)
 	}
@@ -609,6 +771,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -866,6 +1031,120 @@ func (_u *UserUpdateOne) SetNillableIsActive(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetLifecycle sets the "lifecycle" field.
+func (_u *UserUpdateOne) SetLifecycle(v *lifecycle.State) *UserUpdateOne {
+	_u.mutation.SetLifecycle(v)
+	return _u
+}
+
+// ClearLifecycle clears the value of the "lifecycle" field.
+func (_u *UserUpdateOne) ClearLifecycle() *UserUpdateOne {
+	_u.mutation.ClearLifecycle()
+	return _u
+}
+
+// SetLifecycleState sets the "lifecycle_state" field.
+func (_u *UserUpdateOne) SetLifecycleState(v string) *UserUpdateOne {
+	_u.mutation.SetLifecycleState(v)
+	return _u
+}
+
+// SetNillableLifecycleState sets the "lifecycle_state" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLifecycleState(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetLifecycleState(*v)
+	}
+	return _u
+}
+
+// SetLifecycleProjectionPending sets the "lifecycle_projection_pending" field.
+func (_u *UserUpdateOne) SetLifecycleProjectionPending(v bool) *UserUpdateOne {
+	_u.mutation.SetLifecycleProjectionPending(v)
+	return _u
+}
+
+// SetNillableLifecycleProjectionPending sets the "lifecycle_projection_pending" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLifecycleProjectionPending(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetLifecycleProjectionPending(*v)
+	}
+	return _u
+}
+
+// SetLifecycleMigrationPending sets the "lifecycle_migration_pending" field.
+func (_u *UserUpdateOne) SetLifecycleMigrationPending(v bool) *UserUpdateOne {
+	_u.mutation.SetLifecycleMigrationPending(v)
+	return _u
+}
+
+// SetNillableLifecycleMigrationPending sets the "lifecycle_migration_pending" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLifecycleMigrationPending(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetLifecycleMigrationPending(*v)
+	}
+	return _u
+}
+
+// SetDormantAfter sets the "dormant_after" field.
+func (_u *UserUpdateOne) SetDormantAfter(v time.Time) *UserUpdateOne {
+	_u.mutation.SetDormantAfter(v)
+	return _u
+}
+
+// SetNillableDormantAfter sets the "dormant_after" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDormantAfter(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetDormantAfter(*v)
+	}
+	return _u
+}
+
+// ClearDormantAfter clears the value of the "dormant_after" field.
+func (_u *UserUpdateOne) ClearDormantAfter() *UserUpdateOne {
+	_u.mutation.ClearDormantAfter()
+	return _u
+}
+
+// SetLifecycleDueAt sets the "lifecycle_due_at" field.
+func (_u *UserUpdateOne) SetLifecycleDueAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetLifecycleDueAt(v)
+	return _u
+}
+
+// SetNillableLifecycleDueAt sets the "lifecycle_due_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLifecycleDueAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetLifecycleDueAt(*v)
+	}
+	return _u
+}
+
+// ClearLifecycleDueAt clears the value of the "lifecycle_due_at" field.
+func (_u *UserUpdateOne) ClearLifecycleDueAt() *UserUpdateOne {
+	_u.mutation.ClearLifecycleDueAt()
+	return _u
+}
+
+// SetNoticeDueAt sets the "notice_due_at" field.
+func (_u *UserUpdateOne) SetNoticeDueAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetNoticeDueAt(v)
+	return _u
+}
+
+// SetNillableNoticeDueAt sets the "notice_due_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableNoticeDueAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetNoticeDueAt(*v)
+	}
+	return _u
+}
+
+// ClearNoticeDueAt clears the value of the "notice_due_at" field.
+func (_u *UserUpdateOne) ClearNoticeDueAt() *UserUpdateOne {
+	_u.mutation.ClearNoticeDueAt()
+	return _u
+}
+
 // SetBanned sets the "banned" field.
 func (_u *UserUpdateOne) SetBanned(v bool) *UserUpdateOne {
 	_u.mutation.SetBanned(v)
@@ -932,6 +1211,20 @@ func (_u *UserUpdateOne) SetCommandsPageHidden(v bool) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableCommandsPageHidden(v *bool) *UserUpdateOne {
 	if v != nil {
 		_u.SetCommandsPageHidden(*v)
+	}
+	return _u
+}
+
+// SetLeaderboardPageHidden sets the "leaderboard_page_hidden" field.
+func (_u *UserUpdateOne) SetLeaderboardPageHidden(v bool) *UserUpdateOne {
+	_u.mutation.SetLeaderboardPageHidden(v)
+	return _u
+}
+
+// SetNillableLeaderboardPageHidden sets the "leaderboard_page_hidden" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableLeaderboardPageHidden(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetLeaderboardPageHidden(*v)
 	}
 	return _u
 }
@@ -1372,6 +1665,39 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.Lifecycle(); ok {
+		_spec.SetField(user.FieldLifecycle, field.TypeJSON, value)
+	}
+	if _u.mutation.LifecycleCleared() {
+		_spec.ClearField(user.FieldLifecycle, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.LifecycleState(); ok {
+		_spec.SetField(user.FieldLifecycleState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.LifecycleProjectionPending(); ok {
+		_spec.SetField(user.FieldLifecycleProjectionPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LifecycleMigrationPending(); ok {
+		_spec.SetField(user.FieldLifecycleMigrationPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DormantAfter(); ok {
+		_spec.SetField(user.FieldDormantAfter, field.TypeTime, value)
+	}
+	if _u.mutation.DormantAfterCleared() {
+		_spec.ClearField(user.FieldDormantAfter, field.TypeTime)
+	}
+	if value, ok := _u.mutation.LifecycleDueAt(); ok {
+		_spec.SetField(user.FieldLifecycleDueAt, field.TypeTime, value)
+	}
+	if _u.mutation.LifecycleDueAtCleared() {
+		_spec.ClearField(user.FieldLifecycleDueAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.NoticeDueAt(); ok {
+		_spec.SetField(user.FieldNoticeDueAt, field.TypeTime, value)
+	}
+	if _u.mutation.NoticeDueAtCleared() {
+		_spec.ClearField(user.FieldNoticeDueAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.Banned(); ok {
 		_spec.SetField(user.FieldBanned, field.TypeBool, value)
 	}
@@ -1386,6 +1712,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.CommandsPageHidden(); ok {
 		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LeaderboardPageHidden(); ok {
+		_spec.SetField(user.FieldLeaderboardPageHidden, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)

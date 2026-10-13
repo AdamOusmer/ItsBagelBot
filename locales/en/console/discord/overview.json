@@ -4,7 +4,7 @@
   "needsSetup": "Needs setup",
   "needsSetupHint": "{n} of these are on but still need a channel or a role. Open the one you want and pick it.",
   "configure": "Configure",
-  "notSetUp": "This server has never been set up. Run the fill and Bagel creates the channels and roles it needs.",
+  "notSetUp": "This server has never been set up. Choose Create missing channels and roles and Bagel adds what it needs.",
   "botState": "Bot",
   "modulesOn": "Modules on",
   "tiles": {

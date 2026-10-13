@@ -75,7 +75,11 @@ package despite describing Discord setup; do not infer Twitch-only ownership
 from that directory name.
 
 Setup reads existing resources and adopts/fills template slots, including pinned
-roles. Config writes have versions and authoritative binding checks. Desk repost
+roles. Lived-in servers get only the missing voice hub, voice category, logs
+channel and ticket/archive categories (no roles, no other channels). Every
+created gated or read-only channel carries an explicit bot member overwrite.
+Config writes verify all configured channel ids (including up to 25 ignored
+channels) against one guild channel listing. Config writes have versions and authoritative binding checks. Desk repost
 remembers the new panel and handles prior deletion independently; ticket close
 orchestration preserves/archive state through its typed RPC/store contract.
 Live/reauth/bot-status/lockdown memos are execution projections, not settings truth.
@@ -95,7 +99,8 @@ Live/reauth/bot-status/lockdown memos are execution projections, not settings tr
   tests explicitly require refusal when discord-data cannot establish ownership.
 - Preserve restored channel overwrites/verification on unlock and the role hierarchy
   rules when stripping roles; coarse replacement can damage unrelated permissions.
-- Cosmetic guild identity stays in the default lane and must not preempt moderation.
+- Cosmetic guild identity uses the default lane and must not preempt moderation.
+  Setup re-applies it once the bot may rename again, before clearing the reauth flag.
 - Health checks name mod/default progress separately and feed engine's Discord
   vertical via service token `discord-outgress`.
 

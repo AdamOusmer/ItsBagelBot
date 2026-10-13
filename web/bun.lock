@@ -36,6 +36,9 @@
         "terser": "^5.48.0",
       },
     },
+    "ai": {
+      "name": "@bagel/ai-docs",
+    },
     "dashboard": {
       "name": "dashboard",
       "dependencies": {
@@ -167,6 +170,8 @@
     "@babel/parser": ["@babel/parser@7.29.9", "", { "dependencies": { "@babel/types": "^7.29.8" }, "bin": "./bin/babel-parser.js" }, "sha512-CjXrNHTnvqBVqHgdBysY3vk2T8tpJHb5/RMeHJBTyVa9xgugCB0CJTx/3oO8RV2QRQP391RWpB7D6hLjm8V9uA=="],
 
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
+
+    "@bagel/ai-docs": ["@bagel/ai-docs@workspace:ai"],
 
     "@bagel/kit": ["@bagel/kit@workspace:kit"],
 

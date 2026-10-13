@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
+  import { page } from '$app/state';
   import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
@@ -159,7 +160,7 @@
       <div class="vp-actions">
         {#if isCustom}
           <CounterPicker onInsert={insert} />
-          <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
+          <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} canManageKeys={!page.data.delegateOf} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
           <ModuleVariablePicker onInsert={insert} />
         {/if}
 

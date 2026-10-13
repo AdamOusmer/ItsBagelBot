@@ -67,6 +67,7 @@ config :ingress,
       "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
     ),
   special_user_ids: MapSet.new(split_csv.(System.get_env("TWITCH_SPECIAL_USER_IDS"))),
+  bot_user_id: System.get_env("TWITCH_BOT_USER_ID"),
   lane_subject_premium:
     System.get_env("NATS_SUBJECT_LANE_PREMIUM", "twitch.ingress.event.premium"),
   lane_subject_standard:

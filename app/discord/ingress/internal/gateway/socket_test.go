@@ -52,7 +52,7 @@ func dialEcho(t *testing.T) (Conn, <-chan websocket.StatusCode) {
 	return conn, peerClose
 }
 
-func TestDialWSRoundTripsFramesAndShutsDownNormally(t *testing.T) {
+func TestDialWSRoundTripsFramesAndShutsDownKeepingTheSessionResumable(t *testing.T) {
 	conn, peerClose := dialEcho(t)
 	ctx := context.Background()
 
@@ -62,7 +62,7 @@ func TestDialWSRoundTripsFramesAndShutsDownNormally(t *testing.T) {
 	require.NoError(t, conn.Shutdown())
 
 	assert.Equal(t, `{"op":1}`, string(got))
-	assert.Equal(t, websocket.StatusNormalClosure, <-peerClose)
+	assert.Equal(t, reconnectingClose, <-peerClose)
 }
 
 func TestDialWSRejectsAPeerThatDoesNotUpgrade(t *testing.T) {

@@ -35,7 +35,7 @@ export interface RewardDraft {
 
 export type GoveeResult =
   | { ok: true }
-  | { ok: false; missingScope?: boolean; error?: string; code?: 'key_invalid' };
+  | { ok: false; missingScope?: boolean; error?: string; code?: 'key_invalid' | 'key_unchecked' };
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
@@ -149,10 +149,14 @@ export interface GoveeStore {
   read(): Promise<GoveeView>;
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
-  listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }>;
+  listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
   deleteReward(deviceId: string): Promise<GoveeResult>;
+}
+
+function deviceLookupFailure(e: unknown): { devices: GoveeDevice[]; error: string; code: 'key_rejected' | 'unreachable' } {
+  return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed', code: (e as { keyRejected?: boolean } | null)?.keyRejected === true ? 'key_rejected' : 'unreachable' };
 }
 
 export function goveeStore(userId: string): GoveeStore {
@@ -181,19 +185,26 @@ export function goveeStore(userId: string): GoveeStore {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
     invalidate(devicesCacheKey(userId));
-    if (!(await keyWorks())) {
+    const status = await keyWorks();
+    if (status === 'rejected') {
       await rpcReply(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000).catch(() => undefined);
       return { ok: false, code: 'key_invalid' };
     }
+    if (status === 'unreachable') return { ok: false, code: 'key_unchecked' };
     return { ok: true };
   }
 
-  async function keyWorks(): Promise<boolean> {
+  async function keyWorks(): Promise<'ok' | 'rejected' | 'unreachable'> {
     try {
-      const r = await rpc<{ devices?: GoveeDevice[] }>(`${SUB.gossip}.govee.devices`, { channel_id: userId }, 9000);
-      return Array.isArray(r.devices);
+      const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean }>(
+        `${SUB.gossip}.govee.devices`,
+        { channel_id: userId, fresh: true },
+        9000
+      );
+      if (Array.isArray(r.devices)) return 'ok';
+      return r.key_rejected === true ? 'rejected' : 'unreachable';
     } catch {
-      return false;
+      return 'unreachable';
     }
   }
 
@@ -204,20 +215,22 @@ export function goveeStore(userId: string): GoveeStore {
     return { ok: true };
   }
 
-  async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
+  async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' }> {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
-        const r = await rpc<{ devices?: GoveeDevice[] }>(
+        const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean; error?: string }>(
           `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
           // Just over gossip's 8 s devices handler budget.
           9000
         );
-        return Array.isArray(r.devices) ? r.devices : [];
+        if (r.key_rejected === true) throw Object.assign(new Error(r.error ?? 'key rejected'), { keyRejected: true });
+        else if (r.error) throw new Error(r.error);
+        else return Array.isArray(r.devices) ? r.devices : [];
       });
       return { devices };
     } catch (e) {
-      return { devices: [], error: e instanceof Error ? e.message : 'device lookup failed' };
+      return deviceLookupFailure(e);
     }
   }
 

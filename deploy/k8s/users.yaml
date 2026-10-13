@@ -24,14 +24,14 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: users
@@ -88,7 +88,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:v0.2.7-beta@sha256:e4bc351b66fe785fc37bd7febb7314732d57d5a7005ce5f3b375f21f0c01d00e
+          image: ghcr.io/adamousmer/itsbagelbot/users:main-1791692125-5365ee29b535@sha256:cf9e87d966102cadcd3350fc5f01add5668719f9a19670596ad0ce6ff2eb8aa7
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST

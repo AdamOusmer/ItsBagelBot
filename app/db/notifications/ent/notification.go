@@ -21,6 +21,10 @@ type Notification struct {
 	Scope notification.Scope `json:"scope,omitempty"`
 	// TargetUserID holds the value of the "target_user_id" field.
 	TargetUserID *uint64 `json:"target_user_id,omitempty"`
+	// Incarnation holds the value of the "incarnation" field.
+	Incarnation string `json:"incarnation,omitempty"`
+	// IncidentID holds the value of the "incident_id" field.
+	IncidentID string `json:"incident_id,omitempty"`
 	// Title holds the value of the "title" field.
 	Title string `json:"title,omitempty"`
 	// Body holds the value of the "body" field.
@@ -68,7 +72,7 @@ func (*Notification) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case notification.FieldID, notification.FieldTargetUserID, notification.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case notification.FieldScope, notification.FieldTitle, notification.FieldBody, notification.FieldLevel, notification.FieldCreatedByLogin, notification.FieldRequestID:
+		case notification.FieldScope, notification.FieldIncarnation, notification.FieldIncidentID, notification.FieldTitle, notification.FieldBody, notification.FieldLevel, notification.FieldCreatedByLogin, notification.FieldRequestID:
 			values[i] = new(sql.NullString)
 		case notification.FieldCreatedAt, notification.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
@@ -105,6 +109,18 @@ func (_m *Notification) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.TargetUserID = new(uint64)
 				*_m.TargetUserID = uint64(value.Int64)
+			}
+		case notification.FieldIncarnation:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field incarnation", values[i])
+			} else if value.Valid {
+				_m.Incarnation = value.String
+			}
+		case notification.FieldIncidentID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field incident_id", values[i])
+			} else if value.Valid {
+				_m.IncidentID = value.String
 			}
 		case notification.FieldTitle:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -204,6 +220,12 @@ func (_m *Notification) String() string {
 		builder.WriteString("target_user_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("incarnation=")
+	builder.WriteString(_m.Incarnation)
+	builder.WriteString(", ")
+	builder.WriteString("incident_id=")
+	builder.WriteString(_m.IncidentID)
 	builder.WriteString(", ")
 	builder.WriteString("title=")
 	builder.WriteString(_m.Title)

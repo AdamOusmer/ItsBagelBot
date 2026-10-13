@@ -1,0 +1,7 @@
+{
+  "refund.offline": "@{govee:user} las luces solo cambian durante el directo, se te devolvieron los puntos.",
+  "refund.colour": "@{govee:user} no se reconoció ese color, se te devolvieron los puntos. Prueba un nombre como blue o un código hexadecimal como #00ccff.",
+  "refund.setup": "@{govee:user} las luces aún no están configuradas, se te devolvieron los puntos.",
+  "refund.busy": "@{govee:user} las luces están cambiando con demasiada frecuencia, se te devolvieron los puntos. Vuelve a intentarlo en un momento.",
+  "refund.unreachable": "@{govee:user} no se pudo conectar con las luces, se te devolvieron los puntos."
+}

@@ -7,7 +7,7 @@
   "howEyebrow": "Comment ça marche",
   "howTitle": "Configuré une fois, puis le chat s'en charge.",
   "step1Title": "Obtenez une clé API Govee.",
-  "step1Desc": "Dans l'application Govee Home, ouvrez Profile, touchez la roue dentée, puis Apply for API Key. Govee envoie la clé par e-mail en quelques minutes.",
+  "step1Desc": "Dans l’application Govee Home, allez dans Profil → Paramètres → « Apply for API Key » et remplissez le court formulaire. Govee vous envoie généralement la clé par e-mail. Si elle n’arrive pas, vérifiez vos courriers indésirables.",
   "step2Title": "Collez-la et choisissez une lumière.",
   "step2Desc": "Sur la page Govee du tableau de bord, collez la clé et choisissez une lumière. La clé est stockée chiffrée et ne vous est jamais réaffichée.",
   "step3Title": "Créez la récompense.",

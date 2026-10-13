@@ -26,12 +26,13 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
-	bc, num, isBaked := p.registry.ResolveCommand(name)
-	if c.Env.Origin == "trial" && !trialCommand(bc, isBaked, name) {
+	owners, num := p.registry.resolveOwners(name)
+	if c.Env.Origin == "trial" && !trialCommand(owners, name) {
 		return nil
 	}
 	c.Command = name
-	if isBaked && p.enabled(bc.Owner, views, c) {
+	c.ModuleLookup = p.moduleLookup(views, c)
+	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
 		return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
 	}
 	if c.Env.Origin == "trial" {
@@ -40,8 +41,41 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	return p.runCustom(ctx, c, name, args, emit)
 }
 
-func trialCommand(bc BoundCommand, isBaked bool, name string) bool {
-	return (isBaked && bc.Owner.Trial) || trialReadOnlyCommand(name)
+func trialCommand(owners []BoundCommand, name string) bool {
+	return (len(owners) > 0 && owners[0].Owner.Trial) || trialReadOnlyCommand(name)
+}
+
+func (p *Pipeline) claimOwner(ctx context.Context, owners []BoundCommand, views map[string]projection.ModuleView, c *module.Context) (BoundCommand, bool) {
+	declined := -1
+	for i, bc := range owners {
+		if !p.enabled(bc.Owner, views, c) {
+			continue
+		}
+		if bc.Cmd.When == nil || bc.Cmd.When(ctx, c) {
+			return bc, true
+		}
+		if declined < 0 {
+			declined = i
+		}
+	}
+	if declined < 0 {
+		return BoundCommand{}, false
+	}
+	p.enabled(owners[declined].Owner, views, c)
+	return owners[declined], true
+}
+
+func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *module.Context) func(string) bool {
+	return func(name string) bool {
+		m, ok := p.registry.byName[name]
+		if !ok {
+			return false
+		}
+		config := c.Config
+		on := p.enabled(m, views, c)
+		c.Config = config
+		return on
+	}
 }
 
 func trialReadOnlyCommand(name string) bool {
@@ -82,6 +116,9 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	})
 	if err != nil {
 		return err
+	}
+	if emitErr == nil {
+		c.Engaged = true
 	}
 	return emitErr
 }
@@ -167,6 +204,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 
 	p.recordUse(ctx, c, cc.Name)
 	p.bumpCommandCounter(ctx, c, cc)
+	c.Engaged = true
 	return nil
 }
 

@@ -40,6 +40,8 @@ l'étape d'enregistrement.
 | Appel | Rôle |
 |---|---|
 | `module.NewModule(name, kind)` | Démarre un module. Renvoie `*Builder`. |
+| `b.Beta()` | Marque un module nommé comme bêta. Il ne s'exécute que pour les diffuseurs Premium. Un module core ne peut pas être bêta. |
+| `b.Trial()` | Marque l'ensemble de commandes d'essai. Il doit être un module core, ne peut pas être bêta, et seule l'origine d'essai le contrôle. |
 | `b.Command(name)` | Commence une commande de chat. Renvoie `*CmdBuilder` pour enchaîner les contrôles. Le nom est converti en minuscules. |
 | `b.On(eventType, fn)` | Enregistre un handler hors commande pour un type EventSub. Si le même type est enregistré deux fois, le dernier handler est conservé. |
 | `b.Build()` | Valide et renvoie le `Module` immuable. Provoque une **panique** en cas d'erreur de programmation. |
@@ -77,26 +79,18 @@ Chaque méthode définit le rôle **minimal** ; les rôles supérieurs passent �
 | `.Sub()` | abonné |
 | `.VIP()` | VIP |
 | `.Mod()` | modérateur |
+| `.LeadMod()` | lead moderator |
 | `.Broadcaster()` | propriétaire de la chaîne uniquement |
 
 Ordre de la hiérarchie : `RoleEveryone` → `RoleSubscriber` → `RoleVIP` → `RoleModerator` →
 `RoleLeadModerator` → `RoleBroadcaster`.
 
-**Il n'existe pas de méthode `.LeadMod()` sur le constructeur**, même si
-`RoleLeadModerator` figure dans la hiérarchie. Cette entrée sert à l'*inclusion*,
-pas au contrôle : Twitch fournit le badge `lead_moderator` **à la place** de
-`moderator`, donc sans rang supérieur à moderator chaque lead mod échouerait au
-contrôle `.Mod()` faute de badge reconnu. `.Mod()` inclut donc déjà les lead
-moderators et les rôles supérieurs.
+Twitch fournit le badge `lead_moderator` à la place de `moderator`, donc `.Mod()` inclut aussi les lead moderators et les rôles supérieurs. `.LeadMod()` exclut les modérateurs simples.
 
-Ce niveau est également pris en charge partout : `permRoles` associe `"lead_mod"`,
+Ce niveau est aussi utilisé hors du constructeur : `permRoles` associe `"lead_mod"`,
 `internal/domain/validate` l'accepte, le schéma ent de `commands` le stocke et le
-tableau de bord propose « Lead moderators & up ». Une commande **personnalisée**
-écrite par une chaîne peut donc être réservée aux lead mods (le moteur contrôle
-les commandes intégrées et personnalisées via le même `gate()`), alors qu'un
-module **intégré** ne peut actuellement pas exprimer « lead mods et supérieurs,
-à l'exclusion des modérateurs simples ». Ajouter `.LeadMod()` ne demanderait
-qu'un setter d'une ligne dans `CmdBuilder` si un module intégré en avait besoin.
+tableau de bord propose « Lead moderators & up ». Le moteur contrôle les commandes
+intégrées et personnalisées via le même `gate()`.
 
 | Méthode | Rôle |
 |---|---|
@@ -106,7 +100,7 @@ qu'un setter d'une ligne dans `CmdBuilder` si un module intégré en avait besoi
 
 | Méthode | Rôle |
 |---|---|
-| `.Cooldown(d)` | Fenêtre partagée par commande. Zéro (par défaut) signifie aucune fenêtre. |
+| `.Cooldown(d)` | Fenêtre partagée par commande. Zéro (par défaut) signifie aucune fenêtre. Les commandes personnalisées peuvent aussi définir une fenêtre par spectateur. |
 | `.LiveOnly()` | S'exécute uniquement lorsque la chaîne est en direct. |
 
 ### Correspondance
@@ -130,13 +124,14 @@ Le moteur applique les contrôles de manière centralisée dans `engine/dispatch
 func (p *Pipeline) gate(ctx, c, r gateRule) (bool, error) {
     if !permits(c, r.allowedUserID, r.perm) { return false, nil }          // 1
     if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok { return false, err }  // 2
-    return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)          // 3
+    if c.Env.Origin == "trial" { return true, nil }                         // no cooldown claim
+    return p.cooldownOK(ctx, c, r)                                          // 3
 }
 ```
 
 1. permission
 2. uniquement en direct
-3. cooldown
+3. cooldown (ignoré pour les messages d'origine essai)
 
 **Le cooldown est volontairement en dernier.** `cooldownOK` *réserve* la fenêtre lorsqu'il réussit.
 S'il s'exécutait en premier, un chatter qui échoue au contrôle de permission consommerait quand même
@@ -156,7 +151,7 @@ type RunFunc func(ctx context.Context, c *Context, args string, emit Emit) error
 - `c.Env` est l'enveloppe de chat : `BroadcasterUserID`, `ChatterUserID`,
   `ChatterUserLogin`, `ChatterName()`, badges.
 - `c.Chatter()` résout le rôle du chatter, analysé une fois puis mis en cache.
-- `c.Locale` est la langue de la chaîne. Utilisez `i18n.T(c.Locale, "key")`.
+- `c.Locale` est la langue de la chaîne, chargée à la demande. Appelez `c.EnsureLocale(ctx)` avant de la lire, puis utilisez `i18n.T(c.Locale, "key")`.
 - `c.Config` est le blob de configuration brut du module ; `c.Decode(&out)` le
   désérialise. Il est vide pour les modules Core et une configuration absente
   n'est pas une erreur.
@@ -199,6 +194,8 @@ en production. Il rejette :
 
 - un type nommé avec un nom vide
 - un type inconnu
+- un module core marqué bêta
+- un module d'essai qui n'est pas core ou qui est aussi bêta
 - un nom de commande ou un alias vide
 - un déclencheur dupliqué **dans le même module**
 - une commande sans `Run` (signalée par « chain .Run to finish it »)

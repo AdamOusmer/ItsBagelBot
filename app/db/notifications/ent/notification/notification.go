@@ -19,6 +19,10 @@ const (
 	FieldScope = "scope"
 	// FieldTargetUserID holds the string denoting the target_user_id field in the database.
 	FieldTargetUserID = "target_user_id"
+	// FieldIncarnation holds the string denoting the incarnation field in the database.
+	FieldIncarnation = "incarnation"
+	// FieldIncidentID holds the string denoting the incident_id field in the database.
+	FieldIncidentID = "incident_id"
 	// FieldTitle holds the string denoting the title field in the database.
 	FieldTitle = "title"
 	// FieldBody holds the string denoting the body field in the database.
@@ -53,6 +57,8 @@ var Columns = []string{
 	FieldID,
 	FieldScope,
 	FieldTargetUserID,
+	FieldIncarnation,
+	FieldIncidentID,
 	FieldTitle,
 	FieldBody,
 	FieldLevel,
@@ -74,6 +80,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultIncarnation holds the default value on creation for the "incarnation" field.
+	DefaultIncarnation string
 	// TitleValidator is a validator for the "title" field. It is called by the builders before save.
 	TitleValidator func(string) error
 	// BodyValidator is a validator for the "body" field. It is called by the builders before save.
@@ -151,6 +159,16 @@ func ByScope(opts ...sql.OrderTermOption) OrderOption {
 // ByTargetUserID orders the results by the target_user_id field.
 func ByTargetUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTargetUserID, opts...).ToFunc()
+}
+
+// ByIncarnation orders the results by the incarnation field.
+func ByIncarnation(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIncarnation, opts...).ToFunc()
+}
+
+// ByIncidentID orders the results by the incident_id field.
+func ByIncidentID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIncidentID, opts...).ToFunc()
 }
 
 // ByTitle orders the results by the title field.

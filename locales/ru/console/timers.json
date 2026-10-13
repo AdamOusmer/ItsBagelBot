@@ -20,7 +20,7 @@
   "toggleAria": "Приостановить или возобновить таймер: {name}",
   "deleteAria": "Удалить таймер: {name}",
   "fieldMessage": "Сообщение",
-  "fieldMessagePh": "например, Следите за соцсетями: {link}",
+  "fieldMessagePh": "например, Отслеживайте канал, чтобы знать, когда я выйду в эфир.",
   "fieldInterval": "Повторять каждые",
   "fieldIntervalHint": "Минимум 1 минута, максимум 24 часа.",
   "unitMinutes": "минуты",

@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
-	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/valkey-io/valkey-go"
@@ -95,10 +93,7 @@ type RaffleStore interface {
 }
 
 type RaffleConfig struct {
-	OutgressPremiumSubject  string
-	OutgressStandardSubject string
-	Pub                     bus.Publisher
-	Proj                    projection.Reader
+	AnnouncementConfig
 }
 
 type ValkeyRaffleStore struct {

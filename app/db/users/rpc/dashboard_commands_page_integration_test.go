@@ -24,7 +24,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestCommandsPageSetRoundTripIntegration(t *testing.T) {
+func TestPageSetRoundTripIntegration(t *testing.T) {
 	nc := dialDashboardIntegrationBroker(t)
 	ctx := context.Background()
 
@@ -43,22 +43,33 @@ func TestCommandsPageSetRoundTripIntegration(t *testing.T) {
 	}, prefix, invalidationPrefix))
 	require.NoError(t, nc.Flush())
 
-	reply, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+".commands_page_set", map[string]any{
-		"broadcaster_user_id":  "1001",
-		"commands_page_hidden": true,
-	})
-	require.NoError(t, err)
-	require.Equal(t, true, reply["ok"])
+	tests := []struct {
+		verb, field string
+		hidden      func(repository.UserView) bool
+	}{
+		{"commands_page_set", "commands_page_hidden", func(v repository.UserView) bool { return v.CommandsPageHidden }},
+		{"leaderboard_page_set", "leaderboard_page_hidden", func(v repository.UserView) bool { return v.LeaderboardPageHidden }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.verb, func(t *testing.T) {
+			reply, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+"."+tc.verb, map[string]any{
+				"broadcaster_user_id": "1001",
+				tc.field:              true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, true, reply["ok"])
 
-	view, err := repo.Get(ctx, 1001)
-	require.NoError(t, err)
-	require.True(t, view.CommandsPageHidden)
+			view, err := repo.Get(ctx, 1001)
+			require.NoError(t, err)
+			require.True(t, tc.hidden(view))
 
-	state, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+".state_get", usersrpc.GrantHasRequest{
-		BroadcasterUserID: "1001",
-	})
-	require.NoError(t, err)
-	require.Equal(t, true, state["commands_page_hidden"])
+			state, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+".state_get", usersrpc.GrantHasRequest{
+				BroadcasterUserID: "1001",
+			})
+			require.NoError(t, err)
+			require.Equal(t, true, state[tc.field])
+		})
+	}
 }
 
 func dialDashboardIntegrationBroker(t *testing.T) *nats.Conn {

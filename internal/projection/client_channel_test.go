@@ -174,8 +174,6 @@ func TestLoadChannelConcurrentColdLoadsSingleflight(t *testing.T) {
 func TestLoadChannelFailurePolicies(t *testing.T) {
 	c, _, f := channelTestClient(t)
 	ctx := context.Background()
-	// An absent account and unavailable RPC retain the conservative user
-	// fallback, while absent modules remain a retryable error, never cached.
 	_, user, err := c.LoadChannel(ctx, 999, true)
 	require.Error(t, err)
 	require.Equal(t, User{Status: "standard"}, user)
@@ -188,7 +186,7 @@ func TestLoadChannelFailurePolicies(t *testing.T) {
 	mods, user, err := c.LoadChannel(ctx, 999, true)
 	require.NoError(t, err, "the failed modules load must not have been cached")
 	assert.True(t, mods["automod"].IsEnabled)
-	assert.Equal(t, User{Status: "standard"}, user, "the user fallback is cached")
+	assert.Equal(t, "paid", user.Status, "the failed user load must not have been cached")
 }
 
 func BenchmarkLoadChannelHot(b *testing.B) {

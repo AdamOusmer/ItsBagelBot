@@ -23,8 +23,10 @@ type Handler interface {
 }
 
 type Event struct {
-	Type string
-	Raw  []byte
+	Type      string
+	Raw       []byte
+	SessionID string
+	Seq       int
 }
 
 type Identity struct {
@@ -88,7 +90,13 @@ type Session struct {
 
 	Connects ConnectLog
 
+	Lease      Lease
+	Checkpoint Checkpoint
+	Role       Role
+
 	budget *connectBudget
+	timing *leaseTiming
+	now    func() time.Time
 }
 
 const defaultPresenceInterval = 5 * time.Minute
@@ -97,8 +105,14 @@ func (s Session) Run(ctx context.Context) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
+	if s.Lease != nil {
+		return s.runLeased(ctx)
+	}
+	return s.serve(ctx, &resumeState{})
+}
+
+func (s Session) serve(ctx context.Context, st *resumeState) error {
 	url := s.gatewayURL()
-	st := &resumeState{}
 	rc := newReconnect()
 	bud := s.connectBudget()
 	for {
@@ -336,6 +350,7 @@ func (s Session) pump(ctx context.Context, conn Conn, st *resumeState) error {
 		if err := s.handlePacket(ctx, sk, pkt, st); err != nil {
 			return sk.firstError(err)
 		}
+		s.checkpointIfDue(ctx, st)
 	}
 }
 
@@ -463,9 +478,10 @@ func (s Session) onDispatch(ctx context.Context, pkt packet, st *resumeState) er
 		sessionID, _, _ := st.resumable()
 		st.markUp(time.Now(), true)
 		s.reportUp(ctx, Up{SessionID: sessionID, Resumed: true})
+		s.saveCheckpoint(ctx, st)
 		return nil
 	}
-	return s.dispatchEvent(ctx, pkt)
+	return s.dispatchEvent(ctx, pkt, st)
 }
 
 func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) error {
@@ -476,6 +492,7 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 	st.ready(ready.SessionID, ready.ResumeGatewayURL)
 	st.markUp(time.Now(), false)
 	s.reportUp(ctx, Up{SessionID: ready.SessionID, GuildCount: len(ready.Guilds)})
+	s.saveCheckpoint(ctx, st)
 	if s.Handle == nil {
 		return nil
 	}
@@ -489,12 +506,20 @@ func (s Session) noteEvent(ctx context.Context) {
 	s.Status.Event(ctx)
 }
 
-func (s Session) dispatchEvent(ctx context.Context, pkt packet) error {
+func (s Session) dispatchEvent(ctx context.Context, pkt packet, st *resumeState) error {
 	s.noteEvent(ctx)
 	if s.Handle == nil {
 		return nil
 	}
-	return s.Handle.Dispatch(ctx, Event{Type: pkt.T, Raw: pkt.D})
+	sessionID, _, _ := st.resumable()
+	return s.Handle.Dispatch(ctx, Event{Type: pkt.T, Raw: pkt.D, SessionID: sessionID, Seq: seqOf(pkt.S)})
+}
+
+func seqOf(s *int) int {
+	if s == nil {
+		return 0
+	}
+	return *s
 }
 
 func (s Session) heartbeat(ctx context.Context, sk *socket, intervalMS int, st *resumeState) {
@@ -568,4 +593,11 @@ func writeJSON(ctx context.Context, conn Conn, v any) error {
 		return err
 	}
 	return conn.Write(ctx, raw)
+}
+
+func (s Session) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }

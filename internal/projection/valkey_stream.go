@@ -27,8 +27,9 @@ const (
 	streamCtrAnsweredField  = "streamctr:answered"
 	streamCtrModActionField = "streamctr:mod_actions"
 
-	streamLiveField        = "live"
-	streamLiveVersionField = "live_ver"
+	streamLiveField            = "live"
+	streamLiveVersionField     = "live_ver"
+	streamBaselinePendingField = "stream_baseline_pending_ver"
 )
 
 func streamUserKey(userID string) (string, error) {
@@ -98,6 +99,9 @@ func (v *Store) GetStreamLive(ctx context.Context, userID uint64) (StreamLive, e
 var foldStreamLiveScript = valkey.NewLuaScript(`local cur = tonumber(redis.call('HGET', KEYS[1], 'live_ver'))
 if cur and cur > tonumber(ARGV[2]) then return -1 end
 local was = redis.call('HGET', KEYS[1], 'live')
+if ARGV[1]=='1' then
+ if was~='1' or redis.call('HEXISTS',KEYS[1],'stream_baseline_pending_ver')==1 then redis.call('HSET',KEYS[1],'stream_baseline_pending_ver',ARGV[2]) end
+else redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end
 redis.call('HSET', KEYS[1], 'live', ARGV[1], 'live_ver', ARGV[2])
 redis.call('EXPIRE', KEYS[1], ARGV[3], 'NX')
 redis.call('EXPIRE', KEYS[1], ARGV[3], 'GT')
@@ -248,4 +252,25 @@ func (v *Store) GetStreamCounterBaseline(ctx context.Context, userID string) (St
 	mods, _ := strconv.ParseInt(modActions, 10, 64)
 
 	return StreamCounters{Messages: msgs, Answered: ans, ModActions: mods}, true, nil
+}
+
+// StreamBaselinePending survives a lifecycle read failure after accepting online.
+// Its version remains tied to the latest accepted live fact, never wall-clock replay.
+func (v *Store) StreamBaselinePending(ctx context.Context, id uint64, version int64) (bool, error) {
+	key := cache.UserKey(settingsKeyPrefix, id)
+	value, err := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(streamBaselinePendingField).Build()).AsInt64()
+	if valkey.IsValkeyNil(err) {
+		return false, nil
+	}
+	return value == version, err
+}
+func (v *Store) DiscardStreamBaseline(ctx context.Context, id uint64, version int64) error {
+	return v.primary.Do(ctx, v.primary.B().Eval().Script(`if redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')==ARGV[1] then redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end return 1`).Numkeys(1).Key(cache.UserKey(settingsKeyPrefix, id)).Arg(strconv.FormatInt(version, 10)).Build()).Error()
+}
+func (v *Store) SetStreamCounterBaselineForVersion(ctx context.Context, id uint64, version int64, b StreamCounters) error {
+	return v.primary.Do(ctx, v.primary.B().Eval().Script(`local confirmed=tonumber(redis.call('GET',KEYS[2]) or '0')
+ if confirmed>tonumber(ARGV[1]) then return 0 end
+ if redis.call('HGET',KEYS[1],'live')~='1' or redis.call('HGET',KEYS[1],'live_ver')~=ARGV[1] or redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')~=ARGV[1] then return 0 end
+ redis.call('HSET',KEYS[1],'streamctr:messages',ARGV[2],'streamctr:answered',ARGV[3],'streamctr:mod_actions',ARGV[4])
+ redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') return 1`).Numkeys(2).Key(cache.UserKey(settingsKeyPrefix, id), livekey.VerKey(id)).Arg(strconv.FormatInt(version, 10), strconv.FormatInt(b.Messages, 10), strconv.FormatInt(b.Answered, 10), strconv.FormatInt(b.ModActions, 10)).Build()).Error()
 }

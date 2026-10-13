@@ -100,7 +100,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:v0.2.7-beta@sha256:4f404b5dc52d62bb58724729bdd1783e7b5ce91bc3242fc693e909a56835e344
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:main-1791692418-fd9f210b6cd0@sha256:47ee0dc3139f8cdd650a08deef8a02f61227fc412b8c4de0a3ddeb7ade46397a
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -140,6 +140,11 @@ spec:
                 secretKeyRef:
                   name: outgress-env
                   key: VALKEY_PASSWORD
+            - name: TWITCH_BOT_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: outgress-env
+                  key: TWITCH_BOT_USER_ID
             - name: POD_IP
               valueFrom:
                 fieldRef:

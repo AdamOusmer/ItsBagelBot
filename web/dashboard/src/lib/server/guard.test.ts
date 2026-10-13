@@ -60,11 +60,11 @@ const cases: { name: string; reply: () => Promise<unknown>; want: Outcome }[] = 
     want: { ...bounced, accountState: { ghost: true } }
   },
   {
-    name: 'an uncoded refusal still clears, matching the pre-code behaviour',
+    name: 'an uncoded refusal keeps the session',
     reply: async () => {
-      throw new RpcError('no such user');
+      throw new RpcError('db stalled');
     },
-    want: { ...bounced, accountState: { ghost: true } }
+    want: kept
   },
   ...(['internal', 'unavailable', 'invalid'] as const).map((code) => ({
     name: `${code} keeps the session and lets the layout retry`,

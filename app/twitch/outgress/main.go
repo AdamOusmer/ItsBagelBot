@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/worker"
 	"ItsBagelBot/app/twitch/outgress/rpc"
 	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
@@ -136,15 +137,21 @@ func main() {
 	closeAuthzLane := d.startAuthzLane(ctx, system)
 	defer closeAuthzLane()
 	go system.EnsureClientEventSubs(ctx)
+	go system.ReconcileLifecycle(ctx)
 
-	svcboot.FatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
+	rpcConfig := rpc.SubscriptionConfig{
+		RPCWiring: bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log.Named("rpc")},
+		Prefix:    cfg.RPCPrefix,
+		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, ""),
+	}
+	svcboot.FatalIf(log, rpc.SubscribeManage(rpcConfig, registry, tw),
 		"failed to subscribe management rpc")
 	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
 		NC: nc, App: nrApp, Queue: "outgress-trial-subscription", Log: log.Named("trial-rpc"), Timeout: 5 * time.Second,
 	}, valkeyClient, tw, cfg.TwitchBotUserID),
 		"failed to subscribe trial subscription rpc")
 
-	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
+	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(rpcConfig, tw),
 		"failed to subscribe channel-points rpc")
 
 	svcboot.FatalIf(log, d.subscribeChatters(tw, limiter), "failed to subscribe chatters rpc")
@@ -218,13 +225,8 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			loaded, err := store.Load(ctx)
 			if err != nil {
 				log.Debug("stored token unavailable", zap.String("account_id", accountID), zap.Error(err))
-				return twitch.StoredLoad{}
 			}
-			return twitch.StoredLoad{
-				RefreshToken:         loaded.RefreshToken,
-				AccessToken:          loaded.AccessToken,
-				AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
-			}
+			return storedLoad(loaded, err)
 		},
 		Persist: func(ctx context.Context, access, refresh string, expiresAt time.Time) error {
 			if err := store.Save(ctx, access, refresh, &expiresAt); err != nil {
@@ -234,6 +236,17 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 			return nil
 		},
 	}, d.newMintLease(accountID))
+}
+
+func storedLoad(loaded tokenstore.Loaded, err error) twitch.StoredLoad {
+	if tokenstore.Unavailable(err) {
+		return twitch.StoredLoad{Err: err}
+	}
+	return twitch.StoredLoad{
+		RefreshToken:         loaded.RefreshToken,
+		AccessToken:          loaded.AccessToken,
+		AccessTokenExpiresAt: loaded.AccessTokenExpiresAt,
+	}
 }
 
 func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
@@ -252,15 +265,17 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
 	blocked := worker.NewBlockedLog(d.log.Named("trial-blocked"))
 	base := worker.Config{
-		Blocked:  blocked,
-		Limiter:  limiter,
-		Registry: registry,
-		Twitch:   tw,
-		BotID:    d.cfg.TwitchBotUserID,
-		Owner:    d.host,
-		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
-		Batch:    batch,
-		UserIDs:  worker.NewUserIDCache(),
+		Runtime:     channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(d.valkey)), d.nc, ""),
+		LifecycleNC: d.nc,
+		Blocked:     blocked,
+		Limiter:     limiter,
+		Registry:    registry,
+		Twitch:      tw,
+		BotID:       d.cfg.TwitchBotUserID,
+		Owner:       d.host,
+		Conduit:     conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
+		Batch:       batch,
+		UserIDs:     worker.NewUserIDCache(),
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base
@@ -273,6 +288,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	system = build("system", worker.LaneSystem)
 
 	modVerifier := worker.NewModVerifier(registry, tw, d.cfg.TwitchBotUserID, d.host, d.log.Named("mod-status"))
+	modVerifier.Admit = system.BackgroundAllowed
 	premium.SetModVerifier(modVerifier)
 	standard.SetModVerifier(modVerifier)
 	system.SetModVerifier(modVerifier)
@@ -365,6 +381,7 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 	svcboot.FatalIf(d.log, err, "failed to connect authz subscriber")
 
 	lanes := map[string]func(*bus.Message) error{
+		worker.BotModerationSubject:  system.HandleBotModeration,
 		d.cfg.AuthzGrantedSubject:    system.HandleAuthzGranted,
 		d.cfg.AuthzRevokedSubject:    system.HandleAuthzRevoked,
 		d.cfg.AuthzSubRevokedSubject: system.HandleAuthzSubRevoked,
@@ -393,15 +410,15 @@ func (d *deps) logReady(tw *twitch.Client) {
 
 func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager) error {
 	watchAttendance := watchtime.NewStore(d.valkey)
-	viewerAdmission := projection.NewStore(pkg_valkey.Primary(d.valkey))
+	viewerAdmission := channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(d.valkey)), d.nc, "")
 	return rpc.SubscribeChatters(d.nc, tw, d.cfg.TwitchBotUserID, d.cfg.RPCPrefix, queueGroup, d.nrApp, d.log.Named("rpc"), rpc.ChattersOptions{
 		AdmitViewer: func(ctx context.Context, id string) (bool, error) {
 			bid, err := strconv.ParseUint(id, 10, 64)
 			if err != nil {
 				return false, err
 			}
-			_, active, banned, _, _, err := viewerAdmission.GetUser(ctx, bid)
-			return active && !banned, err
+			snap, err := viewerAdmission.Get(ctx, bid)
+			return snap.AllowsRuntime(), err
 		},
 		Limiter:              limiter,
 		ProviderRetryAt:      watchAttendance.ProviderRetryAt,
@@ -409,6 +426,10 @@ func (d *deps) subscribeChatters(tw *twitch.Client, limiter ratelimit.Manager) e
 		Admit: func(ctx context.Context, req manage.ChattersRequest) (bool, error) {
 			id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
 			if err != nil {
+				return false, err
+			}
+			runtime, err := viewerAdmission.Get(ctx, id)
+			if err != nil || !runtime.AllowsBackground() {
 				return false, err
 			}
 			snap, active, err := watchAttendance.Capture(ctx, id)

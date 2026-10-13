@@ -7,6 +7,8 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -83,4 +85,121 @@ func TestValkeyStoreKeepsTicketStateInItsDocumentedFormats(t *testing.T) {
 	require.Equal(t, pair(closing, true), pair(pending, pendingOK))
 	require.Equal(t, pair(discordstore.DeskPanel{GuildID: guild.ID, ChannelID: channel.ID, MessageID: "m2"}, true), pair(desk, deskOK))
 	require.Equal(t, pair(discordstore.DeskPanel{GuildID: other.ID}, true), pair(bareDesk, bareOK), "a bare claim is a desk without a panel")
+}
+
+func ttlOf(t *testing.T, client valkey.Client, key string) time.Duration {
+	t.Helper()
+	secs, err := client.Do(context.Background(), client.B().Ttl().Key(key).Build()).AsInt64()
+	require.NoError(t, err, key)
+	return time.Duration(secs) * time.Second
+}
+
+func TestValkeyVoiceMoveIsAtomicAndExpires(t *testing.T) {
+	client := valkeyClient(t)
+	s := discordstore.New(client)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().UnixNano(), 36)
+	guild, room, hub := "g"+run, "room"+run, "hub"+run
+	const riders = 16
+	keys := []string{
+		"discord:voice:" + room, "discord:voices:" + guild,
+		"discord:voiceoccupants:" + room, "discord:voiceoccupants:" + hub,
+	}
+	for i := range riders {
+		keys = append(keys, "discord:voiceseat:"+guild+":u"+strconv.Itoa(i))
+	}
+	t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(keys...).Build()) })
+	require.NoError(t, s.TrackClone(ctx, discordstore.Clone{ChannelID: room, GuildID: guild, OwnerID: "u0"}))
+
+	joined := s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u0", ChannelID: hub})
+	require.Equal(t, discordstore.VoiceMove{To: hub}, joined)
+	for i := range riders {
+		s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u" + strconv.Itoa(i), ChannelID: room})
+	}
+	for _, key := range keys[:3] {
+		require.Positive(t, ttlOf(t, client, key), key)
+		require.LessOrEqual(t, ttlOf(t, client, key), 24*time.Hour, key)
+	}
+	require.Positive(t, ttlOf(t, client, keys[4]))
+
+	var wg sync.WaitGroup
+	moves := make(chan discordstore.VoiceMove, riders)
+	for i := range riders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			moves <- s.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{GuildID: guild, UserID: "u" + strconv.Itoa(i)})
+		}()
+	}
+	wg.Wait()
+	close(moves)
+	emptied := 0
+	for m := range moves {
+		require.Equal(t, room, m.From)
+		if m.LeftEmpty {
+			emptied++
+		}
+	}
+	require.Equal(t, 1, emptied, "exactly one concurrent leaver sees the room empty")
+}
+
+func TestValkeyVoiceMoveFailsClosedWhenTheStoreIsDown(t *testing.T) {
+	addr := os.Getenv("VALKEY_TEST_ADDR")
+	if addr == "" {
+		t.Skip("VALKEY_TEST_ADDR is not set")
+	}
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, Password: os.Getenv("VALKEY_TEST_PASSWORD")})
+	require.NoError(t, err)
+	s := discordstore.New(client)
+	client.Close()
+
+	got := s.UpdateVoiceOccupancy(context.Background(), discordstore.VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
+
+	require.Equal(t, discordstore.VoiceMove{}, got)
+}
+
+func TestValkeyStoreCachesMessagesAndFactsWithTTLs(t *testing.T) {
+	client := valkeyClient(t)
+	s := discordstore.New(client)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().UnixNano(), 36)
+	msg := discordstore.CachedMessage{
+		ID: "m" + run, GuildID: "g" + run, ChannelID: "c1", AuthorID: "u1", AuthorName: "Ada",
+		Content: strings.Repeat("x", 2000), Attachments: []string{"https://cdn/a.png"},
+	}
+	member := discordstore.Member{GuildID: "g" + run, UserID: "u1"}
+	role := discordstore.LabelRef{Kind: discordstore.LabelRole, GuildID: "g" + run, ID: "r1"}
+	keys := []string{"discord:msg:" + msg.ID, "discord:mroles:g" + run + ":u1", "discord:role:g" + run + ":r1"}
+	t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(keys...).Build()) })
+
+	require.NoError(t, s.RememberMessage(ctx, msg))
+	require.NoError(t, s.RememberRoles(ctx, discordstore.MemberRoles{Member: member, Roles: []string{"r1", "r2"}}))
+	require.NoError(t, s.RememberLabel(ctx, discordstore.Label{Ref: role, Name: "Mods"}))
+
+	got, ok := s.RecallMessage(ctx, discordstore.Message{ID: msg.ID})
+	require.True(t, ok)
+	require.Len(t, []rune(got.Content), 1024)
+	msg.Content = got.Content
+	require.Equal(t, msg, got)
+	roles, rolesOK := s.RecallRoles(ctx, member)
+	require.Equal(t, pair([]string{"r1", "r2"}, true), pair(roles, rolesOK))
+	name, nameOK := s.RecallLabel(ctx, role)
+	require.Equal(t, pair("Mods", true), pair(name, nameOK))
+	_, missing := s.RecallMessage(ctx, discordstore.Message{ID: "none" + run})
+	require.False(t, missing)
+
+	wantTTL := []time.Duration{time.Hour, 24 * time.Hour, 24 * time.Hour}
+	for i, key := range keys {
+		ttl, err := client.Do(ctx, client.B().Ttl().Key(key).Build()).AsInt64()
+		require.NoError(t, err, key)
+		require.InDelta(t, wantTTL[i].Seconds(), float64(ttl), 5, key)
+	}
+}
+
+func TestValkeyTrackCloneStopsAtTheCapUnderConcurrency(t *testing.T) {
+	client := valkeyClient(t)
+	guild := "cap" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	t.Cleanup(func() { client.Do(context.Background(), client.B().Del().Key("discord:voices:"+guild).Build()) })
+
+	requireCloneCapHolds(t, discordstore.New(client), guild)
 }

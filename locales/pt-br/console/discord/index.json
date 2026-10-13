@@ -23,7 +23,7 @@
   "invalidFieldBanner": "{field} era inválido, então o valor anterior foi mantido. O campo está marcado abaixo.",
   "fieldInvalid": "Inválido, então o valor anterior foi mantido.",
   "reauthCta": "Autorizar Bagel novamente",
-  "reauthNeeded": "Este servidor foi adicionado antes de Bagel pedir a permissão Alterar apelido, então o nome Premium não pode ser aplicado aqui. O avatar Premium continua funcionando. Autorize novamente para concluir.",
+  "reauthNeeded": "Este servidor foi adicionado antes de Bagel pedir a permissão Alterar apelido, então o nome Premium não pode ser aplicado aqui. O avatar Premium continua funcionando. Escolha Autorizar Bagel novamente e depois Adicionar Bagel novamente ao lado deste servidor.",
   "save": "Salvar configurações",
   "serversHelp": "Cada servidor mantém seus próprios canais, cargos e configurações. Abra um para alterá-lo.",
   "serversTitle": "Seus servidores",

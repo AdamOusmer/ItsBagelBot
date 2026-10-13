@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
@@ -66,7 +67,7 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 		}
 		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg, locale: c.Locale}
 		if !goveeLivePermits(ctx, d, cfg, c.BroadcasterID) {
-			r.refund("the lights only change while live, your points were refunded")
+			r.refund("govee.refund.offline")
 			return nil
 		}
 		r.apply(ctx)
@@ -85,11 +86,11 @@ type goveeRun struct {
 func (r goveeRun) apply(ctx context.Context) {
 	req, label, ok := goveeIntent(r.cfg, strings.TrimSpace(r.ev.UserInput))
 	if !ok {
-		r.refund("didn't recognize that colour, your points were refunded (try a name like blue, or a hex like #00ccff)")
+		r.refund("govee.refund.colour")
 		return
 	}
 	if err := r.control(ctx, req); err != nil {
-		r.refund(goveeFailureMessage(err))
+		r.refund(goveeFailureKey(err))
 		return
 	}
 	r.chat(renderGoveeReply(r.locale, r.cfg.ReplyMessage, r.ev, label))
@@ -182,17 +183,23 @@ func goveeLivePermits(ctx context.Context, d engine.Deps, cfg goveeConfig, broad
 	return live
 }
 
-func goveeFailureMessage(err error) string {
-	var re bus.RPCReplyError
-	if errors.As(err, &re) && re.Message != "" {
-		return re.Message + ", your points were refunded"
-	}
-	return "couldn't reach your lights, your points were refunded"
+var goveeFailureKeys = map[string]string{
+	"no Govee API key on file":          "govee.refund.setup",
+	"too many light changes, slow down": "govee.refund.busy",
 }
 
-func (r goveeRun) refund(reason string) {
-	user := strings.TrimPrefix(displayName(r.ev.UserName, r.ev.UserLogin), "@")
-	r.chat("@" + user + " " + reason)
+func goveeFailureKey(err error) string {
+	var re bus.RPCReplyError
+	if errors.As(err, &re) {
+		if key, ok := goveeFailureKeys[re.Message]; ok {
+			return key
+		}
+	}
+	return "govee.refund.unreachable"
+}
+
+func (r goveeRun) refund(key string) {
+	r.chat(renderGoveeReply(r.locale, i18n.T(r.locale, key), r.ev, ""))
 	emitRedemptionStatus(r.emit, r.ev, outgress.RedemptionCanceled)
 }
 

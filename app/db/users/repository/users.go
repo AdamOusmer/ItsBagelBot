@@ -3,6 +3,8 @@
 
 package repository
 
+import "ItsBagelBot/internal/domain/lifecycle"
+
 import (
 	"context"
 	"fmt"
@@ -42,24 +44,26 @@ const (
 
 // UserView is cached in process, so it must carry no sensitive fields.
 type UserView struct {
-	StateRevision             int64      `json:"state_revision,omitempty"`
-	ID                        uint64     `json:"id"`
-	AccountCreatedAt          int64      `json:"account_created_at,omitempty"`
-	Username                  string     `json:"username"`
-	DisplayName               string     `json:"display_name"`
-	IsActive                  bool       `json:"is_active"`
-	Status                    string     `json:"status"`
-	Banned                    bool       `json:"banned"`
-	Locale                    string     `json:"locale"`
-	CustomCursor              bool       `json:"custom_cursor"`
-	CommandsPageHidden        bool       `json:"commands_page_hidden"`
-	CreatorCode               *string    `json:"creator_code,omitempty"`
-	SubscriptionSource        string     `json:"subscription_source"`
-	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
-	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
-	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
-	SubscriptionPaymentFailed bool       `json:"subscription_payment_failed"`
-	Onboarded                 bool       `json:"onboarded"`
+	Lifecycle                 *lifecycle.State `json:"lifecycle,omitempty"`
+	StateRevision             int64            `json:"state_revision,omitempty"`
+	ID                        uint64           `json:"id"`
+	AccountCreatedAt          int64            `json:"account_created_at,omitempty"`
+	Username                  string           `json:"username"`
+	DisplayName               string           `json:"display_name"`
+	IsActive                  bool             `json:"is_active"`
+	Status                    string           `json:"status"`
+	Banned                    bool             `json:"banned"`
+	Locale                    string           `json:"locale"`
+	CustomCursor              bool             `json:"custom_cursor"`
+	CommandsPageHidden        bool             `json:"commands_page_hidden"`
+	LeaderboardPageHidden     bool             `json:"leaderboard_page_hidden"`
+	CreatorCode               *string          `json:"creator_code,omitempty"`
+	SubscriptionSource        string           `json:"subscription_source"`
+	SubscriptionExpiresAt     *time.Time       `json:"subscription_expires_at,omitempty"`
+	SubscriptionRef           *string          `json:"subscription_ref,omitempty"`
+	SubscriptionCancelPending bool             `json:"subscription_cancel_pending"`
+	SubscriptionPaymentFailed bool             `json:"subscription_payment_failed"`
+	Onboarded                 bool             `json:"onboarded"`
 }
 
 type Users struct {
@@ -75,6 +79,8 @@ type Users struct {
 	log                *zap.Logger
 	invalidationPrefix string
 	nc                 *nats.Conn
+	erasures           ErasureStore
+	revoker            TokenRevoker
 }
 
 func (r *Users) SetInvalidationPrefix(prefix string) {
@@ -93,7 +99,7 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 
 	r := &Users{
 		client:       client,
-		views:        cache.New[UserView](userCacheCapacity, userCacheTTL),
+		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
 		stats:        cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
 		packer:       packer,
 		pub:          pub,
@@ -151,6 +157,9 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 				SetUsername(username).
 				SetDisplayName(string(name)).
 				SetEmail(email).
+				SetLifecycle(&lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: time.Now().UTC()}).
+				SetLifecycleState(lifecycle.Active).
+				SetDormantAfter(time.Now().UTC().Add(lifecycle.DormancyPeriod)).
 				Save(ctx)
 			if ent.IsConstraintError(err) {
 				_, err = name.apply(r.client.User.UpdateOneID(id).SetUsername(username)).
@@ -171,18 +180,23 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 }
 
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
-
-	return r.views.GetOrLoad(ctx, cache.UserKey(userKeyPrefix, id), func(ctx context.Context) (UserView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) (UserView, error) {
+	key := cache.UserKey(userKeyPrefix, id)
+	return r.views.GetOrLoad(ctx, key, func(ctx context.Context) (UserView, error) {
+		return db.WithRead(ctx, func(ctx context.Context) (UserView, error) {
 
 			u, err := r.client.User.Query().
 				Where(user.IDEQ(id)).
 				Only(ctx)
+			if ent.IsNotFound(err) {
+				// Drop the view so StaleOnError cannot resurrect a deleted user.
+				r.views.Invalidate(key)
+			}
 			if err != nil {
 				return UserView{}, err
 			}
 
 			return UserView{
+				Lifecycle:                 lifecycleView(u),
 				ID:                        u.ID,
 				AccountCreatedAt:          u.CreatedAt.UnixMicro(),
 				StateRevision:             u.StateRevision,
@@ -194,6 +208,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Locale:                    u.Locale,
 				CustomCursor:              u.CustomCursor,
 				CommandsPageHidden:        u.CommandsPageHidden,
+				LeaderboardPageHidden:     u.LeaderboardPageHidden,
 				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
@@ -276,13 +291,12 @@ func (r *Users) SetStatus(ctx context.Context, id uint64, status user.Status) er
 }
 
 func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
-	r.queuePref(id, prefActive, prefWrite{flag: active})
-	return nil
+	return r.setDesiredEnabled(ctx, id, active)
 }
 
 // SetActiveNow commits interactive toggles before an RPC read or invalidation.
 func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
-	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetIsActive(active) })
+	return r.setDesiredEnabled(ctx, id, active)
 }
 
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
@@ -310,23 +324,41 @@ func (r *Users) SetCommandsPageHidden(ctx context.Context, id uint64, hidden boo
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCommandsPageHidden(hidden) })
 }
 
+func (r *Users) SetLeaderboardPageHidden(ctx context.Context, id uint64, hidden bool) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetLeaderboardPageHidden(hidden) })
+}
+
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
 	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
 	return nil
 }
 
 func (r *Users) Delete(ctx context.Context, id uint64) error {
-	var accountCreatedAt int64
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) { return r.client.User.Get(ctx, id) })
+	if err != nil {
+		return err
+	}
+	if err := r.recordErasure(ctx, erasureRef{userID: id, accountCreatedAt: row.CreatedAt.UnixMicro()}); err != nil {
+		return fmt.Errorf("record erasure: %w", err)
+	}
+	return r.erase(ctx, id, row.CreatedAt)
+}
 
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		row, err := r.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
+func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error {
+	r.revokeTwitchTokens(ctx, id)
+	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
+
+	if err := withTx(ctx, r.client, func(tx *ent.Tx) error {
+		row, err := tx.User.Get(ctx, id)
 		if err != nil {
 			return err
 		}
-		accountCreatedAt = row.CreatedAt.UnixMicro()
-		// Match the incarnation read above so a concurrent delete/register
-		// cannot turn this request into deletion of the replacement account.
-		n, err := r.client.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(row.CreatedAt)).Exec(ctx)
+		erasure, err := tx.LifecycleErasure.Create().SetUserID(id).SetAccountCreatedAt(deleted.AccountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx)
+		if err != nil {
+			return err
+		}
+		deleted.DeletedAt = erasure.DeletedAt
+		n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(createdAt)).Exec(ctx)
 		if err != nil {
 			return err
 		}
@@ -340,7 +372,7 @@ func (r *Users) Delete(ctx context.Context, id uint64) error {
 
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, data.UserDeletedDTO{UserID: id, AccountCreatedAt: accountCreatedAt})
+	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
 }
 
 func (r *Users) Invalidate(id uint64) {
@@ -363,6 +395,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 	}
 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
+		Lifecycle:          view.Lifecycle,
 		UserID:             view.ID,
 		AccountCreatedAt:   view.AccountCreatedAt,
 		StateRevision:      view.StateRevision,
@@ -417,7 +450,8 @@ func (r *Users) Reproject(ctx context.Context) error {
 
 func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
-		UserID: row.ID, Username: row.Username, IsActive: row.IsActive,
+		Lifecycle: row.Lifecycle,
+		UserID:    row.ID, Username: row.Username, IsActive: row.IsActive,
 		AccountCreatedAt: row.CreatedAt.UnixMicro(),
 		StateRevision:    row.StateRevision,
 		Status:           string(row.Status), Banned: row.Banned, Locale: row.Locale,

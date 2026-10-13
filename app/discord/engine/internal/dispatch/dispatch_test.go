@@ -47,7 +47,7 @@ func TestMemberEvents(t *testing.T) {
 }
 
 func hubConfig() ddiscord.Config {
-	return ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub}
+	return ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub, VoiceCategoryID: "100000000000000006"}
 }
 
 func (h *harness) joinHub() string {

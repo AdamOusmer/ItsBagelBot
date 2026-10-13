@@ -12,6 +12,10 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// ConnectionGuard is the client for interacting with the ConnectionGuard builders.
+	ConnectionGuard *ConnectionGuardClient
+	// ConnectionReceipt is the client for interacting with the ConnectionReceipt builders.
+	ConnectionReceipt *ConnectionReceiptClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// NotificationRead is the client for interacting with the NotificationRead builders.
@@ -147,6 +151,8 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.ConnectionGuard = NewConnectionGuardClient(tx.config)
+	tx.ConnectionReceipt = NewConnectionReceiptClient(tx.config)
 	tx.Notification = NewNotificationClient(tx.config)
 	tx.NotificationRead = NewNotificationReadClient(tx.config)
 }
@@ -158,7 +164,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Notification.QueryXXX(), the query will be executed
+// applies a query, for example: ConnectionGuard.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

@@ -263,6 +263,19 @@ test.describe('ItsBagelBot site', () => {
         expect(favicon).toBe('/favicon-32x32.png?v=bot-1');
         const response = await request.get(favicon);
         expect(response.ok()).toBeTruthy();
+
+        for (const [path, aiDoc] of [
+            ['/guides/spotify-song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
+            ['/guides/govee-lights', 'https://ai.itsbagelbot.com/govee/setup.md'],
+            ['/guides/setup-errors', 'https://ai.itsbagelbot.com/llms.txt'],
+            ['/song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
+            ['/govee', 'https://ai.itsbagelbot.com/govee/setup.md'],
+        ]) {
+            for (const lang of ['', '/fr']) {
+                await page.goto(`${lang}${path}`);
+                await expect(page.locator('head link[rel="alternate"][type="text/markdown"]')).toHaveAttribute('href', aiDoc);
+            }
+        }
     });
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
@@ -363,11 +376,11 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the five guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the ten guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(5);
+        await expect(page.locator('.gcard')).toHaveCount(10);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
@@ -402,7 +415,7 @@ test.describe('guides & command builder', () => {
 
         const outcomes = page.locator('[data-fetchoutcomes]');
         await outcomes.locator('[data-go-tab]').nth(2).click();
-        await expect(outcomes.locator('[data-go-line]')).toContainText('[source timed out]');
+        await expect(outcomes.locator('[data-go-line]')).toContainText('It is °C in Montreal right now.');
     });
 
     test('module catalog filters by category', async ({ page }) => {

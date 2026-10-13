@@ -38,10 +38,10 @@ classDiagram
     Packer ..> SecureEnvelope : creates
 
     class Cache~V~ {
-        -shards sharded TTL maps
+        -client theine.Cache
         -group singleflight.Group
         -ttl time.Duration
-        -jitter time.Duration
+        -staleWindow time.Duration
         +GetOrLoad(ctx, key, loader) V
         +Set(key, value) void
         +Invalidate(key) void
@@ -69,15 +69,21 @@ classDiagram
 
     class Publisher {
         <<interface>>
-        +Publish(topic, messages) error
+        +PublishOwned(ctx, subject, payload) error
+        +PublishOwnedWithID(ctx, subject, id, payload) error
+        +Flush(ctx) error
         +Close() error
     }
 
     class UserView {
         +ID uint64
         +Username string
+        +DisplayName string
         +IsActive bool
         +Status string
+        +Banned bool
+        +Locale string
+        +CommandsPageHidden bool
     }
 
     class Users {
@@ -85,11 +91,11 @@ classDiagram
         -views Cache of UserView
         -packer Packer
         -pub Publisher
-        +Register(ctx, id, username, email) error
+        +Register(ctx, id, username, displayName, email) error
         +Get(ctx, id) UserView
         +SetStatus(ctx, id, status) error
         +Delete(ctx, id) error
-        +UpsertToken(ctx, userID, type, platform, access, refresh) error
+        +UpsertToken(ctx, userID, type, platform, access, refresh, expiresAt) error
         +Token(ctx, userID, type, platform) plaintext
         +Reproject(ctx) error
         +Invalidate(id) void
@@ -99,6 +105,7 @@ classDiagram
         +Name string
         +IsEnabled bool
         +Configs json
+        +Revision int
     }
 
     class Modules {
@@ -108,6 +115,8 @@ classDiagram
         -pub Publisher
         +List(ctx, userID) ModuleView slice
         +Set(userID, name, enabled, configs) error
+        +SetNow(ctx, userID, name, enabled, configs) ModuleView slice
+        +Patch(ctx, userID, name, enabled, partial, expectedRev) PatchResult
         +Reproject(ctx) error
         +Invalidate(userID) void
         -flush(ctx, items) error
@@ -126,7 +135,7 @@ La composition (losange plein) entre un dépôt et son cache ou son batcher est 
 
 | Motif | Emplacement | Raison |
 |---------|-------|-----|
-| Repository (PoEAA) | `app/*/repository` | Un objet par agrégat, faisant le lien entre domaine et ent ; c'est le point commun utilisé par chaque test |
+| Repository (PoEAA) | `app/db/*/repository` | Un objet par agrégat, faisant le lien entre domaine et ent ; c'est le point commun utilisé par chaque test |
 | Data Transfer Object | `internal/domain/event/data`, structures de vue | Payloads d'état complet sur le bus et vues sans champs sensibles dans les caches |
 | Publish/Subscribe (Observer à l'échelle du système) | `pkg/bus` sur NATS | Découple les écrivains de chaque lecteur : caches, projecteur et futurs consommateurs |
 | Event-Carried State Transfer | Tous les événements de changement | Les consommateurs se mettent à jour à partir du seul événement ; aucun service ne lit le schéma d'un autre |

@@ -3,6 +3,8 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/notifications/ent/connectionguard"
+	"ItsBagelBot/app/db/notifications/ent/connectionreceipt"
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
 	"context"
@@ -74,8 +76,10 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			notification.Table:     notification.ValidColumn,
-			notificationread.Table: notificationread.ValidColumn,
+			connectionguard.Table:   connectionguard.ValidColumn,
+			connectionreceipt.Table: connectionreceipt.ValidColumn,
+			notification.Table:      notification.ValidColumn,
+			notificationread.Table:  notificationread.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

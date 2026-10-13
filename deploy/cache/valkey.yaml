@@ -218,8 +218,8 @@ spec:
           # 2026-08-20). A BGREWRITEAOF that forks while the dataset is at
           # maxmemory can approach 2x in the worst case, so the headroom has
           # to be roughly the same size as the budget itself.
-          # Note repl-backlog-size 128mb IS counted inside used_memory, so
-          # usable key space is maxmemory minus 128 MiB.
+          # Note repl-backlog-size 64mb IS counted inside used_memory, so
+          # usable key space is maxmemory minus 64 MiB.
           # Appended after the include so it beats both tuning.conf and any
           # CONFIG REWRITE retained on the PVC -- last assignment wins.
           if [ -n "${MEM_LIMIT_MI}" ] && [ "${MEM_LIMIT_MI}" -gt 0 ] 2>/dev/null; then
@@ -589,14 +589,16 @@ spec:
           secretName: valkey-server-tls
   # Watchtime due windows, admission tombstones and unpaid award records are
   # authoritative state. Retain each member's AOF across pod replacements;
-  # emptyDir would lose that work during a complete fleet restart. The default
-  # StorageClass must provision these claims. Node-local volumes still need
+  # emptyDir would lose that work during a complete fleet restart. The class is
+  # explicit because claim templates are immutable: the live set was created with
+  # local-path and an apply without it is refused. Node-local volumes still need
   # operator recovery after node loss; see docs/operations/watchtime-rollout.md.
   volumeClaimTemplates:
   - metadata:
       name: valkey-data
     spec:
       accessModes: [ReadWriteOnce]
+      storageClassName: local-path
       resources:
         requests:
           storage: 8Gi

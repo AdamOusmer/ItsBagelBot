@@ -72,7 +72,7 @@ func (s *scriptedConn) Write(_ context.Context, data []byte) error {
 
 func (s *scriptedConn) Close() error { return s.closeWith(reconnectingClose) }
 
-func (s *scriptedConn) Shutdown() error { return s.closeWith(websocket.StatusNormalClosure) }
+func (s *scriptedConn) Shutdown() error { return s.closeWith(reconnectingClose) }
 
 func (s *scriptedConn) closeWith(code websocket.StatusCode) error {
 	s.mu.Lock()
@@ -186,9 +186,11 @@ func boundedBy(ctx context.Context, limit time.Duration) bool {
 }
 
 type recHandler struct {
+	mu     sync.Mutex
 	err    error
 	idents []Identity
 	types  []string
+	events []Event
 }
 
 func (r *recHandler) Ready(_ context.Context, ident Identity) error {
@@ -197,7 +199,10 @@ func (r *recHandler) Ready(_ context.Context, ident Identity) error {
 }
 
 func (r *recHandler) Dispatch(_ context.Context, ev Event) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.types = append(r.types, ev.Type)
+	r.events = append(r.events, ev)
 	return r.err
 }
 

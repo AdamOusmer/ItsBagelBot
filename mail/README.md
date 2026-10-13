@@ -46,27 +46,12 @@ recognise and awkward to fake convincingly.
 ### The strip is not real authentication, the domain is
 
 A tick in the body proves nothing on its own, anyone can copy pixels. What
-actually stops spoofing is the sending domain, set up on the DNS / Resend side.
-The zone records are managed by hand through the Cloudflare API
-(`CLOUDFLARE_API_TOKEN`, Doppler project `cloudflared`, config `prd`).
+actually stops spoofing is the sending domain (SPF, DKIM and DMARC), which is
+configured on the DNS and mail-provider side, not in this directory.
 
-- **SPF, DKIM, DMARC** on `itsbagelbot.com` — live. DKIM is set for both Zoho
-  and Resend, both aligned. DMARC is at `p=quarantine; pct=100` (spoofed
-  `@itsbagelbot.com` goes to spam); ramp to `p=reject` after ~2 weeks of clean
-  reports.
-- **BIMI** — record live at `default._bimi.itsbagelbot.com`, but the logo file
-  (`web/public/bimi.svg`) is currently **removed**: the old file carried a
-  placeholder mark that was not our logo, and BIMI requires a pure-vector SVG
-  (Tiny PS) which we do not yet have for the real logo. Clients fall back to a
-  plain monogram avatar; mail delivery is unaffected. Re-add once a vector
-  version of the real logo exists. Run **free tier** (no VMC/CMC certificate)
-  when re-added. See the runbook.
-- **One consistent From identity**, e.g. `ItsBagelBot Support
-  <support@itsbagelbot.com>`, and a matching subject prefix such as
-  `[ItsBagelBot]`. Consistency is what trains recognition.
-
-Still owed by you: create the `dmarc@itsbagelbot.com` mailbox so reports land,
-then ramp DMARC to reject. All in the runbook.
+Use one consistent From identity, e.g. `ItsBagelBot Support
+<support@itsbagelbot.com>`, and a matching subject prefix such as
+`[ItsBagelBot]`. Consistency is what trains recognition.
 
 ## Sending a reply
 
@@ -90,7 +75,7 @@ Email clients are not browsers. The rules that keep this rendering right:
 - **One remote image, the logo.** Many clients block images by default, so the
   design has to still read with images off. Do not add more.
 - **Colours and fonts are locked** to the site's system. They match
-  `web/src/styles/style.css` and `app/db/transactions/mail/gift_template.go`:
+  `ui/styles/brand.css` and `app/db/transactions/mail/premium_template.go`:
 
   | Token | Value |
   | --- | --- |
@@ -107,5 +92,5 @@ Email clients are not browsers. The rules that keep this rendering right:
   | Label / mono | DM Mono |
   | Signature | Caveat |
 
-If the styling ever changes on the site or in the gift email, update these
+If the styling ever changes on the site or in the transactional emails, update these
 files to match so support mail does not drift.

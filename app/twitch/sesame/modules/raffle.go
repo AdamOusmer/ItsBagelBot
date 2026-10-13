@@ -29,10 +29,20 @@ func Raffle(d engine.Deps) module.Module {
 
 	m := module.NewModule(raffleModuleName, module.KindOptIn)
 	m.Command("raffle").Everyone().Run(raffleDispatch(d, log))
-	m.Command("join").Everyone().Run(raffleStandalone(d, log, raffleCmd.join))
+	m.Command("join").Everyone().When(raffleRunning(d)).Run(raffleStandalone(d, log, raffleCmd.join))
 	m.Command("claim").Everyone().Run(raffleStandalone(d, log, raffleCmd.claimConfirm))
 	m.Command("winner").Everyone().Cooldown(raffleWinnerCooldown).Run(raffleStandalone(d, log, raffleCmd.last))
 	return m.Build()
+}
+
+func raffleRunning(d engine.Deps) module.ClaimFunc {
+	return func(ctx context.Context, c *module.Context) bool {
+		if d.Raffle == nil {
+			return false
+		}
+		st, err := d.Raffle.Status(ctx, c.BroadcasterID)
+		return err != nil || st.Open
+	}
 }
 
 type raffleConfig struct {
@@ -47,6 +57,7 @@ type raffleConfig struct {
 type raffleCmd struct {
 	chatReplier
 	r   engine.RaffleStore
+	q   engine.QueueStore
 	cfg raffleConfig
 	log *zap.Logger
 }
@@ -55,7 +66,7 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, log: log}
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
 }
@@ -87,6 +98,7 @@ var raffleRoutes = map[string]raffleRoute{
 		return rc.draw(ctx, "", emit)
 	}},
 	"cancel": {mod: true, run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.cancel(ctx, emit) }},
+	"join":   {run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.join(ctx, emit) }},
 }
 
 func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
@@ -181,16 +193,32 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	count := strconv.FormatInt(entry.Entrants, 10)
-	switch {
-	case !entry.Open:
+	if !entry.Open {
 		rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
-	case entry.Joined:
-		rc.reply(emit, rc.cfg.JoinMessage, "raffle.joined", "count", count)
-	default:
-		rc.reply(emit, rc.cfg.AlreadyMessage, "raffle.join.already", "count", count)
+		return nil
 	}
+	rc.replyEntered(ctx, emit, entry)
 	return nil
+}
+
+func (rc raffleCmd) replyEntered(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
+	override, key := rc.cfg.AlreadyMessage, replyKey("raffle.join.already")
+	if entry.Joined {
+		override, key = rc.cfg.JoinMessage, "raffle.joined"
+	}
+	line := rc.render(override, key, "count", strconv.FormatInt(entry.Entrants, 10))
+	if override == "" && rc.queueOpen(ctx) {
+		line += " " + rc.render("", "raffle.join.queue_hint")
+	}
+	rc.say(emit, line)
+}
+
+func (rc raffleCmd) queueOpen(ctx context.Context) bool {
+	if rc.q == nil || !rc.c.ModuleOn(queueModuleName) {
+		return false
+	}
+	open, err := rc.q.IsOpen(ctx, rc.c.BroadcasterID)
+	return err == nil && open
 }
 
 func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) error {

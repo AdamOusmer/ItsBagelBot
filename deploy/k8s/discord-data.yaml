@@ -24,15 +24,15 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  replicas: 3
+  replicas: 2
   revisionHistoryLimit: 3
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # maxSurge 0: three workers with one-per-node anti-affinity leave no node for a surge pod.
-      maxSurge: 0
-      maxUnavailable: 1
+      # replicas + maxSurge must stay <= 3 eligible nodes, or required anti-affinity strands the surge pod and the roll stalls.
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: discord-data
@@ -137,6 +137,12 @@ spec:
             - name: NATS_RPC_NKEY_SEED
               valueFrom:
                 secretKeyRef: {name: discord-data-env, key: NATS_RPC_NKEY_SEED}
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_JWT}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_NKEY_SEED}
             - name: DB_ADDR
               valueFrom:
                 secretKeyRef: {name: discord-data-env, key: DB_ADDR}

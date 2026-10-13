@@ -62,5 +62,5 @@ func (w wsConn) Close() error {
 }
 
 func (w wsConn) Shutdown() error {
-	return w.c.Close(websocket.StatusNormalClosure, "")
+	return w.c.Close(reconnectingClose, "shutting down")
 }

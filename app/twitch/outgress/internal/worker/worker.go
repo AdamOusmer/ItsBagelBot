@@ -11,12 +11,15 @@ import (
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/conduit"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/ratelimit"
+	"github.com/nats-io/nats.go"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -52,19 +55,26 @@ const (
 	errRateLimitShared expectedNackError = "rate limit exceeded on shared bucket"
 )
 
+type lifecycleRuntime interface {
+	Get(context.Context, uint64) (channelruntime.Snapshot, error)
+	Apply(context.Context, uint64, usersrpc.LifecycleReply) error
+}
+
 type Worker struct {
-	log      *zap.Logger
-	blocked  *BlockedLog
-	limiter  ratelimit.Manager
-	registry *channels.Registry
-	twitch   *twitch.Client
-	botID    string
-	owner    string
-	conduit  *conduit.Resolver
-	lane     Lane
-	batch    BatchStore
-	actions  action.Registry
-	userIDs  *cache.Cache[string]
+	runtime     lifecycleRuntime
+	lifecycleNC *nats.Conn
+	log         *zap.Logger
+	blocked     *BlockedLog
+	limiter     ratelimit.Manager
+	registry    *channels.Registry
+	twitch      *twitch.Client
+	botID       string
+	owner       string
+	conduit     *conduit.Resolver
+	lane        Lane
+	batch       BatchStore
+	actions     action.Registry
+	userIDs     *cache.Cache[string]
 
 	modVerifier *ModVerifier
 	reauth      *ReauthNotifier
@@ -80,17 +90,19 @@ type Worker struct {
 }
 
 type Config struct {
-	Log      *zap.Logger
-	Blocked  *BlockedLog
-	Limiter  ratelimit.Manager
-	Registry *channels.Registry
-	Twitch   *twitch.Client
-	BotID    string
-	Owner    string
-	Conduit  *conduit.Resolver
-	Lane     Lane
-	Batch    BatchStore
-	UserIDs  *cache.Cache[string]
+	Runtime     lifecycleRuntime
+	LifecycleNC *nats.Conn
+	Log         *zap.Logger
+	Blocked     *BlockedLog
+	Limiter     ratelimit.Manager
+	Registry    *channels.Registry
+	Twitch      *twitch.Client
+	BotID       string
+	Owner       string
+	Conduit     *conduit.Resolver
+	Lane        Lane
+	Batch       BatchStore
+	UserIDs     *cache.Cache[string]
 }
 
 func New(cfg Config) *Worker {
@@ -104,6 +116,7 @@ func New(cfg Config) *Worker {
 		grants = cfg.Registry
 	}
 	w := &Worker{
+		runtime: cfg.Runtime, lifecycleNC: cfg.LifecycleNC,
 		grants:     grants,
 		log:        cfg.Log,
 		blocked:    cfg.Blocked,
@@ -175,6 +188,9 @@ func (w *Worker) modStatus(_ context.Context, payload *outgress.Message, ch mana
 }
 
 func (w *Worker) scheduleModStatus(broadcasterID, senderID string) {
+	if !w.backgroundAllowed(context.Background(), broadcasterID) {
+		return
+	}
 	if w.modVerifier != nil {
 		w.modVerifier.Schedule(broadcasterID, senderID)
 	}

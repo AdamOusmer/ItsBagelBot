@@ -190,15 +190,17 @@ func channelFromFields(broadcasterID string, fields map[string]string) manage.Ch
 		return manage.Channel{}
 	}
 	return manage.Channel{
-		BroadcasterID: broadcasterID,
-		Enabled:       fields["enabled"] == "1",
-		IsMod:         fields["is_mod"] == "1",
-		ModCheckedAt:  unixField(fields["mod_checked_at"]),
-		UpdatedAt:     unixField(fields["updated_at"]),
-		SubState:      fields["sub_state"],
-		SubError:      fields["sub_error"],
-		SubCheckedAt:  unixField(fields["sub_checked_at"]),
-		GrantState:    manage.GrantState(fields["grant_state"]),
+		BroadcasterID:  broadcasterID,
+		Enabled:        fields["enabled"] == "1",
+		IsMod:          fields["is_mod"] == "1",
+		ModCheckedAt:   unixField(fields["mod_checked_at"]),
+		UpdatedAt:      unixField(fields["updated_at"]),
+		SubState:       fields["sub_state"],
+		SubError:       fields["sub_error"],
+		SubCheckedAt:   unixField(fields["sub_checked_at"]),
+		BlockedAt:      unixField(fields["blocked_at"]),
+		GrantState:     manage.GrantState(fields["grant_state"]),
+		GrantCheckedAt: unixField(fields["grant_checked_at"]),
 	}
 }
 
@@ -225,14 +227,16 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 
 func savedFields(ch manage.Channel) map[string]string {
 	return map[string]string{
-		"enabled":        utils.BoolField(ch.Enabled),
-		"is_mod":         utils.BoolField(ch.IsMod),
-		"mod_checked_at": unixOrZero(ch.ModCheckedAt),
-		"updated_at":     strconv.FormatInt(time.Now().Unix(), 10),
-		"sub_state":      ch.SubState,
-		"sub_error":      ch.SubError,
-		"sub_checked_at": unixOrZero(ch.SubCheckedAt),
-		"grant_state":    string(ch.GrantState),
+		"enabled":          utils.BoolField(ch.Enabled),
+		"is_mod":           utils.BoolField(ch.IsMod),
+		"mod_checked_at":   unixOrZero(ch.ModCheckedAt),
+		"updated_at":       strconv.FormatInt(time.Now().Unix(), 10),
+		"sub_state":        ch.SubState,
+		"sub_error":        ch.SubError,
+		"sub_checked_at":   unixOrZero(ch.SubCheckedAt),
+		"blocked_at":       unixOrZero(ch.BlockedAt),
+		"grant_state":      string(ch.GrantState),
+		"grant_checked_at": unixOrZero(ch.GrantCheckedAt),
 	}
 }
 
@@ -261,6 +265,9 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 		}
 	}
 
+	if err := r.retainHot(ctx, ch.BroadcasterID); err != nil {
+		return err
+	}
 	r.cache.Set(ch.BroadcasterID, ch)
 	r.publishInvalidation(ch.BroadcasterID)
 
@@ -297,6 +304,19 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 	)
 }
 
+func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
+	key := keyPrefix + ch.BroadcasterID
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+
+	return r.applyChannelUpdate(ctx, ch.BroadcasterID,
+		r.client.B().Hset().Key(key).FieldValue().
+			FieldValue("blocked_at", now).
+			FieldValue("updated_at", now).
+			Build(),
+		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
+	)
+}
+
 func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -305,6 +325,7 @@ func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, stat
 		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
 		r.client.B().Hset().Key(key).FieldValue().
 			FieldValue("grant_state", string(state)).
+			FieldValue("grant_checked_at", now).
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
@@ -318,6 +339,9 @@ func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string,
 		}
 	}
 
+	if err := r.retainHot(ctx, broadcasterID); err != nil {
+		return err
+	}
 	r.cache.Invalidate(broadcasterID)
 	r.publishInvalidation(broadcasterID)
 
@@ -375,35 +399,28 @@ func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
 }
 
 func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
-
-	ids, err := r.client.Do(ctx, r.client.B().Smembers().Key(indexKey).Build()).AsStrSlice()
-	if err != nil {
+	if err := r.PruneHot(ctx); err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return nil, nil
-	}
-
-	gets := make([]valkey.Completed, 0, len(ids))
-	for _, id := range ids {
-		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
-	}
-
-	out := make([]manage.Channel, 0, len(ids))
-	for i, res := range r.client.DoMulti(ctx, gets...) {
-		fields, err := res.AsStrMap()
+	out := []manage.Channel{}
+	for offset := 0; ; offset += hotBatch {
+		ids, err := r.client.Do(ctx, r.client.B().Zrange().Key(hotIndexKey).Min(strconv.Itoa(offset)).Max(strconv.Itoa(offset+hotBatch-1)).Build()).AsStrSlice()
 		if err != nil {
 			return nil, err
 		}
-		ch := channelFromFields(ids[i], fields)
+		if len(ids) == 0 {
+			return out, nil
+		}
+		channels, err := r.listChannels(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, channels...)
 
-		r.cache.Set(ids[i], ch)
-		if ch.BroadcasterID != "" {
-			out = append(out, ch)
+		if len(ids) < hotBatch {
+			return out, nil
 		}
 	}
-
-	return out, nil
 }
 
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
@@ -603,4 +620,25 @@ func unixField(v string) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(sec, 0)
+}
+
+type channelIDs []string
+
+func (r *Registry) listChannels(ctx context.Context, ids channelIDs) ([]manage.Channel, error) {
+	gets := make([]valkey.Completed, 0, len(ids))
+	for _, id := range ids {
+		gets = append(gets, r.client.B().Hgetall().Key(keyPrefix+id).Build())
+	}
+	out := make([]manage.Channel, 0, len(ids))
+	for i, res := range r.client.DoMulti(ctx, gets...) {
+		fields, err := res.AsStrMap()
+		if err != nil {
+			return nil, err
+		}
+		ch := channelFromFields(ids[i], fields)
+		if ch.BroadcasterID != "" {
+			out = append(out, ch)
+		}
+	}
+	return out, nil
 }

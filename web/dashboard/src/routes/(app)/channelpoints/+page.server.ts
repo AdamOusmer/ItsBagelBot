@@ -89,6 +89,7 @@ function parseRewardForm(form: FormData): ChannelPointReward | null {
 function resultFail(r: Extract<RewardResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
   if (r.duplicateTitle) return fail(409, { ok: false, duplicateTitle: true });
+  if (r.notAffiliate) return fail(403, { ok: false, notAffiliate: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 

@@ -7,6 +7,7 @@
     "kit",
     "marketing",
     "docs",
+    "ai",
     "dashboard",
     "admin"
   ],
@@ -15,7 +16,7 @@
     "dev:dashboard": "bun run --filter dashboard dev",
     "dev:admin": "bun run --filter admin dev",
     "check": "bun run --filter '*' check",
-    "test": "bun run --filter '@bagel/kit' verify:ui-only && bun test --isolate --path-ignore-patterns='**/*.spec.js' kit admin dashboard marketing docs && bun kit/scripts/size.ts && bun ../ui/scripts/assert-compositor-motion.mjs marketing/src kit dashboard/src admin/src docs/src",
+    "test": "bun run --filter '@bagel/kit' verify:ui-only && bun test --isolate --path-ignore-patterns='**/*.spec.js' kit admin dashboard marketing docs ai && bun kit/scripts/size.ts && bun ../ui/scripts/assert-compositor-motion.mjs marketing/src kit dashboard/src admin/src docs/src",
     "postinstall": "mkdir -p node_modules/@bagel && ln -sfn ../../../ui node_modules/@bagel/ui && bun install --cwd ../ui --frozen-lockfile --production"
   },
   "devDependencies": {

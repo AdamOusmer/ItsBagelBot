@@ -274,6 +274,7 @@ type SetupReply = CodedReply & {
   clips_channel_id?: string;
   welcome_channel_id?: string;
   voice_hub_id?: string;
+  voice_category_id?: string;
   log_channel_id?: string;
   ticket_channel_id?: string;
   ticket_category_id?: string;
@@ -307,6 +308,7 @@ export const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['clipsChannelId', 'clips_channel_id'],
   ['welcomeChannelId', 'welcome_channel_id'],
   ['voiceHubId', 'voice_hub_id'],
+  ['voiceCategoryId', 'voice_category_id'],
   ['logChannelId', 'log_channel_id'],
   ['ticketChannelId', 'ticket_channel_id'],
   ['ticketCategoryId', 'ticket_category_id'],

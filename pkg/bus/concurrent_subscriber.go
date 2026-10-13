@@ -576,7 +576,7 @@ func (s *concurrentDurableSubscriber) ackWorkQueue(msg *nats.Msg) {
 }
 
 func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
-	if err := msg.InProgress(); err != nil {
+	if err := msg.InProgress(); err != nil && !errors.Is(err, nats.ErrMsgAlreadyAckd) {
 		s.log.Warn("durable message progress ack failed", zap.String("subject", msg.Subject), zap.Error(err))
 	}
 }

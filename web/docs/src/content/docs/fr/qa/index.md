@@ -26,12 +26,9 @@ Les noms suivent le modèle `NNNN-YYYY-MM-DD-<short-scope>.md`. Les numéros rec
 
 ## Rédiger un rapport
 
-Les modèles vivent avec celui des ADR :
+Le modèle de revue par IA vit avec celui des ADR, dans `web/docs/.qa/template-ai-review.md`. Aucun modèle pour les tests monkey n'a encore été écrit.
 
-- `docs/.qa/template-monkey.md`
-- `docs/.qa/template-ai-review.md`
-
-Copiez le modèle approprié dans le sous-dossier correspondant, incrémentez le numéro et commencez par remplir le bloc de verdict. Le reste doit pouvoir être rédigé à partir des artefacts bruts de l'exécution.
+Copiez le modèle dans le sous-dossier correspondant, incrémentez le numéro et commencez par remplir le bloc de verdict. Le reste doit pouvoir être rédigé à partir des artefacts bruts de l'exécution.
 
 ## Artefacts
 

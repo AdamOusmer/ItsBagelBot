@@ -9,7 +9,7 @@ stubSvelteKit();
 
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
-const hiddenWrites: [string, boolean][] = [];
+const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
 const purgeBodies: { files: string[] }[] = [];
 let writeFails = false;
 let purgeStatus = 200;
@@ -23,11 +23,16 @@ mock.module('$lib/server/services', () => ({
   notificationsForUser: async () => ({ notifications: [] }),
   hasGrant: async () => true,
   userCommandsPage: async () => true,
+  userLeaderboardPage: async () => true,
   userLocale: async () => savedLocale,
   accountState: async () => ({ username: 'StreamerLogin' }),
   setCommandsPage: async (userId: string, hidden: boolean) => {
     if (writeFails) throw new Error('rpc down');
-    hiddenWrites.push([userId, hidden]);
+    hiddenWrites.push({ page: 'commands_page', userId, hidden });
+  },
+  setLeaderboardPage: async (userId: string, hidden: boolean) => {
+    if (writeFails) throw new Error('rpc down');
+    hiddenWrites.push({ page: 'leaderboard_page', userId, hidden });
   }
 }));
 const fetchesStore = await import('../../../lib/server/fetches-store');
@@ -54,13 +59,15 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-function setCommandsPage(session: Session | null, fields: Record<string, string>, locale: 'en' | 'fr' = 'en') {
-  const request = new Request('https://dashboard.itsbagelbot.com/settings?/setCommandsPage', {
+type Toggle = { action: 'setCommandsPage' | 'setLeaderboardPage'; page: 'commands_page' | 'leaderboard_page' };
+
+function submitToggle(toggle: Toggle, session: Session | null, fields: Record<string, string>, locale: 'en' | 'fr' = 'en') {
+  const request = new Request(`https://dashboard.itsbagelbot.com/settings?/${toggle.action}`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields).toString()
   });
-  return actions.setCommandsPage({ request, locals: { session, locale } } as never);
+  return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
 const channelPurge = [{ files: channelPageUrls('streamerlogin') }];
@@ -73,45 +80,45 @@ const cases: {
   locale?: 'en' | 'fr';
   writeFails?: boolean;
   purgeStatus?: number;
-  want: { result: unknown; writes: [string, boolean][]; purges: { files: string[] }[] };
+  want: { result: (page: string) => unknown; writes: [string, boolean][]; purges: { files: string[] }[] };
 }[] = [
   {
     name: 'a French refusal preserves the authorization status and localizes its message',
     session: null,
     fields: {},
     locale: 'fr',
-    want: { result: { status: 403, data: { error: staticText('fr', 'serverErrors.notAllowed') } }, writes: [], purges: [] }
+    want: { result: () => ({ status: 403, data: { error: staticText('fr', 'serverErrors.notAllowed') } }), writes: [], purges: [] }
   },
   {
     name: 'a delegate session is refused',
     session: { user_id: '1', delegate_of: '2' },
     fields: { enabled: 'on' },
-    want: { result: refused, writes: [], purges: [] }
+    want: { result: () => refused, writes: [], purges: [] }
   },
   {
     name: 'an admin "view as" session is refused',
     session: { user_id: '1', impersonator_id: '9' },
     fields: { enabled: 'on' },
-    want: { result: refused, writes: [], purges: [] }
+    want: { result: () => refused, writes: [], purges: [] }
   },
   {
     name: 'owner enabled=on writes hidden=false then purges the canonical URLs',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
-    want: { result: { ok: true, action: 'commands_page', edgeDelayed: false }, writes: [['7', false]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }
   },
   {
     name: 'a failed purge surfaces edgeDelayed: true without failing the request',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     purgeStatus: 500,
-    want: { result: { ok: true, action: 'commands_page', edgeDelayed: true }, writes: [['7', false]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: true }), writes: [['7', false]], purges: channelPurge }
   },
   {
     name: 'enabled absent (unchecked switch) writes hidden=true',
     session: { user_id: '7' },
     fields: {},
-    want: { result: { ok: true, action: 'commands_page', edgeDelayed: false }, writes: [['7', true]], purges: channelPurge }
+    want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', true]], purges: channelPurge }
   },
   {
     name: 'a failed write answers 502 and purges nothing',
@@ -119,19 +126,29 @@ const cases: {
     fields: { enabled: 'on' },
     writeFails: true,
     want: {
-      result: { status: 502, data: { error: staticText('en', 'serverErrors.updateRetry') } },
+      result: () => ({ status: 502, data: { error: staticText('en', 'serverErrors.updateRetry') } }),
       writes: [],
       purges: []
     }
   }
 ];
 
-describe('setCommandsPage action', () => {
+const toggles: Toggle[] = [
+  { action: 'setCommandsPage', page: 'commands_page' },
+  { action: 'setLeaderboardPage', page: 'leaderboard_page' }
+];
+
+describe.each(toggles)('$action action', (toggle) => {
   test.each(cases)('$name', async ({ session, fields, locale, writeFails: fails, purgeStatus: status, want }) => {
     writeFails = fails ?? false;
     purgeStatus = status ?? 200;
-    const result = await setCommandsPage(session, fields, locale);
-    expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(want);
+    const result = await submitToggle(toggle, session, fields, locale);
+    const expected = {
+      result: want.result(toggle.page),
+      writes: want.writes.map(([userId, hidden]) => ({ page: toggle.page, userId, hidden })),
+      purges: want.purges
+    };
+    expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
 });
 

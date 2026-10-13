@@ -4,14 +4,53 @@
 package discordstore_test
 
 import (
+	"context"
+	"errors"
 	"slices"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/internal/discordstore"
+	ddiscord "ItsBagelBot/internal/domain/discord"
+
+	"github.com/stretchr/testify/require"
 )
 
+func requireCloneCapHolds(t *testing.T, s discordstore.Store, guild string) {
+	t.Helper()
+	ctx := context.Background()
+	contenders := ddiscord.VoiceCloneCap * 3
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var won, capped int
+	for i := range contenders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.TrackClone(ctx, discordstore.Clone{ChannelID: guild + "-room" + strconv.Itoa(i), GuildID: guild, OwnerID: "u"})
+			mu.Lock()
+			defer mu.Unlock()
+			if err == nil {
+				won++
+			} else if errors.Is(err, discordstore.ErrCloneCapReached) {
+				capped++
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, ddiscord.VoiceCloneCap, won)
+	require.Equal(t, contenders-ddiscord.VoiceCloneCap, capped)
+	require.Equal(t, ddiscord.VoiceCloneCap, s.CloneCount(ctx, discordstore.Guild{ID: guild}))
+}
+
+func TestMemTrackCloneStopsAtTheCap(t *testing.T) {
+	requireCloneCapHolds(t, discordstore.NewMem(), "g1")
+}
+
 func TestMemStoreBehavesLikeTheDurableStore(t *testing.T) {
-	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios())
+	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios(), memCacheScenarios())
 	for _, tc := range scenarios {
 		t.Run(tc.name, func(t *testing.T) {
 			runSteps(t, discordstore.NewMem(), nil, tc.steps)
@@ -131,14 +170,14 @@ func memMemberScenarios() []scenario {
 	}, {
 		name: "voice moves report the channel left and whether it emptied",
 		steps: []step{
-			{do: at("u1", "hub"), want: seat{}},
-			{do: at("u2", "hub"), want: seat{}},
-			{do: at("u1", "clone-1"), want: seat{Left: "hub"}},
+			{do: at("u1", "hub"), want: seat{To: "hub"}},
+			{do: at("u2", "hub"), want: seat{To: "hub"}},
+			{do: at("u1", "clone-1"), want: seat{Left: "hub", To: "clone-1"}},
 			{do: at("u2", ""), want: seat{Left: "hub", Empty: true}},
 		},
 	}, {
 		name:  "a same-channel voice update is not a leave",
-		steps: []step{{do: at("u1", "hub"), want: seat{}}, {do: at("u1", "hub"), want: seat{Left: "hub"}}},
+		steps: []step{{do: at("u1", "hub"), want: seat{To: "hub"}}, {do: at("u1", "hub"), want: seat{Left: "hub", To: "hub"}}},
 	}}
 }
 
@@ -153,4 +192,29 @@ func TestTicketOverNamesTheTerminalStates(t *testing.T) {
 			t.Fatalf("%q is not terminal", status)
 		}
 	}
+}
+
+func memCacheScenarios() []scenario {
+	long := discordstore.CachedMessage{ID: "m1", GuildID: "g1", ChannelID: "c1", AuthorID: "u1", AuthorName: "Ada", Content: strings.Repeat("é", 2000)}
+	clipped := long
+	clipped.Content = strings.Repeat("é", 1024)
+	role := discordstore.LabelRef{Kind: discordstore.LabelRole, GuildID: "g1", ID: "r1"}
+	return []scenario{{
+		name: "a remembered message is recalled with its content clipped to 1024 runes",
+		steps: []step{
+			{do: callFound(store.RecallMessage, discordstore.Message{ID: "m1"}), want: pair(discordstore.CachedMessage{}, false)},
+			{do: call(store.RememberMessage, long), want: nil},
+			{do: callFound(store.RecallMessage, discordstore.Message{ID: "m1"}), want: pair(clipped, true)},
+		},
+	}, {
+		name: "member roles and labels are recalled after they are remembered",
+		steps: []step{
+			{do: callFound(store.RecallRoles, u1), want: pair([]string(nil), false)},
+			{do: call(store.RememberRoles, discordstore.MemberRoles{Member: u1, Roles: []string{"r1"}}), want: nil},
+			{do: callFound(store.RecallRoles, u1), want: pair([]string{"r1"}, true)},
+			{do: callFound(store.RecallLabel, role), want: pair("", false)},
+			{do: call(store.RememberLabel, discordstore.Label{Ref: role, Name: "Mods"}), want: nil},
+			{do: callFound(store.RecallLabel, role), want: pair("Mods", true)},
+		},
+	}}
 }

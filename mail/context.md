@@ -74,6 +74,4 @@ Open the prepared HTML and compare with its plain-text version; then send a test
 when sending has been authorized, checking desktop/mobile and image-blocked behavior.
 There is no mail-directory test command. Automated template tests live with transactions code;
 they do not validate these static human templates.
-README refers to old `web/src/styles/style.css`; current marketing styles live under `web/marketing/`.
-Its SPF/DKIM/DMARC/BIMI operational assertions are historical notes, not verified live status;
-check the actual configuration when asked to change delivery/authentication behavior.
+The README states that sender-domain authentication is configured outside this directory; check the actual configuration when asked to change delivery behavior.

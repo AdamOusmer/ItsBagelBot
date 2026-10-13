@@ -8,6 +8,7 @@ COPY go.mod go.sum ./
 RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download failed (attempt $i/5), retrying..." >&2; sleep $((i * 3)); done; exit 1
 
 COPY internal/domain internal/domain
+COPY internal/channelruntime internal/channelruntime
 COPY internal/moderation internal/moderation
 COPY internal/projection internal/projection
 COPY internal/watchtime internal/watchtime

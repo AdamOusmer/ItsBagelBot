@@ -103,7 +103,7 @@ export function boundElsewhereIds(cookies: Cookies): GuildId[] {
   return parseIdList(cookies.get(BLOCKED_COOKIE) ?? '');
 }
 
-export const DISCORD_BOT_PERMISSIONS = 1102012607574;
+export const DISCORD_BOT_PERMISSIONS = 1102012607702;
 
 const TOKEN_URL = 'https://discord.com/api/v10/oauth2/token';
 const USER_GUILDS_URL = 'https://discord.com/api/v10/users/@me/guilds';
@@ -120,6 +120,7 @@ export function requireDiscordActor(locals: App.Locals): UserId {
 
 export const DISCORD_ERROR_SLUGS = [
   'oauth',
+  'declined',
   'unconfigured',
   'setup',
   'state',
@@ -136,7 +137,7 @@ export const DISCORD_ERROR_SLUGS = [
 export type DiscordErrorSlug = (typeof DISCORD_ERROR_SLUGS)[number];
 
 export function returnIfDeclined(url: URL): void {
-  if (url.searchParams.get('error') === 'access_denied' && !url.searchParams.get('code')) throw redirect(302, '/discord');
+  if (url.searchParams.get('error') === 'access_denied' && !url.searchParams.get('code')) throw redirect(302, '/discord?e=declined');
 }
 
 export function discordFail(slug: DiscordErrorSlug): never {

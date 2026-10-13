@@ -1,7 +1,7 @@
 {
   "disconnectFailed": "No se pudo desconectar Discord.",
   "disconnected": "Discord desconectado.",
-  "refused": "Este servidor ya tiene una estructura. Usa Conectar existente.",
+  "refused": "Este servidor ya tenía sus propios canales, así que Bagel los conservó y añadió solo los que necesita. Elige los demás en la página Canales.",
   "repostFailed": "No se pudo volver a publicar el panel de tickets.",
   "reposted": "Panel de tickets publicado de nuevo.",
   "saveFailed": "No se pudieron guardar los ajustes de Discord.",

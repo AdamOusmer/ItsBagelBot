@@ -2,18 +2,19 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Modules
-description: Manages per-broadcaster feature toggles and configuration.
+description: Manages per-broadcaster module settings, quotes, feed tallies and integration credentials.
 ---
 
-The Modules service (`app/db/modules/`) manages the configuration and enablement state of feature modules for each broadcaster.
+The Modules service (`app/db/modules/`) manages the configuration and enablement state of feature modules for each broadcaster. It also stores channel quote books, lifetime bagel feed tallies, and the sealed Govee and Spotify credentials.
 
 ## Architecture
 
 Like other data services in the system, Modules follows a strict ownership model:
 - **Ownership**: Sole owner of the modules MySQL schema.
-- **RPC Interface**: Serves the dashboard settings via its NATS RPC queue, and provides internal lookups via `bagel.rpc.internal.projection.modules.get`.
-- **Event Emission**: Emits `data.modules.changed` on updates.
-- **Cache Invalidation**: Publishes `bagel.cache.invalidate.broadcaster` when a module is toggled or reconfigured, ensuring that the Sesame engine immediately adapts its execution pipeline.
+- **RPC Interface**: Serves the dashboard under `bagel.rpc.modules.*` (`list`, `upsert`, `patch`, `patch-existing`, plus quote and personality verbs), and provides secret-free repair views via `bagel.rpc.internal.projection.modules.get`.
+- **Event Emission**: Emits `data.modules.changed` with the persisted revision. A dashboard upsert is written before the reply returns; background writes are batched.
+- **Cache Invalidation**: Broadcasts on `bagel.cache.invalidate.<scope>` when a module is toggled or reconfigured, so the Sesame engine adapts its execution pipeline.
+- **Credentials**: Govee keys and Spotify app and refresh tokens are encrypted in separate tables and never enter module config blobs or projections. Gossip reads them through internal unseal RPCs.
 
 ## Module Configuration
 

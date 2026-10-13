@@ -85,6 +85,36 @@ func IsActive(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldIsActive, v))
 }
 
+// LifecycleState applies equality check predicate on the "lifecycle_state" field. It's identical to LifecycleStateEQ.
+func LifecycleState(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleState, v))
+}
+
+// LifecycleProjectionPending applies equality check predicate on the "lifecycle_projection_pending" field. It's identical to LifecycleProjectionPendingEQ.
+func LifecycleProjectionPending(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleProjectionPending, v))
+}
+
+// LifecycleMigrationPending applies equality check predicate on the "lifecycle_migration_pending" field. It's identical to LifecycleMigrationPendingEQ.
+func LifecycleMigrationPending(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleMigrationPending, v))
+}
+
+// DormantAfter applies equality check predicate on the "dormant_after" field. It's identical to DormantAfterEQ.
+func DormantAfter(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDormantAfter, v))
+}
+
+// LifecycleDueAt applies equality check predicate on the "lifecycle_due_at" field. It's identical to LifecycleDueAtEQ.
+func LifecycleDueAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleDueAt, v))
+}
+
+// NoticeDueAt applies equality check predicate on the "notice_due_at" field. It's identical to NoticeDueAtEQ.
+func NoticeDueAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldNoticeDueAt, v))
+}
+
 // Banned applies equality check predicate on the "banned" field. It's identical to BannedEQ.
 func Banned(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBanned, v))
@@ -103,6 +133,11 @@ func CustomCursor(v bool) predicate.User {
 // CommandsPageHidden applies equality check predicate on the "commands_page_hidden" field. It's identical to CommandsPageHiddenEQ.
 func CommandsPageHidden(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCommandsPageHidden, v))
+}
+
+// LeaderboardPageHidden applies equality check predicate on the "leaderboard_page_hidden" field. It's identical to LeaderboardPageHiddenEQ.
+func LeaderboardPageHidden(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLeaderboardPageHidden, v))
 }
 
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
@@ -465,6 +500,251 @@ func IsActiveNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldIsActive, v))
 }
 
+// LifecycleIsNil applies the IsNil predicate on the "lifecycle" field.
+func LifecycleIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldLifecycle))
+}
+
+// LifecycleNotNil applies the NotNil predicate on the "lifecycle" field.
+func LifecycleNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldLifecycle))
+}
+
+// LifecycleStateEQ applies the EQ predicate on the "lifecycle_state" field.
+func LifecycleStateEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleState, v))
+}
+
+// LifecycleStateNEQ applies the NEQ predicate on the "lifecycle_state" field.
+func LifecycleStateNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLifecycleState, v))
+}
+
+// LifecycleStateIn applies the In predicate on the "lifecycle_state" field.
+func LifecycleStateIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldLifecycleState, vs...))
+}
+
+// LifecycleStateNotIn applies the NotIn predicate on the "lifecycle_state" field.
+func LifecycleStateNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldLifecycleState, vs...))
+}
+
+// LifecycleStateGT applies the GT predicate on the "lifecycle_state" field.
+func LifecycleStateGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldLifecycleState, v))
+}
+
+// LifecycleStateGTE applies the GTE predicate on the "lifecycle_state" field.
+func LifecycleStateGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldLifecycleState, v))
+}
+
+// LifecycleStateLT applies the LT predicate on the "lifecycle_state" field.
+func LifecycleStateLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldLifecycleState, v))
+}
+
+// LifecycleStateLTE applies the LTE predicate on the "lifecycle_state" field.
+func LifecycleStateLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldLifecycleState, v))
+}
+
+// LifecycleStateContains applies the Contains predicate on the "lifecycle_state" field.
+func LifecycleStateContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldLifecycleState, v))
+}
+
+// LifecycleStateHasPrefix applies the HasPrefix predicate on the "lifecycle_state" field.
+func LifecycleStateHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldLifecycleState, v))
+}
+
+// LifecycleStateHasSuffix applies the HasSuffix predicate on the "lifecycle_state" field.
+func LifecycleStateHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldLifecycleState, v))
+}
+
+// LifecycleStateEqualFold applies the EqualFold predicate on the "lifecycle_state" field.
+func LifecycleStateEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldLifecycleState, v))
+}
+
+// LifecycleStateContainsFold applies the ContainsFold predicate on the "lifecycle_state" field.
+func LifecycleStateContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldLifecycleState, v))
+}
+
+// LifecycleProjectionPendingEQ applies the EQ predicate on the "lifecycle_projection_pending" field.
+func LifecycleProjectionPendingEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleProjectionPending, v))
+}
+
+// LifecycleProjectionPendingNEQ applies the NEQ predicate on the "lifecycle_projection_pending" field.
+func LifecycleProjectionPendingNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLifecycleProjectionPending, v))
+}
+
+// LifecycleMigrationPendingEQ applies the EQ predicate on the "lifecycle_migration_pending" field.
+func LifecycleMigrationPendingEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleMigrationPending, v))
+}
+
+// LifecycleMigrationPendingNEQ applies the NEQ predicate on the "lifecycle_migration_pending" field.
+func LifecycleMigrationPendingNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLifecycleMigrationPending, v))
+}
+
+// DormantAfterEQ applies the EQ predicate on the "dormant_after" field.
+func DormantAfterEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDormantAfter, v))
+}
+
+// DormantAfterNEQ applies the NEQ predicate on the "dormant_after" field.
+func DormantAfterNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDormantAfter, v))
+}
+
+// DormantAfterIn applies the In predicate on the "dormant_after" field.
+func DormantAfterIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldDormantAfter, vs...))
+}
+
+// DormantAfterNotIn applies the NotIn predicate on the "dormant_after" field.
+func DormantAfterNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldDormantAfter, vs...))
+}
+
+// DormantAfterGT applies the GT predicate on the "dormant_after" field.
+func DormantAfterGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldDormantAfter, v))
+}
+
+// DormantAfterGTE applies the GTE predicate on the "dormant_after" field.
+func DormantAfterGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldDormantAfter, v))
+}
+
+// DormantAfterLT applies the LT predicate on the "dormant_after" field.
+func DormantAfterLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldDormantAfter, v))
+}
+
+// DormantAfterLTE applies the LTE predicate on the "dormant_after" field.
+func DormantAfterLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldDormantAfter, v))
+}
+
+// DormantAfterIsNil applies the IsNil predicate on the "dormant_after" field.
+func DormantAfterIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldDormantAfter))
+}
+
+// DormantAfterNotNil applies the NotNil predicate on the "dormant_after" field.
+func DormantAfterNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldDormantAfter))
+}
+
+// LifecycleDueAtEQ applies the EQ predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtNEQ applies the NEQ predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtIn applies the In predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldLifecycleDueAt, vs...))
+}
+
+// LifecycleDueAtNotIn applies the NotIn predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldLifecycleDueAt, vs...))
+}
+
+// LifecycleDueAtGT applies the GT predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtGTE applies the GTE predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtLT applies the LT predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtLTE applies the LTE predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldLifecycleDueAt, v))
+}
+
+// LifecycleDueAtIsNil applies the IsNil predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldLifecycleDueAt))
+}
+
+// LifecycleDueAtNotNil applies the NotNil predicate on the "lifecycle_due_at" field.
+func LifecycleDueAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldLifecycleDueAt))
+}
+
+// NoticeDueAtEQ applies the EQ predicate on the "notice_due_at" field.
+func NoticeDueAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtNEQ applies the NEQ predicate on the "notice_due_at" field.
+func NoticeDueAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtIn applies the In predicate on the "notice_due_at" field.
+func NoticeDueAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldNoticeDueAt, vs...))
+}
+
+// NoticeDueAtNotIn applies the NotIn predicate on the "notice_due_at" field.
+func NoticeDueAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldNoticeDueAt, vs...))
+}
+
+// NoticeDueAtGT applies the GT predicate on the "notice_due_at" field.
+func NoticeDueAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtGTE applies the GTE predicate on the "notice_due_at" field.
+func NoticeDueAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtLT applies the LT predicate on the "notice_due_at" field.
+func NoticeDueAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtLTE applies the LTE predicate on the "notice_due_at" field.
+func NoticeDueAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldNoticeDueAt, v))
+}
+
+// NoticeDueAtIsNil applies the IsNil predicate on the "notice_due_at" field.
+func NoticeDueAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldNoticeDueAt))
+}
+
+// NoticeDueAtNotNil applies the NotNil predicate on the "notice_due_at" field.
+func NoticeDueAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldNoticeDueAt))
+}
+
 // BannedEQ applies the EQ predicate on the "banned" field.
 func BannedEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBanned, v))
@@ -578,6 +858,16 @@ func CommandsPageHiddenEQ(v bool) predicate.User {
 // CommandsPageHiddenNEQ applies the NEQ predicate on the "commands_page_hidden" field.
 func CommandsPageHiddenNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldCommandsPageHidden, v))
+}
+
+// LeaderboardPageHiddenEQ applies the EQ predicate on the "leaderboard_page_hidden" field.
+func LeaderboardPageHiddenEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldLeaderboardPageHidden, v))
+}
+
+// LeaderboardPageHiddenNEQ applies the NEQ predicate on the "leaderboard_page_hidden" field.
+func LeaderboardPageHiddenNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldLeaderboardPageHidden, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

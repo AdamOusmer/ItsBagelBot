@@ -167,6 +167,9 @@ func (r *Loyalty) writeCounterTransaction(ctx context.Context, tx *sql.Tx, bumps
 	if err := r.ensureCounterBatchDefinitions(ctx, tx, bumps); err != nil {
 		return err
 	}
+	if err := r.ensureCounterEntryRows(ctx, tx, bumps); err != nil {
+		return err
+	}
 	if err := r.excludeSaturatedCounterRows(ctx, tx, bumps); err != nil {
 		return err
 	}

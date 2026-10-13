@@ -20,11 +20,13 @@ substrate (NATS) it sits behind is justified in
   the shards on its side; we only have to keep them connected.
 - Keep each shard's WebSocket alive: handle the `session_welcome` / `reconnect` dance, reconnect with backoff on
   close or reset, restart a single shard in isolation when it fails.
-- Refresh per-tenant OAuth tokens before expiry and re-authenticate when tokens roll over.
+- Hold the Twitch **app access token** used for Helix calls (Conduit management and shard binding), fetching a new
+  one shortly before it expires.
 - **Filter** incoming Twitch payloads and publish the survivors to NATS as normalized events. Chat messages have
   exactly three outcomes: messages from the special user IDs (secret-store list) always go to the **premium lane**;
-  messages starting with `!` go to the lane matching the **broadcaster's** status (premium or standard); everything
-  else is dropped.
+  messages starting with `!` go to the lane matching the **broadcaster's** status (premium or standard); plain chat
+  publishes its first line at once and folds identical repeats into one event that lists their senders (squash).
+  A banned broadcaster's events are dropped.
 - Resolve broadcaster status over **NATS request-reply** from the service that owns broadcaster data (the ingress
   never reads MySQL directly), behind an in-process read-through cache evicted by invalidation keys on NATS.
 - Distribute shard ownership across ingress replicas in the BEAM cluster so that exactly one node owns each shard's
@@ -42,7 +44,7 @@ flowchart LR
         direction TB
         N1[ingress node A]
         N2[ingress node B]
-        N1 <-. Erlang distribution<br/>over Tailscale .-> N2
+        N1 <-. Erlang distribution<br/>between pods .-> N2
     end
 
     NATS[(NATS<br/>core + JetStream)]
@@ -51,8 +53,7 @@ flowchart LR
     N2 -- publish events --> NATS
 ```
 
-Ingress nodes form a single BEAM cluster over Erlang distribution. The distribution port is reachable only inside
-the tailnet from [ADR 0004](/adr/0004-adoption-of-oracle-cloud/); no public port is exposed. The only thing leaving
+Ingress nodes form a single BEAM cluster over Erlang distribution. No public port is exposed. The only thing leaving
 the cluster is published NATS messages.
 
 ## Internal shape (OTP supervision tree)
@@ -65,7 +66,7 @@ flowchart TB
     Registry[Horde.Registry<br/>shard_id to PID, cluster-wide]
     DynSup[Horde.DynamicSupervisor<br/>spawns and supervises shards]
     NatsConn[Gnat.ConnectionSupervisor<br/>NATS publisher]
-    Token[TokenRefresher<br/>per-tenant OAuth]
+    Token[Twitch.AppToken<br/>app access token]
 
     App --> Cluster
     App --> Registry
@@ -83,17 +84,17 @@ flowchart TB
 ```
 
 - **`BagelBot.Ingress.Application`** is the top-level supervisor. Restart strategy: `:one_for_one`.
-- **`Cluster.Supervisor` (libcluster)** discovers peer nodes and triggers `Node.connect/1` against them. EPMD
-  strategy in production, with the peer list passed via config.
+- **`Cluster.Supervisor` (libcluster)** discovers peer nodes and triggers `Node.connect/1` against them. The strategy follows the environment:
+  Kubernetes DNS when `BAGELBOT_K8S_HEADLESS_SERVICE` is set, EPMD with `BAGELBOT_CLUSTER_HOSTS`, otherwise Gossip.
 - **`Horde.Registry`** is a CRDT-backed, cluster-wide registry. Each shard is registered under a key like
   `{:shard, shard_id}`. Cross-node process lookup is a `Horde.Registry.lookup/2` call.
 - **`Horde.DynamicSupervisor`** spawns shards and re-assigns them to surviving nodes on node loss.
 - **`ShardSession`** is a `GenServer` per shard. It owns one WebSocket, drives the EventSub protocol state machine,
   runs the filter on each incoming payload, and publishes survivors to NATS.
-- **`Gnat.ConnectionSupervisor`** owns the NATS connection pool (Gnat is the Elixir NATS client). The ingress only
-  publishes; it does not subscribe.
-- **`TokenRefresher`** is one process per tenant. It holds the current OAuth refresh token, schedules a refresh
-  ahead of expiry, and notifies shards when a new access token is available.
+- **`Gnat.ConnectionSupervisor`** owns the NATS connections (Gnat is the Elixir NATS client). The event bus and the RPC plane use separate
+  connections and identities.
+- **`Twitch.AppToken`** is a single process holding the app access token. It fetches a new token when the cached one
+  is within a minute of expiry.
 
 The filter itself is a pure function module (no state, no supervisor child). Each `ShardSession` calls it inline
 before deciding whether to publish.
@@ -105,7 +106,7 @@ before deciding whether to publish.
 | `Application`                   | `:one_for_one`  | A subsystem crash does not take down siblings.                                       |
 | `Horde.DynamicSupervisor`       | `:one_for_one`  | One shard crashing only restarts that shard.                                         |
 | `ShardSession`                  | `:transient`    | Normal shutdown (shard removed) does not restart; crash does, with backoff.          |
-| `TokenRefresher`                | `:permanent`    | Always restart; without tokens the tenant cannot work.                               |
+| `Twitch.AppToken`               | `:permanent`    | Always restart; without the app token no shard can bind.                             |
 | `Gnat.ConnectionSupervisor`     | `:permanent`    | Always restart; ingress is useless without NATS.                                     |
 
 Reconnect backoff inside a shard uses jittered exponential backoff capped at 60 seconds.
@@ -133,8 +134,8 @@ reasoning.
 
 ## NATS contracts
 
-The ingress publishes events and status, issues request-reply calls for broadcaster status, and subscribes to one
-subject: cache invalidation keys.
+The ingress publishes events and status, issues request-reply calls for broadcaster status, and subscribes to cache
+invalidation keys, `data.users.changed` (trial eviction), and its own admin RPC subjects.
 
 Subject prefixes:
 
@@ -143,18 +144,22 @@ Subject prefixes:
   events); the EventSub `type` travels in the payload, not the subject.
 - **`twitch.ingress.status.*`**: outbound, lifecycle and health signals.
 - **`bagel.rpc.broadcaster.status.get`**: request-reply, broadcaster status lookups against the owning Go service.
-- **`bagel.cache.invalidate.broadcaster`**: inbound, evicts entries from the in-process broadcaster status cache.
+- **`bagel.cache.invalidate.status`**: inbound, evicts entries from the in-process broadcaster status cache.
 - **`twitch.ingress.admin.shards.get`**: inbound request-reply, answered by `Ingress.AdminRpc` with a
-  cluster-wide shard state snapshot for the [Admin](/microservices/admin/) tool. A queue group ensures exactly
+  cluster-wide shard state snapshot for the [Admin](/microservices/admin/) console. A queue group ensures exactly
   one replica answers; the reply covers every shard via the Horde registry.
+- **`twitch.ingress.admin.shards.scale`**, **`.shards.autoscale`** and **`twitch.ingress.admin.trials.*`**
+  (`list`, `add`, `remove`, `set_enabled`): inbound request-reply for shard scaling and trial channels.
+- **`bagel.rpc.ingress.conduit.get`**: inbound request-reply returning the live Conduit ID (used by Twitch Outgress).
+  Health is answered on `bagel.rpc.health.ingress`.
 
 ### Outbound: events
 
 | Subject                                      | Payload (JSON)                                                                                | Notes                                |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------|
-| `twitch.ingress.event.premium`               | chat: `{type, lane, broadcaster_user_id, chatter_user_id, chatter_user_login, text, ts, msg_id}`; non-chat: EventSub payload as delivered by Twitch, plus `{type, lane, received_at, shard_id, msg_id}` | Premium broadcasters + special IDs.  |
+| `twitch.ingress.event.premium`               | chat: flattened envelope (`type`, `lane`, broadcaster and chatter identity, `text`, `msg_id`, timing); non-chat: EventSub payload as delivered by Twitch, plus `{type, lane, received_at, shard_id, msg_id}` | Premium broadcasters + special IDs.  |
 | `twitch.ingress.event.standard`              | same shapes as premium                                                                        | Standard broadcasters, and events with no extractable broadcaster. |
-| `twitch.ingress.event.stream`                | EventSub payload plus `{type, lane, received_at, shard_id, msg_id}`                           | **Only** `stream.online` / `stream.offline`, regardless of broadcaster status. |
+| `twitch.ingress.event.stream`                | EventSub payload plus `{type, lane, received_at, shard_id, msg_id}`                           | `stream.online` / `stream.offline` only, regardless of broadcaster status. Each is also published to the broadcaster's premium or standard subject. |
 
 Chat notices and every other subscribed EventSub type travel on the premium/standard subjects; consumers dispatch
 on the payload's `type` field. Payloads carry `msg_id` so consumers can de-duplicate Twitch redeliveries.
@@ -163,13 +168,14 @@ on the payload's `type` field. Payloads carry `msg_id` so consumers can de-dupli
 
 | Subject                                      | Payload                                                                                       |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `twitch.ingress.status.shard.up`             | `{tenant, shard_id, node, since}`                                                             |
-| `twitch.ingress.status.shard.bound`          | `{shard_id, node, session_id, kind, at}` — `kind` is `fresh` (full connect + Helix bind) or `moved` (session_reconnect handshake completed) |
-| `twitch.ingress.status.shard.down`           | `{tenant, shard_id, node, reason}` — `reason` includes `duplicate_resolved` when a netsplit-heal duplicate stands down |
-| `twitch.ingress.status.node.joined`          | `{node, version, ts}`                                                                         |
-| `twitch.ingress.status.node.left`            | `{node, reason, ts}`                                                                          |
+| `twitch.ingress.status.shard.up`             | `{shard_id, node, session_id, since}`                                                         |
+| `twitch.ingress.status.shard.bound`          | `{shard_id, node, session_id, kind, at}`; `kind` is `fresh` (full connect + Helix bind) or `moved` (session_reconnect handshake completed) |
+| `twitch.ingress.status.shard.down`           | `{shard_id, node, reason}`; `reason` includes `reconnecting` and `duplicate_resolved` (a netsplit-heal duplicate stands down) |
+| `twitch.ingress.status.authz.granted` / `authz.revoked` | `{user_id, user_login, at}`, from Twitch `user.authorization` events                  |
+| `twitch.ingress.status.authz.subrevoked`     | `{broadcaster_id, type, status, at}`, when Twitch revokes one subscription                    |
 
-Status is a JetStream stream with short retention (10 minutes is enough for any observer to catch up).
+Status subjects share the `TWITCH_INGRESS` JetStream stream with the premium and stream lanes, which keeps messages for
+10 seconds.
 
 ## Configuration
 
@@ -177,15 +183,16 @@ Environment-driven. All values arrive as env vars and are read once at boot.
 
 | Variable                       | Purpose                                                                  | Example                                     |
 |--------------------------------|--------------------------------------------------------------------------|---------------------------------------------|
-| `BAGELBOT_NODE_NAME`           | Erlang long-name of this node.                                           | `ingress-a@10.42.0.7`                       |
-| `BAGELBOT_ERLANG_COOKIE`       | Shared cookie for distribution. Provided by the secret store.            | (opaque)                                    |
+| `RELEASE_NODE`                 | Erlang long-name of this node (the manifest sets `ingress@$(POD_IP)`).   | `ingress@10.42.0.7`                         |
+| `RELEASE_COOKIE`               | Shared cookie for distribution. The manifest reads it from the secret key `BAGELBOT_ERLANG_COOKIE`. | (opaque)         |
+| `BAGELBOT_K8S_HEADLESS_SERVICE` | Headless Service for Kubernetes DNS discovery; takes precedence over `BAGELBOT_CLUSTER_HOSTS`. | (unset)                  |
 | `BAGELBOT_CLUSTER_HOSTS`       | Comma-separated peer long-names for libcluster EPMD strategy.            | `ingress-a@10.42.0.7,ingress-b@10.42.0.8`   |
-| `NATS_URL`                     | NATS connection URL inside the VCN.                                      | `nats://nats.internal:4222`                 |
-| `NATS_CREDS_FILE`              | Path to the NATS credentials file (JWT + nkey).                          | `/run/secrets/nats.creds`                   |
+| `NATS_HOST` / `NATS_PORT`      | NATS endpoint (default port `4222`).                                     | `127.0.0.1`                                 |
+| `NATS_JWT` / `NATS_NKEY_SEED`  | Bus credentials. `NATS_RPC_JWT` / `NATS_RPC_NKEY_SEED` set the separate RPC connection. | (opaque)                  |
 | `TWITCH_CLIENT_ID`             | App client ID for Twitch API calls.                                      | (opaque)                                    |
 | `TWITCH_CLIENT_SECRET`         | App client secret.                                                       | (opaque)                                    |
 | `TWITCH_CONDUIT_ID`            | The Conduit this ingress owns.                                           | `conduit_abc123`                            |
-| `TWITCH_CONDUIT_SHARD_COUNT`   | Desired number of shards in the Conduit.                                 | `4`                                         |
+| `TWITCH_CONDUIT_SHARD_COUNT`   | Desired number of shards in the Conduit (default `2`; `TWITCH_CONDUIT_MAX_SHARDS` caps scaling, default `11`). | `4`                  |
 | `TWITCH_EVENTSUB_WSS_URL`      | Twitch EventSub WebSocket endpoint. Pinned via config.                   | `wss://eventsub.wss.twitch.tv/ws`           |
 | `TWITCH_SPECIAL_USER_IDS`      | Chatter IDs that always route to the premium lane. From the secret store. | `1001,1002`                                |
 | `NATS_SUBJECT_LANE_PREMIUM`    | Premium lane subject (all event types).                                  | `twitch.ingress.event.premium`              |
@@ -194,51 +201,39 @@ Environment-driven. All values arrive as env vars and are read once at boot.
 | `NEW_RELIC_LICENSE_KEY`        | Enables New Relic monitoring; absent, the agent is a no-op.              | (opaque)                                    |
 | `NEW_RELIC_APP_NAME`           | New Relic application name.                                              | `itsbagelbot-twitch-ingress`                |
 | `NATS_BROADCASTER_STATUS_SUBJECT` | Request-reply subject for broadcaster status lookups.                 | `bagel.rpc.broadcaster.status.get`          |
-| `NATS_CACHE_INVALIDATION_SUBJECT` | Subject carrying broadcaster cache invalidation keys.                 | `bagel.cache.invalidate.broadcaster`        |
+| `NATS_CACHE_INVALIDATION_SUBJECT` | Subject carrying broadcaster cache invalidation keys.                 | `bagel.cache.invalidate.status`             |
 | `NATS_ADMIN_SUBJECT`           | Request-reply subject answered with the shard state snapshot.            | `twitch.ingress.admin.shards.get`           |
 | `BROADCASTER_CACHE_TTL_SECONDS`| TTL of the in-process broadcaster status cache.                          | `300`                                       |
 | `LOG_LEVEL`                    | `debug` / `info` / `warn` / `error`.                                     | `info`                                      |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`  | Optional OTLP target for traces and metrics.                             | `http://otel-collector:4318`                |
-
-Per-tenant credentials (OAuth refresh tokens, EventSub subscription configuration) come from the relational database
-described in [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
 
 ## Deployment
 
-- **Architecture:** ARM and Intel. Scheduled across both `node1` (ARM) and `node2` (Intel/x86_64) for High Availability (HA). Images are built per node: ARM natively on the operator Mac, Intel natively on `node2` — no cross-arch emulation in the pipeline.
-- **Runtime:** OTP 27+, Elixir 1.17+. Released as a Mix release (`mix release`), running on a `distroless` Erlang
-  base image.
+- **Replicas:** 3, spread one per host (`topologySpreadConstraints` on `kubernetes.io/hostname`) and kept off the
+  control-plane and worker-role nodes (`deploy/k8s/twitch-ingress.yaml`).
+- **Runtime:** Elixir 1.17+ (`mix.exs`), built with Elixir 1.20 on OTP 28. Released as a Mix release
+  (`mix release`) and run on a `debian:trixie-slim` base image.
 - **Process model:** one container per node. The BEAM is the concurrency runtime; we do not run multiple BEAM VMs
   per pod.
-- **Networking:** Erlang distribution binds to the Tailscale interface only. EPMD bound to the same address. No
-  public port. NATS is reached over the internal VCN.
-- **Health checks:**
-  - Liveness: a small HTTP endpoint on localhost that confirms the application supervisor is alive.
-  - Readiness: `Gnat.ping/1` to NATS plus `Node.list/0` containing at least one peer when scaled beyond one node.
+- **Networking:** Erlang distribution is cluster-internal. No public port. NATS is reached over the cluster network.
+- **Health checks:** the Kubernetes liveness and readiness probes run `/app/bin/ingress pid`. A separate HTTP listener
+  (`STATUS_PORT`, default `8080`) serves `/healthz`, `/readyz` and `/status`.
 - **Rolling updates:** one node at a time. `SIGTERM` triggers `:init.stop/0`, which runs Application stop callbacks
   and lets Horde drain shards to surviving nodes before exit.
 
 ## Observability
 
-- **Logs:** JSON to stdout, structured via `Logger` with metadata. Fields: `tenant`, `shard_id`, `node`, `event`.
-- **Metrics:** Telemetry events emitted by Gnat, Horde, and our own `:telemetry.execute/3` calls. Exported via the
-  OpenTelemetry SDK to the collector at `OTEL_EXPORTER_OTLP_ENDPOINT`.
-- **Traces:** Each shard's payload-handling path opens a span; outbound NATS publishes carry the trace context as a
-  header so downstream Go services see continuity.
-- **Key metrics:**
-  - `ingress.shard.count{state}` (gauge): live shards by state (`connected`, `reconnecting`).
-  - `ingress.shard.reconnects_total` (counter): reconnect attempts; sustained spikes flag a Twitch outage.
-  - `ingress.filter.dropped_total{reason}` (counter): events dropped by the filter, by reason.
-  - `ingress.nats.publish_latency_ms{subject}` (histogram).
-  - `ingress.token.refreshes_total{tenant, outcome}` (counter).
-  - `ingress.cluster.members` (gauge): nodes in `Node.list/0`.
+- **Logs:** `Logger` to stdout with `shard_id` and `node` metadata; `LOG_LEVEL` sets the level.
+- **Metrics:** in-process counters are flushed every second to New Relic as `Custom/Ingress/*` metrics, and notable
+  shard events are reported as `IngressEvent` custom events. Without `NEW_RELIC_LICENSE_KEY` the agent is a no-op.
+- **Traces:** a sampled share of notifications (`INGRESS_TRACE_SAMPLE_RATE`) runs as a New Relic `Ingress`
+  transaction, with the dispatcher queue wait recorded as an attribute.
 
 ## Failure modes and how the service responds
 
 | Failure                                            | What happens                                                                                                  |
 |----------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | A shard's WebSocket drops                          | `ShardSession` traps the close, restarts via supervisor, reconnects with backoff. Sibling shards untouched.   |
-| Twitch returns 401 on a shard                      | Shard asks `TokenRefresher` for a fresh token; on success it re-authenticates, on failure it crashes and is restarted by the supervisor. |
+| Twitch returns 401 on a shard                      | The Helix call drops the cached app token (`Twitch.AppToken`); the next attempt fetches a new one. If the call keeps failing, the shard crashes and is restarted by the supervisor. |
 | One ingress node dies                              | `Horde` re-assigns its shards to surviving nodes. New owners re-open WebSockets and re-register them with Twitch. Status events emitted. |
 | NATS unreachable                                   | `Gnat.ConnectionSupervisor` reconnects. Outbound events are buffered (bounded) and dropped on overflow with a warn-level log; we prefer drop over unbounded memory growth. |
 | Erlang distribution partitions                     | Each side becomes its own quorum-less cluster and may run duplicate shards. On heal, the registry merge flags the duplicate, and resolution is health-based, not arbitrary: the copy that is **bound** to the Conduit keeps the shard (reclaiming the registration if the registry picked the unbound one), the redundant copy stands down gracefully and publishes `shard.down` with reason `duplicate_resolved`. |
@@ -250,7 +245,5 @@ described in [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/).
   zombie-socket problem this service exists to solve.
 - [ADR 0003](/adr/0003-adoption-of-nats-as-communication-bridge/): NATS as the communication substrate; defines the
   subject space this service publishes into.
-- [ADR 0004](/adr/0004-adoption-of-oracle-cloud/): the fleet this service runs on, including the tailnet that BEAM
-  distribution rides over.
-- [ADR 0005](/adr/0005-adoption-of-mysql-heatwave/): the database that holds per-tenant Twitch credentials.
+- [ADR 0004](/adr/0004-adoption-of-oracle-cloud/): the fleet this service runs on.
 - [ADR 0006](/adr/0006-adoption-of-elixir-for-twitch-ingress/): the language and runtime choice for this service.

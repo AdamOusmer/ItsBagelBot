@@ -62,7 +62,7 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 
 	r := &Modules{
 		client:  client,
-		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL),
+		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL, cache.StaleOnError(modulesCacheTTL)),
 		pub:     pub,
 		app:     app,
 		log:     log,
@@ -460,7 +460,7 @@ func (r *Modules) persistedDTOs(ctx context.Context, landed []data.ModuleChanged
 }
 
 func (r *Modules) loadModuleViews(ctx context.Context, userID uint64) ([]ModuleView, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) ([]ModuleView, error) {
+	return db.WithRead(ctx, func(ctx context.Context) ([]ModuleView, error) {
 		rows, err := r.client.Modules.Query().Where(modules.UserIDEQ(userID)).All(ctx)
 		if err != nil {
 			return nil, err

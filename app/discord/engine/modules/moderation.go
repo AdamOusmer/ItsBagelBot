@@ -70,7 +70,7 @@ func (h moderationModule) timeout(_ context.Context, c *module.Context, emit mod
 	until := time.Now().UTC().Add(time.Duration(mins) * time.Minute).Format(time.RFC3339)
 	emit(cmd.TimeoutMember(cmd.UserTarget(in.GuildID, userID), until, "slash /timeout"))
 	line := decode.Mention(decode.UserRef{ID: userID}) + " for " + strconv.Itoa(mins) + " minutes"
-	_ = logLine(c, emit, logEntry{Title: "Timeout", Body: line})
+	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: "Timeout", Body: line})
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Timed out "+line+".", true))
 	return nil
 }
@@ -106,7 +106,7 @@ func (h moderationModule) remove(c *module.Context, emit module.Emit, action rem
 	}
 	emit(action.Build(cmd.UserTarget(in.GuildID, userID), cmd.Reason("slash /"+action.Title)))
 	who := decode.Mention(decode.UserRef{ID: userID})
-	_ = logLine(c, emit, logEntry{Title: action.Title, Body: who})
+	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: action.Title, Body: who})
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), action.Prefix+who+".", true))
 	return nil
 }
@@ -135,7 +135,9 @@ func (h moderationModule) purge(ctx context.Context, c *module.Context, emit mod
 		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Not enough messages to purge.", true))
 		return nil
 	}
-	_ = logLine(c, emit, logEntry{Title: "Purge", Body: strconv.Itoa(reply.Deleted) + " messages in <#" + in.ChannelID + ">"})
+	logTo(c, emit, ddiscord.LogModeration, logEntry{
+		Title: "Purge", Body: strconv.Itoa(reply.Deleted) + " messages in <#" + in.ChannelID + ">", SourceChannelID: in.ChannelID,
+	})
 	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Deleted "+strconv.Itoa(reply.Deleted)+" messages.", true))
 	return nil
 }

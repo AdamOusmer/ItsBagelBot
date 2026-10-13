@@ -68,23 +68,54 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 }
 
 func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg ddiscord.Config) error {
-	seen := make(map[string]bool)
-	for _, id := range []string{cfg.LiveChannelID, cfg.ClipsChannelID, cfg.WelcomeChannelID,
-		cfg.VoiceHubID, cfg.LogChannelID, cfg.TicketChannelID, cfg.TicketCategoryID,
-		cfg.SubsChannelID, cfg.SubsCategoryID, cfg.VIPChannelID, cfg.VIPCategoryID,
-		cfg.TicketArchiveCategoryID, cfg.TicketLogChannelID} {
-		if id == "" || seen[id] {
-			continue
+	if guildID == "" {
+		return discapi.ErrBadRequest
+	}
+	wanted := nonEmpty(configChannelIDs(cfg))
+	if len(wanted) == 0 {
+		return nil
+	}
+	if w.discord == nil {
+		return ErrDiscordUnavailable
+	}
+	channels, err := w.discord.ListGuildChannels(ctx, discapi.Guild{ID: guildID})
+	if err != nil {
+		return err
+	}
+	return requireAllPresent(wanted, channels)
+}
+
+func nonEmpty(ids []string) []string {
+	var out []string
+	for _, id := range ids {
+		if id != "" {
+			out = append(out, id)
 		}
-		if w.discord == nil {
-			return ErrDiscordUnavailable
+	}
+	return out
+}
+
+func requireAllPresent(wanted []string, channels []discapi.Snowflake) error {
+	inGuild := make(map[string]bool, len(channels))
+	for _, ch := range channels {
+		inGuild[ch.ID] = true
+	}
+	for _, id := range wanted {
+		if !inGuild[id] {
+			return discapi.ErrForbidden
 		}
-		if err := discapi.RequireGuildChannel(ctx, w.discord, guildID, id); err != nil {
-			return err
-		}
-		seen[id] = true
 	}
 	return nil
+}
+
+func configChannelIDs(cfg ddiscord.Config) []string {
+	ids := []string{cfg.LiveChannelID, cfg.ClipsChannelID, cfg.WelcomeChannelID,
+		cfg.VoiceHubID, cfg.VoiceCategoryID, cfg.LogChannelID, cfg.LogMessagesChannelID,
+		cfg.LogMembersChannelID, cfg.LogVoiceChannelID, cfg.LogModerationChannelID,
+		cfg.TicketChannelID, cfg.TicketCategoryID,
+		cfg.SubsChannelID, cfg.SubsCategoryID, cfg.VIPChannelID, cfg.VIPCategoryID,
+		cfg.TicketArchiveCategoryID, cfg.TicketLogChannelID}
+	return append(ids, cfg.LogIgnoredChannelIDs()...)
 }
 
 type GuildListing struct {

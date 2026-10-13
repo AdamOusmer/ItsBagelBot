@@ -30,7 +30,9 @@ flowchart TB
     end
 
     Twitch["Twitch<br/><i>EventSub + Helix API</i>"]
+    Discord["Discord<br/><i>gateway + REST API</i>"]
     Tebex["Tebex<br/><i>purchases / monetization</i>"]
+    Providers["External API providers<br/><i>via Gossip</i>"]
     NewRelic["New Relic<br/><i>observability</i>"]
 
     Broadcaster -- "uses console<br/>(OAuth, settings)" --> Core
@@ -38,7 +40,10 @@ flowchart TB
 
     Twitch -- "EventSub events" --> Core
     Core -- "chat + EventSub mgmt" --> Twitch
+    Discord -- "gateway events" --> Core
+    Core -- "REST actions" --> Discord
     Tebex -- "purchase webhooks" --> Core
+    Core -- "typed lookups" --> Providers
     Core -- "telemetry" --> NewRelic
 ```
 
@@ -49,9 +54,12 @@ flowchart TB
 | **Broadcaster / chatter** | Drives the bot through Twitch chat and EventSub; configures it through the console (Twitch OAuth via oauth4webapi). |
 | **Operator** | Runs the bot. Reaches the admin console and `kubectl` over the Tailscale tailnet only; no public path. |
 | **Twitch** | Source of EventSub events (ingress) and target for chat sends + EventSub management (outgress), via the Helix API and the bot account token. |
+| **Discord** | Source of gateway events (Discord ingress) and target for REST actions (Discord outgress). |
+| **External API providers** | Third-party data sources such as game stats and music services. Only Gossip calls them, using credentials resolved at request time. |
 | **Tebex** | Monetization. Purchase records flow into the transactions service and promote a broadcaster's tier (paid). |
 | **New Relic** | Observability sink for the Go and Elixir services. |
 
-The bot's only public surface is the broadcaster console, served through the
+The bot's public surface is the broadcaster console and its public pages (commands, stats,
+leaderboards), the status endpoints, and the Tebex webhook receiver, all served through the
 outbound cloudflared tunnel. Everything operator-facing is tailnet-only. Inside the
 box, services talk exclusively over NATS.

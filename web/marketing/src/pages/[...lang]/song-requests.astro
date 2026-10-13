@@ -12,7 +12,7 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')}>
+<Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')} aiDoc="https://ai.itsbagelbot.com/spotify/setup.md">
     <FeatureLanding
         eyebrow={t('songRequests.eyebrow')}
         title={t('songRequests.title')}

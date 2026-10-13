@@ -1,0 +1,18 @@
+{
+  "dormant": "Ruhezustand",
+  "issueDormant": "Der Bot wird automatisch aktiv, wenn eine aktivierte Funktion verwendet wird. Deine Einstellungen bleiben erhalten.",
+  "recovering": "Verbindung wird wiederhergestellt…",
+  "issueRecovering": "Der Zugriff wird vor der Wiederaufnahme geprüft.",
+  "timedOut": "Vorübergehend gesperrt",
+  "issueTimedOut": "Der Bot pausiert, bis die Sperre endet und der Zugriff geprüft wurde.",
+  "verifyUnban": "Ich habe ihn entsperrt, erneut prüfen",
+  "retryConnection": "Verbindung erneut prüfen",
+  "disabledByYou": "Von dir deaktiviert",
+  "retainedBan": "ItsBagelBot ist weiterhin in deinem Chat gesperrt. Gib /unban ItsBagelBot in deinem Twitch-Chat ein und wähle dann „Aktivieren und Entsperrung prüfen“.",
+  "connectionCheckFailed": "Verbindungsprüfung fehlgeschlagen",
+  "issueConnectionCheckFailed": "Der Zugriff konnte nicht bestätigt werden. Versuche es erneut, sobald das Problem behoben ist.",
+  "secondaryGrantMissing": "Die Twitch-Autorisierung muss ebenfalls erneuert werden.",
+  "enableAndVerify": "Aktivieren und Entsperrung prüfen",
+  "issueBotBannedAutomatic": "ItsBagelBot ist in deinem Chat gesperrt. Um ihn zu entsperren, gib /unban ItsBagelBot in deinem Twitch-Chat ein (das kannst du oder einer deiner Moderatoren tun) oder entferne ihn in den Moderationseinstellungen deines Twitch-Creator-Dashboards aus der Liste gesperrter Nutzer. Danach tritt er dem Chat automatisch wieder bei.",
+  "issueBotBannedUnavailable": "ItsBagelBot ist in deinem Chat gesperrt. Um ihn zu entsperren, gib /unban ItsBagelBot in deinem Twitch-Chat ein (das kannst du oder einer deiner Moderatoren tun) oder entferne ihn in den Moderationseinstellungen deines Twitch-Creator-Dashboards aus der Liste gesperrter Nutzer. Wähle dann „Ich habe ihn entsperrt, erneut prüfen“."
+}

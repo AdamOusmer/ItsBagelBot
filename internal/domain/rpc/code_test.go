@@ -5,8 +5,12 @@ package rpc_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"syscall"
 	"testing"
 
 	"ItsBagelBot/internal/domain/rpc"
@@ -48,6 +52,38 @@ func TestFailClassifies(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, rpc.Fail(tc.err, rules...))
+		})
+	}
+}
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return false }
+
+func TestFailClassifiesConnectionErrors(t *testing.T) {
+	eofRule := []rpc.Rule{rpc.Is(io.ErrUnexpectedEOF, rpc.CodeConflict)}
+	cases := []struct {
+		name  string
+		err   error
+		rules []rpc.Rule
+		want  rpc.Code
+	}{
+		{"a bad conn is unavailable", driver.ErrBadConn, nil, rpc.CodeUnavailable},
+		{"a wrapped bad conn is unavailable", fmt.Errorf("query: %w", driver.ErrBadConn), nil, rpc.CodeUnavailable},
+		{"an unexpected eof is unavailable", fmt.Errorf("read: %w", io.ErrUnexpectedEOF), nil, rpc.CodeUnavailable},
+		{"a connection reset is unavailable", fmt.Errorf("read: %w", syscall.ECONNRESET), nil, rpc.CodeUnavailable},
+		{"a broken pipe is unavailable", fmt.Errorf("write: %w", syscall.EPIPE), nil, rpc.CodeUnavailable},
+		{"a net op error is unavailable", fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: errors.New("refused")}), nil, rpc.CodeUnavailable},
+		{"a net timeout is unavailable", fmt.Errorf("wait: %w", timeoutError{}), nil, rpc.CodeUnavailable},
+		{"a plain error is internal", errors.New("boom"), nil, rpc.CodeInternal},
+		{"a plain eof is internal", io.EOF, nil, rpc.CodeInternal},
+		{"an explicit rule wins over the network default", fmt.Errorf("read: %w", io.ErrUnexpectedEOF), eofRule, rpc.CodeConflict},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, rpc.Fail(tc.err, tc.rules...).Code)
 		})
 	}
 }

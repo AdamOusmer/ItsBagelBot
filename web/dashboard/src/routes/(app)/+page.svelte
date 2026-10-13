@@ -15,7 +15,7 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
+  import { connectionUiState, mergeConnectionSignals, type ConnSignals, type ConnUi, type ChannelLifecycle } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
   import type { ActionResult } from '@sveltejs/kit';
   import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
@@ -47,7 +47,7 @@
   type Conn = { signals: ConnSignals; ui: ConnUi };
 
   function liveUi(c: Conn): ConnUi {
-    return sub ? connectionUiState({ ...c.signals, sub: sub.state as ConnSignals['sub'] }) : c.ui;
+    return connectionUiState(mergeConnectionSignals(c.signals, sub ? { sub: sub.state as ConnSignals['sub'], lifecycle: sub.lifecycle, lifecycleRevision: sub.lifecycleRevision, accountCreatedAt: sub.accountCreatedAt } : null));
   }
 
   const statusLabel = (s: string) =>
@@ -130,7 +130,7 @@
     pending = null;
   }
 
-  let sub = $state<{ state: string; error: string } | null>(null);
+  let sub = $state<{ state: string; error: string; lifecycle?: ChannelLifecycle; lifecycleRevision?: number; accountCreatedAt?: number } | null>(null);
   let actionBusy = $state(false);
   let stopPoll: (() => void) | null = null;
 
@@ -146,7 +146,7 @@
       const r = await fetch('/substate');
       if (r.ok) {
         sub = await r.json();
-        return sub?.state ?? 'unknown';
+        return sub?.lifecycle?.runtime_state ?? sub?.state ?? 'unknown';
       }
     } catch {}
     return 'unknown';
@@ -161,7 +161,7 @@
     stopPoll = livePoll(
       async () => {
         const state = await refreshSub();
-        if (state === 'pending' || state === 'unenrolled') sawUnsettled = true;
+        if (state === 'pending' || state === 'unenrolled' || state === 'recovering') sawUnsettled = true;
         return connectionPollSettled(goal, state, Date.now() - started, sawUnsettled);
       },
       {
@@ -183,7 +183,7 @@
 
   onMount(() => {
     refreshSub().then(async (state) => {
-      if (state === 'pending') return startPolling('connected');
+      if (state === 'pending' || state === 'recovering') return startPolling('connected');
       if (state === 'unenrolled' && (await data.conn).signals.sub === 'pending') startPolling('connected');
     });
     return stopPolling;
@@ -259,7 +259,7 @@
   {:then [meta, counters, volume, cd, c, md]}
     {@const fresh = isFreshChannel(meta, cd)}
     {#if fresh}
-      {@render setup(c, cd.total > 0, md.on > 0)}
+      {@render setup(c, cd.total > 0, md.switchedOn > 0)}
     {/if}
     <StreamSection
       meta={live.stream ?? meta}
@@ -294,6 +294,7 @@
           commandsOk={cd.ok}
           pendingShares={sh.pending}
           sharesOk={sh.ok}
+          twitchScopeGap={data.twitchScopeGap}
         />
       {/await}
 
@@ -337,13 +338,13 @@
     {:else if cd.top.length}
       <TopCommands top={cd.top} />
     {:else if !isFreshChannel(meta, cd)}
-      {@render setup(c, cd.total > 0, md.on > 0)}
+      {@render setup(c, cd.total > 0, md.switchedOn > 0)}
     {/if}
   {/await}
 </section>
 
 {#snippet setup(c: Conn, hasCommands: boolean, modulesOn: boolean)}
-  <SetupProgress receiving={liveUi(c).live} {hasCommands} {modulesOn} />
+  <SetupProgress receiving={liveUi(c).live} needsAuth={liveUi(c).showConnect} {hasCommands} {modulesOn} />
 {/snippet}
 
 <Modal open={pending !== null} title={modalTitle} onClose={closeModal}>
