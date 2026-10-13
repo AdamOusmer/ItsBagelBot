@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "title": "Tutoriais de configuração do bot da Twitch | ItsBagelBot",
+    "description": "Siga nossos tutoriais visuais de configuração do bot da Twitch: comandos, dados da API, contadores, pedidos do Spotify, Govee, Discord e compartilhamento do painel.",
+    "eyebrow": "Guias",
+    "heading": "Domine o bot.",
+    "lead": "Todo guia funciona no plano gratuito, exceto as partes marcadas como beta Premium, e cada um leva dez minutos ou menos para ser lido."
+  },
+  "readCta": "Ler o guia",
+  "tool": {
+    "href": "/pt-br/command-builder",
+    "eyebrow": "Ferramenta interativa",
+    "name": "Criador de comandos",
+    "description": "Escreva a mensagem como uma frase, clique para inserir as partes inteligentes, veja uma simulação do chat ao vivo e envie o comando pronto para o seu painel.",
+    "cta": "Abrir o criador",
+    "demoIn": "Bem-vindo, <i>&#123;user&#125;</i>! Você é o visitante <i>&#123;counter:visitas&#125;</i> 🥯",
+    "demoOut": "<b>ItsBagelBot:</b> Bem-vindo, SnackPackPanda! Você é o visitante 128 🥯"
+  },
+  "help": {
+    "prompt": "Não encontrou sua dúvida em nenhum guia?",
+    "links": [
+      {
+        "href": "https://discord.gg/SZ2remwSDv",
+        "label": "Pergunte no Discord",
+        "external": true
+      },
+      {
+        "href": "/pt-br/contact",
+        "label": "Fale com o suporte"
+      },
+      {
+        "href": "https://dashboard.itsbagelbot.com?lang=pt-br",
+        "label": "Abrir o painel",
+        "external": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "title": "Anleitungen zur Einrichtung des Twitch-Bots | ItsBagelBot",
+    "description": "Folge unseren bebilderten Anleitungen: Einrichtung des Twitch-Bots, Befehle, API, Zähler, Spotify-Songwünsche, Govee, Discord und Freigabe des Dashboards.",
+    "eyebrow": "Anleitungen",
+    "heading": "Lerne den Bot kennen.",
+    "lead": "Jede Anleitung funktioniert mit dem kostenlosen Tarif, außer den Teilen, die als Premium-Beta markiert sind, und jede lässt sich in zehn Minuten oder weniger lesen."
+  },
+  "readCta": "Anleitung lesen",
+  "tool": {
+    "href": "/de/command-builder",
+    "eyebrow": "Interaktives Werkzeug",
+    "name": "Befehlseditor",
+    "description": "Schreib die Nachricht wie einen Satz, klicke, um die smarten Teile einzufügen, sieh dir den Live-Chat-Probelauf an und sende den fertigen Befehl dann an dein Dashboard.",
+    "cta": "Befehlseditor öffnen",
+    "demoIn": "Willkommen, <i>&#123;user&#125;</i>! Du bist der Besucher Nummer <i>&#123;counter:besuche&#125;</i> 🥯",
+    "demoOut": "<b>ItsBagelBot:</b> Willkommen, SnackPackPanda! Du bist der Besucher Nummer 128 🥯"
+  },
+  "help": {
+    "prompt": "Eine Frage, die keine Anleitung abdeckt?",
+    "links": [
+      {
+        "href": "https://discord.gg/SZ2remwSDv",
+        "label": "Auf Discord fragen",
+        "external": true
+      },
+      {
+        "href": "/de/contact",
+        "label": "Support kontaktieren"
+      },
+      {
+        "href": "https://dashboard.itsbagelbot.com?lang=de",
+        "label": "Dashboard öffnen",
+        "external": true
+      }
+    ]
+  }
+}
