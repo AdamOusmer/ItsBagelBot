@@ -98,6 +98,27 @@ describe('AI documentation build', () => {
     }
   });
 
+  test('emits llms-full.txt with every page in order, noindex headers and no sitemap entry', async () => {
+    const options = await fixture();
+    await build(options);
+    const full = await readFile(join(options.distDir, 'llms-full.txt'), 'utf8');
+    expect(full.startsWith('# ItsBagelBot full reference for AI assistants\n')).toBe(true);
+    const sources = [...full.matchAll(/^Source: (\S+)$/gm)].map((match) => match[1]);
+    expect(new Set(sources).size).toBe(sources.length);
+    expect(sources).not.toContain('https://ai.itsbagelbot.com/llms.txt');
+    const pages = (await outputFiles(options.distDir)).map((file) => file.slice(options.distDir.length + 1)).filter((path) => path.endsWith('.md'));
+    expect(sources.slice().sort()).toEqual(pages.map((path) => `https://ai.itsbagelbot.com/${path}`).sort());
+    const rank = (path: string) => sources.indexOf(`https://ai.itsbagelbot.com/${path}`);
+    expect(rank('product.md')).toBeLessThan(rank('migration.md'));
+    expect(rank('migration.md')).toBeLessThan(rank('features/commands.md'));
+    expect(rank('features/discord.md')).toBeLessThan(rank('setup/getting-started.md'));
+    expect(rank('setup/import.md')).toBeLessThan(rank('errors/connection.md'));
+    const updated = /^updated:\s*(\S+)$/m.exec(await readFile(join(options.srcDir, 'migration.md'), 'utf8'))![1];
+    expect(full).toContain(`Source: https://ai.itsbagelbot.com/migration.md\nUpdated: ${updated}\n`);
+    expect(await readFile(join(options.distDir, '_headers'), 'utf8')).toContain('/llms-full.txt\n  Content-Type: text/plain; charset=utf-8\n  Cache-Control: public, max-age=300\n  X-Robots-Tag: noindex, follow\n');
+    expect(await readFile(join(options.distDir, 'sitemap.xml'), 'utf8')).not.toContain('llms-full.txt');
+  });
+
   test('groups the llms.txt task list by kind', async () => {
     const options = await fixture();
     options.srcDir = join(options.distDir, '../src');

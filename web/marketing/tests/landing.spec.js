@@ -75,3 +75,44 @@ test.describe('feature landing pages', () => {
         expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('!sr Daft Punk - One More Time');
     });
 });
+
+test.describe('comparison pages', () => {
+    for (const slug of ['nightbot', 'streamelements']) {
+        for (const [lang, prefix] of [['en', ''], ['fr', '/fr']]) {
+            test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {
+                await page.goto(`${prefix}/vs/${slug}/`);
+                const rows = page.locator('.vs__table tbody tr');
+                expect(await rows.count()).toBeGreaterThan(0);
+                for (const row of await rows.all()) {
+                    await expect(row.locator('a[href^="https://"]')).toHaveCount(1);
+                }
+                await expect(page.locator('html')).toHaveAttribute('lang', lang);
+                await expect(page.locator('.vs__reviewed time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
+                await expect(page.locator('.vs__actions a').first()).toHaveAttribute('href', `${prefix}/import/`);
+
+                const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+                const faq = graph.find((node) => node['@type'] === 'FAQPage');
+                expect(faq.mainEntity).toHaveLength(await page.locator('.vs__faq .bb-disclosure').count());
+                expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+                expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
+
+                const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((l) => l.hreflang));
+                expect(hreflangs.sort()).toEqual(['en', 'fr', 'x-default']);
+                await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/migration.md"]')).toHaveCount(1);
+            });
+        }
+
+        test(`/de/vs/${slug}/ does not exist`, async ({ request }) => {
+            expect((await request.get(`/de/vs/${slug}/`)).status()).toBe(404);
+        });
+    }
+
+    test('footer compare links follow the locale only where a translation exists', async ({ page }) => {
+        await page.goto('/fr/');
+        await expect(page.locator('footer a[href="/fr/vs/nightbot/"]')).toBeVisible();
+        await page.goto('/de/');
+        await expect(page.locator('footer a[href="/vs/nightbot/"]')).toBeVisible();
+        await page.goto('/vs/streamelements/');
+        await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/vs/streamelements/');
+    });
+});

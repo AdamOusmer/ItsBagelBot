@@ -18,6 +18,7 @@ type Page = { path: string; title: string; description: string; updated: string;
 type CatalogCache = Map<string, unknown>;
 type PlaceholderOptions = { localeDir: string; cache: CatalogCache };
 type CatalogReference = { surface: string; keys: string[] };
+const fullOrder = ['overview', 'migration', 'feature', 'setup', 'errors'];
 type SiteOutput = { distDir: string; index: Page; tasks: Page[] };
 
 async function files(dir: string): Promise<string[]> {
@@ -150,6 +151,18 @@ async function writePage(page: Page, site: SiteOutput): Promise<void> {
   await writeFile(output, renderPage(page, site.index, site.tasks));
 }
 
+function fullRank(page: Page): number {
+  const rank = fullOrder.indexOf(page.kind ?? '');
+  return rank === -1 ? fullOrder.length : rank;
+}
+
+function renderFull(tasks: Page[]): string {
+  const sorted = [...tasks].sort((a, b) => fullRank(a) - fullRank(b) || a.path.localeCompare(b.path, 'en'));
+  const intro = '# ItsBagelBot full reference for AI assistants\n\nThe per-page files listed in llms.txt are canonical; this file concatenates them for single-fetch use.\n';
+  const sections = sorted.map((page) => `Source: ${origin}/${page.path}\nUpdated: ${page.updated}\n\n${`# ${page.title}\n\n${page.body}`.trimEnd()}\n`);
+  return [intro, ...sections].join('\n---\n\n');
+}
+
 function renderSitemap(pages: Page[]): string {
   const urls = pages.filter((page) => page.path !== 'llms.txt').map((page) => `  <url><loc>${escapeHtml(`${origin}/${page.path}`)}</loc><lastmod>${page.updated}</lastmod></url>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
@@ -164,7 +177,8 @@ function renderHeaders(tasks: Page[]): string {
   const canonicals = tasks.map((task) => headerBlock(`/${task.path}`, [`Link: <${origin}/${task.path}>; rel="canonical"`]));
   const noindex = ['X-Robots-Tag: noindex, follow'];
   const text = headerBlock('/llms.txt', ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: public, max-age=300', ...noindex]);
-  return [markdown, ...canonicals, text, headerBlock('/', noindex)].join('\n');
+  const full = headerBlock('/llms-full.txt', ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: public, max-age=300', ...noindex]);
+  return [markdown, ...canonicals, text, full, headerBlock('/', noindex)].join('\n');
 }
 
 function renderLinks(tasks: Page[]): string {
@@ -187,6 +201,7 @@ async function writeDiscovery(site: SiteOutput, pages: Page[]): Promise<void> {
   const { distDir, index, tasks } = site;
   await writeFile(join(distDir, 'sitemap.xml'), renderSitemap(pages));
   await writeFile(join(distDir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`);
+  await writeFile(join(distDir, 'llms-full.txt'), renderFull(tasks));
   await writeFile(join(distDir, '_headers'), renderHeaders(tasks));
   await writeFile(join(distDir, 'index.html'), renderIndex(index, tasks));
   await writeFile(join(distDir, '404.html'), renderNotFound());

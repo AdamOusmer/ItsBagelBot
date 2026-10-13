@@ -18,6 +18,7 @@
     dashboardHref,
     localeOptions,
     resolveSiteColumns,
+    linkLocale,
     resolveSiteLinks,
     webHref,
     type SiteLinkContext
@@ -27,7 +28,7 @@
 
   const { t, locale } = getI18n();
 
-  const webPath = $derived((path: string, englishOnly?: boolean) => webHref(englishOnly ? 'en' : locale, path));
+  const webPath = $derived((path: string, only?: readonly string[]) => webHref(linkLocale(locale, only), path));
 
   const langQuery = $derived(locale === 'en' ? '' : `?lang=${locale}`);
 

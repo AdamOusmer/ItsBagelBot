@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Comparison",
+  "vsTitle": "ItsBagelBot vs {name}",
+  "reviewed": "Reviewed {date}",
+  "suitsTitle": "Who each one suits",
+  "suitsUs": "ItsBagelBot suits you if",
+  "suitsThem": "{name} suits you if",
+  "tableEyebrow": "Side by side",
+  "tableTitle": "Feature by feature",
+  "colFeature": "Feature",
+  "colSource": "Source",
+  "sourceLink": "Source",
+  "migrateEyebrow": "Switching",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Questions about switching",
+  "sourcesTitle": "Sources",
+  "crumbHome": "Home",
+  "otherVs": "Compare with {name}"
+}

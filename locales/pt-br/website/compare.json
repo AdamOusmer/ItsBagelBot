@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Comparativo",
+  "vsTitle": "ItsBagelBot contra {name}",
+  "reviewed": "Revisado em {date}",
+  "suitsTitle": "Para quem serve cada um",
+  "suitsUs": "O ItsBagelBot serve se",
+  "suitsThem": "O {name} serve se",
+  "tableEyebrow": "Lado a lado",
+  "tableTitle": "Recurso por recurso",
+  "colFeature": "Recurso",
+  "colSource": "Fonte",
+  "sourceLink": "Fonte",
+  "migrateEyebrow": "Trocar de bot",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Perguntas sobre a troca",
+  "sourcesTitle": "Fontes",
+  "crumbHome": "Início",
+  "otherVs": "Comparar com {name}"
+}

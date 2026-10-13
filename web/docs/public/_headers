@@ -14,6 +14,8 @@
 
   X-DNS-Prefetch-Control: on
 
+  Link: <https://ai.itsbagelbot.com/llms.txt>; rel="describedby"; type="text/markdown"
+
   # 'unsafe-inline' is required: Mermaid injects <style> into its SVGs and Starlight ships unhashed inline scripts.
   # Never name third-party font hosts in this file: it ships to dist/, which the release check greps for them.
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests

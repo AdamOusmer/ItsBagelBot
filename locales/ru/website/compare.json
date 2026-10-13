@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Сравнение",
+  "vsTitle": "ItsBagelBot и {name}",
+  "reviewed": "Проверено {date}",
+  "suitsTitle": "Кому что подходит",
+  "suitsUs": "ItsBagelBot подойдёт, если",
+  "suitsThem": "{name} подойдёт, если",
+  "tableEyebrow": "Рядом",
+  "tableTitle": "Функция за функцией",
+  "colFeature": "Функция",
+  "colSource": "Источник",
+  "sourceLink": "Источник",
+  "migrateEyebrow": "Переход",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Вопросы о переходе",
+  "sourcesTitle": "Источники",
+  "crumbHome": "Главная",
+  "otherVs": "Сравнить с {name}"
+}

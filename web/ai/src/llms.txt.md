@@ -20,6 +20,7 @@ Verified as of 2026-10-13. Finished features are free. AutoMod and Discord are P
 
 - [Product reference](https://ai.itsbagelbot.com/product.md): Plans, capabilities, prerequisites, and task-to-feature routing.
 - [Migration facts](https://ai.itsbagelbot.com/migration.md): Six import sources, acquisition methods, supported items, and review safeguards.
+- [Full reference in one file](https://ai.itsbagelbot.com/llms-full.txt): Every page below concatenated for a single fetch.
 - [Human product site](https://itsbagelbot.com/): Public overview.
 - [Current pricing](https://itsbagelbot.com/pricing/): Plan details and amounts.
 

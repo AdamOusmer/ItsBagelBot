@@ -25,6 +25,7 @@ import {
     SITE_FOOTER,
     SITE_LEGAL,
     dashboardHref,
+    linkLocale,
     resolveSiteLinks,
     resolveSiteColumns,
     type SiteLinkContext,
@@ -162,7 +163,7 @@ const isActive = (href: string) =>
 const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
 const navContext = {
-    path: (path: string, englishOnly?: boolean) => localizePath(path, englishOnly ? defaultLang : lang),
+    path: (path: string, only?: readonly string[]) => localizePath(path, linkLocale(lang, only)),
     label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
     langQuery,
     isActive,

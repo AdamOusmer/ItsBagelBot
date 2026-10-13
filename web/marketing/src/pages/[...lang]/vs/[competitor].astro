@@ -1,0 +1,102 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../../layouts/Layout.astro';
+import VsPage from '../../../components/compare/VsPage.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, langParam } from '../../../i18n/ui';
+import { getCompare } from '../../../lib/compare/content';
+import { compareSlugs, compareLocales, competitorNames, type CompareSlug } from '../../../lib/compare/slugs';
+
+export function getStaticPaths() {
+    return compareLocales.flatMap((l) =>
+        compareSlugs.map((competitor) => ({ params: { lang: langParam(l), competitor } })),
+    );
+}
+
+const slug = Astro.params.competitor as CompareSlug;
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const content = getCompare(slug, lang);
+const name = competitorNames[slug];
+const otherSlug = compareSlugs.find((s) => s !== slug) as CompareSlug;
+const otherName = competitorNames[otherSlug];
+const fill = (key: string, params: Record<string, string>) =>
+    Object.entries(params).reduce((text, [k, v]) => text.replace(`{${k}}`, v), t(key));
+
+const origin = new URL(Astro.site!).origin;
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+const date = new Date(`${content.reviewed}T00:00:00Z`);
+const reviewedText = fill('compare.reviewed', {
+    date: new Intl.DateTimeFormat(lang, { dateStyle: 'long', timeZone: 'UTC' }).format(date),
+});
+
+const schema: Record<string, unknown>[] = [
+    {
+        '@type': 'WebPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: content.meta.title,
+        description: content.meta.description,
+        inLanguage: lang,
+        dateModified: content.reviewed,
+        isPartOf: { '@id': `${origin}/#website` },
+        about: [
+            { '@id': `${origin}/#software` },
+            { '@type': 'SoftwareApplication', name, applicationCategory: 'UtilitiesApplication' },
+        ],
+    },
+    {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumbs`,
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: t('compare.crumbHome'), item: new URL(localizePath('/', lang), Astro.site).href },
+            { '@type': 'ListItem', position: 2, name: t('footer.compare'), item: pageUrl },
+            { '@type': 'ListItem', position: 3, name: content.hero.title, item: pageUrl },
+        ],
+    },
+    {
+        '@type': 'FAQPage',
+        mainEntity: content.faq.map((item) => ({
+            '@type': 'Question',
+            name: item.q,
+            acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+    },
+];
+
+const labels = {
+    title: fill('compare.vsTitle', { name }),
+    reviewed: reviewedText,
+    suitsTitle: t('compare.suitsTitle'),
+    suitsUs: t('compare.suitsUs'),
+    suitsThem: fill('compare.suitsThem', { name }),
+    tableEyebrow: t('compare.tableEyebrow'),
+    tableTitle: t('compare.tableTitle'),
+    colFeature: t('compare.colFeature'),
+    colSource: t('compare.colSource'),
+    sourceLink: t('compare.sourceLink'),
+    migrateEyebrow: t('compare.migrateEyebrow'),
+    faqEyebrow: t('compare.faqEyebrow'),
+    faqTitle: t('compare.faqTitle'),
+    sourcesTitle: t('compare.sourcesTitle'),
+    competitor: name,
+    cta: t('nav.cta'),
+};
+---
+
+<Layout
+    title={content.meta.title}
+    description={content.meta.description}
+    aiDoc="https://ai.itsbagelbot.com/migration.md"
+    alternateLocales={compareLocales}
+    extraSchema={schema}
+>
+    <VsPage
+        content={content}
+        labels={labels}
+        loginHref={dashLoginHref(lang)}
+        importHref={localizePath('/import', lang)}
+        other={{ href: localizePath(`/vs/${otherSlug}`, lang), label: fill('compare.otherVs', { name: otherName }) }}
+    />
+</Layout>
