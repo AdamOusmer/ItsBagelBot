@@ -42,6 +42,7 @@
   "auth": "API-Schlüssel",
   "authNone": "Kein Schlüssel nötig",
   "authEmpty": "Noch keine API-Schlüssel. Füge in den Einstellungen einen hinzu und wähle ihn dann hier aus.",
+  "authEmptyDelegate": "Bitte deinen Kanalinhaber, in den Einstellungen einen API-Schlüssel hinzuzufügen.",
   "authEmptyCta": "API-Schlüssel öffnen",
   "authHint": "Schlüssel werden vor dem Speichern verschlüsselt und nie wieder angezeigt. Du siehst nur die Bezeichnung und die letzten 4 Zeichen.",
   "template": "Probeantwort",

@@ -42,6 +42,7 @@
   "auth": "Clé API",
   "authNone": "Aucune clé requise",
   "authEmpty": "Aucune clé API pour l’instant. Ajoutez-en une dans Paramètres, puis sélectionnez-la ici.",
+  "authEmptyDelegate": "Demandez au propriétaire de votre chaîne d’ajouter une clé API dans Paramètres.",
   "authEmptyCta": "Ouvrir les clés API",
   "authHint": "Les clés sont scellées avant stockage et ne sont plus jamais affichées. Seuls le libellé et les 4 derniers caractères restent visibles.",
   "template": "Réponse de répétition",

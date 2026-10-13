@@ -41,11 +41,13 @@
   let {
     defs = [],
     keys = [],
+    canManageKeys,
     onInsert,
     onDefsChanged
   }: {
     defs?: SourceDef[];
     keys?: { label: string }[];
+    canManageKeys: boolean;
     onInsert: (token: string) => void;
     onDefsChanged?: (defs: SourceDef[]) => void;
   } = $props();
@@ -334,7 +336,11 @@
 
     <Field label={t('fetches.auth')}>
       {#if keys.length === 0}
-        <Text size="xs" tone="muted">{t('fetches.authEmpty')} <TextLink variant="inline" href="/settings#api-keys">{t('fetches.authEmptyCta')}</TextLink></Text>
+        {#if canManageKeys}
+          <Text size="xs" tone="muted">{t('fetches.authEmpty')} <TextLink variant="inline" href="/settings#api-keys" external>{t('fetches.authEmptyCta')}</TextLink></Text>
+        {:else}
+          <Text size="xs" tone="muted">{t('fetches.authEmptyDelegate')}</Text>
+        {/if}
       {:else}
         <Select
           fill

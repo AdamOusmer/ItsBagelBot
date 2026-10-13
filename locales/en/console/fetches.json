@@ -42,6 +42,7 @@
   "auth": "API key",
   "authNone": "No key needed",
   "authEmpty": "No API keys yet. Add one in Settings, then pick it here.",
+  "authEmptyDelegate": "Ask your channel owner to add an API key in Settings.",
   "authEmptyCta": "Open API keys",
   "authHint": "Keys are sealed before storage and never shown again. You see only the label and the last 4 characters.",
   "template": "Rehearsal response",

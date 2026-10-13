@@ -42,6 +42,7 @@
   "auth": "Chave da API",
   "authNone": "Nenhuma chave necessária",
   "authEmpty": "Ainda não há chaves de API. Adicione uma em Configurações e depois selecione-a aqui.",
+  "authEmptyDelegate": "Peça ao proprietário do seu canal para adicionar uma chave de API em Configurações.",
   "authEmptyCta": "Abrir chaves de API",
   "authHint": "As chaves são criptografadas antes de serem armazenadas e nunca mais são exibidas. Você vê apenas o rótulo e os últimos 4 caracteres.",
   "template": "Resposta de ensaio",

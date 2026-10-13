@@ -1854,6 +1854,7 @@ export type KnownMessageKey =
   | 'fetches.auth'
   | 'fetches.authEmpty'
   | 'fetches.authEmptyCta'
+  | 'fetches.authEmptyDelegate'
   | 'fetches.authHint'
   | 'fetches.authNone'
   | 'fetches.backToCommands'
