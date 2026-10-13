@@ -546,9 +546,29 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 	return &reply.Tracks[0], ""
 }
 
+var spotifyFailureKeys = map[string]replyKey{
+	"no Spotify connection on file":                                                     "songqueue.err.setup",
+	"no Spotify app set up for this channel":                                            "songqueue.err.setup",
+	"your Spotify connection needs to be set up again":                                  "songqueue.err.reconnect",
+	"the Spotify connection is missing playback control, reconnect it on the dashboard": "songqueue.err.reconnect",
+	"Spotify Premium is required for queue control":                                     "songqueue.err.premium",
+	"no active Spotify device, start playing something first":                           "songqueue.err.no_device",
+	"Spotify is unavailable right now, try again in a moment":                           "songqueue.err.busy",
+	"Spotify is busy right now, try again in a few seconds":                             "songqueue.err.busy",
+	"Spotify is busy right now, try again in a moment":                                  "songqueue.err.busy",
+	"Spotify is rate limiting requests right now, try again in a moment":                "songqueue.err.busy",
+	"that Spotify link type isn't supported; share a track or album":                    "songqueue.err.link",
+	"not found on Spotify":                                                              "songqueue.search.none",
+	"could not read your Spotify connection":                                            "songqueue.err.upstream",
+	"could not reach Spotify":                                                           "songqueue.err.upstream",
+	"invalid request":                                                                   "songqueue.err.upstream",
+	"Spotify playback not permitted right now":                                          "songqueue.err.upstream",
+	"track search failed":                                                               "songqueue.err.upstream",
+}
+
 // GossipRPC returns provider refusals as RPCReplyError before decoding the
-// typed reply. Only exact, fixed messages from the Spotify provider may reach
-// chat: arbitrary RPC text can include credentials, URLs or internal details.
+// typed reply. Known Spotify provider messages map to chat keys by exact match.
+// Other RPC text never reaches chat because it can include credentials, URLs or internal details.
 func (qc songQueueCmd) spotifyFailureMessage(ctx context.Context, replyError string, err error) string {
 	message := replyError
 	if message == "" {
@@ -560,29 +580,11 @@ func (qc songQueueCmd) spotifyFailureMessage(ctx context.Context, replyError str
 	if message == "" {
 		return ""
 	}
-	switch message {
-	case "no active Spotify device, start playing something first",
-		"Spotify Premium is required for queue control",
-		"the Spotify connection is missing playback control, reconnect it on the dashboard",
-		"your Spotify connection needs to be set up again",
-		"no Spotify connection on file",
-		"no Spotify app set up for this channel",
-		"could not read your Spotify connection",
-		"could not reach Spotify",
-		"that Spotify link type isn't supported; share a track or album",
-		"invalid request",
-		"not found on Spotify",
-		"Spotify playback not permitted right now",
-		"Spotify is unavailable right now, try again in a moment",
-		"Spotify is busy right now, try again in a few seconds",
-		"Spotify is busy right now, try again in a moment",
-		"Spotify is rate limiting requests right now, try again in a moment",
-		"track search failed":
-		return message
-	default:
-		qc.warnSpotifyRefusal(ctx, message, err)
-		return qc.render("", "songqueue.err.upstream")
+	if key, ok := spotifyFailureKeys[message]; ok {
+		return qc.render("", key)
 	}
+	qc.warnSpotifyRefusal(ctx, message, err)
+	return qc.render("", "songqueue.err.upstream")
 }
 
 func (qc songQueueCmd) warnSpotifyRefusal(ctx context.Context, reason string, err error) {
