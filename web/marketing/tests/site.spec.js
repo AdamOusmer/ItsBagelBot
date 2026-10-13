@@ -252,7 +252,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.clog__item').filter({ hasText: "Assistant d'import v1" })).toContainText(
             'StreamElements, Moobot et Streamlabs Chatbot'
         );
-        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog/');
     });
 
     test('production assets referenced by the document are emitted', async ({ page, request }) => {
@@ -273,9 +273,38 @@ test.describe('ItsBagelBot site', () => {
         ]) {
             for (const lang of ['', '/fr']) {
                 await page.goto(`${lang}${path}`);
-                await expect(page.locator('head link[rel="alternate"][type="text/markdown"]')).toHaveAttribute('href', aiDoc);
+                await expect(page.locator(`head link[rel="describedby"][type="text/markdown"][href="${aiDoc}"]`)).toHaveCount(1);
+                await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/llms.txt"]')).toHaveCount(1);
             }
         }
+
+        await page.goto('/valorant-stats');
+        await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/valorant.md"]')).toHaveCount(1);
+        await expect(page.locator('footer a.bb-nav-link[href="/valorant-stats/"]')).toHaveCount(1);
+        await expect(page.locator('a[href="/guides/modules/"]').last()).toBeVisible();
+
+        await page.goto('/pricing');
+        await expect(page.locator('head link[rel="describedby"][type="text/markdown"]')).toHaveCount(1);
+        const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+        const app = graph.find((node) => node['@type'] === 'SoftwareApplication');
+        expect(app.subjectOf.url).toBe('https://ai.itsbagelbot.com/product.md');
+        expect(app.featureList.join(' ')).not.toContain('Polls');
+        expect(app.description).toBe(graph.find((node) => node['@type'] === 'Organization').description);
+    });
+
+    test('untranslated guides are noindex without hreflang or sitemap entry', async ({ page, request }) => {
+        await page.goto('/de/guides/commands');
+        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+        await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(0);
+        const deGraph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+        expect(deGraph.find((node) => node['@type'] === 'TechArticle').inLanguage).toBe('en');
+
+        await page.goto('/fr/guides/commands');
+        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', /^index/);
+        await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
+
+        const sitemap = await (await request.get('/sitemap-0.xml')).text();
+        expect(sitemap).not.toMatch(/\/(de|es|pt-br|ru)\/guides\/(?!variables\/)/);
     });
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
@@ -433,11 +462,11 @@ test.describe('guides & command builder', () => {
         await page.goto('/fr/guides/commands');
 
         await expect(page.locator('.gshell__toc-label')).toHaveText('Dans ce guide');
-        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands/');
 
         await page.goto('/fr/guides/data-sources');
         await expect(page.locator('[data-guide-section]')).toHaveCount(7);
-        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources/');
 
         await page.goto('/guides');
         await expect(page.locator('.bb-lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');

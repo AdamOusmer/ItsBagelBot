@@ -46,6 +46,7 @@ interface Props {
     noindex?: boolean;
     extraSchema?: Record<string, unknown>[];
     aiDoc?: string;
+    alternateLocales?: readonly string[];
 }
 
 const {
@@ -56,6 +57,7 @@ const {
     noindex = false,
     extraSchema = [],
     aiDoc,
+    alternateLocales = locales,
 } = Astro.props;
 
 const lang = getLangFromUrl(Astro.url);
@@ -71,6 +73,9 @@ const robotsContent = noindex
     ? 'noindex, follow'
     : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
+const AI_REFERENCE_TITLE = 'ItsBagelBot reference for AI assistants';
+const AI_INDEX_URL = 'https://ai.itsbagelbot.com/llms.txt';
+const entityDescription = t('home.metaDesc');
 const ORIGIN = new URL(Astro.site!).origin;
 const structuredData = {
     '@context': 'https://schema.org',
@@ -81,7 +86,7 @@ const structuredData = {
             name: siteName,
             url: `${ORIGIN}/`,
             logo: `${ORIGIN}/android-chrome-512x512.png`,
-            description,
+            description: entityDescription,
             sameAs: [
                 SITE.twitch,
                 SITE.discord,
@@ -93,7 +98,7 @@ const structuredData = {
             '@id': `${ORIGIN}/#website`,
             url: `${ORIGIN}/`,
             name: siteName,
-            description,
+            description: entityDescription,
             inLanguage: [...locales],
             publisher: { '@id': `${ORIGIN}/#organization` },
         },
@@ -106,7 +111,13 @@ const structuredData = {
             operatingSystem: 'Web',
             url: `${ORIGIN}/`,
             image: `${ORIGIN}/og-image.png`,
-            description,
+            description: entityDescription,
+            subjectOf: {
+                '@type': 'CreativeWork',
+                url: 'https://ai.itsbagelbot.com/product.md',
+                encodingFormat: 'text/markdown',
+                name: AI_REFERENCE_TITLE,
+            },
             publisher: { '@id': `${ORIGIN}/#organization` },
             offers: {
                 '@type': 'Offer',
@@ -121,8 +132,7 @@ const structuredData = {
                 'Timers',
                 'Channel Points rewards',
                 'Giveaways',
-                'Polls',
-                'Game stat integrations (Valorant rank, Hypixel Bedwars, MCSR Ranked, Fortnite)',
+                'Game stat integrations (Valorant rank, Hypixel Bedwars, MCSR Ranked, Fortnite, Clash Royale, Call of Duty Mobile)',
             ],
             keywords: [
                 'Twitch Spotify song requests',
@@ -139,9 +149,9 @@ const structuredData = {
 };
 
 const { path: basePath } = splitLocale(Astro.url.pathname);
-const hasAlternates = LOCALIZED_PATHS.has(basePath);
+const hasAlternates = alternateLocales.length > 0 && LOCALIZED_PATHS.has(basePath);
 const alternates = hasAlternates
-    ? locales.map((l) => ({ lang: l, href: new URL(localizePath(basePath, l), Astro.site).href }))
+    ? alternateLocales.map((l) => ({ lang: l, href: new URL(localizePath(basePath, l), Astro.site).href }))
     : [];
 const xDefaultHref = new URL(localizePath(basePath, defaultLang), Astro.site).href;
 
@@ -208,7 +218,8 @@ const contentSecurityPolicy = [
     <meta name="referrer" content="strict-origin-when-cross-origin"/>
 
     <link rel="canonical" href={canonicalURL}/>
-    {aiDoc && <link rel="alternate" type="text/markdown" href={aiDoc} title="Setup instructions for AI assistants" />}
+    <link rel="describedby" type="text/markdown" href={AI_INDEX_URL} title={AI_REFERENCE_TITLE} />
+    {aiDoc && aiDoc !== AI_INDEX_URL && <link rel="describedby" type="text/markdown" href={aiDoc} title="Setup instructions for AI assistants" />}
     <meta name="robots" content={robotsContent}/>
 
     <meta name="theme-color" content="#0a0a0a"/>

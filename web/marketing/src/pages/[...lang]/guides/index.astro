@@ -13,12 +13,13 @@ import Heading from '@bagel/ui/astro/Heading.astro';
 import Code from '@bagel/ui/astro/Code.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import { getLangFromUrl, localeStaticPaths, localizePath, useTranslations } from '../../../i18n/ui';
-import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
+import { getGuide, getHub, guideIndex, guidePath, guideSlugs, hubBodyLang, hubLocales } from '../../../lib/guides/registry';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const hub = getHub(lang);
+const translated = hubBodyLang(lang) === lang;
 const t = useTranslations(lang);
 const guides = guideSlugs.map((slug) => ({
     index: guideIndex(slug),
@@ -28,7 +29,7 @@ const guides = guideSlugs.map((slug) => ({
 const [first, ...rest] = guides;
 ---
 
-<Layout title={hub.meta.title} description={hub.meta.description} ogType="article">
+<Layout title={hub.meta.title} description={hub.meta.description} ogType="article" noindex={!translated} alternateLocales={translated ? hubLocales() : []}>
     <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
     <Section size="flush" class="ghub">

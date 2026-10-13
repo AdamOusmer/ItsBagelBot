@@ -6,7 +6,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, langParam } from '../../../i18n/ui';
-import { getGuide, guidePath, hubPath, guideSlugs, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
+import { getGuide, guidePath, hubPath, guideSlugs, guideIndex, toGuideSlug, guideBodyLang, guideLocales } from '../../../lib/guides/registry';
 
 export function getStaticPaths() {
     return locales.flatMap((l) =>
@@ -19,6 +19,8 @@ export function getStaticPaths() {
 const { slug } = Astro.params;
 const lang = getLangFromUrl(Astro.url);
 const guide = getGuide(toGuideSlug(slug as string), lang);
+const bodyLang = guideBodyLang(guide.slug, lang);
+const translated = bodyLang === lang;
 const here = guideSlugs.indexOf(guide.slug);
 const pager = (at: number) =>
     guideSlugs[at] ? { href: guidePath(guideSlugs[at], lang), label: getGuide(guideSlugs[at], lang).meta.heading } : undefined;
@@ -33,7 +35,7 @@ const guideSchema: Record<string, unknown>[] = [
         '@id': `${pageUrl}#article`,
         headline: guide.meta.heading,
         description: guide.meta.description,
-        inLanguage: lang,
+        inLanguage: bodyLang,
         url: pageUrl,
         mainEntityOfPage: pageUrl,
         image: `${origin}/og-image.png`,
@@ -52,7 +54,7 @@ const guideSchema: Record<string, unknown>[] = [
 ];
 ---
 
-<Layout title={guide.meta.title} description={guide.meta.description} ogType="article" extraSchema={guideSchema} aiDoc={guide.meta.aiDoc}>
+<Layout title={guide.meta.title} description={guide.meta.description} ogType="article" noindex={!translated} alternateLocales={translated ? guideLocales(guide.slug) : []} extraSchema={guideSchema} aiDoc={guide.meta.aiDoc}>
     <PageHero eyebrow={`${guide.meta.eyebrow} ${guideIndex(guide.slug)}`} title={guide.meta.heading} description={guide.meta.lead} />
 
     <GuideShell sections={guide.sections} minutes={guide.meta.minutes} prev={prev} next={next} />

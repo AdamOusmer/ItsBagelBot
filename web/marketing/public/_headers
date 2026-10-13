@@ -3,6 +3,7 @@
 /*
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com
   X-Frame-Options: DENY
+  Link: <https://ai.itsbagelbot.com/llms.txt>; rel="describedby"; type="text/markdown"
 
 # Content-hashed by the build, so immutable is safe.
 /_astro/*

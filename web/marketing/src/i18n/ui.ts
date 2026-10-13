@@ -89,7 +89,7 @@ export function localeOptions(url: URL) {
   return locales.map((code) => ({
     code,
     href:
-      code === defaultLang || !LOCALIZED_PATHS.has(path) ? path : localizePath(path, code),
+      code === defaultLang || !LOCALIZED_PATHS.has(path) ? localizePath(path, defaultLang) : localizePath(path, code),
     label: code.toUpperCase(),
     title: languageName(code),
     flag: localeFlag(code),

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { defaultLang, localizePath, type Lang } from '../../i18n/ui';
+import { defaultLang, localizePath, locales, type Lang } from '../../i18n/ui';
 import { guideSlugs, guideLocalizedPaths, isGuideSlug, type GuideSlug } from './slugs';
 import { translate, type GuideStrings } from './translate';
 import { assertGuideParity } from './parity';
@@ -44,6 +44,22 @@ export function getGuide(slug: GuideSlug, lang: Lang): GuideContent {
   const english = englishGuide(slug);
   const strings = guideStrings(slug, lang);
   return strings ? translate(english, strings) : english;
+}
+
+export function guideBodyLang(slug: GuideSlug, lang: Lang): Lang {
+  return guideStrings(slug, lang) ? lang : defaultLang;
+}
+
+export function guideLocales(slug: GuideSlug): Lang[] {
+  return locales.filter((l) => guideBodyLang(slug, l) === l);
+}
+
+export function hubLocales(): Lang[] {
+  return locales.filter((l) => hubBodyLang(l) === l);
+}
+
+export function hubBodyLang(lang: Lang): Lang {
+  return lookup('hub', lang) ? lang : defaultLang;
 }
 
 export function getHub(lang: Lang): HubContent {
