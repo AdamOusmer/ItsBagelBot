@@ -78,6 +78,11 @@ function streamerSession(id: Identity) {
   };
 }
 
+function grantedScopes(tokens: { scopes(): string[] }): { scopes?: string[] } {
+  const granted = tokens.scopes();
+  return granted.length ? { scopes: granted } : {};
+}
+
 function delegationErrorLanding(err: unknown): string {
   if (!(err instanceof RpcError)) throw redirect(302, '/login?e=retry');
   if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
@@ -234,7 +239,7 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
 
   const landing = await acceptPendingDelegation(cookies, url, identity);
 
-  setSessionCookie(cookies, url, streamerSession(identity));
+  setSessionCookie(cookies, url, { ...streamerSession(identity), ...grantedScopes(tokens) });
   await seedLocaleCookie(cookies, url, identity.userId);
   await seedCursorCookie(cookies, url, identity.userId);
   await persistGrant(identity.userId, tokens);
