@@ -17,6 +17,7 @@
     legal?: UiNavLink[];
     copyright: string;
     note?: string;
+    studio?: string;
     colophon?: Snippet;
     class?: string;
   };
@@ -28,6 +29,7 @@
     legal = [],
     copyright,
     note,
+    studio,
     colophon,
     class: className = '',
     ...rest
@@ -44,18 +46,7 @@
       ><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{#if signoff.sub}<p
           class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p
         >{/if}</div
-    >{/if}<Brand
-    class="bb-footer__brand"
-    title={brand.title}
-    sub={brand.sub}
-    href={brand.href}
-    logoSrc={brand.logoSrc}
-    logoAlt={brand.logoAlt}
-    size="lg"
-    wordmark
-    fit
-    data-reveal
-  /><div class="bb-footer__cols"
+    >{/if}<div class="bb-footer__cols"
     >{#each stacks as stack, i (stack[0].title)}<div
         class="bb-footer__col"
         data-reveal
@@ -71,6 +62,18 @@
               />{/each}</div
           >{/each}</div
       >{/each}</div
+  ><div class="bb-footer__mark" data-reveal
+    >{#if studio}<p class="bb-footer__studio"><span data-fit>{studio}</span></p>{/if}<Brand
+      class="bb-footer__brand"
+      title={brand.title}
+      sub={brand.sub}
+      href={brand.href}
+      logoSrc={brand.logoSrc}
+      logoAlt={brand.logoAlt}
+      size="lg"
+      wordmark
+      fit
+    /></div
   ><div class="bb-footer__bottom"
     ><div class="bb-footer__legal"
       >{#each legal as link (link.href)}<NavLink

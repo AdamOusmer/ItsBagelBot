@@ -4,7 +4,7 @@
   import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, tick, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
-  import { replaceState } from '$app/navigation';
+  import { invalidateAll, replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
@@ -1071,6 +1071,9 @@
 />
 
 <svelte:window onkeydown={onKey} />
+<svelte:document onvisibilitychange={() => {
+  if (document.visibilityState === 'visible') void invalidateAll();
+}} />
 
 <style>
   .compose-meta {

@@ -129,7 +129,7 @@
       response: draft.response,
       cooldown: Math.floor(Number(draft.cooldown) || 0),
       userCooldown: Math.floor(Number(draft.user_cooldown) || 0),
-      allowedUserId: draft.allowed_user_id.replace(/\D/g, ''),
+      allowedUserId: draft.allowed_user_id.trim(),
       bumpCounter: normName(draft.bump_counter)
     });
     if (conflictMessage || Object.keys(clientErrors).length) {
@@ -248,13 +248,13 @@
   <Field
     label={t('commandEditor.restrictUser')}
     tag={t('common.optional')}
+    hint={t('commandEditor.restrictPlaceholder')}
     error={errors.allowed_user_id}
     errorId="command-user-err"
   >
     <Input
       name="allowed_user_id"
       inputmode="numeric"
-      placeholder={t('commandEditor.restrictPlaceholder')}
       invalid={!!errors.allowed_user_id}
       aria-invalid={errors.allowed_user_id ? 'true' : undefined}
       aria-describedby={errors.allowed_user_id ? 'command-user-err' : undefined}
