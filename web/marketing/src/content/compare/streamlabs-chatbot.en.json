@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Streamlabs Chatbot | Twitch Comparison",
+    "description": "Compare commands, Python scripts, timers, music and giveaways. Learn what ItsBagelBot imports from your Streamlabs Chatbot.db file before switching."
+  },
+  "hero": {
+    "eyebrow": "Twitch bot comparison",
+    "title": "ItsBagelBot vs Streamlabs Chatbot",
+    "lead": "Moving from the downloadable Streamlabs Chatbot? Start with the commands, scripts and local files your channel uses. Compare the documented chat features, then review commands, timers and quotes from your Chatbot.db before saving."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "You want viewers to add tracks to your actual Spotify queue, and you have Spotify Premium.",
+      "You stream Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale or CODM and want built-in game lookups.",
+      "You want Twitch Channel Point rewards for Spotify requests or compatible Govee lights.",
+      "You want to review commands, timers and quotes from Chatbot.db before saving."
+    ],
+    "them": [
+      "You want to extend chat interactions through Python scripts. Reference: https://streamlabs.com/content-hub/post/chatbot-scripts-desktop.",
+      "You already use a standalone application with command, timer and event-trigger customization. Reference: https://streamlabs.com/content-hub/post/choosing-the-right-chatbot.",
+      "You want command parameters that read local text files. Reference: https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf.",
+      "You want Twitch commands available in Discord after linking viewer accounts. Reference: https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat commands",
+      "us": "Custom responses with variables, permissions and cooldowns, plus a visual Command Builder and built-in commands such as !uptime and !clip.",
+      "them": "Standalone commands combine variables, timers and event triggers. The application is Windows-only and must stay open and connected. Runtime reference: https://support.streamlabs.com/hc/en-us/articles/115003848733-Streamlabs-Desktop-Chatbot-FAQs-Troubleshooting-Desktop-Chatbot.",
+      "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
+    },
+    {
+      "feature": "Variables and external data",
+      "us": "Command responses support variables and counters; game modules expose fields for their replies.",
+      "them": "The desktop manual documents local-file parameters and $readapi for external text.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Timers",
+      "us": "Configure repeating messages with an interval for each timer while you are live.",
+      "them": "The manual describes one shared interval with rotating messages and game-specific groups.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Moderation and spam filters",
+      "us": "AutoMod is a Premium beta module with configurable checks and warnings, message removal, timeouts or bans. A small safety floor remains active when the module is off.",
+      "them": "Mod Tools cover links, caps, symbols and blocked phrases, with link exemptions.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Song requests",
+      "us": "!sr adds a track to your real Spotify player queue. Viewers can see requests with !srlist; moderators can skip or clear. Spotify Premium, your own Spotify app and an active playback device are required.",
+      "them": "The manual describes YouTube playlists, viewer requests, currency costs and skip voting.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Game stats",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "them": "The official extension guide describes Python scripts and their installation. If your game lookups depend on a script, check its data source and maintenance requirements before replacing it.",
+      "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "Create native Twitch rewards tied to bot actions, including Spotify requests and compatible Govee light control, with fulfillment or refund handling.",
+      "them": "The guide describes bot currency without specifying native Twitch reward bindings. Check your reward workflow separately.",
+      "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
+    },
+    {
+      "feature": "Giveaways",
+      "us": "Timed raffles accept !join entries and draw automatically. Each entrant counts once, and winners confirm with !claim.",
+      "them": "Giveaways support free entries or currency-priced tickets with per-user limits.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Quotes",
+      "us": "Save numbered quotes and retrieve them randomly, by number or by a matching word. Moderators can edit or remove them; the quote number stays attached to the saved entry.",
+      "them": "Quotes retain game and date information, with configurable permissions and date formatting.",
+      "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "feature": "Loyalty currency",
+      "us": "Viewers earn a configurable currency through watch time, subscriptions and cheers. It powers Gamble and Duels and remains separate from native Twitch Channel Points.",
+      "them": "The official comparison describes virtual currency and viewer balances. Those balances are outside ItsBagelBot’s Chatbot.db import.",
+      "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
+    },
+    {
+      "feature": "Import into ItsBagelBot",
+      "us": "Upload Chatbot.db to import commands, timers and quotes. Review warnings before saving. Script-dependent responses need separate work; timers without a stored per-item interval default to 10 minutes. Your source setup stays untouched.",
+      "them": "Python scripts need a separate runtime and installation in the Scripts tab. Importing a chat database into ItsBagelBot does not reproduce those extensions.",
+      "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
+      "them": "The official desktop guide requires viewers to link their Discord and Twitch accounts before using commands in Discord. Each command must be configured for Discord use.",
+      "source": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "them": "The official site still links to the desktop Chatbot download from its Cloudbot page. That page’s free-feature and Ultra pricing statements concern Cloudbot; they do not establish a current desktop Chatbot pricing table. Verify any paid requirements separately.",
+      "source": "https://streamlabs.com/cloudbot"
+    }
+  ],
+  "migrate": {
+    "title": "Import commands, timers and quotes from Chatbot.db",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch, choose Streamlabs Chatbot in the import wizard and upload your Chatbot.db file.",
+      "Select commands, timers and quotes. Review converted parameters and warnings, including script-dependent replies and any quotes whose dates could not be parsed.",
+      "Save your selection and test replies, permissions and cooldowns. Check every timer interval: items without a per-item interval default to 10 minutes. Configure music, currency and rewards separately.",
+      "After testing, disable matching commands and timers in Streamlabs Chatbot to prevent duplicate messages. The import leaves your original database and setup untouched."
+    ],
+    "cta": "Review your Streamlabs Chatbot import"
+  },
+  "faq": [
+    {
+      "q": "When is ItsBagelBot a useful Streamlabs Chatbot alternative?",
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+    },
+    {
+      "q": "When should I keep Streamlabs Chatbot?",
+      "a": "Keep it if Python scripts already power interactions your channel needs. Review those extensions before deciding what to rebuild. Reference: https://streamlabs.com/content-hub/post/chatbot-scripts-desktop."
+    },
+    {
+      "q": "Are free Spotify requests available without Spotify Premium?",
+      "a": "ItsBagelBot charges nothing for song requests, but Spotify Premium is required for queue control. Both the connected account and the account owning your Spotify developer app need Premium. Spotify must be playing on a device."
+    },
+    {
+      "q": "What should I review when importing from Streamlabs Chatbot?",
+      "a": "Commands, timers and quotes come from Chatbot.db. Scripts, local files, sound assets and currency balances do not transfer through this import. Review literal parameters and warnings. Check timer intervals carefully because the importer defaults to 10 minutes when it cannot read an individual interval."
+    },
+    {
+      "q": "Can I test ItsBagelBot before removing my old bot?",
+      "a": "Yes. Importing does not remove or alter your old setup. Test the selected items, then disable matching replies and timers in the old bot so chat receives one response."
+    },
+    {
+      "q": "Is this comparison about Streamlabs Cloudbot?",
+      "a": "It covers downloadable Chatbot, which the official guide distinguishes from Cloudbot. ItsBagelBot imports Chatbot.db. Reference: https://streamlabs.com/content-hub/post/choosing-the-right-chatbot."
+    }
+  ],
+  "sources": [
+    {
+      "label": "Streamlabs Chatbot: Windows requirement and keeping the application connected",
+      "url": "https://support.streamlabs.com/hc/en-us/articles/115003848733-Streamlabs-Desktop-Chatbot-FAQs-Troubleshooting-Desktop-Chatbot"
+    },
+    {
+      "label": "Streamlabs Chatbot: current guide distinguishing Chatbot and Cloudbot",
+      "url": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
+    },
+    {
+      "label": "Streamlabs Chatbot: desktop Python script setup",
+      "url": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
+    },
+    {
+      "label": "Streamlabs Chatbot: desktop manual: commands, timers, quotes, music, giveaways and Mod Tools",
+      "url": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
+    },
+    {
+      "label": "Streamlabs Chatbot: linking Twitch and Discord for desktop commands",
+      "url": "https://support.streamlabs.com/hc/en-us/articles/360052674653-Link-Discord-and-Twitch-in-Chatbot-Chatbot-Desktop"
+    },
+    {
+      "label": "Streamlabs Chatbot: current page linking the desktop Chatbot download",
+      "url": "https://streamlabs.com/cloudbot"
+    }
+  ]
+}

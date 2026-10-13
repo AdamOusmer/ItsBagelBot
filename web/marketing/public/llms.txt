@@ -61,6 +61,10 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Import](https://itsbagelbot.com/import/): move commands and supported configuration from another Twitch bot; Nightbot connects through OAuth, and each imported item is reviewed before saving.
 - [Comparison with Nightbot](https://itsbagelbot.com/vs/nightbot/): feature comparison for streamers evaluating Twitch bots.
 - [Comparison with StreamElements](https://itsbagelbot.com/vs/streamelements/): feature comparison for streamers evaluating Twitch bots.
+- [Comparison with Fossabot](https://itsbagelbot.com/vs/fossabot/): sourced feature comparison and migration steps.
+- [Comparison with Moobot](https://itsbagelbot.com/vs/moobot/): sourced feature comparison and migration steps.
+- [Comparison with Streamlabs Chatbot](https://itsbagelbot.com/vs/streamlabs-chatbot/): sourced feature comparison and migration steps.
+- [Comparison with WizeBot](https://itsbagelbot.com/vs/wizebot/): sourced feature comparison and migration steps.
 - [Pricing](https://itsbagelbot.com/pricing/): Free, Premium and Enterprise plans and FAQ.
 - [Guides](https://itsbagelbot.com/guides/): visual guide hub for people setting up or using the bot.
 - [Getting started guide](https://itsbagelbot.com/guides/getting-started/): Twitch login, channel connection and initial configuration.

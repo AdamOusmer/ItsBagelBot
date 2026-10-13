@@ -1,0 +1,164 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs WizeBot | Twitch Bot Comparison",
+    "description": "Compare commands, music, moderation, game integrations and rewards. See where WizeBot suits you and how to import its public commands into ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Twitch bot comparison",
+    "title": "ItsBagelBot vs WizeBot",
+    "lead": "Considering ItsBagelBot as a WizeBot alternative? Compare the chat features you need alongside overlays, game interactions and reward actions. The public-command import is a starting point: review what transfers before rebuilding the rest."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "You want viewers to add tracks to your actual Spotify queue, and you have Spotify Premium.",
+      "You stream Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale or CODM and want built-in game lookups.",
+      "You want Twitch Channel Point rewards for Spotify requests or compatible Govee lights.",
+      "You want to review the chat text of public WizeBot commands before saving."
+    ],
+    "them": [
+      "You want commands that run JavaScript with documented WizeBot functions. Reference: https://support.wizebot.tv/docs/JS_commands.",
+      "You want Twitch rewards for TTS, sounds or temporary VIP status. Reference: https://wizebot.tv/en/services.",
+      "You want a virtual shop whose purchases can execute commands or call an external URL. Reference: https://support.wizebot.tv/docs/currency_virtualshop.",
+      "You want YouTube requests with playlist controls in chat. Reference: https://support.wizebot.tv/docs/commands."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat commands",
+      "us": "Custom responses with variables, permissions and cooldowns, plus a visual Command Builder and built-in commands such as !uptime and !clip.",
+      "them": "Moderators can add, delete, enable or disable custom commands from chat. The reference also documents aliases and global or per-user cooldown indicators.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Variables and external data",
+      "us": "Command responses support variables and counters; game modules expose fields for their replies.",
+      "them": "JavaScript commands can use documented functions to send chat messages and manage variables. This is useful if you want to write custom interaction logic within WizeBot’s execution limits.",
+      "source": "https://support.wizebot.tv/docs/JS_commands"
+    },
+    {
+      "feature": "Timers",
+      "us": "Configure repeating messages with an interval for each timer while you are live.",
+      "them": "The service overview lists customizable periodic announcements. It does not detail interval or activity thresholds there.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Moderation and spam filters",
+      "us": "AutoMod is a Premium beta module with configurable checks and warnings, message removal, timeouts or bans. A small safety floor remains active when the module is off.",
+      "them": "Protection tools include spam filters, blocked words, domain allowlisting, warnings and an emergency mode.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Song requests",
+      "us": "!sr adds a track to your real Spotify player queue. Viewers can see requests with !srlist; moderators can skip or clear. Spotify Premium, your own Spotify app and an active playback device are required.",
+      "them": "!sr accepts song names, YouTube URLs or video IDs. Chat commands manage the playlist, skip tracks and adjust volume.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Game stats",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "them": "The tag reference includes League of Legends, Steam and game interactions for 7 Days to Die and Project Zomboid. Compare those integrations against the game lookups your viewers actually use.",
+      "source": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "Create native Twitch rewards tied to bot actions, including Spotify requests and compatible Govee light control, with fulfillment or refund handling.",
+      "them": "The overview lists reward actions for TTS, sounds, temporary VIP status and game integrations.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Giveaways",
+      "us": "Timed raffles accept !join entries and draw automatically. Each entrant counts once, and winners confirm with !claim.",
+      "them": "The command reference lists !draw and !agiveaway. Check entry rules before moving your giveaway workflow.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Loyalty currency",
+      "us": "Viewers earn a configurable currency through watch time, subscriptions and cheers. It powers Gamble and Duels and remains separate from native Twitch Channel Points.",
+      "them": "The virtual shop can execute commands, process tags or call an external URL after a purchase. This suits rewards built around your bot currency. ItsBagelBot’s WizeBot import does not transfer the shop or balances.",
+      "source": "https://support.wizebot.tv/docs/currency_virtualshop"
+    },
+    {
+      "feature": "Production tools",
+      "us": "Chat alerts post customizable messages for follows, subscriptions, cheers, raids and ad breaks.",
+      "them": "The service overview lists visual alerts, chat overlays and command-driven screen animations.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Import into ItsBagelBot",
+      "us": "Enter your channel name to import public command text. Review variables, permissions and warnings before saving. Sound actions and command costs are dropped; timers and quotes are outside this source’s import. The original setup stays untouched.",
+      "them": "The command reference includes text replies alongside sound, overlay and currency actions. A text-command import needs review when your command also performs these actions.",
+      "source": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
+      "them": "The service overview lists Discord notifications for going live and game or status changes.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "them": "The official homepage describes a free cloud service. Check the dashboard requirements for the specific tools you want to enable.",
+      "source": "https://wizebot.tv/en/index"
+    }
+  ],
+  "migrate": {
+    "title": "Import your public WizeBot command text",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch, choose WizeBot in the import wizard and enter your channel name.",
+      "Select commands and read warnings about variables, permissions, sound actions and command costs. Random-response commands can become multiple posted lines, so review the converted reply.",
+      "Save your selection, then test replies, aliases and permissions. Recreate timers and configure music, rewards, currency and overlays separately.",
+      "After testing, disable matching commands in WizeBot to prevent duplicate replies. Importing leaves your old setup untouched."
+    ],
+    "cta": "Review your WizeBot import"
+  },
+  "faq": [
+    {
+      "q": "When is ItsBagelBot a useful WizeBot alternative?",
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+    },
+    {
+      "q": "When should I keep WizeBot?",
+      "a": "Keep it if your rewards use a virtual shop with command execution or external URL calls. Rebuilding those purchases is separate from importing chat-command text, so review the actions you need before switching. Reference: https://support.wizebot.tv/docs/currency_virtualshop."
+    },
+    {
+      "q": "Are free Spotify requests available without Spotify Premium?",
+      "a": "ItsBagelBot charges nothing for song requests, but Spotify Premium is required for queue control. Both the connected account and the account owning your Spotify developer app need Premium. Spotify must be playing on a device."
+    },
+    {
+      "q": "What should I review when importing from WizeBot?",
+      "a": "This source imports public command text only. Sound actions and costs do not carry over. Unsupported variables remain literal with warnings; random responses can become multiple posted lines, and unmapped permission groups can widen access. Review every warning before saving and testing."
+    },
+    {
+      "q": "Can I test ItsBagelBot before removing my old bot?",
+      "a": "Yes. Importing does not remove or alter your old setup. Test the selected items, then disable matching replies and timers in the old bot so chat receives one response."
+    }
+  ],
+  "sources": [
+    {
+      "label": "WizeBot: free cloud service overview",
+      "url": "https://wizebot.tv/en/index"
+    },
+    {
+      "label": "WizeBot: periodic announcements, protections, Twitch rewards, Discord and overlays",
+      "url": "https://wizebot.tv/en/services"
+    },
+    {
+      "label": "WizeBot: custom commands, YouTube requests and giveaway commands",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot: response tags and game integrations",
+      "url": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "label": "WizeBot: JavaScript commands and execution limits (September 2026)",
+      "url": "https://support.wizebot.tv/docs/JS_commands"
+    },
+    {
+      "label": "WizeBot: virtual shop purchase actions",
+      "url": "https://support.wizebot.tv/docs/currency_virtualshop"
+    }
+  ]
+}

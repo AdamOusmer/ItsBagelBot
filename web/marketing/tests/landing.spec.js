@@ -77,7 +77,7 @@ test.describe('feature landing pages', () => {
 });
 
 test.describe('comparison pages', () => {
-    for (const slug of ['nightbot', 'streamelements']) {
+    for (const slug of ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot']) {
         for (const [lang, prefix] of [['en', ''], ['fr', '/fr']]) {
             test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {
                 await page.goto(`${prefix}/vs/${slug}/`);
