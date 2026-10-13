@@ -128,7 +128,7 @@
 
 <SetupStage label={t('spotify.connection.connectTitle')} {name} {step} {done} {railSteps} {maxStep} onSelect={go} expression={done ? 'proud' : copied ? 'proud' : hover ? 'excited' : faces[step]} {sequenceKey} backLabel={t('spotify.back')} footer={dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')} later={t('spotifySetup.later')}>
   {#snippet aside()}
-    {#if !done}<SetupAskAi feature="spotify" step={railSteps[step].label} error={aiError} {redirectUri} />{/if}
+    {#if !done}<SetupAskAi feature="spotify" step={railSteps[step].label} stepIndex={step} error={aiError} {redirectUri} />{/if}
   {/snippet}
   {#key `${step}-${done}`}
     <section class="step">

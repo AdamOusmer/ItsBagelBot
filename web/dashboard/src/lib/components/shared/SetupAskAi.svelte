@@ -2,24 +2,23 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { webHref } from '@bagel/kit/site-links';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
 
-  let { feature, step, error = '', redirectUri = '' }: {
-    feature: 'spotify' | 'govee'; step: string; error?: string; redirectUri?: string;
+  let { feature, step, stepIndex, error = '', redirectUri = '' }: {
+    feature: 'spotify' | 'govee'; step: string; stepIndex: number; error?: string; redirectUri?: string;
   } = $props();
   const uid = $props.id();
-  const { t, locale } = getI18n();
-  const GUIDES = { spotify: '/guides/spotify-song-requests/', govee: '/guides/govee-lights/' };
+  const { t } = getI18n();
+  const ORIGIN = 'https://ai.itsbagelbot.com';
   const FEATURES = { spotify: 'setupAi.featureSpotify', govee: 'setupAi.featureGovee' };
   const AIS = [
     { label: 'ChatGPT', href: 'https://chatgpt.com/' },
     { label: 'Claude', href: 'https://claude.ai/new' },
     { label: 'Gemini', href: 'https://gemini.google.com/app' }
   ];
-  const url = $derived(webHref(locale === 'fr' ? 'fr' : 'en', GUIDES[feature]));
+  const url = $derived(`${ORIGIN}/${feature}/setup.md#step-${stepIndex + 1}`);
   let copied = $state(false);
   let failed = $state(false);
   const LABELS = ['setupAi.copy', 'setupAi.copied', 'setupAi.copyFailed'] as const;
@@ -29,7 +28,7 @@
       t('setupAi.promptIntro', { feature: t(FEATURES[feature]) }),
       t('setupAi.promptStep', { step })
     ];
-    if (error) lines.push(t('setupAi.promptError', { error }));
+    if (error) lines.push(t('setupAi.promptError', { error, url: `${ORIGIN}/${feature}/errors.md` }));
     if (redirectUri) lines.push(t('setupAi.promptRedirect', { uri: redirectUri }));
     lines.push(t('setupAi.promptGuide', { url }), t('setupAi.promptRules'), t('setupAi.promptPrivate'));
     return lines.join('\n');

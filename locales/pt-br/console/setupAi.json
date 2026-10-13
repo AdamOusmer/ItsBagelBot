@@ -8,9 +8,13 @@
   "featureGovee": "luzes Govee",
   "promptIntro": "Estou configurando {feature} no painel do ItsBagelBot, um bot de chat da Twitch.",
   "promptStep": "Estou na etapa de configuração chamada \"{step}\".",
-  "promptError": "O painel mostra esta mensagem: \"{error}\"",
+  "promptError": "O painel mostra esta mensagem: \"{error}\". Leia também esta página de erros: {url}",
   "promptRedirect": "O painel me fornece esta URI de redirecionamento para meu aplicativo Spotify: {uri}",
-  "promptGuide": "Leia este guia primeiro e baseie sua resposta nele: {url}",
+  "promptGuide": "Leia esta página de configuração primeiro e baseie sua resposta nela: {url}\nSe precisar de outra página, use https://ai.itsbagelbot.com/llms.txt.",
   "promptRules": "Não adivinhe nomes de botões ou menus. Se algo não estiver no guia, diga isso. Ajude uma etapa por vez e espere minha confirmação antes da próxima.",
-  "promptPrivate": "Nunca peça que eu cole um segredo de cliente, uma chave de API ou uma senha neste chat."
+  "promptPrivate": "Nunca peça que eu cole um segredo de cliente, uma chave de API ou uma senha neste chat.",
+  "guideControls": "Os rótulos do painel podem estar traduzidos. Descreva cada controle pela posição e função em vez de usar o texto em inglês. Não adivinhe nomes de botões, campos ou menus. Se a página não explicar algo, diga isso.",
+  "guideLanguage": "Responda no idioma do usuário. As mensagens do painel podem estar traduzidas, então compare o significado delas.",
+  "guideStep": "Encontre a etapa atual pela âncora `#step-n` no link de configuração do usuário. Confira as etapas anteriores se o usuário não tiver certeza de que as concluiu.",
+  "guideGenericError": "Peça ao usuário que leia em voz alta a mensagem na tela, omitindo identificadores, chaves e segredos. Depois, compare a mensagem com as seções abaixo e a lista \"Problemas comuns\" na âncora `#step-n` atual da página de configuração."
 }

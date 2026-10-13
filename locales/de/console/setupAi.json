@@ -8,9 +8,13 @@
   "featureGovee": "Govee-Leuchten",
   "promptIntro": "Ich richte {feature} im Dashboard von ItsBagelBot ein, einem Twitch-Chat-Bot.",
   "promptStep": "Ich bin beim Einrichtungsschritt „{step}“.",
-  "promptError": "Das Dashboard zeigt diese Meldung: „{error}“",
+  "promptError": "Das Dashboard zeigt diese Meldung: „{error}“. Lies auch diese Fehlerseite: {url}",
   "promptRedirect": "Das Dashboard gibt mir diesen Redirect URI für meine Spotify-App: {uri}",
-  "promptGuide": "Lies zuerst diese Anleitung und stütze deine Antwort darauf: {url}",
+  "promptGuide": "Lies zuerst diese Einrichtungsseite und stütze deine Antwort darauf: {url}\nWenn du eine andere Seite brauchst, nutze https://ai.itsbagelbot.com/llms.txt.",
   "promptRules": "Rate keine Namen von Schaltflächen oder Menüs. Wenn etwas nicht in der Anleitung steht, sag das. Hilf mir Schritt für Schritt und warte vor dem nächsten Schritt auf meine Bestätigung.",
-  "promptPrivate": "Bitte mich niemals, ein Client-Secret, einen API-Schlüssel oder ein Passwort in diesen Chat einzufügen."
+  "promptPrivate": "Bitte mich niemals, ein Client-Secret, einen API-Schlüssel oder ein Passwort in diesen Chat einzufügen.",
+  "guideControls": "Die Beschriftungen im Dashboard können übersetzt sein. Beschreibe jedes Bedienelement anhand seiner Position und Funktion statt anhand des englischen Textes. Rate keine Namen von Schaltflächen, Feldern oder Menüs. Wenn die Seite etwas nicht erklärt, sag das.",
+  "guideLanguage": "Antworte in der Sprache des Nutzers. Meldungen im Dashboard können übersetzt sein, ordne sie daher nach ihrer Bedeutung zu.",
+  "guideStep": "Finde den aktuellen Schritt über den Anker `#step-n` im Einrichtungslink des Nutzers. Prüfe frühere Schritte, wenn der Nutzer unsicher ist, ob er sie erledigt hat.",
+  "guideGenericError": "Bitte den Nutzer, die Meldung auf dem Bildschirm laut vorzulesen und dabei IDs, Schlüssel und geheime Zugangsdaten auszulassen. Ordne sie dann den folgenden Abschnitten und der Liste „Häufige Probleme“ beim aktuellen Anker `#step-n` auf der Einrichtungsseite zu."
 }

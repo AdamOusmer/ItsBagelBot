@@ -107,7 +107,7 @@
 
 <SetupStage label={t('goveeSetup.regionLabel')} {name} {step} {done} {railSteps} {maxStep} onSelect={go} expression={done ? 'proud' : hover ? 'excited' : faces[step]} {sequenceKey} backLabel={t('govee.back')} footer={dev && preview ? t('goveeSetup.preview') : t('goveeSetup.footer')} later={t('goveeSetup.later')}>
   {#snippet aside()}
-    {#if !done}<SetupAskAi feature="govee" step={railSteps[step].label} error={aiError} />{/if}
+    {#if !done}<SetupAskAi feature="govee" step={railSteps[step].label} stepIndex={step} error={aiError} />{/if}
   {/snippet}
   {#key `${step}-${done}`}
     <section class="step">
