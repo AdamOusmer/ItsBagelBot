@@ -99,6 +99,7 @@
     {legal}
     copyright={t('public.footer.copyright')}
     note={t('public.footer.note')}
+    studio={t('public.footer.studio')}
   />
 </div>
 

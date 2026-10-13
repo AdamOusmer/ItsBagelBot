@@ -3173,6 +3173,7 @@ export type KnownMessageKey =
   | 'public.footer.songRequests'
   | 'public.footer.stats'
   | 'public.footer.status'
+  | 'public.footer.studio'
   | 'public.footer.tagline'
   | 'public.footer.terms'
   | 'public.footer.vsNightbot'
