@@ -184,10 +184,10 @@ function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string
 }
 
 export const actions: Actions = {
-  saveApp: mutate('app', "A Client ID and a Client Secret are each 32 letters and numbers. Copy both again from your app's Settings page in the Spotify Developer Dashboard.", async (store, f) => {
+  saveApp: mutate('app', "That does not look like a Client ID and Client Secret. Copy both again from your app's Settings page in the Spotify Developer Dashboard, with no spaces.", async (store, f) => {
     const clientId = String(f.get('client_id') ?? '').trim();
     const clientSecret = String(f.get('client_secret') ?? '').trim();
-    if (!/^[0-9a-f]{32}$/i.test(clientId) || !/^[0-9a-f]{32}$/i.test(clientSecret)) return null;
+    if (!/^[A-Za-z0-9]{16,128}$/.test(clientId) || !/^[A-Za-z0-9]{16,128}$/.test(clientSecret)) return null;
     return done(await store.saveApp(clientId, clientSecret), clientId);
   }),
 

@@ -68,7 +68,7 @@
   "pickLight": "Wähle zuerst eine Leuchte.",
   "invalidRequest": "Ungültige Anfrage.",
   "invalidReward": "Ungültige Belohnung.",
-  "appCredentials": "Die Client-ID und das Client-Secret bestehen jeweils aus 32 Buchstaben und Zahlen. Kopiere beide erneut von der Seite Einstellungen deiner App im Spotify-Entwickler-Dashboard.",
+  "appCredentials": "Das sieht nicht nach einer Client-ID und einem Client-Secret aus. Kopiere beide erneut von der Seite Einstellungen deiner App im Spotify-Entwickler-Dashboard, ohne Leerzeichen.",
   "goveeKey": "Gib deinen Govee-API-Schlüssel ein.",
   "rewardTitle": "Ein Titel ist erforderlich (max. 45 Zeichen).",
   "invalidInput": "Ungültige Eingabe.",
