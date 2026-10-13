@@ -380,11 +380,11 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	})
 }
 
-func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
+func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Commands.Delete().
-			Where(commands.UserIDEQ(userID)).
+			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
 			Exec(ctx)
 		return err
 	}); err != nil {

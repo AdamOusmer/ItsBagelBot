@@ -61,6 +61,8 @@ func TestLiveACLPermissions(t *testing.T) {
 		}{
 			{roleEndpoint{"BUS", "users_bus"}, "data.users.changed"},
 			{roleEndpoint{"BUS", "outgress_bus"}, "data.twitch.clip.created"},
+			{roleEndpoint{"BUS", "commands_bus"}, "dlq.data.users.deleted"},
+			{roleEndpoint{"BUS", "modules_bus"}, "dlq.data.users.deleted"},
 		} {
 			assert.NoError(t, server.publishOutcome(t, probe.role, probe.subject, 50*time.Millisecond), "%s should publish %s", probe.role.role, probe.subject)
 		}

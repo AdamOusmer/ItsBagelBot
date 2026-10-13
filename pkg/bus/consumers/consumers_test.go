@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,10 +16,12 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
+	"ItsBagelBot/pkg/codec"
 )
 
 func TestOnUserDeletedDropsUnusablePayloadsAndRetriesSweeps(t *testing.T) {
 	sweepErr := errors.New("mysql gone")
+	deleted := `{"user_id":1001,"deleted_at":"2026-10-13T12:00:00Z"}`
 
 	cases := []struct {
 		name    string
@@ -28,15 +31,16 @@ func TestOnUserDeletedDropsUnusablePayloadsAndRetriesSweeps(t *testing.T) {
 		wantErr error
 	}{
 		{"malformed", `{`, nil, false, nil},
-		{"zero user id", `{"user_id":0}`, nil, false, nil},
-		{"sweep fails", `{"user_id":1001}`, sweepErr, true, sweepErr},
-		{"swept", `{"user_id":1001}`, nil, true, nil},
+		{"zero user id", `{"user_id":0,"deleted_at":"2026-10-13T12:00:00Z"}`, nil, false, nil},
+		{"no deletion time", `{"user_id":1001}`, nil, false, nil},
+		{"sweep fails", deleted, sweepErr, true, sweepErr},
+		{"swept", deleted, nil, true, nil},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			swept := false
-			handle := consumers.OnUserDeleted("commands", zap.NewNop(), func(context.Context, uint64) error {
+			handle := consumers.OnUserDeleted("commands", zap.NewNop(), func(context.Context, uint64, time.Time) error {
 				swept = true
 				return tc.sweep
 			})
@@ -47,6 +51,22 @@ func TestOnUserDeletedDropsUnusablePayloadsAndRetriesSweeps(t *testing.T) {
 			assert.Equal(t, tc.swept, swept)
 		})
 	}
+}
+
+func TestOnUserDeletedCutoffCoversTheDeletionWithClockSlack(t *testing.T) {
+	deletedAt := time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
+	var cutoff time.Time
+	handle := consumers.OnUserDeleted("commands", zap.NewNop(), func(_ context.Context, _ uint64, c time.Time) error {
+		cutoff = c
+		return nil
+	})
+
+	payload, err := codec.Marshal(data.UserDeletedDTO{UserID: 1001, DeletedAt: deletedAt})
+	require.NoError(t, err)
+	require.NoError(t, handle(&bus.Message{Payload: payload}))
+
+	assert.True(t, cutoff.After(deletedAt), "a row stamped in the deletion's rounded second must still be swept")
+	assert.Less(t, cutoff.Sub(deletedAt), time.Minute, "a re-registered account's rows must stay outside the cutoff")
 }
 
 func TestOnChangeInvalidateDropsTheNamedUser(t *testing.T) {
