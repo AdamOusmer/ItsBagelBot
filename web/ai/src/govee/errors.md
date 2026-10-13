@@ -1,20 +1,39 @@
 ---
-title: Fix {{console:setupAi.featureGovee}} errors
-description: Every message the Govee setup, the Govee Lights page and chat can show, what it means, and what the user should do.
-updated: 2026-10-12
+title: Error reference for AI assistants: {{console:setupAi.featureGovee}} errors
+description: Every message the Govee setup, the {{console:modules.catalog.govee.label}} page and chat can show, what it means, and what the user should do.
+updated: 2026-10-13
+kind: errors
+human: https://itsbagelbot.com/guides/govee-lights/
 ---
 
-## For assistants
+[Human guide](https://itsbagelbot.com/guides/govee-lights/).
+
+Match the exact dashboard or chat message to an error below.
+Check the saved key, available colour lights, Twitch reward access, and device connectivity as indicated.
+
+<page type="errors">
+
+<audience>
 
 Find the section whose message matches what the user sees. {{console:setupAi.guideLanguage}} In chat messages, `@name` stands for the viewer's name.
 
-Rules:
+</audience>
 
-- Give one step at a time. Wait for the user to confirm.
-- Never ask for or accept a Govee API key.
-- {{console:setupAi.guideControls}} Setup steps are in https://ai.itsbagelbot.com/govee/setup.md.
-- Govee answers a bad key with HTTP 401. Any message about a rejected key means this.
-- If two tries fail, send the user to https://itsbagelbot.com/contact/ or the Discord https://discord.gg/SZ2remwSDv.
+<assistant_rules>
+
+- Explain matching error causes directly. If guiding active remediation, present one step at a time and wait for user confirmation before continuing.
+- Do not request, accept, or output Govee API keys. Direct the user to enter them only in the dashboard.
+- {{console:setupAi.guideControls}} Setup steps are at [Govee setup](https://ai.itsbagelbot.com/govee/setup.md).
+- {{console:setupAi.guideLanguage}}
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+
+</assistant_rules>
+
+<facts>
+
+Govee answers a bad key with HTTP 401. Any message about a rejected key means this.
+
+</facts>
 
 ## Messages in the dashboard
 
@@ -73,7 +92,7 @@ Meaning: the saved key now fails with Govee. A common cause is a newer key on th
 
 Tell the user:
 
-1. Select "{{console:govee.keyRemove}}" on the Govee Lights page and confirm.
+1. Select "{{console:govee.keyRemove}}" on the "{{console:modules.catalog.govee.label}}" page and confirm.
 2. In the Govee Home app, apply for a new key.
 3. Paste it into "{{console:govee.keyFieldLabel}}" and select "{{console:govee.keySave}}".
 
@@ -182,7 +201,7 @@ Tell the viewer to type an English colour name like blue, or a hex code like #00
 
 Message: "{{chat:govee.refund.setup}}"
 
-Meaning: the bot found no working Govee setup for this light. Tell the streamer to open the Govee Lights page and check that "{{console:govee.keyOnFile}}" shows and that the light has a reward. If the key was rejected, see [Govee no longer accepts the key](#key-rejected).
+Meaning: the bot found no working Govee setup for this light. Tell the streamer to open the "{{console:modules.catalog.govee.label}}" page and check that "{{console:govee.keyOnFile}}" shows and that the light has a reward. If the key was rejected, see [Govee no longer accepts the key](#key-rejected).
 
 <a id="chat-busy"></a>
 ### Too many changes
@@ -197,3 +216,15 @@ Meaning: colour changes came in too fast. Wait a moment and redeem again.
 Message: "{{chat:govee.refund.unreachable}}"
 
 Meaning: the bot could not reach Govee or the light. Tell the streamer to check that the lights are on and connected to Wi-Fi, then try again in a moment.
+
+<related>
+
+- [Feature reference](../features/govee.md).
+- [Setup](setup.md).
+- [Errors](errors.md).
+- [Human guide](https://itsbagelbot.com/guides/govee-lights/).
+- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+
+</related>
+
+</page>
