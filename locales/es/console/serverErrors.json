@@ -36,7 +36,7 @@
   "importService": "El servicio de importación no respondió. Inténtalo de nuevo en un momento.",
   "importNothing": "No hay nada seleccionado para importar.",
   "importSelection": "No se pudo decodificar la selección. Abre la vista previa de nuevo.",
-  "sealKey": "No se pudo cifrar la clave.",
+  "sealKey": "No se pudo guardar la clave.",
   "deleteKey": "No se pudo eliminar la clave.",
   "updateFailed": "No se pudo actualizar.",
   "idRequired": "Se necesita un ID válido.",

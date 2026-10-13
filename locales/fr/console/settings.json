@@ -82,7 +82,7 @@
   "boardShared": "{n} partagés avec vous",
   "markAllRead": "Tout marquer comme lu",
   "toastAllRead": "Toutes les notifications sont marquées comme lues.",
-  "keysHint": "Secrets au niveau du compte pour les sources de données. Les délégués peuvent les utiliser, jamais les lire.",
+  "keysHint": "Clés API que vos sources de données envoient avec chaque requête. Les personnes disposant d’un accès partagé peuvent les utiliser, mais jamais les voir.",
   "importNav": "Import",
   "level": {
     "info": "Info",

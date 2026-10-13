@@ -74,6 +74,7 @@
   "toastDeleted": "Récompense « {name} » supprimée.",
   "toastSaveFailed": "Impossible d’enregistrer la récompense.",
   "toastDuplicateTitle": "Une récompense porte déjà ce titre sur votre chaîne. Choisissez-en un autre.",
+  "toastNotAffiliate": "Twitch permet uniquement aux chaînes affiliées et partenaires de créer des récompenses de points de chaîne. Une fois votre chaîne affiliée, cliquez à nouveau sur Créer la récompense.",
   "toastDeleteFailed": "Impossible de supprimer la récompense.",
   "toastToggleFailed": "Impossible de mettre à jour la récompense.",
   "errCost": "Saisissez un nombre entier de points, au moins 1.",

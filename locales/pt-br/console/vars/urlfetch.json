@@ -1,5 +1,5 @@
 {
   "name": "Valor buscado",
-  "hint": "Insira um valor buscado de uma definição de API salva",
-  "desc": "Um valor de uma definição salva de fonte de dados (página Fontes de dados). Use {urlfetch:name} para toda a resposta ou adicione um caminho com pontos para acessar um campo de uma resposta JSON, como {urlfetch:weather.forecast.current.temp_f}."
+  "hint": "Insira um valor ao vivo de uma das suas fontes de dados",
+  "desc": "Um valor de uma das suas fontes de dados (clique em Fonte de dados no editor de comandos). Use {urlfetch:name} para toda a resposta ou adicione um caminho com pontos para acessar um campo de uma resposta JSON, como {urlfetch:weather.forecast.current.temp_f}."
 }

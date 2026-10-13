@@ -20,7 +20,7 @@
   "toggleAria": "Pause or resume the timer: {name}",
   "deleteAria": "Delete the timer: {name}",
   "fieldMessage": "Message",
-  "fieldMessagePh": "e.g. Follow on socials: {link}",
+  "fieldMessagePh": "e.g. Follow so you know when I go live.",
   "fieldInterval": "Repeat every",
   "fieldIntervalHint": "Minimum 1 minute, maximum 24 hours.",
   "unitMinutes": "minutes",

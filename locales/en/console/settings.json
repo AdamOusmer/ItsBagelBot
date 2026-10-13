@@ -82,7 +82,7 @@
   "boardShared": "{n} shared with you",
   "markAllRead": "Mark all read",
   "toastAllRead": "All notifications marked read.",
-  "keysHint": "Account-level secrets for data sources. Delegates can spend them, never read them.",
+  "keysHint": "API keys your data sources send with each request. People with shared access can use them but never see them.",
   "importNav": "Import",
   "level": {
     "info": "Info",

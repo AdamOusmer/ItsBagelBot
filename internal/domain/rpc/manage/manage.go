@@ -91,6 +91,7 @@ type RewardReply struct {
 	Reward       *Reward  `json:"reward,omitempty"`
 	Rewards      []Reward `json:"rewards,omitempty"`
 	MissingScope bool     `json:"missing_scope,omitempty"`
+	NotAffiliate bool     `json:"not_affiliate,omitempty"`
 	rpc.Refusal
 }
 

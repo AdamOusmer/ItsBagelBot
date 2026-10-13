@@ -82,7 +82,7 @@
   "boardShared": "Mit dir geteilt: {n}",
   "markAllRead": "Alle als gelesen markieren",
   "toastAllRead": "Alle Benachrichtigungen als gelesen markiert.",
-  "keysHint": "Kontoweite Geheimnisse für Datenquellen. Beauftragte können sie verwenden, aber nie lesen.",
+  "keysHint": "API-Schlüssel, die deine Datenquellen bei jeder Anfrage senden. Personen mit gemeinsamem Zugriff können sie verwenden, aber nie sehen.",
   "importNav": "Import",
   "level": {
     "info": "Info",

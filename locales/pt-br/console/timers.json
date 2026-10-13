@@ -20,7 +20,7 @@
   "toggleAria": "Pausar ou retomar o timer: {name}",
   "deleteAria": "Excluir o timer: {name}",
   "fieldMessage": "Mensagem",
-  "fieldMessagePh": "ex.: Siga nas redes sociais: {link}",
+  "fieldMessagePh": "ex.: Siga para saber quando eu entrar ao vivo.",
   "fieldInterval": "Repetir a cada",
   "fieldIntervalHint": "Mínimo de 1 minuto, máximo de 24 horas.",
   "unitMinutes": "minutos",

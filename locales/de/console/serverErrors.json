@@ -36,7 +36,7 @@
   "importService": "Der Importdienst hat nicht geantwortet. Versuche es gleich erneut.",
   "importNothing": "Nichts zum Importieren ausgewählt.",
   "importSelection": "Die Auswahl konnte nicht dekodiert werden. Führe die Vorschau erneut aus.",
-  "sealKey": "Der Schlüssel konnte nicht verschlüsselt gespeichert werden.",
+  "sealKey": "Der Schlüssel konnte nicht gespeichert werden.",
   "deleteKey": "Der Schlüssel konnte nicht gelöscht werden.",
   "updateFailed": "Aktualisierung nicht möglich.",
   "idRequired": "Eine gültige ID ist erforderlich.",
