@@ -77,6 +77,11 @@ Edit schemas rather than generated Ent code.
   persisted account state for downstream rebuilding.
 - Deletion publishes `data.users.deleted` with account instance and deletion time after deleting the
   owning account/token rows; feature services perform their own eventual cleanup.
+- Deletion first writes `erasures/<id>-<accountCreatedAt>` to the R2 erasure
+  ledger (`ERASURE_R2_*`) and fails if that write fails, then revokes Twitch
+  tokens. `ReplayErasures` (boot + every 15m) re-deletes any account a database
+  restore brought back and resends `data.users.deleted` for records under 1h
+  whose account is gone; the ledger lives outside MySQL so it survives losing it.
 - Transactions calls `bagel.rpc.internal.billing.apply` and Users' internal
   giveaway prefix for eligibility, coverage and grant lifecycle. `main.go` holds
   subject overrides, token/email/count reads and the projection subject.

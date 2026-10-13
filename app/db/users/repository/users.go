@@ -79,6 +79,8 @@ type Users struct {
 	log                *zap.Logger
 	invalidationPrefix string
 	nc                 *nats.Conn
+	erasures           ErasureStore
+	revoker            TokenRevoker
 }
 
 func (r *Users) SetInvalidationPrefix(prefix string) {
@@ -332,20 +334,31 @@ func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) err
 }
 
 func (r *Users) Delete(ctx context.Context, id uint64) error {
-	var deleted data.UserDeletedDTO
+	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) { return r.client.User.Get(ctx, id) })
+	if err != nil {
+		return err
+	}
+	if err := r.recordErasure(ctx, erasureRef{userID: id, accountCreatedAt: row.CreatedAt.UnixMicro()}); err != nil {
+		return fmt.Errorf("record erasure: %w", err)
+	}
+	return r.erase(ctx, id, row.CreatedAt)
+}
+
+func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error {
+	r.revokeTwitchTokens(ctx, id)
+	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
 
 	if err := withTx(ctx, r.client, func(tx *ent.Tx) error {
 		row, err := tx.User.Get(ctx, id)
 		if err != nil {
 			return err
 		}
-		deleted = data.UserDeletedDTO{UserID: id, AccountCreatedAt: row.CreatedAt.UnixMicro()}
 		erasure, err := tx.LifecycleErasure.Create().SetUserID(id).SetAccountCreatedAt(deleted.AccountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx)
 		if err != nil {
 			return err
 		}
 		deleted.DeletedAt = erasure.DeletedAt
-		n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(row.CreatedAt)).Exec(ctx)
+		n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(createdAt)).Exec(ctx)
 		if err != nil {
 			return err
 		}
