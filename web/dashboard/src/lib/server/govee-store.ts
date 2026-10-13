@@ -35,7 +35,7 @@ export interface RewardDraft {
 
 export type GoveeResult =
   | { ok: true }
-  | { ok: false; missingScope?: boolean; error?: string; code?: 'key_invalid' };
+  | { ok: false; missingScope?: boolean; error?: string; code?: 'key_invalid' | 'key_unchecked' };
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
@@ -181,19 +181,26 @@ export function goveeStore(userId: string): GoveeStore {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
     invalidate(devicesCacheKey(userId));
-    if (!(await keyWorks())) {
+    const status = await keyWorks();
+    if (status === 'rejected') {
       await rpcReply(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000).catch(() => undefined);
       return { ok: false, code: 'key_invalid' };
     }
+    if (status === 'unreachable') return { ok: false, code: 'key_unchecked' };
     return { ok: true };
   }
 
-  async function keyWorks(): Promise<boolean> {
+  async function keyWorks(): Promise<'ok' | 'rejected' | 'unreachable'> {
     try {
-      const r = await rpc<{ devices?: GoveeDevice[] }>(`${SUB.gossip}.govee.devices`, { channel_id: userId }, 9000);
-      return Array.isArray(r.devices);
+      const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean }>(
+        `${SUB.gossip}.govee.devices`,
+        { channel_id: userId, fresh: true },
+        9000
+      );
+      if (Array.isArray(r.devices)) return 'ok';
+      return r.key_rejected === true ? 'rejected' : 'unreachable';
     } catch {
-      return false;
+      return 'unreachable';
     }
   }
 
