@@ -58,8 +58,7 @@ data:
 
     printf '%s\n' "$BACKUP_CERT_PEM" > pub.pem
 
-    STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-    OUT="k3s-${STAMP}.tar.gz.enc"
+    OUT="k3s.tar.gz.enc"
 
     tar -czf bundle.tar.gz state.db meta
 
@@ -87,12 +86,15 @@ data:
     # rclone's bucket-exists preflight has to be skipped.
     export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
-    rclone copy /work "r2:${R2_BUCKET}/k3s/daily/" \
+    # Rotate before uploading: a failed upload then leaves the last good snapshot in both slots.
+    rclone copy "r2:${R2_BUCKET}/k3s/current/" "r2:${R2_BUCKET}/k3s/previous/" --stats-one-line
+    rclone copy /work "r2:${R2_BUCKET}/k3s/current/" \
       --include "*.enc" --include "*.sha256" --stats-one-line
 
-    # Retention lives in the R2 lifecycle rule on k3s/daily (30d), same as the
-    # MySQL job. It holds the token keyset, so it never outlives MySQL dumps.
-    rclone lsf "r2:${R2_BUCKET}/k3s/daily/" --include "*.enc" | wc -l | xargs echo "daily objects in R2:"
+    # Holds the token keyset: never keep it longer than the 30-day MySQL dumps.
+    for slot in current previous; do
+      rclone lsl "r2:${R2_BUCKET}/k3s/${slot}/" --include "*.enc" | sed "s|^|${slot}: |"
+    done
 ---
 apiVersion: batch/v1
 kind: CronJob
