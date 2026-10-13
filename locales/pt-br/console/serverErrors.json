@@ -18,8 +18,8 @@
   "missingDashboard": "Painel ausente.",
   "noEditableReply": "Este comando não tem resposta editável.",
   "unknownBuiltin": "Comando integrado desconhecido.",
-  "subscriptionsUnavailable": "As assinaturas não estão disponíveis agora.",
-  "subscriptionManagementUnavailable": "O gerenciamento de assinaturas não está disponível agora.",
+  "subscriptionsUnavailable": "Não foi possível abrir a página de pagamento agora. Nenhuma cobrança foi feita. Aguarde um minuto e tente novamente.",
+  "subscriptionManagementUnavailable": "Não foi possível abrir o gerenciamento de assinaturas agora. Seu plano não mudou. Tente novamente mais tarde.",
   "discordPremiumOnly": "O Discord está em beta e disponível apenas para canais Premium.",
   "billingOwnerOnly": "Você não tem acesso para gerenciar a cobrança.",
   "giftUsername": "Informe o nome de usuário da Twitch de quem receberá o presente.",
@@ -27,6 +27,12 @@
   "planVerify": "Não foi possível verificar o plano atual. Tente novamente em instantes.",
   "noSubscription": "Não há assinatura da Tebex para cancelar nesta conta.",
   "giftUnavailable": "Os presentes não estão disponíveis agora. Tente novamente em instantes.",
+  "giftNotRegistered": "Esse streamer ainda não entrou no ItsBagelBot. Peça que ele entre uma vez e envie o presente novamente.",
+  "giftNotEligible": "Essa conta não pode receber Premium. Escolha outro streamer.",
+  "giftAlreadyPremium": "Esse streamer já tem Premium. Escolha outra pessoa para presentear.",
+  "giftLookup": "Não foi possível verificar esse nome de usuário agora. Aguarde um momento e tente novamente.",
+  "giftSelf": "Essa é sua própria conta. Para obter Premium, escolha Assinar mensalmente ou Comprar um mês.",
+  "checkoutInProgress": "Uma página de pagamento para essa conta já está aberta. Aguarde 30 segundos e tente novamente.",
   "importRate": "Tentativas de importação demais. Aguarde um minuto e tente novamente.",
   "importTooLarge": "A importação interpretada é grande demais para verificar.",
   "importDecode": "Não foi possível decodificar a importação interpretada. Execute a prévia novamente.",
@@ -82,5 +88,5 @@
   "fetchRate": "Execuções de teste demais. Cada uma chama a API real. Aguarde cerca de 10 segundos e tente novamente.",
   "fixFields": "Corrija os campos destacados primeiro.",
   "fetchService": "O serviço de consulta não respondeu. Tente novamente em instantes.",
-  "premiumAlreadyHeld": "Esta conta já tem cobertura Premium. Uma nova assinatura fica bloqueada enquanto o prêmio ou plano atual está sendo conciliado."
+  "premiumAlreadyHeld": "Esta conta já tem Premium, ou um mês de prêmio está a caminho. Atualize esta página para ver seu plano atual."
 }

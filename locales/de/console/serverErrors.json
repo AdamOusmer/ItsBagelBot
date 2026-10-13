@@ -18,8 +18,8 @@
   "missingDashboard": "Dashboard fehlt.",
   "noEditableReply": "Dieser Befehl hat keine bearbeitbare Antwort.",
   "unknownBuiltin": "Unbekannter integrierter Befehl.",
-  "subscriptionsUnavailable": "Abonnements sind gerade nicht verfügbar.",
-  "subscriptionManagementUnavailable": "Die Abonnementverwaltung ist gerade nicht verfügbar.",
+  "subscriptionsUnavailable": "Die Bezahlseite konnte gerade nicht geöffnet werden. Es wurde nichts abgebucht. Warte eine Minute und versuche es dann erneut.",
+  "subscriptionManagementUnavailable": "Die Abonnementverwaltung konnte gerade nicht geöffnet werden. Dein Tarif hat sich nicht geändert. Versuche es später erneut.",
   "discordPremiumOnly": "Discord ist in der Beta und nur für Premium-Kanäle verfügbar.",
   "billingOwnerOnly": "Du hast keinen Zugriff auf die Abrechnungsverwaltung.",
   "giftUsername": "Gib den Twitch-Benutzernamen für das Geschenk ein.",
@@ -27,6 +27,12 @@
   "planVerify": "Der aktuelle Tarif konnte nicht überprüft werden. Versuche es gleich erneut.",
   "noSubscription": "Für dieses Konto gibt es kein kündbares Tebex-Abonnement.",
   "giftUnavailable": "Verschenken ist gerade nicht verfügbar. Versuche es gleich erneut.",
+  "giftNotRegistered": "Dieser Streamer hat sich noch nicht bei ItsBagelBot angemeldet. Bitte ihn, sich einmal anzumelden, und sende das Geschenk dann erneut.",
+  "giftNotEligible": "Dieses Konto kann kein Premium erhalten. Wähle einen anderen Streamer.",
+  "giftAlreadyPremium": "Dieser Streamer hat bereits Premium. Wähle jemand anderen für das Geschenk.",
+  "giftLookup": "Dieser Benutzername konnte gerade nicht geprüft werden. Warte einen Moment und versuche es dann erneut.",
+  "giftSelf": "Das ist dein eigenes Konto. Um selbst Premium zu erhalten, wähle Monatlich abonnieren oder Einen Monat kaufen.",
+  "checkoutInProgress": "Für dieses Konto ist bereits eine Bezahlseite geöffnet. Warte 30 Sekunden und versuche es dann erneut.",
   "importRate": "Zu viele Importversuche. Warte eine Minute und versuche es erneut.",
   "importTooLarge": "Der eingelesene Import ist zu groß zur Überprüfung.",
   "importDecode": "Der eingelesene Import konnte nicht dekodiert werden. Führe die Vorschau erneut aus.",
@@ -82,5 +88,5 @@
   "fetchRate": "Zu viele Testläufe. Jeder ruft die echte API auf. Warte etwa 10 Sekunden und versuche es erneut.",
   "fixFields": "Korrigiere zuerst die hervorgehobenen Felder.",
   "fetchService": "Der Abrufdienst hat nicht geantwortet. Versuche es gleich erneut.",
-  "premiumAlreadyHeld": "Dieses Konto hat bereits Premium-Zugang. Ein erneutes Abonnement ist gesperrt, solange der aktuelle Gewinn oder Tarif abgeglichen wird."
+  "premiumAlreadyHeld": "Dieses Konto hat bereits Premium, oder ein gewonnener Monat steht noch aus. Lade diese Seite neu, um deinen aktuellen Tarif zu sehen."
 }
