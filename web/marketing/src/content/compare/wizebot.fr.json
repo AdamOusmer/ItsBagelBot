@@ -1,0 +1,164 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs WizeBot | Comparatif Twitch",
+    "description": "Comparez commandes, musique, modération, jeux et récompenses. Découvrez à qui convient WizeBot et comment importer ses commandes dans ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Comparatif de bots Twitch",
+    "title": "ItsBagelBot vs WizeBot",
+    "lead": "Vous envisagez ItsBagelBot comme alternative à WizeBot ? Comparez les fonctions de chat dont vous avez besoin, ainsi que les overlays, interactions avec les jeux et actions des récompenses. L’import des commandes publiques est un point de départ : vérifiez ce qui est transféré avant de recréer le reste."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "Vous souhaitez que vos spectateurs ajoutent des titres à votre véritable file Spotify et vous avez Spotify Premium.",
+      "Vous diffusez du Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale ou CODM et souhaitez consulter leurs statistiques avec des commandes intégrées.",
+      "Vous voulez des récompenses en points de chaîne Twitch pour les demandes Spotify ou des lampes Govee compatibles.",
+      "Vous souhaitez vérifier le texte des commandes publiques WizeBot avant de l’enregistrer."
+    ],
+    "them": [
+      "Vous voulez des commandes JavaScript utilisant les fonctions documentées de WizeBot. Référence : https://support.wizebot.tv/docs/JS_commands.",
+      "Vous voulez des récompenses Twitch pour la synthèse vocale, les sons ou un statut VIP temporaire. Référence : https://wizebot.tv/en/services.",
+      "Vous voulez une boutique virtuelle dont les achats exécutent des commandes ou appellent une URL externe. Référence : https://support.wizebot.tv/docs/currency_virtualshop.",
+      "Vous voulez des demandes YouTube avec gestion de la playlist dans le chat. Référence : https://support.wizebot.tv/docs/commands."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Commandes du chat",
+      "us": "Réponses personnalisées avec variables, permissions et délais entre utilisations, un générateur visuel de commandes et des commandes intégrées comme !uptime et !clip.",
+      "them": "Les modérateurs peuvent ajouter, supprimer, activer ou désactiver les commandes personnalisées dans le chat. La référence documente aussi les alias et les indicateurs de délais globaux ou individuels.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Variables et données externes",
+      "us": "Les réponses des commandes acceptent des variables et des compteurs ; les modules de statistiques proposent des champs pour leurs réponses.",
+      "them": "Les commandes JavaScript utilisent des fonctions documentées pour publier des messages et gérer des variables. Elles conviennent si vous souhaitez écrire votre propre logique d’interaction en respectant les limites d’exécution de WizeBot.",
+      "source": "https://support.wizebot.tv/docs/JS_commands"
+    },
+    {
+      "feature": "Messages programmés",
+      "us": "Configurez des messages récurrents avec un intervalle propre à chacun pendant vos directs.",
+      "them": "La présentation du service mentionne des annonces périodiques personnalisables, sans y détailler les intervalles ni les seuils d’activité.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Modération et filtres antispam",
+      "us": "AutoMod est un module Premium en bêta avec des contrôles configurables, des avertissements, des suppressions de messages, des exclusions temporaires ou des bannissements. Un socle de protection reste actif lorsque le module est désactivé.",
+      "them": "Les protections comprennent filtres antispam, mots bloqués, domaines autorisés, avertissements et mode d’urgence.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Demandes de musique",
+      "us": "!sr ajoute un titre à la file de votre véritable lecteur Spotify. !srlist affiche les demandes ; les modérateurs peuvent passer un titre ou vider la file. Spotify Premium, votre propre application Spotify et un appareil en cours de lecture sont nécessaires.",
+      "them": "!sr accepte noms de titres, URL YouTube ou identifiants de vidéos. Les commandes gèrent la playlist, passent un titre et règlent le volume.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Statistiques de jeu",
+      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Vous pouvez par exemple lier votre Riot ID et utiliser !valrank.",
+      "them": "La référence des balises couvre League of Legends, Steam et des interactions avec 7 Days to Die et Project Zomboid. Comparez ces intégrations aux statistiques que vos spectateurs utilisent réellement.",
+      "source": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "feature": "Points de chaîne Twitch",
+      "us": "Créez des récompenses natives Twitch liées aux actions du bot, notamment les demandes Spotify et le contrôle de lampes Govee compatibles, avec validation ou remboursement des utilisations.",
+      "them": "La présentation mentionne des actions de récompenses pour la synthèse vocale, les sons, le statut VIP temporaire et les jeux.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Tirages au sort",
+      "us": "Les tirages à durée définie acceptent les inscriptions avec !join et se terminent automatiquement. Chaque personne compte une fois et les gagnants confirment avec !claim.",
+      "them": "La référence liste !draw et !agiveaway. Vérifiez les règles d’inscription avant de transférer vos tirages.",
+      "source": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "feature": "Monnaie de fidélité",
+      "us": "Les spectateurs gagnent une monnaie configurable grâce au temps de visionnage, aux abonnements et aux Cheers. Elle sert aux modules Gamble et Duels et reste distincte des points de chaîne Twitch.",
+      "them": "La boutique virtuelle peut exécuter des commandes, traiter des balises ou appeler une URL externe après un achat. Elle convient aux récompenses utilisant votre monnaie de bot. L’import WizeBot d’ItsBagelBot ne transfère ni boutique ni soldes.",
+      "source": "https://support.wizebot.tv/docs/currency_virtualshop"
+    },
+    {
+      "feature": "Outils de production",
+      "us": "Les alertes du chat publient des messages personnalisables pour les nouveaux followers, abonnements, Cheers, raids et pauses publicitaires.",
+      "them": "La présentation mentionne alertes visuelles, overlays de chat et animations à l’écran déclenchées par commandes.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Import dans ItsBagelBot",
+      "us": "Entrez le nom de votre chaîne pour importer le texte des commandes publiques. Vérifiez variables, permissions et avertissements avant d’enregistrer. Les sons et coûts des commandes sont supprimés ; cet import exclut messages programmés et citations. La configuration d’origine reste intacte.",
+      "them": "La référence comprend des réponses textuelles ainsi que des actions sonores, d’overlay et de monnaie. Vérifiez l’import d’une commande textuelle lorsqu’elle exécute aussi ces actions.",
+      "source": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord est une intégration Premium en bêta pour les annonces de direct, clips, accueils, tickets et outils communautaires.",
+      "them": "La présentation mentionne des notifications Discord pour les directs et changements de jeu ou de statut.",
+      "source": "https://wizebot.tv/en/services"
+    },
+    {
+      "feature": "Tarif",
+      "us": "Toutes les fonctionnalités finalisées sont gratuites. Premium coûte 7 $ CAD plus taxes par mois et ajoute traitement prioritaire, assistance et accès anticipé aux modules en bêta, actuellement AutoMod et Discord. Spotify Premium est requis séparément.",
+      "them": "La page d’accueil officielle présente un service gratuit dans le cloud. Vérifiez dans le tableau de bord les conditions des outils que vous souhaitez activer.",
+      "source": "https://wizebot.tv/en/index"
+    }
+  ],
+  "migrate": {
+    "title": "Importez le texte de vos commandes publiques WizeBot",
+    "steps": [
+      "Connectez-vous à ItsBagelBot avec Twitch, choisissez WizeBot dans l’assistant d’import et entrez le nom de votre chaîne.",
+      "Sélectionnez les commandes et lisez les avertissements sur variables, permissions, sons et coûts. Une réponse aléatoire peut devenir plusieurs lignes publiées ; vérifiez le résultat converti.",
+      "Enregistrez votre sélection, puis testez réponses, alias et permissions. Recréez les messages programmés et configurez séparément musique, récompenses, monnaie et overlays.",
+      "Après les tests, désactivez les commandes correspondantes dans WizeBot pour éviter les doublons. L’import laisse votre ancienne configuration intacte."
+    ],
+    "cta": "Vérifier votre import WizeBot"
+  },
+  "faq": [
+    {
+      "q": "Quand ItsBagelBot est-il une alternative utile à WizeBot ?",
+      "a": "Envisagez-le pour les demandes dans votre véritable file Spotify, les statistiques intégrées des jeux pris en charge ou les récompenses Twitch pour des lampes Govee compatibles. Ces fonctionnalités finalisées et l’assistant d’import sont gratuits. AutoMod et Discord sont des modules Premium en bêta."
+    },
+    {
+      "q": "Quand devriez-vous garder WizeBot ?",
+      "a": "Gardez-le si vos récompenses utilisent une boutique virtuelle avec exécution de commandes ou appels d’URL externes. Recréer ces achats est distinct de l’import du texte des commandes ; vérifiez les actions nécessaires avant de changer de bot. Référence : https://support.wizebot.tv/docs/currency_virtualshop."
+    },
+    {
+      "q": "Les demandes Spotify gratuites fonctionnent-elles sans Spotify Premium ?",
+      "a": "ItsBagelBot ne facture pas les demandes de musique, mais Spotify Premium est nécessaire pour contrôler la file. Le compte connecté et le compte propriétaire de votre application de développeur Spotify doivent tous deux avoir Premium. Spotify doit être en cours de lecture sur un appareil."
+    },
+    {
+      "q": "Que devez-vous vérifier lors de l’import depuis WizeBot ?",
+      "a": "Cette source importe uniquement le texte des commandes publiques. Les sons et coûts ne sont pas conservés. Les variables non prises en charge restent littérales avec avertissement ; les réponses aléatoires peuvent devenir plusieurs lignes publiées et les groupes de permissions sans équivalent peuvent élargir l’accès. Vérifiez chaque avertissement avant d’enregistrer et de tester."
+    },
+    {
+      "q": "Pouvez-vous tester ItsBagelBot avant de retirer votre ancien bot ?",
+      "a": "Oui. L'import ne supprime ni ne modifie votre ancienne configuration. Testez les éléments sélectionnés, puis désactivez les réponses et messages programmés correspondants dans l'ancien bot pour que le chat reçoive une seule réponse."
+    }
+  ],
+  "sources": [
+    {
+      "label": "WizeBot : présentation du service gratuit dans le cloud",
+      "url": "https://wizebot.tv/en/index"
+    },
+    {
+      "label": "WizeBot : annonces périodiques, protections, récompenses Twitch, Discord et overlays",
+      "url": "https://wizebot.tv/en/services"
+    },
+    {
+      "label": "WizeBot : commandes personnalisées, demandes YouTube et commandes de tirage",
+      "url": "https://support.wizebot.tv/docs/commands"
+    },
+    {
+      "label": "WizeBot : balises de réponse et intégrations de jeux",
+      "url": "https://support.wizebot.tv/docs/tags"
+    },
+    {
+      "label": "WizeBot : commandes JavaScript et limites d’exécution (septembre 2026)",
+      "url": "https://support.wizebot.tv/docs/JS_commands"
+    },
+    {
+      "label": "WizeBot : actions d’achat de la boutique virtuelle",
+      "url": "https://support.wizebot.tv/docs/currency_virtualshop"
+    }
+  ]
+}

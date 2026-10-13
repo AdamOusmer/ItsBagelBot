@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Fossabot | Comparatif Twitch",
+    "description": "Comparez commandes, filtres, musique, statistiques, récompenses et tarifs. Découvrez à qui convient Fossabot et comment importer ses commandes."
+  },
+  "hero": {
+    "eyebrow": "Comparatif de bots Twitch",
+    "title": "ItsBagelBot vs Fossabot",
+    "lead": "Vous cherchez une alternative à Fossabot pour votre chat Twitch ? Comparez les commandes documentées, la musique, la modération et les récompenses, puis vérifiez les éléments que vous pouvez transférer avec l’assistant d’import."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "Vous souhaitez que vos spectateurs ajoutent des titres à votre véritable file Spotify et vous avez Spotify Premium.",
+      "Vous diffusez du Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale ou CODM et souhaitez consulter leurs statistiques avec des commandes intégrées.",
+      "Vous voulez des récompenses en points de chaîne Twitch pour les demandes Spotify ou des lampes Govee compatibles.",
+      "Vous souhaitez vérifier les commandes de votre page publique Fossabot avant de les enregistrer."
+    ],
+    "them": [
+      "Vous voulez des filtres antispam configurables dans un service gratuit. Référence : https://fossabot.com/.",
+      "Vous préférez des demandes YouTube ou SoundCloud que vous pouvez approuver avant la lecture. Références : https://fossabot.com/docs/mediarequest/moderation, https://docs.fossabot.com/mediarequest/requesting-songs/.",
+      "Vous voulez des variables Valorant pour le rang, les RR et les victoires du direct après avoir connecté Riot. Référence : https://docs.fossabot.com/variables/valorant/.",
+      "Vous voulez des délais distincts pour toute la chaîne et pour chaque utilisateur. Référence : https://fossabot.com/docs/commands/custom-commands."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Commandes du chat",
+      "us": "Réponses personnalisées avec variables, permissions et délais entre utilisations, un générateur visuel de commandes et des commandes intégrées comme !uptime et !clip.",
+      "them": "Les réponses personnalisées acceptent alias, rôles, délais globaux et individuels, réponses dans le chat ou messages privés. Vous pouvez aussi définir une date d’expiration.",
+      "source": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "feature": "Variables et données externes",
+      "us": "Les réponses des commandes acceptent des variables et des compteurs ; les modules de statistiques proposent des champs pour leurs réponses.",
+      "them": "$(customapi) renvoie la réponse d’une requête HTTP GET vers l’URL choisie. Cette fonction convient si vous disposez déjà d’un service externe pour alimenter vos commandes.",
+      "source": "https://fossabot.com/docs/variables/customapi"
+    },
+    {
+      "feature": "Messages programmés",
+      "us": "Configurez des messages récurrents avec un intervalle propre à chacun pendant vos directs.",
+      "them": "Les messages programmés ont des intervalles en ligne et hors ligne ainsi qu’un seuil d’activité, utile pour les chats calmes.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Modération et filtres antispam",
+      "us": "AutoMod est un module Premium en bêta avec des contrôles configurables, des avertissements, des suppressions de messages, des exclusions temporaires ou des bannissements. Un socle de protection reste actif lorsque le module est désactivé.",
+      "them": "Les filtres couvrent liens, majuscules, symboles et répétitions, avec avertissements initiaux et exclusions temporaires progressives.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Demandes de musique",
+      "us": "!sr ajoute un titre à la file de votre véritable lecteur Spotify. !srlist affiche les demandes ; les modérateurs peuvent passer un titre ou vider la file. Spotify Premium, votre propre application Spotify et un appareil en cours de lecture sont nécessaires.",
+      "them": "!sr accepte les recherches et liens YouTube ou les liens SoundCloud. Une file de validation facultative permet de vérifier les demandes avant la lecture. Validation : https://fossabot.com/docs/mediarequest/moderation.",
+      "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "feature": "Statistiques de jeu",
+      "us": "Les modules intégrés couvrent Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM. Vous pouvez par exemple lier votre Riot ID et utiliser !valrank.",
+      "them": "Les variables Valorant affichent rang, RR, position au classement et victoires ou défaites du direct. Connectez et autorisez d’abord votre compte Riot dans le tableau de bord ; certaines données peuvent dater de 30 minutes.",
+      "source": "https://docs.fossabot.com/variables/valorant/"
+    },
+    {
+      "feature": "Points de chaîne Twitch",
+      "us": "Créez des récompenses natives Twitch liées aux actions du bot, notamment les demandes Spotify et le contrôle de lampes Govee compatibles, avec validation ou remboursement des utilisations.",
+      "them": "Les récompenses peuvent exécuter des commandes ou publier du texte. Des variables donnent aussi accès aux données de la file d’utilisations. Variables : https://docs.fossabot.com/variables/twitchreward/.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Tirages au sort",
+      "us": "Les tirages à durée définie acceptent les inscriptions avec !join et se terminent automatiquement. Chaque personne compte une fois et les gagnants confirment avec !claim.",
+      "them": "La présentation publique ne détaille pas les règles des tirages. Vérifiez séparément vos besoins d’inscription et de sélection.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Import dans ItsBagelBot",
+      "us": "Entrez le nom de votre chaîne pour importer les commandes publiques. Vérifiez les variables converties et les avertissements avant d’enregistrer. Cet import exclut messages programmés, citations et réglages de modération ; la configuration source reste intacte.",
+      "them": "Les commandes masquées dans le répertoire public restent utilisables dans le chat Fossabot. Vérifiez les éléments manquants avant de considérer l’import public comme une copie complète.",
+      "source": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord est une intégration Premium en bêta pour les annonces de direct, clips, accueils, tickets et outils communautaires.",
+      "them": "La présentation officielle mentionne une intégration Discord sans détailler ses fonctions. Vérifiez le fonctionnement dont vous avez besoin.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Tarif",
+      "us": "Toutes les fonctionnalités finalisées sont gratuites. Premium coûte 7 $ CAD plus taxes par mois et ajoute traitement prioritaire, assistance et accès anticipé aux modules en bêta, actuellement AutoMod et Discord. Spotify Premium est requis séparément.",
+      "them": "Le site officiel présente Fossabot comme gratuit.",
+      "source": "https://fossabot.com/"
+    }
+  ],
+  "migrate": {
+    "title": "Importez vos commandes publiques Fossabot",
+    "steps": [
+      "Connectez-vous à ItsBagelBot avec Twitch, choisissez Fossabot dans l’assistant d’import et entrez le nom de votre chaîne.",
+      "Sélectionnez les commandes publiques souhaitées et lisez les avertissements de conversion. Vérifiez séparément les commandes masquées dans le répertoire Fossabot. Référence : https://fossabot.com/docs/commands/custom-commands.",
+      "Enregistrez votre sélection, puis testez réponses, permissions, alias et délais entre utilisations. Recréez les messages programmés et configurez séparément musique, modération et récompenses.",
+      "Après les tests, désactivez les commandes correspondantes dans Fossabot pour éviter les doublons. L’import laisse votre ancienne configuration intacte."
+    ],
+    "cta": "Vérifier votre import Fossabot"
+  },
+  "faq": [
+    {
+      "q": "Quand ItsBagelBot est-il une alternative utile à Fossabot ?",
+      "a": "Envisagez-le pour les demandes dans votre véritable file Spotify, les statistiques intégrées des jeux pris en charge ou les récompenses Twitch pour des lampes Govee compatibles. Ces fonctionnalités finalisées et l’assistant d’import sont gratuits. AutoMod et Discord sont des modules Premium en bêta."
+    },
+    {
+      "q": "Quand devriez-vous garder Fossabot ?",
+      "a": "Si vous utilisez sa file de validation musicale, tenez compte de ce fonctionnement avant de migrer. Vous pouvez approuver ou refuser les titres avant leur ajout à la file de lecture. Référence : https://fossabot.com/docs/mediarequest/moderation."
+    },
+    {
+      "q": "Les demandes Spotify gratuites fonctionnent-elles sans Spotify Premium ?",
+      "a": "ItsBagelBot ne facture pas les demandes de musique, mais Spotify Premium est nécessaire pour contrôler la file. Le compte connecté et le compte propriétaire de votre application de développeur Spotify doivent tous deux avoir Premium. Spotify doit être en cours de lecture sur un appareil."
+    },
+    {
+      "q": "Que devez-vous vérifier lors de l’import depuis Fossabot ?",
+      "a": "L’assistant lit les commandes publiques à partir du nom de la chaîne. Il importe uniquement les commandes ; recréez les messages programmés séparément. Les variables prises en charge sont converties ; les autres restent littérales avec un avertissement. Vérifiez commandes manquantes, permissions et délais avant d’enregistrer et de tester."
+    },
+    {
+      "q": "Pouvez-vous tester ItsBagelBot avant de retirer votre ancien bot ?",
+      "a": "Oui. L'import ne supprime ni ne modifie votre ancienne configuration. Testez les éléments sélectionnés, puis désactivez les réponses et messages programmés correspondants dans l'ancien bot pour que le chat reçoive une seule réponse."
+    }
+  ],
+  "sources": [
+    {
+      "label": "Fossabot : service, filtres, messages programmés, intégrations et gratuité",
+      "url": "https://fossabot.com/"
+    },
+    {
+      "label": "Fossabot : commandes personnalisées et visibilité dans le répertoire",
+      "url": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "label": "Fossabot : réponses d’API externes",
+      "url": "https://fossabot.com/docs/variables/customapi"
+    },
+    {
+      "label": "Fossabot : demandes YouTube et SoundCloud",
+      "url": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "label": "Fossabot : validation des demandes et réglages de file",
+      "url": "https://fossabot.com/docs/mediarequest/moderation"
+    },
+    {
+      "label": "Fossabot : variables Valorant et autorisation Riot",
+      "url": "https://docs.fossabot.com/variables/valorant/"
+    },
+    {
+      "label": "Fossabot : variables de file des récompenses Twitch",
+      "url": "https://docs.fossabot.com/variables/twitchreward/"
+    }
+  ]
+}

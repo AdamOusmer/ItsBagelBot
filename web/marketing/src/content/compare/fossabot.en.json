@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Fossabot | Twitch Bot Comparison",
+    "description": "Compare commands, filters, music, game stats, rewards and price. See where Fossabot suits you and how to import its public commands into ItsBagelBot."
+  },
+  "hero": {
+    "eyebrow": "Twitch bot comparison",
+    "title": "ItsBagelBot vs Fossabot",
+    "lead": "Looking for a Fossabot alternative for your Twitch chat? Compare the documented commands, music workflows, moderation and reward actions, then check which parts of your current setup the import can bring over."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "You want viewers to add tracks to your actual Spotify queue, and you have Spotify Premium.",
+      "You stream Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale or CODM and want built-in game lookups.",
+      "You want Twitch Channel Point rewards for Spotify requests or compatible Govee lights.",
+      "You want to review commands from your public Fossabot commands page before saving."
+    ],
+    "them": [
+      "You want configurable spam filters included in a free service. Reference: https://fossabot.com/.",
+      "You prefer YouTube or SoundCloud requests that you can approve before playback. References: https://fossabot.com/docs/mediarequest/moderation, https://docs.fossabot.com/mediarequest/requesting-songs/.",
+      "You want Valorant variables for rank, RR and session wins after connecting Riot. Reference: https://docs.fossabot.com/variables/valorant/.",
+      "You want separate global and per-user command cooldowns. Reference: https://fossabot.com/docs/commands/custom-commands."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat commands",
+      "us": "Custom responses with variables, permissions and cooldowns, plus a visual Command Builder and built-in commands such as !uptime and !clip.",
+      "them": "Custom responses support aliases, roles, global and per-user cooldowns, and chat replies or whispers. Commands can also expire on a chosen date.",
+      "source": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "feature": "Variables and external data",
+      "us": "Command responses support variables and counters; game modules expose fields for their replies.",
+      "them": "$(customapi) returns an HTTP GET response from your chosen URL. This is useful when you already maintain an external service for custom command data.",
+      "source": "https://fossabot.com/docs/variables/customapi"
+    },
+    {
+      "feature": "Timers",
+      "us": "Configure repeating messages with an interval for each timer while you are live.",
+      "them": "Timers have online and offline intervals plus a minimum chat-line threshold, useful for quiet chats.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Moderation and spam filters",
+      "us": "AutoMod is a Premium beta module with configurable checks and warnings, message removal, timeouts or bans. A small safety floor remains active when the module is off.",
+      "them": "Filters cover links, caps, symbols and repetition, with first-offence warnings and escalating timeouts.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Song requests",
+      "us": "!sr adds a track to your real Spotify player queue. Viewers can see requests with !srlist; moderators can skip or clear. Spotify Premium, your own Spotify app and an active playback device are required.",
+      "them": "!sr accepts YouTube searches and links or SoundCloud links. An optional approval queue lets you review requests before playback. Approval reference: https://fossabot.com/docs/mediarequest/moderation.",
+      "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "feature": "Game stats",
+      "us": "Built-in modules cover Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM. For example, link your Riot ID and use !valrank.",
+      "them": "Valorant variables expose rank, RR, leaderboard placement and session wins or losses. Connect and authorize your Riot account in the dashboard first; some data may be up to 30 minutes old.",
+      "source": "https://docs.fossabot.com/variables/valorant/"
+    },
+    {
+      "feature": "Twitch Channel Points",
+      "us": "Create native Twitch rewards tied to bot actions, including Spotify requests and compatible Govee light control, with fulfillment or refund handling.",
+      "them": "Rewards can run commands or post text. Reward variables also expose redemption-queue metadata. Variable reference: https://docs.fossabot.com/variables/twitchreward/.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Giveaways",
+      "us": "Timed raffles accept !join entries and draw automatically. Each entrant counts once, and winners confirm with !claim.",
+      "them": "The public overview does not detail giveaway rules. Confirm your entry and drawing requirements separately.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Import into ItsBagelBot",
+      "us": "Enter your channel name to import public commands. Review converted variables and warnings before saving. Timers, quotes and moderation settings are outside this import; the source setup stays untouched.",
+      "them": "Commands hidden from the public directory remain usable in Fossabot chat. Check for missing items before treating a public-command import as your complete setup.",
+      "source": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord is a Premium beta integration for go-live posts, clips, welcomes, tickets and community tools.",
+      "them": "The official overview lists Discord integration without detailing its server features. Confirm the workflow you need.",
+      "source": "https://fossabot.com/"
+    },
+    {
+      "feature": "Price",
+      "us": "Every finished feature is free. Premium costs $7 CAD plus tax per month and adds priority handling, support and early access to beta modules, currently AutoMod and Discord. Spotify Premium is a separate requirement.",
+      "them": "The official site describes Fossabot as free.",
+      "source": "https://fossabot.com/"
+    }
+  ],
+  "migrate": {
+    "title": "Import your public Fossabot commands",
+    "steps": [
+      "Sign in to ItsBagelBot with Twitch, choose Fossabot in the import wizard and enter your channel name.",
+      "Select the public commands you want and read conversion warnings. Commands hidden from Fossabot’s directory need a separate review. Reference: https://fossabot.com/docs/commands/custom-commands.",
+      "Save your selection and test replies, permissions, aliases and cooldowns. Recreate timers and configure music, moderation and rewards separately.",
+      "After testing, disable matching commands in Fossabot to prevent duplicate replies. Importing leaves your old setup untouched."
+    ],
+    "cta": "Review your Fossabot import"
+  },
+  "faq": [
+    {
+      "q": "When is ItsBagelBot a useful Fossabot alternative?",
+      "a": "Consider it for requests in your actual Spotify queue, built-in lookups for the supported games or Twitch rewards for compatible Govee lights. Those finished features and the import wizard are free. AutoMod and Discord are Premium beta modules."
+    },
+    {
+      "q": "When should I keep Fossabot?",
+      "a": "If you use its media approval queue, keep that workflow in mind before moving. It lets you approve or reject tracks before they reach the playback queue. Reference: https://fossabot.com/docs/mediarequest/moderation."
+    },
+    {
+      "q": "Are free Spotify requests available without Spotify Premium?",
+      "a": "ItsBagelBot charges nothing for song requests, but Spotify Premium is required for queue control. Both the connected account and the account owning your Spotify developer app need Premium. Spotify must be playing on a device."
+    },
+    {
+      "q": "What should I review when importing from Fossabot?",
+      "a": "The importer reads public commands by channel name. It brings commands only, so recreate timers separately. Supported variables convert; others stay literal with warnings. Check missing commands, permissions and cooldowns before saving and testing."
+    },
+    {
+      "q": "Can I test ItsBagelBot before removing my old bot?",
+      "a": "Yes. Importing does not remove or alter your old setup. Test the selected items, then disable matching replies and timers in the old bot so chat receives one response."
+    }
+  ],
+  "sources": [
+    {
+      "label": "Fossabot: service, filters, timers, integrations and free access",
+      "url": "https://fossabot.com/"
+    },
+    {
+      "label": "Fossabot: custom commands and public-directory visibility",
+      "url": "https://fossabot.com/docs/commands/custom-commands"
+    },
+    {
+      "label": "Fossabot: external API responses",
+      "url": "https://fossabot.com/docs/variables/customapi"
+    },
+    {
+      "label": "Fossabot: YouTube and SoundCloud requests",
+      "url": "https://docs.fossabot.com/mediarequest/requesting-songs/"
+    },
+    {
+      "label": "Fossabot: request approval and queue controls",
+      "url": "https://fossabot.com/docs/mediarequest/moderation"
+    },
+    {
+      "label": "Fossabot: Valorant variables and Riot authorization",
+      "url": "https://docs.fossabot.com/variables/valorant/"
+    },
+    {
+      "label": "Fossabot: Twitch reward queue variables",
+      "url": "https://docs.fossabot.com/variables/twitchreward/"
+    }
+  ]
+}
