@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: "0008 - Caching and Write-Behind Strategy"
-description: "Architecture decision record: In-process caching with stampede protection,
-write-behind batching, and event-carried invalidation over NATS"
+description: "Architecture decision record: In-process caching with stampede protection, write-behind batching, and event-carried invalidation over NATS"
 ---
 
 **Date:** 2026-06-09

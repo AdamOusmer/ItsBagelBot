@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: "0010 - Adoption of New Relic for Observability"
-description: "Architecture decision record: Adoption of New Relic as the observability
-platform, with per-message transactions and distributed tracing over the bus"
+description: "Architecture decision record: Adoption of New Relic as the observability platform, with per-message transactions and distributed tracing over the bus"
 ---
 
 **Date:** 2026-06-09
