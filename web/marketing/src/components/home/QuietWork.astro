@@ -4,7 +4,6 @@
 
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
-import Badge from '@bagel/ui/astro/Badge.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
 import Section from '@bagel/ui/astro/Section.astro';
@@ -76,15 +75,12 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
-            <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true">
-                <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 68%"></i><b class="qw-poll__pct">68%</b></span>
-                <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 32%"></i><b class="qw-poll__pct">32%</b></span>
+            <div class="qw__demo qw__demo--queue" slot="band" aria-hidden="true">
+                <span class="qw-queue__row"><b class="qw-queue__pos">#1</b>Lotti</span>
+                <span class="qw-queue__row"><b class="qw-queue__pos">#2</b>PrincessBarney</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title">
-                <span class="qw__title-text"><span data-fit="block">{t('quietWork.pollTitle')}</span></span>
-                <Badge tone="incoming" mark="plus" class="qw__badge"><span class="qw__badge-label"><span data-fit>{t('badge.incoming')}</span></span></Badge>
-            </Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.pollDesc')}</span></Text>
+            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.queueTitle')}</span></span></Heading>
+            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.queueDesc')}</span></Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
@@ -163,15 +159,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
     .qw__desc {
         height: calc(var(--qw-desc-lines, 3) * 1lh);
-    }
-
-    .qw__badge {
-        width: 180px;
-    }
-
-    .qw__badge-label {
-        flex: 1 1 0;
-        min-width: 0;
     }
 
     .qw__more { margin-top: 14px; align-self: flex-start; }
@@ -470,34 +457,20 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
 
 
-    .qw-poll__bar {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        gap: 8px;
+    .qw-queue__row {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        color: var(--bb-tan-light);
     }
 
-    .qw-poll__fill {
-        display: block;
-        height: 7px;
-        width: 4%;
-        border-radius: var(--bb-radius-xs);
-        background: linear-gradient(90deg, rgba(var(--bb-tan-rgb), 0.5), var(--bb-tan));
-        transition: width calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo);
-    }
-
-    .qw-poll__bar:nth-child(2) .qw-poll__fill {
-        background: linear-gradient(90deg, rgba(var(--bb-green-glow-rgb), 0.5), var(--bb-green-glow));
-        transition-delay: 140ms;
-    }
-
-    .qw-poll__pct {
+    .qw-queue__pos {
         font-weight: 500;
         font-size: 0.68rem;
         color: var(--bb-muted);
     }
 
-    .qw__card.is-revealed .qw-poll__fill { width: var(--w); }
+    .qw-queue__row:nth-child(2) { color: var(--bb-green-glow); }
 
     .qw__demo--win { align-items: flex-start; gap: 4px; }
 
@@ -563,7 +536,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         .qw-govee__redeem { opacity: 1; }
         .qw-cmd__in { width: 18ch; border-right: none; }
         .qw-cmd__out { opacity: 1; }
-        .qw-poll__fill { width: var(--w); transition: none; }
     }
 
     @media (max-width: 640px) {

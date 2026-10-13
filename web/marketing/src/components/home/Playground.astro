@@ -9,7 +9,6 @@ import Heading from '@bagel/ui/astro/Heading.astro';
 import IconButton from '@bagel/ui/astro/IconButton.astro';
 import Input from '@bagel/ui/astro/Input.astro';
 import Lead from '@bagel/ui/astro/Lead.astro';
-import ProgressBar from '@bagel/ui/astro/ProgressBar.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
 import Text from '@bagel/ui/astro/Text.astro';
@@ -23,7 +22,7 @@ const t = useTranslations(lang);
 const chips = [
     { cmd: '!bagel', label: '!bagel' },
     { cmd: '!song', label: '!song' },
-    { cmd: '!poll', label: '!poll' },
+    { cmd: '!join', label: '!join' },
     { cmd: '!lurk', label: '!lurk' },
 ];
 
@@ -32,10 +31,7 @@ const playStrings = {
     replySong: t('playground.replySong'),
     replyLurk: t('playground.replyLurk'),
     replyHelp: t('playground.replyHelp'),
-    pollUp: t('playground.pollUp'),
-    pollQ: t('playground.pollQ'),
-    pollYes: t('playground.pollYes'),
-    pollAlways: t('playground.pollAlways'),
+    replyJoin: t('playground.replyJoin'),
     spamRemoved: t('playground.spamRemoved'),
     quiet: t('playground.quiet'),
     unknown: t('playground.unknown'),
@@ -90,9 +86,6 @@ const playStrings = {
                 <IconButton type="submit" label={t('playground.sendAria')} class="play__send">↵</IconButton>
             </form>
         </Card>
-        <template data-play-poll-row>
-            <span class="ppoll__row"><ProgressBar value={0} tone="success" gradient label="" /><span data-play-poll-label></span></span>
-        </template>
     </div>
 </Section>
 
@@ -305,33 +298,6 @@ const playStrings = {
         padding: 6px 10px;
     }
 
-    .play__feed :global(.pmsg--poll) {
-        display: block;
-        background: rgba(var(--bb-green-glow-rgb), 0.05);
-        padding: 8px 10px;
-    }
-
-    .play__feed :global(.ppoll__q) {
-        font-family: var(--bb-font-mono);
-        font-size: 0.74rem;
-        color: var(--bb-green-glow);
-        margin-bottom: 7px;
-        display: block;
-    }
-
-    .ppoll__row {
-        --progress-from: var(--bb-green);
-        --progress-duration: 1100ms;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        gap: 8px;
-        margin-top: 5px;
-        font-family: var(--bb-font-mono);
-        font-size: 0.7rem;
-        color: rgba(var(--bb-white-rgb), 0.8);
-    }
-
 
     .play__composer {
         display: flex;
@@ -343,7 +309,6 @@ const playStrings = {
 
     @media (prefers-reduced-motion: reduce) {
         .play__feed :global(.pmsg) { animation: none; }
-        .ppoll__row { --progress-duration: 0s; }
     }
 
     @media (max-width: 640px) {
@@ -371,7 +336,7 @@ const playStrings = {
 
     type PlayStrings = {
         replyBagel: string; replySong: string; replyLurk: string; replyHelp: string;
-        pollUp: string; pollQ: string; pollYes: string; pollAlways: string;
+        replyJoin: string;
         spamRemoved: string; quiet: string; unknown: string; seedTry: string;
         ambient: string[]; seed1: string;
     };
@@ -384,7 +349,7 @@ const playStrings = {
         '!song': S.replySong,
         '!lurk': S.replyLurk,
         '!help': S.replyHelp,
-        '!poll': null,
+        '!join': S.replyJoin,
     };
 
 
@@ -392,7 +357,6 @@ const playStrings = {
         feed: HTMLElement;
         form: HTMLFormElement;
         input: HTMLInputElement;
-        pollRow: HTMLTemplateElement;
         section: HTMLElement;
     };
 
@@ -401,7 +365,6 @@ const playStrings = {
             feed: root.querySelector<HTMLElement>('[data-play-feed]'),
             form: root.querySelector<HTMLFormElement>('[data-play-form]'),
             input: root.querySelector<HTMLInputElement>('[data-play-input]'),
-            pollRow: root.querySelector<HTMLTemplateElement>('[data-play-poll-row]'),
             section: root.closest('section'),
         };
         return Object.values(parts).every(Boolean) ? (parts as PlayParts) : null;
@@ -413,7 +376,7 @@ const playStrings = {
 
         const parts = findParts(root);
         if (!parts) return;
-        const { feed, form, input, pollRow, section } = parts;
+        const { feed, form, input, section } = parts;
 
         let visible = false;
         let ambientTimer = 0;
@@ -466,37 +429,6 @@ const playStrings = {
             }, wait);
         }
 
-        function addPoll() {
-            addBot(S.pollUp, 500);
-            window.setTimeout(() => {
-                const bubble = baseMsg('pmsg--poll');
-                const q = document.createElement('span');
-                q.className = 'ppoll__q';
-                q.textContent = S.pollQ;
-                bubble.appendChild(q);
-
-                const rows: Array<[string, number]> = [[S.pollYes, 68], [S.pollAlways, 32]];
-                const bars = rows.map(([label, pct]) => {
-                    const row = pollRow.content.firstElementChild!.cloneNode(true) as HTMLElement;
-                    const bar = row.querySelector<HTMLElement>('[role="progressbar"]')!;
-                    bar.setAttribute('aria-label', label);
-                    row.querySelector('[data-play-poll-label]')!.textContent = `${label} ${pct}%`;
-                    bubble.appendChild(row);
-                    return { bar, pct };
-                });
-                feed!.appendChild(bubble);
-                trim();
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        bars.forEach(({ bar, pct }) => {
-                            bar.style.setProperty('--progress', String(pct / 100));
-                            bar.setAttribute('aria-valuenow', String(pct));
-                        });
-                    });
-                });
-            }, reduceMotion.matches ? 120 : 900);
-        }
-
         function addSpam() {
             const line = SPAM_LINES[seq++ % SPAM_LINES.length];
             const row = addChat('definitely_human_01', '#d98a8a', line, 'pmsg--spam');
@@ -531,7 +463,6 @@ const playStrings = {
             }
 
             const cmd = text.split(/\s+/)[0].toLowerCase();
-            if (cmd === '!poll') { addPoll(); return; }
             const reply = REPLIES[cmd];
             if (reply) { addBot(reply); return; }
             addBot(S.unknown.replace('{cmd}', cmd));
