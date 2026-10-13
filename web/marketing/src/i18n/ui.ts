@@ -41,7 +41,8 @@ const changelogLocalizedPaths = Object.values(changelogFiles).map(
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   ...guideLocalizedPaths, '/guides/variables', '/command-builder', '/changelog', '/song-requests',
-  '/valorant-stats', '/import', '/govee', ...changelogLocalizedPaths, ...compareLocalizedPaths,
+  '/valorant-stats', '/fortnite-stats', '/hypixel-bedwars-stats', '/mcsr-ranked-stats', '/clash-royale-stats', '/codm-stats',
+  '/import', '/govee', ...changelogLocalizedPaths, ...compareLocalizedPaths,
 ]);
 
 const PATH_LOCALES: ReadonlyMap<string, readonly Lang[]> = new Map(

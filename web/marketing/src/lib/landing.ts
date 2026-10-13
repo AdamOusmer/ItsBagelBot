@@ -17,7 +17,7 @@ interface Overlay {
 }
 
 const overlays = import.meta.glob<Overlay>(
-    '../../../../locales/*/console/modules/catalog/{valorant,govee}.json',
+    '../../../../locales/*/console/modules/catalog/{valorant,govee,fortnite,urchin,mcsr,clashroyale,codm}.json',
     { eager: true, import: 'default' },
 );
 const chatTables = import.meta.glob<Record<string, string>>(
@@ -154,4 +154,149 @@ export function valorantExampleLines(lang: Lang) {
         { who: 'viewer' as const, name: 'Cardistry', text: '!valmatches' },
         { who: 'bot' as const, text: catalogReplyText(lang, 'valorant', matches) },
     ];
+}
+
+interface GameSpec {
+    module: string;
+    ns: string;
+    path: string;
+    aiDoc: string;
+    relKey: string;
+    aliases: Readonly<Record<string, string>>;
+    lookup: { command: string; arg: string };
+    demo: readonly { viewer: string; typed: string; reply: string }[];
+}
+
+export const GAMES = {
+    fortnite: {
+        module: 'fortnite',
+        ns: 'fortniteStats',
+        path: '/fortnite-stats',
+        aiDoc: 'https://ai.itsbagelbot.com/features/fortnite.md',
+        relKey: 'landing.relFortnite',
+        aliases: {
+            fn: '!fn stats, !fnstats, !fortnitestats',
+            'fn season': '!fnseason',
+            'fn session': '!fnsession',
+            'fn store': '!fnstore, !itemshop, !fnshop',
+        },
+        lookup: { command: 'fn', arg: 'Ninja' },
+        demo: [
+            { viewer: VIEWER, typed: '!fn Ninja', reply: 'stats' },
+            { viewer: 'Cardistry', typed: '!fn store', reply: 'store' },
+        ],
+    },
+    bedwars: {
+        module: 'urchin',
+        ns: 'bedwarsStats',
+        path: '/hypixel-bedwars-stats',
+        aiDoc: 'https://ai.itsbagelbot.com/features/urchin.md',
+        relKey: 'landing.relBedwars',
+        aliases: {
+            daily: '!bwdaily',
+            weekly: '!bwweekly',
+            monthly: '!bwmonthly',
+            bwstats: '!bedwars',
+            sniper: '!urchin',
+            tag: '!tags, !bwtags',
+        },
+        lookup: { command: 'bwstats', arg: 'Technoblade' },
+        demo: [
+            { viewer: VIEWER, typed: '!bwstats Technoblade', reply: 'stats' },
+            { viewer: 'Cardistry', typed: '!daily', reply: 'daily' },
+        ],
+    },
+    mcsr: {
+        module: 'mcsr',
+        ns: 'mcsrStats',
+        path: '/mcsr-ranked-stats',
+        aiDoc: 'https://ai.itsbagelbot.com/features/mcsr.md',
+        relKey: 'landing.relMcsr',
+        aliases: {
+            elo: '!mcsr, !ranked',
+            session: '!mcsrsession',
+            pace: '!pacesession, !splits',
+            nethers: '!nph',
+            lastfort: '!lastpace, !previousfort',
+            lastmatch: '!rankedmatch',
+            record: '!matchrecord',
+            lb: '!rankedlb, !mcsrlb',
+            race: '!weeklyrace',
+            pb: '!personalbest',
+        },
+        lookup: { command: 'elo', arg: 'Feinberg' },
+        demo: [
+            { viewer: VIEWER, typed: '!elo Feinberg', reply: 'elo' },
+            { viewer: 'Cardistry', typed: '!lastmatch', reply: 'lastmatch' },
+        ],
+    },
+    clashroyale: {
+        module: 'clashroyale',
+        ns: 'clashRoyaleStats',
+        path: '/clash-royale-stats',
+        aiDoc: 'https://ai.itsbagelbot.com/features/clashroyale.md',
+        relKey: 'landing.relClashRoyale',
+        aliases: {
+            cr: '!cr stats, !crstats, !clashroyale',
+            'cr decks': '!crdecks, !crdeck',
+            'cr ranked': '!crranked, !crpol',
+            'cr road': '!crroad, !crtrophy',
+        },
+        lookup: { command: 'cr', arg: '#P2LQ0GR' },
+        demo: [
+            { viewer: VIEWER, typed: '!cr #P2LQ0GR', reply: 'stats' },
+            { viewer: 'Cardistry', typed: '!cr decks', reply: 'decks' },
+        ],
+    },
+    codm: {
+        module: 'codm',
+        ns: 'codmStats',
+        path: '/codm-stats',
+        aiDoc: 'https://ai.itsbagelbot.com/features/codm.md',
+        relKey: 'landing.relCodm',
+        aliases: { codm: '!codmprofile, !codmrank' },
+        lookup: { command: 'codm', arg: 'iFerg' },
+        demo: [
+            { viewer: VIEWER, typed: '!codm iFerg', reply: 'profile' },
+            { viewer: 'Cardistry', typed: '!codmrank iFerg', reply: 'profile' },
+        ],
+    },
+} as const satisfies Record<string, GameSpec>;
+
+export type GameId = keyof typeof GAMES;
+
+export function gameRelated(id: GameId): { path: string; relKey: string }[] {
+    return Object.entries(GAMES).filter(([key]) => key !== id).map(([, game]) => ({ path: game.path, relKey: game.relKey }));
+}
+
+function gameRow(game: GameSpec, lang: Lang, t: Translate, reply: ModuleReply): CommandRow {
+    const command = `!${reply.command}`;
+    const cells = [command, game.aliases[reply.command ?? ''] ?? t('landing.none'), t('landing.whoEveryone'), catalogReplyText(lang, game.module, reply)];
+    return { cells, copy: command };
+}
+
+export function gameRows(id: GameId, lang: Lang, t: Translate): CommandRow[] {
+    const game: GameSpec = GAMES[id];
+    const { command, arg } = game.lookup;
+    return moduleOf(game.module).replies
+        .filter((reply) => reply.command)
+        .flatMap((reply): CommandRow[] => {
+            const row = gameRow(game, lang, t, reply);
+            if (reply.command !== command) return [row];
+            const typed = `!${command} ${arg}`;
+            return [row, { cells: [typed, ...row.cells.slice(1)], copy: typed }];
+        });
+}
+
+export function gameExampleLines(id: GameId, lang: Lang) {
+    const game: GameSpec = GAMES[id];
+    const replies = moduleOf(game.module).replies;
+    return game.demo.flatMap((step) => {
+        const reply = replies.find((candidate) => candidate.key === step.reply);
+        if (!reply) throw new Error(`catalog reply missing: ${game.module}.${step.reply}`);
+        return [
+            { who: 'viewer' as const, name: step.viewer, text: step.typed },
+            { who: 'bot' as const, text: catalogReplyText(lang, game.module, reply) },
+        ];
+    });
 }

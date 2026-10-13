@@ -22,5 +22,20 @@
   "relPricing": "Pricing",
   "relSpotifyGuide": "Spotify setup guide",
   "relGoveeGuide": "Govee setup guide",
-  "relSongRequests": "Song requests"
+  "relSongRequests": "Song requests",
+  "gameHowEyebrow": "How it works",
+  "gameListEyebrow": "Good to know",
+  "gameFaqEyebrow": "FAQ",
+  "gameFaqTitle": "Setup questions.",
+  "gameTblEyebrow": "Commands",
+  "gameTblTitle": "Commands and example replies.",
+  "gameCtaGuide": "Read the modules guide",
+  "gameUpdated": "Updated October 13, 2026",
+  "gameDemoCaption": "Example bot replies. Player names and stats are sample values.",
+  "relValorant": "Valorant stats",
+  "relFortnite": "Fortnite stats",
+  "relBedwars": "Hypixel Bedwars stats",
+  "relMcsr": "MCSR Ranked stats",
+  "relClashRoyale": "Clash Royale stats",
+  "relCodm": "CODM stats"
 }

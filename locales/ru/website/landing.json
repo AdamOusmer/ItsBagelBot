@@ -22,5 +22,20 @@
   "relPricing": "Тарифы",
   "relSpotifyGuide": "Руководство по настройке Spotify",
   "relGoveeGuide": "Руководство по настройке Govee",
-  "relSongRequests": "Заказы песен"
+  "relSongRequests": "Заказы песен",
+  "gameHowEyebrow": "Как это работает",
+  "gameListEyebrow": "Полезно знать",
+  "gameFaqEyebrow": "FAQ",
+  "gameFaqTitle": "Вопросы по настройке.",
+  "gameTblEyebrow": "Команды",
+  "gameTblTitle": "Команды и примеры ответов.",
+  "gameCtaGuide": "Читать руководство по модулям",
+  "gameUpdated": "Обновлено 13 октября 2026 г.",
+  "gameDemoCaption": "Примеры ответов бота. Имена игроков и статистика приведены для примера.",
+  "relValorant": "Статистика Valorant",
+  "relFortnite": "Статистика Fortnite",
+  "relBedwars": "Статистика Hypixel Bedwars",
+  "relMcsr": "Статистика MCSR Ranked",
+  "relClashRoyale": "Статистика Clash Royale",
+  "relCodm": "Статистика CODM"
 }
