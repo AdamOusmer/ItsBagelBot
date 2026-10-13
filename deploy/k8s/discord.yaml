@@ -85,7 +85,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-ingress
-          image: ghcr.io/adamousmer/itsbagelbot/discord-ingress:v0.2.7-beta@sha256:53204f6fc193f827262e2efd82142f36bdc5543826e06382b624d32e6650d6d4
+          image: ghcr.io/adamousmer/itsbagelbot/discord-ingress:v0.2.8-beta@sha256:3cfa0e86f4c214dcc3f7227384a77b82652e1353d57ce84006711a4b0f0932cc
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
@@ -281,7 +281,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-engine
-          image: ghcr.io/adamousmer/itsbagelbot/discord-engine:v0.2.7-beta@sha256:bf716dd88eacc5bc12c2272b84b21d48e533f113a5431f7939e51eb1edb01efa
+          image: ghcr.io/adamousmer/itsbagelbot/discord-engine:v0.2.8-beta@sha256:1fe456aa392add969b276eb1ebaea306671673425850d58bdc7171bf8ea8b23c
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
@@ -477,7 +477,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: discord-outgress
-          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:v0.2.7-beta@sha256:d0da501a7c0adb636d28dacab03257d5c2d9bdb7469f34500cb0edb4d0ea4d5e
+          image: ghcr.io/adamousmer/itsbagelbot/discord-outgress:v0.2.8-beta@sha256:e80e4bb00874b361784e65657b5cef865b42ac4b92c206cc6c62f60a42cf8e05
           imagePullPolicy: IfNotPresent
           env:
             - name: VALKEY_TLS_CA_PEM
