@@ -454,7 +454,7 @@ const guide: GuideContent = {
             ['That sample is over 128 KB. Paste a shorter one.', 'The pasted sample is too large for the tree.', 'Paste a smaller slice of the response.'],
             ['Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.', 'Fetch a sample allows about one test every 10 seconds.', 'Wait 10 seconds.'],
             ['You\'ve reached the 20 data source limit for your channel. Delete one to make room.', 'A channel holds 20 data sources.', 'Delete a source you no longer use.'],
-            ['A definition named "name" already exists.', 'Another source already has that name.', 'Pick a different name, or edit the existing source.'],
+            ['A data source named "name" already exists.', 'Another source already has that name.', 'Pick a different name, or edit the existing source.'],
             ['A timer message can reference at most 3 different fetched values (&#123;urlfetch:…&#125;).', 'Timer messages are capped at 3 data sources.', 'Quote fewer sources in the timer message.'],
             ['A raw &#123;urlfetch:name&#125; in chat', 'The source is paused, missing, or cannot produce a value, and the token has no |default. Tokens past the per-message cap also stay raw.', 'Open the command, check the name matches a saved source, and resume it if paused. Add a |default so chat shows a fallback instead.'],
           ],

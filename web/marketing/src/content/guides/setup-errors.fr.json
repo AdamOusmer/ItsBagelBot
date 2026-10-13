@@ -723,7 +723,7 @@
   "commands.b0.rows.27.1": "Une chaîne garde 20 sources de données.",
   "commands.b0.rows.27.2": "Supprimez une source que vous n'utilisez plus.",
   "commands.b0.rows.27.3": "<a href=\"/fr/guides/data-sources#errors\">Sources de données: Ce que le chat affiche en cas d’échec</a>",
-  "commands.b0.rows.28.0": "Une définition nommée « name » existe déjà.",
+  "commands.b0.rows.28.0": "Une source de données nommée « name » existe déjà.",
   "commands.b0.rows.28.1": "Une autre source porte déjà ce nom.",
   "commands.b0.rows.28.2": "Choisissez un autre nom, ou modifiez la source existante.",
   "commands.b0.rows.28.3": "<a href=\"/fr/guides/data-sources#errors\">Sources de données: Ce que le chat affiche en cas d’échec</a>",

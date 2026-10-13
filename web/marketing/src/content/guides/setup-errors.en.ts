@@ -1173,7 +1173,7 @@ const guide: GuideContent = {
               "<a href=\"/guides/data-sources#errors\">Data sources: What chat shows when it fails</a>"
             ],
             [
-              "A definition named \"name\" already exists.",
+              "A data source named \"name\" already exists.",
               "Another source already has that name.",
               "Pick a different name, or edit the existing source.",
               "<a href=\"/guides/data-sources#errors\">Data sources: What chat shows when it fails</a>"

@@ -98,7 +98,7 @@
   "errors.b5.rows.10.0": "Vous avez atteint la limite de 20 sources de données pour votre chaîne. Supprimez-en une pour faire de la place.",
   "errors.b5.rows.10.1": "Une chaîne garde 20 sources de données.",
   "errors.b5.rows.10.2": "Supprimez une source que vous n'utilisez plus.",
-  "errors.b5.rows.11.0": "Une définition nommée « name » existe déjà.",
+  "errors.b5.rows.11.0": "Une source de données nommée « name » existe déjà.",
   "errors.b5.rows.11.1": "Une autre source porte déjà ce nom.",
   "errors.b5.rows.11.2": "Choisissez un autre nom, ou modifiez la source existante.",
   "errors.b5.rows.12.0": "Un message de minuteur peut référencer au maximum 3 valeurs récupérées différentes (&#123;urlfetch:…&#125;).",
