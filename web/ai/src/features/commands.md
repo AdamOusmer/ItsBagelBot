@@ -130,6 +130,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 <related>
 
+- [Command errors](../errors/commands.md).
 - [Getting started](../setup/getting-started.md).
 - [Commands setup](../setup/commands.md).
 - [Connection errors](../errors/connection.md).
