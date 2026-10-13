@@ -2,11 +2,12 @@
 
 > Technical documentation for ItsBagelBot, a free all-in-one Twitch companion
 > bot: Spotify song requests (!sr), automated chat moderation, custom commands,
-> timers, giveaways, polls, channel-points rewards, and game-stat integrations
-> (Valorant, Hypixel Bedwars, MCSR Ranked, Fortnite). This site covers the
-> engineering side: architecture, service internals, and decision records.
-> For product features, pricing, and user guides, see
-> https://itsbagelbot.com/llms.txt and https://itsbagelbot.com/guides/.
+> timers, giveaways, channel-points rewards, and game-stat integrations
+> (Valorant, Hypixel Bedwars, MCSR Ranked, Fortnite). This host is
+> engineering documentation: architecture, service internals, and decision
+> records. For product, pricing, and setup questions, use
+> https://itsbagelbot.com/llms.txt and https://ai.itsbagelbot.com/llms.txt
+> instead, and https://itsbagelbot.com/guides/ for user guides.
 
 ## Sections
 
