@@ -6,6 +6,7 @@ package repository_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/enttest"
@@ -329,4 +330,29 @@ func TestUserCooldownSurvivesEveryWritePath(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, restored)
 	requireStoredCooldowns(t, client, pub, "afk")
+}
+
+func TestDeleteAllForUserKeepsCommandsAReregisteredAccountCreated(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	cutoff := time.Now()
+	for _, row := range []struct {
+		user    uint64
+		name    string
+		created time.Time
+	}{
+		{1001, "old", cutoff.Add(-time.Hour)},
+		{1001, "new", cutoff.Add(time.Hour)},
+		{2002, "other", cutoff.Add(-time.Hour)},
+	} {
+		client.Commands.Create().SetUserID(row.user).SetName(row.name).SetResponse("hi").SetCreatedAt(row.created).SaveX(ctx)
+	}
+
+	require.NoError(t, repo.DeleteAllForUser(ctx, 1001, cutoff))
+
+	var names []string
+	for _, row := range client.Commands.Query().Order(ent.Asc("name")).AllX(ctx) {
+		names = append(names, row.Name)
+	}
+	assert.Equal(t, []string{"new", "other"}, names)
 }

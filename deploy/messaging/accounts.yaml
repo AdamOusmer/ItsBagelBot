@@ -133,6 +133,7 @@ accounts:
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
                         - dlq.data.commands.>
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - data.commands.>
@@ -275,6 +276,7 @@ accounts:
                         - $JS.ACK.*.*.BAGEL_DATA.>
                         - dlq.data.modules.>
                         - dlq.data.reproject.request
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - data.modules.>

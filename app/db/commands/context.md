@@ -75,6 +75,10 @@ The rest of `ent/` is generated; edit schema sources and regenerate.
 
 - Unique ownership keys are `(user_id, name)` and `(user_id, label)` for keys.
   Normalize names consistently across requests, events, hooks and references.
+- `data.users.deleted` removes only commands, fetch definitions and keys whose
+  `created_at` is not after the event's deletion cutoff; a re-registered
+  account's rows survive a redelivered event. Use flushes bump `updated_at`, so
+  do not fence on it.
 - Command-content upserts preserve `uses` and `created_at`. Use increments guard
   against signed-int64 overflow before addition, rolling back the receipt on error.
   Wire readers accept historical numeric uses and decimal strings; writers emit strings.

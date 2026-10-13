@@ -5,7 +5,7 @@ package main
 
 import (
 	"context"
-	"errors"
+	"time"
 
 	"ItsBagelBot/app/db/discord/ent"
 	// Without the ent runtime import every write fails.
@@ -14,7 +14,7 @@ import (
 	"ItsBagelBot/app/db/discord/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -78,21 +78,8 @@ func rpcEndpoint() string {
 }
 
 func eraseDeletedAccount(repo *repository.Store, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.UserDeletedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("discord-data: bad user_deleted payload", zap.Error(err))
-			return nil
-		}
-		deletedAt := dto.DeletedAt
-		if deletedAt.IsZero() {
-			deletedAt = msg.StoredAt()
-		}
-		_, err := repo.EraseBroadcaster(msg.Context(), dto.UserID, deletedAt)
-		if errors.Is(err, repository.ErrInvalidInput) {
-			log.Warn("discord-data: unusable user_deleted event", zap.Uint64("user_id", dto.UserID))
-			return nil
-		}
+	return consumers.OnUserDeleted(serviceName, log, func(ctx context.Context, userID uint64, cutoff time.Time) error {
+		_, err := repo.EraseBroadcaster(ctx, userID, cutoff)
 		return err
-	}
+	})
 }
