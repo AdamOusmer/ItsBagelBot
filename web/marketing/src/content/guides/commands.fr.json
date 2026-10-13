@@ -32,8 +32,8 @@
   "anatomy.b1.notes.3.text": "La répétition du chat joue votre réponse avec des valeurs d’exemple avant d’enregistrer. Le constructeur de commandes a la même.",
   "anatomy.b1.notes.4.text": "Accès et délais: qui peut l’utiliser, combien de temps tout le monde attend après chaque utilisation, et combien de temps chaque spectateur attend entre deux de ses utilisations.",
   "anatomy.b1.notes.5.text": "Uniquement pendant le direct met la commande en pause hors ligne; Active est l’interrupteur général.",
-  "anatomy.b1.notes.6.text": "Source de données: insère une valeur récupérée d’une définition API enregistrée, au lieu d’une variable.",
-  "anatomy.b2.html": "\n                <b>Astuce</b>\n                La puce Source de données insère <code>&#123;urlfetch:name&#125;</code>, une valeur\n                tirée d’une API que vous avez vous-même enregistrée. Le\n                <a href=\"/fr/guides/data-sources\">guide des sources de données</a> explique comment en\n                enregistrer une première.",
+  "anatomy.b1.notes.6.text": "Source de données: insère une valeur récupérée d’une de vos sources de données, au lieu d’une variable.",
+  "anatomy.b2.html": "\n                <b>Astuce</b>\n                La puce Source de données insère <code>&#123;urlfetch:name&#125;</code>, une valeur\n                tirée d’une source de données que vous avez vous-même enregistrée. Le\n                <a href=\"/fr/guides/data-sources\">guide des sources de données</a> explique comment en\n                enregistrer une première.",
   "anatomy.heading": "L'anatomie d'une commande",
   "anatomy.note": "Deux champs obligatoires, six réglages optionnels. Apprenez-les une fois, réutilisez-les toujours.",
   "builder.b0.html": "\n            <p>\n                Tout ce guide est intégré au\n                <a href=\"/fr/command-builder\">constructeur de commandes</a>: choisissez les variables\n                dans une liste expliquée au lieu de les mémoriser, regardez une répétition de chat en\n                direct pendant que vous tapez, et quand tout sonne juste, envoyez la commande à votre\n                tableau de bord, où une confirmation la crée en un clic. C'est le chemin le plus court entre\n                l'idée et la commande qui fonctionne.\n            </p>",
@@ -113,8 +113,8 @@
   "rules.b1.rows.4.1": "0 à 86400 secondes. Chaque spectateur attend ce délai entre deux de ses utilisations; les autres peuvent toujours la lancer une fois le délai commun écoulé. Les noms alternatifs comptent comme la même commande. 0 le désactive.",
   "rules.b1.rows.5.0": "Accès",
   "rules.b1.rows.5.1": "Rang minimal, dans l'ordre: tout le monde, abonnés, VIP, modérateurs, modérateurs principaux, diffuseur. Chaque niveau inclut ceux au-dessus.",
-  "rules.b1.rows.6.0": "Restreindre à une personne",
-  "rules.b1.rows.6.1": "Verrouillez une commande sur un seul compte Twitch; cela remplace entièrement le niveau d'accès. Parfait pour la commande personnelle d'un ami.",
+  "rules.b1.rows.6.0": "Restreindre à un ID utilisateur",
+  "rules.b1.rows.6.1": "Verrouillez une commande sur un seul compte Twitch; cela remplace entièrement le niveau d'accès. Parfait pour la commande personnelle d'un ami. Le champ n'accepte que des chiffres: l'ID utilisateur Twitch, pas le nom d'utilisateur. Pour trouver un ID, utilisez une recherche d'ID utilisateur Twitch en laquelle vous avez confiance, ou un outil de modération qui affiche les ID utilisateur.",
   "rules.heading": "Les règles du jeu",
   "rules.note": "Noms, limites, délais et niveaux d'accès. Tout ce que l'éditeur accepte et refuse."
 }

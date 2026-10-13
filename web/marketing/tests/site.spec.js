@@ -363,11 +363,11 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the five guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the ten guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(5);
+        await expect(page.locator('.gcard')).toHaveCount(10);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
@@ -402,7 +402,7 @@ test.describe('guides & command builder', () => {
 
         const outcomes = page.locator('[data-fetchoutcomes]');
         await outcomes.locator('[data-go-tab]').nth(2).click();
-        await expect(outcomes.locator('[data-go-line]')).toContainText('[source timed out]');
+        await expect(outcomes.locator('[data-go-line]')).toContainText('It is °C in Montreal right now.');
     });
 
     test('module catalog filters by category', async ({ page }) => {

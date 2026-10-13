@@ -47,7 +47,7 @@ const guide: GuideContent = {
             { n: 4, text: 'The chat rehearsal acts your response out with sample values before you save. The command builder has the same one.' },
             { n: 5, text: 'Access and cooldowns: who can use it, how long everyone waits after each use, and how long each viewer waits between their own uses.' },
             { n: 6, text: 'Only while live parks the command when the stream is offline; Active is the on/off switch.' },
-            { n: 7, text: 'Data source: inserts a value fetched from a saved API definition instead of a variable.' },
+            { n: 7, text: 'Data source: inserts a value fetched from one of your data sources instead of a variable.' },
           ],
         },
         {
@@ -56,7 +56,7 @@ const guide: GuideContent = {
           html: `
                 <b>Tip</b>
                 The Data source chip inserts <code>&#123;urlfetch:name&#125;</code>, a value pulled from
-                an API you saved yourself. The <a href="/guides/data-sources">Data sources guide</a>
+                a data source you saved yourself. The <a href="/guides/data-sources">Data sources guide</a>
                 walks through saving your first one.`,
         },
       ],
@@ -218,7 +218,7 @@ const guide: GuideContent = {
             ['Shared cooldown', '0 to 86400 seconds. It is shared by the whole chat: after anyone uses the command, everyone waits. 0 turns it off.'],
             ['Per-viewer cooldown', '0 to 86400 seconds. Each viewer waits this long between their own uses; everyone else can still run it once the shared cooldown ends. Alternate names count as the same command. 0 turns it off.'],
             ['Access', 'Minimum rank, in order: everyone, subscribers, VIPs, moderators, lead moderators, broadcaster. Each level includes everyone above it.'],
-            ['Restrict to one user', "Optionally lock a command to a single Twitch account; that overrides the access level entirely. Perfect for one friend's personal command."],
+            ['Restrict to user ID', "Optionally lock a command to a single Twitch account; that overrides the access level entirely. Perfect for one friend's personal command. The field takes numbers only: the Twitch user ID, not the username. To find an ID, use a Twitch user ID lookup you trust, or a moderator tool that shows user IDs."],
           ],
         },
       ],
