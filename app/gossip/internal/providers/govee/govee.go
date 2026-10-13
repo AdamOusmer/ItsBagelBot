@@ -123,7 +123,11 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 	}
 
 	cacheKey := core.Key(providerName, "devices", broadcaster)
-	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
+	cachedBytes := core.CachedBytes
+	if req.Fresh {
+		cachedBytes = core.CachedBytesFresh
+	}
+	b, err := cachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
 		b, ttl, _, err := core.BuildReplyWithMapper(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp deviceListResponse

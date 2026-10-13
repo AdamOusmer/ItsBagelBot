@@ -65,6 +65,17 @@ func TestDevicesParsesAndFlagsColor(t *testing.T) {
 	}, reply.Devices)
 }
 
+func TestDevicesFreshBypassesCache(t *testing.T) {
+	upstream := providertest.NewSequence(t, providertest.Reply{Body: deviceListBody})
+	p := newProvider(t, fakeKeys{key: "k-123"}, upstream)
+
+	providertest.Call[gossiprpc.GoveeDevicesReply](t, p, "devices", gossiprpc.Request{ChannelID: "2"})
+	require.Equal(t, 1, upstream.Hits())
+
+	providertest.Call[gossiprpc.GoveeDevicesReply](t, p, "devices", gossiprpc.Request{ChannelID: "2", Fresh: true})
+	assert.Equal(t, 2, upstream.Hits())
+}
+
 func TestControlPowersOnThenSetsColor(t *testing.T) {
 	var bodies []map[string]any
 	var gotKey string

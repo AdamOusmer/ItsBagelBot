@@ -194,7 +194,7 @@ export function goveeStore(userId: string): GoveeStore {
     try {
       const r = await rpcReply<{ devices?: GoveeDevice[]; key_rejected?: boolean }>(
         `${SUB.gossip}.govee.devices`,
-        { channel_id: userId },
+        { channel_id: userId, fresh: true },
         9000
       );
       if (Array.isArray(r.devices)) return 'ok';
