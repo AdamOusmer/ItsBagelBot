@@ -1,0 +1,7 @@
+{
+  "refund.offline": "@{govee:user} die Lichter lassen sich nur ändern, wenn die Übertragung läuft, deine Punkte wurden zurückerstattet.",
+  "refund.colour": "@{govee:user} diese Farbe wurde nicht erkannt, deine Punkte wurden zurückerstattet. Versuche einen Namen wie blue oder einen Hex-Code wie #00ccff.",
+  "refund.setup": "@{govee:user} die Lichter sind noch nicht eingerichtet, deine Punkte wurden zurückerstattet.",
+  "refund.busy": "@{govee:user} die Lichter werden zu häufig geändert, deine Punkte wurden zurückerstattet. Versuche es in einem Moment erneut.",
+  "refund.unreachable": "@{govee:user} die Lichter konnten nicht erreicht werden, deine Punkte wurden zurückerstattet."
+}

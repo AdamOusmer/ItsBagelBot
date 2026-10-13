@@ -1,0 +1,7 @@
+{
+  "refund.offline": "@{govee:user} les lumières ne changent que pendant une diffusion en direct, tes points ont été remboursés.",
+  "refund.colour": "@{govee:user} cette couleur n'a pas été reconnue, tes points ont été remboursés. Essaie un nom comme blue ou un code hexadécimal comme #00ccff.",
+  "refund.setup": "@{govee:user} les lumières ne sont pas encore configurées, tes points ont été remboursés.",
+  "refund.busy": "@{govee:user} les lumières changent trop souvent, tes points ont été remboursés. Réessaie dans un instant.",
+  "refund.unreachable": "@{govee:user} impossible de joindre les lumières, tes points ont été remboursés."
+}
