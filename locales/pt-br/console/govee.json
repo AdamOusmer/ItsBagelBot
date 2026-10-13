@@ -76,6 +76,7 @@
   "keyRemoveTitle": "Remover a chave da Govee?",
   "keyRemoveBody": "O bot para de controlar suas luzes até você colar uma chave novamente. Suas recompensas continuam na Twitch.",
   "keyInvalid": "A Govee não aceitou esta chave. Confira e tente novamente.",
+  "keyUnchecked": "Chave salva, mas a Govee não respondeu, então ela ainda não foi verificada. Suas luzes funcionarão quando a Govee voltar. Se não funcionarem, cole a chave novamente.",
   "devicesRetry": "Tentar novamente",
   "noLightsBody": "Adicione uma luz à sua conta Govee no aplicativo Govee. Apenas modelos com suporte a cores aparecem aqui.",
   "noLightsCta": "Atualizar luzes",

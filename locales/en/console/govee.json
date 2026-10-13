@@ -76,6 +76,7 @@
   "keyRemoveTitle": "Remove the Govee key?",
   "keyRemoveBody": "The bot stops driving your lights until you paste a key again. Your rewards stay on Twitch.",
   "keyInvalid": "Govee did not accept this key. Check it and try again.",
+  "keyUnchecked": "Key saved, but Govee did not answer, so it is not checked yet. Your lights will work once Govee is back. If they do not, paste the key again.",
   "devicesRetry": "Try again",
   "noLightsBody": "Add a light to your Govee account in the Govee app. Only models that support colour appear here.",
   "noLightsCta": "Refresh lights",

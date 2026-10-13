@@ -95,27 +95,30 @@ func TestControlPowersOnThenSetsColor(t *testing.T) {
 func TestRequestsThatCannotBeServedExplainWhyAndOnlyDialWhenTheyShould(t *testing.T) {
 	const channel = "2"
 	for _, tc := range []struct {
-		name      string
-		endpoint  string
-		keys      fakeKeys
-		req       gossiprpc.Request
-		upstream  []providertest.Reply
-		wantError string
-		wantHits  int
+		name            string
+		endpoint        string
+		keys            fakeKeys
+		req             gossiprpc.Request
+		upstream        []providertest.Reply
+		wantError       string
+		wantHits        int
+		wantKeyRejected bool
 	}{
 		{"devices: rejects a request without a channel", "devices", fakeKeys{key: "k"},
-			gossiprpc.Request{}, nil, "missing channel", 0},
+			gossiprpc.Request{}, nil, "missing channel", 0, false},
 		{"devices: does not dial Govee with no key on file", "devices", fakeKeys{},
-			gossiprpc.Request{ChannelID: channel}, nil, "no Govee API key", 0},
+			gossiprpc.Request{ChannelID: channel}, nil, "no Govee API key", 0, false},
 		{"devices: reports a key store failure", "devices", fakeKeys{err: errors.New("custody unreachable")},
-			gossiprpc.Request{ChannelID: channel}, nil, "could not read your Govee key", 0},
+			gossiprpc.Request{ChannelID: channel}, nil, "could not read your Govee key", 0, false},
+		{"devices: reports a rejected key", "devices", fakeKeys{key: "k"},
+			gossiprpc.Request{ChannelID: channel}, []providertest.Reply{{Status: http.StatusUnauthorized, Body: `{}`}}, "Govee did not accept this API key", 1, true},
 		{"devices: reports an upstream failure", "devices", fakeKeys{key: "k"},
-			gossiprpc.Request{ChannelID: channel}, []providertest.Reply{{Status: http.StatusInternalServerError, Body: `{}`}}, "device lookup failed", 1},
+			gossiprpc.Request{ChannelID: channel}, []providertest.Reply{{Status: http.StatusInternalServerError, Body: `{}`}}, "device lookup failed", 1, false},
 		{"control: does not dial Govee without a device", "control", fakeKeys{key: "k"},
-			gossiprpc.Request{ChannelID: channel, SKU: "H6159", ColorRGB: 1}, nil, "missing device", 0},
+			gossiprpc.Request{ChannelID: channel, SKU: "H6159", ColorRGB: 1}, nil, "missing device", 0, false},
 		{"control: surfaces an API level failure", "control", fakeKeys{key: "k"},
 			gossiprpc.Request{ChannelID: channel, Device: "AB:CD:EF", SKU: "H6159", ColorRGB: 0xFF0000},
-			[]providertest.Reply{{Body: `{"code":400,"message":"invalid device"}`}}, "could not reach your lights", 1},
+			[]providertest.Reply{{Body: `{"code":400,"message":"invalid device"}`}}, "could not reach your lights", 1, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := providertest.NewSequence(t, tc.upstream...)
@@ -124,6 +127,10 @@ func TestRequestsThatCannotBeServedExplainWhyAndOnlyDialWhenTheyShould(t *testin
 			res := providertest.Endpoint(t, p, tc.endpoint)(context.Background(), tc.req)
 
 			assert.Contains(t, providertest.ErrorOf(t, res), tc.wantError)
+			if tc.endpoint == "devices" && tc.upstream != nil {
+				reply := providertest.Decode[gossiprpc.GoveeDevicesReply](t, res)
+				assert.Equal(t, tc.wantKeyRejected, reply.KeyRejected)
+			}
 			assert.Equal(t, tc.wantHits, upstream.Hits())
 		})
 	}

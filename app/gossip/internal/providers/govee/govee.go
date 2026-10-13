@@ -124,7 +124,7 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 
 	cacheKey := core.Key(providerName, "devices", broadcaster)
 	b, err := core.CachedBytes(ctx, p.cache, cacheKey, nil, func(ctx context.Context) ([]byte, time.Duration, error) {
-		b, ttl, _, err := core.BuildReply(ctx, devicesTTL, negativeTTL,
+		b, ttl, _, err := core.BuildReplyWithMapper(ctx, devicesTTL, negativeTTL,
 			func(ctx context.Context) (any, error) {
 				var resp deviceListResponse
 				req := core.Request{Method: http.MethodGet, Path: devicesPath, Headers: authHeader(key)}
@@ -137,11 +137,22 @@ func (p *api) devices(ctx context.Context, req gossiprpc.Request) any {
 				return buildDevicesReply(resp), nil
 			},
 			func(msg string) any { return gossiprpc.GoveeDevicesReply{Error: msg} },
+			func(err error) (string, core.Pin) {
+				var ue *core.UpstreamError
+				if errors.As(err, &ue) && (ue.Status == 401 || ue.Status == 403) {
+					return "", core.PinNone
+				}
+				return core.FriendlyUpstream(err)
+			},
 		)
 		return b, ttl, err
 	})
 	if err != nil {
 		log.Warn("govee devices fetch failed", zap.String("broadcaster", broadcaster), zap.Error(err))
+		var ue *core.UpstreamError
+		if errors.As(err, &ue) && (ue.Status == 401 || ue.Status == 403) {
+			return gossiprpc.GoveeDevicesReply{Error: "Govee did not accept this API key", KeyRejected: true}
+		}
 		return gossiprpc.GoveeDevicesReply{Error: "device lookup failed"}
 	}
 	return codec.RawMessage(b)

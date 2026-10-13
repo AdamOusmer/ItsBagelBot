@@ -192,8 +192,9 @@ type GoveeDevice struct {
 }
 
 type GoveeDevicesReply struct {
-	Devices []GoveeDevice `json:"devices"`
-	Error   string        `json:"error,omitempty"`
+	Devices     []GoveeDevice `json:"devices"`
+	Error       string        `json:"error,omitempty"`
+	KeyRejected bool          `json:"key_rejected,omitempty"`
 }
 
 type GoveeControlReply struct {

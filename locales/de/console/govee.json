@@ -76,6 +76,7 @@
   "keyRemoveTitle": "Govee-Schlüssel entfernen?",
   "keyRemoveBody": "Der Bot steuert deine Leuchten erst wieder, wenn du einen Schlüssel einfügst. Deine Belohnungen bleiben auf Twitch.",
   "keyInvalid": "Govee hat diesen Schlüssel nicht akzeptiert. Prüfe ihn und versuche es erneut.",
+  "keyUnchecked": "Schlüssel gespeichert, aber Govee hat nicht geantwortet, daher ist er noch nicht geprüft. Deine Leuchten funktionieren, sobald Govee wieder erreichbar ist. Falls nicht, füge den Schlüssel erneut ein.",
   "devicesRetry": "Erneut versuchen",
   "noLightsBody": "Füge in der Govee-App eine Leuchte zu deinem Govee-Konto hinzu. Hier erscheinen nur Modelle mit Farbunterstützung.",
   "noLightsCta": "Leuchten aktualisieren",

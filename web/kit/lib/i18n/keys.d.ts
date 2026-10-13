@@ -2023,6 +2023,7 @@ export type KnownMessageKey =
   | 'govee.keySaveFailed'
   | 'govee.keySaved'
   | 'govee.keyTitle'
+  | 'govee.keyUnchecked'
   | 'govee.lightsTitle'
   | 'govee.liveOnlyLabel'
   | 'govee.liveOnlyOff'
