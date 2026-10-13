@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 
 	"ItsBagelBot/app/discord/outgress/internal/bootstrap"
 	"ItsBagelBot/app/discord/outgress/internal/commands"
@@ -16,6 +17,7 @@ import (
 	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/svcboot"
@@ -47,6 +49,7 @@ func main() {
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 	botStatus := kv.NewBotStatusReader(valkeyClient)
+	tier := projectedTier(projection.NewStore(valkeyClient))
 	lockdowns := kv.NewLockdownStore(valkeyClient)
 
 	applicationID := registerSlashCommands(ctx, rest, log)
@@ -58,7 +61,7 @@ func main() {
 
 	subscribeRPCs(rpcDeps{
 		NC: nc, Cfg: cfg, Rest: rest, Store: store, ApplicationID: applicationID,
-		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, NRApp: nrApp, Log: log,
+		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, Tier: tier, NRApp: nrApp, Log: log,
 	})
 
 	lanes := startCommandConsumer(consumerDeps{
@@ -97,6 +100,7 @@ type rpcDeps struct {
 	LiveStore     kv.LiveStore
 	Reauth        kv.ReauthStore
 	BotStatus     kv.BotStatusReader
+	Tier          func(ctx context.Context, userID string) (string, bool)
 	NRApp         *newrelic.Application
 	Log           *zap.Logger
 }
@@ -108,7 +112,7 @@ func subscribeRPCs(deps rpcDeps) {
 			NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue,
 			App: deps.NRApp, Log: deps.Log.Named("rpc"),
 		},
-		Reauth: deps.Reauth, Status: deps.BotStatus,
+		Reauth: deps.Reauth, Status: deps.BotStatus, Tier: deps.Tier,
 	}
 	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
@@ -154,5 +158,19 @@ func laneChecks(lanes commands.Lanes) []health.Check {
 	return []health.Check{
 		bus.LaneCheck("mod", lanes.Mod),
 		bus.LaneCheck("default", lanes.Default),
+	}
+}
+
+func projectedTier(p *projection.Store) func(context.Context, string) (string, bool) {
+	return func(ctx context.Context, userID string) (string, bool) {
+		id, err := strconv.ParseUint(userID, 10, 64)
+		if err != nil {
+			return "", false
+		}
+		status, _, _, _, _, err := p.GetUser(ctx, id)
+		if err != nil || status == "" {
+			return "", false
+		}
+		return status, true
 	}
 }

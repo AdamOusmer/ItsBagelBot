@@ -13,19 +13,30 @@
     total,
     commandsOk = true,
     pendingShares = 0,
-    sharesOk = true
+    sharesOk = true,
+    twitchScopeGap = false
   }: {
     active: number;
     total: number;
     commandsOk?: boolean;
     pendingShares?: number;
     sharesOk?: boolean;
+    twitchScopeGap?: boolean;
   } = $props();
 
-  type Issue = { id: string; text: string; cta: string; href: string };
+  type Issue = { id: string; text: string; cta: string; href: string; reload?: boolean };
 
   const issues = $derived.by<Issue[]>(() => {
     const out: Issue[] = [];
+    if (twitchScopeGap) {
+      out.push({
+        id: 'twitch-scope',
+        text: t('overview.issueTwitchScope'),
+        cta: t('overview.issueTwitchScopeCta'),
+        href: '/auth/login?reauth=1',
+        reload: true
+      });
+    }
     if (commandsOk && total > 0 && active === 0) {
       out.push({
         id: 'all-disabled',
@@ -55,7 +66,7 @@
           <AlertBanner tone="warning" flush role="note" stack>
             {issue.text}
             {#snippet actions()}
-              <ButtonLink href={issue.href} variant="ghost">{issue.cta}</ButtonLink>
+              <ButtonLink href={issue.href} variant="ghost" data-sveltekit-reload={issue.reload ? '' : undefined}>{issue.cta}</ButtonLink>
             {/snippet}
           </AlertBanner>
         </li>

@@ -16,6 +16,7 @@
 
   let { data, children } = $props();
   const { t } = getI18n();
+  const canUpgrade = $derived(!data.delegateOf || (data.sections ?? []).includes('billing'));
 
   const guild = $derived(guildInfoOf(data));
   const needsReauth = $derived(needsReauthOf(data));
@@ -37,7 +38,11 @@
         <p class="lead"><Chip as="span" pressed>{t('modules.betaChip')}</Chip></p>
         <Text size="sm" tone="muted" class="hint">{t('modules.betaLockedBody')}</Text>
         <div class="row">
-          <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
+          {#if canUpgrade}
+            <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
+          {:else}
+            <Text size="sm" tone="muted">{t('modules.betaAskOwner', { login: data.delegateLogin ?? '' })}</Text>
+          {/if}
         </div>
       </Card>
     </section>

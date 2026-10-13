@@ -158,7 +158,7 @@ async function giftCheckout(
   } catch (err) {
     if (err instanceof RpcError) {
       logger.warn({ err }, `[billing] gift rejected for ${session.user_id} -> ${recipient}`);
-      return { ok: false, status: 409, data: { gift: true, error: err.message, recipient, message } };
+      return { ok: false, status: 409, data: { gift: true, error: actionError(locale, err.message), recipient, message } };
     }
     logger.error({ err }, '[billing] gift basket create failed');
   }

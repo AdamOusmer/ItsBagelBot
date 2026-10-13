@@ -114,6 +114,9 @@ func (cp *channelPoints) fail(op, broadcasterID string, err error) manage.Reward
 	if errors.Is(err, twitch.ErrDuplicateReward) {
 		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeConflict, "duplicate reward title")}
 	}
+	if errors.Is(err, twitch.ErrNotAffiliate) {
+		return manage.RewardReply{NotAffiliate: true, Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "broadcaster not affiliate")}
+	}
 	cp.log.Warn(op+" failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInternal, "twitch request failed")}
 }

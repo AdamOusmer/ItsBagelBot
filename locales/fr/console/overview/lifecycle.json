@@ -5,14 +5,14 @@
   "issueRecovering": "Vérification de l’accès avant la reprise.",
   "timedOut": "Exclusion temporaire",
   "issueTimedOut": "Le bot reste en pause jusqu’à la fin de l’exclusion et la vérification de l’accès.",
-  "verifyUnban": "Je l’ai débanni — réessayer",
+  "verifyUnban": "Je l’ai débanni, vérifier à nouveau",
   "retryConnection": "Réessayer la vérification",
   "disabledByYou": "Désactivé par vous",
-  "retainedBan": "Le bot est toujours banni. Le débannir ne le réactivera pas automatiquement.",
+  "retainedBan": "ItsBagelBot est toujours banni de votre chat. Tapez /unban ItsBagelBot dans votre chat Twitch, puis sélectionnez « Activer et vérifier le débannissement ».",
   "connectionCheckFailed": "Échec de la vérification",
   "issueConnectionCheckFailed": "L’accès n’a pas pu être confirmé. Réessayez après avoir corrigé le problème.",
   "secondaryGrantMissing": "L’autorisation Twitch doit également être renouvelée.",
   "enableAndVerify": "Activer et vérifier le débannissement",
-  "issueBotBannedAutomatic": "Débannissez le bot sur Twitch. Il se reconnectera automatiquement. Vous pouvez aussi réessayer pour vérifier le débannissement.",
-  "issueBotBannedUnavailable": "La reprise automatique après débannissement n’est pas disponible. Renouvelez l’autorisation Twitch, ou débannissez le bot puis réessayez pour vérifier l’accès."
+  "issueBotBannedAutomatic": "ItsBagelBot est banni de votre chat. Pour le débannir, tapez /unban ItsBagelBot dans votre chat Twitch (vous ou l’un de vos modérateurs pouvez le faire), ou retirez-le de la liste des personnes bannies dans les paramètres de modération de votre tableau de bord des créateurs Twitch. Il rejoint ensuite le chat automatiquement.",
+  "issueBotBannedUnavailable": "ItsBagelBot est banni de votre chat. Pour le débannir, tapez /unban ItsBagelBot dans votre chat Twitch (vous ou l’un de vos modérateurs pouvez le faire), ou retirez-le de la liste des personnes bannies dans les paramètres de modération de votre tableau de bord des créateurs Twitch. Sélectionnez ensuite « Je l’ai débanni, vérifier à nouveau »."
 }

@@ -17,9 +17,10 @@ func TestRewardStatusErrorClassifiesHelixRefusals(t *testing.T) {
 		body   string
 		want   error
 	}{
-		"duplicate create": {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"CREATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
-		"duplicate update": {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"UPDATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
-		"missing scope":    {http.StatusUnauthorized, `{"error":"Unauthorized","status":401,"message":"Missing scope: channel:manage:redemptions"}`, ErrMissingScope},
+		"duplicate create":     {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"CREATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
+		"duplicate update":     {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"UPDATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
+		"not affiliate create": {http.StatusForbidden, `{"error":"Forbidden","status":403,"message":"The broadcaster is not a partner or affiliate."}`, ErrNotAffiliate},
+		"missing scope":        {http.StatusUnauthorized, `{"error":"Unauthorized","status":401,"message":"Missing scope: channel:manage:redemptions"}`, ErrMissingScope},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

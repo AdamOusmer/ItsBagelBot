@@ -3,6 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { usesCount, compareUses } from '@bagel/kit/uses';
+import { betaLocked } from '@bagel/kit';
 import type { CommandView } from '@bagel/kit/types';
 import { MODULE_CATALOG, catalogIndexable } from '@bagel/kit/types';
 import {
@@ -22,6 +23,8 @@ import { env } from '$env/dynamic/private';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';
+import { broadcasterPremium } from '$lib/server/module-gate';
+import { twitchScopeGap } from '$lib/server/oauth';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -76,7 +79,7 @@ function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   };
 }
 
-export type ModuleDigest = { on: number; total: number; ok: boolean };
+export type ModuleDigest = { on: number; switchedOn: number; total: number; ok: boolean };
 
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
@@ -90,7 +93,7 @@ function commandDigest(uid: string): Promise<CommandDigest> {
     .catch(() => ({ top: [], active: 0, total: 0, uses: '0', ok: false }));
 }
 
-function moduleDigest(uid: string): Promise<ModuleDigest> {
+function moduleDigest(uid: string, premium: boolean): Promise<ModuleDigest> {
   const visibleCatalog = MODULE_CATALOG.filter((m) => catalogIndexable(m));
   return listModules(uid)
     .then((rows) => {
@@ -99,11 +102,14 @@ function moduleDigest(uid: string): Promise<ModuleDigest> {
         on: visibleCatalog.filter((def) =>
           def.toggleable === false ? true : (byName.get(def.id)?.is_enabled ?? def.defaultEnabled)
         ).length,
+        switchedOn: visibleCatalog.filter((def) =>
+          def.toggleable !== false && !betaLocked(def, premium) && (byName.get(def.id)?.is_enabled ?? def.defaultEnabled)
+        ).length,
         total: visibleCatalog.length,
         ok: true
       };
     })
-    .catch(() => ({ on: 0, total: visibleCatalog.length, ok: false }));
+    .catch(() => ({ on: 0, switchedOn: 0, total: visibleCatalog.length, ok: false }));
 }
 
 function shareDigest(uid: string): Promise<ShareDigest> {
@@ -128,6 +134,10 @@ function ownerNotOnboarded(locals: App.Locals): boolean {
   if (!s || s.impersonator_id) return false;
   if (!gate || !('value' in gate)) return false;
   return !gate.value.onboarded;
+}
+
+function ownerScopeGap(s: App.Locals['session']): boolean {
+  return !!s && !s.delegate_of && !s.impersonator_id && twitchScopeGap(s.scopes);
 }
 
 async function needsTour(locals: App.Locals, commands: Promise<CommandDigest>): Promise<boolean> {
@@ -156,8 +166,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   return {
     conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
     commands,
-    modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => moduleDigest(uid)),
+    modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => broadcasterPremium(locals).then((premium) => moduleDigest(uid, premium))),
     shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
+    twitchScopeGap: ownerScopeGap(locals.session),
 
     ...overviewLanes(uid)
   };

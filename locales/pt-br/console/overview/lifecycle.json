@@ -5,14 +5,14 @@
   "issueRecovering": "Verificando o acesso antes de retomar o funcionamento.",
   "timedOut": "Suspensão temporária",
   "issueTimedOut": "O bot permanece pausado até o fim da suspensão e a verificação do acesso.",
-  "verifyUnban": "Já desbani — tentar novamente",
+  "verifyUnban": "Já desbani, verificar de novo",
   "retryConnection": "Tentar verificar novamente",
   "disabledByYou": "Desativado por você",
-  "retainedBan": "O bot continua banido. Desbani-lo não o ativará automaticamente.",
+  "retainedBan": "ItsBagelBot continua banido do seu chat. Digite /unban ItsBagelBot no seu chat da Twitch e selecione Ativar e verificar desbanimento.",
   "connectionCheckFailed": "Falha na verificação da conexão",
   "issueConnectionCheckFailed": "Não foi possível confirmar o acesso. Tente novamente após resolver o problema.",
   "secondaryGrantMissing": "A autorização da Twitch também precisa ser renovada.",
   "enableAndVerify": "Ativar e verificar desbanimento",
-  "issueBotBannedAutomatic": "Desbana o bot na Twitch. Ele se reconectará automaticamente. Você também pode tentar novamente para verificar o desbanimento.",
-  "issueBotBannedUnavailable": "A recuperação automática após o desbanimento está indisponível. Renove a autorização da Twitch ou desbana o bot e tente novamente para verificar o acesso."
+  "issueBotBannedAutomatic": "ItsBagelBot está banido do seu chat. Para desbani-lo, digite /unban ItsBagelBot no seu chat da Twitch (você ou um dos seus moderadores pode fazer isso), ou remova-o da lista de banidos nas configurações de moderação do seu Painel de controle do criador da Twitch. Depois disso, ele volta ao chat automaticamente.",
+  "issueBotBannedUnavailable": "ItsBagelBot está banido do seu chat. Para desbani-lo, digite /unban ItsBagelBot no seu chat da Twitch (você ou um dos seus moderadores pode fazer isso), ou remova-o da lista de banidos nas configurações de moderação do seu Painel de controle do criador da Twitch. Depois, selecione Já desbani, verificar de novo."
 }

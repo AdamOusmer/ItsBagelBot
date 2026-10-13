@@ -23,7 +23,7 @@
   "invalidFieldBanner": "{field} n’était pas valide, ce réglage a gardé sa valeur précédente. Il est signalé ci-dessous.",
   "fieldInvalid": "Valeur invalide : ce réglage a gardé sa valeur précédente.",
   "reauthCta": "Réautoriser Bagel",
-  "reauthNeeded": "Ce serveur a été ajouté avant que Bagel ne demande la permission Changer de pseudo, le nom premium ne peut donc pas être appliqué ici. L'avatar premium fonctionne toujours. Réautorisez pour terminer.",
+  "reauthNeeded": "Ce serveur a été ajouté avant que Bagel ne demande la permission Changer de pseudo, le nom premium ne peut donc pas être appliqué ici. L’avatar premium fonctionne toujours. Choisissez Réautoriser Bagel, puis Ajouter Bagel à nouveau à côté de ce serveur.",
   "save": "Enregistrer",
   "serversHelp": "Chaque serveur garde ses propres salons, rôles et réglages. Ouvrez-en un pour le modifier.",
   "serversTitle": "Vos serveurs",

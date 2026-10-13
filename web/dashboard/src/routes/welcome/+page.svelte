@@ -150,6 +150,7 @@
   let leaving = $state(false);
   let showCompletion = $state(false);
   let saveError = $state(false);
+  let saveErrorServer = $state('');
 
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
@@ -360,6 +361,7 @@
   function finish() {
     if (leaving || !consentAccepted || setup === 'import' || !last || step < choiceStep) return;
     saveError = false;
+    saveErrorServer = '';
     leaving = true;
     hover = null;
     react('proud', 4000);
@@ -396,6 +398,7 @@
       return;
     }
     leaving = false;
+    saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
     saveError = true;
     react('attentive', 2400);
   };
@@ -602,7 +605,7 @@
               {/if}
             </div>
             {#if saveError}
-              <div class="save-error"><AlertBanner tone="danger">{tr('onboarding.saveError')}</AlertBanner></div>
+              <div class="save-error"><AlertBanner tone="danger">{saveErrorServer || tr('onboarding.saveError')}</AlertBanner></div>
             {/if}
           </section>
         {/key}

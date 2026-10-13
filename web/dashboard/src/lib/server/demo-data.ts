@@ -543,6 +543,7 @@ export function demoConn(connectionUiState: (s: ConnData['signals']) => ConnData
 
 export const demoModuleDigest: ModuleDigest = {
   on: 1,
+  switchedOn: 1,
   total: MODULE_CATALOG.filter((m) => catalogIndexable(m)).length,
   ok: true
 };

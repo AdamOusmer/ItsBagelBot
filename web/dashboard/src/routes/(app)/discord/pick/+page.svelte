@@ -44,6 +44,7 @@
       {:else}
         <div class="pick">
           <Text size="sm" tone="muted">{t('discord.pick.help')}</Text>
+          <Text size="sm" tone="muted">{t('discord.pick.permissions')}</Text>
           <SearchInput bind:value={query} placeholder={t('discord.pick.searchPh')} aria-label={t('discord.pick.searchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
           <ul class="servers">
             {#each choices as c (c.guildId)}
@@ -52,13 +53,16 @@
                 selectable={false}
                 stackActions
                 title={c.name || t('discord.unknownServer')}
-                meta={t(DISCORD_BADGE_KEYS[c.badge])}
+                meta={c.repair ? t('discord.pick.repair') : t(DISCORD_BADGE_KEYS[c.badge])}
               >
                 {#snippet leading()}<GuildCrest name={c.name || t('discord.unknownServer')} iconUrl={c.iconUrl} />{/snippet}
                 {#snippet actions()}
                   {#if c.badge === 'mine'}
                     <ButtonLink variant="secondary" href={c.openURL}>
                       {t('discord.openCta')}
+                    </ButtonLink>
+                    <ButtonLink variant={c.repair ? 'primary' : 'ghost'} href={c.installURL} data-sveltekit-reload>
+                      {t('discord.pick.repairCta')}
                     </ButtonLink>
                   {:else if c.badge === 'elsewhere'}
                     <Chip disabled aria-disabled="true" title={t('discord.pick.elsewhere')}>{t('discord.pick.elsewhereChip')}</Chip>

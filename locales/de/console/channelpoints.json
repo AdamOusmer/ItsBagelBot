@@ -74,6 +74,7 @@
   "toastDeleted": "Belohnung „{name}“ gelöscht.",
   "toastSaveFailed": "Die Belohnung konnte nicht gespeichert werden.",
   "toastDuplicateTitle": "Eine Belohnung mit diesem Titel existiert bereits auf deinem Kanal. Wähle einen anderen Titel.",
+  "toastNotAffiliate": "Twitch erlaubt nur Affiliate- und Partnerkanälen, Kanalpunkte-Belohnungen zu erstellen. Sobald dein Kanal Affiliate ist, klicke erneut auf Belohnung erstellen.",
   "toastDeleteFailed": "Die Belohnung konnte nicht gelöscht werden.",
   "toastToggleFailed": "Die Belohnung konnte nicht aktualisiert werden.",
   "errCost": "Gib eine ganze Punktzahl von mindestens 1 ein.",

@@ -20,7 +20,7 @@
   "toggleAria": "Mettre en pause ou reprendre la minuterie : {name}",
   "deleteAria": "Supprimer la minuterie : {name}",
   "fieldMessage": "Message",
-  "fieldMessagePh": "ex. Suivez-moi sur les réseaux : {link}",
+  "fieldMessagePh": "ex. Suivez-moi pour savoir quand je passe en direct.",
   "fieldInterval": "Répéter toutes les",
   "fieldIntervalHint": "Minimum 1 minute, maximum 24 heures.",
   "unitMinutes": "minutes",

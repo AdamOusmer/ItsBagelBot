@@ -28,7 +28,7 @@
   "userCooldownS": "Délai par spectateur (s)",
   "userCooldownHint": "Chaque spectateur attend ce délai entre deux de ses utilisations.",
   "restrictUser": "Restreindre à un ID utilisateur",
-  "restrictPlaceholder": "ID utilisateur Twitch. Lui seul peut l'exécuter",
+  "restrictPlaceholder": "Chiffres uniquement. Il s’agit de l’ID utilisateur Twitch, pas du nom d’utilisateur. Recherchez le nom d’utilisateur sur un site de recherche d’ID utilisateur Twitch pour l’obtenir.",
   "active": "Active",
   "onlyWhileLive": "Uniquement pendant le direct",
   "bumpCounter": "Incrémenter un compteur",

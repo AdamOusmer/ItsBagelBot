@@ -658,6 +658,8 @@ func TestUserEventsIdentifyAccountIncarnation(t *testing.T) {
 	var deleted data.UserDeletedDTO
 	require.NoError(t, codec.Unmarshal(pub.On(data.SubjectUserDeleted)[0].Payload, &deleted))
 	require.Equal(t, changed.AccountCreatedAt, deleted.AccountCreatedAt)
+	erasure := client.LifecycleErasure.Query().OnlyX(ctx)
+	require.True(t, erasure.DeletedAt.Equal(deleted.DeletedAt), "the event carries the erasure row's deletion time")
 
 	// Use an explicit later timestamp rather than depending on clock speed
 	// or the database's timestamp precision during recreation.
