@@ -7,9 +7,9 @@ const guide: GuideContent = {
   slug: 'spotify-song-requests',
   meta: {
     aiDoc: 'https://ai.itsbagelbot.com/spotify/setup.md',
-    title: 'Spotify song requests - ItsBagelBot Guides',
+    title: 'Set Up Spotify Song Requests on Twitch | ItsBagelBot',
     description:
-      'Set up Spotify song requests in ItsBagelBot: what you need (Premium, the 5-account limit), creating your Spotify app, pasting the Client ID and Client Secret, connecting your account, turning on !sr and the channel-points reward, and the messages you may see if something goes wrong.',
+      'Create your Spotify app, connect a Spotify Premium account and enable !sr or channel-point requests. Follow setup steps and troubleshoot playback.',
     eyebrow: 'Guide',
     heading: 'Spotify song requests',
     lead: 'Let viewers add songs to your Spotify queue from chat or with channel points. Create your own Spotify app, connect your account, and turn the requests on. About ten minutes.',

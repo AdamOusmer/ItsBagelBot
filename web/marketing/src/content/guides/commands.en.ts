@@ -6,9 +6,9 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'commands',
   meta: {
-    title: 'Commands & variables - ItsBagelBot Guides',
+    title: 'Create Custom Twitch Commands | ItsBagelBot Guide',
     description:
-      'Master ItsBagelBot custom commands: every supported variable ({user}, {random}, {counter} and more), multi-line replies, chat actions, cooldowns and access levels.',
+      'Create Twitch commands with permissions, cooldowns and variables. Follow dashboard examples and test what viewers will see in chat.',
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',

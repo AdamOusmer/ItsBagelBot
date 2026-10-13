@@ -7,9 +7,9 @@ const guide: GuideContent = {
   slug: 'govee-lights',
   meta: {
     aiDoc: 'https://ai.itsbagelbot.com/govee/setup.md',
-    title: 'Govee Lights - ItsBagelBot Guides',
+    title: 'Set Up Govee Lights for Twitch Rewards | ItsBagelBot',
     description:
-      'Set up Govee lights in ItsBagelBot: get your Govee API key, paste it in the dashboard, create the channel-points reward, and fix the error messages you may see.',
+      'Connect compatible Govee lights, add channel-point rewards and test colours. Follow API key setup and troubleshoot device access.',
     eyebrow: 'Guide',
     heading: 'Govee Lights',
     lead: 'Let viewers change the colour of your Govee lights with channel points. This guide covers the key, the setup wizard, the reward, and the messages you might see.',

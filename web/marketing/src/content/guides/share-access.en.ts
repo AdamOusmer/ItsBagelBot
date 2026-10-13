@@ -6,8 +6,8 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: "share-access",
   meta: {
-    title: "Share your dashboard with a mod - ItsBagelBot Guides",
-    description: "How to give a mod access to your ItsBagelBot dashboard: create a one-use share link, choose the sections, what Billing allows, revoke access, and the messages you might see.",
+    title: "Share Twitch Bot Dashboard Access | ItsBagelBot",
+    description: "Give moderators access to selected dashboard sections with a one-use link. Review permissions and learn how to revoke access.",
     eyebrow: "Guide",
     heading: "Share your dashboard with a mod",
     lead: "Let a mod manage parts of your dashboard from their own Twitch account, and take the access back whenever you want.",

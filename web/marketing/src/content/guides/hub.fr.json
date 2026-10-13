@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Guides - ItsBagelBot",
-    "description": "Guides visuels pour ItsBagelBot: installez le bot, apprenez le tableau de bord et écrivez des commandes personnalisées avec variables et données en direct.",
+    "title": "Tutoriels de configuration du bot Twitch | ItsBagelBot",
+    "description": "Suivez nos tutoriels illustrés : configuration du bot Twitch, commandes, API, compteurs, demandes Spotify, Govee, Discord et partage du tableau de bord.",
     "eyebrow": "Guides",
     "heading": "Apprivoisez le bot.",
     "lead": "Chaque guide fonctionne avec le forfait gratuit, sauf les parties marquées bêta Premium, et chacun se lit en dix minutes ou moins."

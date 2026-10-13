@@ -458,12 +458,12 @@ export function builderRecipes(lang: Lang): { label: string; text: string }[] {
 
 const UI = {
   metaTitle: {
-    en: 'Command Builder - ItsBagelBot',
-    fr: 'Constructeur de commandes - ItsBagelBot',
+    en: 'Twitch Command Builder with Live Preview | ItsBagelBot',
+    fr: 'Créer des commandes Twitch avec aperçu | ItsBagelBot',
   },
   metaDesc: {
-    en: 'Build powerful ItsBagelBot commands without the syntax: click variables, watch a live chat rehearsal, then send the finished command straight to your dashboard.',
-    fr: 'Créez des commandes ItsBagelBot puissantes sans la syntaxe: cliquez les variables, regardez la répétition en direct, puis envoyez la commande dans votre tableau de bord.',
+    en: 'Build Twitch chat commands with variables and a live preview. Test replies, then send the finished command to your dashboard.',
+    fr: 'Créez des commandes Twitch avec variables et aperçu en direct. Testez les réponses, puis envoyez la commande terminée dans votre tableau de bord.',
   },
   eyebrow: { en: 'Command builder', fr: 'Constructeur de commandes' },
   title1: { en: 'Powerful commands.', fr: 'Des commandes puissantes.' },
