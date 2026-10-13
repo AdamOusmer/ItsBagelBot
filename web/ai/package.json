@@ -1,0 +1,9 @@
+{
+  "name": "@bagel/ai-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test"
+  }
+}

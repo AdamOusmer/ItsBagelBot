@@ -8,9 +8,13 @@
   "featureGovee": "Govee lights",
   "promptIntro": "I am setting up {feature} in the dashboard of ItsBagelBot, a Twitch chat bot.",
   "promptStep": "I am on the setup step called \"{step}\".",
-  "promptError": "The dashboard shows this message: \"{error}\"",
+  "promptError": "The dashboard shows this message: \"{error}\". Also read this error page: {url}",
   "promptRedirect": "The dashboard gives me this Redirect URI for my Spotify app: {uri}",
-  "promptGuide": "Read this guide first and base your answer on it: {url}",
+  "promptGuide": "Read this setup page first and base your answer on it: {url}\nIf you need another page, use https://ai.itsbagelbot.com/llms.txt.",
   "promptRules": "Do not guess button or menu names. If something is not in the guide, say so. Help me one step at a time and wait for me to confirm before the next step.",
-  "promptPrivate": "Never ask me to paste a client secret, an API key or a password into this chat."
+  "promptPrivate": "Never ask me to paste a client secret, an API key or a password into this chat.",
+  "guideControls": "Dashboard labels may be translated. Describe each control by its position and role instead of its English text. Do not guess button, field or menu names. If the page does not cover something, say so.",
+  "guideLanguage": "Answer in the user's language. Dashboard messages may be translated, so match them by meaning.",
+  "guideStep": "Find the current step using the `#step-n` anchor in the user's setup link. Check earlier steps if the user is unsure they were done.",
+  "guideGenericError": "Ask the user to read the on-screen message aloud, leaving out IDs, keys and secrets. Then match it against the sections below and the \"Common problems\" list at the current `#step-n` anchor on the setup page."
 }

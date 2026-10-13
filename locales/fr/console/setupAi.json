@@ -8,9 +8,13 @@
   "featureGovee": "les lumières Govee",
   "promptIntro": "Je configure {feature} dans le tableau de bord d’ItsBagelBot, un bot de chat Twitch.",
   "promptStep": "Je suis à l’étape de configuration appelée « {step} ».",
-  "promptError": "Le tableau de bord affiche ce message : « {error} »",
+  "promptError": "Le tableau de bord affiche ce message : « {error} ». Lis aussi cette page sur les erreurs : {url}",
   "promptRedirect": "Le tableau de bord me donne cette URI de redirection pour mon application Spotify : {uri}",
-  "promptGuide": "Lis d’abord ce guide et base ta réponse dessus : {url}",
+  "promptGuide": "Lis d’abord cette page de configuration et base ta réponse dessus : {url}\nSi tu as besoin d’une autre page, utilise https://ai.itsbagelbot.com/llms.txt.",
   "promptRules": "Ne devine pas les noms des boutons ou des menus. Si quelque chose ne figure pas dans le guide, dis-le. Aide-moi une étape à la fois et attends ma confirmation avant de passer à la suivante.",
-  "promptPrivate": "Ne me demande jamais de coller un secret client, une clé API ou un mot de passe dans ce chat."
+  "promptPrivate": "Ne me demande jamais de coller un secret client, une clé API ou un mot de passe dans ce chat.",
+  "guideControls": "Les libellés du tableau de bord peuvent être traduits. Décris chaque commande par sa position et son rôle plutôt que par son texte anglais. Ne devine pas les noms des boutons, des champs ou des menus. Si la page ne couvre pas quelque chose, dis-le.",
+  "guideLanguage": "Réponds dans la langue de la personne. Les messages du tableau de bord peuvent être traduits, donc compare leur sens.",
+  "guideStep": "Trouve l’étape actuelle grâce à l’ancre `#step-n` dans le lien de configuration de la personne. Vérifie les étapes précédentes si elle n’est pas sûre de les avoir terminées.",
+  "guideGenericError": "Demande à la personne de lire le message à l’écran à voix haute, en omettant les identifiants, les clés et les secrets. Compare-le ensuite aux sections ci-dessous et à la liste « Problèmes courants » de l’ancre `#step-n` actuelle sur la page de configuration."
 }
