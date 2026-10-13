@@ -70,6 +70,7 @@ export const SITE_FOOTER = [
       { path: '/guides', key: 'guides' },
       { path: '/song-requests', key: 'songRequests' },
       { path: '/govee', key: 'govee' },
+      { path: '/valorant-stats', key: 'valorantStats' },
       { path: '/import', key: 'import' },
       { path: '/changelog', key: 'changelog' },
       { path: '/command-builder', key: 'builder' },

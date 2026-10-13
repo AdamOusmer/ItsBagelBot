@@ -4,7 +4,7 @@ Allow: /
 # Don't waste crawl budget on the search index and its workers.
 Disallow: /pagefind/
 
-# AI crawlers / answer engines — explicitly permitted so the docs can be cited.
+# AI crawlers and answer engines: explicitly permitted so the docs can be cited.
 User-agent: GPTBot
 Allow: /
 Disallow: /pagefind/
@@ -22,6 +22,10 @@ Disallow: /pagefind/
 
 User-agent: Claude-User
 Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /pagefind/
 
 User-agent: anthropic-ai
 Allow: /

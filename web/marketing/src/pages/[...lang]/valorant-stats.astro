@@ -12,7 +12,7 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')}>
+<Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')} aiDoc="https://ai.itsbagelbot.com/features/valorant.md">
     <FeatureLanding
         eyebrow={t('valorantStats.eyebrow')}
         title={t('valorantStats.title')}
@@ -45,7 +45,7 @@ const t = useTranslations(lang);
         ]}
         ctaTitle={t('valorantStats.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        ctaSecondary={{ href: localizePath('/guides/data-sources', lang), label: t('valorantStats.ctaGuide') }}
+        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('valorantStats.ctaGuide') }}
         legal={t('valorantStats.legal')}
     />
 </Layout>

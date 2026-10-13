@@ -1,11 +1,11 @@
-# ItsBagelBot — https://itsbagelbot.com
+# ItsBagelBot: https://itsbagelbot.com
 # Search engines and AI answer engines are welcome. We want to be found,
 # indexed, and cited. See /llms.txt for a structured overview.
 
 User-agent: *
 Allow: /
 
-# AI crawlers / answer engines — explicitly permitted (retrieval + training).
+# AI crawlers and answer engines: explicitly permitted (retrieval and training).
 User-agent: GPTBot
 Allow: /
 
@@ -19,6 +19,9 @@ User-agent: ClaudeBot
 Allow: /
 
 User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
 Allow: /
 
 User-agent: anthropic-ai
