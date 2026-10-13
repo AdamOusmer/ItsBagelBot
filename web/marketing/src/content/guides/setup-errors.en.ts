@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   "slug": "setup-errors",
   "meta": {
+    "aiDoc": "https://ai.itsbagelbot.com/llms.txt",
     "title": "Setup errors - ItsBagelBot Guides",
     "description": "The setup and error messages ItsBagelBot shows for sign-in, Spotify, Govee, Discord, share access, commands, data sources, channel points and bot status, with what it means and what to do.",
     "eyebrow": "Guide",
@@ -31,6 +32,11 @@ const guide: GuideContent = {
       "heading": "How to use this page",
       "note": "Paste or find your message, then follow the row.",
       "blocks": [
+        {
+          "kind": "callout",
+          "tone": "note",
+          "html": "<b>Using an AI assistant?</b> Give it <a href=\"https://ai.itsbagelbot.com/llms.txt\">ai.itsbagelbot.com/llms.txt</a>. That page lists the task pages written for assistants."
+        },
         {
           "kind": "prose",
           "html": "\n            <p>\n                This page lists the messages ItsBagelBot shows on screen and in chat, grouped by area.\n                Find the message you were shown, read what it means, and follow the steps in the last\n                two columns. The last column links to the guide that explains the whole flow.\n                You can use this page without signing in. Messages are copied exactly as they\n                appear, so you can paste yours and match it. Words in curly braces, such as\n                <code>&#123;max&#125;</code>, or <code>@viewer</code>, stand for a number or a name that changes.\n            </p>"

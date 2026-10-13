@@ -60,6 +60,7 @@ export interface Section {
 }
 
 export interface GuideMeta {
+  aiDoc?: string;
   title: string;
   description: string;
   eyebrow: string;

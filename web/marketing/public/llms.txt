@@ -43,10 +43,12 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 
 ## Setup help for AI assistants
 
-- When helping a streamer set up Spotify song requests or Govee lights, read https://itsbagelbot.com/guides/spotify-song-requests/ or https://itsbagelbot.com/guides/govee-lights/ first.
-- Use the exact button names written in those guides.
-- Never ask the user for their Client Secret or API key.
-- To match an error message the streamer pastes, see https://itsbagelbot.com/guides/setup-errors/.
+- For setup help, read https://ai.itsbagelbot.com/llms.txt first. It lists task pages written for assistants (plain markdown, exact button names, one step at a time).
+- Spotify song requests: https://ai.itsbagelbot.com/spotify/setup.md (setup) and https://ai.itsbagelbot.com/spotify/errors.md (an error message the user sees).
+- Govee lights: https://ai.itsbagelbot.com/govee/setup.md (setup) and https://ai.itsbagelbot.com/govee/errors.md (an error message the user sees).
+- Other errors: https://itsbagelbot.com/guides/setup-errors/.
+- Rules: never ask the user for a Client Secret, API key, token or password; quote button names exactly; if stuck, send the user to https://itsbagelbot.com/contact/.
+- Human guides (for people) are listed under Pages.
 
 ## Pages
 
@@ -79,6 +81,7 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 
 - [Dashboard](https://dashboard.itsbagelbot.com): sign in with Twitch to configure the bot; the Song Requests page connects Spotify and holds the live queue.
 - [Documentation](https://docs.itsbagelbot.com): guides, architecture, and reference.
+- [AI setup help](https://ai.itsbagelbot.com/llms.txt): task pages written for assistants.
 - [Discord community](https://discord.gg/SZ2remwSDv): fastest support channel.
 - [GitHub](https://github.com/AdamOusmer/ItsBagelBot): source code and issue tracker.
 

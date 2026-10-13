@@ -12,7 +12,7 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')}>
+<Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')} aiDoc="https://ai.itsbagelbot.com/govee/setup.md">
     <FeatureLanding
         eyebrow={t('govee.eyebrow')}
         title={t('govee.title')}

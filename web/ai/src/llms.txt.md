@@ -17,8 +17,10 @@ updated: 2026-10-12
 
 ## Human guides
 
+- Product overview: https://itsbagelbot.com/llms.txt
 - Spotify song requests: https://itsbagelbot.com/guides/spotify-song-requests/
 - Govee lights: https://itsbagelbot.com/guides/govee-lights/
+- Setup errors: https://itsbagelbot.com/guides/setup-errors/
 
 ## Tasks
 

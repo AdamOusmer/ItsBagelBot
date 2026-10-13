@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'spotify-song-requests',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/spotify/setup.md',
     title: 'Spotify song requests - ItsBagelBot Guides',
     description:
       'Set up Spotify song requests in ItsBagelBot: what you need (Premium, the 5-account limit), creating your Spotify app, pasting the Client ID and Client Secret, connecting your account, turning on !sr and the channel-points reward, and the messages you may see if something goes wrong.',
@@ -27,6 +28,11 @@ const guide: GuideContent = {
       heading: 'What you need',
       note: 'Spotify Premium, your own Spotify app, and Spotify playing on a device.',
       blocks: [
+        {
+          kind: 'callout',
+          tone: 'note',
+          html: '<b>Using an AI assistant?</b> Give it <a href="https://ai.itsbagelbot.com/spotify/setup.md">ai.itsbagelbot.com/spotify/setup.md</a>. That page is written for assistants and uses the exact button names.',
+        },
         {
           kind: 'prose',
           html: `
