@@ -54,7 +54,7 @@ export interface SiteLinkContext {
   isActive?(href: string): boolean;
 }
 
-export const COMPARE_LOCALES: readonly Locale[] = ['en', 'fr'];
+export const COMPARE_LOCALES: readonly Locale[] = ['de', 'en', 'es', 'fr', 'pt-br', 'ru'];
 
 export function linkLocale(locale: Locale, only?: readonly Locale[]): Locale {
   return only && !only.includes(locale) ? 'en' : locale;
