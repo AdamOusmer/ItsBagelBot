@@ -168,6 +168,7 @@ export const CASES: ParityCase[] = [
       legal: [{ href: '/privacy', label: 'Privacy' }],
       copyright: '© 2026 ItsBagelBot',
       note: 'Your data is never sold.',
+      studio: 'A Luzir Studio Project',
     },
   },
   {
