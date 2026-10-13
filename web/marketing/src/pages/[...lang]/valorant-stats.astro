@@ -5,11 +5,13 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+import { valorantRows, valorantExampleLines } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
 ---
 
 <Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')} aiDoc="https://ai.itsbagelbot.com/features/valorant.md">
@@ -24,15 +26,15 @@ const t = useTranslations(lang);
             { title: t('valorantStats.step2Title'), desc: t('valorantStats.step2Desc') },
             { title: t('valorantStats.step3Title'), desc: t('valorantStats.step3Desc') },
         ]}
-        listEyebrow={t('valorantStats.cmdEyebrow')}
-        listTitle={t('valorantStats.cmdTitle')}
+        listEyebrow={t('valorantStats.listEyebrow')}
+        listTitle={t('valorantStats.listTitle')}
         listItems={[
-            { name: t('valorantStats.cmd1Name'), desc: t('valorantStats.cmd1Desc') },
-            { name: t('valorantStats.cmd2Name'), desc: t('valorantStats.cmd2Desc') },
-            { name: t('valorantStats.cmd3Name'), desc: t('valorantStats.cmd3Desc') },
-            { name: t('valorantStats.cmd4Name'), desc: t('valorantStats.cmd4Desc') },
-            { name: t('valorantStats.cmd5Name'), desc: t('valorantStats.cmd5Desc') },
-            { name: t('valorantStats.cmd6Name'), desc: t('valorantStats.cmd6Desc') },
+            { name: t('valorantStats.item1Name'), desc: t('valorantStats.item1Desc') },
+            { name: t('valorantStats.item2Name'), desc: t('valorantStats.item2Desc') },
+            { name: t('valorantStats.item3Name'), desc: t('valorantStats.item3Desc') },
+            { name: t('valorantStats.item4Name'), desc: t('valorantStats.item4Desc') },
+            { name: t('valorantStats.item5Name'), desc: t('valorantStats.item5Desc') },
+            { name: t('valorantStats.item6Name'), desc: t('valorantStats.item6Desc') },
         ]}
         listNote={t('valorantStats.limitsNote')}
         faqEyebrow={t('valorantStats.faqEyebrow')}
@@ -47,5 +49,28 @@ const t = useTranslations(lang);
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
         ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('valorantStats.ctaGuide') }}
         legal={t('valorantStats.legal')}
+        updated={{ text: t('valorantStats.updated'), iso: '2026-10-13' }}
+        table={{
+            eyebrow: t('valorantStats.tblEyebrow'),
+            title: t('valorantStats.tblTitle'),
+            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+            widths: ['19%', '21%', '13%', '47%'],
+            monoColumns: [1],
+            rowLines: 3,
+            copyLabel: t('landing.copyCommand'),
+            rows: valorantRows(lang, t),
+            note: t('valorantStats.tblNote'),
+        }}
+        demo={{
+            eyebrow: t('landing.exampleEyebrow'),
+            title: t('valorantStats.demoTitle'),
+            caption: t('landing.exampleCaption'),
+            lines: valorantExampleLines(lang),
+        }}
+        prereq={{ title: t('landing.prereqTitle'), items: [t('valorantStats.prereq1'), t('valorantStats.prereq2')] }}
+        related={{
+            title: t('landing.relatedTitle'),
+            links: [link('/guides/modules', t('landing.relModules')), link('/guides/data-sources', t('landing.relDataSources')), link('/guides/variables', t('landing.relVariables')), link('/command-builder', t('landing.relCommandBuilder'))],
+        }}
     />
 </Layout>

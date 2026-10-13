@@ -6,12 +6,21 @@ import { dashboardHref } from '@bagel/kit/site-links';
 
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
-import { getLangFromUrl, useTranslations, defaultLang, localeStaticPaths } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, defaultLang, localizePath, localeStaticPaths } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const sourceRows = [
+    { cells: [t('importer.src1Name'), t('importer.src1Connect'), t('importer.src1Brings')] },
+    { cells: [t('importer.src2Name'), t('importer.src2Connect'), t('importer.src2Brings')] },
+    { cells: [t('importer.src3Name'), t('importer.src3Connect'), t('importer.src3Brings')] },
+    { cells: [t('importer.src4Name'), t('importer.src4Connect'), t('importer.src4Brings')] },
+    { cells: [t('importer.src5Name'), t('importer.src5Connect'), t('importer.src5Brings')] },
+    { cells: [t('importer.src6Name'), t('importer.src6Connect'), t('importer.src6Brings')] },
+];
 const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' : `?lang=${lang}`);
 ---
 
@@ -27,17 +36,15 @@ const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' :
             { title: t('importer.step2Title'), desc: t('importer.step2Desc') },
             { title: t('importer.step3Title'), desc: t('importer.step3Desc') },
         ]}
-        listEyebrow={t('importer.srcEyebrow')}
-        listTitle={t('importer.srcTitle')}
+        listEyebrow={t('importer.listEyebrow')}
+        listTitle={t('importer.listTitle')}
         listItems={[
-            { name: t('importer.src1Name'), desc: t('importer.src1Desc') },
-            { name: t('importer.src2Name'), desc: t('importer.src2Desc') },
-            { name: t('importer.src3Name'), desc: t('importer.src3Desc') },
-            { name: t('importer.src4Name'), desc: t('importer.src4Desc') },
-            { name: t('importer.src5Name'), desc: t('importer.src5Desc') },
-            { name: t('importer.src6Name'), desc: t('importer.src6Desc') },
+            { name: t('importer.item1Name'), desc: t('importer.item1Desc') },
+            { name: t('importer.item2Name'), desc: t('importer.item2Desc') },
+            { name: t('importer.item3Name'), desc: t('importer.item3Desc') },
+            { name: t('importer.item4Name'), desc: t('importer.item4Desc') },
+            { name: t('importer.item5Name'), desc: t('importer.item5Desc') },
         ]}
-        listNote={t('importer.limitsNote')}
         faqEyebrow={t('importer.faqEyebrow')}
         faqTitle={t('importer.faqTitle')}
         faqItems={[
@@ -50,5 +57,28 @@ const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' :
         ctaTitle={t('importer.ctaTitle')}
         ctaPrimary={{ href: importHref, label: t('importer.ctaStart') }}
         ctaSecondary={{ href: '/vs/nightbot/', label: t('importer.ctaCompare') }}
+        updated={{ text: t('importer.updated'), iso: '2026-10-13' }}
+        table={{
+            eyebrow: t('importer.tblEyebrow'),
+            title: t('importer.tblTitle'),
+            columns: [t('importer.colSource'), t('importer.colConnect'), t('importer.colBrings')],
+            widths: ['22%', '48%', '30%'],
+            rowLines: 3,
+            rows: sourceRows,
+            note: t('importer.tblNote'),
+        }}
+        convert={{
+            eyebrow: t('importer.convEyebrow'),
+            title: t('importer.convTitle'),
+            beforeLabel: t('importer.convBefore'),
+            before: 'Hi $(touser), welcome to $(channel), $(query)',
+            afterLabel: t('importer.convAfter'),
+            after: 'Hi {touser}, welcome to {channel}, {args}',
+            note: t('importer.convNote'),
+        }}
+        related={{
+            title: t('landing.relatedTitle'),
+            links: [link('/guides/commands', t('landing.relCommands')), link('/guides/variables', t('landing.relVariables')), link('/command-builder', t('landing.relCommandBuilder')), link('/pricing', t('landing.relPricing'))],
+        }}
     />
 </Layout>
