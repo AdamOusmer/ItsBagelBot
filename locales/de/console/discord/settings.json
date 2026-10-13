@@ -1,11 +1,11 @@
 {
-  "disconnectBody": "Bagel postet nicht mehr und vergisst, mit welchem Server dieser Kanal verknüpft ist. Deine Kanäle und Rollen bleiben unverändert erhalten.",
+  "disconnectBody": "Bagel postet nicht mehr und vergisst, mit welchem Server dieser Kanal verknüpft ist. Deine Kanäle und Rollen bleiben genau so, wie sie sind. Bagel selbst bleibt auf dem Server. Um ihn zu entfernen, klicke in Discord mit der rechten Maustaste auf Bagel in der Mitgliederliste des Servers und wähle „Kicken“.",
   "disconnectCta": "Trennen",
   "disconnectTitle": "Discord trennen?",
   "reconnectCta": "Erneut autorisieren",
-  "setupCta": "Diesen Server einrichten",
-  "setupHelp": "Führt die Einrichtung erneut aus: Erstellt Fehlendes, übernimmt deine festgelegten Rollen und lässt alles andere unverändert.",
-  "setupTitle": "Server neu einrichten",
+  "setupCta": "Fehlende Kanäle und Rollen erstellen",
+  "setupHelp": "Fügt die Kanäle und Rollen hinzu, die Bagel benötigt und die auf diesem Server fehlen, und nutzt jede Rolle, die du auf der Seite Rollen festgelegt hast. Nichts wird gelöscht.",
+  "setupTitle": "Serverstruktur",
   "setupFirstRun": "Dieser Server hat noch keine gespeicherten Einstellungen. Die erste Einrichtung speichert sie.",
   "dangerTitle": "Gefahrenbereich"
 }

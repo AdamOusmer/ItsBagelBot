@@ -294,8 +294,15 @@ type fakeSetupREST struct {
 	guild    discapi.GuildInfo
 	guildErr error
 
-	desks []deskPanel
-	chats []discapi.ChatPost
+	desks     []deskPanel
+	chats     []discapi.ChatPost
+	members   []discapi.CurrentMember
+	modifyErr error
+}
+
+func (f *fakeSetupREST) ModifyCurrentMember(_ context.Context, m discapi.CurrentMember) error {
+	f.members = append(f.members, m)
+	return f.modifyErr
 }
 
 func (f *fakeSetupREST) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
@@ -358,6 +365,11 @@ func (f fakeBotStatus) BotStatus(context.Context) (ddiscord.BotStatus, bool) { r
 type flaggedReauth map[string]bool
 
 func (f flaggedReauth) NeedsReauth(_ context.Context, g kv.GuildID) bool { return f[string(g)] }
+
+func (f flaggedReauth) ClearNeedsReauth(_ context.Context, g kv.GuildID) error {
+	delete(f, string(g))
+	return nil
+}
 
 type unavailableStore struct{ *discordstore.Mem }
 

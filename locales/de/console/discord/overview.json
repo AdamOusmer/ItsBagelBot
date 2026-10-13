@@ -4,7 +4,7 @@
   "needsSetup": "Einrichtung erforderlich",
   "needsSetupHint": "Aktiviert, aber ohne Kanal oder Rolle: {n}. Öffne das gewünschte Modul und wähle das Fehlende aus.",
   "configure": "Konfigurieren",
-  "notSetUp": "Dieser Server wurde noch nie eingerichtet. Starte die Einrichtung, damit Bagel die nötigen Kanäle und Rollen erstellt.",
+  "notSetUp": "Dieser Server wurde noch nie eingerichtet. Wähle „Fehlende Kanäle und Rollen erstellen“, damit Bagel hinzufügt, was er benötigt.",
   "botState": "Bot",
   "modulesOn": "Aktive Module",
   "tiles": {
