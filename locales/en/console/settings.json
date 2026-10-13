@@ -8,7 +8,7 @@
   "dangerZone": "Danger zone",
   "dangerZoneHint": "Both of these end sessions. The second one ends everything.",
   "sectionsLegend": "Sections to share",
-  "sectionsHint": "Commands also opens Quotes and Timers. Billing lets them buy Premium for your channel and open its subscription management.",
+  "sectionsHint": "Commands also opens Quotes and Timers. Billing lets them buy Premium for your channel. Changing or cancelling the subscription needs your own Tebex login.",
   "pickSectionError": "Pick at least one section.",
   "leaveDashboardAria": "Leave {login}’s dashboard",
   "leaveTitle": "Leave {login}’s dashboard?",

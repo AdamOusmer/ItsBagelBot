@@ -8,7 +8,7 @@
   "dangerZone": "Zona de peligro",
   "dangerZoneHint": "Ambas opciones cierran sesiones. La segunda lo elimina todo.",
   "sectionsLegend": "Secciones que compartir",
-  "sectionsHint": "La sección Comandos también da acceso a Citas y Temporizadores. Facturación permite que la persona invitada compre Premium para tu canal y abra la gestión de su suscripción.",
+  "sectionsHint": "La sección Comandos también da acceso a Citas y Temporizadores. Facturación permite que la persona invitada compre Premium para tu canal. Para cambiar o cancelar la suscripción, necesitas iniciar sesión con tu propia cuenta de Tebex.",
   "pickSectionError": "Elige al menos una sección.",
   "leaveDashboardAria": "Abandonar el panel de {login}",
   "leaveTitle": "¿Abandonar el panel de {login}?",

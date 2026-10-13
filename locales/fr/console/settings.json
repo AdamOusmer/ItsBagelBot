@@ -8,7 +8,7 @@
   "dangerZone": "Zone de danger",
   "dangerZoneHint": "Les deux mettent fin à des sessions. La seconde met fin à tout.",
   "sectionsLegend": "Sections à partager",
-  "sectionsHint": "La section Commandes donne aussi accès à Citations et Minuteries. Avec Facturation, la personne invitée peut acheter Premium pour votre chaîne et ouvrir la gestion de son abonnement.",
+  "sectionsHint": "La section Commandes donne aussi accès à Citations et Minuteries. Avec Facturation, la personne invitée peut acheter Premium pour votre chaîne. Pour modifier ou annuler l’abonnement, vous devez vous connecter avec votre propre compte Tebex.",
   "pickSectionError": "Choisissez au moins une section.",
   "leaveDashboardAria": "Quitter le tableau de bord de {login}",
   "leaveTitle": "Quitter le tableau de bord de {login} ?",

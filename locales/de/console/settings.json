@@ -8,7 +8,7 @@
   "dangerZone": "Gefahrenbereich",
   "dangerZoneHint": "Beides beendet Sitzungen. Das Zweite beendet alles.",
   "sectionsLegend": "Zu teilende Bereiche",
-  "sectionsHint": "Der Bereich Befehle öffnet auch Zitate und Timer. Mit Abrechnung kann die eingeladene Person Premium für deinen Kanal kaufen und dessen Abonnementverwaltung öffnen.",
+  "sectionsHint": "Der Bereich Befehle öffnet auch Zitate und Timer. Mit Abrechnung kann die eingeladene Person Premium für deinen Kanal kaufen. Zum Ändern oder Kündigen des Abonnements musst du dich mit deinem eigenen Tebex-Konto anmelden.",
   "pickSectionError": "Wähle mindestens einen Bereich.",
   "leaveDashboardAria": "Dashboard von {login} verlassen",
   "leaveTitle": "Dashboard von {login} verlassen?",

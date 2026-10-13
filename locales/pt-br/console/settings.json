@@ -8,7 +8,7 @@
   "dangerZone": "Zona de perigo",
   "dangerZoneHint": "Ambas encerram sessões. A segunda encerra tudo.",
   "sectionsLegend": "Seções a compartilhar",
-  "sectionsHint": "A seção Comandos também dá acesso a Citações e Temporizadores. Cobrança permite que a pessoa convidada compre Premium para seu canal e abra o gerenciamento da assinatura dele.",
+  "sectionsHint": "A seção Comandos também dá acesso a Citações e Temporizadores. Cobrança permite que a pessoa convidada compre Premium para seu canal. Para alterar ou cancelar a assinatura, você precisa entrar na sua própria conta do Tebex.",
   "pickSectionError": "Escolha pelo menos uma seção.",
   "leaveDashboardAria": "Sair do painel de {login}",
   "leaveTitle": "Sair do painel de {login}?",
