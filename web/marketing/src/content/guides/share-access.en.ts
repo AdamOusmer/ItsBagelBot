@@ -103,14 +103,14 @@ const guide: GuideContent = {
             ],
             [
               "Billing",
-              "The \"Billing\" page. With Billing, the mod can buy Premium for your channel and open its subscription management."
+              "The \"Billing\" page. With Billing, the mod can buy Premium for your channel. Changing or cancelling the subscription needs your own Tebex login."
             ]
           ]
         },
         {
           kind: "callout",
           tone: "warn",
-          html: "<b>Billing spends your money</b> A mod with Billing can buy Premium for your channel and open its subscription management, where payments are reviewed and the subscription can be changed. Tick Billing only for someone you trust with that."
+          html: "<b>Billing spends your money</b> A mod with Billing can buy Premium for your channel. Changing or cancelling the subscription needs your own Tebex login. Tick Billing only for someone you trust to make purchases."
         },
         {
           kind: "prose",
