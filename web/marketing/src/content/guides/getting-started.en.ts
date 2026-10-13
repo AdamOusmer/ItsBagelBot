@@ -17,7 +17,7 @@ const guide: GuideContent = {
       title: 'Getting started',
       description:
         'From "Add to Twitch" to your first live stream with the bot: connect the channel, find your way around the dashboard, and switch on the first tools.',
-      meta: '7 min · 5 steps',
+      meta: '7 min · 6 sections',
       chips: ['connect', 'dashboard tour', 'first module'],
     },
   },
@@ -41,10 +41,21 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                First time in, a short walkthrough greets you: accept the terms, pick your console
-                language, then mod the bot by typing <code>/mod ItsBagelBot</code> in your own chat.
-                That last one matters more than it looks: without mod status, Twitch silences the bot
-                the moment your chat goes follower-only or sub-only, and it just looks broken.
+                First time in, a short walkthrough greets you. Press <strong>Get set up</strong> and it
+                runs in this order: <strong>Legal agreements</strong> (tick the box to accept the Terms
+                and Privacy Policy), <strong>Make ItsBagelBot a mod</strong> (type
+                <code>/mod ItsBagelBot</code> in your own chat), <strong>Choose your language</strong>
+                for the console, then <strong>Tell us more</strong>, where you pick a setup:
+                <strong>Start as a new streamer</strong>, <strong>Integrate with my setup</strong>,
+                <strong>Completely quiet</strong> or <strong>Import setup</strong>. The new-streamer
+                path adds two short stops, <strong>Commands are chat shortcuts</strong> and
+                <strong>Modules add the extras</strong>, and ends with <strong>Finish setup</strong>.
+                You can change every choice later in your dashboard.
+            </p>
+            <p>
+                The mod step matters more than it looks: without mod status, Twitch silences the bot
+                the moment your chat goes follower-only, sub-only or slow, and it just looks broken.
+                You can also do it later.
             </p>`,
         },
         {
@@ -155,17 +166,18 @@ const guide: GuideContent = {
     {
       id: 'first-module',
       heading: 'Switch on your first module',
-      note: 'Modules are bigger features with an on/off switch. Two are already on for you.',
+      note: 'Modules are bigger features with an on/off switch. Chat Alerts is already on for you.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
                 Head to <strong>Modules</strong>. Each row is one feature with its own switch, and
-                clicking a row opens its settings. Two are already working for you out of the box:
-                <strong>Chat Alerts</strong> (follows, subs, cheers, raids) and <strong>AutoMod</strong>
-                (the layered moderation you read about on the homepage; it runs quietly without a
-                row in this list). Two more never show a switch at all: <strong>Counters</strong> and
+                clicking a row opens its settings. <strong>Chat Alerts</strong> (follows, subs, cheers,
+                raids) is already working for you out of the box. <strong>AutoMod</strong> is a
+                Premium beta: a free channel gets only the small safety floor (hate slurs and
+                IP-grabber links), and the full checks need Premium. Two modules never show a switch
+                at all: <strong>Counters</strong> and
                 <strong>Stream Management</strong> (the commands behind <code>!title</code>,
                 <code>!game</code> and <code>!marker</code>) are always on.
             </p>`,
@@ -238,6 +250,80 @@ const guide: GuideContent = {
               'Try <code>!uptime</code> once you go live.',
             ],
           },
+        },
+      ],
+    },
+    {
+      id: 'bot-status',
+      heading: 'If the bot is not in chat',
+      note: 'Bot status on the Overview page tells you what to do.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                Open <strong>Overview</strong> and look at <strong>Bot status</strong>. It shows one
+                state and the buttons for it. A healthy card shows <strong>Restart</strong> and
+                <strong>Disconnect</strong>. <strong>Enable</strong> switches a bot that you turned off
+                back on. <strong>Reconnect</strong> takes you to <strong>Settings</strong>, where you
+                choose <strong>Reconnect Twitch</strong> to sign your Twitch account in again after
+                Twitch took the bot's access away. A ban needs a different fix, in Twitch chat: type
+                <code>/unban ItsBagelBot</code>. You or one of your moderators can do it. You can also
+                remove the bot from the banned list in your Twitch Creator Dashboard moderation
+                settings.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['What you see', 'What it means', 'What to do'],
+          caption: 'If something goes wrong',
+          rows: [
+            ['Not connected: "The bot has no Twitch authorization for your channel."', 'The bot is not signed in to your channel.', 'Select <strong>Connect</strong>.'],
+            ['Disabled by you: "Your bot is switched off. Turn it back on to rejoin chat."', 'You switched the bot off.', 'Select <strong>Enable</strong>.'],
+            ['Reconnect needed or Twitch access lost: "Twitch revoked the bot’s access to your channel. This happens after a password change or if the app was disconnected on Twitch. Reconnect your Twitch account to bring the bot back."', 'Twitch no longer lets the bot act for your channel.', 'Select <strong>Reconnect</strong>. It takes you to <strong>Settings</strong>. There, choose <strong>Reconnect Twitch</strong>.'],
+            ['Bot banned from your chat: "ItsBagelBot is banned from your chat. To unban it, type /unban ItsBagelBot in your Twitch chat (you or one of your moderators can), or remove it from the banned list in your Twitch Creator Dashboard moderation settings. It rejoins on its own after that." or "ItsBagelBot is banned from your chat. To unban it, type /unban ItsBagelBot in your Twitch chat (you or one of your moderators can), or remove it from the banned list in your Twitch Creator Dashboard moderation settings. Then select I unbanned it, check again."', 'Your chat banned the bot, so it cannot join.', 'Type <code>/unban ItsBagelBot</code> in your Twitch chat. It rejoins on its own. If the button says <strong>I unbanned it, check again</strong>, select it. If it says <strong>Enable and verify unban</strong>, select that.'],
+            ['"ItsBagelBot is still banned from your chat. Type /unban ItsBagelBot in your Twitch chat, then select Enable and verify unban."', 'The check found the ban still in place.', 'Unban the bot, then select <strong>Enable and verify unban</strong>.'],
+            ['Connection check failed: "Access could not be confirmed. Retry when the problem is fixed."', 'The bot could not confirm its access.', 'Fix the problem, then select <strong>Retry connection check</strong>.'],
+            ['Dormant: "The bot wakes automatically when an enabled feature is used. Your settings are preserved."', 'The bot is resting until something needs it.', 'Nothing. It wakes on its own.'],
+            ['Timed out: "Normal bot work pauses until the timeout ends and access is verified."', 'The bot is timed out in your chat.', 'Wait for the timeout to end. The bot then checks its access again.'],
+            [
+              "Connected · idle: \"The bot is connected but not replying in chat.\"",
+              "The bot is in your chat but is not answering.",
+              "Select <strong>Enable above</strong>.",
+            ],
+            [
+              "\"The bot lost its chat connection, so viewers might not get replies.\" or \"The bot lost its chat connection. Fix it in Settings → Reconnect\"",
+              "The bot's chat connection dropped.",
+              "Select <strong>Reconnect</strong>. It takes you to <strong>Settings</strong>. There, choose <strong>Reconnect Twitch</strong>.",
+            ],
+            [
+              "Reconnecting…: \"Checking access before restoring operation.\"",
+              "The bot is checking its access before it comes back.",
+              "Wait a moment. The state changes on its own.",
+            ],
+            [
+              "\"Twitch authorization also needs reconnecting.\"",
+              "A second Twitch permission needs renewing.",
+              "Select <strong>Reconnect</strong> next to the message, then choose <strong>Reconnect Twitch</strong> in <strong>Settings</strong>.",
+            ],
+            [
+              "Checking connection… or Connecting…",
+              "The dashboard is still reading the bot's state.",
+              "Wait a moment.",
+            ],
+            [
+              "Connection status unavailable",
+              "The dashboard could not read the bot's state.",
+              "Reload the page in a moment.",
+            ],
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'note',
+          html: `
+                <b>Note</b>
+                Last checked: 12 October 2026.`,
         },
       ],
     },

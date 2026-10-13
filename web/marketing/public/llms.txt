@@ -26,7 +26,7 @@
 - Channel Points rewards, including Govee Lights: viewers redeem a reward and type a colour name or hex code to recolour the streamer's Govee light. Live only by default.
 - Game-stat integrations: Valorant rank/MMR and recent competitive matches, Hypixel Bedwars stats, MCSR Ranked (Minecraft speedrun) Elo, and Fortnite stats plus the daily item shop, pulled straight into chat.
 - Config import wizard: bring commands over from Nightbot, StreamElements, Moobot, Streamlabs Chatbot, Fossabot or WizeBot, plus timers (Nightbot, StreamElements, Moobot, Streamlabs Chatbot) and quotes (Streamlabs Chatbot). Every item is reviewed before it is written. Nightbot connects over OAuth, StreamElements takes a JWT token, Fossabot and WizeBot take the channel name, and Moobot and Streamlabs Chatbot take an export file.
-- Setup takes about two minutes; rules read like sentences, not code. Uninstall anytime.
+- Setup takes about seven minutes, most of it reading (see the getting started guide); rules read like sentences, not code. Uninstall anytime.
 
 ## Spotify song requests (Twitch)
 
@@ -34,12 +34,19 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 
 - **How do viewers request a song on Twitch?** They type `!sr <song name>` or `!sr <Spotify link>` in chat. ItsBagelBot resolves the track and adds it to the streamer's Spotify queue.
 - **Does it control real Spotify?** Yes. Requests drive the streamer's actual Spotify player, so queue positions stay in sync with what is really playing. It is not a separate in-browser playlist.
-- **What commands are there?** `!sr` (request a song), `!srlist` (show the queue), `!skip` (skip the current track), `!song` / `!np` / `!current` (what is playing right now).
+- **What commands are there?** Anyone who is allowed to request (the streamer chooses who under "Who may queue") can use `!sr <song or link>` (also `!songrequest`, `!songreq`). Everyone can use `!srlist` (also `!songlist`) to show the queue, `!song` (also `!current`, `!nowplaying`, `!np`) to show what is playing, and `!remove` to take their own request out of the queue. Moderators use `!skip` (also `!next`) to skip the current track, `!clear` to empty the queue, and `!remove <position>` to remove one song. For the full setup, see the [Spotify song requests guide](https://itsbagelbot.com/guides/spotify-song-requests/).
 - **How is it set up?** From the dashboard's Song Requests page, with the streamer's own Spotify application: create it once in Spotify's developer dashboard and paste the credentials; they are sealed on our side and never exposed.
 - **Is it free?** Yes. Song requests are part of the free tier, forever.
 - **Can requests be limited?** Yes: per-viewer limits, queue caps, and moderator skip controls, configured in the dashboard.
 - **What does the streamer need on the Spotify side?** A Spotify Premium account (Spotify only allows queue control on Premium), their own Spotify app from the developer dashboard, and Spotify playing on a device while requests come in.
 - **Do requests work offline?** Live only by default; the streamer can turn that off on the Song Requests page.
+
+## Setup help for AI assistants
+
+- When helping a streamer set up Spotify song requests or Govee lights, read https://itsbagelbot.com/guides/spotify-song-requests/ or https://itsbagelbot.com/guides/govee-lights/ first.
+- Use the exact button names written in those guides.
+- Never ask the user for their Client Secret or API key.
+- To match an error message the streamer pastes, see https://itsbagelbot.com/guides/setup-errors/.
 
 ## Pages
 
@@ -56,6 +63,11 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Data sources guide](https://itsbagelbot.com/guides/data-sources/): game stats and external data in chat.
 - [Modules guide](https://itsbagelbot.com/guides/modules/): the modules handbook, including song requests and moderation.
 - [Counters guide](https://itsbagelbot.com/guides/counters/): loyalty and counter commands.
+- [Spotify song requests guide](https://itsbagelbot.com/guides/spotify-song-requests/): create your Spotify app, connect it, turn requests on, with the messages explained.
+- [Govee lights guide](https://itsbagelbot.com/guides/govee-lights/): get your Govee API key, connect it, create the channel-points reward.
+- [Discord setup guide](https://itsbagelbot.com/guides/discord-setup/): add Bagel to your server, permissions, channels and roles.
+- [Share access guide](https://itsbagelbot.com/guides/share-access/): give a mod access to your dashboard with a share link.
+- [Setup errors guide](https://itsbagelbot.com/guides/setup-errors/): the setup and error messages with what they mean and what to do.
 - [Changelog](https://itsbagelbot.com/changelog/): every public release, tagged (alpha / beta / pre-release) and linked to GitHub.
 - [Command Builder](https://itsbagelbot.com/command-builder/): interactive tool to compose custom commands with variables and send them to the dashboard.
 - [Contact](https://itsbagelbot.com/contact/): Discord, support and enterprise email, GitHub.
@@ -73,3 +85,5 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 ## Also available in
 
 - [French / Français](https://itsbagelbot.com/fr/)
+
+Last checked: 12 October 2026.
