@@ -45,7 +45,8 @@
     accessretry: t('settings.noticeAccessRetry'),
     self: t('settings.noticeSelfLink')
   });
-  const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
+  const noticeKey = $derived(page.url.searchParams.get('e') ?? '');
+  const notice = $derived(Object.hasOwn(NOTICES, noticeKey) ? NOTICES[noticeKey] : null);
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);

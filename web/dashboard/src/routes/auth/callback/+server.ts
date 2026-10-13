@@ -78,6 +78,15 @@ function streamerSession(id: Identity) {
   };
 }
 
+function delegationErrorLanding(err: unknown): string {
+  if (!(err instanceof RpcError)) throw redirect(302, '/login?e=retry');
+  if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
+  if (['link already used', 'ent: delegation not found'].includes(err.message)) {
+    throw redirect(302, '/login?e=link');
+  }
+  throw redirect(302, '/login?e=retry');
+}
+
 async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<string | null> {
   const pending = cookies.get('pending_delegation');
   if (!pending) return null;
@@ -87,11 +96,7 @@ async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity)
   try {
     result = await delegationConsume(pending, id.userId, id.login);
   } catch (err) {
-    if (err instanceof RpcError) {
-      if (err.message === 'cannot delegate to yourself') return '/settings?e=self';
-      throw redirect(302, '/login?e=link');
-    }
-    throw redirect(302, '/login?e=retry');
+    return delegationErrorLanding(err);
   }
   if (!result.ok) throw redirect(302, '/login?e=link');
 
