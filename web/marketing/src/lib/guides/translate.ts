@@ -5,7 +5,7 @@ import type { GuideContent } from './types';
 
 export type GuideStrings = Record<string, string>;
 
-const LITERAL = new Set(['slug', 'id', 'kind', 'tone', 'screen', 'path', 'who', 'storageKey', 'sample']);
+const LITERAL = new Set(['slug', 'id', 'kind', 'tone', 'screen', 'path', 'who', 'storageKey', 'sample', 'aiDoc']);
 
 interface Found {
     ids: string[];

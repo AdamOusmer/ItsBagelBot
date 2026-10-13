@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'govee-lights',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/govee/setup.md',
     title: 'Govee Lights - ItsBagelBot Guides',
     description:
       'Set up Govee lights in ItsBagelBot: get your Govee API key, paste it in the dashboard, create the channel-points reward, and fix the error messages you may see.',
@@ -27,6 +28,11 @@ const guide: GuideContent = {
       heading: 'What you need',
       note: 'A Govee Home account, colour lights set up in the Govee Home app, and a Twitch channel that can have channel-points rewards.',
       blocks: [
+        {
+          kind: 'callout',
+          tone: 'note',
+          html: '<b>Using an AI assistant?</b> Give it <a href="https://ai.itsbagelbot.com/govee/setup.md">ai.itsbagelbot.com/govee/setup.md</a>. That page is written for assistants and uses the exact button names.',
+        },
         {
           kind: 'prose',
           html: `

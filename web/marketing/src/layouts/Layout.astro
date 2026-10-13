@@ -45,6 +45,7 @@ interface Props {
     ogType?: string;
     noindex?: boolean;
     extraSchema?: Record<string, unknown>[];
+    aiDoc?: string;
 }
 
 const {
@@ -54,6 +55,7 @@ const {
     ogType = 'website',
     noindex = false,
     extraSchema = [],
+    aiDoc,
 } = Astro.props;
 
 const lang = getLangFromUrl(Astro.url);
@@ -206,6 +208,7 @@ const contentSecurityPolicy = [
     <meta name="referrer" content="strict-origin-when-cross-origin"/>
 
     <link rel="canonical" href={canonicalURL}/>
+    {aiDoc && <link rel="alternate" type="text/markdown" href={aiDoc} title="Setup instructions for AI assistants" />}
     <meta name="robots" content={robotsContent}/>
 
     <meta name="theme-color" content="#0a0a0a"/>
