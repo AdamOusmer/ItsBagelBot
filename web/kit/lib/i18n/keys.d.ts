@@ -4018,6 +4018,8 @@ export type KnownMessageKey =
   | 'spotify.discard'
   | 'spotify.discardBody'
   | 'spotify.discardTitle'
+  | 'spotify.errors.connectNotRegistered'
+  | 'spotify.errors.connectOwnerPremium'
   | 'spotify.errors.cooldown'
   | 'spotify.errors.cost'
   | 'spotify.errors.declined'

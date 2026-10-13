@@ -258,6 +258,7 @@ type SpotifyQueueReply struct {
 type SpotifyExchangeReply struct {
 	RefreshToken string   `json:"refresh_token,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`
+	Warning      string   `json:"warning,omitempty"`
 	Error        string   `json:"error,omitempty"`
 }
 

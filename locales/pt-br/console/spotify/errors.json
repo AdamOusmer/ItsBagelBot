@@ -1,4 +1,6 @@
 {
+  "connectOwnerPremium": "O Spotify foi conectado, mas recusou o acesso a esta conta. No modo de desenvolvimento, a conta proprietária do seu aplicativo Spotify precisa de Premium. Assine o Premium para essa conta no Spotify e conecte novamente.",
+  "connectNotRegistered": "O Spotify foi conectado, mas esta conta não está entre os usuários permitidos do seu aplicativo. No painel de desenvolvedores do Spotify, adicione esta conta aos usuários do seu aplicativo e conecte novamente.",
   "declined": "Você fechou a tela de permissões do Spotify antes de aprová-las. Conecte novamente e aprove as permissões para terminar.",
   "noApp": "Adicione seu aplicativo Spotify antes de conectar sua conta.",
   "noToken": "O Spotify não enviou um novo token de login. Abra spotify.com/account/apps, remova o acesso do seu aplicativo, escolha Conectar Spotify e aceite novamente.",

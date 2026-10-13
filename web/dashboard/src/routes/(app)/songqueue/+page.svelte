@@ -431,6 +431,17 @@
     <AlertBanner tone="warning">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
   {/if}
 
+  {#if data.connectWarning === 'owner_premium'}
+    <AlertBanner tone="warning">{t('spotify.errors.connectOwnerPremium')}</AlertBanner>
+  {:else if data.connectWarning === 'not_registered'}
+    <AlertBanner tone="warning">
+      {t('spotify.errors.connectNotRegistered')}
+      {#snippet actions()}
+        <ButtonLink variant="primary" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">{t('spotifySetup.developer')} ↗</ButtonLink>
+      {/snippet}
+    </AlertBanner>
+  {/if}
+
   {#if missingScope}
     <AlertBanner tone="warning">
       {t('spotify.connection.twitchScopeGap')}

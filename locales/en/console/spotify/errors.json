@@ -1,4 +1,6 @@
 {
+  "connectOwnerPremium": "Spotify connected, but it refused to share this account. In development mode, the account that owns your Spotify app needs Premium. Upgrade that account in Spotify, then connect again.",
+  "connectNotRegistered": "Spotify connected, but this account is not on your app's allowed users. In the Spotify Developer Dashboard, add this account to your app's users, then connect again.",
   "declined": "You closed the Spotify permission screen before approving. Connect again and approve the permissions to finish.",
   "noApp": "Add your Spotify app before connecting your account.",
   "noToken": "Spotify did not send a new sign-in token. Open spotify.com/account/apps, remove access for your app, then choose Connect Spotify and agree again.",

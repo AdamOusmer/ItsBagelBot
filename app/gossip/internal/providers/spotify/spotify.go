@@ -40,6 +40,7 @@ const (
 	trackPath      = "/v1/tracks/"
 	artistPath     = "/v1/artists/"
 	albumPath      = "/v1/albums/"
+	mePath         = "/v1/me"
 	nowPlayingPath = "/v1/me/player/currently-playing"
 	queuePath      = "/v1/me/player/queue"
 	nextPath       = "/v1/me/player/next"
@@ -766,7 +767,34 @@ func (p *api) exchange(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.SpotifyExchangeReply{Error: friendlyAuthError(err)}
 	}
 
-	return gossiprpc.SpotifyExchangeReply{RefreshToken: tok.RefreshToken, Scopes: splitScopes(tok.Scope)}
+	warning := p.accountWarning(ctx, broadcaster, accessToken(tok.AccessToken))
+
+	return gossiprpc.SpotifyExchangeReply{RefreshToken: tok.RefreshToken, Scopes: splitScopes(tok.Scope), Warning: warning}
+}
+
+func (p *api) accountWarning(ctx context.Context, broadcaster string, tok accessToken) string {
+	checkCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+	err := p.http.Do(checkCtx, core.Request{Method: http.MethodGet, Path: mePath, Headers: bearerHeader(tok)}, nil)
+	w := connectWarning(err)
+	if w != "" {
+		p.log.Info("spotify connect warning", zap.String("broadcaster", broadcaster), zap.String("warning", w))
+	}
+	return w
+}
+
+func connectWarning(err error) string {
+	var ue *core.UpstreamError
+	if !errors.As(err, &ue) || ue.Status != http.StatusForbidden {
+		return ""
+	}
+	if ue.Message == "" {
+		return ""
+	}
+	if strings.Contains(strings.ToLower(ue.Message), "registered") {
+		return "not_registered"
+	}
+	return "owner_premium"
 }
 
 func splitScopes(raw string) []string {

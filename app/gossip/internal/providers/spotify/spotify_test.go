@@ -265,25 +265,44 @@ func TestExchangeTradesTheAuthorizationCodeForARefreshToken(t *testing.T) {
 		name     string
 		keys     fakeKeys
 		accounts func(testing.TB) http.Handler
+		me       http.Handler
 		req      gossiprpc.Request
 		want     gossiprpc.SpotifyExchangeReply
 		wantErr  string
 	}{
-		{"mints a refresh token", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, exchange,
+		{"mints a refresh token", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, providertest.Respond(http.StatusOK, `{}`), exchange,
 			gossiprpc.SpotifyExchangeReply{RefreshToken: "rt-new"}, ""},
-		{"treats consent reuse as success without a new token", fakeKeys{key: "rt-1"}, func(t testing.TB) http.Handler { return newExchangeServer(t, "") }, exchange,
+		{"treats consent reuse as success without a new token", fakeKeys{key: "rt-1"}, func(t testing.TB) http.Handler { return newExchangeServer(t, "") }, providertest.Respond(http.StatusOK, `{}`), exchange,
 			gossiprpc.SpotifyExchangeReply{}, ""},
-		{"refuses without a Spotify app", fakeKeys{noApp: true}, func(t testing.TB) http.Handler { return providertest.Forbid(t) }, exchange,
+		{"warns when the account is not registered", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, spotify403("User not registered in the Developer Dashboard"), exchange,
+			gossiprpc.SpotifyExchangeReply{RefreshToken: "rt-new", Warning: "not_registered"}, ""},
+		{"warns when Spotify reports the user may not be registered", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, spotify403("Check settings on developer.spotify.com/dashboard, the user may not be registered."), exchange,
+			gossiprpc.SpotifyExchangeReply{RefreshToken: "rt-new", Warning: "not_registered"}, ""},
+		{"does not warn when the forbidden response has no message", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, spotify403(""), exchange,
+			gossiprpc.SpotifyExchangeReply{RefreshToken: "rt-new"}, ""},
+		{"warns when the app owner needs Premium", fakeKeys{}, func(t testing.TB) http.Handler { return newExchangeServer(t, "rt-new") }, spotify403("Forbidden"), exchange,
+			gossiprpc.SpotifyExchangeReply{RefreshToken: "rt-new", Warning: "owner_premium"}, ""},
+		{"refuses without a Spotify app", fakeKeys{noApp: true}, func(t testing.TB) http.Handler { return providertest.Forbid(t) }, nil, exchange,
 			gossiprpc.SpotifyExchangeReply{}, "no Spotify app set up"},
-		{"requires the code and the redirect", fakeKeys{key: "rt-1"}, func(t testing.TB) http.Handler { return providertest.Forbid(t) }, gossiprpc.Request{ChannelID: "2"},
+		{"requires the code and the redirect", fakeKeys{key: "rt-1"}, func(t testing.TB) http.Handler { return providertest.Forbid(t) }, nil, gossiprpc.Request{ChannelID: "2"},
 			gossiprpc.SpotifyExchangeReply{}, "missing authorization code"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newTestProvider(t, tc.keys, providertest.Forbid(t), tc.accounts(t))
+			me := providertest.Forbid(t)
+			if tc.me != nil {
+				me = func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, http.MethodGet, r.Method)
+					assert.Equal(t, "/v1/me", r.URL.Path)
+					assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
+					tc.me.ServeHTTP(w, r)
+				}
+			}
+			p := newTestProvider(t, tc.keys, me, tc.accounts(t))
 
 			reply := providertest.Call[gossiprpc.SpotifyExchangeReply](t, p, "exchange", tc.req)
 
 			assert.Equal(t, tc.want.RefreshToken, reply.RefreshToken)
+			assert.Equal(t, tc.want.Warning, reply.Warning)
 			assert.Contains(t, reply.Error, tc.wantErr)
 		})
 	}
