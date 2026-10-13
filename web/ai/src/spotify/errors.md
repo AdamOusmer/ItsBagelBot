@@ -1,20 +1,39 @@
 ---
-title: Fix {{console:setupAi.featureSpotify}} errors
-description: Every message the Spotify setup, the Song Requests page and chat can show, what it means, and what the user should do.
-updated: 2026-10-12
+title: Error reference for AI assistants: {{console:setupAi.featureSpotify}} errors
+description: Every message the Spotify setup, the {{console:nav.songqueue}} page and chat can show, what it means, and what the user should do.
+updated: 2026-10-13
+kind: errors
+human: https://itsbagelbot.com/guides/spotify-song-requests/
 ---
 
-## For assistants
+[Human guide](https://itsbagelbot.com/guides/spotify-song-requests/).
+
+Match the exact dashboard or chat message to an error below.
+Connection, Spotify Premium, active-device, request-permission, and queue-limit failures need different fixes.
+
+<page type="errors">
+
+<audience>
 
 Find the section whose message matches what the user sees. {{console:setupAi.guideLanguage}} In chat messages, `@name` stands for the viewer's name and `N` or `{...}` for a value.
 
-Rules:
+</audience>
 
-- Give one step at a time. Wait for the user to confirm.
-- Never ask for or accept a Client Secret, token or password.
-- {{console:setupAi.guideControls}} Setup steps are in https://ai.itsbagelbot.com/spotify/setup.md.
-- If two tries fail, send the user to https://itsbagelbot.com/contact/ or the Discord https://discord.gg/SZ2remwSDv.
-- The setup shows until Spotify is connected. After that the Song Requests page shows the module.
+<assistant_rules>
+
+- Explain matching error causes directly. If guiding active remediation, present one step at a time and wait for user confirmation before continuing.
+- Do not request, accept, or output Client Secrets, tokens, or passwords. Direct the user to enter them only in the dashboard.
+- {{console:setupAi.guideControls}} Setup steps are at [Spotify setup](https://ai.itsbagelbot.com/spotify/setup.md).
+- {{console:setupAi.guideLanguage}}
+- If two attempts fail, direct the user to [official support](https://itsbagelbot.com/contact/) or the [community Discord](https://discord.gg/SZ2remwSDv).
+
+</assistant_rules>
+
+<facts>
+
+The setup shows until Spotify is connected. After that the "{{console:nav.songqueue}}" page shows the module.
+
+</facts>
 
 ## Setup and connection messages in the dashboard
 
@@ -125,7 +144,7 @@ Tell the user:
 
 1. Find out which Spotify account owns the app. It is the account used to create the app in the Spotify Developer Dashboard.
 2. In Spotify, upgrade that account to Premium. Spotify's own screens decide the exact steps, so ask the user to follow what Spotify shows.
-3. Go back to the Song Requests page and connect again.
+3. Go back to the "{{console:nav.songqueue}}" page and connect again.
 
 <a id="connect-not-registered"></a>
 ### Warning after connecting: account not on the allowed users
@@ -139,7 +158,7 @@ Tell the user:
 1. Open the Spotify Developer Dashboard and select the app.
 2. Open the app's Settings and look for the user list. The tab may be called "User Management" or "Users and Access". Spotify may use a different name.
 3. Add the account that is connecting: its name and its Spotify email.
-4. Go back to the Song Requests page and connect again.
+4. Go back to the "{{console:nav.songqueue}}" page and connect again.
 
 <a id="app-credentials"></a>
 ### Keys do not look right
@@ -195,7 +214,7 @@ Message: "{{console:spotify.connection.disconnectFailed}}"
 
 Tell the user to wait a moment and try again.
 
-## Messages on the Song Requests page
+## Messages on the "{{console:nav.songqueue}}" page
 
 <a id="scope-gap"></a>
 ### Missing Spotify permission
@@ -355,7 +374,7 @@ Meaning: the song lookup is unavailable. Try again later.
 
 Message: "{{chat:songqueue.sr.off}}"
 
-Tell the streamer to turn on "{{console:spotify.sr.enableLabel}}" on the Song Requests page. The module switch "{{console:spotify.index.masterLabel}}" must be on too.
+Tell the streamer to turn on "{{console:spotify.sr.enableLabel}}" on the "{{console:nav.songqueue}}" page. The module switch "{{console:spotify.index.masterLabel}}" must be on too.
 
 <a id="chat-perm"></a>
 ### Smaller group
@@ -417,3 +436,15 @@ Each message below means the bot refunded the viewer's points. In chat the line 
 - "{{chat:songqueue.refund.quota}}": the viewer is at their limit. Wait for a song to play.
 - "{{chat:songqueue.refund.full}}": the queue is full. Wait.
 - "{{chat:songqueue.refund.failed}}": Spotify could not add that track. Redeem again with another song.
+
+<related>
+
+- [Feature reference](../features/songqueue.md).
+- [Setup](setup.md).
+- [Errors](errors.md).
+- [Human guide](https://itsbagelbot.com/guides/spotify-song-requests/).
+- [Support](https://itsbagelbot.com/contact/) and [community](https://discord.gg/SZ2remwSDv).
+
+</related>
+
+</page>
