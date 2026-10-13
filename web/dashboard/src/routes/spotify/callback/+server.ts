@@ -79,6 +79,10 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   const storedState = cookies.get(SPOTIFY_STATE_COOKIE);
   cookies.delete(SPOTIFY_STATE_COOKIE, { path: '/' });
 
+  const error = url.searchParams.get('error');
+  if (error === 'access_denied') songqueueFail('declined');
+  if (error) songqueueFail('oauth');
+
   const accepted = verifiedCode(code, state, storedState);
   if (!accepted) songqueueFail('state');
 

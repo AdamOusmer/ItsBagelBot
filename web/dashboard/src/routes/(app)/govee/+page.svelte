@@ -89,7 +89,11 @@
         failed(payload, 'govee.keySaveFailed');
         return;
       }
-      toast('success', t('govee.keySaved'));
+      if (payload?.code === 'key_unchecked') {
+        toast('info', t('govee.keyUnchecked'));
+      } else {
+        toast('success', t('govee.keySaved'));
+      }
       await invalidateAll();
     };
   };

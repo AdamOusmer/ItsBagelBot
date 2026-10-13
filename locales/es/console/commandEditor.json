@@ -25,7 +25,7 @@
   "access": "Acceso",
   "cooldownS": "Espera compartida (s)",
   "restrictUser": "Restringir a ID de usuario",
-  "restrictPlaceholder": "ID de usuario de Twitch. Solo esa persona puede ejecutarlo",
+  "restrictPlaceholder": "Solo números. Es el ID de usuario de Twitch, no el nombre de usuario. Busca el nombre de usuario en un sitio de consulta de ID de usuarios de Twitch para obtenerlo.",
   "active": "Activo",
   "onlyWhileLive": "Solo durante el directo",
   "bumpCounter": "Incrementar un contador",
