@@ -1,0 +1,164 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Moobot | Twitch-Bot-Vergleich",
+    "description": "Vergleiche Befehle, Timer, Moderation, Musik, Verlosungen und Preis. Erfahre, wann Moobot passt und wie du Befehle und Timer in ItsBagelBot importierst."
+  },
+  "hero": {
+    "eyebrow": "Vergleich von Twitch-Bots",
+    "title": "ItsBagelBot vs Moobot",
+    "lead": "Denkst du über ItsBagelBot als Alternative zu Moobot nach? Vergleiche deine Befehlsantworten, Timer-Bedingungen, den Musikplayer und die Verlosungsregeln und prüfe dann, was der Export in dein Twitch-Setup übernehmen kann."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "Du willst, dass Zuschauer Titel zu deiner echten Spotify-Warteschlange hinzufügen, und du hast Spotify Premium.",
+      "Du streamst Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale oder CODM und willst eingebaute Abfragen für Spielstatistiken.",
+      "Du willst Twitch-Kanalpunkte-Belohnungen für Spotify-Anfragen oder kompatible Govee-Lampen.",
+      "Du willst Befehle und Timer aus einem Moobot-Export prüfen, bevor du sie speicherst."
+    ],
+    "them": [
+      "Du willst rotierende Timer-Nachrichten, die von verstrichener Zeit und Chataktivität abhängen. Referenz: https://moo.bot/docs/auto-post-twitch-chat-messages.",
+      "Du bevorzugst YouTube-Song-Anfragen mit Dauerlimit und Warteschlangenlimit pro Zuschauer. Referenz: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
+      "Du willst Verlosungen mit Stichwort oder Zahlenraten und Abonnenten-Berechtigung. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
+      "Du willst eigene Twitch-Befehle als Discord-Slash-Befehle verfügbar machen. Referenz: https://moo.bot/docs/using-your-twitch-bot-on-discord."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat-Befehle",
+      "us": "Eigene Antworten mit Variablen, Berechtigungen und Abklingzeiten, dazu ein visueller Befehlsbaukasten und eingebaute Befehle wie !uptime und !clip.",
+      "them": "Eigene Befehle unterstützen Antwort-Tags, Berechtigungen nach Benutzergruppen, Abklingzeiten, Spielbeschränkungen und automatisches Auslaufen. Antworten kannst du als Twitch-Ankündigungen senden.",
+      "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
+    },
+    {
+      "feature": "Variablen und externe Daten",
+      "us": "Befehlsantworten unterstützen Variablen und Zähler, Spielmodule stellen Felder für ihre Antworten bereit.",
+      "them": "URL-Abruf-Tags können HTTP- oder HTTPS-GET- oder POST-Anfragen senden und Klartext oder JSON lesen. JSON-Pointer wählen die Felder aus, die in deine Antwort kommen.",
+      "source": "https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands"
+    },
+    {
+      "feature": "Timer",
+      "us": "Richte wiederkehrende Nachrichten mit einem eigenen Intervall pro Timer ein, während du live bist.",
+      "them": "Jeder Timer rotiert durch eine Liste von Befehlsantworten und verlangt sowohl verstrichene Minuten als auch Chatzeilen. Befehlsbedingungen können Posts auf ein Spiel oder den Online-Status beschränken. Das passt zu bedingten Nachrichtenrotationen.",
+      "source": "https://moo.bot/docs/auto-post-twitch-chat-messages"
+    },
+    {
+      "feature": "Moderation und Spamfilter",
+      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein kleiner Schutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
+      "them": "Konfigurierbare Filter decken Links, Großschreibung, Emotes, Symbole und wiederholte Nachrichten ab, mit Ausnahmen für Zuschauer und Nachrichten. Filter für wiederholte Nachrichten sind ein Business-Tarif-Vorteil. Tarifreferenz: https://moo.bot/docs/upgrading-your-bot-with-moobot-plus.",
+      "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
+    },
+    {
+      "feature": "Song-Anfragen",
+      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können überspringen oder leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
+      "them": "YouTube-Anfragen werden über den Song-Player von Moobot abgespielt, mit einer zweiten Playlist, wenn die Anfragen ausgehen. Filter können die Songlänge, Anfragen pro Zuschauer und die Anfrageberechtigung begrenzen. Wähle es, wenn dieser YouTube-Wiedergabeablauf zu deinem Stream passt.",
+      "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "feature": "Spielstatistiken",
+      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verbinde zum Beispiel deine Riot-ID und nutze !valrank.",
+      "them": "Antwort-Tags decken Statistiken für League of Legends, Teamfight Tactics und Apex Legends ab. URL-Abruf-Befehle können außerdem Daten aus einem externen Dienst lesen. Referenz zum URL-Abruf: https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands.",
+      "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
+    },
+    {
+      "feature": "Twitch-Kanalpunkte",
+      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, mit Einlösung oder Rückerstattung.",
+      "them": "Die Filteranleitung beschreibt Ausnahmen für hervorgehobene Nachrichten, die mit Twitch-Kanalpunkten gesendet wurden. Sie beschreibt nicht, wie eigene Belohnungen an Bot-Aktionen gebunden werden. Prüfe diesen Belohnungsablauf separat.",
+      "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
+    },
+    {
+      "feature": "Verlosungen",
+      "us": "Zeitlich begrenzte Verlosungen nehmen !join-Teilnahmen an und ziehen automatisch. Jede teilnehmende Person zählt einmal, und Gewinner bestätigen mit !claim.",
+      "them": "Verlosungen können Stichwörter oder Zahlenraten nutzen, die Teilnahme auf Abonnenten beschränken und Abonnenten zusätzliche Chancen geben. Diese dokumentierten Teilnahmeformate und Berechtigungen passen zu einem anderen Ablauf als einer zeitlich begrenzten Verlosung mit einer Teilnahme pro Person.",
+      "source": "https://moo.bot/docs/twitch-giveaways-for-increased-engagement"
+    },
+    {
+      "feature": "Import in ItsBagelBot",
+      "us": "Lade deinen Moobot-Export hoch, um Befehle und Timer zu importieren. Wähle Einträge aus und prüfe konvertierte Antwort-Tags und Warnungen vor dem Speichern. Das Quell-Setup bleibt unverändert.",
+      "them": "Exportiere ausgewählte Einstellungen als Datei unter Tools, dann Import & Export. Der Importer von ItsBagelBot nutzt diese Datei für Befehle und Timer. Prüfe die Vorschau, bevor du annimmst, dass der gesamte Export übernommen wird.",
+      "source": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord ist eine Premium-Beta-Integration für Live-Ankündigungen, Clips, Willkommensnachrichten, Tickets und Community-Werkzeuge.",
+      "them": "Die Discord-Integration umfasst Live-Ankündigungen, VOD-Links, synchronisierte eigene Slash-Befehle und automatische Nachrichten. Die Anleitung weist darauf hin, dass eingebaute Befehle und zeitliche Einschränkungen eigener Befehle dort nicht unterstützt werden.",
+      "source": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
+    },
+    {
+      "feature": "Preis",
+      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod und Discord. Spotify Premium ist eine separate Voraussetzung.",
+      "them": "Die Kernfunktionen sind kostenlos. Die veröffentlichte Gegenüberstellung nennt 25 eigene Befehle und 3 Timer ohne Tarif. Affiliate, Partner und Business erweitern die Plätze und bieten weitere Vorteile. Kostenpflichtige Beträge zeigt der Abo-Ablauf im Dashboard, prüfe dort das aktuelle Angebot.",
+      "source": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    }
+  ],
+  "migrate": {
+    "title": "Importiere deine Moobot-Befehle und Timer",
+    "steps": [
+      "Öffne in Moobot Tools, dann Import & Export. Exportiere die ausgewählten Einstellungen in eine Datei. Referenz: https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings.",
+      "Melde dich bei ItsBagelBot mit Twitch an, wähle im Import-Assistenten Moobot und lade die Exportdatei hoch.",
+      "Wähle Befehle und Timer aus, prüfe konvertierte Tags und Warnungen und speichere. Teste Berechtigungen, Abklingzeiten und Timer-Intervalle; nicht unterstützte Variablen bleiben als reiner Text erhalten.",
+      "Schalte passende Befehle und Timer in Moobot nach dem Test aus, um doppelte Nachrichten zu vermeiden. Richte Musik, Moderation, Verlosungen und Belohnungsaktionen separat ein."
+    ],
+    "cta": "Prüfe deinen Moobot-Import"
+  },
+  "faq": [
+    {
+      "q": "Wann ist ItsBagelBot eine sinnvolle Alternative zu Moobot?",
+      "a": "Zieh es in Betracht für Anfragen in deiner echten Spotify-Warteschlange, eingebaute Abfragen für die unterstützten Spiele oder Twitch-Belohnungen für kompatible Govee-Lampen. Diese fertigen Funktionen und der Import-Assistent sind kostenlos. AutoMod und Discord sind Premium-Beta-Module."
+    },
+    {
+      "q": "Wann solltest du bei Moobot bleiben?",
+      "a": "Bleib dabei, wenn dir Verlosungen mit Stichwort oder Zahlenraten genügen. Prüfe ihre Berechtigungen für Abonnenten, bevor du diesen Ablauf neu aufbaust. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
+    },
+    {
+      "q": "Sind kostenlose Spotify-Anfragen ohne Spotify Premium möglich?",
+      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät wiedergeben."
+    },
+    {
+      "q": "Was sollte ich beim Import von Moobot prüfen?",
+      "a": "Der Importer übernimmt Befehle und Timer aus der hochgeladenen Datei. Prüfe konvertierte Antwort-Tags, Berechtigungen, Abklingzeiten und das Intervall jedes Timers vor dem Speichern. Teste Befehlsantworten und das Posting-Verhalten nach dem Import; Musik und Moderation brauchen eine separate Einrichtung."
+    },
+    {
+      "q": "Kann ich ItsBagelBot testen, bevor ich meinen alten Bot entferne?",
+      "a": "Ja. Der Import entfernt oder verändert dein altes Setup nicht. Teste die ausgewählten Einträge und schalte danach passende Antworten und Timer im alten Bot aus, damit der Chat nur eine Antwort erhält."
+    }
+  ],
+  "sources": [
+    {
+      "label": "Moobot: eigene Befehle, Einschränkungen und Auslaufen",
+      "url": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
+    },
+    {
+      "label": "Moobot: URL-Abruf-Anfragen und JSON-Antworten",
+      "url": "https://moo.bot/docs/building-your-own-dream-twitch-bot-chat-commands"
+    },
+    {
+      "label": "Moobot: Timer-Rotationen und Posting-Bedingungen",
+      "url": "https://moo.bot/docs/auto-post-twitch-chat-messages"
+    },
+    {
+      "label": "Moobot: Nachrichtenfilter und Ausnahmen für Kanalpunkte-Nachrichten",
+      "url": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
+    },
+    {
+      "label": "Moobot: YouTube-Song-Anfragen und Player-Einstellungen",
+      "url": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
+    },
+    {
+      "label": "Moobot: Verlosungsformate und Berechtigungen",
+      "url": "https://moo.bot/docs/twitch-giveaways-for-increased-engagement"
+    },
+    {
+      "label": "Moobot: ausgewählte Einstellungen als Datei exportieren",
+      "url": "https://moo.bot/docs/sharing-reusing-backing-up-your-moobot-settings"
+    },
+    {
+      "label": "Moobot: Discord-Ankündigungen und Slash-Befehle",
+      "url": "https://moo.bot/docs/using-your-twitch-bot-on-discord"
+    },
+    {
+      "label": "Moobot: kostenlose Limits und MoobotPlus-Abos",
+      "url": "https://moo.bot/docs/upgrading-your-bot-with-moobot-plus"
+    }
+  ]
+}

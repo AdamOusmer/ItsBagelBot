@@ -112,7 +112,7 @@ test.describe('feature landing pages', () => {
 
 test.describe('comparison pages', () => {
     for (const slug of ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot']) {
-        for (const [lang, prefix] of [['en', ''], ['fr', '/fr']]) {
+        for (const [lang, prefix] of [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['pt-br', '/pt-br'], ['ru', '/ru']]) {
             test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {
                 await page.goto(`${prefix}/vs/${slug}/`);
                 const rows = page.locator('.vs__table tbody tr');
@@ -131,22 +131,18 @@ test.describe('comparison pages', () => {
                 expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
 
                 const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((l) => l.hreflang));
-                expect(hreflangs.sort()).toEqual(['en', 'fr', 'x-default']);
+                expect(hreflangs.map((h) => h.toLowerCase()).sort()).toEqual(['de', 'en', 'es', 'fr', 'pt-br', 'ru', 'x-default']);
                 await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/migration.md"]')).toHaveCount(1);
             });
         }
-
-        test(`/de/vs/${slug}/ does not exist`, async ({ request }) => {
-            expect((await request.get(`/de/vs/${slug}/`)).status()).toBe(404);
-        });
     }
 
-    test('footer compare links follow the locale only where a translation exists', async ({ page }) => {
+    test('footer compare links and language switcher follow the locale', async ({ page }) => {
         await page.goto('/fr/');
         await expect(page.locator('footer a[href="/fr/vs/nightbot/"]')).toBeVisible();
         await page.goto('/de/');
-        await expect(page.locator('footer a[href="/vs/nightbot/"]')).toBeVisible();
+        await expect(page.locator('footer a[href="/de/vs/nightbot/"]')).toBeVisible();
         await page.goto('/vs/streamelements/');
-        await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/vs/streamelements/');
+        await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/de/vs/streamelements/');
     });
 });

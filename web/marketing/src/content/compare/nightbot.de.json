@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "title": "ItsBagelBot vs Nightbot | Eine Alternative für Twitch-Bots",
+    "description": "Vergleiche Befehle, Moderation, Musik, Spielstatistiken und Preis. Erfahre, wann Nightbot passt und wie du Befehle und Timer in ItsBagelBot importierst."
+  },
+  "hero": {
+    "eyebrow": "Vergleich von Twitch-Bots",
+    "title": "ItsBagelBot vs Nightbot",
+    "lead": "Suchst du eine Alternative zu Nightbot? Beginne mit dem, was dein Chat braucht: Steuerung der Spotify-Warteschlange, Spielstatistiken, Spamfilter oder Verlosungen. Vergleiche die dokumentierten Optionen und prüfe deine bestehenden Befehle, bevor du wechselst."
+  },
+  "reviewed": "2026-10-13",
+  "suits": {
+    "us": [
+      "Du willst, dass Zuschauer Titel zu deiner echten Spotify-Warteschlange hinzufügen, und du hast Spotify Premium.",
+      "Du streamst Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale oder CODM und willst eingebaute Abfragen für Spielstatistiken.",
+      "Du willst Twitch-Kanalpunkte-Belohnungen für Spotify-Anfragen oder kompatible Govee-Lampen.",
+      "Du willst importierte Befehle und Timer prüfen, bevor du sie speicherst."
+    ],
+    "them": [
+      "Du willst konfigurierbare Spamfilter in einem kostenlosen Bot. Filterreferenz: https://docs.nightbot.tv/control-panel/spam-protection. Preisreferenz: https://community.nightdev.com/t/messages-command/1534655926634549409.",
+      "Du bevorzugst YouTube- und SoundCloud-Anfragen in einem Medienplayer. Referenz: https://docs.nightbot.tv/control-panel/song-requests.",
+      "Du willst Verlosungen unter aktiven Nutzern, nach Stichwort oder mit Zufallszahl. Referenz: https://docs.nightbot.tv/control-panel/giveaways.",
+      "Du brauchst zusätzlich einen Bot für YouTube, Trovo oder SOOP. Referenz: https://docs.nightbot.tv/."
+    ]
+  },
+  "rows": [
+    {
+      "feature": "Chat-Befehle",
+      "us": "Eigene Antworten mit Variablen, Berechtigungen und Abklingzeiten, dazu ein visueller Befehlsbaukasten und eingebaute Befehle wie !uptime und !clip.",
+      "them": "Eigene Befehle haben Antworten, Berechtigungsstufen, Abklingzeiten und Aliasse. Moderatoren können Befehle direkt im Chat verwalten.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Variablen und externe Daten",
+      "us": "Befehlsantworten unterstützen Variablen und Zähler, Spielmodule stellen Felder für ihre Antworten bereit.",
+      "them": "Variablen decken Nutzer, Argumente, Zähler, Zeit und Antworten externer URLs ab. Eval unterstützt JavaScript, nützlich, wenn du eigene Logik schreiben willst.",
+      "source": "https://docs.nightbot.tv/variables"
+    },
+    {
+      "feature": "Timer",
+      "us": "Richte wiederkehrende Nachrichten mit einem eigenen Intervall pro Timer ein, während du live bist.",
+      "them": "Timer kombinieren ein Intervall mit einer Mindestanzahl an Chatzeilen und können einen Befehl über einen Alias aufrufen. Der Aktivitätsschwellenwert ist bei ruhigen Chats hilfreich.",
+      "source": "https://docs.nightbot.tv/control-panel/timers"
+    },
+    {
+      "feature": "Moderation und Spamfilter",
+      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein kleiner Schutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
+      "them": "Filter decken gesperrte Begriffe, Großschreibung, Emotes, Links mit Erlaubnisliste, Symbole und Wiederholungen ab. Für kostenlose, konfigurierbare Spamfilter passt Nightbot klar besser.",
+      "source": "https://docs.nightbot.tv/control-panel/spam-protection"
+    },
+    {
+      "feature": "Song-Anfragen",
+      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können überspringen oder leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
+      "them": "Anfragen nutzen YouTube oder SoundCloud im Medienplayer von Nightbot, mit Warteschlangenlimits und einer Ersatzplaylist. Das passt zu Medien dieser Dienste und nicht zur Steuerung der Spotify-Warteschlange.",
+      "source": "https://docs.nightbot.tv/control-panel/song-requests"
+    },
+    {
+      "feature": "Spielstatistiken",
+      "us": "Eingebaute Module decken Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale und CODM ab. Verbinde zum Beispiel deine Riot-ID und nutze !valrank.",
+      "them": "Eingebaute Rang-Variablen decken League of Legends und Teamfight Tactics ab. Referenz für TFT: https://docs.nightbot.tv/variables/teamfighttactics.",
+      "source": "https://docs.nightbot.tv/variables/leagueoflegends"
+    },
+    {
+      "feature": "Twitch-Kanalpunkte",
+      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, mit Einlösung oder Rückerstattung.",
+      "them": "Die aktuelle Befehlsreferenz beschreibt Aktionen, die durch Chat-Befehle ausgelöst werden. Eine native Bindung an Twitch-Kanalpunkte-Belohnungen ist dort nicht dokumentiert. Prüfe deinen Belohnungsablauf vor dem Wechsel separat.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Verlosungen",
+      "us": "Zeitlich begrenzte Verlosungen nehmen !join-Teilnahmen an und ziehen automatisch. Jede teilnehmende Person zählt einmal, und Gewinner bestätigen mit !claim.",
+      "them": "Wähle Verlosungen unter aktiven Nutzern, nach Stichwort oder mit Zufallszahl, mit optionalem Extra-Glück für Abonnenten und Stammzuschauer. Nightbot bietet mehr Teilnahmeformate als die zeitlich begrenzte Verlosung von ItsBagelBot.",
+      "source": "https://docs.nightbot.tv/control-panel/giveaways"
+    },
+    {
+      "feature": "Import in ItsBagelBot",
+      "us": "Verbinde Nightbot per OAuth, um Befehle und Timer zu importieren. Wähle die Einträge aus, prüfe konvertierte Variablen und Warnungen und speichere. Dein altes Setup bleibt unverändert.",
+      "them": "Eigene Befehle können Aliasse und Variablen verwenden. Prüfe ihr Verhalten nach der Konvertierung, besonders bei Befehlen, die von externen Daten oder eigener Logik abhängen.",
+      "source": "https://docs.nightbot.tv/control-panel/commands"
+    },
+    {
+      "feature": "Discord",
+      "us": "Discord ist eine Premium-Beta-Integration für Live-Ankündigungen, Clips, Willkommensnachrichten, Tickets und Community-Werkzeuge.",
+      "them": "Nightbot dokumentiert Befehlszugriff auf Discord, Rollenzuordnung und optionalen Spamfilter. Das passt, wenn du bestehende Befehle auf einen Server übertragen willst.",
+      "source": "https://docs.nightbot.tv/discord"
+    },
+    {
+      "feature": "Preis",
+      "us": "Jede fertige Funktion ist kostenlos. Premium kostet 7 $ CAD zzgl. Steuern pro Monat und bringt priorisierte Bearbeitung, Support und frühen Zugang zu Beta-Modulen, derzeit AutoMod und Discord. Spotify Premium ist eine separate Voraussetzung.",
+      "them": "Kostenloser Dienst laut Aussage des Nightbot-Entwicklers in der verlinkten offiziellen Support-Antwort vom März 2025. Das ist eine Aussage des Entwicklers und keine veröffentlichte Preisliste.",
+      "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
+    }
+  ],
+  "migrate": {
+    "title": "Importiere deine Nightbot-Befehle und Timer",
+    "steps": [
+      "Melde dich bei ItsBagelBot mit Twitch an, öffne den Import-Assistenten und verbinde Nightbot per OAuth.",
+      "Wähle die Befehle und Timer aus, die du willst. Prüfe konvertierte Variablen und Warnungen; nicht unterstützte Variablen bleiben als reiner Text erhalten.",
+      "Speichere deine Auswahl, teste die Befehlsantworten im Chat und prüfe Timer-Intervalle sowie die Einstellungen für Offline-Zeiten.",
+      "Schalte passende Befehle und Timer in deinem alten Bot nach dem Test aus, damit keine doppelten Nachrichten entstehen. Richte Spotify und Kanalpunkte-Belohnungen separat ein."
+    ],
+    "cta": "Prüfe deinen Nightbot-Import"
+  },
+  "faq": [
+    {
+      "q": "Wann ist ItsBagelBot eine sinnvolle Alternative zu Nightbot?",
+      "a": "Zieh es in Betracht, wenn dein Twitch-Setup Spotify-Anfragen in der echten Warteschlange, eingebaute Abfragen für unterstützte Spiele oder Kanalpunkte-Aktionen für Govee-Lampen braucht. Befehle, Timer und der Import-Assistent sind im kostenlosen Tarif fertige Funktionen. AutoMod und Discord sind Premium-Beta-Module."
+    },
+    {
+      "q": "Wann solltest du bei Nightbot bleiben?",
+      "a": "Wenn das bestehende Setup deine Anforderungen erfüllt, kann ein Wechsel mehr Arbeit machen, ohne deinem Stream zu helfen. Das Verlosungspanel von Nightbot bietet mehr Teilnahmeformate als die zeitlich begrenzte Verlosung von ItsBagelBot: aktive Nutzer, Stichwörter und Zufallszahlen. Referenz: https://docs.nightbot.tv/control-panel/giveaways."
+    },
+    {
+      "q": "Sind kostenlose Spotify-Anfragen ohne Spotify Premium möglich?",
+      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät wiedergeben."
+    },
+    {
+      "q": "Funktionieren alle importierten Befehle unverändert?",
+      "a": "Unterstützte Variablen werden in die Syntax von ItsBagelBot umgewandelt. Variablen ohne Entsprechung bleiben mit einer Warnung als reiner Text erhalten. Prüfe vor dem Speichern und teste dann Antworten, Berechtigungen und Abklingzeiten. Der Import lässt den alten Bot unverändert."
+    },
+    {
+      "q": "Kann ich ItsBagelBot testen, bevor ich meinen alten Bot entferne?",
+      "a": "Ja. Der Import entfernt oder verändert dein altes Setup nicht. Teste die ausgewählten Einträge und schalte danach passende Antworten und Timer im alten Bot aus, damit der Chat nur eine Antwort erhält."
+    }
+  ],
+  "sources": [
+    { "label": "Nightbot: unterstützte Streaming-Plattformen", "url": "https://docs.nightbot.tv/" },
+    { "label": "Nightbot: Befehle, Berechtigungen und Aliasse", "url": "https://docs.nightbot.tv/control-panel/commands" },
+    { "label": "Nightbot: Variablen und Spielabfragen", "url": "https://docs.nightbot.tv/variables" },
+    { "label": "Nightbot: Rang-Variable für League of Legends", "url": "https://docs.nightbot.tv/variables/leagueoflegends" },
+    { "label": "Nightbot: Rang-Variable für Teamfight Tactics", "url": "https://docs.nightbot.tv/variables/teamfighttactics" },
+    { "label": "Nightbot: Timer und Schwellenwerte für Chataktivität", "url": "https://docs.nightbot.tv/control-panel/timers" },
+    { "label": "Nightbot: Spamschutz", "url": "https://docs.nightbot.tv/control-panel/spam-protection" },
+    { "label": "Nightbot: Song-Anfragen von YouTube und SoundCloud", "url": "https://docs.nightbot.tv/control-panel/song-requests" },
+    { "label": "Nightbot: Verlosungsformate", "url": "https://docs.nightbot.tv/control-panel/giveaways" },
+    { "label": "Nightbot: Discord-Integration", "url": "https://docs.nightbot.tv/discord" },
+    { "label": "Nightbot: offizielle Aussage des Entwicklers zum kostenlosen Dienst (März 2025)", "url": "https://community.nightdev.com/t/messages-command/1534655926634549409" }
+  ]
+}
