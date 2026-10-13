@@ -599,30 +599,45 @@ func TestGuildEntriesNeverGuessAReauthFlag(t *testing.T) {
 
 func TestSetupClearsTheReauthFlagOnlyWhenTheBotMayRename(t *testing.T) {
 	cases := []struct {
-		name string
-		perm string
-		want bool
+		name      string
+		perm      string
+		want      bool
+		renamed   bool
+		modifyErr error
 	}{
-		{"re-added with the nickname permission", strconv.Itoa(1 << 26), false},
-		{"re-added without it", strconv.Itoa(1 << 10), true},
+		{"re-added with the nickname permission", strconv.Itoa(1 << 26), false, true, nil},
+		{"re-added without it", strconv.Itoa(1 << 10), true, false, nil},
+		{"rename refused by Discord keeps the flag", strconv.Itoa(1 << 26), true, true, discapi.ErrForbidden},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rest := &fakeSetupREST{
-				roles:  []discapi.Snowflake{{ID: rpcGuildID}, {ID: "bot-role", Permissions: tc.perm}},
-				member: discapi.GuildMemberInfo{Roles: []string{"bot-role"}},
+				roles:     []discapi.Snowflake{{ID: rpcGuildID}, {ID: "bot-role", Permissions: tc.perm}},
+				member:    discapi.GuildMemberInfo{Roles: []string{"bot-role"}},
+				modifyErr: tc.modifyErr,
 			}
 			w := setup.New(setup.Config{
 				Store:   boundStore(t, map[string]string{rpcGuildID: "b1"}),
 				Discord: rest, BotID: "bot", Log: zap.NewNop(),
 			})
 			flags := flaggedReauth{rpcGuildID: true}
-			d := &discordRPC{w: w, reauth: flags, log: zap.NewNop()}
+			d := &discordRPC{
+				w: w, reauth: flags,
+				tier: func(context.Context, string) (string, bool) { return ddiscord.StatusPaid, true },
+				log:  zap.NewNop(),
+			}
 
 			got := d.handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{GuildID: rpcGuildID, UserID: "b1"})
 
 			require.Equal(t, "", got.Error)
 			require.Equal(t, tc.want, flags[rpcGuildID])
+			if tc.renamed {
+				require.Len(t, rest.members, 1)
+				require.NotNil(t, rest.members[0].Nick)
+				require.Equal(t, ddiscord.PremiumNick, *rest.members[0].Nick)
+			} else {
+				require.Empty(t, rest.members)
+			}
 		})
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/discord/outgress/internal/identity"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -162,6 +163,18 @@ func (w *Worker) BotCanRename(ctx context.Context, guildID string) bool {
 		return false
 	}
 	return discapi.HasPermissions(discapi.BasePermissions(member, roles), discapi.PermChangeNickname)
+}
+
+type currentMemberWriter interface {
+	ModifyCurrentMember(ctx context.Context, m discapi.CurrentMember) error
+}
+
+func (w *Worker) ApplyIdentity(ctx context.Context, guildID string, want ddiscord.GuildIdentity) error {
+	writer, ok := w.discord.(currentMemberWriter)
+	if !ok {
+		return ErrDiscordUnavailable
+	}
+	return writer.ModifyCurrentMember(ctx, identity.Member(guildID, want))
 }
 
 func annotateBotAccess(out []GuildEntry, channels []discapi.Snowflake, member discapi.MemberPermissions, roles []discapi.Snowflake) {

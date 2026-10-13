@@ -294,8 +294,15 @@ type fakeSetupREST struct {
 	guild    discapi.GuildInfo
 	guildErr error
 
-	desks []deskPanel
-	chats []discapi.ChatPost
+	desks     []deskPanel
+	chats     []discapi.ChatPost
+	members   []discapi.CurrentMember
+	modifyErr error
+}
+
+func (f *fakeSetupREST) ModifyCurrentMember(_ context.Context, m discapi.CurrentMember) error {
+	f.members = append(f.members, m)
+	return f.modifyErr
 }
 
 func (f *fakeSetupREST) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {

@@ -40,13 +40,14 @@ type SetupWiring struct {
 	Wiring
 	Reauth reauthReader
 	Status botStatusReader
+	Tier   tierReader
 }
 
 func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 	if w == nil {
 		return nil
 	}
-	d := &discordRPC{w: w, reauth: wire.Reauth, status: wire.Status, log: wire.Log}
+	d := &discordRPC{w: w, reauth: wire.Reauth, status: wire.Status, tier: wire.Tier, log: wire.Log}
 	if err := errors.Join(
 		register[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
 			wire.Wiring, verb{Name: "discord.setup", Timeout: setupHandleTimeout}, d.handleSetup),
@@ -88,12 +89,15 @@ type discordRPC struct {
 	w      *setup.Worker
 	reauth reauthReader
 	status botStatusReader
+	tier   tierReader
 	log    *zap.Logger
 }
 
 type botStatusReader interface {
 	BotStatus(ctx context.Context) (ddiscord.BotStatus, bool)
 }
+
+type tierReader func(ctx context.Context, userID string) (string, bool)
 
 func codeFor(err error) rpc.Code {
 	switch {
@@ -167,7 +171,7 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
 	}
-	d.clearFixedReauth(ctx, req.GuildID)
+	d.clearFixedReauth(ctx, req)
 	return outgressrpc.DiscordSetupReply{
 		DiscordSetupIDs: got.DiscordSetupIDs,
 		DroppedPins:     got.DroppedPins,
@@ -338,14 +342,33 @@ func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
 	return flag
 }
 
-func (d *discordRPC) clearFixedReauth(ctx context.Context, guildID string) {
-	id := kv.GuildID(guildID)
-	if !d.needsReauth(ctx, id) || !d.w.BotCanRename(ctx, guildID) {
+func (d *discordRPC) clearFixedReauth(ctx context.Context, req outgressrpc.DiscordSetupRequest) {
+	id := kv.GuildID(req.GuildID)
+	if !d.needsReauth(ctx, id) || !d.w.BotCanRename(ctx, req.GuildID) {
+		return
+	}
+	if !d.reapplyIdentity(ctx, req) {
 		return
 	}
 	if err := d.reauth.ClearNeedsReauth(ctx, id); err != nil {
-		d.logger().Warn("failed to clear discord reauth flag", zap.String("guild_id", guildID), zap.Error(err))
+		d.logger().Warn("failed to clear discord reauth flag", zap.String("guild_id", req.GuildID), zap.Error(err))
 	}
+}
+
+func (d *discordRPC) reapplyIdentity(ctx context.Context, req outgressrpc.DiscordSetupRequest) bool {
+	if d.tier == nil {
+		return false
+	}
+	status, ok := d.tier(ctx, req.UserID)
+	if !ok {
+		d.logger().Warn("discord identity not re-applied: tier unknown", zap.String("guild_id", req.GuildID))
+		return false
+	}
+	if err := d.w.ApplyIdentity(ctx, req.GuildID, ddiscord.IdentityFor(status)); err != nil {
+		d.logger().Warn("discord identity re-apply failed", zap.String("guild_id", req.GuildID), zap.Error(err))
+		return false
+	}
+	return true
 }
 
 func (d *discordRPC) reauthFlag(ctx context.Context, guildID kv.GuildID) (flag, known bool) {
