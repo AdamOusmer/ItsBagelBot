@@ -70,7 +70,7 @@
   "test_limited": "Límite de solicitudes alcanzado. Espera un momento y vuelve a probar.",
   "test_upstream_error": "La API devolvió un error. El chat no ve nada, salvo que la variable incluya |default: {urlfetch:name|default}.",
   "test_timeout": "La API no respondió a tiempo. El chat no ve nada, salvo que la variable incluya |default: {urlfetch:name|default}.",
-  "test_bad_def": "Esta fuente de datos no pudo producir un valor, así que el chat mostraría {urlfetch:name} tal como lo escribiste, incluso con |default. Comprueba la dirección web y la clave API, y vuelve a hacer clic en Obtener una muestra.",
+  "test_bad_def": "Esta fuente de datos no pudo producir un valor. Mientras tanto, el chat muestra el valor |default de la variable si lo tiene, y si no, {urlfetch:name} tal como lo escribiste. Comprueba la dirección web y la clave API, y vuelve a hacer clic en Obtener una muestra.",
   "testNoAnswer": "El servicio de consultas no respondió. Inténtalo de nuevo en un momento.",
   "keysTitle": "Claves de API",
   "keyNoneYet": "Aún no hay claves. Añade una aquí antes de añadir una fuente de datos para una API que necesite una clave.",

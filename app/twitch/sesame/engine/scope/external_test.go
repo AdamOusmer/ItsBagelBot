@@ -25,8 +25,8 @@ func (f *listFetcher) Fetch(_ context.Context, names []string) map[string]string
 func TestExternalFansOutOnceAndCaps(t *testing.T) {
 	f := &listFetcher{}
 	chain := Chain{External{Fetcher: f, Max: 2}}
-	assert.Equal(t, "<a> <b> {urlfetch:c} <a>",
-		render(t, "{urlfetch:A} {urlfetch:b} {urlfetch:c} {urlfetch:a}", chain, nil))
+	assert.Equal(t, "<a> <b> {urlfetch:c|x} <a>",
+		render(t, "{urlfetch:A} {urlfetch:b} {urlfetch:c|x} {urlfetch:a}", chain, nil))
 	require.Len(t, f.batches, 1, "one fan-out per run")
 	assert.Equal(t, []string{"a", "b"}, f.batches[0], "distinct, folded, capped")
 }

@@ -70,7 +70,7 @@
   "test_limited": "Limite de solicitações atingido. Aguarde um momento e teste novamente.",
   "test_upstream_error": "A API retornou um erro. O chat não vê nada, a menos que o token tenha um |default: {urlfetch:name|default}.",
   "test_timeout": "A API excedeu o tempo limite. O chat não vê nada, a menos que o token tenha um |default: {urlfetch:name|default}.",
-  "test_bad_def": "Esta fonte de dados não conseguiu produzir um valor, então o chat mostraria {urlfetch:name} como foi digitado, mesmo com |default. Confira o endereço da web e a chave API, depois clique em Consultar uma amostra novamente.",
+  "test_bad_def": "Esta fonte de dados não conseguiu produzir um valor. Enquanto isso, o chat mostra o valor |default do token, se ele tiver um, ou então {urlfetch:name} como foi digitado. Confira o endereço da web e a chave API, depois clique em Consultar uma amostra novamente.",
   "testNoAnswer": "O serviço de consulta não respondeu. Tente novamente em instantes.",
   "keysTitle": "Chaves de API",
   "keyNoneYet": "Ainda não há chaves. Adicione uma aqui antes de adicionar uma fonte de dados para uma API que precise de chave.",

@@ -70,7 +70,7 @@
   "test_limited": "Anfragelimit erreicht. Warte kurz und teste erneut.",
   "test_upstream_error": "Die API hat einen Fehler zurückgegeben. Der Chat sieht nichts, außer das Token enthält einen |default: {urlfetch:name|default}.",
   "test_timeout": "Zeitüberschreitung bei der API. Der Chat sieht nichts, außer das Token enthält einen |default: {urlfetch:name|default}.",
-  "test_bad_def": "Diese Datenquelle konnte keinen Wert liefern, daher würde der Chat {urlfetch:name} unverändert anzeigen, auch mit |default. Prüfe die Webadresse und den API-Schlüssel und klicke erneut auf Beispiel abrufen.",
+  "test_bad_def": "Diese Datenquelle konnte keinen Wert liefern. Bis dahin zeigt der Chat den |default-Wert des Tokens, falls es einen hat, sonst {urlfetch:name} unverändert. Prüfe die Webadresse und den API-Schlüssel und klicke erneut auf Beispiel abrufen.",
   "testNoAnswer": "Der Abrufdienst hat nicht geantwortet. Versuche es gleich erneut.",
   "keysTitle": "API-Schlüssel",
   "keyNoneYet": "Noch keine Schlüssel. Füge hier einen hinzu, bevor du eine Datenquelle für eine API hinzufügst, die einen Schlüssel benötigt.",

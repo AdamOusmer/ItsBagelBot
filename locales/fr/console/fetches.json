@@ -70,7 +70,7 @@
   "test_limited": "Limite de débit atteinte. Patientez un instant et retestez.",
   "test_upstream_error": "L'API a renvoyé une erreur. Le chat n'affiche rien, sauf si le token a un |default : {urlfetch:nom|default}.",
   "test_timeout": "L'API a expiré. Le chat n'affiche rien, sauf si le token a un |default : {urlfetch:nom|default}.",
-  "test_bad_def": "Cette source de données n’a pas pu produire de valeur, donc le chat afficherait {urlfetch:name} tel que saisi, même avec |default. Vérifiez l’adresse web et la clé API, puis cliquez à nouveau sur Récupérer un exemple.",
+  "test_bad_def": "Cette source de données n’a pas pu produire de valeur. En attendant, le chat affiche la valeur |default du token s’il en a une, sinon {urlfetch:name} tel que saisi. Vérifiez l’adresse web et la clé API, puis cliquez à nouveau sur Récupérer un exemple.",
   "testNoAnswer": "Le service de récupération n'a pas répondu. Réessayez dans un instant.",
   "keysTitle": "Clés API",
   "keyNoneYet": "Aucune clé pour l’instant. Ajoutez-en une ici avant d’ajouter une source de données pour une API qui nécessite une clé.",

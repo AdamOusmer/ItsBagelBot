@@ -70,7 +70,7 @@
   "test_limited": "Rate limited. Wait a moment and test again.",
   "test_upstream_error": "The API returned an error. Chat sees nothing, unless the token has a |default: {urlfetch:name|default}.",
   "test_timeout": "The API timed out. Chat sees nothing, unless the token has a |default: {urlfetch:name|default}.",
-  "test_bad_def": "This data source could not produce a value, so chat would show {urlfetch:name} as typed, even with a |default. Check the web address and the API key, then click Fetch a sample again.",
+  "test_bad_def": "This data source could not produce a value. Until it does, chat shows the token's |default value if it has one, otherwise {urlfetch:name} as typed. Check the web address and the API key, then click Fetch a sample again.",
   "testNoAnswer": "The fetch service did not answer. Try again in a moment.",
   "keysTitle": "API keys",
   "keyNoneYet": "No keys yet. Add one here before you add a data source for an API that needs a key.",
