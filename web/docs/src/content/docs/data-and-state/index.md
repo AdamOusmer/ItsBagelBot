@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Data plane overview
-description: "The data services, what they own, and how state moves between MySQL,
-the caches, NATS, and the Valkey projection."
+description: "The data services, what they own, and how state moves between MySQL, the caches, NATS, and the Valkey projection."
 sidebar:
   order: 1
 ---

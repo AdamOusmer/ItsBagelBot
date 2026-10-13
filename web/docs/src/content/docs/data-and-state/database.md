@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Database design
-description: "Conceptual model, physical schemas per service, integrity rules,
-and the normalization argument for the data plane."
+description: "Conceptual model, physical schemas per service, integrity rules, and the normalization argument for the data plane."
 sidebar:
   order: 2
 ---

@@ -2,8 +2,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 title: Class design
-description: "UML class diagrams of the shared infrastructure and the repositories,
-and the design patterns the data plane is built on."
+description: "UML class diagrams of the shared infrastructure and the repositories, and the design patterns the data plane is built on."
 sidebar:
   order: 4
 ---
