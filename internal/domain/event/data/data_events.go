@@ -3,9 +3,12 @@
 
 package data
 
-import "ItsBagelBot/internal/domain/lifecycle"
+import (
+	"time"
 
-import "ItsBagelBot/pkg/codec"
+	"ItsBagelBot/internal/domain/lifecycle"
+	"ItsBagelBot/pkg/codec"
+)
 
 const (
 	SubjectUserChanged    = "data.users.changed"
@@ -43,8 +46,9 @@ type UserChangedDTO struct {
 }
 
 type UserDeletedDTO struct {
-	UserID           uint64 `json:"user_id"`
-	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
+	UserID           uint64    `json:"user_id"`
+	AccountCreatedAt int64     `json:"account_created_at,omitempty"`
+	DeletedAt        time.Time `json:"deleted_at"`
 }
 
 type ModuleChangedDTO struct {

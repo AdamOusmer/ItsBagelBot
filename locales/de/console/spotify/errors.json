@@ -1,7 +1,8 @@
 {
+  "declined": "Du hast den Spotify-Berechtigungsbildschirm geschlossen, bevor du die Berechtigungen erteilt hast. Verbinde dich erneut und erteile die Berechtigungen, um die Verbindung abzuschließen.",
   "noApp": "Füge deine Spotify-App hinzu, bevor du dein Konto verbindest.",
   "noToken": "Spotify hat deine Zustimmung wiederverwendet, daher wurde kein neues Token ausgestellt. Widerrufe diese App auf deiner Spotify-Kontoseite und stelle die Verbindung dann erneut her.",
-  "oauth": "Spotify hat die Anmeldung abgelehnt. Versuche die Verbindung erneut.",
+  "oauth": "Spotify hat die Anmeldung abgelehnt. Prüfe, ob die Client-ID und das Client-Secret zu deiner Spotify-App gehören und ob die auf dieser Seite angezeigte Weiterleitungs-URI in dieser App gespeichert ist. Verbinde dich dann erneut.",
   "state": "Der Anmeldelink ist abgelaufen oder wurde erneut verwendet. Starte die Verbindung erneut.",
   "store": "Das Token konnte nicht gespeichert werden. Versuche es gleich noch mal.",
   "titleRequired": "Gib der Belohnung einen Titel.",

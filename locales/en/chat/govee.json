@@ -1,0 +1,7 @@
+{
+  "refund.offline": "@{govee:user} the lights only change while the stream is live, your points were refunded.",
+  "refund.colour": "@{govee:user} that colour wasn't recognized, your points were refunded. Try a name like blue or a hex code like #00ccff.",
+  "refund.setup": "@{govee:user} the lights are not set up yet, your points were refunded.",
+  "refund.busy": "@{govee:user} the lights are changing too often, your points were refunded. Try again in a moment.",
+  "refund.unreachable": "@{govee:user} couldn't reach the lights, your points were refunded."
+}

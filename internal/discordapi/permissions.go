@@ -6,10 +6,11 @@ package discordapi
 import "strconv"
 
 const (
-	PermAdministrator uint64 = 1 << 3
-	PermViewChannel   uint64 = 1 << 10
-	PermSendMessages  uint64 = 1 << 11
-	PermEmbedLinks    uint64 = 1 << 14
+	PermAdministrator  uint64 = 1 << 3
+	PermViewChannel    uint64 = 1 << 10
+	PermSendMessages   uint64 = 1 << 11
+	PermEmbedLinks     uint64 = 1 << 14
+	PermChangeNickname uint64 = 1 << 26
 
 	allPermissions uint64 = ^uint64(0)
 

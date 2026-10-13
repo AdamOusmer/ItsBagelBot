@@ -10,6 +10,7 @@
   "betaLockedBody": "Este recurso está em beta e disponível apenas para canais Premium por enquanto. Será liberado para todos quando o beta terminar; tudo o que você configurar durante o beta continuará funcionando.",
   "betaPremium": "Somente Premium",
   "betaUpgrade": "Ver planos",
+  "betaAskOwner": "O Premium deste canal é gerenciado por {login}. Peça a essa pessoa que mude para Premium na página Cobrança dela.",
   "breadcrumbLabel": "Caminho de navegação",
   "catChannel": "Canal",
   "catChannelHint": "Pontos do canal, alertas de seguidores e inscrições e divulgações de raids.",

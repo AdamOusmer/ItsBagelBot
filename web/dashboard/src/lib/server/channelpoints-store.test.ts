@@ -28,6 +28,12 @@ describe('createReward refusals', () => {
     expect(upsertModule).not.toHaveBeenCalled();
   });
 
+  test('a non-affiliate channel comes back as a result, not a throw', async () => {
+    reply = { error: 'broadcaster not affiliate', code: 'forbidden', not_affiliate: true };
+    expect(await createReward('1', draft)).toEqual({ ok: false, notAffiliate: true });
+    expect(upsertModule).not.toHaveBeenCalled();
+  });
+
   test('a missing scope still reaches the reconnect CTA', async () => {
     reply = { error: 'reconnect required', code: 'forbidden', missing_scope: true };
     expect(await createReward('1', draft)).toEqual({ ok: false, missingScope: true });

@@ -73,7 +73,7 @@ export interface RewardDraft {
   replyMessage: string;
 }
 
-export type SpotifyResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string; code?: string };
+export type SpotifyResult = { ok: true } | { ok: false; missingScope?: boolean; missingSpotifyScope?: boolean; error?: string; code?: string };
 
 function coercePerm(v: unknown): SpotifySrPerm {
   return v === 'sub' || v === 'vip' || v === 'mod' || v === 'broadcaster' ? v : 'everyone';
@@ -367,14 +367,14 @@ export function spotifyStore(userId: string): SpotifyStore {
 
   async function skip(): Promise<SpotifyResult> {
     const g = await grant();
-    if (g.scopes.length > 0 && !g.scopes.includes(PLAYBACK_SCOPE)) return { ok: false, missingScope: true };
+    if (g.scopes.length > 0 && !g.scopes.includes(PLAYBACK_SCOPE)) return { ok: false, missingSpotifyScope: true };
     const r = await rpcReply<{ error?: string; code?: string }>(
       `${SUB.gossip}.spotify.next`,
       { channel_id: userId },
       8000
     );
     if (!r.error) return { ok: true };
-    return { ok: false, missingScope: r.code === 'scope', code: r.code ?? 'failed' };
+    return { ok: false, missingSpotifyScope: r.code === 'scope', code: r.code ?? 'failed' };
   }
 
   return {

@@ -5,6 +5,8 @@
   "attentionHeading": "Requiere atención",
   "issueAllDisabled": "Todos tus comandos están desactivados, así que el bot permanece en silencio.",
   "issueAllDisabledCta": "Revisar comandos",
+  "issueTwitchScope": "Tu bot necesita un nuevo permiso de Twitch. Inicia sesión con Twitch de nuevo para concederlo.",
+  "issueTwitchScopeCta": "Iniciar sesión con Twitch",
   "quickHeading": "Acciones rápidas",
   "summaryHeading": "De un vistazo",
   "summaryCommands": "Gestionar comandos activos: {active}",
@@ -32,8 +34,7 @@
   "reconnectNeeded": "Es necesario reconectar",
   "twitchAccessLost": "Se perdió el acceso a Twitch",
   "issueReauth": "Twitch revocó el acceso del bot a tu canal. Esto ocurre después de cambiar la contraseña o de desconectar la aplicación en Twitch. Reconecta tu cuenta de Twitch para que vuelva el bot.",
-  "botBanned": "Bot vetado en el chat",
-  "issueBotBanned": "Tu chat de Twitch vetó al bot, así que no puede leer ni responder a los mensajes. El acceso a Twitch sigue funcionando. Levanta el veto al bot en tu chat y pulsa Activar.",
+  "botBanned": "Bot baneado de tu chat",
   "reconnecting": "Reconectando…",
   "connecting": "Conectando…",
   "unavailable": "Estado de conexión no disponible",
@@ -134,5 +135,6 @@
   "invitesPendingCta": "Revisar invitaciones",
   "setupConnectCta": "Conectar",
   "setupCommandCta": "Crear comando",
-  "setupModuleCta": "Explorar módulos"
+  "setupModuleCta": "Explorar módulos",
+  "setupStatusCta": "Ir a Estado del bot"
 }

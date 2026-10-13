@@ -22,4 +22,12 @@ describe('action error presentation', () => {
     const diagnostic = 'Custom source says: Invalid timer. https://example.com/?q=Gift';
     expect(actionError('fr', diagnostic)).toBe(diagnostic);
   });
+  test('gift refusals are localized in French', () => {
+    for (const raw of [
+      "that user hasn't signed in to ItsBagelBot yet, so premium can't be gifted to them",
+      'that is your own account \u2014 use Subscribe instead'
+    ]) {
+      expect(actionError('fr', raw)).not.toBe(raw);
+    }
+  });
 });

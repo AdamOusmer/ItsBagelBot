@@ -4,7 +4,7 @@
   "needsSetup": "Precisa de configuração",
   "needsSetupHint": "Itens ativados que ainda precisam de canal ou cargo: {n}. Abra o item desejado e escolha.",
   "configure": "Configurar",
-  "notSetUp": "Este servidor nunca foi configurado. Execute a configuração inicial para o Bagel criar os canais e cargos necessários.",
+  "notSetUp": "Este servidor nunca foi configurado. Escolha Criar canais e cargos que faltam e Bagel adicionará o que for necessário.",
   "botState": "Bot",
   "modulesOn": "Módulos ativados",
   "tiles": {
