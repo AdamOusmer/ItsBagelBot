@@ -1852,6 +1852,8 @@ export type KnownMessageKey =
   | 'error.unexpectedTitle'
   | 'fetches.active'
   | 'fetches.auth'
+  | 'fetches.authEmpty'
+  | 'fetches.authEmptyCta'
   | 'fetches.authHint'
   | 'fetches.authNone'
   | 'fetches.backToCommands'
