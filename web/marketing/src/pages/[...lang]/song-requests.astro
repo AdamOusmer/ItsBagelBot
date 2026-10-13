@@ -5,11 +5,13 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+import { songRows, songExampleLines } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
 ---
 
 <Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')} aiDoc="https://ai.itsbagelbot.com/spotify/setup.md">
@@ -24,13 +26,15 @@ const t = useTranslations(lang);
             { title: t('songRequests.step2Title'), desc: t('songRequests.step2Desc') },
             { title: t('songRequests.step3Title'), desc: t('songRequests.step3Desc') },
         ]}
-        listEyebrow={t('songRequests.cmdEyebrow')}
-        listTitle={t('songRequests.cmdTitle')}
+        listEyebrow={t('songRequests.listEyebrow')}
+        listTitle={t('songRequests.listTitle')}
         listItems={[
-            { name: t('songRequests.cmd1Name'), desc: t('songRequests.cmd1Desc') },
-            { name: t('songRequests.cmd2Name'), desc: t('songRequests.cmd2Desc') },
-            { name: t('songRequests.cmd3Name'), desc: t('songRequests.cmd3Desc') },
-            { name: t('songRequests.cmd4Name'), desc: t('songRequests.cmd4Desc') },
+            { name: t('songRequests.item1Name'), desc: t('songRequests.item1Desc') },
+            { name: t('songRequests.item2Name'), desc: t('songRequests.item2Desc') },
+            { name: t('songRequests.item3Name'), desc: t('songRequests.item3Desc') },
+            { name: t('songRequests.item4Name'), desc: t('songRequests.item4Desc') },
+            { name: t('songRequests.item5Name'), desc: t('songRequests.item5Desc') },
+            { name: t('songRequests.item6Name'), desc: t('songRequests.item6Desc') },
         ]}
         listNote={t('songRequests.limitsNote')}
         faqEyebrow={t('songRequests.faqEyebrow')}
@@ -47,6 +51,29 @@ const t = useTranslations(lang);
         ]}
         ctaTitle={t('songRequests.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('songRequests.ctaGuide') }}
+        ctaSecondary={{ href: localizePath('/guides/spotify-song-requests', lang), label: t('songRequests.ctaGuide') }}
+        updated={{ text: t('songRequests.updated'), iso: '2026-10-13' }}
+        table={{
+            eyebrow: t('songRequests.tblEyebrow'),
+            title: t('songRequests.tblTitle'),
+            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+            widths: ['15%', '21%', '17%', '47%'],
+            monoColumns: [1],
+            rowLines: 3,
+            copyLabel: t('landing.copyCommand'),
+            rows: songRows(lang, t),
+            note: t('songRequests.tblNote'),
+        }}
+        demo={{
+            eyebrow: t('landing.exampleEyebrow'),
+            title: t('songRequests.demoTitle'),
+            caption: t('landing.exampleCaption'),
+            lines: songExampleLines(lang),
+        }}
+        prereq={{ title: t('landing.prereqTitle'), items: [t('songRequests.prereq1'), t('songRequests.prereq2'), t('songRequests.prereq3')] }}
+        related={{
+            title: t('landing.relatedTitle'),
+            links: [link('/guides/setup-errors', t('landing.relSetupErrors')), link('/import', t('landing.relImport')), link('/pricing', t('landing.relPricing')), link('/guides/modules', t('landing.relModules'))],
+        }}
     />
 </Layout>

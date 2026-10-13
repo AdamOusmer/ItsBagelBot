@@ -5,11 +5,13 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+import { goveeRows, goveeExampleLines } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
 ---
 
 <Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')} aiDoc="https://ai.itsbagelbot.com/govee/setup.md">
@@ -31,6 +33,7 @@ const t = useTranslations(lang);
             { name: t('govee.item2Name'), desc: t('govee.item2Desc') },
             { name: t('govee.item3Name'), desc: t('govee.item3Desc') },
             { name: t('govee.item4Name'), desc: t('govee.item4Desc') },
+            { name: t('govee.item5Name'), desc: t('govee.item5Desc') },
         ]}
         listNote={t('govee.listNote')}
         faqEyebrow={t('govee.faqEyebrow')}
@@ -44,6 +47,28 @@ const t = useTranslations(lang);
         ]}
         ctaTitle={t('govee.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('govee.ctaGuide') }}
+        ctaSecondary={{ href: localizePath('/guides/govee-lights', lang), label: t('govee.ctaGuide') }}
+        updated={{ text: t('govee.updated'), iso: '2026-10-13' }}
+        table={{
+            eyebrow: t('govee.tblEyebrow'),
+            title: t('govee.tblTitle'),
+            columns: [t('govee.colTyped'), t('govee.colKind'), t('landing.colReply')],
+            widths: ['22%', '24%', '54%'],
+            rowLines: 2,
+            copyLabel: t('landing.copyCommand'),
+            rows: goveeRows(lang, t),
+            note: t('govee.tblNote'),
+        }}
+        demo={{
+            eyebrow: t('landing.exampleEyebrow'),
+            title: t('govee.demoTitle'),
+            caption: t('landing.exampleCaption'),
+            lines: goveeExampleLines(lang, t),
+        }}
+        prereq={{ title: t('landing.prereqTitle'), items: [t('govee.prereq1'), t('govee.prereq2'), t('govee.prereq3')] }}
+        related={{
+            title: t('landing.relatedTitle'),
+            links: [link('/guides/setup-errors', t('landing.relSetupErrors')), link('/song-requests', t('landing.relSongRequests')), link('/guides/modules', t('landing.relModules')), link('/pricing', t('landing.relPricing'))],
+        }}
     />
 </Layout>

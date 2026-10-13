@@ -13,11 +13,57 @@ import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import Table from '@bagel/ui/astro/Table.astro';
+import CopySurface from '@bagel/ui/astro/CopySurface.astro';
+import Code from '@bagel/ui/astro/Code.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+import ChatMock from '../guides/ChatMock.astro';
+import type { ChatLine } from '../guides/ChatWindow.astro';
 
 interface Item {
     name?: string;
     title?: string;
     desc: string;
+}
+
+interface TableRow {
+    cells: string[];
+    copy?: string;
+}
+
+interface TableSpec {
+    eyebrow: string;
+    title: string;
+    columns: string[];
+    widths: string[];
+    monoColumns?: number[];
+    rows: TableRow[];
+    rowLines?: number;
+    copyLabel?: string;
+    note?: string;
+}
+
+interface DemoSpec {
+    eyebrow: string;
+    title: string;
+    caption: string;
+    channel?: string;
+    lines: ChatLine[];
+}
+
+interface PrereqSpec {
+    title: string;
+    items: string[];
+}
+
+interface ConvertSpec {
+    eyebrow: string;
+    title: string;
+    beforeLabel: string;
+    before: string;
+    afterLabel: string;
+    after: string;
+    note: string;
 }
 
 interface Props {
@@ -38,6 +84,12 @@ interface Props {
     ctaPrimary: { href: string; label: string };
     ctaSecondary?: { href: string; label: string };
     legal?: string;
+    updated?: { text: string; iso: string };
+    table?: TableSpec;
+    demo?: DemoSpec;
+    prereq?: PrereqSpec;
+    convert?: ConvertSpec;
+    related?: { title: string; links: { href: string; label: string }[] };
 }
 
 const {
@@ -45,10 +97,86 @@ const {
     listEyebrow, listTitle, listItems, listNote,
     faqEyebrow, faqTitle, faqItems,
     ctaTitle, ctaPrimary, ctaSecondary, legal,
+    updated, table, demo, prereq, convert, related,
 } = Astro.props;
 ---
 
 <PageHero eyebrow={eyebrow} title={title} description={lead} style="--page-hero-title-lines: 3" />
+
+{updated && (
+    <Text size="xs" mono tone="muted" class="flupd"><span data-fit><time datetime={updated.iso}>{updated.text}</time></span></Text>
+)}
+
+{table && (
+    <Section class="flsec fltbl">
+        <SectionHeading eyebrow={table.eyebrow} title={table.title} />
+        <Card flush class="fltbl__card" data-reveal>
+            <Table roomy label={table.title} minWidth="52rem" style={`--fltbl-lines: ${table.rowLines ?? 2}`}>
+                <colgroup>{table.widths.map((width) => <col style={`width: ${width}`} />)}</colgroup>
+                <thead>
+                    <tr>{table.columns.map((column) => <th scope="col"><span data-fit>{column}</span></th>)}</tr>
+                </thead>
+                <tbody>
+                    {table.rows.map((row) => (
+                        <tr>
+                            {row.cells.map((cell, i) => (
+                                <td>
+                                    {i === 0 && row.copy ? (
+                                        <CopySurface variant="well" text={row.copy} class="fltbl__copy" aria-label={`${table.copyLabel ?? ''} ${row.copy}`.trim()}>{cell}</CopySurface>
+                                    ) : (
+                                        <div class:list={['fltbl__cell', table.monoColumns?.includes(i) && 'fltbl__cell--mono']}>
+                                            <span data-fit="block">{cell}</span>
+                                        </div>
+                                    )}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </Table>
+        </Card>
+        {table.note && <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{table.note}</span></Text>}
+    </Section>
+)}
+
+{demo && (
+    <Section class="flsec fldemo">
+        <SectionHeading eyebrow={demo.eyebrow} title={demo.title} />
+        <div class="fldemo__frame">
+            <ChatMock title={demo.channel} lines={demo.lines} caption={demo.caption} />
+        </div>
+    </Section>
+)}
+
+{prereq && (
+    <Section class="flsec flprereq">
+        <Card class="flprereq__card" data-reveal>
+            <Heading level={5} as="h2" class="flprereq__title"><span data-fit>{prereq.title}</span></Heading>
+            <ul class="flprereq__list">
+                {prereq.items.map((item) => (
+                    <li class="flprereq__item"><Text size="sm" tone="muted" as="span"><span data-fit="block">{item}</span></Text></li>
+                ))}
+            </ul>
+        </Card>
+    </Section>
+)}
+
+{convert && (
+    <Section class="flsec flconv">
+        <SectionHeading eyebrow={convert.eyebrow} title={convert.title} />
+        <Grid cols={2} gap={5} stackAt="md" class="flconv__pair">
+            <div class="flconv__side" data-reveal>
+                <Eyebrow><span data-fit>{convert.beforeLabel}</span></Eyebrow>
+                <Code block wrap class="flconv__code">{convert.before}</Code>
+            </div>
+            <div class="flconv__side" data-reveal style="--reveal-i: 1">
+                <Eyebrow><span data-fit>{convert.afterLabel}</span></Eyebrow>
+                <Code block wrap class="flconv__code">{convert.after}</Code>
+            </div>
+        </Grid>
+        <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{convert.note}</span></Text>
+    </Section>
+)}
 
 <Section class="flhow">
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
@@ -78,6 +206,17 @@ const {
     {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal><span data-fit="block">{listNote}</span></Text>}
 </Section>
 
+{related && (
+    <Section class="flsec flrel">
+        <Heading level={5} as="h2" class="flrel__title"><span data-fit>{related.title}</span></Heading>
+        <ul class="flrel__list">
+            {related.links.map((link) => (
+                <li class="flrel__item"><TextLink href={link.href}><span data-fit>{link.label}</span></TextLink></li>
+            ))}
+        </ul>
+    </Section>
+)}
+
 <Faq eyebrow={faqEyebrow} title={faqTitle} items={faqItems} />
 
 <Section class="flcta">
@@ -92,10 +231,77 @@ const {
 <style>
     .flhow,
     .fllist,
+    .flsec,
     .flcta {
         max-width: var(--bb-content-max);
         margin-inline: auto;
         padding: var(--bb-space-section-sm) var(--bb-space-7);
+    }
+
+    .flupd {
+        height: 1lh;
+        margin: -8px 0 0;
+        text-align: center;
+    }
+
+    .flsec__note {
+        max-width: var(--bb-content-hero);
+        height: calc(2 * 1lh);
+        margin: 20px auto 0;
+        text-align: center;
+    }
+
+    .fltbl__card { max-width: var(--bb-content-max); margin-inline: auto; }
+
+    .fltbl__cell {
+        height: calc(var(--fltbl-lines, 2) * 1lh);
+        font-size: var(--bb-text-sm);
+        line-height: 1.5;
+        color: var(--bb-muted);
+    }
+
+    .fltbl__cell--mono { font-family: var(--bb-font-mono); color: var(--bb-tan-pale); }
+
+    :global(.fltbl__copy) {
+        width: 100%;
+        padding: 10px var(--bb-space-4);
+    }
+
+    :global(.fltbl__copy:hover) { transform: none; }
+
+    .fldemo__frame {
+        max-width: 640px;
+        margin-inline: auto;
+    }
+
+    .flprereq__card {
+        max-width: var(--bb-content-hero);
+        margin-inline: auto;
+        --card-pad: 28px;
+    }
+
+    .flprereq__title { height: 1lh; margin: 0 0 16px; }
+
+    .flprereq__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+
+    .flprereq__item { height: calc(2 * 1lh); }
+
+    .flconv__pair { max-width: var(--bb-content-hero); margin-inline: auto; }
+
+    .flconv__side { display: grid; gap: 10px; align-content: start; min-width: 0; }
+
+    .flconv__code { min-height: calc(3 * 1lh); }
+
+    .flrel__title { height: 1lh; margin: 0 0 16px; text-align: center; }
+
+    .flrel__list {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px 28px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
     }
 
     .flhow { --card-pad: 28px; }
@@ -163,7 +369,8 @@ const {
 
     @media (max-width: 860px) {
         .flhow,
-        .fllist { padding-inline: var(--bb-space-5); }
+        .fllist,
+        .flsec { padding-inline: var(--bb-space-5); }
     }
 
     @media (max-width: 640px) {
