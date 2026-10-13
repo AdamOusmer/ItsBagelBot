@@ -5,6 +5,13 @@ import { test, expect } from '@playwright/test';
 import { moduleDef } from '../../kit/lib/catalog/index.ts';
 
 const valorantCommands = moduleDef('valorant').replies.map((reply) => `!${reply.command}`);
+const GAME_PAGES = [
+    { path: '/fortnite-stats/', module: 'fortnite', ai: 'fortnite', legal: 'Epic Games', sample: 'Ninja', frTitle: /Fortnite/ },
+    { path: '/hypixel-bedwars-stats/', module: 'urchin', ai: 'urchin', legal: 'Hypixel', sample: 'Technoblade', frTitle: /Bedwars/ },
+    { path: '/mcsr-ranked-stats/', module: 'mcsr', ai: 'mcsr', legal: 'Mojang Studios', sample: 'Feinberg', frTitle: /MCSR/ },
+    { path: '/clash-royale-stats/', module: 'clashroyale', ai: 'clashroyale', legal: 'Supercell', sample: '#P2LQ0GR', frTitle: /Clash Royale/ },
+    { path: '/codm-stats/', module: 'codm', ai: 'codm', legal: 'Activision', sample: 'iFerg', frTitle: /CODM/ },
+];
 const songCommands = moduleDef('songqueue').commands.map((command) => command.trigger);
 const IMPORT_SOURCES = ['Nightbot', 'StreamElements', 'Moobot', 'Streamlabs Chatbot', 'Fossabot', 'WizeBot'];
 
@@ -28,6 +35,33 @@ test.describe('feature landing pages', () => {
         await expect(page.locator('.flcta__legal')).toContainText('Riot Games');
         await expectCommonLanding(page, '/guides/modules/');
     });
+
+    for (const game of GAME_PAGES) {
+        test(`${game.path} lists every catalog command, aliases and a sample reply`, async ({ page }) => {
+            await page.goto(game.path);
+            const cells = (await commandCells(page)).join('\n');
+            for (const reply of moduleDef(game.module).replies) expect(cells).toContain(`!${reply.command}`);
+            await expect(page.locator('.fltbl tbody tr').first().locator('td').nth(1)).not.toHaveText('None');
+            await expect(page.locator('.fltbl')).toContainText(game.sample);
+            await expect(page.locator('.fldemo')).toBeVisible();
+            await expect(page.locator('.flprereq')).toBeVisible();
+            await expect(page.locator('.flcta__legal')).toContainText(game.legal);
+            await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/' + game.ai + '.md"]')).toHaveCount(1);
+            await expect(page.locator('.flrel a[href="/command-builder/"]')).toBeVisible();
+            await expect(page.locator('.flrel a[href="/valorant-stats/"]')).toBeVisible();
+            expect(await page.title()).toMatch(/^.{1,60}$/);
+            expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+            await expectCommonLanding(page, '/guides/modules/');
+        });
+
+        test(`${game.path} has a French mirror`, async ({ page }) => {
+            await page.goto(`/fr${game.path}`);
+            expect(await page.title()).toMatch(game.frTitle);
+            await expect(page.locator('.flupd time')).toHaveText(/Mis à jour/);
+            await expect(page.locator('.fltbl thead')).toContainText('Commande');
+            await expect(page.locator('.flcta__btn').nth(1)).toHaveAttribute('href', '/fr/guides/modules/');
+        });
+    }
 
     test('song-requests lists every catalog command and links the Spotify guide', async ({ page }) => {
         await page.goto('/song-requests/');

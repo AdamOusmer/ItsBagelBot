@@ -1,0 +1,11 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import GameLanding from '../../components/landing/GameLanding.astro';
+import { localeStaticPaths } from '../../i18n/ui';
+
+export const getStaticPaths = localeStaticPaths;
+---
+
+<GameLanding game="bedwars" />

@@ -1,0 +1,71 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from './FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '../../i18n/ui';
+import { GAMES, gameRelated, gameRows, gameExampleLines, type GameId } from '../../lib/landing';
+
+interface Props {
+    game: GameId;
+}
+
+const { game } = Astro.props;
+const spec = GAMES[game];
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const k = (name: string) => t(spec.ns + '.' + name);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const steps = [1, 2, 3].map((n) => ({ title: k(`step${n}Title`), desc: k(`step${n}Desc`) }));
+const items = [1, 2, 3, 4].map((n) => ({ name: k(`item${n}Name`), desc: k(`item${n}Desc`) }));
+const faq = [1, 2, 3, 4, 5].map((n) => ({ question: k(`faqQ${n}`), answer: k(`faqA${n}`) }));
+const related = [
+    link('/guides/modules', t('landing.relModules')),
+    link('/command-builder', t('landing.relCommandBuilder')),
+    link('/valorant-stats', t('landing.relValorant')),
+    ...gameRelated(game).map((other) => link(other.path, t(other.relKey))),
+];
+---
+
+<Layout title={k('metaTitle')} description={k('metaDesc')} aiDoc={spec.aiDoc}>
+    <FeatureLanding
+        eyebrow={k('eyebrow')}
+        title={k('title')}
+        lead={k('lead')}
+        howEyebrow={t('landing.gameHowEyebrow')}
+        howTitle={k('howTitle')}
+        steps={steps}
+        listEyebrow={t('landing.gameListEyebrow')}
+        listTitle={k('listTitle')}
+        listItems={items}
+        listNote={k('limitsNote')}
+        faqEyebrow={t('landing.gameFaqEyebrow')}
+        faqTitle={t('landing.gameFaqTitle')}
+        faqItems={faq}
+        ctaTitle={k('ctaTitle')}
+        ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
+        ctaSecondary={link('/guides/modules', t('landing.gameCtaGuide'))}
+        legal={k('legal')}
+        updated={{ text: t('landing.gameUpdated'), iso: '2026-10-13' }}
+        table={{
+            eyebrow: t('landing.gameTblEyebrow'),
+            title: t('landing.gameTblTitle'),
+            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+            widths: ['19%', '21%', '13%', '47%'],
+            monoColumns: [1],
+            rowLines: 3,
+            copyLabel: t('landing.copyCommand'),
+            rows: gameRows(game, lang, t),
+            note: k('tblNote'),
+        }}
+        demo={{
+            eyebrow: t('landing.exampleEyebrow'),
+            title: k('demoTitle'),
+            caption: t('landing.gameDemoCaption'),
+            lines: gameExampleLines(game, lang),
+        }}
+        prereq={{ title: t('landing.prereqTitle'), items: [k('prereq1'), k('prereq2')] }}
+        related={{ title: t('landing.relatedTitle'), links: related }}
+    />
+</Layout>

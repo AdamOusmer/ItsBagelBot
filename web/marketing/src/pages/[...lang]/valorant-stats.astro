@@ -5,7 +5,7 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
-import { valorantRows, valorantExampleLines } from '../../lib/landing';
+import { valorantRows, valorantExampleLines, GAMES } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
@@ -70,7 +70,7 @@ const link = (path: string, label: string) => ({ href: localizePath(path, lang),
         prereq={{ title: t('landing.prereqTitle'), items: [t('valorantStats.prereq1'), t('valorantStats.prereq2')] }}
         related={{
             title: t('landing.relatedTitle'),
-            links: [link('/guides/modules', t('landing.relModules')), link('/guides/data-sources', t('landing.relDataSources')), link('/guides/variables', t('landing.relVariables')), link('/command-builder', t('landing.relCommandBuilder'))],
+            links: [link('/guides/modules', t('landing.relModules')), link('/guides/data-sources', t('landing.relDataSources')), link('/guides/variables', t('landing.relVariables')), link('/command-builder', t('landing.relCommandBuilder')), ...Object.values(GAMES).map((game) => link(game.path, t(game.relKey)))],
         }}
     />
 </Layout>

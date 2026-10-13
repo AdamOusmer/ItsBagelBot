@@ -57,6 +57,11 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Home](https://itsbagelbot.com/): product overview, features and how the bot works.
 - [Song Requests](https://itsbagelbot.com/song-requests/): Spotify song requests for Twitch, commands, setup and FAQ.
 - [Valorant Stats](https://itsbagelbot.com/valorant-stats/): rank and other Valorant commands for Twitch chat.
+- [Fortnite Stats](https://itsbagelbot.com/fortnite-stats/): `!fn` lifetime, season and stream stats plus the daily item shop for Twitch chat.
+- [Hypixel Bedwars Stats](https://itsbagelbot.com/hypixel-bedwars-stats/): `!bwstats`, daily, weekly and monthly sessions, and urchin checks for Twitch chat.
+- [MCSR Ranked Stats](https://itsbagelbot.com/mcsr-ranked-stats/): `!elo`, stream session, last match, leaderboards and PaceMan splits for Twitch chat.
+- [Clash Royale Stats](https://itsbagelbot.com/clash-royale-stats/): `!cr` profile, decks, Path of Legends and trophy road for Twitch chat.
+- [CODM Stats](https://itsbagelbot.com/codm-stats/): `!codm` Call of Duty: Mobile Global profile lookup for Twitch chat.
 - [Govee Lights](https://itsbagelbot.com/govee/): light control through channel-point rewards, setup and FAQ.
 - [Import](https://itsbagelbot.com/import/): move commands and supported configuration from another Twitch bot; Nightbot connects through OAuth, and each imported item is reviewed before saving.
 - [Comparison with Nightbot](https://itsbagelbot.com/vs/nightbot/): feature comparison for streamers evaluating Twitch bots.
