@@ -5,6 +5,8 @@
   "attentionHeading": "Требует внимания",
   "issueAllDisabled": "Все ваши команды выключены, поэтому бот молчит.",
   "issueAllDisabledCta": "Проверить команды",
+  "issueTwitchScope": "Вашему боту нужно новое разрешение Twitch. Войдите через Twitch ещё раз, чтобы предоставить его.",
+  "issueTwitchScopeCta": "Войти через Twitch",
   "quickHeading": "Быстрые действия",
   "summaryHeading": "Краткий обзор",
   "summaryCommands": "Управление активными командами: {active}",
@@ -32,8 +34,7 @@
   "reconnectNeeded": "Нужно переподключение",
   "twitchAccessLost": "Доступ к Twitch потерян",
   "issueReauth": "Twitch отозвал доступ бота к вашему каналу. Это бывает после смены пароля или отключения приложения в Twitch. Переподключите аккаунт Twitch, чтобы вернуть бота.",
-  "botBanned": "Бот заблокирован в чате",
-  "issueBotBanned": "Бот заблокирован в вашем чате Twitch, поэтому не может читать сообщения и отвечать. Сам доступ к Twitch в порядке. Разблокируйте бота в чате, затем нажмите «Включить».",
+  "botBanned": "Бот заблокирован в вашем чате",
   "reconnecting": "Переподключение…",
   "connecting": "Подключение…",
   "unavailable": "Состояние подключения недоступно",
@@ -133,6 +134,7 @@
   "feedReconnecting": "Переподключение",
   "invitesPendingCta": "Проверить приглашения",
   "setupConnectCta": "Подключить",
+  "setupStatusCta": "Перейти к разделу «Состояние бота»",
   "setupCommandCta": "Создать команду",
   "setupModuleCta": "Посмотреть модули"
 }

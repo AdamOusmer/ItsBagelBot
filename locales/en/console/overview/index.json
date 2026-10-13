@@ -5,6 +5,8 @@
   "attentionHeading": "Needs attention",
   "issueAllDisabled": "All your commands are switched off, so the bot stays silent.",
   "issueAllDisabledCta": "Review commands",
+  "issueTwitchScope": "Your bot needs a new Twitch permission. Sign in with Twitch again to grant it.",
+  "issueTwitchScopeCta": "Sign in with Twitch",
   "quickHeading": "Quick actions",
   "summaryHeading": "At a glance",
   "summaryCommands": "Manage {active} active commands",
@@ -32,8 +34,7 @@
   "reconnectNeeded": "Reconnect needed",
   "twitchAccessLost": "Twitch access lost",
   "issueReauth": "Twitch revoked the bot’s access to your channel. This happens after a password change or if the app was disconnected on Twitch. Reconnect your Twitch account to bring the bot back.",
-  "botBanned": "Bot banned — disabled",
-  "issueBotBanned": "Unban the bot in Twitch, then retry to verify access. Automatic recovery requires an authorized unban listener.",
+  "botBanned": "Bot banned from your chat",
   "reconnecting": "Reconnecting…",
   "connecting": "Connecting…",
   "unavailable": "Connection status unavailable",
@@ -134,5 +135,6 @@
   "invitesPendingCta": "Review invites",
   "setupConnectCta": "Connect",
   "setupCommandCta": "Create command",
-  "setupModuleCta": "Browse modules"
+  "setupModuleCta": "Browse modules",
+  "setupStatusCta": "Go to Bot status"
 }
