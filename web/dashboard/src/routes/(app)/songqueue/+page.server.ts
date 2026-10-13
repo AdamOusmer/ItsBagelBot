@@ -26,7 +26,7 @@ const DEMO = dev && env.DEMO === '1';
 export const load: PageServerLoad = ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
   const rawSlug = url.searchParams.get('e') ?? '';
-  const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store'].includes(rawSlug)
+  const errorSlug = ['state', 'oauth', 'notoken', 'noapp', 'unconfigured', 'store', 'declined'].includes(rawSlug)
     ? rawSlug
     : '';
 
@@ -96,6 +96,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.missingSpotifyScope) return fail(403, { ok: false, missingSpotifyScope: true });
   if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
@@ -183,10 +184,10 @@ function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string
 }
 
 export const actions: Actions = {
-  saveApp: mutate('app', 'Both the client ID and the client secret are required.', async (store, f) => {
+  saveApp: mutate('app', "A Client ID and a Client Secret are each 32 letters and numbers. Copy both again from your app's Settings page in the Spotify Developer Dashboard.", async (store, f) => {
     const clientId = String(f.get('client_id') ?? '').trim();
     const clientSecret = String(f.get('client_secret') ?? '').trim();
-    if (!clientId || !clientSecret) return null;
+    if (!/^[0-9a-f]{32}$/i.test(clientId) || !/^[0-9a-f]{32}$/i.test(clientSecret)) return null;
     return done(await store.saveApp(clientId, clientSecret), clientId);
   }),
 

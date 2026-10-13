@@ -1,7 +1,8 @@
 {
+  "declined": "Cerraste la pantalla de permisos de Spotify antes de aceptar. Elige Conectar Spotify y luego Aceptar para terminar.",
   "noApp": "Añade tu aplicación de Spotify antes de conectar tu cuenta.",
   "noToken": "Spotify reutilizó tu consentimiento, por lo que no emitió un token nuevo. Revoca esta aplicación en la página de tu cuenta de Spotify y vuelve a conectar.",
-  "oauth": "Spotify rechazó el inicio de sesión. Intenta conectar de nuevo.",
+  "oauth": "Spotify rechazó el inicio de sesión. Comprueba que el ID de cliente y el secreto de cliente correspondan a tu aplicación de Spotify y que la URI de redirección que aparece en esta página esté guardada en esa aplicación. Luego vuelve a conectar.",
   "state": "El enlace de inicio de sesión caducó o se reutilizó. Inicia la conexión de nuevo.",
   "store": "No se pudo almacenar el token. Vuelve a intentarlo en un momento.",
   "titleRequired": "Pon un título a la recompensa.",

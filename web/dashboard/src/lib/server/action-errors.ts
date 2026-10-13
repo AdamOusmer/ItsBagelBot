@@ -70,7 +70,7 @@ const KEYS: Record<string, MessageKey> = {
   'Not found': 'serverErrors.notFound',
   'Invalid request.': 'serverErrors.invalidRequest',
   'Invalid reward.': 'serverErrors.invalidReward',
-  'Both the client ID and the client secret are required.': 'serverErrors.appCredentials',
+  "A Client ID and a Client Secret are each 32 letters and numbers. Copy both again from your app's Settings page in the Spotify Developer Dashboard.": 'serverErrors.appCredentials',
   'Enter your Govee API key.': 'serverErrors.goveeKey',
   'Title is required (max 45 characters).': 'serverErrors.rewardTitle',
   'Response is required.': 'serverErrors.responseRequired',

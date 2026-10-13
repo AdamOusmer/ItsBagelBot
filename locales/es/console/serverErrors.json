@@ -68,7 +68,7 @@
   "pickLight": "Elige primero una luz.",
   "invalidRequest": "Solicitud no válida.",
   "invalidReward": "Recompensa no válida.",
-  "appCredentials": "El ID de cliente y el secreto de cliente son obligatorios.",
+  "appCredentials": "El ID de cliente y el secreto de cliente tienen 32 letras y números cada uno. Vuelve a copiar ambos desde la página Configuración de tu aplicación en el panel para desarrolladores de Spotify.",
   "goveeKey": "Introduce tu clave de API de Govee.",
   "rewardTitle": "El título es obligatorio (máximo 45 caracteres).",
   "invalidInput": "Datos no válidos.",
