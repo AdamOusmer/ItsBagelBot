@@ -52,7 +52,7 @@ const guideSchema: Record<string, unknown>[] = [
 ];
 ---
 
-<Layout title={guide.meta.title} description={guide.meta.description} ogType="article" extraSchema={guideSchema}>
+<Layout title={guide.meta.title} description={guide.meta.description} ogType="article" extraSchema={guideSchema} aiDoc={guide.meta.aiDoc}>
     <PageHero eyebrow={`${guide.meta.eyebrow} ${guideIndex(guide.slug)}`} title={guide.meta.heading} description={guide.meta.lead} />
 
     <GuideShell sections={guide.sections} minutes={guide.meta.minutes} prev={prev} next={next} />

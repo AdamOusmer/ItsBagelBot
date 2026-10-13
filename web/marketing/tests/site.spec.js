@@ -263,6 +263,19 @@ test.describe('ItsBagelBot site', () => {
         expect(favicon).toBe('/favicon-32x32.png?v=bot-1');
         const response = await request.get(favicon);
         expect(response.ok()).toBeTruthy();
+
+        for (const [path, aiDoc] of [
+            ['/guides/spotify-song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
+            ['/guides/govee-lights', 'https://ai.itsbagelbot.com/govee/setup.md'],
+            ['/guides/setup-errors', 'https://ai.itsbagelbot.com/llms.txt'],
+            ['/song-requests', 'https://ai.itsbagelbot.com/spotify/setup.md'],
+            ['/govee', 'https://ai.itsbagelbot.com/govee/setup.md'],
+        ]) {
+            for (const lang of ['', '/fr']) {
+                await page.goto(`${lang}${path}`);
+                await expect(page.locator('head link[rel="alternate"][type="text/markdown"]')).toHaveAttribute('href', aiDoc);
+            }
+        }
     });
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
