@@ -332,17 +332,19 @@ func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) err
 }
 
 func (r *Users) Delete(ctx context.Context, id uint64) error {
-	var accountCreatedAt int64
+	var deleted data.UserDeletedDTO
 
 	if err := withTx(ctx, r.client, func(tx *ent.Tx) error {
 		row, err := tx.User.Get(ctx, id)
 		if err != nil {
 			return err
 		}
-		accountCreatedAt = row.CreatedAt.UnixMicro()
-		if _, err = tx.LifecycleErasure.Create().SetUserID(id).SetAccountCreatedAt(accountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx); err != nil {
+		deleted = data.UserDeletedDTO{UserID: id, AccountCreatedAt: row.CreatedAt.UnixMicro()}
+		erasure, err := tx.LifecycleErasure.Create().SetUserID(id).SetAccountCreatedAt(deleted.AccountCreatedAt).SetLifecycle(lifecycleView(row)).Save(ctx)
+		if err != nil {
 			return err
 		}
+		deleted.DeletedAt = erasure.DeletedAt
 		n, err := tx.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(row.CreatedAt)).Exec(ctx)
 		if err != nil {
 			return err
@@ -357,7 +359,7 @@ func (r *Users) Delete(ctx context.Context, id uint64) error {
 
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, data.UserDeletedDTO{UserID: id, AccountCreatedAt: accountCreatedAt})
+	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
 }
 
 func (r *Users) Invalidate(id uint64) {

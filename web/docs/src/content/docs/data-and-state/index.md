@@ -83,7 +83,7 @@ so consumers never read another service's schema and redelivery is harmless.
 | Subject | Payload | Published when |
 |---------|---------|----------------|
 | `data.users.changed` | user ID, username, active, status, banned, locale, commands-page-hidden, state revision, account incarnation | Registration, rename, status, ban, locale or preference change |
-| `data.users.deleted` | user ID and account incarnation | User deletion |
+| `data.users.deleted` | user ID, account incarnation and deletion time | User deletion |
 | `data.modules.changed` | user ID, module name, enabled, config JSON, revision | Each module row landed by a flush |
 | `data.commands.changed` | user ID, name, aliases, response, active, stream-online-only, permissions, cooldowns, allowed user, uses, bump counter, deleted flag | Each command row landed by a flush, and deletions |
 | `data.commands.fetch_changed` | user ID, fetch name, URL, JSON path, key label, active, deleted flag | A custom-fetch definition changes |
