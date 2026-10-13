@@ -127,7 +127,7 @@ function parseCommand(f: FormData) {
   const cooldown = seconds(f.get('cooldown'));
   const userCooldown = seconds(f.get('user_cooldown'));
 
-  const allowedUserId = String(f.get('allowed_user_id') ?? '').replace(/\D/g, '');
+  const allowedUserId = String(f.get('allowed_user_id') ?? '').trim();
 
   const streamOnlineOnly = f.get('stream_online_only') === 'on';
 

@@ -177,11 +177,15 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
 }
 
 function callbackGate(
-  code: string | null,
-  state: string | null,
-  storedState: string | undefined,
-  storedNonce: string | undefined
+  params: URLSearchParams,
+  cookies: Cookies
 ): { ok: true; code: string; storedNonce: string } | { ok: false; slug: string } {
+  const error = params.get('error');
+  const code = params.get('code');
+  const state = params.get('state');
+  const storedState = cookies.get('oauth_state');
+  const storedNonce = cookies.get('oauth_nonce');
+  if (error) return { ok: false, slug: error === 'access_denied' ? 'declined' : 'oauth' };
   if (!validOAuthState(code, state, storedState)) return { ok: false, slug: 'state' };
   // The nonce cookie is mandatory: a flow that lost it must fail, not log in without replay protection.
   if (!storedNonce) return { ok: false, slug: 'state' };
@@ -199,12 +203,7 @@ async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: s
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const next = safeNextPath(cookies.get('login_next'));
-  const gate = callbackGate(
-    url.searchParams.get('code'),
-    url.searchParams.get('state'),
-    cookies.get('oauth_state'),
-    cookies.get('oauth_nonce')
-  );
+  const gate = callbackGate(url.searchParams, cookies);
   cookies.delete('oauth_state', { path: '/' });
   cookies.delete('oauth_nonce', { path: '/' });
   cookies.delete('login_next', { path: '/' });

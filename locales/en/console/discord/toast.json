@@ -1,7 +1,7 @@
 {
   "disconnectFailed": "Could not disconnect Discord.",
   "disconnected": "Discord disconnected.",
-  "refused": "This server already has a layout. Connect existing is the right path.",
+  "refused": "This server already had its own channels, so Bagel kept them and added only the ones it needs. Pick the rest on the Channels page.",
   "repostFailed": "Could not repost the ticket panel.",
   "reposted": "Ticket panel reposted.",
   "saveFailed": "Could not save Discord settings.",

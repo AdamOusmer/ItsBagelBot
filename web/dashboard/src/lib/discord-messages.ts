@@ -34,12 +34,14 @@ export const DISCORD_SLUG_KEYS: Record<
   string,
   | (typeof DISCORD_CODE_KEYS)[string]
   | 'discord.errors.oauth'
+  | 'discord.errors.declined'
   | 'discord.errors.unconfigured'
   | 'discord.errors.setup'
   | 'discord.errors.state'
   | 'discord.errors.noGuilds'
 > = {
   oauth: 'discord.errors.oauth',
+  declined: 'discord.errors.declined',
   unconfigured: 'discord.errors.unconfigured',
   setup: 'discord.errors.setup',
   state: 'discord.errors.state',

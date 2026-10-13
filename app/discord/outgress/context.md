@@ -99,7 +99,8 @@ Live/reauth/bot-status/lockdown memos are execution projections, not settings tr
   tests explicitly require refusal when discord-data cannot establish ownership.
 - Preserve restored channel overwrites/verification on unlock and the role hierarchy
   rules when stripping roles; coarse replacement can damage unrelated permissions.
-- Cosmetic guild identity stays in the default lane and must not preempt moderation.
+- Cosmetic guild identity uses the default lane and must not preempt moderation.
+  Setup re-applies it once the bot may rename again, before clearing the reauth flag.
 - Health checks name mod/default progress separately and feed engine's Discord
   vertical via service token `discord-outgress`.
 

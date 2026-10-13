@@ -1,11 +1,11 @@
 {
-  "disconnectBody": "Bagel arrête de publier et oublie à quel serveur cette chaîne est liée. Vos salons et vos rôles restent exactement tels quels.",
+  "disconnectBody": "Bagel arrête de publier et oublie à quel serveur cette chaîne est liée. Vos salons et vos rôles restent exactement tels quels. Bagel reste dans le serveur. Pour le retirer, faites un clic droit sur Bagel dans la liste des membres du serveur dans Discord et choisissez Expulser.",
   "disconnectCta": "Déconnecter",
   "disconnectTitle": "Déconnecter Discord ?",
   "reconnectCta": "Réautoriser",
-  "setupCta": "Configurer ce serveur",
-  "setupHelp": "Relance le remplissage : crée ce qui manque, reprend vos rôles épinglés et ne touche à rien d’autre.",
-  "setupTitle": "Reconstruire le serveur",
+  "setupCta": "Créer les salons et rôles manquants",
+  "setupHelp": "Ajoute les salons et les rôles nécessaires à Bagel qui manquent sur ce serveur, et utilise les rôles que vous avez épinglés sur la page Rôles. Rien n’est supprimé.",
+  "setupTitle": "Structure du serveur",
   "setupFirstRun": "Ce serveur n’a pas encore de réglages enregistrés. La première préparation les écrit.",
   "dangerTitle": "Zone sensible"
 }

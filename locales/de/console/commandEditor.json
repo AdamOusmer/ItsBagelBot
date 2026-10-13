@@ -25,7 +25,7 @@
   "access": "Zugriff",
   "cooldownS": "Gemeinsame Abklingzeit (s)",
   "restrictUser": "Auf Nutzer-ID beschränken",
-  "restrictPlaceholder": "Twitch-Nutzer-ID. Nur diese Person kann ihn ausführen",
+  "restrictPlaceholder": "Nur Ziffern. Das ist die Twitch-Nutzer-ID, nicht der Nutzername. Suche den Nutzernamen auf einer Website zum Nachschlagen von Twitch-Nutzer-IDs, um sie zu erhalten.",
   "active": "Aktiv",
   "onlyWhileLive": "Nur während des Live-Streams",
   "bumpCounter": "Zähler erhöhen",
