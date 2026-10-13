@@ -3,11 +3,11 @@
   "back": "Retour à mes serveurs",
   "cta": "Ajouter Bagel ici",
   "description": "Voici les serveurs que vous possédez ou pouvez gérer. Choisissez-en un et Discord vous demandera de confirmer avant que Bagel rejoigne.",
-  "elsewhere": "Ce serveur est lié à une autre chaîne Twitch. Demandez au propriétaire de cette chaîne de le délier d’abord.",
+  "elsewhere": "Ce serveur est lié à une autre chaîne Twitch. Demandez au propriétaire de cette chaîne de choisir Déconnecter sur la page Réglages de ce serveur dans Bagel avant de continuer.",
   "elsewhereChip": "Lié à une autre chaîne",
   "emptyBody": "Bagel ne peut rejoindre qu’un serveur qui vous appartient, ou un serveur où vous avez Gérer le serveur. Demandez à son propriétaire, ou créez d’abord le vôtre.",
   "emptyTitle": "Aucun serveur où ajouter Bagel",
-  "help": "Choisir un serveur vous envoie sur l’écran de confirmation de Discord. Rien ne change tant que vous ne l’acceptez pas.",
+  "help": "Choisir un serveur ouvre l’écran de confirmation de Discord. Quand vous y choisissez Autoriser, Bagel rejoint ce serveur et le configure.",
   "mine": "Bagel est déjà dans ce serveur.",
   "privacy": "Nous avons demandé votre liste de serveurs à Discord pour construire cette page. Elle sert une seule fois, ici, et n’est jamais conservée.",
   "title": "Serveurs que vous gérez",
@@ -16,5 +16,8 @@
   "searchLabel": "Trouver un serveur",
   "searchPh": "Rechercher dans vos serveurs",
   "noMatch": "Aucun serveur ne correspond à cette recherche.",
-  "missingHint": "Un serveur manque ? Il faut la permission Gérer le serveur dessus."
+  "missingHint": "Un serveur manque ? Il faut la permission Gérer le serveur dessus.",
+  "repairCta": "Ajouter Bagel à nouveau",
+  "repair": "Bagel doit être ajouté à nouveau pour fonctionner sur ce serveur.",
+  "permissions": "Discord affiche les permissions demandées par Bagel. Gardez-les toutes cochées : Bagel utilise Expulser des membres, Bannir des membres et Exclure temporairement des membres pour la modération, ainsi que Gérer les rôles et Gérer les salons pour configurer votre serveur. Il n’a jamais besoin d’Administrateur."
 }

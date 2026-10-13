@@ -1,11 +1,11 @@
 {
-  "disconnectBody": "Bagel deja de publicar y olvida a qué servidor está vinculado este canal. Tus canales y roles se conservan exactamente como están.",
+  "disconnectBody": "Bagel deja de publicar y olvida a qué servidor está vinculado este canal. Tus canales y roles se conservan exactamente como están. Bagel sigue en el servidor. Para quitarlo, haz clic derecho en Bagel en la lista de miembros del servidor en Discord y elige Expulsar.",
   "disconnectCta": "Desconectar",
   "disconnectTitle": "¿Desconectar Discord?",
   "reconnectCta": "Volver a autorizar",
-  "setupCta": "Configurar este servidor",
-  "setupHelp": "Vuelve a ejecutar la configuración automática: crea lo que falte, adopta los roles que hayas fijado y conserva todo lo demás.",
-  "setupTitle": "Reconstruir el servidor",
+  "setupCta": "Crear los canales y roles que faltan",
+  "setupHelp": "Añade los canales y roles que Bagel necesita y que faltan en este servidor, y usa cualquier rol que hayas fijado en la página Roles. No se elimina nada.",
+  "setupTitle": "Estructura del servidor",
   "setupFirstRun": "Este servidor aún no tiene ajustes guardados. La primera configuración los guarda.",
   "dangerTitle": "Zona de peligro"
 }

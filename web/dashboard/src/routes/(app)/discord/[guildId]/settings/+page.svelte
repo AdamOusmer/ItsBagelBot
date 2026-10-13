@@ -27,7 +27,7 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) {
-        toast(p?.refused ? 'danger' : 'success', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
+        toast(p?.refused ? 'info' : 'success', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
         await invalidateAll();
         return;
       }

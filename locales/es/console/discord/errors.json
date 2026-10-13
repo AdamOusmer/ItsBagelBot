@@ -1,7 +1,8 @@
 {
-  "boundElsewhere": "Ese servidor de Discord ya está vinculado a otro canal de Twitch.",
+  "boundElsewhere": "Ese servidor de Discord ya está vinculado a otro canal de Twitch. Pide al propietario de ese canal que abra este servidor en Bagel, vaya a Ajustes y elija Desconectar. Después, añádelo aquí de nuevo.",
   "conflict": "Otra persona guardó este servidor antes. Recarga e inténtalo de nuevo.",
-  "forbidden": "Discord lo rechazó. A Bagel le falta un permiso en este servidor.",
+  "declined": "Cancelaste en la pantalla de Discord, así que no se añadió nada. Elige Añadir un servidor para intentarlo de nuevo.",
+  "forbidden": "Discord lo rechazó porque a Bagel le falta un permiso en este servidor. En Discord, abre Ajustes del servidor y luego Roles, y arrastra el rol de Bagel por encima de los roles que gestiona. Si desmarcaste un permiso al añadir Bagel, elige Volver a autorizar en la página Ajustes de este servidor y deja todos marcados.",
   "invalid": "Algunos ajustes no eran válidos, así que se conservaron como estaban.",
   "invalidFields": "Guardado, pero estos se conservaron como estaban: {fields}.",
   "locked": "Discord está en beta y solo está disponible para canales Premium.",
