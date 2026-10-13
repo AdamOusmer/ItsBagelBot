@@ -106,7 +106,7 @@ const guide: GuideContent = {
             },
             {
               title: 'Connect your Spotify account',
-              html: `<p>On the <strong>Connect Spotify</strong> stage, the page says "Your app is saved and ready." Select <strong>Connect Spotify</strong>. Spotify opens a permission screen. Approve the permissions on Spotify's screen. Closing the screen without approving stops the connection.</p>`,
+              html: `<p>On the <strong>Connect Spotify</strong> stage, the page says "Your app is saved and ready." Select <strong>Connect Spotify</strong>. Spotify opens a permission screen. Approve the permissions on Spotify's screen. Closing the screen without approving stops the connection. A warning may appear right after you connect. The connection still works, and the table in "If something goes wrong" says what to do.</p>`,
             },
             {
               title: 'Check the result',
@@ -357,6 +357,16 @@ const guide: GuideContent = {
               "Could not copy. Select the URL and copy it manually.",
               "Your browser blocked the copy button.",
               "Select the Redirect URI with the mouse and copy it by hand.",
+            ],
+            [
+              "Spotify connected, but it refused to share this account. In development mode, the account that owns your Spotify app needs Premium. Upgrade that account in Spotify, then connect again.",
+              "The connection worked, but Spotify refused to share this account. In development mode, the account that owns your Spotify app needs Premium.",
+              "In Spotify, upgrade the account that owns your app to Premium. Then connect again from the Song Requests page.",
+            ],
+            [
+              "Spotify connected, but this account is not on your app's allowed users. In the Spotify Developer Dashboard, add this account to your app's users, then connect again.",
+              "The connection worked, but this account is not on your app's list of allowed users.",
+              "In the Spotify Developer Dashboard, open your app's settings and add this Spotify account to the app's users. The name of that tab may differ from what you expect, so look for the user management settings. Then connect again from the Song Requests page.",
             ],
           ],
         },

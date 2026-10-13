@@ -225,7 +225,7 @@ const guide: GuideContent = {
             ['Lists use bare digits', '<code>items.0.name</code> is the first entry. Square brackets are not part of the grammar.'],
             ['Depth', 'Up to 8 steps. Past that the tree refuses the value: "Deeper than 8 levels. Pick something closer to the top."'],
             ['Each step', 'Letters, digits, underscore and hyphen, up to 64 characters each.'],
-            ['The end of the path', 'Lands on a value: text, a number, true or false. Stopping on an object, a list or an empty field counts as a broken data source, and chat gets the raw token.'],
+            ['The end of the path', 'Lands on a value: text, a number, true or false. Stopping on an object, a list or an empty field counts as a broken data source, and chat shows your |default, or the raw token if there is none.'],
             ['A path inside the token', 'Wins over the one saved on the source. <code>&#123;urlfetch:weather.current.wind_speed_10m&#125;</code> reads a different value from the same address.'],
             ['The name', 'Case-insensitive. <code>&#123;URLFETCH:Weather&#125;</code> and <code>&#123;urlfetch:weather&#125;</code> are the same source.'],
             ['The value', 'Cleaned, trimmed, then cut at 100 bytes before it reaches chat.'],
@@ -352,7 +352,7 @@ const guide: GuideContent = {
     {
       id: 'errors',
       heading: 'What chat shows when it fails',
-      note: 'A failed fetch leaves a blank or your fallback. A source that cannot answer at all shows the raw token.',
+      note: 'A failed fetch leaves a blank or your fallback. A source that cannot answer at all shows your |default, or the raw token if there is none.',
       blocks: [
         {
           kind: 'prose',
@@ -361,9 +361,9 @@ const guide: GuideContent = {
                 A command never goes silent because of a data source. The rest of the sentence is sent
                 and the value is left blank, unless you wrote a fallback after a pipe:
                 <code>&#123;urlfetch:weather|unavailable&#125;</code> says "unavailable" when the fetch
-                fails. The one case a fallback does not cover is a source that is paused, missing or
-                unable to produce a value. Chat then shows the raw token exactly as typed, even with
-                a <code>|default</code>. That is how the bot works today, and it is why a raw
+                fails. A source that is paused, missing or unable to produce a value works the same way: chat and
+                timers show the token's <code>|default</code>. Without a <code>|default</code>, chat
+                shows the raw token exactly as typed, and that is why a raw
                 <code>&#123;urlfetch:weather&#125;</code> in chat means "check this data source".
             </p>`,
         },
@@ -372,7 +372,7 @@ const guide: GuideContent = {
           head: ['What happened', 'What chat shows'],
           rows: [
             ['The API refused, it rate limited you, it returned an error, it took longer than the bot waits, the path found nothing, or the message is a replay of an older one', 'Nothing where the value goes, or your <code>|fallback</code> text.'],
-            ['The source is paused, missing, never saved, or could not produce a value', 'The token, printed exactly as typed: <code>&#123;urlfetch:weather&#125;</code>. A <code>|fallback</code> is ignored.'],
+            ['The source is paused, missing, never saved, or could not produce a value', 'Your <code>|fallback</code> text. With no <code>|fallback</code>, the token printed exactly as typed: <code>&#123;urlfetch:weather&#125;</code>.'],
           ],
         },
         {
@@ -415,7 +415,7 @@ const guide: GuideContent = {
                 id: 'paused',
                 label: 'Source paused',
                 bot: 'It is {urlfetch:weather}°C in Montreal right now.',
-                why: 'A paused or missing source has nothing to expand, so the token is printed as typed, even with a |default. The dashboard says it when a source cannot produce a value: "This data source could not produce a value, so chat would show {urlfetch:name} as typed, even with a |default."',
+                why: 'A paused or missing source has nothing to expand. A token with a |default shows that default. A token without one, like this one, is printed as typed. The dashboard says it when a source cannot produce a value: "This data source could not produce a value. Until it does, chat shows the token\'s |default value if it has one, otherwise {urlfetch:name} as typed. Check the web address and the API key, then click Fetch a sample again."',
               },
               {
                 id: 'toomany',
@@ -447,7 +447,7 @@ const guide: GuideContent = {
             ['Rate limited. Wait a moment and test again.', 'A request cap was reached.', 'Wait a minute and test again.'],
             ['The API returned an error. Chat sees nothing, unless the token has a |default: &#123;urlfetch:name|default&#125;.', 'The API answered with an error.', 'Check the API status, or add a fallback after a pipe.'],
             ['The API timed out. Chat sees nothing, unless the token has a |default: &#123;urlfetch:name|default&#125;.', 'The API took longer than the bot waits.', 'Try again, and add a fallback after a pipe.'],
-            ['This data source could not produce a value, so chat would show &#123;urlfetch:name&#125; as typed, even with a |default. Check the web address and the API key, then click Fetch a sample again.', 'The source is paused, or its path or address cannot give a value.', 'Resume the source if it is paused. Otherwise fix the address or key, fetch a sample, and click the value again.'],
+            ['This data source could not produce a value. Until it does, chat shows the token\'s |default value if it has one, otherwise &#123;urlfetch:name&#125; as typed. Check the web address and the API key, then click Fetch a sample again.', 'The source is paused, or its path or address cannot give a value.', 'Resume the source if it is paused. Otherwise fix the address or key, fetch a sample, and click the value again.'],
             ['The fetch service did not answer. Try again in a moment.', 'The service that calls your API did not reply in time.', 'Wait a moment and test again.'],
             ['The API answered, but its response could not be read automatically. Paste one below instead.', 'The answer is not readable text, or it is over 128 KB.', 'Click "or paste a response instead" and paste a real response by hand.'],
             ['That is not valid JSON. Fix it and the tree appears here.', 'The pasted sample is not JSON.', 'Paste the response again, from the first brace to the last.'],
@@ -456,7 +456,7 @@ const guide: GuideContent = {
             ['You\'ve reached the 20 data source limit for your channel. Delete one to make room.', 'A channel holds 20 data sources.', 'Delete a source you no longer use.'],
             ['A definition named "name" already exists.', 'Another source already has that name.', 'Pick a different name, or edit the existing source.'],
             ['A timer message can reference at most 3 different fetched values (&#123;urlfetch:…&#125;).', 'Timer messages are capped at 3 data sources.', 'Quote fewer sources in the timer message.'],
-            ['A raw &#123;urlfetch:name&#125; in chat', 'The source is paused, missing, or cannot produce a value.', 'Open the command, check the name matches a saved source, and resume it if paused.'],
+            ['A raw &#123;urlfetch:name&#125; in chat', 'The source is paused, missing, or cannot produce a value, and the token has no |default. Tokens past the per-message cap also stay raw.', 'Open the command, check the name matches a saved source, and resume it if paused. Add a |default so chat shows a fallback instead.'],
           ],
         },
       ],

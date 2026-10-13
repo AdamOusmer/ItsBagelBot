@@ -439,6 +439,18 @@ const guide: GuideContent = {
               "A moderator removed a position that is not in the queue.",
               "Check the <strong>Queue</strong> card for the right position and try again.",
               "<a href=\"/guides/spotify-song-requests#trouble\">Spotify song requests: If something goes wrong</a>"
+            ],
+            [
+              "Spotify connected, but it refused to share this account. In development mode, the account that owns your Spotify app needs Premium. Upgrade that account in Spotify, then connect again.",
+              "The connection worked, but Spotify refused to share this account. In development mode, the account that owns your Spotify app needs Premium.",
+              "In Spotify, upgrade the account that owns your app to Premium. Then connect again from the Song Requests page.",
+              "<a href=\"/guides/spotify-song-requests#trouble\">Spotify song requests: If something goes wrong</a>"
+            ],
+            [
+              "Spotify connected, but this account is not on your app's allowed users. In the Spotify Developer Dashboard, add this account to your app's users, then connect again.",
+              "The connection worked, but this account is not on your app's list of allowed users.",
+              "In the Spotify Developer Dashboard, open your app's settings and add this Spotify account to the app's users. The name of that tab may differ from what you expect, so look for the user management settings. Then connect again from the Song Requests page.",
+              "<a href=\"/guides/spotify-song-requests#trouble\">Spotify song requests: If something goes wrong</a>"
             ]
           ]
         }
@@ -1119,7 +1131,7 @@ const guide: GuideContent = {
               "<a href=\"/guides/data-sources#errors\">Data sources: What chat shows when it fails</a>"
             ],
             [
-              "This data source could not produce a value, so chat would show &#123;urlfetch:name&#125; as typed, even with a |default. Check the web address and the API key, then click Fetch a sample again.",
+              "This data source could not produce a value. Until it does, chat shows the token's |default value if it has one, otherwise &#123;urlfetch:name&#125; as typed. Check the web address and the API key, then click Fetch a sample again.",
               "The source is paused, or its path or address cannot give a value.",
               "Resume the source if it is paused. Otherwise fix the address or key, fetch a sample, and click the value again.",
               "<a href=\"/guides/data-sources#errors\">Data sources: What chat shows when it fails</a>"
@@ -1174,8 +1186,8 @@ const guide: GuideContent = {
             ],
             [
               "A raw &#123;urlfetch:name&#125; in chat",
-              "The source is paused, missing, or cannot produce a value.",
-              "Open the command, check the name matches a saved source, and resume it if paused.",
+              "The source is paused, missing, or cannot produce a value, and the token has no |default. Tokens past the per-message cap also stay raw.",
+              "Open the command, check the name matches a saved source, and resume it if paused. Add a |default so chat shows a fallback instead.",
               "<a href=\"/guides/data-sources#errors\">Data sources: What chat shows when it fails</a>"
             ]
           ]
