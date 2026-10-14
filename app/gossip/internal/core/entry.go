@@ -82,7 +82,7 @@ func (c *Cache) storeEntry(ctx context.Context, key string, payload []byte, ttl 
 	buf = append(buf, entryMid...)
 	buf = append(buf, payload...)
 	buf = append(buf, entrySuffix)
-	_ = c.store.Set(ctx, key, buf, 2*ttl)
+	_ = c.store.Set(ctx, key, buf, storedTTL(ttl))
 	*bufp = buf[:0]
 	entryBufPool.Put(bufp)
 }

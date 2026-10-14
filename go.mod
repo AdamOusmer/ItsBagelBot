@@ -17,6 +17,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v92 v92.0.0
 	github.com/google/uuid v1.6.0
+	github.com/klauspost/compress v1.20.0
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/nats-io/jwt/v2 v2.8.2
 	github.com/nats-io/nats-server/v2 v2.15.0
@@ -84,7 +85,6 @@ require (
 	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
