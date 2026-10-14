@@ -116,7 +116,7 @@ Every service reads its configuration from the environment. Common variables:
 | `DB_USER`, `DB_PASS` | required | data services |
 | `DB_SCHEMA` | `bagel_<service>` | data services |
 | `DB_CA_CERT` | required | data services; the pinned HeatWave CA PEM (`pkg/db/provider.go`); startup fails when it is absent or invalid |
-| `DB_TLS_MODE` | `VERIFY_CA` | data services; `pkg/db/provider.go` |
+| `DB_TLS_MODE` | `VERIFY_IDENTITY` | data services; `pkg/db/provider.go` |
 | `DB_AUTO_MIGRATE` | `true` | data services; run the ent schema migration at startup |
 | `DB_ADMIN_CA_CERT` | falls back to `DB_CA_CERT` | admin console; the HeatWave CA PEM for the privileged schema-admin connection (`web/admin/src/lib/server/secrets.ts`) |
 | `TINK_KEYSET_PATH` | required for users; optional for commands and modules (key custody is disabled with a warning when absent) | users, commands, modules |

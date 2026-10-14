@@ -66,18 +66,18 @@ func TestNewDriverOpensPoolWhoseHealthProbeReportsAnUnreachableServer(t *testing
 	require.ErrorContains(t, err, "db: keepalive")
 }
 
-func TestResolveTLSModeDefaultsToVerifyCA(t *testing.T) {
-	mode, err := resolveTLSMode()
-	require.NoError(t, err)
-	require.Equal(t, tlsModeVerifyCA, mode)
-}
-
-func TestResolveTLSModeAcceptsVerifyIdentity(t *testing.T) {
-	t.Setenv(tlsModeEnvVar, "VERIFY_IDENTITY")
-
+func TestResolveTLSModeDefaultsToVerifyIdentity(t *testing.T) {
 	mode, err := resolveTLSMode()
 	require.NoError(t, err)
 	require.Equal(t, tlsModeVerifyIdentity, mode)
+}
+
+func TestResolveTLSModeAcceptsVerifyCA(t *testing.T) {
+	t.Setenv(tlsModeEnvVar, "VERIFY_CA")
+
+	mode, err := resolveTLSMode()
+	require.NoError(t, err)
+	require.Equal(t, tlsModeVerifyCA, mode)
 }
 
 func TestResolveTLSModeRejectsUnknownValue(t *testing.T) {
@@ -90,7 +90,7 @@ func TestResolveTLSModeRejectsUnknownValue(t *testing.T) {
 func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
 	require.True(t, cfg.InsecureSkipVerify)
-	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
+	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
 	require.Empty(t, cfg.ServerName)
 	require.Nil(t, cfg.RootCAs)
 	require.Nil(t, cfg.VerifyPeerCertificate)
@@ -143,7 +143,7 @@ func TestRegisterTLSVerifyIdentityBuildsStandardConfig(t *testing.T) {
 	_, _, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
 
 	require.False(t, cfg.InsecureSkipVerify)
-	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
+	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
 	require.Equal(t, "db.internal.example", cfg.ServerName)
 	require.NotNil(t, cfg.RootCAs)
 	require.Nil(t, cfg.VerifyPeerCertificate)

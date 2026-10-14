@@ -105,7 +105,7 @@ Chaque service lit sa configuration dans l’environnement. Variables communes :
 | `DB_USER`, `DB_PASS` | obligatoires | services de données |
 | `DB_SCHEMA` | `bagel_<service>` | services de données |
 | `DB_CA_CERT` | obligatoire | services de données ; certificat CA PEM de HeatWave épinglé (`pkg/db/provider.go`) ; le démarrage échoue s’il est absent ou invalide |
-| `DB_TLS_MODE` | `VERIFY_CA` | services de données ; `pkg/db/provider.go` |
+| `DB_TLS_MODE` | `VERIFY_IDENTITY` | services de données ; `pkg/db/provider.go` |
 | `DB_AUTO_MIGRATE` | `true` | services de données ; exécute la migration du schéma ent au démarrage |
 | `DB_ADMIN_CA_CERT` | repli sur `DB_CA_CERT` | console admin ; certificat CA PEM de HeatWave pour la connexion privilégiée d’administration des schémas (`web/admin/src/lib/server/secrets.ts`) |
 | `TINK_KEYSET_PATH` | obligatoire pour users ; facultatif pour commands et modules (la garde des clés est désactivée avec un avertissement en son absence) | users, commands, modules |
