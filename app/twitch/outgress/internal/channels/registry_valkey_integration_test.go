@@ -120,19 +120,19 @@ func TestUnhealthySetFollowsSetSubStateUnless(t *testing.T) {
 	r := New(valkeytest.Spawn(t))
 	ctx := context.Background()
 
-	applied, err := r.SetSubStateUnless(ctx, "42", "failing", "x", "revoked", "chat_banned")
+	applied, err := r.SetSubStateUnless(ctx, "42", SubState{State: "failing", Error: "x"}, "revoked", "chat_banned")
 	require.NoError(t, err)
 	require.True(t, applied)
 	require.Equal(t, []string{"42"}, unhealthyMembers(t, r))
 
-	applied, err = r.SetSubStateUnless(ctx, "42", "ok", "", "revoked", "chat_banned")
+	applied, err = r.SetSubStateUnless(ctx, "42", SubState{State: "ok", Error: ""}, "revoked", "chat_banned")
 	require.NoError(t, err)
 	require.True(t, applied)
 	require.Empty(t, unhealthyMembers(t, r))
 
 	require.NoError(t, r.SetSubState(ctx, "7", "chat_banned", ""))
 	require.NoError(t, r.SetSubState(ctx, "8", "failing", ""))
-	applied, err = r.SetSubStateUnless(ctx, "7", "failing", "x", "revoked", "chat_banned")
+	applied, err = r.SetSubStateUnless(ctx, "7", SubState{State: "failing", Error: "x"}, "revoked", "chat_banned")
 	require.NoError(t, err)
 	require.False(t, applied)
 	require.Equal(t, []string{"8"}, unhealthyMembers(t, r))

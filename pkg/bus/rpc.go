@@ -99,13 +99,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
-	if err := QueueSubscribeRPC(nc, subject, queueGroup, jsonRPCHandler(subject, timeout, app, log, handle)); err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
-	}
-	if err := nc.Flush(); err != nil {
-		return fmt.Errorf("flush subscription %s: %w", subject, err)
-	}
-	return nil
+	return flushedSubscription(nc, subject, QueueSubscribeRPC(nc, subject, queueGroup, jsonRPCHandler(subject, timeout, app, log, handle)))
 }
 
 // handle must be safe to run concurrently with itself.
@@ -117,11 +111,16 @@ func QueueSubscribeJSONConcurrent[Req any, Resp any](
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
-	if _, err := QueueSubscribeRPCConcurrent(nc, sub, jsonRPCHandler(sub.Subject, timeout, app, log, handle)); err != nil {
-		return fmt.Errorf("subscribe %s: %w", sub.Subject, err)
+	_, err := QueueSubscribeRPCConcurrent(nc, sub, jsonRPCHandler(sub.Subject, timeout, app, log, handle))
+	return flushedSubscription(nc, sub.Subject, err)
+}
+
+func flushedSubscription(nc *nats.Conn, subject string, subscribeErr error) error {
+	if subscribeErr != nil {
+		return fmt.Errorf("subscribe %s: %w", subject, subscribeErr)
 	}
 	if err := nc.Flush(); err != nil {
-		return fmt.Errorf("flush subscription %s: %w", sub.Subject, err)
+		return fmt.Errorf("flush subscription %s: %w", subject, err)
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/rpc/manage"
@@ -74,12 +75,16 @@ func entryForSpec(spec twitch.SubSpec, broadcasterID string) twitch.EventSubEntr
 func (w *Worker) presentSubscriptionTypes(ctx context.Context, e enrollment) (map[string]bool, error) {
 	present := map[string]bool{}
 	err := w.visitSubscriptionPages(ctx, e, func(sub twitch.EventSubEntry) error {
-		if sub.Status == subscriptionStatusEnabled && ownedSub(sub, e) && w.botOwnedSubscription(sub) {
+		if w.countsAsPresent(sub, e) {
 			present[sub.Type] = true
 		}
 		return nil
 	})
 	return present, err
+}
+
+func (w *Worker) countsAsPresent(sub twitch.EventSubEntry, e enrollment) bool {
+	return sub.Status == subscriptionStatusEnabled && ownedSub(sub, e) && w.botOwnedSubscription(sub)
 }
 
 func newVerification(expected []string, present map[string]bool) manage.Verification {
@@ -98,12 +103,14 @@ func (w *Worker) recordVerification(ctx context.Context, e enrollment, v manage.
 		return v, nil
 	}
 	state, errMsg := verifiedSubState(v, repair)
-	applied, err := w.registry.SetSubStateUnless(ctx, e.broadcasterID, state, errMsg, subStateRevoked, subStateBanned)
-	if err != nil || !applied || state != subStatePending {
+	applied, err := w.registry.SetSubStateUnless(ctx, e.broadcasterID, channels.SubState{State: state, Error: errMsg}, subStateRevoked, subStateBanned)
+	if err != nil || !applied {
 		return v, err
 	}
-	v.Repairing = true
-	w.repairInBackground(ctx, e)
+	if state == subStatePending {
+		v.Repairing = true
+		w.repairInBackground(ctx, e)
+	}
 	return v, nil
 }
 

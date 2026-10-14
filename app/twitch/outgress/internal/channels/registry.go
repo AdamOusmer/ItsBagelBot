@@ -301,9 +301,14 @@ redis.call('SADD',KEYS[2],ARGV[4])
 if ARGV[1]=='failing' or ARGV[1]=='pending' then redis.call('SADD',KEYS[3],ARGV[4]) else redis.call('SREM',KEYS[3],ARGV[4]) end
 return 1`)
 
-func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID, state, errMsg string, protected ...string) (bool, error) {
+type SubState struct {
+	State string
+	Error string
+}
+
+func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID string, write SubState, protected ...string) (bool, error) {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	args := append([]string{state, errMsg, now, broadcasterID}, protected...)
+	args := append([]string{write.State, write.Error, now, broadcasterID}, protected...)
 	applied, err := setSubStateUnless.Exec(ctx, r.client, []string{keyPrefix + broadcasterID, indexKey, unhealthyKey}, args).AsInt64()
 	if err != nil || applied == 0 {
 		return false, err
