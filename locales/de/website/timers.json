@@ -1,0 +1,92 @@
+{
+  "howEyebrow": "So funktioniert es",
+  "listEyebrow": "Gut zu wissen",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Fragen zur Einrichtung.",
+  "updated": "Aktualisiert am 14. Oktober 2026",
+  "tblEyebrow": "Konfiguration",
+  "colAction": "Was du konfigurierst",
+  "colDetail": "Standard für neue Timer",
+  "colOutcome": "Was der Chat sieht",
+  "ctaPrimary": "Mit Twitch anmelden",
+  "metaTitle": "Twitch-Timer-Bot | ItsBagelBot",
+  "metaDesc": "Plane Twitch-Chat-Erinnerungen mit ItsBagelBot. Lege Nachricht, Intervall, Aktivitätsschwelle, Offline-Verhalten, Ausführungslimit und Ablauf fest.",
+  "eyebrow": "Timer",
+  "title": "Richte regelmäßige Erinnerungen nach Zeitplan ein.",
+  "lead": "Nutze ItsBagelBot als deinen Twitch-Timer-Bot für Social-Media-Links, Ankündigungen und Erinnerungen. Jeder Timer hat seine eigene Nachricht und sein eigenes Intervall. Über Aktivitätsschwellen, Offline-Einstellungen und Stopp-Bedingungen bestimmst du genau, wann die Nachricht in den Chat gehört.",
+  "howTitle": "Plane eine Nachricht für deinen Kanal.",
+  "step1Title": "Timer aktivieren",
+  "step1Desc": "Verbinde deinen Kanal, öffne „Timer“ und aktiviere das Modul. Erstelle einen Timer mit der Nachricht, die der Bot posten soll.",
+  "step2Title": "Intervall festlegen",
+  "step2Desc": "Ein neuer Timer startet bei zehn Minuten. Lege sein Intervall fest sowie die minimale Chat-Aktivität, die vor dem Posten nötig ist.",
+  "step3Title": "Ende festlegen",
+  "step3Desc": "Lass den Timer nur live aktiv oder erlaube das Posten offline. Lege ein Ausführungslimit pro Stream oder ein Ablaufdatum für zeitlich begrenzte Erinnerungen fest.",
+  "tblTitle": "Timer-Einstellungen und was der Chat sieht.",
+  "tblNote": "Diese Zeilen stammen aus der Konfiguration des Timers, nicht aus Chat-Befehlen. Das Modul ist standardmäßig deaktiviert. Ein neuer Timer ist zwar aktiviert, benötigt jedoch eine Nachricht und ein aktiviertes Modul, bevor er posten kann.",
+  "listTitle": "Ein Zeitplan, der auf die Chat-Aktivität achtet.",
+  "item1Name": "Eigenes Intervall pro Nachricht",
+  "item1Desc": "Jeder Timer läuft in seinem eigenen Intervall. Nutze separate Timer für Nachrichten, die unterschiedliche Zeitpläne erfordern.",
+  "item2Name": "Auf Chat-Aktivität warten",
+  "item2Desc": "Ein Timer kann eine Mindestanzahl an Chat-Zeilen innerhalb eines rollierenden Zeitfensters voraussetzen. Wird dieser Schwellenwert nicht erreicht, überspringt der Bot die Nachricht und prüft es beim nächsten Intervall erneut.",
+  "item3Name": "Standardmäßig nur live",
+  "item3Desc": "Bei neuen Timern ist das Posten im Offline-Zustand deaktiviert. Aktiviere es für Nachrichten, die du auch erlauben möchtest, während der Kanal offline ist.",
+  "item4Name": "Vorübergehende Erinnerungen stoppen",
+  "item4Desc": "Ein Ausführungslimit begrenzt die Wiederholungen pro Stream. Ein Ablaufdatum stoppt den Timer nach dem gewählten Zeitpunkt.",
+  "limitsNote": "Das System erzwingt ein Mindestintervall von dreißig Sekunden. Ein Ausführungslimit von null bedeutet unbegrenzte Wiederholungen; ohne Ablaufdatum läuft der Timer ohne zeitliche Begrenzung.",
+  "prereq1": "Verbinde ItsBagelBot mit deinem Twitch-Kanal und aktiviere Timer.",
+  "prereq2": "Speichere eine Nachricht in einem aktivierten Timer. Überprüfe die Aktivitätsschwelle sowie die Live- und Offline-Einstellungen.",
+  "faqQ1": "Wie erstelle ich einen Twitch-Chat-Timer?",
+  "faqA1": "Aktiviere „Timer“ im Dashboard, füge eine Nachricht hinzu und wähle ein Intervall. Aktiviere den einzelnen Timer und speichere ihn. Der Bot wiederholt die Nachricht, sobald die Bedingungen des Timers erfüllt sind.",
+  "faqQ2": "Warum hat mein Timer eine Nachricht übersprungen?",
+  "faqA2": "Prüfe, ob das Modul und der Timer aktiviert sind, ob der Kanal für einen Live-Timer online ist und ob die Chat-Aktivität der letzten Zeit den Schwellenwert erreicht hat. Ein Ausführungslimit oder Ablaufdatum kann weitere Nachrichten ebenfalls stoppen.",
+  "faqQ3": "Was sind die Standardeinstellungen für einen neuen Timer?",
+  "faqA3": "Das Intervall beträgt 600 Sekunden. Der Timer startet aktiviert mit einer leeren Nachricht, einer Schwelle von fünfzehn Chat-Zeilen in zehn Minuten, deaktiviertem Offline-Posten, unbegrenzten Ausführungen und ohne Ablaufdatum.",
+  "faqQ4": "Können Timer posten, während ich offline bin?",
+  "faqA4": "Ja, wenn du das Offline-Posten für diesen Timer aktivierst. Neue Timer sind standardmäßig nur live aktiv. Aktivitätsschwellen gelten weiterhin, wenn das Posten offline erlaubt ist.",
+  "faqQ5": "Kann ich einen Timer nach einigen Ausführungen stoppen?",
+  "faqA5": "Ja. Lege eine maximale Anzahl an Ausführungen pro Stream fest oder wähle ein Ablaufdatum. Du kannst den einzelnen Timer auch deaktivieren.",
+  "ctaTitle": "Plane die Erinnerungen, die dein Chat braucht.",
+  "ctaGuide": "Lies den Befehle-Guide",
+  "fields": {
+    "message": {
+      "label": "Nachricht",
+      "value": "Leer",
+      "outcome": "Die gespeicherte Nachricht wird gepostet, sobald der Timer auslöst."
+    },
+    "intervalSeconds": {
+      "label": "Intervall",
+      "value": "{value} Sekunden",
+      "outcome": "Die Erinnerung wiederholt sich in ihrem eigenen Intervall, sobald die weiteren Bedingungen erfüllt sind."
+    },
+    "enabled": {
+      "label": "Timer aktiviert",
+      "value": "Ein",
+      "outcome": "Ein aktivierter Timer kann posten. Das Ausschalten stoppt seine geplanten Nachrichten."
+    },
+    "minChatLines": {
+      "label": "Mindestanzahl an Chat-Zeilen",
+      "value": "{value} Zeilen",
+      "outcome": "Der Bot wartet auf diese Mindestmenge an aktueller Chat-Aktivität, bevor er postet."
+    },
+    "chatWindowMinutes": {
+      "label": "Aktivitätsfenster",
+      "value": "{value} Minuten",
+      "outcome": "Nur Chat-Zeilen innerhalb dieses rollierenden Fensters zählen für die Aktivitätsschwelle."
+    },
+    "allowOffline": {
+      "label": "Offline erlauben",
+      "value": "Aus",
+      "outcome": "Die Nachricht wird nur live gesendet, außer du erlaubst diesem Timer das Posten offline."
+    },
+    "maxFiresPerStream": {
+      "label": "Maximale Ausführungen pro Stream",
+      "value": "{value}, unbegrenzt",
+      "outcome": "Ein positives Limit stoppt Wiederholungen, sobald der Timer seine Obergrenze pro Stream erreicht."
+    },
+    "endsAt": {
+      "label": "Ablauf",
+      "value": "Keiner",
+      "outcome": "Die Erinnerung stoppt nach einem konfigurierten Ablaufdatum."
+    }
+  }
+}

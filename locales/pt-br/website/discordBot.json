@@ -1,0 +1,107 @@
+{
+  "howEyebrow": "Como funciona",
+  "listEyebrow": "Bom saber",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Dúvidas de configuração.",
+  "updated": "Atualizado em 14 de outubro de 2026",
+  "tblEyebrow": "Configuração",
+  "colAction": "Recurso",
+  "colDetail": "O que você configura",
+  "colOutcome": "O que os membros veem",
+  "ctaPrimary": "Entrar com a Twitch",
+  "metaTitle": "Bot de Discord para Twitch | ItsBagelBot Premium Beta",
+  "metaDesc": "Integre Twitch e Discord com o ItsBagelBot Premium beta. Envie avisos de live e clipes, dê boas-vindas, use tickets e crie salas de voz temporárias.",
+  "eyebrow": "Bot para Discord",
+  "title": "Leve a sua transmissão para o seu Discord.",
+  "lead": "O ItsBagelBot conecta a Twitch e o Discord por meio de sua integração Premium beta. Envie avisos de live e clipes para o seu servidor, dê boas-vindas aos membros e ofereça à sua comunidade tickets, salas de voz temporárias e níveis no chat do Discord, tudo pelo mesmo painel.",
+  "howTitle": "Conecte um servidor e escolha os canais.",
+  "step1Title": "Conecte-se com o Premium",
+  "step1Desc": "Entre com a Twitch em um canal com Premium. Adicione o Bagel a um servidor existente do Discord ou crie um servidor a partir do modelo do Bagel.",
+  "step2Title": "Escolha os canais e cargos",
+  "step2Desc": "Escolha onde ficarão os avisos de live, clipes, boas-vindas e registros da moderação. Configure a central de voz, o painel de tickets e os cargos do seu servidor.",
+  "step3Title": "Ative os recursos necessários",
+  "step3Desc": "Ative o módulo do Discord e salve as configurações do servidor. Cada servidor conectado mantém seus próprios canais, cargos e opções ativadas.",
+  "tblTitle": "Recursos do servidor e o que os membros veem.",
+  "tblNote": "As linhas correspondem aos blocos de recursos do Discord no painel. São recursos de configuração do Discord, não comandos de chat da Twitch. As opções de cada recurso e a chave geral do Discord controlam o funcionamento, e as permissões do canal de destino continuam valendo.",
+  "listTitle": "Mantenha avisos da live e ferramentas da comunidade no mesmo lugar.",
+  "item1Name": "Avisos de live e clipes",
+  "item1Desc": "Uma publicação de início de live anuncia a transmissão e é editada quando a live termina. Clipes criados com !clip e pela Twitch podem ser enviados diretamente ao canal de clipes configurado.",
+  "item2Name": "Tickets de suporte privado",
+  "item2Desc": "Os membros clicam em um painel para abrir um ticket privado com a equipe. Configure cargos da equipe, destino de arquivamento e salvamento de histórico para o suporte.",
+  "item3Name": "Salas de voz temporárias",
+  "item3Desc": "Entrar na central de voz cria uma sala pessoal com controles para trancar e destrancar. Salas temporárias vazias são excluídas automaticamente.",
+  "item4Name": "Cargos que você escolhe",
+  "item4Desc": "Cargos automáticos atribuem o cargo de Membro configurado ao entrar. Os cargos de moderador, VIP e inscrito da Twitch não são sincronizados automaticamente pelo Bagel.",
+  "limitsNote": "O Discord está restrito a canais com Premium durante a fase beta. O acesso ao servidor e as permissões de canal do bot são necessários para a configuração e o envio.",
+  "prereq1": "Use um canal da Twitch com acesso Premium. A integração com o Discord é exclusiva durante a fase beta.",
+  "prereq2": "Conecte um servidor do Discord que você possa gerenciar, autorize o Bagel e conceda as permissões necessárias nos canais escolhidos.",
+  "faqQ1": "O bot do Discord para a Twitch está disponível no plano gratuito?",
+  "faqA1": "A integração com o Discord é atualmente um recurso Premium em fase beta. O canal precisa ter acesso Premium para configurar e usar.",
+  "faqQ2": "Preciso criar um servidor novo no Discord?",
+  "faqA2": "Você pode conectar um servidor existente ou criar um usando o modelo do Bagel. Cada servidor conectado mantém suas próprias configurações.",
+  "faqQ3": "O Bagel pode avisar quando eu entrar ao vivo?",
+  "faqA3": "Sim. Ative os avisos de live e escolha o canal de destino. A mensagem é editada quando a transmissão termina. Você também pode permitir ou bloquear categorias da Twitch para os avisos.",
+  "faqQ4": "Ele sincroniza automaticamente os inscritos e moderadores da Twitch?",
+  "faqA4": "O Bagel cria ou aproveita cargos durante a configuração, mas não sincroniza moderadores, VIPs ou inscritos da Twitch neles. Atribua esses cargos manualmente. O recurso de cargo automático concede aos novos membros o cargo de Membro configurado.",
+  "faqQ5": "O que o recurso de tickets faz?",
+  "faqA5": "Ele envia um painel no qual os membros clicam para abrir um canal privado com a equipe. Você pode limitar tickets abertos por membro, arquivar tickets fechados e salvar históricos no canal de registros de tickets.",
+  "ctaTitle": "Conecte a comunidade do seu Discord à sua live.",
+  "ctaGuide": "Leia o guia de configuração do Discord",
+  "tiles": {
+    "announcementsLive": {
+      "label": "Avisos de live",
+      "configure": "Canal de destino e filtros de categoria",
+      "outcome": "Um aviso de transmissão, editado quando a live termina."
+    },
+    "announcementsClips": {
+      "label": "Publicações de clipes",
+      "configure": "Canal de clipes",
+      "outcome": "Clipes do !clip e da Twitch enviados no canal escolhido."
+    },
+    "welcome": {
+      "label": "Boas-vindas",
+      "configure": "Canal de boas-vindas",
+      "outcome": "Um card de boas-vindas quando um membro entra."
+    },
+    "goodbye": {
+      "label": "Despedida",
+      "configure": "Ativar mensagens de despedida no canal de boas-vindas",
+      "outcome": "Uma mensagem curta quando um membro sai."
+    },
+    "voiceHub": {
+      "label": "Entrar para criar canal de voz",
+      "configure": "Central, categoria, nome da sala e privacidade",
+      "outcome": "Uma sala de voz pessoal criada quando um membro entra na central."
+    },
+    "logs": {
+      "label": "Registros da moderação",
+      "configure": "Canais de registro e categorias de eventos",
+      "outcome": "Eventos de membros, mensagens, voz e moderação nos registros da moderação."
+    },
+    "levels": {
+      "label": "Crumbs e níveis",
+      "configure": "Ativar XP de chat do Discord",
+      "outcome": "Cartões de nível e recompensa diária no Discord, com botão para resgatar."
+    },
+    "linkGuard": {
+      "label": "Proteção de links",
+      "configure": "Ativar proteção de links e definir links permitidos",
+      "outcome": "Links bloqueados pela proteção são removidos das mensagens do Discord."
+    },
+    "subscribers": {
+      "label": "Área para inscritos",
+      "configure": "Ativar um cargo de inscrito e uma área privada",
+      "outcome": "Uma área privada cujo acesso para inscritos você mesmo define."
+    },
+    "autoRole": {
+      "label": "Cargos automáticos",
+      "configure": "Cargo de Membro e ativação de cargos automáticos",
+      "outcome": "Novos membros recebem o cargo de Membro configurado."
+    },
+    "tickets": {
+      "label": "Tickets de suporte",
+      "configure": "Canal do painel, cargos da equipe e configurações de ticket",
+      "outcome": "Um painel que abre canais privados de suporte com a equipe."
+    }
+  }
+}

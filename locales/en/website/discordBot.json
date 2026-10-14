@@ -1,0 +1,107 @@
+{
+  "howEyebrow": "How it works",
+  "listEyebrow": "Good to know",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Setup questions.",
+  "updated": "Updated October 14, 2026",
+  "tblEyebrow": "Configuration",
+  "colAction": "Feature",
+  "colDetail": "What you configure",
+  "colOutcome": "What members see",
+  "ctaPrimary": "Sign in with Twitch",
+  "metaTitle": "Twitch Discord Bot | ItsBagelBot Premium Beta",
+  "metaDesc": "Connect Twitch and Discord with ItsBagelBot Premium beta. Post go-live notices and clips, welcome members, run tickets and create temporary voice rooms.",
+  "eyebrow": "Discord bot",
+  "title": "Bring your stream into your Discord.",
+  "lead": "ItsBagelBot connects Twitch and Discord through its Premium beta integration. Send go-live posts and clips to your server, welcome members and give your community tickets, temporary voice rooms and Discord chat ranks from the same dashboard.",
+  "howTitle": "Connect a server, then choose its channels.",
+  "step1Title": "Connect with Premium",
+  "step1Desc": "Sign in with Twitch on a Premium channel. Add Bagel to an existing Discord server, or create a server from Bagel’s template.",
+  "step2Title": "Pick channels and roles",
+  "step2Desc": "Choose where go-live posts, clips, welcomes and staff logs belong. Configure the voice hub, ticket panel and roles for your server.",
+  "step3Title": "Enable the features you need",
+  "step3Desc": "Turn on the Discord module and save your server settings. Each connected server keeps its own channels, roles and feature switches.",
+  "tblTitle": "Server features and what members see.",
+  "tblNote": "Rows follow the kit’s Discord feature tiles. These are Discord configuration features, not Twitch chat commands. Feature switches and the Discord master switch control delivery, and destination permissions still apply.",
+  "listTitle": "Keep stream posts and community tools together.",
+  "item1Name": "Go-live and clip posts",
+  "item1Desc": "A go-live post announces the stream and is edited when it ends. Clips from !clip and Twitch can land in the configured clips channel.",
+  "item2Name": "Private support tickets",
+  "item2Desc": "Members click a panel to open a private ticket with staff. Configure staff roles, an archive destination and transcript saving for your ticket desk.",
+  "item3Name": "Temporary voice rooms",
+  "item3Desc": "Joining the voice hub creates a personal room with Lock and Unlock controls. Empty temporary rooms are deleted.",
+  "item4Name": "Roles you choose",
+  "item4Desc": "Automatic roles assign the configured Member role on join. Twitch moderator, VIP and subscriber roles are not automatically synced by Bagel.",
+  "limitsNote": "Discord is currently restricted to Premium channels during beta. Server access and the bot’s channel permissions are required for setup and delivery.",
+  "prereq1": "Use a Twitch channel with Premium access. The Discord integration is gated during beta.",
+  "prereq2": "Connect a Discord server you can manage, authorize Bagel and grant the permissions needed in its chosen channels.",
+  "faqQ1": "Is the Twitch Discord bot available on the free plan?",
+  "faqA1": "The Discord integration is currently a Premium beta feature. A channel must have Premium access to configure and use it.",
+  "faqQ2": "Do I need to create a new Discord server?",
+  "faqA2": "You can connect an existing server or create one from Bagel’s template. Each connected server keeps its own configuration.",
+  "faqQ3": "Can Bagel announce when I go live?",
+  "faqA3": "Yes. Enable go-live posts and choose the destination channel. The post is edited when the stream ends. You can also allow or deny Twitch categories for announcements.",
+  "faqQ4": "Does it automatically sync Twitch subscribers and moderators?",
+  "faqA4": "Bagel creates or adopts roles during setup but does not sync Twitch moderators, VIPs or subscribers into them. Assign those roles yourself. The automatic role feature gives new members the configured Member role.",
+  "faqQ5": "What does the ticket feature do?",
+  "faqA5": "It posts a panel that members click to open a private channel with staff. You can limit open tickets per member, archive closed tickets and save transcripts to the ticket log channel.",
+  "ctaTitle": "Connect your stream’s Discord community.",
+  "ctaGuide": "Read the Discord setup guide",
+  "tiles": {
+    "announcementsLive": {
+      "label": "Go-live posts",
+      "configure": "Destination channel and category filters",
+      "outcome": "A stream announcement, edited when the stream ends."
+    },
+    "announcementsClips": {
+      "label": "Clip posts",
+      "configure": "Clips channel",
+      "outcome": "Clips from !clip and Twitch posted in the chosen channel."
+    },
+    "welcome": {
+      "label": "Welcome",
+      "configure": "Welcome channel",
+      "outcome": "A welcome embed when a member joins."
+    },
+    "goodbye": {
+      "label": "Goodbye",
+      "configure": "Enable goodbye posts in the welcome channel",
+      "outcome": "A short message when a member leaves."
+    },
+    "voiceHub": {
+      "label": "Join-to-create voice",
+      "configure": "Hub, category, room name and privacy",
+      "outcome": "A personal voice room created when a member joins the hub."
+    },
+    "logs": {
+      "label": "Staff logs",
+      "configure": "Log channels and event categories",
+      "outcome": "Member, message, voice and moderation events in staff logs."
+    },
+    "levels": {
+      "label": "Crumbs and ranks",
+      "configure": "Enable Discord chat XP",
+      "outcome": "Discord rank and daily cards, with a Claim daily button."
+    },
+    "linkGuard": {
+      "label": "Link guard",
+      "configure": "Enable link guard and set allowed links",
+      "outcome": "Links blocked by the guard are removed from Discord messages."
+    },
+    "subscribers": {
+      "label": "Subscriber tier",
+      "configure": "Enable a subscriber role and private area",
+      "outcome": "A private area whose subscriber access you assign yourself."
+    },
+    "autoRole": {
+      "label": "Automatic roles",
+      "configure": "Member role and automatic role switch",
+      "outcome": "New members receive the configured Member role."
+    },
+    "tickets": {
+      "label": "Support tickets",
+      "configure": "Panel channel, staff roles and ticket settings",
+      "outcome": "A panel that opens private support channels with staff."
+    }
+  }
+}

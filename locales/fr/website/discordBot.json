@@ -1,0 +1,107 @@
+{
+  "howEyebrow": "Comment ça fonctionne",
+  "listEyebrow": "Bon à savoir",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Questions de configuration.",
+  "updated": "Mis à jour le 14 octobre 2026",
+  "tblEyebrow": "Configuration",
+  "colAction": "Fonctionnalité",
+  "colDetail": "Ce que vous configurez",
+  "colOutcome": "Ce que les membres voient",
+  "ctaPrimary": "Se connecter avec Twitch",
+  "metaTitle": "Bot Discord Twitch | ItsBagelBot Premium Beta",
+  "metaDesc": "Liez Twitch et Discord avec ItsBagelBot Premium Beta : alertes de live, clips, accueil des membres, tickets et salons vocaux temporaires.",
+  "eyebrow": "Bot Discord",
+  "title": "Intégrez votre stream à votre Discord.",
+  "lead": "ItsBagelBot relie Twitch et Discord grâce à son intégration Premium bêta. Envoyez des alertes de live et des clips sur votre serveur, accueillez vos membres et proposez des tickets, des salons vocaux temporaires et des niveaux de chat Discord depuis le même tableau de bord.",
+  "howTitle": "Connectez un serveur, puis choisissez ses salons.",
+  "step1Title": "Connectez-vous avec Premium",
+  "step1Desc": "Connectez-vous avec Twitch sur une chaîne Premium. Ajoutez Bagel à un serveur Discord existant, ou créez un serveur à partir du modèle de Bagel.",
+  "step2Title": "Choisissez les salons et les rôles",
+  "step2Desc": "Sélectionnez l'emplacement des alertes de live, des clips, des messages de bienvenue et des logs de l'équipe. Configurez le hub vocal, le panneau de tickets et les rôles de votre serveur.",
+  "step3Title": "Activez les fonctionnalités souhaitées",
+  "step3Desc": "Activez le module Discord et enregistrez les paramètres de votre serveur. Chaque serveur connecté conserve ses propres salons, rôles et options activées.",
+  "tblTitle": "Fonctionnalités du serveur et visibilité pour les membres.",
+  "tblNote": "Les lignes correspondent aux tuiles de fonctionnalités Discord du kit. Il s'agit d'options de configuration Discord et non de commandes de chat Twitch. Les options activées et l'interrupteur principal Discord contrôlent la diffusion, et les permissions des salons de destination s'appliquent toujours.",
+  "listTitle": "Réunissez les publications de stream et les outils de communauté.",
+  "item1Name": "Publications de live et de clips",
+  "item1Desc": "Une publication de live annonce le stream et est modifiée quand il se termine. Les clips issus de !clip et de Twitch peuvent être envoyés dans le salon de clips configuré.",
+  "item2Name": "Tickets d'assistance privés",
+  "item2Desc": "Les membres cliquent sur un panneau pour ouvrir un ticket privé avec le staff. Configurez les rôles de l'équipe, une destination d'archivage et la sauvegarde des transcriptions pour votre service d'assistance.",
+  "item3Name": "Salons vocaux temporaires",
+  "item3Desc": "Rejoindre le hub vocal crée un salon personnel avec des commandes Lock et Unlock. Les salons temporaires vides sont supprimés.",
+  "item4Name": "Des rôles au choix",
+  "item4Desc": "L'attribution automatique donne le rôle Membre configuré à l'arrivée. Les rôles de modérateur, VIP et abonné Twitch ne sont pas synchronisés automatiquement par Bagel.",
+  "limitsNote": "Discord est actuellement réservé aux chaînes Premium pendant la bêta. L'accès au serveur et les permissions du bot dans les salons sont requis pour la configuration et la publication.",
+  "prereq1": "Utilisez une chaîne Twitch disposant de l'accès Premium. L'intégration Discord est restreinte pendant la bêta.",
+  "prereq2": "Connectez un serveur Discord que vous pouvez gérer, autorisez Bagel et accordez les permissions nécessaires dans les salons choisis.",
+  "faqQ1": "Le bot Discord pour Twitch est-il disponible avec l'offre gratuite ?",
+  "faqA1": "L'intégration Discord est actuellement une fonctionnalité Premium en bêta. Une chaîne doit disposer de l'accès Premium pour la configurer et l'utiliser.",
+  "faqQ2": "Dois-je créer un nouveau serveur Discord ?",
+  "faqA2": "Vous pouvez connecter un serveur existant ou en créer un à partir du modèle de Bagel. Chaque serveur connecté conserve sa propre configuration.",
+  "faqQ3": "Bagel peut-il annoncer quand je passe en live ?",
+  "faqA3": "Oui. Activez les annonces de live et choisissez le salon de destination. Le message est modifié à la fin du stream. Vous pouvez également autoriser ou refuser certaines catégories Twitch pour les annonces.",
+  "faqQ4": "Synchronise-t-il automatiquement les abonnés et modérateurs Twitch ?",
+  "faqA4": "Bagel crée ou adopte des rôles lors de la configuration mais ne synchronise pas automatiquement les modérateurs, VIP ou abonnés Twitch dans ceux-ci. Attribuez ces rôles vous-même. La fonction de rôle automatique attribue aux nouveaux membres le rôle Membre configuré.",
+  "faqQ5": "À quoi sert la fonctionnalité de tickets ?",
+  "faqA5": "Elle publie un panneau sur lequel les membres cliquent pour ouvrir un salon privé avec le staff. Vous pouvez limiter le nombre de tickets ouverts par membre, archiver les tickets fermés et enregistrer les transcriptions dans le salon de logs des tickets.",
+  "ctaTitle": "Connectez la communauté Discord de votre stream.",
+  "ctaGuide": "Consulter le guide de configuration Discord",
+  "tiles": {
+    "announcementsLive": {
+      "label": "Annonces de live",
+      "configure": "Salon de destination et filtres de catégories",
+      "outcome": "Une annonce de stream, modifiée quand le stream prend fin."
+    },
+    "announcementsClips": {
+      "label": "Publications de clips",
+      "configure": "Salon de clips",
+      "outcome": "Les clips issus de !clip et de Twitch publiés dans le salon choisi."
+    },
+    "welcome": {
+      "label": "Bienvenue",
+      "configure": "Salon de bienvenue",
+      "outcome": "Un embed de bienvenue lorsqu'un membre rejoint le serveur."
+    },
+    "goodbye": {
+      "label": "Départ",
+      "configure": "Activer les messages de départ dans le salon de bienvenue",
+      "outcome": "Un court message lorsqu'un membre quitte le serveur."
+    },
+    "voiceHub": {
+      "label": "Salons vocaux dynamiques",
+      "configure": "Hub, catégorie, nom du salon et confidentialité",
+      "outcome": "Un salon vocal personnel créé lorsqu'un membre rejoint le hub."
+    },
+    "logs": {
+      "label": "Logs du staff",
+      "configure": "Salons de logs et catégories d'événements",
+      "outcome": "Événements liés aux membres, aux messages, à l'activité vocale et à la modération dans les logs de l'équipe."
+    },
+    "levels": {
+      "label": "Miettes et rangs",
+      "configure": "Activer l'XP de chat Discord",
+      "outcome": "Cartes de rang et récompense quotidienne sur Discord, avec bouton Claim daily."
+    },
+    "linkGuard": {
+      "label": "Protection des liens",
+      "configure": "Activer la protection des liens et définir les liens autorisés",
+      "outcome": "Les liens bloqués par la protection sont supprimés des messages Discord."
+    },
+    "subscribers": {
+      "label": "Niveau abonnés",
+      "configure": "Activer un rôle d'abonné et un espace privé",
+      "outcome": "Un espace privé dont vous attribuez vous-même l'accès abonné."
+    },
+    "autoRole": {
+      "label": "Rôles automatiques",
+      "configure": "Rôle Membre et interrupteur de rôle automatique",
+      "outcome": "Les nouveaux membres reçoivent le rôle Membre configuré."
+    },
+    "tickets": {
+      "label": "Tickets d'assistance",
+      "configure": "Salon du panneau, rôles du staff et paramètres des tickets",
+      "outcome": "Un panneau qui ouvre des salons d'assistance privés avec le staff."
+    }
+  }
+}
