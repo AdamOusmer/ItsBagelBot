@@ -1,0 +1,107 @@
+{
+  "howEyebrow": "So funktioniert es",
+  "listEyebrow": "Gut zu wissen",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Fragen zur Einrichtung.",
+  "updated": "Aktualisiert am 14. Oktober 2026",
+  "tblEyebrow": "Konfiguration",
+  "colAction": "Funktion",
+  "colDetail": "Was du konfigurierst",
+  "colOutcome": "Was Mitglieder sehen",
+  "ctaPrimary": "Mit Twitch anmelden",
+  "metaTitle": "Twitch-Discord-Bot | ItsBagelBot Premium-Beta",
+  "metaDesc": "Verbinde Twitch und Discord mit ItsBagelBot Premium-Beta: Sende Live-Meldungen und Clips, begrüße Mitglieder, nutze Tickets und temporäre Sprachkanäle.",
+  "eyebrow": "Discord-Bot",
+  "title": "Hol deinen Stream in deinen Discord.",
+  "lead": "ItsBagelBot verbindet Twitch und Discord über seine Premium-Beta-Integration. Sende Live-Meldungen und Clips auf deinen Server, heiße Mitglieder willkommen und biete deiner Community Tickets, temporäre Sprachkanäle sowie Discord-Chat-Ränge direkt über dasselbe Dashboard.",
+  "howTitle": "Verbinde einen Server und wähle seine Kanäle.",
+  "step1Title": "Mit Premium verbinden",
+  "step1Desc": "Melde dich mit Twitch auf einem Premium-Kanal an. Füge Bagel zu einem bestehenden Discord-Server hinzu oder erstelle einen Server aus Bagels Vorlage.",
+  "step2Title": "Kanäle und Rollen festlegen",
+  "step2Desc": "Wähle aus, wohin Live-Meldungen, Clips, Begrüßungen und Team-Logs gehören. Richte den Sprach-Hub, das Ticket-Panel und die Rollen für deinen Server ein.",
+  "step3Title": "Aktiviere gewünschte Funktionen",
+  "step3Desc": "Schalte das Discord-Modul ein und speichere deine Server-Einstellungen. Jeder verbundene Server behält seine eigenen Kanäle, Rollen und Funktionsschalter.",
+  "tblTitle": "Server-Funktionen und was Mitglieder sehen.",
+  "tblNote": "Die Zeilen entsprechen den Discord-Funktionskacheln des Kits. Dies sind Discord-Konfigurationsfunktionen, keine Twitch-Chatbefehle. Funktionsschalter und der Discord-Hauptschalter steuern die Ausspielung, und Zielberechtigungen gelten weiterhin.",
+  "listTitle": "Stream-Beiträge und Community-Tools an einem Ort.",
+  "item1Name": "Live- und Clip-Meldungen",
+  "item1Desc": "Eine Live-Meldung kündigt den Stream an und wird aktualisiert, wenn er endet. Clips von !clip und Twitch können im konfigurierten Clip-Kanal landen.",
+  "item2Name": "Private Support-Tickets",
+  "item2Desc": "Mitglieder klicken auf ein Panel, um ein privates Ticket mit dem Team zu öffnen. Konfiguriere Team-Rollen, einen Archivort und das Speichern von Transkripten für deinen Ticket-Desk.",
+  "item3Name": "Temporäre Sprachräume",
+  "item3Desc": "Beim Beitritt zum Sprach-Hub wird ein persönlicher Raum mit Steuerung für „Sperren“ und „Entsperren“ erstellt. Leere temporäre Räume werden gelöscht.",
+  "item4Name": "Rollen deiner Wahl",
+  "item4Desc": "Automatische Rollen weisen beim Beitritt die konfigurierte Mitglieder-Rolle zu. Twitch-Moderator-, VIP- und Abonnenten-Rollen werden von Bagel nicht automatisch synchronisiert.",
+  "limitsNote": "Discord ist während der Beta derzeit auf Premium-Kanäle beschränkt. Server-Zugriff und Kanalberechtigungen des Bots sind für Einrichtung und Zustellung erforderlich.",
+  "prereq1": "Nutze einen Twitch-Kanal mit Premium-Zugang. Die Discord-Integration ist während der Beta zugangsbeschränkt.",
+  "prereq2": "Verbinde einen Discord-Server, den du verwalten kannst, autorisiere Bagel und erteile die erforderlichen Berechtigungen in den ausgewählten Kanälen.",
+  "faqQ1": "Ist der Twitch-Discord-Bot im kostenlosen Paket verfügbar?",
+  "faqA1": "Die Discord-Integration ist derzeit eine Premium-Beta-Funktion. Ein Kanal muss über Premium-Zugang verfügen, um sie zu konfigurieren und zu nutzen.",
+  "faqQ2": "Muss ich einen neuen Discord-Server erstellen?",
+  "faqA2": "Du kannst einen bestehenden Server verbinden oder einen aus Bagels Vorlage erstellen. Jeder verbundene Server behält seine eigene Konfiguration.",
+  "faqQ3": "Kann Bagel ankündigen, wenn ich live gehe?",
+  "faqA3": "Ja. Aktiviere Live-Meldungen und wähle den Zielkanal aus. Der Beitrag wird aktualisiert, sobald der Stream endet. Du kannst Twitch-Kategorien für Ankündigungen auch erlauben oder ausschließen.",
+  "faqQ4": "Werden Twitch-Abonnenten und -Moderatoren automatisch synchronisiert?",
+  "faqA4": "Bagel erstellt oder übernimmt bei der Einrichtung Rollen, synchronisiert Twitch-Moderatoren, VIPs oder Abonnenten jedoch nicht hinein. Weise diese Rollen selbst zu. Die Funktion für automatische Rollen weist neuen Mitgliedern die konfigurierte Mitglieder-Rolle zu.",
+  "faqQ5": "Was bewirkt die Ticket-Funktion?",
+  "faqA5": "Sie postet ein Panel, auf das Mitglieder klicken können, um einen privaten Kanal mit dem Team zu öffnen. Du kannst offene Tickets pro Mitglied begrenzen, geschlossene Tickets archivieren und Transkripte im Ticket-Log-Kanal speichern.",
+  "ctaTitle": "Verbinde die Discord-Community deines Streams.",
+  "ctaGuide": "Lies den Discord-Einrichtungsleitfaden",
+  "tiles": {
+    "announcementsLive": {
+      "label": "Live-Meldungen",
+      "configure": "Zielkanal und Kategoriefilter",
+      "outcome": "Eine Stream-Ankündigung, die bearbeitet wird, sobald der Stream endet."
+    },
+    "announcementsClips": {
+      "label": "Clip-Meldungen",
+      "configure": "Clip-Kanal",
+      "outcome": "Clips von !clip und Twitch, die im ausgewählten Kanal gepostet werden."
+    },
+    "welcome": {
+      "label": "Willkommen",
+      "configure": "Willkommenskanal",
+      "outcome": "Ein Willkommens-Embed, wenn ein Mitglied beitritt."
+    },
+    "goodbye": {
+      "label": "Verabschiedung",
+      "configure": "Abschiedsnachrichten im Willkommenskanal aktivieren",
+      "outcome": "Eine kurze Nachricht, wenn ein Mitglied den Server verlässt."
+    },
+    "voiceHub": {
+      "label": "Sprachkanal beim Beitritt erstellen",
+      "configure": "Hub, Kategorie, Raumname und Privatsphäre",
+      "outcome": "Ein persönlicher Sprachraum, der erstellt wird, sobald ein Mitglied dem Hub beitritt."
+    },
+    "logs": {
+      "label": "Team-Logs",
+      "configure": "Log-Kanäle und Ereigniskategorien",
+      "outcome": "Mitglieder-, Nachrichten-, Sprach- und Moderationsereignisse in Team-Logs."
+    },
+    "levels": {
+      "label": "Krümel und Ränge",
+      "configure": "Discord-Chat-XP aktivieren",
+      "outcome": "Discord-Rang- und Daily-Karten mit einem „Daily abholen“-Button."
+    },
+    "linkGuard": {
+      "label": "Link-Schutz",
+      "configure": "Link-Schutz aktivieren und erlaubte Links festlegen",
+      "outcome": "Vom Schutz blockierte Links werden aus Discord-Nachrichten entfernt."
+    },
+    "subscribers": {
+      "label": "Abonnenten-Stufe",
+      "configure": "Abonnenten-Rolle und privaten Bereich aktivieren",
+      "outcome": "Ein privater Bereich, dessen Abonnenten-Zugang du selbst zuweist."
+    },
+    "autoRole": {
+      "label": "Automatische Rollen",
+      "configure": "Mitglieder-Rolle und Schalter für automatische Rollen",
+      "outcome": "Neue Mitglieder erhalten die konfigurierte Mitglieder-Rolle."
+    },
+    "tickets": {
+      "label": "Support-Tickets",
+      "configure": "Panel-Kanal, Team-Rollen und Ticket-Einstellungen",
+      "outcome": "Ein Panel, das private Support-Kanäle mit dem Team öffnet."
+    }
+  }
+}

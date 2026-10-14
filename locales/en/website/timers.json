@@ -1,0 +1,92 @@
+{
+  "howEyebrow": "How it works",
+  "listEyebrow": "Good to know",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Setup questions.",
+  "updated": "Updated October 14, 2026",
+  "tblEyebrow": "Configuration",
+  "colAction": "What you configure",
+  "colDetail": "New timer default",
+  "colOutcome": "What chat sees",
+  "ctaPrimary": "Sign in with Twitch",
+  "metaTitle": "Twitch Timer Bot | ItsBagelBot",
+  "metaDesc": "Schedule Twitch chat reminders with ItsBagelBot timers. Set each message, interval, activity threshold, offline behavior, fire cap and expiry.",
+  "eyebrow": "Timers",
+  "title": "Put regular reminders on a schedule.",
+  "lead": "Use ItsBagelBot as your Twitch timer bot for social links, announcements and reminders. Each timer has its own message and interval. Activity thresholds, offline settings and stop conditions let you decide when that message belongs in chat.",
+  "howTitle": "Schedule a message for your channel.",
+  "step1Title": "Enable Timers",
+  "step1Desc": "Connect your channel, open Timers and enable the module. Add a timer with the message you want the bot to post.",
+  "step2Title": "Choose the interval",
+  "step2Desc": "A new timer starts at ten minutes. Set its interval and the minimum recent chat activity it needs before posting.",
+  "step3Title": "Set when it stops",
+  "step3Desc": "Leave the timer live-only or allow offline posting. Add a per-stream fire cap or an expiry date for reminders that should end.",
+  "tblTitle": "Timer settings and what chat sees.",
+  "tblNote": "These rows come from the timer definition, not chat commands. The module starts disabled. A new timer is enabled, but it needs a message and the module enabled before it can post.",
+  "listTitle": "A schedule that respects chat activity.",
+  "item1Name": "An interval per message",
+  "item1Desc": "Every timer keeps its own interval. Use separate timers for messages that need different schedules.",
+  "item2Name": "Wait for chat activity",
+  "item2Desc": "A timer can require a minimum number of chat lines in a rolling window. When that threshold is not met, the bot skips the post and checks again on the next interval.",
+  "item3Name": "Live-only by default",
+  "item3Desc": "New timers have offline posting turned off. Turn it on for a message you want to allow while the channel is offline.",
+  "item4Name": "Stop a temporary reminder",
+  "item4Desc": "A fire cap limits repeats per stream. An expiry date stops the timer after the chosen time.",
+  "limitsNote": "The runtime enforces a minimum interval of thirty seconds. A zero fire cap means unlimited repeats; an empty expiry leaves the timer without a date-based stop.",
+  "prereq1": "Connect ItsBagelBot to your Twitch channel and enable Timers.",
+  "prereq2": "Save a message on an enabled timer. Check its activity threshold and live or offline setting.",
+  "faqQ1": "How do I make a Twitch chat timer?",
+  "faqA1": "Enable Timers in the dashboard, add a message and choose an interval. Enable the individual timer and save it. The bot repeats that message when the timer’s conditions are met.",
+  "faqQ2": "Why did my timer skip a message?",
+  "faqA2": "Check whether the module and timer are enabled, whether the channel is live for a live-only timer, and whether recent chat has met the activity threshold. A fire cap or expiry can also stop further posts.",
+  "faqQ3": "What are the defaults for a new timer?",
+  "faqA3": "The interval is 600 seconds. The timer starts enabled with an empty message, a threshold of fifteen chat lines in ten minutes, offline posting off, an unlimited fire cap and no expiry date.",
+  "faqQ4": "Can timers post while I am offline?",
+  "faqA4": "Yes, if you turn on offline posting for that timer. New timers are live-only. Activity thresholds still apply when offline posting is allowed.",
+  "faqQ5": "Can I stop a timer after a few posts?",
+  "faqA5": "Yes. Set a maximum number of fires per stream, or choose an expiry date. You can also disable the individual timer.",
+  "ctaTitle": "Schedule the reminders your chat needs.",
+  "ctaGuide": "Read the commands guide",
+  "fields": {
+    "message": {
+      "label": "Message",
+      "value": "Empty",
+      "outcome": "The message you save is posted when the timer fires."
+    },
+    "intervalSeconds": {
+      "label": "Interval",
+      "value": "{value} seconds",
+      "outcome": "The reminder repeats on its own interval when the other conditions are met."
+    },
+    "enabled": {
+      "label": "Timer enabled",
+      "value": "On",
+      "outcome": "An enabled timer can post. Turning it off stops its scheduled messages."
+    },
+    "minChatLines": {
+      "label": "Minimum chat lines",
+      "value": "{value} lines",
+      "outcome": "The bot waits for this much recent chat activity before posting."
+    },
+    "chatWindowMinutes": {
+      "label": "Activity window",
+      "value": "{value} minutes",
+      "outcome": "Only chat lines inside this rolling window count toward the activity threshold."
+    },
+    "allowOffline": {
+      "label": "Allow offline",
+      "value": "Off",
+      "outcome": "The message is live-only unless you allow this timer to post offline."
+    },
+    "maxFiresPerStream": {
+      "label": "Maximum fires per stream",
+      "value": "{value}, unlimited",
+      "outcome": "A positive limit stops repeats once the timer reaches its per-stream cap."
+    },
+    "endsAt": {
+      "label": "Expiry",
+      "value": "None",
+      "outcome": "The reminder stops after a configured expiry date."
+    }
+  }
+}

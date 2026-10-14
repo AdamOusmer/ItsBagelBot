@@ -1,0 +1,92 @@
+{
+  "howEyebrow": "Como funciona",
+  "listEyebrow": "Bom saber",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Dúvidas de configuração.",
+  "updated": "Atualizado em 14 de outubro de 2026",
+  "tblEyebrow": "Configuração",
+  "colAction": "O que você configura",
+  "colDetail": "Padrão de um novo timer",
+  "colOutcome": "O que o chat vê",
+  "ctaPrimary": "Entrar com a Twitch",
+  "metaTitle": "Bot de Timers para Twitch | ItsBagelBot",
+  "metaDesc": "Agende lembretes no chat da Twitch com os timers do ItsBagelBot. Configure mensagens, intervalos, atividade mínima no chat, limite de envios e término.",
+  "eyebrow": "Timers",
+  "title": "Programe lembretes periódicos na sua live.",
+  "lead": "Use o ItsBagelBot como seu bot de timers na Twitch para divulgar redes sociais, avisos e lembretes. Cada timer tem sua própria mensagem e intervalo. Limites de atividade, configurações offline e condições de parada permitem decidir quando a mensagem deve aparecer no chat.",
+  "howTitle": "Agende uma mensagem para o seu canal.",
+  "step1Title": "Ative o módulo Timers",
+  "step1Desc": "Conecte seu canal, abra Timers e ative o módulo. Adicione um timer com a mensagem que você quer que o bot envie.",
+  "step2Title": "Escolha o intervalo",
+  "step2Desc": "Um novo timer começa em dez minutos. Defina o intervalo e a atividade mínima recente que o chat precisa ter antes da postagem.",
+  "step3Title": "Defina quando ele para",
+  "step3Desc": "Deixe o timer ativo apenas ao vivo ou permita envios offline. Adicione um limite de disparos por transmissão ou uma data de expiração para lembretes que devem acabar.",
+  "tblTitle": "Configurações do timer e o que o chat vê.",
+  "tblNote": "Estas linhas vêm da definição do timer, não de comandos de chat. O módulo começa desativado. Um novo timer é criado ativado, mas precisa de uma mensagem e do módulo ativo antes de poder enviar.",
+  "listTitle": "Um cronograma que respeita o ritmo do chat.",
+  "item1Name": "Um intervalo por mensagem",
+  "item1Desc": "Cada timer mantém seu próprio intervalo. Use timers separados para mensagens que precisam de frequências diferentes.",
+  "item2Name": "Aguarde atividade no chat",
+  "item2Desc": "Um timer pode exigir um número mínimo de linhas de chat em um período recente. Quando esse limite não é atingido, o bot pula o envio e verifica novamente no próximo intervalo.",
+  "item3Name": "Apenas ao vivo por padrão",
+  "item3Desc": "Novos timers vêm com as postagens offline desativadas. Ative essa opção para mensagens que você deseja permitir enquanto o canal estiver offline.",
+  "item4Name": "Interrompa lembretes temporários",
+  "item4Desc": "O limite de disparos restringe repetições por transmissão. Uma data de expiração interrompe o timer após a data e hora escolhidas.",
+  "limitsNote": "O sistema exige um intervalo mínimo de trinta segundos. Um limite de disparos zerado significa repetições ilimitadas; uma data de validade vazia deixa o timer ativo sem data de término.",
+  "prereq1": "Conecte o ItsBagelBot ao seu canal da Twitch e ative o módulo Timers.",
+  "prereq2": "Salve uma mensagem em um timer ativado. Verifique o limite de atividade e a configuração de ao vivo ou offline.",
+  "faqQ1": "Como crio um timer de chat na Twitch?",
+  "faqA1": "Ative Timers no painel, adicione uma mensagem e escolha um intervalo. Ative o timer individual e salve. O bot repetirá essa mensagem quando as condições do timer forem atendidas.",
+  "faqQ2": "Por que meu timer não enviou uma mensagem?",
+  "faqA2": "Verifique se o módulo e o timer estão ativados, se o canal está ao vivo (para timers configurados apenas ao vivo) e se o chat recente atingiu o limite de atividade. Um limite de disparos ou data de expiração também pode interromper novos envios.",
+  "faqQ3": "Quais são as configurações padrão de um novo timer?",
+  "faqA3": "O intervalo é de 600 segundos. O timer começa ativado com mensagem vazia, limite de quinze linhas de chat em dez minutos, postagens offline desativadas, disparos ilimitados e sem data de validade.",
+  "faqQ4": "Os timers podem enviar mensagens enquanto estou offline?",
+  "faqA4": "Sim, se você ativar a postagem offline para esse timer. Novos timers funcionam apenas ao vivo. Os limites de atividade continuam valendo mesmo quando postagens offline são permitidas.",
+  "faqQ5": "Posso parar um timer após alguns envios?",
+  "faqA5": "Sim. Defina um número máximo de disparos por transmissão ou escolha uma data de expiração. Você também pode desativar o timer individualmente.",
+  "ctaTitle": "Programe os lembretes de que o seu chat precisa.",
+  "ctaGuide": "Leia o guia de comandos",
+  "fields": {
+    "message": {
+      "label": "Mensagem",
+      "value": "Vazia",
+      "outcome": "A mensagem salva é enviada quando o timer é disparado."
+    },
+    "intervalSeconds": {
+      "label": "Intervalo",
+      "value": "{value} segundos",
+      "outcome": "O lembrete se repete no seu próprio intervalo quando as outras condições são atendidas."
+    },
+    "enabled": {
+      "label": "Timer ativado",
+      "value": "Ligado",
+      "outcome": "Um timer ativado pode enviar mensagens. Desativá-lo interrompe as mensagens agendadas."
+    },
+    "minChatLines": {
+      "label": "Mínimo de linhas no chat",
+      "value": "{value} linhas",
+      "outcome": "O bot aguarda essa quantidade de atividade recente no chat antes de postar."
+    },
+    "chatWindowMinutes": {
+      "label": "Janela de atividade",
+      "value": "{value} minutos",
+      "outcome": "Apenas linhas de chat dentro desta janela contam para o limite de atividade."
+    },
+    "allowOffline": {
+      "label": "Permitir offline",
+      "value": "Desligado",
+      "outcome": "A mensagem é enviada apenas ao vivo, a menos que você permita que este timer poste offline."
+    },
+    "maxFiresPerStream": {
+      "label": "Máximo de disparos por live",
+      "value": "{value}, ilimitado",
+      "outcome": "Um limite positivo interrompe as repetições assim que o timer atinge seu teto por transmissão."
+    },
+    "endsAt": {
+      "label": "Expiração",
+      "value": "Nenhuma",
+      "outcome": "O lembrete para após a data de expiração configurada."
+    }
+  }
+}

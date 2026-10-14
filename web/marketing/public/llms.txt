@@ -85,6 +85,12 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Command Builder](https://itsbagelbot.com/command-builder/): interactive tool for composing custom commands with variables and sending them to the dashboard.
 - [Dashboard](https://dashboard.itsbagelbot.com/): sign in with Twitch to configure a channel, connect services and manage the queue.
 - [Contact](https://itsbagelbot.com/contact/): community support, support and enterprise email, and GitHub links.
+- [Giveaways](https://itsbagelbot.com/giveaways/): Twitch raffle entry, timed draws, moderator controls and winner claims.
+- [Loyalty points](https://itsbagelbot.com/loyalty-points/): channel currency, watch time, earning rates, balance controls, Gamble and Duels.
+- [Death counter](https://itsbagelbot.com/death-counter/): custom channel and per-viewer counters with moderator chat controls.
+- [Timers](https://itsbagelbot.com/timers/): scheduled Twitch chat messages, activity thresholds, offline settings and stop conditions.
+- [Viewer queue](https://itsbagelbot.com/viewer-queue/): first-come play queues with viewer entry and moderator controls.
+- [Discord bot](https://itsbagelbot.com/discord-bot/): Premium beta server integration with stream posts and community tools.
 
 ## Reference for AI assistants
 

@@ -1,0 +1,92 @@
+{
+  "howEyebrow": "Comment ça fonctionne",
+  "listEyebrow": "Bon à savoir",
+  "faqEyebrow": "FAQ",
+  "faqTitle": "Questions de configuration.",
+  "updated": "Mis à jour le 14 octobre 2026",
+  "tblEyebrow": "Configuration",
+  "colAction": "Ce que vous configurez",
+  "colDetail": "Valeur par défaut du timer",
+  "colOutcome": "Ce que le chat voit",
+  "ctaPrimary": "Se connecter avec Twitch",
+  "metaTitle": "Bot Timer Twitch | ItsBagelBot",
+  "metaDesc": "Planifiez des rappels de chat Twitch avec ItsBagelBot : message, intervalle, seuil d'activité, affichage hors ligne, limite d'envois et expiration.",
+  "eyebrow": "Timers",
+  "title": "Programmez des rappels réguliers.",
+  "lead": "Utilisez ItsBagelBot comme bot de timers Twitch pour vos réseaux sociaux, annonces et rappels. Chaque timer possède son propre message et son intervalle. Des seuils d'activité, des réglages hors ligne et des conditions d'arrêt vous permettent de décider quand ce message doit apparaître dans le chat.",
+  "howTitle": "Programmez un message pour votre chaîne.",
+  "step1Title": "Activez Timers",
+  "step1Desc": "Connectez votre chaîne, ouvrez Timers et activez le module. Ajoutez un timer avec le message que vous voulez que le bot publie.",
+  "step2Title": "Choisissez l'intervalle",
+  "step2Desc": "Un nouveau timer commence à 10 minutes. Définissez son intervalle et le niveau minimal d'activité récente requis dans le chat avant publication.",
+  "step3Title": "Définissez les conditions d'arrêt",
+  "step3Desc": "Laissez le timer actif uniquement en live ou autorisez la publication hors ligne. Ajoutez une limite d'envois par stream ou une date d'expiration pour les rappels temporaires.",
+  "tblTitle": "Paramètres du timer et visibilité dans le chat.",
+  "tblNote": "Ces lignes correspondent à la configuration du timer, et non à des commandes de chat. Le module est désactivé par défaut. Un nouveau timer est activé, mais il nécessite un message et l'activation du module pour pouvoir publier.",
+  "listTitle": "Un planning qui respecte l'activité du chat.",
+  "item1Name": "Un intervalle par message",
+  "item1Desc": "Chaque timer conserve son propre intervalle. Utilisez des timers distincts pour les messages qui nécessitent des fréquences différentes.",
+  "item2Name": "Attente de l'activité du chat",
+  "item2Desc": "Un timer peut exiger un nombre minimal de lignes de chat dans une fenêtre glissante. Si ce seuil n'est pas atteint, le bot ignore l'envoi et revérifie au prochain intervalle.",
+  "item3Name": "En direct uniquement par défaut",
+  "item3Desc": "Les nouveaux timers ont la publication hors ligne désactivée. Activez-la pour un message que vous souhaitez diffuser quand la chaîne est hors ligne.",
+  "item4Name": "Arrêter un rappel temporaire",
+  "item4Desc": "Une limite d'envois restreint les répétitions par stream. Une date d'expiration arrête le timer après la date et l'heure choisies.",
+  "limitsNote": "Le système impose un intervalle minimal de 30 secondes. Une limite d'envois à zéro signifie des répétitions illimitées ; une date d'expiration vide laisse le timer sans arrêt programmé dans le temps.",
+  "prereq1": "Connectez ItsBagelBot à votre chaîne Twitch et activez Timers.",
+  "prereq2": "Enregistrez un message sur un timer activé. Vérifiez son seuil d'activité et son réglage en direct ou hors ligne.",
+  "faqQ1": "Comment créer un timer de chat Twitch ?",
+  "faqA1": "Activez Timers dans le tableau de bord, ajoutez un message et choisissez un intervalle. Activez le timer concerné et enregistrez-le. Le bot répète ce message lorsque les conditions du timer sont réunies.",
+  "faqQ2": "Pourquoi mon timer a-t-il sauté un message ?",
+  "faqA2": "Vérifiez si le module et le timer sont activés, si la chaîne est en direct pour un timer réservé au live, et si le chat récent a atteint le seuil d'activité. Une limite d'envois ou une expiration peut aussi bloquer les publications ultérieures.",
+  "faqQ3": "Quelles sont les valeurs par défaut d'un nouveau timer ?",
+  "faqA3": "L'intervalle est de 600 secondes. Le timer commence activé avec un message vide, un seuil de 15 lignes de chat en 10 minutes, la publication hors ligne désactivée, un nombre d'envois illimité et aucune date d'expiration.",
+  "faqQ4": "Les timers peuvent-ils publier pendant que je suis hors ligne ?",
+  "faqA4": "Oui, si vous activez la publication hors ligne pour ce timer. Les nouveaux timers fonctionnent uniquement en direct. Les seuils d'activité s'appliquent toujours lorsque la publication hors ligne est autorisée.",
+  "faqQ5": "Puis-je arrêter un timer après quelques messages ?",
+  "faqA5": "Oui. Définissez un nombre maximal d'envois par stream ou choisissez une date d'expiration. Vous pouvez également désactiver le timer individuellement.",
+  "ctaTitle": "Planifiez les rappels dont votre chat a besoin.",
+  "ctaGuide": "Consulter le guide des commandes",
+  "fields": {
+    "message": {
+      "label": "Message",
+      "value": "Vide",
+      "outcome": "Le message enregistré est publié lorsque le timer se déclenche."
+    },
+    "intervalSeconds": {
+      "label": "Intervalle",
+      "value": "{value} secondes",
+      "outcome": "Le rappel se répète selon son propre intervalle lorsque les autres conditions sont réunies."
+    },
+    "enabled": {
+      "label": "Timer activé",
+      "value": "Activé",
+      "outcome": "Un timer activé peut publier. Le désactiver suspend ses messages programmés."
+    },
+    "minChatLines": {
+      "label": "Nombre minimal de lignes de chat",
+      "value": "{value} lignes",
+      "outcome": "Le bot attend ce niveau d'activité récente dans le chat avant de publier."
+    },
+    "chatWindowMinutes": {
+      "label": "Fenêtre d'activité",
+      "value": "{value} minutes",
+      "outcome": "Seules les lignes de chat situées dans cette fenêtre glissante comptent pour le seuil d'activité."
+    },
+    "allowOffline": {
+      "label": "Autoriser hors ligne",
+      "value": "Désactivé",
+      "outcome": "Le message est diffusé uniquement en direct sauf si vous autorisez ce timer à publier hors ligne."
+    },
+    "maxFiresPerStream": {
+      "label": "Envois maximaux par stream",
+      "value": "{value}, illimité",
+      "outcome": "Une limite positive interrompt les répétitions dès que le timer atteint son plafond par stream."
+    },
+    "endsAt": {
+      "label": "Expiration",
+      "value": "Aucune",
+      "outcome": "Le rappel s'arrête après la date d'expiration configurée."
+    }
+  }
+}

@@ -1,0 +1,57 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from './FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '../../i18n/ui';
+import { FEATURES, featureRows, featureExampleLines, landingSchema, type FeatureId } from '../../lib/landing';
+
+interface Props {
+    feature: FeatureId;
+}
+
+const { feature } = Astro.props;
+const spec = FEATURES[feature];
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const k = (name: string) => t(spec.ns + '.' + name);
+const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const configured = feature === 'timers' || feature === 'discordBot';
+const table = {
+    eyebrow: k('tblEyebrow'),
+    title: k('tblTitle'),
+    columns: [k('colAction'), k('colDetail'), k('colOutcome')],
+    widths: configured ? ['24%', '28%', '48%'] : ['29%', '21%', '50%'],
+    rowLines: 4,
+    copyLabel: t('landing.copyCommand'),
+    rows: featureRows(feature, lang, t),
+    note: k('tblNote'),
+};
+const updated = { text: k('updated'), iso: '2026-10-14' };
+const schema = landingSchema({
+    site: Astro.site!, url: Astro.url, lang,
+    name: k('metaTitle'), crumb: k('eyebrow'), homeLabel: t('compare.crumbHome'),
+    description: k('metaDesc'), modified: updated.iso, commands: table.rows,
+});
+const lines = featureExampleLines(feature, lang);
+const demo = lines && {
+    eyebrow: t('landing.exampleEyebrow'), title: k('demoTitle'),
+    caption: k('demoCaption'), lines,
+};
+---
+
+<Layout title={k('metaTitle')} description={k('metaDesc')} aiDoc={`https://ai.itsbagelbot.com/features/${spec.ai}.md`} extraSchema={schema}>
+    <FeatureLanding
+        eyebrow={k('eyebrow')} title={k('title')} lead={k('lead')}
+        howEyebrow={k('howEyebrow')} howTitle={k('howTitle')}
+        steps={[1, 2, 3].map((n) => ({ title: k(`step${n}Title`), desc: k(`step${n}Desc`) }))}
+        listEyebrow={k('listEyebrow')} listTitle={k('listTitle')}
+        listItems={[1, 2, 3, 4].map((n) => ({ name: k(`item${n}Name`), desc: k(`item${n}Desc`) }))}
+        listNote={k('limitsNote')}
+        faqEyebrow={k('faqEyebrow')} faqTitle={k('faqTitle')}
+        faqItems={[1, 2, 3, 4, 5].map((n) => ({ question: k(`faqQ${n}`), answer: k(`faqA${n}`) }))}
+        ctaTitle={k('ctaTitle')} ctaPrimary={{ href: dashLoginHref(lang), label: k('ctaPrimary') }}
+        ctaSecondary={link(spec.guide, k('ctaGuide'))}
+        updated={updated} table={table} demo={demo}
+        prereq={{ title: t('landing.prereqTitle'), items: [k('prereq1'), k('prereq2')] }}
+        related={{ title: t('landing.relatedTitle'), links: spec.related.map((id) => link(FEATURES[id].path, t(FEATURES[id].ns + '.eyebrow'))) }}
+    />
+</Layout>

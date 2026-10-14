@@ -3,6 +3,9 @@
 
 import { test, expect } from '@playwright/test';
 import { moduleDef } from '../../kit/lib/catalog/index.ts';
+import { blankTimer } from '../../kit/lib/timers.ts';
+import { blankDiscordConfig } from '../../kit/lib/discord-config.ts';
+import { guildModuleTiles } from '../../kit/lib/discord-overview.ts';
 
 const valorantCommands = moduleDef('valorant').replies.map((reply) => `!${reply.command}`);
 const GAME_PAGES = [
@@ -185,3 +188,40 @@ test.describe('comparison pages', () => {
         await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/de/vs/streamelements/');
     });
 });
+
+function catalogEntryCount(id) {
+    const def = moduleDef(id);
+    const commands = def.commands ?? [];
+    const extra = def.replies.filter((reply) => reply.command && !commands.some((command) => command.trigger === `!${reply.command}` || command.trigger.startsWith(`!${reply.command} `)));
+    return commands.length + new Set(extra.map((reply) => reply.command)).size;
+}
+
+const FEATURE_PAGES = [
+    { path: '/giveaways/', title: 'Twitch Giveaway Bot', ai: 'engagement', rows: catalogEntryCount('raffle') },
+    { path: '/loyalty-points/', title: 'Twitch Loyalty Points Bot', ai: 'loyalty', rows: ['loyalty', 'gamble', 'duel'].map(catalogEntryCount).reduce((sum, count) => sum + count, 0) },
+    { path: '/death-counter/', title: 'Twitch Death Counter', ai: 'loyalty', rows: moduleDef('loyalty').commands.filter((command) => command.trigger === '!counter').length },
+    { path: '/timers/', title: 'Twitch Timer Bot', ai: 'automation', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length },
+    { path: '/viewer-queue/', title: 'Twitch Viewer Queue Bot', ai: 'engagement', rows: catalogEntryCount('queue') },
+    { path: '/discord-bot/', title: 'Twitch Discord Bot', ai: 'discord', rows: guildModuleTiles(blankDiscordConfig()).length },
+];
+
+for (const feature of FEATURE_PAGES) {
+    test(`${feature.path} renders its kit table, review date and landing schema`, async ({ page }) => {
+        await page.goto(feature.path);
+        await expect(page.locator('h1')).toBeVisible();
+        await expect(page).toHaveTitle(new RegExp(feature.title));
+        await expect(page.locator('.fltbl tbody tr')).toHaveCount(feature.rows);
+        await expect(page.locator('.flprereq')).toBeVisible();
+        await expect(page.locator('.flupd time')).toHaveText('Updated October 14, 2026');
+        await expect(page.locator('.flupd time')).toHaveAttribute('datetime', '2026-10-14');
+        await expect(page.locator(`head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/${feature.ai}.md"]`)).toHaveCount(1);
+        const graph = await landingGraph(page);
+        expect(graph.filter((node) => node['@type'] === 'WebPage')).toHaveLength(1);
+        expect(graph.filter((node) => node['@type'] === 'BreadcrumbList')).toHaveLength(1);
+        expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toBe('2026-10-14');
+        expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(feature.rows);
+        expect(await page.title()).toMatch(/^.{1,60}$/);
+        expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+        await expect(page.locator('.flrel a')).toHaveCount(3);
+    });
+}

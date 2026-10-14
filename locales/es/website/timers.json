@@ -1,0 +1,92 @@
+{
+  "howEyebrow": "Cómo funciona",
+  "listEyebrow": "A tener en cuenta",
+  "faqEyebrow": "Preguntas frecuentes",
+  "faqTitle": "Preguntas sobre la configuración.",
+  "updated": "Actualizado el 14 de octubre de 2026",
+  "tblEyebrow": "Configuración",
+  "colAction": "Qué configuras",
+  "colDetail": "Valor predeterminado del nuevo temporizador",
+  "colOutcome": "Lo que ve el chat",
+  "ctaPrimary": "Iniciar sesión con Twitch",
+  "metaTitle": "Bot de temporizadores para Twitch | ItsBagelBot",
+  "metaDesc": "Programa recordatorios en Twitch con ItsBagelBot. Configura mensaje, intervalo, actividad mínima, modo desconectado, límite de envíos y caducidad.",
+  "eyebrow": "Temporizadores",
+  "title": "Programa recordatorios periódicos en un horario.",
+  "lead": "Usa ItsBagelBot como tu bot de temporizadores para Twitch para compartir enlaces a redes sociales, anuncios y recordatorios. Cada temporizador tiene su propio mensaje e intervalo. Los umbrales de actividad, la configuración fuera de línea y las condiciones de parada te permiten decidir cuándo corresponde publicar ese mensaje en el chat.",
+  "howTitle": "Programa un mensaje para tu canal.",
+  "step1Title": "Activa Temporizadores",
+  "step1Desc": "Conecta tu canal, abre Temporizadores y activa el módulo. Añade un temporizador con el mensaje que quieras que publique el bot.",
+  "step2Title": "Elige el intervalo",
+  "step2Desc": "Un nuevo temporizador tiene un intervalo predeterminado de diez minutos. Configura su intervalo y la actividad reciente mínima que necesita en el chat antes de publicar.",
+  "step3Title": "Define cuándo se detiene",
+  "step3Desc": "Deja el temporizador solo para directos o permite publicar fuera de línea. Añade un límite de activaciones por stream o una fecha de caducidad para los recordatorios que deban terminar.",
+  "tblTitle": "Configuración del temporizador y lo que ve el chat.",
+  "tblNote": "Estas filas provienen de la configuración del temporizador, no de comandos de chat. El módulo empieza desactivado. Un nuevo temporizador está activado por defecto, pero necesita un mensaje y que el módulo esté activado antes de poder publicar.",
+  "listTitle": "Una programación que respeta la actividad del chat.",
+  "item1Name": "Un intervalo por mensaje",
+  "item1Desc": "Cada temporizador mantiene su propio intervalo. Usa temporizadores independientes para mensajes que necesiten programaciones distintas.",
+  "item2Name": "Espera a la actividad del chat",
+  "item2Desc": "Un temporizador puede exigir un número mínimo de líneas de chat en una ventana móvil. Si no se alcanza ese umbral, el bot omite la publicación y vuelve a comprobarlo en el siguiente intervalo.",
+  "item3Name": "Solo en directo de forma predeterminada",
+  "item3Desc": "Los nuevos temporizadores tienen las publicaciones fuera de línea desactivadas. Actívalas para los mensajes que quieras permitir mientras el canal esté desconectado.",
+  "item4Name": "Detén un recordatorio temporal",
+  "item4Desc": "El límite de activaciones restringe las repeticiones por stream. Una fecha de caducidad detiene el temporizador tras el momento elegido.",
+  "limitsNote": "El sistema aplica un intervalo mínimo de treinta segundos. Un límite de activaciones en cero significa repeticiones ilimitadas; dejar la caducidad vacía mantiene el temporizador sin una fecha de finalización.",
+  "prereq1": "Conecta ItsBagelBot a tu canal de Twitch y activa Temporizadores.",
+  "prereq2": "Guarda un mensaje en un temporizador activado. Comprueba su umbral de actividad y si está configurado para emitir solo en directo o fuera de línea.",
+  "faqQ1": "¿Cómo creo un temporizador para el chat de Twitch?",
+  "faqA1": "Activa Temporizadores en el panel de control, añade un mensaje y elige un intervalo. Activa el temporizador individual y guárdalo. El bot repetirá ese mensaje cuando se cumplan las condiciones del temporizador.",
+  "faqQ2": "¿Por qué mi temporizador omitió un mensaje?",
+  "faqA2": "Comprueba si el módulo y el temporizador están activados, si el canal está en directo en caso de ser un temporizador solo para directos, y si el chat reciente ha alcanzado el umbral de actividad. Un límite de activaciones o la fecha de caducidad también pueden detener publicaciones posteriores.",
+  "faqQ3": "¿Cuáles son los valores predeterminados de un nuevo temporizador?",
+  "faqA3": "El intervalo es de 600 segundos. El temporizador empieza activado con un mensaje vacío, un umbral de quince líneas de chat en diez minutos, las publicaciones fuera de línea desactivadas, activaciones ilimitadas y sin fecha de caducidad.",
+  "faqQ4": "¿Pueden publicar los temporizadores cuando estoy desconectado?",
+  "faqA4": "Sí, si activas las publicaciones fuera de línea para ese temporizador. Los nuevos temporizadores funcionan solo en directo. Los umbrales de actividad se siguen aplicando aunque se permitan las publicaciones fuera de línea.",
+  "faqQ5": "¿Puedo detener un temporizador tras varias publicaciones?",
+  "faqA5": "Sí. Configura un número máximo de activaciones por stream o elige una fecha de caducidad. También puedes desactivar el temporizador individual.",
+  "ctaTitle": "Programa los recordatorios que tu chat necesita.",
+  "ctaGuide": "Lee la guía de comandos",
+  "fields": {
+    "message": {
+      "label": "Mensaje",
+      "value": "Vacío",
+      "outcome": "El mensaje que guardes se publicará cuando se active el temporizador."
+    },
+    "intervalSeconds": {
+      "label": "Intervalo",
+      "value": "{value} segundos",
+      "outcome": "El recordatorio se repite en su propio intervalo cuando se cumplen las demás condiciones."
+    },
+    "enabled": {
+      "label": "Temporizador activado",
+      "value": "Activado",
+      "outcome": "Un temporizador activado puede publicar. Desactivarlo detiene sus mensajes programados."
+    },
+    "minChatLines": {
+      "label": "Líneas de chat mínimas",
+      "value": "{value} líneas",
+      "outcome": "El bot espera a que haya esta cantidad de actividad reciente en el chat antes de publicar."
+    },
+    "chatWindowMinutes": {
+      "label": "Ventana de actividad",
+      "value": "{value} minutos",
+      "outcome": "Solo las líneas de chat dentro de esta ventana móvil cuentan para el umbral de actividad."
+    },
+    "allowOffline": {
+      "label": "Permitir fuera de línea",
+      "value": "Desactivado",
+      "outcome": "El mensaje solo se publica en directo a menos que permitas que este temporizador publique fuera de línea."
+    },
+    "maxFiresPerStream": {
+      "label": "Máximo de activaciones por stream",
+      "value": "{value}, ilimitado",
+      "outcome": "Un límite positivo detiene las repeticiones una vez que el temporizador alcanza su tope por stream."
+    },
+    "endsAt": {
+      "label": "Caducidad",
+      "value": "Ninguna",
+      "outcome": "El recordatorio se detiene después de la fecha de caducidad configurada."
+    }
+  }
+}

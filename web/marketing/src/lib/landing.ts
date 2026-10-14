@@ -2,6 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { moduleDef } from '@bagel/kit/catalog';
+import { blankTimer } from '@bagel/kit/timers';
+import { blankDiscordConfig } from '../../../kit/lib/discord-config';
+import { guildModuleTiles } from '../../../kit/lib/discord-overview';
 import type { ModuleDef, ModuleReply } from '@bagel/kit/catalog/module-def';
 import { defaultLang, type Lang } from '../i18n/lang';
 import { localizePath } from '../i18n/ui';
@@ -10,7 +13,7 @@ type Translate = (key: string) => string;
 
 export interface CommandRow {
     cells: string[];
-    copy: string;
+    copy?: string;
 }
 
 interface Overlay {
@@ -18,11 +21,11 @@ interface Overlay {
 }
 
 const overlays = import.meta.glob<Overlay>(
-    '../../../../locales/*/console/modules/catalog/{valorant,govee,fortnite,urchin,mcsr,clashroyale,codm}.json',
+    '../../../../locales/*/console/modules/catalog/{valorant,govee,fortnite,urchin,mcsr,clashroyale,codm,raffle,queue,gamble,duel}.json',
     { eager: true, import: 'default' },
 );
 const chatTables = import.meta.glob<Record<string, string>>(
-    '../../../../locales/*/chat/{songqueue,govee}.json',
+    '../../../../locales/*/chat/{songqueue,govee,loyalty}.json',
     { eager: true, import: 'default' },
 );
 
@@ -352,4 +355,91 @@ export function landingSchema(input: LandingSchemaInput): Record<string, unknown
         ],
     };
     return commands ? [page, breadcrumbs, commandList(pageUrl, commands)] : [page, breadcrumbs];
+}
+
+export const FEATURES = {
+    giveaways: { ns: 'giveaways', path: '/giveaways', modules: ['raffle'], ai: 'engagement', guide: '/guides/modules', related: ['viewerQueue', 'loyaltyPoints', 'timers'] },
+    loyaltyPoints: { ns: 'loyaltyPoints', path: '/loyalty-points', modules: ['loyalty', 'gamble', 'duel'], ai: 'loyalty', guide: '/guides/counters', related: ['deathCounter', 'giveaways', 'viewerQueue'] },
+    deathCounter: { ns: 'deathCounter', path: '/death-counter', modules: ['counters'], ai: 'loyalty', guide: '/guides/counters', related: ['loyaltyPoints', 'timers', 'viewerQueue'] },
+    timers: { ns: 'timers', path: '/timers', modules: ['timers'], ai: 'automation', guide: '/guides/commands', related: ['giveaways', 'viewerQueue', 'discordBot'] },
+    viewerQueue: { ns: 'viewerQueue', path: '/viewer-queue', modules: ['queue'], ai: 'engagement', guide: '/guides/modules', related: ['giveaways', 'loyaltyPoints', 'discordBot'] },
+    discordBot: { ns: 'discordBot', path: '/discord-bot', modules: ['discord'], ai: 'discord', guide: '/guides/discord-setup', related: ['timers', 'viewerQueue', 'giveaways'] },
+} as const;
+
+export type FeatureId = keyof typeof FEATURES;
+
+type CatalogCommand = NonNullable<ModuleDef['commands']>[number];
+interface FeatureCommand extends CatalogCommand {
+    module: string;
+}
+
+function moduleCommands(id: string): FeatureCommand[] {
+    const def = moduleOf(id);
+    const commands = [...(def.commands ?? [])];
+    const additional = def.replies.filter((reply) => reply.command && !commands.some((command) => command.trigger === `!${reply.command}` || command.trigger.startsWith(`!${reply.command} `)));
+    const entries = new Map(commands.map((command) => [command.trigger, command]));
+    additional.forEach((reply) => entries.set(`!${reply.command}`, { trigger: `!${reply.command}`, summary: reply.tagline }));
+    return [...entries.values()].map((command) => ({ ...command, module: id }));
+}
+
+export function featureCommands(id: FeatureId): FeatureCommand[] {
+    if (id === 'deathCounter') return moduleCommands('loyalty').filter((command) => command.trigger === '!counter');
+    return FEATURES[id].modules.flatMap(moduleCommands);
+}
+
+function featureWho(command: FeatureCommand, k: Translate): string {
+    const restricted: Record<string, string> = { '!duel accept': 'whoChallenged', '!duel decline': 'whoChallenged', '!duel cancel': 'whoOpenerMods' };
+    const key = restricted[command.trigger] ?? (command.perm === 'mod' ? 'whoMods' : 'whoEveryone');
+    return k(key);
+}
+
+function featureReply(command: FeatureCommand, lang: Lang): string {
+    if (command.trigger === '!counter') return chatLine(lang, 'loyalty', 'counter.usage', {});
+    const examples: Record<string, string> = { '!gamble <amount>': 'won', '!gamble half|all': 'won', '!duel <stake>': 'opened', '!duel <user> <stake>': 'challenge' };
+    const reply = moduleOf(command.module).replies.find((reply) => reply.key === examples[command.trigger] || command.trigger === reply.event || command.trigger.startsWith(reply.event + ' '));
+    return reply ? catalogReplyText(lang, command.module, reply) : command.summary;
+}
+
+export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow[] {
+    const spec = FEATURES[id];
+    const k = (key: string) => t(spec.ns + '.' + key);
+    if (id === 'timers') return Object.entries(blankTimer()).filter(([key]) => key !== 'id').map(([key, value]) => ({
+        cells: [k('fields.' + key + '.label'), k('fields.' + key + '.value').replace('{value}', String(value)), k('fields.' + key + '.outcome')],
+    }));
+    if (id === 'discordBot') return guildModuleTiles(blankDiscordConfig()).map((tile) => ({
+        cells: [k('tiles.' + tile.id + '.label'), k('tiles.' + tile.id + '.configure'), k('tiles.' + tile.id + '.outcome')],
+    }));
+    return featureCommands(id).map((command) => ({
+        cells: [command.trigger, featureWho(command, k), featureReply(command, lang)],
+        copy: command.trigger === '!raffle open [minutes] [winners] [remind]' ? command.trigger.split(' [')[0] + ' 10 1 5' : command.trigger,
+    }));
+}
+
+export function featureExampleLines(id: FeatureId, lang: Lang) {
+    if (id === 'deathCounter') {
+        const prefix = featureCommands(id)[0].trigger;
+        const samples = { counter: 'deaths', scope: 'channel', value: '1', user: VIEWER };
+        return [
+            { who: 'mod' as const, name: 'lead_mod', text: `${prefix} create deaths` },
+            { who: 'bot' as const, text: chatLine(lang, 'loyalty', 'counter.created', samples) },
+            { who: 'mod' as const, name: 'lead_mod', text: `${prefix} add deaths 1` },
+            { who: 'bot' as const, text: chatLine(lang, 'loyalty', 'counter.set', samples) },
+        ];
+    }
+    const demos: Partial<Record<FeatureId, { module: string; keys: string[] }>> = {
+        giveaways: { module: 'raffle', keys: ['opened', 'joined'] },
+        loyaltyPoints: { module: 'gamble', keys: ['won', 'lost'] },
+        viewerQueue: { module: 'queue', keys: ['join', 'next'] },
+    };
+    const demo = demos[id];
+    if (!demo) return undefined;
+    return demo.keys.flatMap((key) => {
+        const reply = moduleOf(demo.module).replies.find((reply) => reply.key === key)!;
+        const command = moduleCommands(demo.module).find((command) => command.trigger === reply.event || command.trigger.startsWith(reply.event + ' '));
+        const typed = reply.key === 'opened' ? `${reply.event} 10 1 5` : reply.event;
+        return [
+            { who: command?.perm === 'mod' ? 'mod' as const : 'viewer' as const, name: VIEWER, text: typed },
+            { who: 'bot' as const, text: catalogReplyText(lang, demo.module, reply) },
+        ];
+    });
 }
