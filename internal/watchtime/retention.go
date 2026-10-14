@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	"github.com/valkey-io/valkey-go"
 )
 
 const (
@@ -33,11 +34,7 @@ func WindowStartUnixMilli(a data.WatchAwardDTO) int64 {
 	return max(0, start)
 }
 
-// SafePruneBefore publishes the acceptance barrier before SQL pruning. Every
-// queued award pins it below that window's start, including pending deliveries.
-// Unindexed legacy deliveries conservatively prevent advancement until drained.
-func (s *Store) SafePruneBefore(ctx context.Context, desiredUnixMilli int64) (int64, error) {
-	return s.client.Do(ctx, s.client.B().Eval().Script(`
+var safePruneScript = valkey.NewLuaScript(`
 local n=redis.call('XLEN',KEYS[1])
 if n~=redis.call('ZCARD',KEYS[2]) then return 0 end
 local clock=redis.call('TIME')
@@ -49,6 +46,13 @@ if cutoff<=0 then return 0 end
 local prior=tonumber(redis.call('GET',KEYS[3]) or '0')
 if prior>cutoff then return 0 end
 redis.call('SET',KEYS[3],string.format('%.0f',cutoff))
-return cutoff`).Numkeys(3).Key(Stream, OutboxWindowIndex, RetentionFloor).
-		Arg(strconv.FormatInt(desiredUnixMilli, 10), strconv.FormatInt(HistoryRetention.Milliseconds(), 10)).Build()).AsInt64()
+return cutoff`)
+
+// SafePruneBefore publishes the acceptance barrier before SQL pruning. Every
+// queued award pins it below that window's start, including pending deliveries.
+// Unindexed legacy deliveries conservatively prevent advancement until drained.
+func (s *Store) SafePruneBefore(ctx context.Context, desiredUnixMilli int64) (int64, error) {
+	keys := []string{Stream, OutboxWindowIndex, RetentionFloor}
+	args := []string{strconv.FormatInt(desiredUnixMilli, 10), strconv.FormatInt(HistoryRetention.Milliseconds(), 10)}
+	return safePruneScript.Exec(ctx, s.client, keys, args).AsInt64()
 }

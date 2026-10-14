@@ -271,17 +271,25 @@ func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, err
 	return len(entries), nil
 }
 
+var ackScript = valkey.NewLuaScript(`redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('HDEL',KEYS[2],ARGV[3]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`)
+
+var quarantineScript = valkey.NewLuaScript(`
+local clock=redis.call('TIME')
+local horizon=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)-tonumber(ARGV[5])
+redis.call('XADD',KEYS[2],'MINID','~',string.format('%.0f',math.max(horizon,0)),'*','source_id',ARGV[2],'reason',ARGV[3],'payload',ARGV[4])
+redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`)
+
 func (c *Consumer) ack(ctx context.Context, id string, award data.WatchAwardDTO) error {
 	// SQL already remembers this operation. Clear the short-lived acceptance
 	// digest with the delivery so Valkey memory grows with unpaid work, while
 	// an uncertain acknowledgement can safely retry the SQL operation.
-	return c.client.Do(ctx, c.client.B().Eval().Script(`redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('HDEL',KEYS[2],ARGV[3]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`).Numkeys(3).Key(Stream, "watchtime:operations:"+strconv.FormatUint(award.UserID, 10), OutboxWindowIndex).Arg(ConsumerGroup, id, OperationID(award)).Build()).Error()
+	keys := []string{Stream, "watchtime:operations:" + strconv.FormatUint(award.UserID, 10), OutboxWindowIndex}
+	return ackScript.Exec(ctx, c.client, keys, []string{ConsumerGroup, id, OperationID(award)}).Error()
 }
 
 func (c *Consumer) quarantine(ctx context.Context, entry valkey.XRangeEntry, cause error) error {
 	// Quarantine and ACK are one primary operation; a malformed item cannot
 	// monopolize the recovery queue or disappear without an inspectable record.
-	return c.client.Do(ctx, c.client.B().Eval().Script(`
-redis.call('XADD',KEYS[2],'*','source_id',ARGV[2],'reason',ARGV[3],'payload',ARGV[4])
-redis.call('XACK',KEYS[1],ARGV[1],ARGV[2]); redis.call('XDEL',KEYS[1],ARGV[2]); redis.call('ZREM',KEYS[3],ARGV[2]); return 1`).Numkeys(3).Key(Stream, QuarantineStream, OutboxWindowIndex).Arg(ConsumerGroup, entry.ID, fmt.Sprint(cause), entry.FieldValues["payload"]).Build()).Error()
+	args := []string{ConsumerGroup, entry.ID, fmt.Sprint(cause), entry.FieldValues["payload"], strconv.FormatInt(HistoryRetention.Milliseconds(), 10)}
+	return quarantineScript.Exec(ctx, c.client, []string{Stream, QuarantineStream, OutboxWindowIndex}, args).Error()
 }

@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
+
+	"github.com/valkey-io/valkey-go"
 )
 
 func (v *Store) ClaimUnknownLive(ctx context.Context, id uint64) (bool, error) {
@@ -51,10 +53,12 @@ func (v *Store) SetLifecycle(ctx context.Context, id uint64, update LifecyclePro
 	if err != nil {
 		return err
 	}
-	return v.primary.Do(ctx, v.primary.B().Eval().Script(runtimeWrite).Numkeys(2).
-		Key(cache.UserKey(settingsKeyPrefix, id), watchtime.AdmissionKey(id)).
-		Arg(strconv.FormatInt(update.AccountCreatedAt, 10), strconv.FormatInt(update.StateRevision, 10), string(body), utils.BoolField(update.State.AllowsRuntime()), utils.BoolField(update.State.AllowsBackground())).Build()).Error()
+	keys := []string{cache.UserKey(settingsKeyPrefix, id), watchtime.AdmissionKey(id)}
+	args := []string{strconv.FormatInt(update.AccountCreatedAt, 10), strconv.FormatInt(update.StateRevision, 10), string(body), utils.BoolField(update.State.AllowsRuntime()), utils.BoolField(update.State.AllowsBackground())}
+	return runtimeWriteScript.Exec(ctx, v.primary, keys, args).Error()
 }
+
+var runtimeWriteScript = valkey.NewLuaScript(runtimeWrite)
 
 const runtimeWrite = `
 if redis.call('HGET',KEYS[2],'deleted')=='1' then return 0 end

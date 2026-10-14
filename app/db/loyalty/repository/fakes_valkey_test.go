@@ -28,6 +28,7 @@ type counterFakeValkey struct {
 	expires      map[string]time.Time
 	now          time.Time
 	batches      [][]string
+	loaded       map[string]string
 	failClaim    bool
 	failComplete bool
 }
@@ -36,7 +37,7 @@ func newCounterFakeValkey(t *testing.T) *counterFakeValkey {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	f := &counterFakeValkey{listener: listener, values: map[string]string{}, expires: map[string]time.Time{}, now: time.Now()}
+	f := &counterFakeValkey{listener: listener, values: map[string]string{}, loaded: counterKnownScripts(), expires: map[string]time.Time{}, now: time.Now()}
 	go func() {
 		for {
 			c, err := listener.Accept()
@@ -58,14 +59,21 @@ func (f *counterFakeValkey) Do(_ context.Context, _ valkey_go.Completed) valkey_
 }
 
 func (f *counterFakeValkey) DoMulti(ctx context.Context, commands ...valkey_go.Completed) []valkey_go.ValkeyResult {
+	f.mu.Lock()
 	scripts := make([]string, len(commands))
 	for i, command := range commands {
 		scripts[i] = command.Commands()[1]
+		if body, ok := counterKnownScripts()[scripts[i]]; ok {
+			scripts[i] = body
+		}
 	}
-	f.mu.Lock()
 	f.batches = append(f.batches, scripts)
 	f.mu.Unlock()
 	return f.Client.DoMulti(ctx, commands...)
+}
+
+func counterKnownScripts() map[string]string {
+	return map[string]string{counterClaim.sha: counterClaimScript, counterComplete.sha: counterCompleteScript, counterRelease.sha: counterReleaseScript}
 }
 
 func (f *counterFakeValkey) session(c net.Conn) {
@@ -136,7 +144,14 @@ func (f *counterFakeValkey) execute(args []string) []byte {
 	case "CLIENT", "AUTH", "SELECT", "COMMAND", "PING":
 		return []byte("+OK\r\n")
 	case "EVAL":
+		f.loaded[newCounterScript(args[1]).sha] = args[1]
 		return f.executeScript(args)
+	case "EVALSHA":
+		body, ok := f.loaded[args[1]]
+		if !ok {
+			return []byte("-NOSCRIPT No matching script. Please use EVAL.\r\n")
+		}
+		return f.executeScript(append([]string{"EVAL", body}, args[2:]...))
 	default:
 		return []byte("-ERR unsupported command\r\n")
 	}

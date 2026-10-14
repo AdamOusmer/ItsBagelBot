@@ -215,6 +215,7 @@ var fakeCommands = map[string]func(*fakeValkey, respArgs) []byte{
 	"GET":             (*fakeValkey).execGET,
 	"DEL":             (*fakeValkey).execDEL,
 	"EVAL":            (*fakeValkey).execEVAL,
+	"EVALSHA":         (*fakeValkey).execEVALSHA,
 	"INCR":            (*fakeValkey).execINCR,
 	"EXPIRE":          (*fakeValkey).execEXPIRE,
 	"HGET":            func(*fakeValkey, respArgs) []byte { return respNil() },
@@ -306,6 +307,10 @@ func (f *fakeValkey) execEVAL(args respArgs) []byte {
 	delete(f.strs, key)
 	delete(f.expires, key)
 	return respInt(1)
+}
+
+func (f *fakeValkey) execEVALSHA(respArgs) []byte {
+	return []byte("-NOSCRIPT No matching script. Please use EVAL.\r\n")
 }
 
 func (f *fakeValkey) renewLocked(key, owner string, ttl time.Duration) []byte {

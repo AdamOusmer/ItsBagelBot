@@ -5,6 +5,7 @@ package projection
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -28,10 +29,10 @@ type gatedProjectionReads struct {
 func (c *gatedProjectionReads) Do(ctx context.Context, cmd valkey.Completed) valkey.ValkeyResult {
 	verb := cmd.Commands()[0]
 	switch verb {
-	case "HMGET", "HGETALL", "EVAL_RO":
+	case "HMGET", "HGETALL", "EVALSHA_RO":
 		c.reads.Add(1)
 		if c.started != nil {
-			c.started <- verb
+			c.started <- strings.Replace(verb, "EVALSHA_RO", "EVAL_RO", 1)
 		}
 		if c.release != nil {
 			select {

@@ -5,6 +5,8 @@ package valkeytest
 
 import (
 	"bufio"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -44,6 +46,7 @@ type Server struct {
 	log      []Op
 	handlers map[string]Handler
 	failures map[string]Failure
+	scripts  map[string]string
 
 	Strings map[string]string
 	Hashes  map[string]map[string]string
@@ -62,6 +65,7 @@ func New(t testing.TB) *Server {
 		ln:       ln,
 		handlers: defaultHandlers(),
 		failures: map[string]Failure{},
+		scripts:  map[string]string{},
 		Strings:  map[string]string{},
 		Hashes:   map[string]map[string]string{},
 		Sets:     map[string]map[string]bool{},
@@ -145,6 +149,10 @@ func (s *Server) exec(args Args) Reply {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log = append(s.log, Op{Cmd: cmd, Args: rest})
+	cmd, rest, noScript := s.resolveScript(cmd, rest)
+	if noScript {
+		return Reply("-NOSCRIPT No matching script. Please use EVAL.\r\n")
+	}
 	switch cmd {
 	case "HELLO":
 		return Err("unknown command 'HELLO'")
@@ -158,6 +166,26 @@ func (s *Server) exec(args Args) Reply {
 		return h(s, rest)
 	}
 	return Err(fmt.Sprintf("unknown command '%s'", cmd))
+}
+
+func (s *Server) resolveScript(cmd string, args Args) (string, Args, bool) {
+	switch cmd {
+	case "EVAL", "EVAL_RO":
+		if len(args) > 0 {
+			sum := sha1.Sum([]byte(args[0]))
+			s.scripts[hex.EncodeToString(sum[:])] = args[0]
+		}
+	case "EVALSHA", "EVALSHA_RO":
+		if len(args) == 0 {
+			return cmd, args, false
+		}
+		script, ok := s.scripts[strings.ToLower(args[0])]
+		if !ok {
+			return cmd, args, true
+		}
+		return "EVAL" + strings.TrimPrefix(cmd, "EVALSHA"), append(Args{script}, args[1:]...), false
+	}
+	return cmd, args, false
 }
 
 func (f Failure) matches(a Args) bool { return f.Match == nil || f.Match(a) }

@@ -6,6 +6,7 @@ package repository
 import (
 	"ItsBagelBot/internal/domain/event/data"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -29,6 +30,66 @@ redis.call('SET', KEYS[1], 'done', 'PX', ARGV[2])
 return 1`
 const counterReleaseScript = `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
 return redis.call('DEL', KEYS[1])`
+
+type counterScript struct {
+	body string
+	sha  string
+}
+
+func newCounterScript(body string) counterScript {
+	sum := sha1.Sum([]byte(body))
+	return counterScript{body: body, sha: hex.EncodeToString(sum[:])}
+}
+
+var (
+	counterClaim    = newCounterScript(counterClaimScript)
+	counterComplete = newCounterScript(counterCompleteScript)
+	counterRelease  = newCounterScript(counterReleaseScript)
+)
+
+type counterCall struct {
+	script counterScript
+	key    string
+	args   []string
+}
+
+func (c counterCall) evalsha(client valkey_go.Client) valkey_go.Completed {
+	return client.B().Evalsha().Sha1(c.script.sha).Numkeys(1).Key(c.key).Arg(c.args...).Build()
+}
+
+func (c counterCall) eval(client valkey_go.Client) valkey_go.Completed {
+	return client.B().Eval().Script(c.script.body).Numkeys(1).Key(c.key).Arg(c.args...).Build()
+}
+
+func (p *CounterProcessor) doCounterCalls(ctx context.Context, calls []counterCall) []valkey_go.ValkeyResult {
+	commands := make([]valkey_go.Completed, len(calls))
+	for i, call := range calls {
+		commands[i] = call.evalsha(p.client)
+	}
+	results := p.client.DoMulti(ctx, commands...)
+	missing := missingCounterScripts(results)
+	if len(missing) == 0 {
+		return results
+	}
+	reload := make([]valkey_go.Completed, len(missing))
+	for i, index := range missing {
+		reload[i] = calls[index].eval(p.client)
+	}
+	for i, result := range p.client.DoMulti(ctx, reload...) {
+		results[missing[i]] = result
+	}
+	return results
+}
+
+func missingCounterScripts(results []valkey_go.ValkeyResult) []int {
+	var missing []int
+	for i, result := range results {
+		if err, ok := valkey_go.IsValkeyErr(result.Error()); ok && err.IsNoScript() {
+			missing = append(missing, i)
+		}
+	}
+	return missing
+}
 
 type counterDelivery struct {
 	request     *counterRequest
@@ -54,33 +115,33 @@ func (p *CounterProcessor) claimCounterDeliveries(ctx context.Context, deliverie
 	}
 	claimCtx, cancel := context.WithTimeout(ctx, counterCacheTimeout)
 	defer cancel()
-	results := p.client.DoMulti(claimCtx, claims...)
+	results := p.doCounterCalls(claimCtx, claims)
 	for i, delivery := range tracked {
 		p.classifyCounterClaim(delivery, results, i)
 	}
 	return tracked
 }
 
-func (p *CounterProcessor) counterClaimCommands(deliveries []*counterDelivery, owner string) ([]valkey_go.Completed, []*counterDelivery) {
-	commands := make([]valkey_go.Completed, 0, len(deliveries))
+func (p *CounterProcessor) counterClaimCommands(deliveries []*counterDelivery, owner string) ([]counterCall, []*counterDelivery) {
+	commands := make([]counterCall, 0, len(deliveries))
 	tracked := make([]*counterDelivery, 0, len(deliveries))
 	for _, delivery := range deliveries {
 		if delivery.key == "" {
 			continue
 		}
-		commands = append(commands, p.counterLeaseCommand(delivery, owner, counterLease{counterClaimScript, counterPendingTTL}))
+		commands = append(commands, counterLeaseCommand(delivery, owner, counterLease{counterClaim, counterPendingTTL}))
 		tracked = append(tracked, delivery)
 	}
 	return commands, tracked
 }
 
 type counterLease struct {
-	script string
+	script counterScript
 	ttl    time.Duration
 }
 
-func (p *CounterProcessor) counterLeaseCommand(delivery *counterDelivery, owner string, lease counterLease) valkey_go.Completed {
-	return p.client.B().Eval().Script(lease.script).Numkeys(1).Key(delivery.key).Arg(owner, strconv.FormatInt(lease.ttl.Milliseconds(), 10)).Build()
+func counterLeaseCommand(delivery *counterDelivery, owner string, lease counterLease) counterCall {
+	return counterCall{script: lease.script, key: delivery.key, args: []string{owner, strconv.FormatInt(lease.ttl.Milliseconds(), 10)}}
 }
 
 func counterClaimStatus(results []valkey_go.ValkeyResult, index int) (int64, error) {
@@ -143,7 +204,7 @@ func (p *CounterProcessor) finalizeCounterClaims(tracked []*counterDelivery, own
 	// checks prevent deleting a replacement claim after a lease expires.
 	ctx, cancel := context.WithTimeout(context.Background(), counterCacheTimeout)
 	defer cancel()
-	results := p.client.DoMulti(ctx, commands...)
+	results := p.doCounterCalls(ctx, commands)
 	for i, delivery := range finalized {
 		if delivery.err != nil {
 			continue
@@ -154,8 +215,8 @@ func (p *CounterProcessor) finalizeCounterClaims(tracked []*counterDelivery, own
 	}
 }
 
-func (p *CounterProcessor) counterFinalizationCommands(tracked []*counterDelivery, owner string) ([]valkey_go.Completed, []*counterDelivery) {
-	commands := make([]valkey_go.Completed, 0, len(tracked))
+func (p *CounterProcessor) counterFinalizationCommands(tracked []*counterDelivery, owner string) ([]counterCall, []*counterDelivery) {
+	commands := make([]counterCall, 0, len(tracked))
 	finalized := make([]*counterDelivery, 0, len(tracked))
 	for _, delivery := range tracked {
 		command, needed := p.counterFinalizationCommand(delivery, owner)
@@ -168,15 +229,15 @@ func (p *CounterProcessor) counterFinalizationCommands(tracked []*counterDeliver
 	return commands, finalized
 }
 
-func (p *CounterProcessor) counterFinalizationCommand(delivery *counterDelivery, owner string) (valkey_go.Completed, bool) {
+func (p *CounterProcessor) counterFinalizationCommand(delivery *counterDelivery, owner string) (counterCall, bool) {
 	if delivery.shouldComplete() {
-		return p.counterLeaseCommand(delivery, owner, counterLease{counterCompleteScript, counterCompletedTTL}), true
+		return counterLeaseCommand(delivery, owner, counterLease{counterComplete, counterCompletedTTL}), true
 	}
 	if delivery.shouldRelease() {
 		// Also release unknown claims: a failed response may follow a valid SET.
-		return p.client.B().Eval().Script(counterReleaseScript).Numkeys(1).Key(delivery.key).Arg(owner).Build(), true
+		return counterCall{script: counterRelease, key: delivery.key, args: []string{owner}}, true
 	}
-	return valkey_go.Completed{}, false
+	return counterCall{}, false
 }
 
 func (d *counterDelivery) shouldComplete() bool {
