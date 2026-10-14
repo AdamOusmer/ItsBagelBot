@@ -7,7 +7,6 @@
     "game": "Stream-Kategorie anzeigen oder festlegen.",
     "tags": "Stream-Tags anzeigen oder festlegen.",
     "commercial": "Werbeunterbrechung starten (nur live).",
-    "marker": "Stream-Markierung setzen (nur live).",
-    "cmd": "Befehle auflisten oder eigene hinzufügen/bearbeiten/entfernen."
+    "marker": "Stream-Markierung setzen (nur live)."
   }
 }

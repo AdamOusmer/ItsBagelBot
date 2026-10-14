@@ -122,6 +122,20 @@
         ]
       },
       {
+        "name": "offseason",
+        "responses": [
+          "we are on break"
+        ],
+        "permission": "everyone",
+        "disabled": true,
+        "warnings": [
+          "command \"offseason\" is switched off upstream; imported turned off"
+        ],
+        "source_responses": [
+          "we are on break"
+        ]
+      },
+      {
         "name": "playlist",
         "responses": [
           "Myth's Spotify profile - https://open.spotify.com/user/tacticalmyth"
@@ -311,8 +325,8 @@
     },
     {
       "severity": "warn",
-      "item_index": -1,
-      "code": "command_disabled"
+      "item_index": 9,
+      "code": "command_disabled_imported"
     },
     {
       "severity": "warn",
@@ -321,18 +335,8 @@
     },
     {
       "severity": "warn",
-      "item_index": 10,
+      "item_index": 11,
       "code": "command_action_prefix_dropped"
-    },
-    {
-      "severity": "warn",
-      "item_index": 13,
-      "code": "command_variable_unmapped"
-    },
-    {
-      "severity": "warn",
-      "item_index": 13,
-      "code": "command_permission_unmapped"
     },
     {
       "severity": "warn",
@@ -341,7 +345,17 @@
     },
     {
       "severity": "warn",
+      "item_index": 14,
+      "code": "command_permission_unmapped"
+    },
+    {
+      "severity": "warn",
       "item_index": 15,
+      "code": "command_variable_unmapped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 16,
       "code": "command_variable_unmapped"
     },
     {
@@ -351,7 +365,7 @@
     },
     {
       "severity": "warn",
-      "item_index": 18,
+      "item_index": 19,
       "code": "command_alias_invalid"
     }
   ]

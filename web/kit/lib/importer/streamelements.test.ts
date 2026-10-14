@@ -212,8 +212,8 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   const raw = readFileSync(join(here, 'testdata/se-envelope-full.json'), 'utf8');
   const { manifest, diagnostics } = parseStreamElements(raw);
 
-  test('collection counts after regex/disabled skips', () => {
-    expect(manifest.commands).toHaveLength(12);
+  test('collection counts after regex skips', () => {
+    expect(manifest.commands).toHaveLength(13);
     expect(manifest.timers).toHaveLength(3);
     expect(manifest.triggers).toHaveLength(2);
   });
@@ -242,18 +242,22 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   });
 
   test('permission tiers land per the documented widening rules', () => {
-    expect(manifest.commands![7].online_only).toBeUndefined();
-    expect(manifest.commands![8].permission).toBe('lead_mod');
-    expect(manifest.commands![9].permission).toBe('broadcaster');
-    expect(manifest.commands![10].permission).toBe('everyone');
+    expect(manifest.commands![8].online_only).toBeUndefined();
+    expect(manifest.commands![9].permission).toBe('lead_mod');
+    expect(manifest.commands![10].permission).toBe('broadcaster');
     expect(manifest.commands![11].permission).toBe('everyone');
+    expect(manifest.commands![12].permission).toBe('everyone');
     expect(['gn', 'dealwithit', 'streamersecret', 'lounge', 'mystatus']).toEqual([
-      manifest.commands![7].name,
       manifest.commands![8].name,
       manifest.commands![9].name,
       manifest.commands![10].name,
-      manifest.commands![11].name
+      manifest.commands![11].name,
+      manifest.commands![12].name
     ]);
+  });
+
+  test('a command disabled upstream is imported turned off', () => {
+    expect(manifest.commands!.filter((c) => c.disabled).map((c) => c.name)).toEqual(['retired']);
   });
 
   test('keywords become triggers carrying the same response', () => {
@@ -282,17 +286,17 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
     }
     const expected: Record<string, number> = {
       '-1|command_regex_skipped': 1,
-      '-1|command_disabled_skipped': 1,
+      '7|command_disabled_imported': 1,
       '-1|timer_disabled_skipped': 1,
       '1|command_type_reply': 1,
       '3|command_variable_unmapped': 1,
       '4|command_type_whisper': 1,
       '4|command_cost_unsupported': 1,
       '5|command_variable_unmapped': 1,
-      '7|command_offline_only_widened': 1,
-      '10|command_permission_unmapped': 1,
+      '8|command_offline_only_widened': 1,
       '11|command_permission_unmapped': 1,
-      '11|command_variable_unmapped': 2,
+      '12|command_permission_unmapped': 1,
+      '12|command_variable_unmapped': 2,
       '0|trigger_variable_unmapped': 1,
       '1|trigger_variable_unmapped': 1,
       '0|timer_offline_interval_dropped': 1,

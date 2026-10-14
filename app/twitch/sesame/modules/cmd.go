@@ -14,9 +14,42 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/projection"
 
 	"go.uber.org/zap"
 )
+
+const cmdModuleName = "cmd"
+
+type (
+	cmdArgs     string
+	cmdReplyKey string
+	cmdPermKey  string
+)
+
+type cmdCall struct {
+	ctx  context.Context
+	c    *module.Context
+	d    engine.Deps
+	emit module.Emit
+	log  *zap.Logger
+}
+
+type cmdAction struct {
+	permKey cmdPermKey
+	run     func(cmdCall, cmdArgs)
+}
+
+var cmdActions = map[string]cmdAction{
+	"add":     {permKey: "addPerm", run: cmdCall.add},
+	"edit":    {permKey: "editPerm", run: cmdCall.edit},
+	"remove":  {permKey: "removePerm", run: cmdCall.remove},
+	"delete":  {permKey: "removePerm", run: cmdCall.remove},
+	"enable":  {permKey: "enablePerm", run: cmdSetActive(true, "cmd.enabled")},
+	"disable": {permKey: "disablePerm", run: cmdSetActive(false, "cmd.disabled")},
+	"perm":    {permKey: "permPerm", run: cmdCall.perm},
+}
 
 func Cmd(d engine.Deps) module.Module {
 	log := d.Log
@@ -24,111 +57,158 @@ func Cmd(d engine.Deps) module.Module {
 		log = zap.NewNop()
 	}
 
+	m := module.NewModule(cmdModuleName, module.KindDefault)
+	m.Command("cmd").Aliases("cmds", "command", "commands").Everyone().Run(cmdRun(d, log))
+	return m.Build()
+}
+
+func StreamEditors(d engine.Deps) module.Module {
 	m := module.NewModule("", module.KindCore)
-
-	m.Command("cmd").Aliases("cmds", "command", "commands").Everyone().Run(func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		sub, rest := splitFirst(args)
-
-		switch strings.ToLower(sub) {
-		case "add", "edit", "remove", "delete":
-			if !c.Chatter().Allows(module.RoleModerator) {
-				cmdLink(ctx, c, d, emit)
-				return nil
-			}
-			switch strings.ToLower(sub) {
-			case "add":
-				cmdAdd(ctx, c, d, rest, emit, log)
-			case "edit":
-				cmdEdit(ctx, c, d, rest, emit, log)
-			default:
-				cmdRemove(ctx, c, d, rest, emit, log)
-			}
-		default:
-			cmdLink(ctx, c, d, emit)
-		}
-		return nil
-	})
-
 	m.Command("title").Aliases("settitle").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTitle))
 	m.Command("game").Aliases("setgame").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldGame))
 	m.Command("tags").Aliases("settags").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTags))
 	m.Command("commercial").Aliases("ad").LeadMod().LiveOnly().Cooldown(streamCommercialCooldown).Run(streamCommercialRun(d))
 	m.Command("marker").LeadMod().LiveOnly().Cooldown(streamMarkerCooldown).Run(streamMarkerRun(d))
-
 	return m.Build()
 }
 
-func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, response := splitFirst(args)
-	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
-		return
+func cmdRun(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		sub, rest := splitFirst(args)
+		action, ok := cmdActions[strings.ToLower(sub)]
+		if !ok || !c.Chatter().Allows(cmdRole(c, action.permKey)) {
+			cmdLink(ctx, c, d, emit)
+			return nil
+		}
+		action.run(cmdCall{ctx: ctx, c: c, d: d, emit: emit, log: log}, cmdArgs(rest))
+		return nil
 	}
-	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+}
+
+var cmdManageRoles = map[string]module.Role{
+	"sub":         module.RoleSubscriber,
+	"vip":         module.RoleVIP,
+	"mod":         module.RoleModerator,
+	"lead_mod":    module.RoleLeadModerator,
+	"broadcaster": module.RoleBroadcaster,
+}
+
+func cmdRole(c *module.Context, permKey cmdPermKey) module.Role {
+	var cfg map[string]any
+	_ = c.Decode(&cfg)
+	perm, _ := cfg[string(permKey)].(string)
+	if role, ok := cmdManageRoles[perm]; ok {
+		return role
+	}
+	return module.RoleModerator
+}
+
+func (k cmdCall) add(args cmdArgs) {
+	name, response := splitFirst(string(args))
+	if !k.hasNameAndResponse(name, response) {
 		return
 	}
 
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	name = cmdName(name)
+	_, found, err := k.d.Proj.Command(k.ctx, k.c.BroadcasterID, name)
 	if err != nil {
-		log.Warn("cmd: add lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		k.log.Warn("cmd: add lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
 	if found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterName(), name)
+		k.reply("cmd.err.exists", name)
 		return
 	}
 
-	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: add failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return
-	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterName(), name)
+	k.save(projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}, "cmd.added")
 }
 
-func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, response := splitFirst(args)
-	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+func (k cmdCall) edit(args cmdArgs) {
+	name, response := splitFirst(string(args))
+	if !k.hasNameAndResponse(name, response) {
 		return
 	}
-	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+	k.change(name, "cmd.modified", func(cc *projection.Command) { cc.Response = response })
+}
+
+func cmdSetActive(active bool, replyKey cmdReplyKey) func(cmdCall, cmdArgs) {
+	return func(k cmdCall, args cmdArgs) {
+		name, _ := splitFirst(string(args))
+		if name == "" {
+			reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
+			return
+		}
+		k.change(name, replyKey, func(cc *projection.Command) { cc.IsActive = active })
+	}
+}
+
+func (k cmdCall) perm(args cmdArgs) {
+	name, rest := splitFirst(string(args))
+	perm, _ := splitFirst(rest)
+	perm = strings.ToLower(perm)
+	if name == "" || validate.Perm(perm) != nil {
+		k.reply("cmd.err.perm_usage", "")
+		return
+	}
+	k.change(name, "cmd.perm_set", func(cc *projection.Command) { cc.Perm = perm })
+}
+
+func (k cmdCall) remove(args cmdArgs) {
+	name, _ := splitFirst(string(args))
+	if name == "" {
+		reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
 		return
 	}
 
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	name = cmdName(name)
+	if err := k.d.Commands.Delete(k.ctx, k.c.Env.BroadcasterUserID, name); err != nil {
+		k.log.Warn("cmd: remove failed", zap.String("name", name), k.c.BID(), zap.Error(err))
+		return
+	}
+	k.reply("cmd.removed", name)
+}
+
+func cmdName(name string) string {
+	return strings.TrimPrefix(strings.ToLower(name), "!")
+}
+
+func (k cmdCall) reply(key cmdReplyKey, command string) {
+	reply(k.c, k.emit, i18n.T(k.c.Locale, string(key)), k.c.Env.ChatterName(), command)
+}
+
+func (k cmdCall) hasNameAndResponse(name, response string) bool {
+	if name == "" {
+		reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
+		return false
+	}
+	if response == "" {
+		k.reply("cmd.err.missing_resp", "")
+		return false
+	}
+	return true
+}
+
+func (k cmdCall) change(name string, replyKey cmdReplyKey, apply func(*projection.Command)) {
+	name = cmdName(name)
+	cc, found, err := k.d.Proj.Command(k.ctx, k.c.BroadcasterID, name)
 	if err != nil {
-		log.Warn("cmd: edit lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		k.log.Warn("cmd: lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
 	if !found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
+		k.reply("cmd.err.not_found", name)
 		return
 	}
-
-	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: edit failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return
-	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterName(), name)
+	apply(&cc)
+	k.save(cc, replyKey)
 }
 
-func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, _ := splitFirst(args)
-	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+func (k cmdCall) save(cc projection.Command, replyKey cmdReplyKey) {
+	if err := k.d.Commands.Upsert(k.ctx, k.c.Env.BroadcasterUserID, cc); err != nil {
+		k.log.Warn("cmd: save failed", zap.String("name", cc.Name), k.c.BID(), zap.Error(err))
 		return
 	}
-
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	if err := d.Commands.Delete(ctx, c.Env.BroadcasterUserID, name); err != nil {
-		log.Warn("cmd: remove failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return
-	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)
+	sendLine(k.c, k.emit, cmdReplyLine{text: i18n.T(k.c.Locale, string(replyKey)), user: k.c.Env.ChatterName(), command: cc.Name, role: cc.Perm})
 }
 
 func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
@@ -173,8 +253,8 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 }
 
 type cmdReplyLine struct {
-	namespace           module.Namespace
-	text, user, command string
+	namespace                 module.Namespace
+	text, user, command, role string
 }
 
 func reply(c *module.Context, emit module.Emit, line, user, command string) {
@@ -182,7 +262,7 @@ func reply(c *module.Context, emit module.Emit, line, user, command string) {
 }
 
 func sendLine(c *module.Context, emit module.Emit, line cmdReplyLine) {
-	text := module.KV("user", line.user, "command", line.command).WithLocale(module.Locale(c.Locale)).WithNamespace(line.namespace).ExpandString(line.text)
+	text := module.KV("user", line.user, "command", line.command, "role", line.role).WithLocale(module.Locale(c.Locale)).WithNamespace(line.namespace).ExpandString(line.text)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,

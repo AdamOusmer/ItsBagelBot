@@ -40,9 +40,20 @@ const POLICY_ROWS: PolicyRow[] = [
         { trigger: '!game' },
         { trigger: '!tags' },
         { trigger: '!commercial' },
-        { trigger: '!marker' },
-        { trigger: '!cmd' }
+        { trigger: '!marker' }
       ]
+    }
+  },
+  {
+    name: 'the command editor is a default-on Moderation module with rehearsable, role-gated subcommands',
+    id: 'cmd',
+    want: {
+      href: undefined,
+      toggleable: true,
+      defaultEnabled: true,
+      category: 'Moderation',
+      delegates: ['modules', 'commands'],
+      settings: undefined
     }
   },
   {

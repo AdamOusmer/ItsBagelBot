@@ -27,7 +27,7 @@ const CODE = {
   responseLineDropped: 'command_response_line_dropped',
   intervalClamped: 'timer_interval_clamped',
   timerMessageEmpty: 'timer_message_empty',
-  commandDisabled: 'command_disabled',
+  commandDisabledImported: 'command_disabled_imported',
   permissionGroupsSkipped: 'permission_groups_skipped',
   responseOverridesSkipped: 'response_overrides_skipped',
   timerDisabled: 'timer_disabled',
@@ -444,7 +444,7 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   state.diags.push(...respDiags);
   attachSourceResponses(item, idx, cmd);
 
-  emitDisabledDiagnostic(item, idx, state);
+  applyCommandDisabled(item, idx, cmd, state);
 
   state.commands.push(cmd);
   state.texts.set(name, tr.text);
@@ -477,10 +477,10 @@ function emitCountRemapDiagnostic(item: RawCommand, tr: TagResult, idx: number, 
       : `response uses <counter>, imported as {count}: it now counts this command’s own runs from zero; the old value ${Math.trunc(old)} was not carried over`));
 }
 
-function emitDisabledDiagnostic(item: RawCommand, idx: number, state: ParseState): void {
+function applyCommandDisabled(item: RawCommand, idx: number, cmd: ManifestCommand, state: ParseState): void {
   if (item.enabled !== false) return;
-  state.diags.push(errDiag(idx, CODE.commandDisabled,
-    'command is disabled in Moobot; importing would enable it, so commit will skip it'));
+  cmd.disabled = true;
+  state.diags.push(warnDiag(idx, CODE.commandDisabledImported, 'command is disabled in Moobot; imported turned off'));
 }
 
 function applyCommandCooldown(item: RawCommand, cmd: ManifestCommand): void {

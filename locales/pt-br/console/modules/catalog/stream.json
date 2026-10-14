@@ -7,7 +7,6 @@
     "game": "Mostre ou defina a categoria da transmissão.",
     "tags": "Mostre ou defina as tags da transmissão.",
     "commercial": "Exiba um anúncio durante a transmissão (somente ao vivo).",
-    "marker": "Adicione um marcador à transmissão (somente ao vivo).",
-    "cmd": "Liste comandos ou adicione/edite/remova comandos personalizados."
+    "marker": "Adicione um marcador à transmissão (somente ao vivo)."
   }
 }

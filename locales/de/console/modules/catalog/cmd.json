@@ -1,0 +1,23 @@
+{
+  "label": "Befehlseditor",
+  "tagline": "Verwalte eigene Befehle im Chat und bestimme, wer das darf.",
+  "description": "Alle können !cmd eingeben und bekommen den Link zu deiner öffentlichen Befehlsliste. Dein Team kann eigene Befehle auch direkt im Chat verwalten: !cmd add, !cmd edit und !cmd remove ändern die Liste, !cmd disable schaltet einen Befehl ab und behält seine Antwort (praktisch für einen Speedrun oder einen konzentrierten Stream), !cmd enable schaltet ihn wieder ein, und !cmd perm legt fest, wer einen Befehl nutzen darf. Öffne unten einen Befehl, um ihn zu proben und festzulegen, wer ihn ausführen darf. Alle starten bei Moderatoren, und Alle steht nie zur Wahl. Schalte das Modul ab, um !cmd ganz zu stoppen.",
+  "commands": {
+    "cmd": "Link zu deiner öffentlichen Befehlsliste.",
+    "cmd_add_name_response": "Einen eigenen Befehl anlegen.",
+    "cmd_edit_name_response": "Die Antwort eines Befehls ändern; die übrigen Einstellungen bleiben.",
+    "cmd_remove_name": "Einen eigenen Befehl löschen (auch !cmd delete).",
+    "cmd_disable_name": "Einen Befehl abschalten, ohne ihn zu löschen.",
+    "cmd_enable_name": "Einen abgeschalteten Befehl wieder einschalten.",
+    "cmd_perm_name_level": "Festlegen, wer einen Befehl nutzen darf: everyone, sub, vip, mod, lead_mod oder broadcaster."
+  },
+  "previews": {
+    "cmd": "@{user} hier findest du die Befehle von {channel}: {url}",
+    "cmd_add_name_response": "@{user} der Befehl {command} wurde hinzugefügt",
+    "cmd_edit_name_response": "@{user} der Befehl {command} wurde geändert",
+    "cmd_remove_name": "@{user} der Befehl {command} wurde entfernt",
+    "cmd_disable_name": "@{user} der Befehl {command} ist jetzt deaktiviert",
+    "cmd_enable_name": "@{user} der Befehl {command} ist jetzt aktiviert",
+    "cmd_perm_name_level": "@{user} wer {command} nutzen darf, ist jetzt auf {role} gesetzt"
+  }
+}

@@ -348,7 +348,7 @@ const SE_CHAT_LINE_WINDOW_MINUTES = 5;
 
 export const SE_CODE = {
   commandRegexSkipped: 'command_regex_skipped',
-  commandDisabledSkipped: 'command_disabled_skipped',
+  commandDisabledImported: 'command_disabled_imported',
   commandUnparseable: 'command_unparseable_skipped',
   commandAliasDropped: 'command_alias_dropped',
   commandCostUnsupported: 'command_cost_unsupported',
@@ -502,15 +502,18 @@ function commandExclusion(c: BotCommand): ImportDiagnostic | null {
     return warnDiag(-1, SE_CODE.commandRegexSkipped,
       `command ${q(c.command)} uses a regex trigger (${c.regex}); regex commands have no equivalent here and were skipped`);
   }
-  if (!flag(c.enabled)) {
-    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
-      `command ${q(c.command)} is disabled upstream and was skipped`);
-  }
-  if (!flag(c.enabledOnline) && !flag(c.enabledOffline)) {
-    return warnDiag(-1, SE_CODE.commandDisabledSkipped,
-      `command ${q(c.command)} is disabled both online and offline upstream and was skipped`);
-  }
   return null;
+}
+
+function disabledUpstream(c: BotCommand): boolean {
+  return !flag(c.enabled) || (!flag(c.enabledOnline) && !flag(c.enabledOffline));
+}
+
+function disabledNote(c: BotCommand, name: string, sink: NoteSink): void {
+  if (!disabledUpstream(c)) return;
+  const scope = flag(c.enabled) ? ' both online and offline' : '';
+  addNote(sink, SE_CODE.commandDisabledImported,
+    `command ${q(name)} is disabled${scope} upstream; imported turned off`);
 }
 
 function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SeParseState): void {
@@ -523,11 +526,12 @@ function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SePars
   };
   const online = flag(c.enabledOnline);
 
+  disabledNote(c, name, sink);
   const { text, perm } = lossyNotes(c, name, online, sink);
   const { lines, diags: respDiags } = canonicalizeResponse(text, sink.idx);
 
   const draft: CommandDraft = { c, name, online, perm, lines };
-  commands.push(assembleCommand(draft, sink));
+  commands.push(withDisabledFlag(assembleCommand(draft, sink), c));
   state.diags.push(...respDiags);
   emptyResponseErrors(draft, sink);
   keywordsToTriggers(draft, state);
@@ -608,6 +612,10 @@ function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
   return cmd;
 }
 
+function withDisabledFlag(cmd: ManifestCommand, c: BotCommand): ManifestCommand {
+  return disabledUpstream(c) ? { ...cmd, disabled: true } : cmd;
+}
+
 function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
   const aliases: string[] = [];
   for (const a of c.aliases) {
@@ -640,6 +648,7 @@ interface KeywordExpansion {
 }
 
 function keywordsToTriggers(draft: CommandDraft, state: SeParseState): void {
+  if (disabledUpstream(draft.c)) return;
   const expansion: KeywordExpansion = { reply: draft.c.reply, commandName: draft.name };
   for (const kw of draft.c.keywords) {
     appendKeywordTrigger(kw, expansion, state);

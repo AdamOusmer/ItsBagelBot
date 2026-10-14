@@ -1,11 +1,15 @@
 {
   "added": "@{user} the command {command} has been added",
+  "disabled": "@{user} the command {command} is now disabled",
+  "enabled": "@{user} the command {command} is now enabled",
   "err.exists": "@{user} the command {command} already exists, use !cmd edit",
   "err.missing_resp": "@{user} please provide a response for the command",
   "err.not_found": "@{user} the command {command} was not found, use !cmd add",
-  "err.usage": "Usage: !cmd <add|edit|remove> <name> [response]",
+  "err.perm_usage": "Usage: !cmd perm <name> <everyone|sub|vip|mod|lead_mod|broadcaster>",
+  "err.usage": "Usage: !cmd <add|edit|remove|enable|disable> <name> [response]",
   "link": "@{user} browse {channel}'s commands here: {url}",
   "page_off": "@{user} {channel}'s command list isn't public.",
   "modified": "@{user} the command {command} has been modified",
+  "perm_set": "@{user} who can use {command} is now set to {role}",
   "removed": "@{user} the command {command} has been removed"
 }

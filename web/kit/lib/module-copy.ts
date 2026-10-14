@@ -80,6 +80,10 @@ export function tModuleCommandSummary(t: TFn, moduleId: string, command: ModuleC
   return tCatalog(t, catalogKey(moduleId, 'commands', commandSummarySlug(command.trigger)), command.summary);
 }
 
+export function tModuleCommandPreview(t: TFn, moduleId: string, command: ModuleCommandInfo): string {
+  return tCatalog(t, catalogKey(moduleId, 'previews', commandSummarySlug(command.trigger)), command.preview ?? '');
+}
+
 export const PERM_KEYS: Record<Perm, MessageKey> = {
   everyone: 'perm.everyone',
   sub: 'perm.sub',

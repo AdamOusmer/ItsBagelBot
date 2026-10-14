@@ -6,16 +6,30 @@
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
+  import { getI18n, tModuleCommandSummary, tPermBadge, type ModuleCommandInfo, type Perm } from '@bagel/kit';
 
   const { t } = getI18n();
 
-  let { moduleId, command, index }: { moduleId: string; command: ModuleCommandInfo; index: number } = $props();
+  let {
+    moduleId,
+    command,
+    index,
+    role = undefined,
+    expanded = false,
+    onExpand = undefined
+  }: {
+    moduleId: string;
+    command: ModuleCommandInfo;
+    index: number;
+    role?: Perm;
+    expanded?: boolean;
+    onExpand?: () => void;
+  } = $props();
 
   const idx = $derived(String(index).padStart(2, '0'));
 </script>
 
-<ManagementRow selectable={false}>
+<ManagementRow selectable={!!onExpand} selected={expanded} {expanded} onSelect={onExpand}>
   {#snippet primary()}
     <span class="crow">
       <span class="idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>
@@ -23,7 +37,9 @@
         <span><Code>{command.trigger}</Code></span>
         <Text as="span" size="xs" tone="muted" truncate>{tModuleCommandSummary(t, moduleId, command)}</Text>
       </span>
-      {#if command.perm === 'mod'}
+      {#if role}
+        <Tag tone="bare">{tPermBadge(t, role)}</Tag>
+      {:else if command.perm === 'mod'}
         <Tag tone="bare">{t('modules.permMods')}</Tag>
       {:else if command.perm === 'lead_mod'}
         <Tag tone="bare">{t('modules.permLeadMods')}</Tag>

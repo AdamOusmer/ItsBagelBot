@@ -71,10 +71,10 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 ### `!cmd`
 
-- Syntax: `!cmd`, `!cmd add <name> <response>`, `!cmd edit <name> <response>`, `!cmd remove <name>`
+- Syntax: `!cmd`, `!cmd add <name> <response>`, `!cmd edit <name> <response>`, `!cmd remove <name>`, `!cmd disable <name>`, `!cmd enable <name>`, `!cmd perm <name> <everyone|sub|vip|mod|lead_mod|broadcaster>`
 - Aliases: `!cmds`, `!command`, `!commands`
-- Who can run it: Anyone can request the public list; only moderators, lead moderators, and the broadcaster can add, edit, or remove.
-- Behaviour: Bare invocation shares the public commands URL. Mutating subcommands manage custom responses. `delete` is another remove subcommand.
+- Who can run it: Anyone can request the public list. Each mutating subcommand has its own minimum role (subscriber or higher, never everyone), set on the Command Editor module page under Moderation; all of them default to moderators.
+- Behaviour: Bare invocation shares the public commands URL. Mutating subcommands manage custom responses. `delete` is another remove subcommand. `disable` turns a command off and keeps its response and settings; disabled commands do not fire and are hidden from the public list. `edit` changes only the response. `perm` sets who can use the command. Switching the Command Editor module off stops `!cmd` entirely.
 - Example reply template: "{{chat:cmd.added}}".
 
 </command>

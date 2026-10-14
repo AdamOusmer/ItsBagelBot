@@ -107,6 +107,20 @@
           "cooldown_seconds": 10
         },
         {
+          "name": "retired",
+          "responses": [
+            "this command retired ages ago"
+          ],
+          "source_responses": [
+            "this command retired ages ago"
+          ],
+          "permission": "everyone",
+          "warnings": [
+            "command \"retired\" is disabled upstream; imported turned off"
+          ],
+          "disabled": true
+        },
+        {
           "name": "gn",
           "responses": [
             "Sleep well {user}, the stream is offline."
@@ -257,37 +271,37 @@
       },
       {
         "severity": "warn",
-        "item_index": -1,
-        "code": "command_disabled_skipped",
-        "message": "command \"retired\" is disabled upstream and was skipped"
+        "item_index": 7,
+        "code": "command_disabled_imported",
+        "message": "command \"retired\" is disabled upstream; imported turned off"
       },
       {
         "severity": "warn",
-        "item_index": 7,
+        "item_index": 8,
         "code": "command_offline_only_widened",
         "message": "command \"gn\" runs only while offline upstream; imported as always available (widening)"
       },
       {
         "severity": "warn",
-        "item_index": 10,
+        "item_index": 11,
         "code": "command_permission_unmapped",
         "message": "command \"lounge\" requires accessLevel 300 (Regular), which has no equivalent here; widened to everyone"
       },
       {
         "severity": "warn",
-        "item_index": 11,
+        "item_index": 12,
         "code": "command_permission_unmapped",
         "message": "command \"mystatus\" requires accessLevel 777 (unknown level 777), which has no equivalent here; widened to everyone"
       },
       {
         "severity": "warn",
-        "item_index": 11,
+        "item_index": 12,
         "code": "command_variable_unmapped",
         "message": "response uses $(weather), which has no equivalent; left as literal text"
       },
       {
         "severity": "warn",
-        "item_index": 11,
+        "item_index": 12,
         "code": "command_variable_unmapped",
         "message": "response uses $(uptime), which has no equivalent; left as literal text"
       },

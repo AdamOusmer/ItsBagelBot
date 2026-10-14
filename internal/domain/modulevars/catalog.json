@@ -44,6 +44,10 @@
     ]
   },
   {
+    "id": "cmd",
+    "groups": []
+  },
+  {
     "id": "timers",
     "groups": []
   },

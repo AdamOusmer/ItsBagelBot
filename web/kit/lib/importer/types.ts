@@ -36,6 +36,7 @@ export interface ManifestCommand {
   cooldown_seconds?: number;
   user_cooldown_seconds?: number;
   online_only?: boolean;
+  disabled?: boolean;
   warnings?: string[];
 }
 

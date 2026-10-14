@@ -1,0 +1,23 @@
+{
+  "label": "Editor de comandos",
+  "tagline": "Gestiona comandos personalizados desde el chat y elige quién puede hacerlo.",
+  "description": "Cualquiera puede escribir !cmd para recibir el enlace a tu lista pública de comandos. Tu equipo también puede gestionar comandos personalizados desde el chat: !cmd add, !cmd edit y !cmd remove cambian la lista, !cmd disable desactiva un comando y conserva su respuesta (útil para un speedrun o un stream concentrado), !cmd enable lo vuelve a activar y !cmd perm define quién puede usar un comando. Abre un comando abajo para ensayarlo y elegir quién puede usarlo. Todos empiezan en moderadores, y Todos nunca es una opción. Desactiva el módulo para detener !cmd por completo.",
+  "commands": {
+    "cmd": "Enlace a tu lista pública de comandos.",
+    "cmd_add_name_response": "Crear un comando personalizado.",
+    "cmd_edit_name_response": "Cambiar la respuesta de un comando; sus demás ajustes se mantienen.",
+    "cmd_remove_name": "Eliminar un comando personalizado (también !cmd delete).",
+    "cmd_disable_name": "Desactivar un comando sin eliminarlo.",
+    "cmd_enable_name": "Volver a activar un comando desactivado.",
+    "cmd_perm_name_level": "Definir quién puede usar un comando: everyone, sub, vip, mod, lead_mod o broadcaster."
+  },
+  "previews": {
+    "cmd": "@{user} consulta los comandos de {channel} aquí: {url}",
+    "cmd_add_name_response": "@{user} se añadió el comando {command}",
+    "cmd_edit_name_response": "@{user} se modificó el comando {command}",
+    "cmd_remove_name": "@{user} se eliminó el comando {command}",
+    "cmd_disable_name": "@{user} el comando {command} ahora está desactivado",
+    "cmd_enable_name": "@{user} el comando {command} ahora está activado",
+    "cmd_perm_name_level": "@{user} quién puede usar {command} ahora es {role}"
+  }
+}
