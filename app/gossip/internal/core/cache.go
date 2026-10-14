@@ -41,11 +41,16 @@ func (s *ValkeyStore) Get(ctx context.Context, key string) ([]byte, bool, error)
 	if err != nil {
 		return nil, false, err
 	}
+	b, err = codec.Unpack(b)
+	if err != nil {
+		_ = s.Del(ctx, key)
+		return nil, false, err
+	}
 	return b, true, nil
 }
 
 func (s *ValkeyStore) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error {
-	return s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(val)).Ex(ttl).Build()).Error()
+	return s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(codec.Pack(val))).Ex(ttl).Build()).Error()
 }
 
 func (s *ValkeyStore) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
@@ -63,6 +68,12 @@ type Cache struct {
 }
 
 func NewCache(store Store) *Cache { return &Cache{store: store} }
+
+const maxStaleWindow = 24 * time.Hour
+
+func storedTTL(fresh time.Duration) time.Duration {
+	return fresh + min(fresh, maxStaleWindow)
+}
 
 func Key(provider, endpoint, id string) string {
 	return "gossip:" + provider + ":" + endpoint + ":" + id
@@ -192,7 +203,7 @@ func (f envelopeFlight[T]) refetch(ctx context.Context) (any, error) {
 
 func (f envelopeFlight[T]) envelopeFor(v T, ferr error) (cacheEnvelope[T], time.Duration, error) {
 	if ferr == nil {
-		return cacheEnvelope[T]{Value: v, Fresh: time.Now().Add(f.ttl).UnixMilli()}, 2 * f.ttl, nil
+		return cacheEnvelope[T]{Value: v, Fresh: time.Now().Add(f.ttl).UnixMilli()}, storedTTL(f.ttl), nil
 	}
 	var ue *UpstreamError
 	if errors.As(ferr, &ue) && (ue.Status == 404 || ue.Status == 400) {
