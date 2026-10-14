@@ -79,14 +79,16 @@ const guide: GuideContent = {
             <h3>From chat, with !cmd</h3>
             <p>
                 You and your moderators can also manage commands without leaving chat, mid-stream.
-                Any moderator can run it: <code>!cmd</code> doesn't need the lead moderator promotion
-                that some other built-ins ask for.
+                Every <code>!cmd</code> subcommand starts open to moderators and up. To change who can
+                run each one, pick a minimum role per subcommand on the
+                <a href="https://dashboard.itsbagelbot.com/modules/cmd" target="_blank" rel="noopener noreferrer">Command Editor</a>
+                module page.
             </p>`,
         },
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: '!cmd add, edit and remove are for the broadcaster and moderators.',
+          caption: 'Out of the box, moderators and up can run every !cmd subcommand.',
           lines: [
             { who: 'mod', name: 'Ayshacinder', text: "!cmd add hype LET'S GOOO 🎉" },
             { who: 'bot', text: '@Ayshacinder the command hype has been added' },
@@ -99,17 +101,24 @@ const guide: GuideContent = {
           html: `
             <ul>
                 <li><code>!cmd add &lt;name&gt; &lt;response&gt;</code> creates a command.</li>
-                <li><code>!cmd edit &lt;name&gt; &lt;response&gt;</code> replaces its response.</li>
+                <li><code>!cmd edit &lt;name&gt; &lt;response&gt;</code> changes its response. Aliases, cooldowns and access stay as they were.</li>
                 <li><code>!cmd remove &lt;name&gt;</code> deletes it.</li>
-            </ul>`,
+                <li><code>!cmd disable &lt;name&gt;</code> turns it off and keeps its response, handy for a speedrun or a focused stream.</li>
+                <li><code>!cmd enable &lt;name&gt;</code> turns it back on.</li>
+                <li><code>!cmd perm &lt;name&gt; &lt;everyone|sub|vip|mod|lead_mod|broadcaster&gt;</code> sets who can use it.</li>
+            </ul>
+            <p>
+                A disabled command stays in your dashboard list with Active switched off, and it leaves
+                your public command list until you enable it again.
+            </p>`,
         },
         {
           kind: 'callout',
           tone: 'tip',
           html: `
                 <b>Tip</b>
-                Chat is fast for quick one-liners; the dashboard shows the extra dials (access,
-                cooldowns, aliases) and a live preview. Use whichever is closer to your hands.`,
+                Chat is fast for quick one-liners; the dashboard shows the extra dials (cooldowns,
+                aliases, Only while live) and a live preview. Use whichever is closer to your hands.`,
         },
       ],
     },
