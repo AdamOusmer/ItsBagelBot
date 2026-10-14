@@ -173,11 +173,13 @@ Propriétaire users, groupe de files `users-rpc`, délai du handler **2 s**.
 
 Contrôle opérateur de l'expéditeur et recherches Twitch. Groupe de files `outgress-rpc`.
 Délai du handler **1,5 s** ; les recherches qui appellent Twitch (`followage`, `uptime`,
-`streaminfo`, `channelcounts`) utilisent **4 s**. Source : `app/twitch/outgress/rpc/manage.go`.
+`streaminfo`, `channelcounts`) utilisent **4 s**, et `channel.get` utilise **6 s** pour qu'une vérification en direct tienne.
+Chaque sujet tourne sur un pool de workers concurrent borné : un appel lent ne bloque jamais les autres.
+Source : `app/twitch/outgress/rpc/manage.go`.
 
 | Sujet | Requête | Réponse |
 |---|---|---|
-| `...channel.get` | `{broadcaster_id}` | `{channel, found, error}` |
+| `...channel.get` | `{broadcaster_id, verify?, repair?}` | `{channel, found, error, verification?}` ; `verify` liste les abonnements Twitch en direct de la chaîne (au plus une fois par 30 s et par chaîne), enregistre `ok` ou `failing`, et `repair` réinscrit en arrière-plan ceux qui manquent ; délai côté appelant **8 s** en vérification |
 | `...channel.set` | `{broadcaster_id, enabled?, is_mod?}` | `{channel, found, error}` ; crée la chaîne si elle manque ; une surcharge `is_mod` compte comme vérification |
 | `...channel.list` | `{}` | `{channels, error}` |
 | `...system.status` | `{}` | `{paused, app_token_expires_in_seconds, has_user_token, error}` |
@@ -196,6 +198,13 @@ signifie qu'ils restent inchangés. `channel` :
   "mod_checked_at": "...", "updated_at": "...",
   "sub_state": "...", "sub_error": "", "sub_checked_at": "...",
   "blocked_at": "...", "grant_state": "", "grant_checked_at": "..." }
+```
+
+`verification` :
+
+```json
+{ "expected": 9, "present": 8, "missing": ["channel.cheer"],
+  "repairing": false, "throttled": false, "error": "" }
 ```
 
 ## Instantané des shards ingress : `twitch.ingress.admin.shards.get`

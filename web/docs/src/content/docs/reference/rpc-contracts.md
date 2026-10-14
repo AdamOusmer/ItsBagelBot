@@ -180,11 +180,13 @@ subscribe. Owner users, queue group `users-rpc`, handler timeout **2s**.
 
 Operator control of the sender and Twitch lookups. Queue group `outgress-rpc`.
 Handler timeout **1.5s**; lookups that call Twitch (`followage`, `uptime`,
-`streaminfo`, `channelcounts`) use **4s**. Source: `app/twitch/outgress/rpc/manage.go`.
+`streaminfo`, `channelcounts`) use **4s**, and `channel.get` uses **6s** so a live verify fits.
+Each subject runs on a bounded concurrent worker pool, so one slow call never blocks the others.
+Source: `app/twitch/outgress/rpc/manage.go`.
 
 | Subject | Request | Reply |
 |---|---|---|
-| `...channel.get` | `{broadcaster_id}` | `{channel, found, error}` |
+| `...channel.get` | `{broadcaster_id, verify?, repair?}` | `{channel, found, error, verification?}`; `verify` lists the channel's live Twitch subscriptions (at most once per 30s per channel), records `ok` or `failing`, and `repair` re-enrolls missing ones in the background; caller timeout **8s** when verifying |
 | `...channel.set` | `{broadcaster_id, enabled?, is_mod?}` | `{channel, found, error}`; creates the channel if absent; an `is_mod` override counts as a verification |
 | `...channel.list` | `{}` | `{channels, error}` |
 | `...system.status` | `{}` | `{paused, app_token_expires_in_seconds, has_user_token, error}` |
@@ -203,6 +205,13 @@ means leave unchanged. `channel`:
   "mod_checked_at": "...", "updated_at": "...",
   "sub_state": "...", "sub_error": "", "sub_checked_at": "...",
   "blocked_at": "...", "grant_state": "", "grant_checked_at": "..." }
+```
+
+`verification`:
+
+```json
+{ "expected": 9, "present": 8, "missing": ["channel.cheer"],
+  "repairing": false, "throttled": false, "error": "" }
 ```
 
 ## Ingress shard snapshot: `twitch.ingress.admin.shards.get`

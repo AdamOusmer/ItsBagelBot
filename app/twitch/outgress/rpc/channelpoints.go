@@ -40,7 +40,7 @@ func SubscribeChannelPoints(cfg SubscriptionConfig, tw *twitch.Client) error {
 	}
 	for _, v := range verbs {
 		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[manage.RewardRequest, manage.RewardReply](nc, subject, queueGroup, rewardHandleTimeout, app, log, cp.admitted(v.handler)); err != nil {
+		if err := bus.QueueSubscribeJSONConcurrent[manage.RewardRequest, manage.RewardReply](nc, rpcSubscription(subject, queueGroup), rewardHandleTimeout, app, log, cp.admitted(v.handler)); err != nil {
 			return err
 		}
 	}

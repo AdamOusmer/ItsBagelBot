@@ -99,11 +99,45 @@ func QueueSubscribeJSON[Req any, Resp any](
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
+	if err := QueueSubscribeRPC(nc, subject, queueGroup, jsonRPCHandler(subject, timeout, app, log, handle)); err != nil {
+		return fmt.Errorf("subscribe %s: %w", subject, err)
+	}
+	if err := nc.Flush(); err != nil {
+		return fmt.Errorf("flush subscription %s: %w", subject, err)
+	}
+	return nil
+}
+
+// handle must be safe to run concurrently with itself.
+func QueueSubscribeJSONConcurrent[Req any, Resp any](
+	nc *nats.Conn,
+	sub RPCSubscription,
+	timeout time.Duration,
+	app *newrelic.Application,
+	log *zap.Logger,
+	handle func(context.Context, Req) Resp,
+) error {
+	if _, err := QueueSubscribeRPCConcurrent(nc, sub, jsonRPCHandler(sub.Subject, timeout, app, log, handle)); err != nil {
+		return fmt.Errorf("subscribe %s: %w", sub.Subject, err)
+	}
+	if err := nc.Flush(); err != nil {
+		return fmt.Errorf("flush subscription %s: %w", sub.Subject, err)
+	}
+	return nil
+}
+
+func jsonRPCHandler[Req any, Resp any](
+	subject string,
+	timeout time.Duration,
+	app *newrelic.Application,
+	log *zap.Logger,
+	handle func(context.Context, Req) Resp,
+) nats.MsgHandler {
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
 	}
 
-	err := QueueSubscribeRPC(nc, subject, queueGroup, func(msg *nats.Msg) {
+	return func(msg *nats.Msg) {
 		start := time.Now()
 
 		txn := app.StartTransaction("rpc " + normalizedDestination(subject))
@@ -142,14 +176,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 		reply := handle(ctx, req)
 		handleSegment.End()
 		respondAndLog(msg, subject, start, log, txn, reply)
-	})
-	if err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
 	}
-	if err := nc.Flush(); err != nil {
-		return fmt.Errorf("flush subscription %s: %w", subject, err)
-	}
-	return nil
 }
 
 func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {

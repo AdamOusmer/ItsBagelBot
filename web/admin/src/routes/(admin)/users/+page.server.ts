@@ -183,7 +183,7 @@ async function probeUser(ref: LookupRef) {
   const uid = String(user.id);
   const [tokenRes, subRes] = await Promise.allSettled([
     tokenStatus({ actorId: ref.actorId, userId: uid }),
-    channelSubState(uid)
+    channelSubState(uid, { verify: true })
   ]);
   return {
     user,

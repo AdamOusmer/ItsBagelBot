@@ -230,7 +230,22 @@ export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'revoked' | 'chat_banned' | 'unenrolled' | 'unknown';
   error: string;
   checkedAt: string | null;
+  verification?: SubVerification;
 };
+
+export type SubVerification = {
+  expected: number;
+  present: number;
+  missing?: string[];
+  repairing: boolean;
+  throttled?: boolean;
+  error?: string;
+};
+
+export type SubStateOptions = { verify?: boolean; repair?: boolean };
+
+const SUB_READ_TIMEOUT_MS = 2000;
+const SUB_VERIFY_TIMEOUT_MS = 8000;
 
 function unknownSubState(): ChannelSubState {
   return { state: 'unknown', error: '', checkedAt: null };
@@ -243,20 +258,34 @@ function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
   return (KNOWN_SUB_STATES as readonly string[]).includes(s);
 }
 
-export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
+export async function channelSubState(
+  broadcasterId: string,
+  opts: SubStateOptions = {}
+): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
       found: boolean;
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
-    }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
+      verification?: SubVerification;
+    }>(
+      `${SUB.outgressRpc}.channel.get`,
+      {
+        broadcaster_id: broadcasterId,
+        ...(opts.verify ? { verify: true } : {}),
+        ...(opts.repair ? { repair: true } : {})
+      },
+      opts.verify ? SUB_VERIFY_TIMEOUT_MS : SUB_READ_TIMEOUT_MS
+    );
+    const verification = r.verification ? { verification: r.verification } : {};
     const c = r.found ? r.channel : undefined;
     if (!c || !isKnownSubState(c.sub_state)) {
-      return unknownSubState();
+      return { ...unknownSubState(), ...verification };
     }
     return {
       state: c.sub_state,
       error: c.sub_error || '',
-      checkedAt: c.sub_checked_at || null
+      checkedAt: c.sub_checked_at || null,
+      ...verification
     };
   } catch {
     return unknownSubState();

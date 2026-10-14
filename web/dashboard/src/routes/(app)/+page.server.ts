@@ -14,6 +14,7 @@ import {
   publishEventSub,
   publishEventSubReconnect,
   channelSubState,
+  type ChannelSubState,
   auditDashboardImpersonation,
   delegationList,
 } from '$lib/server/services';
@@ -34,6 +35,11 @@ function settled<T>(r: PromiseSettledResult<T>): T | undefined {
   return r.status === 'fulfilled' ? r.value : undefined;
 }
 
+async function verifiedIfUnknown(uid: string, stored: ChannelSubState | undefined) {
+  if (stored && stored.state !== 'unknown') return stored;
+  return channelSubState(uid, { verify: true, repair: true }).catch(() => stored);
+}
+
 async function connState(uid: string): Promise<ConnData> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
@@ -41,7 +47,7 @@ async function connState(uid: string): Promise<ConnData> {
     channelSubState(uid)
   ]);
   const account = settled(state);
-  const subHealth = settled(sub);
+  const subHealth = await verifiedIfUnknown(uid, settled(sub));
 
   const grantOk: boolean | 'unknown' = grant.status === 'fulfilled' ? grant.value === true : 'unknown';
   const active: boolean | 'unknown' =

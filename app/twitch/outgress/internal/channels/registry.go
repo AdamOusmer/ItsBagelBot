@@ -274,6 +274,23 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 	return nil
 }
 
+func (r *Registry) SetFlags(ctx context.Context, broadcasterID string, enabled, isMod *bool) error {
+	key := keyPrefix + broadcasterID
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+	hset := r.client.B().Hset().Key(key).FieldValue().FieldValue("updated_at", now)
+	if enabled != nil {
+		hset = hset.FieldValue("enabled", utils.BoolField(*enabled))
+	}
+	if isMod != nil {
+		hset = hset.FieldValue("is_mod", utils.BoolField(*isMod)).FieldValue("mod_checked_at", now)
+	}
+	return r.applyChannelUpdate(ctx, broadcasterID,
+		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
+		hset.Build(),
+		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
+	)
+}
+
 func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -302,6 +319,23 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
 	)
+}
+
+var setSubStateUnless = valkey.NewLuaScript(`
+local current=redis.call('HGET',KEYS[1],'sub_state')
+for i=5,#ARGV do if current==ARGV[i] then return 0 end end
+redis.call('HSET',KEYS[1],'sub_state',ARGV[1],'sub_error',ARGV[2],'sub_checked_at',ARGV[3],'updated_at',ARGV[3])
+redis.call('SADD',KEYS[2],ARGV[4])
+return 1`)
+
+func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID, state, errMsg string, protected ...string) (bool, error) {
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+	args := append([]string{state, errMsg, now, broadcasterID}, protected...)
+	applied, err := setSubStateUnless.Exec(ctx, r.client, []string{keyPrefix + broadcasterID, indexKey}, args).AsInt64()
+	if err != nil || applied == 0 {
+		return false, err
+	}
+	return true, r.afterChannelUpdate(ctx, broadcasterID)
 }
 
 func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
@@ -338,19 +372,27 @@ func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string,
 			return err
 		}
 	}
+	return r.afterChannelUpdate(ctx, broadcasterID)
+}
 
+func (r *Registry) afterChannelUpdate(ctx context.Context, broadcasterID string) error {
 	if err := r.retainHot(ctx, broadcasterID); err != nil {
 		return err
 	}
 	r.cache.Invalidate(broadcasterID)
 	r.publishInvalidation(broadcasterID)
-
 	return nil
 }
 
 const enrollLockPrefix = "outgress:enroll:lock:"
 
 const modCheckLockPrefix = "outgress:mod-check:lock:"
+
+const verifyThrottlePrefix = "outgress:verify:"
+
+func (r *Registry) ClaimVerify(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
+	return r.acquireLock(ctx, verifyThrottlePrefix+broadcasterID, "1", ttl)
+}
 
 const enrollCooldownPrefix = "outgress:enroll:cooldown:"
 

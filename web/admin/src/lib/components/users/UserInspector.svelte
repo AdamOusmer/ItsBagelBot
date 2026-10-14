@@ -197,6 +197,12 @@
       {#if subState?.error}
         <div class="wrap"><Text size="xs" mono tone="danger">{subState.error}</Text></div>
       {/if}
+      {#if subState?.verification?.missing?.length}
+        <div class="wrap"><Text size="xs" mono tone="danger">{subState.verification.missing.join(', ')}</Text></div>
+      {/if}
+      {#if subState?.verification?.error}
+        <div class="wrap"><Text size="xs" mono tone="danger">{subState.verification.error}</Text></div>
+      {/if}
       <Cluster gap={2}>
         {#each actionsFor('service', user, can) as def (def.id)}
           <Button

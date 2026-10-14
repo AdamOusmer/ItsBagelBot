@@ -143,6 +143,7 @@ func main() {
 		RPCWiring: bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log.Named("rpc")},
 		Prefix:    cfg.RPCPrefix,
 		Runtime:   channelruntime.NewClient(projection.NewStore(pkg_valkey.Primary(valkeyClient)), nc, ""),
+		Verify:    system.VerifyChannel,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeManage(rpcConfig, registry, tw),
 		"failed to subscribe management rpc")
