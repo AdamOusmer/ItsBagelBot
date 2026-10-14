@@ -77,13 +77,13 @@ const (
 	casRetries = 5
 )
 
-const casScript = `
+var casScript = valkey.NewLuaScript(`
 local cur = redis.call('GET', KEYS[1])
 if (cur == false and ARGV[1] == '') or (cur ~= false and cur == ARGV[1]) then
 	redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
 	return 1
 end
-return 0`
+return 0`)
 
 type ValkeySongQueueStore struct {
 	client valkey.Client
@@ -129,14 +129,9 @@ func (s *ValkeySongQueueStore) readDoc(ctx context.Context, key docKey) (rawDoc,
 }
 
 func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc rawDoc) (bool, error) {
-	n, err := s.client.Do(ctx, s.client.B().Eval().
-		Script(casScript).
-		Numkeys(1).
-		Key(string(st.key)).
-		Arg(string(st.raw)).
-		Arg(string(newDoc)).
-		Arg(strconv.FormatInt(int64(s.ttl.Seconds()), 10)).
-		Build()).AsInt64()
+	n, err := casScript.Exec(ctx, s.client, []string{string(st.key)}, []string{
+		string(st.raw), string(newDoc), strconv.FormatInt(int64(s.ttl.Seconds()), 10),
+	}).AsInt64()
 	if err != nil {
 		return false, err
 	}

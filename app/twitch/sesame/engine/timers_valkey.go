@@ -85,6 +85,7 @@ type ValkeyTimerStore struct {
 	outgressStandard string
 
 	keyspaceDB int
+	expiry     *ExpiryHub
 	log        *zap.Logger
 
 	flagsCache *cache.Keyed[uint64, chatFlags]
@@ -110,6 +111,7 @@ type TimersConfig struct {
 	OutgressPremiumSubject   string
 	OutgressStandardSubject  string
 	KeyspaceDB               int
+	Expiry                   *ExpiryHub
 	NC                       *nats.Conn
 	ModulesInvalidateSubject string
 	Log                      *zap.Logger
@@ -131,6 +133,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		outgressPremium:  cfg.OutgressPremiumSubject,
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
+		expiry:           cfg.Expiry,
 		log:              log,
 		flagsCache:       cache.NewKeyed[uint64, chatFlags](gatedCacheCapacity, gatedCacheTTL, gatedCacheKeyFn),
 		rearmThrottle:    cache.NewKeyed[uint64, bool](gatedCacheCapacity, chatRearmInterval, gatedCacheKeyFn),
@@ -267,7 +270,7 @@ func (s *ValkeyTimerStore) liveBroadcasters(ctx context.Context) []uint64 {
 	var ids []uint64
 	cursor := uint64(0)
 	for {
-		entry, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(200).Build()).AsScanEntry()
+		entry, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(liveScanCount).Type("string").Build()).AsScanEntry()
 		if err != nil {
 			s.log.Warn("timers: reconcile scan failed", zap.Error(err))
 			return ids
@@ -328,7 +331,7 @@ func (s *ValkeyTimerStore) armSchedule(ctx context.Context, ref timerRef, ex tim
 		return nil
 	}
 	generation := runtimeFence(state)
-	return s.client.Do(ctx, s.client.B().Eval().Script(timerAdmissionArm).Numkeys(2).Key(ref.scheduleKey(), ref.admissionKey()).Arg(generation, strconv.FormatInt(int64(ex.Seconds()), 10)).Build()).Error()
+	return timerAdmissionArm.Exec(ctx, s.client, []string{ref.scheduleKey(), ref.admissionKey()}, []string{generation, strconv.FormatInt(int64(ex.Seconds()), 10)}).Error()
 }
 
 func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) {
@@ -411,23 +414,7 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 }
 
 func (s *ValkeyTimerStore) StartExpiryWatcher(ctx context.Context) {
-	channel := "__keyevent@" + strconv.Itoa(s.keyspaceDB) + "__:expired"
-	s.log.Info("timers: expiry watcher starting", zap.String("channel", channel))
-
-	for ctx.Err() == nil {
-		err := s.client.Receive(ctx, s.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
-			s.onExpired(ctx, msg.Message)
-		})
-		if ctx.Err() != nil {
-			return
-		}
-		s.log.Warn("timers: expiry watcher dropped, reconnecting", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-		}
-	}
+	expiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, timerKeyPrefix)
 }
 
 func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
@@ -744,8 +731,8 @@ func (r timerRef) admissionKey() string {
 	return cache.PairKey(timerAuxPrefix+"admission:", r.broadcasterID, r.id)
 }
 
-const timerAdmissionArm = `
+var timerAdmissionArm = valkey.NewLuaScript(`
 local previous=redis.call('GET',KEYS[2])
 if previous~=ARGV[1] then redis.call('DEL',KEYS[1]) end
 redis.call('SET',KEYS[2],ARGV[1],'EX',172800)
-return redis.call('SET',KEYS[1],'1','NX','EX',ARGV[2])`
+return redis.call('SET',KEYS[1],'1','NX','EX',ARGV[2])`)

@@ -94,6 +94,7 @@ type RaffleStore interface {
 
 type RaffleConfig struct {
 	AnnouncementConfig
+	Expiry *ExpiryHub
 }
 
 type ValkeyRaffleStore struct {
@@ -338,23 +339,7 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 }
 
 func (s *ValkeyRaffleStore) StartExpiryWatcher(ctx context.Context) {
-	channel := "__keyevent@0__:expired"
-	s.log.Info("raffle: expiry watcher starting", zap.String("channel", channel))
-
-	for ctx.Err() == nil {
-		err := s.client.Receive(ctx, s.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
-			s.onExpired(ctx, msg.Message)
-		})
-		if ctx.Err() != nil {
-			return
-		}
-		s.log.Warn("raffle: expiry watcher dropped, reconnecting", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-		}
-	}
+	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, raffleDeadlinePrefix, raffleRemindPrefix)
 }
 
 func (s *ValkeyRaffleStore) onExpired(ctx context.Context, key string) {

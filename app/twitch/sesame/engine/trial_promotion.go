@@ -19,13 +19,13 @@ const (
 )
 
 // Claims a promoted trial for one promotion call; a claim older than ARGV[2] seconds is retried.
-const claimTrialCounters = `
+var claimTrialCounters = valkey.NewLuaScript(`
 if redis.call('HGET', KEYS[1], 'state') ~= 'promoted' then return 0 end
 local claimed = redis.call('HGET', KEYS[1], 'counters_promoted') or ''
 if claimed == 'done' then return 0 end
 if claimed ~= '' and tonumber(claimed) > tonumber(ARGV[1]) - tonumber(ARGV[2]) then return 0 end
 redis.call('HSET', KEYS[1], 'counters_promoted', ARGV[1])
-return 1`
+return 1`)
 
 type TrialPromoter interface {
 	PromoteTrial(ctx context.Context, broadcasterID uint64) error
@@ -70,8 +70,7 @@ func (t *TrialPromotion) Sweep(ctx context.Context) {
 func (t *TrialPromotion) promote(ctx context.Context, id string) error {
 	key := "trial:channel:" + id
 	now := strconv.FormatInt(time.Now().Unix(), 10)
-	claimed, err := t.store.Do(ctx, t.store.B().Eval().Script(claimTrialCounters).Numkeys(1).Key(key).
-		Arg(now).Arg(strconv.Itoa(int(trialClaimTimeout.Seconds()))).Build()).AsInt64()
+	claimed, err := claimTrialCounters.Exec(ctx, t.store, []string{key}, []string{now, strconv.Itoa(int(trialClaimTimeout.Seconds()))}).AsInt64()
 	if err != nil || claimed != 1 {
 		return err
 	}

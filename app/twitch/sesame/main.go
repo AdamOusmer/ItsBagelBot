@@ -58,7 +58,7 @@ func main() {
 
 	activity.SetSink(activity.NewStore(valkeyClient))
 
-	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log}
+	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log, expiry: engine.NewExpiryHub(valkeyClient, 0, log)}
 
 	proj := newProjection(w)
 	defer proj.Close()

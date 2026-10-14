@@ -236,3 +236,46 @@ func TestWatchViewerSnapshotRequiresCompleteFirstPage(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchTickCursorSeenStaysBoundedAcrossWindows(t *testing.T) {
+	f := watchFixture(t, 77107)
+	ctx := context.Background()
+	const pagesPerWindow = 3
+	calls := 0
+	f.clock.request = func(_ context.Context, _ string, body []byte) (*nats.Msg, error) {
+		var req manage.ChattersRequest
+		require.NoError(t, codec.Unmarshal(body, &req))
+		reply := correlatedWatchReply(req)
+		reply.CheckedAtUnixMilli = f.now.UnixMilli()
+		reply.Live = true
+		reply.Chatters = []manage.Chatter{{ID: "8"}}
+		calls++
+		if calls%pagesPerWindow == 0 {
+			reply.Complete = true
+		} else {
+			reply.NextCursor = "cursor-" + strconv.Itoa(calls)
+		}
+		encoded, err := codec.Marshal(reply)
+		return &nats.Msg{Data: encoded}, err
+	}
+	for window := 0; window < 4; window++ {
+		f.due(t)
+		for page := 0; page < pagesPerWindow; page++ {
+			f.now = f.now.Add(time.Second)
+			f.clock.fire(ctx, f.id)
+			require.LessOrEqual(t, cursorSeenCount(f.fields(t)), pagesPerWindow-1)
+		}
+		require.Zero(t, cursorSeenCount(f.fields(t)))
+	}
+	require.Equal(t, 4*pagesPerWindow, calls)
+}
+
+func cursorSeenCount(fields map[string]string) int {
+	n := 0
+	for name := range fields {
+		if strings.HasPrefix(name, "cursor_seen:") {
+			n++
+		}
+	}
+	return n
+}

@@ -30,10 +30,11 @@ type infra struct {
 }
 
 type wireCtx struct {
-	ctx context.Context
-	in  infra
-	cfg *config.Config
-	log *zap.Logger
+	ctx    context.Context
+	in     infra
+	cfg    *config.Config
+	log    *zap.Logger
+	expiry *engine.ExpiryHub
 }
 
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
@@ -160,6 +161,7 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 		OutgressSystemSubject: w.cfg.OutgressSystemSubject,
 		CacheInvalidatePrefix: w.cfg.CacheInvalidationPrefix,
 		KeyspaceDB:            0,
+		Expiry:                w.expiry,
 		Log:                   w.log,
 	})
 	live.StartInvalidationListener()
@@ -177,6 +179,7 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
 		KeyspaceDB:               0,
+		Expiry:                   w.expiry,
 		NC:                       w.in.nc,
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		Log:                      w.log,
@@ -205,11 +208,11 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 }
 
 func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
-	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj)}, w.log))
+	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry}, w.log))
 }
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
-	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: engine.NewLoyaltyWallet(loyalty)}
+	cfg := engine.DuelConfig{AnnouncementConfig: announcementConfig(w, proj), Wallet: engine.NewLoyaltyWallet(loyalty), Expiry: w.expiry}
 	return watchExpiry(w, engine.NewValkeyDuelStore(w.in.vc, cfg, w.log))
 }
 
@@ -232,6 +235,7 @@ func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		BotUserID:                w.cfg.BotUserID,
 		KeyspaceDB:               0,
+		Expiry:                   w.expiry,
 		Publisher:                w.in.pub,
 		OutgressSystemSubject:    w.cfg.OutgressSystemSubject,
 		ViewerSnapshots:          deps.chatters,
