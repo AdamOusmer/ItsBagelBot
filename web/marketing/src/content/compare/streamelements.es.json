@@ -44,8 +44,8 @@
     },
     {
       "feature": "Moderación y filtros de spam",
-      "us": "AutoMod es un módulo beta de Premium con comprobaciones y avisos configurables, eliminaciones, tiempos de espera o baneos. Un mínimo de seguridad sigue activo cuando el módulo está desactivado.",
-      "them": "Los filtros incluyen enlaces, mayúsculas, términos prohibidos, repeticiones, spam de un solo usuario y restricciones de idioma. Configura avisos, eliminación, tiempos de espera o baneos, con tiempos de espera progresivos para las infracciones repetidas.",
+      "us": "AutoMod es un módulo beta de Premium con comprobaciones y avisos configurables, eliminaciones, exclusiones temporales o baneos. Un mínimo de seguridad sigue activo cuando el módulo está desactivado.",
+      "them": "Los filtros incluyen enlaces, mayúsculas, términos prohibidos, repeticiones, spam de un solo usuario y restricciones de idioma. Configura avisos, eliminación de mensajes, exclusiones temporales o baneos, con exclusiones cada vez más largas para las infracciones repetidas.",
       "source": "https://docs.streamelements.com/chatbot/filters"
     },
     {
@@ -98,7 +98,7 @@
     },
     {
       "feature": "Precio",
-      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade atención prioritaria, soporte y acceso beta, actualmente AutoMod y Discord. Spotify Premium se requiere por separado.",
+      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade procesamiento prioritario, soporte y acceso beta, actualmente AutoMod y Discord. Spotify Premium se requiere por separado.",
       "them": "El sitio oficial anuncia su chatbot, alertas y overlays como gratuitos. Esto compara el acceso al bot; las propinas y los pagos de patrocinio son independientes del precio del chatbot.",
       "source": "https://streamelements.com/"
     }
@@ -128,7 +128,7 @@
     },
     {
       "q": "¿Spotify Premium es independiente de ItsBagelBot Premium?",
-      "a": "Sí. Las peticiones de canciones son gratis en ItsBagelBot. Spotify Premium se requiere para la cuenta de reproducción conectada y para la cuenta propietaria de tu aplicación de desarrollador de Spotify. ItsBagelBot Premium ofrece atención prioritaria y acceso beta; no sustituye el requisito de Spotify."
+      "a": "Sí. Las peticiones de canciones son gratis en ItsBagelBot. Spotify Premium se requiere para la cuenta de reproducción conectada y para la cuenta propietaria de tu aplicación de desarrollador de Spotify. ItsBagelBot Premium ofrece procesamiento prioritario y acceso beta; no sustituye el requisito de Spotify."
     },
     {
       "q": "¿Qué puedo traer de StreamElements?",

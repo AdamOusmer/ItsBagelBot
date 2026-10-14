@@ -19,7 +19,7 @@
     "them": [
       "Du willst Overlays, visuelle Alerts, Trinkgelder und einen Chatbot in einer Plattform. Referenz: https://support.streamelements.com/hc/en-us/articles/10474662182162-Quick-Start-Guide.",
       "Du willst YouTube-Anfragen mit Freigabe in der Warteschlange oder Anfragen gegen Trinkgeld. Referenz: https://docs.streamelements.com/chatbot/modules/songrequest.",
-      "Du willst Verlosungen mit Ticketkosten, Teilnahmelimits und Glück für Abonnenten. Referenz: https://docs.streamelements.com/chatbot/modules/giveaways.",
+      "Du willst Verlosungen mit Ticketkosten, Teilnahmelimits und höheren Gewinnchancen für Abonnenten. Referenz: https://docs.streamelements.com/chatbot/modules/giveaways.",
       "Du willst Timer, die Nachrichten rotieren lassen und Bedingungen zu Kategorie oder Titel nutzen. Referenz: https://docs.streamelements.com/chatbot/timers."
     ]
   },
@@ -74,14 +74,14 @@
     },
     {
       "feature": "Treuewährung",
-      "us": "Zuschauer verdienen eine einstellbare Währung durch Zuschauzeit, Abonnements und Cheers. Sie betreibt Gamble und Duelle und ist von den Twitch-Kanalpunkten getrennt.",
+      "us": "Zuschauer verdienen eine einstellbare Währung durch Zuschauen, Abonnements und Cheers. Sie wird für Gamble und Duelle verwendet und ist von den Twitch-Kanalpunkten getrennt.",
       "them": "!points zeigt den Kontostand und Rang in deinem eingestellten Treuesystem. Auch wenn diese Währung ChannelPoints heißt, bezieht sich der Befehl auf StreamElements-Treuepunkte und nicht auf das native Belohnungsguthaben von Twitch.",
       "source": "https://docs.streamelements.com/chatbot/commands/default/points"
     },
     {
       "feature": "Verlosungen",
       "us": "Zeitlich begrenzte Verlosungen nehmen !join-Teilnahmen an, ziehen automatisch und geben jeder teilnehmenden Person einen Eintrag. Gewinner bestätigen mit !claim.",
-      "them": "Verlosungen bieten Lostickets gegen Treuepunkte, kostenlose Teilnahmeoptionen, Limits pro Zuschauer, Glück für Abonnenten und Rückerstattungen. StreamElements hat mehr Ticket- und Berechtigungsoptionen für dieses Format.",
+      "them": "Verlosungen bieten Lostickets gegen Treuepunkte, kostenlose Teilnahmeoptionen, Limits pro Zuschauer, höhere Gewinnchancen für Abonnenten und Rückerstattungen. StreamElements hat mehr Ticket- und Berechtigungsoptionen für dieses Format.",
       "source": "https://docs.streamelements.com/chatbot/modules/giveaways"
     },
     {

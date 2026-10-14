@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "ItsBagelBot vs Nightbot | Eine Alternative für Twitch-Bots",
+    "title": "ItsBagelBot vs Nightbot | Twitch-Bots im Vergleich",
     "description": "Vergleiche Befehle, Moderation, Musik, Spielstatistiken und Preis. Erfahre, wann Nightbot passt und wie du Befehle und Timer in ItsBagelBot importierst."
   },
   "hero": {
@@ -68,7 +68,7 @@
     },
     {
       "feature": "Verlosungen",
-      "us": "Zeitlich begrenzte Verlosungen nehmen !join-Teilnahmen an und ziehen automatisch. Jede teilnehmende Person zählt einmal, und Gewinner bestätigen mit !claim.",
+      "us": "Bei zeitlich begrenzten Verlosungen melden sich Zuschauer mit !join an. Die Gewinner werden automatisch gezogen. Jede Person nimmt einmal teil, und Gewinner bestätigen mit !claim.",
       "them": "Wähle Verlosungen unter aktiven Nutzern, nach Stichwort oder mit Zufallszahl, mit optionalem Extra-Glück für Abonnenten und Stammzuschauer. Nightbot bietet mehr Teilnahmeformate als die zeitlich begrenzte Verlosung von ItsBagelBot.",
       "source": "https://docs.nightbot.tv/control-panel/giveaways"
     },

@@ -44,7 +44,7 @@
     },
     {
       "feature": "Moderación y filtros de spam",
-      "us": "AutoMod es un módulo beta de Premium con comprobaciones y avisos configurables, eliminación de mensajes, tiempos de espera o baneos. Un mínimo de seguridad sigue activo cuando el módulo está desactivado.",
+      "us": "AutoMod es un módulo beta de Premium con comprobaciones y avisos configurables, eliminación de mensajes, exclusiones temporales o baneos. Un mínimo de seguridad sigue activo cuando el módulo está desactivado.",
       "them": "Los filtros cubren términos bloqueados, mayúsculas, emotes, enlaces con lista de permitidos, símbolos y repeticiones. Para filtrar spam gratis y de forma configurable, Nightbot encaja mejor.",
       "source": "https://docs.nightbot.tv/control-panel/spam-protection"
     },
@@ -86,7 +86,7 @@
     },
     {
       "feature": "Precio",
-      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade atención prioritaria, soporte y acceso anticipado a los módulos beta, actualmente AutoMod y Discord. Spotify Premium es un requisito aparte.",
+      "us": "Todas las funciones terminadas son gratis. Premium cuesta $7 CAD más impuestos al mes y añade procesamiento prioritario, soporte y acceso anticipado a los módulos beta, actualmente AutoMod y Discord. Spotify Premium es un requisito aparte.",
       "them": "Servicio gratuito, según describe el desarrollador de Nightbot en la respuesta oficial de soporte enlazada, de marzo de 2025. Es una declaración del desarrollador, no una tabla de precios publicada.",
       "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
     }
