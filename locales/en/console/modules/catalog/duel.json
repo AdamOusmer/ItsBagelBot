@@ -53,7 +53,7 @@
     "duel_stake": "Open a pot duel, or join one that is running.",
     "duel_user_stake": "Challenge someone to even stakes; winner takes both.",
     "duel_accept": "The challenged party matches the stake and settles it instantly.",
-    "duel_decline": "Refuse a challenge; the opener is refunded.",
+    "duel_decline": "Only the challenged viewer can decline; the opener is refunded.",
     "duel_cancel": "Tear the running duel down with full refunds (opener or mod)."
   }
 }

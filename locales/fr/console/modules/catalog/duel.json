@@ -53,7 +53,7 @@
     "duel_stake": "Ouvrir un pot, ou rejoindre un pot en cours.",
     "duel_user_stake": "Défier quelqu'un à mises égales ; le gagnant prend les deux.",
     "duel_accept": "La partie défiée égale la mise et règle instantanément.",
-    "duel_decline": "Refuser un défi ; l'ouvreur est remboursé.",
+    "duel_decline": "Seul le viewer défié peut refuser ; l'auteur du défi est remboursé.",
     "duel_cancel": "Annuler le duel en cours avec remboursement intégral (ouvreur ou modo)."
   }
 }

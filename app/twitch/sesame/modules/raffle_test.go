@@ -215,7 +215,7 @@ func TestRaffleOpenArgs(t *testing.T) {
 		args string
 		want engine.RaffleOpenSpec
 	}{
-		{"", engine.RaffleOpenSpec{OpenedBy: "mod"}},
+		{"", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute}},
 		{"10", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute}},
 		{"10 2", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2}},
 		{"10 2 3", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: 3 * time.Minute}},
@@ -226,6 +226,19 @@ func TestRaffleOpenArgs(t *testing.T) {
 		runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), "!raffle open "+tc.args)
 		assert.Equal(t, tc.want, r.lastSpec, "open %q", tc.args)
 		assert.True(t, r.open)
+	}
+}
+
+func TestRaffleOpenDefaultDuration(t *testing.T) {
+	for _, command := range []string{"!raffle open", "!raffle open 0", "!raffle open -5"} {
+		t.Run(command, func(t *testing.T) {
+			r := &fakeRaffle{}
+			out := runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), command)
+			assert.True(t, r.open)
+			assert.Equal(t, 10*time.Minute, r.lastSpec.Duration)
+			require.Len(t, out, 1)
+			assert.Equal(t, "Raffle is LIVE! Type !join to enter. Drawing in 10 min!", out[0].Text)
+		})
 	}
 }
 
