@@ -67,11 +67,27 @@ func (w *Worker) processEventSub(ctx context.Context, payload *outgress.Message)
 		return nil
 	}
 
+	if err := w.stampUnfenced(ctx, payload); err != nil {
+		return err
+	}
+
 	e := enrollment{broadcasterID: payload.BroadcasterID, conduitID: conduitID, incarnation: payload.AccountCreatedAt, generation: payload.AdmissionGeneration}
 	if !w.enrollmentIdentityMatches(ctx, e) {
+		w.log.Warn("dropping eventsub job with stale or missing identity fence",
+			zap.String("broadcaster_id", e.broadcasterID),
+			zap.Int64("account_created_at", e.incarnation),
+			zap.Int64("admission_generation", e.generation),
+			zap.String("mode", effectiveMode(job)))
 		return nil
 	}
 	return w.dispatchEventSub(ctx, e, job)
+}
+
+func (w *Worker) stampUnfenced(ctx context.Context, payload *outgress.Message) error {
+	if payload.AccountCreatedAt != 0 || payload.AdmissionGeneration != 0 {
+		return nil
+	}
+	return w.stampCurrent(ctx, payload)
 }
 
 func (w *Worker) dispatchEventSub(ctx context.Context, e enrollment, job outgress.EventSubJob) error {
