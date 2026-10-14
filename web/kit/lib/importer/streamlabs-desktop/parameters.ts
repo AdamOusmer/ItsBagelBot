@@ -13,6 +13,7 @@ export const SLCB_CODE = {
   manifestSourceNote: 'manifest_source_note',
   permissionAdjusted: 'command_permission_adjusted',
   scriptDependent: 'command_script_dependent',
+  commandDisabledImported: 'command_disabled_imported',
   quoteDateUnparsed: 'quote_date_unparsed',
   countRemapped: 'command_count_remapped',
   positionalLowerLost: 'command_positional_lower_lost',

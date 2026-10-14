@@ -80,14 +80,9 @@ export function extractCommands(ctx: SectionContext): NonNullable<ImportManifest
   const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['commands']>[number][] = [];
   const allWarns: ImportDiagnostic[][] = [];
-  let disabled = 0;
 
   for (const r of readTable(ctx, COMMAND_TABLE_CANDIDATES)) {
     if (isJunkCommandRow(r)) continue;
-    if (isDisabledCommandRow(r)) {
-      disabled++;
-      continue;
-    }
     const { cmd, warns } = buildCommandRow(r, ctx);
     entries.push(cmd);
     allWarns.push(warns);
@@ -95,11 +90,6 @@ export function extractCommands(ctx: SectionContext): NonNullable<ImportManifest
 
   orderStable(entries, allWarns, (c) => normalizeName(c.name), diags);
 
-  if (disabled > 0) {
-    diags.push(manifestWarn(
-      `${disabled} disabled command(s) were not imported; enable them in Streamlabs Chatbot first if wanted`
-    ));
-  }
   return entries;
 }
 
@@ -138,6 +128,7 @@ function buildCommandRow(
 
   applyRowPermission(r, cmd, warns);
   applyRowCooldown(r, cmd);
+  applyRowDisabled(r, cmd, warns);
 
   let external = res.external;
   if (r.valueOf(COMMAND_TYPE_COLUMNS).toLowerCase().includes('script')) external = true;
@@ -156,6 +147,20 @@ function buildCommandRow(
     ));
   }
   return { cmd, warns };
+}
+
+function applyRowDisabled(
+  r: Row,
+  cmd: NonNullable<ImportManifest['commands']>[number],
+  warns: ImportDiagnostic[]
+): void {
+  if (!isDisabledCommandRow(r)) return;
+  cmd.disabled = true;
+  warns.push(warnDiag(
+    -1,
+    SLCB_CODE.commandDisabledImported,
+    `command ${JSON.stringify(normalizeName(cmd.name))} is disabled upstream; imported turned off`
+  ));
 }
 
 function applyRowPermission(

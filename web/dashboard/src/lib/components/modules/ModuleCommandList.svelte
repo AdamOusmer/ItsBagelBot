@@ -4,7 +4,7 @@
 	import '@bagel/ui/styles/elements/layout.css';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { getI18n, type ModuleCommandInfo } from '@bagel/kit';
+  import { getI18n, type ModuleCommandInfo, type Perm } from '@bagel/kit';
   import ModuleCommandRow from './ModuleCommandRow.svelte';
 
   const { t } = getI18n();
@@ -13,12 +13,18 @@
     commands,
     moduleId,
     headingId = 'module-cmds-h',
-    sectionId = undefined as string | undefined
+    sectionId = undefined as string | undefined,
+    expanded = null as string | null,
+    roleOf = undefined,
+    onExpand = undefined
   }: {
     commands: readonly ModuleCommandInfo[];
     moduleId: string;
     headingId?: string;
     sectionId?: string;
+    expanded?: string | null;
+    roleOf?: (command: ModuleCommandInfo) => Perm | undefined;
+    onExpand?: (command: ModuleCommandInfo) => void;
   } = $props();
 </script>
 
@@ -29,7 +35,16 @@
   </div>
   <ul class="bb-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
-      <li><ModuleCommandRow {moduleId} {command} index={i + 1} /></li>
+      <li>
+        <ModuleCommandRow
+          {moduleId}
+          {command}
+          index={i + 1}
+          role={roleOf?.(command)}
+          expanded={expanded === command.trigger}
+          onExpand={onExpand && command.preview ? () => onExpand(command) : undefined}
+        />
+      </li>
     {/each}
   </ul>
 {/if}

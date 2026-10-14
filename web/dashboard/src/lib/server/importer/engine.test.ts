@@ -30,7 +30,7 @@ mock.module('../commands-store', () => ({
     if (modulesDown) throw new Error('down');
     return [];
   },
-  upsertCommand: async (_uid: string, c: { name: string }) => {
+  upsertCommand: async (_uid: string, c: { name: string; isActive: boolean }) => {
     const err = commandFail(c.name);
     if (err) throw err;
     upserted.push(c);
@@ -108,6 +108,20 @@ test('each cooldown lands in its own field, clamped to one day', async () => {
     ['both', 5, 60],
     ['viewer', 0, 86400],
     ['none', 0, 0]
+  ]);
+});
+
+test('a disabled manifest command is written turned off, the rest stay on', async () => {
+  const mixed = {
+    commands: [
+      { name: 'on', responses: ['x'] },
+      { name: 'off', responses: ['y'], disabled: true }
+    ]
+  };
+  await commitImport(session, { source: 'streamelements', manifest: mixed, overwrite: true });
+  expect(upserted.map((c) => [c.name, c.isActive])).toEqual([
+    ['on', true],
+    ['off', false]
   ]);
 });
 

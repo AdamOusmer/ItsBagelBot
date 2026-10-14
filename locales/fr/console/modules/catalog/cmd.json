@@ -1,7 +1,7 @@
 {
   "label": "Éditeur de commandes",
   "tagline": "Gérez les commandes personnalisées depuis le chat, et choisissez qui peut le faire.",
-  "description": "Tout le monde peut taper !cmd pour obtenir le lien vers votre liste de commandes publique. Votre équipe peut aussi gérer les commandes personnalisées depuis le chat : !cmd add, !cmd edit et !cmd remove modifient la liste, !cmd disable désactive une commande en gardant sa réponse (pratique pour un speedrun ou un stream concentré), !cmd enable la réactive, et !cmd perm définit qui peut utiliser une commande. Choisissez ci-dessous qui peut lancer chacune. Toutes commencent au niveau modérateurs. Désactivez le module pour arrêter complètement !cmd.",
+  "description": "Tout le monde peut taper !cmd pour obtenir le lien vers votre liste de commandes publique. Votre équipe peut aussi gérer les commandes personnalisées depuis le chat : !cmd add, !cmd edit et !cmd remove modifient la liste, !cmd disable désactive une commande en gardant sa réponse (pratique pour un speedrun ou un stream concentré), !cmd enable la réactive, et !cmd perm définit qui peut utiliser une commande. Ouvrez une commande ci-dessous pour la répéter et choisir qui peut la lancer. Toutes commencent au niveau modérateurs, et Tout le monde n'est jamais proposé. Désactivez le module pour arrêter complètement !cmd.",
   "commands": {
     "cmd": "Lien vers votre liste de commandes publique.",
     "cmd_add_name_response": "Créer une commande personnalisée.",
@@ -11,78 +11,13 @@
     "cmd_enable_name": "Réactiver une commande désactivée.",
     "cmd_perm_name_level": "Définir qui peut utiliser une commande : everyone, sub, vip, mod, lead_mod ou broadcaster."
   },
-  "settings": {
-    "addPerm": {
-      "label": "Qui peut ajouter",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    },
-    "editPerm": {
-      "label": "Qui peut modifier",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    },
-    "removePerm": {
-      "label": "Qui peut supprimer",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    },
-    "disablePerm": {
-      "label": "Qui peut désactiver",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    },
-    "enablePerm": {
-      "label": "Qui peut réactiver",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    },
-    "permPerm": {
-      "label": "Qui peut changer l'accès",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Tout le monde",
-        "sub": "Abonnés",
-        "vip": "VIP",
-        "mod": "Modérateurs",
-        "lead_mod": "Modérateurs principaux",
-        "broadcaster": "Diffuseur"
-      }
-    }
+  "previews": {
+    "cmd": "@{user} parcourez les commandes de {channel} ici : {url}",
+    "cmd_add_name_response": "@{user} la commande {command} a été ajoutée",
+    "cmd_edit_name_response": "@{user} la commande {command} a été modifiée",
+    "cmd_remove_name": "@{user} la commande {command} a été supprimée",
+    "cmd_disable_name": "@{user} la commande {command} est maintenant désactivée",
+    "cmd_enable_name": "@{user} la commande {command} est maintenant activée",
+    "cmd_perm_name_level": "@{user} l'accès à {command} est maintenant réglé sur {role}"
   }
 }

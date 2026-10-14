@@ -28,12 +28,13 @@
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
+  import ModuleCommandEditor, { commandLevel } from '$lib/components/modules/ModuleCommandEditor.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
   import TimezonePicker from '$lib/components/modules/TimezonePicker.svelte';
 
@@ -57,7 +58,8 @@
   const isTriggers = $derived(def.id === MOD.triggers);
   // svelte-ignore state_referenced_locally
   let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
-  const hasInspector = $derived(isTriggers || hasReplies);
+  const rehearsable = $derived((def.commands ?? []).some((c) => !!c.preview));
+  const hasInspector = $derived(isTriggers || hasReplies || rehearsable);
   const locked = $derived(data.locked === true);
   const hasDeck = $derived(hasInspector || (def.commands?.length ?? 0) > 0);
 
@@ -163,7 +165,10 @@
   }
 
   async function saveSetting(field: ModuleField, value: string) {
-    const key = field.key;
+    await saveConfigValue(field.key, value);
+  }
+
+  async function saveConfigValue(key: string, value: string) {
     const before = config[key] ?? '';
     if (value.trim() === before.trim()) return;
     config = { ...config, [key]: value.trim() };
@@ -214,6 +219,23 @@
   let editMessage = $state('');
   let busy = $state(false);
   const selectedReply = $derived(expanded ? def.replies.find((r) => r.key === expanded) : undefined);
+  const expandedCommand = $derived(expanded?.startsWith('cmd:') ? expanded.slice(4) : null);
+  const selectedCommand = $derived(expandedCommand ? def.commands?.find((c) => c.trigger === expandedCommand) : undefined);
+
+  function commandRole(command: ModuleCommandInfo): Perm | undefined {
+    return command.permKey ? commandLevel(config[command.permKey], command.perm) : undefined;
+  }
+
+  function openCommand(command: ModuleCommandInfo) {
+    if (locked) return;
+    if (expandedCommand === command.trigger) {
+      closeInspector();
+      return;
+    }
+    discard.guard(() => {
+      expanded = `cmd:${command.trigger}`;
+    });
+  }
 
   const discard = createDiscardGuard(() => inspectorDirty);
   function doClose() {
@@ -480,7 +502,7 @@
 
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
-    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : t('modules.inspector')
+    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : (selectedCommand?.trigger ?? t('modules.inspector'))
   );
 
   let replyQuery = $state('');
@@ -741,7 +763,14 @@
           {/if}
         {/if}
 
-        <ModuleCommandList sectionId="mod-commands" moduleId={def.id} commands={def.commands ?? []} />
+        <ModuleCommandList
+          sectionId="mod-commands"
+          moduleId={def.id}
+          commands={def.commands ?? []}
+          expanded={expandedCommand}
+          roleOf={commandRole}
+          onExpand={rehearsable ? openCommand : undefined}
+        />
       </DeckList>
 
       {#if hasInspector && editing}
@@ -772,6 +801,17 @@
               {#key selectedReply.key}
                 <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
               {/key}
+            </Scroller>
+          {:else if selectedCommand}
+            <Scroller fill padding="16px" smooth>
+              <ModuleCommandEditor
+                moduleId={def.id}
+                command={selectedCommand}
+                role={commandRole(selectedCommand)}
+                status={modStatus[`setting:${selectedCommand.permKey}`] ?? 'idle'}
+                disabled={locked}
+                onRole={(role) => saveConfigValue(selectedCommand.permKey ?? '', role)}
+              />
             </Scroller>
           {/if}
         </InspectorSurface>

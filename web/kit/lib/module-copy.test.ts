@@ -9,6 +9,7 @@ import {
   catalogKey,
   commandSummarySlug,
   tCatalog,
+  tModuleCommandPreview,
   tModuleCommandSummary,
   tModuleDescription,
   tModuleFieldOption,
@@ -84,6 +85,9 @@ function expectCommandOverlay(def: ModuleDef, command: ModuleCommandInfo) {
     command.summary,
     tModuleCommandSummary(tEn, def.id, command)
   );
+  if (command.preview) {
+    expectOverlay(catalogKey(def.id, 'previews', commandSummarySlug(command.trigger)), command.preview, tModuleCommandPreview(tEn, def.id, command));
+  }
 }
 
 function expectModuleOverlay(def: ModuleDef) {

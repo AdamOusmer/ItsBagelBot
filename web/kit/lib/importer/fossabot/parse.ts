@@ -20,7 +20,7 @@ import { translateVariables, TranslationWorkBudget } from './variables';
 
 export const FB_CODE = {
   commandBuiltinSkipped: 'command_builtin_skipped',
-  commandDisabled: 'command_disabled',
+  commandDisabledImported: 'command_disabled_imported',
   commandNameInvalid: 'command_name_invalid',
   commandActionPrefixDropped: 'command_action_prefix_dropped',
   commandsCapped: 'manifest_commands_capped'
@@ -157,13 +157,11 @@ function refused(row: Row, state: State): boolean {
     );
     return true;
   }
-  return disabledRefusal(row, state);
+  return false;
 }
 
-function disabledRefusal(row: Row, state: State): boolean {
-  if (row.src.enabledOnline || row.src.enabledOffline) return false;
-  state.skip(FB_CODE.commandDisabled, `command ${q(row.name)} is switched off upstream and was skipped`);
-  return true;
+function switchedOff(row: Row): boolean {
+  return !row.src.enabledOnline && !row.src.enabledOffline;
 }
 
 function decorate(cmd: ManifestCommand, row: Row, notes: Notes): ManifestCommand {
@@ -172,10 +170,16 @@ function decorate(cmd: ManifestCommand, row: Row, notes: Notes): ManifestCommand
   const cooldown = clampCooldown(row.src.cooldownSeconds);
   if (cooldown > 0) cmd.cooldown_seconds = cooldown;
   if (row.src.enabledOnline && !row.src.enabledOffline) cmd.online_only = true;
+  if (switchedOff(row)) markSwitchedOff(cmd, row, notes);
   if (notes.list().length > 0) cmd.warnings = notes.list();
   const sourceLines = canonicalizeResponse(row.src.response, notes.index).lines;
   if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   return cmd;
+}
+
+function markSwitchedOff(cmd: ManifestCommand, row: Row, notes: Notes): void {
+  cmd.disabled = true;
+  notes.add(FB_CODE.commandDisabledImported, `command ${q(row.name)} is switched off upstream; imported turned off`);
 }
 
 function commandAliases(row: Row, notes: Notes): string[] {

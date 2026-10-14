@@ -1,7 +1,7 @@
 {
   "label": "Command Editor",
   "tagline": "Manage custom commands from chat, and choose who can.",
-  "description": "Anyone can type !cmd for a link to your public command list. Your team can also manage custom commands from chat: !cmd add, !cmd edit and !cmd remove change the list, !cmd disable turns a command off and keeps its reply (handy for a speedrun or a focused stream), !cmd enable turns it back on, and !cmd perm sets who can use a command. Pick below who may run each one. All of them start at moderators. Switch the module off to stop !cmd entirely.",
+  "description": "Anyone can type !cmd for a link to your public command list. Your team can also manage custom commands from chat: !cmd add, !cmd edit and !cmd remove change the list, !cmd disable turns a command off and keeps its reply (handy for a speedrun or a focused stream), !cmd enable turns it back on, and !cmd perm sets who can use a command. Open a command below to rehearse it and pick who may run it. All of them start at moderators, and Everyone is never an option. Switch the module off to stop !cmd entirely.",
   "commands": {
     "cmd": "Link to your public command list.",
     "cmd_add_name_response": "Create a custom command.",
@@ -11,78 +11,13 @@
     "cmd_enable_name": "Turn a disabled command back on.",
     "cmd_perm_name_level": "Set who can use a command: everyone, sub, vip, mod, lead_mod or broadcaster."
   },
-  "settings": {
-    "addPerm": {
-      "label": "Who can add",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    },
-    "editPerm": {
-      "label": "Who can edit",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    },
-    "removePerm": {
-      "label": "Who can remove",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    },
-    "disablePerm": {
-      "label": "Who can disable",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    },
-    "enablePerm": {
-      "label": "Who can enable",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    },
-    "permPerm": {
-      "label": "Who can change access",
-      "placeholder": "mod",
-      "options": {
-        "everyone": "Everyone",
-        "sub": "Subscribers",
-        "vip": "VIPs",
-        "mod": "Moderators",
-        "lead_mod": "Lead moderators",
-        "broadcaster": "Broadcaster"
-      }
-    }
+  "previews": {
+    "cmd": "@{user} browse {channel}'s commands here: {url}",
+    "cmd_add_name_response": "@{user} the command {command} has been added",
+    "cmd_edit_name_response": "@{user} the command {command} has been modified",
+    "cmd_remove_name": "@{user} the command {command} has been removed",
+    "cmd_disable_name": "@{user} the command {command} is now disabled",
+    "cmd_enable_name": "@{user} the command {command} is now enabled",
+    "cmd_perm_name_level": "@{user} who can use {command} is now set to {role}"
   }
 }

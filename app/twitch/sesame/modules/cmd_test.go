@@ -176,8 +176,10 @@ func TestCmdSubcommandRoles(t *testing.T) {
 	}{
 		{name: "mutating subcommands default to moderators", badges: []string{"moderator"}, text: "!cmd disable hello", manages: true},
 		{name: "vips cannot manage by default", badges: []string{"vip"}, text: "!cmd disable hello"},
-		{name: "a lowered add level lets viewers add", config: `{"addPerm":"everyone"}`, text: "!cmd add fresh Hi", manages: true},
-		{name: "a lowered level only covers its own subcommand", config: `{"addPerm":"everyone"}`, text: "!cmd remove hello"},
+		{name: "everyone is never a management level", config: `{"addPerm":"everyone"}`, text: "!cmd add fresh Hi"},
+		{name: "everyone falls back to moderators", config: `{"addPerm":"everyone"}`, badges: []string{"moderator"}, text: "!cmd add fresh Hi", manages: true},
+		{name: "a lowered add level lets subscribers add", config: `{"addPerm":"sub"}`, badges: []string{"subscriber"}, text: "!cmd add fresh Hi", manages: true},
+		{name: "a lowered level only covers its own subcommand", config: `{"addPerm":"sub"}`, badges: []string{"subscriber"}, text: "!cmd remove hello"},
 		{name: "a raised disable level shuts out moderators", config: `{"disablePerm":"broadcaster"}`, badges: []string{"moderator"}, text: "!cmd disable hello"},
 		{name: "the broadcaster passes a raised level", config: `{"disablePerm":"broadcaster"}`, badges: []string{"broadcaster"}, text: "!cmd disable hello", manages: true},
 		{name: "delete follows the remove level", config: `{"removePerm":"vip"}`, badges: []string{"vip"}, text: "!cmd delete hello", manages: true},

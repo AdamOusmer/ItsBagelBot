@@ -299,7 +299,7 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
       name: normalizeName(cmd.name),
       aliases: (cmd.aliases ?? []).map(normalizeName),
       response: (cmd.responses ?? []).join('\n'),
-      isActive: true,
+      isActive: !cmd.disabled,
       streamOnlineOnly: !!cmd.online_only,
       perm: cmd.permission ?? 'everyone',
       cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),

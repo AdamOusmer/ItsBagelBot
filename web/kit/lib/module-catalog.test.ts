@@ -45,17 +45,15 @@ const POLICY_ROWS: PolicyRow[] = [
     }
   },
   {
-    name: 'the command editor is a default-on Chat module whose subcommand levels start at mod',
+    name: 'the command editor is a default-on Moderation module with rehearsable, role-gated subcommands',
     id: 'cmd',
     want: {
       href: undefined,
       toggleable: true,
       defaultEnabled: true,
-      category: 'Chat',
+      category: 'Moderation',
       delegates: ['modules', 'commands'],
-      settings: ['addPerm', 'editPerm', 'removePerm', 'disablePerm', 'enablePerm', 'permPerm'].map((key) =>
-        expect.objectContaining({ key, type: 'select', placeholder: 'mod' })
-      )
+      settings: undefined
     }
   },
   {

@@ -244,7 +244,13 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
     parsed = await parseStreamLabsDesktop(buildFixtureDB(unitSpec));
   });
 
-  test('commands count after disabled skip', () => expect(parsed.manifest.commands).toHaveLength(8));
+  test('a disabled command is imported turned off', () => {
+    expect(parsed.manifest.commands).toHaveLength(9);
+    const gone = parsed.manifest.commands!.find((c) => c.name === '!gone');
+    expect(gone?.disabled).toBe(true);
+    expect(parsed.manifest.commands!.filter((c) => c.disabled)).toHaveLength(1);
+    expect(parsed.diagnostics.some((d) => d.code === 'command_disabled_imported')).toBe(true);
+  });
 
   test('lurk/hug/cookie/viponly/caster/editor translations land', () => {
     const byName = new Map(parsed.manifest.commands!.map((c) => [c.name.replace(/^!/, '').toLowerCase(), c]));
@@ -292,7 +298,6 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
 
     const notes = parsed.diagnostics.filter((d) => d.code === 'manifest_source_note').map((d) => d.message);
     expect(notes.some((m) => m.includes(DEFAULT_TIMER_INTERVAL_SECONDS.toString()))).toBe(true);
-    expect(notes.some((m) => m.includes('disabled'))).toBe(true);
   });
 
   test('nothing in the fixture carries an error commit would skip', () => {

@@ -101,13 +101,14 @@ describe('commands', () => {
     expect(diagnostics[0]).toMatchObject({ item_index: -1, code: FB_CODE.commandBuiltinSkipped });
   });
 
-  test('a command disabled online and offline is skipped', () => {
+  test('a command disabled online and offline is imported turned off', () => {
     const { manifest, diagnostics } = parseFossabot(
       feed([command({ enabled_online: false, enabled_offline: false }), command({ name: 'other' })])
     );
-    expect(manifest.commands?.map((c) => c.name)).toEqual(['other']);
+    expect(manifest.commands?.map((c) => c.name)).toEqual(['hello', 'other']);
+    expect(manifest.commands?.map((c) => c.disabled)).toEqual([true, undefined]);
     expect(diagnostics).toEqual([
-      { severity: 'warn', item_index: -1, code: FB_CODE.commandDisabled, message: expect.any(String) }
+      { severity: 'warn', item_index: 0, code: FB_CODE.commandDisabledImported, message: expect.any(String) }
     ]);
   });
 

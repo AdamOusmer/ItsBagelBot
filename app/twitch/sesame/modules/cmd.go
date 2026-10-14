@@ -73,14 +73,22 @@ func cmdRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
+var cmdManageRoles = map[string]module.Role{
+	"sub":         module.RoleSubscriber,
+	"vip":         module.RoleVIP,
+	"mod":         module.RoleModerator,
+	"lead_mod":    module.RoleLeadModerator,
+	"broadcaster": module.RoleBroadcaster,
+}
+
 func cmdRole(c *module.Context, permKey string) module.Role {
 	var cfg map[string]any
 	_ = c.Decode(&cfg)
 	perm, _ := cfg[permKey].(string)
-	if validate.Perm(perm) != nil {
-		return module.RoleModerator
+	if role, ok := cmdManageRoles[perm]; ok {
+		return role
 	}
-	return module.ParsePerm(perm)
+	return module.RoleModerator
 }
 
 func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
