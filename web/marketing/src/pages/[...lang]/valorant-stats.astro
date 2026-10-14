@@ -5,16 +5,39 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
-import { valorantRows, valorantExampleLines, GAMES } from '../../lib/landing';
+import { valorantRows, valorantExampleLines, landingSchema, GAMES } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const table = {
+    eyebrow: t('valorantStats.tblEyebrow'),
+    title: t('valorantStats.tblTitle'),
+    columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+    widths: ['19%', '21%', '13%', '47%'],
+    monoColumns: [1],
+    rowLines: 3,
+    copyLabel: t('landing.copyCommand'),
+    rows: valorantRows(lang, t),
+    note: t('valorantStats.tblNote'),
+};
+const updated = { text: t('valorantStats.updated'), iso: '2026-10-13' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: t('valorantStats.metaTitle'),
+    crumb: t('valorantStats.eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: t('valorantStats.metaDesc'),
+    modified: updated.iso,
+    commands: table.rows,
+});
 ---
 
-<Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')} aiDoc="https://ai.itsbagelbot.com/features/valorant.md">
+<Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')} aiDoc="https://ai.itsbagelbot.com/features/valorant.md" extraSchema={schema}>
     <FeatureLanding
         eyebrow={t('valorantStats.eyebrow')}
         title={t('valorantStats.title')}
@@ -49,18 +72,8 @@ const link = (path: string, label: string) => ({ href: localizePath(path, lang),
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
         ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('valorantStats.ctaGuide') }}
         legal={t('valorantStats.legal')}
-        updated={{ text: t('valorantStats.updated'), iso: '2026-10-13' }}
-        table={{
-            eyebrow: t('valorantStats.tblEyebrow'),
-            title: t('valorantStats.tblTitle'),
-            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
-            widths: ['19%', '21%', '13%', '47%'],
-            monoColumns: [1],
-            rowLines: 3,
-            copyLabel: t('landing.copyCommand'),
-            rows: valorantRows(lang, t),
-            note: t('valorantStats.tblNote'),
-        }}
+        updated={updated}
+        table={table}
         demo={{
             eyebrow: t('landing.exampleEyebrow'),
             title: t('valorantStats.demoTitle'),

@@ -25,7 +25,32 @@ async function expectCommonLanding(page, secondaryHref) {
     await expect(page.locator('.flcta__btn').nth(1)).toHaveAttribute('href', secondaryHref);
 }
 
+const SCHEMA_PAGES = ['/valorant-stats/', '/fr/fortnite-stats/'];
+
+async function landingGraph(page) {
+    const raw = await page.locator('head script[type="application/ld+json"]').first().textContent();
+    return JSON.parse(raw)['@graph'];
+}
+
 test.describe('feature landing pages', () => {
+    for (const path of SCHEMA_PAGES) {
+        test(`${path} describes itself with WebPage, BreadcrumbList and a command ItemList`, async ({ page }) => {
+            await page.goto(path);
+            const graph = await landingGraph(page);
+            const ofType = (type) => graph.filter((node) => node['@type'] === type);
+            const [webPage] = ofType('WebPage');
+            const [list] = ofType('ItemList');
+            expect(ofType('WebPage')).toHaveLength(1);
+            expect(ofType('BreadcrumbList')).toHaveLength(1);
+            expect(ofType('ItemList')).toHaveLength(1);
+            expect(webPage.dateModified).toBe(await page.locator('.flupd time').getAttribute('datetime'));
+            expect(webPage.inLanguage).toBe(path.startsWith('/fr/') ? 'fr' : 'en');
+            expect(webPage.url).toBe(await page.locator('head link[rel="canonical"]').getAttribute('href'));
+            expect(webPage.about['@id']).toMatch(/\/#software$/);
+            expect(list.itemListElement).toHaveLength(await page.locator('.fltbl tbody tr').count());
+        });
+    }
+
     test('valorant-stats lists every catalog command with an example reply', async ({ page }) => {
         await page.goto('/valorant-stats/');
         const cells = (await commandCells(page)).join('\n');

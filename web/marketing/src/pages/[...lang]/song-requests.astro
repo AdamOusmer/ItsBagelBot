@@ -5,16 +5,39 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
-import { songRows, songExampleLines } from '../../lib/landing';
+import { songRows, songExampleLines, landingSchema } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const table = {
+    eyebrow: t('songRequests.tblEyebrow'),
+    title: t('songRequests.tblTitle'),
+    columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+    widths: ['15%', '21%', '17%', '47%'],
+    monoColumns: [1],
+    rowLines: 3,
+    copyLabel: t('landing.copyCommand'),
+    rows: songRows(lang, t),
+    note: t('songRequests.tblNote'),
+};
+const updated = { text: t('songRequests.updated'), iso: '2026-10-13' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: t('songRequests.metaTitle'),
+    crumb: t('songRequests.eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: t('songRequests.metaDesc'),
+    modified: updated.iso,
+    commands: table.rows,
+});
 ---
 
-<Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')} aiDoc="https://ai.itsbagelbot.com/spotify/setup.md">
+<Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')} aiDoc="https://ai.itsbagelbot.com/spotify/setup.md" extraSchema={schema}>
     <FeatureLanding
         eyebrow={t('songRequests.eyebrow')}
         title={t('songRequests.title')}
@@ -52,18 +75,8 @@ const link = (path: string, label: string) => ({ href: localizePath(path, lang),
         ctaTitle={t('songRequests.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
         ctaSecondary={{ href: localizePath('/guides/spotify-song-requests', lang), label: t('songRequests.ctaGuide') }}
-        updated={{ text: t('songRequests.updated'), iso: '2026-10-13' }}
-        table={{
-            eyebrow: t('songRequests.tblEyebrow'),
-            title: t('songRequests.tblTitle'),
-            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
-            widths: ['15%', '21%', '17%', '47%'],
-            monoColumns: [1],
-            rowLines: 3,
-            copyLabel: t('landing.copyCommand'),
-            rows: songRows(lang, t),
-            note: t('songRequests.tblNote'),
-        }}
+        updated={updated}
+        table={table}
         demo={{
             eyebrow: t('landing.exampleEyebrow'),
             title: t('songRequests.demoTitle'),

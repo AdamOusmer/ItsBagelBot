@@ -5,16 +5,38 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
-import { goveeRows, goveeExampleLines } from '../../lib/landing';
+import { goveeRows, goveeExampleLines, landingSchema } from '../../lib/landing';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const link = (path: string, label: string) => ({ href: localizePath(path, lang), label });
+const table = {
+    eyebrow: t('govee.tblEyebrow'),
+    title: t('govee.tblTitle'),
+    columns: [t('govee.colTyped'), t('govee.colKind'), t('landing.colReply')],
+    widths: ['22%', '24%', '54%'],
+    rowLines: 2,
+    copyLabel: t('landing.copyCommand'),
+    rows: goveeRows(lang, t),
+    note: t('govee.tblNote'),
+};
+const updated = { text: t('govee.updated'), iso: '2026-10-13' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: t('govee.metaTitle'),
+    crumb: t('govee.eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: t('govee.metaDesc'),
+    modified: updated.iso,
+    commands: table.rows,
+});
 ---
 
-<Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')} aiDoc="https://ai.itsbagelbot.com/govee/setup.md">
+<Layout title={t('govee.metaTitle')} description={t('govee.metaDesc')} aiDoc="https://ai.itsbagelbot.com/govee/setup.md" extraSchema={schema}>
     <FeatureLanding
         eyebrow={t('govee.eyebrow')}
         title={t('govee.title')}
@@ -48,17 +70,8 @@ const link = (path: string, label: string) => ({ href: localizePath(path, lang),
         ctaTitle={t('govee.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
         ctaSecondary={{ href: localizePath('/guides/govee-lights', lang), label: t('govee.ctaGuide') }}
-        updated={{ text: t('govee.updated'), iso: '2026-10-13' }}
-        table={{
-            eyebrow: t('govee.tblEyebrow'),
-            title: t('govee.tblTitle'),
-            columns: [t('govee.colTyped'), t('govee.colKind'), t('landing.colReply')],
-            widths: ['22%', '24%', '54%'],
-            rowLines: 2,
-            copyLabel: t('landing.copyCommand'),
-            rows: goveeRows(lang, t),
-            note: t('govee.tblNote'),
-        }}
+        updated={updated}
+        table={table}
         demo={{
             eyebrow: t('landing.exampleEyebrow'),
             title: t('govee.demoTitle'),

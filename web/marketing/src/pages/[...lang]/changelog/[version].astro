@@ -32,6 +32,7 @@ const localizedTitle = typeof title === 'string' ? title : (title[lang] ?? title
     title={`${entry.data.version} - ${t('changelog.metaTitle')}`}
     description={`${localizedTitle}. ${t('changelog.metaDesc')}`}
     ogType="article"
+    noindex
 >
     <PageHero
         eyebrow={t('changelog.eyebrow')}

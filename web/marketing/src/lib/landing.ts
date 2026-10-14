@@ -4,6 +4,7 @@
 import { moduleDef } from '@bagel/kit/catalog';
 import type { ModuleDef, ModuleReply } from '@bagel/kit/catalog/module-def';
 import { defaultLang, type Lang } from '../i18n/lang';
+import { localizePath } from '../i18n/ui';
 
 type Translate = (key: string) => string;
 
@@ -299,4 +300,56 @@ export function gameExampleLines(id: GameId, lang: Lang) {
             { who: 'bot' as const, text: catalogReplyText(lang, game.module, reply) },
         ];
     });
+}
+
+interface LandingSchemaInput {
+    site: URL;
+    url: URL;
+    lang: Lang;
+    name: string;
+    crumb: string;
+    homeLabel: string;
+    description: string;
+    modified: string;
+    commands?: { cells: string[] }[];
+}
+
+function commandList(pageUrl: string, commands: { cells: string[] }[]): Record<string, unknown> {
+    return {
+        '@type': 'ItemList',
+        '@id': `${pageUrl}#commands`,
+        numberOfItems: commands.length,
+        itemListElement: commands.map(({ cells }, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: cells[0],
+            description: cells[cells.length - 1],
+        })),
+    };
+}
+
+export function landingSchema(input: LandingSchemaInput): Record<string, unknown>[] {
+    const { site, url, lang, commands } = input;
+    const origin = site.origin;
+    const pageUrl = new URL(url.pathname, site).href;
+    const page = {
+        '@type': 'WebPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: input.name,
+        description: input.description,
+        inLanguage: lang,
+        dateModified: input.modified,
+        about: { '@id': `${origin}/#software` },
+        isPartOf: { '@id': `${origin}/#website` },
+    };
+    const breadcrumbs = {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumbs`,
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: input.homeLabel, item: new URL(localizePath('/', lang), site).href },
+            { '@type': 'ListItem', position: 2, name: input.crumb, item: pageUrl },
+        ],
+    };
+    return commands ? [page, breadcrumbs, commandList(pageUrl, commands)] : [page, breadcrumbs];
 }

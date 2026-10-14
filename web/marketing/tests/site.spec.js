@@ -255,6 +255,18 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog/');
     });
 
+    test('changelog version pages are noindex but reachable from the index', async ({ page }) => {
+        const newest = releasesNewestFirst()[0];
+        await page.goto('/changelog');
+        await expect(page.locator(`a.clog__ver[href="/changelog/${newest.version}/"]`)).toHaveCount(1);
+
+        await page.goto(`/changelog/${newest.version}/`);
+        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+
+        await page.goto('/changelog');
+        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', /^index/);
+    });
+
     test('production assets referenced by the document are emitted', async ({ page, request }) => {
         await page.goto('/');
 
