@@ -7,7 +7,6 @@
     "game": "Show or set the stream category.",
     "tags": "Show or set stream tags.",
     "commercial": "Run a mid-roll commercial (live only).",
-    "marker": "Drop a stream marker (live only).",
-    "cmd": "List commands, or add/edit/remove custom ones."
+    "marker": "Drop a stream marker (live only)."
   }
 }

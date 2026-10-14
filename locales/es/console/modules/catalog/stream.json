@@ -7,7 +7,6 @@
     "game": "Muestra o establece la categoría del directo.",
     "tags": "Muestra o establece las etiquetas del directo.",
     "commercial": "Reproduce un anuncio durante el directo (solo en directo).",
-    "marker": "Añade un marcador al directo (solo en directo).",
-    "cmd": "Lista comandos o añade/edita/elimina comandos personalizados."
+    "marker": "Añade un marcador al directo (solo en directo)."
   }
 }

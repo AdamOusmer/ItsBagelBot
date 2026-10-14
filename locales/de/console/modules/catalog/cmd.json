@@ -1,0 +1,88 @@
+{
+  "label": "Befehlseditor",
+  "tagline": "Verwalte eigene Befehle im Chat und bestimme, wer das darf.",
+  "description": "Alle können !cmd eingeben und bekommen den Link zu deiner öffentlichen Befehlsliste. Dein Team kann eigene Befehle auch direkt im Chat verwalten: !cmd add, !cmd edit und !cmd remove ändern die Liste, !cmd disable schaltet einen Befehl ab und behält seine Antwort (praktisch für einen Speedrun oder einen konzentrierten Stream), !cmd enable schaltet ihn wieder ein, und !cmd perm legt fest, wer einen Befehl nutzen darf. Wähle unten, wer welchen Unterbefehl ausführen darf. Alle starten bei Moderatoren. Schalte das Modul ab, um !cmd ganz zu stoppen.",
+  "commands": {
+    "cmd": "Link zu deiner öffentlichen Befehlsliste.",
+    "cmd_add_name_response": "Einen eigenen Befehl anlegen.",
+    "cmd_edit_name_response": "Die Antwort eines Befehls ändern; die übrigen Einstellungen bleiben.",
+    "cmd_remove_name": "Einen eigenen Befehl löschen (auch !cmd delete).",
+    "cmd_disable_name": "Einen Befehl abschalten, ohne ihn zu löschen.",
+    "cmd_enable_name": "Einen abgeschalteten Befehl wieder einschalten.",
+    "cmd_perm_name_level": "Festlegen, wer einen Befehl nutzen darf: everyone, sub, vip, mod, lead_mod oder broadcaster."
+  },
+  "settings": {
+    "addPerm": {
+      "label": "Wer hinzufügen darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    },
+    "editPerm": {
+      "label": "Wer bearbeiten darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    },
+    "removePerm": {
+      "label": "Wer entfernen darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    },
+    "disablePerm": {
+      "label": "Wer abschalten darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    },
+    "enablePerm": {
+      "label": "Wer einschalten darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    },
+    "permPerm": {
+      "label": "Wer den Zugriff ändern darf",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Alle",
+        "sub": "Abonnenten",
+        "vip": "VIPs",
+        "mod": "Moderatoren",
+        "lead_mod": "Leitende Moderatoren",
+        "broadcaster": "Kanalinhaber"
+      }
+    }
+  }
+}

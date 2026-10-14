@@ -9,6 +9,7 @@ import (
 	"time"
 
 	commandsrpc "ItsBagelBot/internal/domain/rpc/commands"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -25,13 +26,19 @@ func NewCommandsRPC(nc *nats.Conn, prefix string) *CommandsRPC {
 	return &CommandsRPC{nc: nc, prefix: prefix}
 }
 
-func (c *CommandsRPC) Upsert(ctx context.Context, userID string, name, response string) error {
+func (c *CommandsRPC) Upsert(ctx context.Context, userID string, cmd projection.Command) error {
 	reply, err := bus.RequestJSONTimeout[commandsrpc.DashboardReply](ctx, c.nc, c.prefix+".upsert", commandsrpc.DashboardRequest{
-		UserID:   userID,
-		Name:     name,
-		Response: response,
-		IsActive: true,
-		Perm:     "everyone",
+		UserID:           userID,
+		Name:             cmd.Name,
+		Aliases:          cmd.Aliases,
+		Response:         cmd.Response,
+		IsActive:         cmd.IsActive,
+		StreamOnlineOnly: cmd.StreamOnlineOnly,
+		Perm:             cmd.Perm,
+		Cooldown:         cmd.Cooldown,
+		UserCooldown:     cmd.UserCooldown,
+		AllowedUserID:    cmd.AllowedUserID,
+		BumpCounter:      cmd.BumpCounter,
 	}, commandsRPCTimeout)
 	if err != nil {
 		return err

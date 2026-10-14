@@ -20,7 +20,6 @@ export const STREAM_MODULE: ModuleDef = {
     { trigger: '!game', aliases: ['!setgame'], summary: 'Show or set the stream category.', perm: 'lead_mod' },
     { trigger: '!tags', aliases: ['!settags'], summary: 'Show or set stream tags.', perm: 'lead_mod' },
     { trigger: '!commercial', aliases: ['!ad'], summary: 'Run a mid-roll commercial (live only).', perm: 'lead_mod' },
-    { trigger: '!marker', summary: 'Drop a stream marker (live only).', perm: 'lead_mod' },
-    { trigger: '!cmd', aliases: ['!cmds', '!command', '!commands'], summary: 'List commands, or add/edit/remove custom ones.', perm: 'mod' }
+    { trigger: '!marker', summary: 'Drop a stream marker (live only).', perm: 'lead_mod' }
   ]
 };

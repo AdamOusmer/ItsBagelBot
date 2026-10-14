@@ -14,9 +14,30 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/validate"
+	"ItsBagelBot/internal/projection"
 
 	"go.uber.org/zap"
 )
+
+const cmdModuleName = "cmd"
+
+type cmdHandler func(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger)
+
+type cmdAction struct {
+	permKey string
+	run     cmdHandler
+}
+
+var cmdActions = map[string]cmdAction{
+	"add":     {permKey: "addPerm", run: cmdAdd},
+	"edit":    {permKey: "editPerm", run: cmdEdit},
+	"remove":  {permKey: "removePerm", run: cmdRemove},
+	"delete":  {permKey: "removePerm", run: cmdRemove},
+	"enable":  {permKey: "enablePerm", run: cmdSetActive(true, "cmd.enabled")},
+	"disable": {permKey: "disablePerm", run: cmdSetActive(false, "cmd.disabled")},
+	"perm":    {permKey: "permPerm", run: cmdPerm},
+}
 
 func Cmd(d engine.Deps) module.Module {
 	log := d.Log
@@ -24,52 +45,51 @@ func Cmd(d engine.Deps) module.Module {
 		log = zap.NewNop()
 	}
 
+	m := module.NewModule(cmdModuleName, module.KindDefault)
+	m.Command("cmd").Aliases("cmds", "command", "commands").Everyone().Run(cmdRun(d, log))
+	return m.Build()
+}
+
+func StreamEditors(d engine.Deps) module.Module {
 	m := module.NewModule("", module.KindCore)
-
-	m.Command("cmd").Aliases("cmds", "command", "commands").Everyone().Run(func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		sub, rest := splitFirst(args)
-
-		switch strings.ToLower(sub) {
-		case "add", "edit", "remove", "delete":
-			if !c.Chatter().Allows(module.RoleModerator) {
-				cmdLink(ctx, c, d, emit)
-				return nil
-			}
-			switch strings.ToLower(sub) {
-			case "add":
-				cmdAdd(ctx, c, d, rest, emit, log)
-			case "edit":
-				cmdEdit(ctx, c, d, rest, emit, log)
-			default:
-				cmdRemove(ctx, c, d, rest, emit, log)
-			}
-		default:
-			cmdLink(ctx, c, d, emit)
-		}
-		return nil
-	})
-
 	m.Command("title").Aliases("settitle").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTitle))
 	m.Command("game").Aliases("setgame").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldGame))
 	m.Command("tags").Aliases("settags").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTags))
 	m.Command("commercial").Aliases("ad").LeadMod().LiveOnly().Cooldown(streamCommercialCooldown).Run(streamCommercialRun(d))
 	m.Command("marker").LeadMod().LiveOnly().Cooldown(streamMarkerCooldown).Run(streamMarkerRun(d))
-
 	return m.Build()
+}
+
+func cmdRun(d engine.Deps, log *zap.Logger) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		sub, rest := splitFirst(args)
+		action, ok := cmdActions[strings.ToLower(sub)]
+		if !ok || !c.Chatter().Allows(cmdRole(c, action.permKey)) {
+			cmdLink(ctx, c, d, emit)
+			return nil
+		}
+		action.run(ctx, c, d, rest, emit, log)
+		return nil
+	}
+}
+
+func cmdRole(c *module.Context, permKey string) module.Role {
+	var cfg map[string]any
+	_ = c.Decode(&cfg)
+	perm, _ := cfg[permKey].(string)
+	if validate.Perm(perm) != nil {
+		return module.RoleModerator
+	}
+	return module.ParsePerm(perm)
 }
 
 func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
 	name, response := splitFirst(args)
-	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
-		return
-	}
-	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+	if !cmdHasNameAndResponse(c, emit, name, response) {
 		return
 	}
 
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
+	name = cmdName(name)
 	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
 	if err != nil {
 		log.Warn("cmd: add lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
@@ -80,40 +100,52 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 		return
 	}
 
-	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: add failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return
-	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterName(), name)
+	cmdSave(ctx, c, d, projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}, "cmd.added", emit, log)
 }
 
 func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
 	name, response := splitFirst(args)
-	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+	if !cmdHasNameAndResponse(c, emit, name, response) {
 		return
 	}
-	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+	cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
+	if !ok {
 		return
 	}
+	cc.Response = response
+	cmdSave(ctx, c, d, cc, "cmd.modified", emit, log)
+}
 
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
-	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
-	if err != nil {
-		log.Warn("cmd: edit lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return
+func cmdSetActive(active bool, replyKey string) cmdHandler {
+	return func(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
+		name, _ := splitFirst(args)
+		if name == "" {
+			reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+			return
+		}
+		cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
+		if !ok {
+			return
+		}
+		cc.IsActive = active
+		cmdSave(ctx, c, d, cc, replyKey, emit, log)
 	}
-	if !found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
-		return
-	}
+}
 
-	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: edit failed", zap.String("name", name), c.BID(), zap.Error(err))
+func cmdPerm(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
+	name, rest := splitFirst(args)
+	perm, _ := splitFirst(rest)
+	perm = strings.ToLower(perm)
+	if name == "" || validate.Perm(perm) != nil {
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.perm_usage"), c.Env.ChatterName(), "")
 		return
 	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterName(), name)
+	cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
+	if !ok {
+		return
+	}
+	cc.Perm = perm
+	cmdSave(ctx, c, d, cc, "cmd.perm_set", emit, log)
 }
 
 func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
@@ -123,12 +155,48 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 		return
 	}
 
-	name = strings.TrimPrefix(strings.ToLower(name), "!")
+	name = cmdName(name)
 	if err := d.Commands.Delete(ctx, c.Env.BroadcasterUserID, name); err != nil {
 		log.Warn("cmd: remove failed", zap.String("name", name), c.BID(), zap.Error(err))
 		return
 	}
 	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)
+}
+
+func cmdName(name string) string {
+	return strings.TrimPrefix(strings.ToLower(name), "!")
+}
+
+func cmdHasNameAndResponse(c *module.Context, emit module.Emit, name, response string) bool {
+	if name == "" {
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+		return false
+	}
+	if response == "" {
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+		return false
+	}
+	return true
+}
+
+func cmdLookup(ctx context.Context, c *module.Context, d engine.Deps, name string, emit module.Emit, log *zap.Logger) (projection.Command, bool) {
+	cc, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	if err != nil {
+		log.Warn("cmd: lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		return cc, false
+	}
+	if !found {
+		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
+	}
+	return cc, found
+}
+
+func cmdSave(ctx context.Context, c *module.Context, d engine.Deps, cc projection.Command, replyKey string, emit module.Emit, log *zap.Logger) {
+	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, cc); err != nil {
+		log.Warn("cmd: save failed", zap.String("name", cc.Name), c.BID(), zap.Error(err))
+		return
+	}
+	sendLine(c, emit, cmdReplyLine{text: i18n.T(c.Locale, replyKey), user: c.Env.ChatterName(), command: cc.Name, role: cc.Perm})
 }
 
 func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
@@ -173,8 +241,8 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 }
 
 type cmdReplyLine struct {
-	namespace           module.Namespace
-	text, user, command string
+	namespace                 module.Namespace
+	text, user, command, role string
 }
 
 func reply(c *module.Context, emit module.Emit, line, user, command string) {
@@ -182,7 +250,7 @@ func reply(c *module.Context, emit module.Emit, line, user, command string) {
 }
 
 func sendLine(c *module.Context, emit module.Emit, line cmdReplyLine) {
-	text := module.KV("user", line.user, "command", line.command).WithLocale(module.Locale(c.Locale)).WithNamespace(line.namespace).ExpandString(line.text)
+	text := module.KV("user", line.user, "command", line.command, "role", line.role).WithLocale(module.Locale(c.Locale)).WithNamespace(line.namespace).ExpandString(line.text)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,

@@ -14,6 +14,7 @@ func All(d engine.Deps) []module.Module {
 		Personality(d),
 		Live(d),
 		Cmd(d),
+		StreamEditors(d),
 		Shoutout(d),
 		Alerts(d),
 		Clip(d),

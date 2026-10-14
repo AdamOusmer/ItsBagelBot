@@ -92,8 +92,8 @@ var shippedContract = map[string]moduleSpec{
 	"personality": {module.KindDefault, []commandSpec{
 		command("bagels", roleEveryone, "fed", "bagelcount"), command("bagelboard", roleEveryone, "feedboard", "bagellb"),
 	}},
-	"~cmd": {module.KindCore, []commandSpec{
-		command("cmd", roleEveryone, "cmds", "command", "commands"),
+	"cmd": {module.KindDefault, []commandSpec{command("cmd", roleEveryone, "cmds", "command", "commands")}},
+	"~title": {module.KindCore, []commandSpec{
 		command("title", roleLeadModerator, "settitle"), command("game", roleLeadModerator, "setgame"), command("tags", roleLeadModerator, "settags"),
 		command("commercial", roleLeadModerator, "ad").live(), command("marker", roleLeadModerator).live(),
 	}},

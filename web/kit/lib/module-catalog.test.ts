@@ -40,9 +40,22 @@ const POLICY_ROWS: PolicyRow[] = [
         { trigger: '!game' },
         { trigger: '!tags' },
         { trigger: '!commercial' },
-        { trigger: '!marker' },
-        { trigger: '!cmd' }
+        { trigger: '!marker' }
       ]
+    }
+  },
+  {
+    name: 'the command editor is a default-on Chat module whose subcommand levels start at mod',
+    id: 'cmd',
+    want: {
+      href: undefined,
+      toggleable: true,
+      defaultEnabled: true,
+      category: 'Chat',
+      delegates: ['modules', 'commands'],
+      settings: ['addPerm', 'editPerm', 'removePerm', 'disablePerm', 'enablePerm', 'permPerm'].map((key) =>
+        expect.objectContaining({ key, type: 'select', placeholder: 'mod' })
+      )
     }
   },
   {

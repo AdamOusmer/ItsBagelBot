@@ -1,0 +1,88 @@
+{
+  "label": "Editor de comandos",
+  "tagline": "Gestiona comandos personalizados desde el chat y elige quién puede hacerlo.",
+  "description": "Cualquiera puede escribir !cmd para recibir el enlace a tu lista pública de comandos. Tu equipo también puede gestionar comandos personalizados desde el chat: !cmd add, !cmd edit y !cmd remove cambian la lista, !cmd disable desactiva un comando y conserva su respuesta (útil para un speedrun o un stream concentrado), !cmd enable lo vuelve a activar y !cmd perm define quién puede usar un comando. Elige abajo quién puede usar cada uno. Todos empiezan en moderadores. Desactiva el módulo para detener !cmd por completo.",
+  "commands": {
+    "cmd": "Enlace a tu lista pública de comandos.",
+    "cmd_add_name_response": "Crear un comando personalizado.",
+    "cmd_edit_name_response": "Cambiar la respuesta de un comando; sus demás ajustes se mantienen.",
+    "cmd_remove_name": "Eliminar un comando personalizado (también !cmd delete).",
+    "cmd_disable_name": "Desactivar un comando sin eliminarlo.",
+    "cmd_enable_name": "Volver a activar un comando desactivado.",
+    "cmd_perm_name_level": "Definir quién puede usar un comando: everyone, sub, vip, mod, lead_mod o broadcaster."
+  },
+  "settings": {
+    "addPerm": {
+      "label": "Quién puede añadir",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    },
+    "editPerm": {
+      "label": "Quién puede editar",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    },
+    "removePerm": {
+      "label": "Quién puede eliminar",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    },
+    "disablePerm": {
+      "label": "Quién puede desactivar",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    },
+    "enablePerm": {
+      "label": "Quién puede activar",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    },
+    "permPerm": {
+      "label": "Quién puede cambiar el acceso",
+      "placeholder": "mod",
+      "options": {
+        "everyone": "Todos",
+        "sub": "Suscriptores",
+        "vip": "VIP",
+        "mod": "Moderadores",
+        "lead_mod": "Moderadores principales",
+        "broadcaster": "Streamer"
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ import { ALERTS_MODULE } from './alerts';
 import { AUTOMOD_MODULE } from './automod';
 import { CHANNELPOINTS_MODULE } from './channelpoints';
 import { CLASHROYALE_MODULE } from './clashroyale';
+import { CMD_MODULE } from './cmd';
 import { CODM_MODULE } from './codm';
 import { COUNTERS_MODULE } from './counters';
 import { DISCORD_MODULE } from './discord';
@@ -56,12 +57,14 @@ export const MOD = {
   govee: 'govee',
   discord: 'discord',
   songqueue: 'songqueue',
-  stream: 'stream'
+  stream: 'stream',
+  cmd: 'cmd'
 } as const;
 
 export const MODULE_CATALOG: readonly ModuleDef[] = ([
   CHANNELPOINTS_MODULE,
   STREAM_MODULE,
+  CMD_MODULE,
   TIMERS_MODULE,
   LOYALTY_MODULE,
   COUNTERS_MODULE,

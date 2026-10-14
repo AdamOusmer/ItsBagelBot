@@ -20,7 +20,7 @@ import (
 )
 
 type CommandManager interface {
-	Upsert(ctx context.Context, userID string, name, response string) error
+	Upsert(ctx context.Context, userID string, cmd projection.Command) error
 	Delete(ctx context.Context, userID string, name string) error
 }
 
