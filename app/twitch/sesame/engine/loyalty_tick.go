@@ -66,6 +66,7 @@ type ValkeyLoyaltyClock struct {
 	rearmSubject    string
 	botID           string
 	keyspaceDB      int
+	expiry          *ExpiryHub
 	log             *zap.Logger
 	wake            chan struct{}
 	rearms          chan uint64
@@ -77,6 +78,7 @@ type LoyaltyClockConfig struct {
 	ModulesInvalidateSubject string
 	BotUserID                string
 	KeyspaceDB               int
+	Expiry                   *ExpiryHub
 	// Retained for rolling wiring compatibility. Reconfirmation now occurs in
 	// the correlated chatter request and requires a successful Twitch result.
 	Publisher             bus.Publisher
@@ -98,7 +100,7 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.
 		request: func(ctx context.Context, subject string, body []byte) (*nats.Msg, error) {
 			return bus.RequestWithContext(ctx, nc, subject, body)
 		},
-		chattersSubject: cfg.OutgressRPCPrefix + ".chatters.get", rearmSubject: cfg.ModulesInvalidateSubject, botID: cfg.BotUserID, keyspaceDB: cfg.KeyspaceDB,
+		chattersSubject: cfg.OutgressRPCPrefix + ".chatters.get", rearmSubject: cfg.ModulesInvalidateSubject, botID: cfg.BotUserID, keyspaceDB: cfg.KeyspaceDB, expiry: cfg.Expiry,
 		log: log, wake: make(chan struct{}, 1), rearms: make(chan uint64, loyaltyQueueSize), now: time.Now}
 }
 
@@ -204,8 +206,8 @@ func (s *ValkeyLoyaltyClock) DisarmVersioned(ctx context.Context, id uint64, ver
 	}
 }
 
-func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script string, keys []string, args ...string) (valkey.ValkeyResult, error) {
-	result := s.client.Do(ctx, s.client.B().Eval().Script(script).Numkeys(int64(len(keys))).Key(keys...).Arg(args...).Build())
+func (s *ValkeyLoyaltyClock) eval(ctx context.Context, script *valkey.Lua, keys []string, args ...string) (valkey.ValkeyResult, error) {
+	result := script.Exec(ctx, s.client, keys, args)
 	return result, result.Error()
 }
 

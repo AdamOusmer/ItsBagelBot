@@ -66,7 +66,7 @@ func (s *ValkeyLoyaltyClock) discoverLivePage(ctx context.Context) (bool, error)
 		return false, err
 	}
 	cursor, _ := strconv.ParseUint(raw, 10, 64)
-	scan, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(200).Build()).AsScanEntry()
+	scan, err := s.client.Do(ctx, s.client.B().Scan().Cursor(cursor).Match(livekey.KeyPrefix+"*").Count(liveScanCount).Type("string").Build()).AsScanEntry()
 	if err != nil {
 		s.log.Warn("loyalty: live schedule discovery failed", zap.Error(err))
 		return false, err

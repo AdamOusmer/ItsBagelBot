@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -289,15 +290,14 @@ func (c *interceptLoyaltyArm) Do(ctx context.Context, cmd valkey.Completed) valk
 
 func isLoyaltyArm(cmd valkey.Completed) bool {
 	args := cmd.Commands()
-	if len(args) < 2 {
+	if len(args) < 7 || !isScriptCall(args[0]) {
 		return false
 	}
-	switch args[0] {
-	case "EVAL":
-		return args[1] == loyaltyArmScript
-	default:
-		return false
-	}
+	return args[2] == "4" && strings.HasPrefix(args[6], livekey.KeyPrefix)
+}
+
+func isScriptCall(verb string) bool {
+	return verb == "EVAL" || verb == "EVALSHA"
 }
 
 func (f *loyaltyClockFixture) clearSchedule(t *testing.T) {

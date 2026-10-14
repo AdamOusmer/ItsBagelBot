@@ -187,6 +187,7 @@ type DuelStore interface {
 type DuelConfig struct {
 	AnnouncementConfig
 	Wallet DuelWallet
+	Expiry *ExpiryHub
 }
 
 type ValkeyDuelStore struct {
@@ -731,23 +732,7 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 }
 
 func (s *ValkeyDuelStore) StartExpiryWatcher(ctx context.Context) {
-	channel := "__keyevent@0__:expired"
-	s.log.Info("duel: expiry watcher starting", zap.String("channel", channel))
-
-	for ctx.Err() == nil {
-		err := s.client.Receive(ctx, s.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
-			s.onExpired(ctx, msg.Message)
-		})
-		if ctx.Err() != nil {
-			return
-		}
-		s.log.Warn("duel: expiry watcher dropped, reconnecting", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-		}
-	}
+	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, duelDeadlinePrefix)
 }
 
 func (s *ValkeyDuelStore) onExpired(ctx context.Context, key string) {

@@ -7,13 +7,11 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -31,19 +29,7 @@ func (s *ValkeyLoyaltyClock) onExpired(_ context.Context, key string) {
 }
 
 func (s *ValkeyLoyaltyClock) StartExpiryWatcher(ctx context.Context) {
-	channel := "__keyevent@" + strconv.Itoa(s.keyspaceDB) + "__:expired"
-	for ctx.Err() == nil {
-		err := s.client.Receive(ctx, s.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) { s.onExpired(ctx, msg.Message) })
-		if ctx.Err() != nil {
-			return
-		}
-		s.log.Warn("loyalty: expiry wake watcher disconnected", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-		}
-	}
+	expiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, loyaltyTickKeyPrefix)
 }
 
 func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {

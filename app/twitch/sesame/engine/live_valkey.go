@@ -27,6 +27,8 @@ import (
 
 const liveCacheCapacity int64 = 4096
 
+const liveScanCount = 1000
+
 type LiveConfig struct {
 	Runtime               channelruntime.Reader
 	TTL                   time.Duration
@@ -35,6 +37,7 @@ type LiveConfig struct {
 	OutgressSystemSubject string
 	CacheInvalidatePrefix string
 	KeyspaceDB            int
+	Expiry                *ExpiryHub
 	OfflineConfirmDelays  []time.Duration
 	Log                   *zap.Logger
 }
@@ -201,23 +204,7 @@ func (s *ValkeyLiveStore) StartInvalidationListener() {
 }
 
 func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
-	channel := "__keyevent@" + strconv.Itoa(s.cfg.KeyspaceDB) + "__:expired"
-	s.log.Info("live: expiry watcher starting", zap.String("channel", channel))
-
-	for ctx.Err() == nil {
-		err := s.client.Receive(ctx, s.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
-			s.onExpired(ctx, msg.Message)
-		})
-		if ctx.Err() != nil {
-			return
-		}
-		s.log.Warn("live: expiry watcher dropped, reconnecting", zap.Error(err))
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-		}
-	}
+	expiryHubOr(s.cfg.Expiry, s.client, s.cfg.KeyspaceDB, s.log).Watch(ctx, s.onExpired, livekey.KeyPrefix)
 }
 
 func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
