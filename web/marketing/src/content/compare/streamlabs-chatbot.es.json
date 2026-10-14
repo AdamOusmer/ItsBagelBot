@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "ItsBagelBot vs Streamlabs Chatbot | Comparativa para Twitch",
-    "description": "Compara comandos, scripts de Python, temporizadores y música. Descubre qué importa ItsBagelBot de tu archivo Chatbot.db antes de cambiar."
+    "description": "Compara comandos, scripts de Python, temporizadores, música y sorteos. Descubre qué importa ItsBagelBot de tu archivo Chatbot.db antes de cambiar."
   },
   "hero": {
     "eyebrow": "Comparativa de bots para Twitch",
@@ -13,7 +13,7 @@
     "us": [
       "Quieres que tus espectadores añadan canciones a tu cola real de Spotify y tienes Spotify Premium.",
       "Transmites Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale o CODM y quieres consultas de juego integradas.",
-      "Quieres recompensas de puntos del canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
+      "Quieres recompensas de puntos de canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
       "Quieres revisar comandos, temporizadores y citas de Chatbot.db antes de guardarlos."
     ],
     "them": [
@@ -50,7 +50,7 @@
     },
     {
       "feature": "Peticiones de canciones",
-      "us": "!sr añade una canción a tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
+      "us": "!sr añade una canción a la cola de tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
       "them": "El manual describe listas de reproducción de YouTube, peticiones de espectadores, costes en moneda y votación para saltar.",
       "source": "https://cdn.streamlabs.com/chatbot/Documentation_Twitch.pdf"
     },
@@ -61,8 +61,8 @@
       "source": "https://streamlabs.com/content-hub/post/chatbot-scripts-desktop"
     },
     {
-      "feature": "Puntos del canal de Twitch",
-      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de cumplimiento o reembolso.",
+      "feature": "Puntos de canal de Twitch",
+      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de canjes completados o reembolsados.",
       "them": "La guía describe la moneda del bot sin especificar vinculaciones nativas con recompensas de Twitch. Revisa tu flujo de recompensas por separado.",
       "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
     },
@@ -80,7 +80,7 @@
     },
     {
       "feature": "Moneda de fidelidad",
-      "us": "Los espectadores ganan una moneda configurable con el tiempo de visualización, las suscripciones y los cheers. Impulsa Apuestas y Duelos y sigue separada de los puntos nativos del canal de Twitch.",
+      "us": "Los espectadores ganan una moneda configurable con el tiempo de visualización, las suscripciones y los cheers. Impulsa Apuestas y Duelos y sigue separada de los puntos de canal nativos de Twitch.",
       "them": "La comparativa oficial describe la moneda virtual y los saldos de los espectadores. Esos saldos quedan fuera de la importación de Chatbot.db de ItsBagelBot.",
       "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
     },

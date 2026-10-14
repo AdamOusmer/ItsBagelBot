@@ -18,7 +18,7 @@
     ],
     "them": [
       "Você quer mensagens de timer em rotação, limitadas pelo tempo decorrido e pela atividade do chat. Referência: https://moo.bot/docs/auto-post-twitch-chat-messages.",
-      "Você prefere pedidos de músicas do YouTube com duração e limites de fila por espectador. Referência: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
+      "Você prefere pedidos de músicas do YouTube com limites de duração e de fila por espectador. Referência: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
       "Você quer sorteios por palavra-chave ou por adivinhação de número, com configurações de elegibilidade para inscritos. Referência: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
       "Você quer comandos personalizados da Twitch disponíveis como comandos de barra do Discord. Referência: https://moo.bot/docs/using-your-twitch-bot-on-discord."
     ]
@@ -62,7 +62,7 @@
     },
     {
       "feature": "Pontos do Canal da Twitch",
-      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com tratamento de resgate ou reembolso.",
+      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com processamento de conclusão ou reembolso.",
       "them": "O guia de filtros documenta exceções para mensagens destacadas com Pontos do Canal da Twitch. Ele não descreve a vinculação de recompensas personalizadas às ações do bot; verifique esse fluxo de recompensas separadamente.",
       "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
     },

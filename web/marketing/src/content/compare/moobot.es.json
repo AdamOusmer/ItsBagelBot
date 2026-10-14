@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "ItsBagelBot vs Moobot | Comparativa de bots para Twitch",
-    "description": "Compara comandos, temporizadores, moderación, música y precio. Descubre cuándo te conviene Moobot y cómo importar comandos y temporizadores."
+    "description": "Compara comandos, temporizadores, moderación, música, sorteos y precio. Descubre cuándo te conviene Moobot y cómo importar comandos y temporizadores."
   },
   "hero": {
     "eyebrow": "Comparativa de bots para Twitch",
@@ -13,7 +13,7 @@
     "us": [
       "Quieres que tus espectadores añadan canciones a tu cola real de Spotify y tienes Spotify Premium.",
       "Transmites Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale o CODM y quieres consultas de juego integradas.",
-      "Quieres recompensas de puntos del canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
+      "Quieres recompensas de puntos de canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
       "Quieres revisar los comandos y temporizadores de una exportación de Moobot antes de guardarlos."
     ],
     "them": [
@@ -50,7 +50,7 @@
     },
     {
       "feature": "Peticiones de canciones",
-      "us": "!sr añade una canción a tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
+      "us": "!sr añade una canción a la cola de tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
       "them": "Las peticiones de YouTube se reproducen en el reproductor de canciones de Moobot, con una lista secundaria cuando se acaban las peticiones. Los filtros pueden limitar la duración de las canciones, las peticiones por espectador y quién puede pedir. Elígelo si ese flujo de reproducción de YouTube encaja con tu directo.",
       "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
     },
@@ -61,9 +61,9 @@
       "source": "https://moo.bot/docs/custom-twitch-bot-chat-commands"
     },
     {
-      "feature": "Puntos del canal de Twitch",
-      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de cumplimiento o reembolso.",
-      "them": "La guía de filtros documenta exenciones para los mensajes destacados con puntos del canal de Twitch. No describe cómo vincular recompensas personalizadas a acciones del bot; revisa ese flujo de recompensas por separado.",
+      "feature": "Puntos de canal de Twitch",
+      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de canjes completados o reembolsados.",
+      "them": "La guía de filtros documenta exenciones para los mensajes destacados con puntos de canal de Twitch. No describe cómo vincular recompensas personalizadas a acciones del bot; revisa ese flujo de recompensas por separado.",
       "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
     },
     {
@@ -137,7 +137,7 @@
       "url": "https://moo.bot/docs/auto-post-twitch-chat-messages"
     },
     {
-      "label": "Moobot: filtros de mensajes y exenciones de mensajes con puntos del canal",
+      "label": "Moobot: filtros de mensajes y exenciones de mensajes con puntos de canal",
       "url": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
     },
     {

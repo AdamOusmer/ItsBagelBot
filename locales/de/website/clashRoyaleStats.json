@@ -18,7 +18,7 @@
   "item2Desc": "Zuschauer können mit !cr #P2LQ0GR einen anderen Tag abfragen. Im Dashboard kannst du Spielerabfragen auf dein verknüpftes Konto beschränken.",
   "item3Name": "Decks",
   "item3Desc": "!cr decks listet die Karten deines aktuellen Kampfdecks und dessen durchschnittliche Elixierkosten. !crdecks und !crdeck liefern dieselbe Antwort.",
-  "item4Name": "Rang und Trophäen",
+  "item4Name": "Rangliste und Trophäenpfad",
   "item4Desc": "!cr ranked zeigt deine Platzierung im Pfad der Legenden. !cr road zeigt aktuelle Trophäen, deinen Trophäenrekord und deine Arena.",
   "limitsNote": "Das Modul ist standardmäßig aus. Jeder Befehl hat eine Cooldown-Zeit von 10 Sekunden.",
   "faqQ1": "Wie zeige ich meine Clash-Royale-Stats im Twitch-Chat?",

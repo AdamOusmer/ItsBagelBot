@@ -19,7 +19,7 @@
     "them": [
       "Du willst rotierende Timer-Nachrichten, die von verstrichener Zeit und Chataktivität abhängen. Referenz: https://moo.bot/docs/auto-post-twitch-chat-messages.",
       "Du bevorzugst YouTube-Song-Anfragen mit Dauerlimit und Warteschlangenlimit pro Zuschauer. Referenz: https://moo.bot/docs/song-requests-music-through-twitch-bot.",
-      "Du willst Verlosungen mit Stichwort oder Zahlenraten und Abonnenten-Berechtigung. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
+      "Du willst Verlosungen mit Stichwort oder Zahlenraten und Teilnahmeeinstellungen für Abonnenten. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement.",
       "Du willst eigene Twitch-Befehle als Discord-Slash-Befehle verfügbar machen. Referenz: https://moo.bot/docs/using-your-twitch-bot-on-discord."
     ]
   },
@@ -44,13 +44,13 @@
     },
     {
       "feature": "Moderation und Spamfilter",
-      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein kleiner Schutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
+      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein Basisschutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
       "them": "Konfigurierbare Filter decken Links, Großschreibung, Emotes, Symbole und wiederholte Nachrichten ab, mit Ausnahmen für Zuschauer und Nachrichten. Filter für wiederholte Nachrichten sind ein Business-Tarif-Vorteil. Tarifreferenz: https://moo.bot/docs/upgrading-your-bot-with-moobot-plus.",
       "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
     },
     {
       "feature": "Song-Anfragen",
-      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können überspringen oder leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
+      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können Titel überspringen oder die Warteschlange leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
       "them": "YouTube-Anfragen werden über den Song-Player von Moobot abgespielt, mit einer zweiten Playlist, wenn die Anfragen ausgehen. Filter können die Songlänge, Anfragen pro Zuschauer und die Anfrageberechtigung begrenzen. Wähle es, wenn dieser YouTube-Wiedergabeablauf zu deinem Stream passt.",
       "source": "https://moo.bot/docs/song-requests-music-through-twitch-bot"
     },
@@ -62,14 +62,14 @@
     },
     {
       "feature": "Twitch-Kanalpunkte",
-      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, mit Einlösung oder Rückerstattung.",
+      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, inklusive Erledigung oder Rückerstattung.",
       "them": "Die Filteranleitung beschreibt Ausnahmen für hervorgehobene Nachrichten, die mit Twitch-Kanalpunkten gesendet wurden. Sie beschreibt nicht, wie eigene Belohnungen an Bot-Aktionen gebunden werden. Prüfe diesen Belohnungsablauf separat.",
       "source": "https://moo.bot/docs/twitch-chat-auto-mod-bot-message-filters"
     },
     {
       "feature": "Verlosungen",
       "us": "Zeitlich begrenzte Verlosungen nehmen !join-Teilnahmen an und ziehen automatisch. Jede teilnehmende Person zählt einmal, und Gewinner bestätigen mit !claim.",
-      "them": "Verlosungen können Stichwörter oder Zahlenraten nutzen, die Teilnahme auf Abonnenten beschränken und Abonnenten zusätzliche Chancen geben. Diese dokumentierten Teilnahmeformate und Berechtigungen passen zu einem anderen Ablauf als einer zeitlich begrenzten Verlosung mit einer Teilnahme pro Person.",
+      "them": "Verlosungen können Stichwörter oder Zahlenraten nutzen, die Teilnahme auf Abonnenten beschränken und Abonnenten zusätzliche Chancen geben. Diese dokumentierten Teilnahmeformate und Teilnahmeeinstellungen passen zu einem anderen Ablauf als einer zeitlich begrenzten Verlosung mit einer Teilnahme pro Person.",
       "source": "https://moo.bot/docs/twitch-giveaways-for-increased-engagement"
     },
     {
@@ -108,11 +108,11 @@
     },
     {
       "q": "Wann solltest du bei Moobot bleiben?",
-      "a": "Bleib dabei, wenn dir Verlosungen mit Stichwort oder Zahlenraten genügen. Prüfe ihre Berechtigungen für Abonnenten, bevor du diesen Ablauf neu aufbaust. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
+      "a": "Bleib dabei, wenn dir Verlosungen mit Stichwort oder Zahlenraten genügen. Prüfe die Teilnahmeeinstellungen für Abonnenten, bevor du diesen Ablauf neu aufbaust. Referenz: https://moo.bot/docs/twitch-giveaways-for-increased-engagement."
     },
     {
       "q": "Sind kostenlose Spotify-Anfragen ohne Spotify Premium möglich?",
-      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät wiedergeben."
+      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät Musik abspielen."
     },
     {
       "q": "Was sollte ich beim Import von Moobot prüfen?",

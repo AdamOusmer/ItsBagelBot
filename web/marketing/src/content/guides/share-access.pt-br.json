@@ -24,7 +24,7 @@
   "meta.heading": "Compartilhe seu painel com um moderador",
   "meta.lead": "Deixe um moderador gerenciar partes do seu painel pela própria conta da Twitch, e retome o acesso quando quiser.",
   "meta.minutes": "5 min de leitura",
-  "meta.title": "Compartilhar o acesso ao painel da Twitch | ItsBagelBot",
+  "meta.title": "Compartilhar o acesso ao painel do bot da Twitch | ItsBagelBot",
   "mod.b0.items.0.html": "<p>O moderador abre no navegador o link que você enviou.</p>",
   "mod.b0.items.0.title": "Abrir o link",
   "mod.b0.items.1.html": "<p>A Twitch pede que ele entre. Ele precisa usar a própria conta da Twitch, não a sua.</p>",
