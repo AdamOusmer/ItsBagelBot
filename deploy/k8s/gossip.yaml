@@ -88,7 +88,7 @@ spec:
       priorityClassName: bagel-service
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.9-beta@sha256:ab76266a9187d0e0a4d73e1688788d8b9f4337a3298352702012cf90760c9113
+          image: ghcr.io/adamousmer/itsbagelbot/warp:sha-73b47bc9d7c3@sha256:f496895c86c9c1d791ab06fe11eb9c785c9b911199c8fac17e71b2673abfd406
           imagePullPolicy: IfNotPresent
           restartPolicy: Always
           env:
