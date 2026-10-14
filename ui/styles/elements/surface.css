@@ -13,9 +13,11 @@
     min-height: 0;
   }
 
-  .bb-surface--docked {
+  /* Outranks .bb-card: production builds can load card.css after this file. */
+  .bb-surface--docked.bb-card {
     --card-pad: 0;
 
+    display: flex;
     position: sticky;
     top: calc(74px + env(safe-area-inset-top, 0px));
     max-height: calc(100dvh - 74px - env(safe-area-inset-top, 0px) - var(--bb-dock-clearance, 108px));
