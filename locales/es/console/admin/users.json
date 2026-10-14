@@ -129,5 +129,12 @@
   "viewAsDemo": "enlace para ver como usuario creado (demo)",
   "viewAs": "enlace para ver como usuario creado (válido durante 5 min)",
   "userDeleted": "usuario eliminado",
-  "notFound": "usuario no encontrado"
+  "notFound": "usuario no encontrado",
+  "liveCheck": "Comprobación en vivo",
+  "liveCheckNone": "sin comprobar",
+  "liveCheckThrottled": "Comprobado recientemente",
+  "liveCheckFailed": "Falló la comprobación",
+  "liveCheckCount": "{present}/{expected} suscripciones",
+  "liveCheckMissing": "faltan:",
+  "liveCheckRepairing": "reparando"
 }

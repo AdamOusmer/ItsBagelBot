@@ -129,5 +129,12 @@
   "viewAsDemo": "link de visualização como usuário gerado (demo)",
   "viewAs": "link de visualização como usuário gerado (válido por 5 min)",
   "userDeleted": "usuário excluído",
-  "notFound": "usuário não encontrado"
+  "notFound": "usuário não encontrado",
+  "liveCheck": "Verificação ao vivo",
+  "liveCheckNone": "não verificado",
+  "liveCheckThrottled": "Verificado recentemente",
+  "liveCheckFailed": "Falha na verificação",
+  "liveCheckCount": "{present}/{expected} assinaturas",
+  "liveCheckMissing": "faltando:",
+  "liveCheckRepairing": "reparando"
 }

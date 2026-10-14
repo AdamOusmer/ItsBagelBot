@@ -129,5 +129,12 @@
   "viewAsDemo": "ссылка для просмотра создана (демо)",
   "viewAs": "ссылка для просмотра создана (действует 5 мин)",
   "userDeleted": "пользователь удалён",
-  "notFound": "пользователь не найден"
+  "notFound": "пользователь не найден",
+  "liveCheck": "Проверка в реальном времени",
+  "liveCheckNone": "не проверялось",
+  "liveCheckThrottled": "Недавно проверено",
+  "liveCheckFailed": "Проверка не удалась",
+  "liveCheckCount": "{present}/{expected} подписок",
+  "liveCheckMissing": "отсутствуют:",
+  "liveCheckRepairing": "восстановление"
 }

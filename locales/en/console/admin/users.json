@@ -129,5 +129,12 @@
   "viewAsDemo": "view-as link minted (demo)",
   "viewAs": "view-as link minted (valid 5 min)",
   "userDeleted": "user deleted",
-  "notFound": "user not found"
+  "notFound": "user not found",
+  "liveCheck": "Live check",
+  "liveCheckNone": "not checked",
+  "liveCheckThrottled": "Checked recently",
+  "liveCheckFailed": "Check failed",
+  "liveCheckCount": "{present}/{expected} subscriptions",
+  "liveCheckMissing": "missing:",
+  "liveCheckRepairing": "repairing"
 }
