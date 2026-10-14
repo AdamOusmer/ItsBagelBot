@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.9-beta",
+  "date": "2026-10-14",
+  "title": {
+    "en": "New Feature Pages, Guides in Six Languages and a Raffle Fix",
+    "fr": "Nouvelles pages de fonctionnalités, guides en six langues et correction des tirages"
+  },
+  "highlights": {
+    "en": [
+      "New pages on itsbagelbot.com for Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale and CODM stats, giveaways, loyalty points, the death counter, timers, the viewer queue and the Discord bot show the real commands with example chat replies.",
+      "Song requests, Valorant, Govee and import pages are rebuilt around the commands you type and what your chat sees.",
+      "Comparisons with Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot and WizeBot link every claim to their own documentation, in six languages.",
+      "All 11 setup guides are now available in German, Spanish, Brazilian Portuguese and Russian alongside English and French, with a large translation correction pass.",
+      "ai.itsbagelbot.com, the reference for AI assistants, now covers every module, getting started, commands, imports, Discord setup and error messages so ChatGPT, Claude or Gemini can answer your questions about the bot accurately.",
+      "A plain !raffle open now runs the intended 10-minute raffle instead of ending after one minute, and duel help now clarifies that only the challenged viewer can decline.",
+      "Database connections now require TLS 1.3 and verify the server identity."
+    ],
+    "fr": [
+      "De nouvelles pages sur itsbagelbot.com pour les statistiques Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale et CODM, les tirages, les points de fidélité, le compteur de morts, les minuteurs, la file d'attente et le bot Discord affichent les vraies commandes avec des exemples de réponses du chat.",
+      "Les pages de demandes de chansons, Valorant, Govee et d'importation sont repensées autour des commandes que vous tapez et de ce que voit votre chat.",
+      "Des comparatifs avec Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot et WizeBot lient chaque affirmation à leur propre documentation, en six langues.",
+      "Les 11 guides de configuration sont désormais disponibles en allemand, espagnol, portugais brésilien et russe en plus de l'anglais et du français, avec une grande passe de correction des traductions.",
+      "ai.itsbagelbot.com, la référence pour les assistants IA, couvre désormais chaque module, la prise en main, les commandes, les imports, la configuration Discord et les messages d'erreur afin que ChatGPT, Claude ou Gemini puissent répondre précisément à vos questions sur le bot.",
+      "Un simple !raffle open lance désormais le tirage prévu de 10 minutes au lieu de se terminer après une minute, et l'aide des duels précise que seul le spectateur défié peut refuser.",
+      "Les connexions à la base de données nécessitent désormais TLS 1.3 et vérifient l'identité du serveur."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.9-beta"
+}
