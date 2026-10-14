@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "ItsBagelBot vs Fossabot | Comparativo de bots",
-    "description": "Compare comandos, filtros, música, estatísticas, recompensas e preço. Veja quando o Fossabot serve e como importar os comandos públicos para o ItsBagelBot."
+    "description": "Compare comandos, filtros, música, stats de jogos, recompensas e preço. Veja quando o Fossabot serve e como importar comandos públicos para o ItsBagelBot."
   },
   "hero": {
     "eyebrow": "Comparativo de bots da Twitch",
@@ -57,19 +57,19 @@
     {
       "feature": "Estatísticas de jogos",
       "us": "Módulos integrados cobrem Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale e CODM. Por exemplo, vincule seu Riot ID e use !valrank.",
-      "them": "As variáveis de Valorant expõem rank, RR, posição no ranking e vitórias ou derrotas da sessão. Primeiro conecte e autorize sua conta da Riot no painel; alguns dados podem ter até 30 minutos.",
+      "them": "As variáveis de Valorant expõem rank, RR, posição no ranking e vitórias ou derrotas da sessão. Primeiro conecte e autorize sua conta da Riot no painel; alguns dados podem ter até 30 minutos de atraso.",
       "source": "https://docs.fossabot.com/variables/valorant/"
     },
     {
       "feature": "Pontos do Canal da Twitch",
-      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com tratamento de resgate ou reembolso.",
+      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com processamento de conclusão ou reembolso.",
       "them": "As recompensas podem executar comandos ou publicar textos. As variáveis de recompensa também expõem metadados da fila de resgates. Referência das variáveis: https://docs.fossabot.com/variables/twitchreward/.",
       "source": "https://fossabot.com/"
     },
     {
       "feature": "Sorteios",
       "us": "Sorteios com tempo definido aceitam inscrições com !join e sorteiam automaticamente. Cada participante conta uma vez, e os vencedores confirmam com !claim.",
-      "them": "A visão pública não detalha as regras de sorteio. Confirme separadamente os requisitos de inscrição e de sorteio.",
+      "them": "A visão geral pública não detalha as regras de sorteio. Confirme separadamente os requisitos de inscrição e de sorteio.",
       "source": "https://fossabot.com/"
     },
     {
@@ -81,7 +81,7 @@
     {
       "feature": "Discord",
       "us": "O Discord é uma integração beta do Premium para posts de live, clipes, boas-vindas, tickets e ferramentas da comunidade.",
-      "them": "A visão oficial lista a integração com o Discord sem detalhar os recursos no servidor. Confirme o fluxo de que você precisa.",
+      "them": "A visão geral oficial lista a integração com o Discord sem detalhar os recursos no servidor. Confirme o fluxo de que você precisa.",
       "source": "https://fossabot.com/"
     },
     {

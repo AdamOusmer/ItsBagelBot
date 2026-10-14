@@ -13,7 +13,7 @@
     "us": [
       "Quieres que tus espectadores añadan canciones a tu cola real de Spotify y tienes Spotify Premium.",
       "Transmites Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale o CODM y quieres consultas de juego integradas.",
-      "Quieres recompensas de puntos del canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
+      "Quieres recompensas de puntos de canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
       "Quieres revisar el texto del chat de los comandos públicos de WizeBot antes de guardarlos."
     ],
     "them": [
@@ -50,7 +50,7 @@
     },
     {
       "feature": "Peticiones de canciones",
-      "us": "!sr añade una canción a tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
+      "us": "!sr añade una canción a la cola de tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
       "them": "!sr acepta nombres de canciones, URLs de YouTube o IDs de vídeo. Los comandos del chat gestionan la lista de reproducción, saltan canciones y ajustan el volumen.",
       "source": "https://support.wizebot.tv/docs/commands"
     },
@@ -61,8 +61,8 @@
       "source": "https://support.wizebot.tv/docs/tags"
     },
     {
-      "feature": "Puntos del canal de Twitch",
-      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de cumplimiento o reembolso.",
+      "feature": "Puntos de canal de Twitch",
+      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de canjes completados o reembolsados.",
       "them": "La visión general enumera acciones de recompensa para TTS, sonidos, estado VIP temporal e integraciones de juego.",
       "source": "https://wizebot.tv/en/services"
     },
@@ -74,13 +74,13 @@
     },
     {
       "feature": "Moneda de fidelidad",
-      "us": "Los espectadores ganan una moneda configurable con el tiempo de visualización, las suscripciones y los cheers. Impulsa Apuestas y Duelos y sigue separada de los puntos nativos del canal de Twitch.",
+      "us": "Los espectadores ganan una moneda configurable con el tiempo de visualización, las suscripciones y los cheers. Impulsa Apuestas y Duelos y sigue separada de los puntos de canal nativos de Twitch.",
       "them": "La tienda virtual puede ejecutar comandos, procesar etiquetas o llamar a una URL externa después de una compra. Encaja con recompensas construidas alrededor de la moneda de tu bot. La importación de WizeBot de ItsBagelBot no transfiere la tienda ni los saldos.",
       "source": "https://support.wizebot.tv/docs/currency_virtualshop"
     },
     {
       "feature": "Herramientas de producción",
-      "us": "Las alertas del chat publican mensajes personalizables para seguidores, suscripciones, cheers, raids y pausas publicitarias.",
+      "us": "Las alertas del chat publican mensajes personalizables para follows, suscripciones, cheers, raids y pausas publicitarias.",
       "them": "La visión general del servicio enumera alertas visuales, overlays del chat y animaciones de pantalla activadas por comandos.",
       "source": "https://wizebot.tv/en/services"
     },

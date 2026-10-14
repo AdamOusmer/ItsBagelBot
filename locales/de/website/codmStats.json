@@ -6,7 +6,7 @@
   "lead": "Zuschauer tippen !codm für dein Call of Duty: Mobile Global Level, deinen Multiplayer-Rang und deine Wertung. Aktiviere das kostenlose Modul und trage deine UID oder deinen exakten Nickname ein. Mit !codm iFerg können Zuschauer auch ein anderes Profil abfragen.",
   "howTitle": "CODM-Konto verknüpfen, !codm testen.",
   "step1Title": "Aktiviere das Modul.",
-  "step1Desc": "Schalte CODM-Profil im Dashboard ein und trage deine Global-UID oder deinen exakten Nickname als Standardspieler ein. Lässt du das Feld leer, muss der Chat nach !codm eines angeben.",
+  "step1Desc": "Schalte CODM-Profil im Dashboard ein und trage deine Global-UID oder deinen exakten Nickname als Standardspieler ein. Lässt du das Feld leer, muss der Chat nach !codm eine UID oder einen Nickname angeben.",
   "step2Title": "Probiere den Profilbefehl.",
   "step2Desc": "Jede Person kann !codm im Chat tippen. Der Bot antwortet mit deinem Level, Multiplayer-Rang, deiner Wertung und deinem Land.",
   "step3Title": "Wähle deine Antwort.",

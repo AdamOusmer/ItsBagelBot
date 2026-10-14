@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "ItsBagelBot vs Streamlabs Chatbot | Comparativo",
+    "title": "ItsBagelBot vs Streamlabs Chatbot | Comparativo para Twitch",
     "description": "Compare comandos, scripts em Python, timers, música e sorteios. Veja o que o ItsBagelBot importa do Chatbot.db antes de trocar."
   },
   "hero": {
@@ -62,7 +62,7 @@
     },
     {
       "feature": "Pontos do Canal da Twitch",
-      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com tratamento de resgate ou reembolso.",
+      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com processamento de conclusão ou reembolso.",
       "them": "O guia descreve a moeda do bot sem especificar vínculos nativos com recompensas da Twitch. Verifique o seu fluxo de recompensas separadamente.",
       "source": "https://streamlabs.com/content-hub/post/choosing-the-right-chatbot"
     },

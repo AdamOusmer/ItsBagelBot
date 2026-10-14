@@ -62,7 +62,7 @@
     },
     {
       "feature": "Pontos do Canal da Twitch",
-      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com tratamento de resgate ou reembolso.",
+      "us": "Crie recompensas nativas da Twitch ligadas às ações do bot, incluindo pedidos do Spotify e controle de luzes Govee compatíveis, com processamento de conclusão ou reembolso.",
       "them": "A visão geral lista ações de recompensa para TTS, sons, status temporário de VIP e integrações com jogos.",
       "source": "https://wizebot.tv/en/services"
     },

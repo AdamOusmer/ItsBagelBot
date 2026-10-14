@@ -44,13 +44,13 @@
     },
     {
       "feature": "Moderation und Spamfilter",
-      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein kleiner Schutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
+      "us": "AutoMod ist ein Premium-Beta-Modul mit konfigurierbaren Prüfungen und Warnungen, Entfernen von Nachrichten, Timeouts oder Bans. Ein Basisschutz bleibt aktiv, wenn das Modul ausgeschaltet ist.",
       "them": "Schutzwerkzeuge umfassen Spamfilter, gesperrte Wörter, Domain-Erlaubnislisten, Warnungen und einen Notfallmodus.",
       "source": "https://wizebot.tv/en/services"
     },
     {
       "feature": "Song-Anfragen",
-      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können überspringen oder leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
+      "us": "!sr fügt einen Titel zu deiner echten Spotify-Player-Warteschlange hinzu. Zuschauer sehen Anfragen mit !srlist, Moderatoren können Titel überspringen oder die Warteschlange leeren. Spotify Premium, deine eigene Spotify-App und ein aktives Wiedergabegerät sind erforderlich.",
       "them": "!sr akzeptiert Liedtitel, YouTube-URLs oder Video-IDs. Chat-Befehle verwalten die Playlist, überspringen Titel und passen die Lautstärke an.",
       "source": "https://support.wizebot.tv/docs/commands"
     },
@@ -62,7 +62,7 @@
     },
     {
       "feature": "Twitch-Kanalpunkte",
-      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, mit Einlösung oder Rückerstattung.",
+      "us": "Erstelle native Twitch-Belohnungen, die an Bot-Aktionen gebunden sind, darunter Spotify-Anfragen und die Steuerung kompatibler Govee-Lampen, inklusive Erledigung oder Rückerstattung.",
       "them": "Die Übersicht nennt Belohnungsaktionen für TTS, Sounds, temporären VIP-Status und Spielintegrationen.",
       "source": "https://wizebot.tv/en/services"
     },
@@ -74,7 +74,7 @@
     },
     {
       "feature": "Treuewährung",
-      "us": "Zuschauer verdienen eine einstellbare Währung durch Zuschauzeit, Abonnements und Cheers. Sie betreibt Gamble und Duelle und bleibt von nativen Twitch-Kanalpunkten getrennt.",
+      "us": "Zuschauer verdienen eine einstellbare Währung durch Zuschauzeit, Abonnements und Cheers. Sie wird für Gamble und Duelle genutzt und bleibt von nativen Twitch-Kanalpunkten getrennt.",
       "them": "Der virtuelle Shop kann nach einem Kauf Befehle ausführen, Tags verarbeiten oder eine externe URL aufrufen. Das passt zu Belohnungen, die auf deiner Bot-Währung aufbauen. Der WizeBot-Import von ItsBagelBot übernimmt weder den Shop noch Guthaben.",
       "source": "https://support.wizebot.tv/docs/currency_virtualshop"
     },
@@ -124,7 +124,7 @@
     },
     {
       "q": "Sind kostenlose Spotify-Anfragen ohne Spotify Premium möglich?",
-      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät wiedergeben."
+      "a": "ItsBagelBot verlangt nichts für Song-Anfragen, aber für die Steuerung der Warteschlange ist Spotify Premium nötig. Sowohl das verbundene Konto als auch das Konto mit deiner Spotify-Entwickler-App brauchen Premium. Spotify muss auf einem Gerät Musik abspielen."
     },
     {
       "q": "Was sollte ich beim Import von WizeBot prüfen?",

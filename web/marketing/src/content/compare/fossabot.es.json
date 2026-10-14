@@ -13,7 +13,7 @@
     "us": [
       "Quieres que tus espectadores añadan canciones a tu cola real de Spotify y tienes Spotify Premium.",
       "Transmites Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale o CODM y quieres consultas de juego integradas.",
-      "Quieres recompensas de puntos del canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
+      "Quieres recompensas de puntos de canal de Twitch para las peticiones de Spotify o para luces Govee compatibles.",
       "Quieres revisar los comandos de tu página pública de comandos de Fossabot antes de guardarlos."
     ],
     "them": [
@@ -50,7 +50,7 @@
     },
     {
       "feature": "Peticiones de canciones",
-      "us": "!sr añade una canción a tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
+      "us": "!sr añade una canción a la cola de tu reproductor real de Spotify. Los espectadores pueden ver las peticiones con !srlist; los moderadores pueden saltar o vaciar la cola. Se requieren Spotify Premium, tu propia aplicación de Spotify y un dispositivo de reproducción activo.",
       "them": "!sr acepta búsquedas y enlaces de YouTube o enlaces de SoundCloud. Una cola de aprobación opcional te permite revisar las peticiones antes de reproducirlas. Referencia de aprobación: https://fossabot.com/docs/mediarequest/moderation.",
       "source": "https://docs.fossabot.com/mediarequest/requesting-songs/"
     },
@@ -61,8 +61,8 @@
       "source": "https://docs.fossabot.com/variables/valorant/"
     },
     {
-      "feature": "Puntos del canal de Twitch",
-      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de cumplimiento o reembolso.",
+      "feature": "Puntos de canal de Twitch",
+      "us": "Crea recompensas nativas de Twitch vinculadas a acciones del bot, incluidas las peticiones de Spotify y el control de luces Govee compatibles, con gestión de canjes completados o reembolsados.",
       "them": "Las recompensas pueden ejecutar comandos o publicar texto. Las variables de recompensa también exponen metadatos de la cola de canjes. Referencia de variables: https://docs.fossabot.com/variables/twitchreward/.",
       "source": "https://fossabot.com/"
     },
