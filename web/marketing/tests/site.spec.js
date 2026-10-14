@@ -292,30 +292,30 @@ test.describe('ItsBagelBot site', () => {
         expect(app.description).toBe(graph.find((node) => node['@type'] === 'Organization').description);
     });
 
-    test('translated guides are indexable with hreflang, untranslated ones stay noindex', async ({ page, request }) => {
+    test('every guide is indexable with hreflang in every locale', async ({ page, request }) => {
+        const slugs = ['commands', 'counters', 'data-sources', 'discord-setup', 'getting-started', 'govee-lights', 'modules', 'setup-errors', 'share-access', 'spotify-song-requests'];
+        for (const locale of ['de', 'es', 'fr', 'pt-br', 'ru']) {
+            for (const slug of slugs) {
+                await page.goto(`/${locale}/guides/${slug}`);
+                const robots = await page.locator('head meta[name="robots"]').getAttribute('content');
+                expect(robots, `${locale}/${slug}`).not.toMatch(/noindex/);
+            }
+        }
+
         await page.goto('/de/guides/getting-started');
-        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', /^index/);
         await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(7);
         const deGraph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
         expect(deGraph.find((node) => node['@type'] === 'TechArticle').inLanguage).toBe('de');
 
         await page.goto('/de/guides/modules');
-        await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
-        await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(0);
-        const modulesGraph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
-        expect(modulesGraph.find((node) => node['@type'] === 'TechArticle').inLanguage).toBe('en');
-
-        await page.goto('/fr/guides/commands');
         await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', /^index/);
         await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(7);
-
-        await page.goto('/fr/guides/modules');
-        await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
+        const modulesGraph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+        expect(modulesGraph.find((node) => node['@type'] === 'TechArticle').inLanguage).toBe('de');
 
         const sitemap = await (await request.get('/sitemap-0.xml')).text();
         expect(sitemap).toContain('<loc>https://itsbagelbot.com/de/guides/getting-started/</loc>');
-        expect(sitemap).not.toContain('/de/guides/modules/');
-        expect(sitemap).not.toMatch(/\/(de|es|pt-br|ru)\/guides\/(modules|data-sources|discord-setup|setup-errors)\//);
+        expect(sitemap).toContain('<loc>https://itsbagelbot.com/de/guides/modules/</loc>');
     });
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
