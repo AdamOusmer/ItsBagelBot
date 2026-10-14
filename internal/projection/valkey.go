@@ -77,8 +77,10 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 		background = background && u.Lifecycle.AllowsBackground()
 	}
 	args = append(args, utils.BoolField(background))
-	return v.primary.Do(ctx, v.primary.B().Eval().Script(userAdmissionWrite).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Arg(args...).Build()).Error()
+	return userAdmissionWriteScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
+
+var userAdmissionWriteScript = valkey.NewLuaScript(userAdmissionWrite)
 
 const userAdmissionWrite = `-- user watch admission write
 local instance=redis.call('HGET',KEYS[2],'instance')
@@ -262,14 +264,16 @@ func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 	return err
 }
 
+var legacyDeleteScript = valkey.NewLuaScript(`-- user watch deletion
+if tonumber(redis.call('HGET',KEYS[2],'instance') or '0') > 0 then return 0 end
+redis.call('HINCRBY',KEYS[2],'epoch',1); redis.call('HSET',KEYS[2],'deleted','1'); redis.call('DEL',KEYS[1]); return 1`)
+
 // DeleteLegacyAccount refuses an unstamped delete once a current incarnation
 // is known. Its result also fences callers' subsequent cleanup side effects.
 func (v *Store) DeleteLegacyAccount(ctx context.Context, userID uint64) (bool, error) {
 	defer segment(ctx, "DEL")()
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	n, err := v.primary.Do(ctx, v.primary.B().Eval().Script(`-- user watch deletion
-if tonumber(redis.call('HGET',KEYS[2],'instance') or '0') > 0 then return 0 end
-redis.call('HINCRBY',KEYS[2],'epoch',1); redis.call('HSET',KEYS[2],'deleted','1'); redis.call('DEL',KEYS[1]); return 1`).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Build()).AsInt64()
+	n, err := legacyDeleteScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, nil).AsInt64()
 	return n == 1, err
 }
 

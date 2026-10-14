@@ -254,6 +254,14 @@ func (v *Store) GetStreamCounterBaseline(ctx context.Context, userID string) (St
 	return StreamCounters{Messages: msgs, Answered: ans, ModActions: mods}, true, nil
 }
 
+var discardStreamBaselineScript = valkey.NewLuaScript(`if redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')==ARGV[1] then redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end return 1`)
+
+var setStreamBaselineScript = valkey.NewLuaScript(`local confirmed=tonumber(redis.call('GET',KEYS[2]) or '0')
+ if confirmed>tonumber(ARGV[1]) then return 0 end
+ if redis.call('HGET',KEYS[1],'live')~='1' or redis.call('HGET',KEYS[1],'live_ver')~=ARGV[1] or redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')~=ARGV[1] then return 0 end
+ redis.call('HSET',KEYS[1],'streamctr:messages',ARGV[2],'streamctr:answered',ARGV[3],'streamctr:mod_actions',ARGV[4])
+ redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') return 1`)
+
 // StreamBaselinePending survives a lifecycle read failure after accepting online.
 // Its version remains tied to the latest accepted live fact, never wall-clock replay.
 func (v *Store) StreamBaselinePending(ctx context.Context, id uint64, version int64) (bool, error) {
@@ -265,12 +273,10 @@ func (v *Store) StreamBaselinePending(ctx context.Context, id uint64, version in
 	return value == version, err
 }
 func (v *Store) DiscardStreamBaseline(ctx context.Context, id uint64, version int64) error {
-	return v.primary.Do(ctx, v.primary.B().Eval().Script(`if redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')==ARGV[1] then redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') end return 1`).Numkeys(1).Key(cache.UserKey(settingsKeyPrefix, id)).Arg(strconv.FormatInt(version, 10)).Build()).Error()
+	return discardStreamBaselineScript.Exec(ctx, v.primary, []string{cache.UserKey(settingsKeyPrefix, id)}, []string{strconv.FormatInt(version, 10)}).Error()
 }
 func (v *Store) SetStreamCounterBaselineForVersion(ctx context.Context, id uint64, version int64, b StreamCounters) error {
-	return v.primary.Do(ctx, v.primary.B().Eval().Script(`local confirmed=tonumber(redis.call('GET',KEYS[2]) or '0')
- if confirmed>tonumber(ARGV[1]) then return 0 end
- if redis.call('HGET',KEYS[1],'live')~='1' or redis.call('HGET',KEYS[1],'live_ver')~=ARGV[1] or redis.call('HGET',KEYS[1],'stream_baseline_pending_ver')~=ARGV[1] then return 0 end
- redis.call('HSET',KEYS[1],'streamctr:messages',ARGV[2],'streamctr:answered',ARGV[3],'streamctr:mod_actions',ARGV[4])
- redis.call('HDEL',KEYS[1],'stream_baseline_pending_ver') return 1`).Numkeys(2).Key(cache.UserKey(settingsKeyPrefix, id), livekey.VerKey(id)).Arg(strconv.FormatInt(version, 10), strconv.FormatInt(b.Messages, 10), strconv.FormatInt(b.Answered, 10), strconv.FormatInt(b.ModActions, 10)).Build()).Error()
+	keys := []string{cache.UserKey(settingsKeyPrefix, id), livekey.VerKey(id)}
+	args := []string{strconv.FormatInt(version, 10), strconv.FormatInt(b.Messages, 10), strconv.FormatInt(b.Answered, 10), strconv.FormatInt(b.ModActions, 10)}
+	return setStreamBaselineScript.Exec(ctx, v.primary, keys, args).Error()
 }

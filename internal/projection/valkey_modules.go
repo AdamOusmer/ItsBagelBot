@@ -19,6 +19,12 @@ import (
 
 type ModuleView = contract.ModuleView
 
+var (
+	moduleRevisionGateScript  = valkey.NewLuaScript(moduleRevisionGate)
+	moduleHydrationSeedScript = valkey.NewLuaScript(moduleHydrationSeed)
+	moduleSnapshotReadScript  = valkey.NewLuaScriptReadOnly(moduleSnapshotRead)
+)
+
 const (
 	moduleFieldPrefix  = "module:"
 	modulesMarkerField = "modules:projected"
@@ -140,12 +146,9 @@ func (v *Store) SetModule(ctx context.Context, userID uint64, mod ModuleView) er
 	// the raw value straight to Configs, so both yield a zero-length blob, and
 	// nothing anywhere does HEXISTS on a config field. The stray empty field
 	// costs a few bytes until the projection hash expires.
-	cmd := v.primary.B().Eval().Script(moduleRevisionGate).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).
-		Arg(revisionField).Arg(strconv.Itoa(mod.Revision)).
-		Arg("module:" + mod.Name + ":enabled").Arg(utils.BoolField(mod.IsEnabled)).
-		Arg(configField).Arg(string(mod.Configs)).
-		Arg(strconv.Itoa(int(DefaultTTL / time.Second))).Arg(strconv.FormatInt(mod.AccountCreatedAt, 10)).Build()
-	return v.primary.Do(ctx, cmd).Error()
+	keys := []string{key, watchtime.AdmissionKey(userID)}
+	args := []string{revisionField, strconv.Itoa(mod.Revision), "module:" + mod.Name + ":enabled", utils.BoolField(mod.IsEnabled), configField, string(mod.Configs), strconv.Itoa(int(DefaultTTL / time.Second)), strconv.FormatInt(mod.AccountCreatedAt, 10)}
+	return moduleRevisionGateScript.Exec(ctx, v.primary, keys, args).Error()
 }
 
 func (v *Store) SetModules(ctx context.Context, userID uint64, modules []ModuleView) error {
@@ -179,7 +182,7 @@ func (v *Store) SetModulesWithTTL(ctx context.Context, userID uint64, modules []
 		args = append(args, mod.Name, strconv.Itoa(mod.Revision), utils.BoolField(mod.IsEnabled), string(mod.Configs), strconv.FormatInt(mod.AccountCreatedAt, 10))
 	}
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	return v.primary.Do(ctx, v.primary.B().Eval().Script(moduleHydrationSeed).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Arg(args...).Build()).Error()
+	return moduleHydrationSeedScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
 
 func (v *Store) GetModules(ctx context.Context, userID uint64) (map[string]ModuleView, bool, error) {
@@ -228,7 +231,7 @@ func (v *Store) getModules(ctx context.Context, client valkey.Client, userID uin
 // for servers or ACLs that cannot execute EVAL_RO. Transport failures propagate.
 func readModuleSnapshot(ctx context.Context, client valkey.Client, key string) (map[string]string, error) {
 	end := segment(ctx, "EVAL_RO")
-	fields, err := client.Do(ctx, client.B().EvalRo().Script(moduleSnapshotRead).Numkeys(1).Key(key).Build()).AsStrMap()
+	fields, err := moduleSnapshotReadScript.Exec(ctx, client, []string{key}, nil).AsStrMap()
 	end()
 	if moduleSnapshotNeedsFallback(err) {
 		defer segment(ctx, "HGETALL")()

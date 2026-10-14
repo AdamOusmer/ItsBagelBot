@@ -19,6 +19,11 @@ const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.
 // A plain PEXPIRE would extend a lock another replica took after our TTL lapsed.
 const renewIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('pexpire',KEYS[1],ARGV[2]) else return 0 end`
 
+var (
+	renewIfOwnerScript   = valkey_go.NewLuaScript(renewIfOwner)
+	releaseIfOwnerScript = valkey_go.NewLuaScript(releaseIfOwner)
+)
+
 type OwnerLock struct {
 	client valkey_go.Client
 	key    string
@@ -36,15 +41,12 @@ func (l OwnerLock) Acquire(ctx context.Context, ttl time.Duration) (bool, error)
 }
 
 func (l OwnerLock) Renew(ctx context.Context, ttl time.Duration) (bool, error) {
-	cmd := l.client.B().Eval().Script(renewIfOwner).Numkeys(1).Key(l.key).
-		Arg(l.owner, strconv.FormatInt(ttl.Milliseconds(), 10)).Build()
-	n, err := l.client.Do(ctx, cmd).AsInt64()
+	n, err := renewIfOwnerScript.Exec(ctx, l.client, []string{l.key}, []string{l.owner, strconv.FormatInt(ttl.Milliseconds(), 10)}).AsInt64()
 	return n == 1, err
 }
 
 func (l OwnerLock) Release(ctx context.Context) error {
-	cmd := l.client.B().Eval().Script(releaseIfOwner).Numkeys(1).Key(l.key).Arg(l.owner).Build()
-	return l.client.Do(ctx, cmd).Error()
+	return releaseIfOwnerScript.Exec(ctx, l.client, []string{l.key}, []string{l.owner}).Error()
 }
 
 func ClaimOnce(ctx context.Context, client valkey_go.Client, key string, ttl time.Duration) (bool, error) {

@@ -46,12 +46,14 @@ local instance=redis.call('HGET',KEYS[2],'instance'); if not instance then retur
 const capture = admission + `if redis.call('HGET',KEYS[5],'active') == '1' then session=redis.call('HGET',KEYS[5],'session') or session end
 return {generation,session,instance,redis.call('HGET',KEYS[1],'module:loyalty:config') or ''}`
 
+var captureScript = valkey.NewLuaScript(capture)
+
 func (s *Store) Capture(ctx context.Context, id uint64) (Snapshot, bool, error) {
 	if id == 0 {
 		return Snapshot{}, false, nil
 	}
 	sid := strconv.FormatUint(id, 10)
-	vals, err := s.client.Do(ctx, s.client.B().Eval().Script(capture).Numkeys(5).Key("settings:"+sid, AdmissionKey(id), "live:"+sid, "trial:desired", "loyaltick:state:"+sid).Arg(sid).Build()).AsStrSlice()
+	vals, err := captureScript.Exec(ctx, s.client, []string{"settings:" + sid, AdmissionKey(id), "live:" + sid, "trial:desired", "loyaltick:state:" + sid}, []string{sid}).AsStrSlice()
 	if valkey.IsValkeyNil(err) {
 		return Snapshot{}, false, nil
 	}
@@ -93,6 +95,8 @@ redis.call('ZADD',KEYS[10],ARGV[10],delivery)
 redis.call('HSET',KEYS[6],ARGV[4],ARGV[6])
 return 1`
 
+var enqueueScript = valkey.NewLuaScript(enqueue)
+
 func (s *Store) Enqueue(ctx context.Context, a data.WatchAwardDTO) (bool, error) {
 	return s.EnqueueOwned(ctx, a, "")
 }
@@ -106,20 +110,16 @@ func (s *Store) EnqueueOwned(ctx context.Context, a data.WatchAwardDTO, owner st
 	}
 	digest := sha256.Sum256(body)
 	sid := strconv.FormatUint(a.UserID, 10)
-	n, err := s.client.Do(ctx, s.client.B().Eval().Script(enqueue).Numkeys(10).Key("settings:"+sid, AdmissionKey(a.UserID), "live:"+sid, "trial:desired", Stream, "watchtime:operations:"+sid, "loyaltick:claim:"+sid, "loyaltick:state:"+sid, RetentionFloor, OutboxWindowIndex).Arg(sid, a.Generation, a.LiveSession, OperationID(a), string(body), hex.EncodeToString(digest[:]), owner, a.WindowID, strconv.FormatInt(a.AccountCreatedAt, 10), strconv.FormatInt(WindowStartUnixMilli(a), 10)).Build()).AsInt64()
+	keys := []string{"settings:" + sid, AdmissionKey(a.UserID), "live:" + sid, "trial:desired", Stream, "watchtime:operations:" + sid, "loyaltick:claim:" + sid, "loyaltick:state:" + sid, RetentionFloor, OutboxWindowIndex}
+	args := []string{sid, a.Generation, a.LiveSession, OperationID(a), string(body), hex.EncodeToString(digest[:]), owner, a.WindowID, strconv.FormatInt(a.AccountCreatedAt, 10), strconv.FormatInt(WindowStartUnixMilli(a), 10)}
+	n, err := enqueueScript.Exec(ctx, s.client, keys, args).AsInt64()
 	if valkey.IsValkeyNil(err) {
 		return false, nil
 	}
 	return n == 1, err
 }
 
-// RestoreAccount accepts only the same still-active instance or a strictly
-// newer creation timestamp. Delayed UserChanged cannot revive a deleted instance.
-func (s *Store) RestoreAccount(ctx context.Context, id uint64, createdAt int64) (bool, error) {
-	if id == 0 || createdAt <= 0 {
-		return false, errors.New("invalid account instance")
-	}
-	n, err := s.client.Do(ctx, s.client.B().Eval().Script(`
+var restoreAccountScript = valkey.NewLuaScript(`
  local prior=tonumber(redis.call('HGET',KEYS[1],'instance') or '0')
  local incoming=tonumber(ARGV[1])
  if incoming < prior then return 0 end
@@ -130,7 +130,24 @@ func (s *Store) RestoreAccount(ctx context.Context, id uint64, createdAt int64) 
  redis.call('HINCRBY',KEYS[1],'epoch',1)
  redis.call('HSET',KEYS[1],'instance',ARGV[1]); redis.call('HDEL',KEYS[1],'deleted','state_revision','loyalty_revision')
  redis.call('DEL',KEYS[2],KEYS[3],KEYS[4])
- return 1`).Numkeys(4).Key(AdmissionKey(id), "settings:"+strconv.FormatUint(id, 10), "loyaltick:state:"+strconv.FormatUint(id, 10), "loyaltick:claim:"+strconv.FormatUint(id, 10)).Arg(strconv.FormatInt(createdAt, 10)).Build()).AsInt64()
+ return 1`)
+
+var deleteAccountScript = valkey.NewLuaScript(`
+ local prior=tonumber(redis.call('HGET',KEYS[1],'instance') or '0')
+ if tonumber(ARGV[1]) < prior then return 0 end
+ redis.call('HINCRBY',KEYS[1],'epoch',1)
+ redis.call('HSET',KEYS[1],'instance',ARGV[1],'deleted','1')
+ redis.call('DEL',KEYS[2],KEYS[3],KEYS[4],KEYS[5],KEYS[7]); redis.call('ZREM',KEYS[6],ARGV[2])
+ return 1`)
+
+// RestoreAccount accepts only the same still-active instance or a strictly
+// newer creation timestamp. Delayed UserChanged cannot revive a deleted instance.
+func (s *Store) RestoreAccount(ctx context.Context, id uint64, createdAt int64) (bool, error) {
+	if id == 0 || createdAt <= 0 {
+		return false, errors.New("invalid account instance")
+	}
+	keys := []string{AdmissionKey(id), "settings:" + strconv.FormatUint(id, 10), "loyaltick:state:" + strconv.FormatUint(id, 10), "loyaltick:claim:" + strconv.FormatUint(id, 10)}
+	n, err := restoreAccountScript.Exec(ctx, s.client, keys, []string{strconv.FormatInt(createdAt, 10)}).AsInt64()
 	return n == 1, err
 }
 
@@ -141,12 +158,7 @@ func (s *Store) DeleteAccount(ctx context.Context, id uint64, createdAt int64) (
 		return false, errors.New("invalid account instance")
 	}
 	sid := strconv.FormatUint(id, 10)
-	n, err := s.client.Do(ctx, s.client.B().Eval().Script(`
- local prior=tonumber(redis.call('HGET',KEYS[1],'instance') or '0')
- if tonumber(ARGV[1]) < prior then return 0 end
- redis.call('HINCRBY',KEYS[1],'epoch',1)
- redis.call('HSET',KEYS[1],'instance',ARGV[1],'deleted','1')
- redis.call('DEL',KEYS[2],KEYS[3],KEYS[4],KEYS[5],KEYS[7]); redis.call('ZREM',KEYS[6],ARGV[2])
- return 1`).Numkeys(7).Key(AdmissionKey(id), "settings:"+sid, "loyaltick:state:"+sid, "loyaltick:claim:"+sid, "loyaltick:"+sid, "loyaltick:due", "live:"+sid).Arg(strconv.FormatInt(createdAt, 10), sid).Build()).AsInt64()
+	keys := []string{AdmissionKey(id), "settings:" + sid, "loyaltick:state:" + sid, "loyaltick:claim:" + sid, "loyaltick:" + sid, "loyaltick:due", "live:" + sid}
+	n, err := deleteAccountScript.Exec(ctx, s.client, keys, []string{strconv.FormatInt(createdAt, 10), sid}).AsInt64()
 	return n == 1, err
 }

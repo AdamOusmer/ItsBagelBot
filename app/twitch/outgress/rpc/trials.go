@@ -100,6 +100,13 @@ if state == 'disabled' and redis.call('HGET', KEYS[2], 'enabled') ~= '0' then
 end
 return 1`
 
+var (
+	activateTrialScript     = valkey.NewLuaScript(activateTrial)
+	releaseTrialScript      = valkey.NewLuaScript(releaseTrial)
+	recordDisplayNameScript = valkey.NewLuaScript(`if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
+redis.call('HSET', KEYS[1], 'display_name', ARGV[2]); return 1`)
+)
+
 func (h *trialSubscriptions) owned(ctx context.Context, req TrialSubscriptionRequest) (map[string]string, bool) {
 	if !req.valid() {
 		return nil, false
@@ -263,7 +270,9 @@ func (h *trialSubscriptions) conflictID(ctx context.Context, req TrialSubscripti
 
 func (h *trialSubscriptions) activate(ctx context.Context, req TrialSubscriptionRequest, id string) bool {
 	key := "trial:channel:" + req.BroadcasterID
-	activated, err := h.store.Do(ctx, h.store.B().Eval().Script(activateTrial).Numkeys(3).Key(trialOwnerKey(req.Slot)).Key(key).Key(trialSessionKey(req.Slot)).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(id).Arg(req.SessionID).Arg(strconv.Itoa(req.Slot)).Build()).AsInt64()
+	keys := []string{trialOwnerKey(req.Slot), key, trialSessionKey(req.Slot)}
+	args := []string{fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, id, req.SessionID, strconv.Itoa(req.Slot)}
+	activated, err := activateTrialScript.Exec(ctx, h.store, keys, args).AsInt64()
 	return err == nil && activated == 1
 }
 
@@ -335,9 +344,7 @@ func (h *trialSubscriptions) recordDisplayName(ctx context.Context, req TrialSub
 	if page.Data[0].DisplayName == "" {
 		return
 	}
-	const script = `if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
-redis.call('HSET', KEYS[1], 'display_name', ARGV[2]); return 1`
-	_ = h.store.Do(ctx, h.store.B().Eval().Script(script).Numkeys(1).Key("trial:channel:"+req.BroadcasterID).Arg(req.TrialGeneration).Arg(page.Data[0].DisplayName).Build()).Error()
+	_ = recordDisplayNameScript.Exec(ctx, h.store, []string{"trial:channel:" + req.BroadcasterID}, []string{req.TrialGeneration, page.Data[0].DisplayName}).Error()
 }
 
 func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRequest) TrialSubscriptionReply {
@@ -363,7 +370,9 @@ func trialDeletionMatches(fields map[string]string, subscriptionID string) bool 
 
 func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
 	key := "trial:channel:" + req.BroadcasterID
-	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key(trialOwnerKey(req.Slot)).Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
+	keys := []string{trialOwnerKey(req.Slot), key}
+	args := []string{fmt.Sprint(req.OwnerEpoch), req.TrialGeneration, req.SubscriptionID}
+	released, err := releaseTrialScript.Exec(ctx, h.store, keys, args).AsInt64()
 	return err == nil && released == 1
 }
 

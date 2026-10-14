@@ -289,6 +289,20 @@ func TestRetentionQuarantineRemovesWindowPin(t *testing.T) {
 	assert.EqualValues(t, 1, quarantineLen(client))
 }
 
+func TestQuarantineTrimsEntriesOlderThanHistoryRetention(t *testing.T) {
+	client := outboxClient(t)
+	const stale = 250
+	for i := 1; i <= stale; i++ {
+		require.NoError(t, client.Do(t.Context(), client.B().Xadd().Key(watchtime.QuarantineStream).Id("1-"+strconv.Itoa(i)).FieldValue().FieldValue("reason", "old").Build()).Error())
+	}
+	appendAward(t, client, testAward(), "mismatched-operation")
+
+	run(t, watchtime.NewConsumer(client, committing(new(atomic.Int64)), zap.NewNop()))
+
+	require.Eventually(t, func() bool { return outboxLen(client) == 0 }, settle, poll)
+	assert.Less(t, quarantineLen(client), int64(stale+1), "quarantine keeps growing past the retention horizon")
+}
+
 func TestValidateAwardRefusesIncompleteOrOutOfRangeAwards(t *testing.T) {
 	require.NoError(t, watchtime.ValidateAward(testAward()))
 	for name, mutate := range map[string]func(*data.WatchAwardDTO){

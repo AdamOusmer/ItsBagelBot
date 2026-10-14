@@ -95,6 +95,21 @@ func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {
 	}
 }
 
+func TestCounterProcessorReloadsScriptsAfterNoScript(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cache := newCounterFakeValkey(t)
+	clear(cache.loaded)
+	p := counterTestProcessor(t, repo, cache)
+
+	require.NoError(t, p.Process(context.Background(), counterTestEvent("cold", 2)))
+	require.NoError(t, p.Process(context.Background(), counterTestEvent("warm", 3)))
+
+	assert.EqualValues(t, 5, counterTestValue(t, raw, "deaths"))
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	assert.Equal(t, [][]string{{counterClaimScript}, {counterClaimScript}, {counterCompleteScript}, {counterCompleteScript}, {counterClaimScript}, {counterCompleteScript}}, cache.batches)
+}
+
 func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	cache := newCounterFakeValkey(t)
