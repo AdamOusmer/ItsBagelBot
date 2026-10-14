@@ -69,20 +69,47 @@ func newCommand(name, response string) projection.Command {
 	return projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}
 }
 
+type cmdCase struct {
+	name      string
+	text      string
+	viewer    bool
+	existing  []string
+	disabled  []string
+	lookupErr error
+	upsertErr error
+	deleteErr error
+	upserts   []upsertCall
+	deletes   []deleteCall
+	contains  []string
+}
+
+func runCmdCases(t *testing.T, cases []cmdCase) {
+	t.Helper()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stored := existingCommands(tc.existing...)
+			for _, name := range tc.disabled {
+				stored[name] = storedCommand(name, false)
+			}
+			cmds := &fakeCommandManager{upsertErr: tc.upsertErr, deleteErr: tc.deleteErr}
+			m := Cmd(cmdDeps(&fakeProj{commands: stored, cmdErr: tc.lookupErr}, cmds))
+			c := chatCtx("42", "alice", "moderator")
+			if tc.viewer {
+				c = chatCtx("42", "alice")
+			}
+			out := runChat(t, m, c, tc.text)
+			assert.Equal(t, tc.upserts, cmds.upserts)
+			assert.Equal(t, tc.deletes, cmds.deletes)
+			require.Len(t, out, min(len(tc.contains), 1))
+			for _, want := range tc.contains {
+				assert.Contains(t, out[0].Text, want)
+			}
+		})
+	}
+}
+
 func TestCmdManagement(t *testing.T) {
-	cases := []struct {
-		name      string
-		text      string
-		viewer    bool
-		existing  []string
-		disabled  []string
-		lookupErr error
-		upsertErr error
-		deleteErr error
-		upserts   []upsertCall
-		deletes   []deleteCall
-		contains  []string
-	}{
+	runCmdCases(t, []cmdCase{
 		{name: "adds a command and confirms it", text: "!cmd add hello Hello world!",
 			upserts: []upsertCall{{"100", newCommand("hello", "Hello world!")}}, contains: []string{"@alice", "hello", "added"}},
 		{name: "strips the leading bang from the name", text: "!cmd add !test Hello",
@@ -106,6 +133,21 @@ func TestCmdManagement(t *testing.T) {
 		{name: "accepts delete as an alias of remove", text: "!cmd delete test",
 			deletes: []deleteCall{{"100", "test"}}, contains: []string{"removed"}},
 		{name: "prints usage when remove has no name", text: "!cmd remove", contains: []string{"Usage"}},
+		{name: "stays silent when the add RPC fails", text: "!cmd add test Hi", upsertErr: errors.New("rpc timeout"),
+			upserts: []upsertCall{{"100", newCommand("test", "Hi")}}},
+		{name: "stays silent when the remove RPC fails", text: "!cmd remove test", deleteErr: errors.New("rpc timeout"),
+			deletes: []deleteCall{{"100", "test"}}},
+		{name: "add stays silent and writes nothing when the lookup fails", text: "!cmd add hello Hi",
+			lookupErr: errors.New("projection unavailable")},
+		{name: "edit stays silent and writes nothing when the lookup fails", text: "!cmd edit hello Hi",
+			lookupErr: errors.New("projection unavailable")},
+		{name: "viewers get the page link instead of managing", text: "!cmd add hi yo", viewer: true,
+			contains: []string{"/user/streamer"}},
+	})
+}
+
+func TestCmdToggleAndPerm(t *testing.T) {
+	runCmdCases(t, []cmdCase{
 		{name: "disables a command and keeps its response and settings", text: "!cmd disable !Hello", existing: []string{"hello"},
 			upserts:  []upsertCall{{"100", storedCommand("hello", false)}},
 			contains: []string{"@alice", "hello", "disabled"}},
@@ -128,42 +170,11 @@ func TestCmdManagement(t *testing.T) {
 		{name: "prints perm usage without a level", text: "!cmd perm hello", contains: []string{"Usage", "!cmd perm"}},
 		{name: "refuses to set access on an unknown command", text: "!cmd perm nope mod",
 			contains: []string{"not found"}},
-		{name: "stays silent when the add RPC fails", text: "!cmd add test Hi", upsertErr: errors.New("rpc timeout"),
-			upserts: []upsertCall{{"100", newCommand("test", "Hi")}}},
 		{name: "stays silent when the disable RPC fails", text: "!cmd disable hello", existing: []string{"hello"},
 			upsertErr: errors.New("rpc timeout"), upserts: []upsertCall{{"100", storedCommand("hello", false)}}},
-		{name: "stays silent when the remove RPC fails", text: "!cmd remove test", deleteErr: errors.New("rpc timeout"),
-			deletes: []deleteCall{{"100", "test"}}},
-		{name: "add stays silent and writes nothing when the lookup fails", text: "!cmd add hello Hi",
-			lookupErr: errors.New("projection unavailable")},
-		{name: "edit stays silent and writes nothing when the lookup fails", text: "!cmd edit hello Hi",
-			lookupErr: errors.New("projection unavailable")},
-		{name: "viewers get the page link instead of managing", text: "!cmd add hi yo", viewer: true,
-			contains: []string{"/user/streamer"}},
 		{name: "viewers get the page link instead of disabling", text: "!cmd disable hello", viewer: true, existing: []string{"hello"},
 			contains: []string{"/user/streamer"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			stored := existingCommands(tc.existing...)
-			for _, name := range tc.disabled {
-				stored[name] = storedCommand(name, false)
-			}
-			cmds := &fakeCommandManager{upsertErr: tc.upsertErr, deleteErr: tc.deleteErr}
-			m := Cmd(cmdDeps(&fakeProj{commands: stored, cmdErr: tc.lookupErr}, cmds))
-			c := chatCtx("42", "alice", "moderator")
-			if tc.viewer {
-				c = chatCtx("42", "alice")
-			}
-			out := runChat(t, m, c, tc.text)
-			assert.Equal(t, tc.upserts, cmds.upserts)
-			assert.Equal(t, tc.deletes, cmds.deletes)
-			require.Len(t, out, min(len(tc.contains), 1))
-			for _, want := range tc.contains {
-				assert.Contains(t, out[0].Text, want)
-			}
-		})
-	}
+	})
 }
 
 func TestCmdSubcommandRoles(t *testing.T) {

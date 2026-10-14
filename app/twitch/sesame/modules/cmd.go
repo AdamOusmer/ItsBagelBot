@@ -22,21 +22,33 @@ import (
 
 const cmdModuleName = "cmd"
 
-type cmdHandler func(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger)
+type (
+	cmdArgs     string
+	cmdReplyKey string
+	cmdPermKey  string
+)
+
+type cmdCall struct {
+	ctx  context.Context
+	c    *module.Context
+	d    engine.Deps
+	emit module.Emit
+	log  *zap.Logger
+}
 
 type cmdAction struct {
-	permKey string
-	run     cmdHandler
+	permKey cmdPermKey
+	run     func(cmdCall, cmdArgs)
 }
 
 var cmdActions = map[string]cmdAction{
-	"add":     {permKey: "addPerm", run: cmdAdd},
-	"edit":    {permKey: "editPerm", run: cmdEdit},
-	"remove":  {permKey: "removePerm", run: cmdRemove},
-	"delete":  {permKey: "removePerm", run: cmdRemove},
+	"add":     {permKey: "addPerm", run: cmdCall.add},
+	"edit":    {permKey: "editPerm", run: cmdCall.edit},
+	"remove":  {permKey: "removePerm", run: cmdCall.remove},
+	"delete":  {permKey: "removePerm", run: cmdCall.remove},
 	"enable":  {permKey: "enablePerm", run: cmdSetActive(true, "cmd.enabled")},
 	"disable": {permKey: "disablePerm", run: cmdSetActive(false, "cmd.disabled")},
-	"perm":    {permKey: "permPerm", run: cmdPerm},
+	"perm":    {permKey: "permPerm", run: cmdCall.perm},
 }
 
 func Cmd(d engine.Deps) module.Module {
@@ -68,7 +80,7 @@ func cmdRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 			cmdLink(ctx, c, d, emit)
 			return nil
 		}
-		action.run(ctx, c, d, rest, emit, log)
+		action.run(cmdCall{ctx: ctx, c: c, d: d, emit: emit, log: log}, cmdArgs(rest))
 		return nil
 	}
 }
@@ -81,130 +93,122 @@ var cmdManageRoles = map[string]module.Role{
 	"broadcaster": module.RoleBroadcaster,
 }
 
-func cmdRole(c *module.Context, permKey string) module.Role {
+func cmdRole(c *module.Context, permKey cmdPermKey) module.Role {
 	var cfg map[string]any
 	_ = c.Decode(&cfg)
-	perm, _ := cfg[permKey].(string)
+	perm, _ := cfg[string(permKey)].(string)
 	if role, ok := cmdManageRoles[perm]; ok {
 		return role
 	}
 	return module.RoleModerator
 }
 
-func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, response := splitFirst(args)
-	if !cmdHasNameAndResponse(c, emit, name, response) {
+func (k cmdCall) add(args cmdArgs) {
+	name, response := splitFirst(string(args))
+	if !k.hasNameAndResponse(name, response) {
 		return
 	}
 
 	name = cmdName(name)
-	_, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+	_, found, err := k.d.Proj.Command(k.ctx, k.c.BroadcasterID, name)
 	if err != nil {
-		log.Warn("cmd: add lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
+		k.log.Warn("cmd: add lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
 	if found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterName(), name)
+		k.reply("cmd.err.exists", name)
 		return
 	}
 
-	cmdSave(ctx, c, d, projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}, "cmd.added", emit, log)
+	k.save(projection.Command{Name: name, Response: response, IsActive: true, Perm: "everyone"}, "cmd.added")
 }
 
-func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, response := splitFirst(args)
-	if !cmdHasNameAndResponse(c, emit, name, response) {
+func (k cmdCall) edit(args cmdArgs) {
+	name, response := splitFirst(string(args))
+	if !k.hasNameAndResponse(name, response) {
 		return
 	}
-	cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
-	if !ok {
-		return
-	}
-	cc.Response = response
-	cmdSave(ctx, c, d, cc, "cmd.modified", emit, log)
+	k.change(name, "cmd.modified", func(cc *projection.Command) { cc.Response = response })
 }
 
-func cmdSetActive(active bool, replyKey string) cmdHandler {
-	return func(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-		name, _ := splitFirst(args)
+func cmdSetActive(active bool, replyKey cmdReplyKey) func(cmdCall, cmdArgs) {
+	return func(k cmdCall, args cmdArgs) {
+		name, _ := splitFirst(string(args))
 		if name == "" {
-			reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+			reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
 			return
 		}
-		cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
-		if !ok {
-			return
-		}
-		cc.IsActive = active
-		cmdSave(ctx, c, d, cc, replyKey, emit, log)
+		k.change(name, replyKey, func(cc *projection.Command) { cc.IsActive = active })
 	}
 }
 
-func cmdPerm(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, rest := splitFirst(args)
+func (k cmdCall) perm(args cmdArgs) {
+	name, rest := splitFirst(string(args))
 	perm, _ := splitFirst(rest)
 	perm = strings.ToLower(perm)
 	if name == "" || validate.Perm(perm) != nil {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.perm_usage"), c.Env.ChatterName(), "")
+		k.reply("cmd.err.perm_usage", "")
 		return
 	}
-	cc, ok := cmdLookup(ctx, c, d, cmdName(name), emit, log)
-	if !ok {
-		return
-	}
-	cc.Perm = perm
-	cmdSave(ctx, c, d, cc, "cmd.perm_set", emit, log)
+	k.change(name, "cmd.perm_set", func(cc *projection.Command) { cc.Perm = perm })
 }
 
-func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
-	name, _ := splitFirst(args)
+func (k cmdCall) remove(args cmdArgs) {
+	name, _ := splitFirst(string(args))
 	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+		reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
 		return
 	}
 
 	name = cmdName(name)
-	if err := d.Commands.Delete(ctx, c.Env.BroadcasterUserID, name); err != nil {
-		log.Warn("cmd: remove failed", zap.String("name", name), c.BID(), zap.Error(err))
+	if err := k.d.Commands.Delete(k.ctx, k.c.Env.BroadcasterUserID, name); err != nil {
+		k.log.Warn("cmd: remove failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
-	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)
+	k.reply("cmd.removed", name)
 }
 
 func cmdName(name string) string {
 	return strings.TrimPrefix(strings.ToLower(name), "!")
 }
 
-func cmdHasNameAndResponse(c *module.Context, emit module.Emit, name, response string) bool {
+func (k cmdCall) reply(key cmdReplyKey, command string) {
+	reply(k.c, k.emit, i18n.T(k.c.Locale, string(key)), k.c.Env.ChatterName(), command)
+}
+
+func (k cmdCall) hasNameAndResponse(name, response string) bool {
 	if name == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.usage"), "", "")
+		reply(k.c, k.emit, i18n.T(k.c.Locale, "cmd.err.usage"), "", "")
 		return false
 	}
 	if response == "" {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.missing_resp"), c.Env.ChatterName(), "")
+		k.reply("cmd.err.missing_resp", "")
 		return false
 	}
 	return true
 }
 
-func cmdLookup(ctx context.Context, c *module.Context, d engine.Deps, name string, emit module.Emit, log *zap.Logger) (projection.Command, bool) {
-	cc, found, err := d.Proj.Command(ctx, c.BroadcasterID, name)
+func (k cmdCall) change(name string, replyKey cmdReplyKey, apply func(*projection.Command)) {
+	name = cmdName(name)
+	cc, found, err := k.d.Proj.Command(k.ctx, k.c.BroadcasterID, name)
 	if err != nil {
-		log.Warn("cmd: lookup failed", zap.String("name", name), c.BID(), zap.Error(err))
-		return cc, false
-	}
-	if !found {
-		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
-	}
-	return cc, found
-}
-
-func cmdSave(ctx context.Context, c *module.Context, d engine.Deps, cc projection.Command, replyKey string, emit module.Emit, log *zap.Logger) {
-	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, cc); err != nil {
-		log.Warn("cmd: save failed", zap.String("name", cc.Name), c.BID(), zap.Error(err))
+		k.log.Warn("cmd: lookup failed", zap.String("name", name), k.c.BID(), zap.Error(err))
 		return
 	}
-	sendLine(c, emit, cmdReplyLine{text: i18n.T(c.Locale, replyKey), user: c.Env.ChatterName(), command: cc.Name, role: cc.Perm})
+	if !found {
+		k.reply("cmd.err.not_found", name)
+		return
+	}
+	apply(&cc)
+	k.save(cc, replyKey)
+}
+
+func (k cmdCall) save(cc projection.Command, replyKey cmdReplyKey) {
+	if err := k.d.Commands.Upsert(k.ctx, k.c.Env.BroadcasterUserID, cc); err != nil {
+		k.log.Warn("cmd: save failed", zap.String("name", cc.Name), k.c.BID(), zap.Error(err))
+		return
+	}
+	sendLine(k.c, k.emit, cmdReplyLine{text: i18n.T(k.c.Locale, string(replyKey)), user: k.c.Env.ChatterName(), command: cc.Name, role: cc.Perm})
 }
 
 func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
