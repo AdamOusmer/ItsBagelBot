@@ -182,3 +182,46 @@ func TestVerifyChannelSecondCallWithinWindowIsThrottled(t *testing.T) {
 	assert.True(t, v.Throttled)
 	assert.Equal(t, gets, transport.gets.Load())
 }
+
+func TestUnhealthySweepHealsServedChannelThenIsLocked(t *testing.T) {
+	probe := verifyWorker(t, &verifyTransport{}, valkeytest.Spawn(t))
+	transport := &verifyTransport{present: requiredTypesForTest(probe)}
+	w := verifyWorker(t, transport, valkeytest.Spawn(t))
+	ctx := t.Context()
+	require.NoError(t, w.registry.SetSubState(ctx, testBroadcaster, subStateFailing, "stale"))
+
+	w.sweepUnhealthy(ctx)
+
+	state, _ := storedSubState(t, w)
+	assert.Equal(t, subStateOK, state)
+	ids, err := w.registry.UnhealthyBatch(ctx, 10)
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+
+	require.NoError(t, w.registry.SetSubState(ctx, testBroadcaster, subStateFailing, "again"))
+	gets := transport.gets.Load()
+	w.sweepUnhealthy(ctx)
+	assert.Equal(t, gets, transport.gets.Load())
+	state, _ = storedSubState(t, w)
+	assert.Equal(t, subStateFailing, state)
+}
+
+func TestUnhealthySweepLeavesDormantChannelInSet(t *testing.T) {
+	transport := &verifyTransport{}
+	w := verifyWorker(t, transport, valkeytest.Spawn(t))
+	runtime := &fakeRuntime{servingSnapshot()}
+	runtime.snap.State.RuntimeState = lifecycle.Dormant
+	w.runtime = runtime
+	ctx := t.Context()
+	require.NoError(t, w.registry.SetSubState(ctx, testBroadcaster, subStateFailing, "stale"))
+
+	w.sweepUnhealthy(ctx)
+
+	state, subErr := storedSubState(t, w)
+	assert.Equal(t, subStateFailing, state)
+	assert.Equal(t, "stale", subErr)
+	ids, err := w.registry.UnhealthyBatch(ctx, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{testBroadcaster}, ids)
+	assert.Zero(t, transport.posts.Load())
+}

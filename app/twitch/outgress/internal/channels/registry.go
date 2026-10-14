@@ -31,6 +31,9 @@ const (
 	pausedKey        = "outgress:paused"
 	pausedVersionKey = "outgress:paused:version"
 
+	unhealthyKey          = "outgress:channels:unhealthy"
+	unhealthySweepLockKey = "outgress:channels:unhealthy:sweep"
+
 	cacheInvalidateScope = "outgress"
 	pauseInvalidateScope = "outgress-pause"
 )
@@ -225,55 +228,6 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 	return ch, true, nil
 }
 
-func savedFields(ch manage.Channel) map[string]string {
-	return map[string]string{
-		"enabled":          utils.BoolField(ch.Enabled),
-		"is_mod":           utils.BoolField(ch.IsMod),
-		"mod_checked_at":   unixOrZero(ch.ModCheckedAt),
-		"updated_at":       strconv.FormatInt(time.Now().Unix(), 10),
-		"sub_state":        ch.SubState,
-		"sub_error":        ch.SubError,
-		"sub_checked_at":   unixOrZero(ch.SubCheckedAt),
-		"blocked_at":       unixOrZero(ch.BlockedAt),
-		"grant_state":      string(ch.GrantState),
-		"grant_checked_at": unixOrZero(ch.GrantCheckedAt),
-	}
-}
-
-func unixOrZero(t time.Time) string {
-	if t.IsZero() {
-		return "0"
-	}
-	return strconv.FormatInt(t.Unix(), 10)
-}
-
-func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
-
-	key := keyPrefix + ch.BroadcasterID
-
-	hset := r.client.B().Hset().Key(key).FieldValue()
-	for field, value := range savedFields(ch) {
-		hset = hset.FieldValue(field, value)
-	}
-
-	for _, res := range r.client.DoMulti(ctx,
-		hset.Build(),
-		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
-	) {
-		if err := res.Error(); err != nil {
-			return err
-		}
-	}
-
-	if err := r.retainHot(ctx, ch.BroadcasterID); err != nil {
-		return err
-	}
-	r.cache.Set(ch.BroadcasterID, ch)
-	r.publishInvalidation(ch.BroadcasterID)
-
-	return nil
-}
-
 func (r *Registry) SetFlags(ctx context.Context, broadcasterID string, enabled, isMod *bool) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -318,7 +272,25 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
+		r.unhealthyCommand(broadcasterID, state),
 	)
+}
+
+func unhealthyState(state string) bool { return state == "failing" || state == "pending" }
+
+func (r *Registry) unhealthyCommand(broadcasterID, state string) valkey.Completed {
+	if unhealthyState(state) {
+		return r.client.B().Sadd().Key(unhealthyKey).Member(broadcasterID).Build()
+	}
+	return r.client.B().Srem().Key(unhealthyKey).Member(broadcasterID).Build()
+}
+
+func (r *Registry) UnhealthyBatch(ctx context.Context, n int) ([]string, error) {
+	return r.client.Do(ctx, r.client.B().Srandmember().Key(unhealthyKey).Count(int64(n)).Build()).AsStrSlice()
+}
+
+func (r *Registry) ClaimUnhealthySweep(ctx context.Context, ttl time.Duration) (bool, error) {
+	return r.acquireLock(ctx, unhealthySweepLockKey, "1", ttl)
 }
 
 var setSubStateUnless = valkey.NewLuaScript(`
@@ -326,12 +298,13 @@ local current=redis.call('HGET',KEYS[1],'sub_state')
 for i=5,#ARGV do if current==ARGV[i] then return 0 end end
 redis.call('HSET',KEYS[1],'sub_state',ARGV[1],'sub_error',ARGV[2],'sub_checked_at',ARGV[3],'updated_at',ARGV[3])
 redis.call('SADD',KEYS[2],ARGV[4])
+if ARGV[1]=='failing' or ARGV[1]=='pending' then redis.call('SADD',KEYS[3],ARGV[4]) else redis.call('SREM',KEYS[3],ARGV[4]) end
 return 1`)
 
 func (r *Registry) SetSubStateUnless(ctx context.Context, broadcasterID, state, errMsg string, protected ...string) (bool, error) {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 	args := append([]string{state, errMsg, now, broadcasterID}, protected...)
-	applied, err := setSubStateUnless.Exec(ctx, r.client, []string{keyPrefix + broadcasterID, indexKey}, args).AsInt64()
+	applied, err := setSubStateUnless.Exec(ctx, r.client, []string{keyPrefix + broadcasterID, indexKey, unhealthyKey}, args).AsInt64()
 	if err != nil || applied == 0 {
 		return false, err
 	}
