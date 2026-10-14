@@ -112,6 +112,12 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 - [Spotify errors](https://ai.itsbagelbot.com/spotify/errors.md): match Spotify setup or playback messages to corrective steps.
 - [Govee errors](https://ai.itsbagelbot.com/govee/errors.md): match Govee key, device or connection messages to corrective steps.
 - [Migration reference](https://ai.itsbagelbot.com/migration.md): supported import sources, transferable configuration and checks after moving bots.
+- [Discord setup](https://ai.itsbagelbot.com/setup/discord.md): connect a Discord server, grant required access, and configure channels, roles, tickets, announcements and community features.
+- [Commands errors](https://ai.itsbagelbot.com/errors/commands.md): validation, naming conflicts, editor warnings and failed custom-command changes with recovery actions.
+- [Import errors](https://ai.itsbagelbot.com/errors/import.md): import input errors, connection failures, review diagnostics, conflicts, partial writes and retry results.
+- [Discord errors](https://ai.itsbagelbot.com/errors/discord.md): Discord authorization, server binding, permission, saved destination and gateway notices with recovery actions.
+- [Modules errors](https://ai.itsbagelbot.com/errors/modules.md): game-stat module toggle and save failures, shared lookup failures and empty or unavailable results.
+- [Full reference](https://ai.itsbagelbot.com/llms-full.txt): the complete AI reference in one file.
 
 ## Optional
 

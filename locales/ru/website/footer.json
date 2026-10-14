@@ -22,9 +22,19 @@
   "changelog": "История изменений",
   "songRequests": "Заказ песен",
   "govee": "Свет Govee",
-  "valorantStats": "Статистика Valorant",
   "import": "Импорт",
   "compare": "Сравнение",
   "vsNightbot": "vs Nightbot",
-  "vsStreamelements": "vs StreamElements"
+  "vsStreamelements": "vs StreamElements",
+  "vsFossabot": "vs Fossabot",
+  "vsMoobot": "vs Moobot",
+  "vsStreamlabsChatbot": "vs Streamlabs Chatbot",
+  "vsWizebot": "vs WizeBot",
+  "gameStats": "Статистика игр",
+  "gameValorant": "Valorant",
+  "gameFortnite": "Fortnite",
+  "gameBedwars": "Hypixel Bedwars",
+  "gameMcsr": "MCSR Ranked",
+  "gameClashRoyale": "Clash Royale",
+  "gameCodm": "CODM"
 }

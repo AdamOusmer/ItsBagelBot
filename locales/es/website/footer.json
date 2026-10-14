@@ -22,9 +22,19 @@
   "changelog": "Historial de cambios",
   "songRequests": "Peticiones de canciones",
   "govee": "Luces Govee",
-  "valorantStats": "Estadísticas de Valorant",
   "import": "Importar",
   "compare": "Comparar",
   "vsNightbot": "vs Nightbot",
-  "vsStreamelements": "vs StreamElements"
+  "vsStreamelements": "vs StreamElements",
+  "vsFossabot": "vs Fossabot",
+  "vsMoobot": "vs Moobot",
+  "vsStreamlabsChatbot": "vs Streamlabs Chatbot",
+  "vsWizebot": "vs WizeBot",
+  "gameStats": "Estadísticas de juegos",
+  "gameValorant": "Valorant",
+  "gameFortnite": "Fortnite",
+  "gameBedwars": "Hypixel Bedwars",
+  "gameMcsr": "MCSR Ranked",
+  "gameClashRoyale": "Clash Royale",
+  "gameCodm": "CODM"
 }
