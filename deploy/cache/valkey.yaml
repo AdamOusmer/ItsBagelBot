@@ -196,7 +196,7 @@ spec:
           # extra threads help read throughput but each one costs some
           # busy-wait; reserve 2 cores for the main thread and background
           # work, and cap at 8 (past that Valkey's own guidance says returns
-          # go negative). At limits.cpu 6 this yields 4.
+          # go negative). At limits.cpu 4 this yields 2.
           if [ -n "${CPU_LIMIT}" ] && [ "${CPU_LIMIT}" -gt 2 ] 2>/dev/null; then
             IO_THREADS=$(( CPU_LIMIT - 2 ))
             [ "${IO_THREADS}" -gt 8 ] && IO_THREADS=8
@@ -212,14 +212,14 @@ spec:
           # cgroup kills on RSS, and several things live in RSS but outside
           # used_memory's eviction accounting -- replica client output
           # buffers, the AOF buffer, fork/COW pages during BGREWRITEAOF
-          # (appendonly yes, auto-aof-rewrite-min-size 1gb) and during a
+          # (appendonly yes, auto-aof-rewrite-min-size 64mb) and during a
           # diskless full sync, per-connection TLS buffers (full mTLS here,
           # every peer pays), and jemalloc fragmentation (measured 1.25 on
           # 2026-08-20). A BGREWRITEAOF that forks while the dataset is at
           # maxmemory can approach 2x in the worst case, so the headroom has
           # to be roughly the same size as the budget itself.
-          # Note repl-backlog-size 64mb IS counted inside used_memory, so
-          # usable key space is maxmemory minus 64 MiB.
+          # Note repl-backlog-size 1mb IS counted inside used_memory, so
+          # usable key space is maxmemory minus 1 MiB.
           # Appended after the include so it beats both tuning.conf and any
           # CONFIG REWRITE retained on the PVC -- last assignment wins.
           if [ -n "${MEM_LIMIT_MI}" ] && [ "${MEM_LIMIT_MI}" -gt 0 ] 2>/dev/null; then
@@ -403,7 +403,7 @@ spec:
           timeoutSeconds: 3
         resources:
           limits:
-            cpu: '6'
+            cpu: '4'
             memory: 3Gi
           requests:
             cpu: 250m
