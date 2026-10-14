@@ -42,7 +42,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </div>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.mcTitle')}</span></Heading>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/hypixel-bedwars-stats', lang)}>{t('games.mcTitle')}</a></span></Heading>
             <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.mcDesc')}</span></Text>
         </Card>
 
@@ -73,7 +73,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.fnTitle')}</span></Heading>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/fortnite-stats', lang)}>{t('games.fnTitle')}</a></span></Heading>
             <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.fnDesc')}</span></Text>
         </Card>
 
@@ -100,7 +100,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     <span class="games-cr__stat"><b class="games-stat__key">WR</b> 60%</span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.crTitle')}</span></Heading>
+            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/clash-royale-stats', lang)}>{t('games.crTitle')}</a></span></Heading>
             <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.crDesc')}</span></Text>
         </Card>
 
@@ -149,6 +149,15 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games__title {
         height: calc(var(--games-title-lines, 2) * 1lh);
         margin: 0 0 8px;
+    }
+
+    .games__title-link {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .games__title-link:is(:hover, :focus-visible) {
+        text-decoration: underline;
     }
 
     .games__desc {

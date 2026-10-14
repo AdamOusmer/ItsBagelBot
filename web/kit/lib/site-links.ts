@@ -76,7 +76,6 @@ export const SITE_FOOTER = [
       { path: '/guides', key: 'guides' },
       { path: '/song-requests', key: 'songRequests' },
       { path: '/govee', key: 'govee' },
-      { path: '/valorant-stats', key: 'valorantStats' },
       { path: '/import', key: 'import' },
       { path: '/changelog', key: 'changelog' },
       { path: '/command-builder', key: 'builder' },
@@ -96,6 +95,10 @@ export const SITE_FOOTER = [
     links: [
       { path: '/vs/nightbot', key: 'vsNightbot', locales: COMPARE_LOCALES },
       { path: '/vs/streamelements', key: 'vsStreamelements', locales: COMPARE_LOCALES },
+      { path: '/vs/fossabot', key: 'vsFossabot', locales: COMPARE_LOCALES },
+      { path: '/vs/moobot', key: 'vsMoobot', locales: COMPARE_LOCALES },
+      { path: '/vs/streamlabs-chatbot', key: 'vsStreamlabsChatbot', locales: COMPARE_LOCALES },
+      { path: '/vs/wizebot', key: 'vsWizebot', locales: COMPARE_LOCALES },
     ],
   },
   {
@@ -106,6 +109,18 @@ export const SITE_FOOTER = [
       { url: SITE.github, label: 'GitHub' },
       { url: SITE.docs, key: 'developer' },
       { url: SITE.dashboard, key: 'dashboard', lang: true },
+    ],
+  },
+  {
+    key: 'gameStats',
+    stacked: true,
+    links: [
+      { path: '/valorant-stats', key: 'gameValorant' },
+      { path: '/fortnite-stats', key: 'gameFortnite' },
+      { path: '/hypixel-bedwars-stats', key: 'gameBedwars' },
+      { path: '/mcsr-ranked-stats', key: 'gameMcsr' },
+      { path: '/clash-royale-stats', key: 'gameClashRoyale' },
+      { path: '/codm-stats', key: 'gameCodm' },
     ],
   },
 ];

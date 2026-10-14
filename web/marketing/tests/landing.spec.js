@@ -110,33 +110,47 @@ test.describe('feature landing pages', () => {
     });
 });
 
-test.describe('comparison pages', () => {
-    for (const slug of ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot']) {
-        for (const [lang, prefix] of [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['pt-br', '/pt-br'], ['ru', '/ru']]) {
-            test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {
-                await page.goto(`${prefix}/vs/${slug}/`);
-                const rows = page.locator('.vs__table tbody tr');
-                expect(await rows.count()).toBeGreaterThan(0);
-                for (const row of await rows.all()) {
-                    await expect(row.locator('a[href^="https://"]')).toHaveCount(1);
-                }
-                await expect(page.locator('html')).toHaveAttribute('lang', lang);
-                await expect(page.locator('.vs__reviewed time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
-                await expect(page.locator('.vs__actions a').first()).toHaveAttribute('href', `${prefix}/import/`);
+const VS_SLUGS = ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot'];
+const VS_LOCALES = [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['pt-br', '/pt-br'], ['ru', '/ru']];
+const VS_CASES = VS_SLUGS.flatMap((slug) => VS_LOCALES.map(([lang, prefix]) => ({ slug, lang, prefix })));
+const FOOTER_PAGES = [
+    '/valorant-stats/', '/fortnite-stats/', '/hypixel-bedwars-stats/', '/mcsr-ranked-stats/', '/clash-royale-stats/', '/codm-stats/',
+    '/vs/nightbot/', '/vs/streamelements/', '/vs/fossabot/', '/vs/moobot/', '/vs/streamlabs-chatbot/', '/vs/wizebot/',
+];
+const FOOTER_CASES = [['', '/'], ['/de', '/de/']].flatMap(([prefix, route]) => FOOTER_PAGES.map((path) => ({ route, href: `${prefix}${path}` })));
 
-                const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
-                const faq = graph.find((node) => node['@type'] === 'FAQPage');
-                expect(faq.mainEntity).toHaveLength(await page.locator('.vs__faq .bb-disclosure').count());
-                expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-                expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
-
-                const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((l) => l.hreflang));
-                expect(hreflangs.map((h) => h.toLowerCase()).sort()).toEqual(['de', 'en', 'es', 'fr', 'pt-br', 'ru', 'x-default']);
-                await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/migration.md"]')).toHaveCount(1);
-            });
+for (const { slug, lang, prefix } of VS_CASES) {
+    test(`${prefix}/vs/${slug}/ renders sourced rows and matching FAQ schema`, async ({ page }) => {
+        await page.goto(`${prefix}/vs/${slug}/`);
+        const rows = page.locator('.vs__table tbody tr');
+        expect(await rows.count()).toBeGreaterThan(0);
+        for (const row of await rows.all()) {
+            await expect(row.locator('a[href^="https://"]')).toHaveCount(1);
         }
-    }
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        await expect(page.locator('.vs__reviewed time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/);
+        await expect(page.locator('.vs__actions a').first()).toHaveAttribute('href', `${prefix}/import/`);
 
+        const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+        const faq = graph.find((node) => node['@type'] === 'FAQPage');
+        expect(faq.mainEntity).toHaveLength(await page.locator('.vs__faq .bb-disclosure').count());
+        expect(graph.find((node) => node['@type'] === 'WebPage').dateModified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(graph.find((node) => node['@type'] === 'BreadcrumbList').itemListElement).toHaveLength(3);
+
+        const hreflangs = await page.locator('head link[rel="alternate"][hreflang]').evaluateAll((links) => links.map((l) => l.hreflang));
+        expect(hreflangs.map((h) => h.toLowerCase()).sort()).toEqual(['de', 'en', 'es', 'fr', 'pt-br', 'ru', 'x-default']);
+        await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/migration.md"]')).toHaveCount(1);
+    });
+}
+
+for (const { route, href } of FOOTER_CASES) {
+    test(`footer links ${href} at ${route}`, async ({ page }) => {
+        await page.goto(route);
+        await expect(page.locator(`footer a[href="${href}"]`)).toHaveCount(1);
+    });
+}
+
+test.describe('comparison pages', () => {
     test('footer compare links and language switcher follow the locale', async ({ page }) => {
         await page.goto('/fr/');
         await expect(page.locator('footer a[href="/fr/vs/nightbot/"]')).toBeVisible();
