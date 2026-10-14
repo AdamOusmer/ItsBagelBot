@@ -460,20 +460,52 @@ export type ChannelSubState = {
   state: 'ok' | 'pending' | 'failing' | 'revoked' | 'chat_banned' | 'unknown';
   error: string;
   checkedAt: string | null;
+  verification?: SubVerification;
 };
 
-export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
+export type SubVerification = {
+  expected: number;
+  present: number;
+  missing?: string[];
+  repairing: boolean;
+  throttled?: boolean;
+  error?: string;
+};
+
+export type SubStateOptions = { verify?: boolean; repair?: boolean };
+
+const SUB_READ_TIMEOUT_MS = 2000;
+const SUB_VERIFY_TIMEOUT_MS = 8000;
+
+export async function channelSubState(
+  broadcasterId: string,
+  opts: SubStateOptions = {}
+): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
       found: boolean;
       channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
-    }>(`${SUB.outgressRpc}.channel.get`, { broadcaster_id: broadcasterId }, 2000);
+      verification?: SubVerification;
+    }>(
+      `${SUB.outgressRpc}.channel.get`,
+      {
+        broadcaster_id: broadcasterId,
+        ...(opts.verify ? { verify: true } : {}),
+        ...(opts.repair ? { repair: true } : {})
+      },
+      opts.verify ? SUB_VERIFY_TIMEOUT_MS : SUB_READ_TIMEOUT_MS
+    );
     const c = r.channel;
-    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null };
+    if (!r.found || !c) return { state: 'unknown', error: '', checkedAt: null, ...(r.verification ? { verification: r.verification } : {}) };
     const s = (c.sub_state || '') as string;
     const known = ['ok', 'pending', 'failing', 'revoked', 'chat_banned'];
     const state = known.includes(s) ? (s as ChannelSubState['state']) : 'unknown';
-    return { state, error: c.sub_error || '', checkedAt: c.sub_checked_at || null };
+    return {
+      state,
+      error: c.sub_error || '',
+      checkedAt: c.sub_checked_at || null,
+      ...(r.verification ? { verification: r.verification } : {})
+    };
   } catch {
     return { state: 'unknown', error: '', checkedAt: null };
   }

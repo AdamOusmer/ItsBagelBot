@@ -129,5 +129,12 @@
   "viewAsDemo": "lien « voir comme » créé (démo)",
   "viewAs": "lien « voir comme » créé (valide 5 min)",
   "userDeleted": "utilisateur supprimé",
-  "notFound": "utilisateur introuvable"
+  "notFound": "utilisateur introuvable",
+  "liveCheck": "Vérification en direct",
+  "liveCheckNone": "non vérifié",
+  "liveCheckThrottled": "Vérifié récemment",
+  "liveCheckFailed": "Échec de la vérification",
+  "liveCheckCount": "{present}/{expected} abonnements",
+  "liveCheckMissing": "manquants :",
+  "liveCheckRepairing": "réparation en cours"
 }

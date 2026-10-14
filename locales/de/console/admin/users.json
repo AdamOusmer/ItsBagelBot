@@ -129,5 +129,12 @@
   "viewAsDemo": "Link zur Benutzeransicht erstellt (Demo)",
   "viewAs": "Link zur Benutzeransicht erstellt (5 Min. gültig)",
   "userDeleted": "Benutzer gelöscht",
-  "notFound": "Benutzer nicht gefunden"
+  "notFound": "Benutzer nicht gefunden",
+  "liveCheck": "Live-Prüfung",
+  "liveCheckNone": "nicht geprüft",
+  "liveCheckThrottled": "Kürzlich geprüft",
+  "liveCheckFailed": "Prüfung fehlgeschlagen",
+  "liveCheckCount": "{present}/{expected} Abonnements",
+  "liveCheckMissing": "fehlend:",
+  "liveCheckRepairing": "wird repariert"
 }

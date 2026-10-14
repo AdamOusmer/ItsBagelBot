@@ -27,6 +27,7 @@ for _,id in ipairs(ids) do
  if redis.call('EXISTS',key)==0 then
   redis.call('ZREM',KEYS[1],id)
   redis.call('SREM',KEYS[2],id)
+  redis.call('SREM',KEYS[3],id)
  else
   local ttl=redis.call('TTL',key)
   if ttl<0 then redis.call('EXPIRE',key,ARGV[4]);ttl=tonumber(ARGV[4]) end
@@ -89,15 +90,15 @@ func (r *Registry) PruneHot(ctx context.Context) error {
 	if err := migrateHot.Exec(ctx, r.client, []string{indexKey, hotIndexKey, "outgress:channels:migration-cursor"}, []string{strconv.Itoa(hotBatch), keyPrefix, strconv.FormatInt(int64(hotRetention/time.Second), 10), strconv.FormatInt(time.Now().Unix(), 10)}).Error(); err != nil {
 		return err
 	}
-	return pruneHot.Exec(ctx, r.client, []string{hotIndexKey, indexKey}, []string{strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(hotBatch), keyPrefix, strconv.FormatInt(int64(hotRetention/time.Second), 10)}).Error()
+	return pruneHot.Exec(ctx, r.client, []string{hotIndexKey, indexKey, unhealthyKey}, []string{strconv.FormatInt(time.Now().Unix(), 10), strconv.Itoa(hotBatch), keyPrefix, strconv.FormatInt(int64(hotRetention/time.Second), 10)}).Error()
 }
 
 var eraseIncarnation = valkey.NewLuaScript(`
 if redis.call('HGET',KEYS[1],'account_created_at') ~= ARGV[2] then return 0 end
-redis.call('DEL',KEYS[1]);redis.call('ZREM',KEYS[2],ARGV[1]);redis.call('SREM',KEYS[3],ARGV[1]);return 1`)
+redis.call('DEL',KEYS[1]);redis.call('ZREM',KEYS[2],ARGV[1]);redis.call('SREM',KEYS[3],ARGV[1]);redis.call('SREM',KEYS[4],ARGV[1]);return 1`)
 
 func (r *Registry) EraseIncarnation(ctx context.Context, id string, incarnation int64) error {
-	if err := eraseIncarnation.Exec(ctx, r.client, []string{keyPrefix + id, hotIndexKey, indexKey}, []string{id, strconv.FormatInt(incarnation, 10)}).Error(); err != nil {
+	if err := eraseIncarnation.Exec(ctx, r.client, []string{keyPrefix + id, hotIndexKey, indexKey, unhealthyKey}, []string{id, strconv.FormatInt(incarnation, 10)}).Error(); err != nil {
 		return err
 	}
 	r.cache.Invalidate(id)

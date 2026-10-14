@@ -4,13 +4,17 @@
 package rpc
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/rpc/manage"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"ItsBagelBot/internal/valkeytest"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -52,4 +56,25 @@ func TestFollowageFailureLogLevel(t *testing.T) {
 			require.Equal(t, tc.wantExpected, hasExpected)
 		})
 	}
+}
+
+func TestChannelGetVerifyReturnsVerification(t *testing.T) {
+	registry := channels.New(valkeytest.New(t).Client())
+	t.Cleanup(registry.Close)
+	registry.SeedPause(false)
+	var gotRepair bool
+	m := &Manage{registry: registry, log: zap.NewNop(), verify: func(_ context.Context, id string, repair bool) (manage.Verification, error) {
+		gotRepair = repair
+		return manage.Verification{Expected: 3, Present: 2, Missing: []string{"channel.cheer"}, Repairing: repair}, nil
+	}}
+
+	reply := m.handleChannelGet(t.Context(), manage.ChannelRequest{BroadcasterID: "42", Verify: true, Repair: true})
+
+	require.NotNil(t, reply.Verification)
+	require.True(t, gotRepair)
+	require.Equal(t, []string{"channel.cheer"}, reply.Verification.Missing)
+	require.True(t, reply.Verification.Repairing)
+
+	plain := m.handleChannelGet(t.Context(), manage.ChannelRequest{BroadcasterID: "42"})
+	require.Nil(t, plain.Verification)
 }

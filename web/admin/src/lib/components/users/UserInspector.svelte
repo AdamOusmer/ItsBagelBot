@@ -88,6 +88,22 @@
     subState === null ? statusTone('connecting') : statusTone(SUB_TONE[subState.state])
   );
 
+  const verification = $derived(subState?.verification);
+  const liveCheckText = $derived(
+    !verification
+      ? t('admin.users.liveCheckNone')
+      : verification.throttled
+        ? t('admin.users.liveCheckThrottled')
+        : verification.error
+          ? `${t('admin.users.liveCheckFailed')} ${verification.error}`
+          : [
+              t('admin.users.liveCheckCount', { present: verification.present, expected: verification.expected }),
+              verification.missing?.length ? `${t('admin.users.liveCheckMissing')} ${verification.missing.join(', ')}` : '',
+              verification.repairing ? t('admin.users.liveCheckRepairing') : ''
+            ]
+              .filter(Boolean)
+              .join(', ')
+  );
   const hasPlanFacts = $derived(
     Boolean(
       user.subscription_expires_at ||
@@ -197,6 +213,19 @@
       {#if subState?.error}
         <div class="wrap"><Text size="xs" mono tone="danger">{subState.error}</Text></div>
       {/if}
+      <FactList>
+        <Fact term={t('admin.users.liveCheck')} truncate title={liveCheckText}>
+          {#if !verification}
+            <Text as="span" size="xs" tone="muted">{t('admin.users.liveCheckNone')}</Text>
+          {:else if verification.throttled}
+            {t('admin.users.liveCheckThrottled')}
+          {:else if verification.error}
+            {t('admin.users.liveCheckFailed')} <Text as="span" size="xs" mono tone="danger">{verification.error}</Text>
+          {:else}
+            {t('admin.users.liveCheckCount', { present: verification.present, expected: verification.expected })}{#if verification.missing?.length}, {t('admin.users.liveCheckMissing')} <Text as="span" size="xs" mono tone="danger">{verification.missing.join(', ')}</Text>{/if}{#if verification.repairing}, <Text as="span" size="xs" tone="muted">{t('admin.users.liveCheckRepairing')}</Text>{/if}
+          {/if}
+        </Fact>
+      </FactList>
       <Cluster gap={2}>
         {#each actionsFor('service', user, can) as def (def.id)}
           <Button

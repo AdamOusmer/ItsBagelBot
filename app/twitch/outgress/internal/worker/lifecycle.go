@@ -81,6 +81,7 @@ func (w *Worker) ReconcileLifecycle(ctx context.Context) {
 func (w *Worker) reconcileLifecycleDue(ctx context.Context) {
 	_ = w.registry.RenewHot(ctx, w.backgroundAllowed)
 	_ = w.registry.PruneHot(ctx)
+	w.sweepUnhealthy(ctx)
 	due, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{Action: "due"})
 	if err != nil {
 		return

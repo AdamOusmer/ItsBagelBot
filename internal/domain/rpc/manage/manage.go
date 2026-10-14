@@ -34,12 +34,24 @@ type ChannelRequest struct {
 	BroadcasterID string `json:"broadcaster_id"`
 	Enabled       *bool  `json:"enabled,omitempty"`
 	IsMod         *bool  `json:"is_mod,omitempty"`
+	Verify        bool   `json:"verify,omitempty"`
+	Repair        bool   `json:"repair,omitempty"`
+}
+
+type Verification struct {
+	Expected  int      `json:"expected"`
+	Present   int      `json:"present"`
+	Missing   []string `json:"missing,omitempty"`
+	Repairing bool     `json:"repairing"`
+	Throttled bool     `json:"throttled,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 type ChannelReply struct {
-	Channel *Channel `json:"channel,omitempty"`
-	Found   bool     `json:"found"`
-	Error   string   `json:"error,omitempty"`
+	Channel      *Channel      `json:"channel,omitempty"`
+	Found        bool          `json:"found"`
+	Error        string        `json:"error,omitempty"`
+	Verification *Verification `json:"verification,omitempty"`
 }
 
 type ChannelListReply struct {

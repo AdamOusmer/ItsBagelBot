@@ -23,11 +23,21 @@ import (
 
 const handleTimeout = 1500 * time.Millisecond
 const followageHandleTimeout = 4 * time.Second
+const channelGetHandleTimeout = 6 * time.Second
+
+var managePool = bus.RPCPoolPolicy{MaxWorkers: 16, QueueDepth: 64}
+
+func rpcSubscription(subject, queueGroup string) bus.RPCSubscription {
+	return bus.RPCSubscription{Subject: subject, QueueGroup: queueGroup, Policy: managePool}
+}
+
+type VerifyFunc func(ctx context.Context, broadcasterID string, repair bool) (manage.Verification, error)
 
 type Manage struct {
 	runtime  channelruntime.Reader
 	registry *channels.Registry
 	twitch   *twitch.Client
+	verify   VerifyFunc
 	log      *zap.Logger
 }
 
@@ -35,43 +45,44 @@ type SubscriptionConfig struct {
 	bus.RPCWiring
 	Prefix  string
 	Runtime channelruntime.Reader
+	Verify  VerifyFunc
 }
 
 func SubscribeManage(cfg SubscriptionConfig, registry *channels.Registry, tw *twitch.Client) error {
 	nc, prefix, queueGroup, app, log := cfg.NC, cfg.Prefix, cfg.Queue, cfg.App, cfg.Log
 
-	m := &Manage{registry: registry, twitch: tw, log: log, runtime: cfg.Runtime}
+	m := &Manage{registry: registry, twitch: tw, log: log, runtime: cfg.Runtime, verify: cfg.Verify}
 
 	return subscribeAll(
 		func() error {
-			return bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.get", queueGroup, handleTimeout, app, log, m.handleChannelGet)
+			return bus.QueueSubscribeJSONConcurrent[manage.ChannelRequest, manage.ChannelReply](nc, rpcSubscription(prefix+".channel.get", queueGroup), channelGetHandleTimeout, app, log, m.handleChannelGet)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[manage.ChannelRequest, manage.ChannelReply](nc, prefix+".channel.set", queueGroup, handleTimeout, app, log, m.handleChannelSet)
+			return bus.QueueSubscribeJSONConcurrent[manage.ChannelRequest, manage.ChannelReply](nc, rpcSubscription(prefix+".channel.set", queueGroup), handleTimeout, app, log, m.handleChannelSet)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[struct{}, manage.ChannelListReply](nc, prefix+".channel.list", queueGroup, handleTimeout, app, log, m.handleChannelList)
+			return bus.QueueSubscribeJSONConcurrent[struct{}, manage.ChannelListReply](nc, rpcSubscription(prefix+".channel.list", queueGroup), handleTimeout, app, log, m.handleChannelList)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[struct{}, manage.SystemStatusReply](nc, prefix+".system.status", queueGroup, handleTimeout, app, log, m.handleSystemStatus)
+			return bus.QueueSubscribeJSONConcurrent[struct{}, manage.SystemStatusReply](nc, rpcSubscription(prefix+".system.status", queueGroup), handleTimeout, app, log, m.handleSystemStatus)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, prefix+".followage.get", queueGroup, followageHandleTimeout, app, log, m.handleFollowage)
+			return bus.QueueSubscribeJSONConcurrent[outgressrpc.FollowageRequest, outgressrpc.FollowageReply](nc, rpcSubscription(prefix+".followage.get", queueGroup), followageHandleTimeout, app, log, m.handleFollowage)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, prefix+".accountage.get", queueGroup, handleTimeout, app, log, m.handleAccountAge)
+			return bus.QueueSubscribeJSONConcurrent[outgressrpc.AccountAgeRequest, outgressrpc.AccountAgeReply](nc, rpcSubscription(prefix+".accountage.get", queueGroup), handleTimeout, app, log, m.handleAccountAge)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[outgressrpc.UptimeRequest, outgressrpc.UptimeReply](nc, prefix+".uptime.get", queueGroup, followageHandleTimeout, app, log, m.handleUptime)
+			return bus.QueueSubscribeJSONConcurrent[outgressrpc.UptimeRequest, outgressrpc.UptimeReply](nc, rpcSubscription(prefix+".uptime.get", queueGroup), followageHandleTimeout, app, log, m.handleUptime)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[manage.SystemPauseRequest, manage.SystemPauseReply](nc, prefix+".system.pause", queueGroup, handleTimeout, app, log, m.handleSystemPause)
+			return bus.QueueSubscribeJSONConcurrent[manage.SystemPauseRequest, manage.SystemPauseReply](nc, rpcSubscription(prefix+".system.pause", queueGroup), handleTimeout, app, log, m.handleSystemPause)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[outgressrpc.StreamInfoRequest, outgressrpc.StreamInfoReply](nc, prefix+".streaminfo.get", queueGroup, followageHandleTimeout, app, log, m.handleStreamInfo)
+			return bus.QueueSubscribeJSONConcurrent[outgressrpc.StreamInfoRequest, outgressrpc.StreamInfoReply](nc, rpcSubscription(prefix+".streaminfo.get", queueGroup), followageHandleTimeout, app, log, m.handleStreamInfo)
 		},
 		func() error {
-			return bus.QueueSubscribeJSON[outgressrpc.ChannelCountsRequest, outgressrpc.ChannelCountsReply](nc, prefix+".channelcounts.get", queueGroup, followageHandleTimeout, app, log, m.handleChannelCounts)
+			return bus.QueueSubscribeJSONConcurrent[outgressrpc.ChannelCountsRequest, outgressrpc.ChannelCountsReply](nc, rpcSubscription(prefix+".channelcounts.get", queueGroup), followageHandleTimeout, app, log, m.handleChannelCounts)
 		},
 	)
 }
@@ -207,17 +218,31 @@ func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest
 		return manage.ChannelReply{Error: "bad request"}
 	}
 
+	verification := m.verifyChannel(ctx, req)
+
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
 		log.Error("channel get failed", zap.Error(err))
 		return manage.ChannelReply{Error: "lookup failed"}
 	}
 
-	reply := manage.ChannelReply{Found: found}
+	reply := manage.ChannelReply{Found: found, Verification: verification}
 	if found {
 		reply.Channel = &ch
 	}
 	return reply
+}
+
+func (m *Manage) verifyChannel(ctx context.Context, req manage.ChannelRequest) *manage.Verification {
+	if !req.Verify || m.verify == nil {
+		return nil
+	}
+	v, err := m.verify(ctx, req.BroadcasterID, req.Repair)
+	if err != nil {
+		monitor.TxnLogger(ctx, m.log).Warn("channel verify failed", zap.String("broadcaster_id", req.BroadcasterID), zap.Error(err))
+		v.Error = "verify failed"
+	}
+	return &v
 }
 
 func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {
@@ -226,29 +251,17 @@ func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest
 		return manage.ChannelReply{Error: "bad request"}
 	}
 
+	if err := m.registry.SetFlags(ctx, req.BroadcasterID, req.Enabled, req.IsMod); err != nil {
+		log.Error("channel set failed", zap.Error(err))
+		return manage.ChannelReply{Error: "save failed"}
+	}
+
 	ch, found, err := m.registry.Get(ctx, req.BroadcasterID)
 	if err != nil {
 		log.Error("channel set lookup failed", zap.Error(err))
 		return manage.ChannelReply{Error: "lookup failed"}
 	}
-
-	if !found {
-		ch = manage.Channel{BroadcasterID: req.BroadcasterID, Enabled: true}
-	}
-	if req.Enabled != nil {
-		ch.Enabled = *req.Enabled
-	}
-	if req.IsMod != nil {
-		ch.IsMod = *req.IsMod
-		ch.ModCheckedAt = time.Now()
-	}
-
-	if err := m.registry.Save(ctx, ch); err != nil {
-		log.Error("channel set failed", zap.Error(err))
-		return manage.ChannelReply{Error: "save failed"}
-	}
-
-	return manage.ChannelReply{Channel: &ch, Found: true}
+	return manage.ChannelReply{Channel: &ch, Found: found}
 }
 
 func (m *Manage) handleChannelList(ctx context.Context, _ struct{}) manage.ChannelListReply {
