@@ -3,6 +3,12 @@
 
 FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
 
+ARG TARGETARCH
+ARG WARP_VERSION=2026.7.1377.0
+ARG WARP_SHA256_arm64=7d97a4affa74f7814e94733d6241f0df5186d2bb80e5a8548eaa4a769d57c28e
+ARG WARP_SHA256_amd64=95d33c2b4fc42f21c204981c51470a6a679d618fb0b78ee64bdd0db142230c55
+
+# 2026.8.2110.0 reconnects forever without NET_ADMIN (fwmark rules), which the pod must not have.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
     && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
@@ -10,6 +16,11 @@ RUN apt-get update \
     && echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ bookworm main" \
         > /etc/apt/sources.list.d/cloudflare-client.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends cloudflare-warp \
+    && deb="cloudflare-warp_${WARP_VERSION}_${TARGETARCH}.deb" \
+    && curl -fsSL -o "/tmp/$deb" "https://pkg.cloudflareclient.com/pool/bookworm/main/c/cloudflare-warp/$deb" \
+    && eval "want=\$WARP_SHA256_${TARGETARCH}" \
+    && echo "$want  /tmp/$deb" | sha256sum -c - \
+    && apt-get install -y --no-install-recommends "/tmp/$deb" \
+    && rm "/tmp/$deb" \
     && rm -rf /var/lib/apt/lists/* \
     && warp-cli --version
