@@ -6,6 +6,7 @@ import { dashboardHref } from '@bagel/kit/site-links';
 
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import { landingSchema } from '../../lib/landing';
 import { getLangFromUrl, useTranslations, defaultLang, localizePath, localeStaticPaths } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
@@ -22,9 +23,29 @@ const sourceRows = [
     { cells: [t('importer.src6Name'), t('importer.src6Connect'), t('importer.src6Brings')] },
 ];
 const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' : `?lang=${lang}`);
+const table = {
+    eyebrow: t('importer.tblEyebrow'),
+    title: t('importer.tblTitle'),
+    columns: [t('importer.colSource'), t('importer.colConnect'), t('importer.colBrings')],
+    widths: ['22%', '48%', '30%'],
+    rowLines: 3,
+    rows: sourceRows,
+    note: t('importer.tblNote'),
+};
+const updated = { text: t('importer.updated'), iso: '2026-10-13' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: t('importer.metaTitle'),
+    crumb: t('importer.eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: t('importer.metaDesc'),
+    modified: updated.iso,
+});
 ---
 
-<Layout title={t('importer.metaTitle')} description={t('importer.metaDesc')}>
+<Layout title={t('importer.metaTitle')} description={t('importer.metaDesc')} extraSchema={schema}>
     <FeatureLanding
         eyebrow={t('importer.eyebrow')}
         title={t('importer.title')}
@@ -57,16 +78,8 @@ const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' :
         ctaTitle={t('importer.ctaTitle')}
         ctaPrimary={{ href: importHref, label: t('importer.ctaStart') }}
         ctaSecondary={{ href: '/vs/nightbot/', label: t('importer.ctaCompare') }}
-        updated={{ text: t('importer.updated'), iso: '2026-10-13' }}
-        table={{
-            eyebrow: t('importer.tblEyebrow'),
-            title: t('importer.tblTitle'),
-            columns: [t('importer.colSource'), t('importer.colConnect'), t('importer.colBrings')],
-            widths: ['22%', '48%', '30%'],
-            rowLines: 3,
-            rows: sourceRows,
-            note: t('importer.tblNote'),
-        }}
+        updated={updated}
+        table={table}
         convert={{
             eyebrow: t('importer.convEyebrow'),
             title: t('importer.convTitle'),

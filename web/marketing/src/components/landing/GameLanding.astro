@@ -5,7 +5,7 @@
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from './FeatureLanding.astro';
 import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '../../i18n/ui';
-import { GAMES, gameRelated, gameRows, gameExampleLines, type GameId } from '../../lib/landing';
+import { GAMES, gameRelated, gameRows, gameExampleLines, landingSchema, type GameId } from '../../lib/landing';
 
 interface Props {
     game: GameId;
@@ -26,9 +26,32 @@ const related = [
     link('/valorant-stats', t('landing.relValorant')),
     ...gameRelated(game).map((other) => link(other.path, t(other.relKey))),
 ];
+const table = {
+    eyebrow: t('landing.gameTblEyebrow'),
+    title: t('landing.gameTblTitle'),
+    columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
+    widths: ['19%', '21%', '13%', '47%'],
+    monoColumns: [1],
+    rowLines: 3,
+    copyLabel: t('landing.copyCommand'),
+    rows: gameRows(game, lang, t),
+    note: k('tblNote'),
+};
+const updated = { text: t('landing.gameUpdated'), iso: '2026-10-13' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: k('metaTitle'),
+    crumb: k('eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: k('metaDesc'),
+    modified: updated.iso,
+    commands: table.rows,
+});
 ---
 
-<Layout title={k('metaTitle')} description={k('metaDesc')} aiDoc={spec.aiDoc}>
+<Layout title={k('metaTitle')} description={k('metaDesc')} aiDoc={spec.aiDoc} extraSchema={schema}>
     <FeatureLanding
         eyebrow={k('eyebrow')}
         title={k('title')}
@@ -47,18 +70,8 @@ const related = [
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
         ctaSecondary={link('/guides/modules', t('landing.gameCtaGuide'))}
         legal={k('legal')}
-        updated={{ text: t('landing.gameUpdated'), iso: '2026-10-13' }}
-        table={{
-            eyebrow: t('landing.gameTblEyebrow'),
-            title: t('landing.gameTblTitle'),
-            columns: [t('landing.colCommand'), t('landing.colAliases'), t('landing.colWho'), t('landing.colReply')],
-            widths: ['19%', '21%', '13%', '47%'],
-            monoColumns: [1],
-            rowLines: 3,
-            copyLabel: t('landing.copyCommand'),
-            rows: gameRows(game, lang, t),
-            note: k('tblNote'),
-        }}
+        updated={updated}
+        table={table}
         demo={{
             eyebrow: t('landing.exampleEyebrow'),
             title: k('demoTitle'),
