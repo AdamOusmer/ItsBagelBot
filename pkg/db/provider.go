@@ -37,7 +37,7 @@ type Config struct {
 }
 
 const (
-	// DB pods x this must stay under HeatWave's max_connections (200).
+	// DB pods x this must stay under db1's max_connections (300).
 	defaultMaxConns = 8
 
 	// Plus connMaxLifetimeJitter, must stay under the server's wait_timeout (8h).
@@ -121,7 +121,7 @@ const (
 )
 
 func resolveTLSMode() (tlsMode, error) {
-	switch mode := tlsMode(env.Get(tlsModeEnvVar, string(tlsModeVerifyCA))); mode {
+	switch mode := tlsMode(env.Get(tlsModeEnvVar, string(tlsModeVerifyIdentity))); mode {
 	case tlsModeVerifyCA, tlsModeVerifyIdentity:
 		return mode, nil
 	default:
@@ -167,7 +167,7 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 	roots := x509.NewCertPool()
 	roots.AddCert(pinned)
 	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
+		MinVersion:         tls.VersionTLS13,
 		RootCAs:            roots,
 		ServerName:         host,
 		Certificates:       clientCerts,
@@ -237,8 +237,8 @@ func verifyCATLSConfig(pinned *x509.Certificate) *tls.Config {
 	roots.AddCert(pinned)
 
 	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		// codeql[go/disabled-certificate-check] -- VERIFY_CA: the endpoint cert has no SAN.
+		MinVersion: tls.VersionTLS13,
+		// codeql[go/disabled-certificate-check] -- VERIFY_CA: chain checked against the pinned CA in VerifyConnection.
 		InsecureSkipVerify: true,
 		VerifyConnection:   verifyAgainstPinned(roots),
 		ClientSessionCache: mysqlSessionCache,
