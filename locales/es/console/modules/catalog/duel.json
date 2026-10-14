@@ -53,7 +53,7 @@
     "duel_stake": "Abre un duelo con bote o únete a uno en curso.",
     "duel_user_stake": "Desafía a alguien con apuestas iguales; quien gane se lleva ambas.",
     "duel_accept": "La persona desafiada iguala la apuesta y el duelo se resuelve al instante.",
-    "duel_decline": "Rechaza un desafío; se devuelve la apuesta a quien lo inició.",
+    "duel_decline": "Solo el espectador desafiado puede rechazarlo; se devuelve la apuesta a quien lo inició.",
     "duel_cancel": "Cancela el duelo en curso con devolución total de puntos (quien lo inició o un moderador)."
   }
 }

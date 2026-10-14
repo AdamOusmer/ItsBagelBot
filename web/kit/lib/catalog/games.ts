@@ -114,7 +114,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
       { trigger: '!duel <stake>', summary: 'Open a pot duel, or join one that is running.' },
       { trigger: '!duel <user> <stake>', summary: 'Challenge someone to even stakes; winner takes both.' },
       { trigger: '!duel accept', summary: 'The challenged party matches the stake and settles it instantly.' },
-      { trigger: '!duel decline', summary: 'Refuse a challenge; the opener is refunded.', perm: 'mod' },
+      { trigger: '!duel decline', summary: 'Only the challenged viewer can decline; the opener is refunded.' },
       { trigger: '!duel cancel', summary: 'Tear the running duel down with full refunds (opener or mod).', perm: 'mod' }
     ]
   }

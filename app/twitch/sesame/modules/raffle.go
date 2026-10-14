@@ -142,6 +142,7 @@ func optInt(s string) (n int64, ok bool) {
 }
 
 func parseOpenArgs(args string) (minutes, winners int64, remind time.Duration) {
+	minutes = raffleDefaultMinutes
 	minArg, rest := splitFirst(args)
 	winArg, remRest := splitFirst(rest)
 	remArg, _ := splitFirst(remRest)

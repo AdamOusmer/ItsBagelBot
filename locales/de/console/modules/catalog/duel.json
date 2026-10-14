@@ -53,7 +53,7 @@
     "duel_stake": "Eröffnet ein Pot-Duell oder tritt einem laufenden bei.",
     "duel_user_stake": "Fordert jemanden mit gleichen Einsätzen heraus; wer gewinnt, erhält beide.",
     "duel_accept": "Die herausgeforderte Person setzt denselben Betrag ein und entscheidet das Duell sofort.",
-    "duel_decline": "Lehnt eine Herausforderung ab; der ursprüngliche Einsatz wird zurückgegeben.",
+    "duel_decline": "Nur der herausgeforderte Zuschauer kann ablehnen; der Ersteller erhält seinen Einsatz zurück.",
     "duel_cancel": "Bricht das laufende Duell mit vollständiger Punkterückgabe ab (Initiator oder Mod)."
   }
 }
