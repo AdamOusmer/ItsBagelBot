@@ -21,7 +21,7 @@
   "item3Name": "A resposta",
   "item3Desc": "O bot confirma a mudança de cor no chat. Edite a resposta na página Govee.",
   "item4Name": "Reembolsos",
-  "item4Desc": "Os pontos são devolvidos automaticamente se a cor não for reconhecida ou se a luz não puder ser alcançada.",
+  "item4Desc": "Os pontos são devolvidos automaticamente se a cor não for reconhecida ou se não for possível conectar à luz.",
   "listNote": "As recompensas funcionam só durante as lives por padrão. Desative Somente ao vivo na página Govee para permitir mudanças entre as lives.",
   "faqEyebrow": "FAQ",
   "faqTitle": "Dúvidas de configuração.",

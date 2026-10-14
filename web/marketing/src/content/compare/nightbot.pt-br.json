@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "ItsBagelBot vs Nightbot | Alternativa a bot da Twitch",
+    "title": "ItsBagelBot vs Nightbot | Comparativo de bots para Twitch",
     "description": "Compare comandos, moderação, música, estatísticas de jogos e preço. Veja quando o Nightbot serve e como importar comandos e timers para o ItsBagelBot."
   },
   "hero": {
@@ -86,7 +86,7 @@
     },
     {
       "feature": "Preço",
-      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona atendimento prioritário, suporte e acesso antecipado a módulos beta, atualmente AutoMod e Discord. O Spotify Premium é um requisito separado.",
+      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona processamento prioritário, suporte e acesso antecipado a módulos beta, atualmente AutoMod e Discord. O Spotify Premium é um requisito separado.",
       "them": "Serviço gratuito, conforme descrito pelo desenvolvedor do Nightbot na resposta oficial de suporte vinculada, de março de 2025. Trata-se de uma declaração do desenvolvedor, e não de uma tabela de preços publicada.",
       "source": "https://community.nightdev.com/t/messages-command/1534655926634549409"
     }

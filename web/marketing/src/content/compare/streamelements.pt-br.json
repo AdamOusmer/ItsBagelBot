@@ -39,7 +39,7 @@
     {
       "feature": "Timers",
       "us": "Defina mensagens que se repetem no chat, com um intervalo para cada timer enquanto você está ao vivo.",
-      "them": "Os timers podem alternar várias mensagens, exigir um limite de atividade no chat e usar condições de categoria ou título. O StreamElements oferece mais condições de agendamento para esses fluxos.",
+      "them": "Os timers podem alternar várias mensagens, exigir um nível mínimo de atividade no chat e usar condições de categoria ou título. O StreamElements oferece mais condições de agendamento para esses fluxos.",
       "source": "https://docs.streamelements.com/chatbot/timers"
     },
     {
@@ -98,7 +98,7 @@
     },
     {
       "feature": "Preço",
-      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona atendimento prioritário, suporte e acesso beta, atualmente AutoMod e Discord. O Spotify Premium é exigido separadamente.",
+      "us": "Todo recurso finalizado é gratuito. O Premium custa $7 CAD mais impostos por mês e adiciona processamento prioritário, suporte e acesso beta, atualmente AutoMod e Discord. O Spotify Premium é exigido separadamente.",
       "them": "O site oficial anuncia o chatbot, os alertas e os overlays como gratuitos. Esta comparação trata do acesso ao bot; doações e pagamentos de patrocínio são separados do preço do chatbot.",
       "source": "https://streamelements.com/"
     }
@@ -128,7 +128,7 @@
     },
     {
       "q": "O Spotify Premium é separado do Premium do ItsBagelBot?",
-      "a": "Sim. Pedidos de música são gratuitos no ItsBagelBot. O Spotify Premium é exigido para a conta de reprodução conectada e para a conta dona do seu app de desenvolvedor do Spotify. O Premium do ItsBagelBot oferece atendimento prioritário e acesso beta; ele não substitui a exigência do Spotify."
+      "a": "Sim. Pedidos de música são gratuitos no ItsBagelBot. O Spotify Premium é exigido para a conta de reprodução conectada e para a conta dona do seu app de desenvolvedor do Spotify. O Premium do ItsBagelBot oferece processamento prioritário e acesso beta; ele não substitui a exigência do Spotify."
     },
     {
       "q": "O que posso trazer do StreamElements?",
