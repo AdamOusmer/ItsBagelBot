@@ -7,7 +7,8 @@ import {
   VALKEY_TLS_SENTINEL_PORT,
   valkeyEndpoint,
   valkeySentinelNAT,
-  valkeyTLSOptions
+  valkeyTLSOptions,
+  VALKEY_CLIENT_OPTIONS
 } from './valkey-connection';
 import { getServerConfig, hasServerConfig } from './config';
 
@@ -16,13 +17,6 @@ let disabled = false;
 
 type ValkeyConfig = NonNullable<ReturnType<typeof getServerConfig>['valkey']>;
 type TLSOptions = ReturnType<typeof valkeyTLSOptions>;
-
-const FAIL_FAST = {
-  enableOfflineQueue: false,
-  maxRetriesPerRequest: 1,
-  connectTimeout: 1000,
-  retryStrategy: (times: number) => Math.min(times * 200, 2000)
-} as const;
 
 function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
   return {
@@ -36,13 +30,13 @@ function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
     enableTLSForSentinelMode: Boolean(tls),
     natMap: tls ? valkeySentinelNAT : undefined,
     sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000),
-    ...FAIL_FAST
+    ...VALKEY_CLIENT_OPTIONS
   };
 }
 
 function directOptions(cfg: ValkeyConfig, tls: TLSOptions) {
   const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...FAIL_FAST };
+  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...VALKEY_CLIENT_OPTIONS };
 }
 
 export function masterClient(): Redis | null {

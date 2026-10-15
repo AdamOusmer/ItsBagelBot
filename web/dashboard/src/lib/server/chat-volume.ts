@@ -8,7 +8,8 @@ import {
   VALKEY_TLS_SENTINEL_PORT,
   valkeyEndpoint,
   valkeySentinelNAT,
-  valkeyTLSOptions
+  valkeyTLSOptions,
+  VALKEY_CLIENT_OPTIONS
 } from '@bagel/kit/server/valkey-connection';
 import { getServerConfig, hasServerConfig, type ValkeyConfig } from '@bagel/kit/server/config';
 import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
@@ -18,13 +19,6 @@ import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../o
 const RING_WIDTH = 60;
 const OP_TIMEOUT_MS = 200;
 const KEY_PREFIX = 'chatvol:';
-
-const FAIL_FAST = {
-  enableOfflineQueue: false,
-  maxRetriesPerRequest: 1,
-  connectTimeout: 1000,
-  retryStrategy: (times: number) => Math.min(times * 200, 2000)
-} as const;
 
 type TLSOptions = ReturnType<typeof valkeyTLSOptions>;
 
@@ -40,13 +34,13 @@ function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
     enableTLSForSentinelMode: Boolean(tls),
     natMap: tls ? valkeySentinelNAT : undefined,
     sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000),
-    ...FAIL_FAST
+    ...VALKEY_CLIENT_OPTIONS
   };
 }
 
 function directOptions(cfg: ValkeyConfig, tls: TLSOptions) {
   const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...FAIL_FAST };
+  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...VALKEY_CLIENT_OPTIONS };
 }
 
 let client: Redis | null = null;

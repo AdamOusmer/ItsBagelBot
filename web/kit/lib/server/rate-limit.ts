@@ -7,7 +7,8 @@ import {
   VALKEY_TLS_SENTINEL_PORT,
   valkeyEndpoint,
   valkeySentinelNAT,
-  valkeyTLSOptions
+  valkeyTLSOptions,
+  VALKEY_CLIENT_OPTIONS
 } from './valkey-connection';
 import { getServerConfig, hasServerConfig } from './config';
 import { CircuitBreaker, withTimeout } from './resilience';
@@ -177,10 +178,7 @@ function getWriteClient(): RateLimitClient | null {
       sentinelTLS: tls,
       enableTLSForSentinelMode: Boolean(tls),
       natMap: tls ? valkeySentinelNAT : undefined,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      connectTimeout: 1000,
-      retryStrategy: (times) => Math.min(times * 200, 2000),
+      ...VALKEY_CLIENT_OPTIONS,
       sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000)
     });
   } else {
@@ -190,10 +188,7 @@ function getWriteClient(): RateLimitClient | null {
       port: endpoint.port,
       password: cfg.password || undefined,
       tls,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      connectTimeout: 1000,
-      retryStrategy: (times) => Math.min(times * 200, 2000)
+      ...VALKEY_CLIENT_OPTIONS
     });
   }
 
