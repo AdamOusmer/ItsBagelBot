@@ -16,7 +16,7 @@ for (const [name, get] of handlers) {
     const res = await get();
     const cdn = res.headers.get('cdn-cache-control') ?? '';
     expect(res.headers.get('cache-control')).toBe('public, max-age=0');
-    expect(cdn).toContain('max-age=2');
+    expect(cdn).toContain('max-age=1');
     expect(cdn).toContain('stale-while-revalidate=');
     expect(`${res.headers.get('cache-control')} ${cdn}`).not.toContain('s-maxage');
     expect(res.headers.get('set-cookie')).toBeNull();

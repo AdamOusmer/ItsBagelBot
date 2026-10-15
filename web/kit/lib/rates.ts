@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Ingress (Ingress.Capacity) uses the same two windows; change them together.
-export const RATE_NOW_SECONDS = 10;
+export const RATE_NOW_SECONDS = 5;
 export const RATE_AVG_SECONDS = 60;
 
 const MIN_SPAN_MS = 1000;

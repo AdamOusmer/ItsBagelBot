@@ -2,20 +2,19 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/environment';
-import { POLICY } from '@bagel/kit/server/cache-keys';
-import { fabric } from './services';
 import { liveTotals } from './live-counters';
 import { exactRateWindows } from '@bagel/kit/rates';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
 
-const CACHE_KEY = 'public-stats:global';
-
 const BOT_SCOPE_USER = '0';
 const COUNTER_MESSAGES = 'messages_processed';
 const COUNTER_EVENTS = 'events_processed';
 const COUNTERS = [COUNTER_MESSAGES, COUNTER_EVENTS] as const;
+
+// Viewer-driven sampling left each pod's windows holding one stale sample after idle; the timer keeps them full.
+const SAMPLE_MS = 1000;
 
 export interface PublicStats {
   messages_total: string;
@@ -28,6 +27,10 @@ export interface PublicStats {
 }
 
 const sampleRates = exactRateWindows();
+
+let latest: PublicStats | null = null;
+let inflight: Promise<void> | null = null;
+let timer: ReturnType<typeof setInterval> | null = null;
 
 function degradedStats(): PublicStats {
   return {
@@ -59,11 +62,29 @@ async function loadStats(): Promise<PublicStats> {
   };
 }
 
+function sample(): Promise<void> {
+  inflight ??= loadStats()
+    .then((stats) => {
+      latest = stats;
+    })
+    .catch(() => {
+      latest = degradedStats();
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
+function startSampler(): void {
+  if (timer) return;
+  timer = setInterval(() => void sample(), SAMPLE_MS);
+  timer.unref?.();
+}
+
 export async function publicStats(): Promise<PublicStats> {
   if (DEMO) return (await import('./demo-data')).demoStats(Date.now());
-  try {
-    return await fabric.readKey(CACHE_KEY, POLICY.live, loadStats);
-  } catch {
-    return degradedStats();
-  }
+  startSampler();
+  if (!latest) await sample();
+  return latest ?? degradedStats();
 }
