@@ -122,33 +122,6 @@ newrelic-infrastructure:
       operator: Equal
       value: cp
       effect: NoSchedule
-    extraEnv:
-    - name: VALKEY_CORE_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: newrelic-license
-          key: VALKEY_CORE_PASSWORD
-    extraPassthroughEnv:
-    - VALKEY_CORE_PASSWORD
-  integrations:
-    redis-config:
-      discovery:
-        command:
-          exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
-          match:
-            name: valkey
-            label.app.kubernetes.io/name: valkey
-      integrations:
-      - name: nri-redis
-        env:
-          METRICS: 'true'
-          HOSTNAME: ${discovery.ip}
-          PORT: '6380'
-          PASSWORD: '{{ VALKEY_CORE_PASSWORD }}'
-          USE_TLS: 'true'
-          TLS_INSECURE_SKIP_VERIFY: 'true'
-          REMOTE_MONITORING: 'true'
-          CONFIG_INVENTORY: 'false'
 newrelic-k8s-metrics-adapter:
   enabled: false
 newrelic-logging:
