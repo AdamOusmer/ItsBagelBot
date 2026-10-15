@@ -7,6 +7,15 @@ import type { ValkeyConfig } from './config';
 
 export const VALKEY_TLS_DATA_PORT = 6380;
 export const VALKEY_TLS_SENTINEL_PORT = 26380;
+
+// familyFallback off: after a lost connection iovalkey flips family to 6, a Sentinel resolve loop never flips it back (no close event), every lookup is ENOTFOUND and Bun keeps each failed socket: ~1 MiB/min until OOM after every failover (2026-10-15).
+export const VALKEY_CLIENT_OPTIONS = {
+  enableOfflineQueue: false,
+  maxRetriesPerRequest: 1,
+  connectTimeout: 1000,
+  familyFallback: { enabled: false },
+  retryStrategy: (times: number) => Math.min(times * 200, 2000)
+} as const;
 const DEFAULT_SERVER_NAME = 'valkey.valkey.svc.cluster.local';
 
 export function valkeyTLSOptions(cfg: ValkeyConfig): ConnectionOptions | undefined {

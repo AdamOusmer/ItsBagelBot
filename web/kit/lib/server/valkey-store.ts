@@ -7,7 +7,7 @@ import { decodeModuleFields, type ProjectedModule } from './module-projection';
 import { getServerConfig } from './config';
 import { logger } from './logger';
 import { CircuitBreaker, withTimeout } from './resilience';
-import { VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
+import { VALKEY_CLIENT_OPTIONS, VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
 
 const SETTINGS_PREFIX = 'settings:';
 const SESSION_REVOKED_PREFIX = 'session-revoked:';
@@ -63,10 +63,7 @@ function get(): Redis | null {
     port: endpoint.port,
     password: cfg.password || undefined,
     tls,
-    enableOfflineQueue: false,
-    maxRetriesPerRequest: 1,
-    connectTimeout: 1000,
-    retryStrategy: (times) => Math.min(times * 200, 2000)
+    ...VALKEY_CLIENT_OPTIONS
   });
   client.on('error', () => {});
   return client;

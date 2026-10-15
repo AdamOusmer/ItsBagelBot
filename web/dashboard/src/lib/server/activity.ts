@@ -8,7 +8,8 @@ import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
 import {
   VALKEY_TLS_DATA_PORT,
   valkeyEndpoint,
-  valkeyTLSOptions
+  valkeyTLSOptions,
+  VALKEY_CLIENT_OPTIONS
 } from '@bagel/kit/server/valkey-connection';
 import {
   degradedActivityFeed,
@@ -47,10 +48,7 @@ function getClient(): Redis | null {
     port: endpoint.port,
     password: cfg.password || undefined,
     tls,
-    enableOfflineQueue: false,
-    maxRetriesPerRequest: 1,
-    connectTimeout: 1000,
-    retryStrategy: (times) => Math.min(times * 200, 2000)
+    ...VALKEY_CLIENT_OPTIONS
   });
   client.on('error', () => {});
   return client;
