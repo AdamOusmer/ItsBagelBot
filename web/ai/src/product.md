@@ -8,7 +8,7 @@ human: https://itsbagelbot.com/
 
 [Human guide](https://itsbagelbot.com/).
 
-ItsBagelBot is a Twitch chat bot managed through a web dashboard. It provides commands, song requests, game statistics, community features, and optional Discord integration.
+ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot managed through a web dashboard. It provides commands, song requests, game statistics, community features, and optional Discord integration.
 Finished features are free; AutoMod and Discord are Premium beta modules.
 
 <page type="overview">
