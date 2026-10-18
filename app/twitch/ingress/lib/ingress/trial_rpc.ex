@@ -32,8 +32,7 @@ defmodule Ingress.TrialRpc do
             else: %{broadcaster_id: id, state: "pending", enabled: true}
 
         {:ok, true} ->
-          Trials.stop(id)
-          Trials.field(id, "stop_reason", "promoted")
+          Trials.promote(id)
           %{error: "already_registered"}
 
         _ ->

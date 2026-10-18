@@ -52,6 +52,15 @@ defmodule Ingress.Trials do
   return 'stopping'
   """
 
+  @promote_script """
+  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
+  local key = 'trial:channel:' .. ARGV[1]
+  if redis.call('HGET', key, 'state') == 'stopping' then return 'already' end
+  redis.call('HSET', key, 'state', 'stopping', 'stop_reason', 'promoted')
+  redis.call('INCR', KEYS[2])
+  return 'promoted'
+  """
+
   @set_enabled_script """
   if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
   local key = 'trial:channel:' .. ARGV[1]
@@ -159,6 +168,15 @@ defmodule Ingress.Trials do
     case VK.command(["EVAL", @stop_script, 2, @members, @revision, id]) do
       {:ok, state} -> {:ok, state}
       {:error, _} -> {:error, "unavailable"}
+    end
+  end
+
+  def promote(id) do
+    case VK.command(["EVAL", @promote_script, 2, @members, @revision, id]) do
+      {:ok, "promoted"} -> {:ok, :promoted}
+      {:ok, "already"} -> {:ok, :already}
+      {:ok, "absent"} -> {:ok, :absent}
+      _ -> {:error, "unavailable"}
     end
   end
 

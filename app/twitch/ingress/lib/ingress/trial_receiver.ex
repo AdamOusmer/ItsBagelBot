@@ -609,16 +609,17 @@ defmodule Ingress.TrialReceiver do
 
   defp maybe_promote(rows, false), do: rows
 
-  defp maybe_promote(rows, true) do
-    Enum.map(rows, fn row ->
-      if row.state != "stopping" && TrialRpc.registered?(row.broadcaster_id) == {:ok, true} do
-        Trials.stop(row.broadcaster_id)
-        Trials.field(row.broadcaster_id, "stop_reason", "promoted")
-        %{row | state: "stopping", stop_reason: "promoted"}
-      else
-        row
-      end
-    end)
+  defp maybe_promote(rows, true), do: Enum.map(rows, &promote_if_registered/1)
+
+  defp promote_if_registered(%{state: "stopping"} = row), do: row
+
+  defp promote_if_registered(row) do
+    with {:ok, true} <- TrialRpc.registered?(row.broadcaster_id),
+         {:ok, :promoted} <- Trials.promote(row.broadcaster_id) do
+      %{row | state: "stopping", stop_reason: "promoted"}
+    else
+      _ -> row
+    end
   end
 
   defp reconcile_row(%{state: "stopping"} = row, state) do
@@ -632,7 +633,7 @@ defmodule Ingress.TrialReceiver do
       })
 
     if reply["deleted"] == true do
-      Trials.finish(row.broadcaster_id, row.stop_reason || "removed")
+      Trials.finish(row.broadcaster_id, finished_state(row.stop_reason))
     end
   end
 
@@ -666,6 +667,9 @@ defmodule Ingress.TrialReceiver do
       end
     end
   end
+
+  defp finished_state("promoted"), do: "promoted"
+  defp finished_state(_reason), do: "removed"
 
   defp subscription_needed?(row, state) do
     row.state in ["pending", "failed"] ||

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
 defmodule Ingress.TrialValkeyFixture do
   alias Ingress.TrialValkey
 

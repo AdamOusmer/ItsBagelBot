@@ -47,7 +47,6 @@ defmodule Ingress.TrialRegistrationTest do
 
   alias Ingress.{
     EnvCase,
-    TrialMembership,
     TrialReceiver,
     TrialRegistrationFakeGnat,
     TrialRegistrationFakeWs,
@@ -126,8 +125,6 @@ defmodule Ingress.TrialRegistrationTest do
 
   test "registration event promotes an owned trial row without any users lookup" do
     add_on_slot_zero("42")
-    start_supervised!(TrialMembership)
-    assert EnvCase.eventually(fn -> TrialMembership.lookup("42") end)
     pid = start_receiver()
     assert EnvCase.eventually(fn -> TrialReceiver.status(pid).owned end)
     flush_requests()
@@ -146,13 +143,34 @@ defmodule Ingress.TrialRegistrationTest do
 
   test "registration event for an unknown broadcaster changes nothing" do
     add_on_slot_zero("42")
-    start_supervised!(TrialMembership)
-    assert EnvCase.eventually(fn -> TrialMembership.lookup("42") end)
 
     assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 777})})
 
     assert row("777") == nil
     assert row("42").state == "pending"
     assert flush_requests() == []
+  end
+
+  test "registration event stops and marks a trial promoted in one step before any membership refresh" do
+    add_on_slot_zero("42")
+
+    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+
+    assert %{state: "stopping", stop_reason: "promoted"} = row("42")
+    assert {:ok, :already} == Trials.promote("42")
+  end
+
+  test "a trial stopped because registration could not be checked finishes as removed" do
+    add_on_slot_zero("42")
+    {:ok, "stopping"} = Trials.stop("42")
+    Trials.field("42", "stop_reason", "registration_check_unavailable")
+    pid = start_receiver()
+
+    assert EnvCase.eventually(fn ->
+             send(pid, :tick)
+             row("42").state == "removed"
+           end)
+
+    assert Process.alive?(pid)
   end
 end
