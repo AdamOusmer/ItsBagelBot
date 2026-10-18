@@ -41,8 +41,12 @@
     return hit ? hit.name : t('discord.module.channelListUnknown', { id });
   }
 
+  function canAdd(id: string): boolean {
+    return id !== '' && !full && !picked.includes(id);
+  }
+
   function add(id: string) {
-    if (id === '' || full || picked.includes(id)) return;
+    if (!canAdd(id)) return;
     draft.set(field, encodeIdList([...picked, id]));
   }
 
