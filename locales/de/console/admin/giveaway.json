@@ -14,5 +14,6 @@
   "snapshotFrozenDemo": "Snapshot der Teilnahmeberechtigung eingefroren (Demo).",
   "snapshotFrozen": "Snapshot der Teilnahmeberechtigung eingefroren.",
   "retryQueuedDemo": "Erneute Bereitstellung eingereiht (Demo).",
-  "retryQueued": "Erneute Bereitstellung eingereiht."
+  "retryQueued": "Erneute Bereitstellung eingereiht.",
+  "userIdRequired": "Benutzer-ID erforderlich"
 }

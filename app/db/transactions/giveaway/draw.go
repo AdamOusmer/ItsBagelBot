@@ -36,11 +36,22 @@ var (
 )
 
 type Candidate struct {
-	UserID          uint64 `json:"user_id"`
-	Username        string `json:"username,omitempty"`
-	Eligible        bool   `json:"eligible"`
-	ExclusionReason string `json:"exclusion_reason,omitempty"`
-	Eligibility     any    `json:"eligibility,omitempty"`
+	UserID          uint64  `json:"user_id"`
+	Username        string  `json:"username,omitempty"`
+	Eligible        bool    `json:"eligible"`
+	ExclusionReason string  `json:"exclusion_reason,omitempty"`
+	IncludedBy      *uint64 `json:"included_by,omitempty"`
+	Eligibility     any     `json:"eligibility,omitempty"`
+}
+
+func EligibleCandidates(in []Candidate) []Candidate {
+	out := make([]Candidate, 0, len(in))
+	for _, candidate := range in {
+		if candidate.Eligible {
+			out = append(out, candidate)
+		}
+	}
+	return out
 }
 
 func CanonicalCandidates(in []Candidate) ([]Candidate, error) {

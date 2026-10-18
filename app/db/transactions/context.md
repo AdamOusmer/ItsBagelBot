@@ -22,6 +22,7 @@ delivers emails through the app's mail adapter.
 | Gift | Paid Premium purchase for another account, distinct from a giveaway award. |
 | Campaign / `Giveaway` | Admin configuration and lifecycle: draft → frozen → drawn. |
 | Frozen pool | Persisted candidate membership/evidence approved before drawing. |
+| Inclusion | Admin add-back of a Users-excluded account to a draft pool; banned accounts cannot be added back. The reason stays on the frozen row. |
 | Draw | Persisted secure random selection, algorithm version and pool digest. |
 | Award | Durable obligation to a selected winner; selection does not mean delivery. |
 | Fulfillment plan | Immutable exact award interval/rule preserved across retries. |
@@ -42,6 +43,7 @@ delivers emails through the app's mail adapter.
 | [rpc/checkout.go](rpc/checkout.go) | Basket creation, recipient validation and fail-closed coverage/award guard. |
 | [rpc/billing.go](rpc/billing.go), [giftnotify.go](rpc/giftnotify.go) | Users billing application and best-effort gift notifications/email. |
 | [rpc/giveaways.go](rpc/giveaways.go), [giveaways_campaign.go](rpc/giveaways_campaign.go) | Admin/user views, authorization, preview/freeze/draw/retry. |
+| [rpc/giveaways_inclusion.go](rpc/giveaways_inclusion.go) | Draft-only add-back and removal of excluded accounts. |
 | [rpc/giveaways_users.go](rpc/giveaways_users.go) | RPC adapter for Users eligibility, coverage and grants. |
 | [giveaway/store.go](giveaway/store.go), [draw.go](giveaway/draw.go) | Transactional campaign/draw/outbox persistence and random/calendar primitives. |
 | [giveaway/engine.go](giveaway/engine.go), [worker.go](giveaway/worker.go), [planning.go](giveaway/planning.go) | Dispatch/recovery, provider protection before grant commit and immutable interval plan. |
@@ -49,7 +51,7 @@ delivers emails through the app's mail adapter.
 | [giveaway/engine_email.go](giveaway/engine_email.go), [mail/](mail/) | Durable award emails, prepared messages and provider delivery/templates. |
 | [tebex/](tebex/) | Headless basket APIs and separate checkout/recurring provider adapters. |
 | [giveaways.go](giveaways.go) | Runtime adapters and billing-event-to-award incident alerts. |
-| [ent/schema/](ent/schema/) | Webhook, campaign, candidate, draw, award, plan, lease, outbox, email, agreement and alert entities. |
+| [ent/schema/](ent/schema/) | Webhook, campaign, candidate, inclusion, draw, award, plan, lease, outbox, email, agreement and alert entities. |
 
 Contracts: [transactions](../../../internal/domain/rpc/transactions/),
 [giveaways](../../../internal/domain/rpc/giveaways/),

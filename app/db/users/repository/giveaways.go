@@ -34,6 +34,7 @@ type GiveawayPoolCounts struct {
 
 type GiveawayPool struct {
 	Candidates  []usersrpc.GiveawayCandidate `json:"candidates"`
+	Excluded    []usersrpc.GiveawayCandidate `json:"excluded"`
 	SnapshotAt  time.Time                    `json:"snapshot_at"`
 	RuleVersion string                       `json:"rule_version"`
 	Counts      GiveawayPoolCounts           `json:"counts"`
@@ -128,22 +129,50 @@ func pendingEligibility(p pendingGiveawayPrefs, active, onboarded bool) (bool, b
 }
 
 func (p *GiveawayPool) add(row *ent.User, active, onboarded, staff bool) {
+	view := candidateView(row, active, onboarded)
+	view.ExclusionReason = exclusionReason(row, active, onboarded, staff)
+	p.Counts.count(view.ExclusionReason)
+	if view.ExclusionReason == "" {
+		p.Candidates = append(p.Candidates, view)
+		return
+	}
+	p.Excluded = append(p.Excluded, view)
+}
+
+func exclusionReason(row *ent.User, active, onboarded, staff bool) string {
 	switch {
 	case row.Banned:
-		p.Counts.Banned++
+		return usersrpc.GiveawayExclusionBanned
 	case !active:
-		p.Counts.Inactive++
+		return usersrpc.GiveawayExclusionInactive
 	case !onboarded:
-		p.Counts.NotOnboarded++
+		return usersrpc.GiveawayExclusionNotOnboarded
 	case row.TestAccount:
-		p.Counts.TestAccount++
+		return usersrpc.GiveawayExclusionTestAccount
 	case row.Status == user.StatusVip:
-		p.Counts.VIP++
+		return usersrpc.GiveawayExclusionVIP
 	case staff:
-		p.Counts.CurrentStaff++
-	default:
-		p.Counts.Eligible++
-		p.Candidates = append(p.Candidates, candidateView(row, active, onboarded))
+		return usersrpc.GiveawayExclusionCurrentStaff
+	}
+	return ""
+}
+
+func (c *GiveawayPoolCounts) count(reason string) {
+	switch reason {
+	case "":
+		c.Eligible++
+	case usersrpc.GiveawayExclusionBanned:
+		c.Banned++
+	case usersrpc.GiveawayExclusionInactive:
+		c.Inactive++
+	case usersrpc.GiveawayExclusionNotOnboarded:
+		c.NotOnboarded++
+	case usersrpc.GiveawayExclusionTestAccount:
+		c.TestAccount++
+	case usersrpc.GiveawayExclusionVIP:
+		c.VIP++
+	case usersrpc.GiveawayExclusionCurrentStaff:
+		c.CurrentStaff++
 	}
 }
 

@@ -16,7 +16,7 @@ mock.module('@bagel/kit/server/nats', () => ({
   }
 }));
 
-const { giveawayFreeze, giveawayGet, giveawayPreview, mapDrawMetadata, persistedEligibleCount, selectionMethodForAlgorithm } = await import('../src/lib/server/giveaways');
+const { giveawayFreeze, giveawayGet, giveawayInclusion, giveawayPreview, mapDrawMetadata, persistedEligibleCount, selectionMethodForAlgorithm } = await import('../src/lib/server/giveaways');
 
 const campaign = {
   id: 'c-1', title: 'Launch', reason: 'Internal', rules_version: 'v1', winner_count: 2, prize_months: 3,
@@ -65,6 +65,32 @@ describe('giveaway RPC wire mapping', () => {
     const preview = await giveawayPreview({ actorId: 'admin-1', winnerCount: 1, prizeMonths: 3 });
     expect(preview.exclusions).toEqual({ banned: 1, inactive: 1, not_onboarded: 1, test_account: 1, vip: 1, current_staff: 1 });
     expect(preview.poolDigest).toBe('sha256:preview');
+  });
+
+  it('adds an excluded account back and lists every exclusion with its reason', async () => {
+    reply = {
+      summary: {
+        total: 3, eligible: 2, excluded: 1, included: 1, free: 1, premium: 1, subscribers: 0,
+        requested_winners: 1, prize_months: 1, total_prize_months: '1',
+        exclusions: { banned: 1, inactive: 0, not_onboarded: 0, test_account: 0, vip: 0, current_staff: 0 }
+      },
+      excluded: [
+        { user_id: 2, username: 'two', eligible: true, exclusion_reason: 'vip', included_by: 10 },
+        { user_id: 3, eligible: false, exclusion_reason: 'banned' }
+      ],
+      pool_digest: 'sha256:included', capabilities: {
+        new_awards_enabled: true, scheduling_enabled: false, provider_mutations_enabled: false, interval_rule_verified: false
+      }
+    };
+    const preview = await giveawayInclusion({ actorId: 'admin-1', campaignId: 'c-1', userId: '2', include: true });
+    expect(requests.at(-1)).toMatchObject({ subject: 'bagel.rpc.admin.giveaways.include', body: { actor_id: 'admin-1', campaign_id: 'c-1', user_id: 2 } });
+    expect(preview.included).toBe(1);
+    expect(preview.excluded).toEqual([
+      { userId: '2', login: 'two', reason: 'vip', included: true, includable: true },
+      { userId: '3', login: '3', reason: 'banned', included: false, includable: false }
+    ]);
+    await giveawayInclusion({ actorId: 'admin-1', campaignId: 'c-1', userId: '2', include: false });
+    expect(requests.at(-1)?.subject).toBe('bagel.rpc.admin.giveaways.exclude');
   });
 
   it('keeps draw algorithm metadata separate from the selection method', () => {

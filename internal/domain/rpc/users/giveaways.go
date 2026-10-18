@@ -17,7 +17,17 @@ type GiveawayCandidate struct {
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	ExclusionReason           string     `json:"exclusion_reason,omitempty"`
 }
+
+const (
+	GiveawayExclusionBanned       = "banned"
+	GiveawayExclusionInactive     = "inactive"
+	GiveawayExclusionNotOnboarded = "not_onboarded"
+	GiveawayExclusionTestAccount  = "test_account"
+	GiveawayExclusionVIP          = "vip"
+	GiveawayExclusionCurrentStaff = "current_staff"
+)
 
 type PremiumGrant struct {
 	ID                  int       `json:"id"`
@@ -75,6 +85,7 @@ type GiveawayPoolRequest struct {
 
 type GiveawayPoolReply struct {
 	Candidates  []GiveawayCandidate `json:"candidates,omitempty"`
+	Excluded    []GiveawayCandidate `json:"excluded,omitempty"`
 	SnapshotAt  time.Time           `json:"snapshot_at"`
 	RuleVersion string              `json:"rule_version"`
 	Counts      GiveawayPoolCounts  `json:"counts"`

@@ -27,6 +27,8 @@ const (
 	VerbAlerts           = "alerts"
 	VerbHistory          = "history"
 	VerbCapabilities     = "capabilities"
+	VerbInclude          = "include"
+	VerbExclude          = "exclude"
 )
 
 type Status string
@@ -97,18 +99,20 @@ type Campaign struct {
 }
 
 type Candidate struct {
-	ID              string `json:"id,omitempty"`
-	UserID          uint64 `json:"user_id"`
-	Username        string `json:"username,omitempty"`
-	Eligible        bool   `json:"eligible"`
-	ExclusionReason string `json:"exclusion_reason,omitempty"`
-	Eligibility     any    `json:"eligibility,omitempty"`
+	ID              string  `json:"id,omitempty"`
+	UserID          uint64  `json:"user_id"`
+	Username        string  `json:"username,omitempty"`
+	Eligible        bool    `json:"eligible"`
+	ExclusionReason string  `json:"exclusion_reason,omitempty"`
+	IncludedBy      *uint64 `json:"included_by,omitempty"`
+	Eligibility     any     `json:"eligibility,omitempty"`
 }
 
 type PoolSummary struct {
 	Total            int                 `json:"total"`
 	Eligible         int                 `json:"eligible"`
 	Excluded         int                 `json:"excluded"`
+	Included         int                 `json:"included"`
 	Free             int                 `json:"free"`
 	Premium          int                 `json:"premium"`
 	Subscribers      int                 `json:"subscribers"`
@@ -150,10 +154,17 @@ type PreviewRequest struct {
 type PreviewReply struct {
 	Campaign     *Campaign    `json:"campaign,omitempty"`
 	Candidates   []Candidate  `json:"candidates,omitempty"`
+	Excluded     []Candidate  `json:"excluded,omitempty"`
 	Summary      PoolSummary  `json:"summary"`
 	PoolDigest   string       `json:"pool_digest,omitempty"`
 	Capabilities Capabilities `json:"capabilities"`
 	rpc.Refusal
+}
+
+type InclusionRequest struct {
+	Mutation
+	CampaignID string `json:"campaign_id"`
+	UserID     uint64 `json:"user_id"`
 }
 
 type FreezeRequest struct {

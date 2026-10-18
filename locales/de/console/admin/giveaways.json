@@ -80,5 +80,20 @@
   "newAwardsDisabled": "Die Auswahl ist deaktiviert, da keine neuen Gewinnspielgewinne vergeben werden können.",
   "winnersExceedEligible": "Wähle aus dieser Vorschau höchstens {eligible} Gewinner aus.",
   "previewSummaryOne": "Gewinnerzahl: {winners} × Monate: {months} = Premium-Monate: {total}",
-  "previewSummaryMany": "Gewinnerzahl: {winners} × Monate: {months} = Premium-Monate: {total}"
+  "previewSummaryMany": "Gewinnerzahl: {winners} × Monate: {months} = Premium-Monate: {total}",
+  "excludedAccounts": "Ausgeschlossene Konten",
+  "excludedHint": "Konten, die nicht in diesem Pool sind, und warum. Füge eines vor dem Einfrieren wieder hinzu, um es teilnahmeberechtigt zu machen. Gesperrte Konten bleiben ausgeschlossen.",
+  "excludedPreviewHint": "Zeige die Vorschau an, um ausgeschlossene Konten aufzulisten.",
+  "reason": "Grund",
+  "state": "Status",
+  "addBack": "Wieder hinzufügen",
+  "undoAddBack": "Entfernen",
+  "addedBack": "Wieder hinzugefügt",
+  "stillExcluded": "Ausgeschlossen",
+  "reasonBanned": "Gesperrt",
+  "reasonInactive": "Inaktiv",
+  "reasonNotOnboarded": "Nicht eingerichtet",
+  "reasonTestAccount": "Testkonto",
+  "reasonVip": "VIP",
+  "reasonCurrentStaff": "Aktuelles Team"
 }

@@ -175,6 +175,8 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.admin.giveaways.alerts", "web/admin/src/lib/server/giveaways.ts"},
 		{"bagel.rpc.admin.giveaways.history", "web/admin/src/lib/server/giveaways.ts"},
 		{"bagel.rpc.admin.giveaways.capabilities", "web/admin/src/lib/server/giveaways.ts"},
+		{"bagel.rpc.admin.giveaways.include", "web/admin/src/lib/server/giveaways.ts"},
+		{"bagel.rpc.admin.giveaways.exclude", "web/admin/src/lib/server/giveaways.ts"},
 		{"bagel.rpc.admin.user.test.set", "web/admin user inspector"},
 		{"bagel.rpc.admin.user.get", "web/admin"},
 		{"bagel.rpc.admin.user.bot_token_set", "web/admin bot OAuth self-authorization"},

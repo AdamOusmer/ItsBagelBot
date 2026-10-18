@@ -66,7 +66,7 @@ func (g giveawayRPC) pool(ctx context.Context, req usersrpc.GiveawayPoolRequest)
 	if err != nil {
 		return usersrpc.GiveawayPoolReply{Error: err.Error()}
 	}
-	return usersrpc.GiveawayPoolReply{Candidates: snapshot.Candidates, SnapshotAt: snapshot.SnapshotAt,
+	return usersrpc.GiveawayPoolReply{Candidates: snapshot.Candidates, Excluded: snapshot.Excluded, SnapshotAt: snapshot.SnapshotAt,
 		RuleVersion: snapshot.RuleVersion, Counts: giveawayCounts(snapshot.Counts)}
 }
 

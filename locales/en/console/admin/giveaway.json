@@ -14,5 +14,6 @@
   "snapshotFrozenDemo": "Eligibility snapshot frozen (demo).",
   "snapshotFrozen": "Eligibility snapshot frozen.",
   "retryQueuedDemo": "Fulfillment retry queued (demo).",
-  "retryQueued": "Fulfillment retry queued."
+  "retryQueued": "Fulfillment retry queued.",
+  "userIdRequired": "user id required"
 }

@@ -22,6 +22,7 @@ func (GiveawayCandidate) Fields() []ent.Field {
 		field.String("eligibility_json").NotEmpty(),
 		field.String("exclusion_reason").Optional().MaxLen(200),
 		field.Bool("eligible").Default(true),
+		field.Uint64("included_by").Optional().Nillable(),
 		field.String("pool_digest").NotEmpty(),
 		field.Time("created_at").Default(time.Now).Immutable(),
 	}

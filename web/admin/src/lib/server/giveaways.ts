@@ -34,14 +34,17 @@ export type GiveawayAlertWire = {
   id: string; awardId: string; reason: string; pendingSince: string; upcomingChargeAt?: string | null; urgent?: boolean;
 };
 
+export type GiveawayExcludedWire = { userId: string; login: string; reason: string; included: boolean; includable: boolean };
+
 export type GiveawayDetailWire = GiveawayWire & {
-  winners: GiveawayWinnerWire[]; eligible?: GiveawayEligibility; poolDigest?: string | null;
+  winners: GiveawayWinnerWire[]; excluded?: GiveawayExcludedWire[]; eligible?: GiveawayEligibility; poolDigest?: string | null;
   eligibleCount?: number; selectionMethod?: 'random_draw'; algorithmVersion?: string | null; alerts?: GiveawayAlertWire[];
 };
 
 export type GiveawayPreviewWire = {
   eligible: GiveawayEligibility; exclusions: Record<string, number>; summary: GiveawaySummary;
   durationProtectionWarnings?: string[]; frozen?: boolean; poolDigest?: string; capabilities?: GiveawayCapabilities;
+  excluded: GiveawayExcludedWire[]; included: number;
 };
 
 export type FreezeOperation = { actorId: string; campaignId: string; poolDigest: string; expectedVersion: number; idempotencyKey: string };
@@ -59,12 +62,12 @@ type AwardRaw = {
   grant_id?: string; billing_operation_id?: string; failure_reason?: string; retry_count: number;
   version: number; selected_at: string; updated_at: string;
 };
-type CandidateRaw = { id?: string; user_id: number; username?: string; eligible: boolean; exclusion_reason?: string; eligibility?: unknown };
+type CandidateRaw = { id?: string; user_id: number; username?: string; eligible: boolean; exclusion_reason?: string; included_by?: number; eligibility?: unknown };
 type PoolExclusionCountsRaw = {
   banned: number; inactive: number; not_onboarded: number; test_account: number; vip: number; current_staff: number;
 };
 type PoolSummaryRaw = {
-  total: number; eligible: number; excluded: number; free: number; premium: number; subscribers: number;
+  total: number; eligible: number; excluded: number; included?: number; free: number; premium: number; subscribers: number;
   requested_winners: number; prize_months: number; total_prize_months: string; exclusions: PoolExclusionCountsRaw;
 };
 type CapabilitiesRaw = {
@@ -78,7 +81,7 @@ type AlertRaw = {
 };
 type CampaignReply = { campaign?: CampaignRaw; capabilities?: CapabilitiesRaw };
 type ListReply = { campaigns?: CampaignRaw[]; capabilities?: CapabilitiesRaw };
-type PreviewReply = { campaign?: CampaignRaw; candidates?: CandidateRaw[]; summary: PoolSummaryRaw; pool_digest?: string; capabilities: CapabilitiesRaw };
+type PreviewReply = { campaign?: CampaignRaw; candidates?: CandidateRaw[]; excluded?: CandidateRaw[]; summary: PoolSummaryRaw; pool_digest?: string; capabilities: CapabilitiesRaw };
 type DrawRaw = { pool_digest: string; algorithm_version: string };
 type GetReply = { campaign?: CampaignRaw; awards?: AwardRaw[]; candidates?: CandidateRaw[]; draw?: DrawRaw; capabilities?: CapabilitiesRaw };
 type DrawReply = { awards?: AwardRaw[]; draw?: DrawRaw; capabilities?: CapabilitiesRaw };
@@ -145,10 +148,18 @@ export function mapDrawMetadata(draw?: DrawRaw): { poolDigest?: string; algorith
   };
 }
 
+export function mapExcluded(candidates: ReadonlyArray<CandidateRaw>): GiveawayExcludedWire[] {
+  return candidates.filter((candidate) => candidate.exclusion_reason).map((candidate) => ({
+    userId: String(candidate.user_id), login: candidate.username ?? String(candidate.user_id), reason: candidate.exclusion_reason ?? '',
+    included: candidate.included_by !== undefined, includable: candidate.exclusion_reason !== 'banned'
+  }));
+}
+
 export function mapPreview(reply: PreviewReply): GiveawayPreviewWire {
   return {
     eligible: eligibility(reply.summary), exclusions: { ...reply.summary.exclusions }, summary: summary(reply.summary),
-    poolDigest: reply.pool_digest, capabilities: capabilities(reply.capabilities)
+    poolDigest: reply.pool_digest, capabilities: capabilities(reply.capabilities),
+    excluded: mapExcluded(reply.excluded ?? []), included: reply.summary.included ?? 0
   };
 }
 
@@ -173,7 +184,7 @@ export async function giveawayGet(input: { actorId: string; campaignId: string }
   const draw = mapDrawMetadata(reply.draw);
   return {
     ...campaign, winners: (reply.awards ?? []).map((award) => mapAward(award, logins.get(String(award.user_id)))),
-    ...draw, eligibleCount: persistedEligibleCount(campaign.status, reply.candidates ?? []),
+    ...draw, eligibleCount: persistedEligibleCount(campaign.status, reply.candidates ?? []), excluded: mapExcluded(reply.candidates ?? []),
     capabilities: capabilities(reply.capabilities)
   };
 }
@@ -188,6 +199,12 @@ export async function giveawayPreview(input: GiveawayPreviewInput): Promise<Give
     ...('campaignId' in input ? { campaign_id: input.campaignId } : { winner_count: input.winnerCount, prize_months: input.prizeMonths })
   };
   const reply = await rpc<PreviewReply>('bagel.rpc.admin.giveaways.preview', request, READ_TIMEOUT);
+  return mapPreview(reply);
+}
+
+export async function giveawayInclusion(input: { actorId: string; campaignId: string; userId: string; include: boolean }): Promise<GiveawayPreviewWire> {
+  const verb = input.include ? 'include' : 'exclude';
+  const reply = await rpc<PreviewReply>(`bagel.rpc.admin.giveaways.${verb}`, { ...buildMutation(input), campaign_id: input.campaignId, user_id: Number(input.userId) }, READ_TIMEOUT);
   return mapPreview(reply);
 }
 
