@@ -189,6 +189,7 @@ const modules = [
 const guide: GuideContent = {
   slug: 'modules',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/product.md',
     title: 'Set Up Twitch Bot Modules and Game Stats | ItsBagelBot',
     description:
       'Enable Twitch bot modules and configure game stats in chat. Follow dashboard examples and check which modules need Premium during beta.',
