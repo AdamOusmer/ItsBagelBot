@@ -282,6 +282,7 @@ type guildFill struct {
 	subscribers bool
 	pinned      map[string]string
 	droppedPins []string
+	grantable   uint64
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
@@ -314,7 +315,16 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
 		chanByName: idsByName(existing), roleByName: idsByName(roles),
 		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
+		grantable: w.grantablePermissions(ctx, req.guild(), roles),
 	}, nil
+}
+
+func (w *Worker) grantablePermissions(ctx context.Context, guild discapi.Guild, roles []discapi.Snowflake) uint64 {
+	member, ok := w.botMember(ctx, guild)
+	if !ok {
+		return ddiscord.BotPermissions
+	}
+	return discapi.BasePermissions(member, roles)
 }
 
 func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[string]string, []string) {
@@ -462,7 +472,7 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 			Guild: f.target,
 			Spec: discapi.RoleCreate{
 				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
-				Color: spec.Color, Permissions: rolePermissions(spec),
+				Color: spec.Color, Permissions: rolePermissions(spec, f.grantable),
 			},
 		})
 	}
@@ -625,9 +635,10 @@ func (f *guildFill) withBotAccess(in []discapi.PermissionOverwrite) []discapi.Pe
 	})
 }
 
-func rolePermissions(spec ddiscord.RoleSpec) string {
-	if spec.Permissions == 0 {
+func rolePermissions(spec ddiscord.RoleSpec, grantable uint64) string {
+	granted := uint64(spec.Permissions) & grantable
+	if granted == 0 {
 		return ""
 	}
-	return strconv.FormatInt(spec.Permissions, 10)
+	return strconv.FormatUint(granted, 10)
 }

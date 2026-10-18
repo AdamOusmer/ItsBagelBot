@@ -161,7 +161,7 @@ func TestSetupGuildCreatesTheTemplateRolesStaffArchiveAndDesk(t *testing.T) {
 	archive := d.createdChannels["archive"]
 	require.Equal(t, templateFill{
 		RolePermissions: map[string]string{
-			ddiscord.RoleOwner: "", ddiscord.RoleLeadMod: "8", ddiscord.RoleMods: strconv.FormatInt(int64(ddiscord.PermModerator), 10),
+			ddiscord.RoleOwner: "", ddiscord.RoleLeadMod: "", ddiscord.RoleMods: strconv.FormatInt(int64(ddiscord.PermModerator)&ddiscord.BotPermissions, 10),
 			ddiscord.RoleVIP: "", ddiscord.RoleRegulars: "", ddiscord.RoleMember: "",
 		},
 		ArchiveType: ddiscord.ChannelCategory,
@@ -375,6 +375,53 @@ func TestPostDiscord(t *testing.T) {
 
 			require.ErrorIs(t, err, tc.wantErr)
 			require.Equal(t, tc.want, d.chats)
+		})
+	}
+}
+
+func roleGrants(d *fakeDiscord) map[string]string {
+	out := map[string]string{}
+	for _, r := range d.createdRoles {
+		out[r.Name] = r.Permissions
+	}
+	return out
+}
+
+func TestSetupGuildCreatesRolesWithOnlyThePermissionsTheBotHolds(t *testing.T) {
+	cases := []struct {
+		name    string
+		botPerm uint64
+		want    map[string]string
+	}{{
+		name:    "invite permissions only",
+		botPerm: ddiscord.BotPermissions,
+		want: map[string]string{
+			ddiscord.RoleLeadMod: "",
+			ddiscord.RoleMods:    strconv.FormatInt(int64(ddiscord.PermModerator)&ddiscord.BotPermissions, 10),
+		},
+	}, {
+		name:    "administrator",
+		botPerm: uint64(ddiscord.PermAdministrator),
+		want: map[string]string{
+			ddiscord.RoleLeadMod: "8",
+			ddiscord.RoleMods:    strconv.FormatInt(int64(ddiscord.PermModerator), 10),
+		},
+	}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{
+				roles:    []discapi.Snowflake{{ID: "bot-role", Permissions: strconv.FormatUint(tc.botPerm, 10)}},
+				botRoles: []string{"bot-role"},
+			}
+			w := setup.New(setup.Config{Discord: d, Store: discordstore.NewMem(), Log: zap.NewNop(), BotID: "bot-1"})
+
+			_, err := w.SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+
+			require.NoError(t, err)
+			got := roleGrants(d)
+			for role, perms := range tc.want {
+				require.Equal(t, perms, got[role], role)
+			}
 		})
 	}
 }

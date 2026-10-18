@@ -5,6 +5,7 @@ package setup_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
@@ -72,6 +73,12 @@ func (f *fakeDiscord) CreateChannel(_ context.Context, ch discapi.GuildChannel) 
 }
 
 func (f *fakeDiscord) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
+	if len(f.botRoles) > 0 {
+		held := discapi.BasePermissions(discapi.MemberPermissions{GuildID: role.Guild.ID, Roles: f.botRoles}, append([]discapi.Snowflake{{ID: role.Guild.ID, Permissions: f.everyonePerms}}, f.roles...))
+		if discapi.ParsePermissions(role.Spec.Permissions)&^held != 0 {
+			return discapi.Snowflake{}, fmt.Errorf("%w: Missing Permissions", discapi.ErrForbidden)
+		}
+	}
 	f.createdRoles = append(f.createdRoles, role.Spec)
 	return discapi.Snowflake{ID: "role-" + strings.ToLower(role.Spec.Name), Name: role.Spec.Name}, nil
 }
