@@ -361,7 +361,7 @@ func (w *Worker) loadGuildFill(ctx context.Context, req GuildSetupRequest) (*gui
 	}
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
-		chanByName: idsByName(existing), roleByName: idsByName(roles),
+		chanByName: channelIDs(existing), roleByName: idsByName(roles),
 		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
 		items: []outgressrpc.DiscordTemplateItem{}, seen: map[string]bool{},
 		grantable: w.grantablePermissions(ctx, req.guild(), roles),
@@ -420,14 +420,29 @@ func idsByName(list []discapi.Snowflake) map[string]string {
 	return out
 }
 
+func channelKey(name string, kind int) string {
+	if kind == channelAnnouncement {
+		kind = ddiscord.ChannelText
+	}
+	return strings.ToLower(name) + "/" + strconv.Itoa(kind)
+}
+
+func channelIDs(list []discapi.Snowflake) map[string]string {
+	out := make(map[string]string, len(list))
+	for _, s := range list {
+		out[channelKey(s.Name, s.Type)] = s.ID
+	}
+	return out
+}
+
 func (f *guildFill) livedIn() bool {
 	template := map[string]bool{}
 	for _, spec := range ddiscord.CommunityChannels() {
-		template[strings.ToLower(spec.Name)] = true
+		template[channelKey(spec.Name, spec.Type)] = true
 	}
 	foreign := 0
 	for _, ch := range f.existing {
-		if !template[strings.ToLower(ch.Name)] {
+		if !template[channelKey(ch.Name, ch.Type)] {
 			foreign++
 		}
 	}
@@ -441,7 +456,7 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 		f.recordExistingRole(spec, id)
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
-		id := f.chanByName[strings.ToLower(spec.Name)]
+		id := f.chanByName[channelKey(spec.Name, spec.Type)]
 		out.setChannel(namedRef{Name: spec.Bind, ID: id})
 		f.recordExistingChannel(spec, id)
 	}
@@ -473,7 +488,7 @@ func (f *guildFill) record(item outgressrpc.DiscordTemplateItem) {
 	if !f.dry {
 		return
 	}
-	key := item.Kind + "/" + strings.ToLower(item.Name)
+	key := item.Kind + "/" + channelKey(item.Name, item.Type)
 	if f.seen[key] {
 		return
 	}
@@ -485,7 +500,7 @@ var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": 
 
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
 	_, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
-		return f.chanByName[strings.ToLower(spec.Parent)], livedInCreatable[spec.Bind]
+		return f.chanByName[channelKey(spec.Parent, ddiscord.ChannelCategory)], livedInCreatable[spec.Bind]
 	})
 	return err
 }
@@ -499,7 +514,7 @@ func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass 
 		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.chanByName, channelRef(spec), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		id, err := f.ensureNamed(ctx, f.chanByName, channelKey(spec.Name, spec.Type), channelRef(spec), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
 		if err != nil {
 			return ensured, err
 		}
@@ -530,8 +545,7 @@ type channelWant struct {
 	Parent string
 }
 
-func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
-	key := strings.ToLower(want.Name)
+func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, key string, want namedRef, create namedCreate) (string, error) {
 	if id := index[key]; id != "" {
 		f.record(want.item(outgressrpc.TemplateActionAdopt, id))
 		return id, nil
@@ -560,7 +574,7 @@ func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) erro
 			f.record(namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}.item(outgressrpc.TemplateActionPinned, id))
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}, f.roleCreator(ctx, spec))
+		id, err := f.ensureNamed(ctx, f.roleByName, strings.ToLower(spec.Name), namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}, f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
 		}

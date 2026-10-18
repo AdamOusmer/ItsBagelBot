@@ -5,6 +5,7 @@ package setup_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -137,6 +138,23 @@ func TestSetupGuild(t *testing.T) {
 			require.Equal(t, tc.want, viewFill(got, d, store))
 		})
 	}
+}
+
+func TestSetupGuildBindsTheWelcomeTextChannelNotItsCategory(t *testing.T) {
+	d := &fakeDiscord{}
+
+	got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+	require.NoError(t, err)
+
+	var welcome []discapi.Snowflake
+	for _, ch := range d.channels {
+		if strings.EqualFold(ch.Name, "welcome") {
+			welcome = append(welcome, ch)
+		}
+	}
+	require.Len(t, welcome, 2)
+	text := welcome[slices.IndexFunc(welcome, func(ch discapi.Snowflake) bool { return ch.Type == ddiscord.ChannelText })]
+	require.Equal(t, text.ID, got.WelcomeChannelID)
 }
 
 type templateFill struct {
@@ -422,6 +440,19 @@ func TestSetupGuildAdoptModeFillsFromExistingResources(t *testing.T) {
 	require.Empty(t, d.panels)
 }
 
+func TestSetupGuildAdoptModeBindsTheWelcomeTextChannelNotItsCategory(t *testing.T) {
+	d := &fakeDiscord{channels: []discapi.Snowflake{
+		{ID: "cat-welcome", Name: "Welcome", Type: ddiscord.ChannelCategory},
+		{ID: "text-welcome", Name: "Welcome", Type: ddiscord.ChannelText},
+	}}
+
+	got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), adoptRequest())
+
+	require.NoError(t, err)
+	require.Equal(t, "text-welcome", got.WelcomeChannelID)
+	require.Empty(t, d.createdChannels)
+}
+
 func previewRequest() setup.GuildSetupRequest {
 	return setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}
 }
@@ -436,6 +467,16 @@ func itemsWhere(items []outgressrpc.DiscordTemplateItem, action string) []string
 	return out
 }
 
+func createdKeys(items []outgressrpc.DiscordTemplateItem) []string {
+	var out []string
+	for _, it := range items {
+		if it.Action == outgressrpc.TemplateActionCreate {
+			out = append(out, fmt.Sprintf("%s/%s/%d", it.Kind, strings.ToLower(it.Name), it.Type))
+		}
+	}
+	return out
+}
+
 func roleGrants(d *fakeDiscord) map[string]string {
 	out := map[string]string{}
 	for _, r := range d.createdRoles {
@@ -445,12 +486,12 @@ func roleGrants(d *fakeDiscord) map[string]string {
 }
 
 func createdNames(d *fakeDiscord) []string {
-	out := slices.Clone(d.roleNames())
-	for name := range d.createdChannels {
-		out = append(out, name)
+	var out []string
+	for _, name := range d.roleNames() {
+		out = append(out, fmt.Sprintf("%s/%s/0", outgressrpc.TemplateKindRole, strings.ToLower(name)))
 	}
-	for i := range out {
-		out[i] = strings.ToLower(out[i])
+	for _, spec := range d.createdSpecs {
+		out = append(out, fmt.Sprintf("%s/%s/%d", outgressrpc.TemplateKindChannel, strings.ToLower(spec.Name), spec.Type))
 	}
 	return out
 }
@@ -484,7 +525,11 @@ func TestPreviewTemplateMatchesWhatApplyCreates(t *testing.T) {
 			_, err = w.SetupGuild(ctx, setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
 
 			require.NoError(t, err)
-			require.ElementsMatch(t, createdNames(d), itemsWhere(preview.Items, outgressrpc.TemplateActionCreate))
+			require.ElementsMatch(t, createdNames(d), createdKeys(preview.Items))
+			if tc.name == "fresh server" {
+				require.Contains(t, createdKeys(preview.Items), "channel/welcome/"+strconv.Itoa(ddiscord.ChannelCategory))
+				require.Contains(t, createdKeys(preview.Items), "channel/welcome/"+strconv.Itoa(ddiscord.ChannelText))
+			}
 			after, err := w.PreviewTemplate(ctx, previewRequest())
 			require.NoError(t, err)
 			require.Empty(t, itemsWhere(after.Items, outgressrpc.TemplateActionCreate))
