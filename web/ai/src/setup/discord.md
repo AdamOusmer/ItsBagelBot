@@ -82,13 +82,16 @@ Verification: permission warnings clear, and the bot can access the intended des
 Ask the user to confirm the observed result before continuing.
 
 <a id="step-4"></a>
-## Step 4: Create or adopt the server layout
+## Step 4: Preview and apply the optional server template
+
+The bot install only adopts channels and roles the server already has; it creates nothing. The server template is optional.
 
 1. Open "{{console:discord.nav.settings}}" at `/discord/<guildId>/settings`.
-2. Use "{{console:discord.settings.setupCta}}" when missing channels and roles need to be created.
-3. Review the returned layout. Existing servers can have recognized channels adopted and other destinations left to choose.
+2. In "{{console:discord.settings.templateTitle}}", select "{{console:discord.settings.previewCta}}". Nothing in the server changes at this point.
+3. Review "{{console:discord.settings.createHeading}}" and "{{console:discord.settings.reuseHeading}}". Existing channels and roles are reused, and pinned roles are marked "{{console:discord.settings.pinnedTag}}".
+4. To add the missing roles and channels, select "{{console:discord.settings.applyCta}}" and confirm the "{{console:discord.settings.applyTitle}}" dialog. To skip the template, leave the server as it is and choose destinations on the module pages.
 
-Setup adds missing resources and uses pinned role choices; it does not delete existing channels or roles. If you want setup to use existing roles, configure and pin them in the next step before running setup again.
+The template adds missing resources only; it does not delete or rename existing channels or roles. If you want it to reuse existing roles, configure and pin them in the next step, then preview again.
 Verification: inspect the server's actual channels and roles. If "{{console:discord.toast.refused}}" appears, choose remaining destinations on the module pages.
 
 Ask the user to confirm the observed result before continuing.
@@ -99,7 +102,7 @@ Ask the user to confirm the observed result before continuing.
 1. Open the roles module at `/discord/<guildId>/modules/roles`.
 2. Choose "{{console:discord.modules.roles.fields.ownerRoleId.label}}", "{{console:discord.modules.roles.fields.leadModRoleId.label}}", and "{{console:discord.modules.roles.fields.modsRoleId.label}}" for the intended staff.
 3. Choose "{{console:discord.modules.roles.fields.subscriberRoleId.label}}", "{{console:discord.modules.roles.fields.vipRoleId.label}}", and "{{console:discord.modules.roles.fields.regularsRoleId.label}}" as needed. The member role for joiners is set in the auto role module in step 9.
-4. Use "{{console:discord.modules.roles.fields.pinnedRoles.label}}" to keep existing roles if the next layout setup should adopt them.
+4. Use "{{console:discord.modules.roles.fields.pinnedRoles.label}}" to keep existing roles if the server template should reuse them.
 5. Select "{{console:discord.index.save}}" and verify the saved mappings.
 
 The bot creates tier roles but you assign them yourself. Discord's separate Twitch integration can synchronize subscribers only for an Affiliate or Partner account; it is configured in Discord.
