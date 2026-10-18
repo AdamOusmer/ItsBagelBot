@@ -3,7 +3,6 @@
 
 import type { Actions, RequestEvent, ServerLoadEvent } from '@sveltejs/kit';
 import {
-  blankDiscordConfig,
   blankLayout,
   blankStatus,
   botStatus,
@@ -21,12 +20,12 @@ import {
   setGuildModule,
   setupGuild,
   unbindGuild,
-  type DiscordConfig,
   type DiscordGuildSummary,
   type DiscordGuildTarget,
   type DiscordLayout,
   type DiscordModuleRow,
-  type DiscordStatus
+  type DiscordStatus,
+  type DiscordView
 } from '$lib/server/discord-store';
 import { discordConfigured, requireDiscordActor } from '$lib/server/discord-oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
@@ -42,9 +41,9 @@ import {
   discordModuleById,
   discordModuleToggleable,
   legacyConfigFor,
-  mergeDiscordConfig,
   parseDiscordModuleSettings,
   validateDiscordModule,
+  type DiscordConfig,
   type DiscordModuleDef,
   type DiscordModuleSettings,
   type PinnedSlot
@@ -63,15 +62,11 @@ function gate(session: Session | null | undefined): void {
 
 export type DiscordGuildPage = {
   locked: boolean;
-  enabled: boolean;
   guildId: string;
   guilds: DiscordGuildSummary[];
-  config: DiscordConfig;
-  version: number;
   found: boolean;
   layout: DiscordLayout;
   status: DiscordStatus;
-  configured: boolean;
   justConnected: boolean;
   refused: boolean;
   droppedPins: PinnedSlot[];
@@ -81,15 +76,11 @@ export type DiscordGuildPage = {
 function blankPage(guildId: string, locked: boolean): DiscordGuildPage {
   return {
     locked,
-    enabled: false,
     guildId,
     guilds: [],
-    config: { ...blankDiscordConfig(), guildId },
-    version: 0,
     found: false,
     layout: blankLayout(),
     status: blankStatus(),
-    configured: discordConfigured(),
     justConnected: false,
     refused: false,
     droppedPins: [],
@@ -150,17 +141,36 @@ export const loadGuildShell = async ({
     justConnected: url.searchParams.get('connected') === '1',
     refused: url.searchParams.get('refused') === '1'
   };
-  const reads = await guildReads(target);
-  return {
-    ...blankPage(guildId, locked),
-    ...flags,
-    droppedPins,
-    enabled: view.enabled,
-    guilds: view.guilds,
-    ...reads,
-    ...(await migrateLegacy(target, view.twitchLogin, view.enabled, reads))
-  };
+  const reads = await guildReadsMigrated(target, view);
+  return { ...blankPage(guildId, locked), ...flags, droppedPins, guilds: view.guilds, ...reads };
 };
+
+type ListState = { found: boolean; degraded: boolean };
+
+async function migrateLegacy(target: DiscordGuildTarget, view: DiscordView, state: ListState): Promise<boolean> {
+  if (state.found || state.degraded) return false;
+  try {
+    const legacy = legacyConfigFor(await readLegacyBlob({ userId: target.userId }), target.guildId);
+    if (!legacy) return false;
+    const config: DiscordConfig = { ...legacy, twitchLogin: view.twitchLogin || legacy.twitchLogin };
+    const saved = await saveGuildConfig({ ...target, config, expectedVersion: DISCORD_CONFIG_VERSION_NEW });
+    if (saved.error || saved.code) {
+      logger.warn({ code: saved.code }, '[discord] legacy config migration refused');
+      return false;
+    }
+    await saveDiscordModule({ userId: target.userId, enabled: view.enabled, twitchLogin: view.twitchLogin });
+    logger.info({ guildId: target.guildId }, '[discord] migrated the legacy module blob onto the guild');
+    return true;
+  } catch (e) {
+    logger.warn({ err: e }, '[discord] legacy config migration failed');
+    return false;
+  }
+}
+
+async function guildReadsMigrated(target: DiscordGuildTarget, view: DiscordView): Promise<GuildReads> {
+  const reads = await guildReads(target);
+  return (await migrateLegacy(target, view, reads)) ? guildReads(target) : reads;
+}
 
 export type DiscordModulePage = {
   locked: boolean;
@@ -206,20 +216,22 @@ async function moduleRead(
 
 async function demoModulePage(def: DiscordModuleDef, guildId: string, url: URL): Promise<DiscordModulePage> {
   const page = await demoPage(guildId, url);
+  const { demoDiscordConfig } = await import('$lib/server/demo-data');
+  const stored = demoDiscordConfig();
   const row = defaultRow(def);
-  const settings = parseDiscordModuleSettings(def.id, page.config);
+  const settings = parseDiscordModuleSettings(def.id, stored.config);
   return {
     locked: false,
     guildId,
     def,
     enabled: row.enabled,
     settings,
-    version: page.version,
+    version: stored.version,
     found: page.found,
     guilds: page.guilds,
     layout: page.layout,
     status: page.status,
-    configured: page.configured,
+    configured: true,
     degraded: false
   };
 }
@@ -241,7 +253,8 @@ export const loadGuildModule = async (
     return { ...base, ...defaultRow(def), found: false, guilds: [], layout: blankLayout(), status: blankStatus(), degraded: true };
   }
   ownedGuild(view.guilds, guildId);
-  const [read, layout, status] = await Promise.all([moduleRead(target, def), loadLayout(target), loadStatus(target)]);
+  const [first, layout, status] = await Promise.all([moduleRead(target, def), loadLayout(target), loadStatus(target)]);
+  const read = (await migrateLegacy(target, view, first)) ? await moduleRead(target, def) : first;
   return {
     ...base,
     ...read.row,
@@ -253,31 +266,6 @@ export const loadGuildModule = async (
   };
 };
 
-async function migrateLegacy(
-  target: DiscordGuildTarget,
-  twitchLogin: string,
-  enabled: boolean,
-  reads: { config: DiscordConfig; version: number; found: boolean; degraded: boolean }
-): Promise<{ config: DiscordConfig; version: number } | null> {
-  if (reads.found || reads.degraded) return null;
-  try {
-    const legacy = legacyConfigFor(await readLegacyBlob({ userId: target.userId }), target.guildId);
-    if (!legacy) return null;
-    const config = { ...legacy, twitchLogin: twitchLogin || legacy.twitchLogin };
-    const saved = await saveGuildConfig({ ...target, config, expectedVersion: DISCORD_CONFIG_VERSION_NEW });
-    if (saved.error || saved.code) {
-      logger.warn({ code: saved.code }, '[discord] legacy config migration refused');
-      return null;
-    }
-    await saveDiscordModule({ userId: target.userId, enabled, twitchLogin });
-    logger.info({ guildId: target.guildId }, '[discord] migrated the legacy module blob onto the guild row');
-    return { config, version: saved.version };
-  } catch (e) {
-    logger.warn({ err: e }, '[discord] legacy config migration failed');
-    return null;
-  }
-}
-
 async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   const { demoDiscordView, demoDiscordConfig, demoDiscordLayout, demoDiscordStatus } = await import(
     '$lib/server/demo-data'
@@ -288,10 +276,7 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   const guild = { id: guildId, name: g.name, iconUrl: g.iconUrl, memberCount: g.memberCount };
   return {
     ...blankPage(guildId, false),
-    enabled: view.enabled,
     guilds: view.guilds,
-    config: { ...row.config, guildId },
-    version: row.version,
     found: row.found,
     layout: { ...demoDiscordLayout(), guild, botOnline: g.botPresent, needsReauth: g.needsReauth },
     status: {
@@ -301,14 +286,12 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
       guildPresent: g.botPresent,
       needsReauth: g.needsReauth
     },
-    configured: true,
     justConnected: url.searchParams.get('connected') === '1',
     refused: url.searchParams.get('refused') === '1'
   };
 }
 
 async function demoOutcome(label: string, ctx: ActionCtx) {
-  if (label === 'save') return demoSave(ctx);
   if (label === 'setup') {
     const { demoDiscordDroppedPins } = await import('$lib/server/demo-data');
     rememberDroppedPins(ctx.cookies, ctx.guildId, droppedPinNotice(demoDiscordDroppedPins()));
@@ -316,52 +299,18 @@ async function demoOutcome(label: string, ctx: ActionCtx) {
   return { ok: true };
 }
 
-async function demoSave(ctx: ActionCtx) {
-  const { demoDiscordConfig, demoDiscordRefusedField } = await import('$lib/server/demo-data');
-  const stored = demoDiscordConfig().config;
-  const draft = parseDraft(ctx.form.get('config'));
-  const { errors } = mergeDiscordConfig(stored, draft);
-  const refused = demoDiscordRefusedField();
-  const fields = errors.map((e) => String(e.field));
-  if (draft[refused] !== stored[refused]) fields.push(refused);
-  if (fields.length === 0) return { ok: true };
-  return fail(400, {
-    ok: false,
-    code: 'invalid',
-    error: `Some settings were not valid: ${fields.join(', ')}.`,
-    fields
-  });
-}
-
-type GuildReads = {
-  config: DiscordConfig;
-  version: number;
-  found: boolean;
-  layout: DiscordLayout;
-  status: DiscordStatus;
-  degraded: boolean;
-};
+type GuildReads = { found: boolean; layout: DiscordLayout; status: DiscordStatus; degraded: boolean };
 
 async function guildReads(target: DiscordGuildTarget): Promise<GuildReads> {
-  const [row, layout, status] = await Promise.all([
-    readGuildConfig(target).catch((e) => {
-      logger.warn({ err: e }, '[discord] guild config unavailable');
+  const [list, layout, status] = await Promise.all([
+    listGuildModules(target).catch((e) => {
+      logger.warn({ err: e }, '[discord] guild modules unavailable');
       return null;
     }),
     loadLayout(target),
     loadStatus(target)
   ]);
-  if (!row) {
-    return {
-      config: { ...blankDiscordConfig(), guildId: target.guildId },
-      version: 0,
-      found: false,
-      layout,
-      status,
-      degraded: true
-    };
-  }
-  return { config: row.config, version: row.version, found: row.found, layout, status, degraded: false };
+  return { found: list?.found === true, layout, status, degraded: list === null };
 }
 
 async function loadLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
@@ -548,22 +497,6 @@ export const moduleActions: Actions = {
 };
 
 export const guildActions: Actions = {
-  save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
-    const row = await readGuildConfig(ctx.target);
-    const { config, errors } = mergeDiscordConfig(row.config, parseDraft(ctx.form.get('config')));
-    const result = await saveGuildConfig({
-      ...ctx.target,
-      config,
-      expectedVersion: parseVersion(ctx.form.get('version'))
-    });
-    if (result.error || result.code) return { error: result.error, code: result.code };
-    auditDashboardImpersonation(ctx.session, 'discord:save', ctx.guildId);
-    if (errors.length) {
-      return { error: `Some settings were not valid: ${fieldNames(errors)}.`, code: 'invalid', fields: errors.map((e) => e.field) };
-    }
-    return { version: result.version };
-  }),
-
   setup: discordAction({ label: 'setup', failMsg: 'Could not set up this server.' }, async (ctx) => {
     requireDiscordActor(ctx.locals);
     const view = await readDiscord({ userId: ctx.uid });

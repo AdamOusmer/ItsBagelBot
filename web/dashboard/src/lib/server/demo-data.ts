@@ -338,10 +338,6 @@ export function demoDiscordDroppedPins() {
   return ['mods'];
 }
 
-export function demoDiscordRefusedField() {
-  return 'ticketPanelTitle' as const;
-}
-
 export function demoDiscordConfig() {
   return {
     version: 4,

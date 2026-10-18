@@ -12,7 +12,7 @@
   "rateLimited": "Discord está limitando nuestras solicitudes. Inténtalo de nuevo en un minuto.",
   "setup": "No se pudo guardar el servidor conectado. Inténtalo de nuevo.",
   "state": "Ese enlace de Discord caducó. Empieza de nuevo desde Añadir Bagel.",
-  "ticketsOff": "Activa el sistema de tickets y guarda antes de volver a publicar el panel.",
+  "ticketsOff": "Activa el sistema de tickets antes de volver a publicar el panel.",
   "unavailable": "Discord no respondió. Inténtalo de nuevo en un momento.",
   "timeout": "Esto tardó demasiado. Puede que falte parte de la información; recarga para ver el resto.",
   "notFound": "Ese canal o rol ya no existe en el servidor. Elige otro.",
