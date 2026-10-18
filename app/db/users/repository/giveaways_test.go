@@ -345,9 +345,10 @@ func TestGrantSweepWritesPaidForAlreadyActiveCoverage(t *testing.T) {
 	row := client.User.GetX(ctx, 34)
 	assert.Equal(t, user.StatusPaid, row.Status)
 	assert.Equal(t, "giveaway", row.SubscriptionSource)
-	_, _, paid, _, err := repo.UserStats(ctx)
+	counts, err := repo.UserStats(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, paid)
+	assert.Equal(t, 1, counts.Paid)
+	assert.Equal(t, 1, counts.Granted)
 }
 
 func TestCommittedGrantDoesNotDemoteVIP(t *testing.T) {

@@ -81,7 +81,17 @@
     <StatTile
       label={t('admin.overview.statWeek')}
       value={week.toLocaleString()}
-      delta={t('admin.overview.statWeekDelta', { premium: stats.premium_users.toLocaleString() })}
+      delta={t('admin.overview.statWeekDelta')}
+      flat
+    />
+    <StatTile
+      label={t('admin.overview.statPremium')}
+      value={stats.premium_users.toLocaleString()}
+      delta={t('admin.overview.statPremiumDelta', {
+        paid: stats.paid_users.toLocaleString(),
+        granted: stats.granted_users.toLocaleString(),
+        vip: stats.vip_users.toLocaleString()
+      })}
       flat
     />
   </div>
@@ -93,7 +103,7 @@
   }
   .tiles {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: calc(14px * var(--d));
     margin-top: 16px;
   }

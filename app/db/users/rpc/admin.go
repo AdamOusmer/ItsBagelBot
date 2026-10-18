@@ -242,16 +242,17 @@ func (a *adminRPC) overview(ctx context.Context, req usersrpc.AdminRequest) user
 }
 
 func (a *adminRPC) stats(ctx context.Context, _ usersrpc.AdminRequest) usersrpc.AdminReply {
-	total, active, paid, vip, err := a.repo.UserStats(ctx)
+	counts, err := a.repo.UserStats(ctx)
 	if err != nil {
 		return adminError(refusal(err))
 	}
 	stats := usersrpc.AdminStats{
-		TotalUsers:   total,
-		ActiveUsers:  active,
-		PremiumUsers: paid + vip,
-		VIPUsers:     vip,
-		PaidUsers:    paid,
+		TotalUsers:   counts.Total,
+		ActiveUsers:  counts.Active,
+		PremiumUsers: counts.Paid + counts.Vip,
+		VIPUsers:     counts.Vip,
+		PaidUsers:    counts.Paid - counts.Granted,
+		GrantedUsers: counts.Granted,
 	}
 	return usersrpc.AdminReply{Stats: &stats}
 }
