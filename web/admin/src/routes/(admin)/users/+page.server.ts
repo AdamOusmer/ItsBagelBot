@@ -25,6 +25,7 @@ import {
   isForbidden,
   type AdminUserWire,
   type ChannelSubState,
+  type UserDirectoryQuery,
   type UserOrder,
   type UserRef
 } from '$lib/server/services';
@@ -80,12 +81,7 @@ function matchesState(user: AdminUserWire, state: string): boolean {
   return user.status === state;
 }
 
-export type DirectoryQuery = {
-  page: number;
-  search: string;
-  state: string;
-  order: UserOrder;
-};
+export type DirectoryQuery = UserDirectoryQuery;
 
 type DemoDirectoryFixtures = {
   sampleUsers: AdminUserWire[];
@@ -123,7 +119,7 @@ export type UserDirectory = {
 
 async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
-    const overview = await userOverview(actorId, q.page, q.search, q.state, q.order);
+    const overview = await userOverview({ actorId, ...q });
     return {
       recent: overview.users,
       stats: overview.stats,
