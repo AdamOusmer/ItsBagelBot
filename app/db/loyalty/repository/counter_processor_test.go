@@ -255,6 +255,20 @@ func TestCounterProcessorPreservesFloorsIdentityAndDeletionFence(t *testing.T) {
 	assert.Zero(t, counterTestValue(t, raw, "deaths"))
 }
 
+func TestCounterProcessorDiscardedBatchCannotPayRecreatedAccount(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	ctx := context.Background()
+	require.NoError(t, repo.RestoreUser(ctx, 1, 100))
+	require.NoError(t, repo.DeleteAccount(ctx, 1, 100))
+	require.NoError(t, p.Process(ctx, counterTestEvent("retired", 4)))
+	require.NoError(t, repo.RestoreUser(ctx, 1, 101))
+	require.NoError(t, p.Process(ctx, counterTestEvent("retired", 4)))
+	assert.Zero(t, counterTestValue(t, raw, "deaths"))
+	require.NoError(t, p.Process(ctx, counterTestEvent("fresh", 4)))
+	assert.Equal(t, int64(4), counterTestValue(t, raw, "deaths"))
+}
+
 func TestCounterProcessorUnicodeAndInvalidDisplayFollowUpstream(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))

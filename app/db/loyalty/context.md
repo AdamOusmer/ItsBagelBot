@@ -42,7 +42,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/balance_adjust.go](repository/balance_adjust.go), [wager.go](repository/wager.go) | Resolved-viewer balance adjustment and atomic wager settlement. |
 | [repository/trial.go](repository/trial.go) | Once-only promotion of trial statistics and lock ordering. |
 | [repository/counter_processor.go](repository/counter_processor.go), [counter_receipts.go](repository/counter_receipts.go) | Bounded active batching, Valkey claims/receipts and retry classification. |
-| [repository/batches.go](repository/batches.go), [prune.go](repository/prune.go) | Separate ApplyBumps SQL receipt writer and retention helpers; not the grouped consumer path wired in main. |
+| [repository/batches.go](repository/batches.go) | Trial-promotion and bump validation helpers shared by the counter persist path. |
 | [repository/counter_persist.go](repository/counter_persist.go) | SQL transaction, deterministic lock order, bounded writes and row-range isolation. |
 | [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |

@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"database/sql/driver"
-	"errors"
 	"strings"
 	"testing"
 
@@ -14,15 +13,10 @@ import (
 )
 
 type batchStore struct {
-	writes          int
-	pendingWrites   int
-	failWrite       bool
-	uncertainCommit bool
-	deadlocks       int
-	values          map[string]int64
-	pendingValues   map[string]int64
-	queries         []string
-	onShareLock     func(*batchStore)
+	values        map[string]int64
+	pendingValues map[string]int64
+	queries       []string
+	onShareLock   func(*batchStore)
 }
 
 type batchConn struct {
@@ -33,20 +27,11 @@ type batchConn struct {
 type batchTx struct{ store *batchStore }
 
 func (c *batchConn) Begin() (driver.Tx, error) {
-	c.store.pendingWrites = 0
 	c.store.pendingValues = map[string]int64{}
 	return &batchTx{c.store}, nil
 }
 
 func (c *batchConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if c.store.deadlocks > 0 {
-		c.store.deadlocks--
-		return nil, deadlockError()
-	}
-	if c.store.failWrite {
-		return nil, errors.New("write failed")
-	}
-	c.store.pendingWrites++
 	if strings.HasPrefix(query, "INSERT INTO counters ") {
 		c.store.stageCounterRows(args)
 	}
@@ -73,18 +58,13 @@ func (c *batchConn) QueryContext(_ context.Context, query string, _ []driver.Nam
 }
 
 func (tx *batchTx) Commit() error {
-	tx.store.writes += tx.store.pendingWrites
 	for name, delta := range tx.store.pendingValues {
 		tx.store.values[name] += delta
-	}
-	if tx.store.uncertainCommit {
-		return errors.New("commit response lost")
 	}
 	return nil
 }
 
 func (tx *batchTx) Rollback() error {
-	tx.store.pendingWrites = 0
 	tx.store.pendingValues = nil
 	return nil
 }
@@ -93,7 +73,6 @@ type coalescingConn struct{ *batchConn }
 
 func (c *coalescingConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	if strings.Contains(query, "(?, ?, ?, 0, ?, ?)") {
-		c.store.pendingWrites++
 		return driver.RowsAffected(0), nil
 	}
 	return c.batchConn.ExecContext(ctx, query, args)
@@ -120,12 +99,6 @@ func newBatchStore(values map[string]int64) *batchStore {
 	return &batchStore{values: values}
 }
 
-func batchRepo(t *testing.T) (*Loyalty, *batchStore) {
-	t.Helper()
-	store := newBatchStore(nil)
-	return fakeLoyalty(t, func() driver.Conn { return &batchConn{store: store} }), store
-}
-
 func coalescingRepo(t *testing.T, store *batchStore) *Loyalty {
 	t.Helper()
 	return fakeLoyalty(t, func() driver.Conn { return &coalescingConn{&batchConn{store: store}} })
@@ -135,12 +108,6 @@ func promoteWhileLocking(s *batchStore) {
 	s.values[data.CounterTrialPromoted] = 1
 	s.values[data.CounterMessagesProcessed] += 100
 	s.values[data.CounterEventsProcessed] += 100
-}
-
-func windowBatch(id string) data.CounterBumpedDTO {
-	dto := channelBump("messages")
-	dto.BatchID = id
-	return dto
 }
 
 func trialBatch(id string, bumps ...data.CounterBumpEntry) data.CounterBumpedDTO {
