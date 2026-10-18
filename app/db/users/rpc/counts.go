@@ -15,11 +15,11 @@ func SubscribeCounts(w Wiring, subject string) error {
 	repo := w.Repo
 	return bus.Serve(w.Within(countsBudget), subject,
 		func(ctx context.Context, _ usersrpc.CountsRequest) usersrpc.CountsReply {
-			total, active, _, _, err := repo.UserStats(ctx)
+			counts, err := repo.UserStats(ctx)
 			if err != nil {
 				return usersrpc.CountsReply{Refusal: refusal(err)}
 			}
-			return usersrpc.CountsReply{TotalUsers: total, ActiveUsers: active}
+			return usersrpc.CountsReply{TotalUsers: counts.Total, ActiveUsers: counts.Active}
 		},
 	)
 }

@@ -45,6 +45,7 @@ export interface UserStats {
   premium_users: number;
   vip_users: number;
   paid_users: number;
+  granted_users: number;
 }
 
 export interface Shard {
