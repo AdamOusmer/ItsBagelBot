@@ -190,11 +190,11 @@ func (c Config) LogChannelFor(cat LogCategory) string { return c.logs().ChannelF
 
 func (c Config) LogIgnoredChannelIDs() []string { return c.logs().IgnoredChannelIDs() }
 
-func (c Config) LogIgnores(channelID string) bool { return c.logs().Ignores(channelID) }
+func (c Config) LogIgnores(channelID nameText) bool { return c.logs().Ignores(string(channelID)) }
 
 func (c Config) LogIgnoreBotsOn() bool { return c.logs().IgnoreBotsOn() }
 
-func (c Config) VoiceName(owner string) string { return c.voice().Name(owner) }
+func (c Config) VoiceName(owner nameText) string { return c.voice().Name(string(owner)) }
 
 func (c Config) VoiceCategorySet() bool { return c.voice().CategorySet() }
 

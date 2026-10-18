@@ -90,13 +90,17 @@ func configFields() []reflect.StructField {
 	return fields
 }
 
+func namesTypeMethod(typeName, method string, isMethod bool) bool {
+	return isMethod && !strings.ContainsAny(method, " ") && !strings.ContainsAny(typeName, "/")
+}
+
 func TestEveryConfigFieldHasADocumentedReader(t *testing.T) {
 	for _, field := range configFields() {
 		reader, ok := configReaders[field.Name]
 		require.True(t, ok && strings.TrimSpace(reader) != "",
 			"Config.%s has no reader listed in configReaders. Add the accessor or consumer that reads it, or delete the field.", field.Name)
 		typeName, method, isMethod := strings.Cut(reader, ".")
-		if !isMethod || strings.Contains(method, " ") || strings.Contains(typeName, "/") {
+		if !namesTypeMethod(typeName, method, isMethod) {
 			continue
 		}
 		owner, known := readerTypes[typeName]
@@ -113,25 +117,36 @@ var readerTypes = map[string]reflect.Type{
 	"GuildModules":        reflect.TypeFor[GuildModules](),
 }
 
-func TestEveryConfigFieldIsOwnedByExactlyOneModule(t *testing.T) {
+func moduleOwners() map[string][]string {
 	owners := map[string][]string{}
 	for _, spec := range Modules {
-		for _, tag := range spec.Fields {
+		keys := spec.Fields
+		if spec.EnabledKey != "" {
+			keys = append(slices.Clone(keys), spec.EnabledKey)
+		}
+		for _, tag := range keys {
 			owners[tag] = append(owners[tag], spec.Name)
 		}
-		if spec.EnabledKey != "" {
-			owners[spec.EnabledKey] = append(owners[spec.EnabledKey], spec.Name)
-		}
 	}
-	for _, tag := range configJSONTags(t) {
-		if tag == "guildId" {
-			assert.Empty(t, owners[tag], "guildId is stamped from the binding, never stored in a module")
-			continue
-		}
-		assert.Len(t, owners[tag], 1, "Config json tag %q must be owned by exactly one module, got %v", tag, owners[tag])
+	return owners
+}
+
+func assertOwnedOnce(t *testing.T, tag string, owned []string) {
+	if tag == "guildId" {
+		assert.Empty(t, owned, "guildId is stamped from the binding, never stored in a module")
+		return
+	}
+	assert.Len(t, owned, 1, "Config json tag %q must be owned by exactly one module, got %v", tag, owned)
+}
+
+func TestEveryConfigFieldIsOwnedByExactlyOneModule(t *testing.T) {
+	owners := moduleOwners()
+	tags := configJSONTags(t)
+	for _, tag := range tags {
+		assertOwnedOnce(t, tag, owners[tag])
 	}
 	for tag := range owners {
-		assert.Contains(t, configJSONTags(t), tag, "module table names %q, which is not a Config json tag", tag)
+		assert.Contains(t, tags, tag, "module table names %q, which is not a Config json tag", tag)
 	}
 }
 

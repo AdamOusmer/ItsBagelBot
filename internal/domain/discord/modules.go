@@ -79,15 +79,23 @@ var Modules = []ModuleSpec{
 
 var configIndex = configFieldsByTag(reflect.TypeFor[Config]())
 
-func moduleSpec(name string, kind ModuleKind, enabledKey string) ModuleSpec {
-	return ModuleSpec{Name: name, Kind: kind, EnabledKey: enabledKey, Fields: settingsTags(moduleSettings[name])}
+type moduleKey string
+
+type fieldKey string
+
+func moduleSpec(name moduleKey, kind ModuleKind, enabledKey fieldKey) ModuleSpec {
+	return ModuleSpec{Name: string(name), Kind: kind, EnabledKey: string(enabledKey), Fields: settingsTags(moduleSettings[string(name)])}
+}
+
+func jsonTag(field reflect.StructField) string {
+	tag, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	return tag
 }
 
 func settingsTags(t reflect.Type) []string {
 	tags := make([]string, 0, t.NumField())
 	for i := range t.NumField() {
-		tag, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
-		tags = append(tags, tag)
+		tags = append(tags, jsonTag(t.Field(i)))
 	}
 	return tags
 }
@@ -163,8 +171,7 @@ func Stored(name string) bool {
 func settingsOf(name string, cfg reflect.Value) reflect.Value {
 	out := reflect.New(moduleSettings[name]).Elem()
 	for i := range out.NumField() {
-		tag, _, _ := strings.Cut(out.Type().Field(i).Tag.Get("json"), ",")
-		out.Field(i).SetString(cfg.Field(configIndex[tag]).String())
+		out.Field(i).SetString(cfg.Field(configIndex[jsonTag(out.Type().Field(i))]).String())
 	}
 	return out
 }
@@ -213,8 +220,7 @@ func decodeSettings(name string, raw codec.RawMessage) (reflect.Value, error) {
 
 func writeSettings(cfg, set reflect.Value) {
 	for i := range set.NumField() {
-		tag, _, _ := strings.Cut(set.Type().Field(i).Tag.Get("json"), ",")
-		cfg.Field(configIndex[tag]).SetString(set.Field(i).String())
+		cfg.Field(configIndex[jsonTag(set.Type().Field(i))]).SetString(set.Field(i).String())
 	}
 }
 
