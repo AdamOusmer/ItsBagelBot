@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
+	"ItsBagelBot/app/discord/engine/internal/registry"
 	"ItsBagelBot/app/discord/engine/module"
 	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordapi"
@@ -121,12 +122,39 @@ func (a actor) inTicket() decode.InteractionEvent {
 	return in
 }
 
-func runHandler(t *testing.T, h module.Handler, cfg ddiscord.Config, in decode.InteractionEvent) []ddiscord.Command {
+func modulesFor(cfg ddiscord.Config) ddiscord.GuildModules {
+	rows := map[string]ddiscord.ModuleRow{}
+	for _, row := range ddiscord.SplitConfig(cfg) {
+		rows[row.Name] = row
+	}
+	return ddiscord.GuildModules{GuildID: cfg.GuildID, Rows: rows}
+}
+
+func contextFor(owner string, cfg ddiscord.Config, ev ddiscord.Event) *module.Context {
+	mods := modulesFor(cfg)
+	return &module.Context{
+		Event: ev, GuildID: cfg.GuildID, Modules: mods, Settings: mods.Rows[owner].Settings, Log: zap.NewNop(),
+	}
+}
+
+func fireGated(t *testing.T, reg *registry.Registry, cfg ddiscord.Config, ev ddiscord.Event, emit module.Emit) {
+	t.Helper()
+	mods := modulesFor(cfg)
+	for _, b := range reg.Events(ev.Type) {
+		if !mods.On(b.Module) {
+			continue
+		}
+		c := &module.Context{Event: ev, GuildID: cfg.GuildID, Modules: mods, Settings: mods.Rows[b.Module].Settings, Log: zap.NewNop()}
+		require.NoError(t, b.Handler(context.Background(), c, emit))
+	}
+}
+
+func runHandler(t *testing.T, owner string, h module.Handler, cfg ddiscord.Config, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	raw, err := codec.Marshal(in)
 	require.NoError(t, err)
 	var emitted []ddiscord.Command
-	c := &module.Context{Event: ddiscord.Event{Raw: raw}, Config: cfg, Log: zap.NewNop()}
+	c := contextFor(owner, cfg, ddiscord.Event{Raw: raw})
 	require.NoError(t, h(context.Background(), c, func(cmd ddiscord.Command) { emitted = append(emitted, cmd) }))
 	return emitted
 }
@@ -190,13 +218,13 @@ func (d *desk) useStore(store discordstore.Store) {
 
 func (d *desk) button(customID string, in decode.InteractionEvent) string {
 	d.t.Helper()
-	return ephemeralText(d.t, runHandler(d.t, d.mod.Buttons[customID], d.cfg, in))
+	return ephemeralText(d.t, runHandler(d.t, ddiscord.ModuleTickets, d.mod.Buttons[customID], d.cfg, in))
 }
 
 func (d *desk) slash(sub decode.InteractionOption, in decode.InteractionEvent) string {
 	d.t.Helper()
 	in.Data.Options = []decode.InteractionOption{sub}
-	return ephemeralText(d.t, runHandler(d.t, d.mod.Slash["ticket"], d.cfg, in))
+	return ephemeralText(d.t, runHandler(d.t, ddiscord.ModuleTickets, d.mod.Slash["ticket"], d.cfg, in))
 }
 
 func (d *desk) open(a actor) string {

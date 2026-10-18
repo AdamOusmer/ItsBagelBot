@@ -13,9 +13,15 @@ import (
 )
 
 func Welcome() module.Module {
-	b := module.NewModule("welcome")
+	b := module.NewModule(ddiscord.ModuleWelcome)
 	b.On("GUILD_MEMBER_ADD", onMemberAdd)
 	b.On("GUILD_MEMBER_REMOVE", onMemberRemove)
+	return b.Build()
+}
+
+func AutoRole() module.Module {
+	b := module.NewModule(ddiscord.ModuleAutoRole)
+	b.On("GUILD_MEMBER_ADD", onMemberAutoRole)
 	return b.Build()
 }
 
@@ -27,28 +33,36 @@ func onMemberAdd(_ context.Context, c *module.Context, emit module.Emit) error {
 	if ev.User.Bot {
 		return nil
 	}
-	autorole(c, ev, emit)
-	if !shouldWelcome(c.Config) {
+	cfg, err := settingsOf[ddiscord.WelcomeSettings](c)
+	if err != nil {
+		return err
+	}
+	if cfg.WelcomeChannelID == "" {
 		return nil
 	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
-	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID),
+	emit(cmd.PostEmbed(cmd.ChannelTarget(c.GuildID, cfg.WelcomeChannelID),
 		ddiscord.WelcomeEmbed(ddiscord.WelcomeCard{Display: shown, AvatarURL: decode.AvatarURL(ev.User)})))
 	return nil
 }
 
-func shouldWelcome(cfg ddiscord.Config) bool {
-	if !cfg.WelcomeOn() {
-		return false
+func onMemberAutoRole(_ context.Context, c *module.Context, emit module.Emit) error {
+	ev, err := decode.Decode[decode.MemberEvent](c.Event.Raw)
+	if err != nil {
+		return err
 	}
-	return cfg.WelcomeChannelID != ""
-}
-
-func autorole(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
-	if c.Config.MemberRoleID == "" || !c.Config.AutoRoleOn() {
-		return
+	if ev.User.Bot {
+		return nil
 	}
-	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), cmd.RoleID(c.Config.MemberRoleID)))
+	cfg, err := settingsOf[ddiscord.AutoRoleSettings](c)
+	if err != nil {
+		return err
+	}
+	if cfg.MemberRoleID == "" {
+		return nil
+	}
+	emit(cmd.AddRole(cmd.UserTarget(ev.GuildID, ev.User.ID), cmd.RoleID(cfg.MemberRoleID)))
+	return nil
 }
 
 func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) error {
@@ -59,16 +73,14 @@ func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) erro
 	if ev.User.Bot {
 		return nil
 	}
+	cfg, err := settingsOf[ddiscord.WelcomeSettings](c)
+	if err != nil {
+		return err
+	}
+	if !cfg.GoodbyeOn() || cfg.WelcomeChannelID == "" {
+		return nil
+	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})
-	if shouldGoodbye(c.Config) {
-		emit(cmd.PostChat(cmd.ChannelTarget(c.Config.GuildID, c.Config.WelcomeChannelID), ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown})))
-	}
+	emit(cmd.PostChat(cmd.ChannelTarget(c.GuildID, cfg.WelcomeChannelID), ddiscord.GoodbyeContent(ddiscord.Goodbye{Display: shown})))
 	return nil
-}
-
-func shouldGoodbye(cfg ddiscord.Config) bool {
-	if !cfg.GoodbyeOn() {
-		return false
-	}
-	return cfg.WelcomeChannelID != ""
 }

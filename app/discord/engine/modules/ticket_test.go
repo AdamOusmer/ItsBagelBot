@@ -61,8 +61,6 @@ func TestTicketOpenRefusals(t *testing.T) {
 	}{
 		{name: "refuses at the limit without touching Discord", held: []string{"old1"},
 			wantReply: "You already have 1 open ticket."},
-		{name: "says so when tickets are off", cfg: func(c *ddiscord.Config) { c.TicketsEnabled = "off" },
-			wantReply: "Tickets are off."},
 		{name: "TestTicketOpenRefusesWithoutADurableStore", faults: storeFaults{nonDurable: true},
 			wantReply: "The ticket desk is unavailable right now. Try again shortly."},
 		{name: "rolls the channel back when the card fails", openReply: discordoutgress.TicketOpenReply{ChannelID: "c-new", Error: "missing permissions"},
@@ -358,8 +356,8 @@ func TestEnsureDeskClaimsOnceAndUsesTheStreamersCopy(t *testing.T) {
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
 
-	modules.EnsureDesk(context.Background(), store, cfg, emit)
-	modules.EnsureDesk(context.Background(), store, cfg, emit)
+	modules.EnsureDesk(context.Background(), store, modulesFor(cfg), emit)
+	modules.EnsureDesk(context.Background(), store, modulesFor(cfg), emit)
 
 	require.Len(t, emitted, 1, "exactly one panel per guild")
 	var panel ddiscord.EmbedPayload
@@ -382,7 +380,7 @@ func TestEnsureDeskDoesNothingWhenUnconfigured(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var emitted []ddiscord.Command
 
-			modules.EnsureDesk(context.Background(), tc.store, tc.cfg, func(c ddiscord.Command) { emitted = append(emitted, c) })
+			modules.EnsureDesk(context.Background(), tc.store, modulesFor(tc.cfg), func(c ddiscord.Command) { emitted = append(emitted, c) })
 
 			require.Empty(t, emitted)
 		})

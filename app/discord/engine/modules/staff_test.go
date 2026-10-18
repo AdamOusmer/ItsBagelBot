@@ -51,7 +51,7 @@ func TestModerationAndTicketDeskGates(t *testing.T) {
 			d := newDesk(t, cfg)
 			d.open(ada)
 
-			kicked := hasCommand(runHandler(t, modules.Moderation(nil, zap.NewNop()).Slash["kick"], cfg, kick), ddiscord.TypeKickMember)
+			kicked := hasCommand(runHandler(t, ddiscord.ModuleModeration, modules.Moderation(nil, zap.NewNop()).Slash["kick"], cfg, kick), ddiscord.TypeKickMember)
 			claim := d.button(discordapi.CustomTicketClaim, member.inTicket())
 
 			require.Equal(t, tc.moderates, kicked, "moderation gate")

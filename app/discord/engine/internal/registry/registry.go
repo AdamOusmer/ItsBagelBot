@@ -9,14 +9,19 @@ import (
 	"ItsBagelBot/app/discord/engine/module"
 )
 
+type Bound struct {
+	Module  string
+	Handler module.Handler
+}
+
 type Registry struct {
-	events  map[string][]module.Handler
-	slash   map[string]module.Handler
-	buttons map[string]module.Handler
+	events  map[string][]Bound
+	slash   map[string]Bound
+	buttons map[string]Bound
 }
 
 func New(mods ...module.Module) *Registry {
-	r := &Registry{events: map[string][]module.Handler{}, slash: map[string]module.Handler{}, buttons: map[string]module.Handler{}}
+	r := &Registry{events: map[string][]Bound{}, slash: map[string]Bound{}, buttons: map[string]Bound{}}
 	for _, m := range mods {
 		r.add(m)
 	}
@@ -25,31 +30,31 @@ func New(mods ...module.Module) *Registry {
 
 func (r *Registry) add(m module.Module) {
 	for t, h := range m.Events {
-		r.events[t] = append(r.events[t], h)
+		r.events[t] = append(r.events[t], Bound{Module: m.Name, Handler: h})
 	}
 	for name, h := range m.Slash {
-		claim(r.slash, "slash command", name, m.Name, h)
+		claim(r.slash, "slash command", name, Bound{Module: m.Name, Handler: h})
 	}
 	for id, h := range m.Buttons {
-		claim(r.buttons, "button", id, m.Name, h)
+		claim(r.buttons, "button", id, Bound{Module: m.Name, Handler: h})
 	}
 }
 
-func claim(into map[string]module.Handler, kind, key, moduleName string, h module.Handler) {
+func claim(into map[string]Bound, kind, key string, b Bound) {
 	if _, dup := into[key]; dup {
-		panic(fmt.Sprintf("discord/engine/registry: duplicate %s %q claimed by module %q", kind, key, moduleName))
+		panic(fmt.Sprintf("discord/engine/registry: duplicate %s %q claimed by module %q", kind, key, b.Module))
 	}
-	into[key] = h
+	into[key] = b
 }
 
-func (r *Registry) Events(eventType string) []module.Handler { return r.events[eventType] }
+func (r *Registry) Events(eventType string) []Bound { return r.events[eventType] }
 
-func (r *Registry) Slash(name string) (module.Handler, bool) {
+func (r *Registry) Slash(name string) (Bound, bool) {
 	h, ok := r.slash[name]
 	return h, ok
 }
 
-func (r *Registry) Button(customID string) (module.Handler, bool) {
+func (r *Registry) Button(customID string) (Bound, bool) {
 	h, ok := r.buttons[customID]
 	return h, ok
 }

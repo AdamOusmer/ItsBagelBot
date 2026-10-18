@@ -16,9 +16,10 @@ import (
 
 func Rank(store discordstore.Store) module.Module {
 	h := rankModule{store: store}
-	b := module.NewModule("rank")
+	b := module.NewModule(ddiscord.ModuleLevels)
 	b.Slash("daily", h.daily)
 	b.Slash("rank", h.rank)
+	b.On("MESSAGE_CREATE", h.onMessage)
 	b.Button(discordapi.CustomDailyClaim, h.daily)
 	return b.Build()
 }
@@ -32,12 +33,8 @@ func (h rankModule) daily(ctx context.Context, c *module.Context, emit module.Em
 	if err != nil {
 		return err
 	}
-	if !c.Config.LevelsOn() {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Levels are off.", true))
-		return nil
-	}
 	ok, xp := h.store.ClaimDaily(ctx, discordstore.Member{GuildID: in.GuildID, UserID: in.Member.User.ID})
-	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), ddiscord.DailyEmbed(ddiscord.DailyCard{XP: xp, Fresh: ok}), nil))
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), ddiscord.DailyEmbed(ddiscord.DailyCard{XP: xp, Fresh: ok}), nil))
 	return nil
 }
 
@@ -45,10 +42,6 @@ func (h rankModule) rank(ctx context.Context, c *module.Context, emit module.Emi
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {
 		return err
-	}
-	if !c.Config.LevelsOn() {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Levels are off.", true))
-		return nil
 	}
 	userID := decode.OptionUser(in.Data.Options, "user")
 	if userID == "" {
@@ -61,6 +54,6 @@ func (h rankModule) rank(ctx context.Context, c *module.Context, emit module.Emi
 	if userID == in.Member.User.ID {
 		buttons = []ddiscord.ButtonSpec{{Style: discordapi.ButtonPrimary, Label: "Claim daily", CustomID: discordapi.CustomDailyClaim}}
 	}
-	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), card, buttons))
+	emit(cmd.FollowupEmbed(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), card, buttons))
 	return nil
 }

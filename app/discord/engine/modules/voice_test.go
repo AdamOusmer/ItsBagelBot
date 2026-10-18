@@ -97,7 +97,7 @@ func (r *voiceRig) state(user, channel string) {
 	ev.Member.User = decode.UserRef{ID: user, Username: "Ada"}
 	raw, err := codec.Marshal(ev)
 	require.NoError(r.t, err)
-	c := &module.Context{Event: ddiscord.Event{Raw: raw}, Config: r.cfg, Log: zap.NewNop()}
+	c := contextFor(ddiscord.ModuleVoice, r.cfg, ddiscord.Event{Raw: raw})
 	require.NoError(r.t, r.mod.Events["VOICE_STATE_UPDATE"](context.Background(), c, func(cmd ddiscord.Command) { r.sent = append(r.sent, cmd) }))
 }
 
@@ -105,7 +105,7 @@ func (r *voiceRig) slash(sub decode.InteractionOption, a actor) string {
 	r.t.Helper()
 	in := a.in("room1")
 	in.Data.Options = []decode.InteractionOption{sub}
-	return ephemeralText(r.t, runHandler(r.t, r.mod.Slash["voice"], r.cfg, in))
+	return ephemeralText(r.t, runHandler(r.t, ddiscord.ModuleVoice, r.mod.Slash["voice"], r.cfg, in))
 }
 
 func (r *voiceRig) trackRoom() {
