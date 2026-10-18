@@ -25,6 +25,7 @@ import {
   isForbidden,
   type AdminUserWire,
   type ChannelSubState,
+  type UserOrder,
   type UserRef
 } from '$lib/server/services';
 import { requireRole, type AccessKey, type AdminIdentity } from '$lib/server/access';
@@ -63,6 +64,15 @@ function parseState(raw: string | null): string {
   return STATES.has(state) ? state : '';
 }
 
+function parseOrder(raw: string | null): UserOrder {
+  return raw === 'oldest' ? 'oldest' : 'newest';
+}
+
+function byJoined(order: UserOrder) {
+  const sign = order === 'oldest' ? 1 : -1;
+  return (a: AdminUserWire, b: AdminUserWire) => sign * (a.created_at ?? '').localeCompare(b.created_at ?? '');
+}
+
 function matchesState(user: AdminUserWire, state: string): boolean {
   if (!state) return true;
   if (user.banned) return state === 'banned';
@@ -74,6 +84,7 @@ export type DirectoryQuery = {
   page: number;
   search: string;
   state: string;
+  order: UserOrder;
 };
 
 type DemoDirectoryFixtures = {
@@ -82,9 +93,9 @@ type DemoDirectoryFixtures = {
 };
 
 function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures) {
-  const filtered = fixtures.sampleUsers.filter(
-    (user) => matchesSearch(user, q.search) && matchesState(user, q.state)
-  );
+  const filtered = fixtures.sampleUsers
+    .filter((user) => matchesSearch(user, q.search) && matchesState(user, q.state))
+    .sort(byJoined(q.order));
   const start = (q.page - 1) * USER_PAGE_SIZE;
   const users = filtered.slice(start, start + USER_PAGE_SIZE);
   const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
@@ -112,7 +123,7 @@ export type UserDirectory = {
 
 async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
-    const overview = await userOverview(actorId, q.page, q.search, q.state);
+    const overview = await userOverview(actorId, q.page, q.search, q.state, q.order);
     return {
       recent: overview.users,
       stats: overview.stats,
@@ -140,7 +151,8 @@ export const load: PageServerLoad = async ({ url, parent }) => {
   const q: DirectoryQuery = {
     page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
     search: normalizeSearch(url.searchParams.get('q')),
-    state: parseState(url.searchParams.get('state'))
+    state: parseState(url.searchParams.get('state')),
+    order: parseOrder(url.searchParams.get('order'))
   };
 
   const directory: Promise<UserDirectory> = DEMO

@@ -104,7 +104,7 @@ func (h harness) users(n int, base time.Time) {
 			SetUsername(fmt.Sprintf("user-%02d", i)).
 			SetEmail(fmt.Sprintf("user-%02d@example.invalid", i)).
 			SetStatus(user.StatusFree).
-			SetUpdatedAt(base.Add(time.Duration(i) * time.Minute)).
+			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).
 			ExecX(context.Background())
 	}
 }

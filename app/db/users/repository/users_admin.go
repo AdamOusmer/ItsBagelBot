@@ -53,15 +53,22 @@ func (r *Users) FindUserByUsername(ctx context.Context, username string) (*ent.U
 	return u, err
 }
 
+const AdminOrderOldest = "oldest"
+
 type AdminUserQuery struct {
 	Search string
 	State  string
+	Order  string
 	Limit  int
 	Offset int
 }
 
 func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.User, error) {
-	q := r.client.User.Query().Order(ent.Desc(user.FieldUpdatedAt), ent.Desc(user.FieldID))
+	by := ent.Desc
+	if query.Order == AdminOrderOldest {
+		by = ent.Asc
+	}
+	q := r.client.User.Query().Order(by(user.FieldCreatedAt), by(user.FieldID))
 	if s := NormalizeAdminSearch(query.Search); s != "" {
 		q = q.Where(AdminSearchPredicate(s))
 	}

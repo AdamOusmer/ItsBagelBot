@@ -67,10 +67,16 @@
   const stateLabels = $derived(USER_STATES.map((s) => t(USER_STATE_LABEL[s])));
   const stateLabel = $derived(stateLabels[USER_STATES.indexOf(stateFilter)]);
 
-  function href(params: { q?: string; state?: string; page?: number }): string {
+  const orderOptions = $derived([
+    { value: 'newest', label: t('admin.users.orderNewest') },
+    { value: 'oldest', label: t('admin.users.orderOldest') }
+  ]);
+
+  function href(params: { q?: string; state?: string; order?: string; page?: number }): string {
     const p = new URLSearchParams();
     if (params.q) p.set('q', params.q);
     if (params.state && params.state !== 'all') p.set('state', params.state);
+    if (params.order === 'oldest') p.set('order', params.order);
     if (params.page && params.page > 1) p.set('page', String(params.page));
     const qs = p.toString();
     return qs ? `/users?${qs}` : '/users';
@@ -78,11 +84,15 @@
 
   function pickState(label: string) {
     const next = USER_STATES[stateLabels.indexOf(label)];
-    if (next) goto(href({ q: data.search, state: next }), { keepFocus: true });
+    if (next) goto(href({ q: data.search, state: next, order: data.order }), { keepFocus: true });
+  }
+
+  function pickOrder(order: string) {
+    goto(href({ q: data.search, state: data.state, order }), { keepFocus: true });
   }
 
   function submitSearch() {
-    goto(href({ q: search.trim(), state: stateFilter }), { keepFocus: true });
+    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { keepFocus: true });
   }
 
   let selectedId = $state<string | null>(null);
@@ -356,6 +366,11 @@
       label={t('admin.users.stateFilter')}
       bind:value={() => stateLabel, pickState}
     />
+    <SegmentedControl
+      options={orderOptions}
+      label={t('admin.users.orderFilter')}
+      bind:value={() => data.order, pickOrder}
+    />
   </div>
 
   {#if dir?.degraded}
@@ -390,8 +405,8 @@
       {#if dir && (dir.page > 1 || dir.hasMore)}
         <Pager
           label={t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
-          prevHref={href({ q: data.search, state: data.state, page: dir.page - 1 })}
-          nextHref={href({ q: data.search, state: data.state, page: dir.page + 1 })}
+          prevHref={href({ q: data.search, state: data.state, order: data.order, page: dir.page - 1 })}
+          nextHref={href({ q: data.search, state: data.state, order: data.order, page: dir.page + 1 })}
           hasPrev={dir.page > 1}
           hasNext={dir.hasMore}
           prevLabel={t('admin.users.pagerPrev')}
@@ -509,6 +524,10 @@
 
 <style>
   .filters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--bb-space-3);
     margin-bottom: var(--bb-space-3);
   }
 

@@ -189,6 +189,7 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
 		Search: req.Search,
 		State:  req.State,
+		Order:  req.Order,
 		Limit:  adminListLimit(req.Limit),
 	})
 	if err != nil {
@@ -207,6 +208,7 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	rows, err := a.repo.ListUsers(ctx, repository.AdminUserQuery{
 		Search: req.Search,
 		State:  req.State,
+		Order:  req.Order,
 		Limit:  fetchLimit,
 		Offset: (page - 1) * pageSize,
 	})

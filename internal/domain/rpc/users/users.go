@@ -24,6 +24,7 @@ type AdminRequest struct {
 	CreatorCode  string `json:"creator_code,omitempty"`
 	Days         int    `json:"days,omitempty"`
 	State        string `json:"state,omitempty"`
+	Order        string `json:"order,omitempty"`
 	TestAccount  bool   `json:"test_account,omitempty"`
 }
 

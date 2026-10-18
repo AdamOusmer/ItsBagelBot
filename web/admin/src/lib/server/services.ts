@@ -295,6 +295,7 @@ export const userEnrollment = defineRead({
 });
 
 export const USER_PAGE_SIZE = 15;
+export type UserOrder = 'newest' | 'oldest';
 export const USER_MAX_PAGES = 25;
 
 interface PageMetaWire {
@@ -326,12 +327,13 @@ export async function userOverview(
   actorId: string,
   page = 1,
   search = '',
-  state = ''
+  state = '',
+  order: UserOrder = 'newest'
 ): Promise<UserPage> {
-  return cached(`users:overview:${page}:${search}:${state}`, POLICY.adminPage, async () => {
+  return cached(`users:overview:${page}:${search}:${state}:${order}`, POLICY.adminPage, async () => {
     const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
       `${SUB.user}.overview`,
-      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state }
+      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state, order }
     );
     return {
       users: r.users ?? [],
