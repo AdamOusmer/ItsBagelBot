@@ -69,7 +69,7 @@ type UserView struct {
 type Users struct {
 	client             *ent.Client
 	views              *cache.Cache[UserView]
-	stats              *cache.Cache[userStatsRow]
+	stats              *cache.Cache[UserCounts]
 	packer             domaincrypto.Packer
 	pub                bus.Publisher
 	batcher            *batch.Batcher[prefKey, prefWrite]
@@ -100,7 +100,7 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	r := &Users{
 		client:       client,
 		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
-		stats:        cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
+		stats:        cache.New[UserCounts](userStatsCapacity, userStatsTTL),
 		packer:       packer,
 		pub:          pub,
 		app:          app,

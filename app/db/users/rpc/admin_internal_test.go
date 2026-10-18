@@ -104,6 +104,7 @@ func TestAdminListAndStatsReadStoredStatus(t *testing.T) {
 	require.Empty(t, stats.Error)
 	require.NotNil(t, stats.Stats)
 	assert.Equal(t, 1, stats.Stats.PaidUsers)
+	assert.Equal(t, 0, stats.Stats.GrantedUsers)
 	assert.Equal(t, 1, stats.Stats.PremiumUsers)
 }
 

@@ -50,7 +50,8 @@ export const sampleStats: UserStats = {
   active_users: 312,
   premium_users: 87,
   vip_users: 12,
-  paid_users: 75
+  paid_users: 61,
+  granted_users: 14
 };
 
 export const sampleSnapshot: ShardSnapshot = {

@@ -24,6 +24,7 @@ const SAMPLE = `{
 const guide: GuideContent = {
   slug: 'data-sources',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/features/commands.md',
     title: 'Twitch Commands with API Data | ItsBagelBot Guide',
     description:
       'Connect API data to Twitch commands. Learn JSON paths, API keys, caching and request limits with dashboard examples and error fixes.',

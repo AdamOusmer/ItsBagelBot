@@ -51,6 +51,7 @@ type AdminStats struct {
 	PremiumUsers int `json:"premium_users"`
 	VIPUsers     int `json:"vip_users"`
 	PaidUsers    int `json:"paid_users"`
+	GrantedUsers int `json:"granted_users"`
 }
 
 type AdminEnrollmentDay struct {

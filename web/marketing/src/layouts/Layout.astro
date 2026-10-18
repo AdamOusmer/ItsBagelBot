@@ -75,6 +75,7 @@ const robotsContent = noindex
     : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
 const AI_REFERENCE_TITLE = 'ItsBagelBot reference for AI assistants';
+const SITE_ALTERNATE_NAMES = ['Bagel Bot', 'BagelBot', 'Its Bagel Bot'];
 const AI_INDEX_URL = 'https://ai.itsbagelbot.com/llms.txt';
 const entityDescription = t('home.metaDesc');
 const ORIGIN = new URL(Astro.site!).origin;
@@ -85,6 +86,7 @@ const structuredData = {
             '@type': 'Organization',
             '@id': `${ORIGIN}/#organization`,
             name: siteName,
+            alternateName: SITE_ALTERNATE_NAMES,
             url: `${ORIGIN}/`,
             logo: `${ORIGIN}/android-chrome-512x512.png`,
             description: entityDescription,
@@ -99,6 +101,7 @@ const structuredData = {
             '@id': `${ORIGIN}/#website`,
             url: `${ORIGIN}/`,
             name: siteName,
+            alternateName: SITE_ALTERNATE_NAMES,
             description: entityDescription,
             inLanguage: [...locales],
             publisher: { '@id': `${ORIGIN}/#organization` },
@@ -107,6 +110,7 @@ const structuredData = {
             '@type': 'SoftwareApplication',
             '@id': `${ORIGIN}/#software`,
             name: siteName,
+            alternateName: SITE_ALTERNATE_NAMES,
             applicationCategory: 'UtilitiesApplication',
             applicationSubCategory: 'Twitch chat bot',
             operatingSystem: 'Web',

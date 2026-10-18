@@ -14,7 +14,7 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('pricing.metaTitle')} description={t('pricing.metaDesc')}>
+<Layout title={t('pricing.metaTitle')} description={t('pricing.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md">
     <PageHero
         eyebrow={t('pricing.eyebrow')}
         title={t('pricing.title')}

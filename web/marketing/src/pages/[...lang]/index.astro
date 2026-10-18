@@ -20,7 +20,7 @@ export const getStaticPaths = localeStaticPaths;
 const t = useTranslations(getLangFromUrl(Astro.url));
 ---
 
-<Layout title={t('home.metaTitle')} description={t('home.metaDesc')}>
+<Layout title={t('home.metaTitle')} description={t('home.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md">
     <Header />
     <Encryption />
     <Playground />

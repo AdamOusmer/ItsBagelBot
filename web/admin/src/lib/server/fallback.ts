@@ -9,7 +9,8 @@ export const EMPTY_USER_STATS: UserStats = {
   active_users: 0,
   premium_users: 0,
   vip_users: 0,
-  paid_users: 0
+  paid_users: 0,
+  granted_users: 0
 };
 
 export function emptyEnrollment(days = 30): EnrollmentWire {

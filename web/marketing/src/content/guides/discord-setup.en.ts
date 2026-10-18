@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: "discord-setup",
   meta: {
+    aiDoc: "https://ai.itsbagelbot.com/setup/discord.md",
     title: "Discord Bot Setup and Permissions | ItsBagelBot Guide",
     description: "Add ItsBagelBot to Discord, check permissions and set up channels and roles. Fix role order and setup errors. Requires ItsBagelBot Premium during beta.",
     eyebrow: "Guide",

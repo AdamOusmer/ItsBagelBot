@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'getting-started',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/setup/getting-started.md',
     title: 'How to Add ItsBagelBot to Twitch | Setup Guide',
     description:
       'Add ItsBagelBot to your Twitch channel, check permissions and try your first command. Follow the dashboard with visual setup steps.',

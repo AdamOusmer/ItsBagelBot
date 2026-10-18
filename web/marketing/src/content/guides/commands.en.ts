@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'commands',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/setup/commands.md',
     title: 'Create Custom Twitch Commands | ItsBagelBot Guide',
     description:
       'Create Twitch commands with permissions, cooldowns and variables. Follow dashboard examples and test what viewers will see in chat.',

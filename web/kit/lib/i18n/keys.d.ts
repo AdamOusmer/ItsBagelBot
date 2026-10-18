@@ -617,6 +617,8 @@ export type KnownMessageKey =
   | 'admin.overview.quickLookupPlaceholder'
   | 'admin.overview.quickNotifications'
   | 'admin.overview.quickTitle'
+  | 'admin.overview.statPremium'
+  | 'admin.overview.statPremiumDelta'
   | 'admin.overview.statToday'
   | 'admin.overview.statTodayDelta'
   | 'admin.overview.statTotal'

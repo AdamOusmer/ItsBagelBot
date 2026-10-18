@@ -4,7 +4,7 @@ description: Product facts, feature references, migration details, setup workflo
 updated: 2026-10-13
 ---
 
-> ItsBagelBot is a Twitch chat bot with custom commands, Spotify song requests, game statistics (Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale, CODM), loyalty currency, and community tools. This library helps assistants answer product questions and guide dashboard setup.
+> ItsBagelBot (also written Bagel Bot or BagelBot) is a Twitch chat bot with custom commands, Spotify song requests, game statistics (Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale, CODM), loyalty currency, and community tools. This library helps assistants answer product questions and guide dashboard setup.
 
 Verified as of 2026-10-13. Finished features are free. AutoMod and Discord are Premium beta modules.
 
