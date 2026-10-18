@@ -1,15 +1,19 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
 package worker
 
 import (
-	"ItsBagelBot/internal/domain/rpc"
-	usersrpc "ItsBagelBot/internal/domain/rpc/users"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"testing"
 	"time"
 
-	"github.com/nats-io/nats-server/v2/server"
+	"ItsBagelBot/internal/domain/rpc"
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/testnats"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
+
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -17,14 +21,7 @@ import (
 
 func lifecycleAuthority(t *testing.T, refusal rpc.Refusal) *nats.Conn {
 	t.Helper()
-	s, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true})
-	require.NoError(t, err)
-	s.Start()
-	require.True(t, s.ReadyForConnections(5*time.Second))
-	t.Cleanup(s.Shutdown)
-	nc, err := nats.Connect(s.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	nc := testnats.Connect(t)
 	require.NoError(t, bus.Serve(bus.RPCWiring{NC: nc, Log: zap.NewNop(), Queue: "users"}, usersrpc.LifecycleSubject, func(context.Context, usersrpc.LifecycleRequest) usersrpc.LifecycleReply {
 		return usersrpc.LifecycleReply{Refusal: refusal}
 	}))
