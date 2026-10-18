@@ -2,7 +2,8 @@
   "modulesTitle": "Módulos",
   "modulesHelp": "Tudo o que o Bagel pode fazer neste servidor. Abra um para ativá-lo ou desativá-lo e configurá-lo.",
   "configure": "Configurar",
-  "notSetUp": "Este servidor nunca foi configurado. Escolha Criar canais e cargos que faltam e Bagel adicionará o que for necessário.",
+  "notSetUp": "O Bagel está conectado, mas este servidor ainda não tem configurações salvas. Veja o modelo opcional do servidor em Configurações ou abra um módulo para escolher seus canais.",
   "botState": "Bot",
-  "modulesOn": "Módulos ativados"
+  "modulesOn": "Módulos ativados",
+  "notSetUpCta": "Ver o modelo do servidor"
 }

@@ -4,4 +4,8 @@
 import type { Actions } from './$types';
 import { guildActions } from '$lib/server/discord-guild';
 
-export const actions: Actions = { setup: guildActions.setup, disconnect: guildActions.disconnect };
+export const actions: Actions = {
+  setup: guildActions.setup,
+  preview: guildActions.preview,
+  disconnect: guildActions.disconnect
+};

@@ -6,6 +6,7 @@
   "reposted": "Panneau de tickets republié.",
   "saveFailed": "Impossible d’enregistrer les paramètres Discord.",
   "saved": "Paramètres Discord enregistrés.",
-  "setup": "Serveur configuré.",
-  "setupFailed": "Impossible de configurer ce serveur."
+  "setup": "Modèle de serveur appliqué.",
+  "setupFailed": "Impossible d’appliquer le modèle de serveur.",
+  "previewFailed": "Impossible d’afficher le modèle de serveur."
 }

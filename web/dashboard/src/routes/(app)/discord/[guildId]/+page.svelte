@@ -30,7 +30,7 @@
     {t('discord.overview.notSetUp')}
     {#snippet actions()}
       <ButtonLink variant="secondary" href="/discord/{data.guildId}/settings">
-        {t('discord.settings.setupCta')}
+        {t('discord.overview.notSetUpCta')}
       </ButtonLink>
     {/snippet}
   </AlertBanner>

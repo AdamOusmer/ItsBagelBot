@@ -169,6 +169,7 @@ export type DiscordGuildTarget = {
   subscribers?: boolean;
   pinnedRoles?: PinnedRoles;
   installedBy?: string;
+  mode?: 'apply' | 'adopt';
 };
 
 export type DiscordSave = { userId: string; enabled: boolean; twitchLogin: string };
@@ -393,21 +394,31 @@ export const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['memberRoleId', 'member_role_id']
 ];
 
+export const SETUP_REQUEST_KEYS = [
+  'user_id',
+  'guild_id',
+  'subscribers',
+  'pinned_roles',
+  'installed_by',
+  'mode'
+] as const;
+
+function setupRequest(target: DiscordGuildTarget): Record<(typeof SETUP_REQUEST_KEYS)[number], unknown> {
+  return {
+    user_id: target.userId,
+    guild_id: target.guildId,
+    subscribers: target.subscribers === true,
+    pinned_roles: target.pinnedRoles ?? {},
+    installed_by: target.installedBy ?? '',
+    mode: target.mode ?? 'apply'
+  };
+}
+
 export async function setupGuild(
   target: DiscordGuildTarget,
   current: DiscordConfig
 ): Promise<DiscordSetup> {
-  const r = await rpcReply<SetupReply>(
-    `${SUB.dingressRpc}.discord.setup`,
-    {
-      user_id: target.userId,
-      guild_id: target.guildId,
-      subscribers: target.subscribers === true,
-      pinned_roles: target.pinnedRoles ?? {},
-      installed_by: target.installedBy ?? ''
-    },
-    SETUP_TIMEOUT_MS
-  );
+  const r = await rpcReply<SetupReply>(`${SUB.dingressRpc}.discord.setup`, setupRequest(target), SETUP_TIMEOUT_MS);
   if (r.error) {
     return { config: current, refused: '', droppedPins: [], error: r.error, code: replyCode(r) };
   }
@@ -417,6 +428,73 @@ export async function setupGuild(
     droppedPins: droppedPinNotice(r.dropped_pins),
     error: '',
     code: ''
+  };
+}
+
+export const TEMPLATE_ITEM_KEYS = ['kind', 'name', 'type', 'parent', 'action', 'id'] as const;
+
+export type TemplateItem = {
+  kind: 'role' | 'channel';
+  name: string;
+  type?: number;
+  parent?: string;
+  action: 'create' | 'adopt' | 'pinned';
+  id?: string;
+};
+
+type TemplateReply = CodedReply & {
+  lived_in?: boolean;
+  items?: Partial<Record<(typeof TEMPLATE_ITEM_KEYS)[number], unknown>>[];
+  dropped_pins?: string[];
+};
+
+export type TemplatePlan = {
+  livedIn: boolean;
+  items: TemplateItem[];
+  droppedPins: PinnedSlot[];
+  error: string;
+  code: DiscordCode;
+};
+
+const TEMPLATE_ACTIONS: readonly string[] = ['create', 'adopt', 'pinned'];
+
+type RawTemplateItem = NonNullable<TemplateReply['items']>[number];
+
+function templateCore(raw: RawTemplateItem): TemplateItem | null {
+  if (typeof raw.name !== 'string' || raw.name === '') return null;
+  if (raw.kind !== 'role' && raw.kind !== 'channel') return null;
+  if (typeof raw.action !== 'string' || !TEMPLATE_ACTIONS.includes(raw.action)) return null;
+  return { kind: raw.kind, name: raw.name, action: raw.action as TemplateItem['action'] };
+}
+
+function templateItem(raw: RawTemplateItem): TemplateItem | null {
+  const out = templateCore(raw);
+  if (!out) return null;
+  if (typeof raw.type === 'number') out.type = raw.type;
+  if (typeof raw.parent === 'string' && raw.parent) out.parent = raw.parent;
+  if (typeof raw.id === 'string' && raw.id) out.id = raw.id;
+  return out;
+}
+
+export async function previewTemplate(target: DiscordGuildTarget): Promise<TemplatePlan> {
+  const request = setupRequest(target);
+  const r = await rpcReply<TemplateReply>(
+    `${SUB.dingressRpc}.discord.template.preview`,
+    {
+      user_id: request.user_id,
+      guild_id: request.guild_id,
+      subscribers: request.subscribers,
+      pinned_roles: request.pinned_roles
+    },
+    LAYOUT_TIMEOUT_MS
+  );
+  const items = (r.items ?? []).map(templateItem).filter((i): i is TemplateItem => i !== null);
+  return {
+    livedIn: r.lived_in === true,
+    items,
+    droppedPins: droppedPinNotice(r.dropped_pins),
+    error: r.error ?? '',
+    code: replyCode(r)
   };
 }
 

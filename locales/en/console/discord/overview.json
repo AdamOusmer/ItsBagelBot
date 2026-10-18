@@ -2,7 +2,8 @@
   "modulesTitle": "Modules",
   "modulesHelp": "Everything Bagel can do in this server. Open one to turn it on or off and set it up.",
   "configure": "Configure",
-  "notSetUp": "This server has never been set up. Choose Create missing channels and roles and Bagel adds what it needs.",
+  "notSetUp": "Bagel is connected, but this server has no saved settings yet. Preview the optional server template in Settings, or open a module to pick its channels.",
   "botState": "Bot",
-  "modulesOn": "Modules on"
+  "modulesOn": "Modules on",
+  "notSetUpCta": "Preview server template"
 }

@@ -2,7 +2,8 @@
   "modulesTitle": "Modules",
   "modulesHelp": "Tout ce que Bagel peut faire sur ce serveur. Ouvrez un module pour l’activer ou le désactiver et le régler.",
   "configure": "Configurer",
-  "notSetUp": "Ce serveur n’a jamais été configuré. Choisissez Créer les salons et rôles manquants et Bagel ajoute ce dont il a besoin.",
+  "notSetUp": "Bagel est connecté, mais ce serveur n’a pas encore de paramètres enregistrés. Consultez le modèle de serveur facultatif dans les Paramètres, ou ouvrez un module pour choisir ses salons.",
   "botState": "Bot",
-  "modulesOn": "Modules actifs"
+  "modulesOn": "Modules actifs",
+  "notSetUpCta": "Voir le modèle de serveur"
 }

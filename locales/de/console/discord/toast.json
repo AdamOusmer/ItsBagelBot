@@ -6,6 +6,7 @@
   "reposted": "Ticket-Panel erneut gepostet.",
   "saveFailed": "Discord-Einstellungen konnten nicht gespeichert werden.",
   "saved": "Discord-Einstellungen gespeichert.",
-  "setup": "Server eingerichtet.",
-  "setupFailed": "Dieser Server konnte nicht eingerichtet werden."
+  "setup": "Server-Vorlage angewendet.",
+  "setupFailed": "Die Server-Vorlage konnte nicht angewendet werden.",
+  "previewFailed": "Die Server-Vorlage konnte nicht angezeigt werden."
 }

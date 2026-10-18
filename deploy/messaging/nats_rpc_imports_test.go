@@ -154,6 +154,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.outgress.channelpoints.list", "web/dashboard SUB.outgressRpc"},
 		{"bagel.rpc.outgress.accountage.get", "web/dashboard SUB.outgressRpc"},
 		{"bagel.rpc.dingress.discord.setup", "web/dashboard SUB.dingressRpc"},
+		{"bagel.rpc.dingress.discord.template.preview", "web/dashboard SUB.dingressRpc"},
 		{"bagel.rpc.loyalty.counter.get", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.loyalty.counter.board", "web/dashboard SUB.loyalty"},
 		{"bagel.rpc.gossip.govee.devices", "web/dashboard SUB.gossip"},

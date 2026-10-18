@@ -338,6 +338,25 @@ export function demoDiscordDroppedPins() {
   return ['mods'];
 }
 
+export function demoDiscordTemplatePreview() {
+  return {
+    livedIn: false,
+    droppedPins: [],
+    error: '',
+    code: '',
+    items: [
+      { kind: 'role', name: 'Lead Mod', action: 'create' },
+      { kind: 'role', name: 'Regulars', action: 'create' },
+      { kind: 'role', name: 'Mods', action: 'pinned', id: '210987654321098764' },
+      { kind: 'role', name: 'VIP', action: 'adopt', id: '210987654321098765' },
+      { kind: 'channel', name: 'clips', type: 0, parent: 'Announcements', action: 'create' },
+      { kind: 'channel', name: '+ Create voice', type: 2, parent: 'Voice', action: 'create' },
+      { kind: 'channel', name: 'now-live', type: 0, parent: 'Announcements', action: 'adopt', id: '123456789012345678' },
+      { kind: 'channel', name: 'support', type: 0, parent: 'Community', action: 'adopt', id: '123456789012345679' }
+    ]
+  };
+}
+
 export function demoDiscordConfig() {
   return {
     version: 4,

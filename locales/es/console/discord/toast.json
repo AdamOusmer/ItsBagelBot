@@ -6,6 +6,7 @@
   "reposted": "Panel de tickets publicado de nuevo.",
   "saveFailed": "No se pudieron guardar los ajustes de Discord.",
   "saved": "Ajustes de Discord guardados.",
-  "setup": "Servidor configurado.",
-  "setupFailed": "No se pudo configurar este servidor."
+  "setup": "Plantilla del servidor aplicada.",
+  "setupFailed": "No se pudo aplicar la plantilla del servidor.",
+  "previewFailed": "No se pudo mostrar la plantilla del servidor."
 }

@@ -14,6 +14,7 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -377,4 +378,183 @@ func TestPostDiscord(t *testing.T) {
 			require.Equal(t, tc.want, d.chats)
 		})
 	}
+}
+
+func adoptRequest() setup.GuildSetupRequest {
+	return setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42", Mode: outgressrpc.SetupModeAdopt}
+}
+
+func TestSetupGuildAdoptModeOnEmptyGuildOnlyBinds(t *testing.T) {
+	d := &fakeDiscord{}
+	store := discordstore.NewMem()
+
+	got, err := newWorker(d, store).SetupGuild(context.Background(), adoptRequest())
+
+	require.NoError(t, err)
+	owner, _ := store.Broadcaster(context.Background(), discordstore.Guild{ID: "guild-1"})
+	require.Equal(t, "42", owner.ID)
+	require.Empty(t, d.createdRoles)
+	require.Empty(t, d.createdChannels)
+	require.Empty(t, d.panels)
+	require.Empty(t, got.Refused)
+	require.Equal(t, setup.GuildSetupResult{DiscordSetupIDs: outgressrpc.DiscordSetupIDs{GuildID: "guild-1"}}, got)
+}
+
+func TestSetupGuildAdoptModeFillsFromExistingResources(t *testing.T) {
+	d := &fakeDiscord{
+		channels: existingChannels("now-live", "Clips", "support"),
+		roles:    []discapi.Snowflake{{ID: "r-mods", Name: "Mods"}, {ID: "r-pin", Name: "Boss"}, {ID: "r-gone-not", Name: "other"}},
+	}
+	req := adoptRequest()
+	req.PinnedRoles = map[string]string{ddiscord.SlotMods: "r-pin", ddiscord.SlotVIP: "r-missing"}
+
+	got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, "old-now-live", got.LiveChannelID)
+	require.Equal(t, "old-Clips", got.ClipsChannelID)
+	require.Equal(t, "old-support", got.TicketChannelID)
+	require.Equal(t, "r-pin", got.ModsRoleID)
+	require.Empty(t, got.VIPRoleID)
+	require.Equal(t, []string{ddiscord.SlotVIP}, got.DroppedPins)
+	require.Empty(t, d.createdRoles)
+	require.Empty(t, d.createdChannels)
+	require.Empty(t, d.panels)
+}
+
+func previewRequest() setup.GuildSetupRequest {
+	return setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}
+}
+
+func itemsWhere(items []outgressrpc.DiscordTemplateItem, action string) []string {
+	var out []string
+	for _, it := range items {
+		if it.Action == action {
+			out = append(out, strings.ToLower(it.Name))
+		}
+	}
+	return out
+}
+
+func createdNames(d *fakeDiscord) []string {
+	out := slices.Clone(d.roleNames())
+	for name := range d.createdChannels {
+		out = append(out, name)
+	}
+	for i := range out {
+		out[i] = strings.ToLower(out[i])
+	}
+	return out
+}
+
+func TestPreviewTemplateMatchesWhatApplyCreates(t *testing.T) {
+	cases := []struct {
+		name     string
+		existing []discapi.Snowflake
+		roles    []discapi.Snowflake
+		livedIn  bool
+	}{
+		{name: "fresh server"},
+		{name: "partial fill", existing: existingChannels("Welcome", "rules", "now-live", "Community"), roles: []discapi.Snowflake{{ID: "r-mods", Name: "Mods"}}},
+		{name: "lived-in server", existing: livedInServer(), livedIn: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := boundStore(owners{"guild-1": "42"})
+			d := &fakeDiscord{channels: tc.existing, roles: tc.roles}
+			w := newWorker(d, store)
+
+			preview, err := w.PreviewTemplate(ctx, previewRequest())
+
+			require.NoError(t, err)
+			require.Equal(t, tc.livedIn, preview.LivedIn)
+			require.Empty(t, d.createdRoles)
+			require.Empty(t, d.createdChannels)
+			require.Empty(t, d.panels)
+
+			_, err = w.SetupGuild(ctx, setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+
+			require.NoError(t, err)
+			require.ElementsMatch(t, createdNames(d), itemsWhere(preview.Items, outgressrpc.TemplateActionCreate))
+			after, err := w.PreviewTemplate(ctx, previewRequest())
+			require.NoError(t, err)
+			require.Empty(t, itemsWhere(after.Items, outgressrpc.TemplateActionCreate))
+		})
+	}
+}
+
+func TestPreviewTemplateAdoptItemsCarryExistingIDs(t *testing.T) {
+	d := &fakeDiscord{channels: livedInServer(), roles: []discapi.Snowflake{{ID: "r-mods", Name: "Mods"}}}
+	store := boundStore(owners{"guild-1": "42"})
+
+	preview, err := newWorker(d, store).PreviewTemplate(context.Background(), previewRequest())
+
+	require.NoError(t, err)
+	require.Contains(t, preview.Items, outgressrpc.DiscordTemplateItem{
+		Kind: outgressrpc.TemplateKindChannel, Name: "clips", Parent: "Announcements",
+		Action: outgressrpc.TemplateActionAdopt, ID: "old-Clips",
+	})
+	require.Contains(t, preview.Items, outgressrpc.DiscordTemplateItem{
+		Kind: outgressrpc.TemplateKindRole, Name: "Mods", Action: outgressrpc.TemplateActionAdopt, ID: "r-mods",
+	})
+}
+
+func TestPreviewTemplateLeavesTheBindingAlone(t *testing.T) {
+	store := boundStore(owners{"guild-1": "42"})
+
+	_, err := newWorker(&fakeDiscord{}, store).PreviewTemplate(context.Background(), previewRequest())
+
+	require.NoError(t, err)
+	guilds, _ := store.GuildsOf(context.Background(), discordstore.Broadcaster{ID: "42"})
+	require.Len(t, guilds, 1)
+}
+
+func TestPreviewTemplateRefusesGuildsThatAreNotStrictlyOurs(t *testing.T) {
+	cases := []struct {
+		name  string
+		store discordstore.Store
+	}{
+		{"unbound", discordstore.NewMem()},
+		{"bound elsewhere", boundStore(owners{"guild-1": "7"})},
+		{"cache only", cacheOnlyStore{boundStore(owners{"guild-1": "42"})}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &fakeDiscord{}
+
+			_, err := newWorker(d, tc.store).PreviewTemplate(context.Background(), previewRequest())
+
+			require.Error(t, err)
+			require.Empty(t, d.createdChannels)
+			require.Zero(t, d.listCalls)
+		})
+	}
+}
+
+func TestPreviewTemplateHonoursSubscribersAndPins(t *testing.T) {
+	d := &fakeDiscord{roles: []discapi.Snowflake{{ID: "r-pin", Name: "Boss"}}}
+	store := boundStore(owners{"guild-1": "42"})
+	w := newWorker(d, store)
+	req := previewRequest()
+	req.PinnedRoles = map[string]string{ddiscord.SlotMods: "r-pin"}
+
+	off, err := w.PreviewTemplate(context.Background(), req)
+	require.NoError(t, err)
+	req.Subscribers = true
+	on, err := w.PreviewTemplate(context.Background(), req)
+	require.NoError(t, err)
+
+	offNames := append(itemsWhere(off.Items, outgressrpc.TemplateActionCreate), itemsWhere(off.Items, outgressrpc.TemplateActionPinned)...)
+	onNames := append(itemsWhere(on.Items, outgressrpc.TemplateActionCreate), itemsWhere(on.Items, outgressrpc.TemplateActionPinned)...)
+	for _, name := range []string{"subscriber", "subscribers", "sub-chat", "sub-media"} {
+		require.NotContains(t, offNames, name)
+		require.Contains(t, onNames, name)
+	}
+	require.Contains(t, off.Items, outgressrpc.DiscordTemplateItem{
+		Kind: outgressrpc.TemplateKindRole, Name: "Mods", Action: outgressrpc.TemplateActionPinned, ID: "r-pin",
+	})
+	require.NotContains(t, off.Items, outgressrpc.DiscordTemplateItem{
+		Kind: outgressrpc.TemplateKindRole, Name: "Mods", Action: outgressrpc.TemplateActionCreate,
+	})
 }

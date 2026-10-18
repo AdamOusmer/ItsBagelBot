@@ -85,7 +85,8 @@ async function connectGuild(
       ...target,
       subscribers: alertOff(seeded.subscribersEnabled),
       pinnedRoles: pinnedRolesOf(seeded),
-      installedBy: locals.session?.user_id ?? target.userId
+      installedBy: locals.session?.user_id ?? target.userId,
+      mode: 'adopt'
     },
     seeded
   );

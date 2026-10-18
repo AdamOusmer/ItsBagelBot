@@ -2,7 +2,8 @@
   "modulesTitle": "Module",
   "modulesHelp": "Alles, was Bagel auf diesem Server kann. Öffne ein Modul, um es ein- oder auszuschalten und einzurichten.",
   "configure": "Konfigurieren",
-  "notSetUp": "Dieser Server wurde noch nie eingerichtet. Wähle „Fehlende Kanäle und Rollen erstellen“, damit Bagel hinzufügt, was er benötigt.",
+  "notSetUp": "Bagel ist verbunden, aber dieser Server hat noch keine gespeicherten Einstellungen. Sieh dir die optionale Server-Vorlage in den Einstellungen an oder öffne ein Modul, um dessen Kanäle zu wählen.",
   "botState": "Bot",
-  "modulesOn": "Aktive Module"
+  "modulesOn": "Aktive Module",
+  "notSetUpCta": "Server-Vorlage ansehen"
 }

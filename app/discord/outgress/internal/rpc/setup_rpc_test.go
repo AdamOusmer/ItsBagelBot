@@ -351,6 +351,12 @@ func guildSetupCases() []setupCase {
 			Error: setup.ErrGuildBoundElsewhere.Error(), Code: outgressrpc.CodeBoundElsewhere,
 		},
 	}, {
+		name:  "refuses an unknown setup mode",
+		world: setupWorld{owners: ours},
+		verb:  "discord.setup",
+		req:   outgressrpc.DiscordSetupRequest{UserID: "b1", GuildID: rpcGuildID, Mode: "wipe"},
+		want:  invalid("mode"),
+	}, {
 		name:  "rejects a setup request without a user",
 		world: setupWorld{owners: ours},
 		verb:  "discord.setup",
@@ -672,4 +678,54 @@ func TestPanelSpecKeepsBlackAndUnsetApart(t *testing.T) {
 	if got.OrDefaults().ColorOr(ddiscord.LiveColor) != 0 {
 		t.Fatal("OrDefaults must not repaint a black panel")
 	}
+}
+
+func TestHandleSetupModes(t *testing.T) {
+	cases := []struct {
+		mode        string
+		wantCreated bool
+	}{
+		{"", true},
+		{outgressrpc.SetupModeApply, true},
+		{outgressrpc.SetupModeAdopt, false},
+	}
+	for _, tc := range cases {
+		t.Run("mode "+tc.mode, func(t *testing.T) {
+			rest := &fakeSetupREST{mint: true}
+			w := setup.New(setup.Config{
+				Store: boundStore(t, map[string]string{rpcGuildID: "b1"}), Discord: rest, Log: zap.NewNop(),
+			})
+			d := &discordRPC{w: w, log: zap.NewNop()}
+
+			reply := d.handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{
+				UserID: "b1", GuildID: rpcGuildID, Mode: tc.mode,
+			})
+
+			require.Equal(t, outgressrpc.CodeOK, reply.Code)
+			require.Equal(t, tc.wantCreated, rest.created > 0)
+			require.Equal(t, tc.wantCreated, reply.LiveChannelID != "")
+			require.Equal(t, tc.wantCreated, len(rest.desks) > 0)
+		})
+	}
+}
+
+func TestHandleTemplatePreview(t *testing.T) {
+	rest := &fakeSetupREST{mint: true}
+	w := setup.New(setup.Config{
+		Store: boundStore(t, map[string]string{rpcGuildID: "b1"}), Discord: rest, Log: zap.NewNop(),
+	})
+	d := &discordRPC{w: w, log: zap.NewNop()}
+	ctx := context.Background()
+
+	missing := d.handleTemplatePreview(ctx, outgressrpc.DiscordTemplatePreviewRequest{GuildID: rpcGuildID})
+	require.Equal(t, outgressrpc.CodeInvalid, missing.Code)
+
+	elsewhere := d.handleTemplatePreview(ctx, outgressrpc.DiscordTemplatePreviewRequest{UserID: "other", GuildID: rpcGuildID})
+	require.Equal(t, outgressrpc.CodeNotBound, elsewhere.Code)
+
+	got := d.handleTemplatePreview(ctx, outgressrpc.DiscordTemplatePreviewRequest{UserID: "b1", GuildID: rpcGuildID})
+	require.Equal(t, outgressrpc.CodeOK, got.Code)
+	require.NotEmpty(t, got.Items)
+	require.Zero(t, rest.created)
+	require.Empty(t, rest.desks)
 }

@@ -53,6 +53,8 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 			wire.Wiring, verb{Name: "discord.setup", Timeout: setupHandleTimeout}, d.handleSetup),
 		register[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
 			wire.Wiring, verb{Name: "discord.layout", Timeout: layoutHandleTimeout}, d.handleLayout),
+		register[outgressrpc.DiscordTemplatePreviewRequest, outgressrpc.DiscordTemplatePreviewReply](
+			wire.Wiring, verb{Name: "discord.template.preview", Timeout: layoutHandleTimeout}, d.handleTemplatePreview),
 		register[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
 			wire.Wiring, verb{Name: "discord.unbind", Timeout: handleTimeout}, d.handleUnbind),
 		register[outgressrpc.DiscordStatusRequest, outgressrpc.DiscordStatusReply](
@@ -167,6 +169,7 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		Subscribers:   req.Subscribers,
 		PinnedRoles:   req.PinnedRoles,
 		InstalledBy:   req.InstalledBy,
+		Mode:          req.Mode,
 	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
@@ -193,7 +196,23 @@ func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
 		seen[fe.Field] = true
 		out = append(out, fe.Field)
 	}
+	if req.Mode != "" && req.Mode != outgressrpc.SetupModeApply && req.Mode != outgressrpc.SetupModeAdopt {
+		out = append(out, "mode")
+	}
 	return out
+}
+
+func (d *discordRPC) handleTemplatePreview(ctx context.Context, req outgressrpc.DiscordTemplatePreviewRequest) outgressrpc.DiscordTemplatePreviewReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordTemplatePreviewReply{Items: []outgressrpc.DiscordTemplateItem{}, Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	got, err := d.w.PreviewTemplate(ctx, setup.GuildSetupRequest{
+		GuildID: req.GuildID, BroadcasterID: req.UserID, Subscribers: req.Subscribers, PinnedRoles: req.PinnedRoles,
+	})
+	if err != nil {
+		return outgressrpc.DiscordTemplatePreviewReply{Items: []outgressrpc.DiscordTemplateItem{}, Error: err.Error(), Code: codeFor(err)}
+	}
+	return outgressrpc.DiscordTemplatePreviewReply{LivedIn: got.LivedIn, Items: got.Items, DroppedPins: got.DroppedPins}
 }
 
 func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLayoutRequest) outgressrpc.DiscordLayoutReply {
