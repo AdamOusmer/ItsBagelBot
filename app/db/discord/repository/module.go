@@ -55,7 +55,7 @@ func (s *Store) backfillModules(ctx context.Context, guildID string) ([]*ent.Gui
 }
 
 func (s *Store) ModuleSet(ctx context.Context, p ModuleSetParams) (int, error) {
-	if p.GuildID == "" || p.BroadcasterID == 0 || !settableModule(p.Name) {
+	if !validModuleSet(p) {
 		return 0, ErrInvalidInput
 	}
 	var version int
@@ -70,6 +70,10 @@ func (s *Store) ModuleSet(ctx context.Context, p ModuleSetParams) (int, error) {
 		return 0, err
 	}
 	return version, nil
+}
+
+func validModuleSet(p ModuleSetParams) bool {
+	return p.GuildID != "" && p.BroadcasterID != 0 && settableModule(p.Name)
 }
 
 func settableModule(name string) bool {
@@ -239,14 +243,21 @@ func (s *Store) syncModulesInTx(ctx context.Context, tx *ent.Tx, p SetConfigPara
 		byName[row.Name] = row
 	}
 	for _, row := range ddiscord.SplitConfig(p.Config) {
-		if err := upsertSplitRow(ctx, tx, p, row, byName[row.Name]); err != nil {
+		if err := upsertSplitRow(ctx, tx, splitUpsert{params: p, row: row, current: byName[row.Name]}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func upsertSplitRow(ctx context.Context, tx *ent.Tx, p SetConfigParams, row ddiscord.ModuleRow, current *ent.GuildModule) error {
+type splitUpsert struct {
+	params  SetConfigParams
+	row     ddiscord.ModuleRow
+	current *ent.GuildModule
+}
+
+func upsertSplitRow(ctx context.Context, tx *ent.Tx, u splitUpsert) error {
+	p, row, current := u.params, u.row, u.current
 	if current != nil {
 		return tx.GuildModule.UpdateOneID(current.ID).
 			SetBroadcasterID(p.BroadcasterID).

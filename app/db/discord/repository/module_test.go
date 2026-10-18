@@ -23,21 +23,26 @@ func fullLegacyConfig(guildID string) ddiscord.Config {
 	cfg := ddiscord.Config{}
 	v := reflect.ValueOf(&cfg).Elem()
 	for i := range v.NumField() {
-		tag, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ",")
-		v.Field(i).SetString("v-" + tag)
+		v.Field(i).SetString("v-" + jsonTag(v, i))
 	}
 	cfg.GuildID = guildID
 	for _, spec := range ddiscord.Modules {
-		if spec.EnabledKey == "" {
-			continue
-		}
-		for i := range v.NumField() {
-			if tag, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ","); tag == spec.EnabledKey {
-				v.Field(i).SetString("off")
-			}
-		}
+		disableLegacyField(v, spec.EnabledKey)
 	}
 	return cfg
+}
+
+func jsonTag(v reflect.Value, i int) string {
+	tag, _, _ := strings.Cut(v.Type().Field(i).Tag.Get("json"), ",")
+	return tag
+}
+
+func disableLegacyField(v reflect.Value, key string) {
+	for i := range v.NumField() {
+		if key != "" && jsonTag(v, i) == key {
+			v.Field(i).SetString("off")
+		}
+	}
 }
 
 func (f configFixture) module(guildID, name string) (ddiscord.ModuleRow, bool) {
