@@ -14,9 +14,7 @@ import (
 )
 
 type batchStore struct {
-	receipts        map[string]bool
 	writes          int
-	pendingID       string
 	pendingWrites   int
 	failWrite       bool
 	uncertainCommit bool
@@ -35,16 +33,12 @@ type batchConn struct {
 type batchTx struct{ store *batchStore }
 
 func (c *batchConn) Begin() (driver.Tx, error) {
-	c.store.pendingID = ""
 	c.store.pendingWrites = 0
 	c.store.pendingValues = map[string]int64{}
 	return &batchTx{c.store}, nil
 }
 
 func (c *batchConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if strings.HasPrefix(query, "INSERT IGNORE INTO counter_batches") {
-		return c.store.stageReceipt(args[0].Value.(string)), nil
-	}
 	if c.store.deadlocks > 0 {
 		c.store.deadlocks--
 		return nil, deadlockError()
@@ -57,14 +51,6 @@ func (c *batchConn) ExecContext(_ context.Context, query string, args []driver.N
 		c.store.stageCounterRows(args)
 	}
 	return driver.RowsAffected(1), nil
-}
-
-func (s *batchStore) stageReceipt(id string) driver.Result {
-	if s.receipts[id] {
-		return driver.RowsAffected(0)
-	}
-	s.pendingID = id
-	return driver.RowsAffected(1)
 }
 
 func (s *batchStore) stageCounterRows(args []driver.NamedValue) {
@@ -87,7 +73,6 @@ func (c *batchConn) QueryContext(_ context.Context, query string, _ []driver.Nam
 }
 
 func (tx *batchTx) Commit() error {
-	tx.store.receipts[tx.store.pendingID] = true
 	tx.store.writes += tx.store.pendingWrites
 	for name, delta := range tx.store.pendingValues {
 		tx.store.values[name] += delta
@@ -99,7 +84,6 @@ func (tx *batchTx) Commit() error {
 }
 
 func (tx *batchTx) Rollback() error {
-	tx.store.pendingID = ""
 	tx.store.pendingWrites = 0
 	tx.store.pendingValues = nil
 	return nil
@@ -133,7 +117,7 @@ func newBatchStore(values map[string]int64) *batchStore {
 	if values == nil {
 		values = map[string]int64{}
 	}
-	return &batchStore{receipts: map[string]bool{}, values: values}
+	return &batchStore{values: values}
 }
 
 func batchRepo(t *testing.T) (*Loyalty, *batchStore) {

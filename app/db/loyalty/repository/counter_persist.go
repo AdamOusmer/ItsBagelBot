@@ -177,8 +177,7 @@ func (r *Loyalty) writeCounterTransaction(ctx context.Context, tx *sql.Tx, bumps
 }
 
 func (r *Loyalty) verifyTrialPromotions(ctx context.Context, tx *sql.Tx, ids []uint64) error {
-	// Recheck follows every trial row write, as in writeCounterBatch. A
-	// promotion can commit after our snapshot read while we wait on its locks.
+	// A promotion can commit after our snapshot read while we wait on its locks.
 	query := lockTrialPromotion
 	if r.dialect == "sqlite3" {
 		query = readTrialPromotion

@@ -344,7 +344,6 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterTrialDecoded])
 	assert.EqualValues(t, 105, store.values[data.CounterMessagesProcessed])
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
-	assert.Empty(t, store.pendingID, "new writer never inserts a SQL receipt")
 }
 
 func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {
