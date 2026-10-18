@@ -243,13 +243,13 @@ func (s *rpcStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, boo
 	}, true
 }
 
-func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) int {
+func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) (int, error) {
 	reply, err := request[discorddata.TicketCountReply](ctx, s.rpc, s.subject(discorddata.VerbTicketCount),
 		discorddata.TicketCountRequest{GuildID: m.GuildID, OpenerID: m.UserID})
 	if s.memberCallFailed(discorddata.VerbTicketCount, m, err, reply.Error) {
-		return 0
+		return 0, ErrStoreUnavailable
 	}
-	return reply.Count
+	return reply.Count, nil
 }
 
 func (s *rpcStore) ClaimTicket(ctx context.Context, c TicketClaim) error {

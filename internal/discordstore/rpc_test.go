@@ -228,7 +228,7 @@ func ticketScenarios() []scenario {
 			sent: replies{dd.VerbTicketClaim: dd.TicketClaimRequest{GuildID: "g1", ChannelID: "c1", StaffID: "mod1"}},
 		}, {
 			serve: replies{dd.VerbTicketCount: dd.TicketCountReply{Count: 2}},
-			do:    call(store.OpenTicketCount, u1), want: 2,
+			do:    callResult(store.OpenTicketCount, u1), want: outcome(2, nil),
 			sent: replies{dd.VerbTicketCount: dd.TicketCountRequest{GuildID: "g1", OpenerID: "u1"}},
 		}, {
 			serve: replies{dd.VerbTranscriptPut: dd.TranscriptPutReply{}},
@@ -244,7 +244,7 @@ func ticketScenarios() []scenario {
 		steps: []step{
 			{do: readTicket(c1), want: pair(discordstore.Ticket{}, false)},
 			{do: callResult(store.TrackTicket, open), want: outcome(discordstore.TicketOpenResult{}, nats.ErrNoResponders)},
-			{do: call(store.OpenTicketCount, u1), want: 0},
+			{do: callResult(store.OpenTicketCount, u1), want: outcome(0, discordstore.ErrStoreUnavailable)},
 			{do: call(store.ClaimTicket, claim), want: nats.ErrNoResponders},
 		},
 	}}

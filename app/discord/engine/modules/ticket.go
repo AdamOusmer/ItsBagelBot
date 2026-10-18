@@ -174,7 +174,13 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 		return nil
 	}
 	limit := call.mod.Config.TicketOpenLimitN()
-	held := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: call.in.GuildID, UserID: call.in.Member.User.ID})
+	held, err := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: call.in.GuildID, UserID: call.in.Member.User.ID})
+	if err != nil {
+		h.log.Error("ticket open refused: open count unavailable",
+			zap.String("guild_id", call.in.GuildID), zap.String("user_id", call.in.Member.User.ID), zap.Error(err))
+		call.reply("The ticket desk is unavailable right now. Try again shortly.")
+		return nil
+	}
 	if held >= limit {
 		call.reply(atLimitText(held))
 		return nil

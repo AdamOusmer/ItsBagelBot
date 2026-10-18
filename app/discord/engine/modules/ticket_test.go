@@ -65,6 +65,8 @@ func TestTicketOpenRefusals(t *testing.T) {
 			wantReply: "Tickets are off."},
 		{name: "TestTicketOpenRefusesWithoutADurableStore", faults: storeFaults{nonDurable: true},
 			wantReply: "The ticket desk is unavailable right now. Try again shortly."},
+		{name: "refuses when the open count is unavailable", faults: storeFaults{countErr: discordstore.ErrStoreUnavailable},
+			wantReply: "The ticket desk is unavailable right now. Try again shortly."},
 		{name: "rolls the channel back when the card fails", openReply: discordoutgress.TicketOpenReply{ChannelID: "c-new", Error: "missing permissions"},
 			wantReply: "Could not open a ticket right now.", wantTally: rpcTally{Opened: 1, Deleted: []string{"c-new"}}},
 		{name: "rolls the channel back when the open call fails", openErr: context.DeadlineExceeded,
@@ -109,8 +111,9 @@ func TestTicketChannelNumberComesFromTheRowNotTheCount(t *testing.T) {
 	d.rpc.openReply = discordoutgress.TicketOpenReply{ChannelID: "c-2", MessageID: "m-2"}
 	d.open(ada)
 
-	require.Equal(t, 1, d.mem.OpenTicketCount(ctx, discordstore.Member{GuildID: "g1", UserID: "u1"}),
-		"held+1 would name this ticket -1")
+	held, err := d.mem.OpenTicketCount(ctx, discordstore.Member{GuildID: "g1", UserID: "u1"})
+	require.NoError(t, err)
+	require.Equal(t, 1, held, "held+1 would name this ticket -1")
 	require.Equal(t, []string{"ticket-ada-1", "ticket-ada-2"}, d.rpc.tally.Renamed)
 }
 
