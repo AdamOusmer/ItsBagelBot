@@ -72,6 +72,8 @@ in `application.ex`; consult `rpc.ex` before changing subject aliases.
 
 ## Invariants and pitfalls
 
+- Trial promotion is event-driven: `data.users.changed` stops the trial row on every pod;
+  the receiver checks registration only at lease acquisition, never per tick.
 - Horde shard redistribution is passive; deterministic placement and graceful
   make-before-break drain handle scaling/rollouts. Do not add a competing mover.
 - Session reconnect opens the replacement before closing the delivering socket;
