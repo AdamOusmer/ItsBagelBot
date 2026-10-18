@@ -137,8 +137,15 @@ func contextFor(owner string, cfg ddiscord.Config, ev ddiscord.Event) *module.Co
 	}
 }
 
-func fireGated(t *testing.T, reg *registry.Registry, cfg ddiscord.Config, ev ddiscord.Event, emit module.Emit) {
+type gatedEvent struct {
+	Reg   *registry.Registry
+	Cfg   ddiscord.Config
+	Event ddiscord.Event
+}
+
+func fireGated(t *testing.T, g gatedEvent, emit module.Emit) {
 	t.Helper()
+	reg, cfg, ev := g.Reg, g.Cfg, g.Event
 	mods := modulesFor(cfg)
 	for _, b := range reg.Events(ev.Type) {
 		if !mods.On(b.Module) {
@@ -149,8 +156,16 @@ func fireGated(t *testing.T, reg *registry.Registry, cfg ddiscord.Config, ev ddi
 	}
 }
 
-func runHandler(t *testing.T, owner string, h module.Handler, cfg ddiscord.Config, in decode.InteractionEvent) []ddiscord.Command {
+type handlerCall struct {
+	Owner   string
+	Handler module.Handler
+	Cfg     ddiscord.Config
+	In      decode.InteractionEvent
+}
+
+func runHandler(t *testing.T, call handlerCall) []ddiscord.Command {
 	t.Helper()
+	owner, h, cfg, in := call.Owner, call.Handler, call.Cfg, call.In
 	raw, err := codec.Marshal(in)
 	require.NoError(t, err)
 	var emitted []ddiscord.Command
@@ -222,13 +237,13 @@ func (d *desk) useStore(store discordstore.Store) {
 
 func (d *desk) button(customID string, in decode.InteractionEvent) string {
 	d.t.Helper()
-	return ephemeralText(d.t, runHandler(d.t, ddiscord.ModuleTickets, d.mod.Buttons[customID], d.cfg, in))
+	return ephemeralText(d.t, runHandler(d.t, handlerCall{ddiscord.ModuleTickets, d.mod.Buttons[customID], d.cfg, in}))
 }
 
 func (d *desk) slash(sub decode.InteractionOption, in decode.InteractionEvent) string {
 	d.t.Helper()
 	in.Data.Options = []decode.InteractionOption{sub}
-	return ephemeralText(d.t, runHandler(d.t, ddiscord.ModuleTickets, d.mod.Slash["ticket"], d.cfg, in))
+	return ephemeralText(d.t, runHandler(d.t, handlerCall{ddiscord.ModuleTickets, d.mod.Slash["ticket"], d.cfg, in}))
 }
 
 func (d *desk) open(a actor) string {

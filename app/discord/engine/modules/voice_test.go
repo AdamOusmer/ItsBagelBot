@@ -117,7 +117,7 @@ func (r *voiceRig) slash(sub decode.InteractionOption, a actor) string {
 	r.t.Helper()
 	in := a.in("room1")
 	in.Data.Options = []decode.InteractionOption{sub}
-	return ephemeralText(r.t, runHandler(r.t, ddiscord.ModuleVoice, r.mod.Slash["voice"], r.cfg, in))
+	return ephemeralText(r.t, runHandler(r.t, handlerCall{ddiscord.ModuleVoice, r.mod.Slash["voice"], r.cfg, in}))
 }
 
 func (r *voiceRig) trackRoom() {

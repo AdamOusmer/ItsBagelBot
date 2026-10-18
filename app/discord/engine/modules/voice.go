@@ -71,17 +71,23 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 		h.deleteEmptyClone(ctx, move.From)
 	}
 	if c.ModuleOn(ddiscord.ModuleVoice) && enteredVoiceHub(cfg, move) {
-		h.enterHub(ctx, c, cfg, ev, emit)
+		h.enterHub(ctx, voiceEntry{Cfg: cfg, Event: ev, Emit: emit})
 	}
 	return nil
 }
 
-func (h voiceModule) enterHub(ctx context.Context, c *module.Context, cfg ddiscord.VoiceSettings, ev decode.VoiceEvent, emit module.Emit) {
-	if !cfg.CategorySet() {
-		h.warnNoCategory(ev.GuildID)
+type voiceEntry struct {
+	Cfg   ddiscord.VoiceSettings
+	Event decode.VoiceEvent
+	Emit  module.Emit
+}
+
+func (h voiceModule) enterHub(ctx context.Context, in voiceEntry) {
+	if !in.Cfg.CategorySet() {
+		h.warnNoCategory(in.Event.GuildID)
 		return
 	}
-	h.cloneAndMove(ctx, c, cfg, ev, emit)
+	h.cloneAndMove(ctx, in)
 }
 
 func (h voiceModule) warnNoCategory(guildID string) {
@@ -117,7 +123,8 @@ func voiceOverwrites(cfg ddiscord.VoiceSettings, room voiceRoom) []discordapi.Pe
 	return out
 }
 
-func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, cfg ddiscord.VoiceSettings, ev decode.VoiceEvent, emit module.Emit) {
+func (h voiceModule) cloneAndMove(ctx context.Context, in voiceEntry) {
+	cfg, ev := in.Cfg, in.Event
 	if h.store.CloneCount(ctx, discordstore.Guild{ID: ev.GuildID}) >= ddiscord.VoiceCloneCap {
 		return
 	}
@@ -146,7 +153,7 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, cfg dd
 		h.deleteClone(ctx, cl)
 		return
 	}
-	emit(cmd.PostPanel(cmd.ChannelTarget(ev.GuildID, cl.ChannelID), "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: owner}), voiceRoomButtons()))
+	in.Emit(cmd.PostPanel(cmd.ChannelTarget(ev.GuildID, cl.ChannelID), "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: owner}), voiceRoomButtons()))
 }
 
 func voiceRoomButtons() []ddiscord.ButtonSpec {

@@ -57,7 +57,7 @@ func (r *logRig) fire(eventType string, payload map[string]any) []posted {
 		require.NoError(r.t, codec.Unmarshal(cmd.Payload, &p))
 		out = append(out, posted{ChannelID: cmd.ChannelID, Embed: p.Embed})
 	}
-	fireGated(r.t, r.reg, r.cfg, ddiscord.Event{Type: eventType, GuildID: "g1", Raw: raw}, emit)
+	fireGated(r.t, gatedEvent{r.reg, r.cfg, ddiscord.Event{Type: eventType, GuildID: "g1", Raw: raw}}, emit)
 	return out
 }
 
@@ -172,7 +172,7 @@ func TestLogsMemberJoinAndLeaveLogOnceThroughAllModules(t *testing.T) {
 		raw, err := codec.Marshal(map[string]any{"guild_id": "g1", "user": map[string]any{"id": "u1", "username": "Ada"}})
 		require.NoError(t, err)
 		var titles []string
-		fireGated(t, reg, cfg, ddiscord.Event{Type: tc.event, GuildID: "g1", Raw: raw}, func(cmd ddiscord.Command) {
+		fireGated(t, gatedEvent{reg, cfg, ddiscord.Event{Type: tc.event, GuildID: "g1", Raw: raw}}, func(cmd ddiscord.Command) {
 			var p ddiscord.EmbedPayload
 			require.NoError(t, codec.Unmarshal(cmd.Payload, &p))
 			titles = append(titles, p.Embed.Title)
@@ -330,7 +330,7 @@ func TestLogRoutingOfModerationCommands(t *testing.T) {
 	in := ada.in("c1")
 	in.Member.Permissions = "8"
 	in.Data.Options = []decode.InteractionOption{userOption("u2")}
-	cmds := runHandler(t, ddiscord.ModuleModeration, modules.Moderation(nil, zap.NewNop()).Slash["ban"], cfg, in)
+	cmds := runHandler(t, handlerCall{ddiscord.ModuleModeration, modules.Moderation(nil, zap.NewNop()).Slash["ban"], cfg, in})
 	var channels []string
 	for _, c := range cmds {
 		if c.Type == ddiscord.TypePostEmbed {
