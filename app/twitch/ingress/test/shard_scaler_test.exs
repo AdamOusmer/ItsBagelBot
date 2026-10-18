@@ -59,4 +59,13 @@ defmodule Ingress.ShardScalerTest do
     assert ShardScaler.set_target(1) == :ok
     assert ShardScaler.desired() == @configured_shards
   end
+
+  test "a configured shard count above the ceiling is capped at it" do
+    Ingress.EnvCase.put_env(conduit_shard_count: 13)
+    start_supervised!(ShardScaler)
+
+    assert ShardScaler.desired() == 11
+    autoscale_ticks(3)
+    assert ShardScaler.desired() == 11
+  end
 end
