@@ -94,6 +94,11 @@ func Eligible(v bool) predicate.GiveawayCandidate {
 	return predicate.GiveawayCandidate(sql.FieldEQ(FieldEligible, v))
 }
 
+// IncludedBy applies equality check predicate on the "included_by" field. It's identical to IncludedByEQ.
+func IncludedBy(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldEQ(FieldIncludedBy, v))
+}
+
 // PoolDigest applies equality check predicate on the "pool_digest" field. It's identical to PoolDigestEQ.
 func PoolDigest(v string) predicate.GiveawayCandidate {
 	return predicate.GiveawayCandidate(sql.FieldEQ(FieldPoolDigest, v))
@@ -432,6 +437,56 @@ func EligibleEQ(v bool) predicate.GiveawayCandidate {
 // EligibleNEQ applies the NEQ predicate on the "eligible" field.
 func EligibleNEQ(v bool) predicate.GiveawayCandidate {
 	return predicate.GiveawayCandidate(sql.FieldNEQ(FieldEligible, v))
+}
+
+// IncludedByEQ applies the EQ predicate on the "included_by" field.
+func IncludedByEQ(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldEQ(FieldIncludedBy, v))
+}
+
+// IncludedByNEQ applies the NEQ predicate on the "included_by" field.
+func IncludedByNEQ(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldNEQ(FieldIncludedBy, v))
+}
+
+// IncludedByIn applies the In predicate on the "included_by" field.
+func IncludedByIn(vs ...uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldIn(FieldIncludedBy, vs...))
+}
+
+// IncludedByNotIn applies the NotIn predicate on the "included_by" field.
+func IncludedByNotIn(vs ...uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldNotIn(FieldIncludedBy, vs...))
+}
+
+// IncludedByGT applies the GT predicate on the "included_by" field.
+func IncludedByGT(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldGT(FieldIncludedBy, v))
+}
+
+// IncludedByGTE applies the GTE predicate on the "included_by" field.
+func IncludedByGTE(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldGTE(FieldIncludedBy, v))
+}
+
+// IncludedByLT applies the LT predicate on the "included_by" field.
+func IncludedByLT(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldLT(FieldIncludedBy, v))
+}
+
+// IncludedByLTE applies the LTE predicate on the "included_by" field.
+func IncludedByLTE(v uint64) predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldLTE(FieldIncludedBy, v))
+}
+
+// IncludedByIsNil applies the IsNil predicate on the "included_by" field.
+func IncludedByIsNil() predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldIsNull(FieldIncludedBy))
+}
+
+// IncludedByNotNil applies the NotNil predicate on the "included_by" field.
+func IncludedByNotNil() predicate.GiveawayCandidate {
+	return predicate.GiveawayCandidate(sql.FieldNotNull(FieldIncludedBy))
 }
 
 // PoolDigestEQ applies the EQ predicate on the "pool_digest" field.

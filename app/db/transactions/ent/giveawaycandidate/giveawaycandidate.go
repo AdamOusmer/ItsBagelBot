@@ -25,6 +25,8 @@ const (
 	FieldExclusionReason = "exclusion_reason"
 	// FieldEligible holds the string denoting the eligible field in the database.
 	FieldEligible = "eligible"
+	// FieldIncludedBy holds the string denoting the included_by field in the database.
+	FieldIncludedBy = "included_by"
 	// FieldPoolDigest holds the string denoting the pool_digest field in the database.
 	FieldPoolDigest = "pool_digest"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -42,6 +44,7 @@ var Columns = []string{
 	FieldEligibilityJSON,
 	FieldExclusionReason,
 	FieldEligible,
+	FieldIncludedBy,
 	FieldPoolDigest,
 	FieldCreatedAt,
 }
@@ -113,6 +116,11 @@ func ByExclusionReason(opts ...sql.OrderTermOption) OrderOption {
 // ByEligible orders the results by the eligible field.
 func ByEligible(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEligible, opts...).ToFunc()
+}
+
+// ByIncludedBy orders the results by the included_by field.
+func ByIncludedBy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIncludedBy, opts...).ToFunc()
 }
 
 // ByPoolDigest orders the results by the pool_digest field.

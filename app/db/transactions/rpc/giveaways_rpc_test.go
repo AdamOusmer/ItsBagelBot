@@ -311,7 +311,7 @@ func TestGiveawayRPCFrozenReplaySummarizesStoredExclusionsWithoutUsers(t *testin
 	created := giveawayRequest[giveaways.CreateReply](t, f.nc, giveaways.AdminPrefix+".create", giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create"}, Title: "Stored summary", WinnerCount: 2, PrizeMonths: 3})
 	require.Empty(t, created.Error)
 	candidates := []giveawayengine.Candidate{{UserID: 1, Eligible: true}, {UserID: 2, ExclusionReason: "vip"}, {UserID: 3, ExclusionReason: "current_staff"}}
-	digest, err := giveawayengine.PoolDigest(candidates)
+	digest, err := giveawayengine.PoolDigest(giveawayengine.EligibleCandidates(candidates))
 	require.NoError(t, err)
 	freeze := giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "freeze", ExpectedVersion: created.Campaign.Version}, CampaignID: created.Campaign.ID, PoolDigest: digest}
 	_, err = giveawayengine.NewStore(f.db).FreezeCandidates(t.Context(), freeze, candidates, time.Now().UTC())
@@ -321,4 +321,50 @@ func TestGiveawayRPCFrozenReplaySummarizesStoredExclusionsWithoutUsers(t *testin
 
 	require.Empty(t, replayed.Error)
 	require.Equal(t, giveaways.PoolSummary{Total: 3, Eligible: 1, Excluded: 2, RequestedWinners: 2, PrizeMonths: 3, TotalPrizeMonths: "6", Exclusions: giveaways.PoolExclusionCounts{VIP: 1, CurrentStaff: 1}}, replayed.Summary)
+}
+
+func TestGiveawayRPCAddsExcludedAccountsBackBeforeFreeze(t *testing.T) {
+	f := newGiveawayRPCFixture(t, giveawayengine.Config{NewAwardsEnabled: true})
+	f.pool(t, usersrpc.GiveawayPoolReply{
+		Counts:     usersrpc.GiveawayPoolCounts{Total: 3, Eligible: 1, VIP: 1, Banned: 1},
+		Candidates: []usersrpc.GiveawayCandidate{{UserID: 1, Username: "one", Status: "free"}},
+		Excluded:   []usersrpc.GiveawayCandidate{{UserID: 2, Username: "two", Status: "vip", ExclusionReason: "vip"}, {UserID: 3, Username: "three", Status: "free", ExclusionReason: "banned"}},
+	})
+	created := giveawayRequest[giveaways.CreateReply](t, f.nc, giveaways.AdminPrefix+".create", giveaways.CreateRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "create"}, Title: "Overrides", WinnerCount: 1, PrizeMonths: 1})
+	require.Empty(t, created.Error)
+	include := func(user uint64) giveaways.PreviewReply {
+		return giveawayRequest[giveaways.PreviewReply](t, f.nc, giveaways.AdminPrefix+".include", giveaways.InclusionRequest{Mutation: giveaways.Mutation{ActorID: "10"}, CampaignID: created.Campaign.ID, UserID: user})
+	}
+
+	require.Equal(t, "banned accounts cannot be added back", include(3).Error)
+	require.Equal(t, "account is not excluded from the current pool", include(99).Error)
+
+	added := include(2)
+	require.Empty(t, added.Error)
+	require.Equal(t, giveaways.PoolSummary{Total: 3, Eligible: 2, Excluded: 1, Included: 1, Free: 1, Premium: 1, RequestedWinners: 1, PrizeMonths: 1, TotalPrizeMonths: "1", Exclusions: giveaways.PoolExclusionCounts{Banned: 1}}, added.Summary)
+	require.Len(t, added.Excluded, 2)
+	require.True(t, added.Excluded[0].Eligible)
+	require.Equal(t, uint64(10), *added.Excluded[0].IncludedBy)
+	require.False(t, added.Excluded[1].Eligible)
+	require.Equal(t, "banned", added.Excluded[1].ExclusionReason)
+
+	removed := giveawayRequest[giveaways.PreviewReply](t, f.nc, giveaways.AdminPrefix+".exclude", giveaways.InclusionRequest{Mutation: giveaways.Mutation{ActorID: "10"}, CampaignID: created.Campaign.ID, UserID: 2})
+	require.Empty(t, removed.Error)
+	require.Equal(t, 0, removed.Summary.Included)
+	require.Equal(t, 1, removed.Summary.Eligible)
+
+	readded := include(2)
+	require.Empty(t, readded.Error)
+	freeze := giveawayRequest[giveaways.FreezeReply](t, f.nc, giveaways.AdminPrefix+".freeze", giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "freeze", ExpectedVersion: created.Campaign.Version}, CampaignID: created.Campaign.ID, PoolDigest: readded.PoolDigest})
+	require.Empty(t, freeze.Error)
+
+	got := giveawayRequest[giveaways.GetReply](t, f.nc, giveaways.AdminPrefix+".get", giveaways.GetRequest{Mutation: giveaways.Mutation{ActorID: "10"}, CampaignID: created.Campaign.ID})
+	require.Empty(t, got.Error)
+	require.Len(t, got.Candidates, 3)
+	require.True(t, got.Candidates[1].Eligible)
+	require.Equal(t, "vip", got.Candidates[1].ExclusionReason)
+	require.Equal(t, uint64(10), *got.Candidates[1].IncludedBy)
+	require.False(t, got.Candidates[2].Eligible)
+
+	require.Equal(t, "accounts can only be added back while the giveaway is a draft", include(2).Error)
 }

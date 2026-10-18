@@ -22,7 +22,7 @@
   import { fmtDateTime } from '@bagel/kit/format';
   import { giveawayDrawState } from '@bagel/kit/giveaway';
   import { freezePoolDigest } from '$lib/giveaway-workflow';
-  import type { GiveawayDetailWire, GiveawayWinnerWire } from '$lib/server/giveaways';
+  import type { GiveawayDetailWire, GiveawayExcludedWire, GiveawayWinnerWire } from '$lib/server/giveaways';
 
   let { data, form } = $props();
   const errorMessage = $derived((form as { error?: string } | null)?.error);
@@ -30,7 +30,8 @@
   let giveaway = $state<GiveawayDetailWire | null>(null);
   let degraded = $state(false);
   let alertsDegraded = $state(false);
-  let preview = $state<{ eligible: number; free: number; premium: number; subscribers: number; excluded: number; poolDigest: string | null } | null>(null);
+  let preview = $state<{ eligible: number; free: number; premium: number; subscribers: number; excluded: number; included: number; poolDigest: string | null } | null>(null);
+  let previewExcluded = $state<GiveawayExcludedWire[] | null>(null);
   let actionMessage = $state<string | null>(null);
   let actionFailed = $state(false);
 
@@ -41,7 +42,7 @@
   });
 
   type GiveawayActionPayload = {
-    preview?: { poolDigest?: string; eligible?: { eligible?: number; free?: number; premium?: number; subscribers?: number; excluded?: number } };
+    preview?: { poolDigest?: string; included?: number; excluded?: GiveawayExcludedWire[]; eligible?: { eligible?: number; free?: number; premium?: number; subscribers?: number; excluded?: number } };
     action?: { ok?: boolean; notice?: string };
     notice?: string;
     error?: string;
@@ -56,8 +57,10 @@
         premium: payload.preview.eligible.premium ?? 0,
         subscribers: payload.preview.eligible.subscribers ?? 0,
         excluded: payload.preview.eligible.excluded ?? 0,
+        included: payload.preview.included ?? 0,
         poolDigest: freezePoolDigest(payload.preview)
       };
+      previewExcluded = payload.preview.excluded ?? [];
     }
     actionMessage = payload?.action?.notice ?? payload?.notice ?? payload?.error ?? null;
     actionFailed = result.type === 'failure' || payload?.action?.ok === false || Boolean(payload?.error);
@@ -106,6 +109,15 @@
     return t('admin.giveaways.protectionWarning');
   });
   const editable = $derived(giveaway?.status === 'draft' || giveaway?.status === 'frozen');
+  const excludedAccounts = $derived(previewExcluded ?? giveaway?.excluded ?? []);
+  const REASON_KEYS: Record<string, string> = {
+    banned: 'admin.giveaways.reasonBanned', inactive: 'admin.giveaways.reasonInactive', not_onboarded: 'admin.giveaways.reasonNotOnboarded',
+    test_account: 'admin.giveaways.reasonTestAccount', vip: 'admin.giveaways.reasonVip', current_staff: 'admin.giveaways.reasonCurrentStaff'
+  };
+  function reasonLabel(reason: string): string {
+    const key = REASON_KEYS[reason];
+    return key ? t(key) : label(reason);
+  }
 </script>
 
 <section class="screen active giveaway">
@@ -131,7 +143,7 @@
             <Cluster gap={3}>
               <form method="POST" action="?/preview" use:enhance={previewSubmit}><Button type="submit" variant="secondary">{t('admin.giveaways.preview')}</Button></form>
               {#if preview}
-                <Text as="span" size="sm" tone="muted">{preview.eligible} {t('admin.giveaways.eligible')} · {preview.free} {t('admin.giveaways.free')} · {preview.premium} {t('admin.giveaways.premium')} · {preview.subscribers} {t('admin.giveaways.subscribers')} · {preview.excluded} {t('admin.giveaways.excluded')}</Text>
+                <Text as="span" size="sm" tone="muted">{preview.eligible} {t('admin.giveaways.eligible')} · {preview.free} {t('admin.giveaways.free')} · {preview.premium} {t('admin.giveaways.premium')} · {preview.subscribers} {t('admin.giveaways.subscribers')} · {preview.excluded} {t('admin.giveaways.excluded')}{#if preview.included}{` · ${preview.included} ${t('admin.giveaways.addedBack')}`}{/if}</Text>
                 <form method="POST" action="?/freeze" use:enhance={mutationSubmit}><input type="hidden" name="pool_digest" value={preview.poolDigest ?? ''} /><input type="hidden" name="expected_version" value={giveaway.version} /><input type="hidden" name="idempotency_key" value={operationKey('freeze')} /><Button type="submit" variant="secondary" disabled={!preview.poolDigest}>{t('admin.giveaways.freeze')}</Button></form>
               {/if}
             </Cluster>
@@ -141,6 +153,32 @@
             {/if}
           </Stack>
         </Card>
+      {/if}
+
+      {#if editable || excludedAccounts.length}
+        <section>
+          <Stack gap={3}>
+            <Heading level={5} as="h2">{t('admin.giveaways.excludedAccounts')}</Heading>
+            <Text size="sm" tone="muted">{giveaway.status === 'draft' && !previewExcluded ? t('admin.giveaways.excludedPreviewHint') : t('admin.giveaways.excludedHint')}</Text>
+            {#if excludedAccounts.length}
+              <Card flush>
+                <Table label={t('admin.giveaways.excludedAccounts')} minWidth="640px">
+                  <thead><tr><th scope="col">{t('admin.giveaways.account')}</th><th scope="col">{t('admin.giveaways.reason')}</th><th scope="col">{t('admin.giveaways.state')}</th><th scope="col"></th></tr></thead>
+                  <tbody>
+                    {#each excludedAccounts as account (account.userId)}
+                      <tr>
+                        <td><Stack gap={1} align="start"><TextLink variant="inline" href={`/users?q=${encodeURIComponent(account.userId)}`}>@{account.login}</TextLink><Text as="small" size="xs" tone="muted">{account.userId}</Text></Stack></td>
+                        <td>{reasonLabel(account.reason)}</td>
+                        <td><StatePill tone={account.included ? 'success' : 'neutral'}>{account.included ? t('admin.giveaways.addedBack') : t('admin.giveaways.stillExcluded')}</StatePill></td>
+                        <td>{#if giveaway.status === 'draft' && account.includable}<form method="POST" action={account.included ? '?/exclude' : '?/include'} use:enhance={previewSubmit}><input type="hidden" name="user_id" value={account.userId} /><Button type="submit" variant="secondary">{account.included ? t('admin.giveaways.undoAddBack') : t('admin.giveaways.addBack')}</Button></form>{/if}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </Table>
+              </Card>
+            {/if}
+          </Stack>
+        </section>
       {/if}
 
       {#if giveaway.alerts?.length}

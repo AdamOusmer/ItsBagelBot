@@ -80,5 +80,20 @@
   "newAwardsDisabled": "La sélection est désactivée car les nouveaux prix de tirage sont indisponibles.",
   "winnersExceedEligible": "Choisissez au maximum {eligible} gagnants selon cette prévisualisation.",
   "previewSummaryOne": "{winners} gagnant × {months} mois = {total} mois Premium",
-  "previewSummaryMany": "{winners} gagnants × {months} mois = {total} mois Premium"
+  "previewSummaryMany": "{winners} gagnants × {months} mois = {total} mois Premium",
+  "excludedAccounts": "Comptes exclus",
+  "excludedHint": "Les comptes écartés de ce groupe et pourquoi. Réintègre un compte pour le rendre éligible avant le gel. Les comptes bannis restent exclus.",
+  "excludedPreviewHint": "Prévisualise l’éligibilité pour lister les comptes exclus.",
+  "reason": "Motif",
+  "state": "Statut",
+  "addBack": "Réintégrer",
+  "undoAddBack": "Retirer",
+  "addedBack": "Réintégré",
+  "stillExcluded": "Exclu",
+  "reasonBanned": "Banni",
+  "reasonInactive": "Inactif",
+  "reasonNotOnboarded": "Configuration non terminée",
+  "reasonTestAccount": "Compte de test",
+  "reasonVip": "VIP",
+  "reasonCurrentStaff": "Équipe actuelle"
 }

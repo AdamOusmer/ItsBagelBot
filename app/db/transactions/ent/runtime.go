@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
+	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/schema"
@@ -330,11 +331,11 @@ func init() {
 	// giveawaycandidate.DefaultEligible holds the default value on creation for the eligible field.
 	giveawaycandidate.DefaultEligible = giveawaycandidateDescEligible.Default.(bool)
 	// giveawaycandidateDescPoolDigest is the schema descriptor for pool_digest field.
-	giveawaycandidateDescPoolDigest := giveawaycandidateFields[7].Descriptor()
+	giveawaycandidateDescPoolDigest := giveawaycandidateFields[8].Descriptor()
 	// giveawaycandidate.PoolDigestValidator is a validator for the "pool_digest" field. It is called by the builders before save.
 	giveawaycandidate.PoolDigestValidator = giveawaycandidateDescPoolDigest.Validators[0].(func(string) error)
 	// giveawaycandidateDescCreatedAt is the schema descriptor for created_at field.
-	giveawaycandidateDescCreatedAt := giveawaycandidateFields[8].Descriptor()
+	giveawaycandidateDescCreatedAt := giveawaycandidateFields[9].Descriptor()
 	// giveawaycandidate.DefaultCreatedAt holds the default value on creation for the created_at field.
 	giveawaycandidate.DefaultCreatedAt = giveawaycandidateDescCreatedAt.Default.(func() time.Time)
 	// giveawaycandidateDescID is the schema descriptor for id field.
@@ -397,6 +398,50 @@ func init() {
 	giveawayfulfillmentplanDescID := giveawayfulfillmentplanFields[0].Descriptor()
 	// giveawayfulfillmentplan.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	giveawayfulfillmentplan.IDValidator = giveawayfulfillmentplanDescID.Validators[0].(func(string) error)
+	giveawayinclusionFields := schema.GiveawayInclusion{}.Fields()
+	_ = giveawayinclusionFields
+	// giveawayinclusionDescGiveawayID is the schema descriptor for giveaway_id field.
+	giveawayinclusionDescGiveawayID := giveawayinclusionFields[1].Descriptor()
+	// giveawayinclusion.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	giveawayinclusion.GiveawayIDValidator = giveawayinclusionDescGiveawayID.Validators[0].(func(string) error)
+	// giveawayinclusionDescUserID is the schema descriptor for user_id field.
+	giveawayinclusionDescUserID := giveawayinclusionFields[2].Descriptor()
+	// giveawayinclusion.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	giveawayinclusion.UserIDValidator = giveawayinclusionDescUserID.Validators[0].(func(uint64) error)
+	// giveawayinclusionDescTwitchLogin is the schema descriptor for twitch_login field.
+	giveawayinclusionDescTwitchLogin := giveawayinclusionFields[3].Descriptor()
+	// giveawayinclusion.TwitchLoginValidator is a validator for the "twitch_login" field. It is called by the builders before save.
+	giveawayinclusion.TwitchLoginValidator = giveawayinclusionDescTwitchLogin.Validators[0].(func(string) error)
+	// giveawayinclusionDescExclusionReason is the schema descriptor for exclusion_reason field.
+	giveawayinclusionDescExclusionReason := giveawayinclusionFields[4].Descriptor()
+	// giveawayinclusion.ExclusionReasonValidator is a validator for the "exclusion_reason" field. It is called by the builders before save.
+	giveawayinclusion.ExclusionReasonValidator = func() func(string) error {
+		validators := giveawayinclusionDescExclusionReason.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(exclusion_reason string) error {
+			for _, fn := range fns {
+				if err := fn(exclusion_reason); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// giveawayinclusionDescCreatedBy is the schema descriptor for created_by field.
+	giveawayinclusionDescCreatedBy := giveawayinclusionFields[5].Descriptor()
+	// giveawayinclusion.CreatedByValidator is a validator for the "created_by" field. It is called by the builders before save.
+	giveawayinclusion.CreatedByValidator = giveawayinclusionDescCreatedBy.Validators[0].(func(uint64) error)
+	// giveawayinclusionDescCreatedAt is the schema descriptor for created_at field.
+	giveawayinclusionDescCreatedAt := giveawayinclusionFields[6].Descriptor()
+	// giveawayinclusion.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveawayinclusion.DefaultCreatedAt = giveawayinclusionDescCreatedAt.Default.(func() time.Time)
+	// giveawayinclusionDescID is the schema descriptor for id field.
+	giveawayinclusionDescID := giveawayinclusionFields[0].Descriptor()
+	// giveawayinclusion.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayinclusion.IDValidator = giveawayinclusionDescID.Validators[0].(func(string) error)
 	giveawayoutboxFields := schema.GiveawayOutbox{}.Fields()
 	_ = giveawayoutboxFields
 	// giveawayoutboxDescAggregateID is the schema descriptor for aggregate_id field.

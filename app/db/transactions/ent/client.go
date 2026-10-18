@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
+	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
@@ -50,6 +51,8 @@ type Client struct {
 	GiveawayDraw *GiveawayDrawClient
 	// GiveawayFulfillmentPlan is the client for interacting with the GiveawayFulfillmentPlan builders.
 	GiveawayFulfillmentPlan *GiveawayFulfillmentPlanClient
+	// GiveawayInclusion is the client for interacting with the GiveawayInclusion builders.
+	GiveawayInclusion *GiveawayInclusionClient
 	// GiveawayOutbox is the client for interacting with the GiveawayOutbox builders.
 	GiveawayOutbox *GiveawayOutboxClient
 	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
@@ -77,6 +80,7 @@ func (c *Client) init() {
 	c.GiveawayCandidate = NewGiveawayCandidateClient(c.config)
 	c.GiveawayDraw = NewGiveawayDrawClient(c.config)
 	c.GiveawayFulfillmentPlan = NewGiveawayFulfillmentPlanClient(c.config)
+	c.GiveawayInclusion = NewGiveawayInclusionClient(c.config)
 	c.GiveawayOutbox = NewGiveawayOutboxClient(c.config)
 	c.GiveawayUserLease = NewGiveawayUserLeaseClient(c.config)
 	c.TebexAgreement = NewTebexAgreementClient(c.config)
@@ -181,6 +185,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GiveawayCandidate:       NewGiveawayCandidateClient(cfg),
 		GiveawayDraw:            NewGiveawayDrawClient(cfg),
 		GiveawayFulfillmentPlan: NewGiveawayFulfillmentPlanClient(cfg),
+		GiveawayInclusion:       NewGiveawayInclusionClient(cfg),
 		GiveawayOutbox:          NewGiveawayOutboxClient(cfg),
 		GiveawayUserLease:       NewGiveawayUserLeaseClient(cfg),
 		TebexAgreement:          NewTebexAgreementClient(cfg),
@@ -212,6 +217,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GiveawayCandidate:       NewGiveawayCandidateClient(cfg),
 		GiveawayDraw:            NewGiveawayDrawClient(cfg),
 		GiveawayFulfillmentPlan: NewGiveawayFulfillmentPlanClient(cfg),
+		GiveawayInclusion:       NewGiveawayInclusionClient(cfg),
 		GiveawayOutbox:          NewGiveawayOutboxClient(cfg),
 		GiveawayUserLease:       NewGiveawayUserLeaseClient(cfg),
 		TebexAgreement:          NewTebexAgreementClient(cfg),
@@ -247,7 +253,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
 		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayFulfillmentPlan,
-		c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement, c.TebexWebhookEvents,
+		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement,
+		c.TebexWebhookEvents,
 	} {
 		n.Use(hooks...)
 	}
@@ -259,7 +266,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
 		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayFulfillmentPlan,
-		c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement, c.TebexWebhookEvents,
+		c.GiveawayInclusion, c.GiveawayOutbox, c.GiveawayUserLease, c.TebexAgreement,
+		c.TebexWebhookEvents,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -284,6 +292,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.GiveawayDraw.mutate(ctx, m)
 	case *GiveawayFulfillmentPlanMutation:
 		return c.GiveawayFulfillmentPlan.mutate(ctx, m)
+	case *GiveawayInclusionMutation:
+		return c.GiveawayInclusion.mutate(ctx, m)
 	case *GiveawayOutboxMutation:
 		return c.GiveawayOutbox.mutate(ctx, m)
 	case *GiveawayUserLeaseMutation:
@@ -1361,6 +1371,139 @@ func (c *GiveawayFulfillmentPlanClient) mutate(ctx context.Context, m *GiveawayF
 	}
 }
 
+// GiveawayInclusionClient is a client for the GiveawayInclusion schema.
+type GiveawayInclusionClient struct {
+	config
+}
+
+// NewGiveawayInclusionClient returns a client for the GiveawayInclusion from the given config.
+func NewGiveawayInclusionClient(c config) *GiveawayInclusionClient {
+	return &GiveawayInclusionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawayinclusion.Hooks(f(g(h())))`.
+func (c *GiveawayInclusionClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayInclusion = append(c.hooks.GiveawayInclusion, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawayinclusion.Intercept(f(g(h())))`.
+func (c *GiveawayInclusionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayInclusion = append(c.inters.GiveawayInclusion, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayInclusion entity.
+func (c *GiveawayInclusionClient) Create() *GiveawayInclusionCreate {
+	mutation := newGiveawayInclusionMutation(c.config, OpCreate)
+	return &GiveawayInclusionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayInclusion entities.
+func (c *GiveawayInclusionClient) CreateBulk(builders ...*GiveawayInclusionCreate) *GiveawayInclusionCreateBulk {
+	return &GiveawayInclusionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayInclusionClient) MapCreateBulk(slice any, setFunc func(*GiveawayInclusionCreate, int)) *GiveawayInclusionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayInclusionCreateBulk{err: fmt.Errorf("calling to GiveawayInclusionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayInclusionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayInclusionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayInclusion.
+func (c *GiveawayInclusionClient) Update() *GiveawayInclusionUpdate {
+	mutation := newGiveawayInclusionMutation(c.config, OpUpdate)
+	return &GiveawayInclusionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayInclusionClient) UpdateOne(_m *GiveawayInclusion) *GiveawayInclusionUpdateOne {
+	mutation := newGiveawayInclusionMutation(c.config, OpUpdateOne, withGiveawayInclusion(_m))
+	return &GiveawayInclusionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayInclusionClient) UpdateOneID(id string) *GiveawayInclusionUpdateOne {
+	mutation := newGiveawayInclusionMutation(c.config, OpUpdateOne, withGiveawayInclusionID(id))
+	return &GiveawayInclusionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayInclusion.
+func (c *GiveawayInclusionClient) Delete() *GiveawayInclusionDelete {
+	mutation := newGiveawayInclusionMutation(c.config, OpDelete)
+	return &GiveawayInclusionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayInclusionClient) DeleteOne(_m *GiveawayInclusion) *GiveawayInclusionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayInclusionClient) DeleteOneID(id string) *GiveawayInclusionDeleteOne {
+	builder := c.Delete().Where(giveawayinclusion.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayInclusionDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayInclusion.
+func (c *GiveawayInclusionClient) Query() *GiveawayInclusionQuery {
+	return &GiveawayInclusionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayInclusion},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayInclusion entity by its id.
+func (c *GiveawayInclusionClient) Get(ctx context.Context, id string) (*GiveawayInclusion, error) {
+	return c.Query().Where(giveawayinclusion.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayInclusionClient) GetX(ctx context.Context, id string) *GiveawayInclusion {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayInclusionClient) Hooks() []Hook {
+	return c.hooks.GiveawayInclusion
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayInclusionClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayInclusion
+}
+
+func (c *GiveawayInclusionClient) mutate(ctx context.Context, m *GiveawayInclusionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayInclusionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayInclusionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayInclusionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayInclusionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayInclusion mutation op: %q", m.Op())
+	}
+}
+
 // GiveawayOutboxClient is a client for the GiveawayOutbox schema.
 type GiveawayOutboxClient struct {
 	config
@@ -1897,12 +2040,14 @@ func (c *TebexWebhookEventsClient) mutate(ctx context.Context, m *TebexWebhookEv
 type (
 	hooks struct {
 		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
-		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayOutbox,
-		GiveawayUserLease, TebexAgreement, TebexWebhookEvents []ent.Hook
+		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayInclusion,
+		GiveawayOutbox, GiveawayUserLease, TebexAgreement,
+		TebexWebhookEvents []ent.Hook
 	}
 	inters struct {
 		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
-		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayOutbox,
-		GiveawayUserLease, TebexAgreement, TebexWebhookEvents []ent.Interceptor
+		GiveawayCandidate, GiveawayDraw, GiveawayFulfillmentPlan, GiveawayInclusion,
+		GiveawayOutbox, GiveawayUserLease, TebexAgreement,
+		TebexWebhookEvents []ent.Interceptor
 	}
 )

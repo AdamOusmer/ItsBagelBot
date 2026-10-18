@@ -70,7 +70,7 @@ func TestGiveawayGrantCustody(t *testing.T) {
 func TestDashboardCannotAdministerGiveaways(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	dashboard := catalog.byUser["dashboard_rpc"]
-	for _, verb := range []string{"create", "preview", "freeze", "draw", "get", "list", "retry", "alerts", "history", "capabilities"} {
+	for _, verb := range []string{"create", "preview", "freeze", "draw", "get", "list", "retry", "alerts", "history", "capabilities", "include", "exclude"} {
 		subject := "bagel.rpc.admin.giveaways." + verb
 		for _, candidate := range []string{subject, subject + ".node.n1"} {
 			_, imported := dashboard.importCovering(candidate)

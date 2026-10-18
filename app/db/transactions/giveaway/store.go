@@ -207,7 +207,7 @@ func validateFreezeRequest(req giveaways.FreezeRequest) error {
 }
 
 func validateFreezePool(req giveaways.FreezeRequest, candidates []Candidate) error {
-	digest, err := PoolDigest(candidates)
+	digest, err := PoolDigest(EligibleCandidates(candidates))
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (batch candidateBatch) save(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		_, err = batch.tx.GiveawayCandidate.Create().SetID(uuid.NewString()).SetGiveawayID(batch.campaignID).SetUserID(candidate.UserID).SetTwitchLogin(candidate.Username).SetEligibilityJSON(string(facts)).SetPoolDigest(batch.digest).SetEligible(candidate.Eligible).SetExclusionReason(candidate.ExclusionReason).Save(ctx)
+		_, err = batch.tx.GiveawayCandidate.Create().SetID(uuid.NewString()).SetGiveawayID(batch.campaignID).SetUserID(candidate.UserID).SetTwitchLogin(candidate.Username).SetEligibilityJSON(string(facts)).SetPoolDigest(batch.digest).SetEligible(candidate.Eligible).SetExclusionReason(candidate.ExclusionReason).SetNillableIncludedBy(candidate.IncludedBy).Save(ctx)
 		if err != nil {
 			return err
 		}

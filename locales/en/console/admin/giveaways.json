@@ -80,5 +80,20 @@
   "newAwardsDisabled": "Selection is disabled because new giveaway awards are unavailable.",
   "winnersExceedEligible": "Choose no more than {eligible} winners from this preview.",
   "previewSummaryOne": "{winners} winner × {months} month = {total} Premium month",
-  "previewSummaryMany": "{winners} winners × {months} months = {total} Premium months"
+  "previewSummaryMany": "{winners} winners × {months} months = {total} Premium months",
+  "excludedAccounts": "Excluded accounts",
+  "excludedHint": "Accounts left out of this pool and why. Add one back to make it eligible before you freeze. Banned accounts stay excluded.",
+  "excludedPreviewHint": "Preview eligibility to list excluded accounts.",
+  "reason": "Reason",
+  "state": "Status",
+  "addBack": "Add back",
+  "undoAddBack": "Remove",
+  "addedBack": "Added back",
+  "stillExcluded": "Excluded",
+  "reasonBanned": "Banned",
+  "reasonInactive": "Inactive",
+  "reasonNotOnboarded": "Not onboarded",
+  "reasonTestAccount": "Test account",
+  "reasonVip": "VIP",
+  "reasonCurrentStaff": "Current staff"
 }

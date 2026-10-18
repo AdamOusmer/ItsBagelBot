@@ -58,7 +58,7 @@ func TestCreateAndFreezeReplayUseStableKeys(t *testing.T) {
 	require.ErrorIs(t, err, ErrVersion)
 
 	candidates := []Candidate{{UserID: 7, Eligible: true}, {UserID: 9, Eligible: false}}
-	digest, err := PoolDigest(candidates)
+	digest, err := PoolDigest(EligibleCandidates(candidates))
 	require.NoError(t, err)
 	freeze := giveaways.FreezeRequest{Mutation: giveaways.Mutation{ActorID: "10", IdempotencyKey: "freeze-stable", ExpectedVersion: first.Version}, CampaignID: first.ID, PoolDigest: digest}
 	frozen, err := store.FreezeCandidates(t.Context(), freeze, candidates, f.now)

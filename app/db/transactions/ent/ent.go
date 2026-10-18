@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
+	"ItsBagelBot/app/db/transactions/ent/giveawayinclusion"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
@@ -92,6 +93,7 @@ func checkColumn(t, c string) error {
 			giveawaycandidate.Table:       giveawaycandidate.ValidColumn,
 			giveawaydraw.Table:            giveawaydraw.ValidColumn,
 			giveawayfulfillmentplan.Table: giveawayfulfillmentplan.ValidColumn,
+			giveawayinclusion.Table:       giveawayinclusion.ValidColumn,
 			giveawayoutbox.Table:          giveawayoutbox.ValidColumn,
 			giveawayuserlease.Table:       giveawayuserlease.ValidColumn,
 			tebexagreement.Table:          tebexagreement.ValidColumn,

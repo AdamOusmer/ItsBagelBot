@@ -14,5 +14,6 @@
   "snapshotFrozenDemo": "Instantané d'éligibilité figé (démo).",
   "snapshotFrozen": "Instantané d'éligibilité figé.",
   "retryQueuedDemo": "Nouvel essai d'attribution mis en file (démo).",
-  "retryQueued": "Nouvel essai d'attribution mis en file."
+  "retryQueued": "Nouvel essai d'attribution mis en file.",
+  "userIdRequired": "identifiant utilisateur requis"
 }

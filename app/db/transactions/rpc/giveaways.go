@@ -114,6 +114,8 @@ func bindGiveawaySubscriptions(w bus.RPCWiring, g *GiveawayRPC) error {
 		func() error { return bus.Serve(w, prefix+giveaways.VerbAlerts, g.alerts) },
 		func() error { return bus.Serve(w, prefix+giveaways.VerbHistory, g.history) },
 		func() error { return bus.Serve(w, prefix+giveaways.VerbCapabilities, g.capabilitiesRPC) },
+		func() error { return bus.Serve(w, prefix+giveaways.VerbInclude, g.include) },
+		func() error { return bus.Serve(w, prefix+giveaways.VerbExclude, g.exclude) },
 		func() error { return bus.Serve(w, giveaways.MineSubject, g.mine) },
 	}
 	for _, bind := range binders {
@@ -338,38 +340,75 @@ func (g *GiveawayRPC) mine(ctx context.Context, req giveaways.MineRequest) givea
 	return out
 }
 
-func poolCandidates(pool usersrpc.GiveawayPoolReply) []giveawayengine.Candidate {
-	out := make([]giveawayengine.Candidate, 0, len(pool.Candidates))
+func poolCandidates(pool usersrpc.GiveawayPoolReply, inclusions map[uint64]*ent.GiveawayInclusion) []giveawayengine.Candidate {
+	out := make([]giveawayengine.Candidate, 0, len(pool.Candidates)+len(pool.Excluded))
 	for _, c := range pool.Candidates {
 		out = append(out, giveawayengine.Candidate{UserID: c.UserID, Username: c.Username, Eligible: true, Eligibility: c})
 	}
-	return out
-}
-func wireCandidates(in []giveawayengine.Candidate) []giveaways.Candidate {
-	out := make([]giveaways.Candidate, 0, len(in))
-	for _, c := range in {
-		out = append(out, giveaways.Candidate{UserID: c.UserID, Username: c.Username, Eligible: c.Eligible, Eligibility: c.Eligibility})
+	for _, c := range pool.Excluded {
+		out = append(out, excludedCandidate(c, inclusions[c.UserID]))
 	}
 	return out
 }
-func summary(pool usersrpc.GiveawayPoolReply, c *ent.Giveaway) giveaways.PoolSummary {
-	return summaryValues(pool, c.WinnerCount, c.PrizeMonths)
+
+func excludedCandidate(c usersrpc.GiveawayCandidate, inclusion *ent.GiveawayInclusion) giveawayengine.Candidate {
+	out := giveawayengine.Candidate{UserID: c.UserID, Username: c.Username, ExclusionReason: c.ExclusionReason, Eligibility: c}
+	if inclusion != nil && includable(c.ExclusionReason) {
+		out.Eligible = true
+		out.IncludedBy = &inclusion.CreatedBy
+	}
+	return out
 }
-func summaryValues(pool usersrpc.GiveawayPoolReply, winners, months int) giveaways.PoolSummary {
-	s := giveaways.PoolSummary{Total: pool.Counts.Total, Eligible: pool.Counts.Eligible, RequestedWinners: winners, PrizeMonths: months}
-	s.Exclusions = giveaways.PoolExclusionCounts{Banned: pool.Counts.Banned, Inactive: pool.Counts.Inactive, NotOnboarded: pool.Counts.NotOnboarded, TestAccount: pool.Counts.TestAccount, VIP: pool.Counts.VIP, CurrentStaff: pool.Counts.CurrentStaff}
-	s.Excluded = s.Total - s.Eligible
-	for _, x := range pool.Candidates {
-		if x.SubscriptionRef != nil && *x.SubscriptionRef != "" {
-			s.Subscribers++
-		} else if x.Status == "free" {
-			s.Free++
-		} else {
-			s.Premium++
+
+func includable(reason string) bool {
+	return reason != "" && reason != usersrpc.GiveawayExclusionBanned
+}
+
+func wireCandidate(c giveawayengine.Candidate) giveaways.Candidate {
+	return giveaways.Candidate{UserID: c.UserID, Username: c.Username, Eligible: c.Eligible, ExclusionReason: c.ExclusionReason, IncludedBy: c.IncludedBy, Eligibility: c.Eligibility}
+}
+
+func wirePool(in []giveawayengine.Candidate) (eligible, excluded []giveaways.Candidate) {
+	for _, c := range in {
+		if c.Eligible {
+			eligible = append(eligible, wireCandidate(c))
+		}
+		if c.ExclusionReason != "" {
+			excluded = append(excluded, wireCandidate(c))
 		}
 	}
-	s.TotalPrizeMonths, _ = giveawayengine.PrizeTotal(winners, months)
+	return eligible, excluded
+}
+
+func summaryValues(pool usersrpc.GiveawayPoolReply, candidates []giveawayengine.Candidate, plan prizePlan) giveaways.PoolSummary {
+	s := giveaways.PoolSummary{Total: pool.Counts.Total, Eligible: pool.Counts.Eligible, RequestedWinners: plan.winners, PrizeMonths: plan.months}
+	s.Exclusions = giveaways.PoolExclusionCounts{Banned: pool.Counts.Banned, Inactive: pool.Counts.Inactive, NotOnboarded: pool.Counts.NotOnboarded, TestAccount: pool.Counts.TestAccount, VIP: pool.Counts.VIP, CurrentStaff: pool.Counts.CurrentStaff}
+	for _, c := range candidates {
+		addPoolCandidate(&s, c)
+	}
+	s.Excluded = s.Total - s.Eligible
+	s.TotalPrizeMonths, _ = giveawayengine.PrizeTotal(plan.winners, plan.months)
 	return s
+}
+
+func addPoolCandidate(s *giveaways.PoolSummary, c giveawayengine.Candidate) {
+	if !c.Eligible {
+		return
+	}
+	if c.IncludedBy != nil {
+		s.Eligible++
+		s.Included++
+		addStoredExclusion(&s.Exclusions, c.ExclusionReason, -1)
+	}
+	facts, _ := c.Eligibility.(usersrpc.GiveawayCandidate)
+	switch {
+	case facts.SubscriptionRef != nil && *facts.SubscriptionRef != "":
+		s.Subscribers++
+	case facts.Status == "free":
+		s.Free++
+	default:
+		s.Premium++
+	}
 }
 
 func storedSummary(campaign *ent.Giveaway, rows []*ent.GiveawayCandidate) giveaways.PoolSummary {
@@ -384,26 +423,29 @@ func storedSummary(campaign *ent.Giveaway, rows []*ent.GiveawayCandidate) giveaw
 func addStoredCandidate(summary *giveaways.PoolSummary, row *ent.GiveawayCandidate) {
 	if row.Eligible {
 		summary.Eligible++
+		if row.IncludedBy != nil {
+			summary.Included++
+		}
 		return
 	}
 	summary.Excluded++
-	addStoredExclusion(&summary.Exclusions, row.ExclusionReason)
+	addStoredExclusion(&summary.Exclusions, row.ExclusionReason, 1)
 }
 
-func addStoredExclusion(counts *giveaways.PoolExclusionCounts, reason string) {
+func addStoredExclusion(counts *giveaways.PoolExclusionCounts, reason string, delta int) {
 	switch reason {
-	case "banned":
-		counts.Banned++
-	case "inactive":
-		counts.Inactive++
-	case "not_onboarded":
-		counts.NotOnboarded++
-	case "test_account":
-		counts.TestAccount++
-	case "vip":
-		counts.VIP++
-	case "current_staff":
-		counts.CurrentStaff++
+	case usersrpc.GiveawayExclusionBanned:
+		counts.Banned += delta
+	case usersrpc.GiveawayExclusionInactive:
+		counts.Inactive += delta
+	case usersrpc.GiveawayExclusionNotOnboarded:
+		counts.NotOnboarded += delta
+	case usersrpc.GiveawayExclusionTestAccount:
+		counts.TestAccount += delta
+	case usersrpc.GiveawayExclusionVIP:
+		counts.VIP += delta
+	case usersrpc.GiveawayExclusionCurrentStaff:
+		counts.CurrentStaff += delta
 	}
 }
 func campaignView(c *ent.Giveaway) *giveaways.Campaign {
@@ -446,7 +488,7 @@ func awardViewWithRule(a *ent.GiveawayAward, rule string) giveaways.Award {
 func candidateView(c *ent.GiveawayCandidate) giveaways.Candidate {
 	var v any
 	_ = codec.Unmarshal([]byte(c.EligibilityJSON), &v)
-	return giveaways.Candidate{ID: c.ID, UserID: c.UserID, Username: c.TwitchLogin, Eligible: c.Eligible, ExclusionReason: c.ExclusionReason, Eligibility: v}
+	return giveaways.Candidate{ID: c.ID, UserID: c.UserID, Username: c.TwitchLogin, Eligible: c.Eligible, ExclusionReason: c.ExclusionReason, IncludedBy: c.IncludedBy, Eligibility: v}
 }
 func drawView(d *ent.GiveawayDraw) *giveaways.Draw {
 	var ids []uint64

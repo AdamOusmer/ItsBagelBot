@@ -80,5 +80,20 @@
   "newAwardsDisabled": "La selección está desactivada porque no están disponibles nuevos premios de sorteos.",
   "winnersExceedEligible": "Elige ganadores de esta vista previa (máximo: {eligible}).",
   "previewSummaryOne": "Ganadores: {winners} × duración en meses: {months} = total de meses de Premium: {total}",
-  "previewSummaryMany": "Ganadores: {winners} × duración en meses: {months} = total de meses de Premium: {total}"
+  "previewSummaryMany": "Ganadores: {winners} × duración en meses: {months} = total de meses de Premium: {total}",
+  "excludedAccounts": "Cuentas excluidas",
+  "excludedHint": "Cuentas que quedaron fuera de este grupo y el motivo. Vuelve a añadir una para que participe antes de congelar. Las cuentas baneadas siguen excluidas.",
+  "excludedPreviewHint": "Previsualiza la elegibilidad para ver las cuentas excluidas.",
+  "reason": "Motivo",
+  "state": "Estado",
+  "addBack": "Volver a añadir",
+  "undoAddBack": "Quitar",
+  "addedBack": "Añadida de nuevo",
+  "stillExcluded": "Excluida",
+  "reasonBanned": "Baneada",
+  "reasonInactive": "Inactiva",
+  "reasonNotOnboarded": "Sin configurar",
+  "reasonTestAccount": "Cuenta de prueba",
+  "reasonVip": "VIP",
+  "reasonCurrentStaff": "Equipo actual"
 }

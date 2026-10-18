@@ -14,5 +14,6 @@
   "snapshotFrozenDemo": "Snapshot de elegibilidade congelado (demonstração).",
   "snapshotFrozen": "Snapshot de elegibilidade congelado.",
   "retryQueuedDemo": "Nova tentativa de entrega na fila (demonstração).",
-  "retryQueued": "Nova tentativa de entrega na fila."
+  "retryQueued": "Nova tentativa de entrega na fila.",
+  "userIdRequired": "id de usuário obrigatório"
 }

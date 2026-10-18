@@ -130,6 +130,33 @@ func (_u *GiveawayCandidateUpdate) SetNillableEligible(v *bool) *GiveawayCandida
 	return _u
 }
 
+// SetIncludedBy sets the "included_by" field.
+func (_u *GiveawayCandidateUpdate) SetIncludedBy(v uint64) *GiveawayCandidateUpdate {
+	_u.mutation.ResetIncludedBy()
+	_u.mutation.SetIncludedBy(v)
+	return _u
+}
+
+// SetNillableIncludedBy sets the "included_by" field if the given value is not nil.
+func (_u *GiveawayCandidateUpdate) SetNillableIncludedBy(v *uint64) *GiveawayCandidateUpdate {
+	if v != nil {
+		_u.SetIncludedBy(*v)
+	}
+	return _u
+}
+
+// AddIncludedBy adds value to the "included_by" field.
+func (_u *GiveawayCandidateUpdate) AddIncludedBy(v int64) *GiveawayCandidateUpdate {
+	_u.mutation.AddIncludedBy(v)
+	return _u
+}
+
+// ClearIncludedBy clears the value of the "included_by" field.
+func (_u *GiveawayCandidateUpdate) ClearIncludedBy() *GiveawayCandidateUpdate {
+	_u.mutation.ClearIncludedBy()
+	return _u
+}
+
 // SetPoolDigest sets the "pool_digest" field.
 func (_u *GiveawayCandidateUpdate) SetPoolDigest(v string) *GiveawayCandidateUpdate {
 	_u.mutation.SetPoolDigest(v)
@@ -249,6 +276,15 @@ func (_u *GiveawayCandidateUpdate) sqlSave(ctx context.Context) (_node int, err 
 	}
 	if value, ok := _u.mutation.Eligible(); ok {
 		_spec.SetField(giveawaycandidate.FieldEligible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.IncludedBy(); ok {
+		_spec.SetField(giveawaycandidate.FieldIncludedBy, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedIncludedBy(); ok {
+		_spec.AddField(giveawaycandidate.FieldIncludedBy, field.TypeUint64, value)
+	}
+	if _u.mutation.IncludedByCleared() {
+		_spec.ClearField(giveawaycandidate.FieldIncludedBy, field.TypeUint64)
 	}
 	if value, ok := _u.mutation.PoolDigest(); ok {
 		_spec.SetField(giveawaycandidate.FieldPoolDigest, field.TypeString, value)
@@ -373,6 +409,33 @@ func (_u *GiveawayCandidateUpdateOne) SetNillableEligible(v *bool) *GiveawayCand
 	if v != nil {
 		_u.SetEligible(*v)
 	}
+	return _u
+}
+
+// SetIncludedBy sets the "included_by" field.
+func (_u *GiveawayCandidateUpdateOne) SetIncludedBy(v uint64) *GiveawayCandidateUpdateOne {
+	_u.mutation.ResetIncludedBy()
+	_u.mutation.SetIncludedBy(v)
+	return _u
+}
+
+// SetNillableIncludedBy sets the "included_by" field if the given value is not nil.
+func (_u *GiveawayCandidateUpdateOne) SetNillableIncludedBy(v *uint64) *GiveawayCandidateUpdateOne {
+	if v != nil {
+		_u.SetIncludedBy(*v)
+	}
+	return _u
+}
+
+// AddIncludedBy adds value to the "included_by" field.
+func (_u *GiveawayCandidateUpdateOne) AddIncludedBy(v int64) *GiveawayCandidateUpdateOne {
+	_u.mutation.AddIncludedBy(v)
+	return _u
+}
+
+// ClearIncludedBy clears the value of the "included_by" field.
+func (_u *GiveawayCandidateUpdateOne) ClearIncludedBy() *GiveawayCandidateUpdateOne {
+	_u.mutation.ClearIncludedBy()
 	return _u
 }
 
@@ -525,6 +588,15 @@ func (_u *GiveawayCandidateUpdateOne) sqlSave(ctx context.Context) (_node *Givea
 	}
 	if value, ok := _u.mutation.Eligible(); ok {
 		_spec.SetField(giveawaycandidate.FieldEligible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.IncludedBy(); ok {
+		_spec.SetField(giveawaycandidate.FieldIncludedBy, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.AddedIncludedBy(); ok {
+		_spec.AddField(giveawaycandidate.FieldIncludedBy, field.TypeUint64, value)
+	}
+	if _u.mutation.IncludedByCleared() {
+		_spec.ClearField(giveawaycandidate.FieldIncludedBy, field.TypeUint64)
 	}
 	if value, ok := _u.mutation.PoolDigest(); ok {
 		_spec.SetField(giveawaycandidate.FieldPoolDigest, field.TypeString, value)

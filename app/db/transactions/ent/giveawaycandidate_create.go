@@ -83,6 +83,20 @@ func (_c *GiveawayCandidateCreate) SetNillableEligible(v *bool) *GiveawayCandida
 	return _c
 }
 
+// SetIncludedBy sets the "included_by" field.
+func (_c *GiveawayCandidateCreate) SetIncludedBy(v uint64) *GiveawayCandidateCreate {
+	_c.mutation.SetIncludedBy(v)
+	return _c
+}
+
+// SetNillableIncludedBy sets the "included_by" field if the given value is not nil.
+func (_c *GiveawayCandidateCreate) SetNillableIncludedBy(v *uint64) *GiveawayCandidateCreate {
+	if v != nil {
+		_c.SetIncludedBy(*v)
+	}
+	return _c
+}
+
 // SetPoolDigest sets the "pool_digest" field.
 func (_c *GiveawayCandidateCreate) SetPoolDigest(v string) *GiveawayCandidateCreate {
 	_c.mutation.SetPoolDigest(v)
@@ -269,6 +283,10 @@ func (_c *GiveawayCandidateCreate) createSpec() (*GiveawayCandidate, *sqlgraph.C
 		_spec.SetField(giveawaycandidate.FieldEligible, field.TypeBool, value)
 		_node.Eligible = value
 	}
+	if value, ok := _c.mutation.IncludedBy(); ok {
+		_spec.SetField(giveawaycandidate.FieldIncludedBy, field.TypeUint64, value)
+		_node.IncludedBy = &value
+	}
 	if value, ok := _c.mutation.PoolDigest(); ok {
 		_spec.SetField(giveawaycandidate.FieldPoolDigest, field.TypeString, value)
 		_node.PoolDigest = value
@@ -416,6 +434,30 @@ func (u *GiveawayCandidateUpsert) SetEligible(v bool) *GiveawayCandidateUpsert {
 // UpdateEligible sets the "eligible" field to the value that was provided on create.
 func (u *GiveawayCandidateUpsert) UpdateEligible() *GiveawayCandidateUpsert {
 	u.SetExcluded(giveawaycandidate.FieldEligible)
+	return u
+}
+
+// SetIncludedBy sets the "included_by" field.
+func (u *GiveawayCandidateUpsert) SetIncludedBy(v uint64) *GiveawayCandidateUpsert {
+	u.Set(giveawaycandidate.FieldIncludedBy, v)
+	return u
+}
+
+// UpdateIncludedBy sets the "included_by" field to the value that was provided on create.
+func (u *GiveawayCandidateUpsert) UpdateIncludedBy() *GiveawayCandidateUpsert {
+	u.SetExcluded(giveawaycandidate.FieldIncludedBy)
+	return u
+}
+
+// AddIncludedBy adds v to the "included_by" field.
+func (u *GiveawayCandidateUpsert) AddIncludedBy(v uint64) *GiveawayCandidateUpsert {
+	u.Add(giveawaycandidate.FieldIncludedBy, v)
+	return u
+}
+
+// ClearIncludedBy clears the value of the "included_by" field.
+func (u *GiveawayCandidateUpsert) ClearIncludedBy() *GiveawayCandidateUpsert {
+	u.SetNull(giveawaycandidate.FieldIncludedBy)
 	return u
 }
 
@@ -584,6 +626,34 @@ func (u *GiveawayCandidateUpsertOne) SetEligible(v bool) *GiveawayCandidateUpser
 func (u *GiveawayCandidateUpsertOne) UpdateEligible() *GiveawayCandidateUpsertOne {
 	return u.Update(func(s *GiveawayCandidateUpsert) {
 		s.UpdateEligible()
+	})
+}
+
+// SetIncludedBy sets the "included_by" field.
+func (u *GiveawayCandidateUpsertOne) SetIncludedBy(v uint64) *GiveawayCandidateUpsertOne {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.SetIncludedBy(v)
+	})
+}
+
+// AddIncludedBy adds v to the "included_by" field.
+func (u *GiveawayCandidateUpsertOne) AddIncludedBy(v uint64) *GiveawayCandidateUpsertOne {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.AddIncludedBy(v)
+	})
+}
+
+// UpdateIncludedBy sets the "included_by" field to the value that was provided on create.
+func (u *GiveawayCandidateUpsertOne) UpdateIncludedBy() *GiveawayCandidateUpsertOne {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.UpdateIncludedBy()
+	})
+}
+
+// ClearIncludedBy clears the value of the "included_by" field.
+func (u *GiveawayCandidateUpsertOne) ClearIncludedBy() *GiveawayCandidateUpsertOne {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.ClearIncludedBy()
 	})
 }
 
@@ -921,6 +991,34 @@ func (u *GiveawayCandidateUpsertBulk) SetEligible(v bool) *GiveawayCandidateUpse
 func (u *GiveawayCandidateUpsertBulk) UpdateEligible() *GiveawayCandidateUpsertBulk {
 	return u.Update(func(s *GiveawayCandidateUpsert) {
 		s.UpdateEligible()
+	})
+}
+
+// SetIncludedBy sets the "included_by" field.
+func (u *GiveawayCandidateUpsertBulk) SetIncludedBy(v uint64) *GiveawayCandidateUpsertBulk {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.SetIncludedBy(v)
+	})
+}
+
+// AddIncludedBy adds v to the "included_by" field.
+func (u *GiveawayCandidateUpsertBulk) AddIncludedBy(v uint64) *GiveawayCandidateUpsertBulk {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.AddIncludedBy(v)
+	})
+}
+
+// UpdateIncludedBy sets the "included_by" field to the value that was provided on create.
+func (u *GiveawayCandidateUpsertBulk) UpdateIncludedBy() *GiveawayCandidateUpsertBulk {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.UpdateIncludedBy()
+	})
+}
+
+// ClearIncludedBy clears the value of the "included_by" field.
+func (u *GiveawayCandidateUpsertBulk) ClearIncludedBy() *GiveawayCandidateUpsertBulk {
+	return u.Update(func(s *GiveawayCandidateUpsert) {
+		s.ClearIncludedBy()
 	})
 }
 

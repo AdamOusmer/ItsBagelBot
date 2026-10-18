@@ -29,6 +29,8 @@ type GiveawayCandidate struct {
 	ExclusionReason string `json:"exclusion_reason,omitempty"`
 	// Eligible holds the value of the "eligible" field.
 	Eligible bool `json:"eligible,omitempty"`
+	// IncludedBy holds the value of the "included_by" field.
+	IncludedBy *uint64 `json:"included_by,omitempty"`
 	// PoolDigest holds the value of the "pool_digest" field.
 	PoolDigest string `json:"pool_digest,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -43,7 +45,7 @@ func (*GiveawayCandidate) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case giveawaycandidate.FieldEligible:
 			values[i] = new(sql.NullBool)
-		case giveawaycandidate.FieldUserID:
+		case giveawaycandidate.FieldUserID, giveawaycandidate.FieldIncludedBy:
 			values[i] = new(sql.NullInt64)
 		case giveawaycandidate.FieldID, giveawaycandidate.FieldGiveawayID, giveawaycandidate.FieldTwitchLogin, giveawaycandidate.FieldEligibilityJSON, giveawaycandidate.FieldExclusionReason, giveawaycandidate.FieldPoolDigest:
 			values[i] = new(sql.NullString)
@@ -105,6 +107,13 @@ func (_m *GiveawayCandidate) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field eligible", values[i])
 			} else if value.Valid {
 				_m.Eligible = value.Bool
+			}
+		case giveawaycandidate.FieldIncludedBy:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field included_by", values[i])
+			} else if value.Valid {
+				_m.IncludedBy = new(uint64)
+				*_m.IncludedBy = uint64(value.Int64)
 			}
 		case giveawaycandidate.FieldPoolDigest:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -171,6 +180,11 @@ func (_m *GiveawayCandidate) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("eligible=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Eligible))
+	builder.WriteString(", ")
+	if v := _m.IncludedBy; v != nil {
+		builder.WriteString("included_by=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("pool_digest=")
 	builder.WriteString(_m.PoolDigest)

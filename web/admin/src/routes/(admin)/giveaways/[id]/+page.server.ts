@@ -4,7 +4,7 @@ import { dev } from '$app/environment';
 import { allows, requireRole } from '$lib/server/access';
 import { audited, okReply } from '$lib/server/admin-action';
 import { actionError, adminText } from '$lib/server/admin-action';
-import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, type GiveawayDetailWire, type GiveawayPreviewWire } from '$lib/server/giveaways';
+import { giveawayGet, giveawayAlerts, giveawayPreview, giveawayFreeze, giveawayDraw, giveawayRetry, giveawayInclusion, type GiveawayDetailWire, type GiveawayExcludedWire, type GiveawayPreviewWire } from '$lib/server/giveaways';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -30,9 +30,16 @@ function demoDetail(id: string, status: GiveawayDetailWire['status'] = 'drawn'):
   return { ...detail, drawnAt: null, pendingAwards: 0, winners: [], alerts: [] };
 }
 
+const DEMO_EXCLUDED: GiveawayExcludedWire[] = [
+  { userId: '2001', login: 'paused_streamer', reason: 'inactive', included: true, includable: true },
+  { userId: '2002', login: 'staff_tester', reason: 'current_staff', included: false, includable: true },
+  { userId: '2003', login: 'banned_account', reason: 'banned', included: false, includable: false }
+];
+
 function demoPreview(id: string): GiveawayPreviewWire {
   const detail = demoDetail(id);
   return {
+    excluded: DEMO_EXCLUDED, included: 1,
     eligible: detail.eligible ?? { eligible: 0, free: 0, premium: 0, subscribers: 0, excluded: 0 },
     exclusions: { banned: 0, inactive: 6, not_onboarded: 2, test_account: 4, vip: 3, current_staff: 2 },
     summary: { winners: detail.winnerCount, months: detail.prizeMonths, totalMonths: detail.winnerCount * detail.prizeMonths },
@@ -72,6 +79,16 @@ async function operationContext(event: OperationEvent, needsDigest: boolean) {
   return { admin, digest, operation } as const;
 }
 
+async function inclusion(event: OperationEvent, include: boolean) {
+  const admin = await requireRole({ locals: event.locals }, 'giveaways.manage');
+  if (!admin) return fail(403, { error: actionError(event.locals.locale, 'forbidden') });
+  const userId = String((await event.request.formData()).get('user_id') ?? '').trim();
+  if (!/^\d+$/.test(userId)) return fail(400, { error: adminText(event.locals.locale, 'admin.giveaway.userIdRequired') });
+  if (DEMO) return { preview: demoPreview(event.params.id) };
+  const action = include ? 'giveaway_include' : 'giveaway_exclude';
+  return audited({ admin, action, target: event.params.id, detail: userId }, () => giveawayInclusion({ actorId: admin.id, campaignId: event.params.id, userId, include }), (preview) => ({ preview }));
+}
+
 export const load: PageServerLoad = async ({ params, parent, url }) => {
   const layout = await parent();
   if (!allows(layout.role, 'giveaways.manage')) throw redirect(302, '/');
@@ -109,6 +126,8 @@ export const actions: Actions = {
     if (DEMO) return okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommittedDemo'));
     return audited({ admin, action: 'giveaway_draw', target: event.params.id }, () => giveawayDraw({ actorId: admin.id, campaignId: event.params.id, expectedVersion: operation.version, idempotencyKey: operation.key }), () => okReply(adminText(event.locals.locale, 'admin.giveaway.drawCommitted')));
   },
+  include: (event) => inclusion(event, true),
+  exclude: (event) => inclusion(event, false),
   retry: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });

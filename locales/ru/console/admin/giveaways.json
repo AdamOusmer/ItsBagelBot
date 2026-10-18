@@ -80,5 +80,20 @@
   "newAwardsDisabled": "Выбор отключён, потому что выдача новых призов розыгрыша недоступна.",
   "winnersExceedEligible": "Выберите победителей из этого предпросмотра: не более {eligible}.",
   "previewSummaryOne": "Победителей: {winners} × месяцев: {months} = месяцев Premium: {total}",
-  "previewSummaryMany": "Победителей: {winners} × месяцев: {months} = месяцев Premium: {total}"
+  "previewSummaryMany": "Победителей: {winners} × месяцев: {months} = месяцев Premium: {total}",
+  "excludedAccounts": "Исключённые аккаунты",
+  "excludedHint": "Аккаунты, не попавшие в этот пул, и причина. Верните аккаунт, чтобы он участвовал, до заморозки. Заблокированные аккаунты остаются исключёнными.",
+  "excludedPreviewHint": "Запустите предпросмотр, чтобы увидеть исключённые аккаунты.",
+  "reason": "Причина",
+  "state": "Статус",
+  "addBack": "Вернуть",
+  "undoAddBack": "Убрать",
+  "addedBack": "Возвращён",
+  "stillExcluded": "Исключён",
+  "reasonBanned": "Заблокирован",
+  "reasonInactive": "Неактивен",
+  "reasonNotOnboarded": "Настройка не завершена",
+  "reasonTestAccount": "Тестовый аккаунт",
+  "reasonVip": "VIP",
+  "reasonCurrentStaff": "Текущая команда"
 }

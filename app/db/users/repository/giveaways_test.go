@@ -59,6 +59,12 @@ func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
 	require.Len(t, p.Candidates, 2)
 	assert.Equal(t, []uint64{1, 4}, []uint64{p.Candidates[0].UserID, p.Candidates[1].UserID})
 	assert.Equal(t, repository.GiveawayPoolCounts{Total: 8, Eligible: 2, Inactive: 1, NotOnboarded: 1, TestAccount: 1, VIP: 1, Banned: 1, CurrentStaff: 1}, p.Counts)
+	excluded := map[uint64]string{}
+	for _, c := range p.Excluded {
+		excluded[c.UserID] = c.ExclusionReason
+	}
+	assert.Equal(t, map[uint64]string{2: "inactive", 3: "current_staff", 5: "test_account", 6: "vip", 7: "banned", 8: "not_onboarded"}, excluded)
+	assert.Equal(t, "", p.Candidates[0].ExclusionReason)
 }
 
 func TestSetTestAccountRequiresAdminAndAudits(t *testing.T) {
