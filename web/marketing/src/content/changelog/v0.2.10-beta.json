@@ -1,0 +1,34 @@
+{
+  "tag": "beta",
+  "version": "v0.2.10-beta",
+  "date": "2026-10-18",
+  "title": {
+    "en": "Command Toggles From Chat, Alert Repairs and a Faster Stats Page",
+    "fr": "Activation des commandes depuis le chat, réparation des alertes et page de stats plus rapide"
+  },
+  "highlights": {
+    "en": [
+      "!cmd disable <name> and !cmd enable <name> turn a custom command off and on without losing its response or settings, and !cmd perm <name> <level> sets who can use it.",
+      "!cmd edit now changes only the response. It no longer resets aliases, cooldowns and access, or turns the command back on.",
+      "!cmd has its own Command Editor module under Moderation, where you can rehearse each subcommand in a chat preview and choose who can use it, from subscribers up.",
+      "Commands that are turned off in StreamElements, Fossabot, Moobot or Streamlabs Desktop now import turned off instead of being skipped.",
+      "Some recently added channels were missing their Twitch event subscriptions, so follows, subs, raids and other events never reached the bot. They are repaired, Enable and Restart in the dashboard work again, and the bot now finds and restores missing subscriptions on its own.",
+      "The live rate on the public stats page now samples every second and averages over 5 seconds instead of 10, so it trails real activity much less.",
+      "The dashboard no longer slowly runs out of memory and restarts after a cache failover.",
+      "The docked side panel stays pinned and scrolls on its own again.",
+      "Cached lookups now take about a quarter of the memory, and the cache does less work per command."
+    ],
+    "fr": [
+      "!cmd disable <nom> et !cmd enable <nom> désactivent et réactivent une commande personnalisée sans perdre sa réponse ni ses réglages, et !cmd perm <nom> <niveau> définit qui peut l’utiliser.",
+      "!cmd edit ne modifie plus que la réponse. Il ne réinitialise plus les alias, les délais et les accès, et ne réactive plus la commande.",
+      "!cmd a son propre module Éditeur de commandes dans Modération, où vous pouvez tester chaque sous-commande dans un aperçu du chat et choisir qui peut l’utiliser, à partir des abonnés.",
+      "Les commandes désactivées dans StreamElements, Fossabot, Moobot ou Streamlabs Desktop sont désormais importées désactivées au lieu d’être ignorées.",
+      "Certaines chaînes ajoutées récemment n’avaient pas leurs abonnements aux événements Twitch, donc les follows, abonnements, raids et autres événements n’atteignaient jamais le bot. Elles sont réparées, Activer et Redémarrer fonctionnent à nouveau dans le tableau de bord, et le bot repère et rétablit maintenant seul les abonnements manquants.",
+      "Le débit en direct de la page de statistiques publique est maintenant mesuré chaque seconde et moyenné sur 5 secondes au lieu de 10, donc il suit beaucoup mieux l’activité réelle.",
+      "Le tableau de bord ne manque plus lentement de mémoire et ne redémarre plus après une bascule du cache.",
+      "Le panneau latéral ancré reste fixe et défile à nouveau de façon indépendante.",
+      "Les recherches en cache occupent maintenant environ un quart de la mémoire, et le cache travaille moins à chaque commande."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.10-beta"
+}
