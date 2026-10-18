@@ -295,6 +295,14 @@ export const userEnrollment = defineRead({
 });
 
 export const USER_PAGE_SIZE = 15;
+export type UserOrder = 'newest' | 'oldest';
+
+export type UserDirectoryQuery = {
+  page: number;
+  search: string;
+  state: string;
+  order: UserOrder;
+};
 export const USER_MAX_PAGES = 25;
 
 interface PageMetaWire {
@@ -322,16 +330,16 @@ function pageMetaOf(reply: PageMetaWire, fallback: PageWindow): PageMeta {
   };
 }
 
-export async function userOverview(
-  actorId: string,
-  page = 1,
-  search = '',
-  state = ''
-): Promise<UserPage> {
-  return cached(`users:overview:${page}:${search}:${state}`, POLICY.adminPage, async () => {
+function overviewKey(q: UserDirectoryQuery): string {
+  return `users:overview:${q.page}:${q.search}:${q.state}:${q.order}`;
+}
+
+export async function userOverview(q: UserDirectoryQuery & { actorId: string }): Promise<UserPage> {
+  const { actorId, page, search, state, order } = q;
+  return cached(overviewKey(q), POLICY.adminPage, async () => {
     const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
       `${SUB.user}.overview`,
-      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state }
+      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state, order }
     );
     return {
       users: r.users ?? [],

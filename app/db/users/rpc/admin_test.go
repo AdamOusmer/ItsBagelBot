@@ -43,6 +43,14 @@ func newestFirst(from, to int) []string {
 	return names
 }
 
+func oldestFirst(from, to int) []string {
+	var names []string
+	for i := from; i <= to; i++ {
+		names = append(names, fmt.Sprintf("user-%02d", i))
+	}
+	return names
+}
+
 func moderatorHarness(t *testing.T) harness {
 	t.Helper()
 	h := newHarness(t)
@@ -65,12 +73,25 @@ func TestAdminUserListPagesNewestFirst(t *testing.T) {
 	assert.Equal(t, newestFirst(listPage-1, 0), usernames(second))
 }
 
+func TestAdminUserListPagesOldestFirst(t *testing.T) {
+	h := moderatorHarness(t)
+	h.users(2*listPage, time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
+
+	first := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, Order: "oldest"})
+	second := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 2, Limit: listPage, Order: "oldest"})
+
+	require.Empty(t, first.Error)
+	assert.Equal(t, oldestFirst(0, listPage-1), usernames(first))
+	require.Empty(t, second.Error)
+	assert.Equal(t, oldestFirst(listPage, 2*listPage-1), usernames(second))
+}
+
 func TestAdminUserListSearchesBeforePaging(t *testing.T) {
 	h := moderatorHarness(t)
 	base := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
 	h.users(2*listPage, base)
 	h.client.User.Create().SetID(424242).SetUsername("needle-user").SetEmail("needle@example.invalid").
-		SetStatus(user.StatusVip).SetUpdatedAt(base.Add(2 * time.Hour)).ExecX(t.Context())
+		SetStatus(user.StatusVip).SetCreatedAt(base.Add(2 * time.Hour)).ExecX(t.Context())
 
 	reply := h.admin(t, "list", modActor, usersrpc.AdminRequest{Page: 1, Limit: listPage, Search: "NEEDLE"})
 
@@ -98,7 +119,7 @@ func TestAdminUserListFiltersByState(t *testing.T) {
 		h.client.User.Create().SetID(s.id).
 			SetUsername(fmt.Sprintf("state-%02d", i)).SetEmail(fmt.Sprintf("state-%02d@example.invalid", i)).
 			SetStatus(s.status).SetIsActive(s.active).SetBanned(s.banned).
-			SetUpdatedAt(base.Add(time.Duration(i) * time.Minute)).ExecX(t.Context())
+			SetCreatedAt(base.Add(time.Duration(i) * time.Minute)).ExecX(t.Context())
 	}
 
 	for _, tc := range []struct {
