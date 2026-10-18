@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"ItsBagelBot/app/discord/ingress/internal/botstatus"
@@ -56,7 +57,10 @@ func main() {
 	status := botstatus.New(valkeyClient, pod, log)
 	go status.Run(ctx)
 
-	health.ServeSet(cfg.ListenAddr, healthSet(core, rpcConn, status))
+	mux := http.NewServeMux()
+	mux.Handle("/", healthSet(core, rpcConn, status).Handler())
+	mux.Handle("POST /discord/interactions", relay.NewInteractions(r, rest.GetVerifyKey))
+	health.ServeHandler(cfg.ListenAddr, mux)
 
 	bootID := time.Now().UnixMilli()
 	gwLog := log.With(zap.String("pod", pod), zap.Int64("boot_id", bootID))

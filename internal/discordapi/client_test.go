@@ -281,6 +281,18 @@ func channelEndpoints() []endpoint {
 	}}
 }
 
+func TestGetVerifyKeyReadsTheApplicationKey(t *testing.T) {
+	client, discord := fakeDiscord(http.StatusOK, `{"id":"1","verify_key":"abcd"}`)
+	key, err := client.GetVerifyKey(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "abcd", key)
+	assert.Equal(t, sentRequest{Method: http.MethodGet, URI: "/applications/@me"}, discord.sent)
+
+	client, _ = fakeDiscord(http.StatusOK, `{"id":"1"}`)
+	_, err = client.GetVerifyKey(context.Background())
+	require.Error(t, err)
+}
+
 func TestRemoveMemberRoleWithReasonEncodesTheHeader(t *testing.T) {
 	cases := []struct {
 		name   string

@@ -24,6 +24,7 @@ type published struct {
 
 type recorder struct {
 	restErr error
+	pubErr  error
 	calls   []any
 	ids     []string
 }
@@ -34,6 +35,9 @@ func (r *recorder) InteractionCallback(_ context.Context, cb discordapi.Callback
 }
 
 func (r *recorder) PublishOwned(_ context.Context, subject string, payload []byte) error {
+	if r.pubErr != nil {
+		return r.pubErr
+	}
 	var ev ddiscord.Event
 	if err := codec.Unmarshal(payload, &ev); err != nil {
 		return err
