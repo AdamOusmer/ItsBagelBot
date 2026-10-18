@@ -1,0 +1,275 @@
+{
+  "roles": {
+    "label": "Roles",
+    "tagline": "Qué roles cuentan como propietario, moderadores, VIP y suscriptores.",
+    "fields": {
+      "ownerRoleId": {
+        "label": "Rol de propietario",
+        "help": "Control total. Bagel considera este rol como personal en todas partes."
+      },
+      "leadModRoleId": {
+        "label": "Rol de moderador principal",
+        "help": "Moderadores principales. Se consideran personal en los tickets."
+      },
+      "modsRoleId": {
+        "label": "Rol de moderadores",
+        "help": "Tus moderadores. Se consideran personal en los tickets."
+      },
+      "vipRoleId": {
+        "label": "Rol VIP",
+        "help": "Bagel crea este rol y sus canales privados. Lo asignas tú."
+      },
+      "subscriberRoleId": {
+        "label": "Rol de suscriptor",
+        "help": "Bagel crea este rol y sus canales privados. Lo asignas tú."
+      },
+      "regularsRoleId": {
+        "label": "Rol de habituales",
+        "help": "Bagel crea este rol. Lo asignas tú."
+      },
+      "pinnedRoles": {
+        "label": "Fijado",
+        "help": "Una posición fijada conserva el rol que elegiste: la siguiente configuración lo adopta en lugar de crear o renombrar uno por su nombre."
+      }
+    }
+  },
+  "live": {
+    "label": "Avisos de directo",
+    "tagline": "Avisa cuando empieza el directo.",
+    "fields": {
+      "liveChannelId": {
+        "label": "Canal de avisos de inicio",
+        "help": "Una publicación cuando empiezas a transmitir, que se edita al terminar."
+      },
+      "categoryAllow": {
+        "label": "Anunciar solo estas categorías",
+        "help": "Si está vacío, se anuncian todas las categorías.",
+        "placeholder": "Minecraft"
+      },
+      "categoryDeny": {
+        "label": "No anunciar nunca estas categorías",
+        "help": "Una categoría excluida tiene prioridad sobre la lista de permitidas.",
+        "placeholder": "Just Chatting"
+      },
+      "twitchLogin": {
+        "label": "Canal de Twitch",
+        "help": "El canal de Twitch que aparece en el aviso de directo."
+      }
+    }
+  },
+  "clips": {
+    "label": "Clips",
+    "tagline": "Comparte los clips nuevos de Twitch.",
+    "fields": {
+      "clipsChannelId": {
+        "label": "Canal de clips",
+        "help": "Todos los clips de !clip y del propio Twitch."
+      }
+    }
+  },
+  "welcome": {
+    "label": "Bienvenida",
+    "tagline": "Da la bienvenida a los nuevos miembros.",
+    "fields": {
+      "welcomeChannelId": {
+        "label": "Canal de bienvenida",
+        "help": "Un mensaje integrado por cada nuevo miembro. Bagel nunca envía mensajes privados a quienes entran."
+      }
+    }
+  },
+  "goodbye": {
+    "label": "Despedida",
+    "tagline": "Se despide en el canal de bienvenida cuando alguien se va."
+  },
+  "autorole": {
+    "label": "Rol automático",
+    "tagline": "Da un rol a cada miembro nuevo.",
+    "fields": {
+      "memberRoleId": {
+        "label": "Rol automático de miembro",
+        "help": "Se da a toda persona que se une mientras los roles automáticos están activados."
+      }
+    }
+  },
+  "subscribers": {
+    "label": "Salas de suscriptores",
+    "tagline": "Salas privadas para suscriptores y VIP.",
+    "fields": {
+      "subsChannelId": {
+        "label": "Canal de suscriptores",
+        "help": "El canal de texto privado de tu nivel de suscriptores."
+      },
+      "subsCategoryId": {
+        "label": "Categoría de suscriptores",
+        "help": "La categoría que contiene los canales de suscriptores."
+      },
+      "vipChannelId": {
+        "label": "Canal VIP",
+        "help": "El canal de texto privado para tus VIP."
+      },
+      "vipCategoryId": {
+        "label": "Categoría VIP",
+        "help": "La categoría que contiene los canales VIP."
+      }
+    }
+  },
+  "voice": {
+    "label": "Salas de voz",
+    "tagline": "Entra en un canal central para tener tu propia sala.",
+    "fields": {
+      "voiceHubId": {
+        "label": "Canal de voz para crear salas al entrar",
+        "help": "Al entrar en este canal de voz se crea una copia como sala personal."
+      },
+      "voiceCategoryId": {
+        "label": "Categoría de salas de voz",
+        "help": "Las salas se crean solo en esta categoría. Obligatoria si hay un canal principal."
+      },
+      "voiceNameTemplate": {
+        "label": "Nombre de la sala",
+        "help": "Usa {owner} para el nombre del miembro. Vacío usa solo el nombre del miembro.",
+        "placeholder": "Sala de {owner}"
+      },
+      "voiceUserLimit": {
+        "label": "Límite de usuarios por sala",
+        "help": "0 significa sin límite. Máximo 99."
+      },
+      "voicePrivacy": {
+        "label": "Privacidad de la sala",
+        "help": "Abierta, bloqueada para nuevas entradas u oculta en la lista de canales.",
+        "options": {
+          "open": "Abierta",
+          "locked": "Bloqueada",
+          "hidden": "Oculta"
+        }
+      }
+    }
+  },
+  "tickets": {
+    "label": "Tickets",
+    "tagline": "Un servicio de ayuda privado con equipo y transcripciones.",
+    "fields": {
+      "ticketChannelId": {
+        "label": "Canal del panel de tickets",
+        "help": "Dónde se publica el panel Abrir un ticket."
+      },
+      "ticketCategoryId": {
+        "label": "Categoría de tickets",
+        "help": "Los nuevos canales de tickets se crean en esta categoría."
+      },
+      "ticketArchiveCategoryId": {
+        "label": "Categoría de archivo",
+        "help": "Los tickets cerrados se mueven aquí en lugar de eliminarse. Déjalo sin configurar para eliminarlos."
+      },
+      "ticketStaffRoleIds": {
+        "label": "Quién gestiona los tickets",
+        "help": "Estos roles ven todos los tickets y pueden hacerse cargo de ellos. Deja todo sin marcar para usar los roles de tu equipo."
+      },
+      "ticketOpenLimit": {
+        "label": "Tickets abiertos por miembro",
+        "help": "Cuántos tickets puede tener abiertos un miembro a la vez."
+      },
+      "ticketTranscriptEnabled": {
+        "label": "Guardar transcripciones",
+        "help": "Al cerrar, se guarda toda la conversación y se publica en el registro de tickets como archivo de texto."
+      },
+      "ticketLogChannelId": {
+        "label": "Canal de registros de tickets",
+        "help": "Los resúmenes de cierre y las transcripciones llegan aquí. Si no está configurado, se usa el canal de registros de tu equipo."
+      },
+      "ticketPanelTitle": {
+        "label": "Título"
+      },
+      "ticketPanelBody": {
+        "label": "Descripción"
+      },
+      "ticketPanelColor": {
+        "label": "Color",
+        "help": "La barra a la izquierda del mensaje integrado."
+      },
+      "ticketPanelButton": {
+        "label": "Texto del botón"
+      }
+    }
+  },
+  "logs": {
+    "label": "Registros del servidor",
+    "tagline": "Registra lo que pasa en el servidor.",
+    "fields": {
+      "logChannelId": {
+        "label": "Canal de registros del equipo",
+        "help": "Entradas, salidas, ediciones, eliminaciones y moderación."
+      },
+      "logMessagesEnabled": {
+        "label": "Registros de mensajes",
+        "help": "Mensajes editados y eliminados."
+      },
+      "logMembersEnabled": {
+        "label": "Registros de miembros",
+        "help": "Entradas, salidas y cambios de apodo."
+      },
+      "logVoiceEnabled": {
+        "label": "Registros de voz",
+        "help": "Entradas, salidas y cambios en canales de voz."
+      },
+      "logModerationEnabled": {
+        "label": "Registros de moderación",
+        "help": "Baneos, expulsiones y tiempos fuera."
+      },
+      "logChannelsEnabled": {
+        "label": "Registros de canales",
+        "help": "Canales creados, cambiados o eliminados."
+      },
+      "logRolesEnabled": {
+        "label": "Registros de roles",
+        "help": "Roles creados, cambiados o eliminados."
+      },
+      "logServerEnabled": {
+        "label": "Registros del servidor",
+        "help": "Cambios en la configuración del servidor."
+      },
+      "logIgnoreBots": {
+        "label": "Ignorar bots",
+        "help": "Omite los mensajes y entradas de bots."
+      },
+      "logMessagesChannelId": {
+        "label": "Canal de registros de mensajes",
+        "help": "Vacío usa el canal de registros del equipo."
+      },
+      "logMembersChannelId": {
+        "label": "Canal de registros de miembros",
+        "help": "Vacío usa el canal de registros del equipo."
+      },
+      "logVoiceChannelId": {
+        "label": "Canal de registros de voz",
+        "help": "Vacío usa el canal de registros del equipo."
+      },
+      "logModerationChannelId": {
+        "label": "Canal de registros de moderación",
+        "help": "Vacío usa el canal de registros del equipo."
+      },
+      "logIgnoredChannelIds": {
+        "label": "Canales ignorados",
+        "help": "No se registra nada de estos canales."
+      }
+    }
+  },
+  "levels": {
+    "label": "Niveles",
+    "tagline": "Los miembros ganan XP y niveles al chatear."
+  },
+  "linkguard": {
+    "label": "Filtro de enlaces",
+    "tagline": "Quita los enlaces de los miembros salvo los permitidos.",
+    "fields": {
+      "linkAllowList": {
+        "label": "Enlaces permitidos",
+        "help": "Partes de enlace permitidas, separadas por comas. Ejemplo: youtube.com, twitch.tv"
+      }
+    }
+  },
+  "moderation": {
+    "label": "Moderación",
+    "tagline": "Comandos de moderación para el equipo."
+  }
+}

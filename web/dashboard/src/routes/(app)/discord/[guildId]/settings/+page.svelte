@@ -12,7 +12,7 @@
   import { getI18n } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { invalidateAll } from '$app/navigation';
-  import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
+  import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/action-result';
 
   let { data } = $props();
   const { t } = getI18n();

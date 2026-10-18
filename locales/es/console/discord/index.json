@@ -5,7 +5,7 @@
   "conflictBody": "Alguien guardó este servidor mientras lo tenías abierto, así que no se guardó nada de aquí. Recarga para recibir sus cambios y vuelve a hacer los tuyos.",
   "conflictCta": "Recargar",
   "connectUnconfigured": "La conexión con Discord no está configurada en este despliegue.",
-  "connectedLivedIn": "Bagel se unió. Este servidor ya tiene una estructura, así que no se reconstruyó. Bagel adoptó los canales que reconoció; elige los demás abajo.",
+  "connectedLivedIn": "Bagel se unió. Este servidor ya tiene una estructura, así que no se reconstruyó. Bagel adoptó los canales que reconoció; elige los demás en los módulos.",
   "createCta": "Crear mi Discord",
   "degraded": "No se pudo contactar con nuestro sistema. Vuelve a intentarlo en un momento.",
   "description": "Conecta un servidor de Discord o crea uno con la plantilla de Bagel. Avisos de directos, clips, bienvenidas, tickets, voz temporal, registros del personal y rangos de migas, todo con un solo bot.",

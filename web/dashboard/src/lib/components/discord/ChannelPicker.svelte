@@ -6,7 +6,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
-  import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
+  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {
@@ -20,7 +20,7 @@
     required = '',
     missing = false
   }: {
-    draft: GuildDraft;
+    draft: ModuleDraft;
     invalid: RefusedFields;
     field: keyof DiscordConfig;
     label: string;

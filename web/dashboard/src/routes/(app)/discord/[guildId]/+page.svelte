@@ -8,54 +8,21 @@
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import {
-    getI18n,
-    guildModuleTiles,
-    tilesNeedingSetup,
-    type ModuleTileId
-  } from '@bagel/kit';
-  import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
-  import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
-  import { botOnlineOf, layoutDownOf, pillStateOf } from '$lib/discord/guild-view';
+  import { DISCORD_MODULES, getI18n } from '@bagel/kit';
   import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
+  import ModuleRow from '$lib/components/discord/ModuleRow.svelte';
+  import { CLOSE_KEYS } from '$lib/discord/guild-fields';
+  import { botOnlineOf, layoutDownOf, pillStateOf } from '$lib/discord/guild-view';
+  import { moduleStateOf } from '$lib/discord/module-view';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  const tiles = $derived(guildModuleTiles(data.config));
-  const unfinished = $derived(tilesNeedingSetup(tiles));
+  const rows = $derived(DISCORD_MODULES.map((def) => ({ def, status: moduleStateOf(def, data.stored[def.id]) })));
   const botOnline = $derived(botOnlineOf(data));
   const pillState = $derived(pillStateOf(data));
   const layoutDown = $derived(layoutDownOf(data.layout));
   const closeKey = $derived(CLOSE_KEYS[data.status?.lastCloseCode ?? 0]);
-
-  const TILE_NAME_KEYS: Record<ModuleTileId, I18nKey> = {
-    announcementsLive: 'discord.overview.tiles.announcementsLive.name',
-    announcementsClips: 'discord.overview.tiles.announcementsClips.name',
-    welcome: 'discord.overview.tiles.welcome.name',
-    goodbye: 'discord.overview.tiles.goodbye.name',
-    voiceHub: 'discord.overview.tiles.voiceHub.name',
-    logs: 'discord.overview.tiles.logs.name',
-    levels: 'discord.overview.tiles.levels.name',
-    linkGuard: 'discord.overview.tiles.linkGuard.name',
-    subscribers: 'discord.overview.tiles.subscribers.name',
-    autoRole: 'discord.overview.tiles.autoRole.name',
-    tickets: 'discord.overview.tiles.tickets.name'
-  };
-
-  const TILE_HELP_KEYS: Record<ModuleTileId, I18nKey> = {
-    announcementsLive: 'discord.overview.tiles.announcementsLive.help',
-    announcementsClips: 'discord.overview.tiles.announcementsClips.help',
-    welcome: 'discord.overview.tiles.welcome.help',
-    goodbye: 'discord.overview.tiles.goodbye.help',
-    voiceHub: 'discord.overview.tiles.voiceHub.help',
-    logs: 'discord.overview.tiles.logs.help',
-    levels: 'discord.overview.tiles.levels.help',
-    linkGuard: 'discord.overview.tiles.linkGuard.help',
-    subscribers: 'discord.overview.tiles.subscribers.help',
-    autoRole: 'discord.overview.tiles.autoRole.help',
-    tickets: 'discord.overview.tiles.tickets.help'
-  };
 </script>
 
 {#if !data.found}
@@ -69,6 +36,10 @@
   </AlertBanner>
 {/if}
 
+{#if data.modulesDegraded}
+  <AlertBanner>{t('discord.degraded')}</AlertBanner>
+{/if}
+
 <section class="block reveal" style="--i:1" aria-labelledby="dc-status-h">
   <Heading level={6} as="h2" variant="title" id="dc-status-h" class="block-title">{t('discord.status.title')}</Heading>
   <Card>
@@ -77,7 +48,7 @@
         <DiscordStateTag state={pillState} />
       </Fact>
       <Fact term={t('discord.status.resumes')}>{data.status?.sessionResumes ?? 0}</Fact>
-      <Fact term={t('discord.overview.modulesOn')}>{tiles.filter((tile) => tile.on).length} / {tiles.length}</Fact>
+      <Fact term={t('discord.overview.modulesOn')}>{rows.filter((r) => r.status !== 'off').length} / {rows.length}</Fact>
     </FactList>
 
     {#if !botOnline && closeKey}
@@ -94,30 +65,18 @@
 
 <section class="block reveal" style="--i:2" aria-labelledby="dc-modules-h">
   <Heading level={6} as="h2" variant="title" id="dc-modules-h" class="block-title">{t('discord.overview.modulesTitle')}</Heading>
-  <Text size="sm" tone="muted" class="hint">
-    {#if unfinished.length > 0}
-      {t('discord.overview.needsSetupHint', { n: String(unfinished.length) })}
-    {:else}
-      {t('discord.overview.modulesHelp')}
-    {/if}
-  </Text>
-  <div class="tiles">
-    {#each tiles as tile (tile.id)}
-      <ModuleTile
-        {tile}
-        guildId={data.guildId}
-        version={data.version}
-        name={t(TILE_NAME_KEYS[tile.id])}
-        help={t(TILE_HELP_KEYS[tile.id])}
-      />
+  <Text size="sm" tone="muted" class="hint">{t('discord.overview.modulesHelp')}</Text>
+  <ul class="list">
+    {#each rows as row (row.def.id)}
+      <li><ModuleRow def={row.def} guildId={data.guildId} status={row.status} /></li>
     {/each}
-  </div>
+  </ul>
 </section>
 
 <style>
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-    gap: 14px;
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
 </style>
