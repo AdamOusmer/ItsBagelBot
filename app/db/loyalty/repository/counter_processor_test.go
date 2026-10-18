@@ -123,9 +123,6 @@ func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 	require.NoError(t, p.Process(ctx, other))
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "an immediate duplicate is absorbed")
 	assert.Equal(t, counterCompletedTTL, cache.ttl(event))
-	var sqlReceipts int
-	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM counter_batches").Scan(&sqlReceipts))
-	assert.Zero(t, sqlReceipts)
 
 	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.BagelDataStream.MaxAge + counterSQLTimeout
 	cache.advance(lastCopy)

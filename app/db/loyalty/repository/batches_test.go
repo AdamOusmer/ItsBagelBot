@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	"ItsBagelBot/internal/domain/event/data"
-
-	"github.com/stretchr/testify/require"
 )
 
 type batchStore struct {
@@ -163,108 +161,4 @@ func windowBatch(id string) data.CounterBumpedDTO {
 
 func trialBatch(id string, bumps ...data.CounterBumpEntry) data.CounterBumpedDTO {
 	return data.CounterBumpedDTO{BatchID: id, UserID: 42, Bumps: bumps}
-}
-
-func TestCounterBatchRedeliveryAfterUncertainCommit(t *testing.T) {
-	repo, store := batchRepo(t)
-	dto := windowBatch("window-1")
-	store.uncertainCommit = true
-	require.Error(t, repo.ApplyBumps(context.Background(), dto))
-	require.Equal(t, 1, store.writes)
-	store.uncertainCommit = false
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto))
-	require.Equal(t, 1, store.writes)
-	dto.BatchID = "window-2"
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto))
-	require.Equal(t, 2, store.writes)
-}
-
-func TestCounterBatchWriteFailureRollsBackReceipt(t *testing.T) {
-	repo, store := batchRepo(t)
-	dto := windowBatch("window-1")
-	store.failWrite = true
-	require.Error(t, repo.ApplyBumps(context.Background(), dto))
-	require.Empty(t, store.receipts)
-	store.failWrite = false
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto))
-	require.Equal(t, 1, store.writes)
-}
-
-func TestCounterBatchRejectsOverflowBeforeDatabase(t *testing.T) {
-	repo, store := batchRepo(t)
-	dto := windowBatch("window-1")
-	dto.Bumps[0].Delta = data.MaxCounter
-	dto.Bumps = append(dto.Bumps, data.CounterBumpEntry{Name: "messages", Delta: 1})
-	require.ErrorIs(t, repo.ApplyBumps(context.Background(), dto), ErrInvalidInput)
-	require.Empty(t, store.receipts)
-}
-
-func TestCounterBatchRetriesAfterADeadlock(t *testing.T) {
-	repo, store := batchRepo(t)
-	store.deadlocks = 1
-	require.NoError(t, repo.ApplyBumps(context.Background(), windowBatch("window-1")))
-	require.True(t, store.receipts["window-1"])
-	require.Equal(t, 1, store.writes)
-	require.Equal(t, int64(1), store.values["messages"])
-}
-
-func TestCounterBatchRedirectsLateTrialBumpsOnce(t *testing.T) {
-	repo, store := batchRepo(t)
-	store.values = map[string]int64{
-		data.CounterTrialPromoted:     1,
-		data.CounterTrialDecoded:      100,
-		data.CounterTrialAnswered:     7,
-		data.CounterEventsProcessed:   100,
-		data.CounterMessagesProcessed: 100,
-		data.CounterCommandsAnswered:  7,
-	}
-	dto := trialBatch("late-1",
-		data.CounterBumpEntry{Name: data.CounterTrialDecoded, Delta: 5},
-		data.CounterBumpEntry{Name: data.CounterTrialAnswered, Delta: 2},
-		data.CounterBumpEntry{Name: data.CounterEventsProcessed, Delta: 3},
-	)
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto))
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto), "redelivery must not redirect again")
-	require.Equal(t, []string{readTrialPromotion}, store.queries)
-	require.Equal(t, map[string]int64{
-		data.CounterTrialPromoted:     1,
-		data.CounterTrialDecoded:      105,
-		data.CounterTrialAnswered:     9,
-		data.CounterEventsProcessed:   108,
-		data.CounterMessagesProcessed: 105,
-		data.CounterCommandsAnswered:  9,
-	}, store.values, "trial stats keep the late bump")
-}
-
-func TestCounterBatchRerunsWhenPromotionCommitsWhileItWaits(t *testing.T) {
-	repo, store := batchRepo(t)
-	store.values = map[string]int64{data.CounterTrialDecoded: 100}
-	store.onShareLock = promoteWhileLocking
-	require.NoError(t, repo.ApplyBumps(context.Background(), trialBatch("race-1", data.CounterBumpEntry{Name: data.CounterTrialDecoded, Delta: 5})))
-	require.Equal(t, []string{readTrialPromotion, lockTrialPromotion, readTrialPromotion}, store.queries)
-	require.Len(t, store.receipts, 1)
-	require.Equal(t, int64(105), store.values[data.CounterEventsProcessed])
-	require.Equal(t, int64(105), store.values[data.CounterMessagesProcessed])
-	require.Equal(t, int64(105), store.values[data.CounterTrialDecoded])
-}
-
-func TestCounterBatchCountsUnpromotedTrialBumpsOnlyAsTrial(t *testing.T) {
-	repo, store := batchRepo(t)
-	require.NoError(t, repo.ApplyBumps(context.Background(), trialBatch("trial-1", data.CounterBumpEntry{Name: data.CounterTrialAnswered, Delta: 1})))
-	require.Equal(t, []string{readTrialPromotion, lockTrialPromotion}, store.queries)
-	require.Equal(t, map[string]int64{data.CounterTrialAnswered: 1}, store.values)
-}
-
-func TestCounterBatchWithoutTrialBumpsSkipsThePromotionCheck(t *testing.T) {
-	repo, store := batchRepo(t)
-	store.values[data.CounterTrialPromoted] = 1
-	dto := trialBatch("plain-1",
-		data.CounterBumpEntry{Name: data.CounterMessagesProcessed, Delta: 1},
-		data.CounterBumpEntry{Name: data.TrialCounterPrefix + "processed", Delta: 1},
-		data.CounterBumpEntry{Name: data.CounterTrialDecoded, Delta: 3, Scope: data.CounterScopeCommand, Command: "hug"},
-	)
-	require.NoError(t, repo.ApplyBumps(context.Background(), dto))
-	require.Empty(t, store.queries)
-	require.Equal(t, int64(1), store.values[data.CounterMessagesProcessed])
-	require.NotContains(t, store.values, data.CounterEventsProcessed)
 }

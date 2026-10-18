@@ -8,31 +8,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
-	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/db"
 )
-
-// ApplyBumps commits one already-batched producer window. The receipt and every
-// counter chunk share a transaction, so redelivery after an uncertain commit
-// cannot add the same window twice. Returning an error asks pkg/bus to redeliver.
-func (r *Loyalty) ApplyBumps(ctx context.Context, dto data.CounterBumpedDTO) error {
-	if dto.BatchID == "" || len(dto.BatchID) > 255 {
-		return fmt.Errorf("%w: counter batch ID", ErrInvalidInput)
-	}
-	bumps, err := collectBatchBumps(dto)
-	if err != nil {
-		return err
-	}
-	batch := counterBatch{dto: dto, bumps: bumps, trial: batchTrialBumps(dto.UserID, bumps)}
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		return retryTx(ctx, func(ctx context.Context) error {
-			return r.commitBumpBatch(ctx, batch)
-		}, errTrialPromotedMidBatch)
-	})
-}
 
 const (
 	readTrialPromotion = "SELECT 1 FROM counters WHERE user_id = ? AND name = ?"
@@ -40,12 +18,6 @@ const (
 )
 
 var errTrialPromotedMidBatch = errors.New("trial promoted while the counter batch was written")
-
-type counterBatch struct {
-	dto   data.CounterBumpedDTO
-	bumps map[bumpKey]*bumpSum
-	trial trialTotals
-}
 
 func batchTrialBumps(userID uint64, bumps map[bumpKey]*bumpSum) trialTotals {
 	return trialTotals{
@@ -60,25 +32,6 @@ func channelDelta(bumps map[bumpKey]*bumpSum, userID uint64, name string) int64 
 		return 0
 	}
 	return max(sum.delta, 0)
-}
-
-func (b counterBatch) redirected() (map[bumpKey]*bumpSum, error) {
-	dto := b.dto
-	dto.Bumps = slices.Clone(dto.Bumps)
-	for _, carry := range b.trial.carried() {
-		dto.Bumps = append(dto.Bumps, data.CounterBumpEntry{Name: carry.name, Scope: data.CounterScopeChannel, Delta: carry.delta})
-	}
-	return collectBatchBumps(dto)
-}
-
-func collectBatchBumps(dto data.CounterBumpedDTO) (map[bumpKey]*bumpSum, error) {
-	window := &Loyalty{bumpPend: make(map[bumpKey]*bumpSum)}
-	for _, bump := range dto.Bumps {
-		if err := window.collectBatchBump(dto.UserID, bump); err != nil {
-			return nil, err
-		}
-	}
-	return window.bumpPend, nil
 }
 
 func (r *Loyalty) collectBatchBump(userID uint64, bump data.CounterBumpEntry) error {
@@ -110,67 +63,6 @@ func validateBatchDelta(previous, delta int64) error {
 	return nil
 }
 
-func (r *Loyalty) commitBumpBatch(ctx context.Context, batch counterBatch) error {
-	tx, err := r.sqldb.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	retired, err := r.counterBatchRetired(ctx, tx, batch.dto.UserID)
-	if err != nil {
-		return err
-	}
-	added, err := insertBatchReceipt(ctx, tx, batch.dto.BatchID, r.insertIgnore())
-	if err != nil || !added {
-		return err
-	}
-	// Discarded deliveries retain receipts so a lost ACK cannot pay a replacement account.
-	if retired {
-		return tx.Commit()
-	}
-	if err := writeCounterBatch(ctx, tx, batch); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func writeCounterBatch(ctx context.Context, tx *sql.Tx, batch counterBatch) error {
-	if batch.trial == (trialTotals{}) {
-		return writeBatchBumps(ctx, tx, batch.bumps)
-	}
-	promoted, err := trialPromoted(ctx, tx, readTrialPromotion, batch.dto.UserID)
-	if err != nil {
-		return err
-	}
-	if promoted {
-		return writeRedirectedBumps(ctx, tx, batch)
-	}
-	return writeUnpromotedTrialBumps(ctx, tx, batch)
-}
-
-// The promotion re-check must follow the trial row writes; checking earlier lets a promotion commit in between and lose the bump.
-func writeUnpromotedTrialBumps(ctx context.Context, tx *sql.Tx, batch counterBatch) error {
-	if err := writeBatchBumps(ctx, tx, batch.bumps); err != nil {
-		return err
-	}
-	promoted, err := trialPromoted(ctx, tx, lockTrialPromotion, batch.dto.UserID)
-	if err != nil {
-		return err
-	}
-	if promoted {
-		return errTrialPromotedMidBatch
-	}
-	return nil
-}
-
-func writeRedirectedBumps(ctx context.Context, tx *sql.Tx, batch counterBatch) error {
-	bumps, err := batch.redirected()
-	if err != nil {
-		return err
-	}
-	return writeBatchBumps(ctx, tx, bumps)
-}
-
 func trialPromoted(ctx context.Context, tx *sql.Tx, query string, userID uint64) (bool, error) {
 	var one int
 	err := tx.QueryRowContext(ctx, query, userID, data.CounterTrialPromoted).Scan(&one)
@@ -178,30 +70,6 @@ func trialPromoted(ctx context.Context, tx *sql.Tx, query string, userID uint64)
 		return false, nil
 	}
 	return err == nil, err
-}
-
-func insertBatchReceipt(ctx context.Context, tx *sql.Tx, batchID string, dialectInsert ...string) (bool, error) {
-	insert := "INSERT IGNORE"
-	if len(dialectInsert) > 0 {
-		insert = dialectInsert[0]
-	}
-	result, err := tx.ExecContext(ctx, insert+" INTO counter_batches (id, created_at) VALUES (?, ?)", batchID, time.Now())
-	if err != nil {
-		return false, err
-	}
-	added, err := result.RowsAffected()
-	return added != 0, err
-}
-
-func writeBatchBumps(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum) error {
-	var writeErr error
-	writer := &Loyalty{writeChunk: func(ctx context.Context, stmt chunkStmt) {
-		if writeErr == nil {
-			_, writeErr = tx.ExecContext(ctx, stmt.sql, stmt.args...)
-		}
-	}}
-	writer.flushBumps(ctx, nil, bumps)
-	return writeErr
 }
 
 func (r *Loyalty) counterBatchRetired(ctx context.Context, tx *sql.Tx, id uint64) (bool, error) {

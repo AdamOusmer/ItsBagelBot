@@ -27,7 +27,7 @@ RPC reads and synchronous balance/counter management.
 | Counter entry | Bucket value addressed by owner/name/command/viewer. |
 | Scope | `bot`, `channel`, `viewer`, `command`, or `viewer_command`; shared constants are authoritative. |
 | `BatchID` | Stable counter-delivery identity, reused on retry. |
-| Receipt | Valkey completion cache for the active processor; separate CounterBatch SQL receipts serve ApplyBumps. |
+| Receipt | Valkey completion cache for the active processor. |
 | Trial promotion | One-time carry of observed decoded/answered totals into registered channel counters. |
 | Wager | Atomic settlement adding/removing a stake according to a caller-supplied outcome. |
 
@@ -47,7 +47,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
 | [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
-| [ent/schema/](ent/schema/) | Balance, Counter, CounterEntry and CounterBatch schemas; watchtime auxiliary tables use raw SQL. |
+| [ent/schema/](ent/schema/) | Balance, Counter and CounterEntry schemas; watchtime auxiliary tables use raw SQL. |
 | [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, balances, counters and counter entries are clustered on their natural key. |
 
 Shared contracts: [loyalty RPC](../../../internal/domain/rpc/loyalty/),
