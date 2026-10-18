@@ -360,8 +360,8 @@ export function landingSchema(input: LandingSchemaInput): Record<string, unknown
 export const FEATURES = {
     giveaways: { ns: 'giveaways', path: '/giveaways', modules: ['raffle'], ai: 'engagement', guide: '/guides/modules', related: ['viewerQueue', 'loyaltyPoints', 'timers'] },
     loyaltyPoints: { ns: 'loyaltyPoints', path: '/loyalty-points', modules: ['loyalty', 'gamble', 'duel'], ai: 'loyalty', guide: '/guides/counters', related: ['deathCounter', 'giveaways', 'viewerQueue'] },
-    deathCounter: { ns: 'deathCounter', path: '/death-counter', modules: ['counters'], ai: 'loyalty', guide: '/guides/counters', related: ['loyaltyPoints', 'timers', 'viewerQueue'] },
-    timers: { ns: 'timers', path: '/timers', modules: ['timers'], ai: 'automation', guide: '/guides/commands', related: ['giveaways', 'viewerQueue', 'discordBot'] },
+    deathCounter: { ns: 'deathCounter', path: '/death-counter', modules: ['counters'], ai: 'engagement', guide: '/guides/counters', related: ['loyaltyPoints', 'timers', 'viewerQueue'] },
+    timers: { ns: 'timers', path: '/timers', modules: ['timers'], ai: 'engagement', guide: '/guides/commands', related: ['giveaways', 'viewerQueue', 'discordBot'] },
     viewerQueue: { ns: 'viewerQueue', path: '/viewer-queue', modules: ['queue'], ai: 'engagement', guide: '/guides/modules', related: ['giveaways', 'loyaltyPoints', 'discordBot'] },
     discordBot: { ns: 'discordBot', path: '/discord-bot', modules: ['discord'], ai: 'discord', guide: '/guides/discord-setup', related: ['timers', 'viewerQueue', 'giveaways'] },
 } as const;

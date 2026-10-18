@@ -6,6 +6,7 @@ import type { GuideContent } from '../../lib/guides/types';
 const guide: GuideContent = {
   slug: 'counters',
   meta: {
+    aiDoc: 'https://ai.itsbagelbot.com/features/engagement.md',
     title: 'Twitch Counters and Death Counter Setup | ItsBagelBot',
     description:
       'Create a Twitch death counter, use counters in commands and connect channel-point rewards. Follow examples for updating and displaying counts.',

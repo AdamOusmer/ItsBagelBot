@@ -199,8 +199,8 @@ function catalogEntryCount(id) {
 const FEATURE_PAGES = [
     { path: '/giveaways/', title: 'Twitch Giveaway Bot', ai: 'engagement', rows: catalogEntryCount('raffle') },
     { path: '/loyalty-points/', title: 'Twitch Loyalty Points Bot', ai: 'loyalty', rows: ['loyalty', 'gamble', 'duel'].map(catalogEntryCount).reduce((sum, count) => sum + count, 0) },
-    { path: '/death-counter/', title: 'Twitch Death Counter', ai: 'loyalty', rows: moduleDef('loyalty').commands.filter((command) => command.trigger === '!counter').length },
-    { path: '/timers/', title: 'Twitch Timer Bot', ai: 'automation', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length },
+    { path: '/death-counter/', title: 'Twitch Death Counter', ai: 'engagement', rows: moduleDef('loyalty').commands.filter((command) => command.trigger === '!counter').length },
+    { path: '/timers/', title: 'Twitch Timer Bot', ai: 'engagement', rows: Object.keys(blankTimer()).filter((key) => key !== 'id').length },
     { path: '/viewer-queue/', title: 'Twitch Viewer Queue Bot', ai: 'engagement', rows: catalogEntryCount('queue') },
     { path: '/discord-bot/', title: 'Twitch Discord Bot', ai: 'discord', rows: guildModuleTiles(blankDiscordConfig()).length },
 ];

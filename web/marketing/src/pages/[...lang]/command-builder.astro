@@ -14,7 +14,7 @@ const lang = getLangFromUrl(Astro.url);
 const ui = builderUI(lang);
 ---
 
-<Layout title={ui.metaTitle} description={ui.metaDesc}>
+<Layout title={ui.metaTitle} description={ui.metaDesc} aiDoc="https://ai.itsbagelbot.com/features/commands.md">
     <PageHero eyebrow={ui.eyebrow} title={ui.title1} description={`${ui.title2} ${ui.lede}`} />
     <CommandBuilder lang={lang} />
 </Layout>

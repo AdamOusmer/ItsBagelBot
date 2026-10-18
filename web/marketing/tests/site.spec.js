@@ -296,7 +296,8 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('a[href="/guides/modules/"]').last()).toBeVisible();
 
         await page.goto('/pricing');
-        await expect(page.locator('head link[rel="describedby"][type="text/markdown"]')).toHaveCount(1);
+        await expect(page.locator('head link[rel="describedby"][type="text/markdown"]')).toHaveCount(2);
+        await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/product.md"]')).toHaveCount(1);
         const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
         const app = graph.find((node) => node['@type'] === 'SoftwareApplication');
         expect(app.subjectOf.url).toBe('https://ai.itsbagelbot.com/product.md');
