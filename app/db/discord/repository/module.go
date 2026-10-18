@@ -73,8 +73,7 @@ func (s *Store) ModuleSet(ctx context.Context, p ModuleSetParams) (int, error) {
 }
 
 func settableModule(name string) bool {
-	spec, ok := ddiscord.Spec(name)
-	return ok && spec.Name != ddiscord.ModuleIdentity
+	return ddiscord.Stored(name)
 }
 
 func (s *Store) setModuleInTx(ctx context.Context, tx *ent.Tx, p ModuleSetParams) (int, error) {

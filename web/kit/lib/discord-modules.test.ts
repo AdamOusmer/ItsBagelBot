@@ -13,12 +13,13 @@ import {
   validateDiscordModule
 } from './discord-modules';
 
-// Mirrors internal/domain/discord Modules (modules.go + settings.go json tags), identity excluded.
+// Mirrors internal/domain/discord Modules (modules.go + settings.go json tags), identity and voicestate excluded.
 const GO_MODULES: [string, string, string[]][] = [
   ['roles', 'core', ['ownerRoleId', 'leadModRoleId', 'modsRoleId', 'vipRoleId', 'subscriberRoleId', 'regularsRoleId', 'pinnedRoles']],
   ['live', 'default', ['liveChannelId', 'categoryAllow', 'categoryDeny', 'twitchLogin']],
   ['clips', 'default', ['clipsChannelId']],
-  ['welcome', 'default', ['welcomeChannelId', 'goodbyeEnabled']],
+  ['welcome', 'default', ['welcomeChannelId']],
+  ['goodbye', 'optin', []],
   ['autorole', 'default', ['memberRoleId']],
   ['subscribers', 'optin', ['subsChannelId', 'subsCategoryId', 'vipChannelId', 'vipCategoryId']],
   ['voice', 'default', ['voiceHubId', 'voiceCategoryId', 'voiceNameTemplate', 'voiceUserLimit', 'voicePrivacy']],
@@ -68,6 +69,7 @@ const ENABLE_KEYS = [
   'liveEnabled',
   'clipsEnabled',
   'welcomeEnabled',
+  'goodbyeEnabled',
   'autoRoleEnabled',
   'subscribersEnabled',
   'voiceEnabled',
@@ -95,10 +97,7 @@ describe('discord module catalog', () => {
   });
 
   test('toggles follow the Go default per field', () => {
-    const goodbye = discordModuleById('welcome')?.fields.find((f) => f.key === 'goodbyeEnabled');
     const transcript = discordModuleById('tickets')?.fields.find((f) => f.key === 'ticketTranscriptEnabled');
-    expect(discordToggleOn(goodbye!, '')).toBe(false);
-    expect(discordToggleOn(goodbye!, 'on')).toBe(true);
     expect(discordToggleOn(transcript!, '')).toBe(true);
     expect(discordToggleOn(transcript!, 'off')).toBe(false);
   });
@@ -143,8 +142,8 @@ describe('validateDiscordModule', () => {
     expect(validateDiscordModule('voice', { voicePrivacy: 'secret' })?.errors).toEqual([
       { field: 'voicePrivacy', code: 'choice' }
     ]);
-    expect(validateDiscordModule('welcome', { goodbyeEnabled: 'maybe' })?.errors).toEqual([
-      { field: 'goodbyeEnabled', code: 'flag' }
+    expect(validateDiscordModule('tickets', { ticketTranscriptEnabled: 'maybe' })?.errors).toEqual([
+      { field: 'ticketTranscriptEnabled', code: 'flag' }
     ]);
   });
 

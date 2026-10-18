@@ -23,6 +23,7 @@ const (
 	ModuleLive        = "live"
 	ModuleClips       = "clips"
 	ModuleWelcome     = "welcome"
+	ModuleGoodbye     = "goodbye"
 	ModuleAutoRole    = "autorole"
 	ModuleSubscribers = "subscribers"
 	ModuleVoice       = "voice"
@@ -32,6 +33,7 @@ const (
 	ModuleLinkGuard   = "linkguard"
 	ModuleModeration  = "moderation"
 	ModuleIdentity    = "identity"
+	ModuleVoiceState  = "voicestate"
 )
 
 type ModuleSpec struct {
@@ -46,6 +48,7 @@ var moduleSettings = map[string]reflect.Type{
 	ModuleLive:        reflect.TypeFor[LiveSettings](),
 	ModuleClips:       reflect.TypeFor[ClipsSettings](),
 	ModuleWelcome:     reflect.TypeFor[WelcomeSettings](),
+	ModuleGoodbye:     reflect.TypeFor[GoodbyeSettings](),
 	ModuleAutoRole:    reflect.TypeFor[AutoRoleSettings](),
 	ModuleSubscribers: reflect.TypeFor[SubscribersSettings](),
 	ModuleVoice:       reflect.TypeFor[VoiceSettings](),
@@ -61,6 +64,7 @@ var Modules = []ModuleSpec{
 	moduleSpec(ModuleLive, ModuleDefault, "liveEnabled"),
 	moduleSpec(ModuleClips, ModuleDefault, "clipsEnabled"),
 	moduleSpec(ModuleWelcome, ModuleDefault, "welcomeEnabled"),
+	moduleSpec(ModuleGoodbye, ModuleOptIn, "goodbyeEnabled"),
 	moduleSpec(ModuleAutoRole, ModuleDefault, "autoRoleEnabled"),
 	moduleSpec(ModuleSubscribers, ModuleOptIn, "subscribersEnabled"),
 	moduleSpec(ModuleVoice, ModuleDefault, "voiceEnabled"),
@@ -70,6 +74,7 @@ var Modules = []ModuleSpec{
 	moduleSpec(ModuleLinkGuard, ModuleOptIn, "linkGuardEnabled"),
 	moduleSpec(ModuleModeration, ModuleDefault, ""),
 	{Name: ModuleIdentity, Kind: ModuleCore},
+	{Name: ModuleVoiceState, Kind: ModuleCore},
 }
 
 var configIndex = configFieldsByTag(reflect.TypeFor[Config]())
@@ -141,13 +146,18 @@ func SplitConfig(cfg Config) []ModuleRow {
 	src := reflect.ValueOf(cfg)
 	rows := make([]ModuleRow, 0, len(Modules))
 	for _, spec := range Modules {
-		if spec.Name == ModuleIdentity {
+		if !Stored(spec.Name) {
 			continue
 		}
 		raw, _ := codec.Marshal(settingsOf(spec.Name, src).Interface())
 		rows = append(rows, ModuleRow{Name: spec.Name, Enabled: legacyEnabled(spec, src), Settings: raw})
 	}
 	return rows
+}
+
+func Stored(name string) bool {
+	_, ok := moduleSettings[name]
+	return ok
 }
 
 func settingsOf(name string, cfg reflect.Value) reflect.Value {
@@ -181,7 +191,7 @@ func JoinModules(guildID string, rows []ModuleRow) Config {
 
 func applyRow(cfg reflect.Value, row ModuleRow) {
 	spec, ok := Spec(row.Name)
-	if !ok || spec.Name == ModuleIdentity {
+	if !ok || !Stored(spec.Name) {
 		return
 	}
 	if set, err := decodeSettings(spec.Name, row.Settings); err == nil {
@@ -216,7 +226,7 @@ func onOff(on bool) string {
 }
 
 func moduleConfig(name string, settings codec.RawMessage) (Config, []FieldError) {
-	if _, ok := Spec(name); !ok || name == ModuleIdentity {
+	if _, ok := Spec(name); !ok || !Stored(name) {
 		return Config{}, []FieldError{{Field: "name", Code: CodeInvalidChoice}}
 	}
 	if _, err := decodeSettings(name, settings); err != nil {

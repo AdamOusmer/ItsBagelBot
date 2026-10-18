@@ -32,7 +32,7 @@ func TestSplitJoinRoundTripsEveryConfigField(t *testing.T) {
 	for _, enabled := range []string{"on", "off"} {
 		cfg := populatedConfig(enabled)
 		rows := SplitConfig(cfg)
-		assert.Len(t, rows, len(Modules)-1, "one row per module except identity")
+		assert.Len(t, rows, len(Modules)-2, "one row per module except identity and voicestate")
 		assert.Equal(t, cfg, JoinModules(cfg.GuildID, rows), "enabled=%s", enabled)
 	}
 }
@@ -67,7 +67,7 @@ func TestAbsentRowSemanticsFollowKind(t *testing.T) {
 func TestEnableSemanticsMatchTheLegacyFlags(t *testing.T) {
 	legacy := map[string]func(Config) bool{
 		ModuleLive: Config.LiveOn, ModuleClips: Config.ClipsOn, ModuleWelcome: Config.WelcomeOn,
-		ModuleAutoRole: Config.AutoRoleOn, ModuleVoice: Config.VoiceOn, ModuleTickets: Config.TicketsOn,
+		ModuleGoodbye: Config.GoodbyeOn, ModuleAutoRole: Config.AutoRoleOn, ModuleVoice: Config.VoiceOn, ModuleTickets: Config.TicketsOn,
 		ModuleLevels: Config.LevelsOn, ModuleLinkGuard: Config.LinkGuardOn,
 		ModuleLogs:        func(c Config) bool { return wantToggle(true, c.LogsEnabled) },
 		ModuleSubscribers: func(c Config) bool { return wantToggle(false, c.SubscribersEnabled) },
@@ -84,10 +84,6 @@ func TestEnableSemanticsMatchTheLegacyFlags(t *testing.T) {
 			mods := GuildModules{Rows: rows}
 			assert.Equal(t, read(cfg), mods.On(name), "%s=%q", name, value)
 		}
-	}
-	for _, value := range []string{"", "on", "off"} {
-		welcome := WelcomeSettings{GoodbyeEnabled: value}
-		assert.Equal(t, Config{GoodbyeEnabled: value}.GoodbyeOn(), welcome.GoodbyeOn())
 	}
 }
 
@@ -115,6 +111,7 @@ func TestValidateModuleReportsOnlyItsOwnFields(t *testing.T) {
 	assert.Empty(t, ValidateModule(ModuleLive, codec.RawMessage(`{"liveChannelId":"123456789012345678"}`)))
 	assert.NotEmpty(t, ValidateModule("nope", nil))
 	assert.NotEmpty(t, ValidateModule(ModuleIdentity, nil))
+	assert.NotEmpty(t, ValidateModule(ModuleVoiceState, nil))
 	assert.NotEmpty(t, ValidateModule(ModuleLive, codec.RawMessage(`[1]`)))
 }
 
@@ -136,5 +133,5 @@ func TestModuleTableCoversTheDesignNames(t *testing.T) {
 	for _, spec := range Modules {
 		names = append(names, spec.Name)
 	}
-	assert.Equal(t, "roles,live,clips,welcome,autorole,subscribers,voice,tickets,logs,levels,linkguard,moderation,identity", strings.Join(names, ","))
+	assert.Equal(t, "roles,live,clips,welcome,goodbye,autorole,subscribers,voice,tickets,logs,levels,linkguard,moderation,identity,voicestate", strings.Join(names, ","))
 }

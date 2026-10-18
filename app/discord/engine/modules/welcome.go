@@ -15,6 +15,11 @@ import (
 func Welcome() module.Module {
 	b := module.NewModule(ddiscord.ModuleWelcome)
 	b.On("GUILD_MEMBER_ADD", onMemberAdd)
+	return b.Build()
+}
+
+func Goodbye() module.Module {
+	b := module.NewModule(ddiscord.ModuleGoodbye)
 	b.On("GUILD_MEMBER_REMOVE", onMemberRemove)
 	return b.Build()
 }
@@ -73,11 +78,8 @@ func onMemberRemove(_ context.Context, c *module.Context, emit module.Emit) erro
 	if ev.User.Bot {
 		return nil
 	}
-	cfg, err := settingsOf[ddiscord.WelcomeSettings](c)
-	if err != nil {
-		return err
-	}
-	if !cfg.GoodbyeOn() || cfg.WelcomeChannelID == "" {
+	cfg := peerOf[ddiscord.WelcomeSettings](c, ddiscord.ModuleWelcome)
+	if cfg.WelcomeChannelID == "" {
 		return nil
 	}
 	shown := decode.DisplayName(decode.Display{User: ev.User, Nick: ev.Nick})

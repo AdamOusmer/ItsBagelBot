@@ -106,6 +106,12 @@ func moduleCases() []setupCase {
 		req:   outgressrpc.DiscordModuleSetRequest{UserID: "b1", GuildID: "g1", Name: ddiscord.ModuleIdentity},
 		want:  invalid("name"),
 	}, {
+		name:  "rejects the voicestate module",
+		world: setupWorld{rest: rest(), owners: boundG1},
+		verb:  "discord.module.set",
+		req:   outgressrpc.DiscordModuleSetRequest{UserID: "b1", GuildID: "g1", Name: ddiscord.ModuleVoiceState},
+		want:  invalid("name"),
+	}, {
 		name:  "rejects a module write without a guild",
 		world: setupWorld{rest: rest(), owners: boundG1},
 		verb:  "discord.module.set",

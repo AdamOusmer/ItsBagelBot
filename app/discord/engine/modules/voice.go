@@ -27,10 +27,20 @@ type voiceClient interface {
 	MoveMember(ctx context.Context, req discordoutgress.MemberMoveRequest) (discordoutgress.MemberMoveReply, error)
 }
 
-func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
-	h := voiceModule{store: store, channels: channels, log: log, warned: &sync.Map{}}
-	b := module.NewModule(ddiscord.ModuleVoice)
+func newVoiceModule(store discordstore.Store, channels voiceClient, log *zap.Logger) voiceModule {
+	return voiceModule{store: store, channels: channels, log: log, warned: &sync.Map{}}
+}
+
+func VoiceState(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
+	h := newVoiceModule(store, channels, log)
+	b := module.NewModule(ddiscord.ModuleVoiceState)
 	b.On("VOICE_STATE_UPDATE", h.onVoiceState)
+	return b.Build()
+}
+
+func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
+	h := newVoiceModule(store, channels, log)
+	b := module.NewModule(ddiscord.ModuleVoice)
 	b.Slash("voice", h.slash)
 	b.Button(discordapi.CustomVoiceLock, h.lockButton)
 	b.Button(discordapi.CustomVoiceUnlock, h.unlockButton)
@@ -52,10 +62,7 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	if ev.Member.User.Bot {
 		return nil
 	}
-	cfg, err := settingsOf[ddiscord.VoiceSettings](c)
-	if err != nil {
-		return err
-	}
+	cfg := peerOf[ddiscord.VoiceSettings](c, ddiscord.ModuleVoice)
 	move := h.store.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{
 		GuildID: ev.GuildID, UserID: ev.UserID, ChannelID: ev.ChannelID,
 	})
@@ -63,7 +70,7 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	if move.LeftEmpty {
 		h.deleteEmptyClone(ctx, move.From)
 	}
-	if enteredVoiceHub(cfg, move) {
+	if c.ModuleOn(ddiscord.ModuleVoice) && enteredVoiceHub(cfg, move) {
 		h.enterHub(ctx, c, cfg, ev, emit)
 	}
 	return nil

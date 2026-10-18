@@ -108,9 +108,7 @@ func alertOn(v toggleText) bool { return v != "off" }
 func (c Config) LiveOn() bool    { return alertOn(toggleText(c.LiveEnabled)) }
 func (c Config) ClipsOn() bool   { return alertOn(toggleText(c.ClipsEnabled)) }
 func (c Config) WelcomeOn() bool { return alertOn(toggleText(c.WelcomeEnabled)) }
-func (c Config) GoodbyeOn() bool {
-	return WelcomeSettings{GoodbyeEnabled: c.GoodbyeEnabled}.GoodbyeOn()
-}
+func (c Config) GoodbyeOn() bool { return c.GoodbyeEnabled == "on" }
 func (c Config) VoiceOn() bool   { return alertOn(toggleText(c.VoiceEnabled)) }
 func (c Config) TicketsOn() bool { return alertOn(toggleText(c.TicketsEnabled)) }
 func (c Config) LevelsOn() bool  { return alertOn(toggleText(c.LevelsEnabled)) }

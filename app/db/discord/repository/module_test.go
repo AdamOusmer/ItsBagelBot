@@ -165,6 +165,7 @@ func TestModuleSetRejectsBadInput(t *testing.T) {
 		{GuildID: "g1", Name: ddiscord.ModuleLive},
 		{GuildID: "g1", BroadcasterID: 42, Name: "nope"},
 		{GuildID: "g1", BroadcasterID: 42, Name: ddiscord.ModuleIdentity},
+		{GuildID: "g1", BroadcasterID: 42, Name: ddiscord.ModuleVoiceState},
 	} {
 		_, err := f.repo.ModuleSet(f.ctx, p)
 		assert.ErrorIs(t, err, repository.ErrInvalidInput, p.Name)

@@ -471,7 +471,7 @@ func (d *discordRPC) handleModuleSet(ctx context.Context, req outgressrpc.Discor
 }
 
 func invalidModuleFields(req outgressrpc.DiscordModuleSetRequest) []string {
-	if spec, ok := ddiscord.Spec(req.Name); !ok || spec.Name == ddiscord.ModuleIdentity {
+	if !ddiscord.Stored(req.Name) {
 		return []string{"name"}
 	}
 	var out []string

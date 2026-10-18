@@ -111,8 +111,15 @@ export const DISCORD_MODULES: readonly DiscordModuleDef[] = [
     id: 'welcome',
     kind: 'default',
     label: 'Welcome',
-    tagline: 'Greet new members and say goodbye.',
-    fields: [channel('welcomeChannelId', 'Welcome channel'), toggle('goodbyeEnabled', 'Say goodbye', false)]
+    tagline: 'Greet new members.',
+    fields: [channel('welcomeChannelId', 'Welcome channel')]
+  },
+  {
+    id: 'goodbye',
+    kind: 'optin',
+    label: 'Goodbye',
+    tagline: 'Say goodbye in the welcome channel when a member leaves.',
+    fields: []
   },
   {
     id: 'autorole',

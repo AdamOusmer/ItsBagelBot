@@ -24,12 +24,14 @@ type Deps struct {
 func All(d Deps) []module.Module {
 	return []module.Module{
 		Welcome(),
+		Goodbye(),
 		AutoRole(),
 		Logs(d.Store),
 		Rank(d.Store),
 		Moderation(d.Purge, d.Log),
 		Ticket(d.Store, d.Tickets, d.Log),
 		Voice(d.Store, d.Channels, d.Log),
+		VoiceState(d.Store, d.Channels, d.Log),
 		LinkGuard(d.Guard, d.OwnInvite, d.Log),
 		IdentityModule(d.Identity),
 	}

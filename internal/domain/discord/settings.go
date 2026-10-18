@@ -32,8 +32,9 @@ type ClipsSettings struct {
 
 type WelcomeSettings struct {
 	WelcomeChannelID string `json:"welcomeChannelId"`
-	GoodbyeEnabled   string `json:"goodbyeEnabled"`
 }
+
+type GoodbyeSettings struct{}
 
 type AutoRoleSettings struct {
 	MemberRoleID string `json:"memberRoleId"`
@@ -135,8 +136,6 @@ func (l LiveSettings) CategoryAllowed(category string) bool {
 }
 
 func (l LiveSettings) HasCategoryAllow() bool { return len(splitCSV(listText(l.CategoryAllow))) > 0 }
-
-func (w WelcomeSettings) GoodbyeOn() bool { return w.GoodbyeEnabled == "on" }
 
 func (s LinkGuardSettings) Allowed(raw string) bool {
 	needle := strings.ToLower(strings.TrimSpace(raw))

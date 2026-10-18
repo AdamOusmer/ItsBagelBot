@@ -21,8 +21,8 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
   from discord-data (`ddiscord.GuildModules`); the legacy flat `Config` is not read.
 - **Module kind:** core (always on), default (absent row = on) or opt-in (absent row =
   off), derived from the module name in the `ddiscord.Modules` table by `module.NewModule`.
-  Names: roles, live, clips, welcome, autorole, subscribers, voice, tickets, logs,
-  levels, linkguard, moderation, identity.
+  Names: roles, live, clips, welcome, goodbye (opt-in), autorole, subscribers, voice,
+  tickets, logs, levels, linkguard, moderation, identity, voicestate (core, no stored row).
 - **Registry/module:** immutable handlers indexed by gateway type, slash name or
   exact button custom ID, each remembering its owner module; it resembles Sesame's
   authoring shape but differs in axes.
@@ -61,10 +61,10 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 | Guild/broadcaster lookup and beta gate | [internal/resolve/resolve.go](internal/resolve/resolve.go): `ByGuild`, `ByBroadcaster`, `modulesOf`, `gateClosed` |
 | Register handlers | [modules/all.go](modules/all.go), [module/module.go](module/module.go), [module/builder.go](module/builder.go), [internal/registry/registry.go](internal/registry/registry.go) (`Bound`: owner module + handler), [modules/settings.go](modules/settings.go) (`settingsOf`, `peerOf`, `factSettings`) |
 | Raw gateway payload slices/permissions | [internal/decode/decode.go](internal/decode/decode.go), [internal/cmd/cmd.go](internal/cmd/cmd.go) |
-| Welcome/goodbye, autorole, levels | [modules/welcome.go](modules/welcome.go) (`Welcome`, `AutoRole`), [rank.go](modules/rank.go) (`levels`), [message.go](modules/message.go) (XP on `levels`, message cache on `logs`) |
+| Welcome/goodbye, autorole, levels | [modules/welcome.go](modules/welcome.go) (`Welcome`, `Goodbye`, `AutoRole`), [rank.go](modules/rank.go) (`levels`), [message.go](modules/message.go) (XP on `levels`, message cache on `logs`) |
 | Slash moderation and staff checks | [modules/moderation.go](modules/moderation.go), [modules/staff_test.go](modules/staff_test.go) |
 | Ticket panel/lifecycle | [modules/ticket.go](modules/ticket.go), [shared ticket data](../../../internal/discordstore) |
-| Voice rooms | [modules/voice.go](modules/voice.go), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go), [voice store](../../../internal/discordstore/store_voice.go) |
+| Voice rooms | [modules/voice.go](modules/voice.go) (`Voice` command/buttons, `VoiceState` events), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go), [voice store](../../../internal/discordstore/store_voice.go) |
 | Audit logs and their caches | [modules/logs.go](modules/logs.go) (`logTo`, `logEvent`), [message.go](modules/message.go) (cache writes), [message store](../../../internal/discordstore/store_message.go) |
 | Link spread/invite exemption | [modules/linkguard.go](modules/linkguard.go), [linkguard_invite.go](modules/linkguard_invite.go), [internal/invitecache/invitecache.go](internal/invitecache/invitecache.go), [shared guard](../../../internal/domain/discord/linkguard) |
 | Twitch live/clip posts | [modules/live.go](modules/live.go), [clip.go](modules/clip.go), [internal/streaminfo/streaminfo.go](internal/streaminfo/streaminfo.go) |
@@ -115,9 +115,11 @@ replayed across siblings that may already have completed side effects.
 - A module reads only its own `Settings`; cross-module reads go through `Peer`/`Roles`
   (logs routing, ticket log channel, staff roles, voice hub for log filtering). Do not
   add enable checks for the owner module inside handlers: the gate already covers them.
-  Sub-toggles (goodbye, log categories, transcript) stay in settings.
-- The voice-state handler (occupancy, room cleanup, voice logs) is owned by `voice`;
-  with voice off those three stop together.
+  Sub-toggles (log categories, transcript) stay in settings. Goodbye is its own opt-in
+  module that posts to the welcome channel read through `Peer(welcome)`, independent of the welcome gate.
+- The voice-state handler is owned by the core `voicestate` module so occupancy, voice
+  logs and empty-room cleanup run with voice off; only hub room creation checks
+  `ModuleOn(voice)`. `voice` keeps the slash command and buttons.
 - Handler error isolation is intentional; all-event replay can duplicate another
   module's successful effects or store updates.
 - Confirmed publication retries only definite no-responders failures, with a
