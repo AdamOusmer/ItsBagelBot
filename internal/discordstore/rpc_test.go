@@ -17,7 +17,7 @@ import (
 )
 
 func TestRPCStoreFollowsDiscordData(t *testing.T) {
-	scenarios := slices.Concat(bindingScenarios(), guildListScenarios(), configScenarios(),
+	scenarios := slices.Concat(bindingScenarios(), guildListScenarios(), configScenarios(), moduleScenarios(),
 		ticketScenarios(), xpScenarios(), localScenarios())
 	for _, tc := range scenarios {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,6 +89,7 @@ func nonNumericBroadcaster() scenario {
 		dd.VerbBindingDelete:            dd.BindingDeleteReply{},
 		dd.VerbBindingListByBroadcaster: dd.BindingListByBroadcasterReply{},
 		dd.VerbConfigSet:                dd.ConfigSetReply{},
+		dd.VerbModuleSet:                dd.ModuleSetReply{},
 	}
 	untouched := replies{}
 	for v := range writes {

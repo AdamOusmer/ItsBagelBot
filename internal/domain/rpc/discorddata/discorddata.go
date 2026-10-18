@@ -6,6 +6,7 @@ package discorddata
 import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -16,6 +17,9 @@ const (
 
 	VerbConfigGet = "config.get"
 	VerbConfigSet = "config.set"
+
+	VerbModuleList = "module.list"
+	VerbModuleSet  = "module.set"
 
 	VerbTicketOpen  = "ticket.open"
 	VerbTicketClaim = "ticket.claim"
@@ -120,6 +124,33 @@ type ConfigSetRequest struct {
 }
 
 type ConfigSetReply struct {
+	Version int      `json:"version"`
+	Fields  []string `json:"fields,omitempty"`
+	Error   string   `json:"error,omitempty"`
+	Code    rpc.Code `json:"code,omitempty"`
+}
+
+type ModuleListRequest struct {
+	GuildID string `json:"guild_id"`
+}
+
+type ModuleListReply struct {
+	Modules []ddiscord.ModuleRow `json:"modules"`
+	Found   bool                 `json:"found"`
+	Error   string               `json:"error,omitempty"`
+	Code    rpc.Code             `json:"code,omitempty"`
+}
+
+type ModuleSetRequest struct {
+	GuildID         string           `json:"guild_id"`
+	BroadcasterID   uint64           `json:"broadcaster_id"`
+	Name            string           `json:"name"`
+	Enabled         bool             `json:"enabled"`
+	Settings        codec.RawMessage `json:"settings,omitempty"`
+	ExpectedVersion int              `json:"expected_version"`
+}
+
+type ModuleSetReply struct {
 	Version int      `json:"version"`
 	Fields  []string `json:"fields,omitempty"`
 	Error   string   `json:"error,omitempty"`

@@ -50,7 +50,7 @@ func TestMemTrackCloneStopsAtTheCap(t *testing.T) {
 }
 
 func TestMemStoreBehavesLikeTheDurableStore(t *testing.T) {
-	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios(), memCacheScenarios())
+	scenarios := slices.Concat(memBindingScenarios(), memTicketScenarios(), memDeskScenarios(), memMemberScenarios(), memCacheScenarios(), memModuleScenarios())
 	for _, tc := range scenarios {
 		t.Run(tc.name, func(t *testing.T) {
 			runSteps(t, discordstore.NewMem(), nil, tc.steps)

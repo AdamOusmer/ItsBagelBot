@@ -202,6 +202,50 @@ func (s *rpcStore) SetGuildConfig(ctx context.Context, set SetConfig) (int, erro
 	return reply.Version, nil
 }
 
+func (s *rpcStore) GuildModules(ctx context.Context, g Guild) (ddiscord.GuildModules, bool) {
+	reply, err := request[discorddata.ModuleListReply](ctx, s.rpc, s.subject(discorddata.VerbModuleList),
+		discorddata.ModuleListRequest{GuildID: g.ID})
+	if err != nil || reply.Error != "" {
+		s.log.Error("discord-data module.list failed; serving the cached modules",
+			zap.String("guild_id", g.ID), zap.String("reply_error", reply.Error), zap.Error(err))
+		return s.cachedModules(ctx, g)
+	}
+	if !reply.Found {
+		s.dropModules(ctx, g)
+		return ddiscord.GuildModules{}, false
+	}
+	mods := ddiscord.GuildModules{GuildID: g.ID, Rows: make(map[string]ddiscord.ModuleRow, len(reply.Modules))}
+	for _, row := range reply.Modules {
+		mods.Rows[row.Name] = row
+	}
+	s.cacheModules(ctx, g, mods)
+	return mods, true
+}
+
+func (s *rpcStore) SetGuildModule(ctx context.Context, set SetModule) (int, error) {
+	broadcasterID, err := numericBroadcasterID(set.Broadcaster)
+	if err != nil {
+		return 0, err
+	}
+	reply, err := request[discorddata.ModuleSetReply](ctx, s.rpc, s.subject(discorddata.VerbModuleSet),
+		discorddata.ModuleSetRequest{
+			GuildID:         set.Guild.ID,
+			BroadcasterID:   broadcasterID,
+			Name:            set.Row.Name,
+			Enabled:         set.Row.Enabled,
+			Settings:        set.Row.Settings,
+			ExpectedVersion: set.ExpectedVersion,
+		})
+	if err != nil {
+		return 0, err
+	}
+	if err := replyError(reply.Error, reply.Code); err != nil {
+		return 0, err
+	}
+	s.dropConfig(ctx, set.Guild)
+	return reply.Version, nil
+}
+
 func (s *rpcStore) Invalidate(ctx context.Context, g Guild) { s.dropConfig(ctx, g) }
 
 func (s *rpcStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
