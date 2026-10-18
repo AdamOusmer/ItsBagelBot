@@ -16,8 +16,6 @@ type Tx struct {
 	Balance *BalanceClient
 	// Counter is the client for interacting with the Counter builders.
 	Counter *CounterClient
-	// CounterBatch is the client for interacting with the CounterBatch builders.
-	CounterBatch *CounterBatchClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
 	CounterEntry *CounterEntryClient
 
@@ -153,7 +151,6 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.Balance = NewBalanceClient(tx.config)
 	tx.Counter = NewCounterClient(tx.config)
-	tx.CounterBatch = NewCounterBatchClient(tx.config)
 	tx.CounterEntry = NewCounterEntryClient(tx.config)
 }
 
