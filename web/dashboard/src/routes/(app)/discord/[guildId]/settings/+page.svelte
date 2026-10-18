@@ -131,8 +131,7 @@
   <FactList>
     {#each items as item (item.kind + item.name)}
       <Fact term={item.name}>
-        {t(item.kind === 'role' ? 'discord.settings.kindRole' : 'discord.settings.kindChannel')}
-        {#if item.parent}, {item.parent}{/if}
+        {t(item.kind === 'role' ? 'discord.settings.kindRole' : 'discord.settings.kindChannel')}{#if item.parent}, {item.parent}{/if}
         {#if item.action === 'pinned'}<Tag>{t('discord.settings.pinnedTag')}</Tag>{/if}
       </Fact>
     {/each}
