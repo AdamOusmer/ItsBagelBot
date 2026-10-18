@@ -238,7 +238,7 @@ defmodule Ingress.TrialReceiver do
 
   defp acquire(state) do
     case Trials.acquire(state.owner, state.slot) do
-      {:ok, epoch} -> reconcile(%{state | epoch: epoch, free_ticks: 0})
+      {:ok, epoch} -> reconcile(%{state | epoch: epoch, free_ticks: 0}, true)
       _ -> state
     end
   end
@@ -495,11 +495,11 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp reconcile(state) do
+  defp reconcile(state, sweep? \\ false) do
     case Trials.list() do
       {:ok, %{trials: rows, socket_target: target}} ->
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
-        own = rows |> Enum.filter(&(&1.slot == state.slot)) |> maybe_promote()
+        own = rows |> Enum.filter(&(&1.slot == state.slot)) |> maybe_promote(sweep?)
         state = coordinate(rows, target, state)
 
         case Enum.reduce_while(own, :owned, fn row, _ ->
@@ -607,12 +607,14 @@ defmodule Ingress.TrialReceiver do
     }
   end
 
-  defp maybe_promote(rows) do
+  defp maybe_promote(rows, false), do: rows
+
+  defp maybe_promote(rows, true) do
     Enum.map(rows, fn row ->
       if row.state != "stopping" && TrialRpc.registered?(row.broadcaster_id) == {:ok, true} do
         Trials.stop(row.broadcaster_id)
         Trials.field(row.broadcaster_id, "stop_reason", "promoted")
-        %{row | state: "stopping"}
+        %{row | state: "stopping", stop_reason: "promoted"}
       else
         row
       end
@@ -650,27 +652,17 @@ defmodule Ingress.TrialReceiver do
 
   defp reconcile_row(row, state) do
     if subscription_needed?(row, state) do
-      case TrialRpc.registered?(row.broadcaster_id) do
-        {:ok, false} ->
-          reply =
-            subscription_rpc("create", %{
-              broadcaster_id: row.broadcaster_id,
-              session_id: state.session_id,
-              owner_epoch: state.epoch,
-              slot: state.slot,
-              trial_generation: row.generation
-            })
+      reply =
+        subscription_rpc("create", %{
+          broadcaster_id: row.broadcaster_id,
+          session_id: state.session_id,
+          owner_epoch: state.epoch,
+          slot: state.slot,
+          trial_generation: row.generation
+        })
 
-          if error = reply["error"] do
-            Trials.fail(row.broadcaster_id, row.generation, error)
-          end
-
-        {:ok, true} ->
-          Trials.stop(row.broadcaster_id)
-          Trials.field(row.broadcaster_id, "stop_reason", "promoted")
-
-        _ ->
-          Trials.fail(row.broadcaster_id, row.generation, "registration_check_unavailable")
+      if error = reply["error"] do
+        Trials.fail(row.broadcaster_id, row.generation, error)
       end
     end
   end
