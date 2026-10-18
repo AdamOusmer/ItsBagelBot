@@ -4,7 +4,7 @@
   "needsSetup": "Requiere configuración",
   "needsSetupHint": "Módulos activados que aún necesitan un canal o un rol: {n}. Abre el que quieras y selecciona lo que falte.",
   "configure": "Configurar",
-  "notSetUp": "Este servidor nunca se ha configurado. Elige Crear los canales y roles que faltan y Bagel añadirá lo que necesita.",
+  "notSetUp": "Bagel está conectado, pero este servidor aún no tiene ajustes guardados. Mira la plantilla opcional del servidor en Ajustes o elige tus canales en la página Canales.",
   "botState": "Bot",
   "modulesOn": "Módulos activados",
   "tiles": {
@@ -52,5 +52,6 @@
       "name": "Tickets de soporte",
       "help": "Un panel donde los miembros hacen clic para abrir un canal privado con tu equipo."
     }
-  }
+  },
+  "notSetUpCta": "Ver la plantilla del servidor"
 }

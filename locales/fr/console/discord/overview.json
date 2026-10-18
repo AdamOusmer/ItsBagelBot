@@ -4,7 +4,7 @@
   "needsSetup": "À configurer",
   "needsSetupHint": "{n} de ces modules sont actifs mais attendent encore un salon ou un rôle. Ouvrez celui qui vous intéresse pour le choisir.",
   "configure": "Configurer",
-  "notSetUp": "Ce serveur n’a jamais été configuré. Choisissez Créer les salons et rôles manquants et Bagel ajoute ce dont il a besoin.",
+  "notSetUp": "Bagel est connecté, mais ce serveur n’a pas encore de paramètres enregistrés. Consultez le modèle de serveur facultatif dans les Paramètres, ou choisissez vos salons sur la page Salons.",
   "botState": "Bot",
   "modulesOn": "Modules actifs",
   "tiles": {
@@ -52,5 +52,6 @@
       "name": "Tickets d’assistance",
       "help": "Un panneau que les membres utilisent pour ouvrir un salon privé avec votre staff."
     }
-  }
+  },
+  "notSetUpCta": "Voir le modèle de serveur"
 }

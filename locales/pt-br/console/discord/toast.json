@@ -6,6 +6,7 @@
   "reposted": "Painel de tickets republicado.",
   "saveFailed": "Não foi possível salvar as configurações do Discord.",
   "saved": "Configurações do Discord salvas.",
-  "setup": "Servidor configurado.",
-  "setupFailed": "Não foi possível configurar este servidor."
+  "setup": "Modelo do servidor aplicado.",
+  "setupFailed": "Não foi possível aplicar o modelo do servidor.",
+  "previewFailed": "Não foi possível mostrar o modelo do servidor."
 }

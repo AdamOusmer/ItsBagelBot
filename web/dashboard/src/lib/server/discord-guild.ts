@@ -10,6 +10,7 @@ import {
   guildLayout,
   listGuilds,
   persistSetup,
+  previewTemplate,
   pinnedRolesOf,
   readDiscord,
   readGuildConfig,
@@ -209,6 +210,10 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
 
 async function demoOutcome(label: string, ctx: ActionCtx) {
   if (label === 'save') return demoSave(ctx);
+  if (label === 'preview') {
+    const { demoDiscordTemplatePreview } = await import('$lib/server/demo-data');
+    return { ok: true, plan: demoDiscordTemplatePreview() };
+  }
   if (label === 'setup') {
     const { demoDiscordDroppedPins } = await import('$lib/server/demo-data');
     rememberDroppedPins(ctx.cookies, ctx.guildId, droppedPinNotice(demoDiscordDroppedPins()));
@@ -411,7 +416,8 @@ export const guildActions: Actions = {
         ...ctx.target,
         installedBy: ctx.session?.user_id ?? ctx.uid,
         subscribers: alertOff(row.config.subscribersEnabled),
-        pinnedRoles: pinnedRolesOf(row.config)
+        pinnedRoles: pinnedRolesOf(row.config),
+        mode: 'apply'
       },
       { ...row.config, twitchLogin: login }
     );
@@ -422,6 +428,18 @@ export const guildActions: Actions = {
     auditDashboardImpersonation(ctx.session, 'discord:setup', ctx.guildId);
     rememberDroppedPins(ctx.cookies, ctx.guildId, result.droppedPins);
     return { refused: result.refused };
+  }),
+
+  preview: discordAction({ label: 'preview', failMsg: 'Could not preview the server template.' }, async (ctx) => {
+    requireDiscordActor(ctx.locals);
+    const row = await readGuildConfig(ctx.target);
+    const plan = await previewTemplate({
+      ...ctx.target,
+      subscribers: alertOff(row.config.subscribersEnabled),
+      pinnedRoles: pinnedRolesOf(row.config)
+    });
+    if (plan.error || plan.code) return { error: plan.error, code: plan.code };
+    return { plan };
   }),
 
   repost: discordAction({ label: 'repost', failMsg: 'Could not repost the ticket panel.' }, async (ctx) => {

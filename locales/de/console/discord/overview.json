@@ -4,7 +4,7 @@
   "needsSetup": "Einrichtung erforderlich",
   "needsSetupHint": "Aktiviert, aber ohne Kanal oder Rolle: {n}. Öffne das gewünschte Modul und wähle das Fehlende aus.",
   "configure": "Konfigurieren",
-  "notSetUp": "Dieser Server wurde noch nie eingerichtet. Wähle „Fehlende Kanäle und Rollen erstellen“, damit Bagel hinzufügt, was er benötigt.",
+  "notSetUp": "Bagel ist verbunden, aber dieser Server hat noch keine gespeicherten Einstellungen. Sieh dir die optionale Server-Vorlage in den Einstellungen an oder wähle deine Kanäle auf der Seite Kanäle.",
   "botState": "Bot",
   "modulesOn": "Aktive Module",
   "tiles": {
@@ -52,5 +52,6 @@
       "name": "Support-Tickets",
       "help": "Ein Panel, über das Mitglieder einen privaten Kanal mit deinem Team öffnen."
     }
-  }
+  },
+  "notSetUpCta": "Server-Vorlage ansehen"
 }

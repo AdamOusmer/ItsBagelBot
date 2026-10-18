@@ -4,7 +4,7 @@
   "needsSetup": "Precisa de configuração",
   "needsSetupHint": "Itens ativados que ainda precisam de canal ou cargo: {n}. Abra o item desejado e escolha.",
   "configure": "Configurar",
-  "notSetUp": "Este servidor nunca foi configurado. Escolha Criar canais e cargos que faltam e Bagel adicionará o que for necessário.",
+  "notSetUp": "O Bagel está conectado, mas este servidor ainda não tem configurações salvas. Veja o modelo opcional do servidor em Configurações ou escolha seus canais na página Canais.",
   "botState": "Bot",
   "modulesOn": "Módulos ativados",
   "tiles": {
@@ -52,5 +52,6 @@
       "name": "Tickets de suporte",
       "help": "Um painel em que os membros clicam para abrir um canal privado com sua equipe."
     }
-  }
+  },
+  "notSetUpCta": "Ver o modelo do servidor"
 }
