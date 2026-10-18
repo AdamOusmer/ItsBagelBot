@@ -22,7 +22,7 @@ import (
 
 var ErrBoundElsewhere = errors.New("discordstore: guild is bound to a different broadcaster")
 
-const rpcTimeout = 3 * time.Second
+const rpcTimeout = 4 * time.Second
 
 type Requester interface {
 	Request(ctx context.Context, subject string, request, reply any) error
@@ -287,13 +287,13 @@ func (s *rpcStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, boo
 	}, true
 }
 
-func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) int {
+func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) (int, error) {
 	reply, err := request[discorddata.TicketCountReply](ctx, s.rpc, s.subject(discorddata.VerbTicketCount),
 		discorddata.TicketCountRequest{GuildID: m.GuildID, OpenerID: m.UserID})
 	if s.memberCallFailed(discorddata.VerbTicketCount, m, err, reply.Error) {
-		return 0
+		return 0, ErrStoreUnavailable
 	}
-	return reply.Count
+	return reply.Count, nil
 }
 
 func (s *rpcStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
@@ -319,12 +319,12 @@ func (s *rpcStore) PutTranscript(ctx context.Context, t Transcript) error {
 
 func (s *rpcStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 	if !s.takeXPCooldown(ctx, m) {
-		xp, level := s.Rank(ctx, m)
-		return xp, false, level
+		return 0, false, 0
 	}
 	reply, err := request[discorddata.XPAddReply](ctx, s.rpc, s.subject(discorddata.VerbXPAdd),
 		discorddata.XPAddRequest{GuildID: m.GuildID, UserID: m.UserID, Delta: xpPerMessage})
 	if s.memberCallFailed(discorddata.VerbXPAdd, m, err, reply.Error) {
+		s.releaseXPCooldown(ctx, m)
 		return 0, false, 0
 	}
 	return int(reply.XPValue), reply.LeveledUp, reply.Level

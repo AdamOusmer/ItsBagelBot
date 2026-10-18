@@ -40,6 +40,7 @@ type localStore interface {
 	cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding)
 	dropGuilds(ctx context.Context, b Broadcaster)
 	takeXPCooldown(ctx context.Context, m Member) bool
+	releaseXPCooldown(ctx context.Context, m Member)
 }
 
 func newLocal(client valkey.Client) localStore {
@@ -146,6 +147,10 @@ func (s valkeyStore) takeXPCooldown(ctx context.Context, m Member) bool {
 	return err == nil
 }
 
+func (s valkeyStore) releaseXPCooldown(ctx context.Context, m Member) {
+	_ = s.client.Do(ctx, s.client.B().Del().Key(xpCDKey(m)).Build()).Error()
+}
+
 func (m *Mem) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
 	return m.Broadcaster(ctx, g)
 }
@@ -162,6 +167,12 @@ func (m *Mem) takeXPCooldown(_ context.Context, mem Member) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.takeXPCooldownLocked(mem)
+}
+
+func (m *Mem) releaseXPCooldown(_ context.Context, mem Member) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.xpCD, mem.key())
 }
 
 func (m *Mem) takeXPCooldownLocked(mem Member) bool {

@@ -80,7 +80,7 @@ func memTicketScenarios() []scenario {
 		name: "TestMemEnforcesTheOpenLimitAndNumbersTickets",
 		steps: []step{
 			{do: callResult(store.TrackTicket, opening("c1")), want: outcome(discordstore.TicketOpenResult{TicketID: 1, OpenCount: 1}, nil)},
-			{do: call(store.OpenTicketCount, u1), want: 1},
+			{do: callResult(store.OpenTicketCount, u1), want: outcome(1, nil)},
 			{do: callResult(store.TrackTicket, opening("c2")), want: outcome(discordstore.TicketOpenResult{TicketID: 2, OpenCount: 2}, nil)},
 			{do: callResult(store.TrackTicket, opening("c3")), want: outcome(discordstore.TicketOpenResult{OpenCount: 2, AtLimit: true}, nil)},
 			{do: readTicket(discordstore.Channel{ID: "c3"}), want: pair(discordstore.Ticket{}, false)},

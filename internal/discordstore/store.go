@@ -90,7 +90,7 @@ type Store interface {
 
 	TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error)
 	Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool)
-	OpenTicketCount(ctx context.Context, m Member) int
+	OpenTicketCount(ctx context.Context, m Member) (int, error)
 	ClaimTicket(ctx context.Context, c TicketClaim) error
 	CloseTicket(ctx context.Context, c TicketClose) error
 	PutTranscript(ctx context.Context, t Transcript) error

@@ -6,6 +6,7 @@ package resolve_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"ItsBagelBot/app/discord/engine/internal/resolve"
@@ -220,4 +221,18 @@ func TestModuleRowsSurviveResolution(t *testing.T) {
 	require.False(t, mods.On(ddiscord.ModuleLive))
 	require.True(t, mods.On(ddiscord.ModuleLinkGuard))
 	require.True(t, mods.On(ddiscord.ModuleVoice))
+}
+
+func TestWarningRecordResetsWhenFullAndReWarnsAnEarlyGuild(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	cfgs := map[string]ddiscord.Config{"g0": {LiveChannelID: "#live"}}
+	r := rig{configs: cfgs, tier: tierOf("paid", true), warned: resolve.NewConfigWarnings(), log: zap.New(core)}.resolver(t)
+
+	_, _, _ = r.ByGuild(context.Background(), "g0")
+	for i := range resolve.MaxWarned {
+		r.Warned.First(fmt.Sprintf("filler-%d", i), "field")
+	}
+	_, _, _ = r.ByGuild(context.Background(), "g0")
+
+	require.Equal(t, 2, logs.Len())
 }

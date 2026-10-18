@@ -179,6 +179,7 @@ func baseConfig() ddiscord.Config {
 type storeFaults struct {
 	nonDurable bool
 	staleCount bool
+	countErr   error
 }
 
 type faultyStore struct {
@@ -190,9 +191,12 @@ func (s faultyStore) TicketsDurable(ctx context.Context) bool {
 	return !s.faults.nonDurable && s.Store.TicketsDurable(ctx)
 }
 
-func (s faultyStore) OpenTicketCount(ctx context.Context, m discordstore.Member) int {
+func (s faultyStore) OpenTicketCount(ctx context.Context, m discordstore.Member) (int, error) {
+	if s.faults.countErr != nil {
+		return 0, s.faults.countErr
+	}
 	if s.faults.staleCount {
-		return 0
+		return 0, nil
 	}
 	return s.Store.OpenTicketCount(ctx, m)
 }

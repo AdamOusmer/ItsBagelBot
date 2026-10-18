@@ -229,7 +229,7 @@ func ticketScenarios() []scenario {
 			sent: replies{dd.VerbTicketClaim: dd.TicketClaimRequest{GuildID: "g1", ChannelID: "c1", StaffID: "mod1"}},
 		}, {
 			serve: replies{dd.VerbTicketCount: dd.TicketCountReply{Count: 2}},
-			do:    call(store.OpenTicketCount, u1), want: 2,
+			do:    callResult(store.OpenTicketCount, u1), want: outcome(2, nil),
 			sent: replies{dd.VerbTicketCount: dd.TicketCountRequest{GuildID: "g1", OpenerID: "u1"}},
 		}, {
 			serve: replies{dd.VerbTranscriptPut: dd.TranscriptPutReply{}},
@@ -245,7 +245,7 @@ func ticketScenarios() []scenario {
 		steps: []step{
 			{do: readTicket(c1), want: pair(discordstore.Ticket{}, false)},
 			{do: callResult(store.TrackTicket, open), want: outcome(discordstore.TicketOpenResult{}, nats.ErrNoResponders)},
-			{do: call(store.OpenTicketCount, u1), want: 0},
+			{do: callResult(store.OpenTicketCount, u1), want: outcome(0, discordstore.ErrStoreUnavailable)},
 			{do: call(store.ClaimTicket, claim), want: nats.ErrNoResponders},
 		},
 	}}
@@ -253,15 +253,26 @@ func ticketScenarios() []scenario {
 
 func xpScenarios() []scenario {
 	return []scenario{{
-		name: "xp is awarded once per cooldown and the held message reads the rank",
+		name: "xp is awarded once per cooldown and a held message neither writes nor reads",
 		steps: []step{{
 			serve: replies{dd.VerbXPAdd: dd.XPAddReply{XPValue: 100, Level: 1, LeveledUp: true}},
 			do:    addXP, want: award{XP: 100, Leveled: true, Level: 1},
 			sent: replies{dd.VerbXPAdd: dd.XPAddRequest{GuildID: "g1", UserID: "u1", Delta: 15}},
 		}, {
 			serve: replies{dd.VerbXPGet: dd.XPGetReply{XPValue: 100, Level: 1, Found: true}},
-			do:    addXP, want: award{XP: 100, Level: 1},
+			do:    addXP, want: award{},
+			sent: replies{dd.VerbXPGet: unsent{}},
 		}},
+	}, {
+		name: "a failed xp write refunds the cooldown so the next message is awarded",
+		steps: []step{
+			{serve: replies{dd.VerbXPAdd: dd.XPAddReply{Error: "db down"}}, do: addXP, want: award{}},
+			{
+				serve: replies{dd.VerbXPAdd: dd.XPAddReply{XPValue: 15}},
+				do:    addXP, want: award{XP: 15},
+				sent: replies{dd.VerbXPAdd: dd.XPAddRequest{GuildID: "g1", UserID: "u1", Delta: 15}},
+			},
+		},
 	}, {
 		name: "the daily is granted once and the rank reads the store",
 		steps: []step{{

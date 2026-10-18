@@ -29,16 +29,30 @@ type Resolver struct {
 	Log     *zap.Logger
 }
 
-type ConfigWarnings struct{ seen sync.Map }
+const maxWarned = 4096
 
-func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{} }
+type ConfigWarnings struct {
+	mu   sync.Mutex
+	seen map[string]struct{}
+}
+
+func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{seen: map[string]struct{}{}} }
 
 func (w *ConfigWarnings) first(guildID, field string) bool {
 	if w == nil {
 		return true
 	}
-	_, seen := w.seen.LoadOrStore(guildID+"\x00"+field, struct{}{})
-	return !seen
+	key := guildID + "\x00" + field
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, seen := w.seen[key]; seen {
+		return false
+	}
+	if len(w.seen) >= maxWarned {
+		clear(w.seen)
+	}
+	w.seen[key] = struct{}{}
+	return true
 }
 
 type GuildModulesOf struct {
