@@ -431,7 +431,7 @@ func (c *Client) request(ctx context.Context, src *Source, call HelixCall) (*htt
 	unauthorizedBody, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 	_ = res.Body.Close()
 	switch {
-	case bytes.Contains(bytes.ToLower(unauthorizedBody), []byte("does not have the required permission")):
+	case bytes.Contains(bytes.ToLower(unauthorizedBody), []byte("the required permission")):
 	case isMissingScope(unauthorizedBody):
 		src.Invalidate()
 	default:
