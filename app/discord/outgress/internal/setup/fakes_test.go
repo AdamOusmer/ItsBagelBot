@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"go.uber.org/zap"
 )
@@ -147,4 +148,20 @@ type unavailableStore struct{ discordstore.Store }
 
 func (unavailableStore) GuildsOf(context.Context, discordstore.Broadcaster) ([]discordstore.Binding, error) {
 	return nil, discordstore.ErrStoreUnavailable
+}
+
+func existingChannels(names ...string) []discapi.Snowflake {
+	out := make([]discapi.Snowflake, 0, len(names))
+	for _, name := range names {
+		out = append(out, discapi.Snowflake{ID: "old-" + name, Name: name})
+	}
+	return out
+}
+
+func livedInServer() []discapi.Snowflake {
+	var names []string
+	for i := range ddiscord.LivingCommunityMinChannels {
+		names = append(names, "existing-"+strconv.Itoa(i))
+	}
+	return existingChannels(append(names, "Clips")...)
 }
