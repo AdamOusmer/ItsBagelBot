@@ -69,6 +69,59 @@ func (s *rpcStore) ack(ctx context.Context, verb string, req any) error {
 	return replyError(reply.Error, reply.Code)
 }
 
+type writeReply struct {
+	rpc.Refusal
+	Version int `json:"version"`
+}
+
+type rpcWrite struct {
+	verb        string
+	broadcaster Broadcaster
+	request     func(broadcasterID uint64) any
+	guild       Guild
+	effects     writeEffects
+}
+
+type writeEffects uint8
+
+const (
+	writeCachesBinding writeEffects = 1 << iota
+	writeDropsBinding
+	writeDropsGuilds
+	writeDropsConfig
+)
+
+func (s *rpcStore) applyWriteEffects(ctx context.Context, w rpcWrite) {
+	if w.effects&writeCachesBinding != 0 {
+		s.cacheBroadcaster(ctx, w.guild, w.broadcaster)
+	}
+	if w.effects&writeDropsBinding != 0 {
+		s.dropBroadcaster(ctx, w.guild)
+	}
+	if w.effects&writeDropsGuilds != 0 {
+		s.dropGuilds(ctx, w.broadcaster)
+	}
+	if w.effects&writeDropsConfig != 0 {
+		s.dropConfig(ctx, w.guild)
+	}
+}
+
+func (s *rpcStore) write(ctx context.Context, w rpcWrite) (int, error) {
+	broadcasterID, err := numericBroadcasterID(w.broadcaster)
+	if err != nil {
+		return 0, err
+	}
+	reply, err := request[writeReply](ctx, s.rpc, s.subject(w.verb), w.request(broadcasterID))
+	if err != nil {
+		return 0, err
+	}
+	if err := replyError(reply.Error, reply.Code); err != nil {
+		return 0, err
+	}
+	s.applyWriteEffects(ctx, w)
+	return reply.Version, nil
+}
+
 func (s *rpcStore) memberCallFailed(verb string, m Member, err error, replyErr string) bool {
 	if err == nil && replyErr == "" {
 		return false
@@ -103,36 +156,29 @@ func (s *rpcStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, Binding
 }
 
 func (s *rpcStore) BindGuild(ctx context.Context, bind Binding) error {
-	broadcasterID, err := numericBroadcasterID(bind.Broadcaster)
-	if err != nil {
-		return err
-	}
-	err = s.ack(ctx, discorddata.VerbBindingSet, discorddata.BindingSetRequest{
-		GuildID:       bind.Guild.ID,
-		BroadcasterID: broadcasterID,
-		InstalledBy:   bind.InstalledBy,
+	_, err := s.write(ctx, rpcWrite{
+		verb:        discorddata.VerbBindingSet,
+		broadcaster: bind.Broadcaster,
+		request: func(id uint64) any {
+			return discorddata.BindingSetRequest{GuildID: bind.Guild.ID, BroadcasterID: id, InstalledBy: bind.InstalledBy}
+		},
+		guild:   bind.Guild,
+		effects: writeCachesBinding | writeDropsGuilds,
 	})
-	if err != nil {
-		return err
-	}
-	s.cacheBroadcaster(ctx, bind.Guild, bind.Broadcaster)
-	s.dropGuilds(ctx, bind.Broadcaster)
-	return nil
+	return err
 }
 
 func (s *rpcStore) UnbindGuild(ctx context.Context, bind Binding) error {
-	broadcasterID, err := numericBroadcasterID(bind.Broadcaster)
-	if err != nil {
-		return err
-	}
-	err = s.ack(ctx, discorddata.VerbBindingDelete,
-		discorddata.BindingDeleteRequest{GuildID: bind.Guild.ID, BroadcasterID: broadcasterID})
-	if err != nil {
-		return err
-	}
-	s.dropBroadcaster(ctx, bind.Guild)
-	s.dropGuilds(ctx, bind.Broadcaster)
-	return nil
+	_, err := s.write(ctx, rpcWrite{
+		verb:        discorddata.VerbBindingDelete,
+		broadcaster: bind.Broadcaster,
+		request: func(id uint64) any {
+			return discorddata.BindingDeleteRequest{GuildID: bind.Guild.ID, BroadcasterID: id}
+		},
+		guild:   bind.Guild,
+		effects: writeDropsBinding | writeDropsGuilds,
+	})
+	return err
 }
 
 func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error) {
@@ -181,25 +227,17 @@ func (s *rpcStore) GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, i
 }
 
 func (s *rpcStore) SetGuildConfig(ctx context.Context, set SetConfig) (int, error) {
-	broadcasterID, err := numericBroadcasterID(set.Broadcaster)
-	if err != nil {
-		return 0, err
-	}
-	reply, err := request[discorddata.ConfigSetReply](ctx, s.rpc, s.subject(discorddata.VerbConfigSet),
-		discorddata.ConfigSetRequest{
-			GuildID:         set.Guild.ID,
-			BroadcasterID:   broadcasterID,
-			Config:          set.Config,
-			ExpectedVersion: set.ExpectedVersion,
-		})
-	if err != nil {
-		return 0, err
-	}
-	if err := replyError(reply.Error, reply.Code); err != nil {
-		return 0, err
-	}
-	s.dropConfig(ctx, set.Guild)
-	return reply.Version, nil
+	return s.write(ctx, rpcWrite{
+		verb:        discorddata.VerbConfigSet,
+		broadcaster: set.Broadcaster,
+		request: func(id uint64) any {
+			return discorddata.ConfigSetRequest{
+				GuildID: set.Guild.ID, BroadcasterID: id, Config: set.Config, ExpectedVersion: set.ExpectedVersion,
+			}
+		},
+		guild:   set.Guild,
+		effects: writeDropsConfig,
+	})
 }
 
 func (s *rpcStore) GuildModules(ctx context.Context, g Guild) (ddiscord.GuildModules, bool) {
@@ -223,27 +261,22 @@ func (s *rpcStore) GuildModules(ctx context.Context, g Guild) (ddiscord.GuildMod
 }
 
 func (s *rpcStore) SetGuildModule(ctx context.Context, set SetModule) (int, error) {
-	broadcasterID, err := numericBroadcasterID(set.Broadcaster)
-	if err != nil {
-		return 0, err
-	}
-	reply, err := request[discorddata.ModuleSetReply](ctx, s.rpc, s.subject(discorddata.VerbModuleSet),
-		discorddata.ModuleSetRequest{
-			GuildID:         set.Guild.ID,
-			BroadcasterID:   broadcasterID,
-			Name:            set.Row.Name,
-			Enabled:         set.Row.Enabled,
-			Settings:        set.Row.Settings,
-			ExpectedVersion: set.ExpectedVersion,
-		})
-	if err != nil {
-		return 0, err
-	}
-	if err := replyError(reply.Error, reply.Code); err != nil {
-		return 0, err
-	}
-	s.dropConfig(ctx, set.Guild)
-	return reply.Version, nil
+	return s.write(ctx, rpcWrite{
+		verb:        discorddata.VerbModuleSet,
+		broadcaster: set.Broadcaster,
+		request: func(id uint64) any {
+			return discorddata.ModuleSetRequest{
+				GuildID:         set.Guild.ID,
+				BroadcasterID:   id,
+				Name:            set.Row.Name,
+				Enabled:         set.Row.Enabled,
+				Settings:        set.Row.Settings,
+				ExpectedVersion: set.ExpectedVersion,
+			}
+		},
+		guild:   set.Guild,
+		effects: writeDropsConfig,
+	})
 }
 
 func (s *rpcStore) Invalidate(ctx context.Context, g Guild) { s.dropConfig(ctx, g) }
