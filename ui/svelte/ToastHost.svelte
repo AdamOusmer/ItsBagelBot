@@ -37,6 +37,7 @@
     {#each $toasts as t (t.id)}
       <div
         class="bb-toast bb-toast--{t.kind}"
+        class:bb-toast--compact={t.compact}
         role="status"
         onmouseenter={() => pauseToast(t.id)}
         onmouseleave={(e) => leave(e, t.id)}
@@ -55,7 +56,7 @@
           aria-label={dismissLabel}
           onclick={() => dismissToast(t.id)}
         >
-          <Icon name="x" size={12} />
+          <Icon name="x" size={t.compact ? 10 : 12} />
         </button>
       </div>
     {/each}
