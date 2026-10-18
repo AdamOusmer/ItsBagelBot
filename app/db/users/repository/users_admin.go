@@ -97,11 +97,12 @@ func AdminStatePredicate(state string) (predicate.User, bool) {
 	}
 }
 
-type userStatsRow struct {
-	Total  int `json:"total"`
-	Active int `json:"active"`
-	Paid   int `json:"paid"`
-	Vip    int `json:"vip"`
+type UserCounts struct {
+	Total   int `json:"total"`
+	Active  int `json:"active"`
+	Paid    int `json:"paid"`
+	Granted int `json:"granted"`
+	Vip     int `json:"vip"`
 }
 
 func countIf(cond func(*entsql.Selector) string) ent.AggregateFunc {
@@ -121,30 +122,31 @@ func isActiveCond(s *entsql.Selector) string {
 	return s.C(user.FieldIsActive)
 }
 
-func (r *Users) UserStats(ctx context.Context) (total, active, paid, vip int, err error) {
-	row, err := r.stats.GetOrLoad(ctx, userStatsKey, r.loadUserStats)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-	return row.Total, row.Active, row.Paid, row.Vip, nil
+func isGrantedCond(s *entsql.Selector) string {
+	return statusIs(user.StatusPaid)(s) + " AND " + s.C(user.FieldSubscriptionSource) + " IN ('admin', 'giveaway')"
 }
 
-func (r *Users) loadUserStats(ctx context.Context) (userStatsRow, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (userStatsRow, error) {
-		var rows []userStatsRow
+func (r *Users) UserStats(ctx context.Context) (UserCounts, error) {
+	return r.stats.GetOrLoad(ctx, userStatsKey, r.loadUserStats)
+}
+
+func (r *Users) loadUserStats(ctx context.Context) (UserCounts, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (UserCounts, error) {
+		var rows []UserCounts
 		err := r.client.User.Query().
 			Aggregate(
 				ent.As(ent.Count(), "total"),
 				ent.As(countIf(isActiveCond), "active"),
 				ent.As(countIf(statusIs(user.StatusPaid)), "paid"),
+				ent.As(countIf(isGrantedCond), "granted"),
 				ent.As(countIf(statusIs(user.StatusVip)), "vip"),
 			).
 			Scan(ctx, &rows)
 		if err != nil {
-			return userStatsRow{}, err
+			return UserCounts{}, err
 		}
 		if len(rows) == 0 {
-			return userStatsRow{}, nil
+			return UserCounts{}, nil
 		}
 		return rows[0], nil
 	})
