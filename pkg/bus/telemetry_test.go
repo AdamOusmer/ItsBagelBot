@@ -33,3 +33,35 @@ func TestRPCTraceContextCrossesTheWire(t *testing.T) {
 	assert.NotEmpty(t, reply["trace"])
 	assert.Equal(t, caller.GetTraceMetadata().TraceID, reply["trace"], "the handler must continue the caller's distributed trace")
 }
+
+func TestNormalizedDestinationNamesLanes(t *testing.T) {
+	cases := map[string]string{
+		"discord.ingress.event.message":     "discord.ingress.event.message",
+		"discord.ingress.event.member":      "discord.ingress.event.member",
+		"discord.ingress.event.voice":       "discord.ingress.event.voice",
+		"discord.ingress.event.interaction": "discord.ingress.event.interaction",
+		"discord.ingress.event.audit":       "discord.ingress.event.audit",
+		"discord.ingress.event.guild":       "discord.ingress.event.guild",
+		"discord.ingress.event.unknown":     "discord.ingress.event.other",
+		"discord.outgress.mod":              "discord.outgress.mod",
+		"discord.outgress.default":          "discord.outgress.default",
+		"discord.outgress.surprise":         "discord.outgress.other",
+		"data.twitch.clip.created":          "data.twitch.clip.created",
+		"data.twitch.clip.deleted":          "data.twitch.clip.other",
+		"data.users.changed":                "data.users.changed",
+		"data.users.removed":                "data.users.other",
+		"twitch.ingress.event.premium":      "twitch.ingress.event.premium",
+		"twitch.ingress.event.nope":         "twitch.ingress.event.other",
+		"twitch.outgress.system":            "twitch.outgress.system",
+		"twitch.outgress.nope":              "twitch.outgress.other",
+		"bagel.rpc.users.get":               "bagel.rpc.users",
+		"bagel.rpc.discord-data.guild.get":  "bagel.rpc.discord-data",
+		"bagel.rpc.discord-outgress.x.y":    "bagel.rpc.discord-outgress",
+		"bagel.rpc.bogus.x":                 "bagel.rpc.other",
+		"bagel.cache.invalidate.users":      "bagel.cache.invalidate",
+		"something.else":                    "other",
+	}
+	for subject, want := range cases {
+		assert.Equal(t, want, normalizedDestination(subject), subject)
+	}
+}
