@@ -69,9 +69,12 @@ export function createModuleDraft(init: DraftInit) {
     untrack(() => reseed(next, false));
   });
 
+  function keepsEdits(next: ModuleDraftData, force: boolean): boolean {
+    return !force && next.def.id === seedId && dirty;
+  }
+
   function reseed(next: ModuleDraftData, force: boolean) {
-    const moved = next.def.id !== seedId;
-    if (!force && !moved && dirty) return;
+    if (keepsEdits(next, force)) return;
     seedId = next.def.id;
     config = fullConfig(next.settings);
     saved = fullConfig(next.settings);
