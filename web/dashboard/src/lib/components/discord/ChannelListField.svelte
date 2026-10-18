@@ -77,7 +77,7 @@
       <Select
         fill
         searchable
-        {label}
+        label={label}
         searchPlaceholder={t('common.searchOptions')}
         searchClearLabel={t('common.searchClear')}
         emptyLabel={t('common.selectNoMatch')}
