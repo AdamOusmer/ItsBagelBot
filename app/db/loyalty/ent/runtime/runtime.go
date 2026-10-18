@@ -5,7 +5,6 @@ package runtime
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
-	"ItsBagelBot/app/db/loyalty/ent/counterbatch"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/app/db/loyalty/ent/schema"
 	"time"
@@ -99,16 +98,6 @@ func init() {
 	counter.DefaultUpdatedAt = counterDescUpdatedAt.Default.(func() time.Time)
 	// counter.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	counter.UpdateDefaultUpdatedAt = counterDescUpdatedAt.UpdateDefault.(func() time.Time)
-	counterbatchFields := schema.CounterBatch{}.Fields()
-	_ = counterbatchFields
-	// counterbatchDescCreatedAt is the schema descriptor for created_at field.
-	counterbatchDescCreatedAt := counterbatchFields[1].Descriptor()
-	// counterbatch.DefaultCreatedAt holds the default value on creation for the created_at field.
-	counterbatch.DefaultCreatedAt = counterbatchDescCreatedAt.Default.(func() time.Time)
-	// counterbatchDescID is the schema descriptor for id field.
-	counterbatchDescID := counterbatchFields[0].Descriptor()
-	// counterbatch.IDValidator is a validator for the "id" field. It is called by the builders before save.
-	counterbatch.IDValidator = counterbatchDescID.Validators[0].(func(string) error)
 	counterentryHooks := schema.CounterEntry{}.Hooks()
 	counterentry.Hooks[0] = counterentryHooks[0]
 	counterentryFields := schema.CounterEntry{}.Fields()

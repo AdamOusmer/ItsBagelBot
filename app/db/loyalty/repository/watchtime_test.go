@@ -110,29 +110,3 @@ func TestUnknownDeletionCannotRetireKnownAccount(t *testing.T) {
 	require.True(t, found)
 	require.EqualValues(t, 20, row.Points)
 }
-
-func TestWatchDeletionFencesCounterBatches(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := t.Context()
-	require.NoError(t, repo.EnsureWatchSchema(ctx))
-	require.NoError(t, repo.RestoreUser(ctx, 17, 100))
-	require.NoError(t, repo.DeleteAccount(ctx, 17, 100))
-	require.NoError(t, repo.ApplyBumps(ctx, data.CounterBumpedDTO{
-		UserID: 17, BatchID: "retired-counter-batch",
-		Bumps: []data.CounterBumpEntry{{Name: "deaths", Scope: data.CounterScopeChannel, Delta: 1}},
-	}))
-	_, _, found, err := repo.CounterGet(ctx, 17, "deaths", 0, "")
-	require.NoError(t, err)
-	require.False(t, found)
-	// The discarded delivery keeps its replay marker: a lost ACK can redeliver after recreation.
-	require.Equal(t, 1, client.CounterBatch.Query().CountX(ctx))
-	require.NoError(t, repo.RestoreUser(ctx, 17, 101))
-	require.NoError(t, repo.ApplyBumps(ctx, data.CounterBumpedDTO{
-		UserID: 17, BatchID: "retired-counter-batch",
-		Bumps: []data.CounterBumpEntry{{Name: "deaths", Scope: data.CounterScopeChannel, Delta: 1}},
-	}))
-	_, _, found, err = repo.CounterGet(ctx, 17, "deaths", 0, "")
-	require.NoError(t, err)
-	require.False(t, found, "a discarded batch cannot pay a recreated account")
-	require.Equal(t, 1, client.CounterBatch.Query().CountX(ctx))
-}
