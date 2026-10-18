@@ -62,6 +62,35 @@ var (
 			},
 		},
 	}
+	// GuildModulesColumns holds the columns for the "guild_modules" table.
+	GuildModulesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "guild_id", Type: field.TypeString, Size: 20},
+		{Name: "broadcaster_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString, Size: 32},
+		{Name: "enabled", Type: field.TypeBool},
+		{Name: "settings", Type: field.TypeJSON, Nullable: true},
+		{Name: "version", Type: field.TypeInt, Default: 1},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GuildModulesTable holds the schema information for the "guild_modules" table.
+	GuildModulesTable = &schema.Table{
+		Name:       "guild_modules",
+		Columns:    GuildModulesColumns,
+		PrimaryKey: []*schema.Column{GuildModulesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "guildmodule_guild_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{GuildModulesColumns[1], GuildModulesColumns[3]},
+			},
+			{
+				Name:    "guildmodule_broadcaster_id",
+				Unique:  false,
+				Columns: []*schema.Column{GuildModulesColumns[2]},
+			},
+		},
+	}
 	// MemberXpsColumns holds the columns for the "member_xps" table.
 	MemberXpsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -155,6 +184,7 @@ var (
 	Tables = []*schema.Table{
 		GuildBindingsTable,
 		GuildConfigsTable,
+		GuildModulesTable,
 		MemberXpsTable,
 		TicketsTable,
 		TicketTranscriptsTable,

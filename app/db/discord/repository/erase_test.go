@@ -27,7 +27,7 @@ func TestEraseBroadcasterDeletesOnlyThatAccountsGuilds(t *testing.T) {
 
 	erased, err := f.repo.EraseBroadcaster(f.ctx, 42, time.Now())
 	require.NoError(t, err)
-	assert.Equal(t, repository.EraseResult{Bindings: 2, Configs: 2}, erased)
+	assert.Equal(t, repository.EraseResult{Bindings: 2, Configs: 2, Modules: 2 * len(ddiscord.SplitConfig(ddiscord.Config{}))}, erased)
 
 	for _, guild := range []string{"g1", "g2"} {
 		_, found, err := f.repo.BindingGet(f.ctx, guild)
