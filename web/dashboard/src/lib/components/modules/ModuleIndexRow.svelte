@@ -86,7 +86,7 @@
           />
         </form>
       {:else}
-        <Tag tone="pre">{t('modules.alwaysOn')}</Tag>
+        <Tag tone="pre" data-fit-box><span data-fit="">{t('modules.alwaysOn')}</span></Tag>
       {/if}
     </span>
   {/snippet}

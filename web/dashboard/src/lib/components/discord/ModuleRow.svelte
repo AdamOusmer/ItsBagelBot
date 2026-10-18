@@ -34,7 +34,7 @@
   {#snippet actions()}
     <span class="side">
       {#if status === 'core'}
-        <Tag tone="pre">{t('discord.module.alwaysOn')}</Tag>
+        <Tag tone="pre" data-fit-box><span data-fit="">{t('discord.module.alwaysOn')}</span></Tag>
       {:else if status === 'on'}
         <Tag tone="live" mark="solid">{t('discord.module.statusOn')}</Tag>
       {:else}
