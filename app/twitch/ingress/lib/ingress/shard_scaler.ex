@@ -6,7 +6,7 @@ defmodule Ingress.ShardScaler do
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
-  alias Ingress.{Metrics, Singleton}
+  alias Ingress.{Metrics, ShardDistribution, Singleton}
 
   @autoscale_interval_ms 30_000
   @call_timeout_ms 2_000
@@ -121,8 +121,12 @@ defmodule Ingress.ShardScaler do
   end
 
   defp min_shards do
-    self_node = node()
-    length([self_node | Node.list()])
+    live_peers = Enum.count(Node.list(), &(not ShardDistribution.draining_node?(&1)))
+
+    (live_peers + 1)
+    |> max(TwitchConfig.conduit_shard_count())
+    |> min(TwitchConfig.max_shards())
+    |> max(1)
   end
 
   defp compute_desired(state) do
