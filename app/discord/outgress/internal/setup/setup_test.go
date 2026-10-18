@@ -138,6 +138,23 @@ func TestSetupGuild(t *testing.T) {
 	}
 }
 
+func TestSetupGuildBindsTheWelcomeTextChannelNotItsCategory(t *testing.T) {
+	d := &fakeDiscord{}
+
+	got, err := newWorker(d, discordstore.NewMem()).SetupGuild(context.Background(), setup.GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
+	require.NoError(t, err)
+
+	var welcome []discapi.Snowflake
+	for _, ch := range d.channels {
+		if strings.EqualFold(ch.Name, "welcome") {
+			welcome = append(welcome, ch)
+		}
+	}
+	require.Len(t, welcome, 2)
+	text := welcome[slices.IndexFunc(welcome, func(ch discapi.Snowflake) bool { return ch.Type == ddiscord.ChannelText })]
+	require.Equal(t, text.ID, got.WelcomeChannelID)
+}
+
 type templateFill struct {
 	RolePermissions   map[string]string
 	ArchiveType       int

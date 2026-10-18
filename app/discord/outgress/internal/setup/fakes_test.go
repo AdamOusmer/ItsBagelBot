@@ -5,6 +5,7 @@ package setup_test
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
@@ -65,8 +66,12 @@ func (f *fakeDiscord) CreateChannel(_ context.Context, ch discapi.GuildChannel) 
 	if f.createdChannels == nil {
 		f.createdChannels = map[string]discapi.ChannelCreate{}
 	}
+	id := "ch-" + name
+	if _, taken := f.createdChannels[name]; taken {
+		id += "-" + strconv.Itoa(ch.Spec.Type)
+	}
 	f.createdChannels[name] = ch.Spec
-	created := discapi.Snowflake{ID: "ch-" + name, Name: ch.Spec.Name, Type: ch.Spec.Type}
+	created := discapi.Snowflake{ID: id, Name: ch.Spec.Name, Type: ch.Spec.Type}
 	f.channels = append(f.channels, created)
 	return created, nil
 }

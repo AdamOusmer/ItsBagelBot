@@ -312,7 +312,7 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	}
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
-		chanByName: idsByName(existing), roleByName: idsByName(roles),
+		chanByName: channelIDs(existing), roleByName: idsByName(roles),
 		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
 	}, nil
 }
@@ -361,6 +361,21 @@ func idsByName(list []discapi.Snowflake) map[string]string {
 	return out
 }
 
+func channelKey(name string, kind int) string {
+	if kind == channelAnnouncement {
+		kind = ddiscord.ChannelText
+	}
+	return strings.ToLower(name) + "/" + strconv.Itoa(kind)
+}
+
+func channelIDs(list []discapi.Snowflake) map[string]string {
+	out := make(map[string]string, len(list))
+	for _, s := range list {
+		out[channelKey(s.Name, s.Type)] = s.ID
+	}
+	return out
+}
+
 func (f *guildFill) livedIn() bool {
 	template := map[string]bool{}
 	for _, spec := range ddiscord.CommunityChannels() {
@@ -380,7 +395,7 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 		out.setRole(namedRef{Name: spec.Name, ID: f.roleID(spec.Name)})
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
-		out.setChannel(namedRef{Name: spec.Bind, ID: f.chanByName[strings.ToLower(spec.Name)]})
+		out.setChannel(namedRef{Name: spec.Bind, ID: f.chanByName[channelKey(spec.Name, spec.Type)]})
 	}
 }
 
@@ -388,7 +403,7 @@ var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": 
 
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
 	_, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
-		return f.chanByName[strings.ToLower(spec.Parent)], livedInCreatable[spec.Bind]
+		return f.chanByName[channelKey(spec.Parent, ddiscord.ChannelCategory)], livedInCreatable[spec.Bind]
 	})
 	return err
 }
@@ -402,7 +417,7 @@ func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass 
 		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		id, err := f.ensureNamed(ctx, f.chanByName, channelKey(spec.Name, spec.Type), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
 		if err != nil {
 			return ensured, err
 		}
@@ -424,8 +439,7 @@ type channelWant struct {
 	Parent string
 }
 
-func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
-	key := strings.ToLower(want.Name)
+func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, key string, create namedCreate) (string, error) {
 	if id := index[key]; id != "" {
 		return id, nil
 	}
@@ -447,7 +461,7 @@ func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) erro
 			out.setRole(namedRef{Name: spec.Name, ID: id})
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name}, f.roleCreator(ctx, spec))
+		id, err := f.ensureNamed(ctx, f.roleByName, strings.ToLower(spec.Name), f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
 		}
