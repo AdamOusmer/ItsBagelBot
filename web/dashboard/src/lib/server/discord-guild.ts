@@ -8,6 +8,7 @@ import {
   blankStatus,
   botStatus,
   guildLayout,
+  listGuildModules,
   listGuilds,
   persistSetup,
   pinnedRolesOf,
@@ -17,12 +18,14 @@ import {
   repostDesk,
   saveDiscordModule,
   saveGuildConfig,
+  setGuildModule,
   setupGuild,
   unbindGuild,
   type DiscordConfig,
   type DiscordGuildSummary,
   type DiscordGuildTarget,
   type DiscordLayout,
+  type DiscordModuleRow,
   type DiscordStatus
 } from '$lib/server/discord-store';
 import { discordConfigured, requireDiscordActor } from '$lib/server/discord-oauth';
@@ -36,8 +39,14 @@ import {
   alertOn,
   clearPinnedSlots,
   droppedPinNotice,
+  discordModuleById,
+  discordModuleToggleable,
   legacyConfigFor,
   mergeDiscordConfig,
+  parseDiscordModuleSettings,
+  validateDiscordModule,
+  type DiscordModuleDef,
+  type DiscordModuleSettings,
   type PinnedSlot
 } from '@bagel/kit';
 import type { Session } from '$lib/server/session';
@@ -150,6 +159,97 @@ export const loadGuildShell = async ({
     guilds: view.guilds,
     ...reads,
     ...(await migrateLegacy(target, view.twitchLogin, view.enabled, reads))
+  };
+};
+
+export type DiscordModulePage = {
+  locked: boolean;
+  guildId: string;
+  def: DiscordModuleDef;
+  enabled: boolean;
+  settings: DiscordModuleSettings;
+  version: number;
+  found: boolean;
+  guilds: DiscordGuildSummary[];
+  layout: DiscordLayout;
+  status: DiscordStatus;
+  configured: boolean;
+  degraded: boolean;
+};
+
+function moduleDef(moduleId: string): DiscordModuleDef {
+  const def = discordModuleById(moduleId);
+  if (!def) throw error(404, 'No such module.');
+  return def;
+}
+
+function defaultRow(def: DiscordModuleDef): DiscordModuleRow {
+  return {
+    enabled: def.kind !== 'optin',
+    settings: parseDiscordModuleSettings(def.id, null),
+    version: 0
+  };
+}
+
+async function moduleRead(
+  target: DiscordGuildTarget,
+  def: DiscordModuleDef
+): Promise<{ row: DiscordModuleRow; found: boolean; degraded: boolean }> {
+  try {
+    const list = await listGuildModules(target);
+    return { row: list.modules[def.id] ?? defaultRow(def), found: list.found, degraded: false };
+  } catch (e) {
+    logger.warn({ err: e }, '[discord] guild modules unavailable');
+    return { row: defaultRow(def), found: false, degraded: true };
+  }
+}
+
+async function demoModulePage(def: DiscordModuleDef, guildId: string, url: URL): Promise<DiscordModulePage> {
+  const page = await demoPage(guildId, url);
+  const row = defaultRow(def);
+  const settings = parseDiscordModuleSettings(def.id, page.config);
+  return {
+    locked: false,
+    guildId,
+    def,
+    enabled: row.enabled,
+    settings,
+    version: page.version,
+    found: page.found,
+    guilds: page.guilds,
+    layout: page.layout,
+    status: page.status,
+    configured: page.configured,
+    degraded: false
+  };
+}
+
+export const loadGuildModule = async (
+  { locals, params, url }: ServerLoadEvent,
+  moduleId: string
+): Promise<DiscordModulePage> => {
+  gate(locals.session);
+  const def = moduleDef(moduleId);
+  const guildId = params.guildId ?? '';
+  const locked = await moduleLocked(locals, DISCORD_DEF);
+  if (DEMO) return demoModulePage(def, guildId, url);
+
+  const target = { userId: effectiveId(locals.session), guildId };
+  const view = await readDiscord({ userId: target.userId }).catch(() => null);
+  const base = { locked, guildId, def, configured: discordConfigured() };
+  if (!view) {
+    return { ...base, ...defaultRow(def), found: false, guilds: [], layout: blankLayout(), status: blankStatus(), degraded: true };
+  }
+  ownedGuild(view.guilds, guildId);
+  const [read, layout, status] = await Promise.all([moduleRead(target, def), loadLayout(target), loadStatus(target)]);
+  return {
+    ...base,
+    ...read.row,
+    found: read.found,
+    guilds: view.guilds,
+    layout,
+    status,
+    degraded: read.degraded
   };
 };
 
@@ -290,6 +390,7 @@ type ActionCtx = {
   locals: App.Locals;
   cookies: Cookies;
   form: FormData;
+  moduleId: string;
 };
 
 async function actionContext({ cookies, request, locals, params }: RequestEvent): Promise<ActionCtx | null> {
@@ -304,7 +405,8 @@ async function actionContext({ cookies, request, locals, params }: RequestEvent)
     session: locals.session,
     locals,
     cookies,
-    form: await request.formData()
+    form: await request.formData(),
+    moduleId: params.id ?? ''
   };
 }
 
@@ -383,6 +485,67 @@ function parseVersion(raw: FormDataEntryValue | null): number {
 function fieldNames(errors: { field: string }[]): string {
   return errors.map((e) => e.field).join(', ');
 }
+
+const FLAG_ON = new Set(['on', 'true', '1']);
+
+function activeModule(ctx: ActionCtx): DiscordModuleDef | Refusal {
+  const def = discordModuleById(ctx.moduleId);
+  return def ?? { error: 'No such module.', code: 'invalid' };
+}
+
+async function currentRow(ctx: ActionCtx, def: DiscordModuleDef): Promise<DiscordModuleRow> {
+  const list = await listGuildModules(ctx.target);
+  return list.modules[def.id] ?? defaultRow(def);
+}
+
+function moduleFailure(result: { error: string; code: string; fields: string[] }): Refusal {
+  return { error: result.error, code: result.code, ...(result.fields.length ? { fields: result.fields } : {}) };
+}
+
+export const moduleActions: Actions = {
+  save: discordAction({ label: 'module.save', failMsg: 'Could not save these settings.' }, async (ctx) => {
+    const def = activeModule(ctx);
+    if ('error' in def) return def;
+    const row = await currentRow(ctx, def);
+    const checked = validateDiscordModule(def.id, parseDraft(ctx.form.get('settings')), row.settings);
+    if (!checked) return { error: 'No such module.', code: 'invalid' };
+    if (checked.errors.length) {
+      return {
+        error: `Some settings were not valid: ${fieldNames(checked.errors)}.`,
+        code: 'invalid',
+        fields: checked.errors.map((e) => e.field)
+      };
+    }
+    const result = await setGuildModule({
+      ...ctx.target,
+      name: def.id,
+      enabled: row.enabled,
+      settings: checked.settings,
+      expectedVersion: parseVersion(ctx.form.get('version'))
+    });
+    if (result.error || result.code) return moduleFailure(result);
+    auditDashboardImpersonation(ctx.session, `discord:module.save:${def.id}`, ctx.guildId);
+    return { version: result.version };
+  }),
+
+  toggle: discordAction({ label: 'module.toggle', failMsg: 'Could not change this module.' }, async (ctx) => {
+    const def = activeModule(ctx);
+    if ('error' in def) return def;
+    if (!discordModuleToggleable(def)) return { error: 'This module is always on.', code: 'invalid' };
+    const row = await currentRow(ctx, def);
+    const enabled = FLAG_ON.has(String(ctx.form.get('enabled') ?? '').trim());
+    const result = await setGuildModule({
+      ...ctx.target,
+      name: def.id,
+      enabled,
+      settings: row.settings,
+      expectedVersion: parseVersion(ctx.form.get('version'))
+    });
+    if (result.error || result.code) return moduleFailure(result);
+    auditDashboardImpersonation(ctx.session, `discord:module.toggle:${def.id}`, ctx.guildId);
+    return { version: result.version, enabled };
+  })
+};
 
 export const guildActions: Actions = {
   save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
