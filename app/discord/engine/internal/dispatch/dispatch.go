@@ -6,6 +6,7 @@ package dispatch
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
@@ -20,6 +21,7 @@ import (
 	"ItsBagelBot/pkg/idempotency"
 
 	"github.com/nats-io/nats.go"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -42,10 +44,15 @@ func Dedup(store idempotency.Store, log *zap.Logger, metrics idempotency.Metrics
 func (d *Dispatcher) Handle(msg *bus.Message) error {
 	var ev ddiscord.Event
 	if err := codec.Unmarshal(msg.Payload, &ev); err != nil {
-		d.Log.Warn("dropping malformed discord ingress event", zap.Error(err))
+		ctx := msg.Context()
+		d.Log.Warn("dropping malformed discord ingress event", zap.String("message_id", msg.UUID), zap.Error(err))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(err)
+		}
 		return nil
 	}
 	ctx := msg.Context()
+	log := d.Log.With(zap.String("guild_id", ev.GuildID), zap.String("event_type", ev.Type), zap.String("message_id", msg.UUID))
 	cfg, broadcasterID, ok := d.Resolver.ByGuild(ctx, ev.GuildID)
 	if !ok {
 		return nil
@@ -54,7 +61,7 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
 
-	c := &module.Context{Event: ev, Config: cfg, BroadcasterID: broadcasterID, Log: d.Log}
+	c := &module.Context{Event: ev, Config: cfg, BroadcasterID: broadcasterID, Log: log}
 	modules.EnsureDesk(ctx, d.Store, cfg, emit)
 	d.runHandlers(ctx, c, emit)
 
@@ -64,10 +71,24 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 
 func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
 	for _, h := range d.handlersFor(c.Event) {
-		if err := h(ctx, c, emit); err != nil {
-			d.Log.Warn("discord module handler failed", zap.String("event_type", c.Event.Type), zap.Error(err))
+		if err := runHandler(ctx, c, emit, h); err != nil {
+			c.Log.Warn("discord module handler failed", zap.Error(err))
 		}
 	}
+}
+
+func runHandler(ctx context.Context, c *module.Context, emit module.Emit, h module.Handler) (err error) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		c.Log.Error("discord module handler panicked", zap.Any("panic", r))
+		if txn := newrelic.FromContext(ctx); txn != nil {
+			txn.NoticeError(fmt.Errorf("discord module handler panic: %v", r))
+		}
+	}()
+	return h(ctx, c, emit)
 }
 
 func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {

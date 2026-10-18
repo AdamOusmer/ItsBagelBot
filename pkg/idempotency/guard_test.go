@@ -93,3 +93,21 @@ func TestGuardRunsADuplicateRaceExactlyOnce(t *testing.T) {
 
 	assert.Equal(t, int32(1), ran.Load())
 }
+
+func TestGuardReleasesAndRepanicsWhenTheHandlerPanics(t *testing.T) {
+	store := newFakeStore()
+	var calls int
+	guarded := idempotency.Guard(idempotency.Config{Store: store, Key: idempotency.MessageUUIDKey, TTL: time.Minute})(
+		func(*bus.Message) error {
+			calls++
+			if calls == 1 {
+				panic("boom")
+			}
+			return nil
+		})
+
+	assert.PanicsWithValue(t, "boom", func() { _ = guarded(bus.NewMessage("evt-p", nil)) })
+	assert.NoError(t, guarded(bus.NewMessage("evt-p", nil)))
+
+	assert.Equal(t, 2, calls)
+}
