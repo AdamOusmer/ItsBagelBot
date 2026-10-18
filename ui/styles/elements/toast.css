@@ -96,6 +96,7 @@
   }
 
   .bb-toast--compact {
+    align-self: flex-end;
     gap: 6px;
     max-width: 320px;
     padding: 7px 10px;
