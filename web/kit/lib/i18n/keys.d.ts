@@ -1831,6 +1831,7 @@ export type KnownMessageKey =
   | 'discord.titlePre'
   | 'discord.toast.disconnectFailed'
   | 'discord.toast.disconnected'
+  | 'discord.toast.forbidden'
   | 'discord.toast.refused'
   | 'discord.toast.repostFailed'
   | 'discord.toast.reposted'

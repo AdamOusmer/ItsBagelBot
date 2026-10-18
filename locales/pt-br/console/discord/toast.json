@@ -1,6 +1,7 @@
 {
   "disconnectFailed": "Não foi possível desconectar o Discord.",
   "disconnected": "Discord desconectado.",
+  "forbidden": "Bagel está sem uma permissão neste servidor.",
   "refused": "Este servidor já tinha seus próprios canais, então Bagel os manteve e adicionou apenas os canais de que precisa. Escolha os restantes na página Canais.",
   "repostFailed": "Não foi possível republicar o painel de tickets.",
   "reposted": "Painel de tickets republicado.",

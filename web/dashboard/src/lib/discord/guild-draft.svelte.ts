@@ -45,6 +45,7 @@ export function refusalTextOf(t: I18n['t'], p: ActionPayload | undefined, fallba
   if (p?.code === 'invalid' && p.fields?.length) {
     return t('discord.errors.invalidFields', { fields: p.fields.map((f) => fieldLabelOf(t, f)).join(', ') });
   }
+  if (p?.code === 'forbidden') return t('discord.toast.forbidden');
   const key = p?.code ? DISCORD_CODE_KEYS[p.code] : undefined;
   if (key) return t(key);
   return fallback || (p?.error ?? '');
@@ -126,7 +127,7 @@ export function createGuildDraft(init: DraftInit) {
     markSave('error', 4000);
     conflicted = p?.code === 'conflict';
     invalidFields = p?.code === 'invalid' ? (p.fields ?? []) : [];
-    toast('danger', refusalText(p, t('discord.toast.saveFailed')));
+    toast('danger', refusalText(p, t('discord.toast.saveFailed')), { compact: true });
     if (p?.code === 'invalid') await invalidateAll();
   }
 
@@ -136,7 +137,7 @@ export function createGuildDraft(init: DraftInit) {
     if (blocksSave()) {
       cancel();
       markSave('error', 4000);
-      toast('danger', t('discord.channels.voiceCategoryRequired'));
+      toast('danger', t('discord.channels.voiceCategoryRequired'), { compact: true });
       return;
     }
     saving = true;
@@ -161,7 +162,7 @@ export function createGuildDraft(init: DraftInit) {
           return;
         }
         guarded = true;
-        toast('danger', refusalText(p, failMsg));
+        toast('danger', refusalText(p, failMsg), { compact: true });
       };
     };
   }
