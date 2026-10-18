@@ -21,7 +21,10 @@ through `discordstore.NewRPC`; Valkey holds caches and ephemeral execution state
 - **Default lane:** welcomes/posts/embeds/followups/roles/identity and other effects.
   The split is urgency, not Premium customer tier.
 - **Application ID:** learned from Discord at bootstrap, used by followup paths.
-- **Setup:** create/adopt template resources and bind a guild to a broadcaster.
+- **Setup:** bind a guild to a broadcaster; mode `adopt` (install) only fills
+  slots from existing resources, mode `apply` (default) also creates the template.
+- **Template preview:** `discord.template.preview`, a read-only dry run of apply
+  listing what it would create, adopt or take from pinned roles.
 - **Pinned role:** selected existing guild role adopted for a template slot.
 - **Desk panel:** remembered ticket entrypoint message, replaceable by repost RPC.
 - **Lockdown snapshot:** previous verification/overwrite state retained for unlock.
@@ -40,7 +43,7 @@ through `discordstore.NewRPC`; Valkey holds caches and ephemeral execution state
 | Typed REST dispatch | [internal/commands/handlers.go](internal/commands/handlers.go): `Handlers.Dispatch` |
 | Raid/strip/lockdown state | [internal/commands/raid.go](internal/commands/raid.go), [internal/kv/kv.go](internal/kv/kv.go) |
 | Slash-command catalog/bootstrap | [internal/bootstrap/bootstrap.go](internal/bootstrap/bootstrap.go) |
-| Guild create/adopt/bind/layout | [internal/setup/setup.go](internal/setup/setup.go): `SetupGuild`, `GuildLayout`, `UnbindGuild` |
+| Guild create/adopt/bind/layout | [internal/setup/setup.go](internal/setup/setup.go): `SetupGuild`, `PreviewTemplate`, `GuildLayout`, `UnbindGuild` |
 | Per-guild config/version/ownership | [internal/setup/config.go](internal/setup/config.go): `GuildConfig`, `SetGuildConfig`, `ListGuilds`, `requireOwnerStrict` |
 | Ticket desk replacement | [internal/setup/desk.go](internal/setup/desk.go): `RepostDesk`; [worker.go](internal/setup/worker.go) |
 | Dashboard-facing RPC wiring | [internal/rpc/setup_rpc.go](internal/rpc/setup_rpc.go), [register.go](internal/rpc/register.go) |
@@ -75,7 +78,8 @@ package despite describing Discord setup; do not infer Twitch-only ownership
 from that directory name.
 
 Setup reads existing resources and adopts/fills template slots, including pinned
-roles. Lived-in servers get only the missing voice hub, voice category, logs
+roles. Preview and apply share one ensure pass; only the create step differs.
+Lived-in servers get only the missing voice hub, voice category, logs
 channel and ticket/archive categories (no roles, no other channels). Every
 created gated or read-only channel carries an explicit bot member overwrite.
 Config writes verify all configured channel ids (including up to 25 ignored

@@ -73,7 +73,9 @@ func (f *fakeDiscord) CreateChannel(_ context.Context, ch discapi.GuildChannel) 
 
 func (f *fakeDiscord) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
 	f.createdRoles = append(f.createdRoles, role.Spec)
-	return discapi.Snowflake{ID: "role-" + strings.ToLower(role.Spec.Name), Name: role.Spec.Name}, nil
+	created := discapi.Snowflake{ID: "role-" + strings.ToLower(role.Spec.Name), Name: role.Spec.Name}
+	f.roles = append(f.roles, created)
+	return created, nil
 }
 
 func (f *fakeDiscord) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {

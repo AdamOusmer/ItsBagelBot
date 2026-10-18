@@ -298,6 +298,8 @@ type fakeSetupREST struct {
 	chats     []discapi.ChatPost
 	members   []discapi.CurrentMember
 	modifyErr error
+	mint      bool
+	created   int
 }
 
 func (f *fakeSetupREST) ModifyCurrentMember(_ context.Context, m discapi.CurrentMember) error {
@@ -328,12 +330,20 @@ func (f *fakeSetupREST) SendPanel(_ context.Context, post discapi.EmbedPost, but
 	return discapi.Message{ChannelID: post.ChannelID, ID: "m-new"}, nil
 }
 
-func (f *fakeSetupREST) CreateChannel(context.Context, discapi.GuildChannel) (discapi.Snowflake, error) {
-	return discapi.Snowflake{}, nil
+func (f *fakeSetupREST) CreateChannel(_ context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error) {
+	f.created++
+	if !f.mint {
+		return discapi.Snowflake{}, nil
+	}
+	return discapi.Snowflake{ID: "new-" + ch.Spec.Name, Name: ch.Spec.Name, Type: ch.Spec.Type}, nil
 }
 
-func (f *fakeSetupREST) CreateRole(context.Context, discapi.GuildRole) (discapi.Snowflake, error) {
-	return discapi.Snowflake{}, nil
+func (f *fakeSetupREST) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
+	f.created++
+	if !f.mint {
+		return discapi.Snowflake{}, nil
+	}
+	return discapi.Snowflake{ID: "new-" + role.Spec.Name, Name: role.Spec.Name}, nil
 }
 
 func (f *fakeSetupREST) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {

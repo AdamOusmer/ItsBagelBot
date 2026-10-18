@@ -29,6 +29,45 @@ type DiscordSetupRequest struct {
 	Subscribers bool              `json:"subscribers,omitempty"`
 	PinnedRoles map[string]string `json:"pinned_roles,omitempty"`
 	InstalledBy string            `json:"installed_by,omitempty"`
+	Mode        string            `json:"mode,omitempty"`
+}
+
+const (
+	SetupModeApply = "apply"
+	SetupModeAdopt = "adopt"
+)
+
+const (
+	TemplateKindRole    = "role"
+	TemplateKindChannel = "channel"
+
+	TemplateActionCreate = "create"
+	TemplateActionAdopt  = "adopt"
+	TemplateActionPinned = "pinned"
+)
+
+type DiscordTemplatePreviewRequest struct {
+	UserID      string            `json:"user_id"`
+	GuildID     string            `json:"guild_id"`
+	Subscribers bool              `json:"subscribers,omitempty"`
+	PinnedRoles map[string]string `json:"pinned_roles,omitempty"`
+}
+
+type DiscordTemplateItem struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Type   int    `json:"type,omitempty"`
+	Parent string `json:"parent,omitempty"`
+	Action string `json:"action"`
+	ID     string `json:"id,omitempty"`
+}
+
+type DiscordTemplatePreviewReply struct {
+	LivedIn     bool                  `json:"lived_in,omitempty"`
+	Items       []DiscordTemplateItem `json:"items"`
+	DroppedPins []string              `json:"dropped_pins,omitempty"`
+	Error       string                `json:"error,omitempty"`
+	Code        rpc.Code              `json:"code"`
 }
 
 type DiscordSetupIDs struct {
