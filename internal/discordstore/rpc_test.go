@@ -252,15 +252,26 @@ func ticketScenarios() []scenario {
 
 func xpScenarios() []scenario {
 	return []scenario{{
-		name: "xp is awarded once per cooldown and the held message reads the rank",
+		name: "xp is awarded once per cooldown and a held message neither writes nor reads",
 		steps: []step{{
 			serve: replies{dd.VerbXPAdd: dd.XPAddReply{XPValue: 100, Level: 1, LeveledUp: true}},
 			do:    addXP, want: award{XP: 100, Leveled: true, Level: 1},
 			sent: replies{dd.VerbXPAdd: dd.XPAddRequest{GuildID: "g1", UserID: "u1", Delta: 15}},
 		}, {
 			serve: replies{dd.VerbXPGet: dd.XPGetReply{XPValue: 100, Level: 1, Found: true}},
-			do:    addXP, want: award{XP: 100, Level: 1},
+			do:    addXP, want: award{},
+			sent: replies{dd.VerbXPGet: unsent{}},
 		}},
+	}, {
+		name: "a failed xp write refunds the cooldown so the next message is awarded",
+		steps: []step{
+			{serve: replies{dd.VerbXPAdd: dd.XPAddReply{Error: "db down"}}, do: addXP, want: award{}},
+			{
+				serve: replies{dd.VerbXPAdd: dd.XPAddReply{XPValue: 15}},
+				do:    addXP, want: award{XP: 15},
+				sent: replies{dd.VerbXPAdd: dd.XPAddRequest{GuildID: "g1", UserID: "u1", Delta: 15}},
+			},
+		},
 	}, {
 		name: "the daily is granted once and the rank reads the store",
 		steps: []step{{

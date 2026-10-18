@@ -275,12 +275,12 @@ func (s *rpcStore) PutTranscript(ctx context.Context, t Transcript) error {
 
 func (s *rpcStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 	if !s.takeXPCooldown(ctx, m) {
-		xp, level := s.Rank(ctx, m)
-		return xp, false, level
+		return 0, false, 0
 	}
 	reply, err := request[discorddata.XPAddReply](ctx, s.rpc, s.subject(discorddata.VerbXPAdd),
 		discorddata.XPAddRequest{GuildID: m.GuildID, UserID: m.UserID, Delta: xpPerMessage})
 	if s.memberCallFailed(discorddata.VerbXPAdd, m, err, reply.Error) {
+		s.releaseXPCooldown(ctx, m)
 		return 0, false, 0
 	}
 	return int(reply.XPValue), reply.LeveledUp, reply.Level
