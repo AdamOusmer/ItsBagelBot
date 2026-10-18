@@ -34,6 +34,7 @@ export function refusalTextOf(
   if (p?.code === 'invalid' && p.fields?.length) {
     return t('discord.errors.invalidFields', { fields: p.fields.map((f) => fieldLabelOf(t, moduleId, f)).join(', ') });
   }
+  if (p?.code === 'forbidden') return t('discord.toast.forbidden');
   const key = p?.code ? DISCORD_CODE_KEYS[p.code] : undefined;
   if (key) return t(key);
   return fallback || (p?.error ?? '');

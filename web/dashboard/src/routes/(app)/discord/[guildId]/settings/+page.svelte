@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -22,6 +23,7 @@
   const { t } = getI18n();
 
   let busy = $state(false);
+  let setupForbidden = $state(false);
   let disconnectOpen = $state(false);
   let disconnectForm = $state<HTMLFormElement | undefined>();
   let plan = $state<TemplatePlan | undefined>();
@@ -39,11 +41,12 @@
     return async ({ result }) => {
       previewBusy = false;
       const p = payloadOf(result) as (ReturnType<typeof payloadOf> & { plan?: TemplatePlan }) | undefined;
+      setupForbidden = p?.code === 'forbidden';
       if (succeeded(result, p) && p?.plan) {
         plan = p.plan;
         return;
       }
-      toast('danger', refusalTextOf(t, p, t('discord.toast.previewFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.previewFailed')), { compact: true });
     };
   };
 
@@ -52,13 +55,14 @@
     return async ({ result }) => {
       busy = false;
       const p = payloadOf(result);
+      setupForbidden = p?.code === 'forbidden';
       if (succeeded(result, p)) {
         plan = undefined;
         toast(p?.refused ? 'info' : 'success', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
         await invalidateAll();
         return;
       }
-      toast('danger', refusalTextOf(t, p, t('discord.toast.setupFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.setupFailed')), { compact: true });
     };
   };
 
@@ -68,7 +72,7 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) return;
-      toast('danger', refusalTextOf(t, p, t('discord.toast.disconnectFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.disconnectFailed')), { compact: true });
     };
   };
 </script>
@@ -99,6 +103,22 @@
         {@render group(t('discord.settings.reuseHeading'), reuses)}
       {/if}
     {/if}
+
+    <div
+      style:visibility={setupForbidden ? 'visible' : 'hidden'}
+      style:opacity={setupForbidden ? 1 : 0}
+      aria-hidden={!setupForbidden}
+      inert={!setupForbidden}
+    >
+      <AlertBanner tone="warning">
+        {t('discord.errors.forbidden')}
+        {#snippet actions()}
+          <ButtonLink variant="secondary" href="/discord/connect" data-sveltekit-reload>
+            {t('discord.reauthCta')}
+          </ButtonLink>
+        {/snippet}
+      </AlertBanner>
+    </div>
 
     {#if !data.found}
       <Text size="sm" tone="muted" class="hint first-run">{t('discord.settings.setupFirstRun')}</Text>

@@ -1,6 +1,7 @@
 {
   "disconnectFailed": "Could not disconnect Discord.",
   "disconnected": "Discord disconnected.",
+  "forbidden": "Bagel is missing a permission in this server.",
   "refused": "This server already had its own channels, so Bagel kept them and added only the ones it needs. Pick the rest in each module.",
   "repostFailed": "Could not repost the ticket panel.",
   "reposted": "Ticket panel reposted.",

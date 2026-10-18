@@ -95,3 +95,25 @@ func TestSetGuildModuleChecksOnlyItsOwnChannels(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, d.listCalls)
 }
+
+func TestSetGuildModuleIgnoresStaleStoredChannels(t *testing.T) {
+	cases := []struct {
+		name    string
+		channel string
+		wantErr error
+	}{
+		{name: "keeps a stored channel the guild no longer has", channel: "stale"},
+		{name: "refuses a new channel the guild does not have", channel: "unknown", wantErr: discapi.ErrForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := boundStore(owners{"guild-1": "42"})
+			store.PutGuildModules(discordstore.Guild{ID: "guild-1"}, ddiscord.GuildModules{Rows: map[string]ddiscord.ModuleRow{ddiscord.ModuleLive: liveRow("stale")}})
+			write := setup.GuildModuleWrite{GuildID: "guild-1", BroadcasterID: "42", Row: liveRow(tc.channel)}
+
+			_, err := newWorker(&fakeDiscord{channels: []discapi.Snowflake{{ID: "123"}}}, store).SetGuildModule(context.Background(), write)
+
+			require.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}

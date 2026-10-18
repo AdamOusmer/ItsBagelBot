@@ -71,7 +71,7 @@ func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg 
 	if guildID == "" {
 		return discapi.ErrBadRequest
 	}
-	wanted := nonEmpty(configChannelIDs(cfg))
+	wanted := w.newChannelIDs(ctx, guildID, cfg)
 	if len(wanted) == 0 {
 		return nil
 	}
@@ -83,6 +83,33 @@ func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg 
 		return err
 	}
 	return requireAllPresent(wanted, channels)
+}
+
+func (w *Worker) newChannelIDs(ctx context.Context, guildID string, cfg ddiscord.Config) []string {
+	wanted := nonEmpty(configChannelIDs(cfg))
+	if w.store == nil {
+		return wanted
+	}
+	mods, found := w.store.GuildModules(ctx, discordstore.Guild{ID: guildID})
+	if !found {
+		return wanted
+	}
+	rows := make([]ddiscord.ModuleRow, 0, len(mods.Rows))
+	for _, row := range mods.Rows {
+		rows = append(rows, row)
+	}
+	stored := ddiscord.JoinModules(guildID, rows)
+	known := make(map[string]bool)
+	for _, id := range configChannelIDs(stored) {
+		known[id] = true
+	}
+	var out []string
+	for _, id := range wanted {
+		if !known[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func nonEmpty(ids []string) []string {

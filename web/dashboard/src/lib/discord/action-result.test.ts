@@ -22,6 +22,10 @@ test('known code maps to its message, unknown falls back', () => {
   expect(refusalTextOf(t, { error: 'raw' }, '')).toBe('raw');
 });
 
+test('forbidden refusal uses the short toast text', () => {
+  expect(refusalTextOf(t, { code: 'forbidden' }, 'x')).toBe('discord.toast.forbidden');
+});
+
 test('success needs a success result without ok=false', () => {
   expect(succeeded({ type: 'success' }, { ok: true, version: 3 })).toBe(true);
   expect(succeeded({ type: 'success' }, { ok: false })).toBe(false);

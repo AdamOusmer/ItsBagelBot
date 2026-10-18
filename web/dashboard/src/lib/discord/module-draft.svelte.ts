@@ -113,7 +113,7 @@ export function createModuleDraft(init: DraftInit) {
     mark('save', 'error', 4000);
     conflicted = p?.code === 'conflict';
     invalidFields = p?.code === 'invalid' ? (p.fields ?? []) : [];
-    toast('danger', refusalText(p, t('discord.toast.saveFailed')));
+    toast('danger', refusalText(p, t('discord.toast.saveFailed')), { compact: true });
   }
 
   const blocksSave = () => def.id === 'voice' && voiceCategoryMissing(config);
@@ -122,7 +122,7 @@ export function createModuleDraft(init: DraftInit) {
     if (blocksSave()) {
       cancel();
       mark('save', 'error', 4000);
-      toast('danger', t('discord.module.voiceCategoryRequired'));
+      toast('danger', t('discord.module.voiceCategoryRequired'), { compact: true });
       return;
     }
     mark('save', 'saving');
@@ -148,7 +148,7 @@ export function createModuleDraft(init: DraftInit) {
       enabled = before;
       mark('toggle', 'error', 4000);
       conflicted = p?.code === 'conflict';
-      toast('danger', refusalText(p, t('discord.module.toggleFailed', { label: tDiscordModuleLabel(t, def) })));
+      toast('danger', refusalText(p, t('discord.module.toggleFailed', { label: tDiscordModuleLabel(t, def) })), { compact: true });
     };
   };
 
@@ -162,7 +162,7 @@ export function createModuleDraft(init: DraftInit) {
           toast('success', okMsg);
           return;
         }
-        toast('danger', refusalText(p, failMsg));
+        toast('danger', refusalText(p, failMsg), { compact: true });
       };
     };
   }

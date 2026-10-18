@@ -1,6 +1,7 @@
 {
   "disconnectFailed": "Discord konnte nicht getrennt werden.",
   "disconnected": "Discord getrennt.",
+  "forbidden": "Bagel fehlt auf diesem Server eine Berechtigung.",
   "refused": "Dieser Server hatte bereits eigene Kanäle, daher hat Bagel sie beibehalten und nur die nötigen hinzugefügt. Wähle die übrigen in den einzelnen Modulen aus.",
   "repostFailed": "Das Ticket-Panel konnte nicht erneut gepostet werden.",
   "reposted": "Ticket-Panel erneut gepostet.",
