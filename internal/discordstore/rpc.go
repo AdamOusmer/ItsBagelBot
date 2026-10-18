@@ -22,7 +22,7 @@ import (
 
 var ErrBoundElsewhere = errors.New("discordstore: guild is bound to a different broadcaster")
 
-const rpcTimeout = 3 * time.Second
+const rpcTimeout = 4 * time.Second
 
 type Requester interface {
 	Request(ctx context.Context, subject string, request, reply any) error
