@@ -121,8 +121,7 @@ defmodule Ingress.ShardScaler do
   end
 
   defp min_shards do
-    self_node = node()
-    length([self_node | Node.list()])
+    max(length(Node.list()) + 1, TwitchConfig.conduit_shard_count())
   end
 
   defp compute_desired(state) do
