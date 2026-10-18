@@ -19,7 +19,7 @@ These guides describe the merged source used to prepare this documentation branc
 
 | App | Owns / answers | Context |
 | --- | --- | --- |
-| Ingress (Go) | The fleet's Discord gateway session, event relay, and immediate interaction defer. | [app/discord/ingress](app/discord/ingress/context.md) |
+| Ingress (Go) | The fleet's Discord gateway session (lease holder only), event relay, and immediate interaction defer. Both replicas serve the HTTP interactions endpoint (signature verified, inline type-5 ack, published as `INTERACTION_CREATE` with id `interaction-<id>`); Discord stops gateway INTERACTION_CREATE once the endpoint URL is set. | [app/discord/ingress](app/discord/ingress/context.md) |
 | Engine (Go) | Module decisions from Discord events and selected Twitch events; emits actions without calling Discord REST directly. | [app/discord/engine](app/discord/engine/context.md) |
 | Outgress (Go) | Discord REST effects, setup/layout operations, command execution, and engine-facing RPCs. | [app/discord/outgress](app/discord/outgress/context.md) |
 
