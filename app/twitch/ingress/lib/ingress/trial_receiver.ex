@@ -615,7 +615,7 @@ defmodule Ingress.TrialReceiver do
 
   defp promote_if_registered(row) do
     with {:ok, true} <- TrialRpc.registered?(row.broadcaster_id),
-         {:ok, :promoted} <- Trials.promote(row.broadcaster_id) do
+         {:ok, :changed} <- Trials.stop(row.broadcaster_id, "promoted") do
       %{row | state: "stopping", stop_reason: "promoted"}
     else
       _ -> row

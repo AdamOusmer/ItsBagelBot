@@ -50,6 +50,7 @@ defmodule Ingress.TrialRegistrationTest do
     TrialReceiver,
     TrialRegistrationFakeGnat,
     TrialRegistrationFakeWs,
+    TrialRpc,
     TrialUserChanged,
     Trials
   }
@@ -157,13 +158,12 @@ defmodule Ingress.TrialRegistrationTest do
     assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
 
     assert %{state: "stopping", stop_reason: "promoted"} = row("42")
-    assert {:ok, :already} == Trials.promote("42")
+    assert {:ok, :unchanged} == Trials.stop("42", "promoted")
   end
 
   test "a trial stopped because registration could not be checked finishes as removed" do
     add_on_slot_zero("42")
-    {:ok, "stopping"} = Trials.stop("42")
-    Trials.field("42", "stop_reason", "registration_check_unavailable")
+    {:ok, :changed} = Trials.stop("42", "registration_check_unavailable")
     pid = start_receiver()
 
     assert EnvCase.eventually(fn ->
@@ -172,5 +172,32 @@ defmodule Ingress.TrialRegistrationTest do
            end)
 
     assert Process.alive?(pid)
+  end
+
+  test "registration event promotes a trial already stopping because registration was unchecked" do
+    add_on_slot_zero("42")
+    {:ok, :changed} = Trials.stop("42", "registration_check_unavailable")
+
+    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+
+    assert %{state: "stopping", stop_reason: "promoted"} = row("42")
+  end
+
+  test "an unchecked registration stop landing after promotion keeps the promotion" do
+    add_on_slot_zero("42")
+    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+
+    assert {:ok, :unchanged} == Trials.stop("42", "registration_check_unavailable")
+    assert row("42").stop_reason == "promoted"
+  end
+
+  test "admin removal after promotion keeps the promotion" do
+    add_on_slot_zero("42")
+    assert :ok == TrialUserChanged.request(%{body: Jason.encode!(%{user_id: 42})})
+
+    reply = TrialRpc.reply_remove(Jason.encode!(%{broadcaster_id: "42"}))
+
+    assert %{state: "stopping"} = reply
+    assert row("42").stop_reason == "promoted"
   end
 end

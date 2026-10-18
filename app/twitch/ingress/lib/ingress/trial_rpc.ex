@@ -3,6 +3,7 @@
 
 defmodule Ingress.TrialRpc do
   @moduledoc false
+  require Logger
   alias Ingress.{JSON, Rpc, Trials}
 
   def reply_list do
@@ -32,12 +33,10 @@ defmodule Ingress.TrialRpc do
             else: %{broadcaster_id: id, state: "pending", enabled: true}
 
         {:ok, true} ->
-          Trials.promote(id)
-          %{error: "already_registered"}
+          promote_registered(id)
 
         _ ->
-          Trials.stop(id)
-          Trials.field(id, "stop_reason", "registration_check_unavailable")
+          Trials.stop(id, "registration_check_unavailable")
           %{error: "unavailable"}
       end
     else
@@ -68,14 +67,27 @@ defmodule Ingress.TrialRpc do
   def reply_remove(body) do
     with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
          true <- Trials.valid_id?(id),
-         {:ok, state} <- Trials.stop(id) do
-      if state == "stopping", do: Trials.field(id, "stop_reason", "removed")
-      %{broadcaster_id: id, state: state}
+         {:ok, result} <- Trials.stop(id, "removed") do
+      %{broadcaster_id: id, state: removed_state(result)}
     else
       false -> %{error: "invalid_id"}
       _ -> %{error: "unavailable"}
     end
   end
+
+  defp promote_registered(id) do
+    case Trials.stop(id, "promoted") do
+      {:ok, _} ->
+        %{error: "already_registered"}
+
+      {:error, reason} ->
+        Logger.warning("trial promotion failed for #{id}: #{inspect(reason)}")
+        %{error: "unavailable"}
+    end
+  end
+
+  defp removed_state(:absent), do: "absent"
+  defp removed_state(_result), do: "stopping"
 
   def registered?(id) do
     request = JSON.encode(%{user_id: id})

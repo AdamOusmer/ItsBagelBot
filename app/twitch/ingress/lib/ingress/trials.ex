@@ -47,18 +47,16 @@ defmodule Ingress.Trials do
 
   @stop_script """
   if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
-  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'state', 'stopping')
-  redis.call('INCR', KEYS[2])
-  return 'stopping'
-  """
-
-  @promote_script """
-  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
   local key = 'trial:channel:' .. ARGV[1]
-  if redis.call('HGET', key, 'state') == 'stopping' then return 'already' end
-  redis.call('HSET', key, 'state', 'stopping', 'stop_reason', 'promoted')
+  local current = redis.call('HGET', key, 'stop_reason')
+  local stopping = redis.call('HGET', key, 'state') == 'stopping'
+  local sticky = current == 'promoted' or current == 'removed'
+  local replace = not current or (current ~= ARGV[2] and not sticky)
+  if stopping and not replace then return 'unchanged' end
+  redis.call('HSET', key, 'state', 'stopping')
+  if replace then redis.call('HSET', key, 'stop_reason', ARGV[2]) end
   redis.call('INCR', KEYS[2])
-  return 'promoted'
+  return 'changed'
   """
 
   @set_enabled_script """
@@ -164,17 +162,10 @@ defmodule Ingress.Trials do
   def record_load(id, generation, slot, load),
     do: VK.command(["EVAL", @load_script, 1, "trial:channel:" <> id, generation, slot, load])
 
-  def stop(id) do
-    case VK.command(["EVAL", @stop_script, 2, @members, @revision, id]) do
-      {:ok, state} -> {:ok, state}
-      {:error, _} -> {:error, "unavailable"}
-    end
-  end
-
-  def promote(id) do
-    case VK.command(["EVAL", @promote_script, 2, @members, @revision, id]) do
-      {:ok, "promoted"} -> {:ok, :promoted}
-      {:ok, "already"} -> {:ok, :already}
+  def stop(id, reason) when reason in ["promoted", "removed", "registration_check_unavailable"] do
+    case VK.command(["EVAL", @stop_script, 2, @members, @revision, id, reason]) do
+      {:ok, "changed"} -> {:ok, :changed}
+      {:ok, "unchanged"} -> {:ok, :unchanged}
       {:ok, "absent"} -> {:ok, :absent}
       _ -> {:error, "unavailable"}
     end

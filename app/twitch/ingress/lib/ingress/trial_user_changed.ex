@@ -9,8 +9,9 @@ defmodule Ingress.TrialUserChanged do
   def request(%{body: body}) do
     with {:ok, %{"user_id" => id}} <- JSON.decode(body),
          id = to_string(id),
-         true <- Trials.valid_id?(id) do
-      Trials.promote(id)
+         true <- Trials.valid_id?(id),
+         {:error, reason} <- Trials.stop(id, "promoted") do
+      Logger.warning("trial promotion failed for #{id}: #{inspect(reason)}")
     end
 
     :ok
