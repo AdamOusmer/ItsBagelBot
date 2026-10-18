@@ -126,6 +126,7 @@ defmodule Ingress.ShardScaler do
     (live_peers + 1)
     |> max(TwitchConfig.conduit_shard_count())
     |> min(TwitchConfig.max_shards())
+    |> max(1)
   end
 
   defp compute_desired(state) do
