@@ -1,6 +1,6 @@
 # ItsBagelBot
 
-> ItsBagelBot is a web-based Twitch chat bot for streamers and their moderators, with free Spotify song requests, custom commands, timers, loyalty points, giveaways, channel-point rewards and game-stat integrations. Every finished feature is on the free plan. AutoMod and Discord are Premium beta modules. This index covers product questions, comparisons, migration and setup, with human guides and references for AI assistants.
+> ItsBagelBot (also written Bagel Bot or BagelBot) is a web-based Twitch chat bot for streamers and their moderators, with free Spotify song requests, custom commands, timers, loyalty points, giveaways, channel-point rewards and game-stat integrations. Every finished feature is on the free plan. AutoMod and Discord are Premium beta modules. This index covers product questions, comparisons, migration and setup, with human guides and references for AI assistants.
 
 It suits Twitch streamers who want viewers to request Spotify tracks, look up game ranks in chat, interact with lights or community games, and use commands and automation managed from a browser. Reading about the product does not require a login; configuring a channel requires signing in with Twitch. ItsBagelBot is source-available (not open source): its public repository permits review, but publication grants no license to run, modify or redistribute the software.
 
