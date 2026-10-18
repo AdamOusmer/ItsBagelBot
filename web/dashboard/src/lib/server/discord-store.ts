@@ -9,9 +9,11 @@ import {
   encodePinnedRoles,
   parseConfigVersion,
   parseDiscordConfig,
+  parseDiscordModuleSettings,
   parsePinnedRoles,
   ticketPanelPayload,
   type DiscordConfig,
+  type DiscordModuleSettings,
   type PinnedRoles,
   type PinnedSlot
 } from '@bagel/kit';
@@ -34,6 +36,8 @@ const REPOST_TIMEOUT_MS = 10000;
 const UNBIND_TIMEOUT_MS = 5000;
 const CONFIG_GET_TIMEOUT_MS = 2000;
 const CONFIG_SET_TIMEOUT_MS = 5000;
+const MODULE_LIST_TIMEOUT_MS = 2000;
+const MODULE_SET_TIMEOUT_MS = 5000;
 const GUILDS_TIMEOUT_MS = 8000;
 
 // Keep timeout, not_found and unknown listed: an unlisted code reads as '' (success).
@@ -266,6 +270,69 @@ export async function saveGuildConfig(save: DiscordGuildSave): Promise<DiscordSa
     CONFIG_SET_TIMEOUT_MS
   );
   return { version: parseConfigVersion(r.version), code: replyCode(r), error: r.error ?? '' };
+}
+
+export type DiscordModuleRow = { enabled: boolean; settings: DiscordModuleSettings; version: number };
+
+export type DiscordGuildModules = { modules: Record<string, DiscordModuleRow>; found: boolean };
+
+type ModuleListReply = CodedReply & {
+  modules?: { name?: unknown; enabled?: unknown; settings?: unknown; version?: unknown }[];
+  found?: boolean;
+};
+
+function moduleSettingsBlob(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function listGuildModules(target: DiscordGuildTarget): Promise<DiscordGuildModules> {
+  const r = await rpcReply<ModuleListReply>(
+    `${SUB.dingressRpc}.discord.module.list`,
+    { user_id: target.userId, guild_id: target.guildId },
+    MODULE_LIST_TIMEOUT_MS
+  );
+  if (r.error) throw new DiscordRefusal(replyCode(r), r.error);
+  const modules: Record<string, DiscordModuleRow> = {};
+  for (const row of r.modules ?? []) {
+    if (typeof row.name !== 'string' || row.name === '') continue;
+    modules[row.name] = {
+      enabled: row.enabled === true,
+      settings: parseDiscordModuleSettings(row.name, moduleSettingsBlob(row.settings)),
+      version: parseConfigVersion(row.version)
+    };
+  }
+  return { modules, found: r.found === true };
+}
+
+export type DiscordModuleSave = DiscordGuildTarget & {
+  name: string;
+  enabled: boolean;
+  settings: DiscordModuleSettings;
+  expectedVersion: number;
+};
+
+export type DiscordModuleSaveResult = DiscordSaveResult & { fields: string[] };
+
+export async function setGuildModule(save: DiscordModuleSave): Promise<DiscordModuleSaveResult> {
+  const r = await rpcReply<CodedReply & { version?: unknown; fields?: unknown }>(
+    `${SUB.dingressRpc}.discord.module.set`,
+    {
+      user_id: save.userId,
+      guild_id: save.guildId,
+      name: save.name,
+      enabled: save.enabled,
+      settings: save.settings,
+      expected_version: save.expectedVersion
+    },
+    MODULE_SET_TIMEOUT_MS
+  );
+  const fields = Array.isArray(r.fields) ? r.fields.filter((f): f is string => typeof f === 'string') : [];
+  return { version: parseConfigVersion(r.version), code: replyCode(r), error: r.error ?? '', fields };
 }
 
 type SetupReply = CodedReply & {

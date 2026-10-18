@@ -268,7 +268,7 @@ Next action: Wait and reload.
 <a id="layout"></a>
 ## Channels and roles unavailable
 
-Messages: "{{console:discord.index.layoutUnavailable}}", "{{console:discord.tickets.staffRolesEmpty}}".
+Messages: "{{console:discord.index.layoutUnavailable}}", "{{console:discord.module.roleListEmpty}}".
 
 Meaning: The server layout could not be listed, so related pickers are disabled.
 
@@ -314,11 +314,11 @@ Next action: Retry disconnection if the binding remains and unlinking is intende
 
 Messages: "{{console:discord.errors.ticketsOff}}".
 
-Meaning: The desk is disabled or was not saved enabled.
+Meaning: The ticket module is off.
 
-Checks: Check the ticket switch and saved state.
+Checks: Check the ticket module switch.
 
-Next action: Enable and save the desk before reposting the panel.
+Next action: Turn the ticket module on, then repost the panel.
 
 <a id="repost-failed"></a>
 ## Ticket panel could not be reposted
@@ -334,7 +334,7 @@ Next action: Save first, then retry reposting.
 <a id="missing-staff-role"></a>
 ## Deleted ticket-staff role
 
-Messages: "{{console:discord.tickets.staffRoleMissing}}", "{{console:discord.tickets.staffRoleMissingHelp}}".
+Messages: "{{console:discord.module.roleListMissing}}", "{{console:discord.module.roleListMissingHelp}}".
 
 Meaning: A selected ticket-staff role was deleted.
 
@@ -345,7 +345,7 @@ Next action: Untick the missing role, select a replacement if needed, and save.
 <a id="voice-category"></a>
 ## Missing voice room category
 
-Messages: "{{console:discord.channels.voiceCategoryRequired}}".
+Messages: "{{console:discord.module.voiceCategoryRequired}}".
 
 Meaning: A configured voice hub needs a category for temporary rooms.
 
@@ -373,7 +373,7 @@ Meaning: An existing server layout was preserved or adopted; this is a setup adv
 
 Checks: Inspect recognized and missing destinations.
 
-Next action: Choose the remaining channels on the Channels page.
+Next action: Choose the remaining channels on the module pages.
 
 <a id="not-set-up"></a>
 ## Server has no saved setup
@@ -389,7 +389,7 @@ Next action: Use the create-missing-layout control in Settings.
 <a id="needs-setup"></a>
 ## Enabled feature lacks a destination
 
-Messages: "{{console:discord.overview.needsSetupHint}}".
+Messages: none. The module page shows an empty channel or role picker.
 
 Meaning: Some enabled features still need a channel or role.
 

@@ -16,6 +16,8 @@ type Tx struct {
 	GuildBinding *GuildBindingClient
 	// GuildConfig is the client for interacting with the GuildConfig builders.
 	GuildConfig *GuildConfigClient
+	// GuildModule is the client for interacting with the GuildModule builders.
+	GuildModule *GuildModuleClient
 	// MemberXP is the client for interacting with the MemberXP builders.
 	MemberXP *MemberXPClient
 	// Ticket is the client for interacting with the Ticket builders.
@@ -155,6 +157,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.GuildBinding = NewGuildBindingClient(tx.config)
 	tx.GuildConfig = NewGuildConfigClient(tx.config)
+	tx.GuildModule = NewGuildModuleClient(tx.config)
 	tx.MemberXP = NewMemberXPClient(tx.config)
 	tx.Ticket = NewTicketClient(tx.config)
 	tx.TicketTranscript = NewTicketTranscriptClient(tx.config)

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"ItsBagelBot/app/discord/engine/internal/cmd"
 	"ItsBagelBot/app/discord/engine/internal/decode"
 	"ItsBagelBot/app/discord/engine/internal/registry"
 	"ItsBagelBot/app/discord/engine/internal/resolve"
@@ -46,7 +47,7 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 		return nil
 	}
 	ctx := msg.Context()
-	cfg, broadcasterID, ok := d.Resolver.ByGuild(ctx, ev.GuildID)
+	mods, broadcasterID, ok := d.Resolver.ByGuild(ctx, ev.GuildID)
 	if !ok {
 		return nil
 	}
@@ -54,8 +55,8 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
 
-	c := &module.Context{Event: ev, Config: cfg, BroadcasterID: broadcasterID, Log: d.Log}
-	modules.EnsureDesk(ctx, d.Store, cfg, emit)
+	c := &module.Context{Event: ev, GuildID: mods.GuildID, BroadcasterID: broadcasterID, Modules: mods, Log: d.Log}
+	modules.EnsureDesk(ctx, d.Store, mods, emit)
 	d.runHandlers(ctx, c, emit)
 
 	d.publishAll(ctx, emitted)
@@ -63,33 +64,55 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 }
 
 func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
-	for _, h := range d.handlersFor(c.Event) {
-		if err := h(ctx, c, emit); err != nil {
-			d.Log.Warn("discord module handler failed", zap.String("event_type", c.Event.Type), zap.Error(err))
+	route := d.route(c.Event)
+	defer func() { c.Settings = nil }()
+	for _, b := range route.Handlers {
+		if !c.ModuleOn(b.Module) {
+			route.declineOff(c, emit)
+			continue
+		}
+		c.Settings = c.Modules.Rows[b.Module].Settings
+		if err := b.Handler(ctx, c, emit); err != nil {
+			d.Log.Warn("discord module handler failed", zap.String("event_type", c.Event.Type), zap.String("module", b.Module), zap.Error(err))
 		}
 	}
 }
 
-func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {
+type route struct {
+	Handlers []registry.Bound
+	Token    string
+}
+
+func (r route) declineOff(c *module.Context, emit module.Emit) {
+	if r.Token == "" {
+		return
+	}
+	emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(r.Token), "That feature is turned off.", true))
+}
+
+func (d *Dispatcher) route(ev ddiscord.Event) route {
 	if ev.Type != "INTERACTION_CREATE" {
-		return d.Registry.Events(ev.Type)
+		return route{Handlers: d.Registry.Events(ev.Type)}
 	}
 	in, err := decode.Decode[decode.InteractionEvent](ev.Raw)
 	if err != nil {
 		d.Log.Warn("dropping undecodable discord interaction",
 			zap.String("event_type", ev.Type), zap.String("guild_id", ev.GuildID), zap.Error(err))
-		return nil
+		return route{}
 	}
 	if in.Data.CustomID != "" {
-		if h, ok := d.Registry.Button(in.Data.CustomID); ok {
-			return []module.Handler{h}
+		return routeOf(in.Token)(d.Registry.Button(in.Data.CustomID))
+	}
+	return routeOf(in.Token)(d.Registry.Slash(in.Data.Name))
+}
+
+func routeOf(token string) func(registry.Bound, bool) route {
+	return func(b registry.Bound, ok bool) route {
+		if !ok {
+			return route{}
 		}
-		return nil
+		return route{Handlers: []registry.Bound{b}, Token: token}
 	}
-	if h, ok := d.Registry.Slash(in.Data.Name); ok {
-		return []module.Handler{h}
-	}
-	return nil
 }
 
 // Total retry time must stay far below the ingress consumer's AckWait, or redelivery double-posts.

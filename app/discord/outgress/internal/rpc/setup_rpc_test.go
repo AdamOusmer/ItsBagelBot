@@ -542,7 +542,7 @@ func mutationCases() []setupCase {
 
 func TestSetupVerbsAnswerAndKeepState(t *testing.T) {
 	cases := slices.Concat(statusCases(), layoutCases(), guildSetupCases(), deskCases(),
-		configCases(), guildListCases(), mutationCases())
+		configCases(), moduleCases(), guildListCases(), mutationCases())
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected(), tc.outcome(t))

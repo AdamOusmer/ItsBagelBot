@@ -46,6 +46,29 @@ func TestMemberEvents(t *testing.T) {
 	}
 }
 
+func TestGoodbye(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  ddiscord.Config
+		want int
+	}{
+		{"posts with the welcome off", ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, WelcomeEnabled: "off", GoodbyeEnabled: "on"}, 1},
+		{"posts with the welcome on", ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, GoodbyeEnabled: "on"}, 1},
+		{"is silent when absent", ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, 0},
+		{"is silent when off", ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, GoodbyeEnabled: "off"}, 0},
+		{"needs a welcome channel", ddiscord.Config{GuildID: testGuild, GoodbyeEnabled: "on"}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, tc.cfg)
+
+			h.send("GUILD_MEMBER_REMOVE", memberPayload(testGuild))
+
+			require.Len(t, h.log.byType(ddiscord.TypePostChat), tc.want)
+		})
+	}
+}
+
 func hubConfig() ddiscord.Config {
 	return ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub, VoiceCategoryID: "100000000000000006"}
 }

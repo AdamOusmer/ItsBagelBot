@@ -54,22 +54,6 @@ func ValidSlot(slot Slot) bool {
 	return false
 }
 
-func (c Config) PinnedRoleMap() map[string]string {
-	entries := splitList(listText(c.PinnedRoles))
-	if len(entries) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(entries))
-	for _, entry := range entries {
-		pin, ok := splitPin(entry)
-		if !ok {
-			continue
-		}
-		out[string(pin.Slot)] = pin.ID
-	}
-	return out
-}
-
 func cutPin(entry string) (Pin, bool) {
 	slot, id, found := strings.Cut(entry, "=")
 	slot = strings.TrimSpace(slot)
@@ -90,8 +74,6 @@ func splitPin(entry string) (Pin, bool) {
 	}
 	return pin, true
 }
-
-func (c Config) PinnedRole(slot Slot) string { return c.PinnedRoleMap()[string(slot)] }
 
 func IsModStaff(memberRoles RoleIDs, cfg Config) bool {
 	return holdsAny(memberRoles, cfg.StaffRoleIDs())

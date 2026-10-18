@@ -11,7 +11,7 @@ import (
 	eventtwitch "ItsBagelBot/internal/domain/event/twitch"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
-	"ItsBagelBot/internal/discordstore"
+	"ItsBagelBot/app/discord/engine/internal/resolve"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -34,7 +34,7 @@ type streamInfoReader interface {
 
 type Publish func(ctx context.Context, c ddiscord.Command) error
 
-type ByBroadcaster func(ctx context.Context, broadcasterID uint64) []discordstore.GuildConfigOf
+type ByBroadcaster func(ctx context.Context, broadcasterID uint64) []resolve.GuildModulesOf
 
 type Live struct {
 	Resolve    ByBroadcaster
@@ -57,29 +57,26 @@ func rpcFailed(err error, outgressErr string) bool {
 	return err != nil || outgressErr != ""
 }
 
-func moduleGateOpen(cfg ddiscord.Config, moduleOn bool) bool {
-	return cfg.Connected() && moduleOn
-}
-
 func (l *Live) announce(ctx context.Context, status eventtwitch.StreamStatus) {
 	broadcasterID := strconv.FormatUint(status.BroadcasterID, 10)
 	for _, guild := range l.Resolve(ctx, status.BroadcasterID) {
-		l.announceIn(ctx, guild.Config, status, broadcasterID)
+		l.announceIn(ctx, guild.Modules, status, broadcasterID)
 	}
 }
 
-func (l *Live) announceIn(ctx context.Context, cfg ddiscord.Config, status eventtwitch.StreamStatus, broadcasterID string) {
-	if !moduleGateOpen(cfg, cfg.LiveOn()) {
+func (l *Live) announceIn(ctx context.Context, mods ddiscord.GuildModules, status eventtwitch.StreamStatus, broadcasterID string) {
+	cfg, ok := factSettings[ddiscord.LiveSettings](mods, ddiscord.ModuleLive)
+	if !ok {
 		return
 	}
 	if !status.Live {
-		l.offline(ctx, cfg)
+		l.offline(ctx, mods.GuildID)
 		return
 	}
-	l.online(ctx, cfg, broadcasterID)
+	l.online(ctx, mods.GuildID, cfg, broadcasterID)
 }
 
-func (l *Live) online(ctx context.Context, cfg ddiscord.Config, broadcasterID string) {
+func (l *Live) online(ctx context.Context, guildID string, cfg ddiscord.LiveSettings, broadcasterID string) {
 	channelID := strings.TrimSpace(cfg.LiveChannelID)
 	login := strings.TrimSpace(cfg.TwitchLogin)
 	if channelID == "" || login == "" {
@@ -94,14 +91,14 @@ func (l *Live) online(ctx context.Context, cfg ddiscord.Config, broadcasterID st
 		ThumbnailURL: "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + strings.ToLower(login) + "-640x360.jpg",
 		Viewers:      info.ViewerCount,
 	})
-	reply, err := l.RPC.LiveOnline(ctx, discordoutgress.LiveOnlineRequest{GuildID: cfg.GuildID, ChannelID: channelID, Embed: embed})
+	reply, err := l.RPC.LiveOnline(ctx, discordoutgress.LiveOnlineRequest{GuildID: guildID, ChannelID: channelID, Embed: embed})
 	if rpcFailed(err, reply.Error) {
 		l.Log.Warn("discord go-live rpc failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err), zap.String("outgress_error", reply.Error))
 		return
 	}
 }
 
-func (l *Live) liveInfo(ctx context.Context, cfg ddiscord.Config, broadcasterID string) projection.StreamInfo {
+func (l *Live) liveInfo(ctx context.Context, cfg ddiscord.LiveSettings, broadcasterID string) projection.StreamInfo {
 	info := l.projectedStreamInfo(ctx, broadcasterID)
 	if info.GameName != "" {
 		return info
@@ -129,9 +126,9 @@ func (l *Live) projectedStreamInfo(ctx context.Context, broadcasterID string) pr
 	return info
 }
 
-func (l *Live) offline(ctx context.Context, cfg ddiscord.Config) {
-	reply, err := l.RPC.LiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: cfg.GuildID})
+func (l *Live) offline(ctx context.Context, guildID string) {
+	reply, err := l.RPC.LiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: guildID})
 	if rpcFailed(err, reply.Error) {
-		l.Log.Warn("discord go-offline rpc failed", zap.String("guild_id", cfg.GuildID), zap.Error(err), zap.String("outgress_error", reply.Error))
+		l.Log.Warn("discord go-offline rpc failed", zap.String("guild_id", guildID), zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
 }

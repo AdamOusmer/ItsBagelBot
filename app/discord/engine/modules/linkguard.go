@@ -24,7 +24,7 @@ var linkPattern = regexp.MustCompile(`(?i)[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:/\S*)
 
 func LinkGuard(guard Guarder, own OwnInviteChecker, log *zap.Logger) module.Module {
 	h := linkGuardModule{guard: guard, own: own, log: log}
-	b := module.NewModule("linkguard")
+	b := module.NewModule(ddiscord.ModuleLinkGuard)
 	b.On("MESSAGE_CREATE", h.onCreate)
 	return b.Build()
 }
@@ -40,15 +40,19 @@ func (h linkGuardModule) onCreate(ctx context.Context, c *module.Context, emit m
 	if err != nil {
 		return err
 	}
-	if skipMessage(ev, c.Config) {
+	if skipMessage(ev) {
 		return nil
+	}
+	cfg, err := settingsOf[ddiscord.LinkGuardSettings](c)
+	if err != nil {
+		return err
 	}
 	links := linkPattern.FindAllString(ev.Content, -1)
 	if len(links) == 0 {
 		return nil
 	}
-	moderator := decode.HasAnyRole(ev.Member.Roles, c.Config.StaffRoleIDs())
-	in := linkObservation{Module: c, Event: ev, Links: links, Moderator: moderator}
+	moderator := decode.HasAnyRole(ev.Member.Roles, c.Roles().StaffRoleIDs())
+	in := linkObservation{Module: c, Event: ev, Links: links, Moderator: moderator, Settings: cfg}
 	if reason := h.observeLinks(ctx, in); reason != "" {
 		h.act(c, emit, ev, reason)
 	}
@@ -60,10 +64,11 @@ type linkObservation struct {
 	Event     decode.MessageEvent
 	Links     []string
 	Moderator bool
+	Settings  ddiscord.LinkGuardSettings
 }
 
-func skipMessage(ev decode.MessageEvent, cfg ddiscord.Config) bool {
-	return ev.Author.Bot || ev.GuildID == "" || !cfg.LinkGuardOn()
+func skipMessage(ev decode.MessageEvent) bool {
+	return ev.Author.Bot || ev.GuildID == ""
 }
 
 func (h linkGuardModule) observeLinks(ctx context.Context, in linkObservation) string {
@@ -84,7 +89,7 @@ func (h linkGuardModule) observeLinks(ctx context.Context, in linkObservation) s
 			Link:      raw,
 			OwnerID:   c.BroadcasterID,
 			Moderator: in.Moderator,
-			Allowed:   c.Config.LinkAllowed(raw),
+			Allowed:   in.Settings.Allowed(raw),
 		})
 		if v.Allow || reason != "" {
 			continue
@@ -110,7 +115,7 @@ func (h linkGuardModule) tripIsOwnInvite(ctx context.Context, guildID, raw strin
 }
 
 func (h linkGuardModule) act(c *module.Context, emit module.Emit, ev decode.MessageEvent, reason string) {
-	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.Config.GuildID, ev.ChannelID), ev.ID, cmd.Reason("linkguard: "+reason)))
+	emit(cmd.DeleteMessage(cmd.ChannelTarget(c.GuildID, ev.ChannelID), ev.ID, cmd.Reason("linkguard: "+reason)))
 	body := decode.Mention(ev.Author) + " in <#" + ev.ChannelID + "> (" + reason + ")"
 	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: "Link removed", Body: body, SourceChannelID: ev.ChannelID})
 }

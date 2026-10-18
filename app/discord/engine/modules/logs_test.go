@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/discord/engine/internal/decode"
 	"ItsBagelBot/app/discord/engine/internal/registry"
-	"ItsBagelBot/app/discord/engine/module"
 	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -30,7 +29,7 @@ type logRig struct {
 func newLogRig(t *testing.T) *logRig {
 	t.Helper()
 	store := discordstore.NewMem()
-	return newLogRigWith(t, store, registry.New(modules.Logs(store), modules.Message(store)))
+	return newLogRigWith(t, store, registry.New(modules.Logs(store)))
 }
 
 func newLogRigWith(t *testing.T, store *discordstore.Mem, reg *registry.Registry) *logRig {
@@ -52,16 +51,13 @@ func (r *logRig) fire(eventType string, payload map[string]any) []posted {
 	raw, err := codec.Marshal(payload)
 	require.NoError(r.t, err)
 	var out []posted
-	c := &module.Context{Event: ddiscord.Event{Type: eventType, GuildID: "g1", Raw: raw}, Config: r.cfg, Log: zap.NewNop()}
 	emit := func(cmd ddiscord.Command) {
 		require.Equal(r.t, ddiscord.TypePostEmbed, cmd.Type)
 		var p ddiscord.EmbedPayload
 		require.NoError(r.t, codec.Unmarshal(cmd.Payload, &p))
 		out = append(out, posted{ChannelID: cmd.ChannelID, Embed: p.Embed})
 	}
-	for _, h := range r.reg.Events(eventType) {
-		require.NoError(r.t, h(context.Background(), c, emit))
-	}
+	fireGated(r.t, r.reg, r.cfg, ddiscord.Event{Type: eventType, GuildID: "g1", Raw: raw}, emit)
 	return out
 }
 
@@ -128,7 +124,7 @@ func TestLogsMessageEditShowsBeforeAndAfterAndSkipsNoise(t *testing.T) {
 
 func TestLogsMessageEditIsIndependentOfModuleOrder(t *testing.T) {
 	store := discordstore.NewMem()
-	r := newLogRigWith(t, store, registry.New(modules.Message(store), modules.Logs(store)))
+	r := newLogRigWith(t, store, registry.New(modules.Rank(store), modules.Logs(store)))
 	r.fire("MESSAGE_CREATE", message("m1", "first", nil))
 
 	edit := only(t, r.fire("MESSAGE_UPDATE", message("m1", "second", nil)))
@@ -176,14 +172,11 @@ func TestLogsMemberJoinAndLeaveLogOnceThroughAllModules(t *testing.T) {
 		raw, err := codec.Marshal(map[string]any{"guild_id": "g1", "user": map[string]any{"id": "u1", "username": "Ada"}})
 		require.NoError(t, err)
 		var titles []string
-		c := &module.Context{Event: ddiscord.Event{Type: tc.event, GuildID: "g1", Raw: raw}, Config: cfg, Log: zap.NewNop()}
-		for _, h := range reg.Events(tc.event) {
-			require.NoError(t, h(context.Background(), c, func(cmd ddiscord.Command) {
-				var p ddiscord.EmbedPayload
-				require.NoError(t, codec.Unmarshal(cmd.Payload, &p))
-				titles = append(titles, p.Embed.Title)
-			}))
-		}
+		fireGated(t, reg, cfg, ddiscord.Event{Type: tc.event, GuildID: "g1", Raw: raw}, func(cmd ddiscord.Command) {
+			var p ddiscord.EmbedPayload
+			require.NoError(t, codec.Unmarshal(cmd.Payload, &p))
+			titles = append(titles, p.Embed.Title)
+		})
 		require.Equal(t, []string{tc.title}, titles)
 	}
 }
@@ -337,7 +330,7 @@ func TestLogRoutingOfModerationCommands(t *testing.T) {
 	in := ada.in("c1")
 	in.Member.Permissions = "8"
 	in.Data.Options = []decode.InteractionOption{userOption("u2")}
-	cmds := runHandler(t, modules.Moderation(nil, zap.NewNop()).Slash["ban"], cfg, in)
+	cmds := runHandler(t, ddiscord.ModuleModeration, modules.Moderation(nil, zap.NewNop()).Slash["ban"], cfg, in)
 	var channels []string
 	for _, c := range cmds {
 		if c.Type == ddiscord.TypePostEmbed {

@@ -104,7 +104,7 @@ func TestResolvesOnlyGuildsWithSettings(t *testing.T) {
 
 	require.Len(t, got, 2, "a guild with no settings row is not listed")
 	for _, g := range got {
-		require.Equal(t, g.Guild.ID, g.Config.GuildID, "the guild id is stamped into its config")
+		require.Equal(t, g.Guild.ID, g.Modules.GuildID, "the guild id is stamped into its modules")
 	}
 	require.True(t, resolved)
 	require.Equal(t, "1", broadcaster)
@@ -117,10 +117,16 @@ func TestInvalidConfigFieldIsDroppedAndTheRestKept(t *testing.T) {
 		tier:    tierOf("paid", true),
 	}.resolver(t)
 
-	cfg, _, ok := r.ByGuild(context.Background(), "g1")
+	mods, _, ok := r.ByGuild(context.Background(), "g1")
 
 	require.True(t, ok, "one bad field must not unresolve the guild")
-	require.Equal(t, ddiscord.Config{GuildID: "g1", LiveChannelID: validChannel}, cfg)
+	require.Equal(t, "g1", mods.GuildID)
+	var live ddiscord.LiveSettings
+	var clips ddiscord.ClipsSettings
+	require.NoError(t, mods.Decode(ddiscord.ModuleLive, &live))
+	require.NoError(t, mods.Decode(ddiscord.ModuleClips, &clips))
+	require.Equal(t, validChannel, live.LiveChannelID)
+	require.Empty(t, clips.ClipsChannelID)
 }
 
 func TestInvalidConfigFieldsWarnOncePerGuildPerField(t *testing.T) {
@@ -200,4 +206,18 @@ func TestDirectMessagesAreDroppedSilently(t *testing.T) {
 
 	require.False(t, ok)
 	require.Zero(t, logs.Len())
+}
+
+func TestModuleRowsSurviveResolution(t *testing.T) {
+	r := rig{
+		configs: map[string]ddiscord.Config{"g1": {LiveEnabled: "off", LinkGuardEnabled: "on"}},
+		tier:    tierOf("paid", true),
+	}.resolver(t)
+
+	mods, _, ok := r.ByGuild(context.Background(), "g1")
+
+	require.True(t, ok)
+	require.False(t, mods.On(ddiscord.ModuleLive))
+	require.True(t, mods.On(ddiscord.ModuleLinkGuard))
+	require.True(t, mods.On(ddiscord.ModuleVoice))
 }

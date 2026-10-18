@@ -21,7 +21,7 @@ var configReaders = map[string]string{
 	"LiveChannelID":      "app/discord/engine/modules.Live",
 	"ClipsChannelID":     "app/discord/engine/modules.Clip",
 	"WelcomeChannelID":   "app/discord/engine/modules.Welcome",
-	"VoiceHubID":         "app/discord/engine/modules.Voice",
+	"VoiceHubID":         "app/discord/engine/modules.VoiceState",
 	"LogChannelID":       "Config.TicketLogChannel",
 	"TicketChannelID":    "app/discord/engine/modules.Ticket (EnsureDesk)",
 	"TicketCategoryID":   "app/discord/engine/modules.Ticket (channel parent)",
@@ -32,20 +32,20 @@ var configReaders = map[string]string{
 	"SubscriberRoleID":   "setup roleSlot adoption + dashboard picker (no engine autorole by design)",
 	"RegularsRoleID":     "setup roleSlot adoption + dashboard picker (no engine autorole by design)",
 	"MemberRoleID":       "modules.autorole join role (welcome.go)",
-	"SubsChannelID":      "Config.TierRooms",
-	"SubsCategoryID":     "Config.TierRooms",
-	"VIPChannelID":       "Config.TierRooms",
-	"VIPCategoryID":      "Config.TierRooms",
+	"SubsChannelID":      "SubscribersSettings.TierRooms",
+	"SubsCategoryID":     "SubscribersSettings.TierRooms",
+	"VIPChannelID":       "SubscribersSettings.TierRooms",
+	"VIPCategoryID":      "SubscribersSettings.TierRooms",
 	"LiveEnabled":        "Config.LiveOn",
 	"ClipsEnabled":       "Config.ClipsOn",
 	"WelcomeEnabled":     "Config.WelcomeOn",
-	"GoodbyeEnabled":     "Config.GoodbyeOn",
+	"GoodbyeEnabled":     "app/discord/engine/modules.Goodbye",
 	"VoiceEnabled":       "Config.VoiceOn",
 	"TicketsEnabled":     "Config.TicketsOn",
-	"LogsEnabled":        "Config.LogsOn",
+	"LogsEnabled":        "Config.LogCategoryOn",
 	"LevelsEnabled":      "Config.LevelsOn",
 	"LinkGuardEnabled":   "Config.LinkGuardOn",
-	"SubscribersEnabled": "Config.SubscribersOn",
+	"SubscribersEnabled": "GuildModules.On",
 	"CategoryAllow":      "Config.CategoryAllowed",
 	"CategoryDeny":       "Config.CategoryAllowed",
 	"LinkAllowList":      "Config.LinkAllowed",
@@ -60,7 +60,7 @@ var configReaders = map[string]string{
 	"TicketPanelBody":         "Config.TicketPanel",
 	"TicketPanelColor":        "Config.TicketPanel",
 	"TicketPanelButton":       "Config.TicketPanel",
-	"PinnedRoles":             "Config.PinnedRole",
+	"PinnedRoles":             "RolesSettings.PinnedRole",
 	"AutoRoleEnabled":         "Config.AutoRoleOn",
 	"LogMessagesEnabled":      "Config.LogCategoryOn",
 	"LogMembersEnabled":       "Config.LogCategoryOn",
@@ -75,7 +75,7 @@ var configReaders = map[string]string{
 	"LogVoiceChannelID":       "Config.LogChannelFor",
 	"LogModerationChannelID":  "Config.LogChannelFor",
 	"LogIgnoredChannels":      "Config.LogIgnores",
-	"VoiceCategoryID":         "app/discord/engine/modules.Voice (clone parent)",
+	"VoiceCategoryID":         "app/discord/engine/modules.VoiceState (clone parent)",
 	"VoiceNameTemplate":       "Config.VoiceName",
 	"VoiceUserLimit":          "Config.VoiceLimit",
 	"VoicePrivacyMode":        "Config.VoicePrivacy",
@@ -95,12 +95,43 @@ func TestEveryConfigFieldHasADocumentedReader(t *testing.T) {
 		reader, ok := configReaders[field.Name]
 		require.True(t, ok && strings.TrimSpace(reader) != "",
 			"Config.%s has no reader listed in configReaders. Add the accessor or consumer that reads it, or delete the field.", field.Name)
-		method, isMethod := strings.CutPrefix(reader, "Config.")
-		if !isMethod || strings.Contains(method, " ") {
+		typeName, method, isMethod := strings.Cut(reader, ".")
+		if !isMethod || strings.Contains(method, " ") || strings.Contains(typeName, "/") {
 			continue
 		}
-		_, found := reflect.TypeOf(Config{}).MethodByName(method)
-		assert.True(t, found, "Config.%s names reader %q, but Config has no method %q", field.Name, reader, method)
+		owner, known := readerTypes[typeName]
+		require.True(t, known, "Config.%s names reader %q on unknown type %q", field.Name, reader, typeName)
+		_, found := owner.MethodByName(method)
+		assert.True(t, found, "Config.%s names reader %q, but %s has no method %q", field.Name, reader, typeName, method)
+	}
+}
+
+var readerTypes = map[string]reflect.Type{
+	"Config":              reflect.TypeFor[Config](),
+	"RolesSettings":       reflect.TypeFor[RolesSettings](),
+	"SubscribersSettings": reflect.TypeFor[SubscribersSettings](),
+	"GuildModules":        reflect.TypeFor[GuildModules](),
+}
+
+func TestEveryConfigFieldIsOwnedByExactlyOneModule(t *testing.T) {
+	owners := map[string][]string{}
+	for _, spec := range Modules {
+		for _, tag := range spec.Fields {
+			owners[tag] = append(owners[tag], spec.Name)
+		}
+		if spec.EnabledKey != "" {
+			owners[spec.EnabledKey] = append(owners[spec.EnabledKey], spec.Name)
+		}
+	}
+	for _, tag := range configJSONTags(t) {
+		if tag == "guildId" {
+			assert.Empty(t, owners[tag], "guildId is stamped from the binding, never stored in a module")
+			continue
+		}
+		assert.Len(t, owners[tag], 1, "Config json tag %q must be owned by exactly one module, got %v", tag, owners[tag])
+	}
+	for tag := range owners {
+		assert.Contains(t, configJSONTags(t), tag, "module table names %q, which is not a Config json tag", tag)
 	}
 }
 

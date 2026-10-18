@@ -6,6 +6,7 @@ package outgress
 import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -165,6 +166,34 @@ type DiscordConfigSetRequest struct {
 }
 
 type DiscordConfigSetReply struct {
+	Version int      `json:"version"`
+	Fields  []string `json:"fields,omitempty"`
+	Code    rpc.Code `json:"code"`
+	Error   string   `json:"error,omitempty"`
+}
+
+type DiscordModuleListRequest struct {
+	UserID  string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+}
+
+type DiscordModuleListReply struct {
+	Modules []ddiscord.ModuleRow `json:"modules"`
+	Found   bool                 `json:"found"`
+	Code    rpc.Code             `json:"code"`
+	Error   string               `json:"error,omitempty"`
+}
+
+type DiscordModuleSetRequest struct {
+	UserID          string           `json:"user_id"`
+	GuildID         string           `json:"guild_id"`
+	Name            string           `json:"name"`
+	Enabled         bool             `json:"enabled"`
+	Settings        codec.RawMessage `json:"settings,omitempty"`
+	ExpectedVersion int              `json:"expected_version"`
+}
+
+type DiscordModuleSetReply struct {
 	Version int      `json:"version"`
 	Fields  []string `json:"fields,omitempty"`
 	Code    rpc.Code `json:"code"`

@@ -69,11 +69,22 @@ func (storeDown) UpdateVoiceOccupancy(context.Context, discordstore.VoiceSeat) d
 	return discordstore.VoiceMove{}
 }
 
+type countingOccupancy struct {
+	*discordstore.Mem
+	updates int
+}
+
+func (c *countingOccupancy) UpdateVoiceOccupancy(ctx context.Context, seat discordstore.VoiceSeat) discordstore.VoiceMove {
+	c.updates++
+	return c.Mem.UpdateVoiceOccupancy(ctx, seat)
+}
+
 type voiceRig struct {
 	t    *testing.T
 	mem  *discordstore.Mem
 	rpc  *voiceRPC
 	mod  module.Module
+	st   module.Module
 	cfg  ddiscord.Config
 	sent []ddiscord.Command
 }
@@ -87,6 +98,7 @@ func newVoiceRig(t *testing.T, store func(*discordstore.Mem) discordstore.Store)
 		s = store(r.mem)
 	}
 	r.mod = modules.Voice(s, r.rpc, zap.NewNop())
+	r.st = modules.VoiceState(s, r.rpc, zap.NewNop())
 	return r
 }
 
@@ -97,15 +109,15 @@ func (r *voiceRig) state(user, channel string) {
 	ev.Member.User = decode.UserRef{ID: user, Username: "Ada"}
 	raw, err := codec.Marshal(ev)
 	require.NoError(r.t, err)
-	c := &module.Context{Event: ddiscord.Event{Raw: raw}, Config: r.cfg, Log: zap.NewNop()}
-	require.NoError(r.t, r.mod.Events["VOICE_STATE_UPDATE"](context.Background(), c, func(cmd ddiscord.Command) { r.sent = append(r.sent, cmd) }))
+	c := contextFor(ddiscord.ModuleVoiceState, r.cfg, ddiscord.Event{Raw: raw})
+	require.NoError(r.t, r.st.Events["VOICE_STATE_UPDATE"](context.Background(), c, func(cmd ddiscord.Command) { r.sent = append(r.sent, cmd) }))
 }
 
 func (r *voiceRig) slash(sub decode.InteractionOption, a actor) string {
 	r.t.Helper()
 	in := a.in("room1")
 	in.Data.Options = []decode.InteractionOption{sub}
-	return ephemeralText(r.t, runHandler(r.t, r.mod.Slash["voice"], r.cfg, in))
+	return ephemeralText(r.t, runHandler(r.t, ddiscord.ModuleVoice, r.mod.Slash["voice"], r.cfg, in))
 }
 
 func (r *voiceRig) trackRoom() {
@@ -401,5 +413,42 @@ func TestVoiceLogsRespectToggleAndRoute(t *testing.T) {
 				require.Equal(t, tc.channel, r.logs()[0].ChannelID)
 			}
 		})
+	}
+}
+
+func TestVoiceOffStillLogsMovesAndCleansEmptyRoomsButCreatesNone(t *testing.T) {
+	r := newVoiceRig(t, nil)
+	r.logsOn()
+	r.trackRoom()
+	r.cfg.VoiceEnabled = "off"
+
+	r.state("u1", "room1")
+	r.state("u1", "")
+	require.Equal(t, []string{"delete:room1"}, r.rpc.calls, "the emptied room is deleted with voice off")
+	require.False(t, r.cloneTracked())
+	require.Len(t, r.logs(), 2, "joined and left are still logged")
+
+	r.state("u1", "hub")
+	require.Equal(t, []string{"delete:room1"}, r.rpc.calls, "the hub creates nothing with voice off")
+}
+
+func TestVoiceOnHubCreatesARoom(t *testing.T) {
+	r := newVoiceRig(t, nil)
+
+	r.state("u1", "hub")
+
+	require.Equal(t, []string{"create", "move"}, r.rpc.calls)
+}
+
+func TestVoiceStateUpdatesOccupancyOncePerEvent(t *testing.T) {
+	for _, voice := range []string{"on", "off"} {
+		counting := &countingOccupancy{}
+		r := newVoiceRig(t, func(m *discordstore.Mem) discordstore.Store { counting.Mem = m; return counting })
+		r.cfg.VoiceEnabled = voice
+
+		r.state("u1", "A")
+		r.state("u1", "hub")
+
+		require.Equal(t, 2, counting.updates, "voice=%s", voice)
 	}
 }

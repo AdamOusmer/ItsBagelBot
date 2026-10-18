@@ -1,0 +1,275 @@
+{
+  "roles": {
+    "label": "Roles",
+    "tagline": "Which roles count as owner, moderators, VIPs and subscribers.",
+    "fields": {
+      "ownerRoleId": {
+        "label": "Owner role",
+        "help": "Full control. Bagel treats this role as staff everywhere."
+      },
+      "leadModRoleId": {
+        "label": "Lead Mod role",
+        "help": "Senior moderators. Counted as staff on tickets."
+      },
+      "modsRoleId": {
+        "label": "Mods role",
+        "help": "Your moderators. Counted as staff on tickets."
+      },
+      "vipRoleId": {
+        "label": "VIP role",
+        "help": "Bagel creates this role and its private channels. You hand it out yourself."
+      },
+      "subscriberRoleId": {
+        "label": "Subscriber role",
+        "help": "Bagel creates this role and its private channels. You hand it out yourself."
+      },
+      "regularsRoleId": {
+        "label": "Regulars role",
+        "help": "Bagel creates this role. You hand it out yourself."
+      },
+      "pinnedRoles": {
+        "label": "Pinned",
+        "help": "A pinned slot keeps the role you chose: the next setup adopts it instead of creating or renaming one by name."
+      }
+    }
+  },
+  "live": {
+    "label": "Live alerts",
+    "tagline": "Announce when the stream goes live.",
+    "fields": {
+      "liveChannelId": {
+        "label": "Go-live channel",
+        "help": "One post when you go live, edited when you go offline."
+      },
+      "categoryAllow": {
+        "label": "Announce only these categories",
+        "help": "Empty means every category is announced.",
+        "placeholder": "Minecraft"
+      },
+      "categoryDeny": {
+        "label": "Never announce these categories",
+        "help": "A denied category wins over the allow list.",
+        "placeholder": "Just Chatting"
+      },
+      "twitchLogin": {
+        "label": "Twitch channel",
+        "help": "The Twitch channel named in the live post."
+      }
+    }
+  },
+  "clips": {
+    "label": "Clips",
+    "tagline": "Share new Twitch clips.",
+    "fields": {
+      "clipsChannelId": {
+        "label": "Clips channel",
+        "help": "Every clip from !clip and from Twitch itself."
+      }
+    }
+  },
+  "welcome": {
+    "label": "Welcome",
+    "tagline": "Greet new members.",
+    "fields": {
+      "welcomeChannelId": {
+        "label": "Welcome channel",
+        "help": "One embed per new member. Bagel never DMs joiners."
+      }
+    }
+  },
+  "goodbye": {
+    "label": "Goodbye",
+    "tagline": "Say goodbye in the welcome channel when someone leaves."
+  },
+  "autorole": {
+    "label": "Auto role",
+    "tagline": "Give every new member a role.",
+    "fields": {
+      "memberRoleId": {
+        "label": "Member autorole",
+        "help": "Given to everyone who joins while automatic roles are on."
+      }
+    }
+  },
+  "subscribers": {
+    "label": "Subscriber rooms",
+    "tagline": "Private rooms for subscribers and VIPs.",
+    "fields": {
+      "subsChannelId": {
+        "label": "Subscriber channel",
+        "help": "The private text channel for your subscriber tier."
+      },
+      "subsCategoryId": {
+        "label": "Subscriber category",
+        "help": "The category the subscriber channels live under."
+      },
+      "vipChannelId": {
+        "label": "VIP channel",
+        "help": "The private text channel for your VIPs."
+      },
+      "vipCategoryId": {
+        "label": "VIP category",
+        "help": "The category the VIP channels live under."
+      }
+    }
+  },
+  "voice": {
+    "label": "Voice rooms",
+    "tagline": "Join a hub to get your own voice room.",
+    "fields": {
+      "voiceHubId": {
+        "label": "Join-to-create voice hub",
+        "help": "Joining this voice channel clones a personal room."
+      },
+      "voiceCategoryId": {
+        "label": "Voice room category",
+        "help": "Rooms are created only in this category. Required once a hub is set."
+      },
+      "voiceNameTemplate": {
+        "label": "Room name",
+        "help": "Use {owner} for the member name. Empty uses the member name alone.",
+        "placeholder": "{owner}'s room"
+      },
+      "voiceUserLimit": {
+        "label": "Room user limit",
+        "help": "0 means no limit. Max 99."
+      },
+      "voicePrivacy": {
+        "label": "Room privacy",
+        "help": "Open, locked to new joiners, or hidden from the channel list.",
+        "options": {
+          "open": "Open",
+          "locked": "Locked",
+          "hidden": "Hidden"
+        }
+      }
+    }
+  },
+  "tickets": {
+    "label": "Tickets",
+    "tagline": "A private help desk with staff and transcripts.",
+    "fields": {
+      "ticketChannelId": {
+        "label": "Ticket panel channel",
+        "help": "Where the Open a ticket panel is posted."
+      },
+      "ticketCategoryId": {
+        "label": "Tickets category",
+        "help": "New ticket channels are created under this category."
+      },
+      "ticketArchiveCategoryId": {
+        "label": "Archive category",
+        "help": "Closed tickets move here instead of being deleted. Leave unset to delete them."
+      },
+      "ticketStaffRoleIds": {
+        "label": "Who handles tickets",
+        "help": "These roles see and can claim every ticket. Leave all unticked to use your staff roles."
+      },
+      "ticketOpenLimit": {
+        "label": "Open tickets per member",
+        "help": "How many tickets one member may have open at once."
+      },
+      "ticketTranscriptEnabled": {
+        "label": "Save transcripts",
+        "help": "On close, the whole conversation is saved and posted to the ticket log as a text file."
+      },
+      "ticketLogChannelId": {
+        "label": "Ticket log channel",
+        "help": "Close summaries and transcripts land here. Falls back to your staff log channel."
+      },
+      "ticketPanelTitle": {
+        "label": "Title"
+      },
+      "ticketPanelBody": {
+        "label": "Description"
+      },
+      "ticketPanelColor": {
+        "label": "Colour",
+        "help": "The bar down the left of the embed."
+      },
+      "ticketPanelButton": {
+        "label": "Button label"
+      }
+    }
+  },
+  "logs": {
+    "label": "Server logs",
+    "tagline": "Record what happens in the server.",
+    "fields": {
+      "logChannelId": {
+        "label": "Staff logs channel",
+        "help": "Joins, leaves, edits, deletes and moderation."
+      },
+      "logMessagesEnabled": {
+        "label": "Message logs",
+        "help": "Edited and deleted messages."
+      },
+      "logMembersEnabled": {
+        "label": "Member logs",
+        "help": "Joins, leaves and nickname changes."
+      },
+      "logVoiceEnabled": {
+        "label": "Voice logs",
+        "help": "Joins, leaves and moves in voice channels."
+      },
+      "logModerationEnabled": {
+        "label": "Moderation logs",
+        "help": "Bans, kicks and timeouts."
+      },
+      "logChannelsEnabled": {
+        "label": "Channel logs",
+        "help": "Channels created, changed or deleted."
+      },
+      "logRolesEnabled": {
+        "label": "Role logs",
+        "help": "Roles created, changed or deleted."
+      },
+      "logServerEnabled": {
+        "label": "Server logs",
+        "help": "Changes to server settings."
+      },
+      "logIgnoreBots": {
+        "label": "Ignore bots",
+        "help": "Skip messages and joins from bots."
+      },
+      "logMessagesChannelId": {
+        "label": "Message logs channel",
+        "help": "Empty uses the staff logs channel."
+      },
+      "logMembersChannelId": {
+        "label": "Member logs channel",
+        "help": "Empty uses the staff logs channel."
+      },
+      "logVoiceChannelId": {
+        "label": "Voice logs channel",
+        "help": "Empty uses the staff logs channel."
+      },
+      "logModerationChannelId": {
+        "label": "Moderation logs channel",
+        "help": "Empty uses the staff logs channel."
+      },
+      "logIgnoredChannelIds": {
+        "label": "Ignored channels",
+        "help": "Nothing from these channels is logged."
+      }
+    }
+  },
+  "levels": {
+    "label": "Levels",
+    "tagline": "Members earn XP and levels by chatting."
+  },
+  "linkguard": {
+    "label": "Link guard",
+    "tagline": "Remove links from members unless allowed.",
+    "fields": {
+      "linkAllowList": {
+        "label": "Allowed links",
+        "help": "Parts of a link to allow, separated by commas. Example: youtube.com, twitch.tv"
+      }
+    }
+  },
+  "moderation": {
+    "label": "Moderation",
+    "tagline": "Moderation commands for staff."
+  }
+}

@@ -1,10 +1,6 @@
 {
   "label": "Ajustes del servidor",
   "overview": "Resumen",
-  "channels": "Canales",
-  "roles": "Roles",
-  "announcements": "Anuncios",
-  "community": "Comunidad",
   "tickets": "Tickets",
   "settings": "Ajustes"
 }

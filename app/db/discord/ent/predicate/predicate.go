@@ -12,6 +12,9 @@ type GuildBinding func(*sql.Selector)
 // GuildConfig is the predicate function for guildconfig builders.
 type GuildConfig func(*sql.Selector)
 
+// GuildModule is the predicate function for guildmodule builders.
+type GuildModule func(*sql.Selector)
+
 // MemberXP is the predicate function for memberxp builders.
 type MemberXP func(*sql.Selector)
 

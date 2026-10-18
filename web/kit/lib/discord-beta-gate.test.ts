@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DISCORD_MODULE } from './catalog/discord';
 
@@ -21,19 +21,18 @@ describe('discord beta gate', () => {
     expect(DISCORD_MODULE.beta === true).toBe(goBetaPremiumOnly());
   });
 
-  test('every guild sub-page re-exports the one gated action table', () => {
-    const files = readdirSync(GUILD_ROUTE, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => join(GUILD_ROUTE, e.name, '+page.server.ts'))
-      .filter((f) => existsSync(f));
+  test('every guild page with actions builds them from the gated tables', () => {
+    const files = readdirSync(GUILD_ROUTE, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('+page.server.ts'))
+      .map((f) => join(GUILD_ROUTE, f))
+      .filter((f) => /export const actions\b/.test(readFileSync(f, 'utf8')));
 
-    files.push(join(GUILD_ROUTE, '+page.server.ts'));
-    expect(files.length).toBeGreaterThanOrEqual(7);
+    expect(files.length).toBeGreaterThanOrEqual(3);
 
     for (const file of files) {
       const src = readFileSync(file, 'utf8');
-      expect(src).toContain("import { guildActions } from '$lib/server/discord-guild'");
-      expect(src).toMatch(/export const actions(: Actions)? = guildActions;/);
+      expect(src).toMatch(/import \{[^}]*\b(guildActions|moduleActions)\b[^}]*\} from '\$lib\/server\/discord-guild'/);
+      expect(src).toMatch(/export const actions(: Actions)? = (guildActions|moduleActions|\{)/);
     }
   });
 });

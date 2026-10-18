@@ -33,6 +33,9 @@ type localStore interface {
 	cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
 	cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Config, version int)
 	dropConfig(ctx context.Context, g Guild)
+	cachedModules(ctx context.Context, g Guild) (ddiscord.GuildModules, bool)
+	cacheModules(ctx context.Context, g Guild, mods ddiscord.GuildModules)
+	dropModules(ctx context.Context, g Guild)
 	cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool)
 	cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding)
 	dropGuilds(ctx context.Context, b Broadcaster)
@@ -81,6 +84,7 @@ func (s valkeyStore) cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Conf
 
 func (s valkeyStore) dropConfig(ctx context.Context, g Guild) {
 	_ = s.kv().Del(ctx, cfgKey(g))
+	s.dropModules(ctx, g)
 }
 
 func (m *Mem) cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool) {
@@ -93,10 +97,11 @@ func (m *Mem) cacheConfig(_ context.Context, g Guild, cfg ddiscord.Config, versi
 	m.configs[g.ID] = memConfig{Config: cfg, Version: version}
 }
 
-func (m *Mem) dropConfig(_ context.Context, g Guild) {
+func (m *Mem) dropConfig(ctx context.Context, g Guild) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	delete(m.configs, g.ID)
+	m.mu.Unlock()
+	m.dropModules(ctx, g)
 }
 
 func (s valkeyStore) cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool) {

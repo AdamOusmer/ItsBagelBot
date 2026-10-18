@@ -42,6 +42,7 @@ through `discordstore.NewRPC`; Valkey holds caches and ephemeral execution state
 | Slash-command catalog/bootstrap | [internal/bootstrap/bootstrap.go](internal/bootstrap/bootstrap.go) |
 | Guild create/adopt/bind/layout | [internal/setup/setup.go](internal/setup/setup.go): `SetupGuild`, `GuildLayout`, `UnbindGuild` |
 | Per-guild config/version/ownership | [internal/setup/config.go](internal/setup/config.go): `GuildConfig`, `SetGuildConfig`, `ListGuilds`, `requireOwnerStrict` |
+| Per-module settings (`discord.module.list/set`) | [internal/setup/modules.go](internal/setup/modules.go): `GuildModules`, `SetGuildModule`; verbs in [setup_rpc.go](internal/rpc/setup_rpc.go) |
 | Ticket desk replacement | [internal/setup/desk.go](internal/setup/desk.go): `RepostDesk`; [worker.go](internal/setup/worker.go) |
 | Dashboard-facing RPC wiring | [internal/rpc/setup_rpc.go](internal/rpc/setup_rpc.go), [register.go](internal/rpc/register.go) |
 | Engine channel/live/purge RPC | [internal/rpc/engine_rpc.go](internal/rpc/engine_rpc.go) |
@@ -78,6 +79,7 @@ Setup reads existing resources and adopts/fills template slots, including pinned
 roles. Lived-in servers get only the missing voice hub, voice category, logs
 channel and ticket/archive categories (no roles, no other channels). Every
 created gated or read-only channel carries an explicit bot member overwrite.
+Module writes (one `ModuleRow` per verb, validated with `ValidateModule`) verify only that module's channel ids with the same rules; `discord.config.get/set` stay for old dashboard pods and are slated for removal.
 Config writes verify all configured channel ids (including up to 25 ignored
 channels) against one guild channel listing. Config writes have versions and authoritative binding checks. Desk repost
 remembers the new panel and handles prior deletion independently; ticket close

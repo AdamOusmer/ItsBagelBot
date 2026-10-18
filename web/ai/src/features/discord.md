@@ -39,7 +39,8 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 - External prerequisites: a Discord account and a server you own or can manage. The server picker requires Manage Server.
 - Dashboard: [{{console:nav.discord}}](https://dashboard.itsbagelbot.com/discord). Connect an existing server or create one from the supplied template.
 - After selecting a server, its dashboard lives at `https://dashboard.itsbagelbot.com/discord/<guildId>`.
-- Subpages: "{{console:discord.nav.channels}}" (`/channels`), "{{console:discord.nav.roles}}" (`/roles`), "{{console:discord.nav.announcements}}" (`/announcements`), "{{console:discord.nav.community}}" (`/community`), "{{console:discord.nav.tickets}}" (`/tickets`), and "{{console:discord.nav.settings}}" (`/settings`).
+- Subpages: "{{console:discord.nav.overview}}" (the server page, which lists every module), one page per module at `/modules/<id>` (roles, live, clips, welcome, goodbye, autorole, subscribers, voice, tickets, logs, levels, linkguard, moderation), "{{console:discord.nav.tickets}}" (`/tickets`), and "{{console:discord.nav.settings}}" (`/settings`).
+- Each module page has a status switch ("{{console:discord.module.statusTitle}}") that turns the module on or off in that server immediately. The roles module is core and shows "{{console:discord.module.alwaysOn}}" instead of a switch. A module that is off keeps its settings.
 - Bot permissions include moderation, Manage Roles, and Manage Channels. Administrator is not required.
 - Go-live posts are edited when the stream ends. Clips, raids, gift subs, and milestone-sub announcements use their configured destinations.
 - An unset destination skips that post. Welcome embeds are posted in the selected server channel rather than sent as direct messages.

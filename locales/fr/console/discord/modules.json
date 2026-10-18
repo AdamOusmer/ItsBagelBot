@@ -1,0 +1,275 @@
+{
+  "roles": {
+    "label": "Rôles",
+    "tagline": "Quels rôles comptent comme propriétaire, modérateurs, VIP et abonnés.",
+    "fields": {
+      "ownerRoleId": {
+        "label": "Rôle Propriétaire",
+        "help": "Contrôle total. Bagel considère ce rôle comme du staff partout."
+      },
+      "leadModRoleId": {
+        "label": "Rôle Lead Mod",
+        "help": "Modérateurs principaux. Comptés comme staff sur les tickets."
+      },
+      "modsRoleId": {
+        "label": "Rôle Modérateurs",
+        "help": "Vos modérateurs. Comptés comme staff sur les tickets."
+      },
+      "vipRoleId": {
+        "label": "Rôle VIP",
+        "help": "Bagel crée ce rôle et ses salons privés. C’est vous qui l’attribuez."
+      },
+      "subscriberRoleId": {
+        "label": "Rôle Abonné",
+        "help": "Bagel crée ce rôle et ses salons privés. C’est vous qui l’attribuez."
+      },
+      "regularsRoleId": {
+        "label": "Rôle Habitués",
+        "help": "Bagel crée ce rôle. C’est vous qui l’attribuez."
+      },
+      "pinnedRoles": {
+        "label": "Épinglé",
+        "help": "Un emplacement épinglé garde le rôle choisi : la prochaine configuration le reprend au lieu d’en créer ou d’en renommer un par son nom."
+      }
+    }
+  },
+  "live": {
+    "label": "Alertes de live",
+    "tagline": "Annonce le début du live.",
+    "fields": {
+      "liveChannelId": {
+        "label": "Salon de mise en ligne",
+        "help": "Un message au lancement du stream, modifié quand il se termine."
+      },
+      "categoryAllow": {
+        "label": "Annoncer seulement ces catégories",
+        "help": "Vide signifie que toutes les catégories sont annoncées.",
+        "placeholder": "Minecraft"
+      },
+      "categoryDeny": {
+        "label": "Ne jamais annoncer ces catégories",
+        "help": "Une catégorie refusée l’emporte sur la liste autorisée.",
+        "placeholder": "Just Chatting"
+      },
+      "twitchLogin": {
+        "label": "Chaîne Twitch",
+        "help": "La chaîne Twitch citée dans l’annonce de live."
+      }
+    }
+  },
+  "clips": {
+    "label": "Clips",
+    "tagline": "Partage les nouveaux clips Twitch.",
+    "fields": {
+      "clipsChannelId": {
+        "label": "Salon des clips",
+        "help": "Tous les clips, ceux de !clip comme ceux de Twitch."
+      }
+    }
+  },
+  "welcome": {
+    "label": "Bienvenue",
+    "tagline": "Accueille les nouveaux membres.",
+    "fields": {
+      "welcomeChannelId": {
+        "label": "Salon de bienvenue",
+        "help": "Un embed par nouveau membre. Bagel n’envoie jamais de message privé."
+      }
+    }
+  },
+  "goodbye": {
+    "label": "Au revoir",
+    "tagline": "Dit au revoir dans le salon de bienvenue quand quelqu’un part."
+  },
+  "autorole": {
+    "label": "Rôle automatique",
+    "tagline": "Donne un rôle à chaque nouveau membre.",
+    "fields": {
+      "memberRoleId": {
+        "label": "Autorôle Member",
+        "help": "Attribué à toute personne qui rejoint tant que les rôles automatiques sont actifs."
+      }
+    }
+  },
+  "subscribers": {
+    "label": "Salons abonnés",
+    "tagline": "Salons privés pour abonnés et VIP.",
+    "fields": {
+      "subsChannelId": {
+        "label": "Salon des abonnés",
+        "help": "Le salon texte privé réservé à vos abonnés."
+      },
+      "subsCategoryId": {
+        "label": "Catégorie Abonnés",
+        "help": "La catégorie qui regroupe les salons des abonnés."
+      },
+      "vipChannelId": {
+        "label": "Salon VIP",
+        "help": "Le salon texte privé réservé à vos VIP."
+      },
+      "vipCategoryId": {
+        "label": "Catégorie VIP",
+        "help": "La catégorie qui regroupe les salons VIP."
+      }
+    }
+  },
+  "voice": {
+    "label": "Salons vocaux",
+    "tagline": "Rejoignez un hub pour obtenir votre salon vocal.",
+    "fields": {
+      "voiceHubId": {
+        "label": "Salon vocal « créer »",
+        "help": "Rejoindre ce salon vocal en crée un rien que pour la personne."
+      },
+      "voiceCategoryId": {
+        "label": "Catégorie des salons vocaux",
+        "help": "Les salons sont créés uniquement dans cette catégorie. Obligatoire dès qu'un salon « créer » est défini."
+      },
+      "voiceNameTemplate": {
+        "label": "Nom du salon",
+        "help": "Utilisez {owner} pour le nom du membre. Vide utilise le nom du membre seul.",
+        "placeholder": "Salon de {owner}"
+      },
+      "voiceUserLimit": {
+        "label": "Limite d’utilisateurs par salon",
+        "help": "0 signifie sans limite. Maximum 99."
+      },
+      "voicePrivacy": {
+        "label": "Confidentialité du salon",
+        "help": "Ouvert, verrouillé aux nouveaux arrivants ou masqué de la liste des salons.",
+        "options": {
+          "open": "Ouvert",
+          "locked": "Verrouillé",
+          "hidden": "Masqué"
+        }
+      }
+    }
+  },
+  "tickets": {
+    "label": "Tickets",
+    "tagline": "Un support privé avec équipe et transcriptions.",
+    "fields": {
+      "ticketChannelId": {
+        "label": "Salon du panneau tickets",
+        "help": "Le salon où le panneau « Ouvrir un ticket » est publié."
+      },
+      "ticketCategoryId": {
+        "label": "Catégorie Tickets",
+        "help": "Les nouveaux tickets sont créés sous cette catégorie."
+      },
+      "ticketArchiveCategoryId": {
+        "label": "Catégorie d’archives",
+        "help": "Les tickets fermés y sont déplacés au lieu d’être supprimés. Laissez vide pour les supprimer."
+      },
+      "ticketStaffRoleIds": {
+        "label": "Qui s’occupe des tickets",
+        "help": "Ces rôles voient et peuvent prendre en charge tous les tickets. Ne cochez rien pour utiliser vos rôles staff."
+      },
+      "ticketOpenLimit": {
+        "label": "Tickets ouverts par membre",
+        "help": "Combien de tickets un membre peut avoir ouverts en même temps."
+      },
+      "ticketTranscriptEnabled": {
+        "label": "Conserver les transcriptions",
+        "help": "À la fermeture, toute la conversation est enregistrée et publiée dans le salon des tickets sous forme de fichier texte."
+      },
+      "ticketLogChannelId": {
+        "label": "Salon des tickets",
+        "help": "Les résumés de fermeture et les transcriptions arrivent ici. À défaut, votre salon de journaux staff."
+      },
+      "ticketPanelTitle": {
+        "label": "Titre"
+      },
+      "ticketPanelBody": {
+        "label": "Description"
+      },
+      "ticketPanelColor": {
+        "label": "Couleur",
+        "help": "La barre à gauche de l’embed."
+      },
+      "ticketPanelButton": {
+        "label": "Texte du bouton"
+      }
+    }
+  },
+  "logs": {
+    "label": "Journaux du serveur",
+    "tagline": "Garde la trace de ce qui se passe sur le serveur.",
+    "fields": {
+      "logChannelId": {
+        "label": "Salon des journaux staff",
+        "help": "Arrivées, départs, éditions, suppressions et modération."
+      },
+      "logMessagesEnabled": {
+        "label": "Journaux messages",
+        "help": "Messages modifiés et supprimés."
+      },
+      "logMembersEnabled": {
+        "label": "Journaux membres",
+        "help": "Arrivées, départs et changements de pseudo."
+      },
+      "logVoiceEnabled": {
+        "label": "Journaux vocaux",
+        "help": "Arrivées, départs et déplacements dans les salons vocaux."
+      },
+      "logModerationEnabled": {
+        "label": "Journaux modération",
+        "help": "Bans, expulsions et exclusions temporaires."
+      },
+      "logChannelsEnabled": {
+        "label": "Journaux des salons",
+        "help": "Salons créés, modifiés ou supprimés."
+      },
+      "logRolesEnabled": {
+        "label": "Journaux des rôles",
+        "help": "Rôles créés, modifiés ou supprimés."
+      },
+      "logServerEnabled": {
+        "label": "Journaux du serveur",
+        "help": "Modifications des paramètres du serveur."
+      },
+      "logIgnoreBots": {
+        "label": "Ignorer les bots",
+        "help": "Ignorer les messages et arrivées des bots."
+      },
+      "logMessagesChannelId": {
+        "label": "Salon des journaux messages",
+        "help": "Vide utilise le salon des journaux staff."
+      },
+      "logMembersChannelId": {
+        "label": "Salon des journaux membres",
+        "help": "Vide utilise le salon des journaux staff."
+      },
+      "logVoiceChannelId": {
+        "label": "Salon des journaux vocaux",
+        "help": "Vide utilise le salon des journaux staff."
+      },
+      "logModerationChannelId": {
+        "label": "Salon des journaux modération",
+        "help": "Vide utilise le salon des journaux staff."
+      },
+      "logIgnoredChannelIds": {
+        "label": "Salons ignorés",
+        "help": "Rien n’est consigné pour ces salons."
+      }
+    }
+  },
+  "levels": {
+    "label": "Niveaux",
+    "tagline": "Les membres gagnent de l’XP et des niveaux en discutant."
+  },
+  "linkguard": {
+    "label": "Filtre de liens",
+    "tagline": "Supprime les liens des membres sauf ceux autorisés.",
+    "fields": {
+      "linkAllowList": {
+        "label": "Liens autorisés",
+        "help": "Fragments de lien autorisés, séparés par des virgules. Exemple : youtube.com, twitch.tv"
+      }
+    }
+  },
+  "moderation": {
+    "label": "Modération",
+    "tagline": "Commandes de modération pour l’équipe."
+  }
+}

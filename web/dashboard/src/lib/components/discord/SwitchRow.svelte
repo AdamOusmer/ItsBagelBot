@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { alertOff, alertOn, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import UiSwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
-  import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
+  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {
@@ -14,7 +14,7 @@
     help,
     defaultOn
   }: {
-    draft: GuildDraft;
+    draft: ModuleDraft;
     invalid: RefusedFields;
     field: keyof DiscordConfig;
     label: string;

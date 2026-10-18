@@ -33,7 +33,8 @@ func (s *Store) ConfigGet(ctx context.Context, guildID string) (ddiscord.Config,
 	if err != nil {
 		return ddiscord.Config{}, 0, false, err
 	}
-	return row.Config, row.Version, true, nil
+	cfg, err := s.joinedConfig(ctx, row)
+	return cfg, row.Version, true, err
 }
 
 func (s *Store) ConfigSet(ctx context.Context, p SetConfigParams) (int, error) {
@@ -55,9 +56,17 @@ func (s *Store) ConfigSet(ctx context.Context, p SetConfigParams) (int, error) {
 }
 
 func (s *Store) setConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) (int, error) {
-	if err := requireBindingInTx(ctx, tx, p); err != nil {
+	if err := requireBindingInTx(ctx, tx, p.GuildID, p.BroadcasterID); err != nil {
 		return 0, err
 	}
+	version, err := s.writeConfigInTx(ctx, tx, p)
+	if err != nil {
+		return 0, err
+	}
+	return version, s.syncModulesInTx(ctx, tx, p)
+}
+
+func (s *Store) writeConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) (int, error) {
 	query := tx.GuildConfig.Query().Where(guildconfig.GuildIDEQ(p.GuildID))
 	if s.rowLocks {
 		query = query.ForUpdate()
@@ -92,15 +101,15 @@ func updateConfigInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams, stored
 	return p.ExpectedVersion + 1, nil
 }
 
-func requireBindingInTx(ctx context.Context, tx *ent.Tx, p SetConfigParams) error {
-	binding, err := tx.GuildBinding.Query().Where(guildbinding.GuildIDEQ(p.GuildID)).Only(ctx)
+func requireBindingInTx(ctx context.Context, tx *ent.Tx, guildID string, broadcasterID uint64) error {
+	binding, err := tx.GuildBinding.Query().Where(guildbinding.GuildIDEQ(guildID)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return ErrNotBound
 	}
 	if err != nil {
 		return err
 	}
-	if binding.BroadcasterID != p.BroadcasterID {
+	if binding.BroadcasterID != broadcasterID {
 		return ErrNotBound
 	}
 	return nil

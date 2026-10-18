@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/discord/ent/guildbinding"
 	"ItsBagelBot/app/db/discord/ent/guildconfig"
+	"ItsBagelBot/app/db/discord/ent/guildmodule"
 	"ItsBagelBot/app/db/discord/ent/memberxp"
 	"ItsBagelBot/app/db/discord/ent/ticket"
 	"ItsBagelBot/app/db/discord/ent/tickettranscript"
@@ -79,6 +80,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			guildbinding.Table:     guildbinding.ValidColumn,
 			guildconfig.Table:      guildconfig.ValidColumn,
+			guildmodule.Table:      guildmodule.ValidColumn,
 			memberxp.Table:         memberxp.ValidColumn,
 			ticket.Table:           ticket.ValidColumn,
 			tickettranscript.Table: tickettranscript.ValidColumn,
