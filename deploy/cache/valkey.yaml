@@ -129,7 +129,7 @@ spec:
           - {name: attempts, value: "3"}
       initContainers:
       - name: config-init
-        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -360,7 +360,7 @@ spec:
             secretKeyRef:
               key: valkey-password
               name: valkey-core-secret
-        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -455,7 +455,7 @@ spec:
             secretKeyRef:
               key: valkey-password
               name: valkey-core-secret
-        image: valkey/valkey@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
+        image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
