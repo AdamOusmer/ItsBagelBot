@@ -182,6 +182,10 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 	}
 }
 
+func unknownSetupMode(mode string) bool {
+	return mode != "" && mode != outgressrpc.SetupModeApply && mode != outgressrpc.SetupModeAdopt
+}
+
 func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
 	cfg := ddiscord.Config{
 		GuildID:     req.GuildID,
@@ -196,7 +200,7 @@ func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
 		seen[fe.Field] = true
 		out = append(out, fe.Field)
 	}
-	if req.Mode != "" && req.Mode != outgressrpc.SetupModeApply && req.Mode != outgressrpc.SetupModeAdopt {
+	if unknownSetupMode(req.Mode) {
 		out = append(out, "mode")
 	}
 	return out

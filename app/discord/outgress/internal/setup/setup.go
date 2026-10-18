@@ -481,7 +481,7 @@ func (f *guildFill) recordExistingChannel(spec ddiscord.ChannelSpec, id string) 
 }
 
 func channelRef(spec ddiscord.ChannelSpec) namedRef {
-	return namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindChannel, Type: spec.Type, Parent: spec.Parent}
+	return namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindChannel, Type: spec.Type, Parent: spec.Parent, Key: channelKey(spec.Name, spec.Type)}
 }
 
 func (f *guildFill) record(item outgressrpc.DiscordTemplateItem) {
@@ -514,7 +514,7 @@ func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass 
 		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.chanByName, channelKey(spec.Name, spec.Type), channelRef(spec), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		id, err := f.ensureNamed(ctx, f.chanByName, channelRef(spec), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
 		if err != nil {
 			return ensured, err
 		}
@@ -530,6 +530,7 @@ type namedRef struct {
 	Kind   string
 	Type   int
 	Parent string
+	Key    string
 }
 
 func (r namedRef) item(action, id string) outgressrpc.DiscordTemplateItem {
@@ -545,21 +546,21 @@ type channelWant struct {
 	Parent string
 }
 
-func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, key string, want namedRef, create namedCreate) (string, error) {
-	if id := index[key]; id != "" {
+func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
+	if id := index[want.Key]; id != "" {
 		f.record(want.item(outgressrpc.TemplateActionAdopt, id))
 		return id, nil
 	}
 	if f.dry {
 		f.record(want.item(outgressrpc.TemplateActionCreate, ""))
-		index[key] = plannedID
+		index[want.Key] = plannedID
 		return plannedID, nil
 	}
 	created, err := f.create(ctx, create)
 	if err != nil {
 		return "", err
 	}
-	index[key] = created.ID
+	index[want.Key] = created.ID
 	return created.ID, nil
 }
 
@@ -574,7 +575,7 @@ func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) erro
 			f.record(namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}.item(outgressrpc.TemplateActionPinned, id))
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.roleByName, strings.ToLower(spec.Name), namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}, f.roleCreator(ctx, spec))
+		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole, Key: strings.ToLower(spec.Name)}, f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
 		}
