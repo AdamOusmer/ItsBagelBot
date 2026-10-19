@@ -26,16 +26,18 @@ RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
 COPY web/kit kit
 COPY locales /src/locales
 COPY web/admin admin
-RUN cd admin && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
+RUN cd admin && bun run build && find build -name '*.map' -delete
+# Runtime externals: newrelic, pino, nanoid and @nats-io/* (left as bare imports by the server build), sirv (serve-node.js). A missing one fails only the route that loads it.
+RUN bun kit/scripts/runtime-node-modules.ts node_modules /runtime/node_modules newrelic pino nanoid @nats-io/kv @nats-io/transport-node sirv
 # Distroless bun aborts on dlopen of newrelic's Node/V8 addons, so strip them here; the runtime stage has no shell.
-RUN bun kit/scripts/strip-newrelic-node-addons.ts node_modules
+RUN bun kit/scripts/strip-newrelic-node-addons.ts /runtime/node_modules
 
 FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 COPY --from=build /src/web/admin/build ./build
-COPY --from=build /src/web/node_modules ./node_modules
+COPY --from=build /runtime/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
 CMD ["--import", "newrelic", "serve-node.js"]
