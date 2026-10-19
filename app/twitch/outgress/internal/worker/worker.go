@@ -4,6 +4,7 @@
 package worker
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
+
 	"github.com/nats-io/nats.go"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -62,6 +64,7 @@ type lifecycleRuntime interface {
 }
 
 type Worker struct {
+	analytics   *analytics.Recorder
 	runtime     lifecycleRuntime
 	lifecycleNC *nats.Conn
 	log         *zap.Logger
@@ -146,6 +149,8 @@ func (w *Worker) SetModVerifier(v *ModVerifier) { w.modVerifier = v }
 func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
 
 func (w *Worker) SetFactPublisher(pub bus.Publisher) { w.factPub = pub }
+
+func (w *Worker) SetAnalytics(rec *analytics.Recorder) { w.analytics = rec }
 
 const (
 	UserIDCacheCapacity = 1024

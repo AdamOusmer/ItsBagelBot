@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/discord/engine/internal/rpcclient"
 	"ItsBagelBot/app/discord/engine/internal/streaminfo"
 	"ItsBagelBot/app/discord/engine/modules"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/discord/linkguard"
@@ -94,7 +95,9 @@ func main() {
 		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
-	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
+	recorder := analytics.New(valkeyClient, log, reg.AnalyticsNames())
+	defer recorder.Close()
+	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log, Analytics: recorder}
 	dedupStore := idempotency.NewTiered(eventDedupLRUCap, idempotency.NewValkeyStore(valkeyClient, eventDedupPrefix, log))
 	handle := dispatch.Dedup(dedupStore, log, dedupMetrics{app: nrApp})(d.Handle)
 
