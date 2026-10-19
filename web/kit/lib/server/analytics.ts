@@ -63,20 +63,31 @@ function startTimer(): ReturnType<typeof setInterval> {
 
 type ViewEvent = { request: Request; route: { id: string | null }; isDataRequest?: boolean };
 
+function pageRoute(event: ViewEvent): string | null {
+  const route = event.route.id;
+  if (event.request.method !== 'GET' || !route) return null;
+  const html = event.isDataRequest || (event.request.headers.get('accept') ?? '').includes('text/html');
+  return html ? route : null;
+}
+
 export function countView(event: ViewEvent): void {
-  if (!app || event.request.method !== 'GET' || !event.route.id) return;
-  const page = event.isDataRequest || (event.request.headers.get('accept') ?? '').includes('text/html');
-  if (page) count('web.views', app, event.route.id);
+  const route = pageRoute(event);
+  if (app && route) count('web.views', app, route);
 }
 
 type ActionEvent = { route?: { id: string | null }; url?: URL };
 
-export function countAction(event: ActionEvent, outcome: ActionOutcome): void {
+function actionField(event: ActionEvent): string | null {
   const route = event.route?.id;
-  if (!app || !route || !event.url) return;
+  if (!route || !event.url) return null;
   const search = event.url.search;
   const name = search.startsWith('?/') ? search.slice(2).split('&')[0] : 'default';
-  count('web.actions', app, `${route}?/${name}`, outcome);
+  return `${route}?/${name}`;
+}
+
+export function countAction(event: ActionEvent, outcome: ActionOutcome): void {
+  const field = actionField(event);
+  if (app && field) count('web.actions', app, field, outcome);
 }
 
 function dayKey(now: Date): { key: string; expireAt: number } {
