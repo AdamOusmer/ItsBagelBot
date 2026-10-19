@@ -20,7 +20,7 @@
   "fieldWatch": "Por cada 5 minutos de visualización",
   "streamerPoints": "El streamer gana puntos",
   "streamerPointsHint": "Permite al propietario del canal ganar puntos automáticos, incluidos los puntos de visualización mientras esté en el chat durante una transmisión en directo. El tiempo de visualización, las transferencias y las concesiones manuales siguen disponibles si se desactiva.",
-  "tierHint": "Los puntos por suscripción y renovación dependen del nivel: ×1, ×2 (nivel 2), ×6 (nivel 3).",
+  "tierHint": "Los puntos por suscripción, renovación y regalo dependen del nivel: ×1, ×2 (nivel 2), ×6 (nivel 3).",
   "defaultTag": "predeterminado {n}",
   "save": "Guardar tasas",
   "saving": "Guardando…",

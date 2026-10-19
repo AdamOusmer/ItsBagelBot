@@ -20,7 +20,7 @@
   "fieldWatch": "Por 5 minutos assistidos",
   "streamerPoints": "Streamer ganha pontos",
   "streamerPointsHint": "Permita que o dono do canal ganhe pontos automáticos, incluindo pontos por assistir enquanto estiver no chat durante uma transmissão ao vivo. Tempo assistido, transferências e concessões manuais continuam disponíveis quando desativado.",
-  "tierHint": "Os prêmios por inscrição e renovação variam conforme o nível: ×1, ×2 (nível 2), ×6 (nível 3).",
+  "tierHint": "Os prêmios por inscrição, renovação e presente variam conforme o nível: ×1, ×2 (nível 2), ×6 (nível 3).",
   "defaultTag": "padrão {n}",
   "save": "Salvar taxas",
   "saving": "Salvando…",

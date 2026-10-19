@@ -41,7 +41,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 - Loyalty, gamble, and duel start off. Both games require loyalty to be on.
 - This currency is separate from Twitch channel points. Its name is configurable under "{{console:loyalty.fieldName}}".
 - Defaults: 500 points per new sub or resub, 100 per gifted sub to the gifter, 50 per 100 bits, and 10 per 5-minute watch tick.
-- Sub and resub awards multiply by 1, 2, or 6 for subscription tiers 1, 2, or 3. Watch ticks accrue while live.
+- Sub, resub, and gifted sub awards multiply by 1, 2, or 6 for subscription tiers 1, 2, or 3. Watch ticks accrue while live.
 - "{{console:loyalty.permSet}}", "{{console:loyalty.permAdjust}}", and "{{console:loyalty.permTransfers}}" control the corresponding capabilities.
 - `!points` and `!watchtime` have 5-second cooldowns. `!leaderboard` has a 10-second cooldown and accepts 1 to 10 entries.
 - Gamble defaults: 50% win chance, minimum bet 1, maximum bet 1000, and a 10-second per-viewer cooldown. Win chance allows 1 to 99.
