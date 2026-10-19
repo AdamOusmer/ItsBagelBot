@@ -13,6 +13,7 @@ RUN cd ui && bun install --frozen-lockfile --production
 WORKDIR /src/web
 # bunfig.toml must be present for the install so the hoisted linker applies.
 COPY web/package.json web/bun.lock web/bunfig.toml ./
+COPY web/patches patches
 COPY web/tsconfig.base.json tsconfig.base.json
 COPY web/sorted-readdir.mjs sorted-readdir.mjs
 COPY web/kit/package.json kit/package.json
