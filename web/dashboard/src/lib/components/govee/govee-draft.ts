@@ -59,14 +59,20 @@ export function goveeDraftFor(
 export type GoveeErrorField = 'title' | 'cost' | 'cooldown';
 export type GoveeErrors = Partial<Record<GoveeErrorField, string>>;
 
+export const GOVEE_ERROR_KEYS: Readonly<Record<GoveeErrorField, string>> = Object.freeze({
+  title: 'govee.errTitleRequired',
+  cost: 'govee.errCost',
+  cooldown: 'govee.errCooldown'
+});
+
 const whole = (n: unknown, min: number, max: number) =>
   Number.isInteger(n) && (n as number) >= min && (n as number) <= max;
 
 export function goveeErrors(draft: GoveeDraft): GoveeErrors {
   const errors: GoveeErrors = {};
-  if (!draft.title.trim()) errors.title = 'govee.errTitleRequired';
-  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = 'govee.errCost';
-  if (!whole(draft.cooldown, 0, GOVEE_COOLDOWN_MAX)) errors.cooldown = 'govee.errCooldown';
+  if (!draft.title.trim()) errors.title = GOVEE_ERROR_KEYS.title;
+  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = GOVEE_ERROR_KEYS.cost;
+  if (!whole(draft.cooldown, 0, GOVEE_COOLDOWN_MAX)) errors.cooldown = GOVEE_ERROR_KEYS.cooldown;
   return errors;
 }
 

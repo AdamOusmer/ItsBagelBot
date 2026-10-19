@@ -9,11 +9,10 @@ export function actionPayload<T = ActionOk>(result: unknown): T | undefined {
 }
 
 export function toastFailure(
-  toast: (kind: 'danger', text: string) => unknown,
-  t: (key: string) => string
-): (payload: ActionOk | null | undefined, fallbackKey: string) => void {
-  return (payload, fallbackKey) => {
-    toast('danger', payload?.error ?? t(fallbackKey));
+  toast: (kind: 'danger', text: string) => unknown
+): (payload: ActionOk | null | undefined, fallback: string) => void {
+  return (payload, fallback) => {
+    toast('danger', payload?.error ?? fallback);
   };
 }
 

@@ -103,7 +103,7 @@
 
   type RewardActionOk = ActionOk & { missingScope?: boolean; duplicateTitle?: boolean; notAffiliate?: boolean };
 
-  function failed(payload: RewardActionOk | undefined, fallbackKey: string) {
+  function failed(payload: RewardActionOk | undefined, fallback: string) {
     if (payload?.missingScope) {
       missingScope = true;
       doClose();
@@ -117,7 +117,7 @@
       toast('danger', t('channelpoints.toastNotAffiliate'));
       return;
     }
-    toast('danger', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? fallback);
   }
 
   const saveSubmit: SubmitFunction = (input) => {
@@ -145,7 +145,7 @@
       const ok = result.type === 'success' && reply?.ok === true;
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (!ok) {
-        failed(reply, 'channelpoints.toastSaveFailed');
+        failed(reply, t('channelpoints.toastSaveFailed'));
         return;
       }
       toast('success', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
@@ -163,7 +163,7 @@
         const payload = actionPayload<RewardActionOk>(result);
         if (result.type === 'success' && payload?.ok) return;
         rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled: was } : x));
-        failed(payload, 'channelpoints.toastToggleFailed');
+        failed(payload, t('channelpoints.toastToggleFailed'));
       };
     };
 
@@ -187,7 +187,7 @@
         await invalidateAll();
         return;
       }
-      failed(payload, 'channelpoints.toastDeleteFailed');
+      failed(payload, t('channelpoints.toastDeleteFailed'));
     };
   };
 

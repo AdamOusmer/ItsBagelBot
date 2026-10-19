@@ -5,25 +5,25 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import type { CollisionRef } from '@bagel/kit';
   import { capSkipped } from './helpers';
-  import type { Translate } from './session.svelte';
+  import { translate, type Locale } from '@bagel/kit/i18n';
 
-  let { skipped, t }: { skipped: CollisionRef[] | undefined; t: Translate } = $props();
+  let { skipped, locale }: { skipped: CollisionRef[] | undefined; locale: Locale } = $props();
   const view = $derived(capSkipped(skipped));
   const total = $derived(skipped?.length ?? 0);
 </script>
 
 {#if total > 0}
   <div class="skipped">
-    <Text size="sm" tone="muted">{t('import.skippedHead', { n: total })}</Text>
+    <Text size="sm" tone="muted">{translate(locale, 'import.skippedHead', { n: total })}</Text>
     <ul class="skipped-list">
       {#each view.shown as c (c.kind + c.name)}
         <li class="skipped-row">
           <Text as="span" size="sm" mono>{c.name}</Text>
-          <Tag tone="danger">{t('import.alreadyExists')}</Tag>
+          <Tag tone="danger">{translate(locale, 'import.alreadyExists')}</Tag>
         </li>
       {/each}
     </ul>
-    {#if view.more > 0}<Text size="xs" mono tone="muted">{t('import.skippedMore', { n: view.more })}</Text>{/if}
+    {#if view.more > 0}<Text size="xs" mono tone="muted">{translate(locale, 'import.skippedMore', { n: view.more })}</Text>{/if}
   </div>
 {/if}
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const DISCORD_CODE_KEYS: Record<
+export const DISCORD_CODE_KEYS: Readonly<Record<
   string,
   | 'discord.errors.boundElsewhere'
   | 'discord.errors.notBound'
@@ -15,7 +15,7 @@ export const DISCORD_CODE_KEYS: Record<
   | 'discord.errors.unknown'
   | 'discord.errors.locked'
   | 'discord.errors.ticketsOff'
-> = {
+>> = Object.freeze({
   bound_elsewhere: 'discord.errors.boundElsewhere',
   not_bound: 'discord.errors.notBound',
   discord_unavailable: 'discord.errors.unavailable',
@@ -28,9 +28,9 @@ export const DISCORD_CODE_KEYS: Record<
   unknown: 'discord.errors.unknown',
   locked: 'discord.errors.locked',
   tickets_off: 'discord.errors.ticketsOff'
-};
+});
 
-export const DISCORD_SLUG_KEYS: Record<
+export const DISCORD_SLUG_KEYS: Readonly<Record<
   string,
   | (typeof DISCORD_CODE_KEYS)[string]
   | 'discord.errors.oauth'
@@ -39,7 +39,7 @@ export const DISCORD_SLUG_KEYS: Record<
   | 'discord.errors.setup'
   | 'discord.errors.state'
   | 'discord.errors.noGuilds'
-> = {
+>> = Object.freeze({
   oauth: 'discord.errors.oauth',
   declined: 'discord.errors.declined',
   unconfigured: 'discord.errors.unconfigured',
@@ -47,14 +47,14 @@ export const DISCORD_SLUG_KEYS: Record<
   state: 'discord.errors.state',
   noguilds: 'discord.errors.noGuilds',
   ...DISCORD_CODE_KEYS
-};
+});
 
-export const DISCORD_PILL_KEYS = {
+export const DISCORD_PILL_KEYS = Object.freeze({
   online: 'discord.status.online',
   offline: 'discord.status.offline',
   reauth: 'discord.status.reauth',
   unknown: 'discord.status.unknown'
-} as const;
+});
 
 export const DISCORD_STATE_TAG = {
   online: { tone: 'live', mark: 'solid' },
@@ -66,8 +66,8 @@ export const DISCORD_STATE_TAG = {
   { tone: 'live' | 'danger' | 'alpha' | 'quiet'; mark: 'solid' | 'dash' | 'hollow' }
 >;
 
-export const DISCORD_BADGE_KEYS = {
+export const DISCORD_BADGE_KEYS = Object.freeze({
   mine: 'discord.pick.mine',
   elsewhere: 'discord.pick.elsewhere',
   addable: 'discord.pick.addable'
-} as const;
+});
