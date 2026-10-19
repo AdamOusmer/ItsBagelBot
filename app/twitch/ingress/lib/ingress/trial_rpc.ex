@@ -36,7 +36,7 @@ defmodule Ingress.TrialRpc do
           promote_registered(id)
 
         _ ->
-          Trials.stop(id, "registration_check_unavailable")
+          stop_unchecked(id)
           %{error: "unavailable"}
       end
     else
@@ -72,6 +72,12 @@ defmodule Ingress.TrialRpc do
     else
       false -> %{error: "invalid_id"}
       _ -> %{error: "unavailable"}
+    end
+  end
+
+  defp stop_unchecked(id) do
+    with {:error, reason} <- Trials.stop(id, "registration_check_unavailable") do
+      Logger.warning("trial unchecked stop failed for #{id}: #{inspect(reason)}")
     end
   end
 

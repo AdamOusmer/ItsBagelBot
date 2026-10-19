@@ -98,11 +98,13 @@ defmodule Ingress.Trials do
   local key = 'trial:channel:' .. ARGV[1]
   if redis.call('HGET', key, 'state') ~= 'stopping' then return 0 end
   if redis.call('HGET', key, 'subscription_id') then return 0 end
+  local state = 'removed'
+  if redis.call('HGET', key, 'stop_reason') == 'promoted' then state = 'promoted' end
   redis.call('SREM', KEYS[1], ARGV[1])
   redis.call('INCR', KEYS[2])
-  redis.call('HSET', key, 'state', ARGV[2])
+  redis.call('HSET', key, 'state', state)
   redis.call('EXPIRE', key, 604800)
-  redis.call('ZADD', KEYS[3], ARGV[3], ARGV[1])
+  redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
   return 1
   """
 
@@ -182,7 +184,7 @@ defmodule Ingress.Trials do
     end
   end
 
-  def finish(id, state) when state in ["removed", "promoted"] do
+  def finish(id) do
     VK.command([
       "EVAL",
       @finish_script,
@@ -191,7 +193,6 @@ defmodule Ingress.Trials do
       @revision,
       @history,
       id,
-      state,
       System.system_time(:second)
     ])
   end
