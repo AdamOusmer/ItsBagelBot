@@ -109,24 +109,6 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	return r.BalanceAdjustViewer(ctx, BalanceAdjustment{UserID: userID, ViewerID: row.ViewerID, ViewerLogin: login, Value: value, Absolute: absolute})
 }
 
-// The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.
-func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
-	login, err := normalizeSpendTarget(viewerLogin, amount)
-	if err != nil {
-		return nil, false, false, err
-	}
-	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
-		return r.client.Balance.Query().
-			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
-			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
-			First(ctx)
-	})
-	if err != nil || !found {
-		return nil, false, found, err
-	}
-	return r.spendRow(ctx, row.ID, amount, "")
-}
-
 type Spend struct {
 	UserID, ViewerID uint64
 	ViewerLogin      string
@@ -137,6 +119,7 @@ func (s Spend) valid() bool {
 	return s.UserID != 0 && s.ViewerID != 0 && s.Amount > 0
 }
 
+// The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.
 func (r *Loyalty) BalanceSpendViewer(ctx context.Context, spend Spend) (*ent.Balance, bool, bool, error) {
 	if !spend.valid() {
 		return nil, false, false, fmt.Errorf("%w: user_id/viewer_id/amount", ErrInvalidInput)
