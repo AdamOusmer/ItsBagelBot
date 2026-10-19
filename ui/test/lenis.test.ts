@@ -12,7 +12,21 @@ class StubLenis {
     constructed += 1;
     lastOptions = options;
   }
-  raf(): void {}
+  time = 0;
+  isScrolling: false | "smooth" | "native" = false;
+  rafTimes: number[] = [];
+  handlers = new Map<string, () => void>();
+  raf(now: number): void {
+    this.rafTimes.push(now);
+  }
+  scrollTo(): void {}
+  on(event: string, handler: () => void): () => void {
+    this.handlers.set(event, handler);
+    return () => {};
+  }
+  off(event: string): void {
+    this.handlers.delete(event);
+  }
   destroy(): void {
     destroyed += 1;
   }
@@ -30,14 +44,19 @@ mock.module(new URL("../lib/motion-query.ts", import.meta.url).pathname, () => (
 }));
 
 let subscriptions = 0;
+let ticks: Array<(now: number) => boolean | void> = [];
+let wakes = 0;
 mock.module(new URL("../lib/raf-loop.ts", import.meta.url).pathname, () => ({
-  subscribe: () => {
+  subscribe: (tick: (now: number) => boolean | void) => {
+    ticks.push(tick);
     subscriptions += 1;
     return () => {
       subscriptions -= 1;
     };
   },
-  wake: () => {},
+  wake: () => {
+    wakes += 1;
+  },
   isRunning: () => false,
 }));
 
@@ -58,6 +77,8 @@ beforeEach(() => {
   constructed = 0;
   destroyed = 0;
   subscriptions = 0;
+  ticks = [];
+  wakes = 0;
   reduced = false;
   lastOptions = undefined;
   delete (globalThis as unknown as LenisWindow).__lenis;
@@ -189,5 +210,40 @@ describe("createPaneScroll", () => {
 
     expect(createPaneScroll(pane)).toBeNull();
     expect(constructed).toBe(0);
+  });
+});
+
+describe("idle scheduling", () => {
+  type Driven = { time: number; isScrolling: false | "smooth"; rafTimes: number[]; handlers: Map<string, () => void>; scrollTo: () => void };
+  const driven = (): Driven => start().lenis as unknown as Driven;
+
+  test("the shared loop sleeps once the scroller settles and wakes on wheel input", () => {
+    const lenis = driven();
+
+    lenis.isScrolling = "smooth";
+    expect(ticks[0](1000)).toBeUndefined();
+    lenis.isScrolling = false;
+    expect(ticks[0](1016)).toBe(false);
+
+    lenis.handlers.get("virtual-scroll")!();
+    expect(wakes).toBe(1);
+  });
+
+  test("programmatic scrollTo wakes the loop", () => {
+    const lenis = driven();
+
+    lenis.scrollTo();
+
+    expect(wakes).toBe(1);
+  });
+
+  test("the first frame after a sleep integrates one frame, not the idle gap", () => {
+    const lenis = driven();
+
+    ticks[0](1000);
+    ticks[0](1016);
+    ticks[0](9000);
+
+    expect(lenis.time).toBeCloseTo(9000 - 1000 / 60, 5);
   });
 });

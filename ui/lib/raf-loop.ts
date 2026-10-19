@@ -9,6 +9,8 @@ const waking = new Set<Tick>();
 
 let frame = 0;
 
+let running = false;
+
 function cancel(): void {
     if (!frame) return;
     cancelAnimationFrame(frame);
@@ -16,20 +18,18 @@ function cancel(): void {
 }
 
 function schedule(): void {
-    if (frame || waking.size === 0) return;
+    if (frame || running || waking.size === 0) return;
     if (typeof document !== 'undefined' && document.hidden) return;
     frame = requestAnimationFrame(run);
 }
 
 function run(now: number): void {
     frame = 0;
-    for (const tick of Array.from(waking)) {
-        if (!subscribers.has(tick)) {
-            waking.delete(tick);
-            continue;
-        }
-        if (tick(now) === false) waking.delete(tick);
+    running = true;
+    for (const tick of Array.from(subscribers)) {
+        if (waking.has(tick) && tick(now) === false) waking.delete(tick);
     }
+    running = false;
     schedule();
 }
 
