@@ -8,6 +8,7 @@ import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
 import { POLICY, type CachePolicy } from '@bagel/kit/server/cache-keys';
 import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/service';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
+import { getServerConfig } from '@bagel/kit/server/config';
 import * as valkey from '@bagel/kit/server/valkey-store';
 import type { Tier } from '@bagel/kit';
 import type { Session } from './session';
@@ -54,12 +55,13 @@ export const SCOPES: ScopeMap = {
   commands_page: stateKeys,
   leaderboard_page: stateKeys,
   live: (id) => [`stream-meta:${id}`],
+  fetches: (id) => [`fetches:${id}`],
   'token-warm': () => [],
   outgress: () => [],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
-const SILENT_SCOPES: ReadonlySet<string> = new Set(['live']);
+const SILENT_SCOPES: ReadonlySet<string> = new Set(['live', 'fetches']);
 
 export const fabric = createCacheFabric({
   app: 'dashboard',
@@ -76,6 +78,18 @@ function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Pr
 
 export function invalidate(...prefixes: string[]) {
   fabric.invalidate(...prefixes);
+}
+
+export type BoardChange = { scope: string; id: string };
+
+// For writes no backend service announces: evicts here, then tells the other dashboard pods.
+export async function broadcastInvalidation(change: BoardChange): Promise<void> {
+  invalidate(...(SCOPES[change.scope] ?? SCOPES['*']!)(change.id));
+  try {
+    await publish(`${getServerConfig().cacheInvalidationPrefix}.${change.scope}`, { broadcaster_id: change.id }, { flush: true });
+  } catch (err) {
+    newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), { component: 'cache-broadcast', scope: change.scope });
+  }
 }
 
 function invalidateUser(userId: string) {
@@ -575,13 +589,22 @@ export type NotificationsForUser = {
   unreadCount: number;
 };
 
-export const notificationsForUser = defineRead({
+function earliestExpiryMs(list: NotificationWire[]): number {
+  let at = Number.POSITIVE_INFINITY;
+  for (const n of list) {
+    const expires = n.expires_at ? Date.parse(n.expires_at) : Number.NaN;
+    if (expires < at) at = expires;
+  }
+  return at;
+}
+
+const notificationsList = defineRead({
   subject: `${SUB.notifications}.list`,
   request: (userId: string) => ({ user_id: userId }),
-  map: (r: { notifications?: NotificationWire[]; unread_count?: number }): NotificationsForUser => ({
-    notifications: r.notifications ?? [],
-    unreadCount: r.unread_count ?? 0
-  }),
+  map: (r: { notifications?: NotificationWire[]; unread_count?: number }) => {
+    const notifications = r.notifications ?? [];
+    return { view: { notifications, unreadCount: r.unread_count ?? 0 }, staleAtMs: earliestExpiryMs(notifications) };
+  },
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
     fabric,
@@ -589,6 +612,13 @@ export const notificationsForUser = defineRead({
     policy: POLICY.entity
   }
 });
+
+export async function notificationsForUser(userId: string): Promise<NotificationsForUser> {
+  const cached = await notificationsList(userId);
+  if (Date.now() < cached.staleAtMs) return cached.view;
+  invalidate(`notifications:${userId}`);
+  return (await notificationsList(userId)).view;
+}
 
 export const notificationMarkRead = defineWrite({
   subject: `${SUB.notifications}.mark_read`,

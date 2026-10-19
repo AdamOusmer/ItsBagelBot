@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { beforeEach, expect, mock, test } from 'bun:test';
+import { beforeEach, expect, mock, setSystemTime, test } from 'bun:test';
 import { registerServerConfig } from '@bagel/kit/server/config';
 
 process.env.NEW_RELIC_ENABLED = 'false';
@@ -10,12 +10,20 @@ registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 let deliver: (subject: string, data: Uint8Array) => void = () => {};
 const rpcCalls: string[] = [];
+const published: { subject: string; payload: unknown }[] = [];
+const NOW = Date.UTC(2026, 9, 18, 12, 0, 0);
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({
   ...nats,
   rpc: async (subject: string) => {
     rpcCalls.push(subject);
+    if (subject.endsWith('.notifications.list')) {
+      return { notifications: [{ id: 1, expires_at: new Date(NOW + 30_000).toISOString() }], unread_count: 1 };
+    }
     return { active: true, status: 'paid', locale: 'fr', commands_page_hidden: true, expires_at: '2026-12-01' };
+  },
+  publish: async (subject: string, payload: unknown) => {
+    published.push({ subject, payload });
   },
   subscribeDurable: (_subject: string, onMessage: typeof deliver) => {
     deliver = onMessage;
@@ -93,4 +101,34 @@ test('a preference write evicts the shared state for that board', async () => {
   await services.setLocale('42', 'de');
   await services.accountState('42');
   expect(rpcCalls).toEqual(['bagel.rpc.dashboard.state_get', 'bagel.rpc.dashboard.locale_set', 'bagel.rpc.dashboard.state_get']);
+});
+
+test('a fetches event evicts that board fetch list without refreshing open tabs', async () => {
+  fabric.cache.set('fetches:42', 'cached', 60_000);
+  const seen: string[] = [];
+  const stop = liveHub.subscribe('42', (scope) => seen.push(scope));
+  invalidation('fetches', '42');
+  stop();
+  expect([await cached('fetches:42'), await cached('state:42'), seen]).toEqual(['reloaded', 'cached', []]);
+});
+
+test('broadcastInvalidation evicts here and announces the scope to other pods', async () => {
+  published.length = 0;
+  fabric.cache.set('fetches:42', 'cached', 60_000);
+  await services.broadcastInvalidation({ scope: 'fetches', id: '42' });
+  expect(await cached('fetches:42')).toBe('reloaded');
+  expect(published).toEqual([{ subject: 'inv.fetches', payload: { broadcaster_id: '42' } }]);
+});
+
+test('cached notifications reload once the earliest one expires', async () => {
+  fabric.cache.clear();
+  setSystemTime(new Date(NOW));
+  await services.notificationsForUser('42');
+  setSystemTime(new Date(NOW + 29_000));
+  await services.notificationsForUser('42');
+  expect(rpcCalls).toEqual(['bagel.rpc.notifications.list']);
+  setSystemTime(new Date(NOW + 30_000));
+  await services.notificationsForUser('42');
+  expect(rpcCalls).toEqual(['bagel.rpc.notifications.list', 'bagel.rpc.notifications.list']);
+  setSystemTime();
 });

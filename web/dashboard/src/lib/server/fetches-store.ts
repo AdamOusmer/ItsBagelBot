@@ -3,7 +3,8 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import { READ_TIMEOUT_MS } from '@bagel/kit/server/service';
-import { SUB, fabric, invalidate } from './services';
+import { POLICY } from '@bagel/kit/server/cache-keys';
+import { SUB, broadcastInvalidation, fabric, invalidate } from './services';
 
 export interface FetchDefView {
   name: string;
@@ -27,14 +28,11 @@ interface FetchListReply {
 
 export type FetchList = { defs: FetchDefView[]; keys: FetchKeyView[] };
 
-// Short and without stale serving: writes on another pod have no invalidation path to this one.
-const FETCHES_POLICY = { freshMs: 5_000 };
-
 const fetchesKey = (userId: string) => `fetches:${userId}`;
 
 export function listFetches(userId: string, opts: { fresh?: boolean } = {}): Promise<FetchList> {
   if (opts.fresh) invalidate(fetchesKey(userId));
-  return fabric.readKey(fetchesKey(userId), FETCHES_POLICY, async () => {
+  return fabric.readKey(fetchesKey(userId), POLICY.entity, async () => {
     const r = await rpc<FetchListReply>(`${SUB.commands}.fetch_list`, { user_id: userId }, READ_TIMEOUT_MS);
     return {
       defs: Array.isArray(r.defs) ? r.defs : [],
@@ -47,7 +45,7 @@ async function writeFetches<T>(userId: string, write: () => Promise<T>): Promise
   try {
     return await write();
   } finally {
-    invalidate(fetchesKey(userId));
+    await broadcastInvalidation({ scope: 'fetches', id: userId });
   }
 }
 
