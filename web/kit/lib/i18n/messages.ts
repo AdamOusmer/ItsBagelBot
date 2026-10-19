@@ -60,9 +60,10 @@ function loadSlice(locale: Locale, file: string): Promise<void> {
   return once(`${locale}/${file}`, async () => mergeInto((catalogs[locale] ??= {}), await fetchTree(`${sliceBases.get(file)}${locale}/${file}`)));
 }
 
-/** Called by every node chunk of a sliced build before the node evaluates. */
+/** Called by every node or lazy chunk of a sliced build before it evaluates; an empty `h` means no slice to fetch. */
 export async function registerMessages(chunkUrl: string, messages: { h: string; m: MessageTree }): Promise<void> {
   mergeInto((catalogs[DEFAULT_LOCALE] ??= {}), messages.m);
+  if (!messages.h) return;
   const file = chunkUrl.slice(chunkUrl.lastIndexOf('/') + 1).replace(/\.js$/, '.json');
   sliceBases.set(file, new URL('../i18n/', chunkUrl).href);
   wanted ??= new Set([documentLocale()]);

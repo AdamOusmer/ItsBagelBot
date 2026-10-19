@@ -33,6 +33,11 @@ const hash = (parts: string[]): string => createHash('sha256').update(parts.join
 
 const sliceFile = (fileName: string): string => fileName.slice(fileName.lastIndexOf('/') + 1).replace(/\.js$/, '.json');
 
+/** Lists the chunks that have slices, for the server to preload; an empty slice is neither emitted nor fetched. */
+export const SLICED_CHUNKS = '_app/i18n-slices.json';
+
+const fetched = (slice: UnitSlice): boolean => slice.bodies.en !== '{}';
+
 type Context = Rollup.PluginContext;
 
 function moduleHost(context: Rollup.TransformPluginContext): ModuleHost {
@@ -112,11 +117,15 @@ export function i18nSlices(): Plugin {
   function emitSlices(context: Context, bundle: Rollup.OutputBundle): void {
     const others = catalogs().locales.filter((locale) => locale !== 'en');
     const chunks = Object.values(bundle).filter((output): output is Rollup.OutputChunk => output.type === 'chunk');
+    const sliced: string[] = [];
     for (const chunk of chunks) {
       const unit = chunk.moduleIds.find((id) => slices.has(id));
-      const bodies = unit && slices.get(unit)!.bodies;
-      if (bodies) others.forEach((locale) => context.emitFile({ type: 'asset', fileName: `${SLICE_DIR}/${locale}/${sliceFile(chunk.fileName)}`, source: bodies[locale] }));
+      const bodies = unit && fetched(slices.get(unit)!) ? slices.get(unit)!.bodies : undefined;
+      if (!bodies) continue;
+      sliced.push(sliceFile(chunk.fileName).replace(/\.json$/, ''));
+      others.forEach((locale) => context.emitFile({ type: 'asset', fileName: `${SLICE_DIR}/${locale}/${sliceFile(chunk.fileName)}`, source: bodies[locale] }));
     }
+    context.emitFile({ type: 'asset', fileName: SLICED_CHUNKS, source: JSON.stringify(sliced.sort()) });
   }
 
   return {
@@ -148,7 +157,8 @@ export function i18nSlices(): Plugin {
       if (held.length !== 1 || placeholders !== 1) this.error(`i18n slices: ${chunk.fileName} must hold exactly one message unit, holds ${held.join(', ')}`);
       const unitSlice = slice(held[0], units);
       slices.set(held[0], unitSlice);
-      const payload = `{h:${JSON.stringify(hash(Object.values(unitSlice.bodies)))},m:${unitSlice.bodies.en}}`;
+      const digest = fetched(unitSlice) ? hash(Object.values(unitSlice.bodies)) : '';
+      const payload = `{h:${JSON.stringify(digest)},m:${unitSlice.bodies.en}}`;
       return { code: code.replace(PLACEHOLDER_LITERAL, () => payload), map: null };
     },
     generateBundle(_options, bundle) {
