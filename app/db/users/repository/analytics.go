@@ -62,10 +62,7 @@ func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().
 			Where(user.IDIn(ids...)).
-			Select(user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
-				user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
-				user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldCreatedAt,
-				user.FieldTestAccount, user.FieldBanned).
+			Select(accountColumns...).
 			All(ctx)
 	})
 	if err != nil {
@@ -73,11 +70,41 @@ func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally
 	}
 	tally := analytics.Tally{}
 	for _, u := range rows {
-		if !u.TestAccount && !u.Banned {
-			tallyAccount(tally, u)
-		}
+		tallyCounted(tally, u)
 	}
 	return tally, nil
+}
+
+var accountColumns = []string{
+	user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
+	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
+	user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldCreatedAt,
+	user.FieldTestAccount, user.FieldBanned,
+}
+
+func tallyCounted(t analytics.Tally, u *ent.User) {
+	if !u.TestAccount && !u.Banned {
+		tallyAccount(t, u)
+	}
+}
+
+// AnalyticsSeed scans every account in id order and returns the true running totals.
+func (r *Users) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
+	tally := analytics.Tally{}
+	err := analytics.Pages(ctx,
+		func(ctx context.Context, after *uint64, limit int) ([]*ent.User, error) {
+			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+				q := r.client.User.Query().Order(ent.Asc(user.FieldID)).Limit(limit)
+				if after != nil {
+					q = q.Where(user.IDGT(*after))
+				}
+				return q.Select(accountColumns...).All(ctx)
+			})
+		},
+		func(u *ent.User) uint64 { return u.ID },
+		func(u *ent.User) { tallyCounted(tally, u) },
+	)
+	return tally, err
 }
 
 func tallyAccount(t analytics.Tally, u *ent.User) {

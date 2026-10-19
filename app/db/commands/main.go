@@ -115,6 +115,9 @@ func main() {
 
 	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
 	fetches.SetAnalytics(recorder)
+	go recorder.SeedOnce(core.Ctx, serviceName, []string{
+		"custom.total", "custom.perm", "custom.flags", "custom.channels", "integrations.connected|fetch_key",
+	}, repository.SeedAll(repo, fetches))
 	defer fetches.Close()
 
 	if err := registerConsumers(core.Ctx, core.NR, repo, fetches, n.Broadcast, n.Grouped, log); err != nil {

@@ -113,6 +113,9 @@ func WindowCode(w Window) string { return windowCode(w) }
 // never reconciled, so a lost or doubled delta stays in the total.
 const LevelKey = keyPrefix + "lvl"
 
+// Permanent once a service's seed finishes; deleting it re-seeds that service on next boot.
+func SeedMarkerKey(service string) string { return keyPrefix + "seed:" + service }
+
 // Data keys outlive their period so a late rollup still finds them.
 func DataExpiry(w Window, t time.Time) time.Time { return PeriodEnd(w, t).Add(retainAfter) }
 

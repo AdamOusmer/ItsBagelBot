@@ -66,18 +66,117 @@ func commandTally(rows []*ent.Commands) analytics.Tally {
 	channels := map[uint64]struct{}{}
 	for _, c := range rows {
 		channels[c.UserID] = struct{}{}
-		state := "inactive"
-		if c.IsActive {
-			state = "active"
-		}
-		tally.Add(catalog.CustomTotal, state)
-		tally.Add(catalog.CustomPerm, c.Perm)
-		addFlags(tally, c)
+		addCommand(tally, c)
 	}
 	for range channels {
 		tally.Add(catalog.CustomChannels)
 	}
 	return tally
+}
+
+func addCommand(tally analytics.Tally, c *ent.Commands) {
+	state := "inactive"
+	if c.IsActive {
+		state = "active"
+	}
+	tally.Add(catalog.CustomTotal, state)
+	tally.Add(catalog.CustomPerm, c.Perm)
+	addFlags(tally, c)
+}
+
+type commandCursor struct {
+	userID uint64
+	name   string
+}
+
+// AnalyticsSeed tallies every command by keyset pages over (user_id, name); response is never read.
+func (r *Commands) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
+	tally := analytics.Tally{}
+	var last uint64
+	err := analytics.Pages(ctx, r.commandPage, func(c *ent.Commands) commandCursor {
+		return commandCursor{c.UserID, c.Name}
+	}, func(c *ent.Commands) {
+		if c.UserID != last {
+			last = c.UserID
+			tally.Add(catalog.CustomChannels)
+		}
+		addCommand(tally, c)
+	})
+	return tally, err
+}
+
+func (r *Commands) commandPage(ctx context.Context, after *commandCursor, limit int) ([]*ent.Commands, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
+		q := r.client.Commands.Query()
+		if after != nil {
+			q = q.Where(commands.Or(
+				commands.UserIDGT(after.userID),
+				commands.And(commands.UserID(after.userID), commands.NameGT(after.name)),
+			))
+		}
+		return q.Order(ent.Asc(commands.FieldUserID, commands.FieldName)).
+			Limit(limit).
+			Select(
+				commands.FieldUserID, commands.FieldName, commands.FieldIsActive, commands.FieldPerm,
+				commands.FieldStreamOnlineOnly, commands.FieldCooldown, commands.FieldUserCooldown,
+				commands.FieldBumpCounter, commands.FieldAliases,
+			).
+			All(ctx)
+	})
+}
+
+type keyCursor struct {
+	userID uint64
+	label  string
+}
+
+// AnalyticsSeed counts users with at least one fetch key by keyset pages; key material is never read.
+func (f *Fetches) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
+	tally := analytics.Tally{}
+	var last uint64
+	err := analytics.Pages(ctx, f.keyPage, func(k *ent.FetchKey) keyCursor {
+		return keyCursor{k.UserID, k.Label}
+	}, func(k *ent.FetchKey) {
+		if k.UserID != last {
+			last = k.UserID
+			tally.Add(catalog.IntegrationsConnected, "fetch_key")
+		}
+	})
+	return tally, err
+}
+
+func (f *Fetches) keyPage(ctx context.Context, after *keyCursor, limit int) ([]*ent.FetchKey, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.FetchKey, error) {
+		q := f.client.FetchKey.Query()
+		if after != nil {
+			q = q.Where(fetchkey.Or(
+				fetchkey.UserIDGT(after.userID),
+				fetchkey.And(fetchkey.UserID(after.userID), fetchkey.LabelGT(after.label)),
+			))
+		}
+		return q.Order(ent.Asc(fetchkey.FieldUserID, fetchkey.FieldLabel)).
+			Limit(limit).
+			Select(fetchkey.FieldUserID, fetchkey.FieldLabel).
+			All(ctx)
+	})
+}
+
+// SeedAll merges the command and fetch-key totals into one seed.
+func SeedAll(r *Commands, f *Fetches) analytics.Seed {
+	return func(ctx context.Context) (analytics.Tally, error) {
+		total, err := r.AnalyticsSeed(ctx)
+		if err != nil {
+			return nil, err
+		}
+		keys, err := f.AnalyticsSeed(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for field, n := range keys {
+			total[field] += n
+		}
+		return total, nil
+	}
 }
 
 func addFlags(tally analytics.Tally, c *ent.Commands) {

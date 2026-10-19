@@ -82,6 +82,106 @@ func moduleTally(rows []*ent.Modules) analytics.Tally {
 	return tally
 }
 
+// AnalyticsSeed rebuilds the write-time totals with bounded keyset scans and O(1) memory.
+func (r *Modules) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
+	tally := analytics.Tally{}
+	if err := r.seedModules(ctx, tally); err != nil {
+		return nil, err
+	}
+	if err := r.seedSpotify(ctx, tally); err != nil {
+		return nil, err
+	}
+	if err := r.seedGovee(ctx, tally); err != nil {
+		return nil, err
+	}
+	return tally, nil
+}
+
+func (r *Modules) seedModules(ctx context.Context, tally analytics.Tally) error {
+	var user uint64
+	enabled := 0
+	flush := func() {
+		if enabled > 0 {
+			tally.Add(catalog.ModulesBreadth, breadthBucket(enabled))
+		}
+		enabled = 0
+	}
+	err := analytics.Pages(ctx,
+		func(ctx context.Context, after *moduleKey, limit int) ([]*ent.Modules, error) {
+			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
+				q := r.client.Modules.Query().
+					Order(modules.ByUserID(), modules.ByName()).
+					Select(modules.FieldUserID, modules.FieldName, modules.FieldIsEnabled).
+					Limit(limit)
+				if after != nil {
+					q = q.Where(modules.Or(
+						modules.UserIDGT(after.userID),
+						modules.And(modules.UserIDEQ(after.userID), modules.NameGT(after.name)),
+					))
+				}
+				return q.All(ctx)
+			})
+		},
+		func(m *ent.Modules) moduleKey { return moduleKey{userID: m.UserID, name: m.Name} },
+		func(m *ent.Modules) {
+			if m.UserID != user {
+				flush()
+				user = m.UserID
+			}
+			if !catalog.KnownModule(m.Name) {
+				return
+			}
+			state := "off"
+			if m.IsEnabled {
+				state = "on"
+				enabled++
+			}
+			tally.Add(catalog.ModulesRows, m.Name, state)
+		})
+	flush()
+	return err
+}
+
+func (r *Modules) seedSpotify(ctx context.Context, tally analytics.Tally) error {
+	return analytics.Pages(ctx,
+		func(ctx context.Context, after *uint64, limit int) ([]*ent.SpotifyCredential, error) {
+			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.SpotifyCredential, error) {
+				q := r.client.SpotifyCredential.Query().
+					Order(spotifycredential.ByUserID()).
+					Select(spotifycredential.FieldUserID, spotifycredential.FieldTokenEnc).
+					Limit(limit)
+				if after != nil {
+					q = q.Where(spotifycredential.UserIDGT(*after))
+				}
+				return q.All(ctx)
+			})
+		},
+		func(c *ent.SpotifyCredential) uint64 { return c.UserID },
+		func(c *ent.SpotifyCredential) {
+			if len(c.TokenEnc) > 0 {
+				tally.Add(catalog.IntegrationsConnected, "spotify")
+			}
+		})
+}
+
+func (r *Modules) seedGovee(ctx context.Context, tally analytics.Tally) error {
+	return analytics.Pages(ctx,
+		func(ctx context.Context, after *uint64, limit int) ([]*ent.GoveeCredential, error) {
+			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.GoveeCredential, error) {
+				q := r.client.GoveeCredential.Query().
+					Order(goveecredential.ByUserID()).
+					Select(goveecredential.FieldUserID).
+					Limit(limit)
+				if after != nil {
+					q = q.Where(goveecredential.UserIDGT(*after))
+				}
+				return q.All(ctx)
+			})
+		},
+		func(c *ent.GoveeCredential) uint64 { return c.UserID },
+		func(*ent.GoveeCredential) { tally.Add(catalog.IntegrationsConnected, "govee") })
+}
+
 func breadthBucket(n int) string {
 	switch {
 	case n <= 1:
