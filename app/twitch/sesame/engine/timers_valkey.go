@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/channelruntime"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
@@ -672,6 +673,9 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 	}
 	for _, out := range outputs {
 		s.publishFired(ctx, at, subject, out)
+	}
+	if s.pipeline != nil {
+		s.pipeline.analytics.Count(catalog.TimerFires)
 	}
 }
 
