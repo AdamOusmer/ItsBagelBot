@@ -7,9 +7,10 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
+import { clientUiChunks } from '../kit/scripts/ui-chunks.mjs';
 
 export default defineConfig({
-  plugins: [bundledUiSheets(), sveltekit()],
+  plugins: [bundledUiSheets(), sveltekit(), clientUiChunks()],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5174, fs: { allow: ['../kit', '../../ui', '../../locales'] } },

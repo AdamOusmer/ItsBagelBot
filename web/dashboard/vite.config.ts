@@ -8,9 +8,10 @@ import { defineConfig } from 'vite';
 import { stripDemoRoutes } from '../kit/scripts/strip-demo-routes.mjs';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
+import { clientUiChunks } from '../kit/scripts/ui-chunks.mjs';
 
 export default defineConfig({
-  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), bundledUiSheets(), sveltekit()],
+  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), bundledUiSheets(), sveltekit(), clientUiChunks()],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5173, fs: { allow: ['../kit', '../../ui', '../../locales'] } },
