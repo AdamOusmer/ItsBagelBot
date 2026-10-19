@@ -141,26 +141,24 @@ func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.Analytics
 
 func (r *Rollup) hash(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {
 	fields, err := r.vc.Do(ctx, r.vc.B().Hgetall().Key(key).Build()).AsIntMap()
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]repository.AnalyticsRow, 0, len(fields))
-	for field, n := range fields {
-		rows = append(rows, row(p, field, n))
-	}
-	return rows, nil
+	return rowsOf(p, fields), err
 }
 
 func (r *Rollup) zset(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {
 	members, err := r.vc.Do(ctx, r.vc.B().Zrange().Key(key).Min("0").Max("-1").Withscores().Build()).AsZScores()
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]repository.AnalyticsRow, 0, len(members))
+	fields := make(map[string]int64, len(members))
 	for _, m := range members {
-		rows = append(rows, row(p, m.Member, int64(m.Score)))
+		fields[m.Member] = int64(m.Score)
 	}
-	return rows, nil
+	return rowsOf(p, fields), err
+}
+
+func rowsOf(p period, fields map[string]int64) []repository.AnalyticsRow {
+	rows := make([]repository.AnalyticsRow, 0, len(fields))
+	for field, n := range fields {
+		rows = append(rows, row(p, field, n))
+	}
+	return rows
 }
 
 func row(p period, field string, value int64) repository.AnalyticsRow {

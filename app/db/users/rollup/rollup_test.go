@@ -71,8 +71,12 @@ func (f fixture) seed(t *testing.T) {
 
 func (f fixture) day(t *testing.T, metric catalog.Metric) map[string]int64 {
 	t.Helper()
-	rows, err := f.repo.AnalyticsSeries(context.Background(), []catalog.Metric{metric}, catalog.Day,
-		catalog.PeriodStart(catalog.Day, f.now.AddDate(0, 0, -1)), f.now)
+	rows, err := f.repo.AnalyticsSeries(context.Background(), repository.SeriesQuery{
+		Metrics: []catalog.Metric{metric},
+		Window:  catalog.Day,
+		From:    catalog.PeriodStart(catalog.Day, f.now.AddDate(0, 0, -1)),
+		To:      f.now,
+	})
 	require.NoError(t, err)
 	out := map[string]int64{}
 	for _, row := range rows {

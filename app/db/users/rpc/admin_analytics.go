@@ -30,7 +30,7 @@ func (a *adminRPC) analytics(ctx context.Context, req usersrpc.AdminRequest) use
 	}
 	to := time.Now().UTC()
 	from := catalog.PeriodStart(window, to.AddDate(0, 0, -clamp(days, 1, analyticsMaxDays)))
-	rows, err := a.repo.AnalyticsSeries(ctx, metrics, window, from, to)
+	rows, err := a.repo.AnalyticsSeries(ctx, repository.SeriesQuery{Metrics: metrics, Window: window, From: from, To: to})
 	if err != nil {
 		return adminError(refusal(err))
 	}

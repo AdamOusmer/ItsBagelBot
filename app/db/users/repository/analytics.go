@@ -139,18 +139,26 @@ func (r *Users) UpsertAnalytics(ctx context.Context, rows []AnalyticsRow) (int, 
 	return len(builders), err
 }
 
-func (r *Users) AnalyticsSeries(ctx context.Context, metrics []catalog.Metric, w catalog.Window, from, to time.Time) ([]AnalyticsRow, error) {
-	names := make([]string, 0, len(metrics))
-	for _, m := range metrics {
+type SeriesQuery struct {
+	Metrics []catalog.Metric
+	Window  catalog.Window
+	From    time.Time
+	To      time.Time
+}
+
+func (r *Users) AnalyticsSeries(ctx context.Context, q SeriesQuery) ([]AnalyticsRow, error) {
+	names := make([]string, 0, len(q.Metrics))
+	for _, m := range q.Metrics {
 		names = append(names, string(m))
 	}
+	w := q.Window
 	found, err := db.WithRead(ctx, func(ctx context.Context) ([]*ent.AnalyticsRollup, error) {
 		return r.client.AnalyticsRollup.Query().
 			Where(
 				analyticsrollup.MetricIn(names...),
 				analyticsrollup.WindowEQ(analyticsrollup.Window(catalog.WindowCode(w))),
-				analyticsrollup.PeriodStartGTE(from),
-				analyticsrollup.PeriodStartLT(to),
+				analyticsrollup.PeriodStartGTE(q.From),
+				analyticsrollup.PeriodStartLT(q.To),
 			).
 			Order(ent.Asc(analyticsrollup.FieldPeriodStart)).
 			All(ctx)

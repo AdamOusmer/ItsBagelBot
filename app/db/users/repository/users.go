@@ -151,6 +151,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 		return err
 	}
 	name := displayName(rawDisplayName).storable()
+	reg := registration{id: id, username: username, email: email, name: name}
 
 	created := false
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
@@ -160,20 +161,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 
 		switch {
 		case ent.IsNotFound(err):
-			_, err = r.client.User.Create().
-				SetID(id).
-				SetUsername(username).
-				SetDisplayName(string(name)).
-				SetEmail(email).
-				SetLifecycle(&lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: time.Now().UTC()}).
-				SetLifecycleState(lifecycle.Active).
-				SetDormantAfter(time.Now().UTC().Add(lifecycle.DormancyPeriod)).
-				Save(ctx)
-			created = err == nil
-			if ent.IsConstraintError(err) {
-				_, err = name.apply(r.client.User.UpdateOneID(id).SetUsername(username)).
-					Save(ctx)
-			}
+			created, err = r.createUser(ctx, reg)
 
 		case err == nil && name.changes(existing, username):
 			_, err = name.apply(existing.Update().SetUsername(username)).
@@ -189,6 +177,31 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	}
 
 	return r.publishChanged(ctx, id)
+}
+
+type registration struct {
+	id       uint64
+	username string
+	email    string
+	name     displayName
+}
+
+// createUser reports false when a concurrent login created the row first; that row only gets the name refresh.
+func (r *Users) createUser(ctx context.Context, reg registration) (bool, error) {
+	_, err := r.client.User.Create().
+		SetID(reg.id).
+		SetUsername(reg.username).
+		SetDisplayName(string(reg.name)).
+		SetEmail(reg.email).
+		SetLifecycle(&lifecycle.State{Version: 1, DesiredEnabled: true, RuntimeState: lifecycle.Active, AdmissionGeneration: 1, ChatRestriction: lifecycle.RestrictionNone, GrantHealth: lifecycle.GrantHealthy, LastEngagedAt: time.Now().UTC()}).
+		SetLifecycleState(lifecycle.Active).
+		SetDormantAfter(time.Now().UTC().Add(lifecycle.DormancyPeriod)).
+		Save(ctx)
+	if ent.IsConstraintError(err) {
+		_, err = reg.name.apply(r.client.User.UpdateOneID(reg.id).SetUsername(reg.username)).Save(ctx)
+		return false, err
+	}
+	return err == nil, err
 }
 
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
