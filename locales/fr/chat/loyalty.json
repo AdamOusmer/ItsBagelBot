@@ -12,16 +12,18 @@
   "counter.usage": "Utilisation : !counter <nom> ; ou !counter create <nom> [user|user+command], !counter <add|set|reset|delete> <nom> [valeur], !counter list",
   "leaderboard": "Top {loyalty:name} : {loyalty:list}",
   "leaderboard.empty": "Pas encore de classement. Restez pendant le live pour gagner des {loyalty:name} !",
+  "leaderboard.link": "Top {loyalty:name} : {loyalty:list} | Classement complet : {loyalty:url}",
   "leaderboard.usage": "Utilisation : !leaderboard [1-10]",
   "points": "@{loyalty:user} vous avez {loyalty:points} {loyalty:name} et {loyalty:hours} heures de visionnage.",
   "watchtime": "@{loyalty:user} vous avez regardé pendant {loyalty:duration}.",
   "points.adjusted": "@{loyalty:target} a maintenant {loyalty:points} {loyalty:name}.",
   "points.disabled": "@{loyalty:user} cette action est désactivée sur cette chaîne.",
   "points.gave": "@{loyalty:user} vous avez donné {loyalty:amount} {loyalty:name} à @{loyalty:target}. Il vous reste {loyalty:points}.",
+  "points.target.mention": "@{loyalty:user} mentionne la personne avec @, par exemple !points give @nom 100",
   "points.user.unknown": "@{loyalty:user} l'utilisateur Twitch {loyalty:target} est introuvable.",
-  "points.give.usage": "Utilisation : !points give <utilisateur> <montant>",
+  "points.give.usage": "Utilisation : !points give @utilisateur <montant>",
   "points.insufficient": "@{loyalty:user} vous n'avez que {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} vous ne pouvez pas vous donner des {loyalty:name}.",
   "points.unknown": "@{loyalty:user} je n'ai pas encore vu {loyalty:target} sur cette chaîne.",
-  "points.usage": "Utilisation : !points ; ou !points <set|add|remove> <utilisateur> <montant> ; ou !points give <utilisateur> <montant>"
+  "points.usage": "Utilisation : !points ; ou !points <set|add|remove> @utilisateur <montant> ; ou !points give @utilisateur <montant>"
 }

@@ -87,8 +87,8 @@ func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment Balance
 	return *reply.Balance, true, nil
 }
 
-func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error) {
-	reply, err := l.call(ctx, "balance.spend", loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerLogin: viewerLogin, Value: amount})
+func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error) {
+	reply, err := l.call(ctx, "balance.spend", loyaltyrpc.Request{UserID: fmtID(spend.BroadcasterID), ViewerID: fmtID(spend.ViewerID), ViewerLogin: spend.Login, Value: spend.Amount})
 	if err != nil {
 		return loyaltyrpc.Balance{}, false, false, err
 	}
@@ -180,7 +180,7 @@ func (l *LoyaltyRPC) CounterList(ctx context.Context, broadcasterID uint64) ([]l
 }
 
 func (l *LoyaltyRPC) BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error) {
-	reply, err := l.call(ctx, "balance.wager", loyaltyrpc.Request{UserID: fmtID(wager.BroadcasterID), ViewerID: fmtID(wager.ViewerID), Value: wager.Amount, Won: wager.Won})
+	reply, err := l.call(ctx, "balance.wager", loyaltyrpc.Request{UserID: fmtID(wager.BroadcasterID), ViewerID: fmtID(wager.ViewerID), ViewerLogin: wager.Login, Value: wager.Amount, Won: wager.Won})
 	if err != nil {
 		return WagerOutcome{}, err
 	}

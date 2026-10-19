@@ -1,7 +1,7 @@
 {
   "label": "Duels",
   "tagline": "Duels de points entre viewers : pots ouverts et défis 1v1.",
-  "description": "Deux façons de dueller pour des points. Un pot : quelqu'un tape !duel <mise> et tout le monde a la fenêtre pour ajouter sa propre mise ; à la fin le bot tire un gagnant pondéré par la mise, qui prend tout le pot. Ou un défi : !duel <utilisateur> <mise> nomme un adversaire qui doit taper !duel accept avant la fin de la fenêtre ; mises égales, pile ou face, le gagnant prend les deux. Refus, annulation et absences remboursent toujours chaque point en séquestre, et chaque mouvement passe par la dépense protégée du service de fidélité, donc personne ne mise ce qu'il n'a pas. Activé depuis la page Fidélité ; il utilise le même nom de monnaie et reste éteint tant que la fidélité l'est.",
+  "description": "Deux façons de dueller pour des points. Un pot : quelqu'un tape !duel <mise> et tout le monde a la fenêtre pour ajouter sa propre mise ; à la fin le bot tire un gagnant pondéré par la mise, qui prend tout le pot. Ou un défi : !duel @utilisateur <mise> nomme un adversaire qui doit taper !duel accept avant la fin de la fenêtre ; mises égales, pile ou face, le gagnant prend les deux. Refus, annulation et absences remboursent toujours chaque point en séquestre, et chaque mouvement passe par la dépense protégée du service de fidélité, donc personne ne mise ce qu'il n'a pas. Activé depuis la page Fidélité ; il utilise le même nom de monnaie et reste éteint tant que la fidélité l'est.",
   "settings": {
     "minStake": {
       "label": "Mise minimum",

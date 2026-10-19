@@ -105,33 +105,34 @@ func duelRun(d engine.Deps, log *zap.Logger) module.RunFunc {
 }
 
 func (dc duelCmd) route(ctx context.Context, args string, emit module.Emit) error {
-	login := strings.ToLower(dc.c.Env.ChatterUserLogin)
-	if login == "" {
+	id, _ := strconv.ParseUint(dc.c.Env.ChatterUserID, 10, 64)
+	who := engine.DuelParty{ID: id, Login: strings.ToLower(dc.c.Env.ChatterUserLogin)}
+	if who.Login == "" || who.ID == 0 {
 		return nil
 	}
 	first, rest := splitFirst(args)
 
-	handled, err := dc.routeKeyword(ctx, login, first, emit)
+	handled, err := dc.routeKeyword(ctx, who, first, emit)
 	switch {
 	case handled || err != nil:
 		return err
 	case isChallengeShape(first):
-		return dc.challenge(ctx, login, splitChallenge(first, rest), emit)
+		return dc.challenge(ctx, who, splitChallenge(first, rest), emit)
 	default:
-		return dc.stake(ctx, login, first, emit)
+		return dc.stake(ctx, who, first, emit)
 	}
 }
 
-func (dc duelCmd) routeKeyword(ctx context.Context, login, first string, emit module.Emit) (handled bool, err error) {
+func (dc duelCmd) routeKeyword(ctx context.Context, who engine.DuelParty, first string, emit module.Emit) (handled bool, err error) {
 	switch strings.ToLower(first) {
 	case "":
 		return true, dc.status(ctx, emit)
 	case "accept":
-		return true, dc.accept(ctx, login, emit)
+		return true, dc.accept(ctx, who, emit)
 	case "decline":
-		return true, dc.decline(ctx, login, emit)
+		return true, dc.decline(ctx, who, emit)
 	case "cancel":
-		return true, dc.cancel(ctx, login, emit)
+		return true, dc.cancel(ctx, who, emit)
 	}
 	return false, nil
 }
@@ -142,15 +143,17 @@ func isChallengeShape(first string) bool {
 }
 
 type challengeReq struct {
-	target string
-	stake  string
+	target     string
+	stake      string
+	atPrefixed bool
 }
 
 func splitChallenge(first, rest string) challengeReq {
 	stakeArg, _ := splitFirst(rest)
 	return challengeReq{
-		target: strings.TrimPrefix(strings.ToLower(first), "@"),
-		stake:  stakeArg,
+		target:     strings.TrimPrefix(strings.ToLower(first), "@"),
+		stake:      stakeArg,
+		atPrefixed: strings.HasPrefix(first, "@"),
 	}
 }
 
@@ -180,14 +183,14 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit) error {
+func (dc duelCmd) stake(ctx context.Context, who engine.DuelParty, raw string, emit module.Emit) error {
 	stake, refused := dc.resolveStake(raw)
 	if refused != "" {
 		dc.refuseReply(emit, refused)
 		return nil
 	}
 
-	res, err := dc.s.Join(ctx, dc.c.BroadcasterID, login, stake)
+	res, err := dc.s.Join(ctx, dc.c.BroadcasterID, who, stake)
 	if err != nil {
 		dc.log.Warn("duel: join failed", dc.c.BID(), zap.Error(err))
 		return err
@@ -198,7 +201,7 @@ func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit
 	case res.Busy:
 		dc.reply(emit, "", "duel.busy")
 	case !res.Open:
-		return dc.openPot(ctx, login, stake, emit)
+		return dc.openPot(ctx, who, stake, emit)
 	default:
 		return dc.replyJoin(res, stake, emit)
 	}
@@ -242,10 +245,10 @@ func (dc duelCmd) replyOpen(emit module.Emit, res engine.DuelOpenResult, started
 	return res.Started
 }
 
-func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit module.Emit) error {
+func (dc duelCmd) openPot(ctx context.Context, who engine.DuelParty, stake int64, emit module.Emit) error {
 	res, err := dc.s.Open(ctx, dc.c.BroadcasterID, engine.DuelOpenSpec{
 		Kind:       engine.DuelPot,
-		Opener:     login,
+		Opener:     who,
 		Stake:      stake,
 		PotSeconds: dc.t.PotSeconds,
 	})
@@ -261,13 +264,9 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 	return nil
 }
 
-func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq, emit module.Emit) error {
+func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req challengeReq, emit module.Emit) error {
 	if req.target == "" {
 		dc.reply(emit, "", "duel.usage")
-		return nil
-	}
-	if req.target == login {
-		dc.reply(emit, "", "duel.challenge.self")
 		return nil
 	}
 	stake, refused := dc.resolveStake(req.stake)
@@ -275,10 +274,14 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 		dc.refuseReply(emit, refused)
 		return nil
 	}
+	target, ok := dc.challengeTarget(who, req, emit)
+	if !ok {
+		return nil
+	}
 	res, err := dc.s.Open(ctx, dc.c.BroadcasterID, engine.DuelOpenSpec{
 		Kind:             engine.DuelChallenge,
-		Opener:           login,
-		Challenged:       req.target,
+		Opener:           who,
+		Challenged:       target,
 		Stake:            stake,
 		ChallengeSeconds: dc.t.ChallengeSeconds,
 	})
@@ -296,8 +299,30 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 	return nil
 }
 
-func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) error {
-	res, err := dc.s.Accept(ctx, dc.c.BroadcasterID, login)
+func (dc duelCmd) challengeTarget(who engine.DuelParty, req challengeReq, emit module.Emit) (engine.DuelParty, bool) {
+	login := req.target
+	if login == who.Login {
+		dc.reply(emit, "", "duel.challenge.self")
+		return engine.DuelParty{}, false
+	}
+	id := mentionedViewerID(dc.c.Env.Mentions, login)
+	if id == 0 && !req.atPrefixed {
+		dc.reply(emit, "", "duel.challenge.mention")
+		return engine.DuelParty{}, false
+	}
+	if id == 0 {
+		dc.reply(emit, "", "duel.join.unknown")
+		return engine.DuelParty{}, false
+	}
+	if id == who.ID {
+		dc.reply(emit, "", "duel.challenge.self")
+		return engine.DuelParty{}, false
+	}
+	return engine.DuelParty{ID: id, Login: login}, true
+}
+
+func (dc duelCmd) accept(ctx context.Context, who engine.DuelParty, emit module.Emit) error {
+	res, err := dc.s.Accept(ctx, dc.c.BroadcasterID, who)
 	if err != nil {
 		dc.log.Warn("duel: accept failed", dc.c.BID(), zap.Error(err))
 		return err
@@ -332,8 +357,8 @@ func (dc duelCmd) replySettled(res engine.DuelAcceptResult, emit module.Emit) {
 		"pot", strconv.FormatInt(res.Pot, 10))
 }
 
-func (dc duelCmd) decline(ctx context.Context, login string, emit module.Emit) error {
-	res, err := dc.s.Decline(ctx, dc.c.BroadcasterID, login)
+func (dc duelCmd) decline(ctx context.Context, who engine.DuelParty, emit module.Emit) error {
+	res, err := dc.s.Decline(ctx, dc.c.BroadcasterID, who)
 	if err != nil {
 		dc.log.Warn("duel: decline failed", dc.c.BID(), zap.Error(err))
 		return err
@@ -353,9 +378,9 @@ func (dc duelCmd) decline(ctx context.Context, login string, emit module.Emit) e
 	return nil
 }
 
-func (dc duelCmd) cancel(ctx context.Context, login string, emit module.Emit) error {
+func (dc duelCmd) cancel(ctx context.Context, who engine.DuelParty, emit module.Emit) error {
 	mod := dc.c.Chatter().Allows(module.RoleModerator)
-	res, err := dc.s.Cancel(ctx, dc.c.BroadcasterID, login, mod)
+	res, err := dc.s.Cancel(ctx, dc.c.BroadcasterID, who, mod)
 	if err != nil {
 		dc.log.Warn("duel: cancel failed", dc.c.BID(), zap.Error(err))
 		return err

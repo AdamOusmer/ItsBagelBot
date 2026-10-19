@@ -45,6 +45,7 @@
         border-bottom-color: var(--tone-rule);
     }
 
+    .bb-tag--contain { max-width: 100%; }
     .bb-tag--wrap { white-space: normal; text-align: left; }
 
     .bb-tag--literal { text-transform: none; letter-spacing: 0.04em; }

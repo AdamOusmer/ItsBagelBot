@@ -17,4 +17,13 @@
     font-size: 11.5px;
     color: var(--bb-muted);
   }
+
+  .bb-pager--fixed { box-sizing: border-box; min-height: 56px; }
+  .bb-pager--fixed > .bb-btn { flex: none; width: 120px; justify-content: center; }
+  .bb-pager--fixed > .bb-pager__label { flex: none; width: 20ch; text-align: center; white-space: nowrap; }
+  @media (max-width: 650px) {
+    .bb-pager--fixed { gap: 10px; padding-inline: 10px; }
+    .bb-pager--fixed > .bb-btn { width: 76px; padding-inline: 6px; font-size: 11px; }
+    .bb-pager--fixed > .bb-pager__label { width: 11ch; }
+  }
 }

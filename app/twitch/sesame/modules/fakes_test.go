@@ -44,6 +44,9 @@ func findCmd(t *testing.T, m module.Module, name string) module.Command {
 func runChatErr(t *testing.T, m module.Module, c *module.Context, text string) ([]module.Output, error) {
 	t.Helper()
 	c.Env.Text = text
+	if c.Env.Mentions == nil {
+		c.Env.Mentions = textMentions(text)
+	}
 	name, args, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(text), "!"), " ")
 	bound, num, ok := engine.NewRegistry(zap.NewNop(), m).ResolveCommand(strings.ToLower(name))
 	require.True(t, ok, "no command or alias %q", name)
@@ -51,6 +54,17 @@ func runChatErr(t *testing.T, m module.Module, c *module.Context, text string) (
 	var col collector
 	err := bound.Cmd.Run(t.Context(), c, strings.TrimSpace(args), col.emit)
 	return col.out, err
+}
+
+// Twitch tags every typed @login with the mentioned account's ID; tests give each of them ID 8.
+func textMentions(text string) []lane.Mention {
+	var mentions []lane.Mention
+	for _, word := range strings.Fields(text) {
+		if login, ok := strings.CutPrefix(word, "@"); ok && login != "" {
+			mentions = append(mentions, lane.Mention{UserID: "8", UserLogin: strings.ToLower(login)})
+		}
+	}
+	return mentions
 }
 
 func runChat(t *testing.T, m module.Module, c *module.Context, text string) []module.Output {

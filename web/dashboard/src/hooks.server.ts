@@ -102,14 +102,25 @@ function cacheableRequest(event: HookEvent): boolean {
   return event.request.method === 'GET' || event.request.method === 'HEAD';
 }
 
+function cacheableBody(res: Response, event: HookEvent): boolean {
+  const type = event.isDataRequest ? 'application/json' : 'text/html';
+  return !!res.headers.get('content-type')?.includes(type);
+}
+
 function cacheableResponse(res: Response, event: HookEvent): boolean {
   // Expired session cookies get a delete Set-Cookie with no session: caching it would replay to every visitor.
-  if (res.headers.has('set-cookie')) return false;
-  return cacheableStatus(res, event) && !!res.headers.get('content-type')?.includes('text/html');
+  if (res.headers.has('set-cookie') || event.locals.edgeCacheSkip) return false;
+  return cacheableStatus(res, event) && cacheableBody(res, event);
+}
+
+const EDGE_SHARED_LOCALES: readonly string[] = ['en', 'fr'];
+
+function sharedCacheLocale(event: HookEvent): boolean {
+  return EDGE_SHARED_LOCALES.includes(event.locals.locale);
 }
 
 function anonymousDefaultRender(event: HookEvent): boolean {
-  if (event.locals.session) return false;
+  if (event.locals.session || !sharedCacheLocale(event)) return false;
   if (event.cookies.get(LOCALE_COOKIE) || event.url.searchParams.has('lang')) return false;
   return event.cookies.get(CURSOR_COOKIE) !== '0';
 }
@@ -122,7 +133,7 @@ export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string
   return {
     'Cache-Control': 'public, max-age=0',
     'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`,
-    'Cache-Tag': DEPLOY_CACHE_TAG
+    'Cache-Tag': [DEPLOY_CACHE_TAG, event.locals.edgeCacheTag].filter(Boolean).join(',')
   };
 }
 

@@ -26,7 +26,7 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { channelPageUrls, purgeEdge } from '$lib/server/edge-purge';
+import { purgeChannelPages } from '$lib/server/edge-purge';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -46,10 +46,10 @@ function ownerSession(s: Session | null): s is Session {
   return !!s && !s.delegate_of && !s.impersonator_id;
 }
 
-async function purgeChannelPages(userId: string): Promise<boolean> {
+async function purgeOwnerPages(userId: string): Promise<boolean> {
   const account = await accountState(userId).catch(() => null);
   if (!account?.username) return false;
-  return purgeEdge(channelPageUrls(account.username.toLowerCase()));
+  return purgeChannelPages(account.username.toLowerCase());
 }
 
 function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
@@ -66,7 +66,7 @@ function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>
       return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
-    return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
+    return { ok: true, action, edgeDelayed: !(await purgeOwnerPages(s.user_id)) };
   };
 }
 

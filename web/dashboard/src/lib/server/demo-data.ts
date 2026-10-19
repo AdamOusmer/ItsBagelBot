@@ -712,20 +712,69 @@ export const demoAnsweredTonight: AnsweredTonight = {
   ok: true
 };
 
+const DEMO_ADJECTIVES = ['sleepy', 'crispy', 'salty', 'toasty', 'sneaky', 'fuzzy', 'cosmic', 'gentle', 'rusty', 'lucky'];
+const DEMO_NOUNS = ['otter', 'waffle', 'pickle', 'falcon', 'muffin', 'badger', 'cricket', 'noodle'];
+
+const demoCrowd: LoyaltyStanding[] = DEMO_NOUNS.flatMap((noun, row) =>
+  DEMO_ADJECTIVES.map((adjective, col) => {
+    const i = row * DEMO_ADJECTIVES.length + col;
+    const points = Math.round(14_000 * 0.93 ** i) + (i % 7);
+    const login = `${adjective}_${noun}${i % 5 === 0 ? i : ''}`;
+    const name = i % 3 === 0 ? login : `${adjective[0].toUpperCase()}${adjective.slice(1)}${noun[0].toUpperCase()}${noun.slice(1)}`;
+    return {
+      viewerId: String(601 + i),
+      viewerLogin: login,
+      viewerName: i % 11 === 10 ? '' : name,
+      points: String(points),
+      watchSeconds: points * 14 + i * 37
+    };
+  })
+);
+
+const demoCurrentLogins = new Map([['pretzel_prime', '505']]);
+const demoReconciledLogins = new Map<string, string>();
+
+function rankedDemoBoard(): LoyaltyStanding[] {
+  return [...demoLeaderboardHead, ...demoCrowd]
+    .sort((a, b) => Number(b.points) - Number(a.points) || Number(a.viewerId) - Number(b.viewerId))
+    .map((viewer, i) => ({ ...viewer, viewerLogin: demoReconciledLogins.get(viewer.viewerId) ?? viewer.viewerLogin, rank: i + 1 }));
+}
+
+function demoSearch(board: LoyaltyStanding[], query: string): LoyaltyStanding[] {
+  if (/^\d+$/.test(query)) return board.filter((viewer) => viewer.viewerId === query);
+  const stored = board.filter((viewer) => viewer.viewerLogin === query);
+  const viewerId = demoCurrentLogins.get(query);
+  if (stored.length > 0 || !viewerId) return stored;
+  demoReconciledLogins.set(viewerId, query);
+  return rankedDemoBoard().filter((viewer) => viewer.viewerId === viewerId);
+}
+
+export function demoStandingsPage(req: { limit: number; offset: number; query: string }): { rows: LoyaltyStanding[]; total: number } {
+  const board = rankedDemoBoard();
+  if (!req.query) return { rows: board.slice(req.offset, req.offset + req.limit), total: board.length };
+  const match = demoSearch(board, req.query);
+  return { rows: match, total: match.length };
+}
+
+export function demoPodium(): LoyaltyStanding[] {
+  return rankedDemoBoard().slice(0, 3);
+}
+
 export const demoLeaderboard = {
-  currencyName: 'bagels',
-  top: [
-    { viewerId: '501', viewerLogin: 'crumbcatcher', viewerName: 'CrumbCatcher', points: '48210', watchSeconds: 612_000 },
-    { viewerId: '502', viewerLogin: 'toastedtomato', viewerName: 'ToastedTomato', points: '41377', watchSeconds: 548_400 },
-    { viewerId: '503', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', points: '36904', watchSeconds: 471_900 },
-    { viewerId: '504', viewerLogin: 'lox_and_load', viewerName: 'lox_and_load', points: '28850', watchSeconds: 390_600 },
-    { viewerId: '505', viewerLogin: 'pixelpretzel', viewerName: 'PixelPretzel', points: '24512', watchSeconds: 335_100 },
-    { viewerId: '506', viewerLogin: 'nightowl_nox', viewerName: 'NightOwl_Nox', points: '19800', watchSeconds: 288_000 },
-    { viewerId: '507', viewerLogin: 'cream_cheese_kid', viewerName: 'cream_cheese_kid', points: '19800', watchSeconds: 241_200 },
-    { viewerId: '508', viewerLogin: 'everythingbagel', viewerName: 'EverythingBagel', points: '15230', watchSeconds: 205_800 },
-    { viewerId: '509', viewerLogin: 'mossy_mallow', viewerName: 'Mossy_Mallow', points: '11046', watchSeconds: 162_000 },
-    { viewerId: '510', viewerLogin: 'quietquokka', viewerName: 'QuietQuokka', points: '7385', watchSeconds: 98_700 },
-    { viewerId: '511', viewerLogin: 'rye_not', viewerName: 'rye_not', points: '3120', watchSeconds: 41_400 },
-    { viewerId: '512', viewerLogin: 'lurkinglarry', viewerName: '', points: '940', watchSeconds: 9_300 }
-  ]
+  currencyName: 'bagels'
 };
+
+const demoLeaderboardHead: LoyaltyStanding[] = [
+  { viewerId: '501', viewerLogin: 'crumbcatcher', viewerName: 'CrumbCatcher', points: '48210', watchSeconds: 612_000 },
+  { viewerId: '502', viewerLogin: 'toastedtomato', viewerName: 'ToastedTomato', points: '41377', watchSeconds: 548_400 },
+  { viewerId: '503', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', points: '36904', watchSeconds: 471_900 },
+  { viewerId: '504', viewerLogin: 'lox_and_load', viewerName: 'lox_and_load', points: '28850', watchSeconds: 390_600 },
+  { viewerId: '505', viewerLogin: 'pixelpretzel', viewerName: 'PixelPretzel', points: '24512', watchSeconds: 335_100 },
+  { viewerId: '506', viewerLogin: 'nightowl_nox', viewerName: 'NightOwl_Nox', points: '19800', watchSeconds: 288_000 },
+  { viewerId: '507', viewerLogin: 'cream_cheese_kid', viewerName: 'cream_cheese_kid', points: '19800', watchSeconds: 241_200 },
+  { viewerId: '508', viewerLogin: 'everythingbagel', viewerName: 'EverythingBagel', points: '15230', watchSeconds: 205_800 },
+  { viewerId: '509', viewerLogin: 'mossy_mallow', viewerName: 'Mossy_Mallow', points: '11046', watchSeconds: 162_000 },
+  { viewerId: '510', viewerLogin: 'quietquokka', viewerName: 'QuietQuokka', points: '7385', watchSeconds: 98_700 },
+  { viewerId: '511', viewerLogin: 'rye_not', viewerName: 'rye_not', points: '3120', watchSeconds: 41_400 },
+  { viewerId: '512', viewerLogin: 'lurkinglarry', viewerName: '', points: '940', watchSeconds: 9_300 }
+];

@@ -1,5 +1,5 @@
 {
-  "accept.none": "@{duel:user} no tienes ningún desafío pendiente. Inicia uno con !duel <user> <amount>.",
+  "accept.none": "@{duel:user} no tienes ningún desafío pendiente. Inicia uno con !duel @user <amount>.",
   "accept.notYou": "@{duel:user} solo la persona desafiada puede responder a este desafío.",
   "accept.short": "@{duel:user} ahora no puedes cubrir la apuesta.",
   "accept.unknown": "@{duel:user} aún no te he visto en este canal. ¡Quédate para ganar {duel:points} primero!",
@@ -8,6 +8,7 @@
   "busy": "@{duel:user} ese duelo se está resolviendo ahora, espera un segundo.",
   "cancel.denied": "@{duel:user} solo quien abrió el duelo o un moderador puede cancelarlo.",
   "cancel.ok": "Duelo cancelado. Devoluciones: {duel:refunds}; total devuelto: {duel:total} {duel:points}.",
+  "challenge.mention": "@{duel:user} menciona a tu rival con @, por ejemplo !duel @name 50",
   "challenge.pending": "@{duel:user} hay un desafío entre dos personas pendiente. Espera a que se resuelva.",
   "challenge.self": "@{duel:user} no puedes batirte en duelo contigo mismo.",
   "challenge.sent": "¡@{duel:user} desafía a @{duel:target} por {duel:stake} {duel:points}! @{duel:target}, escribe !duel accept en un plazo de {duel:secs}s. ¡Quien gane se lleva {duel:pot}!",
@@ -22,8 +23,8 @@
   "stake.max": "@{duel:user} la apuesta máxima es {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} la apuesta mínima es {duel:min} {duel:points}.",
   "status.challenge": "Duelo pendiente: @{duel:opener} contra @{duel:target}, {duel:stake} {duel:points} por persona. El plazo para aceptar termina en {duel:secs}s.",
-  "status.none": "No hay ningún duelo en curso. Abre un bote con !duel <amount>, o desafía a alguien con !duel <user> <amount>.",
+  "status.none": "No hay ningún duelo en curso. Abre un bote con !duel <amount>, o desafía a alguien con !duel @user <amount>.",
   "status.pot": "Duelo con bote abierto. Participaciones: {duel:count}; bote: {duel:pot} {duel:points}. Sorteo en ~{duel:secs}s. ¡Escribe !duel <amount> para participar!",
-  "usage": "Uso: !duel <amount>; !duel <user> <amount>; !duel accept|decline|cancel",
+  "usage": "Uso: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
   "won": "¡Caen las espadas! @{duel:winner} vence a @{duel:loser} y se lleva {duel:pot} {duel:points}."
 }

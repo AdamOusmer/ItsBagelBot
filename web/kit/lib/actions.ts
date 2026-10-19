@@ -15,3 +15,8 @@ export async function resetSmoothScroll(): Promise<void> {
   const { getSmoothScroll } = await import('@bagel/ui/lib/lenis');
   getSmoothScroll()?.scrollTo(0, { immediate: true });
 }
+
+export async function syncSmoothScroll(): Promise<void> {
+  const { getSmoothScroll } = await import('@bagel/ui/lib/lenis');
+  getSmoothScroll()?.scrollTo(window.scrollY, { immediate: true });
+}

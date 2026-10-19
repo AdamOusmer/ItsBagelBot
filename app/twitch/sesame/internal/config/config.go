@@ -57,6 +57,7 @@ type Config struct {
 	CommandsDashboardPrefix string
 	ModulesRPCPrefix        string
 	PublicBaseURL           string
+	LeaderboardBaseURL      string
 	GossipRPCPrefix         string
 	LoyaltyRPCPrefix        string
 	OutgressRPCPrefix       string
@@ -112,6 +113,8 @@ func Load() *Config {
 		ModulesRPCPrefix: env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules"),
 
 		PublicBaseURL: strings.TrimRight(env.Get("SESAME_PUBLIC_BASE_URL", "https://commands.itsbagelbot.com"), "/"),
+
+		LeaderboardBaseURL: strings.TrimRight(env.Get("SESAME_LEADERBOARD_BASE_URL", "https://leaderboard.itsbagelbot.com"), "/"),
 
 		GossipRPCPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
 

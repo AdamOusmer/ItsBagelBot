@@ -360,12 +360,12 @@ func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment
 	return bal, true, nil
 }
 
-func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	bal, found, spent, err := s.rpc.BalanceSpend(ctx, broadcasterID, viewerLogin, amount)
+func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, spend PointSpend) (loyaltyrpc.Balance, bool, bool, error) {
+	bal, found, spent, err := s.rpc.BalanceSpend(ctx, spend)
 	if err != nil || !found {
 		return bal, found, spent, err
 	}
-	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	s.dropBalanceCache(ctx, spend.BroadcasterID, bal.ViewerID)
 	return bal, true, spent, nil
 }
 

@@ -97,6 +97,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
       degraded: false
     };
   } catch {
+    locals.edgeCacheSkip = true;
     return {
       userId,
       channelName,

@@ -29,6 +29,12 @@ type EmoteSpan struct {
 	End   int    `json:"end"`
 }
 
+type Mention struct {
+	UserID    string `json:"user_id"`
+	UserLogin string `json:"user_login,omitempty"`
+	UserName  string `json:"user_name,omitempty"`
+}
+
 // Built by app/twitch/ingress (Elixir); change both sides together.
 type Envelope struct {
 	Type            string `json:"type"`
@@ -46,6 +52,7 @@ type Envelope struct {
 	Text                 string      `json:"text,omitempty"`
 	Badges               []Badge     `json:"badges,omitempty"`
 	Emotes               []EmoteSpan `json:"emotes,omitempty"`
+	Mentions             []Mention   `json:"mentions,omitempty"`
 
 	Senders []Sender `json:"senders,omitempty"`
 

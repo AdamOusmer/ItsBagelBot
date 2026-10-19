@@ -326,3 +326,36 @@ func TestCounterSetDecimalValue(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleTopGetPagesAndSearches(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.client.Balance.Create().SetUserID(2).SetViewerID(9).SetViewerLogin("mid").SetViewerName("MidViewer").SetPoints(500).Exec(context.Background()))
+
+	for _, tc := range []struct {
+		name      string
+		req       loyaltyrpc.Request
+		wantIDs   []string
+		wantRanks []int64
+		wantTotal int64
+	}{
+		{"legacy request keeps the plain board", loyaltyrpc.Request{UserID: "2"}, []string{"7", "9", "8"}, []int64{1, 2, 3}, 0},
+		{"offset pages the board with true ranks", loyaltyrpc.Request{UserID: "2", Limit: 1, Offset: 1}, []string{"9"}, []int64{2}, 3},
+		{"viewer id returns the one balance with its real rank", loyaltyrpc.Request{UserID: "2", ViewerID: "8"}, []string{"8"}, []int64{3}, 1},
+		{"unknown viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "999"}, nil, nil, 0},
+		{"zero viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "0"}, nil, nil, 0},
+		{"legacy text query matches nothing instead of erroring", loyaltyrpc.Request{UserID: "2", Query: "@RECEIV"}, nil, nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.call(t, "top.get", tc.req)
+			var ids []string
+			var ranks []int64
+			for _, b := range reply.Top {
+				ids = append(ids, b.ViewerID)
+				ranks = append(ranks, b.Rank)
+			}
+			assert.Equal(t, tc.wantIDs, ids)
+			assert.Equal(t, tc.wantRanks, ranks)
+			assert.Equal(t, tc.wantTotal, reply.Total)
+		})
+	}
+}

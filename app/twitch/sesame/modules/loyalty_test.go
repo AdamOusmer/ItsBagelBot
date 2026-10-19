@@ -309,30 +309,30 @@ func TestPointsCommand(t *testing.T) {
 			transfers: []transferCall{{7, 8, "bagelfan", 500}}, contains: []string{"bagelfan", "500"}},
 		{name: "give is refused while viewer transfers are off", text: "!points give bagelfan 100", as: viewer,
 			config: `{"viewerTransfers":-1}`, contains: []string{"turned off"}},
-		{name: "give stays allowed when viewer transfers are zero", text: "!points give bagelfan 100", as: viewer,
+		{name: "give stays allowed when viewer transfers are zero", text: "!points give @bagelfan 100", as: viewer,
 			config: `{"viewerTransfers":0}`, transfers: []transferCall{{7, 8, "bagelfan", 100}}, contains: []string{"bagelfan"}},
 		{name: "give to yourself is refused", text: "!points give @CoolViewer 10", as: viewer, contains: []string{"yourself"}},
-		{name: "give above the balance reports the standing", text: "!points give bagelfan 999999", as: viewer, bad: true,
+		{name: "give above the balance reports the standing", text: "!points give @bagelfan 999999", as: viewer, bad: true,
 			transfers: []transferCall{{7, 8, "bagelfan", 999999}}, contains: []string{"1234"}},
-		{name: "give to an unknown viewer asks to retry", text: "!points give ghost 10", as: viewer,
+		{name: "give to an unknown viewer asks to retry", text: "!points give @ghost 10", as: viewer,
 			transfers: []transferCall{{7, 8, "ghost", 10}}, contains: []string{"try again"}},
 		{name: "give with a non numeric amount prints usage", text: "!points give bagelfan nope", as: viewer, contains: []string{"usage"}},
 		{name: "set grants an absolute balance", text: "!points set @CoolViewer 500", as: streamer,
 			adjusts: []adjustCall{{8, "coolviewer", 500, true}}, contains: []string{"500", "coolviewer"}},
-		{name: "add applies a negative delta", text: "!points add coolviewer -100", as: streamer,
+		{name: "add applies a negative delta", text: "!points add @coolviewer -100", as: streamer,
 			adjusts: []adjustCall{{8, "coolviewer", -100, false}}, contains: []string{"1134"}},
 		{name: "remove subtracts", text: "!points remove @CoolViewer 100", as: streamer,
 			adjusts: []adjustCall{{8, "coolviewer", -100, false}}, contains: []string{"1134"}},
-		{name: "set on an unknown viewer asks to retry", text: "!points set ghost 10", as: streamer,
+		{name: "set on an unknown viewer asks to retry", text: "!points set @ghost 10", as: streamer,
 			adjusts: []adjustCall{{8, "ghost", 10, true}}, contains: []string{"try again"}},
 		{name: "a plain viewer never reaches the adjust path", text: "!points set @CoolViewer 500", as: viewer, contains: []string{"1234"}},
 		{name: "mods cannot set points while modSetPoints is off", text: "!points set coolviewer 50", as: moderator,
 			config: `{"modSetPoints":-1}`, contains: []string{"turned off"}},
-		{name: "mods may still add points while modSetPoints is off", text: "!points add coolviewer 50", as: moderator,
+		{name: "mods may still add points while modSetPoints is off", text: "!points add @coolviewer 50", as: moderator,
 			config: `{"modSetPoints":-1}`, adjusts: []adjustCall{{8, "coolviewer", 50, false}}, contains: []string{"1284"}},
 		{name: "mods cannot add points while modAdjustPoints is off", text: "!points add coolviewer 50", as: moderator,
 			config: `{"modAdjustPoints":-1}`, contains: []string{"turned off"}},
-		{name: "the streamer bypasses the mod toggles", text: "!points set coolviewer 50", as: streamer,
+		{name: "the streamer bypasses the mod toggles", text: "!points set @coolviewer 50", as: streamer,
 			config: `{"modSetPoints":-1}`, adjusts: []adjustCall{{8, "coolviewer", 50, true}}, contains: []string{"50"}},
 	}
 	for _, tc := range cases {
@@ -349,36 +349,33 @@ func TestPointsCommand(t *testing.T) {
 	}
 }
 
-func TestPointsGiveRecipientLookup(t *testing.T) {
+func TestPointsGiveRecipientFromMention(t *testing.T) {
+	blemmyz := func(id string) []lane.Mention { return []lane.Mention{{UserID: id, UserLogin: "blemmyz"}} }
 	for _, tc := range []struct {
 		name         string
-		lookup       *fakeAccountAge
+		mentions     []lane.Mention
+		text         string
 		wantText     string
 		wantTransfer bool
 	}{
-		{"new recipient", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "42"}}, "you gave", true},
-		{"unknown account", &fakeAccountAge{}, "was not found", false},
-		{"lookup failure", &fakeAccountAge{err: errors.New("unavailable")}, "try again", false},
-		{"missing lookup", nil, "try again", false},
-		{"invalid lookup ID", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "0"}}, "try again", false},
-		{"self under another login", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "7"}}, "yourself", false},
+		{"new recipient", blemmyz("42"), "!points give @Blemmyz 500", "you gave", true},
+		{"no mention fragment", []lane.Mention{}, "!points give @Blemmyz 500", "was not found", false},
+		{"plain word without an at sign", []lane.Mention{}, "!points give Blemmyz 500", "mention them with @", false},
+		{"mention of someone else", []lane.Mention{{UserID: "9", UserLogin: "other"}}, "!points give @Blemmyz 500", "was not found", false},
+		{"invalid mention ID", blemmyz("0"), "!points give @Blemmyz 500", "was not found", false},
+		{"self under another login", blemmyz("7"), "!points give @Blemmyz 500", "yourself", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeLoyalty{}
-			deps := engine.Deps{Loyalty: fake, Log: zap.NewNop()}
-			if tc.lookup != nil {
-				deps.TwitchAccounts = tc.lookup
-			}
-			out := runChat(t, Loyalty(deps), loyaltyChat(viewer, ""), "!points give @Blemmyz 500")
+			c := loyaltyChat(viewer, "")
+			c.Env.Mentions = tc.mentions
+			out := runChat(t, Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()}), c, tc.text)
 			require.Len(t, out, 1)
 			assert.Contains(t, strings.ToLower(out[0].Text), tc.wantText)
 			if tc.wantTransfer {
 				assert.Equal(t, []transferCall{{fromID: 7, targetID: 42, login: "blemmyz", amount: 500}}, fake.transfers)
 			} else {
 				assert.Empty(t, fake.transfers)
-			}
-			if tc.lookup != nil {
-				assert.Equal(t, "blemmyz", tc.lookup.got.targetLogin)
 			}
 		})
 	}
@@ -388,15 +385,14 @@ func TestPointsAdjustCreatesResolvedUsers(t *testing.T) {
 	for _, verb := range []string{"set", "add", "remove"} {
 		t.Run(verb, func(t *testing.T) {
 			fake := &fakeLoyalty{}
-			lookup := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "42", UserFound: true}}
-			m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: lookup, Log: zap.NewNop()})
-			runChat(t, m, loyaltyChat(streamer, ""), "!points "+verb+" @Blemmyz 5000")
+			c := loyaltyChat(streamer, "")
+			c.Env.Mentions = []lane.Mention{{UserID: "42", UserLogin: "blemmyz"}}
+			runChat(t, Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()}), c, "!points "+verb+" @Blemmyz 5000")
 			value := int64(5000)
 			if verb == "remove" {
 				value = -value
 			}
 			assert.Equal(t, []adjustCall{{viewerID: 42, login: "blemmyz", value: value, absolute: verb == "set"}}, fake.adjusts)
-			assert.Equal(t, "blemmyz", lookup.got.targetLogin)
 		})
 	}
 }
@@ -411,7 +407,7 @@ func TestPointsSetAcceptsExactBIGINTAmount(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeLoyalty{}
-			out := runLoyaltyChat(t, fake, loyaltyChat(streamer, ""), "!points set blemmyz "+tc.amount)
+			out := runLoyaltyChat(t, fake, loyaltyChat(streamer, ""), "!points set @blemmyz "+tc.amount)
 			require.Len(t, out, 1)
 			assert.Contains(t, strings.ToLower(out[0].Text), tc.want)
 			assert.Equal(t, tc.adjusts, fake.adjusts)

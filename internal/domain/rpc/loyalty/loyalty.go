@@ -18,6 +18,8 @@ type Request struct {
 	Won            bool   `json:"won,omitempty"`
 	CounterValue   string `json:"counter_value,omitempty"`
 	Limit          int    `json:"limit,omitempty"`
+	Offset         int    `json:"offset,omitempty"`
+	Query          string `json:"query,omitempty"`
 }
 
 type Balance struct {
@@ -27,6 +29,7 @@ type Balance struct {
 	Points       int64  `json:"points"`
 	PointsExact  string `json:"points_exact,omitempty"`
 	WatchSeconds uint64 `json:"watch_seconds"`
+	Rank         int64  `json:"rank,omitempty"`
 }
 
 type Counter struct {
@@ -52,6 +55,7 @@ type Reply struct {
 	Balance       *Balance       `json:"balance,omitempty"`
 	TargetBalance *Balance       `json:"target_balance,omitempty"`
 	Top           []Balance      `json:"top,omitempty"`
+	Total         int64          `json:"total,omitempty"`
 	Counter       *Counter       `json:"counter,omitempty"`
 	Counters      []Counter      `json:"counters,omitempty"`
 	Entries       []CounterEntry `json:"entries,omitempty"`

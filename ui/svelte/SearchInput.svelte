@@ -16,6 +16,7 @@
     debounceMs = 0,
     clearLabel = i18n.t('search.clear'),
     fill = false,
+    tall = false,
     oninput,
     onValueChange,
     ...rest
@@ -27,6 +28,7 @@
     debounceMs?: number;
     clearLabel?: string;
     fill?: boolean;
+    tall?: boolean;
     onValueChange?: (value: string) => void;
   } & Omit<HTMLInputAttributes, 'value' | 'type'> = $props();
 
@@ -52,7 +54,7 @@
   }
 </script>
 
-<label class="bb-search bb-input{fill ? ' bb-input--fill' : ''}{className ? ` ${className}` : ''}">
+<label class="bb-search bb-input{fill ? ' bb-input--fill' : ''}{tall ? ' bb-search--tall' : ''}{className ? ` ${className}` : ''}">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
   <input type="search" class="bb-search__input" {placeholder} bind:this={element} bind:value oninput={changed} {...rest} />
   {#if value}

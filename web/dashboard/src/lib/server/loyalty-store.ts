@@ -23,6 +23,7 @@ interface BalanceWire {
   points: number;
   points_exact?: string;
   watch_seconds: number;
+  rank?: number;
 }
 
 interface CounterWire {
@@ -42,6 +43,7 @@ interface EntryWire {
 interface LoyaltyReplyWire {
   balance?: BalanceWire;
   top?: BalanceWire[];
+  total?: number;
   counter?: CounterWire;
   counters?: CounterWire[];
   entries?: EntryWire[];
@@ -171,13 +173,41 @@ export async function counterEntries(userId: string, name: string, limit = 25): 
   }));
 }
 
-export async function topStandings(userId: string, limit = 10): Promise<LoyaltyStanding[]> {
-  const reply = await callLoyalty('top.get', { user_id: userId, limit });
-  return (reply.top ?? []).map((b) => ({
+function toStanding(b: BalanceWire): LoyaltyStanding {
+  return {
     viewerId: b.viewer_id,
     viewerLogin: b.viewer_login ?? '',
     viewerName: b.viewer_name ?? '',
     points: readPointBalance(b),
-    watchSeconds: b.watch_seconds
-  }));
+    watchSeconds: b.watch_seconds,
+    rank: b.rank
+  };
+}
+
+export async function topStandings(userId: string, limit = 10): Promise<LoyaltyStanding[]> {
+  const reply = await callLoyalty('top.get', { user_id: userId, limit });
+  return (reply.top ?? []).map(toStanding);
+}
+
+export interface StandingsPage {
+  rows: LoyaltyStanding[];
+  total: number;
+}
+
+export interface StandingsPageRequest {
+  limit: number;
+  offset: number;
+  viewerId?: string;
+  viewerLogin?: string;
+}
+
+export async function standingsPage(userId: string, req: StandingsPageRequest): Promise<StandingsPage> {
+  const reply = await callLoyalty('top.get', {
+    user_id: userId,
+    limit: req.limit,
+    offset: req.offset || undefined,
+    viewer_id: req.viewerId || undefined,
+    viewer_login: req.viewerLogin || undefined
+  });
+  return { rows: (reply.top ?? []).map(toStanding), total: reply.total ?? 0 };
 }

@@ -19,10 +19,14 @@ type EventOptions = {
   routeId?: string;
   session?: unknown;
   edgeCache404?: boolean;
+  edgeCacheTag?: string;
   lang?: string;
   cursorCookie?: string;
   localeCookie?: string;
   sessionCookie?: string;
+  dataRequest?: boolean;
+  skip?: boolean;
+  locale?: string;
 };
 
 const LOGIN = '/(public)/login';
@@ -40,13 +44,24 @@ function makeEvent(opts: EventOptions): Event {
     route: { id: opts.routeId ?? CHANNEL },
     request: new Request(url),
     url,
-    locals: { session: opts.session ?? null, edgeCache404: opts.edgeCache404 },
+    isDataRequest: !!opts.dataRequest,
+    locals: {
+      session: opts.session ?? null,
+      locale: opts.locale ?? 'en',
+      edgeCache404: opts.edgeCache404,
+      edgeCacheTag: opts.edgeCacheTag,
+      edgeCacheSkip: opts.skip
+    },
     cookies: { get: (name: string) => cookies[name], set: () => {}, delete: () => {} }
   } as unknown as Event;
 }
 
 function htmlResponse(status: number, headers: Record<string, string> = {}): Response {
   return new Response('<html></html>', { status, headers: { 'content-type': 'text/html', ...headers } });
+}
+
+function jsonResponse(status = 200, headers: Record<string, string> = {}): Response {
+  return new Response('{}', { status, headers: { 'content-type': 'application/json', ...headers } });
 }
 
 function routeIds(dir: string, root = dir): string[] {
@@ -85,15 +100,57 @@ const edgeCases: { name: string; event: EventOptions; res: Response; want: Recor
   { name: 'a 404 without the flag stays no-store', event: { edgeCache404: false }, res: htmlResponse(404), want: uncached },
   { name: 'the flag is set but the request carries a session: still no-store', event: { edgeCache404: true, sessionCookie: signedIn }, res: htmlResponse(404), want: uncached },
   { name: 'a plain 200 emits CDN-only directives so browsers revalidate', event: {}, res: htmlResponse(200), want: DEFAULT_TTL },
+  {
+    name: 'a route-supplied tag joins the deploy tag',
+    event: { edgeCacheTag: 'lb:foo' },
+    res: htmlResponse(200),
+    want: { ...DEFAULT_TTL, 'Cache-Tag': 'dashboard-edge-shell,lb:foo' }
+  },
+  {
+    name: 'a route-supplied tag also tags the edge-cached 404',
+    event: { edgeCache404: true, edgeCacheTag: 'lb:foo' },
+    res: htmlResponse(404),
+    want: { ...DEFAULT_TTL, 'Cache-Tag': 'dashboard-edge-shell,lb:foo' }
+  },
   { name: 'login uses its own TTL', event: { routeId: LOGIN }, res: htmlResponse(200), want: cached('max-age=600, stale-while-revalidate=86400, stale-if-error=86400') },
   { name: 'stats uses its own TTL', event: { routeId: '/(public)/stats' }, res: htmlResponse(200), want: cached('max-age=30, stale-while-revalidate=300, stale-if-error=86400') },
   { name: 'unlisted routes stay no-store', event: { routeId: '/(app)/commands' }, res: htmlResponse(200), want: uncached },
   { name: 'a locale cookie bypasses the cache', event: { localeCookie: 'fr' }, res: htmlResponse(200), want: uncached },
   { name: 'a lang param bypasses the cache', event: { lang: 'fr' }, res: htmlResponse(200), want: uncached },
   { name: 'the cursor-off cookie bypasses the cache', event: { cursorCookie: '0' }, res: htmlResponse(200), want: uncached },
-  { name: 'non-html responses are not cached', event: {}, res: new Response('{}', { headers: { 'content-type': 'application/json' } }), want: uncached },
+  { name: 'non-html responses are not cached', event: {}, res: jsonResponse(), want: uncached },
+  {
+    name: 'an anonymous data request gets the same CDN headers and tag',
+    event: { dataRequest: true, edgeCacheTag: 'lb:foo' },
+    res: jsonResponse(),
+    want: { ...DEFAULT_TTL, 'Cache-Tag': 'dashboard-edge-shell,lb:foo' }
+  },
+  { name: 'a data request answered with html is not cached', event: { dataRequest: true }, res: htmlResponse(200), want: uncached },
+  { name: 'a data request with a locale cookie is not cached', event: { dataRequest: true, localeCookie: 'fr' }, res: jsonResponse(), want: uncached },
+  { name: 'a data request with a lang param is not cached', event: { dataRequest: true, lang: 'fr' }, res: jsonResponse(), want: uncached },
+  { name: 'a data request with a session is not cached', event: { dataRequest: true, sessionCookie: signedIn }, res: jsonResponse(), want: uncached },
+  { name: 'a data request that sets a cookie is not cached', event: { dataRequest: true }, res: jsonResponse(200, SET_COOKIE), want: uncached },
+  { name: 'a degraded data response is not cached', event: { dataRequest: true, skip: true }, res: jsonResponse(), want: uncached },
+  { name: 'a degraded page is not cached', event: { skip: true }, res: htmlResponse(200), want: uncached },
+  { name: 'a data request 5xx is not cached', event: { dataRequest: true }, res: jsonResponse(500), want: uncached },
+  { name: 'a flagged data 404 is cached like its page', event: { dataRequest: true, edgeCache404: true }, res: jsonResponse(404), want: DEFAULT_TTL },
   { name: 'a response that sets a cookie is never cached', event: {}, res: htmlResponse(200, SET_COOKIE), want: uncached }
 ];
+
+describe('edge cache locale bucket', () => {
+  const emits = (event: EventOptions, res: Response) => edgeCacheHeaders(makeEvent(event), res) !== null;
+
+  test.each(['en', 'fr'])('a %s render gets CDN headers', (locale) => {
+    expect(emits({ locale }, htmlResponse(200))).toBe(true);
+    expect(emits({ locale, dataRequest: true }, jsonResponse())).toBe(true);
+  });
+
+  test.each(['de', 'ru', 'es', 'pt-br'])('a %s render gets no CDN headers', (locale) => {
+    expect(emits({ locale }, htmlResponse(200))).toBe(false);
+    expect(emits({ locale, dataRequest: true }, jsonResponse())).toBe(false);
+    expect(emits({ locale, edgeCache404: true }, htmlResponse(404))).toBe(false);
+  });
+});
 
 describe('handle edge caching', () => {
   test.each(edgeCases)('$name', async ({ event, res, want }) => {

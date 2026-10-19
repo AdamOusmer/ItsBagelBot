@@ -1,5 +1,5 @@
 {
-  "accept.none": "@{duel:user} no challenge is waiting for you. Start one with !duel <user> <amount>.",
+  "accept.none": "@{duel:user} no challenge is waiting for you. Start one with !duel @user <amount>.",
   "accept.notYou": "@{duel:user} only the challenged party can answer this one.",
   "accept.short": "@{duel:user} you can't cover the stake right now.",
   "accept.unknown": "@{duel:user} I haven't seen you in this channel yet. Stick around to earn some {duel:points} first!",
@@ -8,6 +8,7 @@
   "busy": "@{duel:user} that duel is being settled right now, give it a second.",
   "cancel.denied": "@{duel:user} only the opener or a moderator can cancel a duel.",
   "cancel.ok": "Duel cancelled: {duel:refunds} refunded, {duel:total} {duel:points} returned.",
+  "challenge.mention": "@{duel:user} mention your opponent with @, for example !duel @name 50",
   "challenge.pending": "@{duel:user} a head-to-head challenge is pending. Wait for it to settle.",
   "challenge.self": "@{duel:user} you can't duel yourself.",
   "challenge.sent": "@{duel:user} challenges @{duel:target} for {duel:stake} {duel:points}! @{duel:target}, type !duel accept within {duel:secs}s. Winner takes {duel:pot}!",
@@ -22,8 +23,8 @@
   "stake.max": "@{duel:user} max stake is {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} minimum stake is {duel:min} {duel:points}.",
   "status.challenge": "Duel pending: @{duel:opener} vs @{duel:target}, {duel:stake} {duel:points} each. Accept window closes in {duel:secs}s.",
-  "status.none": "No duel running. Open a pot with !duel <amount>, or challenge someone with !duel <user> <amount>.",
+  "status.none": "No duel running. Open a pot with !duel <amount>, or challenge someone with !duel @user <amount>.",
   "status.pot": "Pot duel live: {duel:count} in, {duel:pot} {duel:points} in the pot. Drawing in ~{duel:secs}s. Type !duel <amount> to join!",
-  "usage": "Usage: !duel <amount>; !duel <user> <amount>; !duel accept|decline|cancel",
+  "usage": "Usage: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
   "won": "The blades fall. @{duel:winner} defeats @{duel:loser} and takes {duel:pot} {duel:points}!"
 }
