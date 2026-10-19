@@ -10,5 +10,5 @@
     "strict": true,
     "moduleResolution": "bundler"
   },
-  "files": ["./kit/types/newrelic.d.ts", "./kit/lib/importer/sql-js.d.ts"]
+  "files": ["./kit/types/newrelic.d.ts", "./kit/lib/importer/sql-js.d.ts", "./kit/types/i18n-catalogs.d.ts"]
 }

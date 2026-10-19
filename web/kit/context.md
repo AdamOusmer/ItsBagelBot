@@ -50,6 +50,9 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/importer/`: adapters for supported bot formats, caps, strategies and canonical import types.
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
   root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
+  `scripts/i18n-catalogs.ts` (Vite plugin, `virtual:bagel-i18n`) merges each locale over English at build time:
+  the server imports a locale whole, the browser fetches content-hashed `core` plus the lazy groups an app
+  names (`ensureCatalog(locale, groups)`). Dashboard groups live in `dashboard/src/lib/catalog-groups.ts`.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.
 - `styles/`: console-specific theme glue; shared element contracts live in ui.
 
