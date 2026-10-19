@@ -30,6 +30,7 @@ func New(service string, log *zap.Logger) (*newrelic.Application, error) {
 		newrelic.ConfigAppLogForwardingEnabled(false),
 		newrelic.ConfigAppLogMetricsEnabled(true),
 		newrelic.ConfigFromEnvironment(),
+		excludeIdentifyingAttributes,
 	)
 	if err != nil {
 		return nil, err
@@ -71,6 +72,12 @@ func linkingFields(md newrelic.LinkingMetadata) []zapcore.Field {
 		zap.String("entity.name", md.EntityName),
 		zap.String("hostname", md.Hostname),
 	}
+}
+
+func excludeIdentifyingAttributes(cfg *newrelic.Config) {
+	cfg.Attributes.Exclude = append(cfg.Attributes.Exclude, SpanAttributeExcludes()...)
+	cfg.DatastoreTracer.QueryParameters.Enabled = false
+	cfg.DatastoreTracer.RawQuery.Enabled = false
 }
 
 func WrapLogger(log *zap.Logger, app *newrelic.Application) *zap.Logger {

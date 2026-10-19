@@ -91,7 +91,7 @@ func (lane consumeLane) processSampled(msg *Message, wait time.Duration) {
 	processSegment.End()
 
 	if out.loud() {
-		txn.NoticeError(out.err)
+		monitor.NoticeError(txn, out.err)
 	}
 	txn.AddAttribute(resultAttribute, out.result)
 	txn.End()
@@ -115,7 +115,7 @@ func (lane consumeLane) processUnsampled(msg *Message, wait time.Duration) {
 func (lane consumeLane) noticeUnsampledError(msg *Message, out outcome) *zap.Logger {
 	txn := lane.startTransaction(msg, out.wait)
 	txn.AddAttribute(sampledAttribute, "error")
-	txn.NoticeError(out.err)
+	monitor.NoticeError(txn, out.err)
 	txn.AddAttribute(resultAttribute, out.result)
 
 	log := monitor.TraceLogger(txn, lane.log)

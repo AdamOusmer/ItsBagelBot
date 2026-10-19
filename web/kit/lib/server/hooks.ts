@@ -58,7 +58,7 @@ export function tagTransaction(
   event: HookEvent,
   session: { user_id?: string | number } | null
 ): void {
-  nr.setTransactionName(`${event.request.method} ${event.route.id ?? event.url.pathname}`);
+  nr.setTransactionName(`${event.request.method} ${event.route.id ?? 'unmatched'}`);
   nr.addCustomAttributes({
     'route.id': event.route.id ?? 'unmatched',
     'http.method': event.request.method,
@@ -91,7 +91,7 @@ export function noticeServerError(
 ): void {
   if (status < 500) return;
   nr.noticeError(error instanceof Error ? error : new Error(String(error)), {
-    'route.id': event.route?.id ?? event.url.pathname,
+    'route.id': event.route?.id ?? 'unmatched',
     'http.status': status
   });
 }

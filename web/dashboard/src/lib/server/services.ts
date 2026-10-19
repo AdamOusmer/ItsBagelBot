@@ -325,8 +325,7 @@ export async function isBanned(userId: string): Promise<boolean> {
     });
   } catch (err) {
     newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
-      component: 'ban-check',
-      userId
+      component: 'ban-check'
     });
     return false;
   }

@@ -180,6 +180,12 @@ spec:
               value: "true"
             - name: NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED
               value: "true"
+            - name: NEW_RELIC_ATTRIBUTES_EXCLUDE
+              value: "request.*,response.*,http.url,http.target,http.host,client.address,net.*"
+            - name: NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ENABLED
+              value: "true"
+            - name: NEW_RELIC_ALLOW_ALL_HEADERS
+              value: "false"
             - name: NEW_RELIC_LABELS
               value: "service:console-admin;tier:web;component:ssr"
             - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME

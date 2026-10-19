@@ -60,7 +60,7 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 		var req gossiprpc.Request
 		if len(msg.Data) > 0 {
 			if err := codec.Unmarshal(msg.Data, &req); err != nil {
-				txn.NoticeError(err)
+				monitor.NoticeError(txn, err)
 				respondAndLog(msg, subject, start, log, badRequestReply)
 				return
 			}

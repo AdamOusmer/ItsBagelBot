@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
 	"github.com/nats-io/nats.go"
 
@@ -163,7 +164,7 @@ func recordStageDuration(ctx context.Context, attribute string, started time.Tim
 
 func noticeError(ctx context.Context, err error) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 
