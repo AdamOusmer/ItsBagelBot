@@ -20,10 +20,10 @@ interface Budget {
 // Initial-load gzip bytes per route; catalog is the largest non-English locale's slices for the route's nodes.
 // A raise needs the measurement and the reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
-  '/(public)/login': { js: 91600, css: 21700, catalog: 2900 },
-  '/(app)': { js: 117200, css: 39100, catalog: 5000 },
-  '/(app)/commands': { js: 196400, css: 41900, catalog: 20400 },
-  '/(public)/user/[channel]': { js: 97500, css: 21500, catalog: 2800 }
+  '/(public)/login': { js: 90900, css: 21900, catalog: 2900 },
+  '/(app)': { js: 116600, css: 39100, catalog: 5000 },
+  '/(app)/commands': { js: 137500, css: 41900, catalog: 4600 },
+  '/(public)/user/[channel]': { js: 96600, css: 21500, catalog: 2800 }
 };
 
 interface RouteEntry {

@@ -54,7 +54,8 @@ Catalog metadata, preview samples, and running service behavior are related but 
   the server imports a locale whole, the browser fetches one content-hashed JSON per locale. The build fails
   if a merged locale lacks an English key, so `t()` never needs English at runtime.
   With `slices: true` (dashboard), `scripts/i18n-slices.ts` instead gives each SvelteKit node chunk the English
-  strings its chunks can translate and one merged JSON per other locale, loaded before the node evaluates.
+  strings its chunks can translate and one merged JSON per other locale, loaded before the node evaluates;
+  app modules behind `import()` carry their own strings and slice the same way.
   Every client `t`/`tl`/`translate` key must be a literal, a template or concatenation with literal text, a
   frozen key table, or a translator passed to a function that follows the same rules; the build fails otherwise.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.

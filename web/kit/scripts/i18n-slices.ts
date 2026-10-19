@@ -6,8 +6,10 @@ import type { Plugin, Rollup } from 'vite';
 import { CATALOGS_PLUGIN, type CatalogsApi } from './i18n-catalogs.ts';
 import type { AstNode } from './i18n-ast.ts';
 import { KeyCatalog, Linker, type LinkHost } from './i18n-link.ts';
-import { assertCoverage, type NodeSlice } from './i18n-slice-check.ts';
-import { SliceBuilder, alwaysLoadedWith, isNodeModule, leafPaths, nodeIndex, parseDictionary, pick, type Chunk, type Route } from './i18n-slice-graph.ts';
+import { LazyUnits, type ModuleHost } from './i18n-lazy.ts';
+import { assertCoverage, type UnitSlice } from './i18n-slice-check.ts';
+import { alwaysLoadedWith, isNodeModule, leafPaths, parseDictionary, pick, type Chunk, type Route } from './i18n-slice-graph.ts';
+import { SliceBuilder } from './i18n-slice-units.ts';
 import { analyzeModule, type Usage } from './i18n-usage.ts';
 
 export { alwaysLoadedWith } from './i18n-slice-graph.ts';
@@ -32,6 +34,13 @@ const hash = (parts: string[]): string => createHash('sha256').update(parts.join
 const sliceFile = (fileName: string): string => fileName.slice(fileName.lastIndexOf('/') + 1).replace(/\.js$/, '.json');
 
 type Context = Rollup.PluginContext;
+
+function moduleHost(context: Rollup.TransformPluginContext): ModuleHost {
+  return {
+    resolve: async (source, importer) => (await context.resolve(source, importer))?.id,
+    parse: (code) => context.parse(code) as unknown as AstNode
+  };
+}
 
 function linkHost(context: Context): LinkHost {
   return {
@@ -83,26 +92,30 @@ export function i18nSlices(): Plugin {
     throw new Error(`i18n slices: ${CATALOGS_PLUGIN} plugin missing`);
   };
   const index = new KeyIndex();
-  const slices = new Map<number, NodeSlice>();
+  const lazy = new LazyUnits();
+  const nodes = new Set<string>();
+  const slices = new Map<string, UnitSlice>();
   let ancestors = new Map<number, Set<number>>();
   let routes: Route[] = [];
 
-  function slice(node: number, chunks: Record<string, Chunk>): NodeSlice {
+  function builder(chunks: Record<string, Chunk>): SliceBuilder {
+    return new SliceBuilder({ chunks, moduleKeys: index.moduleKeys, ancestors, units: new Set([...nodes, ...lazy.registered]) });
+  }
+
+  function slice(unit: string, units: SliceBuilder): UnitSlice {
     const { locales, trees } = catalogs();
-    const builder = new SliceBuilder(chunks, index.moduleKeys, ancestors);
-    const keys = builder.ownKeys(node);
+    const keys = units.ownKeys(unit);
     const bodies = Object.fromEntries(locales.map((locale) => [locale, JSON.stringify(pick(trees[locale], keys))]));
-    return { demand: builder.demand(node), bodies };
+    return { demand: units.demand(unit), bodies, contexts: units.contexts(unit) };
   }
 
   function emitSlices(context: Context, bundle: Rollup.OutputBundle): void {
-    const { locales } = catalogs();
-    const nodeChunks = Object.values(bundle).filter((output): output is Rollup.OutputChunk => output.type === 'chunk' && nodeIndex(output.facadeModuleId) !== undefined);
-    for (const chunk of nodeChunks) {
-      const bodies = slices.get(nodeIndex(chunk.facadeModuleId)!)?.bodies;
-      if (!bodies) context.error(`i18n slices: ${chunk.fileName} was not sliced`);
-      const others = locales.filter((locale) => locale !== 'en');
-      others.forEach((locale) => context.emitFile({ type: 'asset', fileName: `${SLICE_DIR}/${locale}/${sliceFile(chunk.fileName)}`, source: bodies![locale] }));
+    const others = catalogs().locales.filter((locale) => locale !== 'en');
+    const chunks = Object.values(bundle).filter((output): output is Rollup.OutputChunk => output.type === 'chunk');
+    for (const chunk of chunks) {
+      const unit = chunk.moduleIds.find((id) => slices.has(id));
+      const bodies = unit && slices.get(unit)!.bodies;
+      if (bodies) others.forEach((locale) => context.emitFile({ type: 'asset', fileName: `${SLICE_DIR}/${locale}/${sliceFile(chunk.fileName)}`, source: bodies[locale] }));
     }
   }
 
@@ -115,10 +128,11 @@ export function i18nSlices(): Plugin {
       const host = config.plugins.find((plugin) => plugin.name === CATALOGS_PLUGIN) as Plugin<CatalogsApi> | undefined;
       if (host?.api) catalogs = host.api.catalogs;
     },
-    transform(code, id) {
-      if (isNodeModule(id)) return code + REGISTER;
+    async transform(code, id) {
+      await lazy.note(code, id, moduleHost(this));
       if (!SKIPPED.some((skip) => skip(id, code))) index.record(id, analyzeModule(this.parse(code) as unknown as AstNode, code));
-      return undefined;
+      if (isNodeModule(id)) nodes.add(id);
+      return nodes.has(id) || lazy.claim(id) ? code + REGISTER : undefined;
     },
     async buildEnd(error) {
       if (error) return;
@@ -127,18 +141,20 @@ export function i18nSlices(): Plugin {
       ancestors = alwaysLoadedWith(routes);
     },
     renderChunk(code, chunk, _options, meta) {
-      const node = nodeIndex(chunk.facadeModuleId);
-      if (node === undefined) return null;
-      if ([...code.matchAll(PLACEHOLDER_LITERAL)].length !== 1) this.error(`i18n slices: node ${node} chunk must hold exactly one message placeholder`);
-      const nodeSlice = slice(node, meta.chunks as unknown as Record<string, Chunk>);
-      slices.set(node, nodeSlice);
-      const payload = `{h:${JSON.stringify(hash(Object.values(nodeSlice.bodies)))},m:${nodeSlice.bodies.en}}`;
+      const units = builder(meta.chunks as unknown as Record<string, Chunk>);
+      const held = units.unitsIn(chunk);
+      if (!held.length) return null;
+      const placeholders = [...code.matchAll(PLACEHOLDER_LITERAL)].length;
+      if (held.length !== 1 || placeholders !== 1) this.error(`i18n slices: ${chunk.fileName} must hold exactly one message unit, holds ${held.join(', ')}`);
+      const unitSlice = slice(held[0], units);
+      slices.set(held[0], unitSlice);
+      const payload = `{h:${JSON.stringify(hash(Object.values(unitSlice.bodies)))},m:${unitSlice.bodies.en}}`;
       return { code: code.replace(PLACEHOLDER_LITERAL, () => payload), map: null };
     },
     generateBundle(_options, bundle) {
       emitSlices(this, bundle);
       const { locales, trees } = catalogs();
-      assertCoverage({ slices, locales }, routes, trees.en);
+      assertCoverage({ slices, locales, ancestors }, routes, trees.en);
     }
   };
 }

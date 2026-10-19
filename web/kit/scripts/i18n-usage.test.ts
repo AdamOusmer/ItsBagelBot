@@ -6,6 +6,7 @@ import { parseAst } from 'rolldown/parseAst';
 import type { AstNode } from './i18n-ast';
 import { KeyCatalog } from './i18n-link';
 import { alwaysLoadedWith } from './i18n-slices';
+import { SliceBuilder } from './i18n-slice-units';
 import { analyzeModule } from './i18n-usage';
 
 const HEADER = "import { getI18n, translate } from '@bagel/kit';\n";
@@ -76,6 +77,39 @@ describe('KeyCatalog', () => {
     const { keys: found, problems } = new KeyCatalog(keys).match([['a.b'], ['vars.', '.name'], ['a.zz'], ['nope.', '']]);
     expect([...found]).toEqual(['a.b', 'vars.x.name', 'vars.y.name']);
     expect(problems).toEqual(['unknown key a.zz', 'no key matches nope.*']);
+  });
+});
+
+describe('SliceBuilder', () => {
+  const chunk = (fileName: string, moduleIds: string[], links: { imports?: string[]; dynamicImports?: string[] } = {}) => ({
+    fileName,
+    facadeModuleId: moduleIds[0],
+    moduleIds,
+    imports: links.imports ?? [],
+    dynamicImports: links.dynamicImports ?? [],
+    isEntry: false
+  });
+  const node = (index: number) => `/w/.svelte-kit/generated/client-optimized/nodes/${index}.js`;
+  const chunks = {
+    root: chunk('root', [node(0), 'shell']),
+    page: chunk('page', [node(6), 'page'], { imports: ['shared'], dynamicImports: ['editor', 'motion'] }),
+    shared: chunk('shared', ['palette']),
+    editor: chunk('editor', ['Editor'], { imports: ['shared'] }),
+    motion: chunk('motion', ['motion'])
+  };
+  const keys = new Map<string, Set<string>>([
+    ['shell', new Set(['nav.a'])],
+    ['page', new Set(['page.title', 'nav.a'])],
+    ['palette', new Set(['vars.x'])],
+    ['Editor', new Set(['editor.save', 'page.title'])],
+    ['motion', new Set(['motion.hint'])]
+  ]);
+  const builder = new SliceBuilder({ chunks, moduleKeys: keys, ancestors: new Map([[6, new Set([0])]]), units: new Set([node(0), node(6), 'Editor']) });
+
+  test('a lazily imported unit carries its own keys and is not counted in the page that imports it', () => {
+    expect([...builder.ownKeys(node(6))].sort()).toEqual(['motion.hint', 'page.title', 'vars.x']);
+    expect(builder.contexts('Editor')).toEqual([node(6)]);
+    expect([...builder.ownKeys('Editor')]).toEqual(['editor.save']);
   });
 });
 
