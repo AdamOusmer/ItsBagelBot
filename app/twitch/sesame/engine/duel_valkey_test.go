@@ -31,10 +31,17 @@ type fakeWallet struct {
 	balances map[string]int64
 }
 
+func accountOf(entry DuelStake) string {
+	if entry.ViewerID == 0 {
+		return entry.Login
+	}
+	return duelAccountName(entry.ViewerID)
+}
+
 func (w *fakeWallet) Debit(_ context.Context, _ uint64, entry DuelStake) (found, spent bool, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	name := duelAccountName(entry.ViewerID)
+	name := accountOf(entry)
 	balance, known := w.balances[name]
 	if !known || balance < entry.Stake {
 		return known, false, nil
@@ -46,7 +53,7 @@ func (w *fakeWallet) Debit(_ context.Context, _ uint64, entry DuelStake) (found,
 func (w *fakeWallet) Credit(_ context.Context, _ uint64, entry DuelStake) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.balances[duelAccountName(entry.ViewerID)] += entry.Stake
+	w.balances[accountOf(entry)] += entry.Stake
 	return nil
 }
 

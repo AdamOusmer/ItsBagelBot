@@ -35,6 +35,30 @@ func TestPointsAdjustTargetsTheMentionedIDNotTheStoredLogin(t *testing.T) {
 	assert.Equal(t, []adjustCall{{viewerID: 99, login: "newname", value: 10}}, fake.adjusts)
 }
 
+func TestPointsTargetNeedsAnAtMention(t *testing.T) {
+	for _, tc := range []struct {
+		text     string
+		contains string
+	}{
+		{"!points give bob 100", "mention them with @"},
+		{"!points add bob 10", "mention them with @"},
+		{"!points give @ghost 100", "was not found"},
+	} {
+		t.Run(tc.text, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			c := loyaltyChat(streamer, "")
+			c.Env.Mentions = []lane.Mention{}
+
+			out := runLoyaltyChat(t, fake, c, tc.text)
+
+			require.Len(t, out, 1)
+			assert.Contains(t, out[0].Text, tc.contains)
+			assert.Empty(t, fake.transfers)
+			assert.Empty(t, fake.adjusts)
+		})
+	}
+}
+
 func TestDuelCallsCarryTheChatterID(t *testing.T) {
 	fake := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true}}
 
@@ -54,7 +78,7 @@ func TestDuelChallengeTargetComesFromTheMention(t *testing.T) {
 	}{
 		{"mentioned target", []lane.Mention{{UserID: "77", UserLogin: "crust"}}, "!duel @Crust 400", "challenges", true},
 		{"no mention fragment", []lane.Mention{}, "!duel @Crust 400", "haven't seen", false},
-		{"plain word without an at sign", []lane.Mention{}, "!duel crust 400", "haven't seen", false},
+		{"plain word without an at sign", []lane.Mention{}, "!duel crust 400", "mention your opponent with @", false},
 		{"self under another login", []lane.Mention{{UserID: "42", UserLogin: "crust"}}, "!duel @Crust 400", "can't duel yourself", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

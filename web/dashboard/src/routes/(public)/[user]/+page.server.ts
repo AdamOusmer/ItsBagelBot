@@ -12,6 +12,7 @@ import {
 	boardParams,
 	canonicalLocation,
 	emptyBoard,
+	isSearchable,
 	isViewerId,
 	loadBoard,
 	PODIUM_SIZE,
@@ -80,6 +81,7 @@ async function loginPage(userId: string, req: PageRequest, search: Search): Prom
 function searchPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
 	const { limit, offset, query } = req;
 	if (!query) return standingsPage(userId, { limit, offset });
+	if (!isSearchable(query)) return Promise.resolve({ rows: [], total: 0 });
 	if (isViewerId(query)) return standingsPage(userId, { limit, offset, viewerId: query });
 	return loginPage(userId, req, search);
 }

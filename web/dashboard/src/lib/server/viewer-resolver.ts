@@ -4,6 +4,7 @@
 export const FOUND_TTL_MS = 10 * 60_000;
 export const MISSING_TTL_MS = 60_000;
 export const MAX_CACHED_LOGINS = 5000;
+export const MIN_LOGIN_LENGTH = 4;
 export const BUCKET_CAPACITY = 30;
 export const BUCKET_REFILL_PER_SECOND = 0.5;
 
@@ -64,6 +65,7 @@ export function createViewerResolver({ lookup, now = Date.now, maxEntries = MAX_
   }
 
   return async (login) => {
+    if (login.length < MIN_LOGIN_LENGTH) return { kind: 'missing' };
     const hit = cached(login);
     if (hit) return hit;
     const pending = inflight.get(login);

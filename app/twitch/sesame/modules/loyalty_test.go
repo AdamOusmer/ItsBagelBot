@@ -360,7 +360,7 @@ func TestPointsGiveRecipientFromMention(t *testing.T) {
 	}{
 		{"new recipient", blemmyz("42"), "!points give @Blemmyz 500", "you gave", true},
 		{"no mention fragment", []lane.Mention{}, "!points give @Blemmyz 500", "was not found", false},
-		{"plain word without an at sign", []lane.Mention{}, "!points give Blemmyz 500", "was not found", false},
+		{"plain word without an at sign", []lane.Mention{}, "!points give Blemmyz 500", "mention them with @", false},
 		{"mention of someone else", []lane.Mention{{UserID: "9", UserLogin: "other"}}, "!points give @Blemmyz 500", "was not found", false},
 		{"invalid mention ID", blemmyz("0"), "!points give @Blemmyz 500", "was not found", false},
 		{"self under another login", blemmyz("7"), "!points give @Blemmyz 500", "yourself", false},

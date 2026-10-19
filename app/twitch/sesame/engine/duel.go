@@ -45,17 +45,12 @@ func (p DuelParty) stake(amount int64) DuelStake {
 	return DuelStake{Login: p.Login, ViewerID: p.ID, Stake: amount}
 }
 
-const ledgerIDFieldPrefix = "id:"
-
 func (e DuelStake) ledgerField() string {
-	if e.ViewerID == 0 {
-		return e.Login
-	}
-	return ledgerIDFieldPrefix + strconv.FormatUint(e.ViewerID, 10)
+	return e.Login
 }
 
 func (e DuelStake) ledgerValue() string {
-	return strconv.FormatInt(e.Stake, 10) + ":" + strconv.FormatUint(e.ViewerID, 10) + ":" + e.Login
+	return strconv.FormatInt(e.Stake, 10)
 }
 
 func parseLedgerValue(v string) (stake int64, viewerID uint64, err error) {

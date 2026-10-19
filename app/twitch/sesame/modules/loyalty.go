@@ -108,10 +108,11 @@ type accrual struct {
 }
 
 type pointsGiveRequest struct {
-	login    string
-	value    int64
-	senderID uint64
-	targetID uint64
+	login      string
+	value      int64
+	senderID   uint64
+	targetID   uint64
+	atPrefixed bool
 }
 
 func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, ev T) accrual) module.EventHandler {
@@ -248,7 +249,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
-	viewerID, ok := lc.resolvePointsUser(login)
+	viewerID, ok := lc.resolvePointsUser(login, strings.HasPrefix(target, "@"))
 	if !ok {
 		return nil
 	}
@@ -307,7 +308,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
-	targetID, ok := lc.resolvePointsUser(req.login)
+	targetID, ok := lc.resolvePointsUser(req.login, req.atPrefixed)
 	if !ok {
 		return nil
 	}
@@ -319,13 +320,17 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	return lc.transferPoints(ctx, req, cfg)
 }
 
-func (lc loyaltyCmd) resolvePointsUser(login string) (uint64, bool) {
+func (lc loyaltyCmd) resolvePointsUser(login string, atPrefixed bool) (uint64, bool) {
 	id := mentionedViewerID(lc.c.Env.Mentions, login)
-	if id == 0 {
+	switch {
+	case id != 0:
+		return id, true
+	case !atPrefixed:
+		lc.reply("loyalty.points.target.mention")
+	default:
 		lc.reply("loyalty.points.user.unknown", "target", login)
-		return 0, false
 	}
-	return id, true
+	return 0, false
 }
 
 func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
@@ -371,7 +376,7 @@ func (lc loyaltyCmd) pointsGiveRequest(target, amount string) (pointsGiveRequest
 	if login == "" || senderID == 0 {
 		return pointsGiveRequest{}, false
 	}
-	return pointsGiveRequest{login: login, value: value, senderID: senderID}, true
+	return pointsGiveRequest{login: login, value: value, senderID: senderID, atPrefixed: strings.HasPrefix(target, "@")}, true
 }
 
 func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) error {

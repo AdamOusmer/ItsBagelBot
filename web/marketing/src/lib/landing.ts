@@ -395,7 +395,7 @@ function featureWho(command: FeatureCommand, k: Translate): string {
 
 function featureReply(command: FeatureCommand, lang: Lang): string {
     if (command.trigger === '!counter') return chatLine(lang, 'loyalty', 'counter.usage', {});
-    const examples: Record<string, string> = { '!gamble <amount>': 'won', '!gamble half|all': 'won', '!duel <stake>': 'opened', '!duel <user> <stake>': 'challenge' };
+    const examples: Record<string, string> = { '!gamble <amount>': 'won', '!gamble half|all': 'won', '!duel <stake>': 'opened', '!duel @user <stake>': 'challenge' };
     const reply = moduleOf(command.module).replies.find((reply) => reply.key === examples[command.trigger] || command.trigger === reply.event || command.trigger.startsWith(reply.event + ' '));
     return reply ? catalogReplyText(lang, command.module, reply) : command.summary;
 }

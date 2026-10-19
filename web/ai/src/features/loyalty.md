@@ -82,7 +82,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 ### `!points give`
 
-- Syntax: `!points give <user> <amount>`
+- Syntax: `!points give @user <amount>`
 - Aliases: None registered.
 - Who can run it: Viewers transfer their own points when viewer transfers are enabled; the broadcaster can always transfer.
 - Behaviour: Moves points to another viewer. Self-transfers and insufficient funds are rejected.
@@ -142,7 +142,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 ### `!duel`
 
-- Syntax: `!duel`, `!duel <stake>`, `!duel <user> <stake>`
+- Syntax: `!duel`, `!duel <stake>`, `!duel @user <stake>`
 - Aliases: None registered.
 - Who can run it: Everyone with enough points, while loyalty and duels are enabled.
 - Behaviour: Shows status, opens or joins a pot, or challenges a viewer to equal stakes.

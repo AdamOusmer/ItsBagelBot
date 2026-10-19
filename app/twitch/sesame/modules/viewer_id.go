@@ -10,7 +10,6 @@ import (
 	"ItsBagelBot/internal/domain/event/lane"
 )
 
-// Zero means the message carried no @mention for the login.
 func mentionedViewerID(mentions []lane.Mention, login string) uint64 {
 	for _, m := range mentions {
 		if strings.EqualFold(m.UserLogin, login) {

@@ -46,19 +46,22 @@ export function isViewerId(query: string): boolean {
   return /^\d+$/.test(query);
 }
 
-function cleanViewerId(digits: string): string {
-  const id = digits.replace(/^0+/, '');
-  return id.length <= MAX_ID_LENGTH ? id : '';
+export function isSearchable(query: string): boolean {
+  return isViewerId(query) ? query.length <= MAX_ID_LENGTH : LOGIN_RE.test(query);
 }
 
-function cleanLogin(raw: string): string {
-  const login = raw.replace(/[A-Z]/g, (c) => c.toLowerCase());
-  return LOGIN_RE.test(login) ? login : '';
+function cleanViewerId(digits: string): string {
+  return digits.replace(/^0+/, '').slice(0, MAX_ID_LENGTH + 1);
+}
+
+function cleanText(typed: string): string {
+  const login = typed.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  return LOGIN_RE.test(login) ? login : typed.slice(0, MAX_QUERY_LENGTH + 1);
 }
 
 export function cleanQuery(raw: string | null): string {
   const typed = (raw ?? '').replace(/^[@\s]+/, '').trim();
-  return isViewerId(typed) ? cleanViewerId(typed) : cleanLogin(typed);
+  return isViewerId(typed) ? cleanViewerId(typed) : cleanText(typed);
 }
 
 function cleanPage(raw: string | null): number {

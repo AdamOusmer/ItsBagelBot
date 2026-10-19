@@ -104,7 +104,7 @@ const modules = [
     cat: 'Points',
     start: 'Off by default',
     needs: 'Loyalty Points on. Duels is a row on the Loyalty page.',
-    commands: '!duel, !duel <stake>, !duel <user> <stake>, !duel accept, !duel decline, !duel cancel',
+    commands: '!duel, !duel <stake>, !duel @user <stake>, !duel accept, !duel decline, !duel cancel',
   },
   {
     name: 'Play Queue',

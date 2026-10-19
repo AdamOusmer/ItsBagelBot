@@ -143,15 +143,17 @@ func isChallengeShape(first string) bool {
 }
 
 type challengeReq struct {
-	target string
-	stake  string
+	target     string
+	stake      string
+	atPrefixed bool
 }
 
 func splitChallenge(first, rest string) challengeReq {
 	stakeArg, _ := splitFirst(rest)
 	return challengeReq{
-		target: strings.TrimPrefix(strings.ToLower(first), "@"),
-		stake:  stakeArg,
+		target:     strings.TrimPrefix(strings.ToLower(first), "@"),
+		stake:      stakeArg,
+		atPrefixed: strings.HasPrefix(first, "@"),
 	}
 }
 
@@ -272,7 +274,7 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 		dc.refuseReply(emit, refused)
 		return nil
 	}
-	target, ok := dc.challengeTarget(who, req.target, emit)
+	target, ok := dc.challengeTarget(who, req, emit)
 	if !ok {
 		return nil
 	}
@@ -297,12 +299,17 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 	return nil
 }
 
-func (dc duelCmd) challengeTarget(who engine.DuelParty, login string, emit module.Emit) (engine.DuelParty, bool) {
+func (dc duelCmd) challengeTarget(who engine.DuelParty, req challengeReq, emit module.Emit) (engine.DuelParty, bool) {
+	login := req.target
 	if login == who.Login {
 		dc.reply(emit, "", "duel.challenge.self")
 		return engine.DuelParty{}, false
 	}
 	id := mentionedViewerID(dc.c.Env.Mentions, login)
+	if id == 0 && !req.atPrefixed {
+		dc.reply(emit, "", "duel.challenge.mention")
+		return engine.DuelParty{}, false
+	}
 	if id == 0 {
 		dc.reply(emit, "", "duel.join.unknown")
 		return engine.DuelParty{}, false

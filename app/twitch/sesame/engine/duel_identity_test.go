@@ -61,37 +61,20 @@ func TestLoyaltyWalletActsOnViewerID(t *testing.T) {
 	assert.Equal(t, []BalanceAdjustment{{BroadcasterID: 2, ViewerID: 42, ViewerLogin: "newname", Value: 10}}, store.viewers)
 }
 
-func TestValkeyDuelRefundsALedgerEntryByItsViewerID(t *testing.T) {
-	store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 500, "bob": 100})
+func TestValkeyDuelWritesLegacySeatsOldPodsCanRead(t *testing.T) {
+	store, _, id := duelStoreFor(t, map[string]int64{"alice": 500, "bob": 100})
 	ctx := t.Context()
 	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 100})
 	require.NoError(t, err)
-	renamed := DuelParty{ID: duelViewerIDs["bob"], Login: "bob_renamed"}
-	joined, err := store.Join(ctx, id, renamed, 20)
+	joined, err := store.Join(ctx, id, p("bob"), 20)
 	require.NoError(t, err)
 	require.True(t, joined.Joined)
 
-	cancelled, err := store.Cancel(ctx, id, p("alice"), false)
+	client := newHotPathTestClient(t)
+	raw, err := client.Do(ctx, client.B().Hgetall().Key(duelKey(duelEntriesPrefix, id)).Build()).AsStrMap()
 	require.NoError(t, err)
 
-	assert.True(t, cancelled.Cancelled)
-	assert.Equal(t, map[string]int64{"alice": 500, "bob": 100}, wallet.snapshot())
-}
-
-func TestValkeyDuelRenameMidDuelCannotJoinTwice(t *testing.T) {
-	store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 500, "bob": 100})
-	ctx := t.Context()
-	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 100})
-	require.NoError(t, err)
-	first, err := store.Join(ctx, id, p("bob"), 20)
-	require.NoError(t, err)
-	require.True(t, first.Joined)
-
-	renamed, err := store.Join(ctx, id, DuelParty{ID: duelViewerIDs["bob"], Login: "bob_renamed"}, 20)
-	require.NoError(t, err)
-
-	assert.Equal(t, DuelJoinResult{Open: true, Already: true, Pot: 120, Entrants: 2}, renamed)
-	assert.Equal(t, map[string]int64{"alice": 400, "bob": 80}, wallet.snapshot())
+	assert.Equal(t, map[string]string{"alice": "100", "bob": "20"}, raw)
 }
 
 func TestValkeyDuelLegacyLedgerEntriesStillRefund(t *testing.T) {
@@ -130,9 +113,10 @@ func TestParseDuelLedgerReadsEveryStoredFormat(t *testing.T) {
 	assert.Equal(t, DuelStake{Login: "renamed", ViewerID: 7, Stake: 30}, PickDuelStake(got, 30))
 }
 
-func TestDuelSeatsAreKeyedByViewerIDWhenKnown(t *testing.T) {
-	assert.Equal(t, "id:7", DuelStake{Login: "a", ViewerID: 7}.ledgerField())
-	assert.Equal(t, "a", DuelStake{Login: "a"}.ledgerField())
+func TestDuelSeatsUseTheLegacyLedgerFormat(t *testing.T) {
+	seat := DuelStake{Login: "a", ViewerID: 7, Stake: 30}
+	assert.Equal(t, "a", seat.ledgerField())
+	assert.Equal(t, "30", seat.ledgerValue())
 }
 
 func TestValkeyDuelAcceptsByViewerIDAfterARename(t *testing.T) {

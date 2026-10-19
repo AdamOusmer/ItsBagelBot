@@ -275,7 +275,16 @@ const boardCases: { name: string; search: string; want: View; requests: PageRequ
     search: `?q=${'9'.repeat(20)}`,
     want: { first: undefined, count: 0, query: '9'.repeat(20), page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
     requests: [{ limit: 15, offset: 0, viewerId: '9'.repeat(20) }]
-  }
+  },
+  ...['a-b', 'ab%25', 'caf%C3%A9', '%E2%84%AAim', '1%202', '9'.repeat(21), 'a'.repeat(26)].map((raw) => {
+    const query = decodeURIComponent(raw);
+    return {
+      name: `invalid text "${query}" renders the no-match state without redirecting or searching`,
+      search: `?q=${raw}`,
+      want: { first: undefined, count: 0, query, page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
+      requests: []
+    };
+  })
 ];
 
 const redirectCases: { name: string; search: string; want: string }[] = [
@@ -286,21 +295,17 @@ const redirectCases: { name: string; search: string; want: string }[] = [
   { name: 'an at-prefixed mixed-case login loses the at sign and lowercases', search: '?q=%40CrumbCatcher', want: '/somechannel?q=crumbcatcher' },
   { name: 'leading at signs and spaces are stripped', search: '?q=%20%40%40Otter%20', want: '/somechannel?q=otter' },
   { name: 'a digit-led login stays a login', search: '?q=12AB', want: '/somechannel?q=12ab' },
-  { name: 'a login with a dash drops the param', search: '?q=a-b', want: '/somechannel' },
-  { name: 'a login with a wildcard drops the param', search: '?q=ab%25', want: '/somechannel' },
-  { name: 'a non-ASCII login drops the param', search: '?q=caf%C3%A9', want: '/somechannel' },
-  { name: 'a Kelvin sign is not folded to an ASCII k', search: '?q=%E2%84%AAim', want: '/somechannel' },
-  { name: 'a login over 25 characters drops the param', search: `?q=${'a'.repeat(26)}`, want: '/somechannel' },
+  { name: 'padding around invalid text trims without lowercasing', search: '?q=+Caf%C3%A9+', want: '/somechannel?q=Caf%C3%A9' },
+  { name: 'invalid text over 26 characters is cut to 26', search: `?q=${'a'.repeat(30)}`, want: `/somechannel?q=${'a'.repeat(26)}` },
+  { name: 'an id over 21 digits is cut to 21', search: `?q=${'9'.repeat(30)}`, want: `/somechannel?q=${'9'.repeat(21)}` },
   { name: 'a 25 character login is kept', search: `?q=${'A'.repeat(25)}`, want: `/somechannel?q=${'a'.repeat(25)}` },
-  { name: 'inner whitespace drops the param', search: '?q=1%202', want: '/somechannel' },
   { name: 'an empty search drops the param', search: '?q=', want: '/somechannel' },
   { name: 'page 1 drops the param', search: '?page=1', want: '/somechannel' },
   { name: 'a zero-padded page normalizes', search: '?page=02', want: '/somechannel?page=2' },
   { name: 'a malformed page drops the param', search: '?page=abc', want: '/somechannel' },
   { name: 'a negative page drops the param', search: '?page=-3', want: '/somechannel' },
   { name: 'a page past the cap clamps to the cap', search: '?page=999', want: '/somechannel?page=399' },
-  { name: 'other params survive', search: '?q=42+&lang=fr&page=1', want: '/somechannel?lang=fr&q=42' },
-  { name: 'an id over 20 digits drops the param', search: `?q=${'9'.repeat(21)}`, want: '/somechannel' }
+  { name: 'other params survive', search: '?q=42+&lang=fr&page=1', want: '/somechannel?lang=fr&q=42' }
 ];
 
 describe('(public)/[user] load: canonical redirect', () => {
@@ -320,6 +325,12 @@ describe('(public)/[user] load: canonical redirect', () => {
   test('a redirect never reaches the resolver', async () => {
     arrange({});
     await loadPage('?q=CrumbCatcher');
+    expect(resolverCalls).toEqual([]);
+  });
+
+  test('invalid search text never reaches the resolver', async () => {
+    arrange({});
+    await loadPage('?q=caf%C3%A9');
     expect(resolverCalls).toEqual([]);
   });
 
