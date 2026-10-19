@@ -71,6 +71,10 @@ accounts:
               from: USERS_RPC
             - service: bagel.rpc.loyalty.counter.>
               from: LOYALTY_RPC
+            - service: bagel.rpc.modules.personality.feed.board
+              from: MODULES_RPC
+            - service: bagel.rpc.modules.personality.feed.board.node.*
+              from: MODULES_RPC
             - service: bagel.rpc.outgress.channel.get
               from: OUTGRESS_RPC
             - service: bagel.rpc.outgress.channel.get.node.*

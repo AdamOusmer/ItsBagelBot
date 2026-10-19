@@ -49,5 +49,11 @@
   "botAuthorize": "Authorize",
   "botReauthorize": "Re-authorize",
   "botHint": "Open this in the browser signed into the bot account:",
-  "botLinkLabel": "Bot authorization link"
+  "botLinkLabel": "Bot authorization link",
+  "feedTitle": "Bagels fed",
+  "feedTotal": "Feedings, all time",
+  "feedRanked": "{count} channels have fed it.",
+  "feedEmpty": "Nobody has fed the bagel yet.",
+  "feedUnnamed": "Unnamed channel",
+  "feedUnavailable": "Feed counts are unavailable right now."
 }

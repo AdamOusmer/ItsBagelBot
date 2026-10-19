@@ -49,5 +49,11 @@
   "botAuthorize": "Autorizar",
   "botReauthorize": "Volver a autorizar",
   "botHint": "Abre esto en el navegador con la sesión de la cuenta del bot iniciada:",
-  "botLinkLabel": "Enlace de autorización del bot"
+  "botLinkLabel": "Enlace de autorización del bot",
+  "feedTitle": "Bagels alimentados",
+  "feedTotal": "Veces alimentado, histórico",
+  "feedRanked": "Canales que lo han alimentado: {count}.",
+  "feedEmpty": "Nadie ha alimentado al bagel todavía.",
+  "feedUnnamed": "Canal sin nombre",
+  "feedUnavailable": "Los contadores de alimentación no están disponibles ahora."
 }
