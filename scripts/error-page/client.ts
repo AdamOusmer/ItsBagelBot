@@ -25,7 +25,7 @@ function localize(scene: HTMLElement): void {
   document.documentElement.lang = locale;
   for (const node of scene.querySelectorAll<HTMLElement>('[data-copy]')) {
     const key = node.dataset.copy ?? '';
-    const text = catalog[locale][key.replace('*', group)];
+    const text = catalog[locale][key.startsWith('*') ? group + key.slice(1) : key];
     if (text) node.textContent = text;
   }
 }
