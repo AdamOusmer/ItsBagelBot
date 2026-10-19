@@ -51,8 +51,8 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
   root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
   `scripts/i18n-catalogs.ts` (Vite plugin, `virtual:bagel-i18n`) merges each locale over English at build time:
-  the server imports a locale whole, the browser fetches content-hashed `core` plus the lazy groups an app
-  names (`ensureCatalog(locale, groups)`). Dashboard groups live in `dashboard/src/lib/catalog-groups.ts`.
+  the server imports a locale whole, the browser fetches one content-hashed JSON per locale. The build fails
+  if a merged locale lacks an English key, so `t()` never needs English at runtime.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.
 - `styles/`: console-specific theme glue; shared element contracts live in ui.
 

@@ -2,59 +2,49 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /// <reference types="vite/client" />
-import { groupNames, loaders, localeNames, locales, urls } from 'virtual:bagel-i18n';
+import { loaders, localeNames, locales, urls } from 'virtual:bagel-i18n';
 import type { Locale, MessageTree } from './types';
 import { matchAcceptLanguage } from './accept-language';
 
 export type { Locale } from './types';
 
-const CORE = 'core';
-
 export const LOCALES: readonly Locale[] = locales;
 export const DEFAULT_LOCALE: Locale = 'en';
 
 const catalogs: Record<string, MessageTree> = {};
-const requestedGroups = new Set<string>();
-const loadedParts = new Map<string, Promise<void>>();
+const loading = new Map<string, Promise<void>>();
 
-async function fetchPart(locale: Locale, part: string): Promise<void> {
-  const response = await fetch(urls[locale][part]);
-  if (!response.ok) throw new Error(`i18n: ${response.status} for ${locale}/${part}`);
-  Object.assign((catalogs[locale] ??= {}), await response.json());
+async function readCatalog(locale: Locale): Promise<void> {
+  if (import.meta.env.SSR) {
+    catalogs[locale] = (await loaders[locale]()).default;
+    return;
+  }
+  const response = await fetch(urls[locale]);
+  if (!response.ok) throw new Error(`i18n: ${response.status} for ${locale}`);
+  catalogs[locale] = await response.json();
 }
 
-async function importLocale(locale: Locale): Promise<void> {
-  catalogs[locale] = (await loaders[locale]()).default;
-}
-
-function loadPart(locale: Locale, part: string): Promise<void> {
-  const key = `${locale}/${part}`;
-  let loaded = loadedParts.get(key);
+function loadCatalog(locale: Locale): Promise<void> {
+  let loaded = loading.get(locale);
   if (!loaded) {
-    loaded = (import.meta.env.SSR ? importLocale(locale) : fetchPart(locale, part)).catch((error) => {
-      loadedParts.delete(key);
+    loaded = readCatalog(locale).catch((error) => {
+      loading.delete(locale);
       throw error;
     });
-    loadedParts.set(key, loaded);
+    loading.set(locale, loaded);
   }
   return loaded;
 }
 
-async function loadParts(locale: Locale): Promise<void> {
-  const parts = import.meta.env.SSR ? [CORE] : [CORE, ...requestedGroups].filter((part) => urls[locale][part]);
-  await Promise.all(parts.map((part) => loadPart(locale, part)));
-}
-
-export function ensureCatalog(locale: Locale, groups: readonly string[] = []): Promise<void> {
-  for (const group of groups) {
-    if (!groupNames.includes(group)) throw new Error(`i18n: unknown catalog group '${group}'`);
-    requestedGroups.add(group);
+export async function ensureCatalog(locale: Locale): Promise<boolean> {
+  if (!urls[locale]) return true;
+  try {
+    await loadCatalog(locale);
+    return true;
+  } catch {
+    if (locale !== DEFAULT_LOCALE) await loadCatalog(DEFAULT_LOCALE).catch(() => undefined);
+    return false;
   }
-  if (!urls[locale]) return Promise.resolve();
-  return loadParts(locale).catch(() => {
-    // Never reject: callers await this from the root load, so a rejection would 500 every route.
-    return locale === DEFAULT_LOCALE ? undefined : loadParts(DEFAULT_LOCALE).catch(() => undefined);
-  });
 }
 
 if (import.meta.env.SSR) await ensureCatalog(DEFAULT_LOCALE);

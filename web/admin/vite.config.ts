@@ -6,7 +6,7 @@ import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
-import { i18nCatalogs } from '../kit/scripts/i18n-catalogs';
+import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 
 export default defineConfig({

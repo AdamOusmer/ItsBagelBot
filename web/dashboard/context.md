@@ -53,9 +53,8 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - `commands-bulk.ts` and `command-conflict.ts`: batch edits and command trigger/alias conflict checks.
 - `songqueue-live.ts`, `songqueue-view.ts`, `live-counters.ts`: bounded live feature read paths.
 - [public-directory.ts](src/lib/server/public-directory.ts): public-safe command/module projections.
-- [catalog-groups.ts](src/lib/catalog-groups.ts): lazy console catalog groups and the routes that load them;
-  a route using a grouped namespace (`discord`, `vars`, `replyVars`, `fetches`, `import`, Spotify/Govee setup)
-  must be listed or its text renders as raw keys. `scripts/assert-route-budgets.ts` holds per-route load budgets.
+- `scripts/assert-route-budgets.ts` holds per-route initial-load budgets; the console catalog (admin namespace
+  excluded) is one preloaded JSON per locale.
 - [live-hub.ts](src/lib/server/live-hub.ts): per-board invalidation fanout; `routes/events/+server.ts`
   exposes owner-only SSE with constant invalidation payloads, without revealing scope names.
 

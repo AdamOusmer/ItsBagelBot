@@ -210,7 +210,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         html = html.replace('lang="en"', `lang="${locale}"`);
         langPatched = true;
       }
-      return preloadCatalog(html, locale, event.route.id);
+      return preloadCatalog(html, locale);
     }
   });
 

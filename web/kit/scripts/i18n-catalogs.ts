@@ -3,19 +3,21 @@
 
 import { createHash } from 'node:crypto';
 import type { Plugin } from 'vite';
-import type { MessageTree } from '../lib/i18n/types';
-import { LOCALES_DIR, consoleLocales, readConsoleTree } from '../lib/i18n/tree-fs';
+import type { MessageTree } from '../lib/i18n/types.ts';
+import { LOCALES_DIR, consoleLocales, readConsoleTree } from '../lib/i18n/tree-fs.ts';
 
 const VIRTUAL = 'virtual:bagel-i18n';
 const DATA = `${VIRTUAL}/data/`;
 const URL_DIR = '_app/immutable/i18n';
-const CORE = 'core';
 
-type Groups = Record<string, string[]>;
+interface Source {
+  locales: () => string[];
+  read: (locale: string) => MessageTree;
+}
 
 interface Options {
   exclude: ReadonlySet<string>;
-  groups: Groups;
+  source: Source;
 }
 
 interface Catalogs {
@@ -23,7 +25,7 @@ interface Catalogs {
   names: Record<string, string>;
   data: Record<string, string>;
   files: Record<string, string>;
-  urls: Record<string, Record<string, string>>;
+  urls: Record<string, string>;
 }
 
 const isBranch = (node: unknown): node is MessageTree => typeof node === 'object' && node !== null && !Array.isArray(node);
@@ -37,25 +39,17 @@ function overlay(base: MessageTree, top: MessageTree): MessageTree {
   return out;
 }
 
-function groupOwners(groups: Groups): Map<string, string> {
-  const owner = new Map<string, string>();
-  for (const [group, namespaces] of Object.entries(groups)) {
-    for (const namespace of namespaces) {
-      if (owner.has(namespace)) throw new Error(`i18n: namespace ${namespace} is in groups ${owner.get(namespace)} and ${group}`);
-      owner.set(namespace, group);
-    }
-  }
-  return owner;
+function leafPaths(tree: MessageTree, prefix = ''): string[] {
+  return Object.entries(tree).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return isBranch(value) ? leafPaths(value, path) : [path];
+  });
 }
 
-function partition(tree: MessageTree, { exclude, groups }: Options): Record<string, MessageTree> {
-  const owner = groupOwners(groups);
-  const parts: Record<string, MessageTree> = { [CORE]: {} };
-  for (const name of Object.keys(groups)) parts[name] = {};
-  for (const [namespace, value] of Object.entries(tree).filter(([namespace]) => !exclude.has(namespace))) {
-    parts[owner.get(namespace) ?? CORE][namespace] = value;
-  }
-  return parts;
+function assertEnglishKeys(locale: string, english: MessageTree, merged: MessageTree): void {
+  const present = new Set(leafPaths(merged));
+  const missing = leafPaths(english).filter((path) => !present.has(path));
+  if (missing.length) throw new Error(`i18n: ${locale} catalog lacks ${missing.length} English key(s), first ${missing[0]}`);
 }
 
 function langName(tree: MessageTree, locale: string): string {
@@ -63,42 +57,39 @@ function langName(tree: MessageTree, locale: string): string {
   return typeof name === 'string' ? name : locale;
 }
 
-function emitParts(locale: string, merged: MessageTree, options: Options, out: Catalogs): void {
-  out.urls[locale] = {};
-  for (const [part, tree] of Object.entries(partition(merged, options))) {
-    if (part !== CORE && Object.keys(tree).length === 0) continue;
-    const body = JSON.stringify(tree);
-    const hash = createHash('sha256').update(body).digest('hex').slice(0, 10);
-    const fileName = `${URL_DIR}/${locale}.${part}.${hash}.json`;
-    out.files[fileName] = body;
-    out.urls[locale][part] = `/${fileName}`;
-  }
+function without(tree: MessageTree, exclude: ReadonlySet<string>): MessageTree {
+  return Object.fromEntries(Object.entries(tree).filter(([namespace]) => !exclude.has(namespace)));
 }
 
-function assemble(options: Options): Catalogs {
-  const locales = consoleLocales();
-  const english = readConsoleTree('en');
+function assemble({ exclude, source }: Options): Catalogs {
+  const locales = source.locales();
+  const english = without(source.read('en'), exclude);
   const out: Catalogs = { locales, names: {}, data: {}, files: {}, urls: {} };
   for (const locale of locales) {
-    const merged = locale === 'en' ? english : overlay(english, readConsoleTree(locale));
+    const merged = locale === 'en' ? english : overlay(english, without(source.read(locale), exclude));
+    assertEnglishKeys(locale, english, merged);
+    const body = JSON.stringify(merged);
+    const hash = createHash('sha256').update(body).digest('hex').slice(0, 10);
+    const fileName = `${URL_DIR}/${locale}.${hash}.json`;
     out.names[locale] = langName(merged, locale);
-    out.data[locale] = JSON.stringify(Object.fromEntries(Object.entries(merged).filter(([namespace]) => !options.exclude.has(namespace))));
-    emitParts(locale, merged, options, out);
+    out.data[locale] = body;
+    out.files[fileName] = body;
+    out.urls[locale] = `/${fileName}`;
   }
   return out;
 }
 
 interface PluginOptions {
   exclude?: string[];
-  groups?: Groups;
+  source?: Source;
 }
 
 /**
  * Serves the console catalog as one merged tree per locale. The server imports each locale whole; the browser
- * fetches a core part plus the lazy groups a route names, each a content-hashed asset the server can also name.
+ * fetches one content-hashed asset per locale that the server can also name.
  */
-export function i18nCatalogs({ exclude = [], groups = {} }: PluginOptions = {}): Plugin {
-  const options: Options = { exclude: new Set(exclude), groups };
+export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales, read: readConsoleTree } }: PluginOptions = {}): Plugin {
+  const options: Options = { exclude: new Set(exclude), source };
   let cached: Catalogs | undefined;
   const catalogs = () => (cached ??= assemble(options));
 
@@ -119,7 +110,6 @@ export function i18nCatalogs({ exclude = [], groups = {} }: PluginOptions = {}):
       return [
         `export const locales = ${JSON.stringify(locales)};`,
         `export const localeNames = ${JSON.stringify(names)};`,
-        `export const groupNames = ${JSON.stringify(Object.keys(groups))};`,
         `export const urls = ${JSON.stringify(urls)};`,
         `export const loaders = {${loaders}};`
       ].join('\n');

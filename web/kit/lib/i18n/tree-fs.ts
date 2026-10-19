@@ -4,9 +4,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assembleCatalogs, type CatalogFile } from './tree';
-import { flatCatalogs, type FlatCatalogs, type FlatTree } from './flat';
-import type { Locale, MessageTree } from './types';
+import { assembleCatalogs, type CatalogFile } from './tree.ts';
+import { flatCatalogs, type FlatCatalogs, type FlatTree } from './flat.ts';
+import type { Locale, MessageTree } from './types.ts';
 
 // Walks up: the marketing SSG build runs this module from web/marketing/dist/.prerender/chunks.
 function findLocalesDir(start: string): string {

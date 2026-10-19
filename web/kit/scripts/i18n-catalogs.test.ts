@@ -17,45 +17,38 @@ function build(options: Parameters<typeof i18nCatalogs>[0]) {
   plugin.generateBundle.call({ environment: { name: 'client' }, emitFile });
   const entry = plugin.load(String(plugin.resolveId('virtual:bagel-i18n')), { ssr: false }) as string;
   const exported = (name: string) => JSON.parse(new RegExp(`export const ${name} = (.*);`).exec(entry)![1]);
-  return { plugin, emitted, urls: exported('urls') as Record<string, Record<string, string>>, names: exported('localeNames') };
+  return { plugin, emitted, urls: exported('urls') as Record<string, string>, names: exported('localeNames') };
 }
 
-const GROUPS = { discord: ['discord'], editor: ['vars', 'replyVars'] };
-
 describe('i18nCatalogs', () => {
-  const { emitted, urls, names } = build({ exclude: ['admin'], groups: GROUPS });
+  const { emitted, urls, names } = build({ exclude: ['admin'] });
+  const catalog = (locale: string) => JSON.parse(emitted[urls[locale].slice(1)]);
 
-  test('splits every locale into core and groups that cover the tree without overlap', () => {
+  test('emits one file per locale holding the whole tree minus exclusions', () => {
     for (const locale of consoleLocales()) {
-      const parts = Object.values(urls[locale]).map((url) => JSON.parse(emitted[url.slice(1)]));
-      const namespaces = parts.flatMap((part) => Object.keys(part));
-      expect(new Set(namespaces).size).toBe(namespaces.length);
       const expected = Object.keys(readConsoleTree(locale)).filter((namespace) => namespace !== 'admin');
-      expect(namespaces.sort()).toEqual(expected.sort());
+      expect(Object.keys(catalog(locale)).sort()).toEqual(expected.sort());
     }
   });
 
-  test('keeps excluded namespaces out of every part', () => {
-    expect(Object.values(urls.en).some((url) => 'admin' in JSON.parse(emitted[url.slice(1)]))).toBe(false);
-  });
-
-  test('puts group namespaces only in their group', () => {
-    expect(Object.keys(JSON.parse(emitted[urls.en.discord.slice(1)]))).toEqual(['discord']);
-    expect(Object.keys(JSON.parse(emitted[urls.en.core.slice(1)]))).not.toContain('vars');
+  test('renders a key present only in English as English for other locales', () => {
+    const english = catalog('en');
+    const french = catalog('fr');
+    expect(french.lang.name).toBe('Français');
+    expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
   });
 
   test('names assets by content so server and browser builds agree', () => {
-    const again = build({ exclude: ['admin'], groups: GROUPS });
-    expect(again.urls).toEqual(urls);
-    expect(urls.en.core).toMatch(/^\/_app\/immutable\/i18n\/en\.core\.[0-9a-f]{10}\.json$/);
+    expect(build({ exclude: ['admin'] }).urls).toEqual(urls);
+    expect(urls.en).toMatch(/^\/_app\/immutable\/i18n\/en\.[0-9a-f]{10}\.json$/);
   });
 
   test('exposes locale display names without loading catalogs', () => {
-    expect(names.fr).toBe(readConsoleTree('fr').lang && (readConsoleTree('fr').lang as { name: string }).name);
+    expect(names.fr).toBe('Français');
   });
 
-  test('admin builds without exclusions keep the admin namespace in core', () => {
+  test('admin builds without exclusions keep the admin namespace', () => {
     const full = build({});
-    expect(Object.keys(JSON.parse(full.emitted[full.urls.en.core.slice(1)]))).toContain('admin');
+    expect(Object.keys(JSON.parse(full.emitted[full.urls.en.slice(1)]))).toContain('admin');
   });
 });
