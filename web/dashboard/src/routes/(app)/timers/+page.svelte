@@ -29,9 +29,10 @@
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
-  import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadTimerEditor = () => import('$lib/components/timers/TimerEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
@@ -184,7 +185,7 @@
   }
 </script>
 
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadTimerEditor]}>
   <PageHead eyebrow={t('timers.eyebrow')} description={t('timers.description')}>
     {t('timers.titlePre')}<em>{t('timers.titleEm')}</em>
   </PageHead>
@@ -251,7 +252,9 @@
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" smooth>
             {#key inspector.selectedId}
-              <TimerEditor bind:draft attempted={validationAttempted} />
+              {#await loadTimerEditor() then { default: TimerEditor }}
+                <TimerEditor bind:draft attempted={validationAttempted} />
+              {/await}
             {/key}
           </Scroller>
           <EditorFooter

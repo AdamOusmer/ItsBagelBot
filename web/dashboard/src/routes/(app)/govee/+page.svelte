@@ -35,9 +35,10 @@
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
-  import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
   import GoveeSetup from '$lib/components/govee/GoveeSetup.svelte';
   import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '$lib/components/govee/govee-draft';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadGoveeRewardEditor = () => import('$lib/components/govee/GoveeRewardEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
@@ -238,7 +239,7 @@
 {#if showSetup}
   <GoveeSetup name={data.displayName} devices={data.devices} preview={data.setupPreview === true} onFinish={() => (setupOpen = false)} />
 {:else}
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadGoveeRewardEditor]}>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
   </PageHead>
@@ -352,14 +353,16 @@
               <input type="hidden" name="deviceName" value={selected.name} />
               <Scroller fill padding="16px" smooth>
                 {#key selected.device}
-                  <GoveeRewardEditor
-                    bind:draft
-                    colors={data.colors}
-                    canDelete={!!selectedBinding}
-                    {busy}
-                    attempted={validationAttempted}
-                    onRequestDelete={() => (deleteTarget = selected)}
-                  />
+                  {#await loadGoveeRewardEditor() then { default: GoveeRewardEditor }}
+                    <GoveeRewardEditor
+                      bind:draft
+                      colors={data.colors}
+                      canDelete={!!selectedBinding}
+                      {busy}
+                      attempted={validationAttempted}
+                      onRequestDelete={() => (deleteTarget = selected)}
+                    />
+                  {/await}
                 {/key}
               </Scroller>
               <EditorFooter

@@ -31,11 +31,11 @@
   import {
     getI18n,
     MasterToggle,
-    moduleDef,
     actionPayload,
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
+  import { QUOTES_MODULE } from '@bagel/kit/catalog/quotes';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
@@ -65,7 +65,7 @@
     }
   });
 
-  const quoteCommands = moduleDef('quotes')?.commands ?? [];
+  const quoteCommands = QUOTES_MODULE.commands ?? [];
 
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },

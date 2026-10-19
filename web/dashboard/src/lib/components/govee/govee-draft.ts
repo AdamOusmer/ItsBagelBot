@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { moduleDef, namespaceReplyTemplate, type GoveeBinding, type GoveeDevice } from '@bagel/kit';
+import { namespaceReplyTemplate, type GoveeBinding, type GoveeDevice } from '@bagel/kit';
+import { GOVEE_MODULE } from '@bagel/kit/catalog/govee';
 
 export interface GoveeDraft {
   title: string;
@@ -17,7 +18,7 @@ export interface GoveeDraft {
 const COST_MAX = 10_000_000;
 export const GOVEE_COOLDOWN_MAX = 604_800;
 
-const reply = moduleDef('govee')!.replies.find((r) => r.key === 'reply')!;
+const reply = GOVEE_MODULE.replies.find((r) => r.key === 'reply')!;
 
 export function namespaceGoveeReply(message: string): string {
   return namespaceReplyTemplate('govee', reply, message);

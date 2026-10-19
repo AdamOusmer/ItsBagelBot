@@ -1,13 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { moduleDef, namespaceReplyTemplate, type ChannelPointReward } from '@bagel/kit';
+import { namespaceReplyTemplate, type ChannelPointReward } from '@bagel/kit';
+import { CHANNELPOINTS_MODULE } from '@bagel/kit/catalog/channelpoints';
 
 export const REWARD_DEFAULT_COLOR = '#9147ff';
 const COST_MAX = 10_000_000;
 const COOLDOWN_MAX = 604_800;
 
-const reply = moduleDef('channelpoints')!.replies.find((r) => r.key === 'reply')!;
+const reply = CHANNELPOINTS_MODULE.replies.find((r) => r.key === 'reply')!;
 
 export function namespaceRewardMessage(message: string): string {
   return namespaceReplyTemplate('channelpoints', reply, message);

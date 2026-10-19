@@ -31,8 +31,9 @@
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
-  import RewardEditor from '$lib/components/channelpoints/RewardEditor.svelte';
   import { namespaceRewardMessage, rewardDraftFrom, rewardErrors } from '$lib/components/channelpoints/reward-draft';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadRewardEditor = () => import('$lib/components/channelpoints/RewardEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
@@ -195,7 +196,7 @@
   );
 </script>
 
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadRewardEditor]}>
   <PageHead eyebrow={t('channelpoints.eyebrow')} description={t('channelpoints.description')}>
     {t('channelpoints.titlePre')}<em>{t('channelpoints.titleEm')}</em>
   </PageHead>
@@ -271,7 +272,9 @@
         >
           <Scroller fill padding="16px" smooth>
             {#key inspector.selectedId}
-              <RewardEditor bind:draft bind:counterOn attempted={validationAttempted} />
+              {#await loadRewardEditor() then { default: RewardEditor }}
+                <RewardEditor bind:draft bind:counterOn attempted={validationAttempted} />
+              {/await}
             {/key}
           </Scroller>
           <EditorFooter

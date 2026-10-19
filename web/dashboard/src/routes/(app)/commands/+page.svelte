@@ -47,7 +47,6 @@
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
-  import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
   import BulkBar from '$lib/components/commands/BulkBar.svelte';
   import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
@@ -56,9 +55,11 @@
   import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
   import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
   import type { Starter } from '$lib/components/commands/starters';
-  import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { loadDraft, clearDraft, draftedNames, draftsMatch, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadCommandEditor = () => import('$lib/components/commands/CommandEditor.svelte');
+  const loadBuiltinInspector = () => import('$lib/components/commands/BuiltinInspector.svelte');
+  const loadChatPreview = () => import('$lib/components/commands/ChatPreview.svelte');
 
   let { data } = $props();
 
@@ -850,7 +851,7 @@
   }
 </script>
 
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadCommandEditor, loadBuiltinInspector, loadChatPreview]}>
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
     {#snippet trailing()}
@@ -988,35 +989,39 @@
           {@const def = builtinDef(selectedCmd.name)}
           {#if def}
             <Scroller fill padding="16px" smooth>
-              <BuiltinInspector
-                command={selectedCmd}
-                {def}
-                toggleSubmit={toggleSubmit(selectedCmd)}
-                replySubmit={replySubmit(selectedCmd)}
-                accessSubmit={accessSubmit(selectedCmd)}
-                {busy}
-              />
+              {#await loadBuiltinInspector() then { default: BuiltinInspector }}
+                <BuiltinInspector
+                  command={selectedCmd}
+                  {def}
+                  toggleSubmit={toggleSubmit(selectedCmd)}
+                  replySubmit={replySubmit(selectedCmd)}
+                  accessSubmit={accessSubmit(selectedCmd)}
+                  {busy}
+                />
+              {/await}
             </Scroller>
           {/if}
         {:else}
           {#key expanded + '#' + editorGen}
-            <CommandEditor
-              bind:draft={editorDraft}
-              board={data.board}
-              {serverErrors}
-              status={footerStatus()}
-              dirty={isDirty}
-              canSave={editorDraft.edit ? isDirty : true}
-              {fetchDefs}
-              fetchKeys={data.keys ?? []}
-              onFetchDefsChanged={(next) => (fetchDefs = next)}
-              onCancel={closeEditor}
-              onSubmit={saveSubmit}
-              liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
-              onToggleActive={setSelectedActive}
-              {customNames}
-              onOpenExisting={openExisting}
-            />
+            {#await loadCommandEditor() then { default: CommandEditor }}
+              <CommandEditor
+                bind:draft={editorDraft}
+                board={data.board}
+                {serverErrors}
+                status={footerStatus()}
+                dirty={isDirty}
+                canSave={editorDraft.edit ? isDirty : true}
+                {fetchDefs}
+                fetchKeys={data.keys ?? []}
+                onFetchDefsChanged={(next) => (fetchDefs = next)}
+                onCancel={closeEditor}
+                onSubmit={saveSubmit}
+                liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
+                onToggleActive={setSelectedActive}
+                {customNames}
+                onOpenExisting={openExisting}
+              />
+            {/await}
           {/key}
         {/if}
       </InspectorSurface>
@@ -1042,7 +1047,9 @@
         <Text as="span" size="xs" mono tone="muted">{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</Text>
       {/if}
     </div>
-    <ChatPreview name={composeDraft.name} response={composeDraft.response} />
+    {#await loadChatPreview() then { default: ChatPreview }}
+      <ChatPreview name={composeDraft.name} response={composeDraft.response} />
+    {/await}
   {/if}
 </ConfirmDialog>
 
