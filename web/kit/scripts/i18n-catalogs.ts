@@ -13,6 +13,19 @@ const CORE = 'core';
 
 type Groups = Record<string, string[]>;
 
+interface Options {
+  exclude: ReadonlySet<string>;
+  groups: Groups;
+}
+
+interface Catalogs {
+  locales: string[];
+  names: Record<string, string>;
+  data: Record<string, string>;
+  files: Record<string, string>;
+  urls: Record<string, Record<string, string>>;
+}
+
 const isBranch = (node: unknown): node is MessageTree => typeof node === 'object' && node !== null && !Array.isArray(node);
 
 function overlay(base: MessageTree, top: MessageTree): MessageTree {
@@ -24,9 +37,7 @@ function overlay(base: MessageTree, top: MessageTree): MessageTree {
   return out;
 }
 
-function partition(tree: MessageTree, exclude: ReadonlySet<string>, groups: Groups): Record<string, MessageTree> {
-  const parts: Record<string, MessageTree> = { [CORE]: {} };
-  for (const name of Object.keys(groups)) parts[name] = {};
+function groupOwners(groups: Groups): Map<string, string> {
   const owner = new Map<string, string>();
   for (const [group, namespaces] of Object.entries(groups)) {
     for (const namespace of namespaces) {
@@ -34,43 +45,47 @@ function partition(tree: MessageTree, exclude: ReadonlySet<string>, groups: Grou
       owner.set(namespace, group);
     }
   }
-  for (const [namespace, value] of Object.entries(tree)) {
-    if (exclude.has(namespace)) continue;
+  return owner;
+}
+
+function partition(tree: MessageTree, { exclude, groups }: Options): Record<string, MessageTree> {
+  const owner = groupOwners(groups);
+  const parts: Record<string, MessageTree> = { [CORE]: {} };
+  for (const name of Object.keys(groups)) parts[name] = {};
+  for (const [namespace, value] of Object.entries(tree).filter(([namespace]) => !exclude.has(namespace))) {
     parts[owner.get(namespace) ?? CORE][namespace] = value;
   }
   return parts;
 }
 
-interface Options {
-  exclude: ReadonlySet<string>;
-  groups: Groups;
+function langName(tree: MessageTree, locale: string): string {
+  const name = isBranch(tree.lang) ? tree.lang.name : undefined;
+  return typeof name === 'string' ? name : locale;
 }
 
-function assemble({ exclude, groups }: Options) {
-  const locales = consoleLocales();
-  const trees = Object.fromEntries(locales.map((locale) => [locale, readConsoleTree(locale)]));
-  if (!trees.en) throw new Error('i18n: missing the en console catalog');
-
-  const data: Record<string, string> = {};
-  const files: Record<string, string> = {};
-  const urls: Record<string, Record<string, string>> = {};
-  const names: Record<string, string> = {};
-  for (const locale of locales) {
-    const merged = locale === 'en' ? trees.en : overlay(trees.en, trees[locale]);
-    const langName = isBranch(merged.lang) ? merged.lang.name : undefined;
-    names[locale] = typeof langName === 'string' ? langName : locale;
-    data[locale] = JSON.stringify(Object.fromEntries(Object.entries(merged).filter(([namespace]) => !exclude.has(namespace))));
-    urls[locale] = {};
-    for (const [part, tree] of Object.entries(partition(merged, exclude, groups))) {
-      if (part !== CORE && Object.keys(tree).length === 0) continue;
-      const body = JSON.stringify(tree);
-      const hash = createHash('sha256').update(body).digest('hex').slice(0, 10);
-      const fileName = `${URL_DIR}/${locale}.${part}.${hash}.json`;
-      files[fileName] = body;
-      urls[locale][part] = `/${fileName}`;
-    }
+function emitParts(locale: string, merged: MessageTree, options: Options, out: Catalogs): void {
+  out.urls[locale] = {};
+  for (const [part, tree] of Object.entries(partition(merged, options))) {
+    if (part !== CORE && Object.keys(tree).length === 0) continue;
+    const body = JSON.stringify(tree);
+    const hash = createHash('sha256').update(body).digest('hex').slice(0, 10);
+    const fileName = `${URL_DIR}/${locale}.${part}.${hash}.json`;
+    out.files[fileName] = body;
+    out.urls[locale][part] = `/${fileName}`;
   }
-  return { locales, names, data, files, urls };
+}
+
+function assemble(options: Options): Catalogs {
+  const locales = consoleLocales();
+  const english = readConsoleTree('en');
+  const out: Catalogs = { locales, names: {}, data: {}, files: {}, urls: {} };
+  for (const locale of locales) {
+    const merged = locale === 'en' ? english : overlay(english, readConsoleTree(locale));
+    out.names[locale] = langName(merged, locale);
+    out.data[locale] = JSON.stringify(Object.fromEntries(Object.entries(merged).filter(([namespace]) => !options.exclude.has(namespace))));
+    emitParts(locale, merged, options, out);
+  }
+  return out;
 }
 
 interface PluginOptions {
@@ -84,7 +99,7 @@ interface PluginOptions {
  */
 export function i18nCatalogs({ exclude = [], groups = {} }: PluginOptions = {}): Plugin {
   const options: Options = { exclude: new Set(exclude), groups };
-  let cached: ReturnType<typeof assemble> | undefined;
+  let cached: Catalogs | undefined;
   const catalogs = () => (cached ??= assemble(options));
 
   return {
