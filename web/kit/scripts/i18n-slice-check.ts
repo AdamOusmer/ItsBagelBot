@@ -43,7 +43,7 @@ class Coverage {
   }
 
   private context(unit: string, seen: ReadonlySet<string>): Set<string> {
-    if (unit === ENTRY) return this.delivered(this.node(ROOT_LAYOUT, 'entry'));
+    if (unit === ENTRY) return new Set();
     const index = nodeIndex(unit);
     return index === undefined ? this.guaranteed(unit, seen) : this.withNode(index);
   }

@@ -109,7 +109,12 @@ export class SliceBuilder {
   private computeCovered(unit: string): Set<string> {
     const index = nodeIndex(unit);
     if (index !== undefined) return union([...(this.graph.ancestors.get(index) ?? [ROOT_LAYOUT])].map((ancestor) => this.demand(this.nodeUnit(ancestor))));
-    return intersect(this.contexts(unit).map((context) => union([this.demand(context), this.covered(context)])));
+    return intersect(this.contexts(unit).map((context) => this.loadedBy(context)));
+  }
+
+  /** Keys certainly registered once `context` has imported something; the entry chunks register none themselves. */
+  private loadedBy(context: string): Set<string> {
+    return context === ENTRY ? new Set() : union([this.demand(context), this.covered(context)]);
   }
 
   ownKeys(unit: string): Set<string> {
