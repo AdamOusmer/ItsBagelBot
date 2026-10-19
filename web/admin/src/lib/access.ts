@@ -27,6 +27,7 @@ export const ROLE_FOR = {
   'counters.manage': 'owner',
   'staff.manage': 'admin',
   'audit.read': 'admin',
+  'analytics.read': 'admin',
   'secrets.manage': 'owner',
   'deploys.manage': 'owner',
   'bot.token': 'owner'

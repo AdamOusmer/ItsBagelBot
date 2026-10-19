@@ -14,6 +14,8 @@ import type {
   ServiceHealth
 } from './services';
 import type { AdminIdentity } from './access';
+import type { AnalyticsReads } from '$lib/analytics-page';
+import type { AnalyticsRow } from '$lib/analytics-view';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
@@ -483,4 +485,64 @@ export function demoDeployApi(): DeployApi {
     approve: same,
     watch: demoWatch
   };
+}
+
+export function demoAnalytics(days = 30): AnalyticsReads {
+  const today = Date.UTC(2026, 9, 18);
+  const dayAt = (i: number) => new Date(today - (days - i) * 86_400_000).toISOString().slice(0, 10);
+  const row = (start: string, metric: string, dims: string[], value: number): AnalyticsRow => ({
+    start,
+    metric,
+    dims,
+    value: value < 10 && value > 0 ? 0 : value,
+    suppressed: value < 10 && value > 0
+  });
+  const day: AnalyticsRow[] = [];
+  for (let i = 0; i < days; i++) {
+    const at = dayAt(i);
+    const wave = 120 + Math.round(30 * Math.sin(i / 3)) + i * 2;
+    day.push(
+      row(at, 'channels.active', [], wave),
+      row(at, 'chat.messages', [], wave * 410),
+      row(at, 'chat.answered', [], wave * 37),
+      row(at, 'channels.live', [], Math.round(wave * 0.6)),
+      row(at, 'lifecycle', ['signup'], 14 + (i % 5)),
+      row(at, 'lifecycle', ['bot_enabled'], 11 + (i % 4)),
+      row(at, 'lifecycle', ['revoked'], i % 3),
+      row(at, 'command.uses', ['followage'], 900 + i * 7),
+      row(at, 'command.uses', ['uptime'], 420 + i * 3),
+      row(at, 'command.uses', ['custom'], 2600 + i * 11),
+      row(at, 'module.events', ['alerts'], 1300 + i * 9),
+      row(at, 'module.events', ['loyalty'], 780 + i * 4),
+      row(at, 'module.errors', ['loyalty', 'timeout'], 12),
+      row(at, 'module.latency', ['alerts', 'lt10ms'], 1250),
+      row(at, 'module.latency', ['loyalty', 'lt50ms'], 700),
+      row(at, 'module.latency', ['loyalty', 'lt1s'], 90),
+      row(at, 'web.views', ['dashboard', '/(app)/commands'], 340 + i),
+      row(at, 'web.actions', ['dashboard', '/(app)/timers?/toggle', 'ok'], 60),
+      row(at, 'web.actions', ['dashboard', '/(app)/timers?/toggle', 'invalid'], 14),
+      row(at, 'outgress.failures', ['ratelimited'], 22)
+    );
+  }
+  const last = dayAt(days - 1);
+  day.push(
+    row(last, 'accounts.total', ['free'], 2140),
+    row(last, 'accounts.total', ['paid'], 186),
+    row(last, 'accounts.total', ['vip'], 4),
+    row(last, 'accounts.bot_enabled', ['free'], 1710),
+    row(last, 'accounts.bot_enabled', ['paid'], 179),
+    row(last, 'accounts.onboarded', [], 1980),
+    row(last, 'accounts.locale', ['en'], 1400),
+    row(last, 'accounts.locale', ['fr'], 520)
+  );
+  const week = [row(dayAt(days - 7), 'channels.active', [], 410), row(dayAt(days - 7), 'module.active', ['alerts'], 380)];
+  const month = [row('2026-10-01', 'channels.active', [], 760)];
+  const cohortWeeks = [
+    row('2026-09-21', 'cohort.active', ['2026-W39'], 80),
+    row('2026-09-28', 'cohort.active', ['2026-W39'], 61),
+    row('2026-10-05', 'cohort.active', ['2026-W39'], 55),
+    row('2026-09-28', 'cohort.active', ['2026-W40'], 77),
+    row('2026-10-05', 'cohort.active', ['2026-W40'], 58)
+  ];
+  return { day, week, month, cohortWeeks, cohortDays: day };
 }
