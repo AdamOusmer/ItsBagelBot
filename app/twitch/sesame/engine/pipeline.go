@@ -169,7 +169,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
-	traceEnvelope(ctx, env, broadcasterID)
+	traceEnvelope(ctx, env)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil

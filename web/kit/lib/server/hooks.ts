@@ -19,7 +19,6 @@ export type HookEvent = {
 export type TransactionAgent = {
   setTransactionName(name: string): void;
   addCustomAttributes(atts: Record<string, string | number | boolean>): void;
-  setUserID(id: string): void;
 };
 
 export type ErrorAgent = {
@@ -65,7 +64,6 @@ export function tagTransaction(
     'http.method': event.request.method,
     'enduser.authenticated': !!session
   });
-  if (session?.user_id) nr.setUserID(String(session.user_id));
 }
 
 export function preloadStrategy(input: { type: string }): boolean {
