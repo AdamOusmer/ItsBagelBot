@@ -56,7 +56,7 @@ func (f fixture) recordYesterday(t *testing.T) {
 		rec.Distinct(catalog.ChannelsActive, id)
 	}
 	rec.Add(catalog.CommandUses, 40, "followage")
-	rec.Max(catalog.LivePeak, 11)
+	rec.Max(catalog.AccountsOnboarded, 11)
 	rec.Close()
 }
 
@@ -97,7 +97,7 @@ func TestRunFoldsClosedDayAndClearsValkey(t *testing.T) {
 
 	require.Equal(t, map[string]int64{"lifecycle|signup": 12}, f.day(t, catalog.Lifecycle))
 	require.Equal(t, map[string]int64{"command.uses|followage": 40}, f.day(t, catalog.CommandUses))
-	require.Equal(t, map[string]int64{"live.peak": 11}, f.day(t, catalog.LivePeak))
+	require.Equal(t, map[string]int64{"accounts.onboarded": 11}, f.day(t, catalog.AccountsOnboarded))
 	require.Equal(t, map[string]int64{"channels.active": 15}, f.day(t, catalog.ChannelsActive))
 	require.Equal(t, map[string]int64{"accounts.total|free": 2, "accounts.total|paid": 1}, f.day(t, catalog.AccountsTotal))
 

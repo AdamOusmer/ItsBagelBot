@@ -53,8 +53,8 @@ const (
 	CustomCommands      Metric = "custom.commands"
 	WebViews            Metric = "web.views"
 	WebActions          Metric = "web.actions"
-	LiveMinutes         Metric = "live.minutes"
-	LivePeak            Metric = "live.peak"
+	LiveStarts          Metric = "live.starts"
+	ChannelsLive        Metric = "channels.live"
 	ChannelsActive      Metric = "channels.active"
 	ModuleActive        Metric = "module.active"
 	CohortActive        Metric = "cohort.active"
@@ -118,8 +118,8 @@ var catalog = map[Metric]Spec{
 	CustomCommands:      {Type: Counter, Dims: []Kind{KindChange}},
 	WebViews:            {Type: Counter, Dims: []Kind{KindApp, KindRoute}},
 	WebActions:          {Type: Counter, Dims: []Kind{KindApp, KindAction, KindOutcome}},
-	LiveMinutes:         {Type: Counter},
-	LivePeak:            {Type: Gauge},
+	LiveStarts:          {Type: Counter},
+	ChannelsLive:        {Type: Distinct, Windows: Day | Week | Month},
 	ChannelsActive:      {Type: Distinct, Windows: Day | Week | Month},
 	ModuleActive:        {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
 	CohortActive:        {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -192,6 +193,7 @@ func (ev botModeration) request(uid uint64, current usersrpc.LifecycleReply) use
 func (w *Worker) reconcileModeration(ctx context.Context, ev botModeration, uid uint64, changed usersrpc.LifecycleReply) error {
 	w.reconcileNotice(ctx, uid, changed)
 	if changed.State.ChatRestriction != lifecycle.RestrictionNone {
+		w.analytics.Count(catalog.Lifecycle, "chat_banned")
 		return w.registry.SetSubState(ctx, ev.BroadcasterID, subStateBanned, "confirmed bot moderation")
 	}
 	if changed.State.RuntimeState == lifecycle.Recovering {

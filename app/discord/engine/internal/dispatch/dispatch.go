@@ -13,7 +13,9 @@ import (
 	"ItsBagelBot/app/discord/engine/internal/resolve"
 	"ItsBagelBot/app/discord/engine/module"
 	"ItsBagelBot/app/discord/engine/modules"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/discordstore"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -24,11 +26,12 @@ import (
 )
 
 type Dispatcher struct {
-	Registry *registry.Registry
-	Resolver resolve.Resolver
-	Store    discordstore.Store
-	Publish  modules.Publish
-	Log      *zap.Logger
+	Registry  *registry.Registry
+	Resolver  resolve.Resolver
+	Store     discordstore.Store
+	Publish   modules.Publish
+	Log       *zap.Logger
+	Analytics *analytics.Recorder
 }
 
 const dedupTTL = 2 * time.Minute
@@ -50,6 +53,10 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	if !ok {
 		return nil
 	}
+	if ev.Type == guildDelete {
+		d.recordGuildDelete(ev)
+		return nil
+	}
 
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
@@ -62,34 +69,50 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	return nil
 }
 
+const guildDelete = "GUILD_DELETE"
+
+// An outage also sends GUILD_DELETE, flagged unavailable; only a real removal counts.
+func (d *Dispatcher) recordGuildDelete(ev ddiscord.Event) {
+	gone, err := decode.Decode[struct {
+		Unavailable bool `json:"unavailable"`
+	}](ev.Raw)
+	if err == nil && !gone.Unavailable {
+		d.Analytics.Count(catalog.Lifecycle, "guild_removed")
+	}
+}
+
 func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
-	for _, h := range d.handlersFor(c.Event) {
+	metric, label, handlers := d.handlersFor(c.Event)
+	if len(handlers) > 0 {
+		d.Analytics.Count(metric, label)
+	}
+	for _, h := range handlers {
 		if err := h(ctx, c, emit); err != nil {
 			d.Log.Warn("discord module handler failed", zap.String("event_type", c.Event.Type), zap.Error(err))
 		}
 	}
 }
 
-func (d *Dispatcher) handlersFor(ev ddiscord.Event) []module.Handler {
+func (d *Dispatcher) handlersFor(ev ddiscord.Event) (catalog.Metric, string, []module.Handler) {
 	if ev.Type != "INTERACTION_CREATE" {
-		return d.Registry.Events(ev.Type)
+		return catalog.DiscordEvents, registry.EventLabel(ev.Type), d.Registry.Events(ev.Type)
 	}
 	in, err := decode.Decode[decode.InteractionEvent](ev.Raw)
 	if err != nil {
 		d.Log.Warn("dropping undecodable discord interaction",
 			zap.String("event_type", ev.Type), zap.String("guild_id", ev.GuildID), zap.Error(err))
-		return nil
+		return "", "", nil
 	}
 	if in.Data.CustomID != "" {
 		if h, ok := d.Registry.Button(in.Data.CustomID); ok {
-			return []module.Handler{h}
+			return catalog.DiscordInteractions, in.Data.CustomID, []module.Handler{h}
 		}
-		return nil
+		return "", "", nil
 	}
 	if h, ok := d.Registry.Slash(in.Data.Name); ok {
-		return []module.Handler{h}
+		return catalog.DiscordInteractions, in.Data.Name, []module.Handler{h}
 	}
-	return nil
+	return "", "", nil
 }
 
 // Total retry time must stay far below the ingress consumer's AckWait, or redelivery double-posts.

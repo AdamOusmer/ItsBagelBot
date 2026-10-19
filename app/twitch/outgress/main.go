@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"os"
 	"strconv"
@@ -94,7 +95,11 @@ func main() {
 
 	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
 
+	recorder := analytics.New(valkeyClient, log, nil)
+	defer recorder.Close()
+
 	tw := d.newTwitchClient(ctx)
+	tw.SetAttemptObserver(worker.CountHelixFailures(recorder))
 	defer tw.CloseIdleConnections()
 	warmupTwitch(ctx, tw, log)
 
@@ -124,6 +129,10 @@ func main() {
 
 	premium.SetFactPublisher(pub)
 	standard.SetFactPublisher(pub)
+
+	for _, w := range []*worker.Worker{premium, standard, system} {
+		w.SetAnalytics(recorder)
+	}
 
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
