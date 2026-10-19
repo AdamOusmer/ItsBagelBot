@@ -22,7 +22,6 @@ const (
 )
 
 type Store interface {
-	AnalyticsSnapshot(ctx context.Context, day time.Time) ([]repository.AnalyticsRow, error)
 	UpsertAnalytics(ctx context.Context, rows []repository.AnalyticsRow) (int, error)
 }
 
@@ -103,19 +102,15 @@ func (r *Rollup) collect(ctx context.Context, p period, now time.Time) ([]reposi
 	if err != nil {
 		return nil, nil, err
 	}
-	gauges, err := r.zset(ctx, p, catalog.GaugeKey(p.at))
-	if err != nil {
-		return nil, nil, err
-	}
-	rows := append(append(sketchRows, counters...), gauges...)
+	rows := append(sketchRows, counters...)
 	if catalog.Period(catalog.Day, p.at) == catalog.Period(catalog.Day, now.AddDate(0, 0, -1)) {
-		snapshot, err := r.store.AnalyticsSnapshot(ctx, p.at)
+		levels, err := r.levels(ctx, p)
 		if err != nil {
 			return nil, nil, err
 		}
-		rows = append(rows, snapshot...)
+		rows = append(rows, levels...)
 	}
-	return rows, append(keys, catalog.CounterKey(p.at), catalog.GaugeKey(p.at)), nil
+	return rows, append(keys, catalog.CounterKey(p.at)), nil
 }
 
 func (r *Rollup) sketches(ctx context.Context, p period) ([]repository.AnalyticsRow, []string, error) {
@@ -144,21 +139,21 @@ func (r *Rollup) hash(ctx context.Context, p period, key string) ([]repository.A
 	return rowsOf(p, fields), err
 }
 
-func (r *Rollup) zset(ctx context.Context, p period, key string) ([]repository.AnalyticsRow, error) {
-	members, err := r.vc.Do(ctx, r.vc.B().Zrange().Key(key).Min("0").Max("-1").Withscores().Build()).AsZScores()
-	fields := make(map[string]int64, len(members))
-	for _, m := range members {
-		fields[m.Member] = int64(m.Score)
-	}
-	return rowsOf(p, fields), err
-}
-
 func rowsOf(p period, fields map[string]int64) []repository.AnalyticsRow {
 	rows := make([]repository.AnalyticsRow, 0, len(fields))
 	for field, n := range fields {
 		rows = append(rows, row(p, field, n))
 	}
 	return rows
+}
+
+// Running totals are copied, never cleared; a drifted negative total reads as zero.
+func (r *Rollup) levels(ctx context.Context, p period) ([]repository.AnalyticsRow, error) {
+	rows, err := r.hash(ctx, p, catalog.LevelKey)
+	for i := range rows {
+		rows[i].Value = max(rows[i].Value, 0)
+	}
+	return rows, err
 }
 
 func row(p period, field string, value int64) repository.AnalyticsRow {

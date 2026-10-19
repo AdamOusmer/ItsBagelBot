@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
+	"ItsBagelBot/internal/analytics"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/crypto"
@@ -52,6 +53,8 @@ type SpotifyGrantStatus struct {
 type SpotifyCreds struct {
 	client *ent.Client
 	packer domaincrypto.Packer
+
+	analytics *analytics.Recorder
 }
 
 func NewSpotifyCreds(client *ent.Client, packer domaincrypto.Packer) *SpotifyCreds {
@@ -86,6 +89,16 @@ func (s *SpotifyCreds) write(ctx context.Context, userID SpotifyUserID, stmt fun
 	return db.WithExec(ctx, stmt)
 }
 
+// Only connect and disconnect paths are tracked; token refreshes never change the count.
+func (s *SpotifyCreds) trackedWrite(ctx context.Context, userID SpotifyUserID, run func() error) error {
+	done := s.track(ctx, uint64(userID))
+	if err := run(); err != nil {
+		return err
+	}
+	done()
+	return nil
+}
+
 func (s *SpotifyCreds) SetToken(ctx context.Context, userID SpotifyUserID, grant SpotifyGrant) error {
 	if grant.RefreshToken == "" {
 		return errors.New("empty spotify refresh token")
@@ -97,22 +110,24 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID SpotifyUserID, grant
 
 	// Must name columns, not UpdateNewValues, which would blank the stored app on every reconnect.
 	joined := strings.Join(grant.Scopes, " ")
-	return s.write(ctx, userID, func(ctx context.Context) error {
-		create := s.client.SpotifyCredential.Create().
-			SetUserID(uint64(userID)).
-			SetTokenEnc(sealed.Ciphertext)
-		if grant.Scopes != nil {
-			create = create.SetScopes(joined)
-		}
-		return create.
-			OnConflictColumns(spotifycredential.FieldUserID).
-			Update(func(u *ent.SpotifyCredentialUpsert) {
-				u.SetTokenEnc(sealed.Ciphertext).ClearRefreshFailedAt().SetUpdatedAt(time.Now())
-				if grant.Scopes != nil {
-					u.SetScopes(joined)
-				}
-			}).
-			Exec(ctx)
+	return s.trackedWrite(ctx, userID, func() error {
+		return s.write(ctx, userID, func(ctx context.Context) error {
+			create := s.client.SpotifyCredential.Create().
+				SetUserID(uint64(userID)).
+				SetTokenEnc(sealed.Ciphertext)
+			if grant.Scopes != nil {
+				create = create.SetScopes(joined)
+			}
+			return create.
+				OnConflictColumns(spotifycredential.FieldUserID).
+				Update(func(u *ent.SpotifyCredentialUpsert) {
+					u.SetTokenEnc(sealed.Ciphertext).ClearRefreshFailedAt().SetUpdatedAt(time.Now())
+					if grant.Scopes != nil {
+						u.SetScopes(joined)
+					}
+				}).
+				Exec(ctx)
+		})
 	})
 }
 
@@ -143,11 +158,13 @@ func (s *SpotifyCreds) SetApp(ctx context.Context, userID SpotifyUserID, app Spo
 }
 
 func (s *SpotifyCreds) ClearApp(ctx context.Context, userID SpotifyUserID) error {
-	return s.write(ctx, userID, func(ctx context.Context) error {
-		_, err := s.client.SpotifyCredential.Delete().
-			Where(spotifycredential.UserIDEQ(uint64(userID))).
-			Exec(ctx)
-		return err
+	return s.trackedWrite(ctx, userID, func() error {
+		return s.write(ctx, userID, func(ctx context.Context) error {
+			_, err := s.client.SpotifyCredential.Delete().
+				Where(spotifycredential.UserIDEQ(uint64(userID))).
+				Exec(ctx)
+			return err
+		})
 	})
 }
 
@@ -217,7 +234,9 @@ func (s *SpotifyCreds) appFromRow(row *ent.SpotifyCredential) (SpotifyApp, error
 }
 
 func (s *SpotifyCreds) ClearToken(ctx context.Context, userID SpotifyUserID) error {
-	return s.updateGrant(ctx, userID, (*ent.SpotifyCredentialUpdate).ClearTokenEnc, (*ent.SpotifyCredentialUpdate).ClearRefreshFailedAt)
+	return s.trackedWrite(ctx, userID, func() error {
+		return s.updateGrant(ctx, userID, (*ent.SpotifyCredentialUpdate).ClearTokenEnc, (*ent.SpotifyCredentialUpdate).ClearRefreshFailedAt)
+	})
 }
 
 func (s *SpotifyCreds) MarkTokenDead(ctx context.Context, userID SpotifyUserID, token string) error {

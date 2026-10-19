@@ -46,7 +46,10 @@
     "pages": "Vues de pages de la console",
     "actions": "Résultats de formulaires de la console",
     "locales": "Langues des comptes",
-    "pagesHidden": "Pages publiques masquées"
+    "pagesHidden": "Pages publiques masquées",
+    "customLibrary": "Bibliothèque de commandes personnalisées",
+    "breadth": "Modules activés par chaîne",
+    "integrations": "Intégrations connectées"
   },
   "column": {
     "label": "Nom",
@@ -66,6 +69,8 @@
     "denied": "Refusé",
     "signupWeek": "Semaine d'inscription",
     "signups": "Inscriptions",
-    "weekN": "Semaine {n}"
+    "weekN": "Semaine {n}",
+    "rowsOn": "Chaînes activées",
+    "rowsOff": "Chaînes désactivées"
   }
 }

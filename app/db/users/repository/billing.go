@@ -86,6 +86,7 @@ func isReplayedBilling(u *ent.User, req billingrpc.ApplyRequest) bool {
 }
 
 func (r *Users) saveBilling(ctx context.Context, u *ent.User, req billingrpc.ApplyRequest) (int, error) {
+	defer r.trackAccounts(ctx, req.UserID)()
 	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		q := r.client.User.Update().Where(
 			user.IDEQ(req.UserID),
@@ -215,6 +216,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	if err := validateAdminStatus(status, expiresAt); err != nil {
 		return err
 	}
+	counted := r.trackAccounts(ctx, id)
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		q := r.client.User.UpdateOneID(id).
 			SetStatus(status).
@@ -229,6 +231,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	if err != nil {
 		return err
 	}
+	counted()
 	if err := r.projectAccess(ctx, id, time.Now().UTC()); err != nil {
 		return err
 	}
@@ -267,6 +270,7 @@ func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Tim
 	if candidate.SubscriptionSource == "tebex" {
 		cutoff = now.Add(-tebexGrace)
 	}
+	counted := r.trackAccounts(ctx, candidate.ID)
 	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		q := r.client.User.Update().Where(
 			user.IDEQ(candidate.ID),
@@ -280,6 +284,7 @@ func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Tim
 	if err != nil || updated == 0 {
 		return false, err
 	}
+	counted()
 	r.analytics.Count(catalog.BillingEvents, "expired")
 	if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
 		return true, err

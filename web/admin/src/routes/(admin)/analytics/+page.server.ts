@@ -20,6 +20,10 @@ const DAILY = [
   'discord.interactions', 'discord.events', 'outgress.failures', 'onboarding.preset', 'module.toggles',
   'custom.commands', 'web.views', 'web.actions'
 ];
+const SNAPSHOTS = [
+  'modules.rows', 'modules.breadth', 'integrations.connected', 'custom.total', 'custom.perm',
+  'custom.flags', 'custom.channels'
+];
 const WEEKLY = ['channels.active', 'module.active', 'channels.live'];
 const MONTHLY = ['channels.active', 'channels.live'];
 
@@ -31,14 +35,15 @@ function windowDays(raw: string | null): number {
 async function read(actorId: string, days: number): Promise<AnalyticsReads> {
   const series = (w: AnalyticsWindow, metrics: string[], span: number) =>
     analyticsSeries(actorId, w, metrics, span);
-  const [day, week, month, cohortWeeks, cohortDays] = await Promise.all([
+  const [activity, snapshots, week, month, cohortWeeks, cohortDays] = await Promise.all([
     series('d', DAILY, days),
+    series('d', SNAPSHOTS, days),
     series('w', WEEKLY, days),
     series('m', MONTHLY, 400),
     series('w', ['cohort.active'], COHORT_DAYS),
     series('d', ['lifecycle'], COHORT_DAYS)
   ]);
-  return { day, week, month, cohortWeeks, cohortDays };
+  return { day: [...activity, ...snapshots], week, month, cohortWeeks, cohortDays };
 }
 
 const NONE: AnalyticsRow[] = [];

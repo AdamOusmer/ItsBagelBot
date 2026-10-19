@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"fmt"
 	"time"
@@ -99,7 +100,11 @@ func main() {
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
+	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
+	defer recorder.Close()
+
 	repo := repository.NewCommands(client, n.Pub, core.NR, log)
+	repo.SetAnalytics(recorder)
 	defer repo.Close(context.Background())
 	defer closeIntake() // stops intake before the repo flush above
 
@@ -109,6 +114,10 @@ func main() {
 	}
 
 	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
+	fetches.SetAnalytics(recorder)
+	go recorder.SeedOnce(core.Ctx, serviceName, []string{
+		"custom.total", "custom.perm", "custom.flags", "custom.channels", "integrations.connected|fetch_key",
+	}, repository.SeedAll(repo, fetches))
 	defer fetches.Close()
 
 	if err := registerConsumers(core.Ctx, core.NR, repo, fetches, n.Broadcast, n.Grouped, log); err != nil {

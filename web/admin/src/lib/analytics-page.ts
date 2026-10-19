@@ -86,10 +86,12 @@ function tiles(r: AnalyticsReads): Tile[] {
 
 function moduleTable(r: AnalyticsReads): Table {
   const weekly = latest(r.week, 'module.active');
+  const switches = latest(r.day, 'modules.rows');
   const names = new Set([
     ...byDim(r.day, 'module.events', 0, 200).map((l) => l.label),
     ...byDim(r.day, 'module.errors', 0, 200).map((l) => l.label),
-    ...weekly.map((row) => row.dims[0])
+    ...weekly.map((row) => row.dims[0]),
+    ...switches.map((row) => row.dims[0])
   ]);
   const rows = [...names].sort().map((name) => {
     const runs = cellFor(r.day, 'module.latency', (d) => d[0] === name);
@@ -98,6 +100,8 @@ function moduleTable(r: AnalyticsReads): Table {
     return {
       label: name,
       values: [
+        cellText(cellFor(switches, 'modules.rows', (d) => d[0] === name && d[1] === 'on')),
+        cellText(cellFor(switches, 'modules.rows', (d) => d[0] === name && d[1] === 'off')),
         cellText(cellFor(weekly, 'module.active', (d) => d[0] === name)),
         cellText(cellFor(r.day, 'module.events', (d) => d[0] === name)),
         cellText(errors),
@@ -106,7 +110,18 @@ function moduleTable(r: AnalyticsReads): Table {
       ]
     };
   });
-  return { key: 'modules', columns: ['weeklyChannels', 'outputs', 'errors', 'errorRate', 'slowRate'], rows };
+  return { key: 'modules', columns: ['rowsOn', 'rowsOff', 'weeklyChannels', 'outputs', 'errors', 'errorRate', 'slowRate'], rows };
+}
+
+function libraryTable(r: AnalyticsReads): Table {
+  const metrics = ['custom.channels', 'custom.total', 'custom.perm', 'custom.flags'];
+  const rows = metrics.flatMap((metric) =>
+    latest(r.day, metric).map((row) => ({
+      label: [metric.replace('custom.', ''), ...row.dims].join(' '),
+      values: [cellText({ value: row.value, partial: !!row.suppressed })]
+    }))
+  );
+  return { key: 'customLibrary', columns: ['count'], rows };
 }
 
 function tierTable(r: AnalyticsReads): Table {
@@ -144,6 +159,9 @@ export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
     list(r.day, { key: 'commands', metric: 'command.uses', limit: 30 }),
     matrix(r.day, { key: 'toggles', metric: 'module.toggles', labelAt: 0, colAt: 1, cols: ['on', 'off'] }),
     list(r.day, { key: 'customCommands', metric: 'custom.commands' }),
+    libraryTable(r),
+    list(latest(r.day, 'modules.breadth'), { key: 'breadth', metric: 'modules.breadth' }),
+    list(latest(r.day, 'integrations.connected'), { key: 'integrations', metric: 'integrations.connected' }),
     list(r.day, { key: 'discordInteractions', metric: 'discord.interactions' }),
     list(r.day, { key: 'discordEvents', metric: 'discord.events' }),
     list(r.day, { key: 'outgress', metric: 'outgress.failures' }),

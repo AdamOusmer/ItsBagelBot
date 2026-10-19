@@ -56,17 +56,18 @@ func (f fixture) recordYesterday(t *testing.T) {
 		rec.Distinct(catalog.ChannelsActive, id)
 	}
 	rec.Add(catalog.CommandUses, 40, "followage")
-	rec.Max(catalog.AccountsOnboarded, 11)
-	rec.Close()
-}
-
-func (f fixture) seed(t *testing.T) {
-	t.Helper()
-	for i, status := range []user.Status{user.StatusFree, user.StatusFree, user.StatusPaid} {
-		f.client.User.Create().SetID(uint64(500 + i)).SetUsername(fmt.Sprint("u", i)).
-			SetEmail(fmt.Sprintf("u%d@example.test", i)).SetStatus(status).SetSubscriptionSource("tebex").SaveX(context.Background())
+	on := analytics.Tally{catalog.Field(catalog.AccountsOnboarded): 11}
+	on.Add(catalog.ModulesRows, "quotes", "on")
+	rec.Shift(analytics.Tally{}, on)
+	accounts := analytics.New(f.vc, zap.NewNop(), nil, analytics.WithClock(func() time.Time { return f.now }), analytics.WithoutTicker())
+	f.repo.SetAnalytics(accounts)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		require.NoError(t, f.repo.Register(ctx, uint64(500+i), fmt.Sprint("u", i), fmt.Sprint("u", i), fmt.Sprintf("u%d@example.test", i)))
 	}
-	f.client.User.Create().SetID(999).SetUsername("tester").SetEmail("t@example.test").SetTestAccount(true).SaveX(context.Background())
+	require.NoError(t, f.repo.SetStatus(ctx, 502, user.StatusPaid))
+	accounts.Close()
+	rec.Close()
 }
 
 func (f fixture) day(t *testing.T, metric catalog.Metric) map[string]int64 {
@@ -87,7 +88,6 @@ func (f fixture) day(t *testing.T, metric catalog.Metric) map[string]int64 {
 
 func TestRunFoldsClosedDayAndClearsValkey(t *testing.T) {
 	f := setup(t)
-	f.seed(t)
 	f.recordYesterday(t)
 	ctx := context.Background()
 
@@ -100,9 +100,13 @@ func TestRunFoldsClosedDayAndClearsValkey(t *testing.T) {
 	require.Equal(t, map[string]int64{"accounts.onboarded": 11}, f.day(t, catalog.AccountsOnboarded))
 	require.Equal(t, map[string]int64{"channels.active": 15}, f.day(t, catalog.ChannelsActive))
 	require.Equal(t, map[string]int64{"accounts.total|free": 2, "accounts.total|paid": 1}, f.day(t, catalog.AccountsTotal))
+	require.Equal(t, map[string]int64{"modules.rows|quotes|on": 1}, f.day(t, catalog.ModulesRows))
+	levels, err := f.vc.Do(ctx, f.vc.B().Hget().Key(catalog.LevelKey).Field("modules.rows|quotes|on").Build()).AsInt64()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), levels)
 
 	yesterday := f.now.AddDate(0, 0, -1)
-	for _, key := range []string{catalog.CounterKey(yesterday), catalog.GaugeKey(yesterday), catalog.IndexKey(catalog.Day, yesterday)} {
+	for _, key := range []string{catalog.CounterKey(yesterday), catalog.IndexKey(catalog.Day, yesterday)} {
 		exists, err := f.vc.Do(ctx, f.vc.B().Exists().Key(key).Build()).AsInt64()
 		require.NoError(t, err)
 		require.Zero(t, exists, key)

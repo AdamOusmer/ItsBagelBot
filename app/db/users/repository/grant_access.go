@@ -70,12 +70,14 @@ func (r *Users) hasCoveringGrant(ctx context.Context, userID uint64, now time.Ti
 }
 
 func (r *Users) writeAccessStatus(ctx context.Context, u *ent.User, status user.Status) error {
+	counted := r.trackAccounts(ctx, u.ID)
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return r.accessStatusUpdate(u, status).Exec(ctx)
 	})
 	if err != nil {
 		return err
 	}
+	counted()
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, u.ID))
 	r.stats.Invalidate(userStatsKey)
 	return nil

@@ -533,7 +533,17 @@ export function demoAnalytics(days = 30): AnalyticsReads {
     row(last, 'accounts.bot_enabled', ['paid'], 179),
     row(last, 'accounts.onboarded', [], 1980),
     row(last, 'accounts.locale', ['en'], 1400),
-    row(last, 'accounts.locale', ['fr'], 520)
+    row(last, 'accounts.locale', ['fr'], 520),
+    row(last, 'modules.rows', ['alerts', 'off'], 140),
+    row(last, 'modules.rows', ['loyalty', 'on'], 610),
+    row(last, 'modules.rows', ['loyalty', 'off'], 45),
+    row(last, 'modules.breadth', ['1'], 400),
+    row(last, 'modules.breadth', ['3-5'], 520),
+    row(last, 'integrations.connected', ['spotify'], 230),
+    row(last, 'integrations.connected', ['govee'], 6),
+    row(last, 'custom.channels', [], 1320),
+    row(last, 'custom.total', ['active'], 9800),
+    row(last, 'custom.perm', ['mod'], 2100)
   );
   const week = [row(dayAt(days - 7), 'channels.active', [], 410), row(dayAt(days - 7), 'module.active', ['alerts'], 380)];
   const month = [row('2026-10-01', 'channels.active', [], 760)];

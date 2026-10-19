@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -56,6 +57,7 @@ type Modules struct {
 	log              *zap.Logger
 	govee            *GoveeCreds
 	spotify          *SpotifyCreds
+	analytics        *analytics.Recorder
 }
 
 func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
@@ -99,9 +101,11 @@ func (r *Modules) SetNow(ctx context.Context, userID uint64, name string, enable
 	if err != nil {
 		return nil, err
 	}
+	done := r.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error { return r.persistModuleChange(ctx, item) }); err != nil {
 		return nil, err
 	}
+	done()
 	r.Invalidate(userID)
 	views, err := r.List(ctx, userID)
 	if err != nil {
@@ -162,6 +166,7 @@ func (r *Modules) Reproject(ctx context.Context) error {
 
 func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 
+	done := r.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Modules.Delete().
 			Where(modules.UserIDEQ(userID)).
@@ -170,6 +175,7 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	}); err != nil {
 		return err
 	}
+	done()
 
 	r.sweepGovee(ctx, userID)
 	r.sweepSpotify(ctx, userID)
@@ -228,6 +234,7 @@ func (r *Modules) patch(ctx context.Context, userID uint64, name string, enabled
 	}
 	var res PatchResult
 	var blob []byte
+	done := r.track(ctx, userID)
 	err = db.WithExec(ctx, func(ctx context.Context) error {
 		var err error
 		res, blob, err = r.persistPatch(ctx, userID, name, enabled, partial, expectedRev, expectedID)
@@ -235,6 +242,9 @@ func (r *Modules) patch(ctx context.Context, userID uint64, name string, enabled
 	})
 	if err != nil {
 		return PatchResult{}, err
+	}
+	if !res.Conflict {
+		done()
 	}
 	if !res.Conflict {
 		r.announcePatch(ctx, userID, name, enabled, blob)
@@ -350,8 +360,10 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 	defer txn.End()
 	ctx = newrelic.NewContext(ctx, txn)
 	ordinary, loyalty := partitionModuleChanges(items)
+	done := r.track(ctx, changedUsers(items)...)
 	landed := r.upsertEach(ctx, txn, loyalty)
 	landed = append(landed, r.upsertOrdinaryModules(ctx, txn, ordinary)...)
+	done()
 	log := monitor.TxnLogger(ctx, r.log)
 	for _, item := range r.persistedDTOs(ctx, landed) {
 		r.publishCommittedModule(ctx, item, log)
