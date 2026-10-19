@@ -22,6 +22,7 @@ type EventOptions = {
   routeId?: string;
   session?: unknown;
   edgeOutcome?: string;
+  edgeCacheTag?: string;
   search?: string;
   isDataRequest?: boolean;
   lang?: string;
@@ -50,7 +51,7 @@ function makeEvent(opts: EventOptions): Event {
     request: new Request(requested),
     url,
     isDataRequest: opts.isDataRequest ?? false,
-    locals: { session: opts.session ?? null, locale: opts.locale ?? 'en', edgeOutcome: opts.edgeOutcome },
+    locals: { session: opts.session ?? null, locale: opts.locale ?? 'en', edgeOutcome: opts.edgeOutcome, edgeCacheTag: opts.edgeCacheTag },
     cookies: { get: (name: string) => cookies[name], set: () => {}, delete: () => {} }
   } as unknown as Event;
 }
@@ -115,7 +116,11 @@ const CHANNEL_TTL = 'max-age=3600, stale-while-revalidate=3600, stale-if-error=8
 const DEFAULT_TTL = cached(CHANNEL_TTL);
 const SHORT_TTL = cached('max-age=60, stale-while-revalidate=60, stale-if-error=86400');
 const PAGE = { edgeOutcome: 'page' };
-const LEADERBOARD_TTL = cached('max-age=300, stale-while-revalidate=3600, stale-if-error=86400');
+const BOARD = { ...PAGE, routeId: LEADERBOARD, edgeCacheTag: 'lb:foo' };
+const LEADERBOARD_TTL = {
+  ...cached('max-age=300, stale-while-revalidate=3600, stale-if-error=86400'),
+  'Cache-Tag': 'dashboard-edge-shell,lb:foo'
+};
 
 const edgeCases: { name: string; event: EventOptions; res: Response; want: Record<string, string | null> }[] = [
   { name: 'a hidden-channel 404 gets the route TTL', event: { edgeOutcome: 'hidden' }, res: htmlResponse(404), want: DEFAULT_TTL },
@@ -139,11 +144,12 @@ const edgeCases: { name: string; event: EventOptions; res: Response; want: Recor
   { name: 'page data with a locale cookie is not cached', event: { ...PAGE, isDataRequest: true, localeCookie: 'fr' }, res: dataResponse(), want: uncached },
   { name: 'page data that sets a cookie is not cached', event: { ...PAGE, isDataRequest: true }, res: dataResponse({ headers: SET_COOKIE }), want: uncached },
   { name: 'a page data 5xx is not cached', event: { ...PAGE, isDataRequest: true }, res: dataResponse({ status: 500 }), want: uncached },
-  { name: 'leaderboard: cached board pages are shareable', event: { ...PAGE, routeId: LEADERBOARD, search: '?page=3' }, res: htmlResponse(200), want: LEADERBOARD_TTL },
-  { name: 'leaderboard: page data for a cached board page is shareable', event: { ...PAGE, routeId: LEADERBOARD, isDataRequest: true, search: '?page=2&x-sveltekit-invalidated=001' }, res: dataResponse(), want: LEADERBOARD_TTL },
-  { name: 'leaderboard: board pages past the purged range are never cached', event: { ...PAGE, routeId: LEADERBOARD, search: '?page=4' }, res: htmlResponse(200), want: uncached },
-  { name: 'leaderboard: search pages are never cached', event: { ...PAGE, routeId: LEADERBOARD, search: '?q=fan' }, res: htmlResponse(200), want: uncached },
-  { name: 'leaderboard: search page data is never cached', event: { ...PAGE, routeId: LEADERBOARD, isDataRequest: true, search: '?q=fan&x-sveltekit-invalidated=001' }, res: dataResponse(), want: uncached },
+  { name: 'leaderboard: any board page is shared under its channel tag', event: { ...BOARD, search: '?page=40' }, res: htmlResponse(200), want: LEADERBOARD_TTL },
+  { name: 'leaderboard: page data is shared under its channel tag', event: { ...BOARD, isDataRequest: true, search: '?page=2&x-sveltekit-invalidated=001' }, res: dataResponse(), want: LEADERBOARD_TTL },
+  { name: 'leaderboard: search pages are shared under their channel tag', event: { ...BOARD, search: '?q=fan' }, res: htmlResponse(200), want: LEADERBOARD_TTL },
+  { name: 'leaderboard: search page data is shared under its channel tag', event: { ...BOARD, isDataRequest: true, search: '?q=fan&x-sveltekit-invalidated=001' }, res: dataResponse(), want: LEADERBOARD_TTL },
+  { name: 'leaderboard: a hidden board 404 carries its channel tag', event: { ...BOARD, edgeOutcome: 'hidden' }, res: htmlResponse(404), want: LEADERBOARD_TTL },
+  { name: 'leaderboard: a busy or degraded board is never cached', event: { ...BOARD, edgeOutcome: 'skip' }, res: htmlResponse(200), want: uncached },
   { name: 'signed-in page data is never cached', event: { ...PAGE, isDataRequest: true, sessionCookie: signedIn }, res: dataResponse(), want: uncached },
   { name: 'a plain 200 emits CDN-only directives so browsers revalidate', event: {}, res: htmlResponse(200), want: DEFAULT_TTL },
   { name: 'login uses its own TTL', event: { routeId: LOGIN }, res: htmlResponse(200), want: cached('max-age=600, stale-while-revalidate=86400, stale-if-error=86400') },

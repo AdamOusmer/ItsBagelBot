@@ -159,7 +159,7 @@ export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string
   return {
     'Cache-Control': 'public, max-age=0',
     'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`,
-    'Cache-Tag': DEPLOY_CACHE_TAG
+    'Cache-Tag': [DEPLOY_CACHE_TAG, event.locals.edgeCacheTag].filter(Boolean).join(',')
   };
 }
 

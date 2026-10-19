@@ -449,6 +449,20 @@ describe('(public)/[user] load: username search and reconcile', () => {
   });
 });
 
+describe('(public)/[user] load: edge cache tag', () => {
+  test('a rendered board or search is tagged with its channel', async () => {
+    arrange({});
+    await loadPage('?q=fan&page=2');
+    expect(lastLocals.edgeCacheTag).toBe('lb:somechannel');
+  });
+
+  test('a hidden board is tagged too so a later purge reaches its cached 404', async () => {
+    arrange({ leaderboardPage: async () => false });
+    await loadPage('?q=22');
+    expect({ tag: lastLocals.edgeCacheTag, edge: lastLocals.edgeOutcome }).toEqual({ tag: 'lb:somechannel', edge: 'hidden' });
+  });
+});
+
 describe('(public)/[user] load: one URL per spelling', () => {
   test.each(['somechannel', '@somechannel'])('%s renders in place', async (user) => {
     arrange({});

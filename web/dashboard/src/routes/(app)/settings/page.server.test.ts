@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
 import { STATIC_LOCALES, staticText } from '../../../../../kit/lib/i18n/static';
 import { privateEnv, stubSvelteKit } from '../../../../test/sveltekit';
 
@@ -10,7 +10,7 @@ stubSvelteKit();
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
 const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
-type PurgeBody = { files: string[] };
+type PurgeBody = { files: string[] } | { tags: string[] };
 const purgeBodies: PurgeBody[] = [];
 let writeFails = false;
 let purgeStatus = 200;
@@ -27,6 +27,9 @@ const servicesMock = () => ({
   userLeaderboardPage: async () => true,
   userLocale: async () => savedLocale,
   accountState: async () => ({ username: 'StreamerLogin' }),
+  publishEventSub: async () => {},
+  deleteSelf: async () => {},
+  auditDashboardImpersonation: () => {},
   setCommandsPage: async (userId: string, hidden: boolean) => {
     if (writeFails) throw new Error('rpc down');
     hiddenWrites.push({ page: 'commands_page', userId, hidden });
@@ -73,7 +76,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }];
+const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -105,7 +108,7 @@ const cases: {
     want: { result: () => refused, writes: [], purges: [] }
   },
   {
-    name: 'owner enabled=on writes hidden=false then purges every cached page URL of the channel',
+    name: 'owner enabled=on writes hidden=false then purges the commands page URLs and the leaderboard tag',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }
@@ -153,6 +156,25 @@ describe.each(toggles)('$action action', (toggle) => {
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
+});
+
+test('deleting the account purges its commands pages and its leaderboard tag', async () => {
+  jest.useFakeTimers();
+  try {
+    const cookies = { set: () => {}, delete: () => {} };
+    const url = new URL('https://dashboard.itsbagelbot.com/settings?/delete');
+    const locals = { session: { user_id: '7', login: 'StreamerLogin' }, locale: 'en' };
+    const thrown = await Promise.resolve(actions.delete({ locals, cookies, url } as never)).catch((e: { status: number }) => e.status);
+    expect(thrown).toBe(302);
+    for (let i = 0; i < 3; i++) {
+      await Promise.resolve();
+      jest.advanceTimersByTime(10_000);
+    }
+  } finally {
+    jest.useRealTimers();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(purgeBodies).toEqual(channelPurge);
 });
 
 test('settings preserves every saved language as the selected one', async () => {

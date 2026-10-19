@@ -24,6 +24,7 @@ import {
 import { channelLabel } from '$lib/server/public-directory';
 import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
 import { lookupLogin } from '$lib/server/channel-lookup';
+import { leaderboardCacheTag } from '$lib/edge-tags';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -115,10 +116,10 @@ async function demoPage(login: string, params: BoardParams) {
 	};
 }
 
-// Edge purges list exact URLs: other spellings of the login and of the board query redirect to the one channelPageUrls covers.
 function enter(url: URL, segment: string, locals: App.Locals): string {
 	requireLeaderboardHost(url, locals);
 	const login = requireLogin(segment, locals);
+	locals.edgeCacheTag = leaderboardCacheTag(login);
 	const spelled = segment === login || segment === `@${login}`;
 	const canonical = canonicalLocation(url);
 	if (spelled && !canonical) return login;

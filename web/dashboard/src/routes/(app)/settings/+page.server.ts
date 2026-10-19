@@ -25,7 +25,7 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { purgeChannelPages } from '$lib/server/edge-purge';
+import { purgeChannelPages, scheduleLeaderboardPurge, schedulePurgeChannel } from '$lib/server/edge-purge';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -297,6 +297,8 @@ export const actions: Actions = {
       await publishEventSub(s.user_id, false);
       await deleteSelf(s.user_id);
       auditDashboardImpersonation(s, 'account:delete');
+      schedulePurgeChannel(s.user_id, [s.login]);
+      scheduleLeaderboardPurge(s.user_id, [s.login]);
     } catch {
       return fail(502, { error: actionError(locals.locale, 'Could not delete account.') });
     }

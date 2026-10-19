@@ -6,7 +6,7 @@ import { POLICY } from '@bagel/kit/server/cache-keys';
 
 process.env.NEW_RELIC_ENABLED = 'false';
 mock.module('$app/environment', () => ({ dev: false }));
-mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
+mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {}, scheduleLeaderboardPurge: () => {} }));
 
 const modules = [{ name: 'queue', is_enabled: true, revision: 8, configs: {} },
   { name: 'loyalty', is_enabled: true, revision: 4, account_created_at: 100, configs: {} }];

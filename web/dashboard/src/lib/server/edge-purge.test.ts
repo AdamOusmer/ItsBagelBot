@@ -15,7 +15,7 @@ mock.module('./services', () => ({
   }
 }));
 
-const { purgeChannelPages, purgeEdgeByTag, schedulePurgeChannel } = await import('./edge-purge');
+const { purgeChannelPages, purgeEdgeByTag, scheduleLeaderboardPurge, schedulePurgeChannel } = await import('./edge-purge');
 const { channelPageUrls, enumerableChannelQuery } = await import('./channel-urls');
 
 type Purge = { url: string; authorization: string; body: { files?: string[]; tags?: string[] } };
@@ -101,52 +101,36 @@ describe('purgeEdgeByTag', () => {
 });
 
 describe('channelPageUrls', () => {
-  test('lists every cached spelling, host and page-data variant of a channel', () => {
+  test('lists every cached spelling and page-data variant of a commands page', () => {
     const urls = channelPageUrls('42', ['foo']);
     expect(urls.filter((u) => !u.includes('__data.json'))).toEqual([
       'https://commands.itsbagelbot.com/user/foo',
       'https://commands.itsbagelbot.com/user/@foo',
-      'https://commands.itsbagelbot.com/user/42',
-      'https://leaderboard.itsbagelbot.com/foo',
-      'https://leaderboard.itsbagelbot.com/foo?page=2',
-      'https://leaderboard.itsbagelbot.com/foo?page=3',
-      'https://leaderboard.itsbagelbot.com/@foo',
-      'https://leaderboard.itsbagelbot.com/@foo?page=2',
-      'https://leaderboard.itsbagelbot.com/@foo?page=3'
+      'https://commands.itsbagelbot.com/user/42'
     ]);
-    expect(urls.filter((u) => u.startsWith('https://leaderboard.itsbagelbot.com/foo/__data.json'))).toEqual([
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?x-sveltekit-invalidated=001',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?x-sveltekit-invalidated=011',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?x-sveltekit-invalidated=101',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?x-sveltekit-invalidated=111',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=2&x-sveltekit-invalidated=001',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=2&x-sveltekit-invalidated=011',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=2&x-sveltekit-invalidated=101',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=2&x-sveltekit-invalidated=111',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=3&x-sveltekit-invalidated=001',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=3&x-sveltekit-invalidated=011',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=3&x-sveltekit-invalidated=101',
-      'https://leaderboard.itsbagelbot.com/foo/__data.json?page=3&x-sveltekit-invalidated=111'
+    expect(urls.filter((u) => u.startsWith('https://commands.itsbagelbot.com/user/foo/__data.json'))).toEqual([
+      'https://commands.itsbagelbot.com/user/foo/__data.json?x-sveltekit-invalidated=001',
+      'https://commands.itsbagelbot.com/user/foo/__data.json?x-sveltekit-invalidated=011',
+      'https://commands.itsbagelbot.com/user/foo/__data.json?x-sveltekit-invalidated=101',
+      'https://commands.itsbagelbot.com/user/foo/__data.json?x-sveltekit-invalidated=111'
     ]);
   });
 
-  test('every listed URL is one the hooks may share, and nothing else on these routes is', () => {
-    const routeOf = (u: URL) => (u.hostname.startsWith('commands.') ? '/(public)/user/[channel]' : '/(public)/[user]');
+  test('every listed URL is one the hooks may share, and nothing else on the commands route is', () => {
     const shareable = channelPageUrls('42', ['foo']).map((raw) => {
       const u = new URL(raw);
-      return enumerableChannelQuery(routeOf(u), u.search, u.pathname.endsWith('/__data.json'));
+      return enumerableChannelQuery('/(public)/user/[channel]', u.search, u.pathname.endsWith('/__data.json'));
     });
     expect(shareable.every(Boolean)).toBe(true);
-    expect(enumerableChannelQuery('/(public)/[user]', '?page=4', false)).toBe(false);
-    expect(enumerableChannelQuery('/(public)/[user]', '?q=fan', false)).toBe(false);
     expect(enumerableChannelQuery('/(public)/user/[channel]', '?page=2', false)).toBe(false);
+    expect(enumerableChannelQuery('/(public)/[user]', '?q=fan', false)).toBe(true);
   });
 });
 
 describe('purgeChannelPages', () => {
-  test('purges every page URL of the current login by single-file purge', async () => {
+  test('purges the commands page URLs and the leaderboard tag of the current login', async () => {
     expect(await purgeChannelPages('42')).toBe(true);
-    expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('42', ['foo']) }]);
+    expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('42', ['foo']) }, { tags: ['lb:foo'] }]);
   });
 
   test('a 429 is retried once after a backoff', async () => {
@@ -154,31 +138,60 @@ describe('purgeChannelPages', () => {
     const pending = purgeChannelPages('42');
     await settle();
     expect(await pending).toBe(true);
-    expect(purges.length).toBe(2);
+    expect(purges.map((p) => Object.keys(p.body)[0])).toEqual(['files', 'tags', 'files']);
   });
 
   test('a second 429 fails the purge', async () => {
-    replies = [429, 429];
+    replies = [429, 200, 429];
     const pending = purgeChannelPages('42');
     await settle();
     expect(await pending).toBe(false);
   });
 
-  test('an unavailable account state still purges the id pages', async () => {
+  test('an unavailable account state purges the id pages and reports the board as not purged', async () => {
     username = null;
-    await purgeChannelPages('42');
+    expect(await purgeChannelPages('42')).toBe(false);
     expect(purges.map((p) => p.body)).toEqual([{ files: channelPageUrls('42', []) }]);
+  });
+});
+
+describe('scheduleLeaderboardPurge', () => {
+  test('leaderboard events across channels coalesce into one tag purge', async () => {
+    perUser = true;
+    for (const id of ['1', '2', '2', '3']) scheduleLeaderboardPurge(id);
+    await settle();
+    expect(purges.map((p) => p.body)).toEqual([{ tags: ['lb:user1', 'lb:user2', 'lb:user3'] }]);
+  });
+
+  test('a rename purges both logins', async () => {
+    scheduleLeaderboardPurge('8', ['newname', 'OldName']);
+    await settle();
+    expect(purges.map((p) => p.body)).toEqual([{ tags: ['lb:newname', 'lb:oldname'] }]);
+  });
+
+  test('a 429 is retried once', async () => {
+    replies = [429];
+    scheduleLeaderboardPurge('9');
+    await settle();
+    expect(purges.map((p) => p.body)).toEqual([{ tags: ['lb:foo'] }, { tags: ['lb:foo'] }]);
+  });
+
+  test('commands page writes never send a tag purge', async () => {
+    schedulePurgeChannel('10');
+    await settle();
+    expect(purges.every((p) => !p.body.tags)).toBe(true);
   });
 });
 
 describe('schedulePurgeChannel', () => {
   test('writes across channels coalesce into batches of at most 100 URLs', async () => {
     perUser = true;
-    for (const id of ['1', '1', '2', '3', '4', '5']) schedulePurgeChannel(id);
+    const ids = ['1', '1', '2', '3', '4', '5', '6', '7', '8'];
+    for (const id of ids) schedulePurgeChannel(id);
     await settle();
     const sent = purges.flatMap((p) => p.body.files ?? []);
-    expect(purges.map((p) => p.body.files?.length)).toEqual([100, 100, 25]);
-    expect(new Set(sent)).toEqual(new Set(['1', '2', '3', '4', '5'].flatMap((id) => channelPageUrls(id, [`user${id}`]))));
+    expect(purges.map((p) => p.body.files?.length)).toEqual([100, 20]);
+    expect(new Set(sent)).toEqual(new Set([...new Set(ids)].flatMap((id) => channelPageUrls(id, [`user${id}`]))));
   });
 
   test('logins passed by the caller (a rename) are purged instead of the cached account login', async () => {

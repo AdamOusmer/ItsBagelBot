@@ -14,7 +14,7 @@ import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/se
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '$env/dynamic/private';
 import { isBotAccount } from '$lib/server/bot-account';
-import { schedulePurgeChannel } from '$lib/server/edge-purge';
+import { scheduleLeaderboardPurge, schedulePurgeChannel } from '$lib/server/edge-purge';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
 
@@ -140,7 +140,12 @@ async function priorLogin(userId: string): Promise<string | null | undefined> {
 
 function purgeNewChannelPages(id: Identity, prior: string | null | undefined): void {
   if (prior === null) schedulePurgeChannel(id.userId, [id.login]);
-  else if (prior && prior !== id.login) schedulePurgeChannel(id.userId, [id.login, prior]);
+  else if (prior && prior !== id.login) purgeRenamedChannel(id.userId, [id.login, prior]);
+}
+
+function purgeRenamedChannel(userId: string, logins: string[]): void {
+  schedulePurgeChannel(userId, logins);
+  scheduleLeaderboardPurge(userId, logins);
 }
 
 function validOAuthState(code: string | null, state: string | null, stored: string | undefined): code is string {

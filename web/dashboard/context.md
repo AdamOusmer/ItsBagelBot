@@ -83,10 +83,11 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - Avoid session identity when mutating delegated board data; permission checks still use the actor.
 - Public labels come from resolved account records, not caller-provided query strings.
 - Hidden commands pages answer as missing; invalidation/edge purge must accompany visibility changes.
-- Channel pages are purged by exact URL (the zone is on Cloudflare Free: tag purges are 5/min).
-  `channel-urls.ts` enumerates every shareable URL; hooks refuse edge caching for any other
-  spelling or query string on those routes, so a new cached variant must be added there first.
-  Leaderboard board pages 1-3 are shared; deeper pages and every search (`q`) stay no-store.
+- Commands pages are purged by exact URL on every write (the zone is on Cloudflare Free: tag
+  purges are 5/min). `channel-urls.ts` enumerates every shareable commands URL; hooks refuse edge
+  caching for any other spelling or query string there. Leaderboard pages and searches carry
+  Cache-Tag `lb:<login>`, purged by tag only on board hide/unhide, loyalty on/off, rename and
+  account deletion; never tag-purge from command or module writes.
   Unknown channels cache a 60 s 404, purged on first sign-in or rename.
 - Boot import graphs use `process.env`; request-time dynamic env is safe after initialization.
 - `DEMO` branches require direct build-time `dev` gating and production cleanup verification.

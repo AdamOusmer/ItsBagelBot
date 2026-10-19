@@ -14,6 +14,7 @@ declare global {
       cursorEnabled: boolean;
       accountState?: { value: AccountState } | { ghost: true };
       edgeOutcome?: EdgeOutcome;
+      edgeCacheTag?: string;
     }
     interface PageData {
       role?: 'streamer' | 'mod';
