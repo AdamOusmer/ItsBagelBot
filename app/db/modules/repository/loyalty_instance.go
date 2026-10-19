@@ -89,9 +89,13 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if err != nil || !allowed {
 		return err
 	}
+	done := []func(){r.track(ctx, id), r.trackLinks(ctx, id)}
 	applied, err := r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
 	if err != nil {
 		return err
+	}
+	for _, shift := range done {
+		shift()
 	}
 	if applied {
 		r.Invalidate(id)

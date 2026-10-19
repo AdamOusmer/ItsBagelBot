@@ -86,10 +86,6 @@ type Users struct {
 	analytics          *analytics.Recorder
 }
 
-func (r *Users) SetAnalytics(rec *analytics.Recorder) {
-	r.analytics = rec
-}
-
 func (r *Users) SetInvalidationPrefix(prefix string) {
 	r.invalidationPrefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
 }
@@ -174,6 +170,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	}
 	if created {
 		r.analytics.Count(catalog.Lifecycle, "signup")
+		r.countCreated(ctx, id)
 	}
 
 	return r.publishChanged(ctx, id)
@@ -270,6 +267,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
+	counted := r.trackAccounts(ctx, id)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		update := r.client.User.UpdateOneID(id)
 		apply(update)
@@ -277,6 +275,7 @@ func (r *Users) updateAndPublish(ctx context.Context, id uint64, apply func(*ent
 	}); err != nil {
 		return err
 	}
+	counted()
 	return r.publishChanged(ctx, id)
 }
 
@@ -383,6 +382,7 @@ func (r *Users) Delete(ctx context.Context, id uint64) error {
 func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error {
 	r.revokeTwitchTokens(ctx, id)
 	deleted := data.UserDeletedDTO{UserID: id, AccountCreatedAt: createdAt.UnixMicro()}
+	counted := r.trackAccounts(ctx, id)
 
 	if err := withTx(ctx, r.client, func(tx *ent.Tx) error {
 		row, err := tx.User.Get(ctx, id)
@@ -406,6 +406,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 		return err
 	}
 
+	counted()
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 

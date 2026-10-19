@@ -56,4 +56,27 @@ describe('analytics view', () => {
       { label: 'vip', values: ['<10', '0'] }
     ]);
   });
+
+  it('renders module switches, breadth and the custom command library from level rows', () => {
+    const d = '2026-10-17';
+    const day = [
+      row(d, 'modules.rows', ['spotify', 'on'], 30),
+      row(d, 'modules.rows', ['spotify', 'off'], 12),
+      row(d, 'modules.breadth', ['1'], 25),
+      row(d, 'modules.breadth', ['6+'], 14),
+      row(d, 'custom.total', ['active'], 80),
+      row(d, 'custom.flags', ['cooldown'], 0, true)
+    ];
+    const view = buildAnalytics({ day, week: [], month: [], cohortWeeks: [], cohortDays: [] });
+    const table = (key: string) => view.tables.find((t) => t.key === key);
+
+    const spotify = table('modules')?.rows[0];
+    expect(spotify?.label).toBe('spotify');
+    expect(spotify?.values.slice(0, 2)).toEqual(['30', '12']);
+    expect(table('breadth')?.rows.map((r) => r.label)).toEqual(['1', '6+']);
+    expect(table('customLibrary')?.rows).toEqual([
+      { label: 'total active', values: ['80'] },
+      { label: 'flags cooldown', values: ['<10'] }
+    ]);
+  });
 });

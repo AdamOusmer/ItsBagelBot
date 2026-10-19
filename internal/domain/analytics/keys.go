@@ -76,8 +76,6 @@ func windowCode(w Window) string {
 
 func CounterKey(day time.Time) string { return keyPrefix + "c:" + Period(Day, day) }
 
-func GaugeKey(day time.Time) string { return keyPrefix + "g:" + Period(Day, day) }
-
 func DistinctKey(w Window, t time.Time, field string) string {
 	return keyPrefix + "h" + windowCode(w) + ":" + Period(w, t) + ":" + field
 }
@@ -110,6 +108,10 @@ func RollupClaimKey(w Window, t time.Time) string {
 }
 
 func WindowCode(w Window) string { return windowCode(w) }
+
+// LevelKey holds running totals moved only by write-time deltas. It never expires and is
+// never reconciled, so a lost or doubled delta stays in the total.
+const LevelKey = keyPrefix + "lvl"
 
 // Data keys outlive their period so a late rollup still finds them.
 func DataExpiry(w Window, t time.Time) time.Time { return PeriodEnd(w, t).Add(retainAfter) }

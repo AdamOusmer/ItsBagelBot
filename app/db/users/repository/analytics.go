@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/analyticsrollup"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/pkg/db"
 
@@ -24,66 +25,81 @@ type AnalyticsRow struct {
 	Value  int64
 }
 
-type analyticsTally map[string]*AnalyticsRow
+func (r *Users) SetAnalytics(rec *analytics.Recorder) {
+	r.analytics = rec
+}
 
-func (t analyticsTally) add(start time.Time, m catalog.Metric, dims ...string) {
-	key := catalog.Field(m, dims...)
-	if row, ok := t[key]; ok {
-		row.Value++
+// trackAccounts reads the accounts' counted columns before a write and returns the step
+// that shifts the running totals once it lands. A missing row tallies empty, so creates
+// and deletes count as +/-.
+func (r *Users) trackAccounts(ctx context.Context, ids ...uint64) func() {
+	rec := r.analytics
+	if rec == nil || len(ids) == 0 {
+		return func() {}
+	}
+	before, err := r.accountState(ctx, ids)
+	if err != nil {
+		return func() {}
+	}
+	return func() {
+		if after, err := r.accountState(ctx, ids); err == nil {
+			rec.Shift(before, after)
+		}
+	}
+}
+
+// Must run outside db.WithExec: accountState takes its own gate slot.
+func (r *Users) countCreated(ctx context.Context, id uint64) {
+	if r.analytics == nil {
 		return
 	}
-	t[key] = &AnalyticsRow{Window: catalog.Day, Start: start, Metric: m, Dims: dims, Value: 1}
-}
-
-func (t analyticsTally) rows() []AnalyticsRow {
-	out := make([]AnalyticsRow, 0, len(t))
-	for _, row := range t {
-		out = append(out, *row)
+	if after, err := r.accountState(ctx, []uint64{id}); err == nil {
+		r.analytics.Shift(nil, after)
 	}
-	return out
 }
 
-// AnalyticsSnapshot counts accounts as they stand now and files them under day.
-func (r *Users) AnalyticsSnapshot(ctx context.Context, day time.Time) ([]AnalyticsRow, error) {
-	accounts, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally, error) {
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().
-			Where(user.TestAccountEQ(false), user.BannedEQ(false)).
-			Select(user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
+			Where(user.IDIn(ids...)).
+			Select(user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
 				user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,
-				user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldCreatedAt).
+				user.FieldCommandsPageHidden, user.FieldLeaderboardPageHidden, user.FieldCreatedAt,
+				user.FieldTestAccount, user.FieldBanned).
 			All(ctx)
 	})
 	if err != nil {
 		return nil, err
 	}
-	start := catalog.PeriodStart(catalog.Day, day)
-	tally := analyticsTally{}
-	for _, u := range accounts {
-		tallyAccount(tally, start, u)
+	tally := analytics.Tally{}
+	for _, u := range rows {
+		if !u.TestAccount && !u.Banned {
+			tallyAccount(tally, u)
+		}
 	}
-	return tally.rows(), nil
+	return tally, nil
 }
 
-func tallyAccount(t analyticsTally, start time.Time, u *ent.User) {
+func tallyAccount(t analytics.Tally, u *ent.User) {
 	tier := string(u.Status)
 	week := catalog.Period(catalog.Week, u.CreatedAt)
-	t.add(start, catalog.AccountsTotal, tier)
-	t.add(start, catalog.AccountsBySignupWeek, week)
-	t.add(start, catalog.AccountsLocale, u.Locale)
+	t.Add(catalog.AccountsTotal, tier)
+	t.Add(catalog.AccountsBySignupWeek, week)
+	t.Add(catalog.AccountsLocale, u.Locale)
 	if u.IsActive {
-		t.add(start, catalog.AccountsBotEnabled, tier)
+		t.Add(catalog.AccountsBotEnabled, tier)
 	}
 	if u.Onboarded {
-		t.add(start, catalog.AccountsOnboarded)
+		t.Add(catalog.AccountsOnboarded)
 	}
 	if u.Status != user.StatusFree {
-		t.add(start, catalog.PaidBySignupWeek, week)
-		t.add(start, catalog.AccountsPaidSource, paidSource(u))
+		t.Add(catalog.PaidBySignupWeek, week)
+		t.Add(catalog.AccountsPaidSource, paidSource(u))
 	}
-	tallyFlags(t, start, u)
+	tallyFlags(t, u)
 }
 
-func tallyFlags(t analyticsTally, start time.Time, u *ent.User) {
+func tallyFlags(t analytics.Tally, u *ent.User) {
 	flags := []struct {
 		on     bool
 		metric catalog.Metric
@@ -96,7 +112,7 @@ func tallyFlags(t analyticsTally, start time.Time, u *ent.User) {
 	}
 	for _, f := range flags {
 		if f.on {
-			t.add(start, f.metric, f.dims...)
+			t.Add(f.metric, f.dims...)
 		}
 	}
 }

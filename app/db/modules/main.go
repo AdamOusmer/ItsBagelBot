@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"errors"
 	"fmt"
@@ -75,6 +76,10 @@ func main() {
 	defer closeIntake() // stops intake before the repo flush above
 
 	quotes := repository.NewQuotes(client, log)
+
+	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
+	defer recorder.Close()
+	repo.SetAnalytics(recorder)
 
 	consumeEvents(core.Ctx, eventsWiring{
 		app: core.NR, broadcast: n.Broadcast, grouped: n.Grouped,

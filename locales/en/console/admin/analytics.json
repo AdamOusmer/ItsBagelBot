@@ -46,7 +46,10 @@
     "pages": "Console page views",
     "actions": "Console form results",
     "locales": "Account languages",
-    "pagesHidden": "Public pages hidden"
+    "pagesHidden": "Public pages hidden",
+    "customLibrary": "Custom command library",
+    "breadth": "Modules on per channel",
+    "integrations": "Connected integrations"
   },
   "column": {
     "label": "Name",
@@ -66,6 +69,8 @@
     "denied": "Denied",
     "signupWeek": "Signup week",
     "signups": "Signups",
-    "weekN": "Week {n}"
+    "weekN": "Week {n}",
+    "rowsOn": "Channels on",
+    "rowsOff": "Channels off"
   }
 }
