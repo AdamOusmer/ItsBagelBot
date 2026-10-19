@@ -50,7 +50,7 @@ defmodule Ingress.TrialsTest do
     {:ok, "duplicate"} = Trials.add(id)
     {:ok, :changed} = Trials.stop(id, "removed")
     {:ok, :unchanged} = Trials.stop(id, "removed")
-    {:ok, 1} = Trials.finish(id, "removed")
+    {:ok, 1} = Trials.finish(id)
     {:ok, %{active_count: 29, trials: history}} = Trials.list()
     assert Enum.any?(history, &(&1.broadcaster_id == id && &1.state == "removed"))
   end
@@ -227,7 +227,7 @@ defmodule Ingress.TrialReceiverProtocolTest do
     send(pid, :tick)
     assert_receive {:trial_connected, primary, _}, 1_000
     {:ok, :changed} = Trials.stop("4242", "removed")
-    {:ok, 1} = Trials.finish("4242", "removed")
+    {:ok, 1} = Trials.finish("4242")
     send(pid, :tick)
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000

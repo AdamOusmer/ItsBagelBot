@@ -200,4 +200,25 @@ defmodule Ingress.TrialRegistrationTest do
     assert %{state: "stopping"} = reply
     assert row("42").stop_reason == "promoted"
   end
+
+  test "an unchecked stop for a broadcaster who registered meanwhile finishes as promoted" do
+    add_on_slot_zero("42")
+    {:ok, :changed} = Trials.stop("42", "registration_check_unavailable")
+    :ok = GenServer.call(:gnat, {:register, "42"})
+    pid = start_receiver()
+
+    assert EnvCase.eventually(fn ->
+             send(pid, :tick)
+             row("42").state == "promoted"
+           end)
+  end
+
+  test "finish takes the stored stop reason over a stale snapshot" do
+    add_on_slot_zero("42")
+    {:ok, :changed} = Trials.stop("42", "registration_check_unavailable")
+    {:ok, :changed} = Trials.stop("42", "promoted")
+
+    assert {:ok, 1} == Trials.finish("42")
+    assert row("42").state == "promoted"
+  end
 end
