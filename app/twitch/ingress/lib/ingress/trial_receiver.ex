@@ -633,7 +633,8 @@ defmodule Ingress.TrialReceiver do
       })
 
     if reply["deleted"] == true do
-      Trials.finish(row.broadcaster_id, finished_state(row.stop_reason))
+      recheck_registration(row)
+      Trials.finish(row.broadcaster_id)
     end
   end
 
@@ -668,8 +669,12 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp finished_state("promoted"), do: "promoted"
-  defp finished_state(_reason), do: "removed"
+  defp recheck_registration(%{stop_reason: "registration_check_unavailable"} = row) do
+    with {:ok, true} <- TrialRpc.registered?(row.broadcaster_id),
+         do: Trials.stop(row.broadcaster_id, "promoted")
+  end
+
+  defp recheck_registration(_row), do: :ok
 
   defp subscription_needed?(row, state) do
     row.state in ["pending", "failed"] ||
