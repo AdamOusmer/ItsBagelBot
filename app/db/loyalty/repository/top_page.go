@@ -7,6 +7,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"ItsBagelBot/app/db/loyalty/ent"
@@ -39,11 +40,12 @@ type TopPage struct {
 }
 
 func normalizeSearch(raw string) string {
-	s := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(raw), "@"))
+	lead := strings.TrimLeftFunc(raw, func(r rune) bool { return r == '@' || unicode.IsSpace(r) })
+	s := strings.Join(strings.Fields(lead), " ")
 	if utf8.RuneCountInString(s) <= maxTopQueryLen {
 		return s
 	}
-	return string([]rune(s)[:maxTopQueryLen])
+	return strings.TrimSpace(string([]rune(s)[:maxTopQueryLen]))
 }
 
 func clampOffset(offset int) int {

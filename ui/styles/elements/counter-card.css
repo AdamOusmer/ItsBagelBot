@@ -77,6 +77,9 @@
     letter-spacing: -.065em;
     font-variant-numeric: tabular-nums;
   }
+  .bb-counter-card--spot .bb-counter-card__head { flex-wrap: nowrap; }
+  .bb-counter-card--spot .bb-counter-card__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bb-counter-card--spot .bb-counter-card__period { flex: none; font: 600 44px/1 var(--bb-font-display); letter-spacing: -.065em; font-variant-numeric: tabular-nums; }
   .bb-counter-card__unit { font: 500 clamp(36px, 10cqi, 52px)/1 var(--bb-font-display); color: var(--counter-card-secondary); }
   .bb-counter-card__detail { margin: 0; font: 400 20px/1.5 var(--bb-font-display); color: var(--counter-card-secondary); overflow-wrap: anywhere; }
   .bb-counter-card__foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 17px var(--counter-card-pad, 28px); border-top: 1px solid var(--counter-card-seam); }

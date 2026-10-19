@@ -240,9 +240,9 @@ const boardCases: { name: string; search: string; want: View; requests: PageRequ
 ];
 
 const redirectCases: { name: string; search: string; want: string }[] = [
-  { name: 'an upper-case search lowercases', search: '?q=Otter', want: '/somechannel?q=otter' },
-  { name: 'a padded search trims', search: '?q=+otter+', want: '/somechannel?q=otter' },
-  { name: 'a leading at sign is dropped', search: '?q=%40Otter', want: '/somechannel?q=otter' },
+  { name: 'a padded search trims and keeps case', search: '?q=+Otter+', want: '/somechannel?q=Otter' },
+  { name: 'a leading at sign is dropped', search: '?q=%40Otter', want: '/somechannel?q=Otter' },
+  { name: 'alternating leading at signs and spaces resolve in one hop', search: `?q=${encodeURIComponent('@ '.repeat(24) + 'x')}`, want: '/somechannel?q=x' },
   { name: 'inner whitespace collapses', search: '?q=a%20%20%09b', want: '/somechannel?q=a+b' },
   { name: 'an empty search drops the param', search: '?q=', want: '/somechannel' },
   { name: 'page 1 drops the param', search: '?page=1', want: '/somechannel' },
@@ -250,8 +250,8 @@ const redirectCases: { name: string; search: string; want: string }[] = [
   { name: 'a malformed page drops the param', search: '?page=abc', want: '/somechannel' },
   { name: 'a negative page drops the param', search: '?page=-3', want: '/somechannel' },
   { name: 'a page past the cap clamps to the cap', search: '?page=999', want: '/somechannel?page=399' },
-  { name: 'other params survive', search: '?q=Otter&lang=fr&page=1', want: '/somechannel?lang=fr&q=otter' },
-  { name: 'an over-long search is capped at 50 characters', search: `?q=${'A'.repeat(300)}`, want: `/somechannel?q=${'a'.repeat(50)}` }
+  { name: 'other params survive', search: '?q=Otter+&lang=fr&page=1', want: '/somechannel?lang=fr&q=Otter' },
+  { name: 'an over-long search is capped at 50 characters', search: `?q=${'A'.repeat(300)}`, want: `/somechannel?q=${'A'.repeat(50)}` }
 ];
 
 describe('(public)/[user] load: canonical redirect', () => {

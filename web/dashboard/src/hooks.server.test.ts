@@ -26,9 +26,7 @@ type EventOptions = {
   sessionCookie?: string;
   dataRequest?: boolean;
   skip?: boolean;
-  ip?: string;
-  socket?: string;
-  method?: string;
+  locale?: string;
 };
 
 const LOGIN = '/(public)/login';
@@ -44,12 +42,12 @@ function makeEvent(opts: EventOptions): Event {
   const url = new URL(`https://commands.itsbagelbot.com/user/foo${opts.lang ? `?lang=${opts.lang}` : ''}`);
   return {
     route: { id: opts.routeId ?? CHANNEL },
-    request: new Request(url, { method: opts.method, headers: opts.ip ? { 'cf-connecting-ip': opts.ip } : {} }),
+    request: new Request(url),
     url,
     isDataRequest: !!opts.dataRequest,
-    getClientAddress: () => opts.socket ?? '10.0.0.1',
     locals: {
       session: opts.session ?? null,
+      locale: opts.locale ?? 'en',
       edgeCache404: opts.edgeCache404,
       edgeCacheTag: opts.edgeCacheTag,
       edgeCacheSkip: opts.skip
@@ -139,6 +137,21 @@ const edgeCases: { name: string; event: EventOptions; res: Response; want: Recor
   { name: 'a response that sets a cookie is never cached', event: {}, res: htmlResponse(200, SET_COOKIE), want: uncached }
 ];
 
+describe('edge cache locale bucket', () => {
+  const emits = (event: EventOptions, res: Response) => edgeCacheHeaders(makeEvent(event), res) !== null;
+
+  test.each(['en', 'fr'])('a %s render gets CDN headers', (locale) => {
+    expect(emits({ locale }, htmlResponse(200))).toBe(true);
+    expect(emits({ locale, dataRequest: true }, jsonResponse())).toBe(true);
+  });
+
+  test.each(['de', 'ru', 'es', 'pt-br'])('a %s render gets no CDN headers', (locale) => {
+    expect(emits({ locale }, htmlResponse(200))).toBe(false);
+    expect(emits({ locale, dataRequest: true }, jsonResponse())).toBe(false);
+    expect(emits({ locale, edgeCache404: true }, htmlResponse(404))).toBe(false);
+  });
+});
+
 describe('handle edge caching', () => {
   test.each(edgeCases)('$name', async ({ event, res, want }) => {
     const response = await handle({ event: makeEvent(event) as never, resolve: async () => res });
@@ -155,49 +168,6 @@ describe('handle edge caching', () => {
   test('an uncacheable page stays no-store', async () => {
     const response = await handle({ event: makeEvent({ routeId: '/(app)/commands' }) as never, resolve: async () => htmlResponse(200) });
     expect(response.headers.get('Cache-Control')).toBe('no-store');
-  });
-});
-
-describe('anonymous public rate limit', () => {
-  const status = async (event: Event) => (await handle({ event: event as never, resolve: async () => htmlResponse(200) })).status;
-
-  async function drain(event: () => Event): Promise<void> {
-    for (let i = 0; i < 120; i++) expect(await status(event())).toBe(200);
-  }
-
-  test('120 requests pass, the next is a 429 with Retry-After and no-store', async () => {
-    const event = () => makeEvent({ ip: '203.0.113.7' });
-    await drain(event);
-    const res = await handle({ event: event() as never, resolve: async () => htmlResponse(200) });
-    expect({ status: res.status, retry: Number(res.headers.get('Retry-After')) > 0, cache: res.headers.get('Cache-Control') }).toEqual({
-      status: 429,
-      retry: true,
-      cache: 'no-store'
-    });
-  });
-
-  test('another client IP is not affected', async () => {
-    expect(await status(makeEvent({ ip: '203.0.113.8' }))).toBe(200);
-  });
-
-  test('data requests are counted too', async () => {
-    const event = () => makeEvent({ ip: '203.0.113.9', dataRequest: true });
-    await drain(event);
-    expect(await status(event())).toBe(429);
-  });
-
-  test('a missing CF-Connecting-IP falls back to the socket address', async () => {
-    const event = () => makeEvent({ socket: '198.51.100.5' });
-    await drain(event);
-    expect(await status(event())).toBe(429);
-  });
-
-  test('unlisted routes are never limited', async () => {
-    for (let i = 0; i < 130; i++) expect(await status(makeEvent({ ip: '203.0.113.10', routeId: '/healthz' }))).toBe(200);
-  });
-
-  test('non-GET requests are not counted', async () => {
-    for (let i = 0; i < 130; i++) expect(await status(makeEvent({ ip: '203.0.113.11', method: 'POST' }))).toBe(200);
   });
 });
 

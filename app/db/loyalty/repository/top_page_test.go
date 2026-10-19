@@ -58,6 +58,7 @@ func TestTopPageSearch(t *testing.T) {
 	}{
 		{"case insensitive login or name with real board ranks", "SAM", 1, map[uint64]int64{30: 3}},
 		{"leading at sign and spaces are stripped", "  @crumb ", 1, map[uint64]int64{10: 1}},
+		{"repeated leading at signs and spaces are stripped in one pass", "@ @ @ @crumb", 1, map[uint64]int64{10: 1}},
 		{"matches display name", "tomato", 1, map[uint64]int64{20: 2}},
 		{"tied rows rank by viewer id", "e", 4, map[uint64]int64{10: 1, 20: 2, 30: 3, 40: 4}},
 		{"underscore is literal not a wildcard", "e_s", 1, map[uint64]int64{30: 3}},
@@ -156,6 +157,15 @@ func TestTopPageTruncatesOverLongSearchToFiftyRunes(t *testing.T) {
 	page, err := repo.TopPage(t.Context(), 1, loyaltyrepo.TopQuery{Limit: 10, Search: "c" + strings.Repeat("x", 500)})
 	require.NoError(t, err)
 	require.Equal(t, map[uint64]int64{70: 1}, ranked(page.Rows))
+}
+
+func TestTopPageCollapsesInnerWhitespace(t *testing.T) {
+	repo, client := newLoyaltyRepo(t)
+	seedNamed(t, client, namedSeed{1, 80, "seedy", "Sesame Seed", 10})
+
+	page, err := repo.TopPage(t.Context(), 1, loyaltyrepo.TopQuery{Limit: 10, Search: "@ sesame \t  seed "})
+	require.NoError(t, err)
+	require.Equal(t, map[uint64]int64{80: 1}, ranked(page.Rows))
 }
 
 func TestTopPageWithoutQueryMatchesTop(t *testing.T) {

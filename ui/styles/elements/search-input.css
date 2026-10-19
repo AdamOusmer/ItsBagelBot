@@ -6,6 +6,8 @@
 @layer bb.elements {
     .bb-search { position: relative; }
 
+    .bb-search.bb-search--tall { box-sizing: border-box; height: 44px; padding-block: 0; }
+
     .bb-search__input { flex: 1; min-width: 0; }
 
     .bb-search__input::-webkit-search-cancel-button,

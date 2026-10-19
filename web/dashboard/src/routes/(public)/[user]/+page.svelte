@@ -19,7 +19,7 @@
   import { formatPointValue, getI18n } from '@bagel/kit';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
-  import { boardHref, emptyCopyKeys, MAX_QUERY_LENGTH } from '$lib/leaderboard-board';
+  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '$lib/leaderboard-board';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -65,7 +65,7 @@
   });
 
   function showQuery(value: string): Promise<void> {
-    const query = value.trim();
+    const query = cleanQuery(value);
     if (query === data.query && data.page === 1) return Promise.resolve();
     return goto(boardHref({ query, page: 1 }, route.url.pathname), { replaceState: true, keepFocus: true, noScroll: true });
   }
@@ -141,7 +141,7 @@
     {#snippet heading()}
       <div class="lb-heading">
         <div class="lb-eyebrow" data-fit-box>
-          <Tag tone="live" mark="solid" sweep><span data-fit="">{t('leaderboard.eyebrow')}</span></Tag>
+          <Tag tone="live" mark="solid" sweep contain><span data-fit="">{t('leaderboard.eyebrow')}</span></Tag>
         </div>
         <Heading level={1} class="stats-layout__title{longName ? ' lb-title--long' : ''}">{data.channelName}</Heading>
         <div class="lb-tagline" data-fit-box>
@@ -170,7 +170,7 @@
     {#snippet counters()}
       {#each podiumCards as card (card.viewer.viewerId)}
         <CounterCard
-          class="lb-spot"
+          spot
           label={rowName(card.viewer)}
           value={card.value}
           detail={data.currencyName}
@@ -191,7 +191,7 @@
 
     {#snippet ranking()}
       <RankingCard
-        class="lb-ranking"
+        board
         title={t('leaderboard.boardTitle')}
         description={t('leaderboard.boardNote')}
         items={rankingItems}
@@ -201,6 +201,7 @@
           <form class="lb-search" method="GET" role="search" onsubmit={submitSearch}>
             <SearchInput
               fill
+              tall
               name="q"
               bind:value={search}
               bind:element={searchInput}
@@ -234,7 +235,7 @@
             <Text as="span" size="xs" tone="muted" mono><span data-fit="">{resultsLine}</span></Text>
           </div>
           <Pager
-            class="board-pager"
+            fixed
             data-sveltekit-noscroll=""
             label={pageLabel}
             fit
@@ -264,8 +265,6 @@
   }
 
   .lb-page {
-    --lb-row: 76px;
-
     position: relative;
     z-index: 1;
     min-width: 0;
@@ -278,7 +277,6 @@
   }
   .lb-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; width: min(100%, 36rem); }
   .lb-eyebrow { display: flex; width: 11rem; min-width: 0; }
-  .lb-eyebrow > :global(.bb-tag) { max-width: 100%; }
   .lb-heading :global(.lb-title--long) { font-size: clamp(32px, 4.4vw, 48px); }
 
   .lb-tagline { width: 100%; height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
@@ -288,56 +286,9 @@
     .lb-tagline { height: calc(4 * 1lh); }
   }
 
-  .lb-page :global(.lb-spot .bb-counter-card__label) {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .lb-page :global(.lb-spot .bb-counter-card__head) { flex-wrap: nowrap; }
-  .lb-page :global(.lb-spot .bb-counter-card__period) {
-    flex: none;
-    font: 600 44px/1 var(--bb-font-display);
-    letter-spacing: -.065em;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .lb-page :global(.lb-ranking .bb-ranking-card__description) { min-height: 1lh; }
-  .lb-page :global(.lb-ranking .bb-ranking-card__list),
-  .lb-page :global(.lb-ranking .bb-ranking-card__empty) {
-    min-height: calc(var(--lb-row) * 15);
-    margin: 0;
-  }
-  .lb-page :global(.lb-ranking .bb-ranking-card__empty) { display: flow-root; }
-  .lb-page :global(.lb-ranking .bb-ranking-card__row) {
-    box-sizing: border-box;
-    height: var(--lb-row);
-    padding: 0;
-  }
-  .lb-page :global(.lb-ranking .bb-ranking-card__position) {
-    box-sizing: content-box;
-    flex: none;
-    width: 4ch;
-    min-width: 4ch;
-    overflow: hidden;
-    text-align: end;
-    font: 500 20px/1 var(--bb-font-mono);
-    font-variant-numeric: tabular-nums;
-  }
-  .lb-page :global(.lb-ranking .bb-ranking-card__line) { flex-wrap: nowrap; }
-  .lb-page :global(.lb-ranking .bb-ranking-card__label) {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .lb-page :global(.lb-ranking .bb-ranking-card__value) { flex: none; }
-
   .lb-search { width: 260px; max-width: 100%; }
-  .lb-search :global(.bb-search) { height: 44px; padding-block: 0; box-sizing: border-box; }
   @media (max-width: 650px) {
     .lb-search { width: 100%; }
-    .lb-page { --lb-row: 72px; }
-    .lb-page :global(.lb-ranking .bb-ranking-card__position) { font-size: 16px; }
-    .lb-page :global(.lb-ranking .bb-ranking-card__description) { min-height: 2lh; }
   }
 
   .lb-empty {
@@ -354,14 +305,6 @@
 
   .lb-results { height: 1lh; margin-bottom: var(--bb-space-2); text-align: center; font-size: var(--bb-text-xs); }
   .lb-results > :global(*) { display: block; }
-  .lb-page :global(.board-pager) { min-height: 56px; box-sizing: border-box; }
-  .lb-page :global(.board-pager .bb-btn) { flex: none; width: 120px; justify-content: center; }
-  .lb-page :global(.board-pager .bb-pager__label) { flex: none; width: 20ch; text-align: center; white-space: nowrap; }
-  @media (max-width: 650px) {
-    .lb-page :global(.board-pager) { gap: 10px; padding-inline: 10px; }
-    .lb-page :global(.board-pager .bb-btn) { width: 76px; padding-inline: 6px; font-size: 11px; }
-    .lb-page :global(.board-pager .bb-pager__label) { width: 11ch; }
-  }
 
   .lb-foot { display: flex; align-items: center; justify-content: center; }
   .lb-foot { width: min(100%, 44rem); margin-inline: auto; }

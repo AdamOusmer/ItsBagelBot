@@ -40,8 +40,8 @@ export interface BoardView {
 
 export type PageFetcher = (req: PageRequest) => Promise<PageReply>;
 
-function cleanQuery(raw: string | null): string {
-  const squeezed = (raw ?? '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/^@+/, '').trim();
+export function cleanQuery(raw: string | null): string {
+  const squeezed = (raw ?? '').replace(/^[@\s]+/, '').replace(/\s+/g, ' ').trim();
   return Array.from(squeezed).slice(0, MAX_QUERY_LENGTH).join('').trim();
 }
 
