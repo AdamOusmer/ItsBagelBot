@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { PrefixIndex, matchesPrefix } from './cache-index';
+import { PrefixIndex, matchesAny } from './cache-index';
 
 export interface CachePolicy {
   freshMs: number;
@@ -92,16 +92,13 @@ export class SwrCache {
   }
 
   invalidate(...prefixes: string[]): void {
-    for (const prefix of prefixes) {
-      const keys = this.index.matching(prefix) ?? [...this.store.keys()].filter((k) => k.startsWith(prefix));
-      for (const key of keys) {
-        this.doom(key);
-        if (this.store.delete(key)) this.index.remove(key);
-        this.emit('invalidate', key);
-      }
+    for (const key of this.index.matching(prefixes, () => this.store.keys())) {
+      this.doom(key);
+      if (this.store.delete(key)) this.index.remove(key);
+      this.emit('invalidate', key);
     }
     for (const key of this.inflight.keys()) {
-      if (prefixes.some((p) => matchesPrefix(p, key))) this.doom(key);
+      if (matchesAny(prefixes, key)) this.doom(key);
     }
   }
 

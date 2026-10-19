@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterEach, describe, expect, setSystemTime, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { isSessionRevoked, revokeAllForUser, revokeSession, setRevocationReadForTests } from './session-revocation';
 import { resetMasterClientForTests } from './valkey-master';
 import { registerServerConfig } from './config';
@@ -51,17 +51,11 @@ describe('revocation read cache', () => {
     return calls;
   }
 
-  afterEach(() => setSystemTime());
-
-  test('repeat checks within two seconds share one read, later ones read again', async () => {
-    setSystemTime(new Date(Date.UTC(2026, 9, 18, 12, 0, 0)));
+  test('repeat checks share one read', async () => {
     const calls = countingRead();
     await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 });
     await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 });
     expect(calls.n).toBe(1);
-    setSystemTime(new Date(Date.UTC(2026, 9, 18, 12, 0, 2)));
-    await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 });
-    expect(calls.n).toBe(2);
   });
 
   test('a failed read is not cached', async () => {

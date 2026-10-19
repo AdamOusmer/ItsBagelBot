@@ -25,17 +25,6 @@ export interface LocalRevoke {
   epoch: number;
 }
 
-// A clock stepped backwards must not stretch a cached read past its window.
-function readFresh(entry: Stamped<unknown>): boolean {
-  const age = Date.now() - entry.at;
-  return age >= 0 && age < READ_CACHE_MS;
-}
-
-// A clock stepped backwards may only lengthen a local revoke.
-function revokeLive(entry: Stamped<unknown>): boolean {
-  return Date.now() - entry.at < LOCAL_REVOKE_MS;
-}
-
 function prune<T>(map: Map<string, Stamped<T>>, keep: (entry: Stamped<T>) => boolean): void {
   for (const [key, entry] of map) {
     if (keep(entry) && map.size <= READ_CACHE_MAX) return;
@@ -43,18 +32,23 @@ function prune<T>(map: Map<string, Stamped<T>>, keep: (entry: Stamped<T>) => boo
   }
 }
 
+// Monotonic by default: a wall-clock step must never stretch either window.
 export class RevocationCache {
   private readonly reads = new Map<string, Stamped<Promise<RevocationRead>>>();
   private readonly revokes = new Map<string, Stamped<number>>();
+  private readonly readFresh = (entry: Stamped<unknown>) => this.now() - entry.at < READ_CACHE_MS;
+  private readonly revokeLive = (entry: Stamped<unknown>) => this.now() - entry.at < LOCAL_REVOKE_MS;
+
+  constructor(private readonly now: () => number = () => performance.now()) {}
 
   read(keys: RevocationKeys, load: (keys: RevocationKeys) => Promise<RevocationRead>): Promise<RevocationRead> {
-    prune(this.reads, readFresh);
+    prune(this.reads, this.readFresh);
     const key = `${keys.userId}\u0000${keys.sid ?? ''}`;
     const hit = this.reads.get(key);
-    if (hit && readFresh(hit)) return hit.value;
+    if (hit && this.readFresh(hit)) return hit.value;
     const pending = load(keys);
     this.reads.delete(key);
-    this.reads.set(key, { at: Date.now(), value: pending });
+    this.reads.set(key, { at: this.now(), value: pending });
     pending.catch(() => {
       if (this.reads.get(key)?.value === pending) this.reads.delete(key);
     });
@@ -62,16 +56,16 @@ export class RevocationCache {
   }
 
   remember(revoke: LocalRevoke): void {
-    prune(this.revokes, revokeLive);
+    prune(this.revokes, this.revokeLive);
     this.revokes.delete(revoke.key);
-    this.revokes.set(revoke.key, { at: Date.now(), value: revoke.epoch });
+    this.revokes.set(revoke.key, { at: this.now(), value: revoke.epoch });
   }
 
   revokedHere(claims: RevocationClaims): boolean {
     const keys = claims.sid ? [`sid:${claims.sid}`, `all:${claims.userId}`] : [`all:${claims.userId}`];
     return keys.some((key) => {
       const entry = this.revokes.get(key);
-      return entry !== undefined && revokeLive(entry) && claims.iat < entry.value;
+      return entry !== undefined && this.revokeLive(entry) && claims.iat < entry.value;
     });
   }
 
