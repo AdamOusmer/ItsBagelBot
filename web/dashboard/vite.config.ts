@@ -27,6 +27,7 @@ export default defineConfig({
   json: { namedExports: false },
   build: {
     minify: 'terser',
+    terserOptions: { ecma: 2020, module: true, toplevel: true, compress: { passes: 2, ecma: 2020 } },
     // Without this group each locales/<code>/console file ships as its own chunk and request.
     rolldownOptions: { output: { codeSplitting: { groups: [localeChunks] } } }
   }
