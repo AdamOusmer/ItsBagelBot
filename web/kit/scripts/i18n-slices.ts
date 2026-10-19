@@ -12,8 +12,6 @@ import { alwaysLoadedWith, isNodeModule, leafPaths, parseDictionary, pick, type 
 import { SliceBuilder } from './i18n-slice-units.ts';
 import { analyzeModule, type Usage } from './i18n-usage.ts';
 
-export { alwaysLoadedWith } from './i18n-slice-graph.ts';
-
 export const NODE_PLACEHOLDER = '__BAGEL_I18N_NODE__';
 export const SLICE_DIR = '_app/immutable/i18n';
 const APP_MODULE = /\/generated\/client-optimized\/app\.js$/;
