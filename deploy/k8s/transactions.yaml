@@ -209,6 +209,7 @@ spec:
   routes:
     - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
       kind: Rule
+      middlewares: [{name: strip-client-ip}]
       services:
         - name: transactions
           port: 443

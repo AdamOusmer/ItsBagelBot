@@ -21,7 +21,6 @@ func (p *Pipeline) fetchUrlValues(ctx context.Context, c *module.Context, comman
 	seg := startStage(ctx, "sesame.urlfetch")
 	if seg != nil {
 		seg.AddAttribute("command", command)
-		seg.AddAttribute("broadcaster_id", c.BroadcasterID)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

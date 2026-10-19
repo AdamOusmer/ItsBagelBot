@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -169,7 +170,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
-	traceEnvelope(ctx, env, broadcasterID)
+	traceEnvelope(ctx, env)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -603,13 +604,13 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 		zap.Error(err))
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 
 func notice(ctx context.Context, err error) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 

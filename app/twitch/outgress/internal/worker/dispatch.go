@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
@@ -181,9 +182,9 @@ func annotateTxn(ctx context.Context, payload *outgress.Message) {
 	txn.AddAttribute("node.region", nodeRegion)
 	txn.AddAttribute("node.name", nodeName)
 	txn.AddAttribute("event.type", payload.Type)
-	txn.AddAttribute("event.broadcaster_id", payload.BroadcasterID)
 	if payload.Endpoint != "" {
-		txn.AddAttribute("event.endpoint", payload.Endpoint)
+		endpointPath, _, _ := strings.Cut(payload.Endpoint, "?")
+		txn.AddAttribute("event.endpoint", endpointPath)
 	}
 }
 

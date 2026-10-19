@@ -175,6 +175,12 @@ spec:
               value: "true"
             - name: NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED
               value: "true"
+            - name: NEW_RELIC_ATTRIBUTES_EXCLUDE
+              value: "request.*,response.*,http.url,http.target,http.host,client.address,net.*"
+            - name: NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ENABLED
+              value: "true"
+            - name: NEW_RELIC_ALLOW_ALL_HEADERS
+              value: "false"
             - name: NEW_RELIC_LABELS
               value: "service:console-dashboard;tier:web;component:ssr"
             - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
@@ -259,7 +265,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: health-mask}]
+      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
       services:
         - name: console-dashboard
           port: 443
@@ -271,7 +277,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
       kind: Rule
-      middlewares: [{name: dashboard-auth-ratelimit}]
+      middlewares: [{name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
       services:
         - name: console-dashboard
           port: 443
@@ -282,7 +288,7 @@ spec:
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: dashboard-compress}]
+      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
       services:
         - name: console-dashboard
           port: 443
@@ -305,6 +311,22 @@ metadata:
 spec:
   replacePath:
     path: /__health-masked
+---
+# Runs after the rate limit that keys on CF-Connecting-IP; no backend sees the visitor address.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-client-ip
+  namespace: app
+spec:
+  headers:
+    customRequestHeaders:
+      CF-Connecting-IP: ""
+      CF-Connecting-IPv6: ""
+      True-Client-IP: ""
+      X-Real-Ip: ""
+      X-Forwarded-For: ""
+      Forwarded: ""
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware

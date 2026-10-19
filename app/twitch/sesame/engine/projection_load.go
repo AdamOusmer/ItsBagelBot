@@ -10,11 +10,10 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
-func traceEnvelope(ctx context.Context, env *lane.Envelope, id uint64) {
+func traceEnvelope(ctx context.Context, env *lane.Envelope) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("event.type", env.Type)
 		txn.AddAttribute("event.lane", env.Lane)
-		txn.AddAttribute("event.broadcaster_id", id)
 		txn.AddAttribute("event.origin", env.Origin)
 		if env.Origin == "trial" {
 			txn.AddAttribute("event.trial_generation", env.TrialGeneration)

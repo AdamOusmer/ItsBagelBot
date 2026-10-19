@@ -66,8 +66,7 @@ async function replaceProjected<R>(kind: section, userId: string, rows: unknown[
   } catch (err) {
     newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
       component: 'projector-replace',
-      kind,
-      userId
+      kind
     });
     return null;
   }
