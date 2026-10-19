@@ -260,6 +260,8 @@ kind: Ingress
 metadata:
   name: console-admin
   namespace: app
+  annotations:
+    tailscale.com/proxy-group: ts-ingress
 spec:
   ingressClassName: tailscale
   defaultBackend:

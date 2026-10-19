@@ -25,7 +25,8 @@ spec:
               kubernetes.io/metadata.name: tailscale
           podSelector:
             matchLabels:
-              tailscale.com/parent-resource: traefik-dashboard
+              tailscale.com/parent-resource-type: proxygroup
+              tailscale.com/parent-resource: ts-ingress
       ports:
         - port: 8080
     - from:
