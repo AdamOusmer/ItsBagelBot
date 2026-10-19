@@ -12,6 +12,9 @@ type AdminAudit func(*sql.Selector)
 // AdminUser is the predicate function for adminuser builders.
 type AdminUser func(*sql.Selector)
 
+// AnalyticsRollup is the predicate function for analyticsrollup builders.
+type AnalyticsRollup func(*sql.Selector)
+
 // Delegation is the predicate function for delegation builders.
 type Delegation func(*sql.Selector)
 
