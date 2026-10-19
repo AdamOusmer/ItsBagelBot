@@ -82,7 +82,7 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 }
 
 func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
-	_, err := parseUserID(req.UserID)
+	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
@@ -97,12 +97,12 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	if err := u.repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
-	u.invalidate(req.UserID)
+	u.invalidate(userID)
 	return notificationsrpc.MarkReadReply{}
 }
 
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
-	_, err := parseUserID(req.UserID)
+	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
@@ -115,16 +115,16 @@ func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeeke
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
 	if peeked > 0 {
-		u.invalidate(req.UserID)
+		u.invalidate(userID)
 	}
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
 }
 
-func (u *userRPC) invalidate(userID string) {
+func (u *userRPC) invalidate(userID uint64) {
 	if u.nc == nil || u.invalidationPrefix == "" {
 		return
 	}
-	if err := invalidate.Publish(u.nc, u.invalidationPrefix, "notifications", userID); err != nil && u.log != nil {
+	if err := invalidate.Publish(u.nc, u.invalidationPrefix, "notifications", strconv.FormatUint(userID, 10)); err != nil && u.log != nil {
 		u.log.Warn("notification read invalidation publish failed", zap.Error(err))
 	}
 }
