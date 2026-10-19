@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -91,18 +92,30 @@ type commandCursor struct {
 
 // AnalyticsSeed tallies every command by keyset pages over (user_id, name); response is never read.
 func (r *Commands) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
-	tally := analytics.Tally{}
-	var last uint64
-	err := analytics.Pages(ctx, r.commandPage, func(c *ent.Commands) commandCursor {
+	return seedPages(ctx, r.commandPage, func(c *ent.Commands) commandCursor {
 		return commandCursor{c.UserID, c.Name}
-	}, func(c *ent.Commands) {
-		if c.UserID != last {
-			last = c.UserID
-			tally.Add(catalog.CustomChannels)
-		}
-		addCommand(tally, c)
+	}, func(t analytics.Tally, channels *channelEdge, c *ent.Commands) {
+		channels.add(t, c.UserID, catalog.CustomChannels)
+		addCommand(t, c)
 	})
+}
+
+func seedPages[R, C any](ctx context.Context, page func(context.Context, *C, int) ([]R, error), cursor func(R) C, visit func(analytics.Tally, *channelEdge, R)) (analytics.Tally, error) {
+	tally := analytics.Tally{}
+	channels := &channelEdge{}
+	err := analytics.Pages(ctx, page, cursor, func(row R) { visit(tally, channels, row) })
 	return tally, err
+}
+
+// channelEdge counts a channel once while keyset pages deliver its rows together.
+type channelEdge struct{ last uint64 }
+
+func (e *channelEdge) add(tally analytics.Tally, userID uint64, m catalog.Metric, dims ...string) {
+	if userID == e.last {
+		return
+	}
+	e.last = userID
+	tally.Add(m, dims...)
 }
 
 func (r *Commands) commandPage(ctx context.Context, after *commandCursor, limit int) ([]*ent.Commands, error) {
@@ -132,17 +145,11 @@ type keyCursor struct {
 
 // AnalyticsSeed counts users with at least one fetch key by keyset pages; key material is never read.
 func (f *Fetches) AnalyticsSeed(ctx context.Context) (analytics.Tally, error) {
-	tally := analytics.Tally{}
-	var last uint64
-	err := analytics.Pages(ctx, f.keyPage, func(k *ent.FetchKey) keyCursor {
+	return seedPages(ctx, f.keyPage, func(k *ent.FetchKey) keyCursor {
 		return keyCursor{k.UserID, k.Label}
-	}, func(k *ent.FetchKey) {
-		if k.UserID != last {
-			last = k.UserID
-			tally.Add(catalog.IntegrationsConnected, "fetch_key")
-		}
+	}, func(t analytics.Tally, channels *channelEdge, k *ent.FetchKey) {
+		channels.add(t, k.UserID, catalog.IntegrationsConnected, "fetch_key")
 	})
-	return tally, err
 }
 
 func (f *Fetches) keyPage(ctx context.Context, after *keyCursor, limit int) ([]*ent.FetchKey, error) {
@@ -215,6 +222,14 @@ func (r *Fetches) keyState(ctx context.Context, ids []uint64) (analytics.Tally, 
 		tally.Add(catalog.IntegrationsConnected, "fetch_key")
 	}
 	return tally, nil
+}
+
+func commandKeys(items []data.CommandChangedDTO) []commandKey {
+	keys := make([]commandKey, 0, len(items))
+	for _, item := range items {
+		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
+	}
+	return keys
 }
 
 func distinctUsers(items []commandKey) []uint64 {

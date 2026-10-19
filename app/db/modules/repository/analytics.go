@@ -164,22 +164,11 @@ func (r *Modules) seedSpotify(ctx context.Context, tally analytics.Tally) error 
 		})
 }
 
+// One row per channel under a unique user_id index, so a single indexed count is bounded.
 func (r *Modules) seedGovee(ctx context.Context, tally analytics.Tally) error {
-	return analytics.Pages(ctx,
-		func(ctx context.Context, after *uint64, limit int) ([]*ent.GoveeCredential, error) {
-			return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.GoveeCredential, error) {
-				q := r.client.GoveeCredential.Query().
-					Order(goveecredential.ByUserID()).
-					Select(goveecredential.FieldUserID).
-					Limit(limit)
-				if after != nil {
-					q = q.Where(goveecredential.UserIDGT(*after))
-				}
-				return q.All(ctx)
-			})
-		},
-		func(c *ent.GoveeCredential) uint64 { return c.UserID },
-		func(*ent.GoveeCredential) { tally.Add(catalog.IntegrationsConnected, "govee") })
+	n, err := db.WithQuery(ctx, r.client.GoveeCredential.Query().Count)
+	tally.AddN(int64(n), catalog.IntegrationsConnected, "govee")
+	return err
 }
 
 func breadthBucket(n int) string {
@@ -219,9 +208,9 @@ func (s *SpotifyCreds) track(ctx context.Context, userID uint64) func() {
 	})
 }
 
-// trackLinks covers account deletion, which removes credential rows inside its own transaction.
-func (r *Modules) trackLinks(ctx context.Context, userID uint64) func() {
-	shifts := []func(){}
+// trackAccount covers account deletion, which removes module and credential rows in one transaction.
+func (r *Modules) trackAccount(ctx context.Context, userID uint64) func() {
+	shifts := []func(){r.track(ctx, userID)}
 	if r.govee != nil {
 		shifts = append(shifts, r.govee.track(ctx, userID))
 	}

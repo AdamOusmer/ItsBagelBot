@@ -489,11 +489,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	ctx = newrelic.NewContext(ctx, txn)
 	log := monitor.TxnLogger(ctx, r.log)
 
-	keys := make([]commandKey, 0, len(items))
-	for _, item := range items {
-		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
-	}
-	track := r.track(ctx, distinctUsers(keys)...)
+	track := r.track(ctx, distinctUsers(commandKeys(items))...)
 
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
@@ -508,11 +504,7 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	}
 	track()
 
-	keys = keys[:0]
-	for _, item := range landed {
-		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
-	}
-	states, serr := r.rowStates(ctx, keys)
+	states, serr := r.rowStates(ctx, commandKeys(landed))
 	if serr != nil {
 		log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
 	}

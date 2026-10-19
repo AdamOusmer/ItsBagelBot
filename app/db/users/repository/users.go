@@ -86,6 +86,10 @@ type Users struct {
 	analytics          *analytics.Recorder
 }
 
+func (r *Users) SetAnalytics(rec *analytics.Recorder) {
+	r.analytics = rec
+}
+
 func (r *Users) SetInvalidationPrefix(prefix string) {
 	r.invalidationPrefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
 }

@@ -5,6 +5,7 @@ package analytics
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,12 +26,35 @@ const (
 
 type Seed func(ctx context.Context) (Tally, error)
 
+// Owned lists field prefixes ("modules.rows", "integrations.connected|govee"). Only those
+// are overwritten, because services share metrics such as integrations.connected.
+type Owned []string
+
+func (o Owned) owns(field string) bool {
+	return slices.ContainsFunc(o, func(prefix string) bool {
+		return field == prefix || strings.HasPrefix(field, prefix+"|")
+	})
+}
+
+func (o Owned) foreign(field string) bool { return !o.owns(field) }
+
+// Stale owned fields are zeroed so a total that fell to nothing is not left behind.
+func (o Owned) values(existing []string, totals Tally) map[string]string {
+	values := map[string]string{}
+	for _, field := range slices.DeleteFunc(slices.Clone(existing), o.foreign) {
+		values[field] = "0"
+	}
+	for field, n := range totals {
+		values[field] = strconv.FormatInt(n, 10)
+	}
+	maps.DeleteFunc(values, func(field, _ string) bool { return o.foreign(field) })
+	return values
+}
+
 // SeedOnce writes a service's true totals the first time any of its pods boots, then
 // never again. The marker is permanent; a pod that dies mid-seed leaves a claim that
 // expires so a later boot retries. Writes during the scan are the accepted drift.
-// owned lists field prefixes ("modules.rows", "integrations.connected|govee"): only those
-// are overwritten, because services share metrics such as integrations.connected.
-func (r *Recorder) SeedOnce(ctx context.Context, service string, owned []string, seed Seed) {
+func (r *Recorder) SeedOnce(ctx context.Context, service string, owned Owned, seed Seed) {
 	if r == nil {
 		return
 	}
@@ -49,7 +73,7 @@ func (r *Recorder) SeedOnce(ctx context.Context, service string, owned []string,
 	_ = r.client.Do(context.WithoutCancel(ctx), r.client.B().Set().Key(marker).Value(seedDone).Build()).Error()
 }
 
-func (r *Recorder) seed(ctx context.Context, owned []string, seed Seed) error {
+func (r *Recorder) seed(ctx context.Context, owned Owned, seed Seed) error {
 	totals, err := seed(ctx)
 	if err != nil {
 		return err
@@ -58,17 +82,10 @@ func (r *Recorder) seed(ctx context.Context, owned []string, seed Seed) error {
 	if err != nil {
 		return err
 	}
-	values := map[string]string{}
-	for _, field := range existing {
-		if ownedField(field, owned) {
-			values[field] = "0"
-		}
-	}
-	for field, n := range totals {
-		if ownedField(field, owned) {
-			values[field] = strconv.FormatInt(n, 10)
-		}
-	}
+	return r.writeLevels(ctx, owned.values(existing, totals))
+}
+
+func (r *Recorder) writeLevels(ctx context.Context, values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -77,12 +94,6 @@ func (r *Recorder) seed(ctx context.Context, owned []string, seed Seed) error {
 		cmd = cmd.FieldValue(field, v)
 	}
 	return r.client.Do(ctx, cmd.Build()).Error()
-}
-
-func ownedField(field string, owned []string) bool {
-	return slices.ContainsFunc(owned, func(prefix string) bool {
-		return field == prefix || strings.HasPrefix(field, prefix+"|")
-	})
 }
 
 // Pages walks a table in index order, one bounded query at a time with a pause between

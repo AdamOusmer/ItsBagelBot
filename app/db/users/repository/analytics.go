@@ -25,10 +25,6 @@ type AnalyticsRow struct {
 	Value  int64
 }
 
-func (r *Users) SetAnalytics(rec *analytics.Recorder) {
-	r.analytics = rec
-}
-
 // trackAccounts reads the accounts' counted columns before a write and returns the step
 // that shifts the running totals once it lands. A missing row tallies empty, so creates
 // and deletes count as +/-.

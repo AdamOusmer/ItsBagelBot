@@ -65,7 +65,7 @@ describe('analytics view', () => {
       row(d, 'modules.breadth', ['1'], 25),
       row(d, 'modules.breadth', ['6+'], 14),
       row(d, 'custom.total', ['active'], 80),
-      row(d, 'custom.flags', ['cooldown'], 0, true)
+      hidden(row(d, 'custom.flags', ['cooldown'], 0))
     ];
     const view = buildAnalytics({ day, week: [], month: [], cohortWeeks: [], cohortDays: [] });
     const table = (key: string) => view.tables.find((t) => t.key === key);
