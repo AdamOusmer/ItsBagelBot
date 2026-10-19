@@ -85,6 +85,9 @@ Catalog metadata, preview samples, and running service behavior are related but 
   semantics instead of treating timers as unconditional fixed-period messages.
 - `i18n:keys` regenerates localization key types; inspect outputs rather than hand-editing them.
 - Production checks require build-time demo gating; dynamic fixture imports must disappear from server output.
+- Console CSS: `scripts/bundled-ui-sheets.mjs` turns adapter imports of ui element sheets into empty modules;
+  `console.css` ships them once in `@bagel/ui/styles/elements.css` order, and each app's `hooks.client.ts` makes
+  app.css the first stylesheet. A route-level element sheet would reintroduce link-order cascade flips.
 
 ## Focused commands
 

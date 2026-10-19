@@ -1,8 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-@import '@bagel/ui/styles/motion.css';
-@import '@bagel/ui/styles/reveal.css';
+@import '@bagel/ui/styles/elements.css';
 @import '@bagel/ui/styles/a11y.css';
 @import '@bagel/ui/styles/lenis.css';
 

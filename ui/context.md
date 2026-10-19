@@ -41,6 +41,8 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - `styles/brand.css`, `semantic.css`, `fonts.css`, `a11y.css`: primitive/role tokens,
   font faces and accessibility policies.
 - `styles/elements/`: component contracts; adapters import their own contract CSS.
+- [styles/elements.css](styles/elements.css): every element sheet in cascade order (the tiebreak for equal
+  specificity). Console apps load it once through kit `console.css` and skip the per-adapter imports.
 - `svelte/` and `astro/`: named component adapters; `index.ts` files provide aggregate exports.
 - [svelte/actions.ts](svelte/actions.ts): `use:` wrappers over shared reveal/decode/magnetic engines.
 - `lib/select.ts` and `lib/astro-select.ts`: option filtering/navigation and Astro enhancement.
