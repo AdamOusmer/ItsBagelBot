@@ -10,8 +10,11 @@ import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 import { clientUiChunks } from '../kit/scripts/ui-chunks.mjs';
 
+// Route files that import @bagel/kit/styles/ui-console.css.
+const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+error\.svelte$)/;
+
 export default defineConfig({
-  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), bundledUiSheets(), sveltekit(), clientUiChunks()],
+  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), bundledUiSheets({ consoleRoutes }), sveltekit(), clientUiChunks()],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5173, fs: { allow: ['../kit', '../../ui', '../../locales'] } },

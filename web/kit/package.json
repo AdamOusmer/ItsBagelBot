@@ -65,6 +65,7 @@
     "./i18n/fs": "./lib/i18n/tree-fs.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/console.css": "./styles/console.css",
+    "./styles/ui-console.css": "./styles/ui-console.css",
     "./components/*": "./components/*",
     "./svelte-config": "./svelte-config.js",
     "./importer/fossabot": "./lib/importer/fossabot/index.ts",
