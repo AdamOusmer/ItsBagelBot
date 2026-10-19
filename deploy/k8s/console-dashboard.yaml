@@ -233,7 +233,7 @@ spec:
           readinessProbe:
             httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
             periodSeconds: 2
-            failureThreshold: 3
+            failureThreshold: 15
       terminationGracePeriodSeconds: 45
       tolerations:
         - key: node.kubernetes.io/unreachable
