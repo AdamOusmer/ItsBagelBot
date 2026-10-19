@@ -36,28 +36,45 @@ func TestScrubErrorRedactsLongDigitRuns(t *testing.T) {
 
 var identifyingKey = regexp.MustCompile(`(?:Add(?:Custom)?Attribute|RecordCustomEvent)\(\s*"[^"]*(?:broadcaster_id|user_id|userid|login)[^"]*"`)
 
-func TestNoIdentifyingNewRelicAttributeKeys(t *testing.T) {
-	root := filepath.Join("..", "..")
+func prunedDir(d fs.DirEntry) bool {
+	switch d.Name() {
+	case "node_modules", ".git", "ent":
+		return d.IsDir()
+	}
+	return false
+}
+
+func productionGoFile(d fs.DirEntry) bool {
+	name := d.Name()
+	return !d.IsDir() && strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+}
+
+func productionGoFiles(t *testing.T, root string) []string {
+	t.Helper()
+	var files []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "ent") {
+		if prunedDir(d) {
 			return filepath.SkipDir
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
+		if productionGoFile(d) {
+			files = append(files, path)
 		}
-		src, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		if loc := identifyingKey.Find(src); loc != nil {
-			t.Errorf("%s sends an identifying attribute to New Relic: %s", path, loc)
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	return files
+}
+
+func TestNoIdentifyingNewRelicAttributeKeys(t *testing.T) {
+	for _, path := range productionGoFiles(t, filepath.Join("..", "..")) {
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hit := identifyingKey.Find(src); hit != nil {
+			t.Errorf("%s sends an identifying attribute to New Relic: %s", path, hit)
+		}
 	}
 }
