@@ -55,12 +55,12 @@ test('projection readback keeps a newer accepted revision in the cache', async (
 
 test('patch synchronizes its committed config instead of invalidating into an old projection', async () => {
   expect(await patchModule({ userId: '1001', name: 'queue', isEnabled: true, partial: {}, expectedRev: 7 }))
-    .toEqual({ rev: 8, conflict: false });
+    .toEqual({ rev: 8, conflict: false, synced: true });
   expect(calls[1].body.modules).toEqual(modules);
 });
 
 test('a projection outage retains the committed SQL value for immediate readback', async () => {
   projectionFailure = true;
-  await upsertModule('1001', 'queue', true, {});
+  expect((await upsertModule('1001', 'queue', true, {})).synced).toBe(false);
   expect(await cache.getOrLoad('modules:1001', POLICY.projected, async () => [] as typeof modules)).toEqual(modules);
 });

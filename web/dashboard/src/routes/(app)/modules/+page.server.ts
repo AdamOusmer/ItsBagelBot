@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { ModuleState } from '@bagel/kit';
+import { toWire, type ModuleStateWire } from '$lib/module-states';
 import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/kit';
 import { listModules, type ModuleView } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
@@ -20,18 +20,18 @@ import { actionError } from '$lib/server/action-errors';
 
 const DEMO = dev && env.DEMO === '1';
 
-function merge(rows: ModuleView[], session: Session | null | undefined, premium: boolean): ModuleState[] {
+function merge(rows: ModuleView[], session: Session | null | undefined, premium: boolean): ModuleStateWire[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
   return MODULE_CATALOG.filter((def) => catalogIndexable(def) && delegateCanOpen(def, session)).map((def) => {
     const row = byName.get(def.id);
     const { config, revision } = moduleEditState(row);
-    return {
+    return toWire({
       def,
       enabled: def.toggleable === false ? true : row ? row.is_enabled : def.defaultEnabled,
       revision,
       config,
       locked: betaLocked(def, premium)
-    };
+    });
   });
 }
 

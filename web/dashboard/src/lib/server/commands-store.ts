@@ -89,15 +89,15 @@ export async function upsertModule(
   name: string,
   isEnabled: boolean,
   configs?: unknown
-): Promise<{ modules: ModuleView[] }> {
+): Promise<{ modules: ModuleView[]; synced: boolean }> {
   const reply = await rpc<{ modules: ModuleView[] }>(`${SUB.modules}.upsert`, {
     user_id: userId,
     name,
     is_enabled: isEnabled,
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
-  await replaceProjectedModules(userId, reply.modules);
-  return reply;
+  const synced = await replaceProjectedModules(userId, reply.modules);
+  return { ...reply, synced };
 }
 
 export interface ModulePatch {
@@ -108,7 +108,7 @@ export interface ModulePatch {
   expectedRev: number;
 }
 
-export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean }> {
+export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean; synced: boolean }> {
   const reply = await rpc<{ rev?: number; conflict?: boolean; modules: ModuleView[] }>(`${SUB.modules}.patch`, {
     user_id: p.userId,
     name: p.name,
@@ -118,10 +118,10 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
   });
   if (reply.conflict) {
     invalidate(cacheKey('modules', p.userId));
-    return { rev: reply.rev ?? p.expectedRev, conflict: true };
+    return { rev: reply.rev ?? p.expectedRev, conflict: true, synced: false };
   }
-  await replaceProjectedModules(p.userId, reply.modules);
-  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
+  const synced = await replaceProjectedModules(p.userId, reply.modules);
+  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false, synced };
 }
 
 export interface CommandInput {
