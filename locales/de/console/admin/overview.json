@@ -49,5 +49,11 @@
   "botAuthorize": "Autorisieren",
   "botReauthorize": "Erneut autorisieren",
   "botHint": "Öffne dies im Browser, in dem du beim Bot-Konto angemeldet bist:",
-  "botLinkLabel": "Link zur Bot-Autorisierung"
+  "botLinkLabel": "Link zur Bot-Autorisierung",
+  "feedTitle": "Gefütterte Bagels",
+  "feedTotal": "Fütterungen insgesamt",
+  "feedRanked": "Kanäle, die ihn gefüttert haben: {count}.",
+  "feedEmpty": "Noch niemand hat den Bagel gefüttert.",
+  "feedUnnamed": "Unbenannter Kanal",
+  "feedUnavailable": "Die Fütterungszähler sind gerade nicht verfügbar."
 }

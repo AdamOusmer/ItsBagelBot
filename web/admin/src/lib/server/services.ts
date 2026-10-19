@@ -41,6 +41,7 @@ const SUB = {
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
   notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
+  modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'bagel.rpc.modules',
   health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health',
   deploy: process.env.NATS_ADMIN_DEPLOY_SUBJECT_PREFIX || DEPLOY_PREFIX,
   deployEvents: process.env.NATS_DEPLOY_EVENTS_SUBJECT_PREFIX || DEPLOY_EVENTS_PREFIX
@@ -843,6 +844,47 @@ export async function botCounterSet(name: string, value: string): Promise<void> 
 export async function botCounterDelete(name: string): Promise<void> {
   const r = await loyaltyCall('delete', { name });
   if (r.error) throw new Error(r.error);
+}
+
+export const FEED_BOARD_SIZE = 5;
+
+export interface FeedBoardEntry {
+  id: string;
+  name: string;
+  count: string;
+}
+
+export interface FeedBoard {
+  total: string;
+  ranked: string;
+  entries: FeedBoardEntry[];
+}
+
+interface FeedBoardWire {
+  entries?: { broadcaster_id?: number | string; name?: string; count?: string | number }[];
+  total?: string | number;
+  ranked?: string | number;
+  error?: string;
+}
+
+function feedValue(raw: unknown): string {
+  const value = parseCounterValue(raw);
+  if (value === null) throw new Error('invalid feed count from modules');
+  return value;
+}
+
+export async function feedBoard(): Promise<FeedBoard> {
+  const r = await rpc<FeedBoardWire>(`${SUB.modules}.personality.feed.board`, { limit: FEED_BOARD_SIZE });
+  if (r.error) throw new Error(r.error);
+  return {
+    total: feedValue(r.total),
+    ranked: feedValue(r.ranked),
+    entries: (r.entries ?? []).map((row) => ({
+      id: String(row.broadcaster_id ?? ''),
+      name: (row.name ?? '').trim(),
+      count: feedValue(row.count)
+    }))
+  };
 }
 
 // Must match the deployer's DEPLOY_RPC_TIMEOUT.

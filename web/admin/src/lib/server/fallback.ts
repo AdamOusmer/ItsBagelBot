@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
-import type { EnrollmentWire } from './services';
+import type { EnrollmentWire, FeedBoard } from './services';
 
 export const EMPTY_USER_STATS: UserStats = {
   total_users: 0,
@@ -37,4 +37,8 @@ export function emptyShardSnapshot(): ShardSnapshot {
     max_shards: 0,
     autoscale: false
   };
+}
+
+export function emptyFeedBoard(): FeedBoard {
+  return { total: '0', ranked: '0', entries: [] };
 }

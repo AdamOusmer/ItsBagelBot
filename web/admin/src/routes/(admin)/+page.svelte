@@ -16,6 +16,7 @@
   import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
   import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
   import HealthPanel from '$lib/components/overview/HealthPanel.svelte';
+  import FeedPanel from '$lib/components/overview/FeedPanel.svelte';
   import AuditPeek from '$lib/components/overview/AuditPeek.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';
   import BotCard from '$lib/components/overview/BotCard.svelte';
@@ -62,6 +63,12 @@
         <SkeletonStack rows={1} height="240px" />
       {:then p}
         <HealthPanel probes={p.value} ok={p.ok} />
+      {/await}
+
+      {#await data.feed}
+        <SkeletonStack rows={1} height="300px" />
+      {:then p}
+        <FeedPanel board={p.value} ok={p.ok} />
       {/await}
 
       {#if data.canReadAudit}

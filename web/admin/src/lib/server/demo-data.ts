@@ -9,6 +9,7 @@ import type {
   AdminUserWire,
   AuditEntry,
   EnrollmentWire,
+  FeedBoard,
   NotificationWire,
   ServiceHealth
 } from './services';
@@ -131,6 +132,18 @@ export const sampleUsers: AdminUserWire[] = [
   { id: 70113355, username: 'kettle', is_active: false, status: 'free', banned: true, created_at: new Date(Date.now() - 200 * 864e5).toISOString(), updated_at: new Date().toISOString() },
   { id: 99884412, username: 'loudguy99', is_active: false, status: 'paid', banned: false, created_at: new Date(Date.now() - 7 * 864e5).toISOString(), updated_at: new Date().toISOString() }
 ];
+
+export const sampleFeedBoard: FeedBoard = {
+  total: '12873',
+  ranked: '57',
+  entries: [
+    { id: '51496027', name: 'cozycrumbs', count: '2410' },
+    { id: '40821753', name: 'sesameseed', count: '1985' },
+    { id: '73310962', name: 'everythingbagel', count: '1204' },
+    { id: '28807154', name: '', count: '866' },
+    { id: '61937408', name: 'toastedtuesday', count: '531' }
+  ]
+};
 
 export const sampleHealth: ServiceHealth[] = [
   { id: 'users', label: 'Users', ok: true, ms: 4 },

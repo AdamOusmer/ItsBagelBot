@@ -49,5 +49,11 @@
   "botAuthorize": "Autoriser",
   "botReauthorize": "Réautoriser",
   "botHint": "Ouvrez ce lien dans le navigateur connecté au compte du bot :",
-  "botLinkLabel": "Lien d'autorisation du bot"
+  "botLinkLabel": "Lien d'autorisation du bot",
+  "feedTitle": "Bagels nourris",
+  "feedTotal": "Repas, depuis toujours",
+  "feedRanked": "{count} chaînes l'ont nourri.",
+  "feedEmpty": "Personne n'a encore nourri le bagel.",
+  "feedUnnamed": "Chaîne sans nom",
+  "feedUnavailable": "Les compteurs de repas sont indisponibles pour le moment."
 }
