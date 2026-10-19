@@ -27,7 +27,7 @@ RPC reads and synchronous balance/counter management.
 | Counter entry | Bucket value addressed by owner/name/command/viewer. |
 | Scope | `bot`, `channel`, `viewer`, `command`, or `viewer_command`; shared constants are authoritative. |
 | `BatchID` | Stable counter-delivery identity, reused on retry. |
-| Receipt | Valkey completion cache for the active processor; separate CounterBatch SQL receipts serve ApplyBumps. |
+| Receipt | Valkey completion cache for the active processor. |
 | Trial promotion | One-time carry of observed decoded/answered totals into registered channel counters. |
 | Wager | Atomic settlement adding/removing a stake according to a caller-supplied outcome. |
 
@@ -42,12 +42,12 @@ RPC reads and synchronous balance/counter management.
 | [repository/balance_adjust.go](repository/balance_adjust.go), [wager.go](repository/wager.go) | Resolved-viewer balance adjustment and atomic wager settlement. |
 | [repository/trial.go](repository/trial.go) | Once-only promotion of trial statistics and lock ordering. |
 | [repository/counter_processor.go](repository/counter_processor.go), [counter_receipts.go](repository/counter_receipts.go) | Bounded active batching, Valkey claims/receipts and retry classification. |
-| [repository/batches.go](repository/batches.go), [prune.go](repository/prune.go) | Separate ApplyBumps SQL receipt writer and retention helpers; not the grouped consumer path wired in main. |
+| [repository/batches.go](repository/batches.go) | Trial-promotion and bump validation helpers shared by the counter persist path. |
 | [repository/counter_persist.go](repository/counter_persist.go) | SQL transaction, deterministic lock order, bounded writes and row-range isolation. |
 | [repository/watchtime.go](repository/watchtime.go) | Raw SQL inbox/dedup/fence schemas, atomic awards and account deletion/recreation. |
 | [repository/watchtime_retention.go](repository/watchtime_retention.go) | Monotonic retirement barrier and bounded replay-history pruning. |
 | [rpc/rpc.go](rpc/rpc.go) | All `balance.*`, `top.get`, `counter.*` handlers and wire views. |
-| [ent/schema/](ent/schema/) | Balance, Counter, CounterEntry and CounterBatch schemas; watchtime auxiliary tables use raw SQL. |
+| [ent/schema/](ent/schema/) | Balance, Counter and CounterEntry schemas; watchtime auxiliary tables use raw SQL. |
 | [repository/schema.go](repository/schema.go) | `MigrateSchema`: on MySQL, balances, counters and counter entries are clustered on their natural key. |
 
 Shared contracts: [loyalty RPC](../../../internal/domain/rpc/loyalty/),

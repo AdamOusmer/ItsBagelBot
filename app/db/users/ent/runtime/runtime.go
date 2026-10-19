@@ -5,6 +5,7 @@ package runtime
 import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
+	"ItsBagelBot/app/db/users/ent/analyticsrollup"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
@@ -63,6 +64,30 @@ func init() {
 	adminuser.DefaultUpdatedAt = adminuserDescUpdatedAt.Default.(func() time.Time)
 	// adminuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	adminuser.UpdateDefaultUpdatedAt = adminuserDescUpdatedAt.UpdateDefault.(func() time.Time)
+	analyticsrollupFields := schema.AnalyticsRollup{}.Fields()
+	_ = analyticsrollupFields
+	// analyticsrollupDescMetric is the schema descriptor for metric field.
+	analyticsrollupDescMetric := analyticsrollupFields[2].Descriptor()
+	// analyticsrollup.MetricValidator is a validator for the "metric" field. It is called by the builders before save.
+	analyticsrollup.MetricValidator = analyticsrollupDescMetric.Validators[0].(func(string) error)
+	// analyticsrollupDescD1 is the schema descriptor for d1 field.
+	analyticsrollupDescD1 := analyticsrollupFields[3].Descriptor()
+	// analyticsrollup.DefaultD1 holds the default value on creation for the d1 field.
+	analyticsrollup.DefaultD1 = analyticsrollupDescD1.Default.(string)
+	// analyticsrollup.D1Validator is a validator for the "d1" field. It is called by the builders before save.
+	analyticsrollup.D1Validator = analyticsrollupDescD1.Validators[0].(func(string) error)
+	// analyticsrollupDescD2 is the schema descriptor for d2 field.
+	analyticsrollupDescD2 := analyticsrollupFields[4].Descriptor()
+	// analyticsrollup.DefaultD2 holds the default value on creation for the d2 field.
+	analyticsrollup.DefaultD2 = analyticsrollupDescD2.Default.(string)
+	// analyticsrollup.D2Validator is a validator for the "d2" field. It is called by the builders before save.
+	analyticsrollup.D2Validator = analyticsrollupDescD2.Validators[0].(func(string) error)
+	// analyticsrollupDescD3 is the schema descriptor for d3 field.
+	analyticsrollupDescD3 := analyticsrollupFields[5].Descriptor()
+	// analyticsrollup.DefaultD3 holds the default value on creation for the d3 field.
+	analyticsrollup.DefaultD3 = analyticsrollupDescD3.Default.(string)
+	// analyticsrollup.D3Validator is a validator for the "d3" field. It is called by the builders before save.
+	analyticsrollup.D3Validator = analyticsrollupDescD3.Validators[0].(func(string) error)
 	delegationFields := schema.Delegation{}.Fields()
 	_ = delegationFields
 	// delegationDescToken is the schema descriptor for token field.

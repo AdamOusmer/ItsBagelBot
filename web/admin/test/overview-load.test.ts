@@ -21,6 +21,7 @@ mock.module('$lib/server/services', () => ({
   shardSnapshot: read('fleet', { shard_count: 3 }),
   trialList: read('trials', { version: 1, trials: [] }),
   serviceHealth: read('health', [{ service: 'users', ok: true }]),
+  feedBoard: read('feed', { total: '12', ranked: '2', entries: [{ id: '7', name: 'crumbs', count: '9' }] }),
   auditList: read('audit', []),
   tokenStatus: read('bot', { present: true })
 }));
@@ -28,7 +29,7 @@ mock.module('$lib/server/giveaways', () => ({ giveawayAlerts: read('giveawayAler
 
 const { load } = await import('../src/routes/(admin)/+page.server');
 
-const READS = ['enrollment', 'fleet', 'trials', 'health', 'audit', 'bot', 'giveawayAlerts'] as const;
+const READS = ['enrollment', 'fleet', 'trials', 'health', 'feed', 'audit', 'bot', 'giveawayAlerts'] as const;
 
 async function panels(): Promise<Record<(typeof READS)[number], { ok: boolean; value: any }>> {
   const data = (await load({ url: new URL('https://admin.example/'), parent: async () => ({ id: '1', role: 'owner' }) } as never)) as any;
@@ -47,10 +48,11 @@ describe('admin overview load', () => {
     for (const name of READS) failing.add(name);
     const all = await panels();
     expect(READS.map((name) => all[name].ok)).toEqual(READS.map(() => false));
-    expect({ days: all.enrollment.value.days.length, users: all.enrollment.value.stats.total_users, shards: all.fleet.value.shard_count }).toEqual({
+    expect({ days: all.enrollment.value.days.length, users: all.enrollment.value.stats.total_users, shards: all.fleet.value.shard_count, feed: all.feed.value }).toEqual({
       days: 30,
       users: 0,
-      shards: 0
+      shards: 0,
+      feed: { total: '0', ranked: '0', entries: [] }
     });
   });
 
@@ -58,6 +60,6 @@ describe('admin overview load', () => {
     failing.clear();
     failing.add('fleet');
     const all = await panels();
-    expect(READS.map((name) => all[name].ok)).toEqual([true, false, true, true, true, true, true]);
+    expect(READS.map((name) => all[name].ok)).toEqual([true, false, true, true, true, true, true, true]);
   });
 });

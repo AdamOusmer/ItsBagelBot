@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/confcache"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
@@ -22,6 +23,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/monitor"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
@@ -89,6 +91,8 @@ type Pipeline struct {
 
 	observers []*observerLane
 
+	analytics *analytics.Recorder
+
 	chatLineCounter ChatLineCounter
 }
 
@@ -129,6 +133,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
 		chatLineCounter:   d.ChatLines,
+		analytics:         d.Analytics,
 	}
 	p.localeLookup = p.readLocale
 	if d.Automod == nil && d.Log != nil {
@@ -169,7 +174,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
-	traceEnvelope(ctx, env, broadcasterID)
+	traceEnvelope(ctx, env)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -188,6 +193,7 @@ func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadca
 		target = 0
 	}
 	p.stats.count(target, decodedDelta(env))
+	p.recordDecoded(env)
 	if env.Origin == "trial" {
 		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}
@@ -242,6 +248,7 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
 	}
+	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.Command != "", emission.ordinal)
 
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
@@ -565,10 +572,12 @@ func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, m modul
 		return
 	}
 	before := mctx.Emitted
+	started := time.Now()
 	if err := handle(ctx, mctx, emit); err != nil {
 		p.handlerFailed(ctx, mctx, m, err)
 		return
 	}
+	p.recordHandled(mctx, m, before, time.Since(started))
 	if engagedBy(mctx, m, before) {
 		mctx.Engaged = true
 	}
@@ -601,15 +610,16 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 		zap.String("type", mctx.Env.Type),
 		module.BIDField(mctx.BroadcasterID),
 		zap.Error(err))
+	p.recordFailure(m, err)
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 
 func notice(ctx context.Context, err error) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 

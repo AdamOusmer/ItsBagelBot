@@ -12,8 +12,5 @@ type Balance func(*sql.Selector)
 // Counter is the predicate function for counter builders.
 type Counter func(*sql.Selector)
 
-// CounterBatch is the predicate function for counterbatch builders.
-type CounterBatch func(*sql.Selector)
-
 // CounterEntry is the predicate function for counterentry builders.
 type CounterEntry func(*sql.Selector)

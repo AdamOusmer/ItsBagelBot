@@ -9,7 +9,9 @@ import {
   tokenStatus,
   auditList,
   serviceHealth,
+  feedBoard,
   type EnrollmentWire,
+  type FeedBoard,
   type AuditEntry,
   type ServiceHealth,
   type TrialSnapshot
@@ -17,7 +19,7 @@ import {
 import { dev } from '$app/environment';
 import { allows } from '$lib/server/access';
 import { bestEffort } from '@bagel/kit/server/best-effort';
-import { emptyEnrollment, emptyShardSnapshot } from '$lib/server/fallback';
+import { emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '$lib/server/fallback';
 import { env } from '$env/dynamic/private';
 import type { ShardSnapshot } from '@bagel/kit';
 import { parseEnrollmentWindow, type EnrollmentWindow } from '$lib/enrollment-window';
@@ -40,6 +42,7 @@ type OverviewReads = {
   fleet: Promise<Panel<ShardSnapshot>>;
   trials: Promise<Panel<TrialSnapshot>>;
   health: Promise<Panel<ServiceHealth[]>>;
+  feed: Promise<Panel<FeedBoard>>;
   audit: Promise<Panel<AuditEntry[]>>;
   bot: Promise<Panel<boolean>>;
   giveawayAlerts: Promise<Panel<GiveawayAlertWire[]>>;
@@ -64,6 +67,7 @@ function liveReads(
     fleet: panel(shardSnapshot(), emptyShardSnapshot()),
     trials: panel(withTrials ? trialList() : Promise.resolve(EMPTY_TRIALS), EMPTY_TRIALS),
     health: panel(serviceHealth(), []),
+    feed: panel(feedBoard(), emptyFeedBoard()),
     audit: panel(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), []),
     bot: panel(
       botId ? tokenStatus({ actorId, userId: botId }).then((t) => t.present) : Promise.resolve(false),
@@ -82,6 +86,7 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
     fleet: from((f) => f.sampleSnapshot),
     trials: from(() => EMPTY_TRIALS),
     health: from((f) => f.sampleHealth),
+    feed: from((f) => f.sampleFeedBoard),
     audit: from((f) => (withAudit ? f.sampleAudit : [])),
     bot: from(() => true),
     giveawayAlerts: from(() => [])

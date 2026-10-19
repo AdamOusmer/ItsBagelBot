@@ -47,9 +47,16 @@ defmodule Ingress.Trials do
 
   @stop_script """
   if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
-  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'state', 'stopping')
+  local key = 'trial:channel:' .. ARGV[1]
+  local current = redis.call('HGET', key, 'stop_reason')
+  local stopping = redis.call('HGET', key, 'state') == 'stopping'
+  local sticky = current == 'promoted' or current == 'removed'
+  local replace = not current or (current ~= ARGV[2] and not sticky)
+  if stopping and not replace then return 'unchanged' end
+  redis.call('HSET', key, 'state', 'stopping')
+  if replace then redis.call('HSET', key, 'stop_reason', ARGV[2]) end
   redis.call('INCR', KEYS[2])
-  return 'stopping'
+  return 'changed'
   """
 
   @set_enabled_script """
@@ -91,11 +98,13 @@ defmodule Ingress.Trials do
   local key = 'trial:channel:' .. ARGV[1]
   if redis.call('HGET', key, 'state') ~= 'stopping' then return 0 end
   if redis.call('HGET', key, 'subscription_id') then return 0 end
+  local state = 'removed'
+  if redis.call('HGET', key, 'stop_reason') == 'promoted' then state = 'promoted' end
   redis.call('SREM', KEYS[1], ARGV[1])
   redis.call('INCR', KEYS[2])
-  redis.call('HSET', key, 'state', ARGV[2])
+  redis.call('HSET', key, 'state', state)
   redis.call('EXPIRE', key, 604800)
-  redis.call('ZADD', KEYS[3], ARGV[3], ARGV[1])
+  redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
   return 1
   """
 
@@ -155,10 +164,12 @@ defmodule Ingress.Trials do
   def record_load(id, generation, slot, load),
     do: VK.command(["EVAL", @load_script, 1, "trial:channel:" <> id, generation, slot, load])
 
-  def stop(id) do
-    case VK.command(["EVAL", @stop_script, 2, @members, @revision, id]) do
-      {:ok, state} -> {:ok, state}
-      {:error, _} -> {:error, "unavailable"}
+  def stop(id, reason) when reason in ["promoted", "removed", "registration_check_unavailable"] do
+    case VK.command(["EVAL", @stop_script, 2, @members, @revision, id, reason]) do
+      {:ok, "changed"} -> {:ok, :changed}
+      {:ok, "unchanged"} -> {:ok, :unchanged}
+      {:ok, "absent"} -> {:ok, :absent}
+      _ -> {:error, "unavailable"}
     end
   end
 
@@ -173,7 +184,7 @@ defmodule Ingress.Trials do
     end
   end
 
-  def finish(id, state) when state in ["removed", "promoted"] do
+  def finish(id) do
     VK.command([
       "EVAL",
       @finish_script,
@@ -182,7 +193,6 @@ defmodule Ingress.Trials do
       @revision,
       @history,
       id,
-      state,
       System.system_time(:second)
     ])
   end

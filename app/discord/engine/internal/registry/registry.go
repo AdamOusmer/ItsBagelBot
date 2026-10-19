@@ -5,8 +5,10 @@ package registry
 
 import (
 	"fmt"
+	"strings"
 
 	"ItsBagelBot/app/discord/engine/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 )
 
 type Bound struct {
@@ -45,6 +47,22 @@ func claim(into map[string]Bound, kind, key string, b Bound) {
 		panic(fmt.Sprintf("discord/engine/registry: duplicate %s %q claimed by module %q", kind, key, b.Module))
 	}
 	into[key] = b
+}
+
+func EventLabel(eventType string) string { return strings.ToLower(eventType) }
+
+func (r *Registry) AnalyticsNames() map[catalog.Kind][]string {
+	var names []string
+	for t := range r.events {
+		names = append(names, EventLabel(t))
+	}
+	for name := range r.slash {
+		names = append(names, name)
+	}
+	for id := range r.buttons {
+		names = append(names, id)
+	}
+	return map[catalog.Kind][]string{catalog.KindDiscord: names}
 }
 
 func (r *Registry) Events(eventType string) []Bound { return r.events[eventType] }

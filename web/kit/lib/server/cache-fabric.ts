@@ -24,7 +24,7 @@ export function newRelicMetrics(app: string): CacheMetrics {
       newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
         component: 'cache-fabric',
         app,
-        cacheKey: key,
+        cacheFamily: family(key),
         maskedByStale: true
       });
     }

@@ -304,18 +304,3 @@ export class ValkeyRateLimiter {
     this.fallback.dispose();
   }
 }
-
-export function clientIp(headers: Headers, fallback: () => string): string {
-  const cf = headers.get('cf-connecting-ip');
-  if (cf) return cf.trim();
-  const xff = headers.get('x-forwarded-for');
-  if (xff) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  try {
-    return fallback();
-  } catch {
-    return 'unknown';
-  }
-}

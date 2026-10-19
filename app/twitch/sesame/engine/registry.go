@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 
 	"go.uber.org/zap"
 )
@@ -120,6 +121,20 @@ func (r *Registry) resolveOwners(name string) (owners []BoundCommand, num string
 }
 
 func (r *Registry) Commands() map[string][]BoundCommand { return r.commands }
+
+func (r *Registry) AnalyticsNames() map[catalog.Kind][]string {
+	modules := []string{"core"}
+	for name := range r.byName {
+		modules = append(modules, name)
+	}
+	var commands []string
+	for _, owners := range r.commands {
+		for _, bc := range owners {
+			commands = append(commands, bc.Cmd.Name)
+		}
+	}
+	return map[catalog.Kind][]string{catalog.KindModule: modules, catalog.KindCommand: commands}
+}
 
 func moduleLabel(m module.Module) string {
 	if m.Name != "" {

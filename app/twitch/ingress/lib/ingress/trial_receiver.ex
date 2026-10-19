@@ -238,7 +238,7 @@ defmodule Ingress.TrialReceiver do
 
   defp acquire(state) do
     case Trials.acquire(state.owner, state.slot) do
-      {:ok, epoch} -> reconcile(%{state | epoch: epoch, free_ticks: 0})
+      {:ok, epoch} -> reconcile(%{state | epoch: epoch, free_ticks: 0}, true)
       _ -> state
     end
   end
@@ -495,11 +495,11 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp reconcile(state) do
+  defp reconcile(state, sweep? \\ false) do
     case Trials.list() do
       {:ok, %{trials: rows, socket_target: target}} ->
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
-        own = rows |> Enum.filter(&(&1.slot == state.slot)) |> maybe_promote()
+        own = rows |> Enum.filter(&(&1.slot == state.slot)) |> maybe_promote(sweep?)
         state = coordinate(rows, target, state)
 
         case Enum.reduce_while(own, :owned, fn row, _ ->
@@ -607,16 +607,19 @@ defmodule Ingress.TrialReceiver do
     }
   end
 
-  defp maybe_promote(rows) do
-    Enum.map(rows, fn row ->
-      if row.state != "stopping" && TrialRpc.registered?(row.broadcaster_id) == {:ok, true} do
-        Trials.stop(row.broadcaster_id)
-        Trials.field(row.broadcaster_id, "stop_reason", "promoted")
-        %{row | state: "stopping"}
-      else
-        row
-      end
-    end)
+  defp maybe_promote(rows, false), do: rows
+
+  defp maybe_promote(rows, true), do: Enum.map(rows, &promote_if_registered/1)
+
+  defp promote_if_registered(%{state: "stopping"} = row), do: row
+
+  defp promote_if_registered(row) do
+    with {:ok, true} <- TrialRpc.registered?(row.broadcaster_id),
+         {:ok, :changed} <- Trials.stop(row.broadcaster_id, "promoted") do
+      %{row | state: "stopping", stop_reason: "promoted"}
+    else
+      _ -> row
+    end
   end
 
   defp reconcile_row(%{state: "stopping"} = row, state) do
@@ -629,9 +632,7 @@ defmodule Ingress.TrialReceiver do
         trial_generation: row.generation
       })
 
-    if reply["deleted"] == true do
-      Trials.finish(row.broadcaster_id, row.stop_reason || "removed")
-    end
+    if reply["deleted"] == true, do: finish_after_recheck(row)
   end
 
   defp reconcile_row(%{state: "disabled"} = row, state) do
@@ -650,30 +651,36 @@ defmodule Ingress.TrialReceiver do
 
   defp reconcile_row(row, state) do
     if subscription_needed?(row, state) do
-      case TrialRpc.registered?(row.broadcaster_id) do
-        {:ok, false} ->
-          reply =
-            subscription_rpc("create", %{
-              broadcaster_id: row.broadcaster_id,
-              session_id: state.session_id,
-              owner_epoch: state.epoch,
-              slot: state.slot,
-              trial_generation: row.generation
-            })
+      reply =
+        subscription_rpc("create", %{
+          broadcaster_id: row.broadcaster_id,
+          session_id: state.session_id,
+          owner_epoch: state.epoch,
+          slot: state.slot,
+          trial_generation: row.generation
+        })
 
-          if error = reply["error"] do
-            Trials.fail(row.broadcaster_id, row.generation, error)
-          end
-
-        {:ok, true} ->
-          Trials.stop(row.broadcaster_id)
-          Trials.field(row.broadcaster_id, "stop_reason", "promoted")
-
-        _ ->
-          Trials.fail(row.broadcaster_id, row.generation, "registration_check_unavailable")
+      if error = reply["error"] do
+        Trials.fail(row.broadcaster_id, row.generation, error)
       end
     end
   end
+
+  defp finish_after_recheck(row) do
+    case recheck_registration(row) do
+      {:error, _} -> :retry
+      _ -> Trials.finish(row.broadcaster_id)
+    end
+  end
+
+  defp recheck_registration(%{stop_reason: "registration_check_unavailable"} = row) do
+    case TrialRpc.registered?(row.broadcaster_id) do
+      {:ok, true} -> Trials.stop(row.broadcaster_id, "promoted")
+      _ -> :ok
+    end
+  end
+
+  defp recheck_registration(_row), do: :ok
 
   defp subscription_needed?(row, state) do
     row.state in ["pending", "failed"] ||

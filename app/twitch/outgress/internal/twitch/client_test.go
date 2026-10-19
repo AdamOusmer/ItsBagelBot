@@ -84,6 +84,29 @@ func TestBroadcasterPermissionDenialKeepsBotToken(t *testing.T) {
 	}
 }
 
+func TestChannelBotDenialKeepsAppToken(t *testing.T) {
+	refreshes, requests := 0, 0
+	app := &Source{refresh: func(context.Context) (string, time.Duration, error) {
+		refreshes++
+		return "app-token", time.Hour, nil
+	}}
+	client := helixClient(app, nil, func(*http.Request) (*http.Response, error) {
+		requests++
+		return respond(http.StatusUnauthorized, `{"error":"Unauthorized","status":401,"message":"The broadcaster must have authorized the app with the channel:bot scope or the sender must have the required permission in the broadcaster's channel."}`), nil
+	})
+
+	res, err := client.ExecuteAs(context.Background(), IdentityApp, "broadcaster",
+		HelixCall{Method: http.MethodPost, Endpoint: "/helix/chat/messages", Body: []byte(`{}`)})
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	body, _ := io.ReadAll(res.Body)
+	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	assert.Contains(t, string(body), "channel:bot")
+	assert.Equal(t, 1, requests, "a missing broadcaster grant must not be retried")
+	assert.Equal(t, 1, refreshes, "a missing broadcaster grant must not discard the shared app token")
+}
+
 func TestHTTPClientPoolMatchesWorkerConcurrency(t *testing.T) {
 	client := newHTTPClient()
 	transport, ok := client.Transport.(*http.Transport)

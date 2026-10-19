@@ -31,6 +31,7 @@ var subjectByType = map[string]string{
 	"INTERACTION_CREATE":           ddiscord.SubjectEventInteraction,
 	"GUILD_AUDIT_LOG_ENTRY_CREATE": ddiscord.SubjectEventAudit,
 	"GUILD_CREATE":                 ddiscord.SubjectEventGuild,
+	"GUILD_DELETE":                 ddiscord.SubjectEventGuild,
 	"MESSAGE_DELETE_BULK":          ddiscord.SubjectEventMessage,
 	"GUILD_MEMBER_UPDATE":          ddiscord.SubjectEventMember,
 	"GUILD_BAN_ADD":                ddiscord.SubjectEventMember,
@@ -51,7 +52,7 @@ var subjectByType = map[string]string{
 	"GUILD_STICKERS_UPDATE":        ddiscord.SubjectEventGuild,
 }
 
-var guildIsID = map[string]bool{"GUILD_CREATE": true, "GUILD_UPDATE": true}
+var guildIsID = map[string]bool{"GUILD_CREATE": true, "GUILD_UPDATE": true, "GUILD_DELETE": true}
 
 var channelIsID = map[string]bool{
 	"CHANNEL_CREATE": true,

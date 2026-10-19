@@ -3,18 +3,15 @@
 
 defmodule Ingress.TrialUserChanged do
   use Ingress.RpcServer, log: "trial user changed"
-  alias Ingress.{JSON, TrialMembership, Trials}
+  alias Ingress.{JSON, Trials}
 
   @impl true
   def request(%{body: body}) do
     with {:ok, %{"user_id" => id}} <- JSON.decode(body),
-         id when is_binary(id) <- to_string(id),
-         %{state: state} <- TrialMembership.lookup(id),
-         true <- state != "stopping" do
-      Trials.stop(id)
-      Trials.field(id, "stop_reason", "promoted")
-    else
-      _ -> :ok
+         id = to_string(id),
+         true <- Trials.valid_id?(id),
+         {:error, reason} <- Trials.stop(id, "promoted") do
+      Logger.warning("trial promotion failed for #{id}: #{inspect(reason)}")
     end
 
     :ok

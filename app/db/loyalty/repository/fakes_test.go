@@ -11,7 +11,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
 
@@ -47,10 +46,6 @@ func (r *counterRows) Next(dest []driver.Value) error {
 	copy(dest, r.rows[0])
 	r.rows = r.rows[1:]
 	return nil
-}
-
-func deadlockError() error {
-	return &mysql.MySQLError{Number: mysqlDeadlock, Message: "Deadlock found when trying to get lock"}
 }
 
 func bare() *Loyalty {

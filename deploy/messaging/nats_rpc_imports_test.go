@@ -184,6 +184,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.admin.user.auth.check", "web/admin"},
 		{"bagel.rpc.admin.user.audit.list", "web/admin"},
 		{"bagel.rpc.admin.notifications.send", "web/admin"},
+		{"bagel.rpc.modules.personality.feed.board", "web/admin/src/lib/server/services.ts feedBoard"},
 		{"bagel.rpc.loyalty.counter.get", "web/admin"},
 		{"bagel.rpc.outgress.channel.get", "web/admin"},
 		{"twitch.ingress.admin.shards.get", "web/admin"},

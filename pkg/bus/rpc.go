@@ -151,7 +151,7 @@ func jsonRPCHandler[Req any, Resp any](
 			if err := codec.FastUnmarshal(msg.Data, &req); err != nil {
 				decodeSegment.AddAttribute(resultAttribute, "invalid")
 				decodeSegment.End()
-				txn.NoticeError(err)
+				monitor.NoticeError(txn, err)
 				txn.AddAttribute(resultAttribute, "invalid")
 				respondAndLog(msg, subject, start, log, txn, map[string]string{"error": "bad request"})
 				return
@@ -165,7 +165,7 @@ func jsonRPCHandler[Req any, Resp any](
 
 		defer func() {
 			if r := recover(); r != nil {
-				txn.NoticeError(fmt.Errorf("rpc handler panic: %v", r))
+				monitor.NoticeError(txn, fmt.Errorf("rpc handler panic: %v", r))
 				log.Error("rpc handler panic recovered", zap.String("subject", subject), zap.Any("panic", r))
 				respondAndLog(msg, subject, start, log, txn, map[string]string{"error": "internal error"})
 			}
@@ -186,7 +186,7 @@ func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logg
 	encodeSegment.End()
 	if err != nil {
 		txn.AddAttribute(resultAttribute, "error")
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 		if log != nil {
 			log.Warn("rpc encode reply failed", zap.String("subject", subject), zap.Duration("elapsed", elapsed), zap.Error(err))
 		}
@@ -201,7 +201,7 @@ func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logg
 	segment.End()
 	txn.AddAttribute(resultAttribute, messagingResult(err))
 	if err != nil && log != nil {
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 		log.Warn("rpc respond failed", zap.String("subject", subject), zap.Duration("elapsed", elapsed), zap.Error(err))
 		return
 	}

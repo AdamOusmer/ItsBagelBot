@@ -23,6 +23,22 @@ spec:
   replacePath:
     path: /status
 ---
+# Runs after the rate limit that keys on CF-Connecting-IP; no backend sees the visitor address.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-client-ip
+  namespace: db
+spec:
+  headers:
+    customRequestHeaders:
+      CF-Connecting-IP: ""
+      CF-Connecting-IPv6: ""
+      True-Client-IP: ""
+      X-Real-Ip: ""
+      X-Forwarded-For: ""
+      Forwarded: ""
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -55,7 +71,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/db`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: projector-status
           port: 443
@@ -63,7 +79,7 @@ spec:
           serversTransport: projector-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/billing`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: transactions
           port: 443

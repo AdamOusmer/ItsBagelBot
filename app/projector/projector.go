@@ -4,6 +4,8 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"cmp"
 	"context"
 	"fmt"
@@ -37,6 +39,7 @@ type Projector struct {
 	loyalty               loyaltyCounterReader
 	live                  liveCounterStore
 	log                   *zap.Logger
+	analytics             *analytics.Recorder
 }
 
 type Deps struct {
@@ -48,6 +51,7 @@ type Deps struct {
 	Hydrator              *hydration.Hydrator
 	Loyalty               loyaltyCounterReader
 	Live                  liveCounterStore
+	Analytics             *analytics.Recorder
 	Log                   *zap.Logger
 }
 
@@ -62,6 +66,7 @@ func NewProjector(d Deps) *Projector {
 		loyalty:               d.Loyalty,
 		live:                  d.Live,
 		log:                   d.Log,
+		analytics:             d.Analytics,
 	}
 }
 
@@ -295,6 +300,8 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 	if !st.Live {
 		return nil
 	}
+	p.analytics.Count(catalog.LiveStarts)
+	p.analytics.Distinct(catalog.ChannelsLive, st.BroadcasterID)
 	allowed, err := p.engageStream(msg.Context(), st.BroadcasterID, msg.UUID)
 	if err != nil {
 		return err

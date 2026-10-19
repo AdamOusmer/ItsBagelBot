@@ -15,7 +15,9 @@ import (
 	"ItsBagelBot/app/discord/engine/internal/resolve"
 	"ItsBagelBot/app/discord/engine/module"
 	"ItsBagelBot/app/discord/engine/modules"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/discordstore"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -27,11 +29,12 @@ import (
 )
 
 type Dispatcher struct {
-	Registry *registry.Registry
-	Resolver resolve.Resolver
-	Store    discordstore.Store
-	Publish  modules.Publish
-	Log      *zap.Logger
+	Registry  *registry.Registry
+	Resolver  resolve.Resolver
+	Store     discordstore.Store
+	Publish   modules.Publish
+	Log       *zap.Logger
+	Analytics *analytics.Recorder
 }
 
 const dedupTTL = 2 * time.Minute
@@ -58,6 +61,10 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	if !ok {
 		return nil
 	}
+	if ev.Type == guildDelete {
+		d.recordGuildDelete(ev)
+		return nil
+	}
 
 	var emitted []ddiscord.Command
 	emit := func(c ddiscord.Command) { emitted = append(emitted, c) }
@@ -70,8 +77,23 @@ func (d *Dispatcher) Handle(msg *bus.Message) error {
 	return nil
 }
 
+const guildDelete = "GUILD_DELETE"
+
+// An outage also sends GUILD_DELETE, flagged unavailable; only a real removal counts.
+func (d *Dispatcher) recordGuildDelete(ev ddiscord.Event) {
+	gone, err := decode.Decode[struct {
+		Unavailable bool `json:"unavailable"`
+	}](ev.Raw)
+	if err == nil && !gone.Unavailable {
+		d.Analytics.Count(catalog.Lifecycle, "guild_removed")
+	}
+}
+
 func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit module.Emit) {
 	route := d.route(c.Event)
+	if len(route.Handlers) > 0 {
+		d.Analytics.Count(route.Metric, route.Label)
+	}
 	defer func() { c.Settings = nil }()
 	for _, b := range route.Handlers {
 		if !c.ModuleOn(b.Module) {
@@ -85,7 +107,13 @@ func (d *Dispatcher) runHandlers(ctx context.Context, c *module.Context, emit mo
 	}
 }
 
+type tally struct {
+	Metric catalog.Metric
+	Label  string
+}
+
 type route struct {
+	tally
 	Handlers []registry.Bound
 	Token    string
 }
@@ -113,7 +141,7 @@ func runHandler(ctx context.Context, c *module.Context, emit module.Emit, h modu
 
 func (d *Dispatcher) route(ev ddiscord.Event) route {
 	if ev.Type != "INTERACTION_CREATE" {
-		return route{Handlers: d.Registry.Events(ev.Type)}
+		return route{tally: tally{catalog.DiscordEvents, registry.EventLabel(ev.Type)}, Handlers: d.Registry.Events(ev.Type)}
 	}
 	in, err := decode.Decode[decode.InteractionEvent](ev.Raw)
 	if err != nil {
@@ -122,17 +150,17 @@ func (d *Dispatcher) route(ev ddiscord.Event) route {
 		return route{}
 	}
 	if in.Data.CustomID != "" {
-		return routeOf(in.Token)(d.Registry.Button(in.Data.CustomID))
+		return routeOf(in.Token, in.Data.CustomID)(d.Registry.Button(in.Data.CustomID))
 	}
-	return routeOf(in.Token)(d.Registry.Slash(in.Data.Name))
+	return routeOf(in.Token, in.Data.Name)(d.Registry.Slash(in.Data.Name))
 }
 
-func routeOf(token string) func(registry.Bound, bool) route {
+func routeOf(token, label string) func(registry.Bound, bool) route {
 	return func(b registry.Bound, ok bool) route {
 		if !ok {
 			return route{}
 		}
-		return route{Handlers: []registry.Bound{b}, Token: token}
+		return route{tally: tally{catalog.DiscordInteractions, label}, Handlers: []registry.Bound{b}, Token: token}
 	}
 }
 

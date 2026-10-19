@@ -3,6 +3,7 @@ package worker
 import (
 	"ItsBagelBot/internal/domain/lifecycle"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/pkg/bus"
 	"context"
 	"strconv"
 	"time"
@@ -18,6 +19,9 @@ func (w *Worker) observeGrant(ctx context.Context, observation grantObservation)
 		return nil
 	}
 	current, err := w.lifecycleRequest(ctx, usersrpc.LifecycleRequest{UserID: uid, Action: "get"})
+	if bus.NotFoundReply(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

@@ -74,6 +74,8 @@ func TestLoyaltyAccrual(t *testing.T) {
 		{"a tier three sub earns the tier multiple", "channel.subscribe", `{"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","tier":"3000"}`, "", 3000},
 		{"a sub earns nothing when the source is disabled", "channel.subscribe", loyaltySubJSON, `{"subPoints":-1}`, 0},
 		{"a gifter earns for every gifted sub", "channel.subscription.gift", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","total":5,"tier":"1000"}`, "", 500},
+		{"a tier three gift earns the tier multiple for every gifted sub", "channel.subscription.gift", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","total":5,"tier":"3000"}`, "", 3000},
+		{"a tier two gift earns the tier multiple with a custom rate", "channel.subscription.gift", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","total":3,"tier":"2000"}`, `{"giftSubPoints":50}`, 300},
 		{"an anonymous gifter earns nothing", "channel.subscription.gift", `{"is_anonymous":true,"total":5,"tier":"1000"}`, "", 0},
 		{"bits are pro rated", "channel.cheer", `{"is_anonymous":false,"user_id":"7","user_login":"coolviewer","user_name":"CoolViewer","bits":250}`, "", 125},
 	}

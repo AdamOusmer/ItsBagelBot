@@ -123,9 +123,6 @@ func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
 	require.NoError(t, p.Process(ctx, other))
 	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"), "an immediate duplicate is absorbed")
 	assert.Equal(t, counterCompletedTTL, cache.ttl(event))
-	var sqlReceipts int
-	require.NoError(t, raw.QueryRow("SELECT COUNT(*) FROM counter_batches").Scan(&sqlReceipts))
-	assert.Zero(t, sqlReceipts)
 
 	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.BagelDataStream.MaxAge + counterSQLTimeout
 	cache.advance(lastCopy)
@@ -258,6 +255,20 @@ func TestCounterProcessorPreservesFloorsIdentityAndDeletionFence(t *testing.T) {
 	assert.Zero(t, counterTestValue(t, raw, "deaths"))
 }
 
+func TestCounterProcessorDiscardedBatchCannotPayRecreatedAccount(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	ctx := context.Background()
+	require.NoError(t, repo.RestoreUser(ctx, 1, 100))
+	require.NoError(t, repo.DeleteAccount(ctx, 1, 100))
+	require.NoError(t, p.Process(ctx, counterTestEvent("retired", 4)))
+	require.NoError(t, repo.RestoreUser(ctx, 1, 101))
+	require.NoError(t, p.Process(ctx, counterTestEvent("retired", 4)))
+	assert.Zero(t, counterTestValue(t, raw, "deaths"))
+	require.NoError(t, p.Process(ctx, counterTestEvent("fresh", 4)))
+	assert.Equal(t, int64(4), counterTestValue(t, raw, "deaths"))
+}
+
 func TestCounterProcessorUnicodeAndInvalidDisplayFollowUpstream(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
@@ -347,7 +358,6 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterTrialDecoded])
 	assert.EqualValues(t, 105, store.values[data.CounterMessagesProcessed])
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
-	assert.Empty(t, store.pendingID, "new writer never inserts a SQL receipt")
 }
 
 func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {

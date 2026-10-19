@@ -1,63 +1,3 @@
-defmodule Ingress.TrialValkeyFixture do
-  alias Ingress.TrialValkey
-
-  def start do
-    dir = Path.join(System.tmp_dir!(), "bagel-trial-#{System.unique_integer([:positive])}")
-    File.mkdir_p!(dir)
-    port = free_port()
-    previous = System.get_env("VALKEY_ADDR")
-    System.put_env("VALKEY_ADDR", "127.0.0.1:#{port}")
-
-    {_output, 0} =
-      System.cmd("valkey-server", [
-        "--bind",
-        "127.0.0.1",
-        "--port",
-        Integer.to_string(port),
-        "--save",
-        "",
-        "--appendonly",
-        "no",
-        "--daemonize",
-        "yes",
-        "--pidfile",
-        Path.join(dir, "valkey.pid")
-      ])
-
-    {dir, previous}
-  end
-
-  def await_ready do
-    Enum.reduce_while(1..50, :unavailable, fn _, _ ->
-      case TrialValkey.command(["PING"]) do
-        {:ok, "PONG"} ->
-          {:halt, :ok}
-
-        _ ->
-          Process.sleep(20)
-          {:cont, :unavailable}
-      end
-    end)
-  end
-
-  def stop({dir, previous}) do
-    _ = TrialValkey.command(["SHUTDOWN", "NOSAVE"])
-
-    if previous,
-      do: System.put_env("VALKEY_ADDR", previous),
-      else: System.delete_env("VALKEY_ADDR")
-
-    File.rm_rf!(dir)
-  end
-
-  defp free_port do
-    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
-    {:ok, {_address, port}} = :inet.sockname(listener)
-    :gen_tcp.close(listener)
-    port
-  end
-end
-
 defmodule Ingress.TrialsTest do
   use ExUnit.Case, async: false
 
@@ -108,9 +48,9 @@ defmodule Ingress.TrialsTest do
            )
 
     {:ok, "duplicate"} = Trials.add(id)
-    {:ok, "stopping"} = Trials.stop(id)
-    {:ok, "stopping"} = Trials.stop(id)
-    {:ok, 1} = Trials.finish(id, "removed")
+    {:ok, :changed} = Trials.stop(id, "removed")
+    {:ok, :unchanged} = Trials.stop(id, "removed")
+    {:ok, 1} = Trials.finish(id)
     {:ok, %{active_count: 29, trials: history}} = Trials.list()
     assert Enum.any?(history, &(&1.broadcaster_id == id && &1.state == "removed"))
   end
@@ -286,8 +226,8 @@ defmodule Ingress.TrialReceiverProtocolTest do
     {:ok, _} = Trials.add("4242")
     send(pid, :tick)
     assert_receive {:trial_connected, primary, _}, 1_000
-    {:ok, "stopping"} = Trials.stop("4242")
-    {:ok, 1} = Trials.finish("4242", "removed")
+    {:ok, :changed} = Trials.stop("4242", "removed")
+    {:ok, 1} = Trials.finish("4242")
     send(pid, :tick)
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000

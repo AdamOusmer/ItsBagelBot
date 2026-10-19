@@ -4,6 +4,7 @@
 package worker
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"time"
 
@@ -18,7 +19,9 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
+
 	"github.com/nats-io/nats.go"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -61,6 +64,7 @@ type lifecycleRuntime interface {
 }
 
 type Worker struct {
+	analytics   *analytics.Recorder
 	runtime     lifecycleRuntime
 	lifecycleNC *nats.Conn
 	log         *zap.Logger
@@ -146,6 +150,8 @@ func (w *Worker) SetReauthNotifier(r *ReauthNotifier) { w.reauth = r }
 
 func (w *Worker) SetFactPublisher(pub bus.Publisher) { w.factPub = pub }
 
+func (w *Worker) SetAnalytics(rec *analytics.Recorder) { w.analytics = rec }
+
 const (
 	UserIDCacheCapacity = 1024
 	UserIDCacheTTL      = 10 * time.Minute
@@ -163,7 +169,7 @@ func recordStageDuration(ctx context.Context, attribute string, started time.Tim
 
 func noticeError(ctx context.Context, err error) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.NoticeError(err)
+		monitor.NoticeError(txn, err)
 	}
 }
 

@@ -85,6 +85,7 @@ func TestDispatchRoutesEventsToTheirSubject(t *testing.T) {
 		{"message update takes the author", "MESSAGE_UPDATE", message, ddiscord.SubjectEventMessage, routeIDs{"g1", "c1", "u1"}},
 		{"message delete has no user", "MESSAGE_DELETE", deleted, ddiscord.SubjectEventMessage, routeIDs{"g1", "c1", ""}},
 		{"guild create takes the payload id as the guild", "GUILD_CREATE", []byte(`{"id":"g1"}`), ddiscord.SubjectEventGuild, routeIDs{"g1", "", ""}},
+		{"guild delete takes the payload id as the guild", "GUILD_DELETE", []byte(`{"id":"g1"}`), ddiscord.SubjectEventGuild, routeIDs{"g1", "", ""}},
 		{"audit log entry goes to the audit subject", "GUILD_AUDIT_LOG_ENTRY_CREATE", voice, ddiscord.SubjectEventAudit, routeIDs{"g1", "c1", "u1"}},
 	}
 	for _, tc := range cases {

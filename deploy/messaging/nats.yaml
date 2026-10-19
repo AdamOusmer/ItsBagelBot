@@ -263,6 +263,8 @@ kind: Ingress
 metadata:
   name: nats-monitoring
   namespace: messaging
+  annotations:
+    tailscale.com/proxy-group: ts-ingress
 spec:
   ingressClassName: tailscale
   defaultBackend:

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
 	"context"
 	"time"
@@ -80,6 +81,8 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 	valkeyStore := projection.NewStore(valkeyClient)
+	recorder := analytics.New(valkeyClient, log, nil)
+	defer recorder.Close()
 
 	nc, pub, sub := connectBus(core)
 	defer nc.Close()
@@ -102,6 +105,7 @@ func main() {
 		Loyalty:               newLoyaltyCounters(nc, topics.loyalty),
 		Live:                  valkeyStore,
 		Log:                   log,
+		Analytics:             recorder,
 	})
 
 	registerConsumers(ctx, consumerRuntime{nrApp: nrApp, sub: sub, log: log}, projector, topics.stream)
