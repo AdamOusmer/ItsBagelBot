@@ -13,18 +13,16 @@ const SOURCES: Array<[file: string, path: string[]]> = [
   ["website/letter.json", ["signature"]],
 ];
 
+function readString(locale: string, [file, path]: (typeof SOURCES)[number]): string {
+  const root: unknown = JSON.parse(readFileSync(join(LOCALES, locale, file), "utf8"));
+  const value = path.reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], root);
+  if (typeof value !== "string") throw new Error(`${locale}/${file}: ${path.join(".")} is not a string`);
+  return value;
+}
+
 export function caveatStrings(): string[] {
-  const strings: string[] = [];
-  for (const locale of readdirSync(LOCALES, { withFileTypes: true })) {
-    if (!locale.isDirectory()) continue;
-    for (const [file, path] of SOURCES) {
-      let node: unknown = JSON.parse(readFileSync(join(LOCALES, locale.name, file), "utf8"));
-      for (const key of path) node = (node as Record<string, unknown>)[key];
-      if (typeof node !== "string") throw new Error(`${locale.name}/${file}: ${path.join(".")} is not a string`);
-      strings.push(node);
-    }
-  }
-  return strings;
+  const locales = readdirSync(LOCALES, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  return locales.flatMap((locale) => SOURCES.map((source) => readString(locale.name, source)));
 }
 
 export function caveatGlyphs(): string {
