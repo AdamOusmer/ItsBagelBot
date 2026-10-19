@@ -34,18 +34,26 @@ function cellFor(rows: AnalyticsRow[], metric: string, match: (dims: string[]) =
   return total(rows.filter((r) => r.metric === metric && match(r.dims)), metric);
 }
 
-function list(key: string, rows: AnalyticsRow[], metric: string, index = 0, limit = 50): Table {
+type ListSpec = { key: string; metric: string; index?: number; limit?: number };
+
+function list(rows: AnalyticsRow[], spec: ListSpec): Table {
   return {
-    key,
+    key: spec.key,
     columns: ['count'],
-    rows: byDim(rows, metric, index, limit).map((l) => ({ label: l.label, values: [cellText(l.cell)] }))
+    rows: byDim(rows, spec.metric, spec.index ?? 0, spec.limit ?? 50).map((l) => ({
+      label: l.label,
+      values: [cellText(l.cell)]
+    }))
   };
 }
 
-function matrix(key: string, rows: AnalyticsRow[], metric: string, labelAt: number, colAt: number, cols: string[]): Table {
+type MatrixSpec = { key: string; metric: string; labelAt: number; colAt: number; cols: string[] };
+
+function matrix(rows: AnalyticsRow[], spec: MatrixSpec): Table {
+  const { metric, labelAt, colAt, cols } = spec;
   const labels = byDim(rows, metric, labelAt, 100).map((l) => l.label);
   return {
-    key,
+    key: spec.key,
     columns: cols,
     rows: labels.map((label) => ({
       label,
@@ -128,21 +136,21 @@ function cohortLines(r: AnalyticsReads): CohortLine[] {
 export function buildAnalytics(r: AnalyticsReads): AnalyticsView {
   const tables: Table[] = [
     tierTable(r),
-    list('paidSource', latest(r.day, 'accounts.paid_source'), 'accounts.paid_source'),
-    list('lifecycle', r.day, 'lifecycle'),
-    list('billing', r.day, 'billing.events'),
-    list('presets', r.day, 'onboarding.preset'),
+    list(latest(r.day, 'accounts.paid_source'), { key: 'paidSource', metric: 'accounts.paid_source' }),
+    list(r.day, { key: 'lifecycle', metric: 'lifecycle' }),
+    list(r.day, { key: 'billing', metric: 'billing.events' }),
+    list(r.day, { key: 'presets', metric: 'onboarding.preset' }),
     moduleTable(r),
-    list('commands', r.day, 'command.uses', 0, 30),
-    matrix('toggles', r.day, 'module.toggles', 0, 1, ['on', 'off']),
-    list('customCommands', r.day, 'custom.commands'),
-    list('discordInteractions', r.day, 'discord.interactions'),
-    list('discordEvents', r.day, 'discord.events'),
-    list('outgress', r.day, 'outgress.failures'),
-    list('pages', r.day, 'web.views', 1, 40),
-    matrix('actions', r.day, 'web.actions', 1, 2, ['ok', 'invalid', 'failed', 'denied']),
-    list('locales', latest(r.day, 'accounts.locale'), 'accounts.locale'),
-    list('pagesHidden', latest(r.day, 'accounts.pages_hidden'), 'accounts.pages_hidden')
+    list(r.day, { key: 'commands', metric: 'command.uses', limit: 30 }),
+    matrix(r.day, { key: 'toggles', metric: 'module.toggles', labelAt: 0, colAt: 1, cols: ['on', 'off'] }),
+    list(r.day, { key: 'customCommands', metric: 'custom.commands' }),
+    list(r.day, { key: 'discordInteractions', metric: 'discord.interactions' }),
+    list(r.day, { key: 'discordEvents', metric: 'discord.events' }),
+    list(r.day, { key: 'outgress', metric: 'outgress.failures' }),
+    list(r.day, { key: 'pages', metric: 'web.views', index: 1, limit: 40 }),
+    matrix(r.day, { key: 'actions', metric: 'web.actions', labelAt: 1, colAt: 2, cols: ['ok', 'invalid', 'failed', 'denied'] }),
+    list(latest(r.day, 'accounts.locale'), { key: 'locales', metric: 'accounts.locale' }),
+    list(latest(r.day, 'accounts.pages_hidden'), { key: 'pagesHidden', metric: 'accounts.pages_hidden' })
   ];
   const series: Series[] = [
     { key: 'dauSeries', values: daily(r.day, 'channels.active') },

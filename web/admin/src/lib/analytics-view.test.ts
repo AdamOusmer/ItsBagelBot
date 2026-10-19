@@ -5,13 +5,14 @@ import { describe, expect, it } from 'bun:test';
 import { buildAnalytics } from './analytics-page';
 import { cohorts, isoWeek, weekStart, type AnalyticsRow } from './analytics-view';
 
-const row = (start: string, metric: string, dims: string[], value: number, suppressed = false): AnalyticsRow => ({
+const row = (start: string, metric: string, dims: string[], value: number): AnalyticsRow => ({
   start,
   metric,
   dims,
-  value,
-  suppressed
+  value
 });
+
+const hidden = (r: AnalyticsRow): AnalyticsRow => ({ ...r, suppressed: true });
 
 describe('analytics view', () => {
   it('matches Go ISO weeks across a year boundary', () => {
@@ -25,7 +26,7 @@ describe('analytics view', () => {
     const days = [row('2026-10-12', 'lifecycle', ['signup'], 12), row('2026-10-14', 'lifecycle', ['signup'], 8)];
     const weeks = [
       row('2026-10-12', 'cohort.active', ['2026-W42'], 18),
-      row('2026-10-26', 'cohort.active', ['2026-W42'], 0, true)
+      hidden(row('2026-10-26', 'cohort.active', ['2026-W42'], 0))
     ];
     expect(cohorts(weeks, days, 3)).toEqual([
       {
@@ -39,7 +40,7 @@ describe('analytics view', () => {
   it('shows suppressed cells as <10 and partial sums with a plus', () => {
     const day = [
       row('2026-10-17', 'accounts.total', ['free'], 40),
-      row('2026-10-17', 'accounts.total', ['vip'], 0, true),
+      hidden(row('2026-10-17', 'accounts.total', ['vip'], 0)),
       row('2026-10-17', 'channels.active', [], 25)
     ];
     const month = [row('2026-10-01', 'channels.active', [], 50)];

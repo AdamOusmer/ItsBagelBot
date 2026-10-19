@@ -48,8 +48,12 @@ export function daily(rows: AnalyticsRow[], metric: string): number[] {
   return [...sums].sort(([a], [b]) => a.localeCompare(b)).map(([, n]) => n);
 }
 
+function exact(part: Cell, whole: Cell): boolean {
+  return whole.value !== 0 && !whole.partial && !part.partial;
+}
+
 export function share(part: Cell, whole: Cell): string {
-  if (whole.value === 0 || whole.partial || part.partial) return '-';
+  if (!exact(part, whole)) return '-';
   return `${Math.round((part.value / whole.value) * 100)}%`;
 }
 
