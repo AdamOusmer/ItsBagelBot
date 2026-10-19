@@ -20,7 +20,7 @@
   "fieldWatch": "Pro 5 Minuten Zuschauzeit",
   "streamerPoints": "Streamer erhält Punkte",
   "streamerPointsHint": "Erlaubt dem Kanalinhaber, automatisch Punkte zu sammeln, einschließlich Zuschaupunkten bei Anwesenheit im Chat während eines Livestreams. Zuschauzeit, Übertragungen und manuelle Vergaben bleiben auch bei deaktivierter Einstellung verfügbar.",
-  "tierHint": "Abo- und Resub-Vergaben skalieren mit der Stufe: ×1, ×2 (Stufe 2), ×6 (Stufe 3).",
+  "tierHint": "Abo-, Resub- und Geschenkabo-Vergaben skalieren mit der Stufe: ×1, ×2 (Stufe 2), ×6 (Stufe 3).",
   "defaultTag": "Standard {n}",
   "save": "Raten speichern",
   "saving": "Wird gespeichert…",

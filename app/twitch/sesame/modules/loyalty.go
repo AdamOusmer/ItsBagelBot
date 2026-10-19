@@ -75,7 +75,7 @@ func Loyalty(d engine.Deps) module.Module {
 		if ev.IsAnonymous || ev.Total <= 0 {
 			return accrual{}
 		}
-		return accrual{ev.UserID, ev.UserLogin, ev.UserName, cfg.EffectiveGiftSubPoints() * int64(ev.Total)}
+		return accrual{ev.UserID, ev.UserLogin, ev.UserName, cfg.EffectiveGiftSubPoints() * engine.TierMultiplier(ev.Tier) * int64(ev.Total)}
 	}))
 
 	m.On("channel.cheer", onAccrual(d, func(cfg engine.LoyaltyModuleConfig, ev loyaltyCheerEvent) accrual {

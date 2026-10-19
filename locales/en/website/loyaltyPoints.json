@@ -33,7 +33,7 @@
   "item1Name": "Watch time earns points",
   "item1Desc": "Viewers present in chat earn on a five-minute tick while the channel is live. The default award is ten points per tick.",
   "item2Name": "Support earns points",
-  "item2Desc": "Defaults award 500 for a subscription or resubscription, 100 per gifted sub and 50 per 100 bits. Subscription tiers multiply sub and resub awards.",
+  "item2Desc": "Defaults award 500 for a subscription or resubscription, 100 per gifted sub and 50 per 100 bits. Subscription tiers multiply sub, resub and gifted sub awards.",
   "item3Name": "Gamble uses a roll",
   "item3Desc": "The default win chance is 50 percent, with bets from 1 to 1000 points and a ten-second cooldown per viewer. Odds, limits and cooldown are configurable.",
   "item4Name": "Duels share the ledger",
