@@ -15,7 +15,9 @@ import (
 	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/users/ent/runtime"
 	"ItsBagelBot/app/db/users/repository"
+	"ItsBagelBot/app/db/users/rollup"
 	"ItsBagelBot/app/db/users/rpc"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
@@ -47,7 +49,12 @@ func main() {
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
+	vc := svcboot.MustValkey(core)
+	recorder := analytics.New(vc, log, nil)
+	defer recorder.Close()
+
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
+	repo.SetAnalytics(recorder)
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {
@@ -63,6 +70,7 @@ func main() {
 
 	go expireSubscriptions(ctx, repo, log)
 	go expirePremiumGrants(ctx, repo, log)
+	go rollupAnalytics(ctx, rollup.New(vc, repo), log)
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
@@ -185,6 +193,11 @@ func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.L
 		func(runCtx context.Context, now time.Time) (int, error) {
 			return repo.ExpireSubscriptions(runCtx, now, tebexGrace)
 		})
+}
+
+func rollupAnalytics(ctx context.Context, r *rollup.Rollup, log *zap.Logger) {
+	runPeriodicSweep(ctx, log, env.GetDuration("USERS_ANALYTICS_ROLLUP_INTERVAL", 15*time.Minute), 2*time.Minute,
+		"failed to roll up analytics", "rolled up analytics", r.Run)
 }
 
 func premiumGrantSweepInterval() time.Duration {

@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/db"
@@ -41,6 +42,7 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	if err != nil || updated == 0 {
 		return false, err
 	}
+	r.analytics.Count(catalog.BillingEvents, string(req.Action))
 	return true, r.finishBilling(ctx, req)
 }
 
@@ -278,6 +280,7 @@ func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Tim
 	if err != nil || updated == 0 {
 		return false, err
 	}
+	r.analytics.Count(catalog.BillingEvents, "expired")
 	if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
 		return true, err
 	}

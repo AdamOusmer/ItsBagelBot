@@ -57,6 +57,19 @@ const (
 	LivePeak            Metric = "live.peak"
 	ChannelsActive      Metric = "channels.active"
 	ModuleActive        Metric = "module.active"
+	CohortActive        Metric = "cohort.active"
+	BillingEvents       Metric = "billing.events"
+
+	AccountsTotal         Metric = "accounts.total"
+	AccountsBotEnabled    Metric = "accounts.bot_enabled"
+	AccountsOnboarded     Metric = "accounts.onboarded"
+	AccountsPaidSource    Metric = "accounts.paid_source"
+	AccountsCancelPending Metric = "accounts.cancel_pending"
+	AccountsPaymentFailed Metric = "accounts.payment_failed"
+	AccountsLocale        Metric = "accounts.locale"
+	AccountsPagesHidden   Metric = "accounts.pages_hidden"
+	AccountsBySignupWeek  Metric = "accounts.by_signup_week"
+	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
 )
 
 const (
@@ -74,7 +87,16 @@ const (
 	KindRoute     Kind = "route"
 	KindAction    Kind = "action"
 	KindOutcome   Kind = "outcome"
+	KindWeek      Kind = "week"
+	KindTier      Kind = "tier"
+	KindSource    Kind = "source"
+	KindLocale    Kind = "locale"
+	KindBilling   Kind = "billing"
+	KindPage      Kind = "page"
 )
+
+// SuppressBelow hides small cells that could single out one channel.
+const SuppressBelow = 10
 
 // CustomCommand stands in for every custom command name, which is streamer-written text.
 const CustomCommand = "custom"
@@ -100,6 +122,19 @@ var catalog = map[Metric]Spec{
 	LivePeak:            {Type: Gauge},
 	ChannelsActive:      {Type: Distinct, Windows: Day | Week | Month},
 	ModuleActive:        {Type: Distinct, Dims: []Kind{KindModule}, Windows: Day | Week},
+	CohortActive:        {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
+	BillingEvents:       {Type: Counter, Dims: []Kind{KindBilling}},
+
+	AccountsTotal:         {Type: Gauge, Dims: []Kind{KindTier}},
+	AccountsBotEnabled:    {Type: Gauge, Dims: []Kind{KindTier}},
+	AccountsOnboarded:     {Type: Gauge},
+	AccountsPaidSource:    {Type: Gauge, Dims: []Kind{KindSource}},
+	AccountsCancelPending: {Type: Gauge},
+	AccountsPaymentFailed: {Type: Gauge},
+	AccountsLocale:        {Type: Gauge, Dims: []Kind{KindLocale}},
+	AccountsPagesHidden:   {Type: Gauge, Dims: []Kind{KindPage}},
+	AccountsBySignupWeek:  {Type: Gauge, Dims: []Kind{KindWeek}},
+	PaidBySignupWeek:      {Type: Gauge, Dims: []Kind{KindWeek}},
 }
 
 var enums = map[Kind][]string{
@@ -112,6 +147,10 @@ var enums = map[Kind][]string{
 	KindChange:    {"created", "deleted", "quick_deleted"},
 	KindApp:       {"dashboard", "admin"},
 	KindOutcome:   {"ok", "invalid", "failed", "denied"},
+	KindTier:      {"free", "paid", "vip"},
+	KindSource:    {"tebex", "admin", "giveaway", "vip"},
+	KindBilling:   {"activate", "cancel_requested", "cancel_aborted", "revoke", "payment_failed", "expired"},
+	KindPage:      {"commands", "leaderboard"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{
@@ -120,6 +159,8 @@ var shapes = map[Kind]*regexp.Regexp{
 	KindDiscord: regexp.MustCompile(`^[a-z0-9][a-z0-9_.:-]{0,63}$`),
 	KindRoute:   regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./-]{0,110}$`),
 	KindAction:  regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./-]{0,90}\?/[A-Za-z0-9_]{1,32}$`),
+	KindWeek:    regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
+	KindLocale:  regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
 }
 
 func Lookup(m Metric) (Spec, bool) {
@@ -134,6 +175,18 @@ func Metrics() []Metric {
 	}
 	slices.Sort(out)
 	return out
+}
+
+func ParseWindow(code string) (Window, bool) {
+	switch code {
+	case "d":
+		return Day, true
+	case "w":
+		return Week, true
+	case "m":
+		return Month, true
+	}
+	return 0, false
 }
 
 func Enum(k Kind) []string { return slices.Clone(enums[k]) }

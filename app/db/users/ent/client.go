@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
+	"ItsBagelBot/app/db/users/ent/analyticsrollup"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/lifecycleerasure"
 	"ItsBagelBot/app/db/users/ent/premiumgrant"
@@ -34,6 +35,8 @@ type Client struct {
 	AdminAudit *AdminAuditClient
 	// AdminUser is the client for interacting with the AdminUser builders.
 	AdminUser *AdminUserClient
+	// AnalyticsRollup is the client for interacting with the AnalyticsRollup builders.
+	AnalyticsRollup *AnalyticsRollupClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
 	// LifecycleErasure is the client for interacting with the LifecycleErasure builders.
@@ -57,6 +60,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AdminAudit = NewAdminAuditClient(c.config)
 	c.AdminUser = NewAdminUserClient(c.config)
+	c.AnalyticsRollup = NewAnalyticsRollupClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
 	c.LifecycleErasure = NewLifecycleErasureClient(c.config)
 	c.PremiumGrant = NewPremiumGrantClient(c.config)
@@ -156,6 +160,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:           cfg,
 		AdminAudit:       NewAdminAuditClient(cfg),
 		AdminUser:        NewAdminUserClient(cfg),
+		AnalyticsRollup:  NewAnalyticsRollupClient(cfg),
 		Delegation:       NewDelegationClient(cfg),
 		LifecycleErasure: NewLifecycleErasureClient(cfg),
 		PremiumGrant:     NewPremiumGrantClient(cfg),
@@ -182,6 +187,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:           cfg,
 		AdminAudit:       NewAdminAuditClient(cfg),
 		AdminUser:        NewAdminUserClient(cfg),
+		AnalyticsRollup:  NewAnalyticsRollupClient(cfg),
 		Delegation:       NewDelegationClient(cfg),
 		LifecycleErasure: NewLifecycleErasureClient(cfg),
 		PremiumGrant:     NewPremiumGrantClient(cfg),
@@ -216,8 +222,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAudit, c.AdminUser, c.Delegation, c.LifecycleErasure, c.PremiumGrant,
-		c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.Delegation, c.LifecycleErasure,
+		c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -227,8 +233,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAudit, c.AdminUser, c.Delegation, c.LifecycleErasure, c.PremiumGrant,
-		c.Tokens, c.User,
+		c.AdminAudit, c.AdminUser, c.AnalyticsRollup, c.Delegation, c.LifecycleErasure,
+		c.PremiumGrant, c.Tokens, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -241,6 +247,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AdminAudit.mutate(ctx, m)
 	case *AdminUserMutation:
 		return c.AdminUser.mutate(ctx, m)
+	case *AnalyticsRollupMutation:
+		return c.AnalyticsRollup.mutate(ctx, m)
 	case *DelegationMutation:
 		return c.Delegation.mutate(ctx, m)
 	case *LifecycleErasureMutation:
@@ -519,6 +527,139 @@ func (c *AdminUserClient) mutate(ctx context.Context, m *AdminUserMutation) (Val
 		return (&AdminUserDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AdminUser mutation op: %q", m.Op())
+	}
+}
+
+// AnalyticsRollupClient is a client for the AnalyticsRollup schema.
+type AnalyticsRollupClient struct {
+	config
+}
+
+// NewAnalyticsRollupClient returns a client for the AnalyticsRollup from the given config.
+func NewAnalyticsRollupClient(c config) *AnalyticsRollupClient {
+	return &AnalyticsRollupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `analyticsrollup.Hooks(f(g(h())))`.
+func (c *AnalyticsRollupClient) Use(hooks ...Hook) {
+	c.hooks.AnalyticsRollup = append(c.hooks.AnalyticsRollup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `analyticsrollup.Intercept(f(g(h())))`.
+func (c *AnalyticsRollupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AnalyticsRollup = append(c.inters.AnalyticsRollup, interceptors...)
+}
+
+// Create returns a builder for creating a AnalyticsRollup entity.
+func (c *AnalyticsRollupClient) Create() *AnalyticsRollupCreate {
+	mutation := newAnalyticsRollupMutation(c.config, OpCreate)
+	return &AnalyticsRollupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AnalyticsRollup entities.
+func (c *AnalyticsRollupClient) CreateBulk(builders ...*AnalyticsRollupCreate) *AnalyticsRollupCreateBulk {
+	return &AnalyticsRollupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AnalyticsRollupClient) MapCreateBulk(slice any, setFunc func(*AnalyticsRollupCreate, int)) *AnalyticsRollupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AnalyticsRollupCreateBulk{err: fmt.Errorf("calling to AnalyticsRollupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AnalyticsRollupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AnalyticsRollupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AnalyticsRollup.
+func (c *AnalyticsRollupClient) Update() *AnalyticsRollupUpdate {
+	mutation := newAnalyticsRollupMutation(c.config, OpUpdate)
+	return &AnalyticsRollupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AnalyticsRollupClient) UpdateOne(_m *AnalyticsRollup) *AnalyticsRollupUpdateOne {
+	mutation := newAnalyticsRollupMutation(c.config, OpUpdateOne, withAnalyticsRollup(_m))
+	return &AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AnalyticsRollupClient) UpdateOneID(id int) *AnalyticsRollupUpdateOne {
+	mutation := newAnalyticsRollupMutation(c.config, OpUpdateOne, withAnalyticsRollupID(id))
+	return &AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AnalyticsRollup.
+func (c *AnalyticsRollupClient) Delete() *AnalyticsRollupDelete {
+	mutation := newAnalyticsRollupMutation(c.config, OpDelete)
+	return &AnalyticsRollupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AnalyticsRollupClient) DeleteOne(_m *AnalyticsRollup) *AnalyticsRollupDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AnalyticsRollupClient) DeleteOneID(id int) *AnalyticsRollupDeleteOne {
+	builder := c.Delete().Where(analyticsrollup.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AnalyticsRollupDeleteOne{builder}
+}
+
+// Query returns a query builder for AnalyticsRollup.
+func (c *AnalyticsRollupClient) Query() *AnalyticsRollupQuery {
+	return &AnalyticsRollupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAnalyticsRollup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AnalyticsRollup entity by its id.
+func (c *AnalyticsRollupClient) Get(ctx context.Context, id int) (*AnalyticsRollup, error) {
+	return c.Query().Where(analyticsrollup.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AnalyticsRollupClient) GetX(ctx context.Context, id int) *AnalyticsRollup {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AnalyticsRollupClient) Hooks() []Hook {
+	return c.hooks.AnalyticsRollup
+}
+
+// Interceptors returns the client interceptors.
+func (c *AnalyticsRollupClient) Interceptors() []Interceptor {
+	return c.inters.AnalyticsRollup
+}
+
+func (c *AnalyticsRollupClient) mutate(ctx context.Context, m *AnalyticsRollupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AnalyticsRollupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AnalyticsRollupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AnalyticsRollupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AnalyticsRollupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AnalyticsRollup mutation op: %q", m.Op())
 	}
 }
 
@@ -1255,11 +1396,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAudit, AdminUser, Delegation, LifecycleErasure, PremiumGrant, Tokens,
-		User []ent.Hook
+		AdminAudit, AdminUser, AnalyticsRollup, Delegation, LifecycleErasure,
+		PremiumGrant, Tokens, User []ent.Hook
 	}
 	inters struct {
-		AdminAudit, AdminUser, Delegation, LifecycleErasure, PremiumGrant, Tokens,
-		User []ent.Interceptor
+		AdminAudit, AdminUser, AnalyticsRollup, Delegation, LifecycleErasure,
+		PremiumGrant, Tokens, User []ent.Interceptor
 	}
 )

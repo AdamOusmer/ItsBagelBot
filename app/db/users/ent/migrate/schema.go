@@ -67,6 +67,35 @@ var (
 			},
 		},
 	}
+	// AnalyticsRollupsColumns holds the columns for the "analytics_rollups" table.
+	AnalyticsRollupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "window", Type: field.TypeEnum, Enums: []string{"d", "w", "m"}},
+		{Name: "period_start", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "date"}},
+		{Name: "metric", Type: field.TypeString, Size: 64},
+		{Name: "d1", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "d2", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "d3", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "value", Type: field.TypeInt64},
+	}
+	// AnalyticsRollupsTable holds the schema information for the "analytics_rollups" table.
+	AnalyticsRollupsTable = &schema.Table{
+		Name:       "analytics_rollups",
+		Columns:    AnalyticsRollupsColumns,
+		PrimaryKey: []*schema.Column{AnalyticsRollupsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "analyticsrollup_window_period_start_metric_d1_d2_d3",
+				Unique:  true,
+				Columns: []*schema.Column{AnalyticsRollupsColumns[1], AnalyticsRollupsColumns[2], AnalyticsRollupsColumns[3], AnalyticsRollupsColumns[4], AnalyticsRollupsColumns[5], AnalyticsRollupsColumns[6]},
+			},
+			{
+				Name:    "analyticsrollup_metric_window_period_start",
+				Unique:  false,
+				Columns: []*schema.Column{AnalyticsRollupsColumns[3], AnalyticsRollupsColumns[1], AnalyticsRollupsColumns[2]},
+			},
+		},
+	}
 	// DelegationsColumns holds the columns for the "delegations" table.
 	DelegationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -282,6 +311,7 @@ var (
 	Tables = []*schema.Table{
 		AdminAuditsTable,
 		AdminUsersTable,
+		AnalyticsRollupsTable,
 		DelegationsTable,
 		LifecycleErasuresTable,
 		PremiumGrantsTable,

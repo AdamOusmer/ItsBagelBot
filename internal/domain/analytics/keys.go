@@ -84,7 +84,17 @@ func DistinctKey(w Window, t time.Time, field string) string {
 
 // Element salts rotate per active week, so a channel is not linkable across cells.
 func CohortKey(signup, active time.Time) string {
-	return keyPrefix + "coh:" + Period(Week, signup) + ":" + Period(Week, active)
+	return DistinctKey(Week, active, Field(CohortActive, Period(Week, signup)))
+}
+
+// ParseDistinctKey returns the field of a key built by DistinctKey.
+func ParseDistinctKey(key string) (string, bool) {
+	rest, ok := strings.CutPrefix(key, keyPrefix+"h")
+	if !ok || len(rest) < 2 {
+		return "", false
+	}
+	_, field, ok := strings.Cut(rest[2:], ":")
+	return field, ok
 }
 
 func IndexKey(w Window, t time.Time) string {
@@ -95,7 +105,11 @@ func SaltKey(w Window, t time.Time) string {
 	return keyPrefix + "salt:" + windowCode(w) + ":" + Period(w, t)
 }
 
-func RollupClaimKey(day time.Time) string { return keyPrefix + "roll:" + Period(Day, day) }
+func RollupClaimKey(w Window, t time.Time) string {
+	return keyPrefix + "roll:" + windowCode(w) + ":" + Period(w, t)
+}
+
+func WindowCode(w Window) string { return windowCode(w) }
 
 // Data keys outlive their period so a late rollup still finds them.
 func DataExpiry(w Window, t time.Time) time.Time { return PeriodEnd(w, t).Add(retainAfter) }

@@ -10,22 +10,24 @@ import "ItsBagelBot/internal/domain/rpc"
 import "time"
 
 type AdminRequest struct {
-	ActorID      string `json:"actor_id"`
-	UserID       string `json:"user_id"`
-	Username     string `json:"username"`
-	Status       string `json:"status"`
-	Active       bool   `json:"active"`
-	Limit        int    `json:"limit"`
-	Page         int    `json:"page"`
-	Search       string `json:"search"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    string `json:"expires_at,omitempty"`
-	CreatorCode  string `json:"creator_code,omitempty"`
-	Days         int    `json:"days,omitempty"`
-	State        string `json:"state,omitempty"`
-	Order        string `json:"order,omitempty"`
-	TestAccount  bool   `json:"test_account,omitempty"`
+	ActorID      string   `json:"actor_id"`
+	UserID       string   `json:"user_id"`
+	Username     string   `json:"username"`
+	Status       string   `json:"status"`
+	Active       bool     `json:"active"`
+	Limit        int      `json:"limit"`
+	Page         int      `json:"page"`
+	Search       string   `json:"search"`
+	AccessToken  string   `json:"access_token"`
+	RefreshToken string   `json:"refresh_token"`
+	ExpiresAt    string   `json:"expires_at,omitempty"`
+	CreatorCode  string   `json:"creator_code,omitempty"`
+	Days         int      `json:"days,omitempty"`
+	State        string   `json:"state,omitempty"`
+	Order        string   `json:"order,omitempty"`
+	TestAccount  bool     `json:"test_account,omitempty"`
+	Metrics      []string `json:"metrics,omitempty"`
+	Window       string   `json:"window,omitempty"`
 }
 
 type AdminUserView struct {
@@ -64,6 +66,20 @@ type AdminEnrollmentView struct {
 	Stats AdminStats           `json:"stats"`
 }
 
+// Value is zero and Suppressed true when the true count is below the suppression floor.
+type AdminAnalyticsRow struct {
+	Start      string   `json:"start"`
+	Metric     string   `json:"metric"`
+	Dims       []string `json:"dims"`
+	Value      int64    `json:"value"`
+	Suppressed bool     `json:"suppressed,omitempty"`
+}
+
+type AdminAnalyticsView struct {
+	Window string              `json:"window"`
+	Rows   []AdminAnalyticsRow `json:"rows"`
+}
+
 type AdminTokenView struct {
 	Present bool `json:"present"`
 }
@@ -73,6 +89,7 @@ type AdminReply struct {
 	Users      []AdminUserView      `json:"users,omitempty"`
 	Stats      *AdminStats          `json:"stats,omitempty"`
 	Enrollment *AdminEnrollmentView `json:"enrollment,omitempty"`
+	Analytics  *AdminAnalyticsView  `json:"analytics,omitempty"`
 	Token      *AdminTokenView      `json:"token,omitempty"`
 	Page       int                  `json:"page,omitempty"`
 	PageSize   int                  `json:"page_size,omitempty"`

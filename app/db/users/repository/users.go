@@ -18,6 +18,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/invalidate"
@@ -81,6 +83,11 @@ type Users struct {
 	nc                 *nats.Conn
 	erasures           ErasureStore
 	revoker            TokenRevoker
+	analytics          *analytics.Recorder
+}
+
+func (r *Users) SetAnalytics(rec *analytics.Recorder) {
+	r.analytics = rec
 }
 
 func (r *Users) SetInvalidationPrefix(prefix string) {
@@ -145,6 +152,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	}
 	name := displayName(rawDisplayName).storable()
 
+	created := false
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		existing, err := r.client.User.Query().
 			Where(user.IDEQ(id)).
@@ -161,6 +169,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 				SetLifecycleState(lifecycle.Active).
 				SetDormantAfter(time.Now().UTC().Add(lifecycle.DormancyPeriod)).
 				Save(ctx)
+			created = err == nil
 			if ent.IsConstraintError(err) {
 				_, err = name.apply(r.client.User.UpdateOneID(id).SetUsername(username)).
 					Save(ctx)
@@ -174,6 +183,9 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 		return err
 	}); err != nil {
 		return err
+	}
+	if created {
+		r.analytics.Count(catalog.Lifecycle, "signup")
 	}
 
 	return r.publishChanged(ctx, id)
@@ -296,7 +308,15 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 
 // SetActiveNow commits interactive toggles before an RPC read or invalidation.
 func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
-	return r.setDesiredEnabled(ctx, id, active)
+	if err := r.setDesiredEnabled(ctx, id, active); err != nil {
+		return err
+	}
+	event := "bot_disabled"
+	if active {
+		event = "bot_enabled"
+	}
+	r.analytics.Count(catalog.Lifecycle, event)
+	return nil
 }
 
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
@@ -330,6 +350,9 @@ func (r *Users) SetLeaderboardPageHidden(ctx context.Context, id uint64, hidden 
 
 func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) error {
 	r.queuePref(id, prefOnboarded, prefWrite{flag: onboarded})
+	if onboarded {
+		r.analytics.Count(catalog.Lifecycle, "onboarded")
+	}
 	return nil
 }
 
@@ -371,6 +394,7 @@ func (r *Users) erase(ctx context.Context, id uint64, createdAt time.Time) error
 	}
 
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
+	r.analytics.Count(catalog.Lifecycle, "account_deleted")
 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, deleted)
 }
