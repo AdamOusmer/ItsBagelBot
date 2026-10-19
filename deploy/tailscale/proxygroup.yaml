@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: ts-ingress-ha
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        role: node
+      tailscaleContainer:
+        env:
+          - name: TS_USERSPACE
+            value: "true"
+      tolerations:
+        - {key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
+        - {key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  tailscale.com/parent-resource-type: proxygroup
+                  tailscale.com/parent-resource: ts-ingress
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: ts-ingress
+spec:
+  type: ingress
+  replicas: 2
+  proxyClass: ts-ingress-ha
+  hostnamePrefix: ts-ingress
