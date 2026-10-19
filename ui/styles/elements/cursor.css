@@ -52,8 +52,9 @@
         opacity: 0.5;
         pointer-events: none;
         z-index: calc(var(--bb-z-cursor) - 1);
+        contain: layout paint style;
         transition: opacity 250ms, background 250ms, border-color 250ms;
-        will-change: transform, width, height, border-radius;
+        will-change: transform;
     }
 
     .bb-cursor-ring.is-morphed {
