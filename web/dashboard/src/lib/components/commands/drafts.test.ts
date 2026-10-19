@@ -157,5 +157,6 @@ describe('debounced draft writes', () => {
     expect(draftsMatch(draft, { ...draft, is_active: false }, true)).toBe(true);
     expect(draftsMatch(draft, { ...draft, is_active: false }, false)).toBe(false);
     expect(draftsMatch(draft, { ...draft, aliases: ['yo'] }, true)).toBe(false);
+    expect(draftsMatch({ ...draft, cooldown: NaN }, { ...draft, cooldown: NaN }, true)).toBe(true);
   });
 });

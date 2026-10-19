@@ -5,7 +5,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
   import { invalidate, replaceState } from '$app/navigation';
-  import { noteLocalWrite } from '$lib/local-write';
+  import { expectEcho } from '$lib/local-write';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
@@ -483,7 +483,7 @@
   });
 
   const saveSubmit: SubmitFunction = ({ formData }) => {
-    noteLocalWrite();
+    expectEcho(data.board);
     const d = editorDraft;
     if (!d) return;
     const key = normName(d.name);
@@ -514,7 +514,6 @@
     setStatus(key, 'saving');
 
     return async ({ result }) => {
-      noteLocalWrite();
       busy = false;
       const payload =
         result.type === 'success' || result.type === 'failure'
@@ -632,7 +631,7 @@
     };
 
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
-    noteLocalWrite();
+    expectEcho(data.board);
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => {
         const result = deserialize(await res.text());
@@ -640,8 +639,7 @@
           ? ((result.data as ActionResult | undefined) ?? null)
           : null;
       })
-      .catch(() => null)
-      .finally(noteLocalWrite);
+      .catch(() => null);
   }
 
   function formDataFor(c: CommandView): FormData {

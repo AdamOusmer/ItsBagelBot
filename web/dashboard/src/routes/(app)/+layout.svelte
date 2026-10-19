@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
   import { visibleEventSource } from '$lib/visible-stream';
-  import { isLocalEcho } from '$lib/local-write';
+  import { consumeEcho } from '$lib/local-write';
   import ConsoleShell from '@bagel/kit/components/ConsoleShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
@@ -28,12 +28,13 @@
     let debounce: ReturnType<typeof setTimeout> | undefined;
     let seenReady = false;
     const refresh = () => {
-      if (isLocalEcho()) return;
       clearTimeout(debounce);
       debounce = setTimeout(() => void invalidateAll(), 250);
     };
     const stop = visibleEventSource('/events', (es) => {
-      es.addEventListener('invalidate', refresh);
+      es.addEventListener('invalidate', () => {
+        if (!consumeEcho(data.board)) refresh();
+      });
       es.onerror = () => (reconnecting = true);
       es.addEventListener('ready', () => {
         reconnecting = false;

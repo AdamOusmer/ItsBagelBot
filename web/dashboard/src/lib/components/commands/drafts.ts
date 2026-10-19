@@ -208,6 +208,6 @@ const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((value, i) => value === b[i]);
 
 export function draftsMatch(a: CommandDraft, b: CommandDraft, ignoreActive: boolean): boolean {
-  if (!ignoreActive && a.is_active !== b.is_active) return false;
-  return sameList(a.aliases, b.aliases) && CONTENT_FIELDS.every((field) => a[field] === b[field]);
+  if (!ignoreActive && !Object.is(a.is_active, b.is_active)) return false;
+  return sameList(a.aliases, b.aliases) && CONTENT_FIELDS.every((field) => Object.is(a[field], b[field]));
 }

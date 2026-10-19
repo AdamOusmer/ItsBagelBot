@@ -293,3 +293,28 @@ describe("frame order", () => {
     expect(loop.isRunning()).toBe(false);
   });
 });
+
+describe("a throwing tick", () => {
+  test("neither starves later ticks nor stops the loop", () => {
+    const seen: string[] = [];
+    const boom: Tick = () => {
+      throw new Error("boom");
+    };
+    const steady: Tick = () => {
+      seen.push("steady");
+    };
+    track(boom);
+    track(steady);
+    const original = globalThis.queueMicrotask;
+    globalThis.queueMicrotask = () => {};
+    try {
+      frames();
+      frames();
+    } finally {
+      globalThis.queueMicrotask = original;
+    }
+
+    expect(seen).toEqual(["steady", "steady"]);
+    expect(loop.isRunning()).toBe(true);
+  });
+});

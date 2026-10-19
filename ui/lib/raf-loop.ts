@@ -24,14 +24,27 @@ function schedule(): void {
     frame = requestAnimationFrame(run);
 }
 
+function runTick(tick: Tick, now: number): void {
+    try {
+        if (tick(now) === false) waking.delete(tick);
+    } catch (error) {
+        queueMicrotask(() => {
+            throw error;
+        });
+    }
+}
+
 function run(now: number): void {
     frame = 0;
     running = true;
-    for (const tick of Array.from(subscribers)) {
-        if (waking.has(tick) && tick(now) === false) waking.delete(tick);
+    try {
+        for (const tick of Array.from(subscribers)) {
+            if (waking.has(tick)) runTick(tick, now);
+        }
+    } finally {
+        running = false;
+        schedule();
     }
-    running = false;
-    schedule();
 }
 
 export function subscribe(tick: Tick): () => void {

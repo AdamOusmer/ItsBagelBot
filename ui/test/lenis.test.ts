@@ -246,4 +246,18 @@ describe("idle scheduling", () => {
 
     expect(lenis.time).toBeCloseTo(9000 - 1000 / 60, 5);
   });
+
+  test("the wake interval is the smallest measured frame, not the last jittery one", () => {
+    const lenis = driven();
+    lenis.isScrolling = "smooth";
+
+    ticks[0](1000);
+    ticks[0](1008);
+    ticks[0](1058);
+    lenis.isScrolling = false;
+    ticks[0](1066);
+    ticks[0](9000);
+
+    expect(lenis.time).toBeCloseTo(9000 - 8, 5);
+  });
 });

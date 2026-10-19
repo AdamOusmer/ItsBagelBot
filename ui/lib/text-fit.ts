@@ -122,20 +122,13 @@ type FitRegistry = {
     active: boolean;
 };
 
-function addedTargets(records: MutationRecord[], registry: FitRegistry): FitTarget[] {
-    const added = new Map<HTMLElement, FitTarget>();
-    const roots = records.flatMap((record) => Array.from(record.addedNodes));
-    for (const target of roots.filter((node) => node instanceof HTMLElement).flatMap(collect)) {
-        if (!registry.targets.has(target.el)) added.set(target.el, target);
-    }
-    return Array.from(added.values());
-}
-
 function touchedTargets(records: MutationRecord[], registry: FitRegistry): FitTarget[] {
     const touched = new Set<FitTarget>();
     for (const record of records) {
-        const el = (record.target as Element).closest?.(SELECTOR);
-        const target = el ? registry.targets.get(el as HTMLElement) : undefined;
+        const node = record.target;
+        const owner = node instanceof Element ? node : node.parentElement;
+        const el = owner?.closest<HTMLElement>(SELECTOR);
+        const target = el ? registry.targets.get(el) : undefined;
         if (target) touched.add(target);
     }
     return Array.from(touched);
@@ -152,15 +145,27 @@ function withGroupPeers(registry: FitRegistry, subset: FitTarget[]): FitTarget[]
     return Array.from(refit);
 }
 
+function bindBox(registry: FitRegistry, target: FitTarget): void {
+    const siblings = registry.boxes.get(target.box);
+    if (siblings) siblings.add(target);
+    else {
+        registry.boxes.set(target.box, new Set([target]));
+        registry.resizer.observe(target.box);
+    }
+}
+
+function unbindBox(registry: FitRegistry, target: FitTarget): void {
+    const siblings = registry.boxes.get(target.box);
+    siblings?.delete(target);
+    if (siblings?.size) return;
+    registry.boxes.delete(target.box);
+    registry.resizer.unobserve(target.box);
+}
+
 function register(registry: FitRegistry, added: FitTarget[]): void {
     for (const target of added) {
         registry.targets.set(target.el, target);
-        const siblings = registry.boxes.get(target.box);
-        if (siblings) siblings.add(target);
-        else {
-            registry.boxes.set(target.box, new Set([target]));
-            registry.resizer.observe(target.box);
-        }
+        bindBox(registry, target);
     }
 }
 
@@ -168,16 +173,35 @@ function prune(registry: FitRegistry): void {
     for (const [el, target] of registry.targets) {
         if (el.isConnected) continue;
         registry.targets.delete(el);
-        const siblings = registry.boxes.get(target.box);
-        siblings?.delete(target);
-        if (siblings?.size) continue;
-        registry.boxes.delete(target.box);
-        registry.resizer.unobserve(target.box);
+        unbindBox(registry, target);
     }
 }
 
+function rebox(registry: FitRegistry, known: FitTarget, box: HTMLElement): void {
+    unbindBox(registry, known);
+    known.box = box;
+    bindBox(registry, known);
+}
+
+// Registers new fit elements and rebinds known ones that moved into another box.
+function adoptAdded(registry: FitRegistry, records: MutationRecord[]): FitTarget[] {
+    const changed = new Map<HTMLElement, FitTarget>();
+    const roots = records.flatMap((record) => Array.from(record.addedNodes));
+    for (const found of roots.filter((node) => node instanceof HTMLElement).flatMap(collect)) {
+        const known = registry.targets.get(found.el);
+        if (!known) {
+            register(registry, [found]);
+            changed.set(found.el, found);
+        } else if (known.box !== found.box) {
+            rebox(registry, known, found.box);
+            changed.set(known.el, known);
+        }
+    }
+    return Array.from(changed.values());
+}
+
 function refit(registry: FitRegistry, subset: FitTarget[]): void {
-    if (subset.length) fitAll(withGroupPeers(registry, subset));
+    if (subset.length) fitAll(withGroupPeers(registry, Array.from(new Set(subset))));
 }
 
 function boxTargets(registry: FitRegistry, entries: ResizeObserverEntry[]): FitTarget[] {
@@ -203,17 +227,14 @@ export function mountTextFit(root: ParentNode = document): () => void {
     const onMutations = (records: MutationRecord[]) => {
         if (!registry.active) return;
         prune(registry);
-        refit(registry, touchedTargets(records, registry));
-        const added = addedTargets(records, registry);
-        register(registry, added);
-        refit(registry, added);
+        refit(registry, [...touchedTargets(records, registry), ...adoptAdded(registry, records)]);
     };
 
     const initial = collect(root);
     register(registry, initial);
     fitAll(initial);
     const adder = new MutationObserver(onMutations);
-    adder.observe(root, { childList: true, subtree: true });
+    adder.observe(root, { childList: true, characterData: true, subtree: true });
     void document.fonts.ready.then(refitAll);
     document.fonts.addEventListener('loadingdone', refitAll);
 

@@ -24,13 +24,18 @@ const FRAME_MS = 1000 / 60;
 const MAX_FRAME_MS = 100;
 
 // Lenis integrates by elapsed time, so a wake after a sleep must not feed it the whole idle gap.
+// The smallest consecutive interval seen is the refresh interval; dropped frames never widen it.
 function driveLenis(lenis: Lenis): () => void {
     let last = 0;
     let frameMs = FRAME_MS;
+    let measured = false;
 
     const tick: Tick = (now) => {
         if (last === 0) lenis.time = now - frameMs;
-        else if (now - last < MAX_FRAME_MS) frameMs = now - last;
+        else if (now - last < MAX_FRAME_MS) {
+            frameMs = measured ? Math.min(frameMs, now - last) : now - last;
+            measured = true;
+        }
         last = now;
         lenis.raf(now);
         if (lenis.isScrolling === 'smooth') return;
