@@ -4,7 +4,8 @@
   import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, tick, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
-  import { invalidateAll, replaceState } from '$app/navigation';
+  import { invalidate, replaceState } from '$app/navigation';
+  import { noteLocalWrite } from '$lib/local-write';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
@@ -36,7 +37,6 @@
     validateCommand,
     persistCommandActive,
     overlayLiveActive,
-    commandContentSnapshot,
     usesCount,
     PERMS,
     COMMAND_NAME_MAX,
@@ -58,7 +58,7 @@
   import type { Starter } from '$lib/components/commands/starters';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
+  import { loadDraft, clearDraft, draftedNames, draftsMatch, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
 
@@ -66,7 +66,7 @@
   const failed = toastFailure(toast, t);
 
   // svelte-ignore state_referenced_locally
-  let items = $state<CommandView[]>(data.commands ?? []);
+  let items = $state.raw<CommandView[]>(data.commands ?? []);
 
   // svelte-ignore state_referenced_locally
   let seed = data.commands;
@@ -280,11 +280,7 @@
     return blankDraft();
   });
   const isDirty = $derived(
-    !!editorDraft && !editorDraft.builtin && committedDraft !== null
-      ? editorDraft.edit
-        ? commandContentSnapshot(editorDraft) !== commandContentSnapshot(committedDraft)
-        : JSON.stringify(editorDraft) !== JSON.stringify(committedDraft)
-      : false
+    !!editorDraft && !editorDraft.builtin && committedDraft !== null && !draftsMatch(editorDraft, committedDraft, editorDraft.edit)
   );
 
   const discard = createDiscardGuard(
@@ -481,12 +477,13 @@
     discard.guard(doCloseEditor);
   }
 
-  const rowHasDraft = (name: string) => {
+  const draftedRows = $derived.by(() => {
     void draftVersion;
-    return hasDraft({ board: data.board, name, edit: true });
-  };
+    return draftedNames(data.board);
+  });
 
   const saveSubmit: SubmitFunction = ({ formData }) => {
+    noteLocalWrite();
     const d = editorDraft;
     if (!d) return;
     const key = normName(d.name);
@@ -517,6 +514,7 @@
     setStatus(key, 'saving');
 
     return async ({ result }) => {
+      noteLocalWrite();
       busy = false;
       const payload =
         result.type === 'success' || result.type === 'failure'
@@ -634,6 +632,7 @@
     };
 
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
+    noteLocalWrite();
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => {
         const result = deserialize(await res.text());
@@ -641,7 +640,8 @@
           ? ((result.data as ActionResult | undefined) ?? null)
           : null;
       })
-      .catch(() => null);
+      .catch(() => null)
+      .finally(noteLocalWrite);
   }
 
   function formDataFor(c: CommandView): FormData {
@@ -937,7 +937,7 @@
                   index={i + 1}
                   {usesMax}
                   status={rowStatus[c.name] ?? 'idle'}
-                  unsaved={rowHasDraft(c.name) && expanded !== c.name}
+                  unsaved={draftedRows.has(c.name) && expanded !== c.name}
                   expanded={!selecting && expanded === c.name}
                   {selecting}
                   checked={selected.has(c.name)}
@@ -1072,7 +1072,7 @@
 
 <svelte:window onkeydown={onKey} />
 <svelte:document onvisibilitychange={() => {
-  if (document.visibilityState === 'visible') void invalidateAll();
+  if (data.delegateOf && document.visibilityState === 'visible') void invalidate('app:commands');
 }} />
 
 <style>

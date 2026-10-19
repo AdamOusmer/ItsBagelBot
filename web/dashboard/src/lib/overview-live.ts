@@ -131,7 +131,9 @@ export const LIVE_STALE_MS = 15_000;
 export function mergeLive(prev: LiveLanes, next: LiveSnapshot): LiveLanes {
   const merged: Record<string, unknown> = { ...prev };
   for (const [lane, value] of Object.entries(next)) {
-    if (value.ok) merged[lane] = value;
+    if (!value.ok) continue;
+    const before = merged[lane];
+    if (before === undefined || JSON.stringify(before) !== JSON.stringify(value)) merged[lane] = value;
   }
   return merged as LiveLanes;
 }

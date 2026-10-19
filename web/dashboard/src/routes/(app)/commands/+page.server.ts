@@ -83,7 +83,8 @@ function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandVie
   return [...builtins, ...customs];
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, depends }) => {
+  depends('app:commands');
   gateSection(locals.session, 'commands');
   const uid = effectiveId(locals.session);
   if (DEMO) {
