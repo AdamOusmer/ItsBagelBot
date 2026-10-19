@@ -4,8 +4,7 @@
 import Redis from 'iovalkey';
 import type { CommandView } from '../types';
 import { decodeModuleFields, type ProjectedModule } from './module-projection';
-import { getServerConfig } from './config';
-import { logger } from './logger';
+import { getServerConfig, hasServerConfig } from './config';
 import { CircuitBreaker, withTimeout } from './resilience';
 import { VALKEY_CLIENT_OPTIONS, VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
 
@@ -24,7 +23,7 @@ const revocationBreaker = new CircuitBreaker({
 });
 
 async function op<T>(run: (c: Redis) => Promise<T>, fallback: T): Promise<T> {
-  const c = get();
+  const c = replicaClient();
   if (!c) return fallback;
   try {
     return await breaker.run(() => withTimeout(run(c), OP_TIMEOUT_MS, 'valkey'));
@@ -48,9 +47,11 @@ export function sessionRevokedAllKey(userId: string): string {
 let client: Redis | null = null;
 let disabled = false;
 
-function get(): Redis | null {
+// VALKEY_ADDR may be a replica: writes and read-your-write paths use masterClient().
+export function replicaClient(): Redis | null {
   if (disabled) return null;
   if (client) return client;
+  if (!hasServerConfig()) return null;
   const cfg = getServerConfig().valkey;
   if (!cfg) {
     disabled = true;
@@ -70,7 +71,7 @@ function get(): Redis | null {
 }
 
 export function warm(): void {
-  get();
+  replicaClient();
 }
 
 export async function ready(): Promise<boolean> {
@@ -86,21 +87,17 @@ export interface RevocationKeys {
   userId: string;
 }
 
+// Throws on a failed read so callers never cache a fail-open answer.
 export async function getRevocation({ sid, userId }: RevocationKeys): Promise<[string | null, string | null]> {
-  const c = get();
+  const c = replicaClient();
   if (!c) return [null, null];
-  try {
-    // Without a sid, still check the revoke-all epoch: it exists to kill exactly those old cookies.
-    const keys = sid ? [sessionRevokedKey(sid), sessionRevokedAllKey(userId)] : [sessionRevokedAllKey(userId)];
-    const values = await revocationBreaker.run(() =>
-      withTimeout(c.mget(...keys), OP_TIMEOUT_MS, 'valkey session-revocation read')
-    );
-    const [sidHit, allAt] = sid ? values : [null, values[0]];
-    return [sidHit ?? null, allAt ?? null];
-  } catch (err) {
-    logger.warn({ err }, '[valkey-store] session-revocation read failed, failing open');
-    return [null, null];
-  }
+  // Without a sid, still check the revoke-all epoch: it exists to kill exactly those old cookies.
+  const keys = sid ? [sessionRevokedKey(sid), sessionRevokedAllKey(userId)] : [sessionRevokedAllKey(userId)];
+  const values = await revocationBreaker.run(() =>
+    withTimeout(c.mget(...keys), OP_TIMEOUT_MS, 'valkey session-revocation read')
+  );
+  const [sidHit, allAt] = sid ? values : [null, values[0]];
+  return [sidHit ?? null, allAt ?? null];
 }
 
 export interface ValkeyUser {
@@ -123,30 +120,43 @@ export function getUser(userId: string): Promise<ValkeyUser> {
   }, MISS_USER);
 }
 
-export function getCommands(
-  userId: string
-): Promise<{ commands: CommandView[]; projected: boolean }> {
-  return op(async (c) => {
-    const fields = await c.hgetall(settingsKey(userId));
-    let projected = fields['commands:projected'] === '1';
-    const commands: CommandView[] = [];
-    for (const [field, value] of Object.entries(fields)) {
-      const name = field.startsWith('command:') ? field.slice('command:'.length) : '';
-      if (!name) continue;
-      try {
-        commands.push(JSON.parse(value) as CommandView);
-        projected = true;
-      } catch {}
-    }
-    return { commands, projected };
-  }, { commands: [], projected: false });
+const settingsReads = new Map<string, Promise<Record<string, string> | null>>();
+
+// Commands and modules live in one hash: concurrent readers share a single HGETALL.
+function readSettings(userId: string): Promise<Record<string, string> | null> {
+  const pending = settingsReads.get(userId);
+  if (pending) return pending;
+  const read = op<Record<string, string> | null>((c) => c.hgetall(settingsKey(userId)), null).finally(() => {
+    if (settingsReads.get(userId) === read) settingsReads.delete(userId);
+  });
+  settingsReads.set(userId, read);
+  return read;
 }
 
-export function getModules(
+function decodeCommands(fields: Record<string, string>): { commands: CommandView[]; projected: boolean } {
+  let projected = fields['commands:projected'] === '1';
+  const commands: CommandView[] = [];
+  for (const [field, value] of Object.entries(fields)) {
+    const name = field.startsWith('command:') ? field.slice('command:'.length) : '';
+    if (!name) continue;
+    try {
+      commands.push(JSON.parse(value) as CommandView);
+      projected = true;
+    } catch {}
+  }
+  return { commands, projected };
+}
+
+export async function getCommands(
+  userId: string
+): Promise<{ commands: CommandView[]; projected: boolean }> {
+  const fields = await readSettings(userId);
+  return fields ? decodeCommands(fields) : { commands: [], projected: false };
+}
+
+export async function getModules(
   userId: string
 ): Promise<{ modules: ProjectedModule[]; projected: boolean }> {
-  return op(async (c) => {
-    const fields = await c.hgetall(settingsKey(userId));
-    return decodeModuleFields(fields);
-  }, { modules: [], projected: false });
+  const fields = await readSettings(userId);
+  return fields ? decodeModuleFields(fields) : { modules: [], projected: false };
 }
