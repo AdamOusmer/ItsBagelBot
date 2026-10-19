@@ -73,6 +73,7 @@ type Deps struct {
 	Dedup          *EventDedup
 	Seq            *Sequencer
 	Nuke           *Nuke
+	Analytics      valkey.Client
 }
 
 type FeedCounts struct {

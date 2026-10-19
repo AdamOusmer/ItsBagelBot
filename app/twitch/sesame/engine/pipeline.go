@@ -15,7 +15,9 @@ import (
 	"ItsBagelBot/app/twitch/sesame/confcache"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
@@ -90,6 +92,8 @@ type Pipeline struct {
 
 	observers []*observerLane
 
+	analytics *analytics.Recorder
+
 	chatLineCounter ChatLineCounter
 }
 
@@ -132,6 +136,9 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		chatLineCounter:   d.ChatLines,
 	}
 	p.localeLookup = p.readLocale
+	if d.Analytics != nil {
+		p.analytics = analytics.New(d.Analytics, d.Log, registry.AnalyticsNames())
+	}
 	if d.Automod == nil && d.Log != nil {
 		d.Log.Warn("automod gate not wired; chat moderation disabled")
 	}
@@ -155,6 +162,7 @@ func (p *Pipeline) Close() {
 	if p.stats != nil {
 		p.stats.Close()
 	}
+	p.analytics.Close()
 }
 
 const chatType = "channel.chat.message"
@@ -189,6 +197,9 @@ func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadca
 		target = 0
 	}
 	p.stats.count(target, decodedDelta(env))
+	if env.Type == chatType && env.Origin != "trial" {
+		p.analytics.Add(catalog.ChatMessages, int64(env.MessageCount()))
+	}
 	if env.Origin == "trial" {
 		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}
@@ -242,6 +253,10 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
+		p.analytics.Count(catalog.ChatAnswered)
+	}
+	if mctx.Command != "" || emission.ordinal > 0 {
+		p.recordActive(broadcasterID, admission.AccountCreatedAt)
 	}
 
 	p.notifyObservers(ObservedEvent{
@@ -566,10 +581,12 @@ func (p *Pipeline) runHandler(ctx context.Context, mctx *module.Context, m modul
 		return
 	}
 	before := mctx.Emitted
+	started := time.Now()
 	if err := handle(ctx, mctx, emit); err != nil {
 		p.handlerFailed(ctx, mctx, m, err)
 		return
 	}
+	p.recordHandled(mctx, m, before, time.Since(started))
 	if engagedBy(mctx, m, before) {
 		mctx.Engaged = true
 	}
@@ -602,6 +619,7 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 		zap.String("type", mctx.Env.Type),
 		module.BIDField(mctx.BroadcasterID),
 		zap.Error(err))
+	p.analytics.Count(catalog.ModuleErrors, moduleLabel(m), errorClass(err))
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
 		monitor.NoticeError(txn, err)

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
@@ -33,7 +34,12 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	c.Command = name
 	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
-		return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
+		engaged := c.Engaged
+		err := p.runBaked(ctx, c, bc.Cmd, num, args, emit)
+		if err == nil && c.Engaged && !engaged {
+			p.recordBaked(c.BroadcasterID, bc)
+		}
+		return err
 	}
 	if c.Env.Origin == "trial" {
 		return nil
@@ -203,6 +209,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	}
 
 	p.recordUse(ctx, c, cc.Name)
+	p.analytics.Count(catalog.CommandUses, catalog.CustomCommand)
 	p.bumpCommandCounter(ctx, c, cc)
 	c.Engaged = true
 	return nil
