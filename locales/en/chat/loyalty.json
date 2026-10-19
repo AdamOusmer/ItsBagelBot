@@ -12,6 +12,7 @@
   "counter.usage": "Usage: !counter <name>; or !counter create <name> [user|user+command], !counter <add|set|reset|delete> <name> [value], !counter list",
   "leaderboard": "Top {loyalty:name}: {loyalty:list}",
   "leaderboard.empty": "No standings yet. Stick around while live to earn some {loyalty:name}!",
+  "leaderboard.link": "Top {loyalty:name}: {loyalty:list} | Full board: {loyalty:url}",
   "leaderboard.usage": "Usage: !leaderboard [1-10]",
   "points": "@{loyalty:user} you have {loyalty:points} {loyalty:name} and {loyalty:hours} hours watched.",
   "watchtime": "@{loyalty:user} you have watched for {loyalty:duration}.",

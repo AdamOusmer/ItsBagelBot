@@ -230,15 +230,17 @@ func (l *loyaltyRPC) handleTopGet(ctx context.Context, req loyaltyrpc.Request) l
 	if !ok {
 		return reply
 	}
-	rows, err := l.repo.Top(ctx, userID, req.Limit)
+	page, err := l.repo.TopPage(ctx, userID, repository.TopQuery{Limit: req.Limit, Offset: req.Offset, Search: req.Query})
 	if err != nil {
 		return l.fail("loyalty top.get", err)
 	}
-	top := make([]loyaltyrpc.Balance, 0, len(rows))
-	for _, row := range rows {
-		top = append(top, *balanceView(row))
+	top := make([]loyaltyrpc.Balance, 0, len(page.Rows))
+	for _, row := range page.Rows {
+		view := balanceView(row.Balance)
+		view.Rank = row.Rank
+		top = append(top, *view)
 	}
-	return loyaltyrpc.Reply{Top: top, Found: true}
+	return loyaltyrpc.Reply{Top: top, Total: page.Total, Found: true}
 }
 
 func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

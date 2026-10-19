@@ -76,6 +76,8 @@ type Deps struct {
 	Seq            *Sequencer
 	Nuke           *Nuke
 	Analytics      *analytics.Recorder
+
+	LeaderboardBaseURL string
 }
 
 type FeedCounts struct {

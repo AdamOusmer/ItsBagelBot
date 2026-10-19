@@ -14,7 +14,7 @@ mock.module('./services', () => ({
   }
 }));
 
-const { purgeEdge, purgeEdgeByTag, schedulePurgeChannel, channelPageUrls } = await import('./edge-purge');
+const { purgeEdge, purgeEdgeByTag, purgeChannelPages, schedulePurgeChannel, channelPageUrls } = await import('./edge-purge');
 
 type Purge = { url: string; authorization: string; body: unknown };
 
@@ -99,6 +99,18 @@ test('channelPageUrls lists every public page variant of a channel', () => {
   ]);
 });
 
+describe('purgeChannelPages', () => {
+  test('purges every page URL and the per-channel leaderboard tag', async () => {
+    expect(await purgeChannelPages('foo')).toBe(true);
+    expect(purges.map((purge) => purge.body)).toEqual([{ files: channelPageUrls('foo') }, { tags: ['lb:foo'] }]);
+  });
+
+  test('a failed purge reports false', async () => {
+    replyStatus = 500;
+    expect(await purgeChannelPages('foo')).toBe(false);
+  });
+});
+
 describe('schedulePurgeChannel', () => {
   let timers: Array<() => void>;
 
@@ -115,16 +127,21 @@ describe('schedulePurgeChannel', () => {
     await new Promise((resolve) => realSetTimeout(resolve, 0));
   }
 
-  const channelPurge = { files: channelPageUrls('foo') };
+  const channelPurge = [{ files: channelPageUrls('foo') }, { tags: ['lb:foo'] }];
   const cases: { name: string; username: string | null; batches: string[][]; want: unknown[] }[] = [
     {
-      name: 'burst of writes coalesces into one purge of every channel page variant',
+      name: 'burst of writes coalesces into one purge of every channel page variant and its tag',
       username: 'Foo',
       batches: [['1', '1', '1']],
-      want: [channelPurge]
+      want: channelPurge
     },
-    { name: 'a write after the purge fired schedules a fresh purge', username: 'Foo', batches: [['2'], ['2']], want: [channelPurge, channelPurge] },
-    { name: 'separate users do not coalesce', username: 'Foo', batches: [['3', '4']], want: [channelPurge, channelPurge] },
+    {
+      name: 'a write after the purge fired schedules a fresh purge',
+      username: 'Foo',
+      batches: [['2'], ['2']],
+      want: [...channelPurge, ...channelPurge]
+    },
+    { name: 'separate users do not coalesce', username: 'Foo', batches: [['3', '4']], want: [...channelPurge, ...channelPurge] },
     { name: 'an unknown login skips the network call', username: '', batches: [['5']], want: [] },
     { name: 'a malformed login skips the network call', username: 'bad/login', batches: [['6']], want: [] },
     { name: 'an unavailable account state skips the network call', username: null, batches: [['7']], want: [] }

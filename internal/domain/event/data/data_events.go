@@ -43,6 +43,7 @@ type UserChangedDTO struct {
 	// this field zero-values to false, so a projector still on the old shape
 	// folds "visible", the pre-feature behaviour.
 	CommandsPageHidden bool `json:"commands_page_hidden"`
+	LeaderboardPageHidden bool `json:"leaderboard_page_hidden"`
 }
 
 type UserDeletedDTO struct {

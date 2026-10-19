@@ -7,15 +7,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
@@ -28,6 +31,7 @@ const counterAddMax = 1_000_000
 const (
 	defaultLeaderboardLimit = 5
 	maxLeaderboardLimit     = 10
+	chatMessageMax          = 500
 )
 
 type loyaltySubEvent struct {
@@ -421,8 +425,25 @@ func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 	}
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
-	lc.reply("loyalty.leaderboard", "list", standingsLine(top), "name", cfg.Name())
+	lc.leaderboardReply(ctx, top, cfg)
 	return nil
+}
+
+func (lc loyaltyCmd) leaderboardReply(ctx context.Context, top []loyaltyrpc.Balance, cfg engine.LoyaltyModuleConfig) {
+	name := cfg.Name()
+	link, visible := publicPageURL(ctx, lc.c, lc.d, publicPage{
+		base:        lc.d.LeaderboardBaseURL,
+		defaultBase: "https://leaderboard.itsbagelbot.com",
+		path:        "/",
+		hidden:      func(u projection.User) bool { return u.LeaderboardPageHidden },
+	})
+	if !visible {
+		lc.reply("loyalty.leaderboard", "list", standingsLine(top, runeBudget(math.MaxInt)), "name", name)
+		return
+	}
+	const key = "loyalty.leaderboard.link"
+	frame := utf8.RuneCountInString(lc.render("", key, "list", "", "name", name, "url", link))
+	lc.reply(key, "list", standingsLine(top, runeBudget(chatMessageMax-frame)), "name", name, "url", link)
 }
 
 func leaderboardLimit(args string) (int, bool) {
@@ -437,17 +458,25 @@ func leaderboardLimit(args string) (int, bool) {
 	return n, true
 }
 
-func standingsLine(top []loyaltyrpc.Balance) string {
+type runeBudget int
+
+func standingsLine(top []loyaltyrpc.Balance, maxRunes runeBudget) string {
 	var b strings.Builder
+	var used runeBudget
 	for i, row := range top {
-		if i > 0 {
-			b.WriteString(" | ")
-		}
 		name := row.ViewerName
 		if name == "" {
 			name = row.ViewerLogin
 		}
-		fmt.Fprintf(&b, "%d. %s %d", i+1, name, row.Points)
+		entry := fmt.Sprintf("%d. %s %d", i+1, name, row.Points)
+		if i > 0 {
+			entry = " | " + entry
+		}
+		used += runeBudget(utf8.RuneCountInString(entry))
+		if used > maxRunes {
+			break
+		}
+		b.WriteString(entry)
 	}
 	return b.String()
 }

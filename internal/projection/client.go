@@ -34,6 +34,8 @@ type User struct {
 	IsActive           bool             `json:"is_active"`
 	Locale             string           `json:"locale,omitempty"`
 	CommandsPageHidden bool             `json:"commands_page_hidden,omitempty"`
+
+	LeaderboardPageHidden bool `json:"leaderboard_page_hidden,omitempty"`
 }
 
 func (u User) Premium() bool {
@@ -212,7 +214,7 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 		}
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
-	case "status", "grant", "live", "locale", "commands_page":
+	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page":
 		c.users.Invalidate(key("user", id))
 	case "delegation":
 	default:

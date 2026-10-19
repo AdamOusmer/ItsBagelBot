@@ -53,6 +53,8 @@ func withNaturalPrimaryKey(table *entschema.Table) *entschema.Table {
 	for _, index := range table.Indexes {
 		if index != natural {
 			keyed.AddIndex(index.Name, index.Unique, columnNames(index.Columns))
+			kept, _ := keyed.Index(index.Name)
+			kept.Annotation = index.Annotation
 		}
 	}
 	return keyed

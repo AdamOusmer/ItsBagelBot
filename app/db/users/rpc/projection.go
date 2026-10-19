@@ -33,6 +33,8 @@ func SubscribeProjection(w Wiring, subject string) error {
 				Banned:             view.Banned,
 				Locale:             view.Locale,
 				CommandsPageHidden: view.CommandsPageHidden,
+
+				LeaderboardPageHidden: view.LeaderboardPageHidden,
 			}, nil
 		})
 }

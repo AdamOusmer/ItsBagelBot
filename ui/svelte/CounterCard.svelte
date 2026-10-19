@@ -18,7 +18,7 @@
     rateLabel?: string;
     period?: string;
     'aria-description'?: string;
-    tone?: CardTone;
+    tone?: CardTone | 'silver';
     appearance?: 'solid' | 'soft';
     tilt?: 'left' | 'right' | 'none';
     /** Decorative artwork can peek above the edge without clipping. */

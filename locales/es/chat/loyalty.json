@@ -12,6 +12,7 @@
   "counter.usage": "Uso: !counter <name>; o !counter create <name> [user|user+command], !counter <add|set|reset|delete> <name> [value], !counter list",
   "leaderboard": "Clasificación de {loyalty:name}: {loyalty:list}",
   "leaderboard.empty": "Aún no hay clasificación. ¡Quédate durante el directo para ganar {loyalty:name}!",
+  "leaderboard.link": "Clasificación de {loyalty:name}: {loyalty:list} | Clasificación completa: {loyalty:url}",
   "leaderboard.usage": "Uso: !leaderboard [1-10]",
   "points": "@{loyalty:user} tienes {loyalty:points} {loyalty:name}; horas vistas: {loyalty:hours}.",
   "watchtime": "@{loyalty:user} tiempo que has visto: {loyalty:duration}.",

@@ -17,7 +17,7 @@ import {
   tagTransaction
 } from '@bagel/kit/server/hooks';
 import { rumTransform } from '@bagel/kit/server/rum';
-import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
+import { RateLimiter, ValkeyRateLimiter, warmRateLimiter, type RateDecision } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
 import { logger } from '@bagel/kit/server/logger';
 import { startInvalidationListener } from '$lib/server/services';
@@ -50,16 +50,18 @@ function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   return readLimiter;
 }
 
-// Anonymous requests pass through: kubelet probes and the status page must never be limited.
-async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<Response | null> {
-  const userId = event.locals.session?.user_id;
-  if (!userId) {
-    return null;
-  }
-  const decision = await pickLimiter(event.url.pathname, event.request.method).check(`u:${userId}`);
-  if (decision.allowed) {
-    return null;
-  }
+// In-memory per pod: client IPs must never reach Valkey. 120 burst, 120/min refill.
+export const publicLimiter = new RateLimiter({ capacity: 120, refillPerSec: 2 });
+
+function clientIp(event: HookEvent): string {
+  return event.request.headers.get('cf-connecting-ip') || event.getClientAddress();
+}
+
+function publicEdgeRoute(event: HookEvent): boolean {
+  return event.route.id !== null && event.route.id in EDGE_CACHE && cacheableRequest(event);
+}
+
+function limited(event: HookEvent, decision: RateDecision): Response {
   newrelic.addCustomAttributes({ 'ratelimit.limited': true, 'route.id': event.route.id ?? 'unmatched' });
   return new Response('Too many requests', {
     status: 429,
@@ -69,6 +71,16 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
       'Content-Type': 'text/plain; charset=utf-8'
     }
   });
+}
+
+// Probes and assets have no EDGE_CACHE route id, so they are never limited.
+async function enforceRateLimit(event: HookEvent): Promise<Response | null> {
+  const userId = event.locals.session?.user_id;
+  if (!userId && !publicEdgeRoute(event)) return null;
+  const decision = userId
+    ? await pickLimiter(event.url.pathname, event.request.method).check(`u:${userId}`)
+    : publicLimiter.check(`ip:${clientIp(event)}`);
+  return decision.allowed ? null : limited(event, decision);
 }
 
 export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
@@ -102,10 +114,15 @@ function cacheableRequest(event: HookEvent): boolean {
   return event.request.method === 'GET' || event.request.method === 'HEAD';
 }
 
+function cacheableBody(res: Response, event: HookEvent): boolean {
+  const type = event.isDataRequest ? 'application/json' : 'text/html';
+  return !!res.headers.get('content-type')?.includes(type);
+}
+
 function cacheableResponse(res: Response, event: HookEvent): boolean {
   // Expired session cookies get a delete Set-Cookie with no session: caching it would replay to every visitor.
-  if (res.headers.has('set-cookie')) return false;
-  return cacheableStatus(res, event) && !!res.headers.get('content-type')?.includes('text/html');
+  if (res.headers.has('set-cookie') || event.locals.edgeCacheSkip) return false;
+  return cacheableStatus(res, event) && cacheableBody(res, event);
 }
 
 function anonymousDefaultRender(event: HookEvent): boolean {
@@ -122,7 +139,7 @@ export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string
   return {
     'Cache-Control': 'public, max-age=0',
     'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`,
-    'Cache-Tag': DEPLOY_CACHE_TAG
+    'Cache-Tag': [DEPLOY_CACHE_TAG, event.locals.edgeCacheTag].filter(Boolean).join(',')
   };
 }
 

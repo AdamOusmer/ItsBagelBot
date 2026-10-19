@@ -4,6 +4,7 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { commandsHref } from '@bagel/kit/site-links';
+import { leaderboardCacheTag } from '$lib/edge-tags';
 import { SEO_ORIGIN } from './seo-hosts';
 import { accountState } from './services';
 
@@ -61,10 +62,15 @@ export function channelPageUrls(login: string): string[] {
   ];
 }
 
+export async function purgeChannelPages(login: string): Promise<boolean> {
+  const [files, tagged] = await Promise.all([purgeEdge(channelPageUrls(login)), purgeEdgeByTag(leaderboardCacheTag(login))]);
+  return files && tagged;
+}
+
 async function purgeChannel(userId: string): Promise<void> {
   const account = await accountState(userId).catch(() => null);
   const login = (account?.username ?? '').toLowerCase();
-  if (LOGIN_RE.test(login)) await purgeEdge(channelPageUrls(login));
+  if (LOGIN_RE.test(login)) await purgeChannelPages(login);
 }
 
 export function schedulePurgeChannel(userId: string): void {

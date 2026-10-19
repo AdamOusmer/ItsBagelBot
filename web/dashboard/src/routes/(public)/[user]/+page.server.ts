@@ -1,15 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import type { Locale } from '@bagel/kit/i18n';
 import type { PageServerLoad } from './$types';
 import { resolveLogin, userCommandsPage, userLeaderboardPage } from '$lib/server/services';
-import { readLoyalty, topStandings } from '$lib/server/loyalty-store';
-import { listCommands, listModules } from '$lib/server/commands-store';
-import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
+import { readLoyalty, standingsPage, topStandings } from '$lib/server/loyalty-store';
+import { boardParams, canonicalLocation, emptyBoard, loadBoard, PODIUM_SIZE, type BoardParams, type BoardView } from '$lib/leaderboard-board';
+import { leaderboardCacheTag } from '$lib/edge-tags';
+import { channelLabel } from '$lib/server/public-directory';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -38,55 +38,55 @@ async function requireChannel(login: string): Promise<Channel> {
 
 type Standings = {
 	currencyName: string;
-	top: Awaited<ReturnType<typeof topStandings>>;
+	podium: Awaited<ReturnType<typeof topStandings>>;
+	board: BoardView;
 	degraded: boolean;
 };
-
-type Directory = { commands: PublicCommand[]; modules: PublicModule[] };
 
 function hideChannel(locals: App.Locals): never {
 	locals.edgeCache404 = true;
 	throw error(404, 'Channel not found');
 }
 
-async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>): Promise<Standings> {
+async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>, params: BoardParams): Promise<Standings> {
 	try {
-		const [view, top] = await Promise.all([loyalty, topStandings(userId, 50)]);
-		return { currencyName: view.config.pointsName || 'points', top, degraded: false };
+		const [view, podium, board] = await Promise.all([
+			loyalty,
+			topStandings(userId, PODIUM_SIZE),
+			loadBoard(params, (req) => standingsPage(userId, req))
+		]);
+		return { currencyName: view.config.pointsName || 'points', podium, board, degraded: false };
 	} catch {
-		return { currencyName: 'points', top: [], degraded: true };
+		return { currencyName: 'points', podium: [], board: emptyBoard(params), degraded: true };
 	}
 }
 
-async function directory(userId: string, locale: Locale, visible: boolean): Promise<Directory> {
-	if (!visible) return { commands: [], modules: [] };
-	try {
-		const [rows, mods] = await Promise.all([listCommands(userId), listModules(userId)]);
-		return { commands: publicCommands(rows, locale), modules: publicModules(mods, locale) };
-	} catch {
-		return { commands: [], modules: [] };
-	}
-}
-
-async function demoPage(login: string) {
+async function demoPage(login: string, params: BoardParams) {
 	const d = await import('$lib/server/demo-data');
 	return {
 		login,
 		channelName: login,
 		currencyName: d.demoLeaderboard.currencyName,
-		top: d.demoLeaderboard.top,
+		podium: d.demoPodium(),
+		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),
 		degraded: false,
-		commandsPage: true,
-		commands: d.demoPublicCommands satisfies PublicCommand[],
-		modules: d.demoPublicModules satisfies PublicModule[]
+		commandsPage: true
 	};
 }
 
-export const load: PageServerLoad = async ({ params, url, locals }) => {
+function enter(url: URL, segment: string, locals: App.Locals): string {
 	requireLeaderboardHost(url);
+	const login = requireLogin(segment);
+	locals.edgeCacheTag = leaderboardCacheTag(login);
+	const canonical = canonicalLocation(url);
+	if (canonical) throw redirect(308, canonical);
+	return login;
+}
 
-	const login = requireLogin(params.user ?? '');
-	if (DEMO) return demoPage(login);
+export const load: PageServerLoad = async ({ params, url, locals }) => {
+	const login = enter(url, params.user ?? '', locals);
+	const view = boardParams(url);
+	if (DEMO) return demoPage(login, view);
 
 	const channel = await requireChannel(login);
 	const loyalty = readLoyalty(channel.userId);
@@ -98,19 +98,16 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	]);
 	if (!boardVisible || !loyaltyEnabled) hideChannel(locals);
 
-	const [{ commands, modules }, board] = await Promise.all([
-		directory(channel.userId, locals.locale, commandsPage),
-		standings(channel.userId, loyalty)
-	]);
+	const board = await standings(channel.userId, loyalty, view);
+	if (board.degraded) locals.edgeCacheSkip = true;
 
 	return {
 		login: channel.login,
 		channelName: channel.channelName,
 		currencyName: board.currencyName,
-		top: board.top,
+		podium: board.podium,
+		...board.board,
 		degraded: board.degraded,
-		commandsPage,
-		commands,
-		modules
+		commandsPage
 	};
 };

@@ -118,6 +118,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Seq: rt.seq,
 
 		PublicBaseURL: cfg.PublicBaseURL,
+
+		LeaderboardBaseURL: cfg.LeaderboardBaseURL,
 	}
 }
 

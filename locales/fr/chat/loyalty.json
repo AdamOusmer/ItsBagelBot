@@ -12,6 +12,7 @@
   "counter.usage": "Utilisation : !counter <nom> ; ou !counter create <nom> [user|user+command], !counter <add|set|reset|delete> <nom> [valeur], !counter list",
   "leaderboard": "Top {loyalty:name} : {loyalty:list}",
   "leaderboard.empty": "Pas encore de classement. Restez pendant le live pour gagner des {loyalty:name} !",
+  "leaderboard.link": "Top {loyalty:name} : {loyalty:list} | Classement complet : {loyalty:url}",
   "leaderboard.usage": "Utilisation : !leaderboard [1-10]",
   "points": "@{loyalty:user} vous avez {loyalty:points} {loyalty:name} et {loyalty:hours} heures de visionnage.",
   "watchtime": "@{loyalty:user} vous avez regardé pendant {loyalty:duration}.",

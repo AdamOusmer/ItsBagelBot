@@ -447,6 +447,8 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		Banned:             view.Banned,
 		Locale:             view.Locale,
 		CommandsPageHidden: view.CommandsPageHidden,
+
+		LeaderboardPageHidden: view.LeaderboardPageHidden,
 	})
 }
 

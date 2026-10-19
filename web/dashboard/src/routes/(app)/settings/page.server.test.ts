@@ -10,7 +10,8 @@ stubSvelteKit();
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
 const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
-const purgeBodies: { files: string[] }[] = [];
+type PurgeBody = { files: string[] } | { tags: string[] };
+const purgeBodies: PurgeBody[] = [];
 let writeFails = false;
 let purgeStatus = 200;
 let savedLocale = 'en';
@@ -70,7 +71,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge = [{ files: channelPageUrls('streamerlogin') }];
+const channelPurge: PurgeBody[] = [{ files: channelPageUrls('streamerlogin') }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -80,7 +81,7 @@ const cases: {
   locale?: 'en' | 'fr';
   writeFails?: boolean;
   purgeStatus?: number;
-  want: { result: (page: string) => unknown; writes: [string, boolean][]; purges: { files: string[] }[] };
+  want: { result: (page: string) => unknown; writes: [string, boolean][]; purges: PurgeBody[] };
 }[] = [
   {
     name: 'a French refusal preserves the authorization status and localizes its message',
@@ -102,7 +103,7 @@ const cases: {
     want: { result: () => refused, writes: [], purges: [] }
   },
   {
-    name: 'owner enabled=on writes hidden=false then purges the canonical URLs',
+    name: 'owner enabled=on writes hidden=false then purges the canonical URLs and the leaderboard tag',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }

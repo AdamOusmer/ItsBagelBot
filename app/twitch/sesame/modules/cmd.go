@@ -214,20 +214,17 @@ func (k cmdCall) save(cc projection.Command, replyKey cmdReplyKey) {
 func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
 	channel := c.Env.BroadcasterName()
 
-	if u, err := d.Proj.User(ctx, c.BroadcasterID); err == nil && u.CommandsPageHidden {
+	link, visible := publicPageURL(ctx, c, d, publicPage{
+		base:        d.PublicBaseURL,
+		defaultBase: "https://commands.itsbagelbot.com",
+		path:        "/user/",
+		hidden:      func(u projection.User) bool { return u.CommandsPageHidden },
+	})
+	if !visible {
 		cmdPageOff(c, emit, channel)
 		return
 	}
 
-	base := d.PublicBaseURL
-	if base == "" {
-		base = "https://commands.itsbagelbot.com"
-	}
-	slug := strings.ToLower(c.Env.BroadcasterUserLogin)
-	if slug == "" {
-		slug = c.Env.BroadcasterUserID
-	}
-	link := fmt.Sprintf("%s/user/%s", strings.TrimRight(base, "/"), slug)
 	text := module.KV(
 		"user", c.Env.ChatterName(),
 		"channel", channel,
@@ -238,6 +235,28 @@ func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.
 		BroadcasterID: c.Env.BroadcasterUserID,
 		Text:          text,
 	})
+}
+
+type publicPage struct {
+	base, defaultBase, path string
+	hidden                  func(projection.User) bool
+}
+
+func publicPageURL(ctx context.Context, c *module.Context, d engine.Deps, page publicPage) (string, bool) {
+	if d.Proj != nil {
+		if u, err := d.Proj.User(ctx, c.BroadcasterID); err == nil && page.hidden(u) {
+			return "", false
+		}
+	}
+	base := page.base
+	if base == "" {
+		base = page.defaultBase
+	}
+	slug := strings.ToLower(c.Env.BroadcasterUserLogin)
+	if slug == "" {
+		slug = c.Env.BroadcasterUserID
+	}
+	return strings.TrimRight(base, "/") + page.path + slug, true
 }
 
 func cmdPageOff(c *module.Context, emit module.Emit, channel string) {

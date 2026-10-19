@@ -37,6 +37,22 @@
     border-color: var(--bb-tan-pale);
     box-shadow: 0 7px 0 rgba(var(--bb-tan-rgb), .24);
   }
+  .bb-counter-card--silver {
+    --counter-card-secondary: var(--bb-tier-vip);
+    border-color: var(--bb-tier-vip-border);
+    background: linear-gradient(140deg, rgba(var(--bb-tier-vip-rgb), .16), transparent 85%), var(--bb-card-bg);
+  }
+  .bb-counter-card--solid.bb-counter-card--silver {
+    --counter-card-ink: var(--bb-black);
+    --counter-card-secondary: var(--bb-black);
+    --counter-card-seam: rgba(var(--bb-black-rgb), .15);
+    background: linear-gradient(155deg,
+      color-mix(in srgb, var(--bb-tier-vip) 90%, var(--bb-black)) 0%,
+      color-mix(in srgb, var(--bb-tier-vip) 74%, var(--bb-black)) 55%,
+      color-mix(in srgb, var(--bb-tier-vip) 84%, var(--bb-black)) 100%);
+    border-color: color-mix(in srgb, var(--bb-tier-vip) 80%, rgb(var(--bb-white-pure-rgb)));
+    box-shadow: inset 0 1px 0 rgba(var(--bb-white-pure-rgb), .5), 0 7px 0 rgba(var(--bb-tier-vip-rgb), .24);
+  }
   .bb-counter-card--tilt-left { transform: rotate(-.8deg); }
   .bb-counter-card--tilt-right { transform: rotate(.8deg); }
   .bb-counter-card__artwork {

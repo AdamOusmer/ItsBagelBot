@@ -18,6 +18,8 @@ func UserFromReply(r contract.UserReply) UserProjection {
 		Banned:             r.Banned,
 		Locale:             r.Locale,
 		CommandsPageHidden: r.CommandsPageHidden,
+
+		LeaderboardPageHidden: r.LeaderboardPageHidden,
 	}
 }
 
@@ -31,5 +33,7 @@ func UserFromChanged(dto data.UserChangedDTO) UserProjection {
 		Banned:             dto.Banned,
 		Locale:             dto.Locale,
 		CommandsPageHidden: dto.CommandsPageHidden,
+
+		LeaderboardPageHidden: dto.LeaderboardPageHidden,
 	}
 }

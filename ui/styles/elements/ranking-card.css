@@ -30,6 +30,7 @@
   .bb-ranking-card__track { height: 5px; margin: 10px 0 8px; background: rgba(var(--bb-tan-rgb), .08); border-radius: 5px; overflow: hidden; }
   .bb-ranking-card__track > span { display: block; height: 100%; background: var(--bb-green-glow); border-radius: inherit; }
   .bb-ranking-card__secondary { margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--bb-muted); }
+  .bb-ranking-card__footer { margin-top: 16px; }
   @media (max-width: 650px) {
     .bb-ranking-card { --ranking-card-pad: 22px 18px; --ranking-card-artwork-size: 38px; }
     .bb-ranking-card__head { grid-template-columns: minmax(0, 1fr); }

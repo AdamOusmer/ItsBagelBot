@@ -37,6 +37,16 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[5]},
 			},
+			{
+				Name:    "balance_user_id_points_viewer_id",
+				Unique:  false,
+				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[5], BalancesColumns[2]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						BalancesColumns[5].Name: true,
+					},
+				},
+			},
 		},
 	}
 	// CountersColumns holds the columns for the "counters" table.

@@ -18,11 +18,11 @@
     /** The pair of lifetime counters. */
     counters: Snippet;
     ranking: Snippet;
-    community: Snippet;
+    community?: Snippet;
     notice?: Snippet;
     /** An optional footnote, rather than the site's navigation footer. */
     footer?: Snippet;
-    arrangement?: 'playful' | 'onboarding' | 'gathering';
+    arrangement?: 'playful' | 'onboarding' | 'gathering' | 'podium';
     class?: string;
     [key: string]: unknown;
   } = $props();
@@ -41,7 +41,7 @@
     <div class="stats-layout__body">
       <div class="stats-layout__counters">{@render counters()}</div>
       <div class="stats-layout__ranking">{@render ranking()}</div>
-      <div class="stats-layout__community">{@render community()}</div>
+      {#if community}<div class="stats-layout__community">{@render community()}</div>{/if}
     </div>
     {#if footer}<div class="stats-layout__footer">{@render footer()}</div>{/if}
   </div>
