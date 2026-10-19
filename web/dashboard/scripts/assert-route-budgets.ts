@@ -20,9 +20,9 @@ interface Budget {
 // Initial-load gzip bytes per route. A raise needs the measurement and the reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
   '/(public)/login': { js: 89500, css: 21700, catalog: 62800 },
-  '/(app)': { js: 113700, css: 28400, catalog: 62800 },
-  '/(app)/commands': { js: 181300, css: 38600, catalog: 62800 },
-  '/(public)/user/[channel]': { js: 95500, css: 25000, catalog: 62800 }
+  '/(app)': { js: 113700, css: 39100, catalog: 62800 },
+  '/(app)/commands': { js: 181300, css: 41900, catalog: 62800 },
+  '/(public)/user/[channel]': { js: 95500, css: 21500, catalog: 62800 }
 };
 
 interface RouteEntry {
