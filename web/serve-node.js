@@ -63,7 +63,18 @@ const prerendered = existsSync(prerenderedDir)
     })
   : undefined;
 
+function sendLive(res) {
+  res.statusCode = 200;
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.end('ok');
+}
+
 const requestListener = (req, res) => {
+  if (req.url === '/healthz') {
+    sendLive(res);
+    return;
+  }
   client(req, res, () => {
     const next = () => {
       // Missing /_app assets must 404: the SSR fallback would answer a .js URL with HTML.
@@ -89,6 +100,10 @@ const server =
   tlsCert && tlsKey
     ? createHttpsServer({ cert: readFileSync(tlsCert), key: readFileSync(tlsKey) }, requestListener)
     : createHttpServer(requestListener);
+
+// Must outlast the proxy's idle timeout (Traefik and Go default 90 s), or it reuses a socket the pod just closed: 502.
+server.keepAliveTimeout = 95_000;
+server.headersTimeout = 96_000;
 
 function shutdown(signal) {
   console.log(`Received ${signal}; closing HTTP server`);
