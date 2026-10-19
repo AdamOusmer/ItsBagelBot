@@ -632,10 +632,7 @@ defmodule Ingress.TrialReceiver do
         trial_generation: row.generation
       })
 
-    if reply["deleted"] == true do
-      recheck_registration(row)
-      Trials.finish(row.broadcaster_id)
-    end
+    if reply["deleted"] == true, do: finish_after_recheck(row)
   end
 
   defp reconcile_row(%{state: "disabled"} = row, state) do
@@ -669,9 +666,18 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
+  defp finish_after_recheck(row) do
+    case recheck_registration(row) do
+      {:error, _} -> :retry
+      _ -> Trials.finish(row.broadcaster_id)
+    end
+  end
+
   defp recheck_registration(%{stop_reason: "registration_check_unavailable"} = row) do
-    with {:ok, true} <- TrialRpc.registered?(row.broadcaster_id),
-         do: Trials.stop(row.broadcaster_id, "promoted")
+    case TrialRpc.registered?(row.broadcaster_id) do
+      {:ok, true} -> Trials.stop(row.broadcaster_id, "promoted")
+      _ -> :ok
+    end
   end
 
   defp recheck_registration(_row), do: :ok
