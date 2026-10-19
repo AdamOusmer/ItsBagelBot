@@ -12,8 +12,6 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/pkg/db"
-
-	entsql "entgo.io/ent/dialect/sql"
 )
 
 var errInsufficient = errors.New("insufficient points")
@@ -70,10 +68,7 @@ func (r *Loyalty) transferParties(ctx context.Context, t Transfer) (sender, reci
 	if !found {
 		return &ent.Balance{UserID: t.UserID, ViewerID: t.FromViewerID}, nil, true, nil
 	}
-	recipient, found, err = r.transferRecipient(ctx, t, login)
-	if err != nil || !found {
-		return nil, nil, found, err
-	}
+	recipient = &ent.Balance{UserID: t.UserID, ViewerID: t.TargetViewerID, ViewerLogin: login}
 	if recipient.ViewerID == sender.ViewerID {
 		return nil, nil, true, fmt.Errorf("%w: self transfer", ErrInvalidInput)
 	}
@@ -85,27 +80,16 @@ func validTransfer(t Transfer) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if t.TargetViewerID != 0 && t.TargetViewerID == t.FromViewerID {
+	if t.TargetViewerID == 0 {
+		return "", fmt.Errorf("%w: target_viewer_id", ErrInvalidInput)
+	}
+	if t.TargetViewerID == t.FromViewerID {
 		return "", fmt.Errorf("%w: self transfer", ErrInvalidInput)
 	}
 	if t.FromViewerID == 0 {
 		return "", fmt.Errorf("%w: from_viewer_id", ErrInvalidInput)
 	}
 	return login, nil
-}
-
-// A resolved Twitch ID allows a first transfer to create the recipient's balance.
-// Legacy callers without an ID can only transfer to an existing balance.
-func (r *Loyalty) transferRecipient(ctx context.Context, t Transfer, login string) (*ent.Balance, bool, error) {
-	if t.TargetViewerID != 0 {
-		return &ent.Balance{UserID: t.UserID, ViewerID: t.TargetViewerID, ViewerLogin: login}, true, nil
-	}
-	return getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
-		return r.client.Balance.Query().
-			Where(balance.UserIDEQ(t.UserID), balance.ViewerLoginEQ(login)).
-			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
-			First(ctx)
-	})
 }
 
 // The points >= amount predicate stops a concurrent spend driving the sender negative.

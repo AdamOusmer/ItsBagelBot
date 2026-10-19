@@ -124,7 +124,7 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 	if !ok {
 		return reply
 	}
-	targetID, err := transferTargetID(req.TargetViewerID)
+	targetID, err := adjustTargetID(req.TargetViewerID)
 	if err != nil {
 		return refuse(domainrpc.CodeInvalid, err.Error())
 	}
@@ -145,10 +145,14 @@ func (l *loyaltyRPC) adjustViewerBalance(ctx context.Context, target repository.
 	return l.repo.BalanceAdjust(ctx, target.UserID, target.ViewerLogin, target.Value, target.Absolute)
 }
 
-func transferTargetID(id string) (uint64, error) {
+func adjustTargetID(id string) (uint64, error) {
 	if id == "" {
 		return 0, nil
 	}
+	return transferTargetID(id)
+}
+
+func transferTargetID(id string) (uint64, error) {
 	viewerID, err := strconv.ParseUint(id, 10, 64)
 	if err != nil || viewerID == 0 {
 		return 0, errors.New("invalid target_viewer_id")
@@ -270,6 +274,9 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
 		return reply
+	}
+	if viewerID == 0 && req.ViewerLogin != "" {
+		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	value, err := counterSetValue(req)
 	if err != nil {

@@ -157,25 +157,26 @@ func TestHandleBalanceTransfer(t *testing.T) {
 		stored  map[uint64]int64
 	}{
 		{
-			name:   "moves points to a recipient found by login",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "@Receiver", Value: 400},
+			name:   "moves points to an existing recipient by ID",
+			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "@Receiver", Value: 400},
 			want:   loyaltyrpc.Reply{Found: true, Spent: true, Balance: balanceOf("7", "sender", 600), TargetBalance: balanceOf("8", "receiver", 500)},
 			stored: map[uint64]int64{7: 600, 8: 500},
 		},
 		{
 			name:   "refuses a transfer above the balance without crediting anyone",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "receiver", Value: 5000},
+			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "receiver", Value: 5000},
 			want:   loyaltyrpc.Reply{Found: true, Balance: balanceOf("7", "sender", 1000)},
 			stored: untouched,
 		},
 		{
-			name:   "reports an unknown recipient as not found",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "ghost", Value: 10},
-			stored: untouched,
+			name:    "refuses a login-only recipient",
+			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "receiver", Value: 10},
+			refused: true,
+			stored:  untouched,
 		},
 		{
 			name:    "refuses a transfer to oneself",
-			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "sender", Value: 10},
+			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "7", ViewerLogin: "sender", Value: 10},
 			refused: true,
 			stored:  untouched,
 		},

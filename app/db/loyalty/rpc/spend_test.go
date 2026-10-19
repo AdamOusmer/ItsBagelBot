@@ -21,12 +21,21 @@ func TestHandleBalanceSpendIDWinsOverLogin(t *testing.T) {
 	h.requireStored(t, map[uint64]int64{7: 700, 8: 100})
 }
 
-func TestHandleBalanceSpendLegacyLoginOnly(t *testing.T) {
+func TestHandleBalanceSpendRefusesLoginOnly(t *testing.T) {
 	h := newHarness(t)
 
-	reply := h.call(t, "balance.spend", loyaltyrpc.Request{UserID: "2", ViewerLogin: "sender", Value: 300})
+	requireRefused(t, h.call(t, "balance.spend", loyaltyrpc.Request{UserID: "2", ViewerLogin: "sender", Value: 300}))
 
-	assert.Equal(t, loyaltyrpc.Reply{Found: true, Spent: true, Balance: balanceOf("7", "sender", 700)}, reply)
+	h.requireStored(t, map[uint64]int64{7: 1000})
+}
+
+func TestHandleCounterSetRefusesLoginOnly(t *testing.T) {
+	h := newHarness(t)
+	h.call(t, "counter.create", loyaltyrpc.Request{UserID: "2", Name: "hugs", Scope: "viewer"})
+
+	requireRefused(t, h.call(t, "counter.set", loyaltyrpc.Request{UserID: "2", Name: "hugs", ViewerLogin: "receiver", Value: 3}))
+
+	assert.True(t, h.call(t, "counter.set", loyaltyrpc.Request{UserID: "2", Name: "hugs", ViewerID: "8", ViewerLogin: "receiver", Value: 3}).Found)
 }
 
 func TestHandleBalanceSpendByIDRefusals(t *testing.T) {

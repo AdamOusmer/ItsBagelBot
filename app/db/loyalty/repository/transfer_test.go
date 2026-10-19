@@ -26,7 +26,7 @@ func TestBalanceTransferMovesPoints(t *testing.T) {
 	repo, client, ctx := fundedLoyalty(t, 1000)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
 
-	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "@Receiver", Amount: 400})
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "@Receiver", Amount: 400})
 	require.NoError(t, err)
 	assert.True(t, found)
 	require.NotNil(t, out)
@@ -48,17 +48,13 @@ func TestBalanceTransferRefusals(t *testing.T) {
 		{
 			name:         "TestBalanceTransferRefusesShortfall",
 			seedReceiver: true,
-			transfer:     loyaltyrepo.Transfer{TargetLogin: "receiver", Amount: 400},
+			transfer:     loyaltyrepo.Transfer{TargetViewerID: 8, TargetLogin: "receiver", Amount: 400},
 			wantFound:    true,
 		},
 		{
 			name:      "TestBalanceTransferShortfallDoesNotCreateRecipient",
 			transfer:  loyaltyrepo.Transfer{TargetViewerID: 8, TargetLogin: "newviewer", Amount: 200},
 			wantFound: true,
-		},
-		{
-			name:     "TestBalanceTransferUnknownTarget",
-			transfer: loyaltyrepo.Transfer{TargetLogin: "ghost", Amount: 10},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -97,10 +93,10 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 		name     string
 		transfer loyaltyrepo.Transfer
 	}{
-		{"refuses a transfer to oneself by login", loyaltyrepo.Transfer{TargetLogin: "sender", Amount: 10}},
-		{"refuses a blank target login", loyaltyrepo.Transfer{Amount: 10}},
-		{"refuses a zero amount", loyaltyrepo.Transfer{TargetLogin: "receiver"}},
-		{"refuses a negative amount", loyaltyrepo.Transfer{TargetLogin: "receiver", Amount: -5}},
+		{"refuses a login-only transfer", loyaltyrepo.Transfer{TargetLogin: "receiver", Amount: 10}},
+		{"refuses a blank target login", loyaltyrepo.Transfer{TargetViewerID: 8, Amount: 10}},
+		{"refuses a zero amount", loyaltyrepo.Transfer{TargetViewerID: 8, TargetLogin: "receiver"}},
+		{"refuses a negative amount", loyaltyrepo.Transfer{TargetViewerID: 8, TargetLogin: "receiver", Amount: -5}},
 		{"TestBalanceTransferRejectsResolvedSelf", loyaltyrepo.Transfer{TargetViewerID: 7, TargetLogin: "renamed", Amount: 10}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,7 +110,7 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 
 func TestBalanceTransferFromUnknownSenderIsInsufficient(t *testing.T) {
 	repo, _, ctx := fundedLoyalty(t, 100)
-	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 99, TargetLogin: "sender", Amount: 10})
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 99, TargetViewerID: 7, TargetLogin: "sender", Amount: 10})
 	require.NoError(t, err)
 	assert.True(t, found)
 	require.NotNil(t, out)
@@ -188,7 +184,7 @@ func TestBalanceTransferRetriesALockConflict(t *testing.T) {
 			repo, client, ctx := fundedLoyalty(t, 1000)
 			seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
 			client.Balance.Use(failFirstUpdate(&mysql.MySQLError{Number: conflict}))
-			out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "receiver", Amount: 400})
+			out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "receiver", Amount: 400})
 			require.NoError(t, err)
 			require.True(t, found)
 			assert.EqualValues(t, 600, out.From.Points)
