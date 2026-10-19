@@ -15,15 +15,17 @@ interface Budget {
   js: number;
   css: number;
   catalog: number;
+  lazy: number;
 }
 
-// Initial-load gzip bytes per route; catalog is the largest non-English locale's slices for the route's nodes.
-// A raise needs the measurement and the reason in the same commit.
+// Initial-load gzip bytes per route. catalog is the largest non-English locale's slices for the route's initial
+// chunks; lazy is the same for every slice the route can import later. A raise needs the measurement and the
+// reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
-  '/(public)/login': { js: 90900, css: 21900, catalog: 2900 },
-  '/(app)': { js: 116600, css: 39100, catalog: 5000 },
-  '/(app)/commands': { js: 137500, css: 41900, catalog: 4600 },
-  '/(public)/user/[channel]': { js: 96600, css: 21500, catalog: 2800 }
+  '/(public)/login': { js: 90900, css: 21900, catalog: 2900, lazy: 0 },
+  '/(app)': { js: 116600, css: 39100, catalog: 5000, lazy: 0 },
+  '/(app)/commands': { js: 137500, css: 41900, catalog: 4600, lazy: 31200 },
+  '/(public)/user/[channel]': { js: 96600, css: 21500, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {
@@ -75,11 +77,39 @@ function sliceLocales(): string[] {
     .map((entry) => entry.name);
 }
 
+const chunkName = (file: string): string => file.slice(file.lastIndexOf('/') + 1).replace(/\.js$/, '');
+
+const slicedChunks = new Set<string>(JSON.parse(readText('client/_app/i18n-slices.json')));
+
 function sliceFiles(js: Iterable<string>, locale: string): string[] {
-  return [...js].flatMap((file) => {
-    const node = /\/nodes\/([^/]+)\.js$/.exec(file);
-    return node ? [`${IMMUTABLE}i18n/${locale}/${node[1]}.json`] : [];
-  });
+  return [...js].filter((file) => slicedChunks.has(chunkName(file))).map((file) => `${IMMUTABLE}i18n/${locale}/${chunkName(file)}.json`);
+}
+
+function largestLocale(js: Iterable<string>): number {
+  return Math.max(...sliceLocales().map((locale) => sum(sliceFiles(js, locale))));
+}
+
+interface ManifestChunk {
+  file: string;
+  imports?: string[];
+  dynamicImports?: string[];
+}
+
+const manifest: Record<string, ManifestChunk> = JSON.parse(readText('client/.vite/manifest.json'));
+const byFile = new Map(Object.values(manifest).map((chunk) => [chunk.file, chunk]));
+
+function staticClosure(keys: readonly string[], out = new Set<string>()): Set<string> {
+  for (const key of keys.filter((candidate) => manifest[candidate] && !out.has(manifest[candidate].file))) {
+    out.add(manifest[key].file);
+    staticClosure(manifest[key].imports ?? [], out);
+  }
+  return out;
+}
+
+/** Chunks a route can load after its first render through dynamic imports, other route nodes excluded. */
+function lazyFiles(initial: ReadonlySet<string>): Set<string> {
+  const dynamic = [...initial].flatMap((file) => byFile.get(file)?.dynamicImports ?? []).filter((key) => !key.includes('/nodes/'));
+  return new Set([...staticClosure(dynamic)].filter((file) => !initial.has(file)));
 }
 
 async function measure(route: RouteEntry): Promise<Budget> {
@@ -90,8 +120,7 @@ async function measure(route: RouteEntry): Promise<Budget> {
     assets.imports.forEach((file) => js.add(file));
     assets.stylesheets.forEach((file) => css.add(file));
   }
-  const catalog = Math.max(...sliceLocales().map((locale) => sum(sliceFiles(js, locale))));
-  return { js: sum(js), css: sum(css), catalog };
+  return { js: sum(js), css: sum(css), catalog: largestLocale(js), lazy: largestLocale(lazyFiles(js)) };
 }
 
 const routes = parseRoutes();
@@ -100,7 +129,7 @@ for (const [routeId, budget] of Object.entries(BUDGETS)) {
   const route = routes.get(routeId);
   if (!route) throw new Error(`route budgets: ${routeId} is not a route`);
   const actual = await measure(route);
-  for (const key of ['js', 'css', 'catalog'] as const) {
+  for (const key of ['js', 'css', 'catalog', 'lazy'] as const) {
     const ok = actual[key] <= budget[key];
     failed ||= !ok;
     console.log(`${ok ? 'ok' : 'FAIL'} ${routeId} ${key}: ${actual[key]} B gzip (budget ${budget[key]})`);
