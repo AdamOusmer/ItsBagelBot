@@ -53,13 +53,14 @@ const (
 )
 
 type deps struct {
-	core   svcboot.Core
-	cfg    *config.Config
-	log    *zap.Logger
-	nrApp  *newrelic.Application
-	nc     *nats.Conn
-	valkey valkey_go.Client
-	host   string
+	core      svcboot.Core
+	cfg       *config.Config
+	log       *zap.Logger
+	nrApp     *newrelic.Application
+	nc        *nats.Conn
+	valkey    valkey_go.Client
+	host      string
+	analytics *analytics.Recorder
 }
 
 func main() {
@@ -93,13 +94,10 @@ func main() {
 	host := podIdentity(log)
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
-
-	recorder := analytics.New(valkeyClient, log, nil)
-	defer recorder.Close()
+	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host, analytics: analytics.New(valkeyClient, log, nil)}
+	defer d.analytics.Close()
 
 	tw := d.newTwitchClient(ctx)
-	tw.SetAttemptObserver(worker.CountHelixFailures(recorder))
 	defer tw.CloseIdleConnections()
 	warmupTwitch(ctx, tw, log)
 
@@ -129,10 +127,6 @@ func main() {
 
 	premium.SetFactPublisher(pub)
 	standard.SetFactPublisher(pub)
-
-	for _, w := range []*worker.Worker{premium, standard, system} {
-		w.SetAnalytics(recorder)
-	}
 
 	d.startChatLanes(ctx, []bus.WeightedLane{
 		{Sub: premiumSub, Subject: cfg.PremiumSubject, Handle: premium.Process, Reserve: cfg.PremiumReserve},
@@ -206,7 +200,9 @@ func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	broadcasterTokens := d.broadcasterTokens()
 	broadcasterTokens.StartRefreshSweep(ctx)
 
-	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
+	client := twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
+	client.SetAttemptObserver(worker.CountHelixFailures(d.analytics))
+	return client
 }
 
 func (d *deps) botTokenSource() *twitch.Source {
@@ -291,7 +287,9 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		cfg := base
 		cfg.Log = d.log.Named(name)
 		cfg.Lane = lane
-		return worker.New(cfg)
+		w := worker.New(cfg)
+		w.SetAnalytics(d.analytics)
+		return w
 	}
 	premium = build("premium", worker.LanePremium)
 	standard = build("standard", worker.LaneStandard)
