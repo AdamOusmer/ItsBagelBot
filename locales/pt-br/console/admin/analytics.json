@@ -46,7 +46,10 @@
     "pages": "Visualizações de página do console",
     "actions": "Resultados de formulários do console",
     "locales": "Idiomas das contas",
-    "pagesHidden": "Páginas públicas ocultas"
+    "pagesHidden": "Páginas públicas ocultas",
+    "customLibrary": "Biblioteca de comandos personalizados",
+    "breadth": "Módulos ativados por canal",
+    "integrations": "Integrações conectadas"
   },
   "column": {
     "label": "Nome",
@@ -66,6 +69,8 @@
     "denied": "Negado",
     "signupWeek": "Semana de cadastro",
     "signups": "Cadastros",
-    "weekN": "Semana {n}"
+    "weekN": "Semana {n}",
+    "rowsOn": "Canais ativados",
+    "rowsOff": "Canais desativados"
   }
 }

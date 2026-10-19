@@ -18,8 +18,8 @@ type Type uint8
 
 const (
 	Counter Type = iota + 1
-	Gauge
 	Distinct
+	Level
 )
 
 type Window uint8
@@ -70,6 +70,14 @@ const (
 	AccountsPagesHidden   Metric = "accounts.pages_hidden"
 	AccountsBySignupWeek  Metric = "accounts.by_signup_week"
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
+
+	ModulesRows           Metric = "modules.rows"
+	ModulesBreadth        Metric = "modules.breadth"
+	IntegrationsConnected Metric = "integrations.connected"
+	CustomTotal           Metric = "custom.total"
+	CustomPerm            Metric = "custom.perm"
+	CustomFlags           Metric = "custom.flags"
+	CustomChannels        Metric = "custom.channels"
 )
 
 const (
@@ -93,6 +101,12 @@ const (
 	KindLocale    Kind = "locale"
 	KindBilling   Kind = "billing"
 	KindPage      Kind = "page"
+	KindState     Kind = "state"
+	KindBreadth   Kind = "breadth"
+	KindLink      Kind = "link"
+	KindActive    Kind = "active"
+	KindPerm      Kind = "perm"
+	KindFlag      Kind = "flag"
 )
 
 // SuppressBelow hides small cells that could single out one channel.
@@ -125,16 +139,24 @@ var catalog = map[Metric]Spec{
 	CohortActive:        {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
 	BillingEvents:       {Type: Counter, Dims: []Kind{KindBilling}},
 
-	AccountsTotal:         {Type: Gauge, Dims: []Kind{KindTier}},
-	AccountsBotEnabled:    {Type: Gauge, Dims: []Kind{KindTier}},
-	AccountsOnboarded:     {Type: Gauge},
-	AccountsPaidSource:    {Type: Gauge, Dims: []Kind{KindSource}},
-	AccountsCancelPending: {Type: Gauge},
-	AccountsPaymentFailed: {Type: Gauge},
-	AccountsLocale:        {Type: Gauge, Dims: []Kind{KindLocale}},
-	AccountsPagesHidden:   {Type: Gauge, Dims: []Kind{KindPage}},
-	AccountsBySignupWeek:  {Type: Gauge, Dims: []Kind{KindWeek}},
-	PaidBySignupWeek:      {Type: Gauge, Dims: []Kind{KindWeek}},
+	AccountsTotal:         {Type: Level, Dims: []Kind{KindTier}},
+	AccountsBotEnabled:    {Type: Level, Dims: []Kind{KindTier}},
+	AccountsOnboarded:     {Type: Level},
+	AccountsPaidSource:    {Type: Level, Dims: []Kind{KindSource}},
+	AccountsCancelPending: {Type: Level},
+	AccountsPaymentFailed: {Type: Level},
+	AccountsLocale:        {Type: Level, Dims: []Kind{KindLocale}},
+	AccountsPagesHidden:   {Type: Level, Dims: []Kind{KindPage}},
+	AccountsBySignupWeek:  {Type: Level, Dims: []Kind{KindWeek}},
+	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
+
+	ModulesRows:           {Type: Level, Dims: []Kind{KindModule, KindState}},
+	ModulesBreadth:        {Type: Level, Dims: []Kind{KindBreadth}},
+	IntegrationsConnected: {Type: Level, Dims: []Kind{KindLink}},
+	CustomTotal:           {Type: Level, Dims: []Kind{KindActive}},
+	CustomPerm:            {Type: Level, Dims: []Kind{KindPerm}},
+	CustomFlags:           {Type: Level, Dims: []Kind{KindFlag}},
+	CustomChannels:        {Type: Level},
 }
 
 var enums = map[Kind][]string{
@@ -151,6 +173,12 @@ var enums = map[Kind][]string{
 	KindSource:    {"tebex", "admin", "giveaway", "vip"},
 	KindBilling:   {"activate", "cancel_requested", "cancel_aborted", "revoke", "payment_failed", "expired"},
 	KindPage:      {"commands", "leaderboard"},
+	KindState:     {"on", "off"},
+	KindBreadth:   {"1", "2", "3-5", "6+"},
+	KindLink:      {"spotify", "govee", "fetch_key"},
+	KindActive:    {"active", "inactive"},
+	KindPerm:      {"everyone", "sub", "vip", "mod", "lead_mod", "broadcaster"},
+	KindFlag:      {"online_only", "aliased", "cooldown", "counter"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{

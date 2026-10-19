@@ -5,6 +5,8 @@ package repository
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -112,6 +114,7 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 	defer endFlush(txn)
 
 	perUser := groupByUser(items)
+	defer r.trackAccounts(ctx, slices.Collect(maps.Keys(perUser))...)()
 
 	err := withTx(ctx, r.client, func(tx *ent.Tx) error {
 		return writeAllUserPrefs(ctx, tx, perUser)

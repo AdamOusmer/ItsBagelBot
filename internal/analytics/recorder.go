@@ -56,8 +56,8 @@ type Recorder struct {
 
 	mu       sync.Mutex
 	counts   map[slot]int64
-	maxes    map[slot]int64
 	sketches map[sketch]map[uint64]struct{}
+	levels   map[string]int64
 	ids      int
 
 	saltMu sync.Mutex
@@ -82,8 +82,8 @@ func New(client valkey.Client, log *zap.Logger, registered map[catalog.Kind][]st
 		reg:      catalog.NewRegistry(registered),
 		now:      time.Now,
 		counts:   map[slot]int64{},
-		maxes:    map[slot]int64{},
 		sketches: map[sketch]map[uint64]struct{}{},
+		levels:   map[string]int64{},
 		salts:    map[saltRef][]byte{},
 		done:     make(chan struct{}),
 		kick:     make(chan struct{}, 1),
@@ -130,27 +130,13 @@ func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
 	}
 	at := r.now()
 	s := slot{day: catalog.PeriodStart(catalog.Day, at), key: catalog.CounterKey(at), field: catalog.Field(m, dims...)}
-	r.bump(r.counts, s, func(old int64) int64 { return old + n })
-}
-
-func (r *Recorder) Max(m catalog.Metric, v int64, dims ...string) {
-	if v < 0 || !r.accepts(m, catalog.Gauge, dims) {
-		return
-	}
-	at := r.now()
-	s := slot{day: catalog.PeriodStart(catalog.Day, at), key: catalog.GaugeKey(at), field: catalog.Field(m, dims...)}
-	r.bump(r.maxes, s, func(old int64) int64 { return max(old, v) })
-}
-
-func (r *Recorder) bump(into map[slot]int64, s slot, next func(int64) int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	old, tracked := into[s]
-	if !tracked && len(r.counts)+len(r.maxes) >= maxSlots {
+	if _, tracked := r.counts[s]; !tracked && len(r.counts) >= maxSlots {
 		r.nudge()
 		return
 	}
-	into[s] = next(old)
+	r.counts[s] += n
 }
 
 func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) {
@@ -211,12 +197,22 @@ func (r *Recorder) nudge() {
 	}
 }
 
-func (r *Recorder) drain() (map[slot]int64, map[slot]int64, map[sketch]map[uint64]struct{}) {
+type pending struct {
+	counts   map[slot]int64
+	sketches map[sketch]map[uint64]struct{}
+	levels   map[string]int64
+}
+
+func (p pending) empty() bool {
+	return len(p.counts)+len(p.sketches)+len(p.levels) == 0
+}
+
+func (r *Recorder) drain() pending {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	counts, maxes, sketches := r.counts, r.maxes, r.sketches
-	r.counts, r.maxes, r.sketches, r.ids = map[slot]int64{}, map[slot]int64{}, map[sketch]map[uint64]struct{}{}, 0
-	return counts, maxes, sketches
+	p := pending{counts: r.counts, sketches: r.sketches, levels: r.levels}
+	r.counts, r.sketches, r.levels, r.ids = map[slot]int64{}, map[sketch]map[uint64]struct{}{}, map[string]int64{}, 0
+	return p
 }
 
 // Flush writes everything pending. Analytics are loss-tolerant: a failed
@@ -225,16 +221,16 @@ func (r *Recorder) Flush(ctx context.Context) {
 	if r == nil {
 		return
 	}
-	counts, maxes, sketches := r.drain()
-	if len(counts)+len(maxes)+len(sketches) == 0 {
+	p := r.drain()
+	if p.empty() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, flushTimeout)
 	defer cancel()
 
-	cmds := r.counterCmds(counts)
-	cmds = append(cmds, r.gaugeCmds(maxes)...)
-	cmds = append(cmds, r.sketchCmds(ctx, sketches)...)
+	cmds := r.counterCmds(p.counts)
+	cmds = append(cmds, r.sketchCmds(ctx, p.sketches)...)
+	cmds = append(cmds, r.levelCmds(p.levels)...)
 	r.reportErrors(r.client.DoMulti(ctx, cmds...))
 }
 
@@ -243,16 +239,6 @@ func (r *Recorder) counterCmds(counts map[slot]int64) valkey.Commands {
 	expiries := map[string]time.Time{}
 	for s, n := range counts {
 		cmds = append(cmds, r.client.B().Hincrby().Key(s.key).Field(s.field).Increment(n).Build())
-		expiries[s.key] = catalog.DataExpiry(catalog.Day, s.day)
-	}
-	return append(cmds, r.expireCmds(expiries)...)
-}
-
-func (r *Recorder) gaugeCmds(maxes map[slot]int64) valkey.Commands {
-	cmds := make(valkey.Commands, 0, len(maxes)+1)
-	expiries := map[string]time.Time{}
-	for s, v := range maxes {
-		cmds = append(cmds, r.client.B().Zadd().Key(s.key).Gt().ScoreMember().ScoreMember(float64(v), s.field).Build())
 		expiries[s.key] = catalog.DataExpiry(catalog.Day, s.day)
 	}
 	return append(cmds, r.expireCmds(expiries)...)
@@ -281,6 +267,16 @@ func (r *Recorder) sketchCmds(ctx context.Context, sketches map[sketch]map[uint6
 		expiries[index] = expiry
 	}
 	return append(cmds, r.expireCmds(expiries)...)
+}
+
+func (r *Recorder) levelCmds(levels map[string]int64) valkey.Commands {
+	cmds := make(valkey.Commands, 0, len(levels))
+	for field, delta := range levels {
+		if delta != 0 {
+			cmds = append(cmds, r.client.B().Hincrby().Key(catalog.LevelKey).Field(field).Increment(delta).Build())
+		}
+	}
+	return cmds
 }
 
 func (r *Recorder) expireCmds(expiries map[string]time.Time) valkey.Commands {

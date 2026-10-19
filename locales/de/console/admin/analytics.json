@@ -46,7 +46,10 @@
     "pages": "Seitenaufrufe der Konsole",
     "actions": "Formularergebnisse der Konsole",
     "locales": "Kontosprachen",
-    "pagesHidden": "Ausgeblendete öffentliche Seiten"
+    "pagesHidden": "Ausgeblendete öffentliche Seiten",
+    "customLibrary": "Bibliothek für eigene Befehle",
+    "breadth": "Aktivierte Module pro Kanal",
+    "integrations": "Verbundene Integrationen"
   },
   "column": {
     "label": "Name",
@@ -66,6 +69,8 @@
     "denied": "Verweigert",
     "signupWeek": "Registrierungswoche",
     "signups": "Registrierungen",
-    "weekN": "Woche {n}"
+    "weekN": "Woche {n}",
+    "rowsOn": "Kanäle aktiviert",
+    "rowsOff": "Kanäle deaktiviert"
   }
 }

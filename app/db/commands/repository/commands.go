@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent"
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/ent/predicate"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -93,6 +94,8 @@ type Commands struct {
 	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
+
+	analytics *analytics.Recorder
 }
 
 func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
@@ -230,6 +233,7 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 		return false, err
 	}
 
+	track := r.track(ctx, userID)
 	restored, err := r.createIfAbsent(ctx, userID, spec, uses)
 	if err != nil {
 		return false, err
@@ -237,6 +241,7 @@ func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec,
 	if !restored {
 		return false, nil
 	}
+	track()
 
 	r.Invalidate(userID)
 
@@ -291,6 +296,7 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
+	track := r.track(ctx, userID)
 	updated, err := r.renameRow(ctx, userID, oldName, spec)
 	if err != nil {
 		return err
@@ -299,6 +305,7 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 	if updated == 0 {
 		return r.Upsert(userID, spec)
 	}
+	track()
 
 	r.Invalidate(userID)
 
@@ -359,6 +366,7 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 		return err
 	}
 
+	track := r.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Commands.Delete().
 			Where(
@@ -370,6 +378,7 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	}); err != nil {
 		return err
 	}
+	track()
 
 	r.Invalidate(userID)
 
@@ -382,6 +391,7 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff time.Time) error {
 
+	track := r.track(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.Commands.Delete().
 			Where(commands.UserIDEQ(userID), commands.CreatedAtLTE(cutoff)).
@@ -390,6 +400,7 @@ func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64, cutoff t
 	}); err != nil {
 		return err
 	}
+	track()
 
 	r.Invalidate(userID)
 	return nil
@@ -478,6 +489,8 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	ctx = newrelic.NewContext(ctx, txn)
 	log := monitor.TxnLogger(ctx, r.log)
 
+	track := r.track(ctx, distinctUsers(commandKeys(items))...)
+
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return bulkUpsertCommands(ctx, r.client, items)
@@ -489,12 +502,9 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	if len(landed) == 0 {
 		return nil
 	}
+	track()
 
-	keys := make([]commandKey, 0, len(landed))
-	for _, item := range landed {
-		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
-	}
-	states, serr := r.rowStates(ctx, keys)
+	states, serr := r.rowStates(ctx, commandKeys(landed))
 	if serr != nil {
 		log.Warn("failed to reload rows after flush; publishing queued state", zap.Error(serr))
 	}

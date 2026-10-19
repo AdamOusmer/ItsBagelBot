@@ -71,6 +71,7 @@ func (r *Fetches) SetKey(ctx context.Context, userID uint64, key KeyEntry) (stri
 		suffix = value[len(value)-4:]
 	}
 
+	track := r.trackKeys(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return r.client.FetchKey.Create().
 			SetUserID(userID).
@@ -83,6 +84,7 @@ func (r *Fetches) SetKey(ctx context.Context, userID uint64, key KeyEntry) (stri
 	}); err != nil {
 		return "", err
 	}
+	track()
 
 	r.log.Info("fetch key sealed",
 		zap.Uint64("user_id", userID),
@@ -100,6 +102,7 @@ func (r *Fetches) DeleteKey(ctx context.Context, userID uint64, label string) er
 		return err
 	}
 
+	track := r.trackKeys(ctx, userID)
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, err := r.client.FetchKey.Delete().
 			Where(
@@ -111,6 +114,7 @@ func (r *Fetches) DeleteKey(ctx context.Context, userID uint64, label string) er
 	}); err != nil {
 		return err
 	}
+	track()
 
 	r.log.Info("fetch key deleted",
 		zap.Uint64("user_id", userID),
