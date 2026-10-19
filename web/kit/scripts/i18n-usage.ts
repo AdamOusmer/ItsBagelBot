@@ -3,7 +3,7 @@
 
 import { Tree, contains, isFunction, literalString, nameOf, propertyName, specifierName, typeOf, type AstNode, type Ref } from './i18n-ast.ts';
 import { declarationOf } from './i18n-exports.ts';
-import { KeyResolver, isBounded, refAt, type Deferred, type Pattern, type TranslatorRole } from './i18n-resolve.ts';
+import { KeyResolver, isBounded, refAt, type Deferred, type Pattern, type Resolution, type TranslatorRole } from './i18n-resolve.ts';
 import type { ImportedName } from './i18n-tables.ts';
 
 export { exportTarget, exportedTableStrings } from './i18n-exports.ts';
@@ -39,6 +39,12 @@ function isTruthinessTest({ parent, field }: Ref): boolean {
 }
 
 const roleOf = (imported: string): Role => (FACTORIES.has(imported) ? 'factory' : 'raw');
+
+function isKeySet(found: Resolution | undefined): found is Resolution {
+  if (!found) return false;
+  const named = found.patterns.length > 0 || found.deferred.length > 0;
+  return named && found.patterns.every(isBounded);
+}
 
 function destructuredName(property: AstNode): string | undefined {
   return property.type === 'Property' && !property.computed ? nameOf(property.key) : undefined;
@@ -223,7 +229,7 @@ class Analyzer {
     if (!this.tree.insideFunction(call)) this.problem('module-scope translation', call);
     const arg = (call.arguments as AstNode[])[role === 'raw' ? 1 : 0];
     const found = arg && this.keys.resolve(arg);
-    if (!found || !found.patterns.every(isBounded)) return this.problem('unbounded key', call);
+    if (!isKeySet(found)) return this.problem('unbounded key', call);
     this.usage.patterns.push(...found.patterns);
     this.usage.deferred.push(...found.deferred);
   }

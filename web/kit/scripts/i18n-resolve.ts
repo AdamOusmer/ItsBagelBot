@@ -25,6 +25,7 @@ export interface Resolution {
 
 const WILDCARD: Pattern = ['', ''];
 const NOTHING: Resolution = { patterns: [], deferred: [] };
+const EXPORT_DECLARATIONS = new Set(['ExportNamedDeclaration', 'ExportDefaultDeclaration']);
 
 export const isBounded = (pattern: Pattern): boolean => pattern.join('') !== '';
 
@@ -96,7 +97,10 @@ export class KeyResolver {
   }
 
   private concatenation(node: AstNode): Resolution {
-    const side = (part: AstNode) => this.resolve(part)?.patterns ?? [WILDCARD];
+    const side = (part: AstNode) => {
+      const patterns = this.resolve(part)?.patterns ?? [];
+      return patterns.length ? patterns : [WILDCARD];
+    };
     const patterns = side(node.left as AstNode).flatMap((left) => side(node.right as AstNode).map((right) => joinParts(left, right)));
     return { patterns, deferred: [] };
   }
@@ -132,10 +136,17 @@ export class KeyResolver {
     return refAt(ref, 'VariableDeclarator', 'init') && typeOf(ref.parent!.id) === 'Identifier' ? (ref.parent!.id as AstNode) : undefined;
   }
 
+  /** Every call of a module-private function; undefined when it is exported or escapes, since then calls are unseen. */
   private directCalls(name: AstNode): AstNode[] | undefined {
-    if (!this.tree.constantBinding(name)) return undefined;
+    if (!this.tree.constantBinding(name) || this.isExported(name)) return undefined;
     const reads = this.tree.reads(name.name as string).filter((ref) => this.tree.bindingOf(ref.node) === name);
     return reads.every((ref) => refAt(ref, 'CallExpression', 'callee')) ? reads.map((ref) => ref.parent!) : undefined;
+  }
+
+  private isExported(name: AstNode): boolean {
+    const holder = this.tree.parents.get(name)!;
+    const statement = holder.type === 'VariableDeclarator' ? this.tree.parents.get(holder)! : holder;
+    return EXPORT_DECLARATIONS.has(typeOf(this.tree.parents.get(statement)));
   }
 
   private derived(call: AstNode): Resolution | undefined {

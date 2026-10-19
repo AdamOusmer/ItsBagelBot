@@ -65,6 +65,15 @@ describe('analyzeModule', () => {
     expect(usage.problems).toEqual(['unbounded key: translate(locale, key)']);
   });
 
+  test('a key forwarded through an exported function fails, since its callers live in other modules', () => {
+    expect(analyze('export function label(locale, key) { return translate(locale, key); }').problems).toEqual(['unbounded key: translate(locale, key)']);
+    expect(analyze('export const label = (locale, key) => translate(locale, key);').problems).toEqual(['unbounded key: translate(locale, key)']);
+  });
+
+  test('a concatenation with an unresolved side keeps its literal text and widens the rest', () => {
+    expect(patterns("function C() { const { t } = getI18n(); const show = (key) => t('ok.' + key); }")).toEqual(['ok.*']);
+  });
+
   test('an i18n export may not be renamed', () => {
     const code = "export { getI18n as useI18n } from './context';";
     expect(analyzeModule(parseAst(code) as unknown as AstNode, code).problems).toEqual(['renamed i18n export: getI18n as useI18n']);
