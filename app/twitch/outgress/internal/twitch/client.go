@@ -34,7 +34,11 @@ type Client struct {
 	app          *Source
 	user         *Source
 	broadcasters *BroadcasterTokens
+	observe      func(status int, err error)
 }
+
+// SetAttemptObserver sees every Helix attempt; it must not block.
+func (c *Client) SetAttemptObserver(observe func(status int, err error)) { c.observe = observe }
 
 func NewClient(clientID string, app, user *Source, broadcasters *BroadcasterTokens) *Client {
 	return &Client{
@@ -486,6 +490,9 @@ func (c *Client) performAttempt(ctx context.Context, req *http.Request, endpoint
 	res, err := c.http.Do(req)
 	seg.Response = res
 	seg.End()
+	if c.observe != nil {
+		c.observe(statusOf(res), err)
+	}
 	if err != nil {
 		return res, err
 	}
@@ -495,6 +502,13 @@ func (c *Client) performAttempt(ctx context.Context, req *http.Request, endpoint
 		return nil, observedErr
 	}
 	return res, nil
+}
+
+func statusOf(res *http.Response) int {
+	if res == nil {
+		return 0
+	}
+	return res.StatusCode
 }
 
 func RetryAfter(res *http.Response) time.Duration {

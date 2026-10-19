@@ -4,6 +4,7 @@
 package worker
 
 import (
+	catalog "ItsBagelBot/internal/domain/analytics"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"context"
 	"errors"
@@ -113,6 +114,7 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 		noticeError(ctx, errBotAuthRevoked)
 		return nil
 	}
+	w.analytics.Count(catalog.Lifecycle, "revoked")
 
 	if w.lifecycleNC != nil {
 		return w.observeGrant(ctx, grantObservation{userID: ev.UserID, action: "grant_missing", eventID: ev.EventID, observedAt: ev.ObservedAt, provider: true})

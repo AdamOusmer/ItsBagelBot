@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/discord/outgress/internal/kv"
 	"ItsBagelBot/app/discord/outgress/internal/rpc"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
@@ -51,6 +52,8 @@ func main() {
 	botStatus := kv.NewBotStatusReader(valkeyClient)
 	tier := projectedTier(projection.NewStore(valkeyClient))
 	lockdowns := kv.NewLockdownStore(valkeyClient)
+	recorder := analytics.New(valkeyClient, log, nil)
+	defer recorder.Close()
 
 	applicationID := registerSlashCommands(ctx, rest, log)
 
@@ -62,6 +65,7 @@ func main() {
 	subscribeRPCs(rpcDeps{
 		NC: nc, Cfg: cfg, Rest: rest, Store: store, ApplicationID: applicationID,
 		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, Tier: tier, NRApp: nrApp, Log: log,
+		Analytics: recorder,
 	})
 
 	lanes := startCommandConsumer(consumerDeps{
@@ -103,6 +107,7 @@ type rpcDeps struct {
 	Tier          func(ctx context.Context, userID string) (string, bool)
 	NRApp         *newrelic.Application
 	Log           *zap.Logger
+	Analytics     *analytics.Recorder
 }
 
 func subscribeRPCs(deps rpcDeps) {
@@ -112,7 +117,7 @@ func subscribeRPCs(deps rpcDeps) {
 			NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue,
 			App: deps.NRApp, Log: deps.Log.Named("rpc"),
 		},
-		Reauth: deps.Reauth, Status: deps.BotStatus, Tier: deps.Tier,
+		Reauth: deps.Reauth, Status: deps.BotStatus, Tier: deps.Tier, Analytics: deps.Analytics,
 	}
 	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))

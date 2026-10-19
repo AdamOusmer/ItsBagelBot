@@ -4,6 +4,8 @@
 package rpc
 
 import (
+	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/rpc"
 	"context"
 	"errors"
@@ -38,16 +40,17 @@ const guildsHandleTimeout = 7 * time.Second
 
 type SetupWiring struct {
 	Wiring
-	Reauth reauthReader
-	Status botStatusReader
-	Tier   tierReader
+	Reauth    reauthReader
+	Status    botStatusReader
+	Tier      tierReader
+	Analytics *analytics.Recorder
 }
 
 func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 	if w == nil {
 		return nil
 	}
-	d := &discordRPC{w: w, reauth: wire.Reauth, status: wire.Status, tier: wire.Tier, log: wire.Log}
+	d := &discordRPC{w: w, reauth: wire.Reauth, status: wire.Status, tier: wire.Tier, log: wire.Log, analytics: wire.Analytics}
 	if err := errors.Join(
 		register[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
 			wire.Wiring, verb{Name: "discord.setup", Timeout: setupHandleTimeout}, d.handleSetup),
@@ -86,11 +89,12 @@ func panelSpec(in outgressrpc.DiscordPanelSpec) ddiscord.TicketPanelSpec {
 }
 
 type discordRPC struct {
-	w      *setup.Worker
-	reauth reauthReader
-	status botStatusReader
-	tier   tierReader
-	log    *zap.Logger
+	w         *setup.Worker
+	reauth    reauthReader
+	status    botStatusReader
+	tier      tierReader
+	log       *zap.Logger
+	analytics *analytics.Recorder
 }
 
 type botStatusReader interface {
@@ -324,6 +328,7 @@ func (d *discordRPC) handleUnbind(ctx context.Context, req outgressrpc.DiscordUn
 	if err := d.w.UnbindGuild(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID}); err != nil {
 		return outgressrpc.DiscordUnbindReply{Error: err.Error(), Code: codeFor(err)}
 	}
+	d.analytics.Count(catalog.Lifecycle, "guild_unbound")
 	return outgressrpc.DiscordUnbindReply{}
 }
 

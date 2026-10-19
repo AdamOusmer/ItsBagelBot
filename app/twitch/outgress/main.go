@@ -4,6 +4,7 @@
 package main
 
 import (
+	"ItsBagelBot/internal/analytics"
 	"context"
 	"os"
 	"strconv"
@@ -52,13 +53,14 @@ const (
 )
 
 type deps struct {
-	core   svcboot.Core
-	cfg    *config.Config
-	log    *zap.Logger
-	nrApp  *newrelic.Application
-	nc     *nats.Conn
-	valkey valkey_go.Client
-	host   string
+	core      svcboot.Core
+	cfg       *config.Config
+	log       *zap.Logger
+	nrApp     *newrelic.Application
+	nc        *nats.Conn
+	valkey    valkey_go.Client
+	host      string
+	analytics *analytics.Recorder
 }
 
 func main() {
@@ -92,7 +94,8 @@ func main() {
 	host := podIdentity(log)
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
+	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host, analytics: analytics.New(valkeyClient, log, nil)}
+	defer d.analytics.Close()
 
 	tw := d.newTwitchClient(ctx)
 	defer tw.CloseIdleConnections()
@@ -197,7 +200,9 @@ func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	broadcasterTokens := d.broadcasterTokens()
 	broadcasterTokens.StartRefreshSweep(ctx)
 
-	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
+	client := twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
+	client.SetAttemptObserver(worker.CountHelixFailures(d.analytics))
+	return client
 }
 
 func (d *deps) botTokenSource() *twitch.Source {
@@ -282,7 +287,9 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		cfg := base
 		cfg.Log = d.log.Named(name)
 		cfg.Lane = lane
-		return worker.New(cfg)
+		w := worker.New(cfg)
+		w.SetAnalytics(d.analytics)
+		return w
 	}
 	premium = build("premium", worker.LanePremium)
 	standard = build("standard", worker.LaneStandard)
