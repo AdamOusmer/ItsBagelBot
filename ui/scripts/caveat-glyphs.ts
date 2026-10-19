@@ -4,6 +4,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+// Regenerate ui/fonts/caveat-latin.woff2 from the Google Fonts original (fonttools 4.67.0, run from the repo root):
+// uvx --from 'fonttools[woff]' pyftsubset caveat-latin.woff2 --text-file=ui/fonts/caveat-glyphs.txt --unicodes=U+0020,U+00A0 --layout-features='*' --flavor=woff2 --output-file=ui/fonts/caveat-latin.woff2
 const LATIN_END = 0x250;
 const LOCALES = join(import.meta.dir, "../../locales");
 

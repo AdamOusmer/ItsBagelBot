@@ -59,7 +59,7 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - `svelte/forms.ts`: shared form enhancements; `locales/index.ts` is generated UI catalog data.
 - `fonts/`: local WOFF2 assets; consumers can import URLs for selective preloads. `caveat-latin.woff2` holds only the
   glyphs in `caveat-glyphs.txt` (derived from locale sign-off strings; `test/caveat-glyphs.test.ts` fails when a copy edit
-  needs another glyph, regenerate via `scripts/subset-fonts.py`).
+  needs another glyph, regenerate with the `pyftsubset` command in `scripts/caveat-glyphs.ts`).
 - `test/loaders.ts`: test-time framework compilation; `test/normalise.ts` normalizes parity output.
 - `test/__golden__/`: committed render contracts; update only for intentional markup changes.
 
