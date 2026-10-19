@@ -227,16 +227,13 @@ spec:
             preStop:
               sleep:
                 seconds: 10
-          startupProbe:
-            httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
-            periodSeconds: 1
-            failureThreshold: 60
           livenessProbe:
             httpGet: {path: /healthz, port: 3000, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
             httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
-            periodSeconds: 10
+            periodSeconds: 2
+            failureThreshold: 3
       terminationGracePeriodSeconds: 45
       tolerations:
         - key: node.kubernetes.io/unreachable
