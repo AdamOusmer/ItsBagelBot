@@ -9,11 +9,13 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+
 	"github.com/valkey-io/valkey-go"
 
 	"go.uber.org/zap"
@@ -73,7 +75,7 @@ type Deps struct {
 	Dedup          *EventDedup
 	Seq            *Sequencer
 	Nuke           *Nuke
-	Analytics      valkey.Client
+	Analytics      *analytics.Recorder
 }
 
 type FeedCounts struct {

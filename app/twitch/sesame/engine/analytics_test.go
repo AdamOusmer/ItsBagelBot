@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/valkeytest"
 
@@ -19,12 +20,15 @@ import (
 func TestProcessRecordsAggregateAnalytics(t *testing.T) {
 	vc := valkeytest.Spawn(t)
 	mods := []module.Module{cmdEmit("", module.KindCore, "ping", "pong"), emitModule("greeter", module.KindDefault, "hi")}
-	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Analytics: vc}
-	p := NewPipeline(d, NewRegistry(zap.NewNop(), mods...), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+	reg := NewRegistry(zap.NewNop(), mods...)
+	rec := analytics.New(vc, zap.NewNop(), reg.AnalyticsNames(), analytics.WithoutTicker())
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Analytics: rec}
+	p := NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 
 	require.NoError(t, p.Process(commandMsg(t, "m1", "!ping")))
 	require.NoError(t, p.Process(chatMsg(t, "standard", "hello")))
 	p.Close()
+	rec.Close()
 
 	ctx := context.Background()
 	today := time.Now()

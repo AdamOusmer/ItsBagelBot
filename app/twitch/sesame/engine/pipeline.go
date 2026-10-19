@@ -17,7 +17,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/channelruntime"
-	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
@@ -134,11 +133,9 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
 		chatLineCounter:   d.ChatLines,
+		analytics:         d.Analytics,
 	}
 	p.localeLookup = p.readLocale
-	if d.Analytics != nil {
-		p.analytics = analytics.New(d.Analytics, d.Log, registry.AnalyticsNames())
-	}
 	if d.Automod == nil && d.Log != nil {
 		d.Log.Warn("automod gate not wired; chat moderation disabled")
 	}
@@ -162,7 +159,6 @@ func (p *Pipeline) Close() {
 	if p.stats != nil {
 		p.stats.Close()
 	}
-	p.analytics.Close()
 }
 
 const chatType = "channel.chat.message"
@@ -197,9 +193,7 @@ func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadca
 		target = 0
 	}
 	p.stats.count(target, decodedDelta(env))
-	if env.Type == chatType && env.Origin != "trial" {
-		p.analytics.Add(catalog.ChatMessages, int64(env.MessageCount()))
-	}
+	p.recordDecoded(env)
 	if env.Origin == "trial" {
 		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}
@@ -253,11 +247,8 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
-		p.analytics.Count(catalog.ChatAnswered)
 	}
-	if mctx.Command != "" || emission.ordinal > 0 {
-		p.recordActive(broadcasterID, admission.AccountCreatedAt)
-	}
+	p.recordProcessed(broadcasterID, admission.AccountCreatedAt, mctx.Command != "", emission.ordinal)
 
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
@@ -619,7 +610,7 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 		zap.String("type", mctx.Env.Type),
 		module.BIDField(mctx.BroadcasterID),
 		zap.Error(err))
-	p.analytics.Count(catalog.ModuleErrors, moduleLabel(m), errorClass(err))
+	p.recordFailure(m, err)
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
 		monitor.NoticeError(txn, err)

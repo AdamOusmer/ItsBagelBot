@@ -75,7 +75,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	return engine.Deps{
 		Runtime:        newRuntime(w),
 		TrialStore:     in.vc,
-		Analytics:      in.vc,
 		Proj:           rt.proj,
 		Live:           rt.live,
 		Greet:          engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),

@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/modules"
 	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/analytics"
 	"ItsBagelBot/internal/chatvolume"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
@@ -93,6 +94,8 @@ func main() {
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)
 
+	deps.Analytics = analytics.New(valkeyClient, log, registry.AnalyticsNames())
+	defer deps.Analytics.Close()
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close()
 

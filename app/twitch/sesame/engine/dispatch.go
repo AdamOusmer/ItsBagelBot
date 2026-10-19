@@ -34,11 +34,9 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	c.Command = name
 	c.ModuleLookup = p.moduleLookup(views, c)
 	if bc, ok := p.claimOwner(ctx, owners, views, c); ok {
-		engaged := c.Engaged
+		engagedBefore := c.Engaged
 		err := p.runBaked(ctx, c, bc.Cmd, num, args, emit)
-		if err == nil && c.Engaged && !engaged {
-			p.recordBaked(c.BroadcasterID, bc)
-		}
+		p.recordBaked(c, bc, newlyEngaged(err, engagedBefore, c.Engaged))
 		return err
 	}
 	if c.Env.Origin == "trial" {
