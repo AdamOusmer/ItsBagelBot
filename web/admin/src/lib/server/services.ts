@@ -25,6 +25,7 @@ import {
   type RunRequest,
   type StartRequest
 } from '$lib/deploys/types';
+import type { AnalyticsRow } from '$lib/analytics-view';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 // `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
@@ -293,6 +294,19 @@ export const userEnrollment = defineRead({
     key: (_actorId: string, days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
     policy: POLICY.adminPage
   }
+});
+
+export type AnalyticsWindow = 'd' | 'w' | 'm';
+
+export const analyticsSeries = defineRead({
+  subject: `${SUB.user}.analytics`,
+  request: (actorId: string, window: AnalyticsWindow, metrics: string[], days: number) => ({
+    actor_id: actorId,
+    window,
+    metrics,
+    days
+  }),
+  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? []
 });
 
 export const USER_PAGE_SIZE = 15;

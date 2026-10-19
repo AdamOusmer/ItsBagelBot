@@ -52,7 +52,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"list", mod, a.list},
 		{"stats", mod, a.stats},
 		{"enrollment", mod, a.enrollment},
-		{"analytics", mod, a.analytics},
+		{"analytics", admin, a.analytics},
 		{"overview", mod, a.overview},
 		{"token_status", mod, a.tokenStatus},
 		{"ban", mod, a.ban},
