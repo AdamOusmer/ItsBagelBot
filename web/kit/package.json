@@ -45,6 +45,7 @@
     "./server/shared-snapshot": "./lib/server/shared-snapshot.ts",
     "./server/session-revocation": "./lib/server/session-revocation.ts",
     "./server/form-action": "./lib/server/form-action.ts",
+    "./server/analytics": "./lib/server/analytics.ts",
     "./server/best-effort": "./lib/server/best-effort.ts",
     "./engine/tmpl": "./lib/engine/tmpl.ts",
     "./engine/pure": "./lib/engine/pure.ts",
