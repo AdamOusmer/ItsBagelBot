@@ -158,7 +158,7 @@ func NewRegistry(names map[Kind][]string) Registry {
 // never see raw input may pass nil.
 func Valid(m Metric, t Type, dims []string, reg Registry) bool {
 	spec, ok := catalog[m]
-	if !ok || spec.Type != t || len(dims) != len(spec.Dims) {
+	if !ok || !spec.fits(t, dims) {
 		return false
 	}
 	for i, kind := range spec.Dims {
@@ -169,18 +169,26 @@ func Valid(m Metric, t Type, dims []string, reg Registry) bool {
 	return true
 }
 
+func (s Spec) fits(t Type, dims []string) bool {
+	return s.Type == t && len(dims) == len(s.Dims)
+}
+
 func valueOK(kind Kind, v string, reg Registry) bool {
 	if values, ok := enums[kind]; ok {
 		return slices.Contains(values, v)
 	}
-	if !ShapeOK(kind, v) {
-		return false
-	}
-	if reg == nil || kind == KindRoute || kind == KindAction {
+	if kind == KindCommand && v == CustomCommand {
 		return true
 	}
-	_, ok := reg[kind][v]
-	return ok || (kind == KindCommand && v == CustomCommand)
+	if reg != nil && registered(kind) {
+		_, ok := reg[kind][v]
+		return ok
+	}
+	return ShapeOK(kind, v)
+}
+
+func registered(kind Kind) bool {
+	return kind == KindModule || kind == KindCommand || kind == KindDiscord
 }
 
 func ShapeOK(kind Kind, v string) bool {

@@ -116,8 +116,16 @@ func (r *Recorder) loop() {
 
 func (r *Recorder) Count(m catalog.Metric, dims ...string) { r.Add(m, 1, dims...) }
 
+func (r *Recorder) accepts(m catalog.Metric, t catalog.Type, dims []string) bool {
+	return r != nil && catalog.Valid(m, t, dims, r.reg)
+}
+
+func cohortInput(channelID uint64, signup time.Time) bool {
+	return channelID != 0 && !signup.IsZero()
+}
+
 func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
-	if r == nil || n <= 0 || !catalog.Valid(m, catalog.Counter, dims, r.reg) {
+	if n <= 0 || !r.accepts(m, catalog.Counter, dims) {
 		return
 	}
 	at := r.now()
@@ -126,7 +134,7 @@ func (r *Recorder) Add(m catalog.Metric, n int64, dims ...string) {
 }
 
 func (r *Recorder) Max(m catalog.Metric, v int64, dims ...string) {
-	if r == nil || v < 0 || !catalog.Valid(m, catalog.Gauge, dims, r.reg) {
+	if v < 0 || !r.accepts(m, catalog.Gauge, dims) {
 		return
 	}
 	at := r.now()
@@ -146,7 +154,7 @@ func (r *Recorder) bump(into map[slot]int64, s slot, next func(int64) int64) {
 }
 
 func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) {
-	if r == nil || channelID == 0 || !catalog.Valid(m, catalog.Distinct, dims, r.reg) {
+	if channelID == 0 || !r.accepts(m, catalog.Distinct, dims) {
 		return
 	}
 	spec, _ := catalog.Lookup(m)
@@ -163,7 +171,7 @@ func (r *Recorder) Distinct(m catalog.Metric, channelID uint64, dims ...string) 
 
 // Cohort marks the channel active this week in the retention cell of its signup week.
 func (r *Recorder) Cohort(channelID uint64, signup time.Time) {
-	if r == nil || channelID == 0 || signup.IsZero() {
+	if r == nil || !cohortInput(channelID, signup) {
 		return
 	}
 	at := r.now()
