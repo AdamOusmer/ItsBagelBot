@@ -58,9 +58,15 @@ const SCOPES: ScopeMap = {
   modules: () => [],
   delegation: () => [],
   notifications: () => ['notifications:'],
+  locale: () => [],
+  cursor: () => [],
+  commands_page: () => [],
+  leaderboard_page: () => [],
   live: () => [],
   'token-warm': () => [],
   outgress: () => [],
+  fetches: () => [],
+  user: (id) => ['users:', `user:${id}`, `token:${id}`],
   '*': (id) => ['users:', `user:${id}`, `token:${id}`]
 };
 
