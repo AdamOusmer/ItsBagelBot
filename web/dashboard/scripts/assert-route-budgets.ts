@@ -17,12 +17,13 @@ interface Budget {
   catalog: number;
 }
 
-// Initial-load gzip bytes per route. A raise needs the measurement and the reason in the same commit.
+// Initial-load gzip bytes per route; catalog is the largest non-English locale's slices for the route's nodes.
+// A raise needs the measurement and the reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
-  '/(public)/login': { js: 89500, css: 21700, catalog: 62800 },
-  '/(app)': { js: 113700, css: 39100, catalog: 62800 },
-  '/(app)/commands': { js: 133500, css: 41900, catalog: 62800 },
-  '/(public)/user/[channel]': { js: 95500, css: 21500, catalog: 62800 }
+  '/(public)/login': { js: 91600, css: 21700, catalog: 2900 },
+  '/(app)': { js: 117200, css: 39100, catalog: 5000 },
+  '/(app)/commands': { js: 196400, css: 41900, catalog: 20400 },
+  '/(public)/user/[channel]': { js: 97500, css: 21500, catalog: 2800 }
 };
 
 interface RouteEntry {
@@ -68,9 +69,17 @@ function entryFiles(): string[] {
     .map((name) => `${IMMUTABLE}entry/${name}`);
 }
 
-function catalogFiles(): string[] {
-  const dir = join(OUTPUT, 'client', IMMUTABLE, 'i18n');
-  return readdirSync(dir).filter((name) => name.startsWith('en.')).map((name) => `${IMMUTABLE}i18n/${name}`);
+function sliceLocales(): string[] {
+  return readdirSync(join(OUTPUT, 'client', IMMUTABLE, 'i18n'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+}
+
+function sliceFiles(js: Iterable<string>, locale: string): string[] {
+  return [...js].flatMap((file) => {
+    const node = /\/nodes\/([^/]+)\.js$/.exec(file);
+    return node ? [`${IMMUTABLE}i18n/${locale}/${node[1]}.json`] : [];
+  });
 }
 
 async function measure(route: RouteEntry): Promise<Budget> {
@@ -81,7 +90,8 @@ async function measure(route: RouteEntry): Promise<Budget> {
     assets.imports.forEach((file) => js.add(file));
     assets.stylesheets.forEach((file) => css.add(file));
   }
-  return { js: sum(js), css: sum(css), catalog: sum(catalogFiles()) };
+  const catalog = Math.max(...sliceLocales().map((locale) => sum(sliceFiles(js, locale))));
+  return { js: sum(js), css: sum(css), catalog };
 }
 
 const routes = parseRoutes();

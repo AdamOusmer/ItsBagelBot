@@ -8,6 +8,7 @@ import { defineConfig } from 'vite';
 import { stripDemoRoutes } from '../kit/scripts/strip-demo-routes.mjs';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
 import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
+import { i18nSlices } from '../kit/scripts/i18n-slices.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 
 // Route files that import @bagel/kit/styles/ui-console.css.
@@ -16,7 +17,8 @@ const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+erro
 export default defineConfig({
   plugins: [
     stripDemoRoutes(['/billing/demo-checkout/']),
-    i18nCatalogs({ exclude: ['admin'] }),
+    i18nCatalogs({ exclude: ['admin'], slices: true }),
+    i18nSlices(),
     bundledUiSheets({ consoleRoutes }),
     sveltekit()
   ],
