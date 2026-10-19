@@ -4,6 +4,7 @@
 import type { Session } from '$lib/server/session';
 import type { Locale } from '@bagel/kit/i18n';
 import type { AccountState } from '$lib/server/services';
+import type { EdgeOutcome } from '$lib/server/edge-cache';
 
 declare global {
   namespace App {
@@ -12,9 +13,7 @@ declare global {
       locale: Locale;
       cursorEnabled: boolean;
       accountState?: { value: AccountState } | { ghost: true };
-      edgeCache404?: boolean;
-      edgeCacheTag?: string;
-      edgeCacheSkip?: boolean;
+      edgeOutcome?: EdgeOutcome;
     }
     interface PageData {
       role?: 'streamer' | 'mod';

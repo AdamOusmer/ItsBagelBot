@@ -9,11 +9,12 @@ import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
 import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
-import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
+import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor, accountState } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '$env/dynamic/private';
 import { isBotAccount } from '$lib/server/bot-account';
+import { schedulePurgeChannel } from '$lib/server/edge-purge';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
 
@@ -129,6 +130,19 @@ async function registerUser(id: Identity, email: string | null): Promise<void> {
   }
 }
 
+async function priorLogin(userId: string): Promise<string | null | undefined> {
+  try {
+    return (await accountState(userId)).username.toLowerCase();
+  } catch (err) {
+    return err instanceof RpcError && err.code === 'not_found' ? null : undefined;
+  }
+}
+
+function purgeNewChannelPages(id: Identity, prior: string | null | undefined): void {
+  if (prior === null) schedulePurgeChannel(id.userId, [id.login]);
+  else if (prior && prior !== id.login) schedulePurgeChannel(id.userId, [id.login, prior]);
+}
+
 function validOAuthState(code: string | null, state: string | null, stored: string | undefined): code is string {
   if (!code || !state) return false;
   return !!stored && state === stored;
@@ -235,7 +249,9 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
 
   // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
   const email = await fetchAccountEmail(tokens.accessToken());
+  const prior = await priorLogin(identity.userId);
   await registerUser(identity, email);
+  purgeNewChannelPages(identity, prior);
 
   const landing = await acceptPendingDelegation(cookies, url, identity);
 

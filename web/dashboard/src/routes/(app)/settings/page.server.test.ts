@@ -10,14 +10,14 @@ stubSvelteKit();
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
 const hiddenWrites: { page: string; userId: string; hidden: boolean }[] = [];
-type PurgeBody = { files: string[] } | { tags: string[] };
+type PurgeBody = { files: string[] };
 const purgeBodies: PurgeBody[] = [];
 let writeFails = false;
 let purgeStatus = 200;
 let savedLocale = 'en';
 
 const services = await import('../../../lib/server/services');
-mock.module('$lib/server/services', () => ({
+const servicesMock = () => ({
   ...services,
   delegationList: async () => [],
   delegationAccess: async () => [],
@@ -35,11 +35,13 @@ mock.module('$lib/server/services', () => ({
     if (writeFails) throw new Error('rpc down');
     hiddenWrites.push({ page: 'leaderboard_page', userId, hidden });
   }
-}));
+});
+mock.module('$lib/server/services', servicesMock);
+mock.module('../../../lib/server/services', servicesMock);
 const fetchesStore = await import('../../../lib/server/fetches-store');
 mock.module('$lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
 
-const { channelPageUrls } = await import('../../../lib/server/edge-purge');
+const { channelPageUrls } = await import('../../../lib/server/channel-urls');
 const { actions, load } = await import('./+page.server');
 
 const realFetch = globalThis.fetch;
@@ -71,7 +73,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge: PurgeBody[] = [{ files: channelPageUrls('streamerlogin') }, { tags: ['lb:streamerlogin'] }];
+const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -103,7 +105,7 @@ const cases: {
     want: { result: () => refused, writes: [], purges: [] }
   },
   {
-    name: 'owner enabled=on writes hidden=false then purges the canonical URLs and the leaderboard tag',
+    name: 'owner enabled=on writes hidden=false then purges every cached page URL of the channel',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }

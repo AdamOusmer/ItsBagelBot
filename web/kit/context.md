@@ -65,8 +65,8 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - [lib/server/session.ts](lib/server/session.ts): shared sealed session codec/key handling;
   app wrappers define their own payloads/cookie names. Normal TTL 7 days; impersonation TTL 1 hour.
 - `lib/server/oauth.ts`, `oauth-state.ts`, `impersonation.ts`: OAuth primitives and identity-bound state.
-- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`, `rum.ts`: runtime setup,
-  validated configuration, common request/error hardening and New Relic browser injection.
+- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`: runtime setup,
+  validated configuration and common request/error hardening.
 - `rate-limit.ts`, `session-revocation.ts`, `shared-snapshot.ts`, `resilience.ts` and `best-effort.ts`
   solve shared fleet-limits, revocation, read coordination and graceful noncritical reads.
 - App route → app adapter → kit RPC/cache infrastructure → owning service; invalidations return to app caches.

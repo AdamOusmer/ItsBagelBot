@@ -21,7 +21,6 @@ import {
   setCommandsPage,
   userLeaderboardPage,
   setLeaderboardPage,
-  accountState,
   hasGrant,
   type NotificationWire
 } from '$lib/server/services';
@@ -46,12 +45,6 @@ function ownerSession(s: Session | null): s is Session {
   return !!s && !s.delegate_of && !s.impersonator_id;
 }
 
-async function purgeOwnerPages(userId: string): Promise<boolean> {
-  const account = await accountState(userId).catch(() => null);
-  if (!account?.username) return false;
-  return purgeChannelPages(account.username.toLowerCase());
-}
-
 function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const s = locals.session;
@@ -66,7 +59,7 @@ function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>
       return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
-    return { ok: true, action, edgeDelayed: !(await purgeOwnerPages(s.user_id)) };
+    return { ok: true, action, edgeDelayed: !(await purgeChannelPages(s.user_id)) };
   };
 }
 
