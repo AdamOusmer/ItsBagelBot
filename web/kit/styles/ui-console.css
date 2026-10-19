@@ -2,8 +2,9 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 /* Element sheets only console and error pages render; links after ui-public.css in the same global order. */
+@import '@bagel/ui/styles/elements/chip.css';
+@import '@bagel/ui/styles/elements/table.css';
 @import '@bagel/ui/styles/elements/step-list.css';
-@import '@bagel/ui/styles/elements/pager.css';
 @import '@bagel/ui/styles/elements/disclosure.css';
 @import '@bagel/ui/styles/elements/line-series.css';
 @import '@bagel/ui/styles/elements/log-tail.css';

@@ -27,9 +27,8 @@
 @import '@bagel/ui/styles/elements/tabs.css';
 @import '@bagel/ui/styles/elements/field.css';
 @import '@bagel/ui/styles/elements/search-input.css';
-@import '@bagel/ui/styles/elements/chip.css';
 @import '@bagel/ui/styles/elements/empty-state.css';
 @import '@bagel/ui/styles/elements/ambient-sky.css';
 @import '@bagel/ui/styles/elements/aurora.css';
-@import '@bagel/ui/styles/elements/table.css';
 @import '@bagel/ui/styles/elements/copy-surface.css';
+@import '@bagel/ui/styles/elements/pager.css';
