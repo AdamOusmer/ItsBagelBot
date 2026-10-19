@@ -124,13 +124,9 @@ type FitRegistry = {
 
 function addedTargets(records: MutationRecord[], registry: FitRegistry): FitTarget[] {
     const added = new Map<HTMLElement, FitTarget>();
-    for (const record of records) {
-        for (const node of record.addedNodes) {
-            if (!(node instanceof HTMLElement)) continue;
-            for (const target of collect(node)) {
-                if (!registry.targets.has(target.el)) added.set(target.el, target);
-            }
-        }
+    const roots = records.flatMap((record) => Array.from(record.addedNodes));
+    for (const target of roots.filter((node) => node instanceof HTMLElement).flatMap(collect)) {
+        if (!registry.targets.has(target.el)) added.set(target.el, target);
     }
     return Array.from(added.values());
 }

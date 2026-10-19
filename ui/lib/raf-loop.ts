@@ -18,7 +18,8 @@ function cancel(): void {
 }
 
 function schedule(): void {
-    if (frame || running || waking.size === 0) return;
+    if (frame || running) return;
+    if (waking.size === 0) return;
     if (typeof document !== 'undefined' && document.hidden) return;
     frame = requestAnimationFrame(run);
 }
