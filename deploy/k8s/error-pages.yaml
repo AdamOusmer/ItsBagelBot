@@ -1,0 +1,122 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# config/error-pages.html is generated: edit locales/*/console/error.json or the ui styles, then run bun scripts/error-page/gen.ts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: error-pages
+  namespace: app
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: error-pages
+  template:
+    metadata:
+      labels:
+        app: error-pages
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: error-pages
+          matchLabelKeys:
+            - pod-template-hash
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-edge
+      containers:
+        - name: error-pages
+          image: ghcr.io/tarampampam/error-pages:4.2.6@sha256:87434ca4b6461dbd956967922d5fe3eec2fba6ea46d7e8cdb0fac7e54bf78fc0
+          imagePullPolicy: IfNotPresent
+          args: ["--html-template", "/etc/error-pages/error-pages.html"]
+          env:
+            - name: LOG_LEVEL
+              value: warn
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - {name: template, mountPath: /etc/error-pages, readOnly: true}
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 10
+      volumes:
+        - name: template
+          configMap:
+            name: error-pages-template
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: error-pages
+  namespace: app
+spec:
+  trafficDistribution: PreferSameNode
+  selector:
+    app: error-pages
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# First in a chain so it also catches the rate limit's 429. It runs before strip-client-ip, so the
+# header list must stay explicit: unset forwards every header, visitor address included.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: error-pages
+  namespace: app
+spec:
+  errors:
+    status: ["400-599"]
+    query: /{status}
+    errorRequestHeaders: [Accept]
+    service:
+      name: error-pages
+      port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: error-pages
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: error-pages
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP

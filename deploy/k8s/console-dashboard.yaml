@@ -265,7 +265,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
+      middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
       services:
         - name: console-dashboard
           port: 443
@@ -277,7 +277,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
       kind: Rule
-      middlewares: [{name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
+      middlewares: [{name: error-pages}, {name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
       services:
         - name: console-dashboard
           port: 443
@@ -288,7 +288,7 @@ spec:
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
+      middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
       services:
         - name: console-dashboard
           port: 443
