@@ -248,7 +248,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
-	viewerID, ok := lc.resolvePointsUser(ctx, login)
+	viewerID, ok := lc.resolvePointsUser(login)
 	if !ok {
 		return nil
 	}
@@ -307,7 +307,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
-	targetID, ok := lc.resolvePointsUser(ctx, req.login)
+	targetID, ok := lc.resolvePointsUser(req.login)
 	if !ok {
 		return nil
 	}
@@ -319,34 +319,13 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	return lc.transferPoints(ctx, req, cfg)
 }
 
-func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string) (uint64, bool) {
-	id, err := lc.pointsRecipient(ctx, login)
-	if err != nil {
-		lc.log.Warn("loyalty: account lookup failed", lc.c.BID(), zap.Error(err))
-		lc.reply("loyalty.counter.err")
-		return 0, false
-	}
+func (lc loyaltyCmd) resolvePointsUser(login string) (uint64, bool) {
+	id := mentionedViewerID(lc.c.Env.Mentions, login)
 	if id == 0 {
 		lc.reply("loyalty.points.user.unknown", "target", login)
 		return 0, false
 	}
 	return id, true
-}
-
-// The account lookup returns Twitch's stable ID even before loyalty has a row.
-func (lc loyaltyCmd) pointsRecipient(ctx context.Context, login string) (uint64, error) {
-	if lc.d.TwitchAccounts == nil {
-		return 0, errors.New("Twitch account lookup unavailable")
-	}
-	targetID, found, err := lc.d.TwitchAccounts.ResolveLogin(ctx, login)
-	if err != nil || !found {
-		return 0, err
-	}
-	id, err := strconv.ParseUint(targetID, 10, 64)
-	if err != nil || id == 0 {
-		return 0, errors.New("invalid Twitch account ID")
-	}
-	return id, nil
 }
 
 func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {

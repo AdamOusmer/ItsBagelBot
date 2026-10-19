@@ -197,7 +197,8 @@ export interface StandingsPage {
 export interface StandingsPageRequest {
   limit: number;
   offset: number;
-  query: string;
+  viewerId?: string;
+  viewerLogin?: string;
 }
 
 export async function standingsPage(userId: string, req: StandingsPageRequest): Promise<StandingsPage> {
@@ -205,7 +206,8 @@ export async function standingsPage(userId: string, req: StandingsPageRequest): 
     user_id: userId,
     limit: req.limit,
     offset: req.offset || undefined,
-    query: req.query || undefined
+    viewer_id: req.viewerId || undefined,
+    viewer_login: req.viewerLogin || undefined
   });
   return { rows: (reply.top ?? []).map(toStanding), total: reply.total ?? 0 };
 }

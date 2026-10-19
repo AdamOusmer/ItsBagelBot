@@ -5,28 +5,35 @@ package repository
 
 import (
 	"context"
-	"strconv"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
-	"ItsBagelBot/app/db/loyalty/ent/predicate"
 	"ItsBagelBot/pkg/db"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
 
 const (
-	maxTopOffset   = 10000
-	maxTopQueryLen = 50
+	maxTopOffset = 10000
+	rankIndex    = "balance_user_id_points_viewer_id"
 )
 
 type TopQuery struct {
-	Limit  int
-	Offset int
-	Search string
+	Limit       int
+	Offset      int
+	ViewerID    uint64
+	ViewerLogin string
+}
+
+func (q TopQuery) searchesViewer() bool {
+	return q.ViewerID != 0 || q.ViewerLogin != ""
+}
+
+func (q TopQuery) reconcileHint() string {
+	if q.ViewerID == 0 {
+		return ""
+	}
+	return q.ViewerLogin
 }
 
 type RankedBalance struct {
@@ -39,78 +46,99 @@ type TopPage struct {
 	Total int64
 }
 
-func normalizeSearch(raw string) string {
-	lead := strings.TrimLeftFunc(raw, func(r rune) bool { return r == '@' || unicode.IsSpace(r) })
-	s := strings.Join(strings.Fields(lead), " ")
-	if utf8.RuneCountInString(s) <= maxTopQueryLen {
-		return s
-	}
-	return strings.TrimSpace(string([]rune(s)[:maxTopQueryLen]))
-}
-
 func clampOffset(offset int) int {
 	return max(0, min(offset, maxTopOffset))
 }
 
-func topScope(userID uint64, search string) []predicate.Balance {
-	scope := []predicate.Balance{balance.UserIDEQ(userID)}
-	if search == "" {
-		return scope
-	}
-	return append(scope, balance.Or(searchMatches(search)...))
-}
-
-func searchMatches(search string) []predicate.Balance {
-	matches := []predicate.Balance{balance.ViewerLoginContainsFold(search), balance.ViewerNameContainsFold(search)}
-	if id, err := strconv.ParseUint(search, 10, 64); err == nil && id > 0 {
-		matches = append(matches, balance.ViewerIDEQ(id))
-	}
-	return matches
-}
-
 func (r *Loyalty) TopPage(ctx context.Context, userID uint64, q TopQuery) (TopPage, error) {
-	search := normalizeSearch(q.Search)
-	scope := topScope(userID, search)
+	if q.searchesViewer() {
+		return db.WithQuery(ctx, func(ctx context.Context) (TopPage, error) {
+			return r.viewerPage(ctx, userID, q)
+		})
+	}
 	offset := clampOffset(q.Offset)
 	page, err := db.WithQuery(ctx, func(ctx context.Context) (TopPage, error) {
-		return r.readTopPage(ctx, topRead{scope: scope, offset: offset, limit: clampLimit(q.Limit), withTotal: needsTotal(offset, search)})
+		return r.readTopPage(ctx, userID, offset, clampLimit(q.Limit))
 	})
 	if err != nil {
 		return TopPage{}, err
 	}
-	if search == "" {
-		positionRanks(offset, page.Rows)
-		return page, nil
-	}
-	return page, r.searchRanks(ctx, userID, page.Rows)
+	positionRanks(offset, page.Rows)
+	return page, nil
 }
 
-func needsTotal(offset int, search string) bool {
-	return offset > 0 || search != ""
-}
-
-type topRead struct {
-	scope     []predicate.Balance
-	offset    int
-	limit     int
-	withTotal bool
-}
-
-func (r *Loyalty) readTopPage(ctx context.Context, read topRead) (TopPage, error) {
+func (r *Loyalty) readTopPage(ctx context.Context, userID uint64, offset, limit int) (TopPage, error) {
 	var total int
-	if read.withTotal {
+	if offset > 0 {
 		var err error
-		if total, err = r.client.Balance.Query().Where(read.scope...).Count(ctx); err != nil {
+		if total, err = r.client.Balance.Query().Where(balance.UserIDEQ(userID)).Count(ctx); err != nil {
 			return TopPage{}, err
 		}
 	}
 	rows, err := r.client.Balance.Query().
-		Where(read.scope...).
+		Where(balance.UserIDEQ(userID)).
 		Order(balance.ByPoints(entsql.OrderDesc()), balance.ByViewerID()).
-		Offset(read.offset).
-		Limit(read.limit).
+		Offset(offset).
+		Limit(limit).
 		All(ctx)
 	return TopPage{Rows: unranked(rows), Total: int64(total)}, err
+}
+
+func (r *Loyalty) viewerPage(ctx context.Context, userID uint64, q TopQuery) (TopPage, error) {
+	row, err := r.viewerRow(ctx, userID, q)
+	if ent.IsNotFound(err) {
+		return TopPage{}, nil
+	}
+	if err != nil {
+		return TopPage{}, err
+	}
+	if row, err = r.reconcileLogin(ctx, row, q.reconcileHint()); err != nil {
+		return TopPage{}, err
+	}
+	rank, err := r.boardRank(ctx, userID, row)
+	if err != nil {
+		return TopPage{}, err
+	}
+	return TopPage{Rows: []RankedBalance{{Balance: row, Rank: rank}}, Total: 1}, nil
+}
+
+func (r *Loyalty) viewerRow(ctx context.Context, userID uint64, q TopQuery) (*ent.Balance, error) {
+	query := r.client.Balance.Query().Where(balance.UserIDEQ(userID))
+	if q.ViewerID != 0 {
+		return query.Where(balance.ViewerIDEQ(q.ViewerID)).Only(ctx)
+	}
+	return query.Where(balance.ViewerLoginEQ(q.ViewerLogin)).
+		Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
+		First(ctx)
+}
+
+func (r *Loyalty) reconcileLogin(ctx context.Context, row *ent.Balance, login string) (*ent.Balance, error) {
+	if login == "" || login == row.ViewerLogin {
+		return row, nil
+	}
+	return r.client.Balance.UpdateOneID(row.ID).SetViewerLogin(login).Save(ctx)
+}
+
+func (r *Loyalty) boardRank(ctx context.Context, userID uint64, row *ent.Balance) (int64, error) {
+	ahead, err := r.countRows(ctx, `user_id = ? AND points > ?`, userID, row.Points)
+	if err != nil {
+		return 0, err
+	}
+	tied, err := r.countRows(ctx, `user_id = ? AND points = ? AND viewer_id < ?`, userID, row.Points, row.ViewerID)
+	if err != nil {
+		return 0, err
+	}
+	return 1 + ahead + tied, nil
+}
+
+func (r *Loyalty) countRows(ctx context.Context, where string, args ...any) (int64, error) {
+	source := "balances"
+	if r.dialect != "sqlite3" {
+		source += " FORCE INDEX (" + rankIndex + ")"
+	}
+	var n int64
+	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+source+` WHERE `+where, args...).Scan(&n)
+	return n, err
 }
 
 func unranked(rows []*ent.Balance) []RankedBalance {
@@ -125,45 +153,4 @@ func positionRanks(offset int, rows []RankedBalance) {
 	for i := range rows {
 		rows[i].Rank = int64(offset + i + 1)
 	}
-}
-
-func (r *Loyalty) searchRanks(ctx context.Context, userID uint64, rows []RankedBalance) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	ranks, err := db.WithQuery(ctx, func(ctx context.Context) (map[uint64]int64, error) {
-		return r.boardRanks(ctx, userID, rows)
-	})
-	if err != nil {
-		return err
-	}
-	for i := range rows {
-		rows[i].Rank = ranks[rows[i].ViewerID]
-	}
-	return nil
-}
-
-func (r *Loyalty) boardRanks(ctx context.Context, userID uint64, rows []RankedBalance) (map[uint64]int64, error) {
-	args := make([]any, 0, len(rows)+1)
-	args = append(args, userID)
-	for _, row := range rows {
-		args = append(args, row.ViewerID)
-	}
-	query := `SELECT viewer_id, board_rank FROM (SELECT viewer_id, ROW_NUMBER() OVER (ORDER BY points DESC, viewer_id ASC) AS board_rank FROM balances WHERE user_id = ?) ranked WHERE viewer_id IN (?` +
-		strings.Repeat(",?", len(rows)-1) + `)`
-	found, err := r.sqldb.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = found.Close() }()
-	ranks := make(map[uint64]int64, len(rows))
-	for found.Next() {
-		var viewerID uint64
-		var rank int64
-		if err := found.Scan(&viewerID, &rank); err != nil {
-			return nil, err
-		}
-		ranks[viewerID] = rank
-	}
-	return ranks, found.Err()
 }

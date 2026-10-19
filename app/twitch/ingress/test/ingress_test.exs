@@ -286,6 +286,91 @@ defmodule Ingress.PipelineTest do
     end
   end
 
+  describe "mentions" do
+    @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
+
+    setup do
+      start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
+      start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
+      :ok
+    end
+
+    test "mention fragments publish the mentioned user ids on the wire" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{
+          "text" => "!points give @Blemmyz 5",
+          "fragments" => [
+            %{"type" => "text", "text" => "!points give ", "mention" => nil},
+            %{
+              "type" => "mention",
+              "text" => "@Blemmyz",
+              "mention" => %{
+                "user_id" => "42",
+                "user_login" => "blemmyz",
+                "user_name" => "Blemmyz"
+              }
+            },
+            %{"type" => "text", "text" => " 5", "mention" => nil}
+          ]
+        }
+      }
+
+      assert {:publish, _subject, message} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+
+      assert message.mentions == [%{user_id: "42", user_login: "blemmyz", user_name: "Blemmyz"}]
+      assert {:ok, encoded} = wire(message)
+
+      assert encoded["mentions"] == [
+               %{"user_id" => "42", "user_login" => "blemmyz", "user_name" => "Blemmyz"}
+             ]
+    end
+
+    test "identical commands from several chatters are never squashed and each keeps its mentions" do
+      start_supervised!({Ingress.Squash, [window_ms: 10_000, sweep_ms: 10_000]})
+
+      mention = %{
+        "type" => "mention",
+        "text" => "@Blemmyz",
+        "mention" => %{"user_id" => "42", "user_login" => "blemmyz", "user_name" => "Blemmyz"}
+      }
+
+      route = fn chatter, text, fragments ->
+        event = %{
+          "broadcaster_user_id" => "77",
+          "chatter_user_id" => chatter,
+          "message" => %{"text" => text, "fragments" => fragments}
+        }
+
+        Pipeline.route(notification("channel.chat.message", event), @meta)
+      end
+
+      for chatter <- ["1", "2", "3"], text <- ["!duel @Blemmyz", "  !duel @Blemmyz"] do
+        assert {:publish, _subject, %{mentions: [%{user_id: "42"}]}} =
+                 route.(chatter, text, [%{"type" => "text", "text" => "!duel "}, mention])
+      end
+
+      assert {:publish, _subject, _message} = route.("1", "gg", [])
+      assert :squash = route.("2", "gg", [])
+    end
+
+    test "chat without mention fragments omits the mentions key" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "555",
+        "message" => %{"text" => "gg", "fragments" => [%{"type" => "text", "text" => "gg"}]}
+      }
+
+      assert {:publish, _subject, message} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+
+      refute Map.has_key?(message, :mentions)
+      assert Pipeline.mentions(%{}) == []
+    end
+  end
+
   describe "broadcaster_id/1" do
     test "channel events carry broadcaster_user_id" do
       assert Pipeline.broadcaster_id(%{"broadcaster_user_id" => "77"}) == "77"

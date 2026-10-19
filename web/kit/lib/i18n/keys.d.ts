@@ -2349,6 +2349,7 @@ export type KnownMessageKey =
   | 'leaderboard.resultsMatches'
   | 'leaderboard.resultsNone'
   | 'leaderboard.resultsRange'
+  | 'leaderboard.searchBusyBody'
   | 'leaderboard.searchLabel'
   | 'leaderboard.searchPlaceholder'
   | 'leaderboard.soloNote'

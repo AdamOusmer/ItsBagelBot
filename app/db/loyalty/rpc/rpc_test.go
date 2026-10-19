@@ -340,7 +340,10 @@ func TestHandleTopGetPagesAndSearches(t *testing.T) {
 	}{
 		{"legacy request keeps the plain board", loyaltyrpc.Request{UserID: "2"}, []string{"7", "9", "8"}, []int64{1, 2, 3}, 0},
 		{"offset pages the board with true ranks", loyaltyrpc.Request{UserID: "2", Limit: 1, Offset: 1}, []string{"9"}, []int64{2}, 3},
-		{"query returns real board ranks and match total", loyaltyrpc.Request{UserID: "2", Query: "@RECEIV"}, []string{"8"}, []int64{3}, 1},
+		{"viewer id returns the one balance with its real rank", loyaltyrpc.Request{UserID: "2", ViewerID: "8"}, []string{"8"}, []int64{3}, 1},
+		{"unknown viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "999"}, nil, nil, 0},
+		{"zero viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "0"}, nil, nil, 0},
+		{"legacy text query matches nothing instead of erroring", loyaltyrpc.Request{UserID: "2", Query: "@RECEIV"}, nil, nil, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reply := h.call(t, "top.get", tc.req)

@@ -731,21 +731,29 @@ const demoCrowd: LoyaltyStanding[] = DEMO_NOUNS.flatMap((noun, row) =>
   })
 );
 
+const demoCurrentLogins = new Map([['pretzel_prime', '505']]);
+const demoReconciledLogins = new Map<string, string>();
+
 function rankedDemoBoard(): LoyaltyStanding[] {
   return [...demoLeaderboardHead, ...demoCrowd]
     .sort((a, b) => Number(b.points) - Number(a.points) || Number(a.viewerId) - Number(b.viewerId))
-    .map((viewer, i) => ({ ...viewer, rank: i + 1 }));
+    .map((viewer, i) => ({ ...viewer, viewerLogin: demoReconciledLogins.get(viewer.viewerId) ?? viewer.viewerLogin, rank: i + 1 }));
 }
 
-function demoMatches(viewer: LoyaltyStanding, query: string): boolean {
-  const needle = query.toLowerCase();
-  const byName = viewer.viewerLogin.toLowerCase().includes(needle) || viewer.viewerName.toLowerCase().includes(needle);
-  return byName || (/^\d+$/.test(query) && Number(query) > 0 && Number(query) === Number(viewer.viewerId));
+function demoSearch(board: LoyaltyStanding[], query: string): LoyaltyStanding[] {
+  if (/^\d+$/.test(query)) return board.filter((viewer) => viewer.viewerId === query);
+  const stored = board.filter((viewer) => viewer.viewerLogin === query);
+  const viewerId = demoCurrentLogins.get(query);
+  if (stored.length > 0 || !viewerId) return stored;
+  demoReconciledLogins.set(viewerId, query);
+  return rankedDemoBoard().filter((viewer) => viewer.viewerId === viewerId);
 }
 
 export function demoStandingsPage(req: { limit: number; offset: number; query: string }): { rows: LoyaltyStanding[]; total: number } {
-  const matches = rankedDemoBoard().filter((viewer) => !req.query || demoMatches(viewer, req.query));
-  return { rows: matches.slice(req.offset, req.offset + req.limit), total: matches.length };
+  const board = rankedDemoBoard();
+  if (!req.query) return { rows: board.slice(req.offset, req.offset + req.limit), total: board.length };
+  const match = demoSearch(board, req.query);
+  return { rows: match, total: match.length };
 }
 
 export function demoPodium(): LoyaltyStanding[] {

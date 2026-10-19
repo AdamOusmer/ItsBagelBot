@@ -33,6 +33,11 @@ var (
 				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[2]},
 			},
 			{
+				Name:    "balance_user_id_viewer_login",
+				Unique:  false,
+				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[3]},
+			},
+			{
 				Name:    "balance_user_id_points",
 				Unique:  false,
 				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[5]},

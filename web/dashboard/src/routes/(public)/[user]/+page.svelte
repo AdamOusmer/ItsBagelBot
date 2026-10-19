@@ -118,7 +118,7 @@
   );
 
   const emptyCopy = $derived.by(() => {
-    const keys = emptyCopyKeys({ query: data.query, degraded: data.degraded, podiumSize: podium.length });
+    const keys = emptyCopyKeys({ query: data.query, degraded: data.degraded, busy: data.busy, podiumSize: podium.length });
     if (!keys) return null;
     return { title: keys.title && t(keys.title), body: t(keys.body, { channel: data.channelName }) };
   });

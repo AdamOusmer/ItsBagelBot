@@ -17,10 +17,12 @@ type Page = {
   pages: number;
   range: Range;
   degraded: boolean;
+  busy: boolean;
   commandsPage: boolean;
 };
 
-type PageRequest = { limit: number; offset: number; query: string };
+type PageRequest = { limit: number; offset: number; viewerId?: string; viewerLogin?: string };
+type Resolution = { kind: 'found'; viewerId: string } | { kind: 'missing' } | { kind: 'busy' } | { kind: 'error' };
 
 const board: Row[] = Array.from({ length: 87 }, (_, i) => ({
   viewerId: String(i + 1),
@@ -38,9 +40,32 @@ let loyaltyEnabled = true;
 let leaderboardPageReply: (id: string) => Promise<boolean> = async () => true;
 let standingsReads = 0;
 let viewerCount: number | null = null;
+let resolution: Resolution = { kind: 'missing' };
+const resolverCalls: string[] = [];
+const reconciled = new Map<string, string>();
 
 function activeBoard(): Row[] {
-  return board.slice(0, viewerCount ?? board.length);
+  return board.slice(0, viewerCount ?? board.length).map((row) => ({ ...row, viewerLogin: reconciled.get(row.viewerId) ?? row.viewerLogin }));
+}
+
+function standingsHits(req: PageRequest): Row[] {
+  const rows = activeBoard();
+  if (req.viewerId) return rows.filter((row) => row.viewerId === req.viewerId);
+  if (req.viewerLogin) return rows.filter((row) => row.viewerLogin === req.viewerLogin);
+  return rows;
+}
+
+function reconcile(req: PageRequest): void {
+  if (!req.viewerId || !req.viewerLogin) return;
+  if (standingsHits(req).length > 0) reconciled.set(req.viewerId, req.viewerLogin);
+}
+
+function serveStandings(req: PageRequest): { rows: Row[]; total: number } {
+  pageRequests.push(req);
+  reconcile(req);
+  const hits = standingsHits(req);
+  const searched = Boolean(req.viewerId || req.viewerLogin);
+  return { rows: searched ? hits : hits.slice(req.offset, req.offset + req.limit), total: hits.length };
 }
 
 mock.module('$lib/server/loyalty-store', () => ({
@@ -54,9 +79,13 @@ mock.module('$lib/server/loyalty-store', () => ({
     return [{ viewerId: '1', viewerLogin: 'fan', viewerName: 'Fan', points: 10, watchSeconds: 60 }];
   },
   standingsPage: async (_userId: string, req: PageRequest) => {
-    pageRequests.push(req);
-    const hits = activeBoard().filter((row) => row.viewerLogin.includes(req.query));
-    return { rows: hits.slice(req.offset, req.offset + req.limit), total: hits.length };
+    return serveStandings(req);
+  }
+}));
+mock.module('$lib/server/viewer-lookup', () => ({
+  resolveCurrentViewer: async (login: string) => {
+    resolverCalls.push(login);
+    return resolution;
   }
 }));
 mock.module('$lib/server/services', () => ({
@@ -93,10 +122,14 @@ type Setup = {
   loyaltyFails?: boolean;
   loyaltyEnabled?: boolean;
   viewers?: number;
+  resolution?: Resolution;
 };
 
 function arrange(setup: Setup): void {
   pageRequests.length = 0;
+  resolverCalls.length = 0;
+  reconciled.clear();
+  resolution = setup.resolution ?? { kind: 'missing' };
   standingsReads = 0;
   viewerCount = setup.viewers ?? null;
   commandsPageReply = setup.commandsPage ?? (async () => true);
@@ -196,62 +229,78 @@ const boardCases: { name: string; search: string; want: View; requests: PageRequ
     name: 'the default board lists ranks 4 to 18 and counts pages after the podium',
     search: '',
     want: { first: 4, count: 15, query: '', page: 1, pages: 6, range: { from: 4, to: 18, total: 87 } },
-    requests: [{ limit: 15, offset: 3, query: '' }]
+    requests: [{ limit: 15, offset: 3 }]
   },
   {
     name: 'page 2 starts at rank 19',
     search: '?page=2',
     want: { first: 19, count: 15, query: '', page: 2, pages: 6, range: { from: 19, to: 33, total: 87 } },
-    requests: [{ limit: 15, offset: 18, query: '' }]
+    requests: [{ limit: 15, offset: 18 }]
   },
   {
     name: 'a page past the end falls back to the last page',
     search: '?page=99',
     want: { first: 79, count: 9, query: '', page: 6, pages: 6, range: { from: 79, to: 87, total: 87 } },
     requests: [
-      { limit: 15, offset: 1473, query: '' },
-      { limit: 15, offset: 78, query: '' }
+      { limit: 15, offset: 1473 },
+      { limit: 15, offset: 78 }
     ]
   },
   {
-    name: 'a search returns real board ranks from the first match, top three included',
-    search: '?q=v1',
-    want: { first: 1, count: 11, query: 'v1', page: 1, pages: 1, range: { from: 1, to: 11, total: 11 } },
-    requests: [{ limit: 15, offset: 0, query: 'v1' }]
+    name: 'a numeric id search returns that viewer with the real board rank, top three included',
+    search: '?q=2',
+    want: { first: 2, count: 1, query: '2', page: 1, pages: 1, range: { from: 1, to: 1, total: 1 } },
+    requests: [{ limit: 15, offset: 0, viewerId: '2' }]
   },
   {
-    name: 'a canonical search returns the matching ranks',
-    search: '?q=v8',
-    want: { first: 8, count: 9, query: 'v8', page: 1, pages: 1, range: { from: 1, to: 9, total: 9 } },
-    requests: [{ limit: 15, offset: 0, query: 'v8' }]
+    name: 'a stored login returns that viewer with the real board rank',
+    search: '?q=v5',
+    want: { first: 5, count: 1, query: 'v5', page: 1, pages: 1, range: { from: 1, to: 1, total: 1 } },
+    requests: [{ limit: 15, offset: 0, viewerLogin: 'v5' }]
   },
   {
-    name: 'a search without hits reports an empty single page',
-    search: '?q=zzzz',
-    want: { first: undefined, count: 0, query: 'zzzz', page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
-    requests: [{ limit: 15, offset: 0, query: 'zzzz' }]
+    name: 'an id with no balance in this channel reports an empty single page',
+    search: '?q=9999',
+    want: { first: undefined, count: 0, query: '9999', page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
+    requests: [{ limit: 15, offset: 0, viewerId: '9999' }]
   },
   {
-    name: 'a canonical search at the length cap is searched as is',
-    search: `?q=${'a'.repeat(50)}`,
-    want: { first: undefined, count: 0, query: 'a'.repeat(50), page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
-    requests: [{ limit: 15, offset: 0, query: 'a'.repeat(50) }]
+    name: 'a login with no balance and no Twitch match reports an empty single page',
+    search: '?q=ghost',
+    want: { first: undefined, count: 0, query: 'ghost', page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
+    requests: [{ limit: 15, offset: 0, viewerLogin: 'ghost' }]
+  },
+  {
+    name: 'an id at the 20 digit cap is searched as is',
+    search: `?q=${'9'.repeat(20)}`,
+    want: { first: undefined, count: 0, query: '9'.repeat(20), page: 1, pages: 1, range: { from: 0, to: 0, total: 0 } },
+    requests: [{ limit: 15, offset: 0, viewerId: '9'.repeat(20) }]
   }
 ];
 
 const redirectCases: { name: string; search: string; want: string }[] = [
-  { name: 'a padded search trims and keeps case', search: '?q=+Otter+', want: '/somechannel?q=Otter' },
-  { name: 'a leading at sign is dropped', search: '?q=%40Otter', want: '/somechannel?q=Otter' },
-  { name: 'alternating leading at signs and spaces resolve in one hop', search: `?q=${encodeURIComponent('@ '.repeat(24) + 'x')}`, want: '/somechannel?q=x' },
-  { name: 'inner whitespace collapses', search: '?q=a%20%20%09b', want: '/somechannel?q=a+b' },
+  { name: 'a padded id trims', search: '?q=+42+', want: '/somechannel?q=42' },
+  { name: 'leading zeros are stripped', search: '?q=007', want: '/somechannel?q=7' },
+  { name: 'an all-zero id drops the param', search: '?q=000', want: '/somechannel' },
+  { name: 'an uppercase login lowercases', search: '?q=V8', want: '/somechannel?q=v8' },
+  { name: 'an at-prefixed mixed-case login loses the at sign and lowercases', search: '?q=%40CrumbCatcher', want: '/somechannel?q=crumbcatcher' },
+  { name: 'leading at signs and spaces are stripped', search: '?q=%20%40%40Otter%20', want: '/somechannel?q=otter' },
+  { name: 'a digit-led login stays a login', search: '?q=12AB', want: '/somechannel?q=12ab' },
+  { name: 'a login with a dash drops the param', search: '?q=a-b', want: '/somechannel' },
+  { name: 'a login with a wildcard drops the param', search: '?q=ab%25', want: '/somechannel' },
+  { name: 'a non-ASCII login drops the param', search: '?q=caf%C3%A9', want: '/somechannel' },
+  { name: 'a Kelvin sign is not folded to an ASCII k', search: '?q=%E2%84%AAim', want: '/somechannel' },
+  { name: 'a login over 25 characters drops the param', search: `?q=${'a'.repeat(26)}`, want: '/somechannel' },
+  { name: 'a 25 character login is kept', search: `?q=${'A'.repeat(25)}`, want: `/somechannel?q=${'a'.repeat(25)}` },
+  { name: 'inner whitespace drops the param', search: '?q=1%202', want: '/somechannel' },
   { name: 'an empty search drops the param', search: '?q=', want: '/somechannel' },
   { name: 'page 1 drops the param', search: '?page=1', want: '/somechannel' },
   { name: 'a zero-padded page normalizes', search: '?page=02', want: '/somechannel?page=2' },
   { name: 'a malformed page drops the param', search: '?page=abc', want: '/somechannel' },
   { name: 'a negative page drops the param', search: '?page=-3', want: '/somechannel' },
   { name: 'a page past the cap clamps to the cap', search: '?page=999', want: '/somechannel?page=399' },
-  { name: 'other params survive', search: '?q=Otter+&lang=fr&page=1', want: '/somechannel?lang=fr&q=Otter' },
-  { name: 'an over-long search is capped at 50 characters', search: `?q=${'A'.repeat(300)}`, want: `/somechannel?q=${'A'.repeat(50)}` }
+  { name: 'other params survive', search: '?q=42+&lang=fr&page=1', want: '/somechannel?lang=fr&q=42' },
+  { name: 'an id over 20 digits drops the param', search: `?q=${'9'.repeat(21)}`, want: '/somechannel' }
 ];
 
 describe('(public)/[user] load: canonical redirect', () => {
@@ -268,15 +317,21 @@ describe('(public)/[user] load: canonical redirect', () => {
     expect(out.page).toBeDefined();
   });
 
+  test('a redirect never reaches the resolver', async () => {
+    arrange({});
+    await loadPage('?q=CrumbCatcher');
+    expect(resolverCalls).toEqual([]);
+  });
+
   test('a degraded board is flagged uncacheable', async () => {
     arrange({ loyaltyFails: true });
-    await loadPage('?q=v1');
+    await loadPage('?q=1');
     expect(lastLocals.edgeCacheSkip).toBe(true);
   });
 
   test('a healthy board is not flagged', async () => {
     arrange({});
-    await loadPage('?q=v1');
+    await loadPage('?q=1');
     expect(lastLocals.edgeCacheSkip).toBeUndefined();
   });
 });
@@ -291,14 +346,98 @@ describe('(public)/[user] load: search and pages', () => {
   test('the podium is the same overall top with or without a search or page', async () => {
     arrange({});
     const plain = (await loadPage()).page!.podium;
-    const searched = (await loadPage('?q=v5&page=2')).page!.podium;
+    const searched = (await loadPage('?q=5&page=2')).page!.podium;
     expect(searched).toEqual(plain);
   });
 
   test('a failing standings read stays degraded with an empty board for a search', async () => {
     arrange({ loyaltyFails: true });
-    const { page } = await loadPage('?q=v1&page=3');
-    expect({ degraded: page!.degraded, rows: page!.rows.length, query: page!.query }).toEqual({ degraded: true, rows: 0, query: 'v1' });
+    const { page } = await loadPage('?q=1&page=3');
+    expect({ degraded: page!.degraded, rows: page!.rows.length, query: page!.query }).toEqual({ degraded: true, rows: 0, query: '1' });
+  });
+});
+
+describe('(public)/[user] load: username search and reconcile', () => {
+  test('an id search never calls the resolver', async () => {
+    arrange({});
+    await loadPage('?q=2');
+    expect(resolverCalls).toEqual([]);
+  });
+
+  test('a stored login hit never calls the resolver or reconciles', async () => {
+    arrange({ resolution: { kind: 'found', viewerId: '9' } });
+    const { page } = await loadPage('?q=v5');
+    expect({ rank: page!.rows[0]?.rank, calls: resolverCalls, requests: pageRequests, busy: page!.busy }).toEqual({
+      rank: 5,
+      calls: [],
+      requests: [{ limit: 15, offset: 0, viewerLogin: 'v5' }],
+      busy: false
+    });
+    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+  });
+
+  test('a stored miss resolves the current id then looks it up with the login as the reconcile hint', async () => {
+    arrange({ resolution: { kind: 'found', viewerId: '7' } });
+    const { page } = await loadPage('?q=renamed_seven');
+    expect({ rows: page!.rows.map((row) => [row.rank, row.viewerLogin]), calls: resolverCalls, requests: pageRequests }).toEqual({
+      rows: [[7, 'renamed_seven']],
+      calls: ['renamed_seven'],
+      requests: [
+        { limit: 15, offset: 0, viewerLogin: 'renamed_seven' },
+        { limit: 15, offset: 0, viewerId: '7', viewerLogin: 'renamed_seven' }
+      ]
+    });
+    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+  });
+
+  test('after the reconcile the new login is a stored hit', async () => {
+    arrange({ resolution: { kind: 'found', viewerId: '7' } });
+    await loadPage('?q=renamed_seven');
+    pageRequests.length = 0;
+    resolverCalls.length = 0;
+    const { page } = await loadPage('?q=renamed_seven');
+    expect({ rank: page!.rows[0]?.rank, calls: resolverCalls, requests: pageRequests.length }).toEqual({ rank: 7, calls: [], requests: 1 });
+  });
+
+  test('a resolved id with no balance in this channel is an empty result', async () => {
+    arrange({ resolution: { kind: 'found', viewerId: '99999' } });
+    const { page } = await loadPage('?q=stranger');
+    expect({ rows: page!.rows.length, calls: resolverCalls, busy: page!.busy }).toEqual({ rows: 0, calls: ['stranger'], busy: false });
+  });
+
+  test('an unknown name is an empty result after one resolver call', async () => {
+    arrange({ resolution: { kind: 'missing' } });
+    const { page } = await loadPage('?q=nobody_here');
+    expect({ rows: page!.rows.length, degraded: page!.degraded, busy: page!.busy, calls: resolverCalls, requests: pageRequests.length }).toEqual({
+      rows: 0,
+      degraded: false,
+      busy: false,
+      calls: ['nobody_here'],
+      requests: 1
+    });
+    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+  });
+
+  test('a resolver error is a no-match, not a degraded page or an error', async () => {
+    arrange({ resolution: { kind: 'error' } });
+    const out = await loadPage('?q=nobody_here');
+    expect({ status: out.status, rows: out.page?.rows.length, degraded: out.page?.degraded, busy: out.page?.busy }).toEqual({
+      status: undefined,
+      rows: 0,
+      degraded: false,
+      busy: false
+    });
+  });
+
+  test('an empty bucket shows the busy note and skips the edge cache', async () => {
+    arrange({ resolution: { kind: 'busy' } });
+    const { page } = await loadPage('?q=nobody_here');
+    expect({
+      rows: page!.rows.length,
+      busy: page!.busy,
+      copy: emptyCopyKeys({ query: page!.query, degraded: page!.degraded, busy: page!.busy, podiumSize: page!.podium.length })?.body
+    }).toEqual({ rows: 0, busy: true, copy: 'leaderboard.searchBusyBody' });
+    expect(lastLocals.edgeCacheSkip).toBe(true);
   });
 });
 
@@ -311,7 +450,7 @@ describe('(public)/[user] load: edge cache tag', () => {
 
   test('a hidden board is tagged too so a later purge reaches its cached 404', async () => {
     arrange({ leaderboardPage: async () => false });
-    await loadPage('?q=zz');
+    await loadPage('?q=22');
     expect(lastLocals.edgeCacheTag).toBe('lb:somechannel');
   });
 });
@@ -361,32 +500,20 @@ describe('(public)/[user] load: boards of 0 to 4 viewers', () => {
 
   test('a degraded board shows no empty copy even with a query', async () => {
     arrange({ loyaltyFails: true });
-    const data = (await loadPage('?q=v1')).page!;
+    const data = (await loadPage('?q=1')).page!;
     expect(emptyCopyKeys({ query: data.query, degraded: data.degraded, podiumSize: data.podium.length })).toBeNull();
   });
 });
 
 describe('(public)/[user] load: search past the last page', () => {
-  test('a search page past the end falls back to the last search page', async () => {
-    arrange({});
-    const { page } = await loadPage('?q=v&page=99');
-    expect({ view: viewOf(page!), requests: pageRequests }).toEqual({
-      view: { first: 76, count: 12, query: 'v', page: 6, pages: 6, range: { from: 76, to: 87, total: 87 } },
-      requests: [
-        { limit: 15, offset: 1470, query: 'v' },
-        { limit: 15, offset: 75, query: 'v' }
-      ]
-    });
-  });
-
   test('a search with fewer matches than the requested page falls back to page 1', async () => {
     arrange({});
-    const { page } = await loadPage('?q=v1&page=9');
+    const { page } = await loadPage('?q=1&page=9');
     expect({ view: viewOf(page!), requests: pageRequests }).toEqual({
-      view: { first: 1, count: 11, query: 'v1', page: 1, pages: 1, range: { from: 1, to: 11, total: 11 } },
+      view: { first: 1, count: 1, query: '1', page: 1, pages: 1, range: { from: 1, to: 1, total: 1 } },
       requests: [
-        { limit: 15, offset: 120, query: 'v1' },
-        { limit: 15, offset: 0, query: 'v1' }
+        { limit: 15, offset: 120, viewerId: '1' },
+        { limit: 15, offset: 0, viewerId: '1' }
       ]
     });
   });

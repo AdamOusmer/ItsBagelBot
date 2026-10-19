@@ -12,6 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var duelViewerIDs = map[string]uint64{"alice": 1, "bob": 2, "carol": 3, "ghost": 4, "mod": 5}
+
+func p(login string) DuelParty { return DuelParty{ID: duelViewerIDs[login], Login: login} }
+
+func duelAccountName(id uint64) string {
+	for name, viewerID := range duelViewerIDs {
+		if viewerID == id {
+			return name
+		}
+	}
+	return ""
+}
+
+// Balances are keyed by account name but looked up by viewer ID, so a stale login in the entry changes nothing.
 type fakeWallet struct {
 	mu       sync.Mutex
 	balances map[string]int64
@@ -20,18 +34,19 @@ type fakeWallet struct {
 func (w *fakeWallet) Debit(_ context.Context, _ uint64, entry DuelStake) (found, spent bool, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	balance, known := w.balances[entry.Login]
+	name := duelAccountName(entry.ViewerID)
+	balance, known := w.balances[name]
 	if !known || balance < entry.Stake {
 		return known, false, nil
 	}
-	w.balances[entry.Login] = balance - entry.Stake
+	w.balances[name] = balance - entry.Stake
 	return true, true, nil
 }
 
 func (w *fakeWallet) Credit(_ context.Context, _ uint64, entry DuelStake) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.balances[entry.Login] += entry.Stake
+	w.balances[duelAccountName(entry.ViewerID)] += entry.Stake
 	return nil
 }
 
@@ -67,16 +82,16 @@ func TestValkeyDuelOpenValidatesTheSpecAndTheOpenersBalance(t *testing.T) {
 		want        DuelOpenResult
 		wantBalance int64
 	}{
-		{"a stake below the floor is refused", DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: 0}, true, DuelOpenResult{}, 500},
-		{"a stake above the ceiling is refused", DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: DuelMaxStake + 1}, true, DuelOpenResult{}, 500},
+		{"a stake below the floor is refused", DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 0}, true, DuelOpenResult{}, 500},
+		{"a stake above the ceiling is refused", DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: DuelMaxStake + 1}, true, DuelOpenResult{}, 500},
 		{"an opener is required", DuelOpenSpec{Kind: DuelPot, Stake: 10}, true, DuelOpenResult{}, 500},
-		{"an unknown kind is refused", DuelOpenSpec{Kind: "melee", Opener: "alice", Stake: 10}, true, DuelOpenResult{}, 500},
-		{"a challenge needs a challenged party", DuelOpenSpec{Kind: DuelChallenge, Opener: "alice", Stake: 10}, true, DuelOpenResult{}, 500},
-		{"a self-challenge is refused", DuelOpenSpec{Kind: DuelChallenge, Opener: "alice", Challenged: "alice", Stake: 10}, true, DuelOpenResult{}, 500},
-		{"an opener who cannot cover the stake is short", DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: 501}, false, DuelOpenResult{Short: true}, 500},
-		{"an opener loyalty has never seen is unknown", DuelOpenSpec{Kind: DuelPot, Opener: "ghost", Stake: 10}, false, DuelOpenResult{Unknown: true}, 500},
-		{"a valid pot escrows the opener's stake", DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: 100}, false, DuelOpenResult{Started: true}, 400},
-		{"a valid challenge escrows the opener's stake", DuelOpenSpec{Kind: DuelChallenge, Opener: "alice", Challenged: "bob", Stake: 100}, false, DuelOpenResult{Started: true}, 400},
+		{"an unknown kind is refused", DuelOpenSpec{Kind: "melee", Opener: p("alice"), Stake: 10}, true, DuelOpenResult{}, 500},
+		{"a challenge needs a challenged party", DuelOpenSpec{Kind: DuelChallenge, Opener: p("alice"), Stake: 10}, true, DuelOpenResult{}, 500},
+		{"a self-challenge is refused", DuelOpenSpec{Kind: DuelChallenge, Opener: p("alice"), Challenged: p("alice"), Stake: 10}, true, DuelOpenResult{}, 500},
+		{"an opener who cannot cover the stake is short", DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 501}, false, DuelOpenResult{Short: true}, 500},
+		{"an opener loyalty has never seen is unknown", DuelOpenSpec{Kind: DuelPot, Opener: p("ghost"), Stake: 10}, false, DuelOpenResult{Unknown: true}, 500},
+		{"a valid pot escrows the opener's stake", DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 100}, false, DuelOpenResult{Started: true}, 400},
+		{"a valid challenge escrows the opener's stake", DuelOpenSpec{Kind: DuelChallenge, Opener: p("alice"), Challenged: p("bob"), Stake: 100}, false, DuelOpenResult{Started: true}, 400},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,7 +109,7 @@ func TestValkeyDuelOpenValidatesTheSpecAndTheOpenersBalance(t *testing.T) {
 func TestValkeyDuelPotJoinsEscrowEachStakeOnce(t *testing.T) {
 	store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 500, "bob": 100, "carol": 5})
 	ctx := context.Background()
-	opened, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: 100})
+	opened, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 100})
 	require.NoError(t, err)
 	require.True(t, opened.Started)
 	joins := []struct {
@@ -112,7 +127,7 @@ func TestValkeyDuelPotJoinsEscrowEachStakeOnce(t *testing.T) {
 		{"a stake above the ceiling is refused", "bob", DuelMaxStake + 1, DuelJoinResult{}, false},
 	}
 	for _, step := range joins {
-		got, err := store.Join(ctx, id, step.login, step.stake)
+		got, err := store.Join(ctx, id, p(step.login), step.stake)
 
 		assert.Equal(t, step.wantOK, err == nil, step.name)
 		assert.Equal(t, step.want, got, step.name)
@@ -129,17 +144,17 @@ func TestValkeyDuelPotJoinsEscrowEachStakeOnce(t *testing.T) {
 func TestValkeyDuelCancelRefundsOnlyTheValidLedgerEntries(t *testing.T) {
 	store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 500, "bob": 100})
 	ctx := context.Background()
-	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: "alice", Stake: 100})
+	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelPot, Opener: p("alice"), Stake: 100})
 	require.NoError(t, err)
-	_, err = store.Join(ctx, id, "bob", 20)
+	_, err = store.Join(ctx, id, p("bob"), 20)
 	require.NoError(t, err)
 	client := newHotPathTestClient(t)
 	require.NoError(t, client.Do(ctx, client.B().Hset().Key(duelKey(duelEntriesPrefix, id)).
 		FieldValue().FieldValue("ghost", "0").FieldValue("junk", "points").Build()).Error())
 
-	stranger, err := store.Cancel(ctx, id, "bob", false)
+	stranger, err := store.Cancel(ctx, id, p("bob"), false)
 	require.NoError(t, err)
-	cancelled, err := store.Cancel(ctx, id, "mod", true)
+	cancelled, err := store.Cancel(ctx, id, p("mod"), true)
 	require.NoError(t, err)
 
 	assert.Equal(t, DuelCancelResult{Found: true}, stranger, "only the opener or a moderator may cancel")
@@ -163,12 +178,12 @@ func TestValkeyDuelChallengeSettlement(t *testing.T) {
 			t.Cleanup(func() { FlipDuelCoin = flip })
 			store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 100, "bob": 100, "carol": 100})
 			ctx := context.Background()
-			_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelChallenge, Opener: "alice", Challenged: "bob", Stake: 50})
+			_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelChallenge, Opener: p("alice"), Challenged: p("bob"), Stake: 50})
 			require.NoError(t, err)
 
-			stranger, err := store.Accept(ctx, id, "carol")
+			stranger, err := store.Accept(ctx, id, p("carol"))
 			require.NoError(t, err)
-			accepted, err := store.Accept(ctx, id, "bob")
+			accepted, err := store.Accept(ctx, id, DuelParty{ID: duelViewerIDs["bob"], Login: "bob_renamed"})
 			require.NoError(t, err)
 
 			assert.Equal(t, DuelAcceptResult{Found: true, WrongUser: true}, stranger, "only the challenged party may accept")
@@ -184,14 +199,14 @@ func TestValkeyDuelChallengeSettlement(t *testing.T) {
 func TestValkeyDuelChallengeRefusals(t *testing.T) {
 	store, wallet, id := duelStoreFor(t, map[string]int64{"alice": 100, "bob": 10})
 	ctx := context.Background()
-	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelChallenge, Opener: "alice", Challenged: "bob", Stake: 50})
+	_, err := store.Open(ctx, id, DuelOpenSpec{Kind: DuelChallenge, Opener: p("alice"), Challenged: p("bob"), Stake: 50})
 	require.NoError(t, err)
 
-	short, err := store.Accept(ctx, id, "bob")
+	short, err := store.Accept(ctx, id, p("bob"))
 	require.NoError(t, err)
-	wrong, err := store.Decline(ctx, id, "carol")
+	wrong, err := store.Decline(ctx, id, p("carol"))
 	require.NoError(t, err)
-	declined, err := store.Decline(ctx, id, "bob")
+	declined, err := store.Decline(ctx, id, p("bob"))
 	require.NoError(t, err)
 
 	assert.Equal(t, DuelAcceptResult{Found: true, Short: true}, short, "a challenged party who cannot cover the stake leaves the duel open")

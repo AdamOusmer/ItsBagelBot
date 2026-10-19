@@ -5,7 +5,9 @@ import type { LoyaltyStanding } from '@bagel/kit';
 
 export const PAGE_SIZE = 15;
 export const PODIUM_SIZE = 3;
-export const MAX_QUERY_LENGTH = 50;
+export const MAX_QUERY_LENGTH = 25;
+const MAX_ID_LENGTH = 20;
+const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 export const MAX_PAGES = 399;
 
 export interface BoardParams {
@@ -40,9 +42,23 @@ export interface BoardView {
 
 export type PageFetcher = (req: PageRequest) => Promise<PageReply>;
 
+export function isViewerId(query: string): boolean {
+  return /^\d+$/.test(query);
+}
+
+function cleanViewerId(digits: string): string {
+  const id = digits.replace(/^0+/, '');
+  return id.length <= MAX_ID_LENGTH ? id : '';
+}
+
+function cleanLogin(raw: string): string {
+  const login = raw.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  return LOGIN_RE.test(login) ? login : '';
+}
+
 export function cleanQuery(raw: string | null): string {
-  const squeezed = (raw ?? '').replace(/^[@\s]+/, '').replace(/\s+/g, ' ').trim();
-  return Array.from(squeezed).slice(0, MAX_QUERY_LENGTH).join('').trim();
+  const typed = (raw ?? '').replace(/^[@\s]+/, '').trim();
+  return isViewerId(typed) ? cleanViewerId(typed) : cleanLogin(typed);
 }
 
 function cleanPage(raw: string | null): number {
@@ -85,9 +101,11 @@ export interface EmptyCopy {
   body: string;
 }
 
-export function emptyCopyKeys(state: { query: string; degraded: boolean; podiumSize: number }): EmptyCopy | null {
+export function emptyCopyKeys(state: { query: string; degraded: boolean; busy?: boolean; podiumSize: number }): EmptyCopy | null {
   if (state.degraded) return null;
-  if (state.query) return { title: 'leaderboard.noMatchesTitle', body: 'leaderboard.noMatchesBody' };
+  if (state.query) {
+    return { title: 'leaderboard.noMatchesTitle', body: state.busy ? 'leaderboard.searchBusyBody' : 'leaderboard.noMatchesBody' };
+  }
   if (state.podiumSize === 0) return { title: 'leaderboard.emptyTitle', body: 'leaderboard.emptyBody' };
   return { title: '', body: state.podiumSize === 1 ? 'leaderboard.soloNote' : 'leaderboard.podiumOnlyNote' };
 }

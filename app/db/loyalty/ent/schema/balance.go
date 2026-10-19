@@ -39,6 +39,7 @@ func (Balance) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id", "viewer_id").
 			Unique(),
+		index.Fields("user_id", "viewer_login"),
 		index.Fields("user_id", "points"),
 		index.Fields("user_id", "points", "viewer_id").
 			Annotations(entsql.DescColumns("points")),

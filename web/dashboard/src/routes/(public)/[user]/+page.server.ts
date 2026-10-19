@@ -7,7 +7,19 @@ import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 import { resolveLogin, userCommandsPage, userLeaderboardPage } from '$lib/server/services';
 import { readLoyalty, standingsPage, topStandings } from '$lib/server/loyalty-store';
-import { boardParams, canonicalLocation, emptyBoard, loadBoard, PODIUM_SIZE, type BoardParams, type BoardView } from '$lib/leaderboard-board';
+import { resolveCurrentViewer } from '$lib/server/viewer-lookup';
+import {
+	boardParams,
+	canonicalLocation,
+	emptyBoard,
+	isViewerId,
+	loadBoard,
+	PODIUM_SIZE,
+	type BoardParams,
+	type BoardView,
+	type PageReply,
+	type PageRequest
+} from '$lib/leaderboard-board';
 import { leaderboardCacheTag } from '$lib/edge-tags';
 import { channelLabel } from '$lib/server/public-directory';
 
@@ -41,23 +53,45 @@ type Standings = {
 	podium: Awaited<ReturnType<typeof topStandings>>;
 	board: BoardView;
 	degraded: boolean;
+	busy: boolean;
 };
+
+type Search = { busy: boolean };
 
 function hideChannel(locals: App.Locals): never {
 	locals.edgeCache404 = true;
 	throw error(404, 'Channel not found');
 }
 
+function skipEdgeCache(locals: App.Locals, board: Standings): void {
+	if (board.degraded || board.busy) locals.edgeCacheSkip = true;
+}
+
+async function loginPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
+	const { limit, offset, query } = req;
+	const stored = await standingsPage(userId, { limit, offset, viewerLogin: query });
+	if (stored.rows.length > 0) return stored;
+	const resolved = await resolveCurrentViewer(query);
+	search.busy = resolved.kind === 'busy';
+	if (resolved.kind !== 'found') return stored;
+	return standingsPage(userId, { limit, offset, viewerId: resolved.viewerId, viewerLogin: query });
+}
+
+function searchPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
+	const { limit, offset, query } = req;
+	if (!query) return standingsPage(userId, { limit, offset });
+	if (isViewerId(query)) return standingsPage(userId, { limit, offset, viewerId: query });
+	return loginPage(userId, req, search);
+}
+
 async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>, params: BoardParams): Promise<Standings> {
+	const search: Search = { busy: false };
 	try {
-		const [view, podium, board] = await Promise.all([
-			loyalty,
-			topStandings(userId, PODIUM_SIZE),
-			loadBoard(params, (req) => standingsPage(userId, req))
-		]);
-		return { currencyName: view.config.pointsName || 'points', podium, board, degraded: false };
+		const [view, podium] = await Promise.all([loyalty, topStandings(userId, PODIUM_SIZE)]);
+		const board = await loadBoard(params, (req) => searchPage(userId, req, search));
+		return { currencyName: view.config.pointsName || 'points', podium, board, degraded: false, busy: search.busy };
 	} catch {
-		return { currencyName: 'points', podium: [], board: emptyBoard(params), degraded: true };
+		return { currencyName: 'points', podium: [], board: emptyBoard(params), degraded: true, busy: false };
 	}
 }
 
@@ -70,6 +104,7 @@ async function demoPage(login: string, params: BoardParams) {
 		podium: d.demoPodium(),
 		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),
 		degraded: false,
+		busy: false,
 		commandsPage: true
 	};
 }
@@ -99,7 +134,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (!boardVisible || !loyaltyEnabled) hideChannel(locals);
 
 	const board = await standings(channel.userId, loyalty, view);
-	if (board.degraded) locals.edgeCacheSkip = true;
+	skipEdgeCache(locals, board);
 
 	return {
 		login: channel.login,
@@ -108,6 +143,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		podium: board.podium,
 		...board.board,
 		degraded: board.degraded,
+		busy: board.busy,
 		commandsPage
 	};
 };
