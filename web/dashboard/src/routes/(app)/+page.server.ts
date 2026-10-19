@@ -26,6 +26,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';
 import { broadcasterPremium } from '$lib/server/module-gate';
 import { twitchScopeGap } from '$lib/server/oauth';
+import { shareRecent } from '$lib/server/recent-share';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -35,9 +36,13 @@ function settled<T>(r: PromiseSettledResult<T>): T | undefined {
   return r.status === 'fulfilled' ? r.value : undefined;
 }
 
+const VERIFY_REUSE_MS = 30_000;
+
+const recentVerify = shareRecent<Promise<ChannelSubState | undefined>>(VERIFY_REUSE_MS);
+
 async function verifiedIfUnknown(uid: string, stored: ChannelSubState | undefined) {
   if (stored && stored.state !== 'unknown') return stored;
-  return channelSubState(uid, { verify: true, repair: true }).catch(() => stored);
+  return recentVerify(uid, () => channelSubState(uid, { verify: true, repair: true }).catch(() => stored));
 }
 
 async function connState(uid: string): Promise<ConnData> {

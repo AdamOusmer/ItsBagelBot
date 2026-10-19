@@ -33,7 +33,8 @@ mock.module('$lib/server/overview-lanes', () => ({ ...lanes, overviewLanes: () =
 
 const { load } = await import('./+page.server');
 
-const event = { locals: { session: { user_id: '1001', scopes: [] } }, url: new URL('http://localhost/') } as never;
+const boardEvent = (uid: string) => ({ locals: { session: { user_id: uid, scopes: [] } }, url: new URL('http://localhost/') }) as never;
+const event = boardEvent('1001');
 
 const known = { state: 'ok', error: '', checkedAt: 'now' };
 const unknown = { state: 'unknown', error: '', checkedAt: null };
@@ -55,5 +56,13 @@ describe('overview connection loader', () => {
     const conn = await ((await load(event)) as { conn: Promise<{ signals: { sub: string } }> }).conn;
     expect(subCalls).toEqual([undefined, { verify: true, repair: true }]);
     expect(conn.signals.sub).toBe('pending');
+  });
+
+  test('a board verified in the last 30 s reuses that verify instead of calling again', async () => {
+    subReplies = [unknown, { state: 'pending', error: '', checkedAt: null }, unknown];
+    const first = await ((await load(boardEvent('2002'))) as { conn: Promise<{ signals: { sub: string } }> }).conn;
+    const second = await ((await load(boardEvent('2002'))) as { conn: Promise<{ signals: { sub: string } }> }).conn;
+    expect(subCalls).toEqual([undefined, { verify: true, repair: true }, undefined]);
+    expect([first.signals.sub, second.signals.sub]).toEqual(['pending', 'pending']);
   });
 });
