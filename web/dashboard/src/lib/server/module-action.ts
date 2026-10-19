@@ -24,7 +24,7 @@ export type ModuleActionOpts = {
   auditAs?: string;
 };
 
-type ActionEvent = { request: Request; locals: App.Locals };
+type ActionEvent = { request: Request; locals: App.Locals; route?: { id: string | null }; url?: URL };
 
 export function moduleAction(
   modId: string,

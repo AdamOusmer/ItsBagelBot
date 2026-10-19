@@ -23,6 +23,9 @@ import { logger } from '@bagel/kit/server/logger';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { purgeEdgeByTag } from '$lib/server/edge-purge';
+import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
+
+setAnalyticsApp('dashboard');
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 export const init: ServerInit = async () => {
@@ -149,6 +152,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.locale = locale;
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
+  countView(event);
 
   const rum = rumTransform();
   let langPatched = false;

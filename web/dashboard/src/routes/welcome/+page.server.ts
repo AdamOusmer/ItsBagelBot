@@ -6,6 +6,7 @@ import { env } from '$env/dynamic/private';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import { setOnboarded } from '$lib/server/services';
 import { applyFeaturePreset } from '$lib/server/feature-presets';
+import { count } from '@bagel/kit/server/analytics';
 import { SERVER_STRATEGIES } from '$lib/server/importer';
 import { actionError } from '$lib/server/action-errors';
 import type { Session } from '$lib/server/session';
@@ -77,6 +78,7 @@ export const actions: Actions = {
       await setOnboarded(uid, true);
     });
     if (failed) return failed;
+    count('onboarding.preset', preset);
     throw redirect(303, '/');
   },
   finishImport: async ({ locals, request }) => {
@@ -86,6 +88,9 @@ export const actions: Actions = {
     const who = owner(locals);
     if ('failure' in who) return who.failure;
     const { uid } = who;
-    return (await markOnboarded(() => setOnboarded(uid, true))) ?? { ok: true };
+    const failed = await markOnboarded(() => setOnboarded(uid, true));
+    if (failed) return failed;
+    count('onboarding.preset', 'import');
+    return { ok: true };
   }
 };

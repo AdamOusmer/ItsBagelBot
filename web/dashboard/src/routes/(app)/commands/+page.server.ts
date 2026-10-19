@@ -29,6 +29,7 @@ import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetc
 import { auditDashboardImpersonation, userCommandsPage } from '$lib/server/services';
 import { commandsHref } from '@bagel/kit/site-links';
 import { logger } from '@bagel/kit/server/logger';
+import { count } from '@bagel/kit/server/analytics';
 import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
 import { gateSection } from '$lib/server/module-gate';
@@ -256,6 +257,10 @@ function bulkNames(form: FormData): string[] {
   return [...new Set(form.getAll('name').map((n) => normName(String(n))).filter(Boolean))];
 }
 
+function countCreated(isEdit: boolean): void {
+  if (!isEdit) count('custom.commands', 'created');
+}
+
 export const actions: Actions = {
   savefetch: async (event) => {
     const ctx = await actionContext(event);
@@ -313,6 +318,7 @@ export const actions: Actions = {
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, s.isEdit ? 'command:update' : 'command:create', s.cmd.name);
+    countCreated(s.isEdit);
     return saveResult(s, res.value.commands, res.value.restored);
   },
 
@@ -349,6 +355,7 @@ export const actions: Actions = {
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'command:delete', name);
+    count('custom.commands', 'deleted');
 
     return { ok: true, action: 'deleted', name, commands: res.value.commands };
   },
