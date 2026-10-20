@@ -36,7 +36,8 @@
   import ImportSkipped from '$lib/import/ImportSkipped.svelte';
   import { ImportSession } from '$lib/import/session.svelte';
 
-  const { t, tl } = getI18n();
+  const { t, tl, locale } = getI18n();
+  const importText = (text: string, params?: Record<string, string | number>) => t(`import.${text}`, params);
 
   const STAGES = [
     'import.stagePick',
@@ -48,7 +49,7 @@
   type Step = 'pick' | 'instructions' | 'review' | 'done';
 
   const session = new ImportSession();
-  session.configure({ t, isConnected: () => sourceConnected });
+  session.configure({ t: importText, isConnected: () => sourceConnected });
   session.source = deepLinkSource();
   session.previewError = deepLinkError();
   // svelte-ignore state_referenced_locally
@@ -66,7 +67,7 @@
     const spec = source ? IMPORT_STRATEGIES[source].input : null;
     if (!e || spec?.kind !== 'oauth') return '';
     const key = spec.errorParams[e];
-    return key ? t(key) : '';
+    return key ? importText(key) : '';
   }
 
   const source = $derived(session.source);
@@ -93,7 +94,7 @@
       return {
         value: id,
         label: s.label,
-        description: t(s.i18n.desc),
+        description: importText(s.i18n.desc),
         meta: s.available ? t('import.tileCta') : undefined,
         disabled: !s.available
       };
@@ -173,7 +174,7 @@
 
   const instrSteps = $derived.by(() => {
     const key = strategy?.i18n.instr;
-    return key ? tl(key) : [];
+    return key ? tl(`import.${key}`) : [];
   });
 
   function pickFile(f: File | null | undefined) {
@@ -239,7 +240,7 @@
       {#if spec.kind === 'text'}
         {#if spec.linkHref && spec.linkLabel}
           <div class="instr-link">
-            <Text size="sm"><TextLink variant="inline" href={spec.linkHref} external>{t(spec.linkLabel)}</TextLink></Text>
+            <Text size="sm"><TextLink variant="inline" href={spec.linkHref} external>{importText(spec.linkLabel)}</TextLink></Text>
           </div>
         {/if}
         <div class="cred">
@@ -253,7 +254,7 @@
               spellcheck="false"
               autocomplete="off"
               autocapitalize="off"
-              aria-label={t(spec.i18n.field)}
+              aria-label={importText(spec.i18n.field)}
             />
           {:else}
             <Input
@@ -265,23 +266,23 @@
               spellcheck="false"
               autocomplete="off"
               autocapitalize="off"
-              aria-label={t(spec.i18n.field)}
+              aria-label={importText(spec.i18n.field)}
             />
           {/if}
           {#if spec.i18n.hint}
-            <div class="hint"><Text size="sm" tone="muted">{@html t(spec.i18n.hint)}</Text></div>
+            <div class="hint"><Text size="sm" tone="muted">{@html importText(spec.i18n.hint)}</Text></div>
           {/if}
         </div>
       {:else if spec.kind === 'oauth'}
         <div class="cred">
           {#if sourceConnected}
-            <Tag tone="live" mark="solid" role="status">{t(spec.i18n.connected)}</Tag>
+            <Tag tone="live" mark="solid" role="status">{importText(spec.i18n.connected)}</Tag>
           {:else}
             <ButtonLink href={spec.connectPath} variant="primary">
-              {t(spec.i18n.cta)}
+              {importText(spec.i18n.cta)}
             </ButtonLink>
           {/if}
-          <div class="hint"><Text size="sm" tone="muted">{t(spec.i18n.scopeHint)}</Text></div>
+          <div class="hint"><Text size="sm" tone="muted">{importText(spec.i18n.scopeHint)}</Text></div>
         </div>
       {:else}
         <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onFileChange={pickFile} />
@@ -392,7 +393,7 @@
                 <div class="row-body">
                   <Text as="span" size="sm" tone="muted" truncate>{tm.message}</Text>
                   <span class="chips">
-                    <ImportTimerChips timer={tm} {t} />
+                    <ImportTimerChips timer={tm} {locale} />
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -490,13 +491,13 @@
             })}
           </Text>
         </div>
-        <ImportSkipped skipped={commitResult.skipped} {t} />
+        <ImportSkipped skipped={commitResult.skipped} {locale} />
         <ImportFailed
           failed={commitResult.failed}
           retryCount={session.retryCount}
           submitting={session.submitting}
           onRetry={() => session.runRetry()}
-          {t}
+          {locale}
         />
         {#if commitError}<ImportAlert message={commitError} />{/if}
         {#if session.appliedTiles.length}

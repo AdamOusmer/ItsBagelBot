@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -28,14 +29,19 @@ const (
 	raffleLastPrefix     = "raffle:last:"
 	raffleRemindPrefix   = "raffle:remind:"
 	raffleRClaimPrefix   = "raffle:rclaim:"
+	raffleNamesPrefix    = "raffle:names:"
+	raffleDueKey         = "raffle:due"
 )
 
 const (
-	raffleClaimTTL    = 5 * time.Second
-	raffleDrawLockTTL = 10 * time.Second
-	raffleStateTTL    = 12 * time.Hour
-	raffleReceiptTTL  = 24 * time.Hour
-	raffleClaimWindow = 15 * time.Minute
+	raffleClaimTTL      = 5 * time.Second
+	raffleDrawLockTTL   = 10 * time.Second
+	raffleStateTTL      = 12 * time.Hour
+	raffleReceiptTTL    = 24 * time.Hour
+	raffleClaimWindow   = 15 * time.Minute
+	raffleSweepInterval = 30 * time.Second
+	raffleSweepGrace    = 5 * time.Second
+	raffleSweepBatch    = 100
 )
 
 const (
@@ -52,14 +58,17 @@ type RaffleState struct {
 	OpenedAt      int64  `json:"opened_at"`
 	Winners       int64  `json:"winners"`
 	RemindSeconds int64  `json:"remind_s"`
+	Prize         int64  `json:"prize,omitempty"`
 }
 
 type RaffleResult struct {
-	Winners  []string `json:"winners"`
-	Entrants int64    `json:"entrants"`
-	Digest   string   `json:"digest"`
-	DrawnAt  int64    `json:"drawn_at"`
-	Claims   []string `json:"-"`
+	Winners  []RaffleWinner `json:"winners"`
+	Entrants int64          `json:"entrants"`
+	Prize    int64          `json:"prize,omitempty"`
+	Payout   RafflePayout   `json:"payout,omitempty"`
+	Digest   string         `json:"digest"`
+	DrawnAt  int64          `json:"drawn_at"`
+	Claims   []string       `json:"-"`
 }
 
 type RaffleOpenSpec struct {
@@ -67,6 +76,7 @@ type RaffleOpenSpec struct {
 	Winners  int64
 	Duration time.Duration
 	Remind   time.Duration
+	Prize    int64
 }
 
 type RaffleEntry struct {
@@ -83,18 +93,19 @@ type RaffleStatus struct {
 
 type RaffleStore interface {
 	Open(ctx context.Context, broadcasterID uint64, spec RaffleOpenSpec) (ok bool, err error)
-	Join(ctx context.Context, broadcasterID uint64, userID string) (RaffleEntry, error)
+	Join(ctx context.Context, broadcasterID uint64, entrant RaffleEntrant) (RaffleEntry, error)
 	Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error)
 	Draw(ctx context.Context, broadcasterID uint64, winners int64) (*RaffleResult, error)
 	Cancel(ctx context.Context, broadcasterID uint64) (ok bool, err error)
 	LastResult(ctx context.Context, broadcasterID uint64) (*RaffleResult, bool, error)
-	Claim(ctx context.Context, broadcasterID uint64, userID string) (RaffleClaim, error)
+	Claim(ctx context.Context, broadcasterID uint64, viewerID string) (RaffleClaim, error)
 	StartExpiryWatcher(ctx context.Context)
 }
 
 type RaffleConfig struct {
 	AnnouncementConfig
 	Expiry *ExpiryHub
+	Wallet RaffleWallet
 }
 
 type ValkeyRaffleStore struct {
@@ -124,11 +135,21 @@ func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint6
 	return got == "OK", nil
 }
 
-func (s *ValkeyRaffleStore) installState(ctx context.Context, broadcasterID uint64, state []byte, remindSecs int64) error {
+type raffleInstall struct {
+	state      []byte
+	remindSecs int64
+	dueAt      time.Time
+}
+
+func (s *ValkeyRaffleStore) installState(ctx context.Context, broadcasterID uint64, in raffleInstall) error {
+	state, remindSecs, dueAt := in.state, in.remindSecs, in.dueAt
 	batch := []valkey.Completed{
 		s.client.B().Set().Key(raffleKey(raffleStatePrefix, broadcasterID)).
 			Value(string(state)).ExSeconds(int64(raffleStateTTL.Seconds())).Build(),
-		s.client.B().Del().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
+		s.client.B().Del().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).
+			Key(raffleKey(raffleNamesPrefix, broadcasterID)).Build(),
+		s.client.B().Zadd().Key(raffleDueKey).ScoreMember().
+			ScoreMember(float64(dueAt.UnixMilli()), strconv.FormatUint(broadcasterID, 10)).Build(),
 	}
 	if remindSecs > 0 {
 		batch = append(batch,
@@ -153,51 +174,56 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec
 		return false, err
 	}
 
+	now := time.Now()
 	state, err := codec.Marshal(RaffleState{
-		OpenedBy: spec.OpenedBy, OpenedAt: time.Now().UnixMilli(),
-		Winners: spec.Winners, RemindSeconds: remindSecs,
+		OpenedBy: spec.OpenedBy, OpenedAt: now.UnixMilli(),
+		Winners: spec.Winners, RemindSeconds: remindSecs, Prize: spec.Prize,
 	})
 	if err != nil {
 		_ = s.client.Do(ctx, s.client.B().Del().
 			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build()).Error()
 		return false, err
 	}
-	if err := s.installState(ctx, broadcasterID, state, remindSecs); err != nil {
+	if err := s.installState(ctx, broadcasterID, raffleInstall{state: state, remindSecs: remindSecs, dueAt: now.Add(spec.Duration)}); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, userID string) (RaffleEntry, error) {
-	key := raffleKey(raffleEntriesPrefix, broadcasterID)
-	seconds := int64(raffleStateTTL.Seconds())
-	resps := s.client.DoMulti(ctx,
-		s.client.B().Exists().Key(raffleKey(raffleStatePrefix, broadcasterID)).Build(),
-		s.client.B().Zadd().Key(key).Nx().ScoreMember().ScoreMember(float64(time.Now().UnixMilli()), userID).Build(),
-		s.client.B().Zcard().Key(key).Build(),
-		s.client.B().Expire().Key(key).Seconds(seconds).Build(),
-		s.client.B().Expire().Key(raffleKey(raffleStatePrefix, broadcasterID)).Seconds(seconds).Build(),
-	)
-	entry := RaffleEntry{}
-	exists, err := resps[0].AsInt64()
+// The deadline check matters: once it expires the pool is about to be snapshotted.
+var joinScript = valkey.NewLuaScript(`
+if redis.call('EXISTS', KEYS[1]) == 0 or redis.call('EXISTS', KEYS[2]) == 0 then
+  return {0, 0, redis.call('ZCARD', KEYS[3])}
+end
+local added = redis.call('ZADD', KEYS[3], 'NX', ARGV[1], ARGV[2])
+redis.call('HSET', KEYS[4], ARGV[2], ARGV[3])
+redis.call('EXPIRE', KEYS[3], ARGV[4])
+redis.call('EXPIRE', KEYS[4], ARGV[4])
+redis.call('EXPIRE', KEYS[1], ARGV[4])
+return {1, added, redis.call('ZCARD', KEYS[3])}
+`)
+
+func (s *ValkeyRaffleStore) Join(ctx context.Context, broadcasterID uint64, entrant RaffleEntrant) (RaffleEntry, error) {
+	if entrant.ID == "" {
+		return RaffleEntry{}, nil
+	}
+	reply, err := joinScript.Exec(ctx, s.client,
+		[]string{
+			raffleKey(raffleStatePrefix, broadcasterID), raffleKey(raffleDeadlinePrefix, broadcasterID),
+			raffleKey(raffleEntriesPrefix, broadcasterID), raffleKey(raffleNamesPrefix, broadcasterID),
+		},
+		[]string{
+			strconv.FormatInt(time.Now().UnixMilli(), 10), entrant.ID, entrant.Login,
+			strconv.FormatInt(int64(raffleStateTTL.Seconds()), 10),
+		},
+	).AsIntSlice()
 	if err != nil {
-		return entry, err
+		return RaffleEntry{}, err
 	}
-	entry.Entrants, err = resps[2].AsInt64()
-	if err != nil {
-		return entry, err
+	if len(reply) != 3 {
+		return RaffleEntry{}, fmt.Errorf("raffle: join script returned %d values", len(reply))
 	}
-	if exists == 0 {
-		return entry, nil
-	}
-	added, err := resps[1].AsInt64()
-	if err != nil {
-		entry.Open = true
-		return entry, err
-	}
-	entry.Open = true
-	entry.Joined = added > 0
-	return entry, nil
+	return RaffleEntry{Open: reply[0] == 1, Joined: reply[1] > 0, Entrants: reply[2]}, nil
 }
 
 func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (RaffleStatus, error) {
@@ -222,15 +248,24 @@ func (s *ValkeyRaffleStore) Status(ctx context.Context, broadcasterID uint64) (R
 }
 
 func (s *ValkeyRaffleStore) Cancel(ctx context.Context, broadcasterID uint64) (bool, error) {
-	n, err := s.client.Do(ctx, s.client.B().Del().
-		Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
-		Key(raffleKey(raffleStatePrefix, broadcasterID)).
-		Key(raffleKey(raffleRemindPrefix, broadcasterID)).
-		Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build()).AsInt64()
+	resps := s.client.DoMulti(ctx,
+		s.client.B().Del().
+			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
+			Key(raffleKey(raffleStatePrefix, broadcasterID)).
+			Key(raffleKey(raffleRemindPrefix, broadcasterID)).
+			Key(raffleKey(raffleEntriesPrefix, broadcasterID)).
+			Key(raffleKey(raffleNamesPrefix, broadcasterID)).Build(),
+		s.forgetDueCmd(broadcasterID),
+	)
+	n, err := resps[0].AsInt64()
 	if err != nil {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+func (s *ValkeyRaffleStore) forgetDueCmd(broadcasterID uint64) valkey.Completed {
+	return s.client.B().Zrem().Key(raffleDueKey).Member(strconv.FormatUint(broadcasterID, 10)).Build()
 }
 
 func (s *ValkeyRaffleStore) LastResult(ctx context.Context, broadcasterID uint64) (*RaffleResult, bool, error) {
@@ -266,34 +301,59 @@ func (s *ValkeyRaffleStore) holdDraw(ctx context.Context, broadcasterID uint64) 
 }
 
 type drawRead struct {
+	State   RaffleState
 	Count   int64
 	Members []string
+	Names   map[string]string
 }
 
 func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uint64, override int64) (*drawRead, error) {
-	read := &drawRead{Count: override}
-	if override <= 0 {
-		v, err := s.client.Do(ctx, s.client.B().Get().
-			Key(raffleKey(raffleStatePrefix, broadcasterID)).Build()).ToString()
-		if valkey.IsValkeyNil(err) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		st := RaffleState{}
-		if codec.UnmarshalFromString(v, &st) != nil {
-			return read, nil
-		}
-		read.Count = st.Winners
+	resps := s.client.DoMulti(ctx,
+		s.client.B().Get().Key(raffleKey(raffleStatePrefix, broadcasterID)).Build(),
+		s.client.B().Zrange().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Min("0").Max("-1").Build(),
+		s.client.B().Hgetall().Key(raffleKey(raffleNamesPrefix, broadcasterID)).Build(),
+	)
+	v, err := resps[0].ToString()
+	if valkey.IsValkeyNil(err) {
+		return nil, nil
 	}
-	members, err := s.client.Do(ctx, s.client.B().Zrange().
-		Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Min("0").Max("-1").Build()).AsStrSlice()
 	if err != nil {
 		return nil, err
 	}
-	read.Members = members
+	read := &drawRead{}
+	_ = codec.UnmarshalFromString(v, &read.State)
+	read.Count = read.State.Winners
+	if override > 0 {
+		read.Count = override
+	}
+	if read.Members, err = resps[1].AsStrSlice(); err != nil {
+		return nil, err
+	}
+	read.Names, _ = resps[2].AsStrMap()
 	return read, nil
+}
+
+func (r *drawRead) result(drawnAt int64) *RaffleResult {
+	picked := pickWinners(r.Members, max(r.Count, raffleDefaultWinners))
+	shares := splitPrize(r.State.Prize, len(picked))
+	winners := make([]RaffleWinner, len(picked))
+	for i, id := range picked {
+		winners[i] = RaffleWinner{ID: id, Login: r.loginOf(id), Points: shares[i]}
+	}
+	return &RaffleResult{
+		Winners:  winners,
+		Entrants: int64(len(r.Members)),
+		Prize:    r.State.Prize,
+		Digest:   DigestPool(r.Members),
+		DrawnAt:  drawnAt,
+	}
+}
+
+func (r *drawRead) loginOf(id string) string {
+	if login := r.Names[id]; login != "" {
+		return login
+	}
+	return id
 }
 
 func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID uint64, res *RaffleResult) {
@@ -306,7 +366,9 @@ func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID ui
 		s.client.B().Expire().Key(snapKey).Seconds(ttl).Build(),
 		s.client.B().Del().Key(raffleKey(raffleStatePrefix, broadcasterID)).
 			Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
-			Key(raffleKey(raffleRemindPrefix, broadcasterID)).Build(),
+			Key(raffleKey(raffleRemindPrefix, broadcasterID)).
+			Key(raffleKey(raffleNamesPrefix, broadcasterID)).Build(),
+		s.forgetDueCmd(broadcasterID),
 		s.client.B().Hset().Key(receipt).FieldValue().FieldValue("result", marshalJSON(res)).Build(),
 		s.client.B().Expire().Key(receipt).Seconds(ttl).Build(),
 	) {
@@ -317,6 +379,7 @@ func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID ui
 	}
 }
 
+// Teardown must precede payout so no second draw can pay the same pool.
 func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winners int64) (*RaffleResult, error) {
 	if !s.holdDraw(ctx, broadcasterID) {
 		return nil, nil
@@ -327,19 +390,56 @@ func (s *ValkeyRaffleStore) Draw(ctx context.Context, broadcasterID uint64, winn
 		return nil, err
 	}
 
-	now := time.Now().UnixMilli()
-	res := &RaffleResult{
-		Winners:  pickWinners(read.Members, read.Count),
-		Entrants: int64(len(read.Members)),
-		Digest:   DigestPool(read.Members),
-		DrawnAt:  now,
-	}
+	res := read.result(time.Now().UnixMilli())
 	s.writeDrawPhase(ctx, broadcasterID, res)
+	s.payWinners(ctx, broadcasterID, res)
+	s.recordPayout(ctx, broadcasterID, res)
 	return res, nil
 }
 
+func (s *ValkeyRaffleStore) recordPayout(ctx context.Context, broadcasterID uint64, res *RaffleResult) {
+	if res.Payout == RafflePayoutNone {
+		return
+	}
+	err := s.client.Do(ctx, s.client.B().Hset().Key(raffleKey(raffleLastPrefix, broadcasterID)).
+		FieldValue().FieldValue("result", marshalJSON(res)).Build()).Error()
+	if err != nil {
+		s.log.Warn("raffle: payout receipt not recorded", module.BIDField(broadcasterID), zap.Error(err))
+	}
+}
+
+// Expiry events are lost while no replica is subscribed; the due sweep still draws and pays those raffles.
 func (s *ValkeyRaffleStore) StartExpiryWatcher(ctx context.Context) {
+	go s.sweepOverdue(ctx)
 	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, raffleDeadlinePrefix, raffleRemindPrefix)
+}
+
+func (s *ValkeyRaffleStore) sweepOverdue(ctx context.Context) {
+	ticker := time.NewTicker(raffleSweepInterval)
+	defer ticker.Stop()
+	for {
+		s.drawOverdue(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *ValkeyRaffleStore) drawOverdue(ctx context.Context) {
+	cutoff := time.Now().Add(-raffleSweepGrace).UnixMilli()
+	ids, err := s.client.Do(ctx, s.client.B().Zrangebyscore().Key(raffleDueKey).
+		Min("-inf").Max(strconv.FormatInt(cutoff, 10)).Limit(0, raffleSweepBatch).Build()).AsStrSlice()
+	if err != nil {
+		if ctx.Err() == nil {
+			s.log.Warn("raffle: overdue sweep failed", zap.Error(err))
+		}
+		return
+	}
+	for _, idStr := range ids {
+		s.onExpired(ctx, raffleDeadlinePrefix+idStr)
+	}
 }
 
 func (s *ValkeyRaffleStore) onExpired(ctx context.Context, key string) {

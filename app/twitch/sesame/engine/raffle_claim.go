@@ -34,7 +34,7 @@ local ok, res = pcall(cjson.decode, r)
 if not ok then return 1 end
 local found = false
 for _, w in ipairs(res.winners or {}) do
-  if w == ARGV[1] then found = true end
+  if type(w) == 'table' and w.id == ARGV[1] then found = true end
 end
 if not found then return 1 end
 local claims = {}
@@ -54,13 +54,13 @@ redis.call('HSET', KEYS[1], 'claims', cjson.encode(claims))
 return 4
 `)
 
-func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, userID string) (RaffleClaim, error) {
-	if userID == "" {
+func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, viewerID string) (RaffleClaim, error) {
+	if viewerID == "" {
 		return ClaimNone, nil
 	}
 	code, err := claimScript.Exec(ctx, s.client,
 		[]string{raffleKey(raffleLastPrefix, broadcasterID)},
-		[]string{userID,
+		[]string{viewerID,
 			strconv.FormatInt(int64(raffleClaimWindow.Seconds()), 10),
 			strconv.FormatInt(time.Now().UnixMilli(), 10)},
 	).AsInt64()

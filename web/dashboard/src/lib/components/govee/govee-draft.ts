@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { moduleDef, namespaceReplyTemplate, type GoveeBinding, type GoveeDevice } from '@bagel/kit';
+import { namespaceReplyTemplate, type GoveeBinding, type GoveeDevice } from '@bagel/kit';
+import { GOVEE_MODULE } from '@bagel/kit/catalog/govee';
 
 export interface GoveeDraft {
   title: string;
@@ -17,7 +18,7 @@ export interface GoveeDraft {
 const COST_MAX = 10_000_000;
 export const GOVEE_COOLDOWN_MAX = 604_800;
 
-const reply = moduleDef('govee')!.replies.find((r) => r.key === 'reply')!;
+const reply = GOVEE_MODULE.replies.find((r) => r.key === 'reply')!;
 
 export function namespaceGoveeReply(message: string): string {
   return namespaceReplyTemplate('govee', reply, message);
@@ -58,14 +59,20 @@ export function goveeDraftFor(
 export type GoveeErrorField = 'title' | 'cost' | 'cooldown';
 export type GoveeErrors = Partial<Record<GoveeErrorField, string>>;
 
+export const GOVEE_ERROR_KEYS: Readonly<Record<GoveeErrorField, string>> = Object.freeze({
+  title: 'govee.errTitleRequired',
+  cost: 'govee.errCost',
+  cooldown: 'govee.errCooldown'
+});
+
 const whole = (n: unknown, min: number, max: number) =>
   Number.isInteger(n) && (n as number) >= min && (n as number) <= max;
 
 export function goveeErrors(draft: GoveeDraft): GoveeErrors {
   const errors: GoveeErrors = {};
-  if (!draft.title.trim()) errors.title = 'govee.errTitleRequired';
-  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = 'govee.errCost';
-  if (!whole(draft.cooldown, 0, GOVEE_COOLDOWN_MAX)) errors.cooldown = 'govee.errCooldown';
+  if (!draft.title.trim()) errors.title = GOVEE_ERROR_KEYS.title;
+  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = GOVEE_ERROR_KEYS.cost;
+  if (!whole(draft.cooldown, 0, GOVEE_COOLDOWN_MAX)) errors.cooldown = GOVEE_ERROR_KEYS.cooldown;
   return errors;
 }
 

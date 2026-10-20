@@ -13,7 +13,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { rovingFocus } from '@bagel/ui/svelte/actions';
-  import { pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
+  import { chipHint, pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
   import ModuleVariablePicker from '$lib/components/commands/ModuleVariablePicker.svelte';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
@@ -93,7 +93,8 @@
   }
 
   function rowHint(c: VariableChip): string | undefined {
-    if (c.hintKey) return t(c.hintKey);
+    const hint = chipHint(t, c);
+    if (hint !== undefined) return hint;
     return c.sample ? `${c.token} → ${c.sample}` : undefined;
   }
 

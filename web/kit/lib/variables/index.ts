@@ -5,6 +5,7 @@ export * from './types';
 export * from './variables';
 export * from './preview-values';
 export * from './surfaces';
+export * from './chip-hint';
 export * from './hint-keys';
 import { VARIABLES } from './variables';
 import type { VariableDef } from './types';

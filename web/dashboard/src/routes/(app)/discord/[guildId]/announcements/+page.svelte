@@ -22,7 +22,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createGuildDraft({ data: () => data, fields: ANNOUNCEMENT_FIELDS, t });
+  const draft = createGuildDraft({ data: () => data, fields: ANNOUNCEMENT_FIELDS }, t);
 
   const switches = $derived([
     { field: 'liveEnabled' as const, label: t('discord.announcements.liveLabel'), help: t('discord.announcements.liveHelp'), defaultOn: true },

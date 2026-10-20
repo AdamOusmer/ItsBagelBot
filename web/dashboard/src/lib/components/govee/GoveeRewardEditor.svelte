@@ -12,7 +12,7 @@
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import DurationField from '$lib/components/shared/DurationField.svelte';
-  import { GOVEE_COOLDOWN_MAX, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
+  import { GOVEE_ERROR_KEYS, GOVEE_COOLDOWN_MAX, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
 
   let {
     draft = $bindable<GoveeDraft>(),
@@ -36,7 +36,7 @@
   const replySamples: Record<string, string> = namespaceReplySamples('govee', { user: 'sesame_sam', input: 'blue', color: 'Blue' });
 
   const errors = $derived(goveeErrors(draft));
-  const shown = (field: GoveeErrorField) => (attempted && errors[field] ? t(errors[field]!) : undefined);
+  const shown = (field: GoveeErrorField) => (attempted && errors[field] ? t(GOVEE_ERROR_KEYS[field]) : undefined);
   const titleError = $derived(shown('title'));
   const costError = $derived(shown('cost'));
   const cooldownError = $derived(shown('cooldown'));

@@ -209,8 +209,9 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
-	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry}, w.log))
+func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyRaffleStore {
+	cfg := engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry, Wallet: engine.NewRaffleWallet(loyalty)}
+	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log))
 }
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {

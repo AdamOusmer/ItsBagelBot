@@ -800,6 +800,8 @@
           "targets",
           "count",
           "entrants",
+          "amount",
+          "points",
           "claim"
         ],
         "message_key": "wonMessage"

@@ -11,7 +11,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createGuildDraft({ data: () => data, fields: COMMUNITY_FIELDS, t });
+  const draft = createGuildDraft({ data: () => data, fields: COMMUNITY_FIELDS }, t);
 
   const switches = $derived([
     { field: 'welcomeEnabled' as const, label: t('discord.community.welcomeLabel'), help: t('discord.community.welcomeHelp'), defaultOn: true },

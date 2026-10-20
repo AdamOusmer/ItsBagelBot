@@ -1,12 +1,11 @@
 {
-  "auto_closed": "{raffle:targets}, congratulations! The raffle drew {raffle:count} winner(s) from {raffle:entrants} entries. Winners, type !claim within {raffle:claim} min to confirm!",
-  "auto_empty": "The raffle closed with no entries. Nobody to draw.",
   "cancelled": "The raffle was cancelled. No winner will be drawn.",
   "claim.already": "@{raffle:user} you already claimed your prize.",
   "claim.late": "@{raffle:user} the claim window for that prize has closed.",
   "claim.none": "There is no raffle prize waiting for @{raffle:user} to claim. Winners: type !claim!",
   "claim.ok": "@{raffle:user} your prize is confirmed. Enjoy!",
   "draw.empty": "No one entered the raffle. Nobody to draw.",
+  "err.loyalty_off": "Raffle prizes are paid in loyalty points. Turn Loyalty on, or set the raffle prize to 0 for a raffle without points.",
   "err.usage": "Usage: !raffle <open [minutes] [winners]|draw|cancel|status>. Viewers enter with !join",
   "join.already": "@{raffle:user} you are already in this raffle ({raffle:count} entered).",
   "join.closed": "@{raffle:user} no raffle is running right now.",
@@ -18,8 +17,11 @@
   "last.none": "No raffle has been drawn here yet.",
   "open.already": "A raffle is already running! Type !join to enter it.",
   "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min!",
+  "payout.failed": "Some raffle {raffle:points} could not be paid. A mod can add them with !points add.",
+  "payout.loyalty_off": "Loyalty is off, so this raffle paid no {raffle:points}.",
   "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
   "status.closed": "No raffle is running. Mods can start one with !raffle open <minutes>.",
   "status.open": "Raffle is live with {raffle:count} entered. Drawing in ~{raffle:mins} min! Type !join!",
-  "won": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})! Type !claim within {raffle:claim} min to confirm your prize!"
+  "won": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})! Type !claim within {raffle:claim} min to confirm your prize!",
+  "won.points": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance!"
 }

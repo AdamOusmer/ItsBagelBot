@@ -5,7 +5,7 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
-  import type { VariableChip } from '@bagel/kit/variables';
+  import { chipHint, type VariableChip } from '@bagel/kit/variables';
 
   let { chips }: { chips: readonly VariableChip[] } = $props();
 
@@ -17,7 +17,7 @@
     {#each chips as c (c.token)}
       <li class="row">
         <Chip as="span" tone="muted">{c.token}</Chip>
-        {#if c.hintKey}<span class="row-hint"><Text as="span" size="xs" tone="muted">{t(c.hintKey)}</Text></span>{/if}
+        {#if c.hintKey}<span class="row-hint"><Text as="span" size="xs" tone="muted">{chipHint(t, c)}</Text></span>{/if}
       </li>
     {/each}
   </ul>

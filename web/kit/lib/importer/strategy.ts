@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { MessageKey } from '../i18n/keys';
+import type { KnownMessageKey, MessageKey } from '../i18n/keys';
 import { parseMoobot } from './moobot';
 import type { ImportDiagnostic, ImportManifest, ImportSource } from './types';
 
@@ -10,6 +10,9 @@ export interface ParseResult {
   diagnostics: ImportDiagnostic[];
 }
 
+/** A key below the import namespace, named without its `import.` prefix. */
+export type ImportText = KnownMessageKey extends infer Key ? (Key extends `import.${infer Rest}` ? Rest : never) : never;
+
 export interface TextInputSpec {
   kind: 'text';
   secret: boolean;
@@ -17,8 +20,8 @@ export interface TextInputSpec {
   maxLen: number;
   placeholder: string;
   linkHref?: string;
-  linkLabel?: MessageKey;
-  i18n: { field: MessageKey; hint?: MessageKey; errMissing: MessageKey; errShape: MessageKey };
+  linkLabel?: ImportText;
+  i18n: { field: ImportText; hint?: ImportText; errMissing: ImportText; errShape: ImportText };
 }
 
 export interface FileInputSpec {
@@ -31,20 +34,20 @@ export interface FileInputSpec {
 export interface OAuthInputSpec {
   kind: 'oauth';
   connectPath: string;
-  i18n: { cta: MessageKey; connected: MessageKey; scopeHint: MessageKey; errNotConnected: MessageKey };
-  errorParams: Record<string, MessageKey>;
+  i18n: { cta: ImportText; connected: ImportText; scopeHint: ImportText; errNotConnected: ImportText };
+  errorParams: Record<string, ImportText>;
 }
 
 export type InputSpec = TextInputSpec | FileInputSpec | OAuthInputSpec;
 
 export type ChipKind = 'token' | 'file' | 'connect' | 'handle';
 
-export const CHIP_LABEL_KEYS: Record<ChipKind, MessageKey> = {
+export const CHIP_LABEL_KEYS: Readonly<Record<ChipKind, MessageKey>> = Object.freeze({
   token: 'import.chipToken',
   file: 'import.chipFile',
   connect: 'import.chipConnect',
   handle: 'import.chipHandle'
-};
+});
 
 export interface ImportSourceStrategy {
   id: ImportSource;
@@ -52,7 +55,7 @@ export interface ImportSourceStrategy {
   initials: string;
   chip: ChipKind;
   available: boolean;
-  i18n: { desc: MessageKey; instr?: MessageKey };
+  i18n: { desc: ImportText; instr?: ImportText };
   input: InputSpec;
 }
 
@@ -76,7 +79,7 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'SE',
     chip: 'token',
     available: true,
-    i18n: { desc: 'import.seDesc', instr: 'import.instrSe' },
+    i18n: { desc: 'seDesc', instr: 'instrSe' },
     input: {
       kind: 'text',
       secret: true,
@@ -84,12 +87,12 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
       maxLen: MAX_JWT_LEN,
       placeholder: 'eyJhbGciOi…',
       linkHref: 'https://streamelements.com/dashboard/account/channels',
-      linkLabel: 'import.seLinkLabel',
+      linkLabel: 'seLinkLabel',
       i18n: {
-        field: 'import.jwtFieldAria',
-        hint: 'import.jwtHint',
-        errMissing: 'import.errJwtMissing',
-        errShape: 'import.errJwtMissing'
+        field: 'jwtFieldAria',
+        hint: 'jwtHint',
+        errMissing: 'errJwtMissing',
+        errShape: 'errJwtMissing'
       }
     }
   },
@@ -99,7 +102,7 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'F',
     chip: 'handle',
     available: true,
-    i18n: { desc: 'import.fossabotDesc', instr: 'import.instrFossabot' },
+    i18n: { desc: 'fossabotDesc', instr: 'instrFossabot' },
     input: {
       kind: 'text',
       secret: false,
@@ -107,9 +110,9 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
       maxLen: MAX_HANDLE_LEN,
       placeholder: 'yourchannel',
       i18n: {
-        field: 'import.handleFieldAria',
-        errMissing: 'import.errHandleMissing',
-        errShape: 'import.errHandleShape'
+        field: 'handleFieldAria',
+        errMissing: 'errHandleMissing',
+        errShape: 'errHandleShape'
       }
     }
   },
@@ -119,7 +122,7 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'M',
     chip: 'file',
     available: true,
-    i18n: { desc: 'import.moobotDesc', instr: 'import.instrMoobot' },
+    i18n: { desc: 'moobotDesc', instr: 'instrMoobot' },
     input: {
       kind: 'file',
       accept: '.json,application/json',
@@ -133,17 +136,17 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'NB',
     chip: 'connect',
     available: true,
-    i18n: { desc: 'import.nightbotDesc', instr: 'import.instrNightbot' },
+    i18n: { desc: 'nightbotDesc', instr: 'instrNightbot' },
     input: {
       kind: 'oauth',
       connectPath: '/settings/import/nightbot/connect',
       i18n: {
-        cta: 'import.nbConnectCta',
-        connected: 'import.nbConnected',
-        scopeHint: 'import.nbScopeHint',
-        errNotConnected: 'import.errNbNotConnected'
+        cta: 'nbConnectCta',
+        connected: 'nbConnected',
+        scopeHint: 'nbScopeHint',
+        errNotConnected: 'errNbNotConnected'
       },
-      errorParams: { nb_oauth: 'import.errNbOauth', nb_config: 'import.errNbConfig' }
+      errorParams: { nb_oauth: 'errNbOauth', nb_config: 'errNbConfig' }
     }
   },
   streamlabs_desktop: {
@@ -152,7 +155,7 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'SL',
     chip: 'file',
     available: true,
-    i18n: { desc: 'import.slDesc', instr: 'import.instrSl' },
+    i18n: { desc: 'slDesc', instr: 'instrSl' },
     input: {
       kind: 'file',
       accept: '.db,application/octet-stream',
@@ -165,7 +168,7 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     initials: 'WZ',
     chip: 'handle',
     available: true,
-    i18n: { desc: 'import.wizebotDesc', instr: 'import.instrWizebot' },
+    i18n: { desc: 'wizebotDesc', instr: 'instrWizebot' },
     input: {
       kind: 'text',
       secret: false,
@@ -173,9 +176,9 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
       maxLen: MAX_WIZEBOT_HANDLE_LEN,
       placeholder: 'yourchannel',
       i18n: {
-        field: 'import.handleFieldAria',
-        errMissing: 'import.errHandleMissing',
-        errShape: 'import.errHandleShape'
+        field: 'handleFieldAria',
+        errMissing: 'errHandleMissing',
+        errShape: 'errHandleShape'
       }
     }
   }

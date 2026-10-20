@@ -31,11 +31,11 @@
   import {
     getI18n,
     MasterToggle,
-    moduleDef,
     actionPayload,
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
+  import { QUOTES_MODULE } from '@bagel/kit/catalog/quotes';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
@@ -65,7 +65,7 @@
     }
   });
 
-  const quoteCommands = moduleDef('quotes')?.commands ?? [];
+  const quoteCommands = QUOTES_MODULE.commands ?? [];
 
   const permOptions = [
     { value: 'mod', label: t('quotes.permMod') },
@@ -92,7 +92,7 @@
 
   type QuoteActionOk = ActionOk & { quote?: QuoteView; number?: number };
   type QuoteDraft = { text: string; quoteDate: string };
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   function todayInput(): string {
     const now = new Date();
@@ -179,7 +179,7 @@
       const ok = result.type === 'success' && payload?.ok === true;
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (!ok) {
-        failed(payload, wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed');
+        failed(payload, t(wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed'));
         return;
       }
       toast('success', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
@@ -208,7 +208,7 @@
           return;
         }
         set(savedPerm[kind]);
-        failed(payload, 'quotes.toastPermFailed');
+        failed(payload, t('quotes.toastPermFailed'));
       };
     };
   }
@@ -247,7 +247,7 @@
         await invalidateAll();
         return;
       }
-      failed(payload, 'quotes.toastDeleteFailed');
+      failed(payload, t('quotes.toastDeleteFailed'));
     };
   };
 
