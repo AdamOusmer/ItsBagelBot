@@ -27,7 +27,6 @@
   import {
     MasterToggle,
     getI18n,
-    moduleDef,
     SPOTIFY_SR_PERMS,
     type SpotifySrConfig,
     type SpotifyRedeemConfig,
@@ -41,6 +40,7 @@
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
+  import { SONGQUEUE_MODULE } from '@bagel/kit/catalog/songqueue';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -48,9 +48,10 @@
   import SpotifySetup from '$lib/components/spotify/SpotifySetup.svelte';
   import SpotifyConnectionCard from '$lib/components/spotify/SpotifyConnectionCard.svelte';
   import SpotifyQueueCard from '$lib/components/spotify/SpotifyQueueCard.svelte';
-  import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadSpotifyRewardEditor = () => import('$lib/components/spotify/SpotifyRewardEditor.svelte');
   import {
     spotifyDraftFor,
     spotifyErrors,
@@ -64,7 +65,7 @@
   const { t } = getI18n();
   const failed = toastFailure(toast, t);
 
-  const songCommands = moduleDef('songqueue')?.commands ?? [];
+  const songCommands = SONGQUEUE_MODULE.commands ?? [];
 
   type QuotaDraft = Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string>;
   const quotaStrings = (q: SpotifyQuotas): QuotaDraft =>
@@ -424,7 +425,7 @@
     onRemoveApp={() => (connectionAction = 'clearApp')}
   />
 {:else}
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadSpotifyRewardEditor]}>
   {@render head()}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
@@ -604,13 +605,15 @@
               bind:this={formEl}
             >
               <Scroller fill padding="16px" smooth>
-                <SpotifyRewardEditor
-                  bind:draft
-                  canDelete={!isNew}
-                  {busy}
-                  attempted={validationAttempted}
-                  onRequestDelete={() => (deletePending = true)}
-                />
+                {#await loadSpotifyRewardEditor() then { default: SpotifyRewardEditor }}
+                  <SpotifyRewardEditor
+                    bind:draft
+                    canDelete={!isNew}
+                    {busy}
+                    attempted={validationAttempted}
+                    onRequestDelete={() => (deletePending = true)}
+                  />
+                {/await}
               </Scroller>
               <EditorFooter
                 status={inspector.status}

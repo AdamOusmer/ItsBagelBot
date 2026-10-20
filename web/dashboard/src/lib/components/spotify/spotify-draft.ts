@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { moduleDef, namespaceReplyTemplate, type SpotifyRedeemConfig } from '@bagel/kit';
+import { namespaceReplyTemplate, type SpotifyRedeemConfig } from '@bagel/kit';
+import { SONGQUEUE_MODULE } from '@bagel/kit/catalog/songqueue';
 
 export interface SpotifyRewardDraft {
   title: string;
@@ -15,7 +16,7 @@ export interface SpotifyRewardDraft {
 const COST_MAX = 10_000_000;
 export const SPOTIFY_COOLDOWN_MAX = 604_800;
 
-const reply = moduleDef('songqueue')!.replies.find((r) => r.key === 'redeem')!;
+const reply = SONGQUEUE_MODULE.replies.find((r) => r.key === 'redeem')!;
 
 export function namespaceSpotifyReply(message: string): string {
   return namespaceReplyTemplate('songqueue', reply, message);
