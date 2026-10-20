@@ -4,7 +4,8 @@
   import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, tick, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
-  import { invalidateAll, replaceState } from '$app/navigation';
+  import { invalidate, replaceState } from '$app/navigation';
+  import { expectEcho } from '$lib/local-write';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
@@ -36,7 +37,6 @@
     validateCommand,
     persistCommandActive,
     overlayLiveActive,
-    commandContentSnapshot,
     usesCount,
     PERMS,
     COMMAND_NAME_MAX,
@@ -47,7 +47,6 @@
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
-  import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
   import BulkBar from '$lib/components/commands/BulkBar.svelte';
   import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
@@ -56,17 +55,19 @@
   import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
   import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
   import type { Starter } from '$lib/components/commands/starters';
-  import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
+  import { loadDraft, clearDraft, draftedNames, draftsMatch, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadCommandEditor = () => import('$lib/components/commands/CommandEditor.svelte');
+  const loadBuiltinInspector = () => import('$lib/components/commands/BuiltinInspector.svelte');
+  const loadChatPreview = () => import('$lib/components/commands/ChatPreview.svelte');
 
   let { data } = $props();
 
   const { t, locale } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   // svelte-ignore state_referenced_locally
-  let items = $state<CommandView[]>(data.commands ?? []);
+  let items = $state.raw<CommandView[]>(data.commands ?? []);
 
   // svelte-ignore state_referenced_locally
   let seed = data.commands;
@@ -130,7 +131,7 @@
   const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
 
   function clearTimers(name: string) {
-    for (const t of statusTimers.get(name) ?? []) clearTimeout(t);
+    for (const timer of statusTimers.get(name) ?? []) clearTimeout(timer);
     statusTimers.delete(name);
   }
 
@@ -280,11 +281,7 @@
     return blankDraft();
   });
   const isDirty = $derived(
-    !!editorDraft && !editorDraft.builtin && committedDraft !== null
-      ? editorDraft.edit
-        ? commandContentSnapshot(editorDraft) !== commandContentSnapshot(committedDraft)
-        : JSON.stringify(editorDraft) !== JSON.stringify(committedDraft)
-      : false
+    !!editorDraft && !editorDraft.builtin && committedDraft !== null && !draftsMatch(editorDraft, committedDraft, editorDraft.edit)
   );
 
   const discard = createDiscardGuard(
@@ -468,7 +465,7 @@
     editorDraft = d;
     expanded = NEW;
     editorGen++;
-    if (!serverErrors) failed(payload, 'commands.toastSaveFailed');
+    if (!serverErrors) failed(payload, t('commands.toastSaveFailed'));
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -481,12 +478,13 @@
     discard.guard(doCloseEditor);
   }
 
-  const rowHasDraft = (name: string) => {
+  const draftedRows = $derived.by(() => {
     void draftVersion;
-    return hasDraft({ board: data.board, name, edit: true });
-  };
+    return draftedNames(data.board);
+  });
 
   const saveSubmit: SubmitFunction = ({ formData }) => {
+    expectEcho(data.board);
     const d = editorDraft;
     if (!d) return;
     const key = normName(d.name);
@@ -554,7 +552,7 @@
     const errs = saveFailureErrors(payload, t);
     if (stillOpen) serverErrors = errs;
     if (errs && stillOpen) return;
-    failed(payload, isUnavailable(payload) ? 'commands.errUnavailable' : 'commands.toastSaveFailed');
+    failed(payload, t(isUnavailable(payload) ? 'commands.errUnavailable' : 'commands.toastSaveFailed'));
   }
 
   function linger(names: string[]) {
@@ -634,6 +632,7 @@
     };
 
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
+    expectEcho(data.board);
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => {
         const result = deserialize(await res.text());
@@ -852,7 +851,7 @@
   }
 </script>
 
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadCommandEditor, loadBuiltinInspector, loadChatPreview]}>
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
     {#snippet trailing()}
@@ -937,7 +936,7 @@
                   index={i + 1}
                   {usesMax}
                   status={rowStatus[c.name] ?? 'idle'}
-                  unsaved={rowHasDraft(c.name) && expanded !== c.name}
+                  unsaved={draftedRows.has(c.name) && expanded !== c.name}
                   expanded={!selecting && expanded === c.name}
                   {selecting}
                   checked={selected.has(c.name)}
@@ -990,35 +989,39 @@
           {@const def = builtinDef(selectedCmd.name)}
           {#if def}
             <Scroller fill padding="16px" smooth>
-              <BuiltinInspector
-                command={selectedCmd}
-                {def}
-                toggleSubmit={toggleSubmit(selectedCmd)}
-                replySubmit={replySubmit(selectedCmd)}
-                accessSubmit={accessSubmit(selectedCmd)}
-                {busy}
-              />
+              {#await loadBuiltinInspector() then { default: BuiltinInspector }}
+                <BuiltinInspector
+                  command={selectedCmd}
+                  {def}
+                  toggleSubmit={toggleSubmit(selectedCmd)}
+                  replySubmit={replySubmit(selectedCmd)}
+                  accessSubmit={accessSubmit(selectedCmd)}
+                  {busy}
+                />
+              {/await}
             </Scroller>
           {/if}
         {:else}
           {#key expanded + '#' + editorGen}
-            <CommandEditor
-              bind:draft={editorDraft}
-              board={data.board}
-              {serverErrors}
-              status={footerStatus()}
-              dirty={isDirty}
-              canSave={editorDraft.edit ? isDirty : true}
-              {fetchDefs}
-              fetchKeys={data.keys ?? []}
-              onFetchDefsChanged={(next) => (fetchDefs = next)}
-              onCancel={closeEditor}
-              onSubmit={saveSubmit}
-              liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
-              onToggleActive={setSelectedActive}
-              {customNames}
-              onOpenExisting={openExisting}
-            />
+            {#await loadCommandEditor() then { default: CommandEditor }}
+              <CommandEditor
+                bind:draft={editorDraft}
+                board={data.board}
+                {serverErrors}
+                status={footerStatus()}
+                dirty={isDirty}
+                canSave={editorDraft.edit ? isDirty : true}
+                {fetchDefs}
+                fetchKeys={data.keys ?? []}
+                onFetchDefsChanged={(next) => (fetchDefs = next)}
+                onCancel={closeEditor}
+                onSubmit={saveSubmit}
+                liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
+                onToggleActive={setSelectedActive}
+                {customNames}
+                onOpenExisting={openExisting}
+              />
+            {/await}
           {/key}
         {/if}
       </InspectorSurface>
@@ -1044,7 +1047,9 @@
         <Text as="span" size="xs" mono tone="muted">{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</Text>
       {/if}
     </div>
-    <ChatPreview name={composeDraft.name} response={composeDraft.response} />
+    {#await loadChatPreview() then { default: ChatPreview }}
+      <ChatPreview name={composeDraft.name} response={composeDraft.response} />
+    {/await}
   {/if}
 </ConfirmDialog>
 
@@ -1072,7 +1077,7 @@
 
 <svelte:window onkeydown={onKey} />
 <svelte:document onvisibilitychange={() => {
-  if (document.visibilityState === 'visible') void invalidateAll();
+  if (data.delegateOf && document.visibilityState === 'visible') void invalidate('app:commands');
 }} />
 
 <style>

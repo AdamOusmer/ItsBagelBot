@@ -29,11 +29,11 @@ import {
 } from './helpers';
 import { postImportAction, type ActionOutcome } from './request';
 
-export type Translate = (key: string, params?: Record<string, string | number>) => string;
+export type ImportTranslate = (text: string, params?: Record<string, string | number>) => string;
 export type RunResult = 'ok' | 'failed' | 'cancelled' | 'idle';
 
 export interface ImportSessionEnv {
-  t: Translate;
+  t: ImportTranslate;
   isConnected: () => boolean;
   onPosting?: () => void;
 }
@@ -49,7 +49,7 @@ export interface ImportSnapshot {
   selected: Selection;
 }
 
-const identity: Translate = (key) => key;
+const identity: ImportTranslate = (text) => text;
 
 export class ImportSession {
   source = $state<ImportSource | ''>('');
@@ -71,7 +71,7 @@ export class ImportSession {
     this.env = env;
   }
 
-  private t: Translate = (key, params) => this.env.t(key, params);
+  private t: ImportTranslate = (text, params) => this.env.t(text, params);
 
   diagsFor = (kind: RowKind, i: number) => itemDiags(this.previewResult?.diagnostics, kind, i);
   isPicked = (kind: RowKind, i: number) => isChecked(this.selected, kind, i);
@@ -89,23 +89,23 @@ export class ImportSession {
     const s = this.previewResult?.stats;
     if (!s) return [] as string[];
     const parts: string[] = [];
-    if (s.commands) parts.push(this.t('import.statCommands', { n: s.commands }));
-    if (s.timers) parts.push(this.t('import.statTimers', { n: s.timers }));
-    if (s.triggers) parts.push(this.t('import.statTriggers', { n: s.triggers }));
-    if (s.quotes) parts.push(this.t('import.statQuotes', { n: s.quotes }));
+    if (s.commands) parts.push(this.t('statCommands', { n: s.commands }));
+    if (s.timers) parts.push(this.t('statTimers', { n: s.timers }));
+    if (s.triggers) parts.push(this.t('statTriggers', { n: s.triggers }));
+    if (s.quotes) parts.push(this.t('statQuotes', { n: s.quotes }));
     return parts;
   });
-  statsLine = $derived(this.statChips.join(' · ') || this.t('import.statsNone'));
-  selectionLine = $derived(this.t('import.selectionLine', { n: this.rowPicked, total: this.rowTotal }));
+  statsLine = $derived(this.statChips.join(' · ') || this.t('statsNone'));
+  selectionLine = $derived(this.t('selectionLine', { n: this.rowPicked, total: this.rowTotal }));
 
   appliedTiles = $derived.by(() => {
     const a = this.commitResult?.applied;
     if (!a) return [] as { n: number; label: string }[];
     const out: { n: number; label: string }[] = [];
-    if (a.commands) out.push({ n: a.commands, label: this.t('import.hCommands') });
-    if (a.timers) out.push({ n: a.timers, label: this.t('import.hTimers') });
-    if (a.triggers) out.push({ n: a.triggers, label: this.t('import.hTriggers') });
-    if (a.quotes) out.push({ n: a.quotes, label: this.t('import.hQuotes') });
+    if (a.commands) out.push({ n: a.commands, label: this.t('hCommands') });
+    if (a.timers) out.push({ n: a.timers, label: this.t('hTimers') });
+    if (a.triggers) out.push({ n: a.triggers, label: this.t('hTriggers') });
+    if (a.quotes) out.push({ n: a.quotes, label: this.t('hQuotes') });
     return out;
   });
 
@@ -115,12 +115,12 @@ export class ImportSession {
 
   inputDetail(spec: InputSpec | null): string {
     if (spec?.kind === 'text') return this.textInputDetail(spec);
-    return this.uploadFile ? this.uploadFile.name : this.t('import.railFilePending');
+    return this.uploadFile ? this.uploadFile.name : this.t('railFilePending');
   }
 
   private textInputDetail(spec: TextInputSpec): string {
-    if (spec.secret) return this.credential ? this.t('import.railTokenSet') : this.t('import.railTokenPending');
-    return this.credential ? this.t('import.railHandleSet') : this.t('import.railHandlePending');
+    if (spec.secret) return this.credential ? this.t('railTokenSet') : this.t('railTokenPending');
+    return this.credential ? this.t('railHandleSet') : this.t('railHandlePending');
   }
 
   toggle(kind: RowKind, i: number, checked: boolean) {
@@ -163,7 +163,7 @@ export class ImportSession {
     }
     const want = wantedExtension(inputSpec);
     if (want && !f.name.toLowerCase().endsWith(want)) {
-      this.previewError = this.t('import.errWrongType', { want });
+      this.previewError = this.t('errWrongType', { want });
       this.uploadFile = null;
       return 'rejected';
     }
@@ -249,7 +249,7 @@ export class ImportSession {
     this.commitError = '';
     const manifestJson = buildSelectedManifest(this.previewResult, this.selected);
     if (manifestJson === '{}') {
-      this.commitError = this.t('import.errNothingSelected');
+      this.commitError = this.t('errNothingSelected');
       return 'failed';
     }
     this.submitting = true;
@@ -268,7 +268,7 @@ export class ImportSession {
       this.commitResult.failed
     );
     if (manifestJson === '{}') {
-      this.commitError = this.t('import.errNothingSelected');
+      this.commitError = this.t('errNothingSelected');
       return 'failed';
     }
     this.submitting = true;
@@ -292,7 +292,7 @@ export class ImportSession {
       return 'failed';
     }
     this.commitResult = previous ? mergeRetry(previous, commit) : commit;
-    toast('success', this.t(previous ? 'import.toastRetried' : 'import.toastApplied'));
+    toast('success', this.t(previous ? 'toastRetried' : 'toastApplied'));
     return 'ok';
   }
 
@@ -317,9 +317,9 @@ export class ImportSession {
 
   private async prepareFile(spec: FileInputSpec, body: FormData): Promise<PreparedInput> {
     const file = this.uploadFile;
-    if (!file || file.size === 0) return { error: this.t('import.errFileMissing') };
+    if (!file || file.size === 0) return { error: this.t('errFileMissing') };
     if (file.size > spec.maxBytes)
-      return { error: this.t('import.errTooLarge', { limit: Math.round(spec.maxBytes / (1024 * 1024)) }) };
+      return { error: this.t('errTooLarge', { limit: Math.round(spec.maxBytes / (1024 * 1024)) }) };
     if (!spec.parseInBrowser) {
       body.set('file', file);
       return { diags: [] };
@@ -345,8 +345,8 @@ export class ImportSession {
   private parseErrorMessage(err: unknown): string {
     const message = err instanceof Error ? err.message : '';
     const parserRefusal = /^importer\/[a-z-]+:\s*([\s\S]*)$/.exec(message);
-    if (!parserRefusal) return this.t('import.errGeneric');
-    return this.t('import.errParseFailed', { m: parserRefusal[1] });
+    if (!parserRefusal) return this.t('errGeneric');
+    return this.t('errParseFailed', { m: parserRefusal[1] });
   }
 }
 

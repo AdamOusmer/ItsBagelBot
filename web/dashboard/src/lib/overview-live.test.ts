@@ -74,3 +74,12 @@ describe('isFreshChannel', () => {
     expect(isFreshChannel(degradedStreamMeta(), { ok: true, top: [] })).toBe(false);
   });
 });
+
+describe('mergeLive reference stability', () => {
+  test('an identical lane keeps its previous reference so its subtree is not re-rendered', () => {
+    const first = mergeLive({}, snapshot());
+    const merged = mergeLive(first, snapshot());
+    expect(merged.counters).toBe(first.counters);
+    expect(merged.feed).toBe(first.feed);
+  });
+});

@@ -7,6 +7,9 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
+
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -187,8 +190,8 @@ func (s valkeyStore) ClaimSummary(ctx context.Context, ticketID int) bool {
 		return true
 	}
 	key := summaryKey(ticketID)
-	err := s.client.Do(ctx, s.client.B().Set().Key(key).Value("1").Nx().ExSeconds(summaryTTL).Build()).Error()
-	return err == nil
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, key, summaryTTL*time.Second)
+	return err == nil && won
 }
 
 func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {

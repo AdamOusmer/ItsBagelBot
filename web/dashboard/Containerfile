@@ -13,6 +13,7 @@ RUN cd ui && bun install --frozen-lockfile --production
 WORKDIR /src/web
 # bunfig.toml must be present for the install so the hoisted linker applies.
 COPY web/package.json web/bun.lock web/bunfig.toml ./
+COPY web/patches patches
 COPY web/tsconfig.base.json tsconfig.base.json
 COPY web/sorted-readdir.mjs sorted-readdir.mjs
 COPY web/kit/package.json kit/package.json
@@ -25,16 +26,18 @@ RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
 COPY web/kit kit
 COPY locales /src/locales
 COPY web/dashboard dashboard
-RUN cd dashboard && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
+RUN cd dashboard && bun run build && find build -name '*.map' -delete
+# Runtime externals: newrelic and pino (vite ssr.external), sirv (serve-node.js), sql.js (createRequire). A missing one fails only the route that loads it.
+RUN bun kit/scripts/runtime-node-modules.ts node_modules /runtime/node_modules newrelic pino sirv sql.js
 # Distroless bun aborts on dlopen of newrelic's Node/V8 addons (502 on first request), so strip them here; the runtime stage has no shell.
-RUN bun kit/scripts/strip-newrelic-node-addons.ts node_modules
+RUN bun kit/scripts/strip-newrelic-node-addons.ts /runtime/node_modules
 
 FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 COPY --from=build /src/web/dashboard/build ./build
-COPY --from=build /src/web/node_modules ./node_modules
+COPY --from=build /runtime/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
 CMD ["--import", "newrelic", "serve-node.js"]

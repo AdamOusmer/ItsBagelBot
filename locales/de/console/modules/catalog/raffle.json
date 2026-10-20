@@ -1,7 +1,14 @@
 {
   "label": "Verlosung",
   "tagline": "Zeitgesteuerte Zufallsziehungen, an denen dein Chat mit !join teilnimmt.",
-  "description": "Starte eine Verlosung; Zuschauer nehmen mit !join teil. Während sie läuft, erinnert der Bot alle paar Minuten an die verbleibende Zeit (das Intervall legst du fest). Nach Ablauf zieht er automatisch. Alle Teilnahmen haben dieselbe Zufallschance, jede zählt einmal, und die Ziehung hinterlässt einen überprüfbaren Beleg. Gewinner bestätigen innerhalb von 15 Minuten mit !claim. Du und deine Mods steuern auch alles im Chat: !raffle open startet eine Verlosung, !raffle draw beendet sie vorzeitig und verkündet das Ergebnis, !raffle cancel bricht ohne Ziehung ab. Sind dieses Modul und die Spielwarteschlange aktiv, gehört !join zur Verlosung; die Warteschlange ist über !queue join erreichbar.",
+  "description": "Starte eine Verlosung; Zuschauer nehmen mit !join teil. Während sie läuft, erinnert der Bot alle paar Minuten an die verbleibende Zeit (das Intervall legst du fest). Nach Ablauf zieht er automatisch. Alle Teilnahmen haben dieselbe Zufallschance, jede zählt einmal, und die Ziehung hinterlässt einen überprüfbaren Beleg. Jede Ziehung zahlt ihren Punktegewinn (standardmäßig 1.000, gleichmäßig auf die Gewinner verteilt) auf das Treuepunkte-Konto jedes Gewinners aus, daher müssen Treuepunkte aktiv sein. Setze den Gewinn auf 0 für eine Verlosung ohne Punkte. Gewinner bestätigen innerhalb von 15 Minuten mit !claim. Du und deine Mods steuern auch alles im Chat: !raffle open startet eine Verlosung, !raffle draw beendet sie vorzeitig und verkündet das Ergebnis, !raffle cancel bricht ohne Ziehung ab. Sind dieses Modul und die Spielwarteschlange aktiv, gehört !join zur Verlosung; die Warteschlange ist über !queue join erreichbar.",
+  "settings": {
+    "prizePoints": {
+      "label": "Punktegewinn",
+      "help": "Gesamtpunkte, die eine Ziehung auszahlt, gleichmäßig auf ihre Gewinner verteilt. 0 startet Verlosungen ohne Punkte.",
+      "placeholder": "1000"
+    }
+  },
   "replies": {
     "joined": {
       "label": "Teilnahmebestätigung",
@@ -28,7 +35,7 @@
       "label": "Gewinner verkündet",
       "tagline": "Wenn eine Ziehung die Gewinner nennt (manuell oder zeitgesteuert).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, herzlichen Glückwunsch zum Gewinn der Verlosung! Gewinner: {count}, Teilnahmen: {entrants}. Zum Bestätigen des Preises innerhalb von {claim} Min. !claim eingeben!"
+      "defaultMessage": "{targets}, herzlichen Glückwunsch zum Gewinn der Verlosung (Gewinner: {count}, Teilnahmen: {entrants}): {amount} {points} pro Gewinner, bereits gutgeschrieben!"
     },
     "claimOk": {
       "label": "Preis bestätigt",

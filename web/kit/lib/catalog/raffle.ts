@@ -9,9 +9,12 @@ export const RAFFLE_MODULE: ModuleDef =
   label: 'Raffle',
   tagline: 'Timed random draws your chat enters with !join.',
   description:
-    'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically. Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
+    'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically. Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Every draw pays its points prize (1,000 by default, split evenly across the winners) into the loyalty balance of each winner, so Loyalty must be on; set the prize to 0 for a raffle without points. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
   category: 'Play',
   defaultEnabled: false,
+  settings: [
+    { key: 'prizePoints', label: 'Points prize', type: 'number', placeholder: '1000', help: 'Total points one draw pays, split evenly across its winners. 0 runs raffles without points.' }
+  ],
   replies: [
     {
       key: 'joined',
@@ -61,8 +64,8 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'raffle draw',
       messageKey: 'wonMessage',
       defaultMessage:
-        '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
-      tokens: replyTokens(['targets', 'count', 'entrants', 'claim'], { targets: '@SnackPackPanda, @crustycrumbs', count: '2', entrants: '18', claim: '15' })
+        '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants}): {amount} {points} per winner, already in your balance!',
+      tokens: replyTokens(['targets', 'count', 'entrants', 'amount', 'points', 'claim'], { targets: '@SnackPackPanda, @crustycrumbs', count: '2', entrants: '18', amount: '500', points: 'points', claim: '15' })
     },
     {
       key: 'claimOk',

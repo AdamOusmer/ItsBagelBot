@@ -99,6 +99,7 @@ export function canonicalLocation(url: URL): string | null {
   return qs ? `${url.pathname}?${qs}` : url.pathname;
 }
 
+/** Message names under the `leaderboard.` namespace. */
 export interface EmptyCopy {
   title: string;
   body: string;
@@ -107,10 +108,10 @@ export interface EmptyCopy {
 export function emptyCopyKeys(state: { query: string; degraded: boolean; busy?: boolean; podiumSize: number }): EmptyCopy | null {
   if (state.degraded) return null;
   if (state.query) {
-    return { title: 'leaderboard.noMatchesTitle', body: state.busy ? 'leaderboard.searchBusyBody' : 'leaderboard.noMatchesBody' };
+    return { title: 'noMatchesTitle', body: state.busy ? 'searchBusyBody' : 'noMatchesBody' };
   }
-  if (state.podiumSize === 0) return { title: 'leaderboard.emptyTitle', body: 'leaderboard.emptyBody' };
-  return { title: '', body: state.podiumSize === 1 ? 'leaderboard.soloNote' : 'leaderboard.podiumOnlyNote' };
+  if (state.podiumSize === 0) return { title: 'emptyTitle', body: 'emptyBody' };
+  return { title: '', body: state.podiumSize === 1 ? 'soloNote' : 'podiumOnlyNote' };
 }
 
 function rankBase({ query }: BoardParams): number {

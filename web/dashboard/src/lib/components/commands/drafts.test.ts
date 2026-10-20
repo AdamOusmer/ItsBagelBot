@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { commandContentSnapshot, overlayLiveActive } from '../../../../../kit/lib/command-active';
 import { storage, useFakeSessionStorage, withUnavailableSessionStorage } from '../../../../test/session-storage';
-import { discardLegacyDrafts, draftKey, hasDraft, loadDraft, saveDraft, type CommandDraft, type DraftRef } from './drafts';
+import { clearDraft, discardLegacyDrafts, draftKey, draftedNames, draftsMatch, flushDrafts, hasDraft, loadDraft, saveDraft, saveDraftSoon, type CommandDraft, type DraftRef } from './drafts';
 
 useFakeSessionStorage();
 
@@ -129,5 +129,34 @@ describe('command draft channel scope', () => {
   test('an unreadable stored draft is not carried forward on revert', () => {
     storage.set(draftKey(NEW), '{');
     expect(loadDraft(NEW)).toBeNull();
+  });
+});
+
+describe('debounced draft writes', () => {
+  test('typing writes nothing until flushed, and reads see the pending draft', () => {
+    saveDraftSoon(HELLO, draft);
+    expect(storage.has(draftKey(HELLO))).toBe(false);
+    expect(hasDraft(HELLO)).toBe(true);
+    expect(storage.has(draftKey(HELLO))).toBe(true);
+  });
+
+  test('clearing a draft cancels its pending write', () => {
+    saveDraftSoon(HELLO, draft);
+    clearDraft(HELLO);
+    flushDrafts();
+    expect(storage.has(draftKey(HELLO))).toBe(false);
+  });
+
+  test('draftedNames lists this board only', () => {
+    saveDraftSoon(HELLO, draft);
+    storage.set(draftKey({ ...HELLO, board: '2002', name: 'other' }), '{}');
+    expect([...draftedNames(BOARD)]).toEqual(['hello']);
+  });
+
+  test('draftsMatch ignores Active only for edits', () => {
+    expect(draftsMatch(draft, { ...draft, is_active: false }, true)).toBe(true);
+    expect(draftsMatch(draft, { ...draft, is_active: false }, false)).toBe(false);
+    expect(draftsMatch(draft, { ...draft, aliases: ['yo'] }, true)).toBe(false);
+    expect(draftsMatch({ ...draft, cooldown: NaN }, { ...draft, cooldown: NaN }, true)).toBe(true);
   });
 });

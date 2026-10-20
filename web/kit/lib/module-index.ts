@@ -31,15 +31,15 @@ export const MODULE_CATEGORY_ORDER = [
   'Stats'
 ] as const;
 
-export const MODULE_CATEGORY_I18N: Record<string, { label: string; hint: string }> = {
-  Chat: { label: 'modules.catChat', hint: 'modules.catChatHint' },
-  Channel: { label: 'modules.catChannel', hint: 'modules.catChannelHint' },
-  Points: { label: 'modules.catPoints', hint: 'modules.catPointsHint' },
-  Play: { label: 'modules.catPlay', hint: 'modules.catPlayHint' },
-  Gear: { label: 'modules.catGear', hint: 'modules.catGearHint' },
-  Moderation: { label: 'modules.catModeration', hint: 'modules.catModerationHint' },
-  Stats: { label: 'modules.catStats', hint: 'modules.catStatsHint' }
-};
+export const MODULE_CATEGORY_I18N: Readonly<Record<string, Readonly<{ label: string; hint: string }>>> = Object.freeze({
+  Chat: Object.freeze({ label: 'modules.catChat', hint: 'modules.catChatHint' }),
+  Channel: Object.freeze({ label: 'modules.catChannel', hint: 'modules.catChannelHint' }),
+  Points: Object.freeze({ label: 'modules.catPoints', hint: 'modules.catPointsHint' }),
+  Play: Object.freeze({ label: 'modules.catPlay', hint: 'modules.catPlayHint' }),
+  Gear: Object.freeze({ label: 'modules.catGear', hint: 'modules.catGearHint' }),
+  Moderation: Object.freeze({ label: 'modules.catModeration', hint: 'modules.catModerationHint' }),
+  Stats: Object.freeze({ label: 'modules.catStats', hint: 'modules.catStatsHint' })
+});
 
 export function categorySlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

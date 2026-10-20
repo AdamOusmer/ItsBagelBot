@@ -35,9 +35,10 @@
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
-  import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
   import GoveeSetup from '$lib/components/govee/GoveeSetup.svelte';
   import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '$lib/components/govee/govee-draft';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadGoveeRewardEditor = () => import('$lib/components/govee/GoveeRewardEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
@@ -68,7 +69,7 @@
 
   type GoveeActionOk = ActionOk & { missingScope?: boolean; code?: string };
 
-  function failed(payload: GoveeActionOk | undefined, fallbackKey: string) {
+  function failed(payload: GoveeActionOk | undefined, fallback: string) {
     if (payload?.missingScope) {
       missingScope = true;
       return;
@@ -77,7 +78,7 @@
       toast('danger', t('govee.keyInvalid'));
       return;
     }
-    toast('danger', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? fallback);
   }
 
   const isOk = (result: { type: string }, payload: GoveeActionOk | undefined) =>
@@ -90,7 +91,7 @@
       keySaving = false;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.keySaveFailed');
+        failed(payload, t('govee.keySaveFailed'));
         return;
       }
       if (payload?.code === 'key_unchecked') {
@@ -112,7 +113,7 @@
       keyRemovePending = false;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.keyRemoveFailed');
+        failed(payload, t('govee.keyRemoveFailed'));
         return;
       }
       keyPresent = false;
@@ -196,7 +197,7 @@
       const ok = isOk(result, payload);
       if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        failed(payload, 'govee.toastSaveFailed');
+        failed(payload, t('govee.toastSaveFailed'));
         return;
       }
       toast('success', t('govee.toastSaved'));
@@ -216,7 +217,7 @@
       deleteTarget = null;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.toastDeleteFailed');
+        failed(payload, t('govee.toastDeleteFailed'));
         return;
       }
       if (target && selected?.device === target.device) doClose();
@@ -238,7 +239,7 @@
 {#if showSetup}
   <GoveeSetup name={data.displayName} devices={data.devices} preview={data.setupPreview === true} onFinish={() => (setupOpen = false)} />
 {:else}
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadGoveeRewardEditor]}>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
   </PageHead>
@@ -352,14 +353,16 @@
               <input type="hidden" name="deviceName" value={selected.name} />
               <Scroller fill padding="16px" smooth>
                 {#key selected.device}
-                  <GoveeRewardEditor
-                    bind:draft
-                    colors={data.colors}
-                    canDelete={!!selectedBinding}
-                    {busy}
-                    attempted={validationAttempted}
-                    onRequestDelete={() => (deleteTarget = selected)}
-                  />
+                  {#await loadGoveeRewardEditor() then { default: GoveeRewardEditor }}
+                    <GoveeRewardEditor
+                      bind:draft
+                      colors={data.colors}
+                      canDelete={!!selectedBinding}
+                      {busy}
+                      attempted={validationAttempted}
+                      onRequestDelete={() => (deleteTarget = selected)}
+                    />
+                  {/await}
                 {/key}
               </Scroller>
               <EditorFooter

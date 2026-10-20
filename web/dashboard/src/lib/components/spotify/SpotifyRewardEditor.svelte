@@ -11,7 +11,7 @@
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import DurationField from '$lib/components/shared/DurationField.svelte';
-  import { SPOTIFY_COOLDOWN_MAX, spotifyErrors, type SpotifyErrorField, type SpotifyRewardDraft } from './spotify-draft';
+  import { SPOTIFY_ERROR_KEYS, SPOTIFY_COOLDOWN_MAX, spotifyErrors, type SpotifyErrorField, type SpotifyRewardDraft } from './spotify-draft';
 
   let {
     draft = $bindable<SpotifyRewardDraft>(),
@@ -38,7 +38,7 @@
   });
 
   const errors = $derived(spotifyErrors(draft));
-  const shown = (field: SpotifyErrorField) => (attempted && errors[field] ? t(errors[field]!) : undefined);
+  const shown = (field: SpotifyErrorField) => (attempted && errors[field] ? t(SPOTIFY_ERROR_KEYS[field]) : undefined);
   const titleError = $derived(shown('title'));
   const costError = $derived(shown('cost'));
   const cooldownError = $derived(shown('cooldown'));

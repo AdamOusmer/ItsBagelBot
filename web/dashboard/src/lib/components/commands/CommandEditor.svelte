@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -17,7 +17,6 @@
     PERMS,
     tPerm,
     validateCommand,
-    commandContentSnapshot,
     normName,
     COOLDOWN_MAX,
     RESPONSE_MAX_LINES,
@@ -31,7 +30,7 @@
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { nameConflict } from './name-conflict';
-  import { draftRef, loadDraft, saveDraft, type BoardId, type CommandDraft } from './drafts';
+  import { draftRef, draftsMatch, flushDraft, loadDraft, saveDraft, saveDraftSoon, type BoardId, type CommandDraft } from './drafts';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
 
   let {
@@ -71,7 +70,6 @@
   const busy = $derived(status === 'saving');
 
   const { t } = getI18n();
-  const validationT = (key: string, params?: Record<string, string | number>) => t(key as any, params);
 
   let aliasDraft = $state('');
   let chips = $state<ReturnType<typeof AliasChips>>();
@@ -89,7 +87,7 @@
     ...(Object.fromEntries(
       Object.entries({ ...(serverErrors ?? {}), ...clientErrors }).map(([field, message]) => [
         field,
-        translateValidationMessage(message, validationT)
+        translateValidationMessage(message, t)
       ])
     ) as CommandErrors),
     ...(conflictMessage ? { name: conflictMessage } : {})
@@ -114,12 +112,14 @@
   // toggle on an existing command must not count as an unsaved content edit.
   // svelte-ignore state_referenced_locally
   const ref = draftRef(board, draft);
-  const initial = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
+  const initial = $state.snapshot(draft);
   const storedAtOpen = loadDraft(ref);
   $effect(() => {
-    const current = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
-    saveDraft(ref, current === initial ? storedAtOpen : draft);
+    const current = $state.snapshot(draft);
+    if (draftsMatch(current, initial, current.edit)) saveDraft(ref, storedAtOpen);
+    else saveDraftSoon(ref, current);
   });
+  onDestroy(() => flushDraft(ref));
 
   const submit: SubmitFunction = (input) => {
     chips?.commit();

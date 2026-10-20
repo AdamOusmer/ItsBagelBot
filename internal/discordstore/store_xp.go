@@ -6,10 +6,10 @@ package discordstore
 import (
 	"context"
 	"strconv"
+	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
-
-	"github.com/valkey-io/valkey-go"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
 const (
@@ -40,13 +40,13 @@ func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 }
 
 func (s valkeyStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(dailyKey(m)).Value("1").Nx().ExSeconds(dailyTTL).Build()).Error()
-	if valkey.IsValkeyNil(err) {
-		xp, _ := s.Rank(ctx, m)
-		return false, xp
-	}
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, dailyKey(m), dailyTTL*time.Second)
 	if err != nil {
 		return false, 0
+	}
+	if !won {
+		xp, _ := s.Rank(ctx, m)
+		return false, xp
 	}
 	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(dailyXP).Build()).AsInt64()
 	if err != nil {

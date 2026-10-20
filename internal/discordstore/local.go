@@ -137,8 +137,8 @@ func (m *Mem) dropGuilds(_ context.Context, b Broadcaster) {
 }
 
 func (s valkeyStore) takeXPCooldown(ctx context.Context, m Member) bool {
-	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
-	return err == nil
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, xpCDKey(m), xpCooldown*time.Second)
+	return err == nil && won
 }
 
 func (m *Mem) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
