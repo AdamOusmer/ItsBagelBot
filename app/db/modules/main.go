@@ -75,7 +75,8 @@ func main() {
 	defer repo.Close(context.Background())
 	defer closeIntake() // stops intake before the repo flush above
 
-	quotes := repository.NewQuotes(client, log)
+	quotes := repository.NewQuotes(client, n.Pub, log)
+	defer quotes.Close()
 
 	recorder := analytics.New(svcboot.MustValkey(core), log, nil)
 	defer recorder.Close()
@@ -119,6 +120,10 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
+	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectQuoteChanged, w.quotes.OnChanged(), w.log); err != nil {
+		w.log.Fatal("failed to subscribe to quote changes", zap.Error(err))
+	}
+
 	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return w.repo.Reproject(ctx)
 	}, w.log); err != nil {
@@ -143,7 +148,11 @@ func deleteUser(w eventsWiring) func(*bus.Message) error {
 		}
 		ctx := msg.Context()
 		userID := dto.UserID
-		return w.repo.DeleteAccount(ctx, userID, dto.AccountCreatedAt)
+		if err := w.repo.DeleteAccount(ctx, userID, dto.AccountCreatedAt); err != nil {
+			return err
+		}
+		w.quotes.Announce(ctx, userID)
+		return nil
 	}
 }
 
