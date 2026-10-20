@@ -61,18 +61,18 @@ export async function purgeEdgeByTag(tag: string): Promise<boolean> {
   return succeeded(await purgeRequest({ tags: [tag] }));
 }
 
-async function purgeBatchOnce(kind: PurgeKind, batch: string[]): Promise<number> {
-  const status = await purgeRequest({ [kind.field]: batch });
+async function purgeBatchOnce(kind: PurgeKind, body: Record<string, unknown>): Promise<number> {
+  const status = await purgeRequest(body);
   if (status !== 429) return status;
   await new Promise((resolve) => setTimeout(resolve, kind.retryMs));
-  return purgeRequest({ [kind.field]: batch });
+  return purgeRequest(body);
 }
 
 async function purgeAll(kind: PurgeKind, items: string[]): Promise<boolean> {
   let ok = true;
   for (let i = 0; i < items.length; i += PURGE_BATCH) {
     const batch = items.slice(i, i + PURGE_BATCH);
-    const status = await purgeBatchOnce(kind, batch);
+    const status = await purgeBatchOnce(kind, { [kind.field]: batch });
     if (status === NOT_CONFIGURED) return false;
     if (succeeded(status)) continue;
     ok = false;
@@ -110,7 +110,8 @@ function canonicalLogin(raw: string | null | undefined): string | null {
   return LOGIN_RE.test(login) ? login : null;
 }
 
-async function currentLogins(userId: string): Promise<string[]> {
+async function knownLogins(userId: string, logins: readonly string[]): Promise<string[]> {
+  if (logins.length) return logins.flatMap((l) => canonicalLogin(l) ?? []);
   try {
     const login = canonicalLogin((await accountState(userId)).username);
     return login ? [login] : [];
@@ -118,10 +119,6 @@ async function currentLogins(userId: string): Promise<string[]> {
     logger.error({ err, userId }, '[edge-purge] account lookup failed, purging id pages only');
     return [];
   }
-}
-
-async function knownLogins(userId: string, logins: readonly string[]): Promise<string[]> {
-  return logins.length ? logins.flatMap((l) => canonicalLogin(l) ?? []) : currentLogins(userId);
 }
 
 export async function purgeChannelPages(userId: string): Promise<boolean> {
