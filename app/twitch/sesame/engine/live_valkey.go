@@ -19,6 +19,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -37,7 +38,7 @@ type LiveConfig struct {
 	OutgressSystemSubject string
 	CacheInvalidatePrefix string
 	KeyspaceDB            int
-	Expiry                *ExpiryHub
+	Expiry                *pkg_valkey.ExpiryHub
 	OfflineConfirmDelays  []time.Duration
 	Log                   *zap.Logger
 }
@@ -204,7 +205,7 @@ func (s *ValkeyLiveStore) StartInvalidationListener() {
 }
 
 func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
-	expiryHubOr(s.cfg.Expiry, s.client, s.cfg.KeyspaceDB, s.log).Watch(ctx, s.onExpired, livekey.KeyPrefix)
+	pkg_valkey.ExpiryHubOr(s.cfg.Expiry, s.client, s.cfg.KeyspaceDB, s.log).Watch(ctx, s.onExpired, livekey.KeyPrefix)
 }
 
 func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
