@@ -20,10 +20,17 @@ type RPCWiring struct {
 	Queue   string
 	Log     *zap.Logger
 	Timeout time.Duration
+	Pool    RPCPoolPolicy
 }
 
 func (w RPCWiring) Within(d time.Duration) RPCWiring {
 	w.Timeout = d
+	return w
+}
+
+// Serially is for handlers that read-modify-write in-process or check-then-act without a DB guard.
+func (w RPCWiring) Serially() RPCWiring {
+	w.Pool = RPCPoolPolicy{MaxWorkers: 1}
 	return w
 }
 
@@ -34,8 +41,18 @@ func (w RPCWiring) timeout() time.Duration {
 	return w.Timeout
 }
 
+func (w RPCWiring) subscription(subject string) RPCSubscription {
+	return RPCSubscription{Subject: subject, QueueGroup: w.Queue, Policy: w.Pool}
+}
+
 func Serve[Req, Rep any](w RPCWiring, subject string, h func(context.Context, Req) Rep) error {
-	return QueueSubscribeJSON[Req, Rep](w.NC, subject, w.Queue, w.timeout(), w.App, w.Log, h)
+	return QueueSubscribeJSONConcurrent[Req, Rep](w.NC, w.subscription(subject), w.timeout(), w.App, w.Log, h)
+}
+
+// ServeMsg is Serve for handlers that decode and respond to the raw message themselves.
+func ServeMsg(w RPCWiring, subject string, h func(context.Context, *nats.Msg)) error {
+	_, err := QueueSubscribeRPCConcurrent(w.NC, w.subscription(subject), msgRPCHandler(subject, w.timeout(), w.App, h))
+	return flushedSubscription(w.NC, subject, err)
 }
 
 type Verb[Req, Rep any] struct {

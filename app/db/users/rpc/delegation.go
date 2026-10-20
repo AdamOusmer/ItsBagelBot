@@ -40,14 +40,7 @@ func SubscribeDelegation(w Wiring, prefix, invalidationPrefix string) error {
 		"access":  d.handleAccess,
 		"opt_out": d.handleOptOut,
 	}
-	for verb, fn := range verbs {
-		subject := prefix + "." + verb
-		fn := fn
-		if err := bus.QueueSubscribeRPC(w.NC, subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
-		}
-	}
-	return nil
+	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)
 }
 
 func newToken() (string, error) {
@@ -77,9 +70,6 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := timeout(ctx)
-	defer cancel()
-
 	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
 		monitor.TxnLogger(ctx, d.log).Error("delegation create", zap.Error(err))
 		respondErr(msg, err.Error())
@@ -95,9 +85,6 @@ func (d *delegationRPC) handleGet(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	view, err := d.repo.GetDelegation(ctx, req.Token)
 	if err != nil {
@@ -122,9 +109,6 @@ func (d *delegationRPC) handleConsume(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	view, err := d.repo.ConsumeDelegation(ctx, req.Token, delegateID, req.DelegateLogin)
 	if err != nil {
@@ -151,9 +135,6 @@ func (d *delegationRPC) handleList(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	views, err := d.repo.ListDelegationsByOwner(ctx, ownerID)
 	if err != nil {
@@ -182,9 +163,6 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	delegateID, err := d.repo.RevokeDelegation(ctx, req.Token, ownerID)
 	if err != nil {
@@ -226,9 +204,6 @@ func (d *delegationRPC) handleUpdate(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := timeout(ctx)
-	defer cancel()
-
 	delegateID, err := d.repo.UpdateDelegationSections(ctx, req.Token, ownerID, req.Sections)
 	if err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})
@@ -253,9 +228,6 @@ func (d *delegationRPC) handleAccess(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	views, err := d.repo.ListAccessByDelegate(ctx, delegateID)
 	if err != nil {
@@ -287,9 +259,6 @@ func (d *delegationRPC) handleOptOut(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	d.writeThenOK(msg, func() error { return d.repo.OptOutDelegation(ctx, ownerID, delegateID) }, ownerID, delegateID)
 }

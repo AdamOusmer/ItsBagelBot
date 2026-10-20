@@ -45,6 +45,10 @@ func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string
 	if err := bus.ServeVerbs(staff, authPrefix,
 		bus.At("check", a.check),
 		bus.At("list", a.listStaff),
+	); err != nil {
+		return err
+	}
+	if err := bus.ServeVerbs(staff.Serially(), authPrefix,
 		bus.At("upsert", a.upsertStaff),
 		bus.At("remove", a.removeStaff),
 	); err != nil {

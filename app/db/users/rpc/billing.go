@@ -17,7 +17,7 @@ import (
 
 func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
 	nc, repo, log := w.NC, w.Repo, w.Log
-	return bus.Serve(w.Within(billingBudget), subject,
+	return bus.Serve(w.Within(billingBudget).Serially(), subject,
 		func(ctx context.Context, req billingrpc.ApplyRequest) billingrpc.ApplyReply {
 			log := monitor.TxnLogger(ctx, log)
 			applied, err := repo.ApplyBilling(ctx, req)

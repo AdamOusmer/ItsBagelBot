@@ -33,8 +33,8 @@ func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
 		bus.ServeForUser[spotifyrpc.AppClearRequest, spotifyrpc.RefreshTokenMutateReply](custody, dash+".app.clear", s.handleAppClear),
 		bus.ServeForUser[spotifyrpc.AppStatusRequest, spotifyrpc.AppStatusReply](custody, dash+".app.status", s.handleAppStatus),
 		bus.ServeForUser[spotifyrpc.RefreshTokenGetRequest, spotifyrpc.RefreshTokenGetReply](custody, internal+".get", s.handleGet),
-		bus.ServeForUser[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".rotate", s.handleRotate),
-		bus.ServeForUser[spotifyrpc.RefreshTokenDeadRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".dead", s.handleDead),
+		bus.ServeForUser[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](custody.Serially(), internal+".rotate", s.handleRotate),
+		bus.ServeForUser[spotifyrpc.RefreshTokenDeadRequest, spotifyrpc.RefreshTokenMutateReply](custody.Serially(), internal+".dead", s.handleDead),
 	); err != nil {
 		return err
 	}
