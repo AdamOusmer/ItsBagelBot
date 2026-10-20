@@ -339,6 +339,30 @@ func TestBillingIncidentFailureRetriesWebhook(t *testing.T) {
 	assert.Len(t, store.changes, 1, "the paid entitlement is applied before incident reconciliation")
 }
 
+func TestWebhookWorkEndsBeforeWriteTimeout(t *testing.T) {
+	store := &fakeStore{}
+	var applyDeadline, notifyDeadline time.Time
+	app := New(store, Config{
+		WebhookSecret: testSecret,
+		ApplyBilling: func(ctx context.Context, req billingrpc.ApplyRequest) error {
+			applyDeadline, _ = ctx.Deadline()
+			return applyFor(store)(ctx, req)
+		},
+		NotifyGift: func(ctx context.Context, _ GiftNotice) error {
+			notifyDeadline, _ = ctx.Deadline()
+			return nil
+		},
+	}, nil)
+	started := time.Now()
+
+	assert.Equal(t, http.StatusNoContent, postWebhook(t, app, giftCase("evt-deadline", "payment.completed", `{"transaction_id":"tbx-deadline","custom":{"user_id":"111","gifted_by":"804932984"}}`)))
+
+	for name, deadline := range map[string]time.Time{"billing": applyDeadline, "gift": notifyDeadline} {
+		require.False(t, deadline.IsZero(), name+" must run under a deadline")
+		assert.True(t, deadline.Before(started.Add(WriteTimeout)), name+" deadline must leave room to write the reply")
+	}
+}
+
 func giftCase(id, kind, subject string) string {
 	return `{"id":"` + id + `","type":"` + kind + `","date":"2026-07-02T00:00:00Z","subject":` + subject + `}`
 }
