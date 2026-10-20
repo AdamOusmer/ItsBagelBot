@@ -189,6 +189,11 @@ export async function topStandings(userId: string, limit = 10): Promise<LoyaltyS
   return (reply.top ?? []).map(toStanding);
 }
 
+export async function resetPoints(userId: string): Promise<number> {
+  const reply = await callLoyalty('balance.reset', { user_id: userId });
+  return reply.total ?? 0;
+}
+
 export interface StandingsPage {
   rows: LoyaltyStanding[];
   total: number;

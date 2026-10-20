@@ -101,6 +101,24 @@ func requireRefused(t *testing.T, reply loyaltyrpc.Reply) {
 	assert.False(t, reply.Spent)
 }
 
+func TestHandleBalanceResetZeroesChannel(t *testing.T) {
+	h := newHarness(t)
+
+	reply := h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "2"})
+
+	assert.Equal(t, loyaltyrpc.Reply{Total: 2}, reply)
+	h.requireStored(t, map[uint64]int64{7: 0, 8: 0})
+}
+
+func TestHandleBalanceResetRefusesInvalidUser(t *testing.T) {
+	h := newHarness(t)
+
+	requireRefused(t, h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "0"}))
+	requireRefused(t, h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "nope"}))
+
+	h.requireStored(t, map[uint64]int64{7: 1000, 8: 100})
+}
+
 func TestHandleBalanceAdjustCreatesResolvedViewer(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

@@ -32,6 +32,7 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("balance.spend", l.handleBalanceSpend),
 		bus.At("balance.wager", l.handleBalanceWager),
 		bus.At("balance.transfer", l.handleBalanceTransfer),
+		bus.At("balance.reset", l.handleBalanceReset),
 		bus.At("top.get", l.handleTopGet),
 		bus.At("counter.get", l.handleCounterGet),
 		bus.At("counter.create", l.handleCounterCreate),
@@ -117,6 +118,18 @@ func (l *loyaltyRPC) handleBalanceSet(ctx context.Context, req loyaltyrpc.Reques
 
 func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	return l.adjustBalance(ctx, req, false)
+}
+
+func (l *loyaltyRPC) handleBalanceReset(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
+	}
+	reset, err := l.repo.BalanceReset(ctx, userID)
+	if err != nil {
+		return l.fail("loyalty balance.reset", err)
+	}
+	return loyaltyrpc.Reply{Total: reset}
 }
 
 func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, absolute bool) loyaltyrpc.Reply {
