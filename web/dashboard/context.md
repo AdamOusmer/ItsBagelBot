@@ -39,7 +39,7 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - [guard.ts](src/lib/server/guard.ts): account ban/deletion, delegation revocation and route-scope gates.
 - [board.ts](src/lib/server/board.ts): `effectiveId(session)` selects owner ID; missing real session redirects.
 - [services.ts](src/lib/server/services.ts): subject registry, wire adapters, account/billing/delegation
-  reads, mutation invalidation, and cache fabric (default L1 capacity 1,000 entries).
+  reads, mutation invalidation, and cache fabric (default L1 capacity 5,000 entries).
 - [module-page.ts](src/lib/server/module-page.ts), [module-action.ts](src/lib/server/module-action.ts),
   [module-gate.ts](src/lib/server/module-gate.ts): shared load/action paths and Premium/beta/delegate gates.
 - `module-flags.ts` derives shell/built-in enable state from saved module rows plus catalog defaults.

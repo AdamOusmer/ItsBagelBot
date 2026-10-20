@@ -350,13 +350,13 @@ export function subscribeDurable(
         nc = await get('rpc');
       } catch {
         attempt++;
-        newrelic.recordMetric('Custom/NatsBus/dial_retry', 1);
+        newrelic.recordMetric('NatsBus/dial_retry', 1);
         await sleep(backoffMs(attempt));
         continue;
       }
 
       if (attempt > 0) {
-        newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+        newrelic.recordMetric('NatsBus/gap_flush', 1);
         gap();
       }
       attempt = 0;
@@ -365,7 +365,7 @@ export function subscribeDurable(
         try {
           for await (const s of nc.status()) {
             if (s.type === 'reconnect') {
-              newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+              newrelic.recordMetric('NatsBus/gap_flush', 1);
               gap();
             }
           }
@@ -382,7 +382,7 @@ export function subscribeDurable(
       } catch {}
 
       attempt++;
-      newrelic.recordMetric('Custom/NatsBus/resubscribe', 1);
+      newrelic.recordMetric('NatsBus/resubscribe', 1);
       await sleep(backoffMs(attempt));
     }
   })();

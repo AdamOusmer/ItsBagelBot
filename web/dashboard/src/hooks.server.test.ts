@@ -184,3 +184,20 @@ describe('edge cache and Set-Cookie', () => {
     expect(res.headers.get('Vary')).toBeNull();
   });
 });
+
+test('the readiness probe skips session, locale and hardening work', async () => {
+  const url = new URL('https://dashboard.itsbagelbot.com/readyz');
+  const deleted: string[] = [];
+  const event = {
+    route: { id: '/readyz' },
+    request: new Request(url),
+    url,
+    locals: {},
+    cookies: { get: () => 'garbage', set: () => {}, delete: (name: string) => deleted.push(name) }
+  };
+  const ok = new Response('ok');
+  const response = await handle({ event: event as never, resolve: async () => ok });
+  expect(response).toBe(ok);
+  expect(deleted).toEqual([]);
+  expect(event.locals).toEqual({});
+});

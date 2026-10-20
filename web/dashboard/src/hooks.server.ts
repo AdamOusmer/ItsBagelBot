@@ -148,6 +148,8 @@ const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (event.url.pathname === '/readyz') return resolve(event);
+
   event.locals.session = openSessionCookie(event, COOKIE, open);
 
   const limited = await enforceRateLimit(event);
