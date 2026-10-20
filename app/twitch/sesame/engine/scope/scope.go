@@ -5,6 +5,8 @@ package scope
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"ItsBagelBot/pkg/tmpl"
 )
@@ -25,20 +27,42 @@ type Chain []Scope
 func (c Chain) Plan(ctx context.Context, toks []Var, onErr func(error)) Values {
 	wants := c.group(toks)
 	planned := make([]Values, len(c))
-	for i, s := range c {
-		if len(wants[i]) == 0 {
-			continue
+	var due []int
+	for i := range c {
+		if len(wants[i]) > 0 {
+			due = append(due, i)
 		}
-		planned[i] = plannedValues(ctx, s, wants[i], onErr)
 	}
+	if len(due) == 1 {
+		planned[due[0]] = plannedValues(ctx, c[due[0]], wants[due[0]], onErr)
+		return chainValues{chain: c, planned: planned}
+	}
+	var group sync.WaitGroup
+	for _, i := range due {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			planned[i] = plannedValues(ctx, c[i], wants[i], onErr)
+		}()
+	}
+	group.Wait()
 	return chainValues{chain: c, planned: planned}
 }
 
-func plannedValues(ctx context.Context, s Scope, wants []Var, onErr func(error)) Values {
+func plannedValues(ctx context.Context, s Scope, wants []Var, onErr func(error)) (values Values) {
+	defer func() {
+		if r := recover(); r != nil {
+			values = failedPlan(fmt.Errorf("scope plan panicked: %v", r), onErr)
+		}
+	}()
 	vals, err := s.Plan(ctx, wants)
 	if err == nil {
 		return vals
 	}
+	return failedPlan(err, onErr)
+}
+
+func failedPlan(err error, onErr func(error)) Values {
 	if onErr != nil {
 		onErr(err)
 	}

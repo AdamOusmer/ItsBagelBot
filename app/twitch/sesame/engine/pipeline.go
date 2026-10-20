@@ -163,8 +163,13 @@ func (p *Pipeline) Close() {
 
 const chatType = "channel.chat.message"
 
+const publishTimeout = 3 * time.Second
+
+var messageBudget = 10 * time.Second
+
 func (p *Pipeline) Process(msg *bus.Message) error {
-	ctx := msg.Context()
+	ctx, cancel := context.WithTimeout(msg.Context(), messageBudget)
+	defer cancel()
 
 	env := GetEnvelope()
 	defer PutEnvelope(env)
@@ -296,7 +301,9 @@ func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
 		return
 	}
 	segment := startStage(ctx, "sesame.output.flush")
-	emission.err = p.pub.Flush(ctx)
+	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), publishTimeout)
+	defer cancel()
+	emission.err = p.pub.Flush(fctx)
 	endStageForError(segment, emission.err, "error")
 }
 
@@ -447,6 +454,8 @@ func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), publishTimeout)
+	defer cancel()
 	if replayID == "" {
 		return bus.PublishRaw(ctx, p.pub, state.subject, body)
 	}
