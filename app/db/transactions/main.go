@@ -97,11 +97,10 @@ func main() {
 	}, log.Named("http"))
 
 	httpServer := &http.Server{
-		Addr:        core.ListenAddr,
-		Handler:     handler,
-		ReadTimeout: 5 * time.Second,
-		// Must outlast /drain's 10s sleep: the deadline arms at request read.
-		WriteTimeout: 15 * time.Second,
+		Addr:         core.ListenAddr,
+		Handler:      handler,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: web.WriteTimeout,
 	}
 
 	tlsPair, err := tlsenv.PairFromEnv("TLS_CERT_FILE", "TLS_KEY_FILE")
