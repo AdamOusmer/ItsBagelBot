@@ -2,14 +2,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 const SERVER_ERROR_KEYS: Record<string, string> = {
-  'Choose a file to upload.': 'import.errFileMissing',
-  'Paste your StreamElements JWT first.': 'import.errJwtMissing',
-  'Enter your Fossabot channel name first.': 'import.errFossabotMissing',
-  'That does not look like a Fossabot channel name.': 'import.errFossabotShape',
-  'Enter your Wizebot channel name first.': 'import.errWizebotMissing',
-  'That does not look like a Wizebot channel name.': 'import.errWizebotShape',
+  'Choose a file to upload.': 'errFileMissing',
+  'Paste your StreamElements JWT first.': 'errJwtMissing',
+  'Enter your Fossabot channel name first.': 'errFossabotMissing',
+  'That does not look like a Fossabot channel name.': 'errFossabotShape',
+  'Enter your Wizebot channel name first.': 'errWizebotMissing',
+  'That does not look like a Wizebot channel name.': 'errWizebotShape',
   'That does not look like a StreamElements JWT. Copy the whole token: three segments separated by dots, no spaces.':
-    'import.errJwtShape'
+    'errJwtShape'
 };
 
 export function localizeImporterError(

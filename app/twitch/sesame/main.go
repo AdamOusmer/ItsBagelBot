@@ -74,7 +74,7 @@ func main() {
 	chatters := engine.NewValkeyChatters(valkeyClient, log)
 	loyalty, loyaltyTick := newLoyalty(w, loyaltyDeps{proj: proj, live: live, reporter: loyaltyReporter, chatters: chatters})
 
-	raffle := newRaffle(w, proj)
+	raffle := newRaffle(w, proj, loyalty)
 	duel := newDuel(w, proj, loyalty)
 
 	guard := automod.New()

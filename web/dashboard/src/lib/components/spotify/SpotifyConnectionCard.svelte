@@ -40,7 +40,7 @@
   } = $props();
 
   const { t } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   let replacing = $state(false);
   let saving = $state(false);
@@ -65,7 +65,7 @@
       saving = false;
       const payload = actionPayload<ActionOk>(result);
       if (result.type !== 'success' || payload?.ok === false) {
-        failed(payload ?? undefined, 'spotify.app.saveFailed');
+        failed(payload ?? undefined, t('spotify.app.saveFailed'));
         return;
       }
       clientSecret = '';

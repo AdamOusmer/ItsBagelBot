@@ -37,8 +37,8 @@
 
   const ended = $derived.by(() => {
     if (!r.endsAt) return false;
-    const t = Date.parse(r.endsAt);
-    return !Number.isNaN(t) && t <= Date.now();
+    const endsAt = Date.parse(r.endsAt);
+    return !Number.isNaN(endsAt) && endsAt <= Date.now();
   });
   const untilLabel = $derived(
     r.endsAt && !ended ? fmtDate(r.endsAt, { parts: { month: 'short', day: 'numeric' } }) : ''

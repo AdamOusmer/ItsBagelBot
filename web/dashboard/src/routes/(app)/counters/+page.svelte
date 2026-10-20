@@ -47,7 +47,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   // svelte-ignore state_referenced_locally
   let items = $state<CounterDef[]>(data.counters ?? []);
@@ -252,7 +252,7 @@
       const ok = result.type === 'success' && actionPayload(result)?.ok === true;
       const applied = endSaveRequest(requestId, ok);
       if (!ok) {
-        failed(actionPayload(result), 'counters.toastFailed');
+        failed(actionPayload(result), t('counters.toastFailed'));
         return;
       }
       toast('success', t('counters.toastCreated'));
@@ -273,7 +273,7 @@
       const ok = result.type === 'success' && actionPayload(result)?.ok === true;
       endSaveRequest(requestId, ok);
       if (!ok) {
-        failed(actionPayload(result), 'counters.toastFailed');
+        failed(actionPayload(result), t('counters.toastFailed'));
         return;
       }
       toast('success', t('counters.toastSet'));
@@ -305,7 +305,7 @@
         await invalidateAll();
         return;
       }
-      failed(actionPayload(result), 'counters.toastFailed');
+      failed(actionPayload(result), t('counters.toastFailed'));
     };
   };
 
@@ -322,7 +322,7 @@
         await invalidateAll();
         return;
       }
-      failed(actionPayload(result), 'counters.toastFailed');
+      failed(actionPayload(result), t('counters.toastFailed'));
     };
   };
 
@@ -410,7 +410,7 @@
       delete entryEdits[key];
       await invalidateAll();
     } else {
-      failed(payload, 'counters.toastFailed');
+      failed(payload, t('counters.toastFailed'));
     }
   }
 
@@ -431,7 +431,7 @@
         await invalidateAll();
         return;
       }
-      failed(actionPayload(result), 'counters.toastFailed');
+      failed(actionPayload(result), t('counters.toastFailed'));
     };
   };
 
@@ -457,7 +457,7 @@
         return;
       }
       if (snapshot) items = [...items.filter((c) => c.name !== snapshot.name), snapshot];
-      failed(actionPayload(result), 'counters.toastFailed');
+      failed(actionPayload(result), t('counters.toastFailed'));
     };
   };
 </script>
