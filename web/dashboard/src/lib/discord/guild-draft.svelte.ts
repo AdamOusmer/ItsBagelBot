@@ -53,7 +53,6 @@ export function refusalTextOf(t: I18n['t'], p: ActionPayload | undefined, fallba
 type DraftInit = {
   data: () => GuildDraftData;
   fields: readonly (keyof DiscordConfig)[];
-  t: I18n['t'];
 };
 
 function pick(config: DiscordConfig, fields: readonly (keyof DiscordConfig)[]): Record<string, string> {
@@ -66,8 +65,8 @@ function slice(config: DiscordConfig, fields: readonly (keyof DiscordConfig)[]):
   return JSON.stringify(pick(config, fields));
 }
 
-export function createGuildDraft(init: DraftInit) {
-  const { t, fields } = init;
+export function createGuildDraft(init: DraftInit, t: I18n['t']) {
+  const { fields } = init;
 
   let seed = untrack(init.data);
   let config = $state<DiscordConfig>({ ...seed.config });

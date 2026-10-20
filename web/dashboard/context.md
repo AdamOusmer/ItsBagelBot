@@ -53,8 +53,11 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - `commands-bulk.ts` and `command-conflict.ts`: batch edits and command trigger/alias conflict checks.
 - `songqueue-live.ts`, `songqueue-view.ts`, `live-counters.ts`: bounded live feature read paths.
 - [public-directory.ts](src/lib/server/public-directory.ts): public-safe command/module projections.
-- `scripts/assert-route-budgets.ts` holds per-route initial-load budgets; the console catalog (admin namespace
-  excluded) is one preloaded JSON per locale.
+- Editors behind a click (`commands`, `timers`, `channelpoints`, `govee`, `songqueue`) load through `{#await import()}` with
+  `warmOnIntent` ([warm-on-intent.ts](src/lib/warm-on-intent.ts)) fetching the chunk on first pointer/focus contact;
+  pages needing one module's definition import `@bagel/kit/catalog/<id>`, not the whole catalog.
+- `scripts/assert-route-budgets.ts` holds per-route initial-load budgets; English strings ship inside node chunks
+  and other locales load per-node slices that `hooks.server.ts` preloads through the `Link` header.
 - [live-hub.ts](src/lib/server/live-hub.ts): per-board invalidation fanout; `routes/events/+server.ts`
   exposes owner-only SSE with constant invalidation payloads, without revealing scope names.
 

@@ -70,7 +70,6 @@
   const busy = $derived(status === 'saving');
 
   const { t } = getI18n();
-  const validationT = (key: string, params?: Record<string, string | number>) => t(key as any, params);
 
   let aliasDraft = $state('');
   let chips = $state<ReturnType<typeof AliasChips>>();
@@ -88,7 +87,7 @@
     ...(Object.fromEntries(
       Object.entries({ ...(serverErrors ?? {}), ...clientErrors }).map(([field, message]) => [
         field,
-        translateValidationMessage(message, validationT)
+        translateValidationMessage(message, t)
       ])
     ) as CommandErrors),
     ...(conflictMessage ? { name: conflictMessage } : {})

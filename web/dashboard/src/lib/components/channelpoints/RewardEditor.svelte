@@ -10,7 +10,7 @@
   import { namespaceReplySamples, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { rewardErrors, type RewardErrorField } from './reward-draft';
+  import { REWARD_ERROR_KEYS, rewardErrors, type RewardErrorField } from './reward-draft';
 
   let {
     draft = $bindable<ChannelPointReward>(),
@@ -55,7 +55,7 @@
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
   const errors = $derived(rewardErrors(draft, counterOn));
-  const shown = (field: RewardErrorField) => (attempted && errors[field] ? t(errors[field]!) : undefined);
+  const shown = (field: RewardErrorField) => (attempted && errors[field] ? t(REWARD_ERROR_KEYS[field]) : undefined);
   const titleError = $derived(shown('title'));
   const costError = $derived(shown('cost'));
   const counterError = $derived(shown('counter'));

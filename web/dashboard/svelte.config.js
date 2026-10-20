@@ -4,6 +4,9 @@
 import { consoleKitConfig } from '../kit/svelte-config.js';
 
 /** @type {import('@sveltejs/kit').Config} */
-export default consoleKitConfig({
-  directives: { 'frame-src': ['none'] }
-});
+export default {
+  ...consoleKitConfig({
+    directives: { 'frame-src': ['none'] }
+  }),
+  compilerOptions: { discloseVersion: false }
+};

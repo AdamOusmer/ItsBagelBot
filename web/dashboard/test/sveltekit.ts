@@ -39,7 +39,7 @@ function stubI18n(): void {
 }
 
 function stubCatalogBundle(): void {
-  mock.module('virtual:bagel-i18n', () => ({ urls: {} }));
+  mock.module('virtual:bagel-i18n', () => ({ urls: {}, sliced: false }));
 }
 
 export function stubSvelteKit(options: { dev?: boolean } = {}): void {

@@ -23,7 +23,7 @@ import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { purgeEdgeByTag } from '$lib/server/edge-purge';
 import { enumerableChannelQuery } from '$lib/server/channel-urls';
-import { preloadCatalog } from '$lib/server/catalog-preload';
+import { preloadCatalog, preloadSlices } from '$lib/server/catalog-preload';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('dashboard');
@@ -214,6 +214,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   });
 
+  preloadSlices(res.headers, locale);
   harden(res, PERMISSIONS_POLICY);
   applyEdgeCache(event, res);
   return res;

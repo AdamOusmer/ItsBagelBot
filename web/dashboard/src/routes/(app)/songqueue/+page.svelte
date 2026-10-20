@@ -27,7 +27,6 @@
   import {
     MasterToggle,
     getI18n,
-    moduleDef,
     SPOTIFY_SR_PERMS,
     type SpotifySrConfig,
     type SpotifyRedeemConfig,
@@ -41,6 +40,7 @@
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
+  import { SONGQUEUE_MODULE } from '@bagel/kit/catalog/songqueue';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
@@ -48,9 +48,10 @@
   import SpotifySetup from '$lib/components/spotify/SpotifySetup.svelte';
   import SpotifyConnectionCard from '$lib/components/spotify/SpotifyConnectionCard.svelte';
   import SpotifyQueueCard from '$lib/components/spotify/SpotifyQueueCard.svelte';
-  import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadSpotifyRewardEditor = () => import('$lib/components/spotify/SpotifyRewardEditor.svelte');
   import {
     spotifyDraftFor,
     spotifyErrors,
@@ -62,9 +63,9 @@
 
   let { data } = $props();
   const { t } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
-  const songCommands = moduleDef('songqueue')?.commands ?? [];
+  const songCommands = SONGQUEUE_MODULE.commands ?? [];
 
   type QuotaDraft = Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string>;
   const quotaStrings = (q: SpotifyQuotas): QuotaDraft =>
@@ -145,7 +146,7 @@
   const isOk = (result: { type: string }, payload: SongQueueActionOk | undefined) =>
     result.type === 'success' && payload?.ok !== false;
 
-  function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
+  function reportFailure(payload: SongQueueActionOk | undefined, fallback: string) {
     if (payload?.missingScope) {
       missingScope = true;
       toast('danger', t('spotify.connection.twitchScopeGap'));
@@ -156,7 +157,7 @@
       toast('danger', t('spotify.connection.scopeGap'));
       return;
     }
-    failed(payload, fallbackKey);
+    failed(payload, fallback);
   }
 
   let queueBusy = false;
@@ -207,7 +208,7 @@
       }
       const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
       if (key) toast('danger', t(key));
-      else reportFailure(payload, 'spotify.queue.skipFailed');
+      else reportFailure(payload, t('spotify.queue.skipFailed'));
     };
   };
 
@@ -232,7 +233,7 @@
       connectionAction = null;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed');
+        reportFailure(payload, t(action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed'));
         return;
       }
       if (action === 'clearApp') app = { present: false, clientId: '' };
@@ -244,8 +245,8 @@
 
   function settingsSubmit(opts: {
     fields: () => Record<string, string>;
-    failKey: string;
-    okKey?: string;
+    fail: string;
+    ok?: string;
     revert: () => void;
   }): SubmitFunction {
     return ({ formData }) => {
@@ -254,10 +255,10 @@
         const payload = actionPayload<SongQueueActionOk>(result);
         if (!isOk(result, payload)) {
           opts.revert();
-          reportFailure(payload, opts.failKey);
+          reportFailure(payload, opts.fail);
           return;
         }
-        if (opts.okKey) toast('success', t(opts.okKey));
+        if (opts.ok) toast('success', opts.ok);
         await invalidateAll();
       };
     };
@@ -269,8 +270,8 @@
       sr_allow_offline: sr.allowOffline ? 'on' : '',
       perm: sr.perm
     }),
-    failKey: 'spotify.sr.saveFailed',
-    okKey: 'spotify.sr.saved',
+    fail: t('spotify.sr.saveFailed'),
+    ok: t('spotify.sr.saved'),
     revert: () => (sr = data.sr ?? blankSpotifySr())
   });
 
@@ -279,7 +280,7 @@
       redeem_enabled: redeem.enabled ? 'on' : '',
       redeem_allow_offline: redeem.allowOffline ? 'on' : ''
     }),
-    failKey: 'spotify.masterFail',
+    fail: t('spotify.masterFail'),
     revert: () => (redeem = data.redeem ?? blankSpotifyRedeem())
   });
 
@@ -290,7 +291,7 @@
       quotaSaving = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.quota.saveFailed');
+        reportFailure(payload, t('spotify.quota.saveFailed'));
         return;
       }
       toast('success', t('spotify.quota.saved'));
@@ -360,7 +361,7 @@
       const ok = isOk(result, payload);
       if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        reportFailure(payload, 'spotify.toast.saveFailed');
+        reportFailure(payload, t('spotify.toast.saveFailed'));
         return;
       }
       toast('success', t('spotify.toast.saved'));
@@ -379,7 +380,7 @@
       deletePending = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.toast.deleteFailed');
+        reportFailure(payload, t('spotify.toast.deleteFailed'));
         return;
       }
       doClose();
@@ -424,7 +425,7 @@
     onRemoveApp={() => (connectionAction = 'clearApp')}
   />
 {:else}
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadSpotifyRewardEditor]}>
   {@render head()}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
@@ -604,13 +605,15 @@
               bind:this={formEl}
             >
               <Scroller fill padding="16px" smooth>
-                <SpotifyRewardEditor
-                  bind:draft
-                  canDelete={!isNew}
-                  {busy}
-                  attempted={validationAttempted}
-                  onRequestDelete={() => (deletePending = true)}
-                />
+                {#await loadSpotifyRewardEditor() then { default: SpotifyRewardEditor }}
+                  <SpotifyRewardEditor
+                    bind:draft
+                    canDelete={!isNew}
+                    {busy}
+                    attempted={validationAttempted}
+                    onRequestDelete={() => (deletePending = true)}
+                  />
+                {/await}
               </Scroller>
               <EditorFooter
                 status={inspector.status}

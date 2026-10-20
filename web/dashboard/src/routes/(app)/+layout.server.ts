@@ -5,7 +5,8 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
-import { moduleSectionLinks } from '@bagel/kit/nav';
+import { DASHBOARD_SECTIONS, moduleSectionLinks } from '@bagel/kit/nav';
+import { translate } from '@bagel/kit/i18n';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -71,7 +72,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
-    moduleNav: moduleSectionLinks(),
+    moduleNav: moduleSectionLinks((key) => translate(locals.locale, key)),
+    navLabels: Object.fromEntries(DASHBOARD_SECTIONS.map((def) => [def.labelKey, translate(locals.locale, def.labelKey)])),
     role: s.role,
     displayName: s.display_name,
     login: s.login,

@@ -29,9 +29,10 @@
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
-  import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
+  import { warmOnIntent } from '$lib/warm-on-intent';
+  const loadTimerEditor = () => import('$lib/components/timers/TimerEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
@@ -99,7 +100,7 @@
       draft = null;
     });
   }
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   const saveSubmit: SubmitFunction = (input) => {
     if (
@@ -132,7 +133,7 @@
         }
         await invalidateAll();
       } else {
-        failed(payload, 'timers.toastSaveFailed');
+        failed(payload, t('timers.toastSaveFailed'));
       }
     };
   };
@@ -146,7 +147,7 @@
         const payload = actionPayload(result);
         if (result.type === 'success' && payload?.ok) return;
         timers = timers.map((x) => (x.id === tmr.id ? { ...x, enabled: was } : x));
-        failed(payload, 'timers.toastToggleFailed');
+        failed(payload, t('timers.toastToggleFailed'));
       };
     };
 
@@ -167,7 +168,7 @@
     const res = await postAction('delete', fd);
     if (!res?.ok) {
       timers = [...timers, tmr];
-      failed(res ?? undefined, 'timers.toastDeleteFailed');
+      failed(res ?? undefined, t('timers.toastDeleteFailed'));
       return;
     }
     toast('success', t('timers.toastDeleted'), {
@@ -180,11 +181,11 @@
     fd.set('timer', JSON.stringify(tmr));
     const res = await postAction('create', fd);
     if (res?.ok) await invalidateAll();
-    else failed(res ?? undefined, 'timers.toastDeleteFailed');
+    else failed(res ?? undefined, t('timers.toastDeleteFailed'));
   }
 </script>
 
-<section class="screen active">
+<section class="screen active" use:warmOnIntent={[loadTimerEditor]}>
   <PageHead eyebrow={t('timers.eyebrow')} description={t('timers.description')}>
     {t('timers.titlePre')}<em>{t('timers.titleEm')}</em>
   </PageHead>
@@ -251,7 +252,9 @@
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" smooth>
             {#key inspector.selectedId}
-              <TimerEditor bind:draft attempted={validationAttempted} />
+              {#await loadTimerEditor() then { default: TimerEditor }}
+                <TimerEditor bind:draft attempted={validationAttempted} />
+              {/await}
             {/key}
           </Scroller>
           <EditorFooter
