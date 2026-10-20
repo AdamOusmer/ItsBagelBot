@@ -30,7 +30,6 @@
     "./server/oauth": "./lib/server/oauth.ts",
     "./server/oauth-state": "./lib/server/oauth-state.ts",
     "./server/service": "./lib/server/service.ts",
-    "./server/rum": "./lib/server/rum.ts",
     "./server/resilience": "./lib/server/resilience.ts",
     "./server/rate-limit": "./lib/server/rate-limit.ts",
     "./server/cache": "./lib/server/cache.ts",

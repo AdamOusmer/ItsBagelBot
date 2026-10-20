@@ -16,7 +16,6 @@ import {
   resolveLocale,
   tagTransaction
 } from '@bagel/kit/server/hooks';
-import { rumTransform } from '@bagel/kit/server/rum';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
@@ -61,10 +60,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   tagTransaction(newrelic, event, event.locals.session);
   countView(event);
 
-  const res = await resolve(event, {
-    preload: preloadStrategy,
-    transformPageChunk: rumTransform()
-  });
+  const res = await resolve(event, { preload: preloadStrategy });
 
   harden(res, PERMISSIONS_POLICY);
   return res;

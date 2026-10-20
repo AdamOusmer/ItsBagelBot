@@ -9,7 +9,7 @@ stubSvelteKit();
 const { MODULE_CATALOG, catalogIndexable } = await import('@bagel/kit/catalog');
 
 type ModuleRow = Record<string, unknown>;
-type Loaded = { degraded?: boolean; modules: { def: { id: string }; enabled: boolean; config: Record<string, string>; revision: number }[] };
+type Loaded = { degraded?: boolean; modules: { id: string; def?: unknown; enabled: boolean; config: Record<string, string>; revision: number }[] };
 
 const listed: string[] = [];
 let listing: () => Promise<ModuleRow[]> = async () => [];
@@ -29,7 +29,7 @@ async function loadModules(rows: () => Promise<ModuleRow[]>) {
   listing = rows;
   const locals = { session: { user_id: '7' }, locale: 'en', accountState: { value: { status: 'paid' } } };
   const data = (await load({ locals } as never)) as Loaded;
-  return { data, module: data.modules.find((m) => m.def.id === def.id)! };
+  return { data, module: data.modules.find((m) => m.id === def.id)! };
 }
 
 const rows: { name: string; row: ModuleRow; want: { config: Record<string, string>; revision: number } }[] = [
@@ -50,6 +50,11 @@ describe('modules index load', () => {
     const { module } = await loadModules(async () => [row]);
     expect({ config: module.config, revision: module.revision }).toEqual(want);
     expect(listed.at(-1)).toBe('7');
+  });
+
+  test('rows carry the module id, not the catalog definition the client already bundles', async () => {
+    const { module } = await loadModules(async () => []);
+    expect({ id: module.id, def: module.def }).toEqual({ id: def.id, def: undefined });
   });
 
   test('a stored row overrides the catalog default', async () => {

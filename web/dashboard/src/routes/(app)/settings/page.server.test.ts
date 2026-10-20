@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
 import { STATIC_LOCALES, staticText } from '../../../../../kit/lib/i18n/static';
 import { privateEnv, stubSvelteKit } from '../../../../test/sveltekit';
 
@@ -17,7 +17,7 @@ let purgeStatus = 200;
 let savedLocale = 'en';
 
 const services = await import('../../../lib/server/services');
-mock.module('$lib/server/services', () => ({
+const servicesMock = () => ({
   ...services,
   delegationList: async () => [],
   delegationAccess: async () => [],
@@ -27,6 +27,9 @@ mock.module('$lib/server/services', () => ({
   userLeaderboardPage: async () => true,
   userLocale: async () => savedLocale,
   accountState: async () => ({ username: 'StreamerLogin' }),
+  publishEventSub: async () => {},
+  deleteSelf: async () => {},
+  auditDashboardImpersonation: () => {},
   setCommandsPage: async (userId: string, hidden: boolean) => {
     if (writeFails) throw new Error('rpc down');
     hiddenWrites.push({ page: 'commands_page', userId, hidden });
@@ -35,11 +38,13 @@ mock.module('$lib/server/services', () => ({
     if (writeFails) throw new Error('rpc down');
     hiddenWrites.push({ page: 'leaderboard_page', userId, hidden });
   }
-}));
+});
+mock.module('$lib/server/services', servicesMock);
+mock.module('../../../lib/server/services', servicesMock);
 const fetchesStore = await import('../../../lib/server/fetches-store');
 mock.module('$lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
 
-const { channelPageUrls } = await import('../../../lib/server/edge-purge');
+const { channelPageUrls } = await import('../../../lib/server/channel-urls');
 const { actions, load } = await import('./+page.server');
 
 const realFetch = globalThis.fetch;
@@ -71,7 +76,7 @@ function submitToggle(toggle: Toggle, session: Session | null, fields: Record<st
   return actions[toggle.action]({ request, locals: { session, locale } } as never);
 }
 
-const channelPurge: PurgeBody[] = [{ files: channelPageUrls('streamerlogin') }, { tags: ['lb:streamerlogin'] }];
+const channelPurge: PurgeBody[] = [{ files: channelPageUrls('7', ['streamerlogin']) }, { tags: ['lb:streamerlogin'] }];
 const refused = { status: 403, data: { error: staticText('en', 'serverErrors.notAllowed') } };
 
 const cases: {
@@ -103,7 +108,7 @@ const cases: {
     want: { result: () => refused, writes: [], purges: [] }
   },
   {
-    name: 'owner enabled=on writes hidden=false then purges the canonical URLs and the leaderboard tag',
+    name: 'owner enabled=on writes hidden=false then purges the commands page URLs and the leaderboard tag',
     session: { user_id: '7' },
     fields: { enabled: 'on' },
     want: { result: (page) => ({ ok: true, action: page, edgeDelayed: false }), writes: [['7', false]], purges: channelPurge }
@@ -151,6 +156,25 @@ describe.each(toggles)('$action action', (toggle) => {
     };
     expect({ result, writes: hiddenWrites, purges: purgeBodies } as unknown).toEqual(expected);
   });
+});
+
+test('deleting the account purges its commands pages and its leaderboard tag', async () => {
+  jest.useFakeTimers();
+  try {
+    const cookies = { set: () => {}, delete: () => {} };
+    const url = new URL('https://dashboard.itsbagelbot.com/settings?/delete');
+    const locals = { session: { user_id: '7', login: 'StreamerLogin' }, locale: 'en' };
+    const thrown = await Promise.resolve(actions.delete({ locals, cookies, url } as never)).catch((e: { status: number }) => e.status);
+    expect(thrown).toBe(302);
+    for (let i = 0; i < 3; i++) {
+      await Promise.resolve();
+      jest.advanceTimersByTime(10_000);
+    }
+  } finally {
+    jest.useRealTimers();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(purgeBodies).toEqual(channelPurge);
 });
 
 test('settings preserves every saved language as the selected one', async () => {

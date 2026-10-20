@@ -4,6 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import { reconcileModuleToggles } from '$lib/module-toggle';
+  import { hydrateModules } from '$lib/module-states';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -45,21 +46,21 @@
   const { t } = getI18n();
 
   // svelte-ignore state_referenced_locally
-  let items = $state<ModuleState[]>(data.modules ?? []);
+  let items = $state<ModuleState[]>(hydrateModules(data.modules ?? []));
   // svelte-ignore state_referenced_locally
   let seed = data.modules;
   const pendingToggles = new Map<string, boolean>();
   $effect(() => {
     if (data.modules !== seed) {
       seed = data.modules;
-      items = reconcileModuleToggles(data.modules ?? [], untrack(() => items), pendingToggles);
+      items = reconcileModuleToggles(hydrateModules(data.modules ?? []), untrack(() => items), pendingToggles);
     }
   });
 
   // svelte-ignore state_referenced_locally
   const initial = readModuleIndexQuery(
     page.url.searchParams,
-    [...new Set((data.modules ?? []).map((m) => m.def.category))]
+    [...new Set(items.map((m) => m.def.category))]
   );
 
   let searchQuery = $state(initial.q);
@@ -68,7 +69,7 @@
     { value: 'all', label: t('modules.filterAll') },
     { value: 'on', label: t('modules.filterOn') }
   ]);
-  const seededOn = $derived(new Set((data.modules ?? []).filter((m) => m.enabled).map((m) => m.def.id)));
+  const seededOn = $derived(new Set((data.modules ?? []).filter((m) => m.enabled).map((m) => m.id)));
 
   const activeCount = $derived(items.filter((m) => m.enabled).length);
   const filtered = $derived(
