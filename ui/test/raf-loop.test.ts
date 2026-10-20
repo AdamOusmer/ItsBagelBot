@@ -246,3 +246,75 @@ describe("document.hidden", () => {
     expect(ticks).toBe(1);
   });
 });
+
+describe("frame order", () => {
+  test("ticks run in subscription order even after a sleep and wake", () => {
+    const order: string[] = [];
+    const first: Tick = () => {
+      order.push("first");
+      return false;
+    };
+    const second: Tick = () => {
+      order.push("second");
+      return false;
+    };
+    track(first);
+    track(second);
+    frames();
+    order.length = 0;
+
+    loop.wake(second);
+    loop.wake(first);
+    frames();
+
+    expect(order).toEqual(["first", "second"]);
+  });
+
+  test("a tick woken by an earlier tick runs in the same frame without an extra frame", () => {
+    const order: string[] = [];
+    const later: Tick = () => {
+      order.push("later");
+      return false;
+    };
+    const earlier: Tick = () => {
+      order.push("earlier");
+      loop.wake(later);
+      return false;
+    };
+    track(earlier);
+    track(later);
+    frames();
+    order.length = 0;
+
+    loop.wake(earlier);
+    frames();
+
+    expect(order).toEqual(["earlier", "later"]);
+    expect(loop.isRunning()).toBe(false);
+  });
+});
+
+describe("a throwing tick", () => {
+  test("neither starves later ticks nor stops the loop", () => {
+    const seen: string[] = [];
+    const boom: Tick = () => {
+      throw new Error("boom");
+    };
+    const steady: Tick = () => {
+      seen.push("steady");
+    };
+    track(boom);
+    track(steady);
+    const original = globalThis.queueMicrotask;
+    globalThis.queueMicrotask = () => {};
+    try {
+      frames();
+      frames();
+    } finally {
+      globalThis.queueMicrotask = original;
+    }
+
+    expect(seen).toEqual(["steady", "steady"]);
+    expect(loop.isRunning()).toBe(true);
+  });
+});

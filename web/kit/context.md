@@ -65,8 +65,8 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - [lib/server/session.ts](lib/server/session.ts): shared sealed session codec/key handling;
   app wrappers define their own payloads/cookie names. Normal TTL 7 days; impersonation TTL 1 hour.
 - `lib/server/oauth.ts`, `oauth-state.ts`, `impersonation.ts`: OAuth primitives and identity-bound state.
-- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`, `rum.ts`: runtime setup,
-  validated configuration, common request/error hardening and New Relic browser injection.
+- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`: runtime setup,
+  validated configuration and common request/error hardening.
 - `rate-limit.ts`, `session-revocation.ts`, `shared-snapshot.ts`, `resilience.ts` and `best-effort.ts`
   solve shared fleet-limits, revocation, read coordination and graceful noncritical reads.
 - App route → app adapter → kit RPC/cache infrastructure → owning service; invalidations return to app caches.
@@ -85,6 +85,11 @@ Catalog metadata, preview samples, and running service behavior are related but 
   semantics instead of treating timers as unconditional fixed-period messages.
 - `i18n:keys` regenerates localization key types; inspect outputs rather than hand-editing them.
 - Production checks require build-time demo gating; dynamic fixture imports must disappear from server output.
+- Console CSS: `scripts/bundled-ui-sheets.mjs` turns adapter imports of ui element sheets into empty modules.
+  `styles/ui-public.css` (via `console.css`, the first stylesheet through each app's `hooks.client.ts`) and
+  `styles/ui-console.css` (console and error routes) list them in `@bagel/ui/styles/elements.css` order, public
+  sheets first. The build fails when a list breaks that order, a public route renders a console sheet, a public
+  sheet goes unrendered, or a console route renders a sheet in neither list; unlisted sheets ship per route.
 
 ## Focused commands
 

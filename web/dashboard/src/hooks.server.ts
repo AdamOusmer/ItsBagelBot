@@ -16,13 +16,13 @@ import {
   resolveLocale,
   tagTransaction
 } from '@bagel/kit/server/hooks';
-import { rumTransform } from '@bagel/kit/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
 import { logger } from '@bagel/kit/server/logger';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { purgeEdgeByTag } from '$lib/server/edge-purge';
+import { enumerableChannelQuery } from '$lib/server/channel-urls';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('dashboard');
@@ -75,14 +75,16 @@ export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: nu
   '/(public)/login': [600, 86_400],
   '/(public)/stats': [30, 300],
   '/(public)/[user]': [300, 3600],
-  '/(public)/user/[channel]': [300, 3600]
+  '/(public)/user/[channel]': [3600, 3600]
 };
+
+const SHORT_EDGE_TTL = [60, 60] as const;
 
 export const DEPLOY_CACHE_TAG = 'dashboard-edge-shell';
 
-const DEPLOY_PURGE_DELAY_MS = 30_000;
+// Must land after the last old pod exits: readiness + minReadySeconds 10 + terminationGracePeriodSeconds 45 (console-dashboard.yaml).
+const DEPLOY_PURGE_DELAY_MS = 90_000;
 
-// Relies on console-dashboard rolling with maxSurge 0: the last new pod's purge lands after every old pod is gone.
 function scheduleDeployPurge(): void {
   if (!process.env.CF_ZONE_ID || !process.env.CF_CACHE_PURGE_TOKEN) return;
   setTimeout(purgeDeployShell, DEPLOY_PURGE_DELAY_MS).unref?.();
@@ -94,22 +96,46 @@ async function purgeDeployShell(): Promise<void> {
 
 type HookEvent = Parameters<Handle>[0]['event'];
 
+type EdgeTtl = readonly [edgeTtlSec: number, swrSec: number];
+
+function edgeTtl(event: HookEvent): EdgeTtl | null {
+  const routeTtl = EDGE_CACHE[event.route.id ?? ''];
+  if (!routeTtl) return null;
+  switch (event.locals.edgeOutcome) {
+    case 'skip':
+      return null;
+    case 'missing':
+      return SHORT_EDGE_TTL;
+    default:
+      return routeTtl;
+  }
+}
+
 function cacheableStatus(res: Response, event: HookEvent): boolean {
-  return res.status === 200 || (res.status === 404 && !!event.locals.edgeCache404);
+  if (res.status === 200) return true;
+  const outcome = event.locals.edgeOutcome;
+  return res.status === 404 && (outcome === 'hidden' || outcome === 'missing');
+}
+
+// Data responses are 200 even when a load failed or redirected: only a load that recorded its outcome is shareable.
+function cacheableBody(res: Response, event: HookEvent): boolean {
+  const type = res.headers.get('content-type') ?? '';
+  if (!event.isDataRequest) return type.includes('text/html');
+  return !!event.locals.edgeOutcome && type.includes('application/json');
+}
+
+function urlPurgeable(event: HookEvent): boolean {
+  return enumerableChannelQuery(event.route.id ?? '', new URL(event.request.url).search, event.isDataRequest);
 }
 
 function cacheableRequest(event: HookEvent): boolean {
-  return event.request.method === 'GET' || event.request.method === 'HEAD';
-}
-
-function cacheableBody(res: Response, event: HookEvent): boolean {
-  const type = event.isDataRequest ? 'application/json' : 'text/html';
-  return !!res.headers.get('content-type')?.includes(type);
+  const method = event.request.method;
+  return (method === 'GET' || method === 'HEAD') && urlPurgeable(event);
 }
 
 function cacheableResponse(res: Response, event: HookEvent): boolean {
   // Expired session cookies get a delete Set-Cookie with no session: caching it would replay to every visitor.
-  if (res.headers.has('set-cookie') || event.locals.edgeCacheSkip) return false;
+  if (res.headers.has('set-cookie')) return false;
   return cacheableStatus(res, event) && cacheableBody(res, event);
 }
 
@@ -127,7 +153,7 @@ function anonymousDefaultRender(event: HookEvent): boolean {
 
 // Cloudflare keys the cache on normalized Accept-Language only: cache renders whose locale comes from that header alone.
 export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string, string> | null {
-  const ttl = EDGE_CACHE[event.route.id ?? ''];
+  const ttl = edgeTtl(event);
   if (!ttl || !cacheableRequest(event)) return null;
   if (!cacheableResponse(res, event) || !anonymousDefaultRender(event)) return null;
   return {
@@ -144,6 +170,18 @@ export function applyEdgeCache(event: HookEvent, res: Response): void {
   res.headers.append('Vary', 'Accept-Language');
 }
 
+// The guard starts alongside the limiter; a 429 answers without waiting for it, and wins over its redirect.
+async function admitSession(event: HookEvent): Promise<Response | null> {
+  const session = event.locals.session;
+  if (!session) return null;
+  const guarded = guardSession(event, session);
+  guarded.catch(() => {});
+  const limited = await enforceRateLimit(event);
+  if (limited) return limited;
+  event.locals.session = await guarded;
+  return null;
+}
+
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
@@ -152,13 +190,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   event.locals.session = openSessionCookie(event, COOKIE, open);
 
-  const limited = await enforceRateLimit(event);
+  const limited = await admitSession(event);
   if (limited) {
     return limited;
-  }
-
-  if (event.locals.session) {
-    event.locals.session = await guardSession(event, event.locals.session);
   }
 
   const locale = await resolveLocale(event, !!event.locals.session?.impersonator_id);
@@ -167,12 +201,10 @@ export const handle: Handle = async ({ event, resolve }) => {
   tagTransaction(newrelic, event, event.locals.session);
   countView(event);
 
-  const rum = rumTransform();
   let langPatched = false;
   const res = await resolve(event, {
     preload: preloadStrategy,
-    transformPageChunk: (opts) => {
-      let html = rum(opts);
+    transformPageChunk: ({ html }) => {
       if (!langPatched && html.includes('<html')) {
         html = html.replace('lang="en"', `lang="${locale}"`);
         langPatched = true;

@@ -5,7 +5,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
-import { resolveLogin, userCommandsPage, userLeaderboardPage } from '$lib/server/services';
+import { userCommandsPage, userLeaderboardPage } from '$lib/server/services';
 import { readLoyalty, standingsPage, topStandings } from '$lib/server/loyalty-store';
 import { resolveCurrentViewer } from '$lib/server/viewer-lookup';
 import {
@@ -21,8 +21,10 @@ import {
 	type PageReply,
 	type PageRequest
 } from '$lib/leaderboard-board';
-import { leaderboardCacheTag } from '$lib/edge-tags';
 import { channelLabel } from '$lib/server/public-directory';
+import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
+import { lookupLogin } from '$lib/server/channel-lookup';
+import { leaderboardCacheTag } from '$lib/edge-tags';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -32,21 +34,28 @@ const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
 type Channel = { userId: string; login: string; channelName: string };
 
-function requireLeaderboardHost(url: URL): void {
+function requireLeaderboardHost(url: URL, locals: App.Locals): void {
 	if (dev || url.hostname === LEADERBOARD_HOST) return;
+	markEdge(locals, 'missing');
 	throw error(404, 'Not found');
 }
 
-function requireLogin(segment: string): string {
-	const login = (segment ?? '').replace(/^@+/, '').toLowerCase();
-	if (!LOGIN_RE.test(login)) throw error(404, 'Channel not found');
-	return login;
+function channelNotFound(): never {
+	throw error(404, 'Channel not found');
 }
 
-async function requireChannel(login: string): Promise<Channel> {
-	const found = await resolveLogin(login).catch(() => null);
-	if (!found?.userId) throw error(404, 'Channel not found');
-	return { userId: found.userId, login, channelName: channelLabel(found, login) };
+function requireLogin(segment: string, locals: App.Locals): string {
+	const login = segment.replace(/^@+/, '').toLowerCase();
+	if (LOGIN_RE.test(login)) return login;
+	markEdge(locals, 'missing');
+	return channelNotFound();
+}
+
+async function requireChannel(login: string, locals: App.Locals): Promise<Channel> {
+	const looked = await lookupLogin(login);
+	if (typeof looked === 'object') return { userId: looked.userId, login, channelName: channelLabel(looked, login) };
+	if (looked === 'missing') markEdge(locals, 'missing');
+	return channelNotFound();
 }
 
 type Standings = {
@@ -60,12 +69,8 @@ type Standings = {
 type Search = { busy: boolean };
 
 function hideChannel(locals: App.Locals): never {
-	locals.edgeCache404 = true;
-	throw error(404, 'Channel not found');
-}
-
-function skipEdgeCache(locals: App.Locals, board: Standings): void {
-	if (board.degraded || board.busy) locals.edgeCacheSkip = true;
+	markEdge(locals, 'hidden');
+	return channelNotFound();
 }
 
 async function loginPage(userId: string, req: PageRequest, search: Search): Promise<PageReply> {
@@ -112,12 +117,14 @@ async function demoPage(login: string, params: BoardParams) {
 }
 
 function enter(url: URL, segment: string, locals: App.Locals): string {
-	requireLeaderboardHost(url);
-	const login = requireLogin(segment);
+	requireLeaderboardHost(url, locals);
+	const login = requireLogin(segment, locals);
 	locals.edgeCacheTag = leaderboardCacheTag(login);
+	const spelled = segment === login || segment === `@${login}`;
 	const canonical = canonicalLocation(url);
-	if (canonical) throw redirect(308, canonical);
-	return login;
+	if (spelled && !canonical) return login;
+	const search = new URL(canonical ?? `${url.pathname}${url.search}`, url).search;
+	throw redirect(308, `${spelled ? url.pathname : `/${login}`}${search}`);
 }
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
@@ -125,27 +132,27 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const view = boardParams(url);
 	if (DEMO) return demoPage(login, view);
 
-	const channel = await requireChannel(login);
+	const channel = await requireChannel(login, locals);
 	const loyalty = readLoyalty(channel.userId);
-	const loyaltyState = loyalty.then((v) => v.enabled).catch(() => true);
+	const board = standings(channel.userId, loyalty, view);
 	const [boardVisible, commandsPage, loyaltyEnabled] = await Promise.all([
-		userLeaderboardPage(channel.userId).catch(() => true),
-		userCommandsPage(channel.userId).catch(() => true),
-		loyaltyState
+		readVisibility(userLeaderboardPage(channel.userId)),
+		readVisibility(userCommandsPage(channel.userId)),
+		readVisibility(loyalty.then((v) => v.enabled))
 	]);
-	if (!boardVisible || !loyaltyEnabled) hideChannel(locals);
+	if (boardVisible === false || loyaltyEnabled === false) hideChannel(locals);
 
-	const board = await standings(channel.userId, loyalty, view);
-	skipEdgeCache(locals, board);
+	const standing = await board;
+	markEdge(locals, pageOutcome([boardVisible, commandsPage], standing.degraded || standing.busy));
 
 	return {
 		login: channel.login,
 		channelName: channel.channelName,
-		currencyName: board.currencyName,
-		podium: board.podium,
-		...board.board,
-		degraded: board.degraded,
-		busy: board.busy,
-		commandsPage
+		currencyName: standing.currencyName,
+		podium: standing.podium,
+		...standing.board,
+		degraded: standing.degraded,
+		busy: standing.busy,
+		commandsPage: commandsPage !== false
 	};
 };

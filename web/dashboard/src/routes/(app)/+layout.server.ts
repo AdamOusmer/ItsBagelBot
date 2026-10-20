@@ -8,6 +8,7 @@ import type { LayoutServerLoad } from './$types';
 import { moduleSectionLinks } from '@bagel/kit/nav';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '$lib/server/session';
+import { effectiveId } from '$lib/server/board';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags } from '$lib/server/module-flags';
 
@@ -75,6 +76,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     displayName: s.display_name,
     login: s.login,
     impersonatorLogin: s.impersonator_id ? s.impersonator_login : undefined,
+    board: effectiveId(s),
     delegateOf: s.delegate_of,
     delegateLogin: s.delegate_of ? s.delegate_login : undefined,
     sections: s.delegate_of ? (s.sections ?? []) : undefined,

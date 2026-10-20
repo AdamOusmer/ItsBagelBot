@@ -96,23 +96,23 @@ mock.module('$lib/server/services', () => ({
 
 const { load } = await import('./+page.server');
 
-type Outcome = { status?: number; message?: string; location?: string; edgeCache404?: boolean; page?: Page };
+type Outcome = { status?: number; message?: string; location?: string; edge?: unknown; page?: Page };
 
 let lastLocals: Record<string, unknown> = {};
 
-async function loadPage(search = ''): Promise<Outcome> {
+async function loadPage(search = '', user = 'somechannel'): Promise<Outcome> {
   const locals: Record<string, unknown> = { locale: 'en' };
   lastLocals = locals;
   const event = {
-    params: { user: 'somechannel' },
-    url: new URL(`https://leaderboard.itsbagelbot.com/somechannel${search}`),
+    params: { user },
+    url: new URL(`https://leaderboard.itsbagelbot.com/${user}${search}`),
     locals
   };
   try {
-    return { page: (await load(event as never)) as unknown as Page, edgeCache404: locals.edgeCache404 as boolean | undefined };
+    return { page: (await load(event as never)) as unknown as Page, edge: locals.edgeOutcome };
   } catch (e) {
     const err = e as { status?: number; location?: string; body?: { message?: string } };
-    return { status: err.status, message: err.body?.message, location: err.location, edgeCache404: locals.edgeCache404 as boolean | undefined };
+    return { status: err.status, message: err.body?.message, location: err.location, edge: locals.edgeOutcome };
   }
 }
 
@@ -177,20 +177,17 @@ describe('(public)/[user] load: commands-page toggle', () => {
   });
 });
 
-const notFound = { status: 404, message: 'Channel not found', edgeCache404: true };
+const notFound = { status: 404, message: 'Channel not found', edge: 'hidden' };
 
 describe('(public)/[user] load: leaderboard visibility', () => {
-  test('a hidden leaderboard 404s edge-cached with the unknown-channel message and reads nothing else', async () => {
+  test('a hidden leaderboard 404s edge-cached with the unknown-channel message and no board data', async () => {
     arrange({ leaderboardPage: async () => false });
-    const out = await loadPage();
-    expect({ ...out }).toEqual(notFound);
-    expect(standingsReads).toBe(0);
+    expect(await loadPage()).toEqual(notFound);
   });
 
   test('a disabled loyalty module 404s edge-cached', async () => {
     arrange({ loyaltyEnabled: false });
     expect(await loadPage()).toEqual(notFound);
-    expect(standingsReads).toBe(0);
   });
 
   test('a rejected leaderboard-flag read fails open and renders', async () => {
@@ -200,9 +197,9 @@ describe('(public)/[user] load: leaderboard visibility', () => {
       }
     });
     const out = await loadPage();
-    expect({ status: out.status, edgeCache404: out.edgeCache404, top: out.page?.podium.length }).toEqual({
+    expect({ status: out.status, edge: out.edge, top: out.page?.podium.length }).toEqual({
       status: undefined,
-      edgeCache404: undefined,
+      edge: 'skip',
       top: 1
     });
   });
@@ -210,9 +207,9 @@ describe('(public)/[user] load: leaderboard visibility', () => {
   test('a rejected loyalty read renders the degraded page instead of a 404', async () => {
     arrange({ loyaltyFails: true });
     const out = await loadPage();
-    expect({ status: out.status, edgeCache404: out.edgeCache404, degraded: out.page?.degraded }).toEqual({
+    expect({ status: out.status, edge: out.edge, degraded: out.page?.degraded }).toEqual({
       status: undefined,
-      edgeCache404: undefined,
+      edge: 'skip',
       degraded: true
     });
   });
@@ -337,13 +334,13 @@ describe('(public)/[user] load: canonical redirect', () => {
   test('a degraded board is flagged uncacheable', async () => {
     arrange({ loyaltyFails: true });
     await loadPage('?q=1');
-    expect(lastLocals.edgeCacheSkip).toBe(true);
+    expect(lastLocals.edgeOutcome).toBe('skip');
   });
 
   test('a healthy board is not flagged', async () => {
     arrange({});
     await loadPage('?q=1');
-    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+    expect(lastLocals.edgeOutcome).toBe('page');
   });
 });
 
@@ -384,7 +381,7 @@ describe('(public)/[user] load: username search and reconcile', () => {
       requests: [{ limit: 15, offset: 0, viewerLogin: 'v5' }],
       busy: false
     });
-    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+    expect(lastLocals.edgeOutcome).toBe('page');
   });
 
   test('a stored miss resolves the current id then looks it up with the login as the reconcile hint', async () => {
@@ -398,7 +395,7 @@ describe('(public)/[user] load: username search and reconcile', () => {
         { limit: 15, offset: 0, viewerId: '7', viewerLogin: 'renamed_seven' }
       ]
     });
-    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+    expect(lastLocals.edgeOutcome).toBe('page');
   });
 
   test('after the reconcile the new login is a stored hit', async () => {
@@ -426,7 +423,7 @@ describe('(public)/[user] load: username search and reconcile', () => {
       calls: ['nobody_here'],
       requests: 1
     });
-    expect(lastLocals.edgeCacheSkip).toBeUndefined();
+    expect(lastLocals.edgeOutcome).toBe('page');
   });
 
   test('a resolver error is a no-match, not a degraded page or an error', async () => {
@@ -448,21 +445,43 @@ describe('(public)/[user] load: username search and reconcile', () => {
       busy: page!.busy,
       copy: emptyCopyKeys({ query: page!.query, degraded: page!.degraded, busy: page!.busy, podiumSize: page!.podium.length })?.body
     }).toEqual({ rows: 0, busy: true, copy: 'leaderboard.searchBusyBody' });
-    expect(lastLocals.edgeCacheSkip).toBe(true);
+    expect(lastLocals.edgeOutcome).toBe('skip');
   });
 });
 
 describe('(public)/[user] load: edge cache tag', () => {
-  test('a rendered board is tagged with its channel', async () => {
+  test('a rendered board or search is tagged with its channel', async () => {
     arrange({});
-    await loadPage('?page=2');
+    await loadPage('?q=fan&page=2');
     expect(lastLocals.edgeCacheTag).toBe('lb:somechannel');
   });
 
   test('a hidden board is tagged too so a later purge reaches its cached 404', async () => {
     arrange({ leaderboardPage: async () => false });
     await loadPage('?q=22');
-    expect(lastLocals.edgeCacheTag).toBe('lb:somechannel');
+    expect({ tag: lastLocals.edgeCacheTag, edge: lastLocals.edgeOutcome }).toEqual({ tag: 'lb:somechannel', edge: 'hidden' });
+  });
+});
+
+describe('(public)/[user] load: one URL per spelling', () => {
+  test.each(['somechannel', '@somechannel'])('%s renders in place', async (user) => {
+    arrange({});
+    expect((await loadPage('?page=2', user)).edge).toBe('page');
+  });
+
+  test.each([
+    { user: 'SomeChannel', search: '', want: '/somechannel' },
+    { user: '@@somechannel', search: '?page=2', want: '/somechannel?page=2' },
+    { user: 'SomeChannel', search: '?page=1&q=', want: '/somechannel' },
+    { user: '@somechannel', search: '?page=01', want: '/@somechannel' }
+  ])('$user$search redirects once to $want', async ({ user, search, want }) => {
+    arrange({});
+    expect(await loadPage(search, user)).toEqual({ status: 308, location: want, edge: undefined });
+  });
+
+  test('an unknown login 404s as a short-lived miss', async () => {
+    arrange({});
+    expect((await loadPage('', 'bad.login')).edge).toBe('missing');
   });
 });
 

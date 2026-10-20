@@ -201,8 +201,14 @@ export function localeOptions(
 
 const FLAG_OVERRIDES: Readonly<Record<string, string>> = { en: 'gb' };
 
+const flagByLocale = new Map<string, string | undefined>();
+
 /** Lowercase region code of the flag shown beside a locale: `pt-br` -> `br`, `es` -> `es`. */
 export function localeFlag(code: Locale): string | undefined {
-  if (Object.hasOwn(FLAG_OVERRIDES, code)) return FLAG_OVERRIDES[code];
-  return new Intl.Locale(code).maximize().region?.toLowerCase();
+  if (flagByLocale.has(code)) return flagByLocale.get(code);
+  const flag = Object.hasOwn(FLAG_OVERRIDES, code)
+    ? FLAG_OVERRIDES[code]
+    : new Intl.Locale(code).maximize().region?.toLowerCase();
+  flagByLocale.set(code, flag);
+  return flag;
 }

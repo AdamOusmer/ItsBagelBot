@@ -6,7 +6,7 @@ import { POLICY } from '@bagel/kit/server/cache-keys';
 
 process.env.NEW_RELIC_ENABLED = 'false';
 mock.module('$app/environment', () => ({ dev: false }));
-mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
+mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {}, scheduleLeaderboardPurge: () => {} }));
 
 const modules = [{ name: 'queue', is_enabled: true, revision: 8, configs: {} },
   { name: 'loyalty', is_enabled: true, revision: 4, account_created_at: 100, configs: {} }];
@@ -55,12 +55,12 @@ test('projection readback keeps a newer accepted revision in the cache', async (
 
 test('patch synchronizes its committed config instead of invalidating into an old projection', async () => {
   expect(await patchModule({ userId: '1001', name: 'queue', isEnabled: true, partial: {}, expectedRev: 7 }))
-    .toEqual({ rev: 8, conflict: false });
+    .toEqual({ rev: 8, conflict: false, synced: true });
   expect(calls[1].body.modules).toEqual(modules);
 });
 
 test('a projection outage retains the committed SQL value for immediate readback', async () => {
   projectionFailure = true;
-  await upsertModule('1001', 'queue', true, {});
+  expect((await upsertModule('1001', 'queue', true, {})).synced).toBe(false);
   expect(await cache.getOrLoad('modules:1001', POLICY.projected, async () => [] as typeof modules)).toEqual(modules);
 });

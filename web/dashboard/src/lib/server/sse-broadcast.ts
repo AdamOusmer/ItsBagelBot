@@ -11,6 +11,7 @@ export interface Broadcast<K> {
 interface Channel {
   sinks: Set<Sink>;
   last: (Uint8Array | undefined)[];
+  lastText: (string | undefined)[];
   busy: boolean[];
   timer?: ReturnType<typeof setInterval>;
 }
@@ -25,15 +26,23 @@ function deliver(sink: Sink, chunk: Uint8Array): void {
   } catch {}
 }
 
-export function createBroadcast<K>(intervalMs: number, frames: Frame<K>[]): Broadcast<K> {
+function nextChunk(ch: Channel, i: number, text: string, unchanged: Uint8Array | undefined): Uint8Array {
+  if (unchanged && text === ch.lastText[i]) return unchanged;
+  const chunk = enc.encode(text);
+  ch.last[i] = chunk;
+  ch.lastText[i] = text;
+  return chunk;
+}
+
+export function createBroadcast<K>(intervalMs: number, frames: Frame<K>[], unchanged?: string): Broadcast<K> {
   const channels = new Map<K, Channel>();
+  const unchangedChunk = unchanged === undefined ? undefined : enc.encode(unchanged);
 
   async function produce(key: K, ch: Channel, i: number): Promise<void> {
     if (ch.busy[i]) return;
     ch.busy[i] = true;
     try {
-      const chunk = enc.encode(await frames[i](key));
-      ch.last[i] = chunk;
+      const chunk = nextChunk(ch, i, await frames[i](key), unchangedChunk);
       for (const sink of ch.sinks) deliver(sink, chunk);
     } catch {
     } finally {
@@ -49,7 +58,7 @@ export function createBroadcast<K>(intervalMs: number, frames: Frame<K>[]): Broa
     let ch = channels.get(key);
     const fresh = !ch;
     if (!ch) {
-      const created: Channel = { sinks: new Set(), last: [], busy: [] };
+      const created: Channel = { sinks: new Set(), last: [], lastText: [], busy: [] };
       created.timer = setInterval(() => tick(key, created), intervalMs);
       channels.set(key, created);
       ch = created;
