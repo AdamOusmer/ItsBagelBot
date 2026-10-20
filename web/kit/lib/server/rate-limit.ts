@@ -1,18 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Redis from 'iovalkey';
-import {
-  VALKEY_TLS_DATA_PORT,
-  VALKEY_TLS_SENTINEL_PORT,
-  valkeyEndpoint,
-  valkeySentinelNAT,
-  valkeyTLSOptions,
-  VALKEY_CLIENT_OPTIONS
-} from './valkey-connection';
-import { getServerConfig, hasServerConfig } from './config';
+import type Redis from 'iovalkey';
+import { masterClient, resetMasterClientForTests } from './valkey-master';
 import { CircuitBreaker, withTimeout } from './resilience';
-import { logger } from './logger';
 
 export interface RateLimiterOptions {
   capacity: number;
@@ -139,87 +130,26 @@ interface RateLimitClient extends Redis {
 }
 
 const OP_TIMEOUT_MS = 150;
-// A Sentinel client that loses its master in a failover can stay out of `ready`
-// for good (2026-09-24: 40 min until a pod restart); a fresh one finds the new master.
-const STUCK_REBUILD_MS = 30_000;
-const ERROR_LOG_EVERY_MS = 60_000;
 
-let writeClient: RateLimitClient | null = null;
-let writeDisabled = false;
 let writeBreaker = newWriteBreaker();
-let notReadySince = 0;
-let lastErrorLog = 0;
+const scripted = new WeakSet<Redis>();
 
 function newWriteBreaker(): CircuitBreaker {
   return new CircuitBreaker({ name: 'valkey-ratelimit', failureThreshold: 3, resetMs: 5_000 });
 }
 
 function getWriteClient(): RateLimitClient | null {
-  if (writeDisabled) return null;
-  rebuildIfStuck(Date.now());
-  if (writeClient) return writeClient;
-  const cfg = hasServerConfig() ? getServerConfig().valkey : undefined;
-  if (!cfg) {
-    writeDisabled = true;
-    return null;
+  const client = masterClient();
+  if (!client) return null;
+  if (!scripted.has(client)) {
+    client.defineCommand('rateLimit', { numberOfKeys: 1, lua: TOKEN_BUCKET_LUA });
+    scripted.add(client);
   }
-
-  const tls = valkeyTLSOptions(cfg);
-  let client: Redis;
-  if (cfg.sentinelAddr) {
-    const endpoint = valkeyEndpoint(cfg.sentinelAddr, Boolean(tls), VALKEY_TLS_SENTINEL_PORT);
-    client = new Redis({
-      sentinels: [endpoint],
-      // `||`, not `??`: a blank VALKEY_MASTER_SET never resolves a master and every write times out.
-      name: cfg.sentinelMaster || 'myprimary',
-      password: cfg.password || undefined,
-      sentinelPassword: cfg.password || undefined,
-      tls,
-      sentinelTLS: tls,
-      enableTLSForSentinelMode: Boolean(tls),
-      natMap: tls ? valkeySentinelNAT : undefined,
-      ...VALKEY_CLIENT_OPTIONS,
-      sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000)
-    });
-  } else {
-    const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-    client = new Redis({
-      host: endpoint.host,
-      port: endpoint.port,
-      password: cfg.password || undefined,
-      tls,
-      ...VALKEY_CLIENT_OPTIONS
-    });
-  }
-
-  client.on('error', logWriteError);
-  client.defineCommand('rateLimit', { numberOfKeys: 1, lua: TOKEN_BUCKET_LUA });
-  writeClient = client as RateLimitClient;
-  notReadySince = Date.now();
-  return writeClient;
-}
-
-function rebuildIfStuck(now: number): void {
-  if (!writeClient || writeClient.status === 'ready') {
-    notReadySince = 0;
-    return;
-  }
-  if (notReadySince === 0) notReadySince = now;
-  if (now - notReadySince < STUCK_REBUILD_MS) return;
-  logger.warn({ status: writeClient.status }, 'valkey rate-limit client stuck, rebuilding');
-  writeClient.disconnect();
-  writeClient = null;
-}
-
-function logWriteError(err: Error): void {
-  const now = Date.now();
-  if (now - lastErrorLog < ERROR_LOG_EVERY_MS) return;
-  lastErrorLog = now;
-  logger.warn({ err: err.message }, 'valkey rate-limit client error');
+  return client as RateLimitClient;
 }
 
 export function rateLimitClientForTests(): Redis | null {
-  return writeClient;
+  return masterClient();
 }
 
 export function warmRateLimiter(): void {
@@ -253,9 +183,7 @@ export async function claimOnce(key: string, ttlSec: number): Promise<ClaimResul
 }
 
 export function resetRateLimiterBackendForTests(): void {
-  writeClient?.disconnect();
-  writeClient = null;
-  writeDisabled = false;
+  resetMasterClientForTests();
   writeBreaker = newWriteBreaker();
 }
 

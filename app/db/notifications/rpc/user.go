@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -19,26 +20,28 @@ import (
 )
 
 type userRPC struct {
-	nc             *nats.Conn
-	userGetSubject string
-	repo           *repository.Notifications
-	fullReadTTL    time.Duration
-	peekTTL        time.Duration
-	log            *zap.Logger
+	nc                 *nats.Conn
+	userGetSubject     string
+	invalidationPrefix string
+	repo               *repository.Notifications
+	fullReadTTL        time.Duration
+	peekTTL            time.Duration
+	log                *zap.Logger
 }
 
 type UserConfig struct {
-	UserGetSubject string
-	Prefix         string
-	FullReadTTL    time.Duration
-	PeekTTL        time.Duration
+	UserGetSubject     string
+	Prefix             string
+	InvalidationPrefix string
+	FullReadTTL        time.Duration
+	PeekTTL            time.Duration
 }
 
 func SubscribeUser(w Wiring, cfg UserConfig) error {
 	if cfg.UserGetSubject == "" {
 		cfg.UserGetSubject = "bagel.rpc.internal.users.get"
 	}
-	u := &userRPC{nc: w.NC, userGetSubject: cfg.UserGetSubject, repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
+	u := &userRPC{nc: w.NC, userGetSubject: cfg.UserGetSubject, invalidationPrefix: cfg.InvalidationPrefix, repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
 
 	read := w.Within(readBudget)
 	if err := bus.Serve(read, cfg.Prefix+".list", u.list); err != nil {
@@ -79,7 +82,7 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 }
 
 func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
-	_, err := parseUserID(req.UserID)
+	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
@@ -94,11 +97,12 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	if err := u.repo.MarkReadForIncarnation(ctx, notifID, recipient, time.Now().Add(u.fullReadTTL)); err != nil {
 		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
+	u.invalidate(userID)
 	return notificationsrpc.MarkReadReply{}
 }
 
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
-	_, err := parseUserID(req.UserID)
+	userID, err := parseUserID(req.UserID)
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
@@ -110,7 +114,19 @@ func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeeke
 	if err != nil {
 		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
+	if peeked > 0 {
+		u.invalidate(userID)
+	}
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
+}
+
+func (u *userRPC) invalidate(userID uint64) {
+	if u.nc == nil || u.invalidationPrefix == "" {
+		return
+	}
+	if err := invalidate.Publish(u.nc, u.invalidationPrefix, "notifications", strconv.FormatUint(userID, 10)); err != nil && u.log != nil {
+		u.log.Warn("notification read invalidation publish failed", zap.Error(err))
+	}
 }
 
 func parseUserID(s string) (uint64, error) { return bus.UserID(s) }

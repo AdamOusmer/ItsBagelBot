@@ -58,6 +58,15 @@ const SCOPES: ScopeMap = {
   modules: () => [],
   delegation: () => [],
   notifications: () => ['notifications:'],
+  locale: () => [],
+  cursor: () => [],
+  commands_page: () => [],
+  leaderboard_page: () => [],
+  live: () => [],
+  'token-warm': () => [],
+  outgress: () => [],
+  fetches: () => [],
+  user: (id) => ['users:', `user:${id}`, `token:${id}`],
   '*': (id) => ['users:', `user:${id}`, `token:${id}`]
 };
 
@@ -475,8 +484,9 @@ export async function restartUserEventSub(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
+// Unenroll is flushed: unenroll-first mutations rely on it reaching NATS before their RPC.
 export async function publishUserEventSub(userId: string, enabled: boolean): Promise<void> {
-  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } });
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } }, { flush: !enabled });
 }
 
 export type ChannelSubState = {
