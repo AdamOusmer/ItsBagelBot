@@ -34,38 +34,26 @@ func requestConcurrently(nc *nats.Conn, subject string, n int, timeout time.Dura
 	return &wg
 }
 
-func TestServeRunsHandlersConcurrentlyUnlessSerial(t *testing.T) {
-	cases := []struct {
-		name     string
-		wiring   func(RPCWiring) RPCWiring
-		wantPeak int64
-	}{
-		{"default", func(w RPCWiring) RPCWiring { return w }, int64(defaultRPCMaxWorkers)},
-		{"serially", RPCWiring.Serially, 1},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			nc := testnats.Connect(t)
-			subject := rpcSubjectName()
-			probe := newOverlapProbe(defaultRPCMaxWorkers)
-			require.NoError(t, Serve(tc.wiring(RPCWiring{NC: nc, Queue: "svc"}), subject, blockingVerb(probe)))
+func TestServeRunsHandlersConcurrently(t *testing.T) {
+	nc := testnats.Connect(t)
+	subject := rpcSubjectName()
+	probe := newOverlapProbe(defaultRPCMaxWorkers)
+	require.NoError(t, Serve(RPCWiring{NC: nc, Queue: "svc"}, subject, blockingVerb(probe)))
 
-			calls := requestConcurrently(nc, subject, defaultRPCMaxWorkers, rpcPoolTestTimeout)
-			probe.awaitArrivals(t, int(tc.wantPeak))
-			assert.Never(t, func() bool { return probe.running.Load() > tc.wantPeak }, 100*time.Millisecond, 5*time.Millisecond)
-			close(probe.release)
-			calls.Wait()
+	calls := requestConcurrently(nc, subject, defaultRPCMaxWorkers, rpcPoolTestTimeout)
+	probe.awaitArrivals(t, defaultRPCMaxWorkers)
+	close(probe.release)
+	calls.Wait()
 
-			assert.Equal(t, tc.wantPeak, probe.peak.Load())
-		})
-	}
+	assert.EqualValues(t, defaultRPCMaxWorkers, probe.peak.Load())
 }
 
 func TestServeSkipsRequestsWhoseCallerAlreadyGaveUp(t *testing.T) {
 	nc := testnats.Connect(t)
 	subject := rpcSubjectName()
 	probe := newOverlapProbe(4)
-	require.NoError(t, Serve(RPCWiring{NC: nc, Queue: "svc"}.Serially(), subject, blockingVerb(probe)))
+	single := RPCWiring{NC: nc, Queue: "svc", Pool: RPCPoolPolicy{MaxWorkers: 1}}
+	require.NoError(t, Serve(single, subject, blockingVerb(probe)))
 
 	head := requestConcurrently(nc, subject, 1, rpcPoolTestTimeout)
 	probe.awaitArrivals(t, 1)

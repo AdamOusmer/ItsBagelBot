@@ -28,12 +28,6 @@ func (w RPCWiring) Within(d time.Duration) RPCWiring {
 	return w
 }
 
-// Serially is for handlers that read-modify-write in-process or check-then-act without a DB guard.
-func (w RPCWiring) Serially() RPCWiring {
-	w.Pool = RPCPoolPolicy{MaxWorkers: 1}
-	return w
-}
-
 func (w RPCWiring) timeout() time.Duration {
 	if w.Timeout == 0 {
 		return DefaultRPCTimeout

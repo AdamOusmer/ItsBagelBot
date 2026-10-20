@@ -89,7 +89,7 @@ func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject strin
 	return RequestJSON[T](ctx, nc, subject, request)
 }
 
-// handle must be safe to run concurrently with itself; a read-modify-write handler needs RPCWiring.Serially.
+// handle must be safe to run concurrently with itself.
 func QueueSubscribeJSON[Req any, Resp any](
 	nc *nats.Conn,
 	subject string,

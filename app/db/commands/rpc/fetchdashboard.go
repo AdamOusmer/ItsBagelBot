@@ -20,7 +20,7 @@ func SubscribeFetchDashboard(w Wiring, prefix string) error {
 
 	return errors.Join(
 		bus.ServeForUser[fetchkeyrpc.FetchListRequest, fetchkeyrpc.FetchListReply](w.RPCWiring, prefix+".fetch_list", d.handleList),
-		bus.ServeForUser[fetchkeyrpc.FetchDefSetRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring.Serially(), prefix+".fetch_set_def", d.handleSetDef),
+		bus.ServeForUser[fetchkeyrpc.FetchDefSetRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring, prefix+".fetch_set_def", d.handleSetDef),
 		bus.ServeForUser[fetchkeyrpc.FetchKeySetRequest, fetchkeyrpc.FetchKeySetReply](w.RPCWiring, prefix+".fetch_set_key", d.handleSetKey),
 		bus.ServeForUser[fetchkeyrpc.FetchDeleteRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring, prefix+".fetch_delete", d.handleDelete),
 	)
