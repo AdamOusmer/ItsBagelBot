@@ -36,12 +36,18 @@ const NOOP_METRICS: CacheMetrics = {
   maskedError() {}
 };
 
+export interface InvalidationEvent {
+  scope: string;
+  id: string;
+  prefixes: string[];
+}
+
 export interface CacheFabricOptions {
   app: string;
   scopes: ScopeMap;
   metrics?: CacheMetrics | null;
   capacity?: number;
-  onInvalidation?: (scope: string, id: string) => void;
+  onInvalidation?: (event: InvalidationEvent) => void;
 }
 
 export interface ReadThrough<T> {
@@ -53,7 +59,7 @@ export class CacheFabric {
   readonly cache: SwrCache;
   private readonly scopes: ScopeMap;
   private readonly metrics: CacheMetrics;
-  private readonly onInvalidation?: (scope: string, id: string) => void;
+  private readonly onInvalidation?: (event: InvalidationEvent) => void;
   private started = false;
 
   constructor(opts: CacheFabricOptions) {
@@ -98,7 +104,7 @@ export class CacheFabric {
     startInvalidationBus({
       cache: this.cache,
       scopes: this.scopes,
-      onApplied: this.onInvalidation ? (scope, id) => this.onInvalidation!(scope, id) : undefined
+      onApplied: this.onInvalidation ? (scope, id, prefixes) => this.onInvalidation!({ scope, id, prefixes }) : undefined
     });
   }
 }

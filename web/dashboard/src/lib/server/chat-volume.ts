@@ -2,16 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Must match internal/chatvolume's wire format.
-import Redis from 'iovalkey';
-import {
-  VALKEY_TLS_DATA_PORT,
-  VALKEY_TLS_SENTINEL_PORT,
-  valkeyEndpoint,
-  valkeySentinelNAT,
-  valkeyTLSOptions,
-  VALKEY_CLIENT_OPTIONS
-} from '@bagel/kit/server/valkey-connection';
-import { getServerConfig, hasServerConfig, type ValkeyConfig } from '@bagel/kit/server/config';
+import { masterClient } from '@bagel/kit/server/valkey-master';
 import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
 import { logger } from '@bagel/kit/server/logger';
 import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../overview-live';
@@ -19,47 +10,6 @@ import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../o
 const RING_WIDTH = 60;
 const OP_TIMEOUT_MS = 200;
 const KEY_PREFIX = 'chatvol:';
-
-type TLSOptions = ReturnType<typeof valkeyTLSOptions>;
-
-function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
-  return {
-    sentinels: [valkeyEndpoint(cfg.sentinelAddr as string, Boolean(tls), VALKEY_TLS_SENTINEL_PORT)],
-      // `||`, not `??`: an unset VALKEY_MASTER_SET arrives as "" and must fall back.
-    name: cfg.sentinelMaster || 'myprimary',
-    password: cfg.password || undefined,
-    sentinelPassword: cfg.password || undefined,
-    tls,
-    sentinelTLS: tls,
-    enableTLSForSentinelMode: Boolean(tls),
-    natMap: tls ? valkeySentinelNAT : undefined,
-    sentinelRetryStrategy: (times: number) => Math.min(times * 200, 2000),
-    ...VALKEY_CLIENT_OPTIONS
-  };
-}
-
-function directOptions(cfg: ValkeyConfig, tls: TLSOptions) {
-  const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-  return { host: endpoint.host, port: endpoint.port, password: cfg.password || undefined, tls, ...VALKEY_CLIENT_OPTIONS };
-}
-
-let client: Redis | null = null;
-let disabled = false;
-
-function get(): Redis | null {
-  if (disabled) return null;
-  if (client) return client;
-  const cfg = hasServerConfig() ? getServerConfig().valkey : undefined;
-  if (!cfg) {
-    disabled = true;
-    return null;
-  }
-  const tls = valkeyTLSOptions(cfg);
-  const c = new Redis(cfg.sentinelAddr ? sentinelOptions(cfg, tls) : directOptions(cfg, tls));
-  c.on('error', () => {});
-  client = c;
-  return client;
-}
 
 const breaker = new CircuitBreaker({ name: 'valkey-chat-volume', failureThreshold: 3, resetMs: 5_000 });
 
@@ -103,7 +53,7 @@ function buildChatVolume(fields: Record<string, string>, nowEpochMin: number): C
 }
 
 export async function chatVolume(uid: string): Promise<ChatVolume> {
-  const c = get();
+  const c = masterClient();
   if (!c) return degradedChatVolume();
   try {
     const fields = await breaker.run(() =>

@@ -70,10 +70,11 @@ func main() {
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
 	userCfg := rpc.UserConfig{
-		UserGetSubject: userGetSubject,
-		Prefix:         userPrefix,
-		FullReadTTL:    fullReadTTL,
-		PeekTTL:        peekTTL,
+		UserGetSubject:     userGetSubject,
+		Prefix:             userPrefix,
+		InvalidationPrefix: invalidationPrefix,
+		FullReadTTL:        fullReadTTL,
+		PeekTTL:            peekTTL,
 	}
 	svcboot.FatalIf(log, rpc.SubscribeUser(wiring, userCfg), "failed to subscribe user rpc")
 
