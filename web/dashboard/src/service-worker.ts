@@ -2,18 +2,16 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /// <reference types="@sveltejs/kit" />
-import { build, files, version } from '$service-worker';
+import { version } from '$service-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 const CACHE = `bagel-dashboard-${version}`;
 
-const PRECACHE_EXCLUDE = new Set(['/og-image.png', '/logo.png', '/premium-logo.png']);
-
-const PRECACHE = [...build, ...files.filter((file) => !PRECACHE_EXCLUDE.has(file))];
-const PRECACHE_SET = new Set(PRECACHE);
-
 const OFFLINE_URL = '/offline.html';
+
+const PRECACHE = [OFFLINE_URL, '/android-chrome-192x192.png'];
+const PRECACHE_SET = new Set(PRECACHE);
 
 async function precache(): Promise<void> {
   const cache = await caches.open(CACHE);

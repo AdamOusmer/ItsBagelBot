@@ -31,7 +31,7 @@
     if (!isLocale(to)) return;
     event.preventDefault();
     try {
-      await ensureCatalog(to);
+      if (!(await ensureCatalog(to))) throw new Error('catalog unavailable');
       await fetch(form.action, { method: 'POST', body, redirect: 'manual' });
     } catch {
       form.submit();

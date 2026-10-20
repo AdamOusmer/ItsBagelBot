@@ -23,6 +23,7 @@ import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { purgeEdgeByTag } from '$lib/server/edge-purge';
 import { enumerableChannelQuery } from '$lib/server/channel-urls';
+import { preloadCatalog } from '$lib/server/catalog-preload';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('dashboard');
@@ -209,7 +210,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         html = html.replace('lang="en"', `lang="${locale}"`);
         langPatched = true;
       }
-      return html;
+      return preloadCatalog(html, locale);
     }
   });
 

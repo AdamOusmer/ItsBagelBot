@@ -2,72 +2,52 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /// <reference types="vite/client" />
+import { loaders, localeNames, locales, urls } from 'virtual:bagel-i18n';
 import type { Locale, MessageTree } from './types';
 import { matchAcceptLanguage } from './accept-language';
-import { assembleCatalogs, catalogLocale } from './tree';
 
 export type { Locale } from './types';
 
-const eagerModules = import.meta.glob<unknown>('../../../../locales/en/console/**/*.json', {
-  eager: true,
-  import: 'default'
-});
-
-const lazyModules = import.meta.glob<unknown>(
-  ['../../../../locales/*/console/**/*.json', '!../../../../locales/en/console/**'],
-  { import: 'default' }
-);
-
-type Loader = [path: string, load: () => Promise<unknown>];
-
-const catalogs: Record<string, MessageTree> = assembleCatalogs(
-  Object.entries(eagerModules).map(([path, content]) => ({ path, content }))
-);
-
-const lazyByLocale = new Map<string, Loader[]>();
-for (const [path, load] of Object.entries(lazyModules)) {
-  const code = catalogLocale(path);
-  if (!code) continue;
-  const loaders = lazyByLocale.get(code) ?? [];
-  loaders.push([path, load]);
-  lazyByLocale.set(code, loaders);
-}
-
-export const LOCALES: readonly Locale[] = [...new Set([...Object.keys(catalogs), ...lazyByLocale.keys()])].sort();
+export const LOCALES: readonly Locale[] = locales;
 export const DEFAULT_LOCALE: Locale = 'en';
 
-const pending = new Map<string, Promise<void>>();
+const catalogs: Record<string, MessageTree> = {};
+const loading = new Map<string, Promise<void>>();
 
-async function loadCatalog(locale: Locale, loaders: Loader[]): Promise<void> {
-  const files = await Promise.all(loaders.map(async ([path, load]) => ({ path, content: await load() })));
-  catalogs[locale] = assembleCatalogs(files)[locale] ?? {};
-}
-
-export function ensureCatalog(locale: Locale): Promise<void> {
-  if (Object.prototype.hasOwnProperty.call(catalogs, locale)) return Promise.resolve();
-  const loaders = lazyByLocale.get(locale);
-  if (!loaders) return Promise.resolve();
-  let p = pending.get(locale);
-  if (!p) {
-    p = loadCatalog(locale, loaders)
-      .catch(() => {
-        // Never reject: callers await this from the root load, so a rejection would 500 every route.
-      })
-      .finally(() => {
-        pending.delete(locale);
-      });
-    pending.set(locale, p);
+async function readCatalog(locale: Locale): Promise<void> {
+  if (import.meta.env.SSR) {
+    catalogs[locale] = (await loaders[locale]()).default;
+    return;
   }
-  return p;
+  const response = await fetch(urls[locale]);
+  if (!response.ok) throw new Error(`i18n: ${response.status} for ${locale}`);
+  catalogs[locale] = await response.json();
 }
 
-if (!catalogs[DEFAULT_LOCALE]) {
-  throw new Error(
-    `i18n: missing catalog for DEFAULT_LOCALE '${DEFAULT_LOCALE}' ` +
-      `(expected locales/${DEFAULT_LOCALE}/console/). ` +
-      `Found: ${LOCALES.join(', ') || '(none)'}`
-  );
+function loadCatalog(locale: Locale): Promise<void> {
+  let loaded = loading.get(locale);
+  if (!loaded) {
+    loaded = readCatalog(locale).catch((error) => {
+      loading.delete(locale);
+      throw error;
+    });
+    loading.set(locale, loaded);
+  }
+  return loaded;
 }
+
+export async function ensureCatalog(locale: Locale): Promise<boolean> {
+  if (!urls[locale]) return true;
+  try {
+    await loadCatalog(locale);
+    return true;
+  } catch {
+    if (locale !== DEFAULT_LOCALE) await loadCatalog(DEFAULT_LOCALE).catch(() => undefined);
+    return false;
+  }
+}
+
+if (import.meta.env.SSR) await ensureCatalog(DEFAULT_LOCALE);
 
 export const LOCALE_COOKIE = 'locale';
 
@@ -87,7 +67,7 @@ function lookup(tree: MessageTree | undefined, key: string): string | undefined 
 }
 
 export function localeName(code: string): string {
-  return lookup(catalogs[code], 'lang.name') ?? code;
+  return localeNames[code] ?? code;
 }
 
 export function translate(
