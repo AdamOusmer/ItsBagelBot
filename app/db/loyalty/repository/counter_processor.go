@@ -302,12 +302,6 @@ func (p *CounterProcessor) processBatch(batch []*counterRequest) {
 	// An individual caller's cancellation must not poison its neighbours.
 	ctx, cancel := context.WithTimeout(context.Background(), counterSQLTimeout)
 	defer cancel()
-	if err := p.repo.lockCounterPersistence(ctx); err != nil {
-		setCounterDeliveryErrors(deliveries, err)
-		p.finish(deliveries)
-		return
-	}
-	defer p.repo.persistMu.Unlock()
 	owner := "pending:" + uuid.NewString()
 	tracked := p.claimCounterDeliveries(ctx, deliveries, owner)
 	p.persistDeliveries(ctx, activeCounterDeliveries(deliveries))
@@ -376,22 +370,4 @@ func (p *CounterProcessor) finish(deliveries []*counterDelivery) {
 func (p *CounterProcessor) finishCounterRequest(request *counterRequest, err error) {
 	request.result <- err
 	<-p.slots
-}
-
-func (r *Loyalty) lockCounterPersistence(ctx context.Context) error {
-	if r.persistMu.TryLock() {
-		return nil
-	}
-	ticker := time.NewTicker(5 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if r.persistMu.TryLock() {
-				return nil
-			}
-		}
-	}
 }

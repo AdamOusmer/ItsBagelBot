@@ -14,7 +14,8 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
-// persistCounterBatch runs while persistMu is held. Every SQL error rolls back
+// persistCounterBatch is fenced against retirement and restore by the fence
+// row locks in lockCounterUsers, not persistMu. Every SQL error rolls back
 // the complete coalesced transaction. Like the durable legacy writer, a trial
 // promotion detected after writes restarts the rolled-back transaction with
 // redirected totals. Only deadlocks and proven rolled-back promotion races

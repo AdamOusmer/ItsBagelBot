@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"strings"
 	"testing"
@@ -53,6 +54,13 @@ func counterTestValue(t *testing.T, raw *sql.DB, name string) int64 {
 	return value
 }
 
+func holdCounterSQL(t *testing.T, raw *sql.DB) *sql.Conn {
+	t.Helper()
+	held, err := raw.Conn(context.Background())
+	require.NoError(t, err)
+	return held
+}
+
 func counterTestProcessor(t *testing.T, repo *Loyalty, client valkey_go.Client) *CounterProcessor {
 	t.Helper()
 	p := NewCounterProcessor(repo, client)
@@ -65,7 +73,7 @@ func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {
 	cache := newCounterFakeValkey(t)
 	p := counterTestProcessor(t, repo, cache)
 	assert.True(t, valkey.IsPrimary(p.client))
-	repo.persistMu.Lock()
+	held := holdCounterSQL(t, raw)
 	first := make(chan error, 1)
 	go func() { first <- p.Process(context.Background(), counterTestEvent("first", 1)) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
@@ -76,7 +84,7 @@ func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {
 		go func(i int) { errors <- p.Process(context.Background(), counterTestEvent(fmt.Sprint(i), 1)) }(i)
 	}
 	require.Eventually(t, func() bool { return len(p.queue) == count }, time.Second, time.Millisecond)
-	repo.persistMu.Unlock()
+	require.NoError(t, held.Close())
 	require.NoError(t, <-first)
 	for i := 0; i < count; i++ {
 		require.NoError(t, <-errors)
@@ -360,10 +368,44 @@ func TestCounterProcessorRerunsCoalescedTransactionAfterPromotionRace(t *testing
 	assert.EqualValues(t, 105, store.values[data.CounterEventsProcessed])
 }
 
+type stalledFlushConn struct {
+	*coalescingConn
+	entered chan<- struct{}
+	release <-chan struct{}
+}
+
+func (c *stalledFlushConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if strings.HasPrefix(query, "INSERT INTO balances ") {
+		c.entered <- struct{}{}
+		<-c.release
+	}
+	return c.coalescingConn.ExecContext(ctx, query, args)
+}
+
+func TestCounterProcessorCommitsWhileEarnedFlushIsInFlight(t *testing.T) {
+	store := newBatchStore(nil)
+	entered, release := make(chan struct{}), make(chan struct{})
+	repo := fakeLoyalty(t, func() driver.Conn {
+		return &stalledFlushConn{coalescingConn: &coalescingConn{&batchConn{store: store}}, entered: entered, release: release}
+	})
+	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
+	repo.RecordEarned(data.LoyaltyEarnedDTO{UserID: 42, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 5}}})
+	flushed := make(chan struct{})
+	go func() { defer close(flushed); repo.Flush(context.Background()) }()
+	<-entered
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	err := p.Process(ctx, trialBatch("during-flush", data.CounterBumpEntry{Name: "deaths", Delta: 3}))
+	close(release)
+	<-flushed
+	require.NoError(t, err)
+	assert.EqualValues(t, 3, store.values["deaths"])
+}
+
 func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	p := counterTestProcessor(t, repo, newCounterFakeValkey(t))
-	repo.persistMu.Lock()
+	held := holdCounterSQL(t, raw)
 	result := make(chan error, 1)
 	go func() { result <- p.Process(context.Background(), counterTestEvent("closing", 1)) }()
 	require.Eventually(t, func() bool { return len(p.slots) > 0 }, time.Second, time.Millisecond)
@@ -371,7 +413,7 @@ func TestCounterProcessorCloseDrainsAndIsIdempotent(t *testing.T) {
 	defer cancel()
 	require.ErrorIs(t, p.Close(ctx), context.DeadlineExceeded)
 	require.ErrorIs(t, p.Process(context.Background(), counterTestEvent("new", 1)), ErrCounterProcessorClosed)
-	repo.persistMu.Unlock()
+	require.NoError(t, held.Close())
 	require.NoError(t, <-result)
 	require.NoError(t, p.Close(context.Background()))
 	require.NoError(t, p.Close(context.Background()))
