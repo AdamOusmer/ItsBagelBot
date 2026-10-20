@@ -100,8 +100,9 @@ const ENTRIES: {
              globalThis.x = [subscribe, wake];`,
   },
   {
+    // 1327 B gzip measured 2026-10-18 with idle sleep/wake, room ~10%.
     name: "lenis",
-    budget: 1250,
+    budget: 1460,
     external: ["lenis"],
     source: `import { createPaneScroll, createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
              globalThis.x = [createPaneScroll, createSmoothScroll, getSmoothScroll];`,
@@ -282,7 +283,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/step-list", budget: 2050 }, // 1712 B: navigable checklist form
   { name: "elements/log-tail", budget: 440 },
   // Stats contracts, macOS/arm64: measured gzip bytes +150 B platform variance and ~10% room.
-  { name: "elements/ambient-sky", budget: 1130 }, // 869 B
+  { name: "elements/ambient-sky", budget: 1680 }, // 1510 B: pre-blurred orb gradient stops, room ~10%
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
   { name: "elements/ranking-card", budget: 1190 }, // 928 B

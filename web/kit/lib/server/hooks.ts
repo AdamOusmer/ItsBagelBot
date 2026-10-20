@@ -3,6 +3,8 @@
 
 import { detectLocale, ensureCatalog, isLocale, LOCALE_COOKIE, type Locale } from '../i18n/messages';
 
+export { preloadStrategy } from './preload';
+
 type CookieStore = {
   get(name: string): string | undefined;
   set(name: string, value: string, opts: { path: string; maxAge: number; secure: boolean; sameSite: 'lax' }): void;
@@ -64,10 +66,6 @@ export function tagTransaction(
     'http.method': event.request.method,
     'enduser.authenticated': !!session
   });
-}
-
-export function preloadStrategy(input: { type: string }): boolean {
-  return input.type === 'js' || input.type === 'css' || input.type === 'font';
 }
 
 export function harden(res: Response, permissionsPolicy: string): void {

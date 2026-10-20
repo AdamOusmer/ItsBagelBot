@@ -337,7 +337,7 @@ jobs:
               deploy/messaging/nats-server/*)
                 add "nats-server"
                 ;;
-              ui/*|web/kit/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js)
+              ui/*|web/kit/*|web/patches/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js)
                 add "console-dashboard"
                 add "console-admin"
                 ;;

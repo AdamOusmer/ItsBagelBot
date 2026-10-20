@@ -12,7 +12,7 @@ import {
 
 type Env = Record<string, string | undefined>;
 
-export const DEFAULT_DASHBOARD_L1_CACHE_CAPACITY = 1_000;
+export const DEFAULT_DASHBOARD_L1_CACHE_CAPACITY = 5_000;
 
 // Check the build-time `dev`, never NODE_ENV: any container can set NODE_ENV.
 export function assertDemoConfigSafe(env: Env): void {

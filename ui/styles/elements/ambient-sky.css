@@ -85,6 +85,116 @@
     --bb-orb-will-change: transform, opacity;
   }
 
+  /* Stops are the 80px blur of the 500px and 400px orbs; a new size or blur needs new stops. */
+  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo {
+    filter: none;
+    background: none;
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before,
+  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::after {
+    inset: -240px;
+    border-radius: 0;
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before {
+    animation-name: bb-ambient-orb-pulse;
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::after {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+
+  .bb-ambient-sky__orb--green { --ambient-orb-fill: var(--bb-green-rgb); }
+  :root[data-theme="light"] .bb-ambient-sky__orb--green { --ambient-orb-fill: var(--bb-green-light-rgb); }
+  .bb-ambient-sky__orb--tan { --ambient-orb-fill: var(--bb-tan-rgb); }
+
+  .bb-ambient-sky .bb-ambient-sky__orb--green::before {
+    background: radial-gradient(circle,
+      rgba(var(--ambient-orb-fill), .99) 0px,
+      rgba(var(--ambient-orb-fill), .99) 32px,
+      rgba(var(--ambient-orb-fill), .98) 64px,
+      rgba(var(--ambient-orb-fill), .95) 96px,
+      rgba(var(--ambient-orb-fill), .90) 128px,
+      rgba(var(--ambient-orb-fill), .82) 160px,
+      rgba(var(--ambient-orb-fill), .70) 192px,
+      rgba(var(--ambient-orb-fill), .56) 224px,
+      rgba(var(--ambient-orb-fill), .41) 256px,
+      rgba(var(--ambient-orb-fill), .27) 288px,
+      rgba(var(--ambient-orb-fill), .15) 320px,
+      rgba(var(--ambient-orb-fill), .08) 352px,
+      rgba(var(--ambient-orb-fill), .04) 384px,
+      rgba(var(--ambient-orb-fill), .01) 416px,
+      transparent 480px);
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb--green::after {
+    background:
+      radial-gradient(circle,
+      rgba(var(--bb-green-glow-rgb), .04) 0px,
+      rgba(var(--bb-green-glow-rgb), .04) 32px,
+      rgba(var(--bb-green-glow-rgb), .03) 64px,
+      rgba(var(--bb-green-glow-rgb), .03) 96px,
+      rgba(var(--bb-green-glow-rgb), .02) 128px,
+      rgba(var(--bb-green-glow-rgb), .01) 160px,
+      rgba(var(--bb-green-glow-rgb), .01) 192px,
+      transparent 256px),
+      radial-gradient(circle,
+      rgba(var(--bb-mint-glow-rgb), .08) 0px,
+      rgba(var(--bb-mint-glow-rgb), .07) 32px,
+      rgba(var(--bb-mint-glow-rgb), .06) 64px,
+      rgba(var(--bb-mint-glow-rgb), .04) 96px,
+      rgba(var(--bb-mint-glow-rgb), .03) 128px,
+      rgba(var(--bb-mint-glow-rgb), .01) 160px,
+      rgba(var(--bb-mint-glow-rgb), .01) 192px,
+      transparent 256px);
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb--tan::before {
+    background: radial-gradient(circle,
+      rgba(var(--ambient-orb-fill), .96) 0px,
+      rgba(var(--ambient-orb-fill), .94) 32px,
+      rgba(var(--ambient-orb-fill), .91) 64px,
+      rgba(var(--ambient-orb-fill), .84) 96px,
+      rgba(var(--ambient-orb-fill), .74) 128px,
+      rgba(var(--ambient-orb-fill), .61) 160px,
+      rgba(var(--ambient-orb-fill), .46) 192px,
+      rgba(var(--ambient-orb-fill), .31) 224px,
+      rgba(var(--ambient-orb-fill), .19) 256px,
+      rgba(var(--ambient-orb-fill), .10) 288px,
+      rgba(var(--ambient-orb-fill), .05) 320px,
+      rgba(var(--ambient-orb-fill), .02) 352px,
+      rgba(var(--ambient-orb-fill), .01) 384px,
+      transparent 416px);
+  }
+
+  .bb-ambient-sky .bb-ambient-sky__orb--tan::after {
+    background:
+      radial-gradient(circle,
+      rgba(var(--bb-tan-rgb), .03) 0px,
+      rgba(var(--bb-tan-rgb), .03) 32px,
+      rgba(var(--bb-tan-rgb), .02) 64px,
+      rgba(var(--bb-tan-rgb), .02) 96px,
+      rgba(var(--bb-tan-rgb), .01) 128px,
+      rgba(var(--bb-tan-rgb), .01) 160px,
+      transparent 256px),
+      radial-gradient(circle,
+      rgba(var(--bb-tan-pale-rgb), .05) 0px,
+      rgba(var(--bb-tan-pale-rgb), .04) 32px,
+      rgba(var(--bb-tan-pale-rgb), .04) 64px,
+      rgba(var(--bb-tan-pale-rgb), .02) 96px,
+      rgba(var(--bb-tan-pale-rgb), .01) 128px,
+      rgba(var(--bb-tan-pale-rgb), .01) 160px,
+      transparent 256px);
+  }
+
+  @keyframes bb-ambient-orb-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
   .bb-ambient-sky__orb--green {
     width: 500px;
     height: 500px;
@@ -131,6 +241,7 @@
     .bb-ambient-sky__ring,
     .bb-ambient-sky__orb { transition: none; }
     .bb-ambient-sky__ring svg { animation: none; }
+    .bb-ambient-sky .bb-ambient-sky__orb.bb-orb--halo::before { animation: none; }
     .bb-ambient-sky--still-stars::before {
       content: '';
       position: absolute;

@@ -50,6 +50,9 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/importer/`: adapters for supported bot formats, caps, strategies and canonical import types.
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
   root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
+  `scripts/i18n-catalogs.ts` (Vite plugin, `virtual:bagel-i18n`) merges each locale over English at build time:
+  the server imports a locale whole, the browser fetches one content-hashed JSON per locale. The build fails
+  if a merged locale lacks an English key, so `t()` never needs English at runtime.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.
 - `styles/`: console-specific theme glue; shared element contracts live in ui.
 
@@ -65,8 +68,8 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - [lib/server/session.ts](lib/server/session.ts): shared sealed session codec/key handling;
   app wrappers define their own payloads/cookie names. Normal TTL 7 days; impersonation TTL 1 hour.
 - `lib/server/oauth.ts`, `oauth-state.ts`, `impersonation.ts`: OAuth primitives and identity-bound state.
-- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`, `rum.ts`: runtime setup,
-  validated configuration, common request/error hardening and New Relic browser injection.
+- `lib/server/boot.ts`, `config.ts`, `config-sanity.ts`, `hooks.ts`: runtime setup,
+  validated configuration and common request/error hardening.
 - `rate-limit.ts`, `session-revocation.ts`, `shared-snapshot.ts`, `resilience.ts` and `best-effort.ts`
   solve shared fleet-limits, revocation, read coordination and graceful noncritical reads.
 - App route → app adapter → kit RPC/cache infrastructure → owning service; invalidations return to app caches.
@@ -85,6 +88,11 @@ Catalog metadata, preview samples, and running service behavior are related but 
   semantics instead of treating timers as unconditional fixed-period messages.
 - `i18n:keys` regenerates localization key types; inspect outputs rather than hand-editing them.
 - Production checks require build-time demo gating; dynamic fixture imports must disappear from server output.
+- Console CSS: `scripts/bundled-ui-sheets.mjs` turns adapter imports of ui element sheets into empty modules.
+  `styles/ui-public.css` (via `console.css`, the first stylesheet through each app's `hooks.client.ts`) and
+  `styles/ui-console.css` (console and error routes) list them in `@bagel/ui/styles/elements.css` order, public
+  sheets first. The build fails when a list breaks that order, a public route renders a console sheet, a public
+  sheet goes unrendered, or a console route renders a sheet in neither list; unlisted sheets ship per route.
 
 ## Focused commands
 

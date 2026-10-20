@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
-import { listModulesForEditing, upsertModule, patchModule } from '$lib/server/commands-store';
+import { listModules, listModulesForEditing, upsertModule, patchModule, type ModuleView } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
 import { gateSection, moduleLocked, moduleWriteDenial } from '$lib/server/module-gate';
@@ -14,13 +14,31 @@ import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 import { moduleEditState } from '$lib/server/module-edit-state';
 
 const DEMO = dev && env.DEMO === '1';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+const FRESH_READ_COOKIE = 'bagel_module_fresh';
+const FRESH_READ_MAX_AGE_SEC = 30;
+
+function freshReadCookie(id: string, url: URL) {
+  return { path: `/modules/${id}`, httpOnly: true, sameSite: 'lax' as const, secure: url.protocol === 'https:' };
+}
+
+// The reload after a revision conflict must read the owning service: the projection may still hold the losing revision.
+function requestFreshRead(cookies: Cookies, id: string, url: URL): void {
+  cookies.set(FRESH_READ_COOKIE, '1', { ...freshReadCookie(id, url), maxAge: FRESH_READ_MAX_AGE_SEC });
+}
+
+function editorRows(uid: string, id: string, cookies: Cookies, url: URL): Promise<ModuleView[]> {
+  if (!cookies.get(FRESH_READ_COOKIE)) return listModules(uid);
+  cookies.delete(FRESH_READ_COOKIE, freshReadCookie(id, url));
+  return listModulesForEditing(uid);
+}
+
+export const load: PageServerLoad = async ({ params, locals, cookies, url }) => {
   gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
@@ -32,7 +50,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   return moduleLoad(def.id, locals.session, {
     demo: DEMO ? async () => blank() : undefined,
     read: async (uid) => {
-      const rows = await listModulesForEditing(uid);
+      const rows = await editorRows(uid, def.id, cookies, url);
       const row = rows.find((r) => r.name === def.id);
       const { config, revision } = moduleEditState(row);
       return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision };
@@ -88,7 +106,7 @@ async function gatedEnabled(uid: string, def: ModuleDef, requested: boolean): Pr
 }
 
 export const actions: Actions = {
-  save: async ({ request, params, locals }) => {
+  save: async ({ request, params, locals, cookies, url }) => {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
     const { def, uid } = target;
@@ -100,7 +118,8 @@ export const actions: Actions = {
     if (DEMO) return { ok: true, enabled };
 
     try {
-      await upsertModule(uid, def.id, enabled, config);
+      const saved = await upsertModule(uid, def.id, enabled, config);
+      if (!saved.synced) requestFreshRead(cookies, def.id, url);
     } catch (e) {
       logger.error({ err: e }, `[modules] save ${def.id} failed`);
       return fail(400, { ok: false });
@@ -110,7 +129,7 @@ export const actions: Actions = {
     return { ok: true, enabled };
   },
 
-  patch: async ({ request, params, locals }) => {
+  patch: async ({ request, params, locals, cookies, url }) => {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
     const { def, uid } = target;
@@ -124,7 +143,9 @@ export const actions: Actions = {
     if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
 
     const enabled = await gatedEnabled(uid, def, requested);
-    return applyPatch(def, uid, { enabled, expectedRev, partial: await attachLinkedUUID(def, partial, locals) }, locals.session);
+    const { result, freshRead } = await applyPatch(def, uid, { enabled, expectedRev, partial: await attachLinkedUUID(def, partial, locals) }, locals.session);
+    if (freshRead) requestFreshRead(cookies, def.id, url);
+    return result;
   }
 };
 
@@ -142,12 +163,12 @@ async function applyPatch(
       partial: draft.partial,
       expectedRev: draft.expectedRev
     });
-    if (res.conflict) return { ok: false, conflict: true, rev: res.rev };
+    if (res.conflict) return { result: { ok: false, conflict: true, rev: res.rev }, freshRead: true };
     auditDashboardImpersonation(session, 'module:patch', `${def.id}=${draft.enabled}`);
-    return { ok: true, rev: res.rev, conflict: false };
+    return { result: { ok: true, rev: res.rev, conflict: false }, freshRead: !res.synced };
   } catch (e) {
     logger.error({ err: e }, `[modules] patch ${def.id} failed`);
-    return fail(400, { ok: false });
+    return { result: fail(400, { ok: false }), freshRead: false };
   }
 }
 

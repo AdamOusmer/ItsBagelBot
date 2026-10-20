@@ -74,7 +74,7 @@
     return () => clearInterval(id);
   });
 
-  let live = $state<LiveLanes>({});
+  let live = $state.raw<LiveLanes>({});
   let liveStale = $state(false);
   let staleTimer: ReturnType<typeof setTimeout> | undefined;
 
