@@ -188,12 +188,16 @@ func refMismatch(u *ent.User, req billingrpc.ApplyRequest) bool {
 
 // Best effort: failing here makes Tebex retry and re-apply the entitlement.
 func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequest) {
-	if req.Action != billingrpc.ActionActivate || req.GifterID == 0 || req.GifterID == req.UserID {
+	if !giftedByAnother(req) {
 		return
 	}
 	_ = db.WithExec(ctx, func(ctx context.Context) error {
 		return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
 	})
+}
+
+func giftedByAnother(req billingrpc.ApplyRequest) bool {
+	return req.Action == billingrpc.ActionActivate && req.GifterID != 0 && req.GifterID != req.UserID
 }
 
 // An open expiry grants permanent premium; rejecting would loop Tebex retries forever.
