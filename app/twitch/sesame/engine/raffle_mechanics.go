@@ -80,14 +80,6 @@ func marshalJSON(v any) string {
 	return string(b)
 }
 
-func mentionList(winners []string) string {
-	prefixed := make([]string, len(winners))
-	for i, w := range winners {
-		prefixed[i] = "@" + w
-	}
-	return strings.Join(prefixed, ", ")
-}
-
 type tokenExpansion struct {
 	namespace module.Namespace
 	text      string

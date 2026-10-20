@@ -45,30 +45,27 @@ func raffleRunning(d engine.Deps) module.ClaimFunc {
 	}
 }
 
-type raffleConfig struct {
-	OpenedMessage   string `json:"openedMessage"`
-	JoinMessage     string `json:"joinMessage"`
-	AlreadyMessage  string `json:"alreadyMessage"`
-	NoRaffleMessage string `json:"noRaffleMessage"`
-	WonMessage      string `json:"wonMessage"`
-	ClaimOkMessage  string `json:"claimOkMessage"`
-}
-
 type raffleCmd struct {
 	chatReplier
-	r   engine.RaffleStore
-	q   engine.QueueStore
-	cfg raffleConfig
-	log *zap.Logger
+	r       engine.RaffleStore
+	q       engine.QueueStore
+	cfg     engine.RaffleModuleConfig
+	loyalty func(context.Context) (points string, on bool)
+	log     *zap.Logger
 }
 
 func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleCmd, ok bool) {
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log}
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, q: d.Queue, log: log,
+		loyalty: func(ctx context.Context) (string, bool) { return loyaltyVoice(ctx, d, c, "") }}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
+}
+
+func (rc raffleCmd) entrant() engine.RaffleEntrant {
+	return engine.RaffleEntrant{ID: rc.c.Env.ChatterUserID, Login: strings.ToLower(rc.c.Env.ChatterUserLogin)}
 }
 
 func raffleStandalone(d engine.Deps, log *zap.Logger, fn func(raffleCmd, context.Context, module.Emit) error) module.RunFunc {
@@ -165,12 +162,18 @@ func parseOpenArgs(args string) (minutes, winners int64, remind time.Duration) {
 
 func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) error {
 	minutes, winners, remind := parseOpenArgs(args)
+	prize := rc.cfg.Prize()
+	if _, on := rc.loyalty(ctx); prize > 0 && !on {
+		rc.reply(emit, "", "raffle.err.loyalty_off")
+		return nil
+	}
 
 	ok, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{
 		OpenedBy: strings.ToLower(rc.c.Env.ChatterUserLogin),
 		Winners:  winners,
 		Duration: time.Duration(minutes) * time.Minute,
 		Remind:   remind,
+		Prize:    prize,
 	})
 	if err != nil {
 		rc.log.Warn("raffle: open failed", rc.c.BID(), zap.Error(err))
@@ -185,11 +188,11 @@ func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) err
 }
 
 func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
-	login := strings.ToLower(rc.c.Env.ChatterUserLogin)
-	if login == "" {
+	entrant := rc.entrant()
+	if entrant.ID == "" || entrant.Login == "" {
 		return nil
 	}
-	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, login)
+	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, entrant)
 	if err != nil {
 		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
@@ -236,7 +239,11 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 		rc.reply(emit, "", "raffle.status.closed")
 		return nil
 	}
-	rc.announceResult(emit, res)
+	points, _ := rc.loyalty(ctx)
+	announce := engine.RaffleAnnouncement{Locale: rc.c.Locale, Config: rc.cfg, Points: points}
+	for _, line := range announce.ResultLines(res) {
+		rc.say(emit, line)
+	}
 	return nil
 }
 
@@ -280,11 +287,11 @@ func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 }
 
 func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
-	login := strings.ToLower(rc.c.Env.ChatterUserLogin)
-	if login == "" {
+	viewerID := rc.c.Env.ChatterUserID
+	if viewerID == "" {
 		return nil
 	}
-	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, login)
+	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, viewerID)
 	if err != nil {
 		rc.log.Warn("raffle: claim failed", rc.c.BID(), zap.Error(err))
 		return err
@@ -302,21 +309,10 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-func (rc raffleCmd) announceResult(emit module.Emit, res *engine.RaffleResult) {
-	if len(res.Winners) == 0 {
-		rc.reply(emit, "", "raffle.draw.empty")
-		return
-	}
-	rc.reply(emit, rc.cfg.WonMessage, "raffle.won",
-		"targets", mentionTargets(res.Winners),
-		"count", strconv.Itoa(len(res.Winners)),
-		"entrants", strconv.FormatInt(res.Entrants, 10))
-}
-
-func mentionTargets(winners []string) string {
+func mentionTargets(winners []engine.RaffleWinner) string {
 	prefixed := make([]string, len(winners))
 	for i, w := range winners {
-		prefixed[i] = "@" + w
+		prefixed[i] = "@" + w.Login
 	}
 	return strings.Join(prefixed, ", ")
 }
