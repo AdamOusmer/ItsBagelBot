@@ -9,9 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/enttest"
+	"ItsBagelBot/app/db/modules/ent/quote"
 	"ItsBagelBot/app/db/modules/repository"
+	"ItsBagelBot/internal/domain/event/data"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
+	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 
 	"ItsBagelBot/internal/testdb"
 
@@ -24,11 +30,83 @@ import (
 
 func setupQuotes(t *testing.T) *repository.Quotes {
 	t.Helper()
+	_, _, repo := setupQuotesWithStore(t)
+	return repo
+}
+
+func setupQuotesWithStore(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Quotes) {
+	t.Helper()
 
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("modquotesent"))
 	t.Cleanup(func() { _ = client.Close() })
 
-	return repository.NewQuotes(client, zap.NewNop())
+	pub := bustest.NewPublisher()
+	repo := repository.NewQuotes(client, pub, zap.NewNop())
+	t.Cleanup(repo.Close)
+
+	return client, pub, repo
+}
+
+func announcedUsers(t *testing.T, pub *bustest.Publisher) []uint64 {
+	t.Helper()
+	var users []uint64
+	for _, msg := range pub.On(data.SubjectQuoteChanged) {
+		var dto data.QuoteChangedDTO
+		require.NoError(t, codec.Unmarshal(msg.Payload, &dto))
+		users = append(users, dto.UserID)
+	}
+	return users
+}
+
+func TestQuoteWarmReadsSkipTheDatabase(t *testing.T) {
+	client, _, repo := setupQuotesWithStore(t)
+	ctx := context.Background()
+	addQuotes(t, repo, 1001, "never trust a ferret")
+	_, found, err := repo.Get(ctx, 1001, 1)
+	require.NoError(t, err)
+	require.True(t, found)
+
+	_, err = client.Quote.Delete().Where(quote.UserID(1001)).Exec(ctx)
+	require.NoError(t, err)
+
+	got, found, err := repo.Get(ctx, 1001, 1)
+	require.NoError(t, err)
+	require.True(t, found, "a warm get must not query the database")
+	assert.Equal(t, "never trust a ferret", got.Text)
+	random, found, err := repo.Random(ctx, 1001)
+	require.NoError(t, err)
+	require.True(t, found, "a warm random must not query the database")
+	assert.Equal(t, uint64(1), random.Number)
+
+	payload, err := codec.Marshal(data.QuoteChangedDTO{UserID: 1001})
+	require.NoError(t, err)
+	require.NoError(t, repo.OnChanged()(&bus.Message{Payload: payload}))
+
+	_, found, err = repo.Get(ctx, 1001, 1)
+	require.NoError(t, err)
+	assert.False(t, found, "a change event from another replica reloads the list")
+}
+
+func TestQuoteWritesAnnounceTheChange(t *testing.T) {
+	_, pub, repo := setupQuotesWithStore(t)
+	ctx := context.Background()
+
+	addQuotes(t, repo, 1001, "first")
+	_, found, err := repo.Update(ctx, 1001, 1, repository.QuoteUpdate{Text: "edited"})
+	require.NoError(t, err)
+	require.True(t, found)
+	_, found, err = repo.Update(ctx, 1001, 99, repository.QuoteUpdate{Text: "missing"})
+	require.NoError(t, err)
+	require.False(t, found)
+	removed, err := repo.Remove(ctx, 1001, 99)
+	require.NoError(t, err)
+	require.False(t, removed)
+	removed, err = repo.Remove(ctx, 1001, 1)
+	require.NoError(t, err)
+	require.True(t, removed)
+	require.NoError(t, repo.DeleteAllForUser(ctx, 2002))
+
+	assert.Equal(t, []uint64{1001, 1001, 1001, 2002}, announcedUsers(t, pub), "only landed writes announce")
 }
 
 func addQuotes(t *testing.T, repo *repository.Quotes, userID uint64, texts ...string) []*modulesrpc.Quote {
