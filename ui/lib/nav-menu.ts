@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { bezier, tween } from './tween';
-import { getSmoothScroll } from './lenis';
 
 export interface TopDownMenuElements {
   toggle: HTMLElement;
@@ -209,9 +208,11 @@ export function mountHomeLogo(logo: HTMLAnchorElement): () => void {
     event.preventDefault();
     window.history.replaceState(window.history.state, '', target.pathname || '/');
 
-    const scroller = getSmoothScroll();
-    if (scroller) scroller.scrollTo(0, { duration: 0.9 });
-    else window.scrollTo({ top: 0, behavior: 'smooth' });
+    void import('./lenis').then(({ getSmoothScroll }) => {
+      const scroller = getSmoothScroll();
+      if (scroller) scroller.scrollTo(0, { duration: 0.9 });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   logo.addEventListener('click', onClick);

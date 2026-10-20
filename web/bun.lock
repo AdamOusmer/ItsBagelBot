@@ -103,6 +103,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@sveltejs/kit@2.70.3": "patches/@sveltejs%2Fkit@2.70.3.patch",
+  },
   "overrides": {
     "@opentelemetry/core": "^2.8.0",
     "@sveltejs/kit": {

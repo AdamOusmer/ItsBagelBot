@@ -39,7 +39,7 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - [guard.ts](src/lib/server/guard.ts): account ban/deletion, delegation revocation and route-scope gates.
 - [board.ts](src/lib/server/board.ts): `effectiveId(session)` selects owner ID; missing real session redirects.
 - [services.ts](src/lib/server/services.ts): subject registry, wire adapters, account/billing/delegation
-  reads, mutation invalidation, and cache fabric (default L1 capacity 1,000 entries).
+  reads, mutation invalidation, and cache fabric (default L1 capacity 5,000 entries).
 - [module-page.ts](src/lib/server/module-page.ts), [module-action.ts](src/lib/server/module-action.ts),
   [module-gate.ts](src/lib/server/module-gate.ts): shared load/action paths and Premium/beta/delegate gates.
 - `module-flags.ts` derives shell/built-in enable state from saved module rows plus catalog defaults.
@@ -53,6 +53,8 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - `commands-bulk.ts` and `command-conflict.ts`: batch edits and command trigger/alias conflict checks.
 - `songqueue-live.ts`, `songqueue-view.ts`, `live-counters.ts`: bounded live feature read paths.
 - [public-directory.ts](src/lib/server/public-directory.ts): public-safe command/module projections.
+- `scripts/assert-route-budgets.ts` holds per-route initial-load budgets; the console catalog (admin namespace
+  excluded) is one preloaded JSON per locale.
 - [live-hub.ts](src/lib/server/live-hub.ts): per-board invalidation fanout; `routes/events/+server.ts`
   exposes owner-only SSE with constant invalidation payloads, without revealing scope names.
 
@@ -83,6 +85,12 @@ Preserve variable/token/form/surface wording in editors and help copy.
 - Avoid session identity when mutating delegated board data; permission checks still use the actor.
 - Public labels come from resolved account records, not caller-provided query strings.
 - Hidden commands pages answer as missing; invalidation/edge purge must accompany visibility changes.
+- Commands pages are purged by exact URL on every write (the zone is on Cloudflare Free: tag
+  purges are 5/min). `channel-urls.ts` enumerates every shareable commands URL; hooks refuse edge
+  caching for any other spelling or query string there. Leaderboard pages and searches carry
+  Cache-Tag `lb:<login>`, purged by tag only on board hide/unhide, loyalty on/off, rename and
+  account deletion; never tag-purge from command or module writes.
+  Unknown channels cache a 60 s 404, purged on first sign-in or rename.
 - Boot import graphs use `process.env`; request-time dynamic env is safe after initialization.
 - `DEMO` branches require direct build-time `dev` gating and production cleanup verification.
 - Edge-cache only anonymous default renders using normalized Accept-Language; locale preference cookies,

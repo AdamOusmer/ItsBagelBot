@@ -41,5 +41,8 @@
     "@sveltejs/kit": {
       "cookie": "^0.7.0"
     }
+  },
+  "patchedDependencies": {
+    "@sveltejs/kit@2.70.3": "patches/@sveltejs%2Fkit@2.70.3.patch"
   }
 }

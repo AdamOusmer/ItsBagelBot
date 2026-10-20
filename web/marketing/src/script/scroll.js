@@ -95,7 +95,12 @@ function updateHeroProgress() {
 
 function heroTick() {
     updateHeroProgress();
+    return false;
 }
+
+const wakeHero = () => wake(heroTick);
+window.addEventListener('scroll', wakeHero, {passive: true});
+scrollController.on('scroll', wakeHero);
 
 function startHero() {
     if (unsubscribeHero) return;

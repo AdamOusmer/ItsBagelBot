@@ -18,7 +18,7 @@ export function newRelicMetrics(app: string): CacheMetrics {
   };
   return {
     event(event, key) {
-      newrelic.recordMetric(`Custom/Cache/${app}/${family(key)}/${event}`, 1);
+      newrelic.recordMetric(`Cache/${app}/${family(key)}/${event}`, 1);
     },
     maskedError(err, key) {
       newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/kit/styles/ui-console.css';
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -8,6 +9,7 @@
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
   import { visibleEventSource } from '$lib/visible-stream';
+  import { consumeEcho } from '$lib/local-write';
   import ConsoleShell from '@bagel/kit/components/ConsoleShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
@@ -31,7 +33,9 @@
       debounce = setTimeout(() => void invalidateAll(), 250);
     };
     const stop = visibleEventSource('/events', (es) => {
-      es.addEventListener('invalidate', refresh);
+      es.addEventListener('invalidate', () => {
+        if (!consumeEcho(data.board)) refresh();
+      });
       es.onerror = () => (reconnecting = true);
       es.addEventListener('ready', () => {
         reconnecting = false;

@@ -38,11 +38,16 @@ function stubI18n(): void {
   }));
 }
 
+function stubCatalogBundle(): void {
+  mock.module('virtual:bagel-i18n', () => ({ urls: {} }));
+}
+
 export function stubSvelteKit(options: { dev?: boolean } = {}): void {
   process.env.NEW_RELIC_ENABLED = 'false';
   process.env.LOG_LEVEL = 'silent';
   aliasLib();
   stubI18n();
+  stubCatalogBundle();
   mock.module('$app/environment', () => ({ browser: false, building: false, dev: options.dev ?? false }));
   mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {} }));
   mock.module('$app/state', () => ({ navigating: {}, page: {}, updated: {} }));

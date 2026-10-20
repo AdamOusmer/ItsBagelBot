@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Locale } from './types';
+import type { Locale } from './types.ts';
 
 export type FlatTree = { [key: string]: string | FlatTree };
 export type FlatCatalogs = Record<Locale, Record<string, string>>;
