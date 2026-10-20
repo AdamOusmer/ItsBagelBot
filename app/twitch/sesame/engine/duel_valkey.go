@@ -494,17 +494,11 @@ func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, f
 }
 
 func (s *ValkeyDuelStore) stateOf(ctx context.Context, broadcasterID uint64) *DuelState {
-	raw, err := s.client.Do(ctx, s.client.B().Get().
-		Key(duelKey(duelStatePrefix, broadcasterID)).Build()).ToString()
+	st, ok, err := pkg_valkey.ReadJSON[DuelState](ctx, s.client, duelKey(duelStatePrefix, broadcasterID))
 	if err != nil {
-		if !valkey.IsValkeyNil(err) {
-			s.log.Warn("duel: state read failed", module.BIDField(broadcasterID), zap.Error(err))
-		}
-		return nil
+		s.log.Warn("duel: state read failed", module.BIDField(broadcasterID), zap.Error(err))
 	}
-	st := DuelState{}
-	if codec.UnmarshalFromString(raw, &st) != nil {
-		s.log.Warn("duel: unreadable state", module.BIDField(broadcasterID))
+	if !ok {
 		return nil
 	}
 	return &st
