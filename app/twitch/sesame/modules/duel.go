@@ -32,15 +32,15 @@ func Duel(d engine.Deps) module.Module {
 }
 
 type duelConfig struct {
-	MinStake         int64  `json:"minStake"`
-	MaxStake         int64  `json:"maxStake"`
-	PotSeconds       int64  `json:"potSeconds"`
-	ChallengeSeconds int64  `json:"challengeSeconds"`
-	PointsName       string `json:"pointsName"`
-	OpenedMessage    string `json:"openedMessage"`
-	JoinMessage      string `json:"joinMessage"`
-	WonMessage       string `json:"wonMessage"`
-	ChallengeMessage string `json:"challengeMessage"`
+	MinStake         settingInt `json:"minStake"`
+	MaxStake         settingInt `json:"maxStake"`
+	PotSeconds       settingInt `json:"potSeconds"`
+	ChallengeSeconds settingInt `json:"challengeSeconds"`
+	PointsName       string     `json:"pointsName"`
+	OpenedMessage    string     `json:"openedMessage"`
+	JoinMessage      string     `json:"joinMessage"`
+	WonMessage       string     `json:"wonMessage"`
+	ChallengeMessage string     `json:"challengeMessage"`
 }
 
 type duelCmd struct {
@@ -71,8 +71,8 @@ func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.
 		s:           d.Duel,
 		c:           c,
 		cfg: duelClamps{
-			MinStake: minOr(raw.MinStake, duelMinStakeFloor),
-			MaxStake: min(maxOr(raw.MaxStake, raw.MinStake, duelDefaultMaxStake), engine.DuelMaxStake),
+			MinStake: minOr(int64(raw.MinStake), duelMinStakeFloor),
+			MaxStake: min(maxOr(int64(raw.MaxStake), int64(raw.MinStake), duelDefaultMaxStake), engine.DuelMaxStake),
 		},
 		t:   raw,
 		log: log,
@@ -250,7 +250,7 @@ func (dc duelCmd) openPot(ctx context.Context, who engine.DuelParty, stake int64
 		Kind:       engine.DuelPot,
 		Opener:     who,
 		Stake:      stake,
-		PotSeconds: dc.t.PotSeconds,
+		PotSeconds: int64(dc.t.PotSeconds),
 	})
 	if err != nil {
 		dc.log.Warn("duel: open failed", dc.c.BID(), zap.Error(err))
@@ -258,7 +258,7 @@ func (dc duelCmd) openPot(ctx context.Context, who engine.DuelParty, stake int64
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.OpenedMessage, "duel.opened",
-			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.PotSeconds, engine.DuelDefaultPotSeconds), 10),
+			"secs", strconv.FormatInt(engine.ClampDuelSeconds(int64(dc.t.PotSeconds), engine.DuelDefaultPotSeconds), 10),
 			"stake", strconv.FormatInt(stake, 10))
 	})
 	return nil
@@ -283,7 +283,7 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 		Opener:           who,
 		Challenged:       target,
 		Stake:            stake,
-		ChallengeSeconds: dc.t.ChallengeSeconds,
+		ChallengeSeconds: int64(dc.t.ChallengeSeconds),
 	})
 	if err != nil {
 		dc.log.Warn("duel: challenge failed", dc.c.BID(), zap.Error(err))
@@ -294,7 +294,7 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 			"target", req.target,
 			"stake", strconv.FormatInt(stake, 10),
 			"pot", strconv.FormatInt(stake*2, 10),
-			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10))
+			"secs", strconv.FormatInt(engine.ClampDuelSeconds(int64(dc.t.ChallengeSeconds), engine.DuelDefaultChallengeSeconds), 10))
 	})
 	return nil
 }
