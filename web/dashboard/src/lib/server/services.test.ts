@@ -132,3 +132,9 @@ test('cached notifications reload once the earliest one expires', async () => {
   expect(rpcCalls).toEqual(['bagel.rpc.notifications.list', 'bagel.rpc.notifications.list']);
   setSystemTime();
 });
+
+test('a loyalty event does not flush the channel caches', async () => {
+  invalidation('loyalty', '42');
+  expect(await cached('commands_page:42')).toBe('cached');
+  expect(await cached('leaderboard_page:42')).toBe('cached');
+});

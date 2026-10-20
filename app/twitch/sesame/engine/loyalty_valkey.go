@@ -13,10 +13,13 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/cache"
+	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
+	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -64,6 +67,8 @@ type ValkeyLoyaltyStore struct {
 	scopes   *cache.Cache[string]
 	top      *cache.Cache[[]loyaltyrpc.Balance]
 	log      *zap.Logger
+
+	invalidationSub *nats.Subscription
 }
 
 func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *LoyaltyReporter, log *zap.Logger) *ValkeyLoyaltyStore {
@@ -434,4 +439,67 @@ func (s *ValkeyLoyaltyStore) BalanceWager(ctx context.Context, wager PointWager)
 		s.dropBalanceCache(ctx, wager.BroadcasterID, out.Balance.ViewerID)
 	}
 	return out, err
+}
+
+const (
+	balanceScanCount         = 500
+	balanceInvalidateTimeout = 5 * time.Second
+)
+
+func (s *ValkeyLoyaltyStore) StartInvalidationListener(nc *nats.Conn, prefix string) {
+	if nc == nil || prefix == "" {
+		return
+	}
+	subject := prefix + "." + loyaltyrpc.InvalidateScope
+	sub, err := nc.Subscribe(subject, s.onInvalidation)
+	if err != nil {
+		s.log.Error("loyalty: failed to subscribe to invalidation", zap.String("subject", subject), zap.Error(err))
+		return
+	}
+	s.invalidationSub = sub
+	s.log.Info("loyalty: invalidation listener started", zap.String("subject", subject))
+}
+
+func (s *ValkeyLoyaltyStore) onInvalidation(msg *nats.Msg) {
+	var dto invalidate.DTO
+	if err := codec.Unmarshal(msg.Data, &dto); err != nil {
+		return
+	}
+	id, err := strconv.ParseUint(dto.BroadcasterID, 10, 64)
+	if err != nil || id == 0 {
+		return
+	}
+	topPrefix := dto.BroadcasterID + ":"
+	s.top.InvalidateWhere(func(key string) bool { return strings.HasPrefix(key, topPrefix) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), balanceInvalidateTimeout)
+	defer cancel()
+	if err := s.dropChannelBalances(ctx, id); err != nil {
+		s.log.Warn("loyalty: failed to drop cached balances", module.BIDField(id), zap.Error(err))
+	}
+}
+
+func (s *ValkeyLoyaltyStore) dropChannelBalances(ctx context.Context, broadcasterID uint64) error {
+	match := cache.PairKey(loyalBalancePrefix, broadcasterID, "*")
+	var cursor uint64
+	for {
+		page, err := s.primary.Do(ctx, s.primary.B().Scan().Cursor(cursor).Match(match).Count(balanceScanCount).Build()).AsScanEntry()
+		if err != nil {
+			return err
+		}
+		if len(page.Elements) > 0 {
+			if err := s.primary.Do(ctx, s.primary.B().Unlink().Key(page.Elements...).Build()).Error(); err != nil {
+				return err
+			}
+		}
+		if cursor = page.Cursor; cursor == 0 {
+			return nil
+		}
+	}
+}
+
+func (s *ValkeyLoyaltyStore) Close() {
+	if s.invalidationSub != nil {
+		_ = s.invalidationSub.Unsubscribe()
+	}
 }
