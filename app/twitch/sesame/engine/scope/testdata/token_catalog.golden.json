@@ -633,6 +633,8 @@
         "{raffle:won:points}",
         "{raffle:claim}",
         "{raffle:won:claim}",
+        "{raffle:prize}",
+        "{raffle:won:prize}",
         "{raffle:claimok:user}",
         "{quotes:quote}",
         "{quotes:quote:quote}",
