@@ -79,6 +79,7 @@ function parseStoredDraft(raw: string): StoredDraft | null {
 }
 
 export function loadDraft(ref: DraftRef): CommandDraft | null {
+  flushDraft(ref);
   try {
     const raw = sessionStorage.getItem(draftKey(ref));
     if (!raw) return null;
@@ -106,11 +107,61 @@ export function loadDraft(ref: DraftRef): CommandDraft | null {
   }
 }
 
-export function saveDraft(ref: DraftRef, draft: CommandDraft | null): void {
+const WRITE_DELAY_MS = 300;
+
+const pending = new Map<string, { draft: CommandDraft; timer: ReturnType<typeof setTimeout> }>();
+
+let flushHooked = false;
+
+function dropPending(key: string): void {
+  const entry = pending.get(key);
+  if (!entry) return;
+  clearTimeout(entry.timer);
+  pending.delete(key);
+}
+
+function flushKey(key: string): void {
+  const entry = pending.get(key);
+  if (!entry) return;
+  dropPending(key);
   try {
-    if (draft === null) sessionStorage.removeItem(draftKey(ref));
-    else sessionStorage.setItem(draftKey(ref), JSON.stringify(draft));
+    sessionStorage.setItem(key, JSON.stringify(entry.draft));
   } catch {}
+}
+
+export function flushDraft(ref: DraftRef): void {
+  flushKey(draftKey(ref));
+}
+
+export function flushDrafts(): void {
+  for (const key of Array.from(pending.keys())) flushKey(key);
+}
+
+function flushWhenLeaving(): void {
+  if (flushHooked || typeof window === 'undefined') return;
+  flushHooked = true;
+  window.addEventListener('pagehide', flushDrafts);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushDrafts();
+  });
+}
+
+export function saveDraft(ref: DraftRef, draft: CommandDraft | null): void {
+  const key = draftKey(ref);
+  dropPending(key);
+  try {
+    if (draft === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify(draft));
+  } catch {}
+}
+
+// Keystrokes would otherwise serialize and write the whole draft each time; the
+// latest state is written once typing pauses, on unmount, and on page hide.
+export function saveDraftSoon(ref: DraftRef, draft: CommandDraft): void {
+  flushWhenLeaving();
+  const key = draftKey(ref);
+  dropPending(key);
+  pending.set(key, { draft, timer: setTimeout(() => flushKey(key), WRITE_DELAY_MS) });
 }
 
 export function clearDraft(ref: DraftRef): void {
@@ -118,9 +169,45 @@ export function clearDraft(ref: DraftRef): void {
 }
 
 export function hasDraft(ref: DraftRef): boolean {
+  flushDraft(ref);
   try {
     return sessionStorage.getItem(draftKey(ref)) !== null;
   } catch {
     return false;
   }
+}
+
+export function draftedNames(board: BoardId): Set<string> {
+  flushDrafts();
+  const prefix = `${PREFIX}${board}:`;
+  const names = new Set<string>();
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith(prefix)) names.add(key.slice(prefix.length));
+    }
+  } catch {}
+  return names;
+}
+
+const CONTENT_FIELDS = [
+  'edit',
+  'originalName',
+  'name',
+  'response',
+  'perm',
+  'cooldown',
+  'user_cooldown',
+  'allowed_user_id',
+  'bump_counter',
+  'stream_online_only',
+  'builtin'
+] as const;
+
+const sameList = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((value, i) => value === b[i]);
+
+export function draftsMatch(a: CommandDraft, b: CommandDraft, ignoreActive: boolean): boolean {
+  if (!ignoreActive && !Object.is(a.is_active, b.is_active)) return false;
+  return sameList(a.aliases, b.aliases) && CONTENT_FIELDS.every((field) => Object.is(a[field], b[field]));
 }
