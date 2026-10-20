@@ -1,12 +1,11 @@
 {
-  "auto_closed": "{raffle:targets}, parabéns! Ganhadores do sorteio: {raffle:count}; inscrições: {raffle:entrants}. Quem ganhou deve digitar !claim em até {raffle:claim} min para confirmar!",
-  "auto_empty": "O sorteio terminou sem inscrições. Ninguém para sortear.",
   "cancelled": "O sorteio foi cancelado. Ninguém será sorteado.",
   "claim.already": "@{raffle:user} você já resgatou seu prêmio.",
   "claim.late": "@{raffle:user} o prazo para resgatar esse prêmio terminou.",
   "claim.none": "Não há prêmio de sorteio aguardando resgate de @{raffle:user}. Quem ganhou deve digitar !claim!",
   "claim.ok": "@{raffle:user} seu prêmio está confirmado. Aproveite!",
   "draw.empty": "Ninguém se inscreveu no sorteio. Ninguém para sortear.",
+  "err.loyalty_off": "Os prêmios do sorteio são pagos em pontos de fidelidade. Ative os pontos de fidelidade ou defina o prêmio do sorteio como 0 para um sorteio sem pontos.",
   "err.usage": "Uso: !raffle <open [minutes] [winners]|draw|cancel|status>. Espectadores participam com !join",
   "join.already": "@{raffle:user} você já está neste sorteio (inscrições: {raffle:count}).",
   "join.closed": "@{raffle:user} não há sorteio em andamento agora.",
@@ -18,8 +17,11 @@
   "last.none": "Nenhum sorteio foi realizado aqui ainda.",
   "open.already": "Já há um sorteio em andamento! Digite !join para participar.",
   "opened": "Sorteio ABERTO! Digite !join para participar. Resultado em {raffle:mins} min!",
+  "payout.failed": "Alguns {raffle:points} do sorteio não puderam ser pagos. Um moderador pode adicioná-los com !points add.",
+  "payout.loyalty_off": "Os pontos de fidelidade estão desativados, então este sorteio não pagou {raffle:points}.",
   "remind": "Lembrete do sorteio: restam ~{raffle:mins} min! Inscrições até agora: {raffle:count}. Digite !join! Quem ganhar deve usar !claim.",
   "status.closed": "Não há sorteio em andamento. Moderadores podem iniciar um com !raffle open <minutes>.",
   "status.open": "Sorteio aberto. Inscrições: {raffle:count}. Resultado em ~{raffle:mins} min! Digite !join!",
-  "won": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants})! Digite !claim em até {raffle:claim} min para confirmar seu prêmio!"
+  "won": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants})! Digite !claim em até {raffle:claim} min para confirmar seu prêmio!",
+  "won.points": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants}): {raffle:amount} {raffle:points} por ganhador, já no seu saldo!"
 }
