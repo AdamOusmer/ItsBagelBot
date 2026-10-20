@@ -33,13 +33,13 @@ func Gamble(d engine.Deps) module.Module {
 }
 
 type gambleConfig struct {
-	MinBet          int64  `json:"minBet"`
-	MaxBet          int64  `json:"maxBet"`
-	WinPercent      int64  `json:"winPercent"`
-	CooldownSeconds int64  `json:"cooldownSeconds"`
-	PointsName      string `json:"pointsName"`
-	WinMessage      string `json:"winMessage"`
-	LoseMessage     string `json:"loseMessage"`
+	MinBet          settingInt `json:"minBet"`
+	MaxBet          settingInt `json:"maxBet"`
+	WinPercent      settingInt `json:"winPercent"`
+	CooldownSeconds settingInt `json:"cooldownSeconds"`
+	PointsName      string     `json:"pointsName"`
+	WinMessage      string     `json:"winMessage"`
+	LoseMessage     string     `json:"loseMessage"`
 }
 
 type gambleCmd struct {
@@ -66,7 +66,7 @@ func newGambleCmd(ctx context.Context, d engine.Deps, c *module.Context, log *za
 		chatReplier: newGameReplier(c, points),
 		d:           d,
 		c:           c,
-		cfg:         engine.ClampGambleSettings(raw.MinBet, raw.MaxBet, raw.WinPercent, raw.CooldownSeconds),
+		cfg:         engine.ClampGambleSettings(int64(raw.MinBet), int64(raw.MaxBet), int64(raw.WinPercent), int64(raw.CooldownSeconds)),
 		tmpl:        raw,
 		log:         log,
 	}
