@@ -24,15 +24,18 @@ var (
 )
 
 type recordingSender struct {
-	request *resend.SendEmailRequest
-	key     string
-	reply   *resend.SendEmailResponse
-	err     error
-	calls   int
+	request  *resend.SendEmailRequest
+	key      string
+	reply    *resend.SendEmailResponse
+	err      error
+	calls    int
+	deadline time.Time
+	bounded  bool
 }
 
-func (s *recordingSender) SendWithOptions(_ context.Context, request *resend.SendEmailRequest, options *resend.SendEmailOptions) (*resend.SendEmailResponse, error) {
+func (s *recordingSender) SendWithOptions(ctx context.Context, request *resend.SendEmailRequest, options *resend.SendEmailOptions) (*resend.SendEmailResponse, error) {
 	s.request, s.key = request, options.IdempotencyKey
+	s.deadline, s.bounded = ctx.Deadline()
 	s.calls++
 	return s.reply, s.err
 }
@@ -86,6 +89,26 @@ func prepareGiveaway(t *testing.T, msg GiveawayMessage) rendered {
 	content, err := (&Mailer{from: "Bagel <bagel@example.com>", dashboardURL: dashboardURL}).PrepareGiveaway(msg)
 	require.NoError(t, err)
 	return rendered{subject: content.Subject, html: content.HTML, text: content.Text}
+}
+
+func TestProviderSendHasDeadline(t *testing.T) {
+	for name, send := range map[string]func(*Mailer) error{
+		"gift": func(m *Mailer) error {
+			return m.SendGift(context.Background(), GiftMessage{To: "winner@example.com", IdempotencyKey: "gift-1"})
+		},
+		"prepared giveaway": func(m *Mailer) error {
+			_, err := m.DeliverPrepared(context.Background(), Delivery{To: "winner@example.com", Key: "award-1", Content: PreparedContent{Subject: "s", HTML: "<p>h</p>", Text: "t"}})
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "id-1"}}
+			started := time.Now()
+			require.NoError(t, send(&Mailer{sender: sender, dashboardURL: dashboardURL}))
+			require.True(t, sender.bounded, "provider send must carry a deadline")
+			assert.WithinDuration(t, started.Add(sendTimeout), sender.deadline, time.Second)
+		})
+	}
 }
 
 var englishCopy = []string{"2 months", "September", "November", "recurring subscription", "Next scheduled payment", "View your prize", "Staying safe", " of ItsBagelBot Premium"}

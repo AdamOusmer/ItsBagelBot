@@ -14,6 +14,7 @@ export const VALKEY_CLIENT_OPTIONS = {
   maxRetriesPerRequest: 1,
   connectTimeout: 1000,
   familyFallback: { enabled: false },
+  enableAutoPipelining: true,
   retryStrategy: (times: number) => Math.min(times * 200, 2000)
 } as const;
 const DEFAULT_SERVER_NAME = 'valkey.valkey.svc.cluster.local';

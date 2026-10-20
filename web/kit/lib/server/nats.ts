@@ -283,12 +283,17 @@ export async function rpcReply<T>(subject: string, payload: unknown = {}, timeou
   });
 }
 
-export async function publish(subject: string, payload: unknown = {}): Promise<void> {
+export interface PublishOptions {
+  // Waits for the server to receive the message, for callers whose next step on another connection must land after it.
+  flush?: boolean;
+}
+
+export async function publish(subject: string, payload: unknown = {}, opts: PublishOptions = {}): Promise<void> {
   return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
     const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
     const nc = await get(role);
     nc.publish(subject, JSON.stringify(payload));
-    await nc.flush();
+    if (opts.flush) await nc.flush();
   });
 }
 

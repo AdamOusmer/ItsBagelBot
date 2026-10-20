@@ -8,6 +8,7 @@ import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
 import { POLICY, type CachePolicy } from '@bagel/kit/server/cache-keys';
 import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/service';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
+import { getServerConfig } from '@bagel/kit/server/config';
 import * as valkey from '@bagel/kit/server/valkey-store';
 import type { Tier } from '@bagel/kit';
 import type { Session } from './session';
@@ -36,28 +37,39 @@ export const SUB = {
 };
 
 export function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`, `commands_page:${id}`, `leaderboard_page:${id}`];
+  return [`grant:${id}`, `state:${id}`, `tier:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `govee-devices:${id}`, `fetches:${id}`];
 }
 
+const stateKeys = (id: string) => [`state:${id}`];
+
+// Scope names must match the Go publishers (internal/domain/invalidate callers); an unlisted scope wipes the whole board.
 export const SCOPES: ScopeMap = {
-  grant: (id) => [`grant:${id}`, `account:${id}`],
-  status: (id) => [`account:${id}`, `tier:${id}`, `ban:${id}`, `billing-state:${id}`],
+  grant: (id) => [`grant:${id}`, `state:${id}`],
+  status: (id) => [`state:${id}`, `tier:${id}`, `ban:${id}`],
   commands: (id) => [`commands:${id}`],
   modules: (id) => [`modules:${id}`],
   delegation: (id) => [`delegations:${id}`],
-  notifications: (id) => [`notifications:${id}`, 'notifications:all'],
-  locale: (id) => [`locale:${id}`],
-  cursor: (id) => [`cursor:${id}`],
-  commands_page: (id) => [`commands_page:${id}`],
-  leaderboard_page: (id) => [`leaderboard_page:${id}`],
+  notifications: (id) => [id === '*' ? 'notifications:' : `notifications:${id}`],
+  locale: stateKeys,
+  cursor: stateKeys,
+  commands_page: stateKeys,
+  leaderboard_page: stateKeys,
+  live: (id) => [`stream-meta:${id}`],
+  fetches: (id) => [`fetches:${id}`],
+  'token-warm': () => [],
+  outgress: () => [],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
+
+const SILENT_SCOPES: ReadonlySet<string> = new Set(['live', 'fetches']);
 
 export const fabric = createCacheFabric({
   app: 'dashboard',
   scopes: SCOPES,
   capacity: dashboardL1CacheCapacity(process.env),
-  onInvalidation: (scope, id) => liveHub.publish(id, scope)
+  onInvalidation: (event) => {
+    if (event.prefixes.length && !SILENT_SCOPES.has(event.scope)) liveHub.publish(event.id, event.scope);
+  }
 });
 
 function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Promise<T> {
@@ -66,6 +78,18 @@ function cached<T>(key: string, policy: CachePolicy, load: () => Promise<T>): Pr
 
 export function invalidate(...prefixes: string[]) {
   fabric.invalidate(...prefixes);
+}
+
+export type BoardChange = { scope: string; id: string };
+
+// For writes no backend service announces: evicts here, then tells the other dashboard pods.
+export async function broadcastInvalidation(change: BoardChange): Promise<void> {
+  invalidate(...(SCOPES[change.scope] ?? SCOPES['*']!)(change.id));
+  try {
+    await publish(`${getServerConfig().cacheInvalidationPrefix}.${change.scope}`, { broadcaster_id: change.id }, { flush: true });
+  } catch (err) {
+    newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), { component: 'cache-broadcast', scope: change.scope });
+  }
 }
 
 function invalidateUser(userId: string) {
@@ -202,12 +226,17 @@ export const delegationAccess = defineRead({
   }
 });
 
+// Unenroll is flushed: account deletion relies on it reaching NATS before the delete RPC.
 export async function publishEventSub(broadcasterId: string, enabled: boolean): Promise<void> {
-  await publish(SUB.outgress, {
-    type: 'eventsub',
-    broadcaster_id: broadcasterId,
-    payload: { enabled }
-  });
+  await publish(
+    SUB.outgress,
+    {
+      type: 'eventsub',
+      broadcaster_id: broadcasterId,
+      payload: { enabled }
+    },
+    { flush: !enabled }
+  );
 }
 
 export async function publishEventSubReconnect(broadcasterId: string): Promise<void> {
@@ -388,86 +417,80 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
   return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
 }
 
-type AccountStateReply = {
-    active: boolean;
-    status: string;
-    onboarded?: boolean;
-    creator_code?: string | null;
-    username?: string | null;
-    display_name?: string | null;
-    lifecycle?: ChannelLifecycle;
-    state_revision?: number;
-    account_created_at?: number;
-  };
+type StateReply = {
+  active?: boolean;
+  status?: string;
+  onboarded?: boolean;
+  creator_code?: string | null;
+  username?: string | null;
+  display_name?: string | null;
+  lifecycle?: ChannelLifecycle;
+  state_revision?: number;
+  account_created_at?: number;
+  expires_at?: string;
+  source?: string;
+  subscription_ref?: string;
+  subscription_cancel_pending?: boolean;
+  subscription_payment_failed?: boolean;
+  locale?: unknown;
+  custom_cursor?: unknown;
+  commands_page_hidden?: unknown;
+  leaderboard_page_hidden?: unknown;
+};
 
-export const accountState = defineRead({
+// One state_get reply per board; every view below derives from it, so every state scope must evict `state:`.
+const boardState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: AccountStateReply): AccountState => ({
-    lifecycle: r.lifecycle,
-    lifecycleRevision: r.state_revision,
-    accountCreatedAt: r.account_created_at,
-    active: !!r.active,
-    status: normalizeStatus(r.status),
-    onboarded: !!r.onboarded,
-    creatorCode: r.creator_code?.trim() ? r.creator_code : null,
-    username: (r.username ?? '').trim(),
-    displayName: (r.display_name ?? '').trim()
-  }),
+  map: (r: StateReply) => r,
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
     fabric,
-    key: (userId: string) => `account:${userId}`,
-    policy: POLICY.entity,
-    l2: async (userId: string) => {
-      const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '', displayName: '' } };
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '', displayName: '' } };
-    }
+    key: (userId: string) => `state:${userId}`,
+    policy: POLICY.entity
   }
 });
 
-export const setActive = defineWrite({
-  subject: `${SUB.dashboard}.active_set`,
-  request: (userId: string, active: boolean) => ({ broadcaster_user_id: userId, active }),
-  after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
-});
-
-export const setOnboarded = defineWrite({
-  subject: `${SUB.dashboard}.onboarded_set`,
-  request: (userId: string, onboarded: boolean) => ({ broadcaster_user_id: userId, onboarded }),
-  after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
-});
-
-function prefRead<T>(scope: string, map: (r: Record<string, unknown>) => T) {
-  return defineRead<[string], Record<string, unknown>, T>({
-    subject: `${SUB.dashboard}.state_get`,
-    request: (userId: string) => ({ broadcaster_user_id: userId }),
-    map,
-    timeoutMs: READ_TIMEOUT_MS,
-    cache: { fabric, key: (userId: string) => `${scope}:${userId}`, policy: POLICY.entity }
-  });
+function stateView<T>(view: (r: StateReply) => T): (userId: string) => Promise<T> {
+  return async (userId) => view(await boardState(userId));
 }
 
-function prefWrite<V>(verb: string, field: string, scope: string) {
+export const accountState = stateView((r): AccountState => ({
+  lifecycle: r.lifecycle,
+  lifecycleRevision: r.state_revision,
+  accountCreatedAt: r.account_created_at,
+  active: !!r.active,
+  status: normalizeStatus(r.status),
+  onboarded: !!r.onboarded,
+  creatorCode: r.creator_code?.trim() ? r.creator_code : null,
+  username: (r.username ?? '').trim(),
+  displayName: (r.display_name ?? '').trim()
+}));
+
+type StateField = { verb: string; field: string };
+
+function stateWrite<V>({ verb, field }: StateField) {
   return defineWrite<[string, V], unknown>({
     subject: `${SUB.dashboard}.${verb}`,
     request: (userId: string, value: V) => ({ broadcaster_user_id: userId, [field]: value }),
-    after: (_result: unknown, userId: string) => invalidate(`${scope}:${userId}`)
+    after: (_result: unknown, userId: string) => invalidate(`state:${userId}`)
   });
 }
 
-export const userLocale = prefRead('locale', (r) => (typeof r.locale === 'string' && r.locale ? r.locale : 'en'));
-export const setLocale = prefWrite<string>('locale_set', 'locale', 'locale');
+export const setActive = stateWrite<boolean>({ verb: 'active_set', field: 'active' });
+export const setOnboarded = stateWrite<boolean>({ verb: 'onboarded_set', field: 'onboarded' });
 
-export const userCursor = prefRead('cursor', (r) => r.custom_cursor !== false);
-export const setCursor = prefWrite<boolean>('cursor_set', 'custom_cursor', 'cursor');
+export const userLocale = stateView((r) => (typeof r.locale === 'string' && r.locale ? r.locale : 'en'));
+export const setLocale = stateWrite<string>({ verb: 'locale_set', field: 'locale' });
 
-export const userCommandsPage = prefRead('commands_page', (r) => r.commands_page_hidden !== true);
-export const setCommandsPage = prefWrite<boolean>('commands_page_set', 'commands_page_hidden', 'commands_page');
+export const userCursor = stateView((r) => r.custom_cursor !== false);
+export const setCursor = stateWrite<boolean>({ verb: 'cursor_set', field: 'custom_cursor' });
 
-export const userLeaderboardPage = prefRead('leaderboard_page', (r) => r.leaderboard_page_hidden !== true);
-export const setLeaderboardPage = prefWrite<boolean>('leaderboard_page_set', 'leaderboard_page_hidden', 'leaderboard_page');
+export const userCommandsPage = stateView((r) => r.commands_page_hidden !== true);
+export const setCommandsPage = stateWrite<boolean>({ verb: 'commands_page_set', field: 'commands_page_hidden' });
+
+export const userLeaderboardPage = stateView((r) => r.leaderboard_page_hidden !== true);
+export const setLeaderboardPage = stateWrite<boolean>({ verb: 'leaderboard_page_set', field: 'leaderboard_page_hidden' });
 
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
@@ -476,7 +499,7 @@ export const saveGrant = defineWrite({
     access_token: accessToken,
     refresh_token: refreshToken
   }),
-  after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `account:${userId}`)
+  after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `state:${userId}`)
 });
 
 export type BillingGrantSource = 'tebex' | 'admin' | '';
@@ -509,34 +532,15 @@ export const resolveLogin = defineRead({
   }
 });
 
-// No Valkey L2: an L2 hit on the projected user hash would drop the paid-until date.
-export const billingState = defineRead({
-  subject: `${SUB.dashboard}.state_get`,
-  request: (userId: string) => ({ broadcaster_user_id: userId }),
-  map: (r: {
-    active: boolean;
-    status: string;
-    expires_at?: string;
-    source?: string;
-    subscription_ref?: string;
-    subscription_cancel_pending?: boolean;
-    subscription_payment_failed?: boolean;
-  }): BillingState => ({
-    active: !!r.active,
-    status: normalizeStatus(r.status),
-    expiresAt: r.expires_at ?? null,
-    source: (r.source as BillingGrantSource) ?? '',
-    subscriptionRef: r.subscription_ref ?? null,
-    cancelPending: !!r.subscription_cancel_pending,
-    paymentFailed: !!r.subscription_payment_failed
-  }),
-  timeoutMs: READ_TIMEOUT_MS,
-  cache: {
-    fabric,
-    key: (userId: string) => `billing-state:${userId}`,
-    policy: POLICY.entity
-  }
-});
+export const billingState = stateView((r): BillingState => ({
+  active: !!r.active,
+  status: normalizeStatus(r.status),
+  expiresAt: r.expires_at ?? null,
+  source: (r.source as BillingGrantSource) ?? '',
+  subscriptionRef: r.subscription_ref ?? null,
+  cancelPending: !!r.subscription_cancel_pending,
+  paymentFailed: !!r.subscription_payment_failed
+}));
 
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
@@ -585,20 +589,36 @@ export type NotificationsForUser = {
   unreadCount: number;
 };
 
-export const notificationsForUser = defineRead({
+function earliestExpiryMs(list: NotificationWire[]): number {
+  let at = Number.POSITIVE_INFINITY;
+  for (const n of list) {
+    const expires = n.expires_at ? Date.parse(n.expires_at) : Number.NaN;
+    if (expires < at) at = expires;
+  }
+  return at;
+}
+
+const notificationsList = defineRead({
   subject: `${SUB.notifications}.list`,
   request: (userId: string) => ({ user_id: userId }),
-  map: (r: { notifications?: NotificationWire[]; unread_count?: number }): NotificationsForUser => ({
-    notifications: r.notifications ?? [],
-    unreadCount: r.unread_count ?? 0
-  }),
+  map: (r: { notifications?: NotificationWire[]; unread_count?: number }) => {
+    const notifications = r.notifications ?? [];
+    return { view: { notifications, unreadCount: r.unread_count ?? 0 }, staleAtMs: earliestExpiryMs(notifications) };
+  },
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
     fabric,
     key: (userId: string) => `notifications:${userId}`,
-    policy: POLICY.live
+    policy: POLICY.entity
   }
 });
+
+export async function notificationsForUser(userId: string): Promise<NotificationsForUser> {
+  const cached = await notificationsList(userId);
+  if (Date.now() < cached.staleAtMs) return cached.view;
+  invalidate(`notifications:${userId}`);
+  return (await notificationsList(userId)).view;
+}
 
 export const notificationMarkRead = defineWrite({
   subject: `${SUB.notifications}.mark_read`,
@@ -632,5 +652,5 @@ type LifecycleRetryRequest = { broadcaster_user_id: string };
 export const retryLifecycle = defineWrite({
  subject: `${SUB.dashboard}.lifecycle_retry`,
  request: (request: LifecycleRetryRequest) => request,
- after: (_result: unknown, request: LifecycleRetryRequest) => invalidate(`account:${request.broadcaster_user_id}`)
+ after: (_result: unknown, request: LifecycleRetryRequest) => invalidate(`state:${request.broadcaster_user_id}`)
 });

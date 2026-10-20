@@ -62,7 +62,7 @@ export function parseDefForm(f: FormData): DefForm {
 
 export async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDefErrors): Promise<void> {
   if (DEMO) return;
-  const fresh = await tryRpc('fetch-pre-check', () => listFetches(uid));
+  const fresh = await tryRpc('fetch-pre-check', () => listFetches(uid, { fresh: true }));
   if (!fresh.ok) return;
   const existsElsewhere = fresh.value.defs.some((d) => d.name === def.name && d.name !== def.originalName);
   if (existsElsewhere) {

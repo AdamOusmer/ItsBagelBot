@@ -2,7 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpc } from '@bagel/kit/server/nats';
-import { SUB } from './services';
+import { READ_TIMEOUT_MS } from '@bagel/kit/server/service';
+import { POLICY } from '@bagel/kit/server/cache-keys';
+import { SUB, broadcastInvalidation, fabric, invalidate } from './services';
 
 export interface FetchDefView {
   name: string;
@@ -24,12 +26,27 @@ interface FetchListReply {
   error?: string;
 }
 
-export async function listFetches(userId: string): Promise<{ defs: FetchDefView[]; keys: FetchKeyView[] }> {
-  const r = await rpc<FetchListReply>(`${SUB.commands}.fetch_list`, { user_id: userId });
-  return {
-    defs: Array.isArray(r.defs) ? r.defs : [],
-    keys: Array.isArray(r.keys) ? r.keys : []
-  };
+export type FetchList = { defs: FetchDefView[]; keys: FetchKeyView[] };
+
+const fetchesKey = (userId: string) => `fetches:${userId}`;
+
+export function listFetches(userId: string, opts: { fresh?: boolean } = {}): Promise<FetchList> {
+  if (opts.fresh) invalidate(fetchesKey(userId));
+  return fabric.readKey(fetchesKey(userId), POLICY.entity, async () => {
+    const r = await rpc<FetchListReply>(`${SUB.commands}.fetch_list`, { user_id: userId }, READ_TIMEOUT_MS);
+    return {
+      defs: Array.isArray(r.defs) ? r.defs : [],
+      keys: Array.isArray(r.keys) ? r.keys : []
+    };
+  });
+}
+
+async function writeFetches<T>(userId: string, write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } finally {
+    await broadcastInvalidation({ scope: 'fetches', id: userId });
+  }
 }
 
 export interface FetchDefInput {
@@ -41,19 +58,18 @@ export interface FetchDefInput {
   originalName?: string;
 }
 
-export async function upsertFetchDef(
-  userId: string,
-  def: FetchDefInput
-): Promise<{ defs: FetchDefView[]; keys: FetchKeyView[] }> {
-  await rpc(`${SUB.commands}.fetch_set_def`, {
-    user_id: userId,
-    name: def.name,
-    url: def.url,
-    json_path: def.jsonPath,
-    is_active: def.isActive,
-    key_label: def.keyLabel,
-    original_name: def.originalName ?? ''
-  });
+export async function upsertFetchDef(userId: string, def: FetchDefInput): Promise<FetchList> {
+  await writeFetches(userId, () =>
+    rpc(`${SUB.commands}.fetch_set_def`, {
+      user_id: userId,
+      name: def.name,
+      url: def.url,
+      json_path: def.jsonPath,
+      is_active: def.isActive,
+      key_label: def.keyLabel,
+      original_name: def.originalName ?? ''
+    })
+  );
   try {
     return await listFetches(userId);
   } catch {
@@ -68,11 +84,13 @@ export interface FetchKeyEntry {
 }
 
 export async function setFetchKey(key: FetchKeyEntry): Promise<string> {
-  const r = await rpc<{ last4?: string }>(`${SUB.commands}.fetch_set_key`, {
-    user_id: key.userId,
-    label: key.label,
-    value: key.value
-  });
+  const r = await writeFetches(key.userId, () =>
+    rpc<{ last4?: string }>(`${SUB.commands}.fetch_set_key`, {
+      user_id: key.userId,
+      label: key.label,
+      value: key.value
+    })
+  );
   return r.last4 ?? '';
 }
 
@@ -85,11 +103,13 @@ interface FetchDeleteRef {
 }
 
 async function deleteFetch(ref: FetchDeleteRef): Promise<void> {
-  await rpc(`${SUB.commands}.fetch_delete`, {
-    user_id: ref.userId,
-    kind: ref.kind,
-    name: ref.name
-  });
+  await writeFetches(ref.userId, () =>
+    rpc(`${SUB.commands}.fetch_delete`, {
+      user_id: ref.userId,
+      kind: ref.kind,
+      name: ref.name
+    })
+  );
 }
 
 export function deleteFetchDef(ref: { userId: string; name: string }): Promise<void> {
