@@ -338,6 +338,9 @@ func (a *engineAwardAdapter) NeedsReview(ctx context.Context, id string, reason 
 	}
 	return err
 }
+
+const leaseReleaseTimeout = 2 * time.Second
+
 func (a *engineAwardAdapter) AcquireUserLease(ctx context.Context, userID string) (func(), error) {
 	if !a.leaseEnabled {
 		return func() {}, nil
@@ -364,7 +367,9 @@ func (a *engineAwardAdapter) AcquireUserLease(ctx context.Context, userID string
 		return nil, err
 	}
 	return func() {
-		_, _ = a.db.GiveawayUserLease.UpdateOneID("user:" + userID).Where(giveawayuserlease.OwnerEQ(owner)).SetLeaseUntil(time.Now()).SetUpdatedAt(time.Now()).Save(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), leaseReleaseTimeout)
+		defer cancel()
+		_, _ = a.db.GiveawayUserLease.UpdateOneID("user:" + userID).Where(giveawayuserlease.OwnerEQ(owner)).SetLeaseUntil(time.Now()).SetUpdatedAt(time.Now()).Save(ctx)
 	}, nil
 }
 

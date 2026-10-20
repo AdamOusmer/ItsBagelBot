@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { PrefixIndex, matchesAny } from './cache-index';
+
 export interface CachePolicy {
   freshMs: number;
   swrMs?: number;
@@ -42,6 +44,7 @@ function normalize(policy: CachePolicy | number): Required<CachePolicy> {
 
 export class SwrCache {
   private readonly store = new Map<string, Entry>();
+  private readonly index = new PrefixIndex();
   private readonly inflight = new Map<string, Inflight>();
   private readonly generations = new Map<string, number>();
   private readonly capacity: number;
@@ -84,21 +87,18 @@ export class SwrCache {
 
   delete(key: string): void {
     this.doom(key);
-    this.store.delete(key);
+    if (this.store.delete(key)) this.index.remove(key);
     this.emit('invalidate', key);
   }
 
   invalidate(...prefixes: string[]): void {
-    const matches = (key: string) => prefixes.some((p) => key.startsWith(p));
-    for (const key of this.store.keys()) {
-      if (matches(key)) {
-        this.doom(key);
-        this.store.delete(key);
-        this.emit('invalidate', key);
-      }
+    for (const key of this.index.matching(prefixes, () => this.store.keys())) {
+      this.doom(key);
+      if (this.store.delete(key)) this.index.remove(key);
+      this.emit('invalidate', key);
     }
     for (const key of this.inflight.keys()) {
-      if (matches(key)) this.doom(key);
+      if (matchesAny(prefixes, key)) this.doom(key);
     }
   }
 
@@ -106,6 +106,7 @@ export class SwrCache {
     for (const key of this.inflight.keys()) this.doom(key);
     for (const key of this.store.keys()) this.doom(key);
     this.store.clear();
+    this.index.clear();
     this.emit('invalidate', '*');
   }
 
@@ -189,10 +190,12 @@ export class SwrCache {
   private insert(key: string, entry: Entry): void {
     this.store.delete(key);
     this.store.set(key, entry);
+    this.index.add(key);
     while (this.store.size > this.capacity) {
       const oldest = this.store.keys().next().value;
       if (oldest === undefined) break;
       this.store.delete(oldest);
+      this.index.remove(oldest);
     }
   }
 }

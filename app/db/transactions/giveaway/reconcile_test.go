@@ -4,11 +4,15 @@
 package giveaway
 
 import (
+	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
+	"ItsBagelBot/app/db/transactions/ent/hook"
 	"ItsBagelBot/app/db/transactions/tebex"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
@@ -69,6 +73,30 @@ func TestProviderReconciliationAlertsOnCancellationWithoutRevokingAward(t *testi
 	alerted, err := f.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ("award-drift"), giveawayalert.CategoryEQ("billing-reconciliation")).Exist(t.Context())
 	require.NoError(t, err)
 	assert.True(t, alerted)
+}
+
+func TestProviderReconciliationTreatsConcurrentAlertInsertAsRecorded(t *testing.T) {
+	f := newFixture(t)
+	f.seedReconciliation(reconciliationSeed{id: "award-race", userID: 9, state: "active", ref: "ref-race"})
+	f.provider = &fakeProvider{payment: tebex.RecurringPayment{Reference: "ref-race", Status: "Paused", Interval: "P1M", CancellationRequested: true}}
+	var raced atomic.Bool
+	f.db.GiveawayAlert.Use(func(next ent.Mutator) ent.Mutator {
+		return hook.GiveawayAlertFunc(func(ctx context.Context, m *ent.GiveawayAlertMutation) (ent.Value, error) {
+			if m.Op().Is(ent.OpCreate) && raced.CompareAndSwap(false, true) {
+				id, _ := m.ID()
+				_, err := f.db.GiveawayAlert.Create().SetID(id).SetAwardID("award-race").SetOperationID("billing:award-race").SetCategory("billing-reconciliation").SetState("unresolved").SetMessage("other replica").Save(ctx)
+				assert.NoError(t, err)
+			}
+			return next.Mutate(ctx, m)
+		})
+	})
+
+	f.runUntil(func() bool { return f.operationState("award-race") == "needs_review" })
+
+	assert.True(t, raced.Load())
+	count, err := f.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ("award-race")).Count(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
 }
 
 func TestProviderReconciliationStopsBeforeProbeWhenCancellationIsPending(t *testing.T) {

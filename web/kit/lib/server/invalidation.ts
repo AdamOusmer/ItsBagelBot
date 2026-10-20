@@ -13,6 +13,8 @@ export interface InvalidationBusOptions {
   onApplied?: (scope: string, id: string, prefixes: string[]) => void;
 }
 
+const decoder = new TextDecoder();
+
 export function startInvalidationBus(opts: InvalidationBusOptions): void {
   const prefix = getServerConfig().cacheInvalidationPrefix;
   const fallback = opts.scopes['*'];
@@ -22,7 +24,7 @@ export function startInvalidationBus(opts: InvalidationBusOptions): void {
     prefix + '.>',
     (subject, data) => {
       try {
-        const msg = JSON.parse(new TextDecoder().decode(data)) as { broadcaster_id?: unknown };
+        const msg = JSON.parse(decoder.decode(data)) as { broadcaster_id?: unknown };
         const id = typeof msg.broadcaster_id === 'string' ? msg.broadcaster_id : undefined;
         if (!id) return;
         const scope = subject.slice(subject.lastIndexOf('.') + 1);
