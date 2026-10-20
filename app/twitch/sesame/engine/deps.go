@@ -15,6 +15,7 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 
@@ -135,10 +136,7 @@ type GreetStore interface {
 	ResetGreets(ctx context.Context, broadcasterID uint64) error
 }
 
-type CooldownWindow struct {
-	Key string
-	TTL time.Duration
-}
+type CooldownWindow = pkg_valkey.Claim
 
 type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)

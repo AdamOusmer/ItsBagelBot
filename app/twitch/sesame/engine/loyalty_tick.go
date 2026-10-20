@@ -66,7 +66,7 @@ type ValkeyLoyaltyClock struct {
 	rearmSubject    string
 	botID           string
 	keyspaceDB      int
-	expiry          *ExpiryHub
+	expiry          *pkg_valkey.ExpiryHub
 	log             *zap.Logger
 	wake            chan struct{}
 	rearms          chan uint64
@@ -78,7 +78,7 @@ type LoyaltyClockConfig struct {
 	ModulesInvalidateSubject string
 	BotUserID                string
 	KeyspaceDB               int
-	Expiry                   *ExpiryHub
+	Expiry                   *pkg_valkey.ExpiryHub
 	// Retained for rolling wiring compatibility. Reconfirmation now occurs in
 	// the correlated chatter request and requires a successful Twitch result.
 	Publisher             bus.Publisher

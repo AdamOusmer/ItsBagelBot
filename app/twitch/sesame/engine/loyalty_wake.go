@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -29,7 +30,7 @@ func (s *ValkeyLoyaltyClock) onExpired(_ context.Context, key string) {
 }
 
 func (s *ValkeyLoyaltyClock) StartExpiryWatcher(ctx context.Context) {
-	expiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, loyaltyTickKeyPrefix)
+	pkg_valkey.ExpiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, loyaltyTickKeyPrefix)
 }
 
 func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {

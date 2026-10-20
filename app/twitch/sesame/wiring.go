@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -34,7 +35,7 @@ type wireCtx struct {
 	in     infra
 	cfg    *config.Config
 	log    *zap.Logger
-	expiry *engine.ExpiryHub
+	expiry *pkgvalkey.ExpiryHub
 }
 
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
