@@ -25,6 +25,12 @@ import (
 
 const maxBodyBytes = 256 * 1024
 
+const (
+	// Must outlast /drain's 10s sleep: the deadline arms at request read.
+	WriteTimeout  = 15 * time.Second
+	webhookBudget = WriteTimeout - 3*time.Second
+)
+
 type Store interface {
 	SaveWebhookEvent(ctx context.Context, event repository.WebhookEvent) error
 }
@@ -144,6 +150,9 @@ func (s *Server) tebexReachable(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 
+	ctx, cancel := context.WithTimeout(r.Context(), webhookBudget)
+	defer cancel()
+
 	body, ok := s.verifiedBody(w, r)
 	if !ok {
 		return
@@ -160,7 +169,6 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
 	if event.Type == "validation.webhook" {
 		s.handleValidation(ctx, w, event)
 		return

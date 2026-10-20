@@ -8,14 +8,18 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net/http"
 	stdmail "net/mail"
 	"strings"
+	"time"
 
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/validate"
 
 	"github.com/resend/resend-go/v4"
 )
+
+const sendTimeout = 5 * time.Second
 
 var (
 	ErrInvalidMessage = errors.New("transactional email is invalid")
@@ -51,7 +55,8 @@ type renderedMessage struct {
 var logoPNG []byte
 
 func New(apiKey, from, dashboardURL string) *Mailer {
-	return &Mailer{sender: resend.NewClient(apiKey).Emails, from: from, dashboardURL: dashboardURL}
+	client := resend.NewCustomClient(&http.Client{Timeout: sendTimeout}, apiKey)
+	return &Mailer{sender: client.Emails, from: from, dashboardURL: dashboardURL}
 }
 
 func (m *Mailer) SendGift(ctx context.Context, msg GiftMessage) error {
@@ -98,6 +103,8 @@ func (m *Mailer) send(ctx context.Context, msg renderedMessage) (Receipt, error)
 		from = m.from
 	}
 	attachments := inlineLogoAttachments(msg.HTML)
+	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
+	defer cancel()
 	reply, err := m.sender.SendWithOptions(ctx, &resend.SendEmailRequest{
 		From: from, To: []string{msg.To}, Subject: msg.Subject, Html: msg.HTML, Text: msg.Text,
 		Attachments: attachments,
