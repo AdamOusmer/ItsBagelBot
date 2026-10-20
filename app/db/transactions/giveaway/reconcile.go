@@ -278,6 +278,9 @@ func upsertProviderAlert(ctx context.Context, alertData providerAlert) error {
 	alert, err := alertData.db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ(alertData.awardID), giveawayalert.CategoryEQ("billing-reconciliation")).Only(ctx)
 	if ent.IsNotFound(err) {
 		_, err = alertData.db.GiveawayAlert.Create().SetID(alertData.awardID + ":billing-reconciliation").SetAwardID(alertData.awardID).SetOperationID(alertData.operationID).SetCategory("billing-reconciliation").SetState("unresolved").SetMessage(alertData.message).SetLastSeenAt(alertData.now).Save(ctx)
+		if ent.IsConstraintError(err) {
+			return nil
+		}
 		return err
 	}
 	if err != nil {

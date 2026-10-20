@@ -143,6 +143,8 @@ type entAwardReader struct{ db *ent.Client }
 
 type entCheckoutLease struct{ db *ent.Client }
 
+const leaseReleaseTimeout = 2 * time.Second
+
 func (r entCheckoutLease) AcquireUserLease(ctx context.Context, userID uint64) (func(), error) {
 	if userID == 0 {
 		return nil, errors.New("invalid user id")
@@ -161,8 +163,10 @@ func (r entCheckoutLease) AcquireUserLease(ctx context.Context, userID uint64) (
 		return nil, err
 	}
 	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), leaseReleaseTimeout)
+		defer cancel()
 		now := time.Now().UTC()
-		_, _ = r.db.GiveawayUserLease.UpdateOneID("user:" + fmt.Sprint(userID)).Where(giveawayuserlease.OwnerEQ(req.owner)).SetLeaseUntil(now).SetUpdatedAt(now).Save(context.Background())
+		_, _ = r.db.GiveawayUserLease.UpdateOneID("user:" + fmt.Sprint(userID)).Where(giveawayuserlease.OwnerEQ(req.owner)).SetLeaseUntil(now).SetUpdatedAt(now).Save(ctx)
 	}, nil
 }
 
