@@ -22,6 +22,7 @@ interface Options {
 
 interface Catalogs {
   locales: string[];
+  trees: Record<string, MessageTree>;
   names: Record<string, string>;
   data: Record<string, string>;
   files: Record<string, string>;
@@ -64,13 +65,14 @@ function without(tree: MessageTree, exclude: ReadonlySet<string>): MessageTree {
 function assemble({ exclude, source }: Options): Catalogs {
   const locales = source.locales();
   const english = without(source.read('en'), exclude);
-  const out: Catalogs = { locales, names: {}, data: {}, files: {}, urls: {} };
+  const out: Catalogs = { locales, trees: {}, names: {}, data: {}, files: {}, urls: {} };
   for (const locale of locales) {
     const merged = locale === 'en' ? english : overlay(english, without(source.read(locale), exclude));
     assertEnglishKeys(locale, english, merged);
     const body = JSON.stringify(merged);
     const hash = createHash('sha256').update(body).digest('hex').slice(0, 10);
     const fileName = `${URL_DIR}/${locale}.${hash}.json`;
+    out.trees[locale] = merged;
     out.names[locale] = langName(merged, locale);
     out.data[locale] = body;
     out.files[fileName] = body;
@@ -82,19 +84,32 @@ function assemble({ exclude, source }: Options): Catalogs {
 interface PluginOptions {
   exclude?: string[];
   source?: Source;
+  slices?: boolean;
+}
+
+export const CATALOGS_PLUGIN = 'bagel-i18n-catalogs';
+
+export interface CatalogsApi {
+  catalogs: () => Pick<Catalogs, 'locales' | 'trees'>;
 }
 
 /**
- * Serves the console catalog as one merged tree per locale. The server imports each locale whole; the browser
- * fetches one content-hashed asset per locale that the server can also name.
+ * Serves the console catalog as one merged tree per locale. The server imports each locale whole. Without slices the
+ * browser fetches one content-hashed asset per locale that the server can also name; with slices a production build
+ * leaves browser delivery to i18nSlices.
  */
-export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales, read: readConsoleTree } }: PluginOptions = {}): Plugin {
+export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales, read: readConsoleTree }, slices = false }: PluginOptions = {}): Plugin<CatalogsApi> {
   const options: Options = { exclude: new Set(exclude), source };
   let cached: Catalogs | undefined;
+  let sliced = false;
   const catalogs = () => (cached ??= assemble(options));
 
   return {
-    name: 'bagel-i18n-catalogs',
+    name: CATALOGS_PLUGIN,
+    api: { catalogs },
+    configResolved(config) {
+      sliced = slices && config.command === 'build';
+    },
     resolveId(id) {
       if (id === VIRTUAL || id.startsWith(`${VIRTUAL}/`)) return `\0${id}`;
       return undefined;
@@ -110,12 +125,13 @@ export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales,
       return [
         `export const locales = ${JSON.stringify(locales)};`,
         `export const localeNames = ${JSON.stringify(names)};`,
-        `export const urls = ${JSON.stringify(urls)};`,
+        `export const urls = ${JSON.stringify(sliced ? {} : urls)};`,
+        `export const sliced = ${sliced};`,
         `export const loaders = {${loaders}};`
       ].join('\n');
     },
     generateBundle() {
-      if (this.environment?.name !== 'client') return;
+      if (this.environment?.name !== 'client' || sliced) return;
       for (const [fileName, source] of Object.entries(catalogs().files)) this.emitFile({ type: 'asset', fileName, source });
     },
     configureServer(server) {

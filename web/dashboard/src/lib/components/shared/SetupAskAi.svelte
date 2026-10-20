@@ -21,7 +21,6 @@
   const url = $derived(`${ORIGIN}/${feature}/setup.md#step-${stepIndex + 1}`);
   let copied = $state(false);
   let failed = $state(false);
-  const LABELS = ['setupAi.copy', 'setupAi.copied', 'setupAi.copyFailed'] as const;
   const status = $derived(copied ? 'setupAi.copied' : failed ? 'setupAi.copyFailed' : 'setupAi.copy');
   function prompt() {
     const lines = [
@@ -43,7 +42,9 @@
   <div>
     <Button variant="secondary" size="sm" title={t('setupAi.description')} aria-describedby={`${uid}-description`} onclick={copyPrompt}>
       <span class="ask-ai-label">
-        {#each LABELS as key (key)}<span aria-hidden={status !== key} class:is-hidden={status !== key}>{t(key)}</span>{/each}
+        <span aria-hidden={status !== 'setupAi.copy'} class:is-hidden={status !== 'setupAi.copy'}>{t('setupAi.copy')}</span><span
+          aria-hidden={status !== 'setupAi.copied'} class:is-hidden={status !== 'setupAi.copied'}>{t('setupAi.copied')}</span><span
+          aria-hidden={status !== 'setupAi.copyFailed'} class:is-hidden={status !== 'setupAi.copyFailed'}>{t('setupAi.copyFailed')}</span>
       </span>
     </Button>
   </div>

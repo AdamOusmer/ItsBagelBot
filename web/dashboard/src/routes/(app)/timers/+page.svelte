@@ -100,7 +100,7 @@
       draft = null;
     });
   }
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   const saveSubmit: SubmitFunction = (input) => {
     if (
@@ -133,7 +133,7 @@
         }
         await invalidateAll();
       } else {
-        failed(payload, 'timers.toastSaveFailed');
+        failed(payload, t('timers.toastSaveFailed'));
       }
     };
   };
@@ -147,7 +147,7 @@
         const payload = actionPayload(result);
         if (result.type === 'success' && payload?.ok) return;
         timers = timers.map((x) => (x.id === tmr.id ? { ...x, enabled: was } : x));
-        failed(payload, 'timers.toastToggleFailed');
+        failed(payload, t('timers.toastToggleFailed'));
       };
     };
 
@@ -168,7 +168,7 @@
     const res = await postAction('delete', fd);
     if (!res?.ok) {
       timers = [...timers, tmr];
-      failed(res ?? undefined, 'timers.toastDeleteFailed');
+      failed(res ?? undefined, t('timers.toastDeleteFailed'));
       return;
     }
     toast('success', t('timers.toastDeleted'), {
@@ -181,7 +181,7 @@
     fd.set('timer', JSON.stringify(tmr));
     const res = await postAction('create', fd);
     if (res?.ok) await invalidateAll();
-    else failed(res ?? undefined, 'timers.toastDeleteFailed');
+    else failed(res ?? undefined, t('timers.toastDeleteFailed'));
   }
 </script>
 

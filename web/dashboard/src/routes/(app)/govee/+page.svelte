@@ -69,7 +69,7 @@
 
   type GoveeActionOk = ActionOk & { missingScope?: boolean; code?: string };
 
-  function failed(payload: GoveeActionOk | undefined, fallbackKey: string) {
+  function failed(payload: GoveeActionOk | undefined, fallback: string) {
     if (payload?.missingScope) {
       missingScope = true;
       return;
@@ -78,7 +78,7 @@
       toast('danger', t('govee.keyInvalid'));
       return;
     }
-    toast('danger', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? fallback);
   }
 
   const isOk = (result: { type: string }, payload: GoveeActionOk | undefined) =>
@@ -91,7 +91,7 @@
       keySaving = false;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.keySaveFailed');
+        failed(payload, t('govee.keySaveFailed'));
         return;
       }
       if (payload?.code === 'key_unchecked') {
@@ -113,7 +113,7 @@
       keyRemovePending = false;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.keyRemoveFailed');
+        failed(payload, t('govee.keyRemoveFailed'));
         return;
       }
       keyPresent = false;
@@ -197,7 +197,7 @@
       const ok = isOk(result, payload);
       if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        failed(payload, 'govee.toastSaveFailed');
+        failed(payload, t('govee.toastSaveFailed'));
         return;
       }
       toast('success', t('govee.toastSaved'));
@@ -217,7 +217,7 @@
       deleteTarget = null;
       const payload = actionPayload<GoveeActionOk>(result);
       if (!isOk(result, payload)) {
-        failed(payload, 'govee.toastDeleteFailed');
+        failed(payload, t('govee.toastDeleteFailed'));
         return;
       }
       if (target && selected?.device === target.device) doClose();

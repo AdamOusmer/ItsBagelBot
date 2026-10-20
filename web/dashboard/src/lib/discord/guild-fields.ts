@@ -6,7 +6,7 @@ import type { I18n } from '@bagel/kit';
 
 export type I18nKey = Parameters<I18n['t']>[0];
 
-export const FIELD_LABEL_KEYS: Partial<Record<keyof DiscordConfig, I18nKey>> = {
+export const FIELD_LABEL_KEYS: Readonly<Partial<Record<keyof DiscordConfig, I18nKey>>> = Object.freeze({
   liveChannelId: 'discord.channels.liveLabel',
   clipsChannelId: 'discord.channels.clipsLabel',
   welcomeChannelId: 'discord.channels.welcomeLabel',
@@ -54,9 +54,9 @@ export const FIELD_LABEL_KEYS: Partial<Record<keyof DiscordConfig, I18nKey>> = {
   categoryAllow: 'discord.announcements.allowLabel',
   categoryDeny: 'discord.announcements.denyLabel',
   linkAllowList: 'discord.community.linkGuardLabel'
-};
+});
 
-export const SLOT_LABEL_KEYS: Record<PinnedSlot, I18nKey> = {
+export const SLOT_LABEL_KEYS: Readonly<Record<PinnedSlot, I18nKey>> = Object.freeze({
   owner: 'discord.roles.slotOwner',
   leadMod: 'discord.roles.slotLeadMod',
   mods: 'discord.roles.slotMods',
@@ -64,17 +64,17 @@ export const SLOT_LABEL_KEYS: Record<PinnedSlot, I18nKey> = {
   subscriber: 'discord.roles.slotSubscriber',
   regulars: 'discord.roles.slotRegulars',
   member: 'discord.roles.slotMember'
-};
+});
 
-export const CLOSE_KEYS: Record<
+export const CLOSE_KEYS: Readonly<Record<
   number,
   'discord.status.close4004' | 'discord.status.close4013' | 'discord.status.close4014' | 'discord.status.close4011'
-> = {
+>> = Object.freeze({
   4004: 'discord.status.close4004',
   4011: 'discord.status.close4011',
   4013: 'discord.status.close4013',
   4014: 'discord.status.close4014'
-};
+});
 
 export const CHANNEL_FIELDS = [
   'liveChannelId',

@@ -64,7 +64,7 @@
   let { data } = $props();
 
   const { t, locale } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   // svelte-ignore state_referenced_locally
   let items = $state.raw<CommandView[]>(data.commands ?? []);
@@ -131,7 +131,7 @@
   const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
 
   function clearTimers(name: string) {
-    for (const t of statusTimers.get(name) ?? []) clearTimeout(t);
+    for (const timer of statusTimers.get(name) ?? []) clearTimeout(timer);
     statusTimers.delete(name);
   }
 
@@ -465,7 +465,7 @@
     editorDraft = d;
     expanded = NEW;
     editorGen++;
-    if (!serverErrors) failed(payload, 'commands.toastSaveFailed');
+    if (!serverErrors) failed(payload, t('commands.toastSaveFailed'));
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -552,7 +552,7 @@
     const errs = saveFailureErrors(payload, t);
     if (stillOpen) serverErrors = errs;
     if (errs && stillOpen) return;
-    failed(payload, isUnavailable(payload) ? 'commands.errUnavailable' : 'commands.toastSaveFailed');
+    failed(payload, t(isUnavailable(payload) ? 'commands.errUnavailable' : 'commands.toastSaveFailed'));
   }
 
   function linger(names: string[]) {

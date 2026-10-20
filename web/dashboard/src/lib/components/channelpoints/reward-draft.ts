@@ -25,6 +25,15 @@ export function rewardDraftFrom(reward: ChannelPointReward): ChannelPointReward 
 export type RewardErrorField = 'title' | 'cost' | 'counter' | 'perStream' | 'perUser' | 'cooldown';
 export type RewardErrors = Partial<Record<RewardErrorField, string>>;
 
+export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Object.freeze({
+  perStream: 'channelpoints.errLimit',
+  perUser: 'channelpoints.errLimit',
+  cooldown: 'channelpoints.errCooldown',
+  title: 'channelpoints.errTitleRequired',
+  cost: 'channelpoints.errCost',
+  counter: 'rewardCounter.errNameRequired'
+});
+
 const wholeAtLeast = (n: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
   Number.isInteger(n) && (n as number) >= min && (n as number) <= max;
 
@@ -32,18 +41,18 @@ const invalidLimit = (enabled: boolean, value: unknown, max?: number) => enabled
 
 function limitErrors(draft: ChannelPointReward): RewardErrors {
   const errors: RewardErrors = {};
-  if (invalidLimit(draft.maxPerStreamEnabled, draft.maxPerStream)) errors.perStream = 'channelpoints.errLimit';
-  if (invalidLimit(draft.maxPerUserPerStreamEnabled, draft.maxPerUserPerStream)) errors.perUser = 'channelpoints.errLimit';
+  if (invalidLimit(draft.maxPerStreamEnabled, draft.maxPerStream)) errors.perStream = REWARD_ERROR_KEYS.perStream;
+  if (invalidLimit(draft.maxPerUserPerStreamEnabled, draft.maxPerUserPerStream)) errors.perUser = REWARD_ERROR_KEYS.perUser;
   if (invalidLimit(draft.globalCooldownEnabled, draft.globalCooldownSeconds, COOLDOWN_MAX)) {
-    errors.cooldown = 'channelpoints.errCooldown';
+    errors.cooldown = REWARD_ERROR_KEYS.cooldown;
   }
   return errors;
 }
 
 export function rewardErrors(draft: ChannelPointReward, counterOn: boolean): RewardErrors {
   const errors: RewardErrors = limitErrors(draft);
-  if (!draft.title.trim()) errors.title = 'channelpoints.errTitleRequired';
-  if (!wholeAtLeast(draft.cost, 1, COST_MAX)) errors.cost = 'channelpoints.errCost';
-  if (counterOn && !draft.counter.trim()) errors.counter = 'rewardCounter.errNameRequired';
+  if (!draft.title.trim()) errors.title = REWARD_ERROR_KEYS.title;
+  if (!wholeAtLeast(draft.cost, 1, COST_MAX)) errors.cost = REWARD_ERROR_KEYS.cost;
+  if (counterOn && !draft.counter.trim()) errors.counter = REWARD_ERROR_KEYS.counter;
   return errors;
 }

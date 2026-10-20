@@ -63,7 +63,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
 
   const songCommands = SONGQUEUE_MODULE.commands ?? [];
 
@@ -146,7 +146,7 @@
   const isOk = (result: { type: string }, payload: SongQueueActionOk | undefined) =>
     result.type === 'success' && payload?.ok !== false;
 
-  function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
+  function reportFailure(payload: SongQueueActionOk | undefined, fallback: string) {
     if (payload?.missingScope) {
       missingScope = true;
       toast('danger', t('spotify.connection.twitchScopeGap'));
@@ -157,7 +157,7 @@
       toast('danger', t('spotify.connection.scopeGap'));
       return;
     }
-    failed(payload, fallbackKey);
+    failed(payload, fallback);
   }
 
   let queueBusy = false;
@@ -208,7 +208,7 @@
       }
       const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
       if (key) toast('danger', t(key));
-      else reportFailure(payload, 'spotify.queue.skipFailed');
+      else reportFailure(payload, t('spotify.queue.skipFailed'));
     };
   };
 
@@ -233,7 +233,7 @@
       connectionAction = null;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed');
+        reportFailure(payload, t(action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed'));
         return;
       }
       if (action === 'clearApp') app = { present: false, clientId: '' };
@@ -245,8 +245,8 @@
 
   function settingsSubmit(opts: {
     fields: () => Record<string, string>;
-    failKey: string;
-    okKey?: string;
+    fail: string;
+    ok?: string;
     revert: () => void;
   }): SubmitFunction {
     return ({ formData }) => {
@@ -255,10 +255,10 @@
         const payload = actionPayload<SongQueueActionOk>(result);
         if (!isOk(result, payload)) {
           opts.revert();
-          reportFailure(payload, opts.failKey);
+          reportFailure(payload, opts.fail);
           return;
         }
-        if (opts.okKey) toast('success', t(opts.okKey));
+        if (opts.ok) toast('success', opts.ok);
         await invalidateAll();
       };
     };
@@ -270,8 +270,8 @@
       sr_allow_offline: sr.allowOffline ? 'on' : '',
       perm: sr.perm
     }),
-    failKey: 'spotify.sr.saveFailed',
-    okKey: 'spotify.sr.saved',
+    fail: t('spotify.sr.saveFailed'),
+    ok: t('spotify.sr.saved'),
     revert: () => (sr = data.sr ?? blankSpotifySr())
   });
 
@@ -280,7 +280,7 @@
       redeem_enabled: redeem.enabled ? 'on' : '',
       redeem_allow_offline: redeem.allowOffline ? 'on' : ''
     }),
-    failKey: 'spotify.masterFail',
+    fail: t('spotify.masterFail'),
     revert: () => (redeem = data.redeem ?? blankSpotifyRedeem())
   });
 
@@ -291,7 +291,7 @@
       quotaSaving = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.quota.saveFailed');
+        reportFailure(payload, t('spotify.quota.saveFailed'));
         return;
       }
       toast('success', t('spotify.quota.saved'));
@@ -361,7 +361,7 @@
       const ok = isOk(result, payload);
       if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        reportFailure(payload, 'spotify.toast.saveFailed');
+        reportFailure(payload, t('spotify.toast.saveFailed'));
         return;
       }
       toast('success', t('spotify.toast.saved'));
@@ -380,7 +380,7 @@
       deletePending = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.toast.deleteFailed');
+        reportFailure(payload, t('spotify.toast.deleteFailed'));
         return;
       }
       doClose();
