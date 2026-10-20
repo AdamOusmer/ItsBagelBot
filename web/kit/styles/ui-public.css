@@ -1,0 +1,34 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Element sheets the public pages render, in @bagel/ui/styles/elements.css order; bundled-ui-sheets checks both lists. */
+@import '@bagel/ui/styles/motion.css';
+@import '@bagel/ui/styles/reveal.css';
+@import '@bagel/ui/styles/elements/icon.css';
+@import '@bagel/ui/styles/elements/nav-progress.css';
+@import '@bagel/ui/styles/elements/cursor.css';
+@import '@bagel/ui/styles/elements/button.css';
+@import '@bagel/ui/styles/elements/typography.css';
+@import '@bagel/ui/styles/elements/fit.css';
+@import '@bagel/ui/styles/orbs.css';
+@import '@bagel/ui/styles/elements/bg-orbs.css';
+@import '@bagel/ui/styles/elements/popover.css';
+@import '@bagel/ui/styles/elements/toast.css';
+@import '@bagel/ui/styles/elements/mark.css';
+@import '@bagel/ui/styles/elements/brand-mark.css';
+@import '@bagel/ui/styles/elements/alert.css';
+@import '@bagel/ui/styles/elements/text-link.css';
+@import '@bagel/ui/styles/elements/nav.css';
+@import '@bagel/ui/styles/elements/nav-link.css';
+@import '@bagel/ui/styles/elements/light-field.css';
+@import '@bagel/ui/styles/elements/footer.css';
+@import '@bagel/ui/styles/elements/card.css';
+@import '@bagel/ui/styles/elements/tag.css';
+@import '@bagel/ui/styles/elements/tabs.css';
+@import '@bagel/ui/styles/elements/field.css';
+@import '@bagel/ui/styles/elements/search-input.css';
+@import '@bagel/ui/styles/elements/empty-state.css';
+@import '@bagel/ui/styles/elements/ambient-sky.css';
+@import '@bagel/ui/styles/elements/aurora.css';
+@import '@bagel/ui/styles/elements/copy-surface.css';
+@import '@bagel/ui/styles/elements/pager.css';
