@@ -68,5 +68,11 @@
   "resetConfirmBody": "Los «{name}» de todos los espectadores vuelven a 0. El tiempo de visualización se conserva. No se puede deshacer.",
   "resetConfirm": "Restablecer",
   "toastReset": "Puntos restablecidos. Todos los saldos están ahora en 0.",
-  "toastResetFailed": "No se pudieron restablecer los puntos."
+  "toastResetFailed": "No se pudieron restablecer los puntos.",
+  "scheduleLabel": "Restablecimiento automático",
+  "scheduleHint": "Pone en 0 los «{name}» de todos los espectadores a las 00:00 UTC del lunes (semanal), del día 1 (mensual) o del 1 de enero (anual). El tiempo de visualización se conserva.",
+  "scheduleOff": "Desactivado",
+  "scheduleWeekly": "Cada semana",
+  "scheduleMonthly": "Cada mes",
+  "scheduleAnnually": "Cada año"
 }
