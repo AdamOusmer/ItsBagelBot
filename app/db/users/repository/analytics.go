@@ -71,6 +71,12 @@ func (r *Users) accountState(ctx context.Context, ids []uint64) (analytics.Tally
 	return tally, nil
 }
 
+func accountTally(u *ent.User) analytics.Tally {
+	tally := analytics.Tally{}
+	tallyCounted(tally, u)
+	return tally
+}
+
 var accountColumns = []string{
 	user.FieldID, user.FieldStatus, user.FieldIsActive, user.FieldOnboarded, user.FieldSubscriptionSource,
 	user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldLocale,

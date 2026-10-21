@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
@@ -66,7 +65,7 @@ func lockStaff(ctx context.Context, tx *ent.Tx, rawIDs ...string) (map[uint64]*e
 		return tx.AdminUser.Query().Where(adminuser.IDIn(ids...)).Order(ent.Asc(adminuser.FieldID))
 	}
 	rows, err := query().ForUpdate().All(ctx)
-	if err != nil && strings.Contains(err.Error(), "not supported in SQLite") {
+	if dbgate.RowLocksUnsupported(err) {
 		rows, err = query().All(ctx)
 	}
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/user"
+	"ItsBagelBot/internal/analytics"
 	catalog "ItsBagelBot/internal/domain/analytics"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/internal/domain/validate"
@@ -29,41 +30,50 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	if err := validateApply(req); err != nil {
 		return false, err
 	}
-	counted := r.trackAccounts(ctx, req.UserID)
-	outcome, err := r.applyBillingTx(ctx, req)
+	write, err := r.applyBillingTx(ctx, req)
 	if err != nil {
 		return false, err
 	}
-	switch outcome {
+	switch write.outcome {
 	case billingReplay:
 		return true, r.publishChanged(ctx, req.UserID)
 	case billingApplied:
-		counted()
+		r.analytics.Shift(write.before, write.after)
 		r.analytics.Count(catalog.BillingEvents, string(req.Action))
 		return true, r.finishBilling(ctx, req)
 	}
 	return false, nil
 }
 
-func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingOutcome, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (billingOutcome, error) {
+type billingWrite struct {
+	outcome       billingOutcome
+	before, after analytics.Tally
+}
+
+func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingWrite, error) {
+	skip := billingWrite{outcome: billingSkip}
+	return db.WithQuery(ctx, func(ctx context.Context) (billingWrite, error) {
 		tx, err := r.client.Tx(ctx)
 		if err != nil {
-			return billingSkip, err
+			return skip, err
 		}
 		defer func() { _ = tx.Rollback() }()
 		u, err := loadBillingUser(ctx, tx, req.UserID)
 		if err != nil {
-			return billingSkip, err
+			return skip, err
 		}
 		if outcome := billingOutcomeFor(u, req); outcome != billingProceed {
-			return outcome, nil
+			return billingWrite{outcome: outcome}, nil
 		}
 		updated, err := saveBilling(ctx, tx, u, req)
 		if err != nil || updated == 0 {
-			return billingSkip, err
+			return skip, err
 		}
-		return billingApplied, tx.Commit()
+		saved, err := tx.User.Get(ctx, req.UserID)
+		if err != nil {
+			return skip, err
+		}
+		return billingWrite{outcome: billingApplied, before: accountTally(u), after: accountTally(saved)}, tx.Commit()
 	})
 }
 

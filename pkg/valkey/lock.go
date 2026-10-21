@@ -20,9 +20,8 @@ const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.
 const renewIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('pexpire',KEYS[1],ARGV[2]) else return 0 end`
 
 var (
-	renewIfOwnerScript   = valkey_go.NewLuaScript(renewIfOwner)
-	releaseIfOwnerScript = valkey_go.NewLuaScript(releaseIfOwner)
-	releaseIfOwnerCall   = NewScript(releaseIfOwner)
+	renewIfOwnerScript = valkey_go.NewLuaScript(renewIfOwner)
+	releaseIfOwnerCall = NewScript(releaseIfOwner)
 )
 
 type OwnerLock struct {
@@ -47,10 +46,9 @@ func (l OwnerLock) Renew(ctx context.Context, ttl time.Duration) (bool, error) {
 }
 
 func (l OwnerLock) Release(ctx context.Context) error {
-	return releaseIfOwnerScript.Exec(ctx, l.client, []string{l.key}, []string{l.owner}).Error()
+	return RunScripts(ctx, l.client, []ScriptCall{l.ReleaseCall()})[0].Error()
 }
 
-// ReleaseCall is Release as a ScriptCall, for pipelining many releases through RunScripts.
 func (l OwnerLock) ReleaseCall() ScriptCall {
 	return ScriptCall{Script: releaseIfOwnerCall, Key: l.key, Args: []string{l.owner}}
 }

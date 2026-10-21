@@ -424,10 +424,10 @@ func (r *Fetches) upsertDefWithinQuota(ctx context.Context, userID uint64, spec 
 	return tx.Commit()
 }
 
-// Row locks make concurrent creates queue (RC has no gap locks); the caller's fresh count then sees the winner's commit. Quota is far above 1, so the broadcaster always has a row to queue on.
+// Row locks make concurrent creates queue (RC has no gap locks); the caller's fresh count then sees the winner's commit.
 func lockBroadcasterDefs(ctx context.Context, tx *ent.Tx, userID uint64) error {
 	_, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).ForUpdate().IDs(ctx)
-	if err != nil && strings.Contains(err.Error(), `near "FOR"`) {
+	if db.RowLocksUnsupported(err) {
 		return nil
 	}
 	return err

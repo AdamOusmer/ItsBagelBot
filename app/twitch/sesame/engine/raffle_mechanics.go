@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"math/big"
 	"strings"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/pkg/cache"
@@ -17,25 +18,16 @@ import (
 
 func raffleKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
-func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
-	if spec.Winners <= 0 {
-		spec.Winners = raffleDefaultWinners
-	}
-	spec.Winners = min(spec.Winners, maxRaffleWinners)
-	spec.Duration = max(minRaffleDuration, min(spec.Duration, maxRaffleDuration))
+func ClampRaffleDuration(d time.Duration) time.Duration {
+	return max(minRaffleDuration, min(d, maxRaffleDuration))
+}
 
-	var remindSecs int64
-	switch {
-	case spec.Remind < 0:
-	case spec.Remind == 0:
-		remindSecs = raffleDefaultRemind
-	default:
-		remindSecs = max(minRaffleRemind, int64(spec.Remind.Seconds()))
+func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
+	spec.Duration = ClampRaffleDuration(spec.Duration)
+	if raffleDefaultRemind >= int64(spec.Duration.Seconds()) {
+		return spec, 0
 	}
-	if remindSecs >= int64(spec.Duration.Seconds()) {
-		remindSecs = 0
-	}
-	return spec, remindSecs
+	return spec, raffleDefaultRemind
 }
 
 func multiRaffleWinners(entrants int) int64 {
