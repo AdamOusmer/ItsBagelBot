@@ -60,5 +60,13 @@
   "unitGift": "{name} par abonnement offert",
   "unitCheer": "{name} par 100 bits",
   "unitWatch": "{name} par 5 minutes",
-  "topEmptyCta": "Voir les taux de gain"
+  "topEmptyCta": "Voir les taux de gain",
+  "resetTitle": "Réinitialiser les points",
+  "resetHint": "Remet à 0 les « {name} » de tous les viewers. Le temps de visionnage est conservé. Cette action est irréversible.",
+  "resetButton": "Réinitialiser les points",
+  "resetConfirmTitle": "Réinitialiser tous les points ?",
+  "resetConfirmBody": "Les « {name} » de tous les viewers repassent à 0. Le temps de visionnage est conservé. Cette action est irréversible.",
+  "resetConfirm": "Réinitialiser",
+  "toastReset": "Points réinitialisés. Tous les soldes sont maintenant à 0.",
+  "toastResetFailed": "Impossible de réinitialiser les points."
 }

@@ -40,6 +40,7 @@ RPC reads and synchronous balance/counter management.
 | [repository/queries.go](repository/queries.go) | Balance read/set/add/spend/top and counter management/read APIs. |
 | [repository/transfer.go](repository/transfer.go) | Transactional guarded debit and recipient credit/create. |
 | [repository/balance_adjust.go](repository/balance_adjust.go), [wager.go](repository/wager.go) | Resolved-viewer balance adjustment and atomic wager settlement. |
+| [repository/balance_reset.go](repository/balance_reset.go) | `balance.reset`: one bulk UPDATE zeroing a channel's points, watch seconds kept. |
 | [repository/trial.go](repository/trial.go) | Once-only promotion of trial statistics and lock ordering. |
 | [repository/counter_processor.go](repository/counter_processor.go), [counter_receipts.go](repository/counter_receipts.go) | Bounded active batching, Valkey claims/receipts and retry classification. |
 | [repository/batches.go](repository/batches.go) | Trial-promotion and bump validation helpers shared by the counter persist path. |

@@ -5,6 +5,8 @@ package loyaltyrpc
 
 import "ItsBagelBot/internal/domain/rpc"
 
+const InvalidateScope = "loyalty"
+
 type Request struct {
 	UserID         string `json:"user_id"`
 	ViewerID       string `json:"viewer_id,omitempty"`

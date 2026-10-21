@@ -139,6 +139,19 @@ func (c *Keyed[K, V]) Invalidate(key K) {
 	c.client.Delete(key)
 }
 
+func (c *Keyed[K, V]) InvalidateWhere(match func(K) bool) {
+	var stale []K
+	c.client.Range(func(key K, _ entry[V]) bool {
+		if match(key) {
+			stale = append(stale, key)
+		}
+		return true
+	})
+	for _, key := range stale {
+		c.Invalidate(key)
+	}
+}
+
 func (c *Keyed[K, V]) Close() {
 	c.client.Close()
 }

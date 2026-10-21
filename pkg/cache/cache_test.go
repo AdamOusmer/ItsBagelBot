@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -219,4 +220,19 @@ func TestUserKeyAllocatesOnce(t *testing.T) {
 	})
 
 	assert.LessOrEqual(t, allocs, 1.0)
+}
+
+func TestInvalidateWhereDropsOnlyMatchingKeys(t *testing.T) {
+	c := cache.New[int](cache.DefaultCapacity, time.Minute)
+	defer c.Close()
+	for _, key := range []string{"7:5", "7:10", "70:5"} {
+		c.Set(key, 1)
+	}
+
+	c.InvalidateWhere(func(key string) bool { return strings.HasPrefix(key, "7:") })
+
+	for key, want := range map[string]bool{"7:5": false, "7:10": false, "70:5": true} {
+		_, ok := c.Get(key)
+		assert.Equal(t, want, ok, key)
+	}
 }

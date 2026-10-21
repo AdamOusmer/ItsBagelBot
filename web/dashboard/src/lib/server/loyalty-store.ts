@@ -6,6 +6,7 @@ import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, Loyalty
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
+import { schedulePurgeChannel } from './edge-purge';
 import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
@@ -187,6 +188,14 @@ function toStanding(b: BalanceWire): LoyaltyStanding {
 export async function topStandings(userId: string, limit = 10): Promise<LoyaltyStanding[]> {
   const reply = await callLoyalty('top.get', { user_id: userId, limit });
   return (reply.top ?? []).map(toStanding);
+}
+
+type BroadcasterId = string;
+
+export async function resetPoints(userId: BroadcasterId): Promise<number> {
+  const reply = await callLoyalty('balance.reset', { user_id: userId });
+  schedulePurgeChannel(userId);
+  return reply.total ?? 0;
 }
 
 export interface StandingsPage {

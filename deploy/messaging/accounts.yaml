@@ -558,6 +558,8 @@ accounts:
               from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.notifications
               from: NOTIFICATIONS_RPC
+            - stream: bagel.cache.invalidate.loyalty
+              from: LOYALTY_RPC
         roles:
             dashboard_rpc: {}
     DEPLOYER_RPC:
@@ -654,6 +656,7 @@ accounts:
             - service: bagel.rpc.health.loyalty
             - service: bagel.rpc.health.loyalty.node.*
             - service: bagel.rpc.loyalty.>
+            - stream: bagel.cache.invalidate.loyalty
         roles:
             loyalty_rpc: {}
     MODULES_RPC:
@@ -953,5 +956,7 @@ accounts:
               from: PROJECTOR_RPC
             - stream: bagel.cache.invalidate.live
               from: PROJECTOR_RPC
+            - stream: bagel.cache.invalidate.loyalty
+              from: LOYALTY_RPC
         roles:
             worker_rpc: {}

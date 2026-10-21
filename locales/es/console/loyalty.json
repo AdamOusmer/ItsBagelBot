@@ -60,5 +60,13 @@
   "unitGift": "{name} por suscripción regalada",
   "unitCheer": "{name} por cada 100 bits",
   "unitWatch": "{name} por cada 5 minutos",
-  "topEmptyCta": "Revisar tasas de obtención"
+  "topEmptyCta": "Revisar tasas de obtención",
+  "resetTitle": "Restablecer puntos",
+  "resetHint": "Pone en 0 los «{name}» de todos los espectadores. El tiempo de visualización se conserva. No se puede deshacer.",
+  "resetButton": "Restablecer puntos",
+  "resetConfirmTitle": "¿Restablecer todos los puntos?",
+  "resetConfirmBody": "Los «{name}» de todos los espectadores vuelven a 0. El tiempo de visualización se conserva. No se puede deshacer.",
+  "resetConfirm": "Restablecer",
+  "toastReset": "Puntos restablecidos. Todos los saldos están ahora en 0.",
+  "toastResetFailed": "No se pudieron restablecer los puntos."
 }
