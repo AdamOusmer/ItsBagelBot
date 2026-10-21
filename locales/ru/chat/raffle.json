@@ -4,6 +4,7 @@
   "claim.late": "@{raffle:user} срок подтверждения этого приза истёк.",
   "claim.none": "@{raffle:user}, у вас нет приза розыгрыша, ожидающего подтверждения. Если вы выиграли, введите !claim!",
   "claim.ok": "@{raffle:user} ваш приз подтверждён. Приятного пользования!",
+  "claim.prize_default": "ваш приз",
   "draw.empty": "В розыгрыше никто не участвовал. Выбирать некого.",
   "err.loyalty_off": "Призы розыгрыша выплачиваются баллами лояльности. Включите баллы лояльности или установите приз розыгрыша на 0, чтобы провести розыгрыш без баллов.",
   "err.usage": "Использование: !raffle <open [minutes] [winners]|draw|cancel|status>. Зрители участвуют командой !join",
@@ -19,9 +20,12 @@
   "opened": "Розыгрыш НАЧАЛСЯ! Введите !join, чтобы участвовать. Выбор через {raffle:mins} мин!",
   "payout.failed": "Часть выигрыша ({raffle:points}) не удалось выплатить. Модератор может начислить её командой !points add.",
   "payout.loyalty_off": "Баллы лояльности отключены, поэтому выигрыш ({raffle:points}) за этот розыгрыш не выплачен.",
-  "remind": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join! Для получения приза нужно ввести !claim.",
+  "remind": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join!",
+  "remind.claim": "Напоминаем о розыгрыше: осталось ~{raffle:mins} мин! Участников: {raffle:count}. Введите !join! Для получения приза нужно ввести !claim.",
   "status.closed": "Розыгрыш не идёт. Модераторы могут начать его командой !raffle open <minutes>.",
   "status.open": "Розыгрыш идёт, участников: {raffle:count}. Выбор через ~{raffle:mins} мин! Введите !join!",
-  "won": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}. Введите !claim в течение {raffle:claim} мин, чтобы подтвердить приз!",
-  "won.points": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}. Каждому победителю: {raffle:amount} {raffle:points}, уже на балансе!"
+  "won": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}. Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}!",
+  "won.plain": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}.",
+  "won.points": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}. Каждому победителю: {raffle:amount} {raffle:points}, уже на балансе!",
+  "won.points.claim": "{raffle:targets}, поздравляем с выигрышем! Победителей: {raffle:count}, участников: {raffle:entrants}. Каждому победителю: {raffle:amount} {raffle:points}, уже на балансе! Введите !claim в течение {raffle:claim} мин, чтобы получить {raffle:prize}!"
 }

@@ -4,6 +4,7 @@
   "claim.late": "@{raffle:user} the claim window for that prize has closed.",
   "claim.none": "There is no raffle prize waiting for @{raffle:user} to claim. Winners: type !claim!",
   "claim.ok": "@{raffle:user} your prize is confirmed. Enjoy!",
+  "claim.prize_default": "your prize",
   "draw.empty": "No one entered the raffle. Nobody to draw.",
   "err.loyalty_off": "Raffle prizes are paid in loyalty points. Turn Loyalty on, or set the raffle prize to 0 for a raffle without points.",
   "err.usage": "Usage: !raffle <open [minutes] [winners]|draw|cancel|status>. Viewers enter with !join",
@@ -19,9 +20,12 @@
   "opened": "Raffle is LIVE! Type !join to enter. Drawing in {raffle:mins} min!",
   "payout.failed": "Some raffle {raffle:points} could not be paid. A mod can add them with !points add.",
   "payout.loyalty_off": "Loyalty is off, so this raffle paid no {raffle:points}.",
-  "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
+  "remind": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join!",
+  "remind.claim": "Raffle reminder: ~{raffle:mins} min left! {raffle:count} entered so far. Type !join! Winners must !claim.",
   "status.closed": "No raffle is running. Mods can start one with !raffle open <minutes>.",
   "status.open": "Raffle is live with {raffle:count} entered. Drawing in ~{raffle:mins} min! Type !join!",
-  "won": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})! Type !claim within {raffle:claim} min to confirm your prize!",
-  "won.points": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance!"
+  "won": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})! Type !claim within {raffle:claim} min to get {raffle:prize}!",
+  "won.plain": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})!",
+  "won.points": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance!",
+  "won.points.claim": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance! Type !claim within {raffle:claim} min to get {raffle:prize}!"
 }

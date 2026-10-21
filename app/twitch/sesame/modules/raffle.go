@@ -179,9 +179,11 @@ func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) err
 		rc.log.Warn("raffle: open failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	if ok {
+	switch {
+	case ok && rc.cfg.OpenedOn():
 		rc.reply(emit, rc.cfg.OpenedMessage, "raffle.opened", "mins", strconv.FormatInt(minutes, 10))
-	} else {
+	case ok:
+	default:
 		rc.reply(emit, "", "raffle.open.already")
 	}
 	return nil
@@ -197,12 +199,26 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
-	if !entry.Open {
-		rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
-		return nil
-	}
-	rc.replyEntered(ctx, emit, entry)
+	rc.replyJoin(ctx, emit, entry)
 	return nil
+}
+
+func (rc raffleCmd) replyJoin(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
+	switch {
+	case !entry.Open:
+		if rc.cfg.NoRaffleOn() {
+			rc.reply(emit, rc.cfg.NoRaffleMessage, "raffle.join.closed")
+		}
+	case rc.entryLineOn(entry):
+		rc.replyEntered(ctx, emit, entry)
+	}
+}
+
+func (rc raffleCmd) entryLineOn(entry engine.RaffleEntry) bool {
+	if entry.Joined {
+		return rc.cfg.JoinOn()
+	}
+	return rc.cfg.AlreadyOn()
 }
 
 func (rc raffleCmd) replyEntered(ctx context.Context, emit module.Emit, entry engine.RaffleEntry) {
@@ -288,7 +304,7 @@ func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 
 func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	viewerID := rc.c.Env.ChatterUserID
-	if viewerID == "" {
+	if viewerID == "" || !rc.cfg.ClaimOn() {
 		return nil
 	}
 	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, viewerID)
@@ -298,7 +314,9 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	}
 	switch outcome {
 	case engine.ClaimOk:
-		rc.reply(emit, rc.cfg.ClaimOkMessage, "raffle.claim.ok")
+		if rc.cfg.ClaimOkOn() {
+			rc.reply(emit, rc.cfg.ClaimOkMessage, "raffle.claim.ok")
+		}
 	case engine.ClaimAlready:
 		rc.reply(emit, "", "raffle.claim.already")
 	case engine.ClaimLate:
