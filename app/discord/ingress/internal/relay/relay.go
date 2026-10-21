@@ -87,33 +87,49 @@ func (r *Relay) Dispatch(ctx context.Context, ev gateway.Event) error {
 			return nil
 		}
 	}
-	return r.publish(ctx, subject, ev)
+	id := ""
+	if ev.SessionID != "" {
+		id = fmt.Sprintf("%s-%d", ev.SessionID, ev.Seq)
+	}
+	return r.publish(ctx, outgoing{subject: subject, eventType: ev.Type, raw: ev.Raw, id: id})
 }
 
-func (r *Relay) publish(ctx context.Context, subject string, ev gateway.Event) error {
-	guildID, channelID, userID := routeFields(ev.Type, ev.Raw)
+type outgoing struct {
+	subject   string
+	eventType string
+	raw       []byte
+	id        string
+}
+
+func (r *Relay) publish(ctx context.Context, out outgoing) error {
+	guildID, channelID, userID := routeFields(out.eventType, out.raw)
 	event := ddiscord.Event{
-		Type:             ev.Type,
+		Type:             out.eventType,
 		GuildID:          guildID,
 		ChannelID:        channelID,
 		UserID:           userID,
-		Raw:              ev.Raw,
+		Raw:              out.raw,
 		ReceivedAtUnixMs: time.Now().UnixMilli(),
 	}
 	if r.Pub == nil {
 		return nil
 	}
-	if ev.SessionID == "" {
-		return bus.PublishJSON(ctx, r.Pub, subject, event)
+	if out.id == "" {
+		return bus.PublishJSON(ctx, r.Pub, out.subject, event)
 	}
 	body, err := codec.Marshal(event)
 	if err != nil {
 		return err
 	}
-	return bus.PublishConfirmed(ctx, r.Pub, bus.Publication{
-		Subject: subject,
-		ID:      fmt.Sprintf("%s-%d", ev.SessionID, ev.Seq),
-		Payload: body,
+	return bus.PublishConfirmed(ctx, r.Pub, bus.Publication{Subject: out.subject, ID: out.id, Payload: body})
+}
+
+func (r *Relay) PublishInteraction(ctx context.Context, raw []byte, id string) error {
+	return r.publish(ctx, outgoing{
+		subject:   ddiscord.SubjectEventInteraction,
+		eventType: "INTERACTION_CREATE",
+		raw:       raw,
+		id:        "interaction-" + id,
 	})
 }
 

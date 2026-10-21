@@ -57,6 +57,13 @@ type SetConfig struct {
 	ExpectedVersion int
 }
 
+type SetModule struct {
+	Guild           Guild
+	Broadcaster     Broadcaster
+	Row             ddiscord.ModuleRow
+	ExpectedVersion int
+}
+
 type GuildConfigOf struct {
 	Guild  Guild
 	Config ddiscord.Config
@@ -72,6 +79,8 @@ type Store interface {
 	GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error)
 	GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
 	SetGuildConfig(ctx context.Context, set SetConfig) (int, error)
+	GuildModules(ctx context.Context, g Guild) (ddiscord.GuildModules, bool)
+	SetGuildModule(ctx context.Context, set SetModule) (int, error)
 	Invalidate(ctx context.Context, g Guild)
 
 	TrackClone(ctx context.Context, c Clone) error
@@ -81,7 +90,7 @@ type Store interface {
 
 	TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error)
 	Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool)
-	OpenTicketCount(ctx context.Context, m Member) int
+	OpenTicketCount(ctx context.Context, m Member) (int, error)
 	ClaimTicket(ctx context.Context, c TicketClaim) error
 	CloseTicket(ctx context.Context, c TicketClose) error
 	PutTranscript(ctx context.Context, t Transcript) error
@@ -123,6 +132,8 @@ func guildKey(g Guild) string { return "discord:guild:" + g.ID }
 func guildsKey(b Broadcaster) string { return "discord:guilds:" + b.ID }
 
 func cfgKey(g Guild) string { return "discord:cfg:" + g.ID }
+
+func modulesKey(g Guild) string { return "discord:modules:" + g.ID }
 
 func (s valkeyStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
 	b, ok := s.Broadcaster(ctx, g)
@@ -171,6 +182,18 @@ func (s valkeyStore) SetGuildConfig(_ context.Context, set SetConfig) (int, erro
 	return 0, ErrConfigUnavailable
 }
 
+func (s valkeyStore) GuildModules(_ context.Context, g Guild) (ddiscord.GuildModules, bool) {
+	zap.L().Warn("discord guild modules need the discord-data-backed store; answering not-found",
+		zap.String("guild_id", g.ID))
+	return ddiscord.GuildModules{}, false
+}
+
+func (s valkeyStore) SetGuildModule(_ context.Context, set SetModule) (int, error) {
+	zap.L().Warn("discord guild modules need the discord-data-backed store; refusing the write",
+		zap.String("guild_id", set.Guild.ID))
+	return 0, ErrConfigUnavailable
+}
+
 func (s valkeyStore) Invalidate(ctx context.Context, g Guild) {
 	s.dropConfig(ctx, g)
 }
@@ -192,6 +215,7 @@ type Mem struct {
 	occupants   map[string]map[string]struct{}
 	seats       map[string]string
 	configs     map[string]memConfig
+	modules     map[string]ddiscord.GuildModules
 	guildsCache map[string][]Binding
 	messages    map[string]CachedMessage
 	memberRoles map[string][]string
@@ -219,6 +243,7 @@ func NewMem() *Mem {
 		occupants:   map[string]map[string]struct{}{},
 		seats:       map[string]string{},
 		configs:     map[string]memConfig{},
+		modules:     map[string]ddiscord.GuildModules{},
 		guildsCache: map[string][]Binding{},
 		messages:    map[string]CachedMessage{},
 		memberRoles: map[string][]string{},

@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/discord/ent/guildbinding"
 	"ItsBagelBot/app/db/discord/ent/guildconfig"
+	"ItsBagelBot/app/db/discord/ent/guildmodule"
 	"ItsBagelBot/app/db/discord/ent/memberxp"
 	"ItsBagelBot/app/db/discord/ent/schema"
 	"ItsBagelBot/app/db/discord/ent/ticket"
@@ -82,6 +83,54 @@ func init() {
 	guildconfig.DefaultUpdatedAt = guildconfigDescUpdatedAt.Default.(func() time.Time)
 	// guildconfig.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	guildconfig.UpdateDefaultUpdatedAt = guildconfigDescUpdatedAt.UpdateDefault.(func() time.Time)
+	guildmoduleFields := schema.GuildModule{}.Fields()
+	_ = guildmoduleFields
+	// guildmoduleDescGuildID is the schema descriptor for guild_id field.
+	guildmoduleDescGuildID := guildmoduleFields[0].Descriptor()
+	// guildmodule.GuildIDValidator is a validator for the "guild_id" field. It is called by the builders before save.
+	guildmodule.GuildIDValidator = func() func(string) error {
+		validators := guildmoduleDescGuildID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(guild_id string) error {
+			for _, fn := range fns {
+				if err := fn(guild_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// guildmoduleDescName is the schema descriptor for name field.
+	guildmoduleDescName := guildmoduleFields[2].Descriptor()
+	// guildmodule.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	guildmodule.NameValidator = func() func(string) error {
+		validators := guildmoduleDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// guildmoduleDescVersion is the schema descriptor for version field.
+	guildmoduleDescVersion := guildmoduleFields[5].Descriptor()
+	// guildmodule.DefaultVersion holds the default value on creation for the version field.
+	guildmodule.DefaultVersion = guildmoduleDescVersion.Default.(int)
+	// guildmoduleDescUpdatedAt is the schema descriptor for updated_at field.
+	guildmoduleDescUpdatedAt := guildmoduleFields[6].Descriptor()
+	// guildmodule.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	guildmodule.DefaultUpdatedAt = guildmoduleDescUpdatedAt.Default.(func() time.Time)
+	// guildmodule.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	guildmodule.UpdateDefaultUpdatedAt = guildmoduleDescUpdatedAt.UpdateDefault.(func() time.Time)
 	memberxpFields := schema.MemberXP{}.Fields()
 	_ = memberxpFields
 	// memberxpDescGuildID is the schema descriptor for guild_id field.

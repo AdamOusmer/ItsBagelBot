@@ -294,3 +294,28 @@ func TestEveryDashboardVerbRefusesACacheOnlyBinding(t *testing.T) {
 		})
 	}
 }
+
+func TestSetGuildConfigKeepsStoredChannelsThatNoLongerExist(t *testing.T) {
+	store := boundStore(owners{"guild-1": "42"})
+	store.PutGuildConfig(discordstore.Guild{ID: "guild-1"}, ddiscord.Config{LiveChannelID: "deleted"})
+	w := newWorker(&fakeDiscord{channels: []discapi.Snowflake{{ID: "other"}}}, store)
+
+	next := ddiscord.Config{LiveChannelID: "deleted", WelcomeEnabled: "true"}
+	_, err := w.SetGuildConfig(context.Background(), setup.GuildConfigWrite{GuildID: "guild-1", BroadcasterID: "42", Config: next, ExpectedVersion: 1})
+
+	require.NoError(t, err)
+	require.Equal(t, next, readConfig(store).Config)
+}
+
+func TestSetGuildConfigRefusesNewAbsentChannelsEvenWhenOthersAreStored(t *testing.T) {
+	stored := ddiscord.Config{LiveChannelID: "deleted"}
+	store := boundStore(owners{"guild-1": "42"})
+	store.PutGuildConfig(discordstore.Guild{ID: "guild-1"}, stored)
+	w := newWorker(&fakeDiscord{channels: []discapi.Snowflake{{ID: "other"}}}, store)
+
+	next := ddiscord.Config{LiveChannelID: "deleted", ClipsChannelID: "missing"}
+	_, err := w.SetGuildConfig(context.Background(), setup.GuildConfigWrite{GuildID: "guild-1", BroadcasterID: "42", Config: next, ExpectedVersion: 1})
+
+	require.ErrorIs(t, err, discapi.ErrForbidden)
+	require.Equal(t, stored, readConfig(store).Config)
+}

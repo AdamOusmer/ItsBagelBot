@@ -6,6 +6,8 @@ package module
 import (
 	"errors"
 	"fmt"
+
+	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
 type Builder struct {
@@ -47,8 +49,10 @@ func (b *Builder) Build() Module {
 	if err := b.Validate(); err != nil {
 		panic("discord/engine/module: " + err.Error())
 	}
+	spec, _ := ddiscord.Spec(b.name)
 	return Module{
 		Name:    b.name,
+		Kind:    spec.Kind,
 		Events:  copyHandlers(b.events),
 		Slash:   copyHandlers(b.slash),
 		Buttons: copyHandlers(b.buttons),
@@ -58,6 +62,9 @@ func (b *Builder) Build() Module {
 func (b *Builder) Validate() error {
 	if b.name == "" {
 		return errors.New("module must have a non-empty name")
+	}
+	if _, ok := ddiscord.Spec(b.name); !ok {
+		return fmt.Errorf("module %q is not declared in the discord module table", b.name)
 	}
 	if err := checkHandlers("event", b.events); err != nil {
 		return err

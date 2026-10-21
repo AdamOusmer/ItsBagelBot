@@ -12,6 +12,7 @@ export interface ToastItem {
   text: string;
   undoLabel?: string;
   onUndo?: () => void;
+  compact?: boolean;
 }
 
 const DEFAULT_TTL_MS = 3200;
@@ -37,11 +38,12 @@ export interface ToastOptions {
   ttlMs?: number;
   undoLabel?: string;
   onUndo?: () => void;
+  compact?: boolean;
 }
 
 export function toast(kind: ToastKind, text: string, opts: ToastOptions = {}): number {
   const id = nextId++;
-  const item: ToastItem = { id, kind, text, undoLabel: opts.undoLabel, onUndo: opts.onUndo };
+  const item: ToastItem = { id, kind, text, undoLabel: opts.undoLabel, onUndo: opts.onUndo, compact: opts.compact };
   store.update((list) => [...list, item]);
   const ttl = opts.ttlMs ?? (opts.onUndo ? UNDO_TTL_MS : DEFAULT_TTL_MS);
   arm(id, ttl);

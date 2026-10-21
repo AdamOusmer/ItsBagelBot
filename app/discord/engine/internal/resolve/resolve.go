@@ -29,19 +29,38 @@ type Resolver struct {
 	Log     *zap.Logger
 }
 
-type ConfigWarnings struct{ seen sync.Map }
+const maxWarned = 4096
 
-func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{} }
+type ConfigWarnings struct {
+	mu   sync.Mutex
+	seen map[string]struct{}
+}
+
+func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{seen: map[string]struct{}{}} }
 
 func (w *ConfigWarnings) first(guildID, field string) bool {
 	if w == nil {
 		return true
 	}
-	_, seen := w.seen.LoadOrStore(guildID+"\x00"+field, struct{}{})
-	return !seen
+	key := guildID + "\x00" + field
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, seen := w.seen[key]; seen {
+		return false
+	}
+	if len(w.seen) >= maxWarned {
+		clear(w.seen)
+	}
+	w.seen[key] = struct{}{}
+	return true
 }
 
-func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []discordstore.GuildConfigOf {
+type GuildModulesOf struct {
+	Guild   discordstore.Guild
+	Modules ddiscord.GuildModules
+}
+
+func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []GuildModulesOf {
 	if r.Store == nil || !r.gateOpen(ctx, broadcasterID) {
 		return nil
 	}
@@ -51,41 +70,41 @@ func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []dis
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return nil
 	}
-	out := make([]discordstore.GuildConfigOf, 0, len(guilds))
+	out := make([]GuildModulesOf, 0, len(guilds))
 	for _, bound := range guilds {
-		cfg, ok := r.configOf(ctx, bound.Guild)
+		mods, ok := r.modulesOf(ctx, bound.Guild)
 		if !ok {
 			continue
 		}
-		out = append(out, discordstore.GuildConfigOf{Guild: bound.Guild, Config: cfg})
+		out = append(out, GuildModulesOf{Guild: bound.Guild, Modules: mods})
 	}
 	return out
 }
 
-func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config, string, bool) {
+func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.GuildModules, string, bool) {
 	if r.Store == nil {
-		return ddiscord.Config{}, "", false
+		return ddiscord.GuildModules{}, "", false
 	}
 	b, ok := r.Store.Broadcaster(ctx, discordstore.Guild{ID: guildID})
 	if !ok {
 		r.dropped(guildID, dropUnbound, 0)
-		return ddiscord.Config{}, "", false
+		return ddiscord.GuildModules{}, "", false
 	}
 	id, err := strconv.ParseUint(b.ID, 10, 64)
 	if err != nil {
 		r.dropped(guildID, dropBadBroadcaster, 0)
-		return ddiscord.Config{}, "", false
+		return ddiscord.GuildModules{}, "", false
 	}
 	if reason := r.gateClosed(ctx, id); reason != "" {
 		r.dropped(guildID, reason, id)
-		return ddiscord.Config{}, "", false
+		return ddiscord.GuildModules{}, "", false
 	}
-	cfg, ok := r.configOf(ctx, discordstore.Guild{ID: guildID})
+	mods, ok := r.modulesOf(ctx, discordstore.Guild{ID: guildID})
 	if !ok {
 		r.dropped(guildID, dropNoConfig, id)
-		return ddiscord.Config{}, "", false
+		return ddiscord.GuildModules{}, "", false
 	}
-	return cfg, b.ID, true
+	return mods, b.ID, true
 }
 
 const (
@@ -109,8 +128,8 @@ func (r Resolver) shouldWarn(guildID, reason string) bool {
 	return guildID != "" && reason != dropLoggedElsewhere && r.Warned.first(guildID, reason)
 }
 
-func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config {
-	clean, bad := ddiscord.SanitizeConfig(cfg)
+func (r Resolver) sanitizeRow(guildID string, row ddiscord.ModuleRow) ddiscord.ModuleRow {
+	clean, bad := ddiscord.SanitizeModule(row.Name, row.Settings)
 	for _, fe := range bad {
 		if !r.Warned.first(guildID, fe.Field) {
 			continue
@@ -119,17 +138,22 @@ func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config 
 			zap.String("guild_id", guildID),
 			zap.String("field", fe.Field), zap.String("code", fe.Code))
 	}
-	return clean
+	row.Settings = clean
+	return row
 }
 
-func (r Resolver) configOf(ctx context.Context, g discordstore.Guild) (ddiscord.Config, bool) {
-	cfg, _, ok := r.Store.GuildConfig(ctx, g)
+func (r Resolver) modulesOf(ctx context.Context, g discordstore.Guild) (ddiscord.GuildModules, bool) {
+	stored, ok := r.Store.GuildModules(ctx, g)
 	if !ok {
-		return ddiscord.Config{}, false
+		return ddiscord.GuildModules{}, false
 	}
-	cfg = r.sanitize(g.ID, cfg)
-	cfg.GuildID = g.ID
-	return cfg, true
+	rows := make(map[string]ddiscord.ModuleRow, len(stored.Rows))
+	for name, row := range stored.Rows {
+		if _, known := ddiscord.Spec(name); known {
+			rows[name] = r.sanitizeRow(g.ID, row)
+		}
+	}
+	return ddiscord.GuildModules{GuildID: g.ID, Rows: rows}, true
 }
 
 func (r Resolver) gateOpen(ctx context.Context, broadcasterID uint64) bool {

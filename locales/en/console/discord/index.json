@@ -5,7 +5,7 @@
   "conflictBody": "Someone else saved this server while you had it open, so nothing here was written. Reload to pick up their changes, then make yours again.",
   "conflictCta": "Reload",
   "connectUnconfigured": "Discord connect is not configured on this deployment.",
-  "connectedLivedIn": "Bagel joined. This server already has a layout, so it was not rebuilt. Bagel adopted the channels it recognised; pick the rest below.",
+  "connectedLivedIn": "Bagel joined. This server already has a layout, so it was not rebuilt. Bagel adopted the channels it recognised; pick the rest in the modules.",
   "createCta": "Create my Discord",
   "degraded": "Could not reach the backend. Try again in a moment.",
   "description": "Connect a Discord server or create one from Bagel’s template. Go-live, clips, welcomes, tickets, temporary voice, staff logs, and crumb ranks, all from one bot.",

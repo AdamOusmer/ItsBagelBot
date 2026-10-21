@@ -433,6 +433,19 @@ func (c *Client) GetCurrentApplication(ctx context.Context) (Snowflake, error) {
 	return out, err
 }
 
+func (c *Client) GetVerifyKey(ctx context.Context) (string, error) {
+	var out struct {
+		VerifyKey string `json:"verify_key"`
+	}
+	if err := c.doInto(ctx, request{method: http.MethodGet, path: "/applications/@me"}, &out); err != nil {
+		return "", err
+	}
+	if out.VerifyKey == "" {
+		return "", errors.New("discord: application carried no verify_key")
+	}
+	return out.VerifyKey, nil
+}
+
 type Followup struct {
 	ApplicationID string
 	Token         string

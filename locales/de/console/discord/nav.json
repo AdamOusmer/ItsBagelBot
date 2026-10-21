@@ -1,10 +1,6 @@
 {
   "label": "Servereinstellungen",
   "overview": "Übersicht",
-  "channels": "Kanäle",
-  "roles": "Rollen",
-  "announcements": "Ankündigungen",
-  "community": "Community",
   "tickets": "Tickets",
   "settings": "Einstellungen"
 }

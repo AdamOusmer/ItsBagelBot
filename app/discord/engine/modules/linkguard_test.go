@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/app/discord/engine/module"
 	"ItsBagelBot/app/discord/engine/modules"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/discord/linkguard"
@@ -100,10 +99,8 @@ func TestLinkGuard(t *testing.T) {
 			cfg := ddiscord.Config{GuildID: "g1", ModsRoleID: "modsrole", LinkGuardEnabled: "on", LinkAllowList: tc.allowList}
 			handler := modules.LinkGuard(guard, ownInvite, zap.NewNop()).Events["MESSAGE_CREATE"]
 			var emitted []ddiscord.Command
-			c := &module.Context{
-				Event:  ddiscord.Event{Type: "MESSAGE_CREATE", GuildID: "g1", Raw: messageEvent(t, tc.content, tc.bot, tc.roles)},
-				Config: cfg, BroadcasterID: "999", Log: zap.NewNop(),
-			}
+			c := contextFor(ddiscord.ModuleLinkGuard, cfg, ddiscord.Event{Type: "MESSAGE_CREATE", GuildID: "g1", Raw: messageEvent(t, tc.content, tc.bot, tc.roles)})
+			c.BroadcasterID = "999"
 
 			require.NoError(t, handler(context.Background(), c, func(cmd ddiscord.Command) { emitted = append(emitted, cmd) }))
 

@@ -35,7 +35,7 @@ type ticketClient interface {
 
 func Ticket(store discordstore.Store, tickets ticketClient, log *zap.Logger) module.Module {
 	h := ticketModule{store: store, tickets: tickets, log: log}
-	b := module.NewModule("ticket")
+	b := module.NewModule(ddiscord.ModuleTickets)
 	b.Slash("ticket", h.slash)
 	b.Button(discordapi.CustomTicketOpen, h.open)
 	b.Button(discordapi.CustomTicketClaim, h.claim)
@@ -49,23 +49,24 @@ type ticketModule struct {
 	log     *zap.Logger
 }
 
-func deskUnavailable(store discordstore.Store, cfg ddiscord.Config) bool {
-	return !cfg.TicketsOn() || cfg.TicketChannelID == "" || store == nil
+func deskUnavailable(store discordstore.Store, mods ddiscord.GuildModules, cfg ddiscord.TicketSettings) bool {
+	return !mods.On(ddiscord.ModuleTickets) || cfg.TicketChannelID == "" || store == nil
 }
 
-func EnsureDesk(ctx context.Context, store discordstore.Store, cfg ddiscord.Config, emit module.Emit) {
-	if deskUnavailable(store, cfg) {
+func EnsureDesk(ctx context.Context, store discordstore.Store, mods ddiscord.GuildModules, emit module.Emit) {
+	var cfg ddiscord.TicketSettings
+	if err := mods.Decode(ddiscord.ModuleTickets, &cfg); err != nil || deskUnavailable(store, mods, cfg) {
 		return
 	}
-	if !store.ClaimDesk(ctx, discordstore.Guild{ID: cfg.GuildID}) {
+	if !store.ClaimDesk(ctx, discordstore.Guild{ID: mods.GuildID}) {
 		return
 	}
-	emit(deskPanel(cfg))
+	emit(deskPanel(mods.GuildID, cfg))
 }
 
-func deskPanel(cfg ddiscord.Config) ddiscord.Command {
-	spec := cfg.TicketPanel()
-	return cmd.PostPanel(cmd.ChannelTarget(cfg.GuildID, cfg.TicketChannelID), "",
+func deskPanel(guildID string, cfg ddiscord.TicketSettings) ddiscord.Command {
+	spec := cfg.Panel()
+	return cmd.PostPanel(cmd.ChannelTarget(guildID, cfg.TicketChannelID), "",
 		ddiscord.TicketPanelEmbed(spec), ticketDeskButtons(spec))
 }
 
@@ -81,9 +82,11 @@ func ticketOpenButtons() []ddiscord.ButtonSpec {
 }
 
 type deskCall struct {
-	mod  *module.Context
-	in   decode.InteractionEvent
-	emit module.Emit
+	mod   *module.Context
+	in    decode.InteractionEvent
+	emit  module.Emit
+	cfg   ddiscord.TicketSettings
+	roles ddiscord.RolesSettings
 }
 
 func deskCallFrom(c *module.Context, emit module.Emit) (deskCall, error) {
@@ -91,11 +94,19 @@ func deskCallFrom(c *module.Context, emit module.Emit) (deskCall, error) {
 	if err != nil {
 		return deskCall{}, err
 	}
-	return deskCall{mod: c, in: in, emit: emit}, nil
+	cfg, err := settingsOf[ddiscord.TicketSettings](c)
+	if err != nil {
+		return deskCall{}, err
+	}
+	return deskCall{mod: c, in: in, emit: emit, cfg: cfg, roles: c.Roles()}, nil
 }
 
 func (d deskCall) reply(text string) {
-	d.emit(cmd.Followup(cmd.GuildTarget(d.mod.Config.GuildID), cmd.Token(d.in.Token), text, true))
+	d.emit(cmd.Followup(cmd.GuildTarget(d.mod.GuildID), cmd.Token(d.in.Token), text, true))
+}
+
+func (d deskCall) staffOrMod() bool {
+	return decode.CanMod(d.in.Member.Permissions) || d.cfg.IsStaff(d.in.Member.Roles, d.roles)
 }
 
 func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.Emit) error {
@@ -121,25 +132,22 @@ func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.
 }
 
 func (h ticketModule) panel(ctx context.Context, call deskCall) error {
-	if !call.mod.Config.TicketsOn() {
-		call.reply("Tickets are off.")
-		return nil
-	}
-	if !isTicketStaffOrMod(call.mod.Config, call.in) {
+	if !call.staffOrMod() {
 		call.reply("Only ticket staff can post the panel.")
 		return nil
 	}
-	cfg := call.mod.Config
+	cfg := call.cfg
 	if cfg.TicketChannelID == "" {
 		cfg.TicketChannelID = call.in.ChannelID
 	}
 	return h.postPanel(ctx, call, cfg)
 }
 
-func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord.Config) error {
-	spec := cfg.TicketPanel()
+func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord.TicketSettings) error {
+	spec := cfg.Panel()
+	guildID := call.mod.GuildID
 	reply, err := h.tickets.TicketPanel(ctx, discordoutgress.TicketPanelRequest{
-		GuildID: cfg.GuildID, ChannelID: cfg.TicketChannelID,
+		GuildID: guildID, ChannelID: cfg.TicketChannelID,
 		Embed: ddiscord.TicketPanelEmbed(spec), Buttons: ticketDeskButtons(spec),
 	})
 	if rpcFailed(err, reply.Error) || reply.MessageID == "" {
@@ -148,11 +156,11 @@ func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord
 		return nil
 	}
 	remembered := discordstore.DeskPanel{
-		GuildID: cfg.GuildID, ChannelID: cfg.TicketChannelID, MessageID: reply.MessageID,
+		GuildID: guildID, ChannelID: cfg.TicketChannelID, MessageID: reply.MessageID,
 	}
 	if err := h.store.RememberDesk(ctx, remembered); err != nil {
 		h.log.Error("ticket desk pointer not stored",
-			zap.String("guild_id", cfg.GuildID), zap.String("message_id", reply.MessageID), zap.Error(err))
+			zap.String("guild_id", guildID), zap.String("message_id", reply.MessageID), zap.Error(err))
 	}
 	call.reply("Ticket panel posted.")
 	return nil
@@ -163,18 +171,20 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 	if err != nil {
 		return err
 	}
-	if !call.mod.Config.TicketsOn() {
-		call.reply("Tickets are off.")
-		return nil
-	}
 	if !h.store.TicketsDurable(ctx) {
 		h.log.Error("ticket open refused: no durable ticket store",
 			zap.String("guild_id", call.in.GuildID), zap.String("user_id", call.in.Member.User.ID))
 		call.reply("The ticket desk is unavailable right now. Try again shortly.")
 		return nil
 	}
-	limit := call.mod.Config.TicketOpenLimitN()
-	held := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: call.in.GuildID, UserID: call.in.Member.User.ID})
+	limit := call.cfg.OpenLimitN()
+	held, err := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: call.in.GuildID, UserID: call.in.Member.User.ID})
+	if err != nil {
+		h.log.Error("ticket open refused: open count unavailable",
+			zap.String("guild_id", call.in.GuildID), zap.String("user_id", call.in.Member.User.ID), zap.Error(err))
+		call.reply("The ticket desk is unavailable right now. Try again shortly.")
+		return nil
+	}
 	if held >= limit {
 		call.reply(atLimitText(held))
 		return nil
@@ -190,11 +200,11 @@ func atLimitText(held int) string {
 }
 
 func (h ticketModule) createTicket(ctx context.Context, call deskCall) error {
-	in, cfg := call.in, call.mod.Config
+	in, cfg := call.in, call.cfg
 	opener := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
 	reply, err := h.tickets.TicketOpen(ctx, discordoutgress.TicketOpenRequest{
 		GuildID: in.GuildID, Name: ddiscord.TicketChannelName(ticketNameBase(in), 0), ParentID: cfg.TicketCategoryID,
-		Overwrites: ticketOverwrites(cfg, in), Content: decode.Mention(in.Member.User),
+		Overwrites: ticketOverwrites(cfg, call.roles, in), Content: decode.Mention(in.Member.User),
 		Embed:   ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: opener}),
 		Buttons: ticketOpenButtons(),
 	})
@@ -211,7 +221,7 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 	in := call.in
 	got, err := h.store.TrackTicket(ctx, discordstore.TicketOpen{
 		GuildID: in.GuildID, ChannelID: reply.ChannelID, OpenerID: in.Member.User.ID,
-		PanelMessageID: reply.MessageID, OpenLimit: call.mod.Config.TicketOpenLimitN(),
+		PanelMessageID: reply.MessageID, OpenLimit: call.cfg.OpenLimitN(),
 	})
 	if err != nil {
 		h.log.Error("ticket row not recorded; rolling the channel back",
@@ -259,7 +269,7 @@ func ticketNameBase(in decode.InteractionEvent) string {
 	return in.Member.User.ID
 }
 
-func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discordapi.PermissionOverwrite {
+func ticketOverwrites(cfg ddiscord.TicketSettings, roles ddiscord.RolesSettings, in decode.InteractionEvent) []discordapi.PermissionOverwrite {
 	overwrites := []discordapi.PermissionOverwrite{
 		decode.OverwriteDeny(decode.OverwriteSpec{TargetID: in.GuildID, Kind: 0, Bits: decode.PermView}),
 		decode.OverwriteAllow(decode.OverwriteSpec{
@@ -267,7 +277,7 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 			Bits: decode.PermView | decode.PermSend | decode.PermReadHistory,
 		}),
 	}
-	for _, roleID := range cfg.TicketStaffRoleIDs() {
+	for _, roleID := range cfg.StaffRoleIDs(roles) {
 		overwrites = append(overwrites, decode.OverwriteAllow(decode.OverwriteSpec{
 			TargetID: roleID, Kind: 0,
 			Bits: decode.PermView | decode.PermSend | decode.PermReadHistory | decode.PermManageMessages,
@@ -312,7 +322,7 @@ func (h ticketModule) claim(ctx context.Context, c *module.Context, emit module.
 	if !ok {
 		return nil
 	}
-	if !isTicketStaffOrMod(call.mod.Config, call.in) {
+	if !call.staffOrMod() {
 		call.reply("Only ticket staff can claim this.")
 		return nil
 	}
@@ -359,7 +369,7 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 		call.reply("This ticket is already closed.")
 		return nil
 	}
-	if !canCloseTicket(t, call.in, call.mod.Config) {
+	if !canCloseTicket(t, call) {
 		call.reply("Only the opener or ticket staff can close this.")
 		return nil
 	}
@@ -367,7 +377,7 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 }
 
 func (h ticketModule) finishClose(ctx context.Context, call deskCall, t discordstore.Ticket) error {
-	reply, err := h.tickets.TicketClose(ctx, h.closeRequest(call.mod.Config, call.in, t))
+	reply, err := h.tickets.TicketClose(ctx, h.closeRequest(call, t))
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket close failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 		call.reply("Could not close this ticket right now.")
@@ -378,12 +388,14 @@ func (h ticketModule) finishClose(ctx context.Context, call deskCall, t discords
 	return nil
 }
 
-func (h ticketModule) closeRequest(cfg ddiscord.Config, in decode.InteractionEvent, t discordstore.Ticket) discordoutgress.TicketCloseRequest {
+func (h ticketModule) closeRequest(call deskCall, t discordstore.Ticket) discordoutgress.TicketCloseRequest {
+	in, cfg := call.in, call.cfg
+	logs := peerOf[ddiscord.LogsSettings](call.mod, ddiscord.ModuleLogs)
 	return discordoutgress.TicketCloseRequest{
 		GuildID: t.GuildID, ChannelID: t.ChannelID, ChannelName: in.Channel.Name, TicketID: t.ID,
-		OpenerID: t.OpenerID, Transcript: cfg.TicketTranscriptOn(),
-		LogChannelID: cfg.TicketLogChannel(), ArchiveCategoryID: cfg.TicketArchiveCategory(),
-		StaffRoleIDs: cfg.TicketStaffRoleIDs(),
+		OpenerID: t.OpenerID, Transcript: cfg.TranscriptOn(),
+		LogChannelID: cfg.LogChannel(logs), ArchiveCategoryID: cfg.ArchiveCategory(),
+		StaffRoleIDs: cfg.StaffRoleIDs(call.roles),
 		Summary: discordoutgress.TicketCloseSummary{
 			Opener: "<@" + t.OpenerID + ">",
 			Closer: decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick}),
@@ -418,11 +430,11 @@ func (h ticketModule) markPending(ctx context.Context, done discordstore.TicketC
 	}
 }
 
-func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent, cfg ddiscord.Config) bool {
-	if t.OpenerID == in.Member.User.ID {
+func canCloseTicket(t discordstore.Ticket, call deskCall) bool {
+	if t.OpenerID == call.in.Member.User.ID {
 		return true
 	}
-	return isTicketStaffOrMod(cfg, in)
+	return call.staffOrMod()
 }
 
 func (h ticketModule) add(ctx context.Context, call deskCall, sub decode.InteractionOption) error {
@@ -430,7 +442,7 @@ func (h ticketModule) add(ctx context.Context, call deskCall, sub decode.Interac
 	if !ok {
 		return nil
 	}
-	if !canCloseTicket(t, call.in, call.mod.Config) {
+	if !canCloseTicket(t, call) {
 		call.reply("Only the opener or ticket staff can add someone.")
 		return nil
 	}

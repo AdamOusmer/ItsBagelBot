@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/discord/linkguard"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -141,8 +142,21 @@ func (l *commandLog) followups(t *testing.T) []ddiscord.FollowupPayload {
 	return out
 }
 
+type countingGuard struct {
+	mu   sync.Mutex
+	seen int
+}
+
+func (g *countingGuard) Observe(context.Context, linkguard.Sighting) linkguard.Verdict {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.seen++
+	return linkguard.Verdict{Allow: true}
+}
+
 type harness struct {
 	t        *testing.T
+	guard    *countingGuard
 	d        *dispatch.Dispatcher
 	channels *fakeChannels
 	store    *discordstore.Mem
@@ -152,6 +166,7 @@ type harness struct {
 func newHarness(t *testing.T, cfg ddiscord.Config) *harness {
 	t.Helper()
 	channels := &fakeChannels{}
+	guard := &countingGuard{}
 	store := discordstore.NewMem()
 	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
 	store.PutGuildConfig(discordstore.Guild{ID: cfg.GuildID}, cfg)
@@ -162,9 +177,9 @@ func newHarness(t *testing.T, cfg ddiscord.Config) *harness {
 		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
 		Log:  zap.NewNop(),
 	}
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Tickets: channels, Purge: channels, Log: zap.NewNop()})...)
+	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Tickets: channels, Purge: channels, Guard: guard, Log: zap.NewNop()})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: log.publish, Log: zap.NewNop()}
-	return &harness{t: t, d: d, channels: channels, store: store, log: log}
+	return &harness{t: t, guard: guard, d: d, channels: channels, store: store, log: log}
 }
 
 func (h *harness) handle(ctx context.Context, ev ddiscord.Event) {

@@ -12,7 +12,7 @@
   "rateLimited": "Discord begrenzt gerade unsere Anfragen. Versuche es in einer Minute erneut.",
   "setup": "Der verbundene Server konnte nicht gespeichert werden. Versuche es erneut.",
   "state": "Dieser Discord-Link ist abgelaufen. Starte erneut mit „Bagel hinzufügen“.",
-  "ticketsOff": "Aktiviere den Ticketbereich und speichere, bevor du das Panel erneut postest.",
+  "ticketsOff": "Aktiviere den Ticketbereich, bevor du das Panel erneut postest.",
   "unavailable": "Discord hat nicht geantwortet. Versuche es gleich erneut.",
   "timeout": "Das hat zu lange gedauert. Teile könnten fehlen; lade neu, um den Rest zu sehen.",
   "notFound": "Dieser Kanal oder diese Rolle existiert auf dem Server nicht mehr. Wähle etwas anderes.",

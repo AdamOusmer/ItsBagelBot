@@ -1,11 +1,13 @@
 {
   "disconnectFailed": "Could not disconnect Discord.",
   "disconnected": "Discord disconnected.",
-  "refused": "This server already had its own channels, so Bagel kept them and added only the ones it needs. Pick the rest on the Channels page.",
+  "forbidden": "Bagel is missing a permission in this server.",
+  "refused": "This server already had its own channels, so Bagel kept them and added only the ones it needs. Pick the rest in each module.",
   "repostFailed": "Could not repost the ticket panel.",
   "reposted": "Ticket panel reposted.",
   "saveFailed": "Could not save Discord settings.",
   "saved": "Discord settings saved.",
-  "setup": "Server set up.",
-  "setupFailed": "Could not set up this server."
+  "setup": "Server template applied.",
+  "setupFailed": "Could not apply the server template.",
+  "previewFailed": "Could not preview the server template."
 }

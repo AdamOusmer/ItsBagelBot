@@ -5,7 +5,7 @@
   "conflictBody": "Jemand anderes hat diesen Server gespeichert, während du ihn geöffnet hattest. Daher wurde hier nichts geschrieben. Lade neu, um die Änderungen zu übernehmen, und mache dann deine Änderungen erneut.",
   "conflictCta": "Neu laden",
   "connectUnconfigured": "Die Discord-Verbindung ist in diesem Deployment nicht konfiguriert.",
-  "connectedLivedIn": "Bagel ist beigetreten. Dieser Server hat bereits eine Struktur, daher wurde sie nicht neu aufgebaut. Bagel hat die erkannten Kanäle übernommen; wähle die übrigen unten aus.",
+  "connectedLivedIn": "Bagel ist beigetreten. Dieser Server hat bereits eine Struktur, daher wurde sie nicht neu aufgebaut. Bagel hat die erkannten Kanäle übernommen; wähle die übrigen in den Modulen aus.",
   "createCta": "Mein Discord erstellen",
   "degraded": "Das Backend war nicht erreichbar. Versuche es gleich noch mal.",
   "description": "Verbinde einen Discord-Server oder erstelle einen mit Bagels Vorlage. Live-Start, Clips, Begrüßungen, Tickets, temporäre Sprachkanäle, Mitarbeiterprotokolle und Krümelränge – alles mit einem Bot.",

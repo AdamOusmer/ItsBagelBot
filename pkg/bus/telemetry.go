@@ -27,6 +27,10 @@ const (
 	ingressDestinationPrefix      = "twitch.ingress.event."
 	outgressDestinationPrefix     = "twitch.outgress."
 	cacheDestinationPrefix        = "bagel.cache.invalidate"
+	discordIngressPrefix          = "discord.ingress.event."
+	discordOutgressPrefix         = "discord.outgress."
+	clipDestinationPrefix         = "data.twitch.clip."
+	usersDestinationPrefix        = "data.users."
 )
 
 const (
@@ -36,7 +40,7 @@ const (
 
 var rpcDestinations = map[string]struct{}{
 	"admin": {}, "broadcaster": {}, "commands": {}, "dashboard": {},
-	"delegation": {}, "gossip": {}, "health": {}, "ingress": {},
+	"delegation": {}, "discord-data": {}, "discord-outgress": {}, "gossip": {}, "health": {}, "ingress": {},
 	"internal": {}, "loyalty": {}, "modules": {}, "notifications": {},
 	"outgress": {}, "projector": {}, "transactions": {}, "users": {},
 }
@@ -87,6 +91,28 @@ var outgressDestinations = destinationFamily{
 		outgressDestinationPrefix + "standard": {},
 		outgressDestinationPrefix + "system":   {},
 	},
+}
+
+func newDestinationFamily(prefix string, names ...string) destinationFamily {
+	allowed := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		allowed[prefix+name] = struct{}{}
+	}
+	return destinationFamily{fallback: prefix + "other", allowed: allowed}
+}
+
+type prefixedFamily struct {
+	prefix string
+	family destinationFamily
+}
+
+var familyDestinations = []prefixedFamily{
+	{ingressDestinationPrefix, ingressDestinations},
+	{outgressDestinationPrefix, outgressDestinations},
+	{discordIngressPrefix, newDestinationFamily(discordIngressPrefix, "message", "member", "voice", "interaction", "audit", "guild")},
+	{discordOutgressPrefix, newDestinationFamily(discordOutgressPrefix, "mod", "default")},
+	{clipDestinationPrefix, newDestinationFamily(clipDestinationPrefix, "created")},
+	{usersDestinationPrefix, newDestinationFamily(usersDestinationPrefix, "changed")},
 }
 
 func startMessagingSegment(ctx context.Context, span messagingSpan) *newrelic.Segment {
@@ -176,15 +202,15 @@ func normalizedDestination(subject string) string {
 	switch {
 	case strings.HasPrefix(subject, rpcDestinationPrefix):
 		return normalizedRPCDestination(subject)
-	case strings.HasPrefix(subject, ingressDestinationPrefix):
-		return ingressDestinations.normalize(subject)
-	case strings.HasPrefix(subject, outgressDestinationPrefix):
-		return outgressDestinations.normalize(subject)
 	case strings.HasPrefix(subject, cacheDestinationPrefix):
 		return cacheDestinationPrefix
-	default:
-		return "other"
 	}
+	for _, entry := range familyDestinations {
+		if strings.HasPrefix(subject, entry.prefix) {
+			return entry.family.normalize(subject)
+		}
+	}
+	return "other"
 }
 
 func normalizedRPCDestination(subject string) string {

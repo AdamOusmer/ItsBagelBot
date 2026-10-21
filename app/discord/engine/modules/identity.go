@@ -33,13 +33,13 @@ type Identity struct {
 }
 
 func IdentityModule(i *Identity) module.Module {
-	return module.NewModule("identity").
+	return module.NewModule(ddiscord.ModuleIdentity).
 		On(ddiscord.SubjectEventGuild, i.onGuild).
 		Build()
 }
 
 func (i *Identity) onGuild(ctx context.Context, c *module.Context, emit module.Emit) error {
-	if c.Config.GuildID == "" {
+	if c.GuildID == "" {
 		return nil
 	}
 	id, err := strconv.ParseUint(c.BroadcasterID, 10, 64)
@@ -51,11 +51,11 @@ func (i *Identity) onGuild(ctx context.Context, c *module.Context, emit module.E
 		return nil
 	}
 	want := ddiscord.IdentityFor(status)
-	if !i.needsApply(ctx, c.Config.GuildID, want) {
+	if !i.needsApply(ctx, c.GuildID, want) {
 		return nil
 	}
-	emit(cmd.SetGuildIdentity(cmd.GuildTarget(c.Config.GuildID), want))
-	i.record(ctx, c.Config.GuildID, want)
+	emit(cmd.SetGuildIdentity(cmd.GuildTarget(c.GuildID), want))
+	i.record(ctx, c.GuildID, want)
 	return nil
 }
 

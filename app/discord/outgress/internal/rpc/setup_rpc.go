@@ -56,6 +56,8 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 			wire.Wiring, verb{Name: "discord.setup", Timeout: setupHandleTimeout}, d.handleSetup),
 		register[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
 			wire.Wiring, verb{Name: "discord.layout", Timeout: layoutHandleTimeout}, d.handleLayout),
+		register[outgressrpc.DiscordTemplatePreviewRequest, outgressrpc.DiscordTemplatePreviewReply](
+			wire.Wiring, verb{Name: "discord.template.preview", Timeout: layoutHandleTimeout}, d.handleTemplatePreview),
 		register[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
 			wire.Wiring, verb{Name: "discord.unbind", Timeout: handleTimeout}, d.handleUnbind),
 		register[outgressrpc.DiscordStatusRequest, outgressrpc.DiscordStatusReply](
@@ -171,6 +173,7 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		Subscribers:   req.Subscribers,
 		PinnedRoles:   req.PinnedRoles,
 		InstalledBy:   req.InstalledBy,
+		Mode:          req.Mode,
 	})
 	if err != nil {
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
@@ -181,6 +184,10 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		DroppedPins:     got.DroppedPins,
 		Refused:         got.Refused,
 	}
+}
+
+func unknownSetupMode(mode string) bool {
+	return mode != "" && mode != outgressrpc.SetupModeApply && mode != outgressrpc.SetupModeAdopt
 }
 
 func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
@@ -197,7 +204,23 @@ func validateSetup(req outgressrpc.DiscordSetupRequest) []string {
 		seen[fe.Field] = true
 		out = append(out, fe.Field)
 	}
+	if unknownSetupMode(req.Mode) {
+		out = append(out, "mode")
+	}
 	return out
+}
+
+func (d *discordRPC) handleTemplatePreview(ctx context.Context, req outgressrpc.DiscordTemplatePreviewRequest) outgressrpc.DiscordTemplatePreviewReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordTemplatePreviewReply{Items: []outgressrpc.DiscordTemplateItem{}, Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	got, err := d.w.PreviewTemplate(ctx, setup.GuildSetupRequest{
+		GuildID: req.GuildID, BroadcasterID: req.UserID, Subscribers: req.Subscribers, PinnedRoles: req.PinnedRoles,
+	})
+	if err != nil {
+		return outgressrpc.DiscordTemplatePreviewReply{Items: []outgressrpc.DiscordTemplateItem{}, Error: err.Error(), Code: codeFor(err)}
+	}
+	return outgressrpc.DiscordTemplatePreviewReply{LivedIn: got.LivedIn, Items: got.Items, DroppedPins: got.DroppedPins}
 }
 
 func (d *discordRPC) handleLayout(ctx context.Context, req outgressrpc.DiscordLayoutRequest) outgressrpc.DiscordLayoutReply {
@@ -392,6 +415,10 @@ func subscribeGuildConfig(d *discordRPC, wire SetupWiring) error {
 			wire.Wiring, verb{Name: "discord.config.get", Timeout: configGetHandleTimeout}, d.handleConfigGet),
 		register[outgressrpc.DiscordConfigSetRequest, outgressrpc.DiscordConfigSetReply](
 			wire.Wiring, verb{Name: "discord.config.set", Timeout: configHandleTimeout}, d.handleConfigSet),
+		register[outgressrpc.DiscordModuleListRequest, outgressrpc.DiscordModuleListReply](
+			wire.Wiring, verb{Name: "discord.module.list", Timeout: configGetHandleTimeout}, d.handleModuleList),
+		register[outgressrpc.DiscordModuleSetRequest, outgressrpc.DiscordModuleSetReply](
+			wire.Wiring, verb{Name: "discord.module.set", Timeout: configHandleTimeout}, d.handleModuleSet),
 		register[outgressrpc.DiscordGuildsListRequest, outgressrpc.DiscordGuildsListReply](
 			wire.Wiring, verb{Name: "discord.guilds.list", Timeout: guildsHandleTimeout}, d.handleGuildsList),
 	)
@@ -424,6 +451,66 @@ func (d *discordRPC) handleConfigSet(ctx context.Context, req outgressrpc.Discor
 		return outgressrpc.DiscordConfigSetReply{Error: message, Code: code}
 	}
 	return outgressrpc.DiscordConfigSetReply{Version: version}
+}
+
+func (d *discordRPC) handleModuleList(ctx context.Context, req outgressrpc.DiscordModuleListRequest) outgressrpc.DiscordModuleListReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordModuleListReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	mods, found, err := d.w.GuildModules(ctx, setup.GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.UserID})
+	if err != nil {
+		message, code := discordFailure(err)
+		return outgressrpc.DiscordModuleListReply{Error: message, Code: code}
+	}
+	return outgressrpc.DiscordModuleListReply{Modules: orderedRows(mods), Found: found}
+}
+
+func orderedRows(mods ddiscord.GuildModules) []ddiscord.ModuleRow {
+	out := make([]ddiscord.ModuleRow, 0, len(mods.Rows))
+	for _, spec := range ddiscord.Modules {
+		if row, ok := mods.Rows[spec.Name]; ok {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func (d *discordRPC) handleModuleSet(ctx context.Context, req outgressrpc.DiscordModuleSetRequest) outgressrpc.DiscordModuleSetReply {
+	if req.GuildID == "" || req.UserID == "" {
+		return outgressrpc.DiscordModuleSetReply{Error: "missing guild_id or user_id", Code: outgressrpc.CodeInvalid}
+	}
+	if bad := invalidModuleFields(req); len(bad) > 0 {
+		return outgressrpc.DiscordModuleSetReply{
+			Code: outgressrpc.CodeInvalid, Fields: bad,
+			Error: "some settings are not valid: " + strings.Join(bad, ", "),
+		}
+	}
+	version, err := d.w.SetGuildModule(ctx, setup.GuildModuleWrite{
+		GuildID:         req.GuildID,
+		BroadcasterID:   req.UserID,
+		Row:             ddiscord.ModuleRow{Name: req.Name, Enabled: req.Enabled, Settings: req.Settings},
+		ExpectedVersion: req.ExpectedVersion,
+	})
+	if err != nil {
+		message, code := discordFailure(err)
+		return outgressrpc.DiscordModuleSetReply{Error: message, Code: code}
+	}
+	return outgressrpc.DiscordModuleSetReply{Version: version}
+}
+
+func invalidModuleFields(req outgressrpc.DiscordModuleSetRequest) []string {
+	if !ddiscord.Stored(req.Name) {
+		return []string{"name"}
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, fe := range ddiscord.ValidateModule(req.Name, req.Settings) {
+		if !seen[fe.Field] {
+			seen[fe.Field] = true
+			out = append(out, fe.Field)
+		}
+	}
+	return out
 }
 
 func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.DiscordGuildsListRequest) outgressrpc.DiscordGuildsListReply {

@@ -29,6 +29,11 @@ type ConfigStore interface {
 	ConfigSet(ctx context.Context, p repository.SetConfigParams) (int, error)
 }
 
+type ModuleStore interface {
+	ModulesGet(ctx context.Context, guildID string) ([]ddiscord.ModuleRow, bool, error)
+	ModuleSet(ctx context.Context, p repository.ModuleSetParams) (int, error)
+}
+
 type TicketStore interface {
 	TicketOpen(ctx context.Context, p repository.OpenParams) (int, int, error)
 	TicketClaim(ctx context.Context, p repository.ClaimParams) (int, error)
@@ -50,6 +55,7 @@ type XPStore interface {
 type Store interface {
 	BindingStore
 	ConfigStore
+	ModuleStore
 	TicketStore
 	XPStore
 }
@@ -67,6 +73,9 @@ func Subscribe(w Wiring) error {
 		return err
 	}
 	if err := subscribeConfigs(w); err != nil {
+		return err
+	}
+	if err := subscribeModules(w); err != nil {
 		return err
 	}
 	if err := subscribeTickets(w); err != nil {

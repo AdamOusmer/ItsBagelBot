@@ -27,6 +27,7 @@ func TestEveryDashboardHandlerGivesUpBeforeTheConsoleDoes(t *testing.T) {
 	}{
 		{"discord.setup", setupHandleTimeout, consoleSetupMS * time.Millisecond},
 		{"discord.layout", layoutHandleTimeout, consoleLayoutMS * time.Millisecond},
+		{"discord.template.preview", layoutHandleTimeout, consoleLayoutMS * time.Millisecond},
 		{"discord.status", statusHandleTimeout, consoleStatusMS * time.Millisecond},
 		{"discord.desk.repost", deskRepostTimeout, consoleRepostMS * time.Millisecond},
 		{"discord.unbind", handleTimeout, consoleUnbindMS * time.Millisecond},
