@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-package engine
+package valkey
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/valkey-io/valkey-go"
+	valkey_go "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +22,7 @@ const (
 
 // ExpiryHub holds one expired-keyevent subscription per Valkey DB and fans keys out by prefix.
 type ExpiryHub struct {
-	client valkey.Client
+	client valkey_go.Client
 	db     int
 	log    *zap.Logger
 
@@ -38,14 +38,14 @@ type expiryWatcher struct {
 	done     <-chan struct{}
 }
 
-func NewExpiryHub(client valkey.Client, db int, log *zap.Logger) *ExpiryHub {
+func NewExpiryHub(client valkey_go.Client, db int, log *zap.Logger) *ExpiryHub {
 	if log == nil {
 		log = zap.NewNop()
 	}
 	return &ExpiryHub{client: client, db: db, log: log}
 }
 
-func expiryHubOr(hub *ExpiryHub, client valkey.Client, db int, log *zap.Logger) *ExpiryHub {
+func ExpiryHubOr(hub *ExpiryHub, client valkey_go.Client, db int, log *zap.Logger) *ExpiryHub {
 	if hub != nil && hub.db == db {
 		return hub
 	}
@@ -124,7 +124,7 @@ func (h *ExpiryHub) run(ctx context.Context) {
 	channel := "__keyevent@" + strconv.Itoa(h.db) + "__:expired"
 	h.log.Info("expiry hub starting", zap.String("channel", channel))
 	for ctx.Err() == nil {
-		err := h.client.Receive(ctx, h.client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
+		err := h.client.Receive(ctx, h.client.B().Subscribe().Channel(channel).Build(), func(msg valkey_go.PubSubMessage) {
 			h.dispatch(msg.Message)
 		})
 		if ctx.Err() != nil {

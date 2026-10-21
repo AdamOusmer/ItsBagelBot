@@ -24,6 +24,8 @@ const (
 	modulesCacheCapacity  int64 = 4096
 	commandsCacheCapacity int64 = 8192
 	fetchesCacheCapacity  int64 = 8192
+
+	moduleOutageBackoff = 2 * time.Second
 )
 
 type User struct {
@@ -107,10 +109,11 @@ type Client struct {
 	subjects Subjects
 	log      *zap.Logger
 
-	users    *cache.Cache[User]
-	modules  *cache.Cache[map[string]ModuleView]
-	commands *cache.Cache[commandEntry]
-	fetches  *cache.Cache[fetchEntry]
+	users         *cache.Cache[User]
+	modules       *cache.Cache[map[string]ModuleView]
+	moduleOutages *cache.Cache[error]
+	commands      *cache.Cache[commandEntry]
+	fetches       *cache.Cache[fetchEntry]
 
 	commandLookup perName[CommandView, commandEntry]
 	fetchLookup   perName[FetchView, fetchEntry]
@@ -138,6 +141,8 @@ func NewClient(cfg Config) *Client {
 		commands:   cache.New[commandEntry](commandsCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
 		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL, cache.StaleOnError(cfg.TTL)),
 		rpcTimeout: 1500 * time.Millisecond,
+
+		moduleOutages: cache.New[error](modulesCacheCapacity, moduleOutageBackoff),
 	}
 	c.commandLookup = perName[CommandView, commandEntry]{
 		entries: c.commands,
@@ -162,6 +167,7 @@ func (c *Client) Close() {
 	}
 	c.users.Close()
 	c.modules.Close()
+	c.moduleOutages.Close()
 	c.commands.Close()
 	c.fetches.Close()
 }
@@ -214,6 +220,7 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 		}
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
+		c.moduleOutages.Invalidate(key("modules", id))
 	case "status", "grant", "live", "locale", "commands_page", "leaderboard_page":
 		c.users.Invalidate(key("user", id))
 	case "delegation":
@@ -252,9 +259,16 @@ func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleV
 			return mods, nil
 		}
 
+		outageKey := key("modules", userID)
+		if outage, down := c.moduleOutages.Get(outageKey); down {
+			loadSource(ctx, "projection.modules.source", "rpc_backoff")
+			return nil, outage
+		}
+
 		reply, err := bus.RequestJSONTimeout[modulesReply](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
 			loadSource(ctx, "projection.modules.source", "rpc_error")
+			c.moduleOutages.Set(outageKey, err)
 			// An empty map here would be cached for the TTL and silently disable automod.
 			return nil, err
 		}
