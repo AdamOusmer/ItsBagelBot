@@ -60,5 +60,13 @@
   "unitGift": "{name} por inscrição presenteada",
   "unitCheer": "{name} por 100 bits",
   "unitWatch": "{name} por 5 minutos",
-  "topEmptyCta": "Revisar taxas de ganho"
+  "topEmptyCta": "Revisar taxas de ganho",
+  "resetTitle": "Zerar pontos",
+  "resetHint": "Define como 0 os “{name}” de todos os espectadores. O tempo assistido é mantido. Isso não pode ser desfeito.",
+  "resetButton": "Zerar pontos",
+  "resetConfirmTitle": "Zerar todos os pontos?",
+  "resetConfirmBody": "Os “{name}” de todos os espectadores voltam a 0. O tempo assistido é mantido. Isso não pode ser desfeito.",
+  "resetConfirm": "Zerar",
+  "toastReset": "Pontos zerados. Todos os saldos agora estão em 0.",
+  "toastResetFailed": "Não foi possível zerar os pontos."
 }

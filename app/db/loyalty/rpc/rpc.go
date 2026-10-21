@@ -8,22 +8,26 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 )
 
 type loyaltyRPC struct {
-	repo *repository.Loyalty
-	log  *zap.Logger
+	repo               *repository.Loyalty
+	log                *zap.Logger
+	nc                 *nats.Conn
+	invalidationPrefix string
 }
 
 func Subscribe(w Wiring, prefix string) error {
-	l := &loyaltyRPC{repo: w.Repo, log: w.Log}
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log, nc: w.NC, invalidationPrefix: w.InvalidationPrefix}
 
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.At("balance.get", l.handleBalanceGet),
@@ -32,6 +36,7 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("balance.spend", l.handleBalanceSpend),
 		bus.At("balance.wager", l.handleBalanceWager),
 		bus.At("balance.transfer", l.handleBalanceTransfer),
+		bus.At("balance.reset", l.handleBalanceReset),
 		bus.At("top.get", l.handleTopGet),
 		bus.At("counter.get", l.handleCounterGet),
 		bus.At("counter.create", l.handleCounterCreate),
@@ -49,7 +54,8 @@ func Subscribe(w Wiring, prefix string) error {
 
 type Wiring struct {
 	bus.RPCWiring
-	Repo *repository.Loyalty
+	Repo               *repository.Loyalty
+	InvalidationPrefix string
 }
 
 func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
@@ -117,6 +123,32 @@ func (l *loyaltyRPC) handleBalanceSet(ctx context.Context, req loyaltyrpc.Reques
 
 func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	return l.adjustBalance(ctx, req, false)
+}
+
+func (l *loyaltyRPC) handleBalanceReset(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, err := bus.UserID(req.UserID)
+	if err != nil || userID == 0 {
+		return refuse(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())
+	}
+	return l.resetBalances(ctx, userID)
+}
+
+func (l *loyaltyRPC) resetBalances(ctx context.Context, userID uint64) loyaltyrpc.Reply {
+	reset, err := l.repo.BalanceReset(ctx, userID)
+	if err != nil {
+		return l.fail("loyalty balance.reset", err)
+	}
+	l.broadcastInvalidation(userID)
+	return loyaltyrpc.Reply{Total: reset}
+}
+
+func (l *loyaltyRPC) broadcastInvalidation(userID uint64) {
+	if l.nc == nil || l.invalidationPrefix == "" {
+		return
+	}
+	if err := invalidate.Publish(l.nc, l.invalidationPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(userID, 10)); err != nil {
+		l.log.Warn("loyalty: failed to broadcast invalidation", zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }
 
 func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, absolute bool) loyaltyrpc.Reply {

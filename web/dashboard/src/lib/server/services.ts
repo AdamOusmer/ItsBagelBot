@@ -58,6 +58,7 @@ export const SCOPES: ScopeMap = {
   fetches: (id) => [`fetches:${id}`],
   'token-warm': () => [],
   outgress: () => [],
+  loyalty: () => [],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 

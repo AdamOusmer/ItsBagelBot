@@ -1,12 +1,25 @@
 {
   "label": "Sorteo",
   "tagline": "Sorteos aleatorios con plazo a los que tu chat se apunta con !join.",
-  "description": "Abre un sorteo y los espectadores escriben !join para participar. Mientras está en curso, el bot publica un recordatorio del tiempo restante cada pocos minutos (tú defines la frecuencia) y, cuando termina el plazo, hace el sorteo automáticamente. Los ganadores se eligen al azar con la misma probabilidad entre todos los participantes, cada inscripción cuenta una vez y el sorteo deja un comprobante verificable. Cada sorteo paga su premio en puntos (1000 por defecto, repartido a partes iguales entre los ganadores) en el saldo de fidelidad de cada ganador, así que los puntos de fidelidad deben estar activados. Pon el premio en 0 para un sorteo sin puntos. Los ganadores confirman con !claim dentro de un plazo de 15 minutos. Tú y tus moderadores también controlan todo desde el chat: !raffle open inicia un sorteo, !raffle draw lo cierra antes de tiempo y anuncia el resultado, y !raffle cancel lo cancela sin sortear. Cuando este módulo y la cola de juego están activados, !join pertenece al sorteo y se puede acceder a la cola con !queue join.",
+  "description": "Abre un sorteo y los espectadores escriben !join para participar. Mientras está en curso, el bot publica un recordatorio del tiempo restante cada pocos minutos (tú defines la frecuencia) y, cuando termina el plazo, hace el sorteo automáticamente. Los ganadores se eligen al azar con la misma probabilidad entre todos los participantes, cada inscripción cuenta una vez y el sorteo deja un comprobante verificable. Cada sorteo paga su premio en puntos (1000 por defecto, repartido a partes iguales entre los ganadores) en el saldo de fidelidad de cada ganador, así que los puntos de fidelidad deben estar activados. Pon el premio en 0 para un sorteo sin puntos. Cada línea del chat se puede desactivar por separado: la confirmación de participación por espectador está desactivada por defecto, así que las inscripciones son silenciosas. !claim es opcional y está desactivado por defecto; actívalo solo para un premio personalizado (una clave de juego, por ejemplo), mientras que los puntos siempre se pagan en el sorteo. Tú y tus moderadores también controlan todo desde el chat: !raffle open inicia un sorteo, !raffle draw lo cierra antes de tiempo y anuncia el resultado, y !raffle cancel lo cancela sin sortear. Cuando este módulo y la cola de juego están activados, !join pertenece al sorteo y se puede acceder a la cola con !queue join.",
   "settings": {
     "prizePoints": {
       "label": "Premio en puntos",
       "help": "Puntos totales que paga un sorteo, repartidos a partes iguales entre sus ganadores. 0 hace sorteos sin puntos.",
       "placeholder": "1000"
+    },
+    "remindEnabled": {
+      "label": "Recordatorios de tiempo restante",
+      "help": "Publica la línea de recordatorio del tiempo restante mientras un sorteo está en curso."
+    },
+    "claimEnabled": {
+      "label": "Activar !claim",
+      "help": "Activa !claim para un premio personalizado. Los puntos siempre se pagan en el sorteo, sin importar este ajuste."
+    },
+    "claimPrize": {
+      "label": "Premio personalizado",
+      "help": "El nombre del premio que aparece en la línea de ganadores, para un sorteo que no es de puntos.",
+      "placeholder": "una clave de juego"
     }
   },
   "replies": {

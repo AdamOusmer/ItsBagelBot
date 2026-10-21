@@ -26,7 +26,30 @@ type RaffleModuleConfig struct {
 	WonMessage      string       `json:"wonMessage"`
 	ClaimOkMessage  string       `json:"claimOkMessage"`
 	PrizePoints     codec.Number `json:"prizePoints"`
+
+	OpenedEnabled   string `json:"openedEnabled"`
+	JoinEnabled     string `json:"joinEnabled"`
+	AlreadyEnabled  string `json:"alreadyEnabled"`
+	NoRaffleEnabled string `json:"noRaffleEnabled"`
+	WonEnabled      string `json:"wonEnabled"`
+	ClaimOkEnabled  string `json:"claimOkEnabled"`
+	RemindEnabled   string `json:"remindEnabled"`
+	ClaimEnabled    string `json:"claimEnabled"`
+	ClaimPrize      string `json:"claimPrize"`
 }
+
+func lineDefaultOn(v string) bool { return v != "off" && v != "false" }
+
+func lineDefaultOff(v string) bool { return v == "on" || v == "true" }
+
+func (c RaffleModuleConfig) OpenedOn() bool   { return lineDefaultOn(c.OpenedEnabled) }
+func (c RaffleModuleConfig) JoinOn() bool     { return lineDefaultOff(c.JoinEnabled) }
+func (c RaffleModuleConfig) AlreadyOn() bool  { return lineDefaultOff(c.AlreadyEnabled) }
+func (c RaffleModuleConfig) NoRaffleOn() bool { return lineDefaultOn(c.NoRaffleEnabled) }
+func (c RaffleModuleConfig) WonOn() bool      { return lineDefaultOn(c.WonEnabled) }
+func (c RaffleModuleConfig) ClaimOkOn() bool  { return lineDefaultOn(c.ClaimOkEnabled) }
+func (c RaffleModuleConfig) RemindOn() bool   { return lineDefaultOn(c.RemindEnabled) }
+func (c RaffleModuleConfig) ClaimOn() bool    { return lineDefaultOff(c.ClaimEnabled) }
 
 func (c RaffleModuleConfig) Prize() int64 {
 	n, err := c.PrizePoints.Int64()
