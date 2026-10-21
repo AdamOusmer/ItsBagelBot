@@ -6010,6 +6010,10 @@
       "{raffle:won:targets}",
       "{raffle:won:count}",
       "{raffle:won:entrants}",
+      "{raffle:amount}",
+      "{raffle:won:amount}",
+      "{raffle:points}",
+      "{raffle:won:points}",
       "{raffle:claim}",
       "{raffle:won:claim}",
       "{raffle:claimok:user}"
@@ -6108,6 +6112,26 @@
       {
         "syntax": "{raffle:won:entrants}",
         "output": "18",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:amount}",
+        "output": "500",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:won:amount}",
+        "output": "500",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:points}",
+        "output": "points",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:won:points}",
+        "output": "points",
         "surfaceId": "custom"
       },
       {
