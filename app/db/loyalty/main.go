@@ -201,8 +201,9 @@ func main() {
 
 	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
 	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
-		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
-		Repo:      repo,
+		RPCWiring:          bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:               repo,
+		InvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
 	// The lane check must stay hard: a wedged consumer stops points accruing while health reads green.

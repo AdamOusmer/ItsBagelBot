@@ -10,6 +10,7 @@
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -134,6 +135,24 @@
       }
       markSave('error', 4000);
       toast('danger', t('loyalty.toastSaveFailed'));
+    };
+  };
+
+  let resetOpen = $state(false);
+  let resetBusy = $state(false);
+  let resetFormEl = $state<HTMLFormElement | null>(null);
+
+  const resetSubmit: SubmitFunction = () => {
+    resetBusy = true;
+    return async ({ result }) => {
+      resetBusy = false;
+      resetOpen = false;
+      if (result.type !== 'success') {
+        toast('danger', t('loyalty.toastResetFailed'));
+        return;
+      }
+      toast('success', t('loyalty.toastReset'));
+      await invalidateAll();
     };
   };
 
@@ -326,6 +345,21 @@
     </Card>
   </section>
 
+  <section class="block" aria-labelledby="loy-reset-h">
+    <Heading level={6} as="h2" variant="title" id="loy-reset-h">{t('loyalty.resetTitle')}</Heading>
+    <Card>
+      <div class="hint"><Text size="xs" tone="muted">{t('loyalty.resetHint', { name: pointsLabel })}</Text></div>
+      <div class="actions">
+        <Button variant="secondary" tone="danger" type="button" onclick={() => (resetOpen = true)}>
+          {t('loyalty.resetButton')}
+        </Button>
+      </div>
+      <form method="POST" action="?/reset" use:enhance={resetSubmit} bind:this={resetFormEl} hidden>
+        <input type="hidden" name="confirm" value="reset" />
+      </form>
+    </Card>
+  </section>
+
   {#if loyaltyCommands.length}
     <div class="cmd-block">
       <DeckList>
@@ -334,6 +368,16 @@
     </div>
   {/if}
 </section>
+
+<ConfirmDialog
+  bind:open={resetOpen}
+  tone="danger"
+  title={t('loyalty.resetConfirmTitle')}
+  body={t('loyalty.resetConfirmBody', { name: pointsLabel })}
+  confirmLabel={t('loyalty.resetConfirm')}
+  busy={resetBusy}
+  onConfirm={() => resetFormEl?.requestSubmit()}
+/>
 
 <style>
   .block { display: grid; gap: 12px; margin-bottom: 26px; }

@@ -6006,6 +6006,8 @@
       "{raffle:noraffle:user}",
       "{raffle:mins}",
       "{raffle:opened:mins}",
+      "{raffle:secs}",
+      "{raffle:opened:secs}",
       "{raffle:targets}",
       "{raffle:won:targets}",
       "{raffle:won:count}",
@@ -6088,12 +6090,22 @@
       },
       {
         "syntax": "{raffle:mins}",
-        "output": "10",
+        "output": "1",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:opened:mins}",
-        "output": "10",
+        "output": "1",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:secs}",
+        "output": "60",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:opened:secs}",
+        "output": "60",
         "surfaceId": "custom"
       },
       {

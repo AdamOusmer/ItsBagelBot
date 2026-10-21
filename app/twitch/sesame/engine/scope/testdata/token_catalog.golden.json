@@ -623,6 +623,8 @@
         "{raffle:noraffle:user}",
         "{raffle:mins}",
         "{raffle:opened:mins}",
+        "{raffle:secs}",
+        "{raffle:opened:secs}",
         "{raffle:targets}",
         "{raffle:won:targets}",
         "{raffle:won:count}",

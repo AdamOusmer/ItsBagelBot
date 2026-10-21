@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent"
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
+	"ItsBagelBot/internal/domain/invalidate"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/testdb"
@@ -28,6 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+const invalidationPrefix = "test.invalidate"
 
 type harness struct {
 	nc     *nats.Conn
@@ -53,7 +56,7 @@ func newHarness(t *testing.T) *harness {
 	repo := loyaltyrepo.NewLoyalty(client, drv, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 	nc := testnats.Connect(t)
-	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo}, "loyalty"))
+	require.NoError(t, Subscribe(Wiring{RPCWiring: bus.RPCWiring{NC: nc, Log: zap.NewNop()}, Repo: repo, InvalidationPrefix: invalidationPrefix}, "loyalty"))
 	return &harness{nc: nc, repo: repo, client: client}
 }
 
@@ -99,6 +102,43 @@ func requireRefused(t *testing.T, reply loyaltyrpc.Reply) {
 	assert.NotEmpty(t, reply.Error)
 	assert.False(t, reply.Found)
 	assert.False(t, reply.Spent)
+}
+
+func TestHandleBalanceResetZeroesChannel(t *testing.T) {
+	h := newHarness(t)
+
+	reply := h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "2"})
+
+	assert.Equal(t, loyaltyrpc.Reply{Total: 2}, reply)
+	h.requireStored(t, map[uint64]int64{7: 0, 8: 0})
+}
+
+func TestHandleBalanceResetRefusesInvalidUser(t *testing.T) {
+	h := newHarness(t)
+	sub, err := h.nc.SubscribeSync(invalidationPrefix + "." + loyaltyrpc.InvalidateScope)
+	require.NoError(t, err)
+
+	requireRefused(t, h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "0"}))
+	requireRefused(t, h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "nope"}))
+
+	h.requireStored(t, map[uint64]int64{7: 1000, 8: 100})
+	_, err = sub.NextMsg(200 * time.Millisecond)
+	assert.ErrorIs(t, err, nats.ErrTimeout)
+}
+
+func TestHandleBalanceResetBroadcastsInvalidation(t *testing.T) {
+	h := newHarness(t)
+	sub, err := h.nc.SubscribeSync(invalidationPrefix + "." + loyaltyrpc.InvalidateScope)
+	require.NoError(t, err)
+	require.NoError(t, h.nc.Flush())
+
+	h.call(t, "balance.reset", loyaltyrpc.Request{UserID: "2"})
+
+	msg, err := sub.NextMsg(3 * time.Second)
+	require.NoError(t, err)
+	var dto invalidate.DTO
+	require.NoError(t, codec.Unmarshal(msg.Data, &dto))
+	assert.Equal(t, "2", dto.BroadcasterID)
 }
 
 func TestHandleBalanceAdjustCreatesResolvedViewer(t *testing.T) {
