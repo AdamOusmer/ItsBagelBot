@@ -150,22 +150,6 @@ func (s LinkGuardSettings) Allowed(raw string) bool {
 	return false
 }
 
-type TierRooms struct {
-	SubsChannelID  string
-	SubsCategoryID string
-	VIPChannelID   string
-	VIPCategoryID  string
-}
-
-func (s SubscribersSettings) TierRooms() TierRooms {
-	return TierRooms{
-		SubsChannelID:  s.SubsChannelID,
-		SubsCategoryID: s.SubsCategoryID,
-		VIPChannelID:   s.VIPChannelID,
-		VIPCategoryID:  s.VIPCategoryID,
-	}
-}
-
 func (v VoiceSettings) Name(owner string) string {
 	tpl := strings.TrimSpace(v.VoiceNameTemplate)
 	if tpl == "" {

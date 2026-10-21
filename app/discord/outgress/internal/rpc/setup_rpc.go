@@ -462,17 +462,7 @@ func (d *discordRPC) handleModuleList(ctx context.Context, req outgressrpc.Disco
 		message, code := discordFailure(err)
 		return outgressrpc.DiscordModuleListReply{Error: message, Code: code}
 	}
-	return outgressrpc.DiscordModuleListReply{Modules: orderedRows(mods), Found: found}
-}
-
-func orderedRows(mods ddiscord.GuildModules) []ddiscord.ModuleRow {
-	out := make([]ddiscord.ModuleRow, 0, len(mods.Rows))
-	for _, spec := range ddiscord.Modules {
-		if row, ok := mods.Rows[spec.Name]; ok {
-			out = append(out, row)
-		}
-	}
-	return out
+	return outgressrpc.DiscordModuleListReply{Modules: mods.Ordered(), Found: found}
 }
 
 func (d *discordRPC) handleModuleSet(ctx context.Context, req outgressrpc.DiscordModuleSetRequest) outgressrpc.DiscordModuleSetReply {
@@ -502,15 +492,7 @@ func invalidModuleFields(req outgressrpc.DiscordModuleSetRequest) []string {
 	if !ddiscord.Stored(req.Name) {
 		return []string{"name"}
 	}
-	var out []string
-	seen := map[string]bool{}
-	for _, fe := range ddiscord.ValidateModule(req.Name, req.Settings) {
-		if !seen[fe.Field] {
-			seen[fe.Field] = true
-			out = append(out, fe.Field)
-		}
-	}
-	return out
+	return ddiscord.ValidateModuleFields(req.Name, req.Settings)
 }
 
 func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.DiscordGuildsListRequest) outgressrpc.DiscordGuildsListReply {

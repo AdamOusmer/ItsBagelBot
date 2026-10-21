@@ -59,9 +59,5 @@ func validateModuleSet(req discorddata.ModuleSetRequest) []string {
 	if !validGuildID(req.GuildID) {
 		return []string{"guildId"}
 	}
-	var names []string
-	for _, f := range ddiscord.ValidateModule(req.Name, req.Settings) {
-		names = append(names, f.Field)
-	}
-	return names
+	return ddiscord.ValidateModuleFields(req.Name, req.Settings)
 }

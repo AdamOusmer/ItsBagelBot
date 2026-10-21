@@ -23,7 +23,6 @@ func TestBuildRegistersAllThreeAxes(t *testing.T) {
 		Build()
 
 	require.Equal(t, ddiscord.ModuleTickets, m.Name)
-	require.Equal(t, ddiscord.ModuleDefault, m.Kind)
 	require.Contains(t, m.Events, "GUILD_CREATE")
 	require.Contains(t, m.Slash, "ticket")
 	require.Contains(t, m.Buttons, "bagel:ticket:open")
@@ -45,11 +44,6 @@ func TestBuildRefusesAnInvalidModule(t *testing.T) {
 			require.Panics(t, func() { tc.build() })
 		})
 	}
-}
-
-func TestBuildDerivesKindFromTheModuleTable(t *testing.T) {
-	require.Equal(t, ddiscord.ModuleOptIn, module.NewModule(ddiscord.ModuleLinkGuard).Build().Kind)
-	require.Equal(t, ddiscord.ModuleCore, module.NewModule(ddiscord.ModuleIdentity).Build().Kind)
 }
 
 func TestContextReadsOwnSettingsAndPeers(t *testing.T) {

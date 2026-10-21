@@ -40,7 +40,6 @@ type Handler func(ctx context.Context, c *Context, emit Emit) error
 
 type Module struct {
 	Name    string
-	Kind    ddiscord.ModuleKind
 	Events  map[string]Handler
 	Slash   map[string]Handler
 	Buttons map[string]Handler

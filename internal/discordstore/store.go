@@ -64,11 +64,6 @@ type SetModule struct {
 	ExpectedVersion int
 }
 
-type GuildConfigOf struct {
-	Guild  Guild
-	Config ddiscord.Config
-}
-
 type Store interface {
 	Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
 	// Ownership checks must use BindingOf and refuse BindingFromCache.

@@ -16,7 +16,7 @@
   import type { Snippet } from 'svelte';
   import type { DiscordLayout } from '$lib/server/discord-store';
   import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
-  import { FIELD_LIMITS, PLACEHOLDER_DEFAULTS, SEGMENTED_NUMBERS } from '$lib/discord/module-view';
+  import { fieldLimit, PLACEHOLDER_DEFAULTS, SEGMENTED_NUMBERS } from '$lib/discord/module-view';
   import { categoriesOf, rolesOf, textChannelsOf, voiceChannelsOf } from '$lib/discord/guild-view';
   import ChannelListField from './ChannelListField.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
@@ -117,7 +117,7 @@
         aria-describedby="dch-{f.key}"
         fill
         rows={4}
-        maxlength={FIELD_LIMITS[f.key]?.max}
+        maxlength={fieldLimit(f.key)?.max}
         placeholder={hintOf(f)}
         value={valueOf(f)}
         oninput={(e: Event & { currentTarget: HTMLTextAreaElement }) => draft.set(f.key, e.currentTarget.value)}
@@ -148,9 +148,9 @@
         aria-describedby="dch-{f.key}"
         type={f.type === 'number' ? 'number' : 'text'}
         inputmode={f.type === 'number' ? 'numeric' : undefined}
-        min={FIELD_LIMITS[f.key]?.min}
-        max={f.type === 'number' ? FIELD_LIMITS[f.key]?.max : undefined}
-        maxlength={f.type === 'number' ? undefined : FIELD_LIMITS[f.key]?.max}
+        min={fieldLimit(f.key)?.min}
+        max={f.type === 'number' ? fieldLimit(f.key)?.max : undefined}
+        maxlength={f.type === 'number' ? undefined : fieldLimit(f.key)?.max}
         placeholder={hintOf(f)}
         value={valueOf(f)}
         oninput={(e: Event & { currentTarget: HTMLInputElement }) => draft.set(f.key, e.currentTarget.value)}

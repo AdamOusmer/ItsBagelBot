@@ -7,43 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"ItsBagelBot/pkg/codec"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func wantToggle(onByDefault bool, value string) bool {
 	return value == "on" || (onByDefault && value != "off")
 }
 
-func TestToggleDefaults(t *testing.T) {
-	toggles := []struct {
-		name        string
-		set         func(*Config, string)
-		read        func(Config) bool
-		onByDefault bool
-	}{
-		{"live", func(c *Config, v string) { c.LiveEnabled = v }, Config.LiveOn, true},
-		{"clips", func(c *Config, v string) { c.ClipsEnabled = v }, Config.ClipsOn, true},
-		{"welcome", func(c *Config, v string) { c.WelcomeEnabled = v }, Config.WelcomeOn, true},
-		{"voice", func(c *Config, v string) { c.VoiceEnabled = v }, Config.VoiceOn, true},
-		{"tickets", func(c *Config, v string) { c.TicketsEnabled = v }, Config.TicketsOn, true},
-		{"levels", func(c *Config, v string) { c.LevelsEnabled = v }, Config.LevelsOn, true},
-		{"ticket transcript", func(c *Config, v string) { c.TicketTranscriptEnabled = v }, Config.TicketTranscriptOn, true},
-		{"autorole", func(c *Config, v string) { c.AutoRoleEnabled = v }, Config.AutoRoleOn, true},
-		{"log ignore bots", func(c *Config, v string) { c.LogIgnoreBots = v }, Config.LogIgnoreBotsOn, true},
-		{"goodbye", func(c *Config, v string) { c.GoodbyeEnabled = v }, Config.GoodbyeOn, false},
-		{"link guard", func(c *Config, v string) { c.LinkGuardEnabled = v }, Config.LinkGuardOn, false},
-	}
-	for _, tc := range toggles {
-		for _, value := range []string{"", "on", "off", "yes"} {
-			t.Run(tc.name+"/"+value, func(t *testing.T) {
-				var c Config
-				tc.set(&c, value)
-				assert.Equal(t, wantToggle(tc.onByDefault, value), tc.read(c))
-			})
-		}
+func TestSettingToggleDefaults(t *testing.T) {
+	for _, value := range []string{"", "on", "off", "yes"} {
+		assert.Equal(t, wantToggle(true, value), TicketSettings{TicketTranscriptEnabled: value}.TranscriptOn(), "transcript %q", value)
+		assert.Equal(t, wantToggle(true, value), LogsSettings{LogIgnoreBots: value}.IgnoreBotsOn(), "ignore bots %q", value)
 	}
 }
 
@@ -61,7 +35,7 @@ func TestCategoryAllowed(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.cfg.CategoryAllowed(tc.category))
+			assert.Equal(t, tc.want, tc.cfg.live().CategoryAllowed(tc.category))
 		})
 	}
 }
@@ -88,7 +62,7 @@ func TestTicketOpenLimitNClamps(t *testing.T) {
 		" 4 ":  4,
 	}
 	for raw, want := range cases {
-		assert.Equal(t, want, Config{TicketOpenLimit: raw}.TicketOpenLimitN(), "limit %q", raw)
+		assert.Equal(t, want, TicketSettings{TicketOpenLimit: raw}.OpenLimitN(), "limit %q", raw)
 	}
 }
 
@@ -151,19 +125,10 @@ func TestTicketStaffAndLogFallbacks(t *testing.T) {
 	withOwn.TicketStaffRoles = "h1, h2"
 	withOwn.TicketLogChannelID = "tickets-log"
 
-	assert.Equal(t, []string{"o", "l", "m"}, base.TicketStaffRoleIDs(), "the StaffRoleIDs fallback")
-	assert.Equal(t, "log", base.TicketLogChannel(), "the general log fallback")
-	assert.Equal(t, []string{"h1", "h2"}, withOwn.TicketStaffRoleIDs(), "the explicit list")
-	assert.Equal(t, "tickets-log", withOwn.TicketLogChannel(), "the explicit channel")
-}
-
-func TestTierRoomsReadFromSubscriberSettings(t *testing.T) {
-	raw := []byte(`{"subsChannelId":"1","subsCategoryId":"2","vipChannelId":"3","vipCategoryId":"4"}`)
-
-	var rooms SubscribersSettings
-	require.NoError(t, codec.Unmarshal(raw, &rooms))
-
-	assert.Equal(t, TierRooms{SubsChannelID: "1", SubsCategoryID: "2", VIPChannelID: "3", VIPCategoryID: "4"}, rooms.TierRooms())
+	assert.Equal(t, []string{"o", "l", "m"}, base.tickets().StaffRoleIDs(base.roles()), "the StaffRoleIDs fallback")
+	assert.Equal(t, "log", base.tickets().LogChannel(base.logs()), "the general log fallback")
+	assert.Equal(t, []string{"h1", "h2"}, withOwn.tickets().StaffRoleIDs(withOwn.roles()), "the explicit list")
+	assert.Equal(t, "tickets-log", withOwn.tickets().LogChannel(withOwn.logs()), "the explicit channel")
 }
 
 func TestParseHexColor(t *testing.T) {
@@ -188,7 +153,7 @@ func TestParseHexColor(t *testing.T) {
 	}
 }
 
-func TestLogCategoryOnNeedsBothSwitches(t *testing.T) {
+func TestLogCategoryOnFollowsItsSwitch(t *testing.T) {
 	cases := []struct {
 		cat LogCategory
 		set func(*Config, string)
@@ -204,33 +169,30 @@ func TestLogCategoryOnNeedsBothSwitches(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.cat), func(t *testing.T) {
 			var c Config
-			assert.True(t, c.LogCategoryOn(tc.cat), "blank means on")
+			assert.True(t, c.logs().CategoryOn(tc.cat), "blank means on")
 			tc.set(&c, "off")
-			assert.False(t, c.LogCategoryOn(tc.cat))
-			tc.set(&c, "on")
-			c.LogsEnabled = "off"
-			assert.False(t, c.LogCategoryOn(tc.cat), "master switch off wins")
+			assert.False(t, c.logs().CategoryOn(tc.cat))
 		})
 	}
-	assert.False(t, Config{}.LogCategoryOn("bogus"))
+	assert.False(t, LogsSettings{}.CategoryOn("bogus"))
 }
 
 func TestLogChannelForFallsBackToTheGeneralChannel(t *testing.T) {
-	c := Config{LogChannelID: "general", LogVoiceChannelID: " voice "}
+	l := LogsSettings{LogChannelID: "general", LogVoiceChannelID: " voice "}
 
-	assert.Equal(t, "voice", c.LogChannelFor(LogVoice))
-	assert.Equal(t, "general", c.LogChannelFor(LogMessages))
-	assert.Equal(t, "general", c.LogChannelFor(LogRoles), "categories without their own channel use the general one")
-	assert.Empty(t, Config{}.LogChannelFor(LogVoice))
+	assert.Equal(t, "voice", l.ChannelFor(LogVoice))
+	assert.Equal(t, "general", l.ChannelFor(LogMessages))
+	assert.Equal(t, "general", l.ChannelFor(LogRoles), "categories without their own channel use the general one")
+	assert.Empty(t, LogsSettings{}.ChannelFor(LogVoice))
 }
 
 func TestLogIgnores(t *testing.T) {
-	c := Config{LogIgnoredChannels: "10, 20,,30"}
+	l := LogsSettings{LogIgnoredChannels: "10, 20,,30"}
 
-	assert.True(t, c.LogIgnores("20"))
-	assert.False(t, c.LogIgnores("40"))
-	assert.False(t, c.LogIgnores(""))
-	assert.False(t, Config{}.LogIgnores("20"))
+	assert.True(t, l.Ignores("20"))
+	assert.False(t, l.Ignores("40"))
+	assert.False(t, l.Ignores(""))
+	assert.False(t, LogsSettings{}.Ignores("20"))
 }
 
 func TestVoiceName(t *testing.T) {
@@ -244,22 +206,22 @@ func TestVoiceName(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, Config{VoiceNameTemplate: tc.tpl}.VoiceName("Ada"))
+			assert.Equal(t, tc.want, VoiceSettings{VoiceNameTemplate: tc.tpl}.Name("Ada"))
 		})
 	}
 }
 
 func TestVoiceCategorySet(t *testing.T) {
-	assert.False(t, Config{}.VoiceCategorySet())
-	assert.False(t, Config{VoiceCategoryID: "  "}.VoiceCategorySet())
-	assert.True(t, Config{VoiceCategoryID: "c1"}.VoiceCategorySet())
+	assert.False(t, VoiceSettings{}.CategorySet())
+	assert.False(t, VoiceSettings{VoiceCategoryID: "  "}.CategorySet())
+	assert.True(t, VoiceSettings{VoiceCategoryID: "c1"}.CategorySet())
 }
 
 func TestVoiceLimitAndPrivacyDefaults(t *testing.T) {
 	for raw, want := range map[string]int{"": 0, "0": 0, "7": 7, "99": 99, "100": 0, "-1": 0, "x": 0} {
-		assert.Equal(t, want, Config{VoiceUserLimit: raw}.VoiceLimit(), "limit %q", raw)
+		assert.Equal(t, want, VoiceSettings{VoiceUserLimit: raw}.Limit(), "limit %q", raw)
 	}
 	for raw, want := range map[string]string{"": "open", "open": "open", "locked": "locked", "hidden": "hidden", "bogus": "open"} {
-		assert.Equal(t, want, Config{VoicePrivacyMode: raw}.VoicePrivacy(), "privacy %q", raw)
+		assert.Equal(t, want, VoiceSettings{VoicePrivacyMode: raw}.Privacy(), "privacy %q", raw)
 	}
 }

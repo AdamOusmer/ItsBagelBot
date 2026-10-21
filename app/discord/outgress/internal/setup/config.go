@@ -94,11 +94,7 @@ func (w *Worker) newChannelIDs(ctx context.Context, guildID string, cfg ddiscord
 	if !found {
 		return wanted
 	}
-	rows := make([]ddiscord.ModuleRow, 0, len(mods.Rows))
-	for _, row := range mods.Rows {
-		rows = append(rows, row)
-	}
-	stored := ddiscord.JoinModules(guildID, rows)
+	stored := ddiscord.JoinModules(guildID, mods.Ordered())
 	known := make(map[string]bool)
 	for _, id := range configChannelIDs(stored) {
 		known[id] = true

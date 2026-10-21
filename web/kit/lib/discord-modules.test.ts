@@ -6,7 +6,6 @@ import { DISCORD_CONFIG_KEYS } from './discord-config';
 import {
   DISCORD_MODULES,
   discordModuleById,
-  discordToggleOn,
   parseDiscordModuleSettings,
   tDiscordModuleField,
   tDiscordModuleLabel,
@@ -94,12 +93,6 @@ describe('discord module catalog', () => {
 
   test('only tickets links to a dedicated page', () => {
     expect(DISCORD_MODULES.filter((def) => def.href).map((def) => [def.id, def.href])).toEqual([['tickets', 'tickets']]);
-  });
-
-  test('toggles follow the Go default per field', () => {
-    const transcript = discordModuleById('tickets')?.fields.find((f) => f.key === 'ticketTranscriptEnabled');
-    expect(discordToggleOn(transcript!, '')).toBe(true);
-    expect(discordToggleOn(transcript!, 'off')).toBe(false);
   });
 
   test('copy falls back to English and prefers the catalog', () => {

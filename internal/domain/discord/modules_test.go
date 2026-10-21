@@ -65,14 +65,12 @@ func TestAbsentRowSemanticsFollowKind(t *testing.T) {
 }
 
 func TestEnableSemanticsMatchTheLegacyFlags(t *testing.T) {
-	legacy := map[string]func(Config) bool{
-		ModuleLive: Config.LiveOn, ModuleClips: Config.ClipsOn, ModuleWelcome: Config.WelcomeOn,
-		ModuleGoodbye: Config.GoodbyeOn, ModuleAutoRole: Config.AutoRoleOn, ModuleVoice: Config.VoiceOn, ModuleTickets: Config.TicketsOn,
-		ModuleLevels: Config.LevelsOn, ModuleLinkGuard: Config.LinkGuardOn,
-		ModuleLogs:        func(c Config) bool { return wantToggle(true, c.LogsEnabled) },
-		ModuleSubscribers: func(c Config) bool { return wantToggle(false, c.SubscribersEnabled) },
+	onByDefault := map[string]bool{
+		ModuleLive: true, ModuleClips: true, ModuleWelcome: true, ModuleGoodbye: false, ModuleAutoRole: true,
+		ModuleVoice: true, ModuleTickets: true, ModuleLevels: true, ModuleLinkGuard: false, ModuleLogs: true,
+		ModuleSubscribers: false,
 	}
-	for name, read := range legacy {
+	for name, def := range onByDefault {
 		spec, _ := Spec(name)
 		for _, value := range []string{"", "on", "off", "yes"} {
 			cfg := Config{}
@@ -82,7 +80,7 @@ func TestEnableSemanticsMatchTheLegacyFlags(t *testing.T) {
 				rows[row.Name] = row
 			}
 			mods := GuildModules{Rows: rows}
-			assert.Equal(t, read(cfg), mods.On(name), "%s=%q", name, value)
+			assert.Equal(t, wantToggle(def, value), mods.On(name), "%s=%q", name, value)
 		}
 	}
 }

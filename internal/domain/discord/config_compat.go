@@ -118,20 +118,12 @@ func containsName(list []string, needle nameText) bool {
 }
 
 func splitCSV(s listText) []string {
-	if strings.TrimSpace(string(s)) == "" {
-		return nil
-	}
-	parts := strings.Split(string(s), ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if t := strings.ToLower(strings.TrimSpace(p)); t != "" {
-			out = append(out, t)
-		}
+	out := splitList(s)
+	for i, entry := range out {
+		out[i] = strings.ToLower(entry)
 	}
 	return out
 }
-
-func (c Config) LinkGuardOn() bool { return c.LinkGuardEnabled == "on" }
 
 func (c Config) roles() RolesSettings {
 	return RolesSettings{
@@ -180,44 +172,6 @@ func (c Config) tickets() TicketSettings {
 	}
 }
 
-func (c Config) TicketTranscriptOn() bool { return c.tickets().TranscriptOn() }
-
-func (c Config) LogCategoryOn(cat LogCategory) bool {
-	return alertOn(toggleText(c.LogsEnabled)) && c.logs().CategoryOn(cat)
-}
-
-func (c Config) LogChannelFor(cat LogCategory) string { return c.logs().ChannelFor(cat) }
-
 func (c Config) LogIgnoredChannelIDs() []string { return c.logs().IgnoredChannelIDs() }
 
-func (c Config) LogIgnores(channelID nameText) bool { return c.logs().Ignores(string(channelID)) }
-
-func (c Config) LogIgnoreBotsOn() bool { return c.logs().IgnoreBotsOn() }
-
-func (c Config) VoiceName(owner nameText) string { return c.voice().Name(string(owner)) }
-
-func (c Config) VoiceCategorySet() bool { return c.voice().CategorySet() }
-
-func (c Config) VoiceLimit() int { return c.voice().Limit() }
-
-func (c Config) VoicePrivacy() string { return c.voice().Privacy() }
-
-func (c Config) TicketArchiveCategory() string { return c.tickets().ArchiveCategory() }
-
-func (c Config) TicketStaffRoleIDs() []string { return c.tickets().StaffRoleIDs(c.roles()) }
-
-func (c Config) TicketOpenLimitN() int { return c.tickets().OpenLimitN() }
-
-func (c Config) TicketLogChannel() string { return c.tickets().LogChannel(c.logs()) }
-
 func (c Config) TicketPanel() TicketPanelSpec { return c.tickets().Panel() }
-
-func (c Config) CategoryAllowed(category string) bool { return c.live().CategoryAllowed(category) }
-
-func (c Config) HasCategoryAllow() bool { return c.live().HasCategoryAllow() }
-
-func (c Config) LinkAllowed(raw string) bool {
-	return LinkGuardSettings{LinkAllowList: c.LinkAllowList}.Allowed(raw)
-}
-
-func (c Config) StaffRoleIDs() []string { return c.roles().StaffRoleIDs() }

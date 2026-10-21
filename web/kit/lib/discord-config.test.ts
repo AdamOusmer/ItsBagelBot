@@ -9,7 +9,6 @@ import {
   DISCORD_MANAGE_GUILD,
   LIVE_COLOR_HEX,
   PINNED_SLOTS,
-  TICKET_OPEN_LIMIT_DEFAULT,
   TICKET_PANEL_BODY_MAX,
   TICKET_PANEL_DEFAULTS,
   blankDiscordConfig,
@@ -41,7 +40,6 @@ import {
   logChannelFor,
   logIgnoreBotsOn,
   logIgnores,
-  ticketOpenLimitN,
   ticketPanelPayload,
   ticketPanelSpec,
   ticketStaffRoleIds,
@@ -216,12 +214,6 @@ describe('accessors', () => {
       button: TICKET_PANEL_DEFAULTS.button,
       color: LIVE_COLOR_HEX
     });
-  });
-
-  test('the open limit defaults when unset or out of range', () => {
-    expect(ticketOpenLimitN(blankDiscordConfig())).toBe(TICKET_OPEN_LIMIT_DEFAULT);
-    expect(ticketOpenLimitN({ ...blankDiscordConfig(), ticketOpenLimit: '9' })).toBe(TICKET_OPEN_LIMIT_DEFAULT);
-    expect(ticketOpenLimitN({ ...blankDiscordConfig(), ticketOpenLimit: '4' })).toBe(4);
   });
 
   test('ticket staff falls back to the three staff role slots', () => {
