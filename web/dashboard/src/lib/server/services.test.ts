@@ -62,6 +62,7 @@ test.each([
   { scope: 'live', id: '42', kept: ['state:42', 'commands:42', 'notifications:42', 'notifications:7'] },
   { scope: 'token-warm', id: '42', kept: KEYS },
   { scope: 'outgress', id: '42', kept: KEYS },
+  { scope: 'loyalty', id: '42', kept: KEYS },
   { scope: 'notifications', id: '*', kept: ['state:42', 'stream-meta:42', 'commands:42'] },
   { scope: 'notifications', id: '42', kept: ['state:42', 'stream-meta:42', 'commands:42', 'notifications:7'] },
   { scope: 'unmapped_scope', id: '42', kept: ['stream-meta:42', 'notifications:42', 'notifications:7'] }
@@ -132,3 +133,4 @@ test('cached notifications reload once the earliest one expires', async () => {
   expect(rpcCalls).toEqual(['bagel.rpc.notifications.list', 'bagel.rpc.notifications.list']);
   setSystemTime();
 });
+

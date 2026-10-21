@@ -73,6 +73,7 @@ func main() {
 	defer loyaltyReporter.Close()
 	chatters := engine.NewValkeyChatters(valkeyClient, log)
 	loyalty, loyaltyTick := newLoyalty(w, loyaltyDeps{proj: proj, live: live, reporter: loyaltyReporter, chatters: chatters})
+	defer loyalty.Close()
 
 	raffle := newRaffle(w, proj, loyalty)
 	duel := newDuel(w, proj, loyalty)
