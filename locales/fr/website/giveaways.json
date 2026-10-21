@@ -21,7 +21,7 @@
   "step1Title": "Activez Raffle",
   "step1Desc": "Connectez-vous avec Twitch, associez votre chaîne et activez le module Raffle. Il est désactivé par défaut.",
   "step2Title": "Choisissez une durée de tirage",
-  "step2Desc": "Utilisez !raffle open 10 1 5 pour un tirage de 10 minutes, 1 gagnant et des rappels toutes les 5 minutes. Définissez le dernier nombre sur 0 pour désactiver les rappels.",
+  "step2Desc": "Utilisez !raffle 1000 60 pour un tirage d'une minute où un gagnant empoche 1000 points, ou !mraffle 5k 120 pour répartir 5000 points entre plusieurs gagnants.",
   "step3Title": "Invitez les viewers à participer",
   "step3Desc": "Les viewers tapent !join tant que les inscriptions sont ouvertes. À la fin du tirage, chaque gagnant a 15 minutes pour confirmer avec !claim.",
   "tblTitle": "Commandes de tirage au sort et exemples de réponses.",

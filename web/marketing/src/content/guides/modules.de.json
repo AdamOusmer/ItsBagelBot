@@ -92,7 +92,7 @@
   "catalog.b1.props.modules.14.start": "Standardmäßig inaktiv",
   "catalog.b1.props.modules.14.tagline": "Lass Zuschauer sich für ein Spiel mit dir anstellen, wer zuerst kommt, spielt zuerst.",
   "catalog.b1.props.modules.15.cat": "Spielen",
-  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle, !raffle open [minuten] [gewinner] [erinnerung], !raffle draw [gewinner], !raffle close, !raffle cancel",
+  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle [betrag] [sekunden], !sraffle, !mraffle, !raffle draw [gewinner], !raffle close, !raffle cancel, !cancelraffle",
   "catalog.b1.props.modules.15.name": "Verlosung",
   "catalog.b1.props.modules.15.needs": "Verlosung übernimmt !join, wenn auch die Spielwarteschlange aktiv ist.",
   "catalog.b1.props.modules.15.start": "Standardmäßig inaktiv",

@@ -300,3 +300,79 @@ func TestValkeyRaffleSweepDrawsARaffleWhoseExpiryWasMissed(t *testing.T) {
 	due, err := store.client.Do(ctx, store.client.B().Zscore().Key(raffleDueKey).Member(member).Build()).ToString()
 	assert.Error(t, err, "a drawn raffle leaves the due index, got %q", due)
 }
+
+func TestValkeyMultiRaffleWinnersFollowTheEntrantBrackets(t *testing.T) {
+	cases := []struct{ entrants, want int }{
+		{1, 1}, {2, 1}, {3, 1}, {10, 5}, {11, 2}, {20, 5}, {21, 4}, {50, 10}, {51, 6}, {200, 25}, {201, 10}, {450, 22},
+	}
+	for _, tc := range cases {
+		t.Run(strconv.Itoa(tc.entrants), func(t *testing.T) {
+			store, id := raffleStoreFor(t)
+			entrants := numberedEntrants(tc.entrants)
+			openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Multi: true}, entrants})
+
+			res, err := store.Draw(context.Background(), id, 0)
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.Len(t, uniqueStrings(winnerIDs(res.Winners)), tc.want)
+			assert.Len(t, res.Winners, tc.want)
+		})
+	}
+}
+
+func TestValkeyMultiRaffleCapsWinnersAndSplitsThePrize(t *testing.T) {
+	wallet := &fakeRaffleWallet{}
+	cfg := RaffleConfig{AnnouncementConfig: AnnouncementConfig{Proj: loyaltyReader(true, "")}, Wallet: wallet}
+	store, id := raffleStoreWith(t, cfg)
+	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Multi: true, Prize: 1000}, numberedEntrants(2400)})
+
+	res, err := store.Draw(context.Background(), id, 0)
+
+	require.NoError(t, err)
+	assert.Len(t, res.Winners, maxRaffleWinners)
+	var paid int64
+	for _, w := range wallet.credits {
+		paid += w.Points
+	}
+	assert.EqualValues(t, 1000, paid)
+}
+
+func TestValkeyRaffleOverrideBeatsTheMultiBrackets(t *testing.T) {
+	store, id := raffleStoreFor(t)
+	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Multi: true}, numberedEntrants(10)})
+
+	res, err := store.Draw(context.Background(), id, 2)
+
+	require.NoError(t, err)
+	assert.Len(t, res.Winners, 2)
+}
+
+func TestValkeyRaffleOpenHonorsShortDurationsAndSkipsLateReminders(t *testing.T) {
+	cases := []struct {
+		name       string
+		duration   time.Duration
+		maxLeft    int64
+		wantRemind bool
+	}{
+		{"below the minimum rounds up to five seconds", time.Second, 5, false},
+		{"a one minute raffle gets no reminder", time.Minute, 60, false},
+		{"a ten minute raffle keeps the reminder", 10 * time.Minute, 600, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, id := raffleStoreFor(t)
+			ctx := context.Background()
+			openAndJoin(t, store, id, raffleSetup{spec: RaffleOpenSpec{Duration: tc.duration}})
+
+			status, err := store.Status(ctx, id)
+			remind, remindErr := store.client.Do(ctx, store.client.B().Exists().Key(raffleKey(raffleRemindPrefix, id)).Build()).AsInt64()
+
+			require.NoError(t, err)
+			require.NoError(t, remindErr)
+			assert.True(t, status.Open)
+			assert.InDelta(t, tc.maxLeft, status.SecondsLeft, 1)
+			assert.Equal(t, tc.wantRemind, remind == 1)
+		})
+	}
+}

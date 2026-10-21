@@ -790,7 +790,8 @@
       {
         "name": "opened",
         "fields": [
-          "mins"
+          "mins",
+          "secs"
         ],
         "message_key": "openedMessage"
       },
