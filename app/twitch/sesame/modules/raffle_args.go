@@ -12,8 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 )
 
-const raffleMaxSeconds = 24 * 60 * 60
-
 type raffleStart struct {
 	prize    int64
 	duration time.Duration
@@ -42,7 +40,7 @@ func raffleSecondsOr(arg string, fallback time.Duration) (time.Duration, bool) {
 		return fallback, true
 	}
 	seconds, err := strconv.ParseUint(arg, 10, 32)
-	return time.Duration(min(seconds, raffleMaxSeconds)) * time.Second, err == nil
+	return engine.ClampRaffleDuration(time.Duration(seconds) * time.Second), err == nil
 }
 
 func parseRaffleAmount(arg string) (int64, bool) {

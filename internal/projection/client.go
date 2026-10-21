@@ -268,7 +268,9 @@ func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleV
 		reply, err := bus.RequestJSONTimeout[modulesReply](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
 			loadSource(ctx, "projection.modules.source", "rpc_error")
-			c.moduleOutages.Set(outageKey, err)
+			if ctx.Err() == nil {
+				c.moduleOutages.Set(outageKey, err)
+			}
 			// An empty map here would be cached for the TTL and silently disable automod.
 			return nil, err
 		}
