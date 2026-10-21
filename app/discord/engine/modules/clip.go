@@ -43,7 +43,7 @@ func (c *Clip) announce(ctx context.Context, created eventdata.ClipCreated) {
 		return
 	}
 	for _, guild := range c.Resolve(ctx, id) {
-		channelID, ok := clipsChannel(guild.Config)
+		channelID, ok := clipsChannel(guild.Modules)
 		if !ok {
 			continue
 		}
@@ -55,8 +55,9 @@ func (c *Clip) announce(ctx context.Context, created eventdata.ClipCreated) {
 	}
 }
 
-func clipsChannel(cfg ddiscord.Config) (string, bool) {
-	if !moduleGateOpen(cfg, cfg.ClipsOn()) {
+func clipsChannel(mods ddiscord.GuildModules) (string, bool) {
+	cfg, ok := factSettings[ddiscord.ClipsSettings](mods, ddiscord.ModuleClips)
+	if !ok {
 		return "", false
 	}
 	channelID := strings.TrimSpace(cfg.ClipsChannelID)

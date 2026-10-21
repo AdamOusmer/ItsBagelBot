@@ -4,6 +4,7 @@
 package idempotency
 
 import (
+	"context"
 	"time"
 
 	"ItsBagelBot/pkg/bus"
@@ -78,9 +79,17 @@ func (cfg *Config) guardOne(next Handler, m *bus.Message) error {
 		cfg.Metrics.Duplicate()
 		return nil
 	}
-	if herr := next(m); herr != nil {
-		_ = cfg.Store.Release(ctx, k)
-		return herr
-	}
-	return nil
+	return cfg.runClaimed(ctx, k, next, m)
+}
+
+func (cfg *Config) runClaimed(ctx context.Context, k string, next Handler, m *bus.Message) (err error) {
+	done := false
+	defer func() {
+		if !done || err != nil {
+			_ = cfg.Store.Release(ctx, k)
+		}
+	}()
+	err = next(m)
+	done = true
+	return err
 }

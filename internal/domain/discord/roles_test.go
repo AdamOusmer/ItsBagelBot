@@ -27,7 +27,7 @@ func TestPinnedRoleMapParses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Config{PinnedRoles: tc.raw}.PinnedRoleMap()
+			got := RolesSettings{PinnedRoles: tc.raw}.PinnedRoleMap()
 			assert.Len(t, got, len(tc.want))
 			for slot, id := range tc.want {
 				assert.Equal(t, id, got[slot], slot)
@@ -37,7 +37,7 @@ func TestPinnedRoleMapParses(t *testing.T) {
 }
 
 func TestPinnedRoleLooksUpOneSlot(t *testing.T) {
-	cfg := Config{PinnedRoles: "mods=111,vip=222"}
+	cfg := RolesSettings{PinnedRoles: "mods=111,vip=222"}
 
 	assert.Equal(t, "111", cfg.PinnedRole(SlotMods))
 	assert.Empty(t, cfg.PinnedRole(SlotOwner), "an unpinned slot reads empty")
@@ -112,7 +112,7 @@ func TestFormatPinnedRoles(t *testing.T) {
 	raw := FormatPinnedRoles(pins)
 
 	assert.Equal(t, "mods=100000000000000001,owner=100000000000000002", raw, "slots are sorted")
-	assert.Equal(t, pins, Config{PinnedRoles: raw}.PinnedRoleMap(), "the format round trips")
+	assert.Equal(t, pins, RolesSettings{PinnedRoles: raw}.PinnedRoleMap(), "the format round trips")
 	assert.Empty(t, FormatPinnedRoles(nil), "no pins format as the empty (unset) field")
 
 	bad := ValidateConfig(Config{PinnedRoles: FormatPinnedRoles(map[string]string{SlotMods: ""})})

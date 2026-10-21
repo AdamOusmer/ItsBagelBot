@@ -8,8 +8,11 @@ and the [app map](../../../CONTEXT-MAP.md) for ownership across the Discord spli
 Ingress owns the fleet bot's gateway Identify session, heartbeat, Resume/reconnect,
 presence and gateway health. It wraps selected dispatches as events for Discord
 engine. It does not decide community behavior or execute general Discord REST.
-The one REST exception is deferring an interaction before Discord's three-second
-acknowledgement deadline; engine/outgress finish it later through a webhook.
+The one REST exception is deferring a gateway interaction before Discord's
+three-second acknowledgement deadline; engine/outgress finish it later through a
+webhook. Both replicas also serve Discord's HTTP Interactions Endpoint
+(`POST /discord/interactions`): signature verified, acknowledged inline with
+type 5 (no REST call), published as `INTERACTION_CREATE`.
 Two ingress replicas run for availability, but only the Valkey lease holder may
 hold a gateway socket per bot token. The standby holds no socket. Engine/outgress
 can scale without additional gateway Identify sessions.
@@ -47,6 +50,7 @@ can scale without additional gateway Identify sessions.
 | Resume checkpoint store | [checkpoint.go](internal/gateway/checkpoint.go) |
 | Wrap/routing/publish | [internal/relay/relay.go](internal/relay/relay.go): `Dispatch`, `publish`, `routeFields` |
 | Immediate interaction ACK | [internal/relay/ack.go](internal/relay/ack.go): `deferInteraction` |
+| HTTP Interactions Endpoint | [internal/relay/interactions.go](internal/relay/interactions.go): `Interactions.ServeHTTP`, `verifyKey`, `validSignature`; `Relay.PublishInteraction`; mounted in [main.go](main.go) |
 | Gateway status projection | [internal/botstatus/botstatus.go](internal/botstatus/botstatus.go) |
 | Presence reads/format | [internal/presence/source.go](internal/presence/source.go), [client.go](internal/presence/client.go), [format.go](internal/presence/format.go) |
 | Shared wire contracts | [Event](../../../internal/domain/discord/event.go), [stream definitions](../../../pkg/bus/streams.go) |
@@ -73,6 +77,15 @@ defer drops the event because downstream followup cannot complete unacknowledged
 work. Type 6 is inappropriate for the current panel flow: it puts the source
 panel into a loading/edit state instead of creating a new response.
 Interaction payloads include sensitive webhook tokens; avoid logging raw bodies.
+
+The HTTP endpoint verifies Ed25519 (`X-Signature-Ed25519` over timestamp plus
+raw body) with the application `verify_key`, fetched lazily and cached on
+success (failure is 503 and retried). PING returns `{"type":1}` unpublished.
+Other types publish confirmed with ID `interaction-<id>` on the interaction
+subject, then answer `{"type":5}`; a publish error is 500 so Discord surfaces
+failure instead of stranding a deferred response. Once the Developer Portal
+Interactions Endpoint URL is set, Discord stops sending `INTERACTION_CREATE`
+over the gateway (mutually exclusive), so the gateway defer path goes idle.
 
 The defer shares Valkey-backed fleet rate coordination with outgress because
 Discord's global API budget belongs to the bot token, not to one process.

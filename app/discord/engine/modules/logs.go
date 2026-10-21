@@ -32,14 +32,18 @@ type logEntry struct {
 }
 
 func logTo(c *module.Context, emit module.Emit, cat ddiscord.LogCategory, entry logEntry) {
-	if !c.Config.LogCategoryOn(cat) || c.Config.LogIgnores(entry.SourceChannelID) {
+	if !c.ModuleOn(ddiscord.ModuleLogs) {
 		return
 	}
-	channelID := c.Config.LogChannelFor(cat)
+	logs := peerOf[ddiscord.LogsSettings](c, ddiscord.ModuleLogs)
+	if !logs.CategoryOn(cat) || logs.Ignores(entry.SourceChannelID) {
+		return
+	}
+	channelID := logs.ChannelFor(cat)
 	if channelID == "" {
 		return
 	}
-	emit(cmd.PostEmbed(cmd.ChannelTarget(c.Config.GuildID, channelID), ddiscord.LogEmbed(ddiscord.LogLine{
+	emit(cmd.PostEmbed(cmd.ChannelTarget(c.GuildID, channelID), ddiscord.LogEmbed(ddiscord.LogLine{
 		Category: cat, Title: entry.Title, Body: entry.Body, Fields: entry.Fields, Footer: entry.Footer,
 	})))
 }
@@ -52,7 +56,11 @@ type logHandler[T any] func(ctx context.Context, c *module.Context, emit module.
 
 func logEvent[T any](cat ddiscord.LogCategory, fn logHandler[T]) module.Handler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
-		if !c.Config.LogCategoryOn(cat) {
+		logs, err := settingsOf[ddiscord.LogsSettings](c)
+		if err != nil {
+			return err
+		}
+		if !logs.CategoryOn(cat) {
 			return nil
 		}
 		ev, err := decode.Decode[T](c.Event.Raw)
@@ -65,7 +73,8 @@ func logEvent[T any](cat ddiscord.LogCategory, fn logHandler[T]) module.Handler 
 
 func Logs(store discordstore.Store) module.Module {
 	h := logsModule{store: store}
-	b := module.NewModule("logs")
+	b := module.NewModule(ddiscord.ModuleLogs)
+	b.On("MESSAGE_CREATE", h.onMessageCreate)
 	b.On("MESSAGE_DELETE", logEvent(ddiscord.LogMessages, h.messageDelete))
 	b.On("MESSAGE_UPDATE", logEvent(ddiscord.LogMessages, h.messageEdit))
 	b.On("MESSAGE_DELETE_BULK", logEvent(ddiscord.LogMessages, messageBulkDelete))
@@ -89,7 +98,7 @@ func Logs(store discordstore.Store) module.Module {
 }
 
 func skipBot(c *module.Context, bot bool) bool {
-	return bot && c.Config.LogIgnoreBotsOn()
+	return bot && peerOf[ddiscord.LogsSettings](c, ddiscord.ModuleLogs).IgnoreBotsOn()
 }
 
 func fieldText(s string) string {
@@ -379,7 +388,7 @@ func (h logsModule) channelLog(note channelNote) logHandler[decode.ChannelEvent]
 		if note.Created {
 			h.rememberName(ctx, channelRef(ev.GuildID, ev.ID), ev.Name)
 		}
-		if h.isTempVoiceRoom(ctx, c.Config, ev) {
+		if h.isTempVoiceRoom(ctx, peerOf[ddiscord.VoiceSettings](c, ddiscord.ModuleVoice), ev) {
 			return nil
 		}
 		logTo(c, emit, ddiscord.LogChannels, note.entry(ev, ev.ID))
@@ -394,7 +403,7 @@ func threadLog(note channelNote) logHandler[decode.ChannelEvent] {
 	}
 }
 
-func (h logsModule) isTempVoiceRoom(ctx context.Context, cfg ddiscord.Config, ev decode.ChannelEvent) bool {
+func (h logsModule) isTempVoiceRoom(ctx context.Context, cfg ddiscord.VoiceSettings, ev decode.ChannelEvent) bool {
 	if ev.Type != ddiscord.ChannelVoice {
 		return false
 	}
@@ -405,7 +414,7 @@ func (h logsModule) isTempVoiceRoom(ctx context.Context, cfg ddiscord.Config, ev
 	return tracked
 }
 
-func inVoiceCategory(cfg ddiscord.Config, ev decode.ChannelEvent) bool {
+func inVoiceCategory(cfg ddiscord.VoiceSettings, ev decode.ChannelEvent) bool {
 	return cfg.VoiceCategoryID != "" && ev.ParentID == cfg.VoiceCategoryID && ev.ID != cfg.VoiceHubID
 }
 
@@ -482,7 +491,7 @@ func inviteLog(title string) logHandler[decode.InviteEvent] {
 }
 
 func logVoiceMove(c *module.Context, emit module.Emit, userID string, move discordstore.VoiceMove) {
-	move, show := hideHub(c.Config.VoiceHubID, move)
+	move, show := hideHub(peerOf[ddiscord.VoiceSettings](c, ddiscord.ModuleVoice).VoiceHubID, move)
 	if !show {
 		return
 	}

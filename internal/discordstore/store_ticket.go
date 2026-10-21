@@ -148,7 +148,7 @@ func (s valkeyStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, b
 	return t, true
 }
 
-func (s valkeyStore) OpenTicketCount(context.Context, Member) int { return 0 }
+func (s valkeyStore) OpenTicketCount(context.Context, Member) (int, error) { return 0, nil }
 
 func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
 	t, ok := s.Ticket(ctx, Guild{ID: c.GuildID}, Channel{ID: c.ChannelID})
@@ -258,10 +258,10 @@ func (m *Mem) Ticket(_ context.Context, g Guild, ch Channel) (Ticket, bool) {
 	return t, true
 }
 
-func (m *Mem) OpenTicketCount(_ context.Context, mem Member) int {
+func (m *Mem) OpenTicketCount(_ context.Context, mem Member) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.openCountLocked(mem.GuildID, mem.UserID)
+	return m.openCountLocked(mem.GuildID, mem.UserID), nil
 }
 
 func (m *Mem) ClaimTicket(_ context.Context, c TicketClaim) error {

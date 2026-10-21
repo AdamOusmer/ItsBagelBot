@@ -23,7 +23,7 @@ type purgeClient interface {
 
 func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 	h := moderationModule{purgeRPC: purge, log: log}
-	b := module.NewModule("moderation")
+	b := module.NewModule(ddiscord.ModuleModeration)
 	b.Slash("timeout", h.timeout)
 	b.Slash("kick", h.kick)
 	b.Slash("ban", h.ban)
@@ -32,12 +32,8 @@ func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 }
 
 // Must read IsModStaff, not IsTicketStaff: ticket desk roles must not gain ban power.
-func isStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
-	return decode.CanMod(in.Member.Permissions) || ddiscord.IsModStaff(in.Member.Roles, cfg)
-}
-
-func isTicketStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
-	return decode.CanMod(in.Member.Permissions) || ddiscord.IsTicketStaff(in.Member.Roles, cfg)
+func isStaffOrMod(roles ddiscord.RolesSettings, in decode.InteractionEvent) bool {
+	return decode.CanMod(in.Member.Permissions) || roles.IsModStaff(in.Member.Roles)
 }
 
 type moderationModule struct {
@@ -46,10 +42,10 @@ type moderationModule struct {
 }
 
 func requireMod(c *module.Context, in decode.InteractionEvent, emit module.Emit) bool {
-	if isStaffOrMod(c.Config, in) {
+	if isStaffOrMod(c.Roles(), in) {
 		return true
 	}
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Mods only.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Mods only.", true))
 	return false
 }
 
@@ -64,14 +60,14 @@ func (h moderationModule) timeout(_ context.Context, c *module.Context, emit mod
 	userID := decode.OptionUser(in.Data.Options, "user")
 	mins := decode.OptionIntFrom(in.Data.Options, "minutes")
 	if userID == "" || mins <= 0 {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Need a user and a duration in minutes.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Need a user and a duration in minutes.", true))
 		return nil
 	}
 	until := time.Now().UTC().Add(time.Duration(mins) * time.Minute).Format(time.RFC3339)
 	emit(cmd.TimeoutMember(cmd.UserTarget(in.GuildID, userID), until, "slash /timeout"))
 	line := decode.Mention(decode.UserRef{ID: userID}) + " for " + strconv.Itoa(mins) + " minutes"
 	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: "Timeout", Body: line})
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Timed out "+line+".", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Timed out "+line+".", true))
 	return nil
 }
 
@@ -101,13 +97,13 @@ func (h moderationModule) remove(c *module.Context, emit module.Emit, action rem
 	}
 	userID := decode.OptionUser(in.Data.Options, "user")
 	if userID == "" {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Need a user.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Need a user.", true))
 		return nil
 	}
 	emit(action.Build(cmd.UserTarget(in.GuildID, userID), cmd.Reason("slash /"+action.Title)))
 	who := decode.Mention(decode.UserRef{ID: userID})
 	logTo(c, emit, ddiscord.LogModeration, logEntry{Title: action.Title, Body: who})
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), action.Prefix+who+".", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), action.Prefix+who+".", true))
 	return nil
 }
 
@@ -124,21 +120,21 @@ func (h moderationModule) purge(ctx context.Context, c *module.Context, emit mod
 	reply, err := h.purgeRPC.Purge(ctx, discordoutgress.PurgeRequest{GuildID: in.GuildID, ChannelID: in.ChannelID, Count: n})
 	if err != nil {
 		h.log.Warn("purge rpc failed", zap.Error(err))
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Purge failed.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Purge failed.", true))
 		return nil
 	}
 	if reply.Error != "" {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Purge failed.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Purge failed.", true))
 		return nil
 	}
 	if reply.Deleted < 2 {
-		emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Not enough messages to purge.", true))
+		emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Not enough messages to purge.", true))
 		return nil
 	}
 	logTo(c, emit, ddiscord.LogModeration, logEntry{
 		Title: "Purge", Body: strconv.Itoa(reply.Deleted) + " messages in <#" + in.ChannelID + ">", SourceChannelID: in.ChannelID,
 	})
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), "Deleted "+strconv.Itoa(reply.Deleted)+" messages.", true))
+	emit(cmd.Followup(cmd.GuildTarget(c.GuildID), cmd.Token(in.Token), "Deleted "+strconv.Itoa(reply.Deleted)+" messages.", true))
 	return nil
 }
 

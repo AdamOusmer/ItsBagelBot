@@ -85,13 +85,13 @@
   <div class="copy">
     <Heading level={4} as="h1">{guildName}</Heading>
     <div class="facts">
-      <DiscordStateTag state={pillState} />
-      <Text as="span" size="xs" tone="muted">
-        {#if members}{t('discord.status.members', { n: members })}{:else}{t('discord.status.noMembers')}{/if}
-      </Text>
-      {#if uptime}
-        <Text as="span" size="xs" tone="muted">{t('discord.status.since')} {uptime}</Text>
-      {/if}
+      <div class="facts-row">
+        <DiscordStateTag state={pillState} />
+        <Text as="span" size="xs" tone="muted">
+          {#if members}{t('discord.status.members', { n: members })}{:else}{t('discord.status.noMembers')}{/if}
+        </Text>
+      </div>
+      <Text as="span" size="xs" tone="muted">{uptime ? `${t('discord.status.since')} ${uptime}` : '\u00a0'}</Text>
     </div>
   </div>
 
@@ -137,6 +137,11 @@
     overflow-wrap: anywhere;
   }
   .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .facts-row {
     display: flex;
     align-items: center;
     gap: 10px;

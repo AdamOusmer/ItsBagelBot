@@ -11,7 +11,7 @@
   "rateLimited": "Discord nous limite. Réessayez dans une minute.",
   "setup": "Impossible d’enregistrer le serveur connecté. Réessayez.",
   "state": "Ce lien Discord a expiré. Repartez de Ajouter Bagel.",
-  "ticketsOff": "Activez le guichet de tickets et enregistrez avant de republier le panneau.",
+  "ticketsOff": "Activez le guichet de tickets avant de republier le panneau.",
   "unavailable": "Discord n’a pas répondu. Réessayez dans un instant.",
   "timeout": "L’opération a été trop longue. Il en manque peut-être une partie : rechargez pour voir le reste.",
   "notFound": "Ce salon ou ce rôle n’existe plus sur le serveur. Choisissez-en un autre.",

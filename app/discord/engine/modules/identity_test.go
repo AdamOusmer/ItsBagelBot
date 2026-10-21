@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"ItsBagelBot/app/discord/engine/module"
+	"ItsBagelBot/app/discord/engine/internal/resolve"
 	"ItsBagelBot/app/discord/engine/modules"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -22,8 +22,8 @@ import (
 func identityFor(status string, applied *fakeApplied) (*modules.Identity, *[]ddiscord.Command) {
 	published := &[]ddiscord.Command{}
 	return &modules.Identity{
-		Resolve: func(context.Context, uint64) []discordstore.GuildConfigOf {
-			return []discordstore.GuildConfigOf{{Guild: discordstore.Guild{ID: "g1"}, Config: ddiscord.Config{GuildID: "g1"}}}
+		Resolve: func(context.Context, uint64) []resolve.GuildModulesOf {
+			return []resolve.GuildModulesOf{{Guild: discordstore.Guild{ID: "g1"}, Modules: modulesFor(ddiscord.Config{GuildID: "g1"})}}
 		},
 		Status:  func(context.Context, uint64) (string, bool) { return status, status != "" },
 		Applied: applied,
@@ -55,10 +55,8 @@ func identityTiers(t *testing.T, cmds []ddiscord.Command) []string {
 func connectGuild(t *testing.T, i *modules.Identity) []ddiscord.Command {
 	t.Helper()
 	var emitted []ddiscord.Command
-	c := &module.Context{
-		Event:  ddiscord.Event{Type: "GUILD_CREATE", GuildID: "g1"},
-		Config: ddiscord.Config{GuildID: "g1"}, BroadcasterID: "999", Log: zap.NewNop(),
-	}
+	c := contextFor(ddiscord.ModuleIdentity, ddiscord.Config{GuildID: "g1"}, ddiscord.Event{Type: "GUILD_CREATE", GuildID: "g1"})
+	c.BroadcasterID = "999"
 	handler := modules.IdentityModule(i).Events[ddiscord.SubjectEventGuild]
 	require.NoError(t, handler(context.Background(), c, func(cmd ddiscord.Command) { emitted = append(emitted, cmd) }))
 	return emitted

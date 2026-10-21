@@ -27,10 +27,20 @@ type voiceClient interface {
 	MoveMember(ctx context.Context, req discordoutgress.MemberMoveRequest) (discordoutgress.MemberMoveReply, error)
 }
 
-func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
-	h := voiceModule{store: store, channels: channels, log: log, warned: &sync.Map{}}
-	b := module.NewModule("voice")
+func newVoiceModule(store discordstore.Store, channels voiceClient, log *zap.Logger) voiceModule {
+	return voiceModule{store: store, channels: channels, log: log, warned: &sync.Map{}}
+}
+
+func VoiceState(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
+	h := newVoiceModule(store, channels, log)
+	b := module.NewModule(ddiscord.ModuleVoiceState)
 	b.On("VOICE_STATE_UPDATE", h.onVoiceState)
+	return b.Build()
+}
+
+func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
+	h := newVoiceModule(store, channels, log)
+	b := module.NewModule(ddiscord.ModuleVoice)
 	b.Slash("voice", h.slash)
 	b.Button(discordapi.CustomVoiceLock, h.lockButton)
 	b.Button(discordapi.CustomVoiceUnlock, h.unlockButton)
@@ -52,6 +62,7 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	if ev.Member.User.Bot {
 		return nil
 	}
+	cfg := peerOf[ddiscord.VoiceSettings](c, ddiscord.ModuleVoice)
 	move := h.store.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{
 		GuildID: ev.GuildID, UserID: ev.UserID, ChannelID: ev.ChannelID,
 	})
@@ -59,18 +70,24 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	if move.LeftEmpty {
 		h.deleteEmptyClone(ctx, move.From)
 	}
-	if enteredVoiceHub(c.Config, move) {
-		h.enterHub(ctx, c, ev, emit)
+	if c.ModuleOn(ddiscord.ModuleVoice) && enteredVoiceHub(cfg, move) {
+		h.enterHub(ctx, voiceEntry{Cfg: cfg, Event: ev, Emit: emit})
 	}
 	return nil
 }
 
-func (h voiceModule) enterHub(ctx context.Context, c *module.Context, ev decode.VoiceEvent, emit module.Emit) {
-	if !c.Config.VoiceCategorySet() {
-		h.warnNoCategory(ev.GuildID)
+type voiceEntry struct {
+	Cfg   ddiscord.VoiceSettings
+	Event decode.VoiceEvent
+	Emit  module.Emit
+}
+
+func (h voiceModule) enterHub(ctx context.Context, in voiceEntry) {
+	if !in.Cfg.CategorySet() {
+		h.warnNoCategory(in.Event.GuildID)
 		return
 	}
-	h.cloneAndMove(ctx, c, ev, emit)
+	h.cloneAndMove(ctx, in)
 }
 
 func (h voiceModule) warnNoCategory(guildID string) {
@@ -79,8 +96,8 @@ func (h voiceModule) warnNoCategory(guildID string) {
 	}
 }
 
-func enteredVoiceHub(cfg ddiscord.Config, move discordstore.VoiceMove) bool {
-	return cfg.VoiceOn() && move.To != "" && move.To == cfg.VoiceHubID && move.From != move.To
+func enteredVoiceHub(cfg ddiscord.VoiceSettings, move discordstore.VoiceMove) bool {
+	return move.To != "" && move.To == cfg.VoiceHubID && move.From != move.To
 }
 
 type voiceRoom struct {
@@ -89,15 +106,15 @@ type voiceRoom struct {
 	Locked  bool
 }
 
-func voiceOverwrites(cfg ddiscord.Config, room voiceRoom) []discordapi.PermissionOverwrite {
+func voiceOverwrites(cfg ddiscord.VoiceSettings, room voiceRoom) []discordapi.PermissionOverwrite {
 	out := []discordapi.PermissionOverwrite{
 		decode.OverwriteAllow(decode.OverwriteSpec{TargetID: room.OwnerID, Kind: 1, Bits: decode.PermView | decode.PermConnect | decode.PermSend}),
 	}
 	var deny int64
-	if room.Locked || cfg.VoicePrivacy() == ddiscord.VoicePrivacyLocked {
+	if room.Locked || cfg.Privacy() == ddiscord.VoicePrivacyLocked {
 		deny |= decode.PermConnect
 	}
-	if cfg.VoicePrivacy() == ddiscord.VoicePrivacyHidden {
+	if cfg.Privacy() == ddiscord.VoicePrivacyHidden {
 		deny |= decode.PermView
 	}
 	if deny != 0 {
@@ -106,14 +123,15 @@ func voiceOverwrites(cfg ddiscord.Config, room voiceRoom) []discordapi.Permissio
 	return out
 }
 
-func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev decode.VoiceEvent, emit module.Emit) {
+func (h voiceModule) cloneAndMove(ctx context.Context, in voiceEntry) {
+	cfg, ev := in.Cfg, in.Event
 	if h.store.CloneCount(ctx, discordstore.Guild{ID: ev.GuildID}) >= ddiscord.VoiceCloneCap {
 		return
 	}
 	owner := decode.DisplayName(decode.Display{User: ev.Member.User, Nick: ev.Member.Nick})
 	reply, err := h.channels.CreateChannel(ctx, discordoutgress.ChannelCreateRequest{
-		GuildID: ev.GuildID, Name: c.Config.VoiceName(owner), Type: ddiscord.ChannelVoice,
-		ParentID: c.Config.VoiceCategoryID, UserLimit: c.Config.VoiceLimit(), Overwrites: voiceOverwrites(c.Config, voiceRoom{GuildID: ev.GuildID, OwnerID: ev.UserID}),
+		GuildID: ev.GuildID, Name: cfg.Name(owner), Type: ddiscord.ChannelVoice,
+		ParentID: cfg.VoiceCategoryID, UserLimit: cfg.Limit(), Overwrites: voiceOverwrites(cfg, voiceRoom{GuildID: ev.GuildID, OwnerID: ev.UserID}),
 	})
 	if rpcFailed(err, reply.Error) || reply.ChannelID == "" {
 		h.log.Warn("voice clone create failed", zap.Error(err), zap.String("outgress_error", reply.Error))
@@ -135,7 +153,7 @@ func (h voiceModule) cloneAndMove(ctx context.Context, c *module.Context, ev dec
 		h.deleteClone(ctx, cl)
 		return
 	}
-	emit(cmd.PostPanel(cmd.ChannelTarget(ev.GuildID, cl.ChannelID), "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: owner}), voiceRoomButtons()))
+	in.Emit(cmd.PostPanel(cmd.ChannelTarget(ev.GuildID, cl.ChannelID), "", ddiscord.VoiceRoomEmbed(ddiscord.VoiceRoom{Owner: owner}), voiceRoomButtons()))
 }
 
 func voiceRoomButtons() []ddiscord.ButtonSpec {
@@ -203,18 +221,18 @@ func (h voiceModule) command(ctx context.Context, v voiceInvocation, sub decode.
 		h.say(v, "You can only do that in a temporary voice channel.")
 		return nil
 	}
-	if !ownsVoice(cl, v.In, v.Module.Config) {
+	if !ownsVoice(cl, v.In, v.Module.Roles()) {
 		h.say(v, "Only the channel owner can do that.")
 		return nil
 	}
 	return h.apply(ctx, v, cl, sub)
 }
 
-func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent, cfg ddiscord.Config) bool {
+func ownsVoice(cl discordstore.Clone, in decode.InteractionEvent, roles ddiscord.RolesSettings) bool {
 	if cl.OwnerID == in.Member.User.ID {
 		return true
 	}
-	return isStaffOrMod(cfg, in)
+	return isStaffOrMod(roles, in)
 }
 
 func (h voiceModule) apply(ctx context.Context, v voiceInvocation, cl discordstore.Clone, sub decode.InteractionOption) error {
@@ -242,7 +260,7 @@ type voiceChange struct {
 const genericLimited = "Discord is rate limiting that change. Try again shortly."
 
 func (h voiceModule) say(v voiceInvocation, text string) {
-	v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.Config.GuildID), cmd.Token(v.In.Token), text, true))
+	v.Emit(cmd.Followup(cmd.GuildTarget(v.Module.GuildID), cmd.Token(v.In.Token), text, true))
 }
 
 func (h voiceModule) modify(ctx context.Context, v voiceInvocation, req discordoutgress.ChannelModifyRequest, change voiceChange) error {
@@ -298,7 +316,7 @@ func (h voiceModule) lock(ctx context.Context, v voiceInvocation, cl discordstor
 	if lock {
 		done = "Locked."
 	}
-	overwrites := voiceOverwrites(v.Module.Config, voiceRoom{GuildID: cl.GuildID, OwnerID: cl.OwnerID, Locked: lock})
+	overwrites := voiceOverwrites(peerOf[ddiscord.VoiceSettings](v.Module, ddiscord.ModuleVoice), voiceRoom{GuildID: cl.GuildID, OwnerID: cl.OwnerID, Locked: lock})
 	req := discordoutgress.ChannelModifyRequest{GuildID: cl.GuildID, ChannelID: cl.ChannelID, Overwrites: overwrites}
 	return h.modify(ctx, v, req, voiceChange{Op: "lock", Done: done})
 }

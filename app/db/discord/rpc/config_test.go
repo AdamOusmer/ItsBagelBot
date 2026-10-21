@@ -121,7 +121,7 @@ func TestConfigSetValidatesIdsAndTogglesBeforeStoring(t *testing.T) {
 
 			if len(tc.bad) == 0 {
 				assert.Equal(t, discorddata.ConfigSetReply{Version: 1}, set)
-				assert.Equal(t, discorddata.ConfigGetReply{Config: tc.cfg, Version: 1, Found: true}, stored)
+				assert.Equal(t, discorddata.ConfigGetReply{Config: ddiscord.JoinModules(tc.cfg.GuildID, ddiscord.SplitConfig(tc.cfg)), Version: 1, Found: true}, stored)
 				return
 			}
 			assert.ElementsMatch(t, tc.bad, set.Fields)

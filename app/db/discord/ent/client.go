@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/discord/ent/guildbinding"
 	"ItsBagelBot/app/db/discord/ent/guildconfig"
+	"ItsBagelBot/app/db/discord/ent/guildmodule"
 	"ItsBagelBot/app/db/discord/ent/memberxp"
 	"ItsBagelBot/app/db/discord/ent/ticket"
 	"ItsBagelBot/app/db/discord/ent/tickettranscript"
@@ -32,6 +33,8 @@ type Client struct {
 	GuildBinding *GuildBindingClient
 	// GuildConfig is the client for interacting with the GuildConfig builders.
 	GuildConfig *GuildConfigClient
+	// GuildModule is the client for interacting with the GuildModule builders.
+	GuildModule *GuildModuleClient
 	// MemberXP is the client for interacting with the MemberXP builders.
 	MemberXP *MemberXPClient
 	// Ticket is the client for interacting with the Ticket builders.
@@ -51,6 +54,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.GuildBinding = NewGuildBindingClient(c.config)
 	c.GuildConfig = NewGuildConfigClient(c.config)
+	c.GuildModule = NewGuildModuleClient(c.config)
 	c.MemberXP = NewMemberXPClient(c.config)
 	c.Ticket = NewTicketClient(c.config)
 	c.TicketTranscript = NewTicketTranscriptClient(c.config)
@@ -148,6 +152,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:           cfg,
 		GuildBinding:     NewGuildBindingClient(cfg),
 		GuildConfig:      NewGuildConfigClient(cfg),
+		GuildModule:      NewGuildModuleClient(cfg),
 		MemberXP:         NewMemberXPClient(cfg),
 		Ticket:           NewTicketClient(cfg),
 		TicketTranscript: NewTicketTranscriptClient(cfg),
@@ -172,6 +177,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:           cfg,
 		GuildBinding:     NewGuildBindingClient(cfg),
 		GuildConfig:      NewGuildConfigClient(cfg),
+		GuildModule:      NewGuildModuleClient(cfg),
 		MemberXP:         NewMemberXPClient(cfg),
 		Ticket:           NewTicketClient(cfg),
 		TicketTranscript: NewTicketTranscriptClient(cfg),
@@ -203,21 +209,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.GuildBinding.Use(hooks...)
-	c.GuildConfig.Use(hooks...)
-	c.MemberXP.Use(hooks...)
-	c.Ticket.Use(hooks...)
-	c.TicketTranscript.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.GuildBinding, c.GuildConfig, c.GuildModule, c.MemberXP, c.Ticket,
+		c.TicketTranscript,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.GuildBinding.Intercept(interceptors...)
-	c.GuildConfig.Intercept(interceptors...)
-	c.MemberXP.Intercept(interceptors...)
-	c.Ticket.Intercept(interceptors...)
-	c.TicketTranscript.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.GuildBinding, c.GuildConfig, c.GuildModule, c.MemberXP, c.Ticket,
+		c.TicketTranscript,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -227,6 +235,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.GuildBinding.mutate(ctx, m)
 	case *GuildConfigMutation:
 		return c.GuildConfig.mutate(ctx, m)
+	case *GuildModuleMutation:
+		return c.GuildModule.mutate(ctx, m)
 	case *MemberXPMutation:
 		return c.MemberXP.mutate(ctx, m)
 	case *TicketMutation:
@@ -501,6 +511,139 @@ func (c *GuildConfigClient) mutate(ctx context.Context, m *GuildConfigMutation) 
 		return (&GuildConfigDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown GuildConfig mutation op: %q", m.Op())
+	}
+}
+
+// GuildModuleClient is a client for the GuildModule schema.
+type GuildModuleClient struct {
+	config
+}
+
+// NewGuildModuleClient returns a client for the GuildModule from the given config.
+func NewGuildModuleClient(c config) *GuildModuleClient {
+	return &GuildModuleClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `guildmodule.Hooks(f(g(h())))`.
+func (c *GuildModuleClient) Use(hooks ...Hook) {
+	c.hooks.GuildModule = append(c.hooks.GuildModule, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `guildmodule.Intercept(f(g(h())))`.
+func (c *GuildModuleClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GuildModule = append(c.inters.GuildModule, interceptors...)
+}
+
+// Create returns a builder for creating a GuildModule entity.
+func (c *GuildModuleClient) Create() *GuildModuleCreate {
+	mutation := newGuildModuleMutation(c.config, OpCreate)
+	return &GuildModuleCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GuildModule entities.
+func (c *GuildModuleClient) CreateBulk(builders ...*GuildModuleCreate) *GuildModuleCreateBulk {
+	return &GuildModuleCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GuildModuleClient) MapCreateBulk(slice any, setFunc func(*GuildModuleCreate, int)) *GuildModuleCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GuildModuleCreateBulk{err: fmt.Errorf("calling to GuildModuleClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GuildModuleCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GuildModuleCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GuildModule.
+func (c *GuildModuleClient) Update() *GuildModuleUpdate {
+	mutation := newGuildModuleMutation(c.config, OpUpdate)
+	return &GuildModuleUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GuildModuleClient) UpdateOne(_m *GuildModule) *GuildModuleUpdateOne {
+	mutation := newGuildModuleMutation(c.config, OpUpdateOne, withGuildModule(_m))
+	return &GuildModuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GuildModuleClient) UpdateOneID(id int) *GuildModuleUpdateOne {
+	mutation := newGuildModuleMutation(c.config, OpUpdateOne, withGuildModuleID(id))
+	return &GuildModuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GuildModule.
+func (c *GuildModuleClient) Delete() *GuildModuleDelete {
+	mutation := newGuildModuleMutation(c.config, OpDelete)
+	return &GuildModuleDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GuildModuleClient) DeleteOne(_m *GuildModule) *GuildModuleDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GuildModuleClient) DeleteOneID(id int) *GuildModuleDeleteOne {
+	builder := c.Delete().Where(guildmodule.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GuildModuleDeleteOne{builder}
+}
+
+// Query returns a query builder for GuildModule.
+func (c *GuildModuleClient) Query() *GuildModuleQuery {
+	return &GuildModuleQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGuildModule},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GuildModule entity by its id.
+func (c *GuildModuleClient) Get(ctx context.Context, id int) (*GuildModule, error) {
+	return c.Query().Where(guildmodule.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GuildModuleClient) GetX(ctx context.Context, id int) *GuildModule {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GuildModuleClient) Hooks() []Hook {
+	return c.hooks.GuildModule
+}
+
+// Interceptors returns the client interceptors.
+func (c *GuildModuleClient) Interceptors() []Interceptor {
+	return c.inters.GuildModule
+}
+
+func (c *GuildModuleClient) mutate(ctx context.Context, m *GuildModuleMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GuildModuleCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GuildModuleUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GuildModuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GuildModuleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GuildModule mutation op: %q", m.Op())
 	}
 }
 
@@ -938,9 +1081,11 @@ func (c *TicketTranscriptClient) mutate(ctx context.Context, m *TicketTranscript
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		GuildBinding, GuildConfig, MemberXP, Ticket, TicketTranscript []ent.Hook
+		GuildBinding, GuildConfig, GuildModule, MemberXP, Ticket,
+		TicketTranscript []ent.Hook
 	}
 	inters struct {
-		GuildBinding, GuildConfig, MemberXP, Ticket, TicketTranscript []ent.Interceptor
+		GuildBinding, GuildConfig, GuildModule, MemberXP, Ticket,
+		TicketTranscript []ent.Interceptor
 	}
 )

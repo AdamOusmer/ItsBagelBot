@@ -17,11 +17,20 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 - **Guild binding:** a Discord guild's relationship to a Twitch broadcaster;
   a broadcaster can own multiple guild bindings.
 - **Discord module:** broadcaster-level master switch, gated for the Premium beta.
-- **Guild config:** one guild's feature flags/copy/channel/role settings from
-  discord-data; not the old single broadcaster module blob.
+- **Guild modules:** one guild's per-module rows (enabled flag plus typed settings)
+  from discord-data (`ddiscord.GuildModules`); the legacy flat `Config` is not read.
+- **Module kind:** core (always on), default (absent row = on) or opt-in (absent row =
+  off), derived from the module name in the `ddiscord.Modules` table by `module.NewModule`.
+  Names: roles, live, clips, welcome, goodbye (opt-in), autorole, subscribers, voice,
+  tickets, logs, levels, linkguard, moderation, identity, voicestate (core, no stored row).
 - **Registry/module:** immutable handlers indexed by gateway type, slash name or
-  exact button custom ID; it resembles Sesame's authoring shape but differs in axes.
-- **Context:** incoming event plus resolved config, broadcaster ID and logger.
+  exact button custom ID, each remembering its owner module; it resembles Sesame's
+  authoring shape but differs in axes.
+- **Gate:** dispatch runs a handler only when `Modules.On(owner)`; a slash/button owned
+  by an off module is answered with an ephemeral "turned off" followup instead of dropped.
+- **Context:** incoming event plus `GuildID`, `Modules`, broadcaster ID, logger and
+  `Settings` (the raw row of the handler's own module). `Decode` reads own settings,
+  `Peer(name)` another module's settings, `Roles()` the core roles row, `ModuleOn` a peer's gate.
 - **Command/Emit:** described Discord effect for outgress; no local REST call.
 - **Ticket desk:** remembered panel/channel used to open support tickets.
 - **Join-to-create:** managed voice-room lifecycle triggered by voice events.
@@ -48,14 +57,14 @@ Projector provides broadcaster module/tier views, not per-guild settings truth.
 | Change | Read first |
 | --- | --- |
 | Wiring, consumers and confirmed publication | [main.go](main.go): `confirmedPublisher`, `startIngressConsumers`, `startTwitchConsumers`, `verticalChecks` |
-| Dispatch and failure rules | [internal/dispatch/dispatch.go](internal/dispatch/dispatch.go): `Dedup`, `Handle`, `handlersFor`, `publishRetry` |
-| Guild/broadcaster lookup and beta gate | [internal/resolve/resolve.go](internal/resolve/resolve.go): `ByGuild`, `ByBroadcaster`, `configOf`, `gateClosed` |
-| Register handlers | [modules/all.go](modules/all.go), [module/module.go](module/module.go), [module/builder.go](module/builder.go), [internal/registry/registry.go](internal/registry/registry.go) |
+| Dispatch, module gate and failure rules | [internal/dispatch/dispatch.go](internal/dispatch/dispatch.go): `Dedup`, `Handle`, `runHandlers`, `route`, `publishRetry` |
+| Guild/broadcaster lookup and beta gate | [internal/resolve/resolve.go](internal/resolve/resolve.go): `ByGuild`, `ByBroadcaster`, `modulesOf`, `gateClosed` |
+| Register handlers | [modules/all.go](modules/all.go), [module/module.go](module/module.go), [module/builder.go](module/builder.go), [internal/registry/registry.go](internal/registry/registry.go) (`Bound`: owner module + handler), [modules/settings.go](modules/settings.go) (`settingsOf`, `peerOf`, `factSettings`) |
 | Raw gateway payload slices/permissions | [internal/decode/decode.go](internal/decode/decode.go), [internal/cmd/cmd.go](internal/cmd/cmd.go) |
-| Welcome, messages and rank | [modules/welcome.go](modules/welcome.go), [message.go](modules/message.go), [rank.go](modules/rank.go) |
+| Welcome/goodbye, autorole, levels | [modules/welcome.go](modules/welcome.go) (`Welcome`, `Goodbye`, `AutoRole`), [rank.go](modules/rank.go) (`levels`), [message.go](modules/message.go) (XP on `levels`, message cache on `logs`) |
 | Slash moderation and staff checks | [modules/moderation.go](modules/moderation.go), [modules/staff_test.go](modules/staff_test.go) |
 | Ticket panel/lifecycle | [modules/ticket.go](modules/ticket.go), [shared ticket data](../../../internal/discordstore) |
-| Voice rooms | [modules/voice.go](modules/voice.go), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go), [voice store](../../../internal/discordstore/store_voice.go) |
+| Voice rooms | [modules/voice.go](modules/voice.go) (`Voice` command/buttons, `VoiceState` events), [internal/rpcclient/rpcclient.go](internal/rpcclient/rpcclient.go), [voice store](../../../internal/discordstore/store_voice.go) |
 | Audit logs and their caches | [modules/logs.go](modules/logs.go) (`logTo`, `logEvent`), [message.go](modules/message.go) (cache writes), [message store](../../../internal/discordstore/store_message.go) |
 | Link spread/invite exemption | [modules/linkguard.go](modules/linkguard.go), [linkguard_invite.go](modules/linkguard_invite.go), [internal/invitecache/invitecache.go](internal/invitecache/invitecache.go), [shared guard](../../../internal/domain/discord/linkguard) |
 | Twitch live/clip posts | [modules/live.go](modules/live.go), [clip.go](modules/clip.go), [internal/streaminfo/streaminfo.go](internal/streaminfo/streaminfo.go) |
@@ -70,10 +79,12 @@ tiered LRU+Valkey store (`discord:ev:`, 2 min TTL) before anything runs, duplica
 are acked unhandled, and a store error fails open with a warning and a metric.
 It then decodes `Event`, resolves guild binding/master switch/Premium
 access (`gateClosed` returns a drop reason, logged once per guild and reason)
-and per-guild config, ensures desk behavior, runs interested handlers and
-publishes collected commands. DMs/unbound/disabled/unknown-tier inputs resolve to
-no work. Config is sanitized on read; authoritative binding stamps `GuildID`.
-`ByBroadcaster` fans Twitch facts out to every connected, gated guild.
+and the guild's module rows, ensures desk behavior (skipped when tickets is off), runs
+interested handlers whose owner module is on, each with its own row as `Settings`,
+and publishes collected commands. DMs/unbound/disabled/unknown-tier inputs resolve to
+no work. Rows are sanitized per module on read; authoritative binding stamps `GuildID`.
+`ByBroadcaster` fans Twitch facts out to every gated guild as `GuildModulesOf`; Live and
+Clip check the `live`/`clips` gate themselves.
 
 Gateway events fan out to multiple interested handlers. Interactions route to
 one exact slash/button owner; there is no Sesame-style `!command` parser,
@@ -99,8 +110,16 @@ replayed across siblings that may already have completed side effects.
 
 - Premium access gates the current beta centrally in resolver. Missing tier
   reader fails closed; do not duplicate/inconsistently bypass it per module.
-- One broadcaster can bind many guilds; never read per-guild config from the old
+- One broadcaster can bind many guilds; never read per-guild settings from the old
   broadcaster-wide module blob or assume one guild on a Twitch live event.
+- A module reads only its own `Settings`; cross-module reads go through `Peer`/`Roles`
+  (logs routing, ticket log channel, staff roles, voice hub for log filtering). Do not
+  add enable checks for the owner module inside handlers: the gate already covers them.
+  Sub-toggles (log categories, transcript) stay in settings. Goodbye is its own opt-in
+  module that posts to the welcome channel read through `Peer(welcome)`, independent of the welcome gate.
+- The voice-state handler is owned by the core `voicestate` module so occupancy, voice
+  logs and empty-room cleanup run with voice off; only hub room creation checks
+  `ModuleOn(voice)`. `voice` keeps the slash command and buttons.
 - Handler error isolation is intentional; all-event replay can duplicate another
   module's successful effects or store updates.
 - Confirmed publication retries only definite no-responders failures, with a

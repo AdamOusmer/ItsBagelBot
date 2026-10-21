@@ -5,11 +5,14 @@ package setup_test
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
+	ddiscord "ItsBagelBot/internal/domain/discord"
 
 	"go.uber.org/zap"
 )
@@ -29,6 +32,7 @@ type fakeDiscord struct {
 	guildErr      error
 
 	createdChannels map[string]discapi.ChannelCreate
+	createdSpecs    []discapi.ChannelCreate
 	createdRoles    []discapi.RoleCreate
 	panels          []panelPost
 	deleted         []discapi.Message
@@ -65,15 +69,28 @@ func (f *fakeDiscord) CreateChannel(_ context.Context, ch discapi.GuildChannel) 
 	if f.createdChannels == nil {
 		f.createdChannels = map[string]discapi.ChannelCreate{}
 	}
+	id := "ch-" + name
+	if _, taken := f.createdChannels[name]; taken {
+		id += "-" + strconv.Itoa(ch.Spec.Type)
+	}
 	f.createdChannels[name] = ch.Spec
-	created := discapi.Snowflake{ID: "ch-" + name, Name: ch.Spec.Name, Type: ch.Spec.Type}
+	f.createdSpecs = append(f.createdSpecs, ch.Spec)
+	created := discapi.Snowflake{ID: id, Name: ch.Spec.Name, Type: ch.Spec.Type}
 	f.channels = append(f.channels, created)
 	return created, nil
 }
 
 func (f *fakeDiscord) CreateRole(_ context.Context, role discapi.GuildRole) (discapi.Snowflake, error) {
+	if len(f.botRoles) > 0 {
+		held := discapi.BasePermissions(discapi.MemberPermissions{GuildID: role.Guild.ID, Roles: f.botRoles}, append([]discapi.Snowflake{{ID: role.Guild.ID, Permissions: f.everyonePerms}}, f.roles...))
+		if discapi.ParsePermissions(role.Spec.Permissions)&^held != 0 {
+			return discapi.Snowflake{}, fmt.Errorf("%w: Missing Permissions", discapi.ErrForbidden)
+		}
+	}
 	f.createdRoles = append(f.createdRoles, role.Spec)
-	return discapi.Snowflake{ID: "role-" + strings.ToLower(role.Spec.Name), Name: role.Spec.Name}, nil
+	created := discapi.Snowflake{ID: "role-" + strings.ToLower(role.Spec.Name), Name: role.Spec.Name}
+	f.roles = append(f.roles, created)
+	return created, nil
 }
 
 func (f *fakeDiscord) ListGuildChannels(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
@@ -131,4 +148,20 @@ type unavailableStore struct{ discordstore.Store }
 
 func (unavailableStore) GuildsOf(context.Context, discordstore.Broadcaster) ([]discordstore.Binding, error) {
 	return nil, discordstore.ErrStoreUnavailable
+}
+
+func existingChannels(names ...string) []discapi.Snowflake {
+	out := make([]discapi.Snowflake, 0, len(names))
+	for _, name := range names {
+		out = append(out, discapi.Snowflake{ID: "old-" + name, Name: name})
+	}
+	return out
+}
+
+func livedInServer() []discapi.Snowflake {
+	var names []string
+	for i := range ddiscord.LivingCommunityMinChannels {
+		names = append(names, "existing-"+strconv.Itoa(i))
+	}
+	return existingChannels(append(names, "Clips")...)
 }

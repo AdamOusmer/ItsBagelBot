@@ -12,7 +12,7 @@
   "rateLimited": "O Discord está limitando nossas solicitações. Tente novamente em um minuto.",
   "setup": "Não foi possível salvar o servidor conectado. Tente novamente.",
   "state": "Esse link do Discord expirou. Comece novamente em Adicionar Bagel.",
-  "ticketsOff": "Ative a central de tickets e salve antes de republicar o painel.",
+  "ticketsOff": "Ative a central de tickets antes de republicar o painel.",
   "unavailable": "O Discord não respondeu. Tente novamente em instantes.",
   "timeout": "Isso demorou demais. Algumas informações podem estar faltando; recarregue para ver o restante.",
   "notFound": "Esse canal ou cargo não existe mais no servidor. Escolha outro.",

@@ -69,6 +69,13 @@ type GuildSetupRequest struct {
 	InstalledBy    string
 	Subscribers    bool
 	PinnedRoles    map[string]string
+	Mode           string
+}
+
+type TemplatePreview struct {
+	LivedIn     bool
+	DroppedPins []string
+	Items       []outgressrpc.DiscordTemplateItem
 }
 
 func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSetupResult, error) {
@@ -80,27 +87,54 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	}
 	out.DroppedPins = fill.droppedPins
 	defer w.invalidateConfig(ctx, req.GuildID)
-	if fill.livedIn() {
-		return fill.adoptLivedIn(ctx, out)
+	if req.Mode == outgressrpc.SetupModeAdopt {
+		fill.adopt(&out)
+		return out, nil
 	}
-	if err := fill.ensureRoles(ctx, &out); err != nil {
-		return out, err
-	}
-	if err := fill.ensureChannels(ctx, &out); err != nil {
-		return out, err
-	}
-	fill.postTicketDesk(ctx, out)
-	return out, nil
+	return out, fill.apply(ctx, &out)
 }
 
-func (f *guildFill) adoptLivedIn(ctx context.Context, out GuildSetupResult) (GuildSetupResult, error) {
-	out.Refused = "this server already has a layout; Bagel adopted the channels it recognised and added only the bound ones it was missing, pick the rest below"
-	f.adopt(&out)
-	if err := f.ensureBoundChannels(ctx, &out); err != nil {
-		return out, err
+func (w *Worker) PreviewTemplate(ctx context.Context, req GuildSetupRequest) (TemplatePreview, error) {
+	req.GuildID = strings.TrimSpace(req.GuildID)
+	if err := w.readyFor(req); err != nil {
+		return TemplatePreview{}, err
 	}
-	f.postTicketDesk(ctx, out)
-	return out, nil
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
+		return TemplatePreview{}, err
+	}
+	fill, err := w.loadGuildFill(ctx, req)
+	if err != nil {
+		return TemplatePreview{}, err
+	}
+	fill.dry = true
+	if err := fill.apply(ctx, &GuildSetupResult{}); err != nil {
+		return TemplatePreview{}, err
+	}
+	return TemplatePreview{LivedIn: fill.livedIn(), DroppedPins: fill.droppedPins, Items: fill.items}, nil
+}
+
+func (f *guildFill) apply(ctx context.Context, out *GuildSetupResult) error {
+	if f.livedIn() {
+		return f.applyLivedIn(ctx, out)
+	}
+	if err := f.ensureRoles(ctx, out); err != nil {
+		return err
+	}
+	if err := f.ensureChannels(ctx, out); err != nil {
+		return err
+	}
+	f.postTicketDesk(ctx, *out)
+	return nil
+}
+
+func (f *guildFill) applyLivedIn(ctx context.Context, out *GuildSetupResult) error {
+	out.Refused = "this server already has a layout; Bagel adopted the channels it recognised and added only the bound ones it was missing, pick the rest below"
+	f.adopt(out)
+	if err := f.ensureBoundChannels(ctx, out); err != nil {
+		return err
+	}
+	f.postTicketDesk(ctx, *out)
+	return nil
 }
 
 func (w *Worker) invalidateConfig(ctx context.Context, guildID string) {
@@ -282,18 +316,33 @@ type guildFill struct {
 	subscribers bool
 	pinned      map[string]string
 	droppedPins []string
+	grantable   uint64
+	dry         bool
+	items       []outgressrpc.DiscordTemplateItem
+	seen        map[string]bool
+}
+
+func (w *Worker) readyFor(req GuildSetupRequest) error {
+	if w.discord == nil {
+		return ErrDiscordUnavailable
+	}
+	if req.GuildID == "" {
+		return errors.New("missing guild id")
+	}
+	return nil
 }
 
 func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
-	if w.discord == nil {
-		return nil, ErrDiscordUnavailable
-	}
-	if req.GuildID == "" {
-		return nil, errors.New("missing guild id")
+	if err := w.readyFor(req); err != nil {
+		return nil, err
 	}
 	if err := w.bindGuild(ctx, req); err != nil {
 		return nil, err
 	}
+	return w.loadGuildFill(ctx, req)
+}
+
+func (w *Worker) loadGuildFill(ctx context.Context, req GuildSetupRequest) (*guildFill, error) {
 	if req.EveryoneRoleID == "" {
 		req.EveryoneRoleID = req.GuildID
 	}
@@ -312,9 +361,19 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	}
 	return &guildFill{
 		w: w, api: w.discord, target: req.guild(), everyone: req.EveryoneRoleID, existing: existing,
-		chanByName: idsByName(existing), roleByName: idsByName(roles),
+		chanByName: channelIDs(existing), roleByName: idsByName(roles),
 		subscribers: req.Subscribers, pinned: pinned, droppedPins: dropped,
+		items: []outgressrpc.DiscordTemplateItem{}, seen: map[string]bool{},
+		grantable: w.grantablePermissions(ctx, req.guild(), roles),
 	}, nil
+}
+
+func (w *Worker) grantablePermissions(ctx context.Context, guild discapi.Guild, roles []discapi.Snowflake) uint64 {
+	member, ok := w.botMember(ctx, guild)
+	if !ok {
+		return ddiscord.BotPermissions
+	}
+	return discapi.BasePermissions(member, roles)
 }
 
 func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[string]string, []string) {
@@ -361,14 +420,29 @@ func idsByName(list []discapi.Snowflake) map[string]string {
 	return out
 }
 
+func channelKey(name string, kind int) string {
+	if kind == channelAnnouncement {
+		kind = ddiscord.ChannelText
+	}
+	return strings.ToLower(name) + "/" + strconv.Itoa(kind)
+}
+
+func channelIDs(list []discapi.Snowflake) map[string]string {
+	out := make(map[string]string, len(list))
+	for _, s := range list {
+		out[channelKey(s.Name, s.Type)] = s.ID
+	}
+	return out
+}
+
 func (f *guildFill) livedIn() bool {
 	template := map[string]bool{}
 	for _, spec := range ddiscord.CommunityChannels() {
-		template[strings.ToLower(spec.Name)] = true
+		template[channelKey(spec.Name, spec.Type)] = true
 	}
 	foreign := 0
 	for _, ch := range f.existing {
-		if !template[strings.ToLower(ch.Name)] {
+		if !template[channelKey(ch.Name, ch.Type)] {
 			foreign++
 		}
 	}
@@ -377,18 +451,56 @@ func (f *guildFill) livedIn() bool {
 
 func (f *guildFill) adopt(out *GuildSetupResult) {
 	for _, spec := range ddiscord.CommunityRoles() {
-		out.setRole(namedRef{Name: spec.Name, ID: f.roleID(spec.Name)})
+		id := f.roleID(spec.Name)
+		out.setRole(namedRef{Name: spec.Name, ID: id})
+		f.recordExistingRole(spec, id)
 	}
 	for _, spec := range ddiscord.CommunityChannels() {
-		out.setChannel(namedRef{Name: spec.Bind, ID: f.chanByName[strings.ToLower(spec.Name)]})
+		id := f.chanByName[channelKey(spec.Name, spec.Type)]
+		out.setChannel(namedRef{Name: spec.Bind, ID: id})
+		f.recordExistingChannel(spec, id)
 	}
+}
+
+func (f *guildFill) recordExistingRole(spec ddiscord.RoleSpec, id string) {
+	if id == "" || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+		return
+	}
+	action := outgressrpc.TemplateActionAdopt
+	if f.pinnedRole(spec.Name) != "" {
+		action = outgressrpc.TemplateActionPinned
+	}
+	f.record(namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}.item(action, id))
+}
+
+func (f *guildFill) recordExistingChannel(spec ddiscord.ChannelSpec, id string) {
+	if id == "" || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
+		return
+	}
+	f.record(channelRef(spec).item(outgressrpc.TemplateActionAdopt, id))
+}
+
+func channelRef(spec ddiscord.ChannelSpec) namedRef {
+	return namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindChannel, Type: spec.Type, Parent: spec.Parent, Key: channelKey(spec.Name, spec.Type)}
+}
+
+func (f *guildFill) record(item outgressrpc.DiscordTemplateItem) {
+	if !f.dry {
+		return
+	}
+	key := item.Kind + "/" + channelKey(item.Name, item.Type)
+	if f.seen[key] {
+		return
+	}
+	f.seen[key] = true
+	f.items = append(f.items, item)
 }
 
 var livedInCreatable = map[string]bool{"voice": true, "voicecat": true, "logs": true, "ticketcat": true, "ticketarchive": true}
 
 func (f *guildFill) ensureBoundChannels(ctx context.Context, out *GuildSetupResult) error {
 	_, err := f.ensureEach(ctx, out, func(spec ddiscord.ChannelSpec) (string, bool) {
-		return f.chanByName[strings.ToLower(spec.Parent)], livedInCreatable[spec.Bind]
+		return f.chanByName[channelKey(spec.Parent, ddiscord.ChannelCategory)], livedInCreatable[spec.Bind]
 	})
 	return err
 }
@@ -402,7 +514,7 @@ func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass 
 		if !ok || !ddiscord.FeatureEnabled(spec.Feature, f.subscribers) {
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.chanByName, namedRef{Name: spec.Name}, f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
+		id, err := f.ensureNamed(ctx, f.chanByName, channelRef(spec), f.channelCreator(ctx, channelWant{Spec: spec, Parent: parent}))
 		if err != nil {
 			return ensured, err
 		}
@@ -413,9 +525,19 @@ func (f *guildFill) ensureEach(ctx context.Context, out *GuildSetupResult, pass 
 }
 
 type namedRef struct {
-	Name string
-	ID   string
+	Name   string
+	ID     string
+	Kind   string
+	Type   int
+	Parent string
+	Key    string
 }
+
+func (r namedRef) item(action, id string) outgressrpc.DiscordTemplateItem {
+	return outgressrpc.DiscordTemplateItem{Kind: r.Kind, Name: r.Name, Type: r.Type, Parent: r.Parent, Action: action, ID: id}
+}
+
+const plannedID = "planned"
 
 type namedCreate func() (discapi.Snowflake, error)
 
@@ -425,15 +547,20 @@ type channelWant struct {
 }
 
 func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
-	key := strings.ToLower(want.Name)
-	if id := index[key]; id != "" {
+	if id := index[want.Key]; id != "" {
+		f.record(want.item(outgressrpc.TemplateActionAdopt, id))
 		return id, nil
+	}
+	if f.dry {
+		f.record(want.item(outgressrpc.TemplateActionCreate, ""))
+		index[want.Key] = plannedID
+		return plannedID, nil
 	}
 	created, err := f.create(ctx, create)
 	if err != nil {
 		return "", err
 	}
-	index[key] = created.ID
+	index[want.Key] = created.ID
 	return created.ID, nil
 }
 
@@ -445,9 +572,10 @@ func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) erro
 		if id := f.pinnedRole(spec.Name); id != "" {
 			f.roleByName[strings.ToLower(spec.Name)] = id
 			out.setRole(namedRef{Name: spec.Name, ID: id})
+			f.record(namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole}.item(outgressrpc.TemplateActionPinned, id))
 			continue
 		}
-		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name}, f.roleCreator(ctx, spec))
+		id, err := f.ensureNamed(ctx, f.roleByName, namedRef{Name: spec.Name, Kind: outgressrpc.TemplateKindRole, Key: strings.ToLower(spec.Name)}, f.roleCreator(ctx, spec))
 		if err != nil {
 			return err
 		}
@@ -462,7 +590,7 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 			Guild: f.target,
 			Spec: discapi.RoleCreate{
 				Name: spec.Name, Hoist: spec.Hoist, Mentionable: spec.Mentionable,
-				Color: spec.Color, Permissions: rolePermissions(spec),
+				Color: spec.Color, Permissions: rolePermissions(spec, f.grantable),
 			},
 		})
 	}
@@ -482,7 +610,7 @@ func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) e
 }
 
 func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
-	if out.TicketChannelID == "" {
+	if f.dry || out.TicketChannelID == "" {
 		return
 	}
 	spec := ddiscord.Config{}.TicketPanel()
@@ -625,9 +753,10 @@ func (f *guildFill) withBotAccess(in []discapi.PermissionOverwrite) []discapi.Pe
 	})
 }
 
-func rolePermissions(spec ddiscord.RoleSpec) string {
-	if spec.Permissions == 0 {
+func rolePermissions(spec ddiscord.RoleSpec, grantable uint64) string {
+	granted := uint64(spec.Permissions) & grantable
+	if granted == 0 {
 		return ""
 	}
-	return strconv.FormatInt(spec.Permissions, 10)
+	return strconv.FormatUint(granted, 10)
 }

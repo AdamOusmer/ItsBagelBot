@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"ItsBagelBot/pkg/codec"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func wantToggle(onByDefault bool, value string) bool {
@@ -26,13 +29,11 @@ func TestToggleDefaults(t *testing.T) {
 		{"welcome", func(c *Config, v string) { c.WelcomeEnabled = v }, Config.WelcomeOn, true},
 		{"voice", func(c *Config, v string) { c.VoiceEnabled = v }, Config.VoiceOn, true},
 		{"tickets", func(c *Config, v string) { c.TicketsEnabled = v }, Config.TicketsOn, true},
-		{"logs", func(c *Config, v string) { c.LogsEnabled = v }, Config.LogsOn, true},
 		{"levels", func(c *Config, v string) { c.LevelsEnabled = v }, Config.LevelsOn, true},
 		{"ticket transcript", func(c *Config, v string) { c.TicketTranscriptEnabled = v }, Config.TicketTranscriptOn, true},
 		{"autorole", func(c *Config, v string) { c.AutoRoleEnabled = v }, Config.AutoRoleOn, true},
 		{"log ignore bots", func(c *Config, v string) { c.LogIgnoreBots = v }, Config.LogIgnoreBotsOn, true},
 		{"goodbye", func(c *Config, v string) { c.GoodbyeEnabled = v }, Config.GoodbyeOn, false},
-		{"subscribers", func(c *Config, v string) { c.SubscribersEnabled = v }, Config.SubscribersOn, false},
 		{"link guard", func(c *Config, v string) { c.LinkGuardEnabled = v }, Config.LinkGuardOn, false},
 	}
 	for _, tc := range toggles {
@@ -156,10 +157,13 @@ func TestTicketStaffAndLogFallbacks(t *testing.T) {
 	assert.Equal(t, "tickets-log", withOwn.TicketLogChannel(), "the explicit channel")
 }
 
-func TestTierRoomsRoundTripsThroughParse(t *testing.T) {
+func TestTierRoomsReadFromSubscriberSettings(t *testing.T) {
 	raw := []byte(`{"subsChannelId":"1","subsCategoryId":"2","vipChannelId":"3","vipCategoryId":"4"}`)
 
-	assert.Equal(t, TierRooms{SubsChannelID: "1", SubsCategoryID: "2", VIPChannelID: "3", VIPCategoryID: "4"}, Parse(raw).TierRooms())
+	var rooms SubscribersSettings
+	require.NoError(t, codec.Unmarshal(raw, &rooms))
+
+	assert.Equal(t, TierRooms{SubsChannelID: "1", SubsCategoryID: "2", VIPChannelID: "3", VIPCategoryID: "4"}, rooms.TierRooms())
 }
 
 func TestParseHexColor(t *testing.T) {

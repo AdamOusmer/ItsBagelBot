@@ -243,9 +243,13 @@ func Serve(addr, service string, checks ...Check) <-chan error {
 }
 
 func ServeSet(addr string, set *Set) <-chan error {
+	return ServeHandler(addr, set.Handler())
+}
+
+func ServeHandler(addr string, h http.Handler) <-chan error {
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           set.Handler(),
+		Handler:           h,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
