@@ -55,11 +55,11 @@ func TestDigestsRefusals(t *testing.T) {
 		spoil func(*fixture)
 		want  string
 	}{
-		{"one architecture", func(f *fixture) {
+		{"no Intel image", func(f *fixture) {
 			info := f.reg.images[users]
-			info.Platforms = []string{"linux/amd64"}
+			info.Platforms = []string{"linux/arm64"}
 			f.reg.images[users] = info
-		}, "users:v0.2.3-beta: missing linux/arm64"},
+		}, "users:v0.2.3-beta: missing linux/amd64"},
 		{"built from another commit", func(f *fixture) {
 			info := f.reg.images[users]
 			info.Revision = "c0"
@@ -120,7 +120,7 @@ func TestDigestsBump(t *testing.T) {
 			f.publish([]deploy.ImageName{"users"}, "main-200-abcdef123456", target)
 			f.publish([]deploy.ImageName{"sesame"}, "main-200-abcdef123456", target)
 			gossip := pinsIn(files)["gossip"]
-			f.reg.images[ports.ImageRef{Image: "gossip", Tag: "main-150-abcdef123456"}] = ports.ImageInfo{Digest: gossip.Digest, Platforms: bothArches, Revision: target}
+			f.reg.images[ports.ImageRef{Image: "gossip", Tag: "main-150-abcdef123456"}] = ports.ImageInfo{Digest: gossip.Digest, Platforms: intelOnly, Revision: target}
 			f.gh.attested[gossip.Digest] = true
 
 			_, err := f.runStage(t, deploy.StageDigests)

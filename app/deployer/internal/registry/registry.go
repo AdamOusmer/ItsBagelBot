@@ -24,7 +24,7 @@ import (
 const revisionLabel = "org.opencontainers.image.revision"
 
 // required: a pod scheduled onto an arch its index lacks never starts.
-var required = []string{"linux/amd64", "linux/arm64"}
+var required = []string{"linux/amd64"}
 
 var ErrMissingPlatform = errors.New("required platform missing")
 

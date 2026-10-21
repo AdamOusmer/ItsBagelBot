@@ -45,8 +45,7 @@ func usersJobs(build, manifest jobState) []ports.Job {
 	return []ports.Job{
 		job(1, "Select images", succeeded),
 		job(2, "Build users Intel x86_64", build),
-		job(3, "Build users ARM64", build),
-		job(4, "Publish manifest users", manifest),
+		job(3, "Publish manifest users", manifest),
 	}
 }
 
@@ -76,10 +75,10 @@ func TestBuildStageWaitsAndGroupsJobs(t *testing.T) {
 	st := f.stageOf(deploy.StageBuild)
 	assert.Equal(t, buildResult{
 		Waits:    []string{"queued behind run #41"},
-		Progress: deploy.Progress{Done: 4, Total: 4},
+		Progress: deploy.Progress{Done: 3, Total: 3},
 		Items: []deploy.Item{
 			{Key: "Select images", Label: "Select images", State: deploy.StateSucceeded, Progress: deploy.Progress{Done: 1, Total: 1}, URL: "https://ci/job/1"},
-			{Key: "users", Label: "users", State: deploy.StateSucceeded, Progress: deploy.Progress{Done: 3, Total: 3}, URL: "https://ci/job/2"},
+			{Key: "users", Label: "users", State: deploy.StateSucceeded, Progress: deploy.Progress{Done: 2, Total: 2}, URL: "https://ci/job/2"},
 		},
 		RunID: 9,
 	}, buildResult{Waits: f.sink.waits, Progress: st.Progress, Items: st.Items, RunID: f.sink.View().Outputs.BuildRunID})
@@ -101,7 +100,7 @@ func TestBuildStageWaitsOutTheStaleAttempt(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t,
-		buildResult{Waits: []string{"waiting for rerun attempt 2 to start"}, Progress: deploy.Progress{Done: 4, Total: 4}},
+		buildResult{Waits: []string{"waiting for rerun attempt 2 to start"}, Progress: deploy.Progress{Done: 3, Total: 3}},
 		buildResult{Done: done, Waits: f.sink.waits, Progress: f.stageOf(deploy.StageBuild).Progress})
 }
 
@@ -110,11 +109,11 @@ func TestBuildStageFailureCarriesTheJobLog(t *testing.T) {
 	run.Version, run.Outputs.TagSHA = "v0.2.3-beta", "c1"
 	f := newFixture(t, run)
 	jobs := usersJobs(succeeded, succeeded)
-	jobs[2] = job(3, "Build users ARM64", failed)
+	jobs[1] = job(2, "Build users Intel x86_64", failed)
 	f.gh.runs = []ports.WorkflowRun{workflowRun(9, "c1", running)}
 	f.gh.steps[9] = []runStep{{run: f.gh.runs[0]}, {run: workflowRun(9, "c1", failed), jobs: jobs}}
 	for i := range 60 {
-		f.gh.logs[3] = append(f.gh.logs[3], fmt.Sprintf("line %d", i))
+		f.gh.logs[2] = append(f.gh.logs[2], fmt.Sprintf("line %d", i))
 	}
 
 	_, err := f.runStage(t, deploy.StageBuild)
@@ -122,8 +121,8 @@ func TestBuildStageFailureCarriesTheJobLog(t *testing.T) {
 	fl, ok := ports.AsFail(err)
 	require.True(t, ok, "err = %v, want a Fail", err)
 	assert.Equal(t, deploy.Failure{
-		Code: deploy.FailBuildFailed, Message: "publish-images run #42 concluded failure: job Build users ARM64 failed",
-		LogTail: f.gh.logs[3][10:], Actions: []deploy.Action{deploy.ActionRerun, deploy.ActionCancel},
+		Code: deploy.FailBuildFailed, Message: "publish-images run #42 concluded failure: job Build users Intel x86_64 failed",
+		LogTail: f.gh.logs[2][10:], Actions: []deploy.Action{deploy.ActionRerun, deploy.ActionCancel},
 	}, fl.Failure)
 }
 

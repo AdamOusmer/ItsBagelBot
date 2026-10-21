@@ -18,8 +18,8 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// The cluster runs ARM and Intel nodes: a single-arch index fails to pull on half.
-var requiredPlatforms = []string{"linux/amd64", "linux/arm64"}
+// Workload nodes are Intel only; cp1 is ARM but tainted and excluded by every workload's affinity.
+var requiredPlatforms = []string{"linux/amd64"}
 
 func digestsDone(_ context.Context, rc *stage.RunCtx) (bool, error) {
 	return len(rc.View().Outputs.Digests) > 0, nil

@@ -485,7 +485,7 @@ func (r *fakeRegistry) Tags(_ context.Context, img deploy.ImageName) ([]deploy.T
 	return r.tags[img], nil
 }
 
-var bothArches = []string{"linux/amd64", "linux/arm64"}
+var intelOnly = []string{"linux/amd64"}
 
 func testDigest(seed string) deploy.Digest {
 	hex := strings.Repeat(fmt.Sprintf("%x", seed), 64)
@@ -496,7 +496,7 @@ func (f *fixture) publish(images []deploy.ImageName, tag deploy.Tag, rev deploy.
 	pins := map[deploy.ImageName]deploy.ImagePin{}
 	for _, img := range images {
 		d := testDigest(string(img) + string(tag))
-		f.reg.images[ports.ImageRef{Image: img, Tag: tag}] = ports.ImageInfo{Digest: d, Platforms: bothArches, Revision: rev}
+		f.reg.images[ports.ImageRef{Image: img, Tag: tag}] = ports.ImageInfo{Digest: d, Platforms: intelOnly, Revision: rev}
 		f.gh.attested[d] = true
 		pins[img] = deploy.ImagePin{Tag: tag, Digest: d}
 	}
