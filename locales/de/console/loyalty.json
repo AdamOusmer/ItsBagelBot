@@ -68,11 +68,5 @@
   "resetConfirmBody": "Bei allen Zuschauern wird „{name}“ auf 0 gesetzt. Die Zuschauzeit bleibt erhalten. Das lässt sich nicht rückgängig machen.",
   "resetConfirm": "Zurücksetzen",
   "toastReset": "Punkte zurückgesetzt. Alle Punktestände stehen jetzt auf 0.",
-  "toastResetFailed": "Punkte konnten nicht zurückgesetzt werden.",
-  "scheduleLabel": "Automatisches Zurücksetzen",
-  "scheduleHint": "Setzt bei allen Zuschauern „{name}“ um 00:00 UTC am Montag (wöchentlich), am Ersten des Monats (monatlich) oder am 1. Januar (jährlich) auf 0. Die Zuschauzeit bleibt erhalten.",
-  "scheduleOff": "Aus",
-  "scheduleWeekly": "Wöchentlich",
-  "scheduleMonthly": "Monatlich",
-  "scheduleAnnually": "Jährlich"
+  "toastResetFailed": "Punkte konnten nicht zurückgesetzt werden."
 }

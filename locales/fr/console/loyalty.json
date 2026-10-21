@@ -68,11 +68,5 @@
   "resetConfirmBody": "Les « {name} » de tous les viewers repassent à 0. Le temps de visionnage est conservé. Cette action est irréversible.",
   "resetConfirm": "Réinitialiser",
   "toastReset": "Points réinitialisés. Tous les soldes sont maintenant à 0.",
-  "toastResetFailed": "Impossible de réinitialiser les points.",
-  "scheduleLabel": "Réinitialisation automatique",
-  "scheduleHint": "Remet à 0 les « {name} » de tous les viewers à 00:00 UTC le lundi (hebdomadaire), le 1er du mois (mensuel) ou le 1er janvier (annuel). Le temps de visionnage est conservé.",
-  "scheduleOff": "Désactivée",
-  "scheduleWeekly": "Chaque semaine",
-  "scheduleMonthly": "Chaque mois",
-  "scheduleAnnually": "Chaque année"
+  "toastResetFailed": "Impossible de réinitialiser les points."
 }

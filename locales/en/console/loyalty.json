@@ -68,11 +68,5 @@
   "resetConfirmBody": "This sets every viewer's {name} back to 0. Watch time is kept. This cannot be undone.",
   "resetConfirm": "Reset points",
   "toastReset": "Points reset. Every balance is now 0.",
-  "toastResetFailed": "Could not reset points.",
-  "scheduleLabel": "Automatic reset",
-  "scheduleHint": "Resets every viewer's {name} at 00:00 UTC on Monday (weekly), the 1st (monthly) or January 1 (annually). Watch time is kept.",
-  "scheduleOff": "Off",
-  "scheduleWeekly": "Weekly",
-  "scheduleMonthly": "Monthly",
-  "scheduleAnnually": "Annually"
+  "toastResetFailed": "Could not reset points."
 }

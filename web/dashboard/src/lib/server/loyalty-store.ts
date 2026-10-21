@@ -3,7 +3,7 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, COUNTER_SCOPES, MOD, toResetSchedule } from '@bagel/kit';
+import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { schedulePurgeChannel } from './edge-purge';
@@ -74,11 +74,7 @@ function rate(v: unknown): number {
 
 export async function readLoyalty(userId: string): Promise<LoyaltyView> {
   const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig>>(userId, LOYALTY_MODULE);
-  const config: LoyaltyConfig = {
-    ...blankLoyaltyConfig(),
-    pointsName: String(raw.pointsName ?? ''),
-    resetSchedule: toResetSchedule(raw.resetSchedule)
-  };
+  const config: LoyaltyConfig = { ...blankLoyaltyConfig(), pointsName: String(raw.pointsName ?? '') };
   for (const key of RATE_KEYS) config[key] = rate(raw[key]);
   return { enabled, config };
 }
