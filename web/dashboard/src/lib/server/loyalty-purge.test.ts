@@ -23,6 +23,7 @@ mock.module('@bagel/kit/server/nats', () => ({
     if (subject === `${SUB.modules}.upsert`) return { modules: stored() };
     if (subject === `${SUB.projector}.modules.replace`) return { modules: stored() };
     if (subject === `${SUB.projector}.modules.get`) return { modules: stored() };
+    if (subject === `${SUB.loyalty}.balance.reset`) return { total: 3 };
     throw new Error(`Unexpected RPC: ${subject}`);
   }
 }));
@@ -30,7 +31,7 @@ mock.module('@bagel/kit/server/nats', () => ({
 const valkey = await import('@bagel/kit/server/valkey-store');
 mock.module('@bagel/kit/server/valkey-store', () => ({ ...valkey, getModules: async () => ({ projected: true, modules: stored() }) }));
 
-const { writeLoyalty } = await import('./loyalty-store');
+const { resetPoints, writeLoyalty } = await import('./loyalty-store');
 const { setModuleEnabled } = await import('./module-blob');
 const { upsertModule } = await import('./commands-store');
 const { blankLoyaltyConfig } = await import('@bagel/kit');
@@ -66,6 +67,12 @@ describe('loyalty writes and the leaderboard tag purge', () => {
     storedLoyalty = true;
     await writeLoyalty(user, true, blankLoyaltyConfig());
     expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [user], boards: [] });
+  });
+
+  test('a points reset purges the leaderboard tag and leaves the commands URLs', async () => {
+    const user = freshUser();
+    expect(await resetPoints(user)).toBe(3);
+    expect({ pages: pagePurges, boards: boardPurges }).toEqual({ pages: [], boards: [user] });
   });
 
   test('other module writes never tag-purge', async () => {

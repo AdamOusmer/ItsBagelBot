@@ -228,7 +228,7 @@ type loyaltyDeps struct {
 }
 
 func newLoyalty(w wireCtx, deps loyaltyDeps) (*engine.ValkeyLoyaltyStore, *engine.ValkeyLoyaltyClock) {
-	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), deps.reporter, w.log)
+	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, engine.LoyaltyRPCPrefix(w.cfg.LoyaltyRPCPrefix)), deps.reporter, w.log)
 	store.StartInvalidationListener(w.in.nc, w.cfg.CacheInvalidationPrefix)
 	tick := newLoyaltyClock(w, deps)
 	return store, tick

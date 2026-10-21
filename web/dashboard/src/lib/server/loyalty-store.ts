@@ -6,7 +6,7 @@ import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, Loyalty
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
-import { schedulePurgeChannel } from './edge-purge';
+import { scheduleLeaderboardPurge } from './edge-purge';
 import { readModuleBlob } from './module-blob';
 import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
@@ -194,7 +194,7 @@ type BroadcasterId = string;
 
 export async function resetPoints(userId: BroadcasterId): Promise<number> {
   const reply = await callLoyalty('balance.reset', { user_id: userId });
-  schedulePurgeChannel(userId);
+  scheduleLeaderboardPurge(userId);
   return reply.total ?? 0;
 }
 
