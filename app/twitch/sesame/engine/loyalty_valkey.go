@@ -483,19 +483,23 @@ func (s *ValkeyLoyaltyStore) dropChannelBalances(ctx context.Context, broadcaste
 	match := cache.PairKey(loyalBalancePrefix, broadcasterID, "*")
 	var cursor uint64
 	for {
-		page, err := s.primary.Do(ctx, s.primary.B().Scan().Cursor(cursor).Match(match).Count(balanceScanCount).Build()).AsScanEntry()
-		if err != nil {
+		next, err := s.unlinkScanPage(ctx, cursor, match)
+		if err != nil || next == 0 {
 			return err
 		}
-		if len(page.Elements) > 0 {
-			if err := s.primary.Do(ctx, s.primary.B().Unlink().Key(page.Elements...).Build()).Error(); err != nil {
-				return err
-			}
-		}
-		if cursor = page.Cursor; cursor == 0 {
-			return nil
-		}
+		cursor = next
 	}
+}
+
+func (s *ValkeyLoyaltyStore) unlinkScanPage(ctx context.Context, cursor uint64, match string) (uint64, error) {
+	page, err := s.primary.Do(ctx, s.primary.B().Scan().Cursor(cursor).Match(match).Count(balanceScanCount).Build()).AsScanEntry()
+	if err != nil {
+		return 0, err
+	}
+	if len(page.Elements) == 0 {
+		return page.Cursor, nil
+	}
+	return page.Cursor, s.primary.Do(ctx, s.primary.B().Unlink().Key(page.Elements...).Build()).Error()
 }
 
 func (s *ValkeyLoyaltyStore) Close() {
