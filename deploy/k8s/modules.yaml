@@ -115,6 +115,10 @@ spec:
               value: tls://nats-leaf.messaging:4222
             - name: VALKEY_ADDR
               value: valkey.cache.svc.cluster.local:26380
+            # modules-env carries no Valkey password; users-env holds the shared default user's.
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: users-env, key: VALKEY_PASSWORD}
             - name: VALKEY_TLS_CA_PEM
               valueFrom:
                 configMapKeyRef:
