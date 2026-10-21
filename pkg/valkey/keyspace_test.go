@@ -136,6 +136,58 @@ func TestKVJSONRoundTripAndUndecodableValue(t *testing.T) {
 	assert.Equal(t, payload{}, fallback)
 }
 
+func TestReadJSONSeparatesMissFromUndecodableValue(t *testing.T) {
+	type payload struct {
+		Name string `json:"name"`
+	}
+	f := newFakeValkey(t)
+	ctx := context.Background()
+	f.put("garbage", "{not json")
+	require.NoError(t, SetJSON(ctx, NewKV(f.client), Key{Name: "blob"}, payload{Name: "desk"}))
+
+	got, ok, err := ReadJSON[payload](ctx, f.client, "blob")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, payload{Name: "desk"}, got)
+
+	_, ok, err = ReadJSON[payload](ctx, f.client, "absent")
+	require.NoError(t, err, "a missing key is not an error")
+	assert.False(t, ok)
+
+	_, ok, err = ReadJSON[payload](ctx, f.client, "garbage")
+	require.Error(t, err, "an undecodable value must surface, unlike GetJSON")
+	assert.False(t, ok)
+}
+
+func TestRunScriptsFallsBackToEvalAndReleasesOnlyOwnedLocks(t *testing.T) {
+	f := newFakeValkey(t)
+	ctx := context.Background()
+	mine := NewOwnerLock(f.client, "lock:a", "pod-a")
+	theirs := NewOwnerLock(f.client, "lock:b", "pod-b")
+	for _, lock := range []OwnerLock{mine, theirs} {
+		won, err := lock.Acquire(ctx, time.Minute)
+		require.NoError(t, err)
+		require.True(t, won)
+	}
+
+	results := RunScripts(ctx, f.client, []ScriptCall{
+		mine.ReleaseCall(),
+		NewOwnerLock(f.client, "lock:b", "pod-a").ReleaseCall(),
+	})
+
+	released := make([]int64, len(results))
+	for i, result := range results {
+		n, err := result.AsInt64()
+		require.NoError(t, err, "NOSCRIPT must be retried as EVAL")
+		released[i] = n
+	}
+	assert.Equal(t, []int64{1, 0}, released)
+	_, heldA := f.value("lock:a")
+	_, heldB := f.value("lock:b")
+	assert.False(t, heldA)
+	assert.True(t, heldB, "a foreign owner's release must leave the lock in place")
+}
+
 func TestOwnerLockIsExclusiveAndReleasedOnlyByItsOwner(t *testing.T) {
 	f := newFakeValkey(t)
 	ctx := context.Background()

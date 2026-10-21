@@ -20,6 +20,10 @@ interface Options {
   source: Source;
 }
 
+const UNSAFE_IN_CODE = /[<>/\u{2028}\u{2029}]/gu;
+const escapeCode = (json: string) => json.replace(UNSAFE_IN_CODE, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
+const toCode = (value: unknown) => escapeCode(JSON.stringify(value));
+
 interface Catalogs {
   locales: string[];
   trees: Record<string, MessageTree>;
@@ -74,7 +78,7 @@ function assemble({ exclude, source }: Options): Catalogs {
     const fileName = `${URL_DIR}/${locale}.${hash}.json`;
     out.trees[locale] = merged;
     out.names[locale] = langName(merged, locale);
-    out.data[locale] = body;
+    out.data[locale] = escapeCode(body);
     out.files[fileName] = body;
     out.urls[locale] = `/${fileName}`;
   }
@@ -120,12 +124,12 @@ export function i18nCatalogs({ exclude = [], source = { locales: consoleLocales,
       const name = id.slice(1);
       if (name.startsWith(DATA)) return `export default ${data[name.slice(DATA.length)]};`;
       const loaders = loadOptions?.ssr
-        ? locales.map((locale) => `${JSON.stringify(locale)}: () => import(${JSON.stringify(DATA + locale)})`).join(',')
+        ? locales.map((locale) => `${toCode(locale)}: () => import(${toCode(DATA + locale)})`).join(',')
         : '';
       return [
-        `export const locales = ${JSON.stringify(locales)};`,
-        `export const localeNames = ${JSON.stringify(names)};`,
-        `export const urls = ${JSON.stringify(sliced ? {} : urls)};`,
+        `export const locales = ${toCode(locales)};`,
+        `export const localeNames = ${toCode(names)};`,
+        `export const urls = ${toCode(sliced ? {} : urls)};`,
         `export const sliced = ${sliced};`,
         `export const loaders = {${loaders}};`
       ].join('\n');

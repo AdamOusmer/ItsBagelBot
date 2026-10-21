@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/users/ent"
@@ -60,22 +59,16 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"leaderboard_page_set": d.handleLeaderboardPageSet,
 		"delete_self":          d.handleDeleteSelf,
 	}
+	return serveMsgVerbs(w.Within(dashboardTimeout), prefix, verbs)
+}
+
+func serveMsgVerbs(w bus.RPCWiring, prefix string, verbs map[string]func(context.Context, *nats.Msg)) error {
 	for verb, fn := range verbs {
-		subject := prefix + "." + verb
-		fn := fn
-		if err := bus.QueueSubscribeRPC(w.NC, subject, w.Queue, tracedHandler(w.App, subject, fn)); err != nil {
-			return fmt.Errorf("subscribe %s: %w", subject, err)
+		if err := bus.ServeMsg(w, prefix+"."+verb, fn); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func tracedHandler(app *newrelic.Application, subject string, fn func(context.Context, *nats.Msg)) nats.MsgHandler {
-	return func(msg *nats.Msg) {
-		txn := app.StartTransaction("rpc " + subject)
-		defer txn.End()
-		fn(newrelic.NewContext(context.Background(), txn), msg)
-	}
 }
 
 func respondErr(msg *nats.Msg, text string) {
@@ -106,10 +99,6 @@ func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
 	return id, true
 }
 
-func timeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, dashboardTimeout)
-}
-
 func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
 	if err := invalidate.Publish(d.nc, d.invalidationPrefix, scope, id); err != nil {
 		d.log.Warn(op+" invalidation publish failed", zap.Error(err))
@@ -117,9 +106,6 @@ func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
 }
 
 func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, scope, broadcasterID, op string, write func(context.Context) error) {
-	ctx, cancel := timeout(ctx)
-	defer cancel()
-
 	if err := write(ctx); err != nil {
 		d.log.Error(op, zap.Error(err))
 		respondFail(msg, err)
@@ -153,9 +139,6 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	email := fmt.Sprintf("%d@twitch.tv", id)
 
@@ -202,9 +185,6 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	accessToken, _, _, err := d.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	hasGrant := err == nil && len(accessToken) > 0
@@ -262,9 +242,6 @@ func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := timeout(ctx)
-	defer cancel()
-
 	id, err := d.repo.IDByUsername(ctx, req.Login)
 	if err != nil {
 		respondFail(msg, err, domainrpc.Is(validate.ErrUsernameInvalid, domainrpc.CodeInvalid))
@@ -291,9 +268,6 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 	if !ok {
 		return
 	}
-
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
@@ -363,9 +337,6 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	ctx, cancel := timeout(ctx)
-	defer cancel()
-
 	log := monitor.TxnLogger(ctx, d.log)
 	delegateIDs, err := d.repo.DeleteDelegationsByOwner(ctx, id)
 	if err != nil {
@@ -395,8 +366,6 @@ func (d *dashboardRPC) handleLifecycleRetry(ctx context.Context, msg *nats.Msg) 
 	if !ok {
 		return
 	}
-	ctx, cancel := timeout(ctx)
-	defer cancel()
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
 		respondFail(msg, err)

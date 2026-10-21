@@ -62,13 +62,12 @@ var (
 // Absolute caller deadlines include queue time; expired work never calls Twitch.
 func SubscribeChatters(nc *nats.Conn, tw *twitch.Client, botID, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger, opts ChattersOptions) error {
 	c := &chatters{twitch: tw, botID: botID, log: log, opts: opts, now: time.Now}
-	_, err := bus.QueueSubscribeRPCConcurrent(nc, bus.RPCSubscription{
-		Subject: prefix + ".chatters.get", QueueGroup: queueGroup,
-		Policy: bus.RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 16},
-	}, func(msg *nats.Msg) {
-		txn := app.StartTransaction("rpc chatters.get")
-		defer txn.End()
-		ctx := newrelic.NewContext(context.Background(), txn)
+	wiring := bus.RPCWiring{
+		NC: nc, App: app, Queue: queueGroup, Log: log,
+		Timeout: chattersHandleTimeout,
+		Pool:    bus.RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 16},
+	}
+	return bus.ServeMsg(wiring, prefix+".chatters.get", func(ctx context.Context, msg *nats.Msg) {
 		var req manage.ChattersRequest
 		var reply manage.ChattersReply
 		if err := codec.Unmarshal(msg.Data, &req); err != nil {
@@ -82,10 +81,6 @@ func SubscribeChatters(nc *nats.Conn, tw *twitch.Client, botID, prefix, queueGro
 		}
 		_ = msg.Respond(body)
 	})
-	if err != nil {
-		return err
-	}
-	return nc.Flush()
 }
 
 // A request either asks for one correlated watch page or the legacy complete

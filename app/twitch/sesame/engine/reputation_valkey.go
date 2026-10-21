@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -27,19 +29,11 @@ func (r *ValkeyReputation) Bump(_ context.Context, chatterID string) {
 	if chatterID == "" {
 		return
 	}
-	key := repKey(chatterID)
-	seconds := int64(r.ttl.Seconds())
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		for _, resp := range r.client.DoMulti(ctx,
-			r.client.B().Incr().Key(key).Build(),
-			r.client.B().Expire().Key(key).Seconds(seconds).Build(),
-		) {
-			if err := resp.Error(); err != nil {
-				r.log.Debug("reputation bump failed", zap.String("chatter_id", chatterID), zap.Error(err))
-				return
-			}
+		if _, err := pkg_valkey.Incr(ctx, r.client, repKey(chatterID), r.ttl); err != nil {
+			r.log.Debug("reputation bump failed", zap.String("chatter_id", chatterID), zap.Error(err))
 		}
 	}()
 }

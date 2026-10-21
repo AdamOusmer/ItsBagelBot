@@ -49,12 +49,10 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 	}
 	handle := ep.Handle
 
-	registration := bus.RPCSubscription{Subject: subject, QueueGroup: queueGroup, Policy: handlerPolicy}
-	_, err := bus.QueueSubscribeRPCConcurrent(nc, registration, func(msg *nats.Msg) {
+	wiring := bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log, Timeout: timeout, Pool: handlerPolicy}
+	return bus.ServeMsg(wiring, subject, func(ctx context.Context, msg *nats.Msg) {
 		start := time.Now()
-
-		txn := nrApp.StartTransaction("rpc " + subject)
-		defer txn.End()
+		txn := newrelic.FromContext(ctx)
 		log := monitor.TraceLogger(txn, log)
 
 		var req gossiprpc.Request
@@ -66,15 +64,8 @@ func subscribe(nc *nats.Conn, subject, queueGroup string, ep provider.Endpoint, 
 			}
 		}
 
-		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
-		defer cancel()
-
 		respondAndLog(msg, subject, start, log, encode(subject, handle(ctx, req), log))
 	})
-	if err != nil {
-		return fmt.Errorf("subscribe %s: %w", subject, err)
-	}
-	return nil
 }
 
 func encode(subject string, result any, log *zap.Logger) []byte {

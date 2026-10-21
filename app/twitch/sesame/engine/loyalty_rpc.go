@@ -28,9 +28,13 @@ func NewLoyaltyRPC(nc *nats.Conn, prefix string) *LoyaltyRPC {
 }
 
 func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
+	return l.callWithin(ctx, loyaltyRPCTimeout, verb, req)
+}
+
+func (l *LoyaltyRPC) callWithin(ctx context.Context, timeout time.Duration, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
 	subject := l.prefix + "." + verb
 
-	ctx, cancel := context.WithTimeout(ctx, loyaltyRPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	body, err := codec.Marshal(req)

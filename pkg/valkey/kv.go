@@ -53,6 +53,23 @@ func GetJSON[T any](ctx context.Context, kv KV, name string) (T, bool) {
 	return out, true
 }
 
+// ReadJSON is GetJSON for callers that must tell a missing key from a read or decode failure.
+func ReadJSON[T any](ctx context.Context, client valkey_go.Client, name string) (T, bool, error) {
+	var zero T
+	raw, err := client.Do(ctx, client.B().Get().Key(name).Build()).AsBytes()
+	if valkey_go.IsValkeyNil(err) {
+		return zero, false, nil
+	}
+	if err != nil {
+		return zero, false, err
+	}
+	var out T
+	if err := codec.Unmarshal(raw, &out); err != nil {
+		return zero, false, err
+	}
+	return out, true, nil
+}
+
 // Not the Fast codec pair: GetJSON's result outlives its buffer.
 func SetJSON[T any](ctx context.Context, kv KV, at Key, value T) error {
 	raw, err := codec.Marshal(value)

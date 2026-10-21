@@ -89,7 +89,7 @@ func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject strin
 	return RequestJSON[T](ctx, nc, subject, request)
 }
 
-// handle runs serially; moving it onto an RPCPool turns read-modify-write handlers into lost updates.
+// handle must be safe to run concurrently with itself.
 func QueueSubscribeJSON[Req any, Resp any](
 	nc *nats.Conn,
 	subject string,
@@ -99,7 +99,7 @@ func QueueSubscribeJSON[Req any, Resp any](
 	log *zap.Logger,
 	handle func(context.Context, Req) Resp,
 ) error {
-	return flushedSubscription(nc, subject, QueueSubscribeRPC(nc, subject, queueGroup, jsonRPCHandler(subject, timeout, app, log, handle)))
+	return QueueSubscribeJSONConcurrent(nc, RPCSubscription{Subject: subject, QueueGroup: queueGroup}, timeout, app, log, handle)
 }
 
 // handle must be safe to run concurrently with itself.
@@ -139,10 +139,8 @@ func jsonRPCHandler[Req any, Resp any](
 	return func(msg *nats.Msg) {
 		start := time.Now()
 
-		txn := app.StartTransaction("rpc " + normalizedDestination(subject))
+		txn := startRPCTransaction(app, subject, msg)
 		defer txn.End()
-		acceptTraceHeaders(txn, msg.Header)
-		addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
 		log := monitor.TraceLogger(txn, log)
 
 		var req Req
@@ -160,7 +158,7 @@ func jsonRPCHandler[Req any, Resp any](
 			decodeSegment.End()
 		}
 
-		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
+		ctx, cancel := requestContext(newrelic.NewContext(context.Background(), txn), msg, timeout)
 		defer cancel()
 
 		defer func() {
@@ -176,6 +174,26 @@ func jsonRPCHandler[Req any, Resp any](
 		handleSegment.End()
 		respondAndLog(msg, subject, start, log, txn, reply)
 	}
+}
+
+func msgRPCHandler(subject string, timeout time.Duration, app *newrelic.Application, handle func(context.Context, *nats.Msg)) nats.MsgHandler {
+	if timeout <= 0 {
+		timeout = defaultRPCTimeout
+	}
+	return func(msg *nats.Msg) {
+		txn := startRPCTransaction(app, subject, msg)
+		defer txn.End()
+		ctx, cancel := requestContext(newrelic.NewContext(context.Background(), txn), msg, timeout)
+		defer cancel()
+		handle(ctx, msg)
+	}
+}
+
+func startRPCTransaction(app *newrelic.Application, subject string, msg *nats.Msg) *newrelic.Transaction {
+	txn := app.StartTransaction("rpc " + normalizedDestination(subject))
+	acceptTraceHeaders(txn, msg.Header)
+	addMessagingTransactionAttributes(txn, messagingAttributes{operation: "process", destination: subject})
+	return txn
 }
 
 func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {
