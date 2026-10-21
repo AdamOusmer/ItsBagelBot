@@ -102,6 +102,11 @@ func raffleDeps(r engine.RaffleStore) engine.Deps {
 	return engine.Deps{Raffle: r, Log: zap.NewNop()}
 }
 
+const (
+	raffleJoinOn  = `{"joinEnabled":"on"}`
+	raffleClaimOn = `{"claimEnabled":"on"}`
+)
+
 func TestRaffleJoin(t *testing.T) {
 	openQueue := &fakeQueue{open: true}
 	cases := []struct {
@@ -115,22 +120,29 @@ func TestRaffleJoin(t *testing.T) {
 		contains []string
 		excludes []string
 		pool     []string
+		silent   bool
 	}{
-		{name: "joining an open raffle counts the entry", raffle: fakeRaffle{open: true}, contains: []string{"@alice", "1 entered"}, excludes: []string{"!queue join"}, pool: []string{"alice"}},
+		{name: "joining an open raffle is silent by default", raffle: fakeRaffle{open: true}, silent: true, pool: []string{"alice"}},
+		{name: "joining an open raffle counts the entry", config: raffleJoinOn, raffle: fakeRaffle{open: true}, contains: []string{"@alice", "1 entered"}, excludes: []string{"!queue join"}, pool: []string{"alice"}},
 		{name: "joining a closed raffle is refused", contains: []string{"no raffle"}},
-		{name: "joining twice keeps one entry", raffle: fakeRaffle{open: true, pool: []string{"bob", "alice"}}, contains: []string{"already"}, pool: []string{"bob", "alice"}},
-		{name: "the join template fills the count", config: `{"joinMessage":"welcome {user}! {count} in so far"}`, raffle: fakeRaffle{open: true},
+		{name: "the no raffle line can be turned off", config: `{"noRaffleEnabled":"off"}`, silent: true},
+		{name: "the no raffle line stays on for any other value", config: `{"noRaffleEnabled":"on"}`, contains: []string{"no raffle"}},
+		{name: "joining twice is silent by default", raffle: fakeRaffle{open: true, pool: []string{"bob", "alice"}}, silent: true, pool: []string{"bob", "alice"}},
+		{name: "joining twice keeps one entry", config: `{"alreadyEnabled":"true"}`, raffle: fakeRaffle{open: true, pool: []string{"bob", "alice"}}, contains: []string{"already"}, pool: []string{"bob", "alice"}},
+		{name: "the already line stays off when only join is on", config: raffleJoinOn, raffle: fakeRaffle{open: true, pool: []string{"alice"}}, silent: true, pool: []string{"alice"}},
+		{name: "the join template fills the count", config: `{"joinEnabled":"on","joinMessage":"welcome {user}! {count} in so far"}`, raffle: fakeRaffle{open: true},
 			exact: "welcome alice! 1 in so far", pool: []string{"alice"}},
-		{name: "the raffle subcommand joins too", text: "!raffle join", raffle: fakeRaffle{open: true}, contains: []string{"1 entered"}, pool: []string{"alice"}},
-		{name: "an open queue is pointed to", raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
+		{name: "a join template stays silent while the line is off", config: `{"joinMessage":"welcome"}`, raffle: fakeRaffle{open: true}, silent: true, pool: []string{"alice"}},
+		{name: "the raffle subcommand joins too", text: "!raffle join", config: raffleJoinOn, raffle: fakeRaffle{open: true}, contains: []string{"1 entered"}, pool: []string{"alice"}},
+		{name: "an open queue is pointed to", config: raffleJoinOn, raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
 			contains: []string{"1 entered", "!queue join"}, pool: []string{"alice"}},
-		{name: "a repeat entry also points to the queue", raffle: fakeRaffle{open: true, pool: []string{"alice"}}, queue: openQueue, queueOn: true,
+		{name: "a repeat entry also points to the queue", config: `{"alreadyEnabled":"on"}`, raffle: fakeRaffle{open: true, pool: []string{"alice"}}, queue: openQueue, queueOn: true,
 			contains: []string{"already", "!queue join"}, pool: []string{"alice"}},
-		{name: "a closed queue is not pointed to", raffle: fakeRaffle{open: true}, queue: &fakeQueue{}, queueOn: true,
+		{name: "a closed queue is not pointed to", config: raffleJoinOn, raffle: fakeRaffle{open: true}, queue: &fakeQueue{}, queueOn: true,
 			excludes: []string{"!queue join"}, pool: []string{"alice"}},
-		{name: "a disabled queue module is not pointed to", raffle: fakeRaffle{open: true}, queue: openQueue,
+		{name: "a disabled queue module is not pointed to", config: raffleJoinOn, raffle: fakeRaffle{open: true}, queue: openQueue,
 			excludes: []string{"!queue join"}, pool: []string{"alice"}},
-		{name: "a custom join template gets no queue hint", config: `{"joinMessage":"in!"}`, raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
+		{name: "a custom join template gets no queue hint", config: `{"joinEnabled":"on","joinMessage":"in!"}`, raffle: fakeRaffle{open: true}, queue: openQueue, queueOn: true,
 			exact: "in!", pool: []string{"alice"}},
 	}
 	for _, tc := range cases {
@@ -147,8 +159,12 @@ func TestRaffleJoin(t *testing.T) {
 				text = "!join"
 			}
 			out := runChat(t, Raffle(d), c, text)
-			require.Len(t, out, 1)
-			assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
+			if tc.silent {
+				assert.Empty(t, out)
+			} else {
+				require.Len(t, out, 1)
+				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
+			}
 			assert.Equal(t, tc.pool, r.pool)
 		})
 	}
@@ -162,21 +178,49 @@ const (
 	raffleClosed
 )
 
+type raffleChatCase struct {
+	name      string
+	text      string
+	who       string
+	badge     string
+	config    string
+	raffle    fakeRaffle
+	silent    bool
+	unclaimed bool
+	exact     string
+	contains  []string
+	excludes  []string
+	open      raffleOpen
+}
+
+func (tc raffleChatCase) run(t *testing.T) {
+	r := tc.raffle
+	out := runChat(t, Raffle(raffleDeps(&r)), withConfig(chatCtx("42", tc.who, tc.badge), tc.config), tc.text)
+	if tc.silent {
+		assert.Empty(t, out)
+	} else {
+		require.Len(t, out, 1)
+		assertText(t, out[0].Text, textWant{tc.exact, tc.contains, tc.excludes})
+	}
+	if tc.unclaimed {
+		assert.Empty(t, r.claimedBy)
+	}
+	switch tc.open {
+	case raffleOpened:
+		assert.True(t, r.open)
+	case raffleClosed:
+		assert.False(t, r.open)
+	}
+}
+
+var (
+	raffleWon  = &engine.RaffleResult{Winners: winners("alice", "zoe"), Entrants: 10}
+	rafflePaid = &engine.RaffleResult{Winners: []engine.RaffleWinner{{ID: "1", Login: "alice", Points: 1000}}, Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutPaid}
+)
+
 func TestRaffleChat(t *testing.T) {
-	won := &engine.RaffleResult{Winners: winners("alice", "zoe"), Entrants: 10}
-	paid := &engine.RaffleResult{Winners: []engine.RaffleWinner{{ID: "1", Login: "alice", Points: 1000}}, Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutPaid}
-	cases := []struct {
-		name     string
-		text     string
-		who      string
-		badge    string
-		config   string
-		raffle   fakeRaffle
-		silent   bool
-		exact    string
-		contains []string
-		open     raffleOpen
-	}{
+	won, paid := raffleWon, rafflePaid
+	cases := []raffleChatCase{
 		{name: "a viewer cannot open a raffle", text: "!raffle open", who: "alice", silent: true, open: raffleClosed},
 		{name: "a mod opens a raffle with the defaults", text: "!raffle open", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
 		{name: "opening a running raffle is refused", text: "!raffle open 30", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"already"}},
@@ -201,28 +245,39 @@ func TestRaffleChat(t *testing.T) {
 			raffle:   fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("alice", "zoe"), Entrants: 5, Claims: []string{"id-alice"}}},
 			contains: []string{"1/2 confirmed"}},
 		{name: "winner before any draw says so", text: "!winner", who: "alice", contains: []string{"No raffle has been drawn"}},
-		{name: "a winner's claim is confirmed", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimOk}, contains: []string{"confirmed"}},
-		{name: "a second claim is already confirmed", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimAlready}, contains: []string{"already"}},
-		{name: "a non winner gets no prize line", text: "!claim", who: "eve", raffle: fakeRaffle{claim: engine.ClaimNone}, contains: []string{"no raffle prize", "!claim"}},
-		{name: "a late claim cites the window", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimLate}, contains: []string{"window"}},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := tc.raffle
-			out := runChat(t, Raffle(raffleDeps(&r)), withConfig(chatCtx("42", tc.who, tc.badge), tc.config), tc.text)
-			if tc.silent {
-				assert.Empty(t, out)
-			} else {
-				require.Len(t, out, 1)
-				assertText(t, out[0].Text, textWant{tc.exact, tc.contains, nil})
-			}
-			switch tc.open {
-			case raffleOpened:
-				assert.True(t, r.open)
-			case raffleClosed:
-				assert.False(t, r.open)
-			}
-		})
+		t.Run(tc.name, tc.run)
+	}
+}
+
+func TestRaffleLineToggles(t *testing.T) {
+	won, paid := raffleWon, rafflePaid
+	cases := []raffleChatCase{
+		{name: "claim is silent and records nothing by default", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimOk}, silent: true, unclaimed: true},
+		{name: "claim stays off for other values", text: "!claim", who: "alice", config: `{"claimEnabled":"off"}`, raffle: fakeRaffle{claim: engine.ClaimOk}, silent: true, unclaimed: true},
+		{name: "a winner's claim is confirmed", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimOk}, contains: []string{"confirmed"}},
+		{name: "the claim confirmation line can be turned off", text: "!claim", who: "alice", config: `{"claimEnabled":"on","claimOkEnabled":"off"}`, raffle: fakeRaffle{claim: engine.ClaimOk}, silent: true},
+		{name: "a second claim is already confirmed", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimAlready}, contains: []string{"already"}},
+		{name: "a non winner gets no prize line", text: "!claim", who: "eve", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimNone}, contains: []string{"no raffle prize", "!claim"}},
+		{name: "a late claim cites the window", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimLate}, contains: []string{"window"}},
+		{name: "opening can be silenced", text: "!raffle open", who: "mod", badge: "moderator", config: `{"openedEnabled":"off"}`, silent: true, open: raffleOpened},
+		{name: "a draw without the won line still posts the payout note", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"off"}`,
+			raffle:   fakeRaffle{drawResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutLoyaltyOff}},
+			contains: []string{"Loyalty is off"}, excludes: []string{"congratulations"}},
+		{name: "a draw with the won line off and no note is silent", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"false"}`,
+			raffle: fakeRaffle{drawResult: paid}, silent: true},
+		{name: "the won line omits !claim when claim is off", text: "!raffle draw", who: "mod", badge: "moderator", raffle: fakeRaffle{drawResult: won},
+			contains: []string{"congratulations"}, excludes: []string{"!claim"}},
+		{name: "the won line asks for !claim when claim is on", text: "!raffle draw", who: "mod", badge: "moderator", config: raffleClaimOn, raffle: fakeRaffle{drawResult: won},
+			contains: []string{"!claim", "your prize"}},
+		{name: "a paid won line asks for !claim when claim is on", text: "!raffle draw", who: "mod", badge: "moderator", config: raffleClaimOn, raffle: fakeRaffle{drawResult: paid},
+			contains: []string{"1000 points", "!claim"}},
+		{name: "a custom claim prize is named", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"claimEnabled":"on","claimPrize":"a signed poster"}`, raffle: fakeRaffle{drawResult: won},
+			contains: []string{"a signed poster"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, tc.run)
 	}
 }
 
@@ -292,7 +347,7 @@ func TestRaffleKeysEntriesAndClaimsByViewerID(t *testing.T) {
 	m := Raffle(raffleDeps(r))
 
 	runChat(t, m, chatCtx("777", "Alice"), "!join")
-	runChat(t, m, chatCtx("777", "alice"), "!claim")
+	runChat(t, m, withConfig(chatCtx("777", "alice"), raffleClaimOn), "!claim")
 
 	assert.Equal(t, []string{"777"}, r.joinedIDs)
 	assert.Equal(t, []string{"alice"}, r.pool, "the login is kept lower-cased for mentions")

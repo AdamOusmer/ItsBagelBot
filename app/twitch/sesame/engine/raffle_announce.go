@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -36,18 +37,39 @@ func (a RaffleAnnouncement) ResultLines(res *RaffleResult) []string {
 	if len(res.Winners) == 0 {
 		return []string{a.render("", "raffle.draw.empty")}
 	}
-	lines := a.wonLines(res)
+	var lines []string
+	if a.Config.WonOn() {
+		lines = a.wonLines(res)
+	}
 	if note := rafflePayoutNotes[res.Payout]; note != "" {
 		lines = append(lines, a.render("", note, "points", a.Points))
 	}
 	return lines
 }
 
-func (a RaffleAnnouncement) wonLines(res *RaffleResult) []string {
-	key := "raffle.won"
-	if res.Prize > 0 && res.Payout != RafflePayoutLoyaltyOff {
-		key = "raffle.won.points"
+var raffleWonKeys = map[[2]bool]string{
+	{false, false}: "raffle.won.plain",
+	{false, true}:  "raffle.won",
+	{true, false}:  "raffle.won.points",
+	{true, true}:   "raffle.won.points.claim",
+}
+
+func (a RaffleAnnouncement) prizeText() string {
+	if p := strings.TrimSpace(a.Config.ClaimPrize); p != "" && !floorHit(p) {
+		return p
 	}
+	return i18n.T(a.Locale, "raffle.claim.prize_default")
+}
+
+func floorHit(text string) bool {
+	_, hit := moderation.CheckFloor(text)
+	return hit
+}
+
+func (a RaffleAnnouncement) wonLines(res *RaffleResult) []string {
+	paid := res.Prize > 0 && res.Payout != RafflePayoutLoyaltyOff
+	key := raffleWonKeys[[2]bool{paid, a.Config.ClaimOn()}]
+	prize := a.prizeText()
 	count := strconv.Itoa(len(res.Winners))
 	entrants := strconv.FormatInt(res.Entrants, 10)
 	claim := strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10)
@@ -55,7 +77,7 @@ func (a RaffleAnnouncement) wonLines(res *RaffleResult) []string {
 	return chunkMentions(res.Winners, func(targets string) string {
 		return a.render(a.Config.WonMessage, key,
 			"targets", targets, "count", count, "entrants", entrants,
-			"claim", claim, "amount", amount, "points", a.Points)
+			"claim", claim, "amount", amount, "points", a.Points, "prize", prize)
 	})
 }
 
@@ -93,10 +115,14 @@ func chunkMentions(winners []RaffleWinner, render func(targets string) string) [
 	return append(lines, render(group))
 }
 
-func raffleRemindText(locale string, leftSeconds, entrants int64) string {
-	return expandTokens(module.Locale(locale), tokenExpansion{
+func (a RaffleAnnouncement) RemindText(leftSeconds, entrants int64) string {
+	key := "raffle.remind"
+	if a.Config.ClaimOn() {
+		key = "raffle.remind.claim"
+	}
+	return expandTokens(module.Locale(a.Locale), tokenExpansion{
 		namespace: "raffle",
-		text:      i18n.T(locale, "raffle.remind"),
+		text:      i18n.T(a.Locale, key),
 		kv: []string{
 			"mins", strconv.FormatInt((leftSeconds+59)/60, 10),
 			"count", strconv.FormatInt(entrants, 10),
@@ -152,8 +178,9 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 		return
 	}
 
-	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, raffleRemindText(locale, left, entrants))
+	if a := s.announcement(dctx, broadcasterID); a.Config.RemindOn() {
+		s.post(dctx, broadcasterID, a.RemindText(left, entrants))
+	}
 
 	next := st.RemindSeconds
 	if next <= 0 {
