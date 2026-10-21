@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Locale, MessageTree } from './types';
+import type { Locale, MessageTree } from './types.ts';
 
 export interface CatalogFile {
   path: string;

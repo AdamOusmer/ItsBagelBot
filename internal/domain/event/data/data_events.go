@@ -14,6 +14,7 @@ const (
 	SubjectUserChanged    = "data.users.changed"
 	SubjectUserDeleted    = "data.users.deleted"
 	SubjectModuleChanged  = "data.modules.changed"
+	SubjectQuoteChanged   = "data.modules.quotes_changed"
 	SubjectCommandChanged = "data.commands.changed"
 	SubjectCommandUsed    = "data.commands.used"
 
@@ -43,6 +44,7 @@ type UserChangedDTO struct {
 	// this field zero-values to false, so a projector still on the old shape
 	// folds "visible", the pre-feature behaviour.
 	CommandsPageHidden bool `json:"commands_page_hidden"`
+	LeaderboardPageHidden bool `json:"leaderboard_page_hidden"`
 }
 
 type UserDeletedDTO struct {
@@ -58,6 +60,10 @@ type ModuleChangedDTO struct {
 	IsEnabled        bool             `json:"is_enabled"`
 	Configs          codec.RawMessage `json:"configs,omitempty"`
 	Revision         int              `json:"revision,omitempty"`
+}
+
+type QuoteChangedDTO struct {
+	UserID uint64 `json:"user_id"`
 }
 
 type CommandChangedDTO struct {

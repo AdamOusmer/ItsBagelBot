@@ -18,8 +18,8 @@ type Type uint8
 
 const (
 	Counter Type = iota + 1
-	Gauge
 	Distinct
+	Level
 )
 
 type Window uint8
@@ -70,6 +70,14 @@ const (
 	AccountsPagesHidden   Metric = "accounts.pages_hidden"
 	AccountsBySignupWeek  Metric = "accounts.by_signup_week"
 	PaidBySignupWeek      Metric = "accounts.paid_by_signup_week"
+
+	ModulesRows           Metric = "modules.rows"
+	ModulesBreadth        Metric = "modules.breadth"
+	IntegrationsConnected Metric = "integrations.connected"
+	CustomTotal           Metric = "custom.total"
+	CustomPerm            Metric = "custom.perm"
+	CustomFlags           Metric = "custom.flags"
+	CustomChannels        Metric = "custom.channels"
 )
 
 const (
@@ -93,6 +101,12 @@ const (
 	KindLocale    Kind = "locale"
 	KindBilling   Kind = "billing"
 	KindPage      Kind = "page"
+	KindState     Kind = "state"
+	KindBreadth   Kind = "breadth"
+	KindLink      Kind = "link"
+	KindActive    Kind = "active"
+	KindPerm      Kind = "perm"
+	KindFlag      Kind = "flag"
 )
 
 // SuppressBelow hides small cells that could single out one channel.
@@ -125,16 +139,24 @@ var catalog = map[Metric]Spec{
 	CohortActive:        {Type: Distinct, Dims: []Kind{KindWeek}, Windows: Week},
 	BillingEvents:       {Type: Counter, Dims: []Kind{KindBilling}},
 
-	AccountsTotal:         {Type: Gauge, Dims: []Kind{KindTier}},
-	AccountsBotEnabled:    {Type: Gauge, Dims: []Kind{KindTier}},
-	AccountsOnboarded:     {Type: Gauge},
-	AccountsPaidSource:    {Type: Gauge, Dims: []Kind{KindSource}},
-	AccountsCancelPending: {Type: Gauge},
-	AccountsPaymentFailed: {Type: Gauge},
-	AccountsLocale:        {Type: Gauge, Dims: []Kind{KindLocale}},
-	AccountsPagesHidden:   {Type: Gauge, Dims: []Kind{KindPage}},
-	AccountsBySignupWeek:  {Type: Gauge, Dims: []Kind{KindWeek}},
-	PaidBySignupWeek:      {Type: Gauge, Dims: []Kind{KindWeek}},
+	AccountsTotal:         {Type: Level, Dims: []Kind{KindTier}},
+	AccountsBotEnabled:    {Type: Level, Dims: []Kind{KindTier}},
+	AccountsOnboarded:     {Type: Level},
+	AccountsPaidSource:    {Type: Level, Dims: []Kind{KindSource}},
+	AccountsCancelPending: {Type: Level},
+	AccountsPaymentFailed: {Type: Level},
+	AccountsLocale:        {Type: Level, Dims: []Kind{KindLocale}},
+	AccountsPagesHidden:   {Type: Level, Dims: []Kind{KindPage}},
+	AccountsBySignupWeek:  {Type: Level, Dims: []Kind{KindWeek}},
+	PaidBySignupWeek:      {Type: Level, Dims: []Kind{KindWeek}},
+
+	ModulesRows:           {Type: Level, Dims: []Kind{KindModule, KindState}},
+	ModulesBreadth:        {Type: Level, Dims: []Kind{KindBreadth}},
+	IntegrationsConnected: {Type: Level, Dims: []Kind{KindLink}},
+	CustomTotal:           {Type: Level, Dims: []Kind{KindActive}},
+	CustomPerm:            {Type: Level, Dims: []Kind{KindPerm}},
+	CustomFlags:           {Type: Level, Dims: []Kind{KindFlag}},
+	CustomChannels:        {Type: Level},
 }
 
 var enums = map[Kind][]string{
@@ -143,22 +165,28 @@ var enums = map[Kind][]string{
 	KindFail:      {"ratelimited", "banned", "unauthorized", "client", "server", "network"},
 	KindLifecycle: {"signup", "onboarded", "bot_enabled", "bot_disabled", "revoked", "chat_banned", "account_deleted", "guild_bound", "guild_unbound", "guild_removed"},
 	KindPreset:    {"start-new", "integrate", "quiet", "import", "songs"},
-	KindToggle:    {"on", "off", "quick_off"},
-	KindChange:    {"created", "deleted", "quick_deleted"},
+	KindToggle:    {"on", "off"},
+	KindChange:    {"created", "deleted"},
 	KindApp:       {"dashboard", "admin"},
 	KindOutcome:   {"ok", "invalid", "failed", "denied"},
 	KindTier:      {"free", "paid", "vip"},
 	KindSource:    {"tebex", "admin", "giveaway", "vip"},
 	KindBilling:   {"activate", "cancel_requested", "cancel_aborted", "revoke", "payment_failed", "expired"},
 	KindPage:      {"commands", "leaderboard"},
+	KindState:     {"on", "off"},
+	KindBreadth:   {"1", "2", "3-5", "6+"},
+	KindLink:      {"spotify", "govee", "fetch_key"},
+	KindActive:    {"active", "inactive"},
+	KindPerm:      {"everyone", "sub", "vip", "mod", "lead_mod", "broadcaster"},
+	KindFlag:      {"online_only", "aliased", "cooldown", "counter"},
 }
 
 var shapes = map[Kind]*regexp.Regexp{
 	KindModule:  regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
 	KindCommand: regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`),
 	KindDiscord: regexp.MustCompile(`^[a-z0-9][a-z0-9_.:-]{0,63}$`),
-	KindRoute:   regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./-]{0,110}$`),
-	KindAction:  regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./-]{0,90}\?/[A-Za-z0-9_]{1,32}$`),
+	KindRoute:   regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./=-]{0,110}$`),
+	KindAction:  regexp.MustCompile(`^/[A-Za-z0-9_()\[\]./=-]{0,90}\?/[A-Za-z0-9_]{1,32}$`),
 	KindWeek:    regexp.MustCompile(`^[0-9]{4}-W[0-9]{2}$`),
 	KindLocale:  regexp.MustCompile(`^[a-z]{2}(-[A-Za-z]{2,4})?$`),
 }

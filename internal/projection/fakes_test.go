@@ -160,6 +160,7 @@ func applyUserAdmissionWrite(s *valkeytest.Server, settings, admission string, a
 	for i, name := range []string{"active", "banned", "status", "commands_page_hidden"} {
 		s.Hashes[settings][name] = argv[i]
 	}
+	s.Hashes[settings]["leaderboard_page_hidden"] = argv[10]
 	if argv[4] != "" {
 		s.Hashes[settings]["locale"] = argv[4]
 	}

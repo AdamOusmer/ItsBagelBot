@@ -159,6 +159,31 @@ describe('SwrCache', () => {
     expect(await cache.getOrLoad('modules:1', 1000, async () => ['m2'])).toEqual(['m']);
   });
 
+  test('an id prefix evicts that id and its sub-keys, never a longer id', async () => {
+    const cache = new SwrCache();
+    for (const key of ['delegations:12', 'delegations:12:given', 'delegations:123', 'delegations:1']) cache.set(key, 'kept', 1000);
+    const { opened, release } = gate();
+    const inFlight = cache.getOrLoad('delegations:12:access', 1000, async () => {
+      await opened;
+      return 'pre';
+    });
+    cache.invalidate('delegations:12');
+    release();
+    await inFlight;
+    const read = (key: string) => cache.getOrLoad(key, 1000, async () => 'reloaded');
+    expect(await Promise.all(['delegations:12', 'delegations:12:given', 'delegations:12:access', 'delegations:123', 'delegations:1'].map(read))).toEqual(['reloaded', 'reloaded', 'reloaded', 'kept', 'kept']);
+  });
+
+  test('an evicted key is no longer reached by a later invalidation', async () => {
+    const cache = new SwrCache({ capacity: 1 });
+    cache.set('state:1', 'old', 60_000);
+    cache.set('state:2', 'two', 60_000);
+    cache.invalidate('state:1');
+    cache.set('state:1', 'new', 60_000);
+    expect(await cache.getOrLoad('state:1', 1000, async () => 'reloaded')).toBe('new');
+    expect(cache.size).toBe(1);
+  });
+
   test('clear() dooms everything (gap flush)', async () => {
     const cache = new SwrCache();
     cache.set('a', 1, 60_000);

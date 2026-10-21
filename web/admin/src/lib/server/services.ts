@@ -25,6 +25,7 @@ import {
   type RunRequest,
   type StartRequest
 } from '$lib/deploys/types';
+import type { AnalyticsRow } from '$lib/analytics-view';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 // `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
@@ -57,6 +58,15 @@ const SCOPES: ScopeMap = {
   modules: () => [],
   delegation: () => [],
   notifications: () => ['notifications:'],
+  locale: () => [],
+  cursor: () => [],
+  commands_page: () => [],
+  leaderboard_page: () => [],
+  live: () => [],
+  'token-warm': () => [],
+  outgress: () => [],
+  fetches: () => [],
+  user: (id) => ['users:', `user:${id}`, `token:${id}`],
   '*': (id) => ['users:', `user:${id}`, `token:${id}`]
 };
 
@@ -295,6 +305,19 @@ export const userEnrollment = defineRead({
   }
 });
 
+export type AnalyticsWindow = 'd' | 'w' | 'm';
+
+export const analyticsSeries = defineRead({
+  subject: `${SUB.user}.analytics`,
+  request: (actorId: string, window: AnalyticsWindow, metrics: string[], days: number) => ({
+    actor_id: actorId,
+    window,
+    metrics,
+    days
+  }),
+  map: (reply: { analytics?: { rows?: AnalyticsRow[] } }) => reply.analytics?.rows ?? []
+});
+
 export const USER_PAGE_SIZE = 15;
 export type UserOrder = 'newest' | 'oldest';
 
@@ -461,8 +484,9 @@ export async function restartUserEventSub(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
+// Unenroll is flushed: unenroll-first mutations rely on it reaching NATS before their RPC.
 export async function publishUserEventSub(userId: string, enabled: boolean): Promise<void> {
-  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } });
+  await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } }, { flush: !enabled });
 }
 
 export type ChannelSubState = {

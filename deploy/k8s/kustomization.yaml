@@ -23,4 +23,11 @@ resources:
   - twitch-ingress.yaml
   - network-policies.yaml
   - web-error-pages.yaml
+  - error-pages.yaml
   - deployer.yaml
+
+configMapGenerator:
+  - name: error-pages-template
+    namespace: app
+    files:
+      - config/error-pages.html

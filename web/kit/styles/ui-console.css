@@ -1,0 +1,41 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Element sheets only console and error pages render; links after ui-public.css in the same global order. */
+@import '@bagel/ui/styles/elements/chip.css';
+@import '@bagel/ui/styles/elements/table.css';
+@import '@bagel/ui/styles/elements/step-list.css';
+@import '@bagel/ui/styles/elements/disclosure.css';
+@import '@bagel/ui/styles/elements/line-series.css';
+@import '@bagel/ui/styles/elements/log-tail.css';
+@import '@bagel/ui/styles/elements/error-scene.css';
+@import '@bagel/ui/styles/elements/page.css';
+@import '@bagel/ui/styles/elements/status-dot.css';
+@import '@bagel/ui/styles/elements/skip-link.css';
+@import '@bagel/ui/styles/elements/shell.css';
+@import '@bagel/ui/styles/elements/profile-menu.css';
+@import '@bagel/ui/styles/elements/stat-tile.css';
+@import '@bagel/ui/styles/elements/skeleton.css';
+@import '@bagel/ui/styles/elements/file-drop.css';
+@import '@bagel/ui/styles/elements/toggle.css';
+@import '@bagel/ui/styles/elements/badge.css';
+@import '@bagel/ui/styles/elements/progress-bar.css';
+@import '@bagel/ui/styles/elements/tooltip.css';
+@import '@bagel/ui/styles/elements/surface.css';
+@import '@bagel/ui/styles/elements/deck-layout.css';
+@import '@bagel/ui/styles/elements/layout.css';
+@import '@bagel/ui/styles/elements/picker-panel.css';
+@import '@bagel/ui/styles/elements/select.css';
+@import '@bagel/ui/styles/elements/input.css';
+@import '@bagel/ui/styles/elements/editor-footer.css';
+@import '@bagel/ui/styles/elements/modal.css';
+@import '@bagel/ui/styles/elements/deck-list.css';
+@import '@bagel/ui/styles/elements/spinner.css';
+@import '@bagel/ui/styles/elements/fact-list.css';
+@import '@bagel/ui/styles/elements/management-row.css';
+@import '@bagel/ui/styles/elements/radio-group.css';
+@import '@bagel/ui/styles/elements/overview-grid.css';
+@import '@bagel/ui/styles/elements/area-series.css';
+@import '@bagel/ui/styles/elements/stepper.css';
+@import '@bagel/ui/styles/elements/feed.css';
+@import './notifications.css';

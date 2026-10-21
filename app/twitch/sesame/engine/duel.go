@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"sort"
 	"strconv"
+	"strings"
 
 	"ItsBagelBot/pkg/cache"
 )
@@ -30,28 +31,78 @@ func ClampDuelSeconds(secs, def int64) int64 {
 }
 
 type DuelStake struct {
+	Login    string
+	ViewerID uint64
+	Stake    int64
+}
+
+type DuelParty struct {
+	ID    uint64
 	Login string
-	Stake int64
+}
+
+func (p DuelParty) stake(amount int64) DuelStake {
+	return DuelStake{Login: p.Login, ViewerID: p.ID, Stake: amount}
+}
+
+const ledgerIDFieldPrefix = "id:"
+
+func (e DuelStake) ledgerField() string {
+	if e.ViewerID == 0 {
+		return e.Login
+	}
+	return ledgerIDFieldPrefix + strconv.FormatUint(e.ViewerID, 10)
+}
+
+func (e DuelStake) ledgerValue() string {
+	return strconv.FormatInt(e.Stake, 10) + ":" + strconv.FormatUint(e.ViewerID, 10) + ":" + e.Login
+}
+
+func parseLedgerValue(v string) (stake int64, viewerID uint64, err error) {
+	parts := strings.SplitN(v, ":", 3)
+	if stake, err = strconv.ParseInt(parts[0], 10, 64); err != nil || len(parts) == 1 {
+		return stake, 0, err
+	}
+	viewerID, err = strconv.ParseUint(parts[1], 10, 64)
+	return stake, viewerID, err
+}
+
+func parseLedgerEntry(field, v string) (DuelStake, error) {
+	stake, id, err := parseLedgerValue(v)
+	login := field
+	if parts := strings.SplitN(v, ":", 3); len(parts) == 3 {
+		login = parts[2]
+	}
+	return DuelStake{Login: login, ViewerID: id, Stake: stake}, err
 }
 
 func SortDuelStakes(entries []DuelStake) []DuelStake {
 	out := append([]DuelStake(nil), entries...)
-	sort.Slice(out, func(i, j int) bool { return out[i].Login < out[j].Login })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Login != out[j].Login {
+			return out[i].Login < out[j].Login
+		}
+		return out[i].ViewerID < out[j].ViewerID
+	})
 	return out
 }
 
-func PickDuelWinner(sorted []DuelStake, roll int64) string {
+func PickDuelStake(sorted []DuelStake, roll int64) DuelStake {
 	var cum int64
 	for _, e := range sorted {
 		cum += e.Stake
 		if roll < cum {
-			return e.Login
+			return e
 		}
 	}
 	if len(sorted) == 0 {
-		return ""
+		return DuelStake{}
 	}
-	return sorted[len(sorted)-1].Login
+	return sorted[len(sorted)-1]
+}
+
+func PickDuelWinner(sorted []DuelStake, roll int64) string {
+	return PickDuelStake(sorted, roll).Login
 }
 
 func RollDuel(total int64) int64 {
@@ -86,10 +137,10 @@ func duelKey(prefix string, id uint64) string { return cache.UserKey(prefix, id)
 
 func parseDuelLedger(m map[string]string) []DuelStake {
 	entries := make([]DuelStake, 0, len(m))
-	for login, v := range m {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if validStake(n, err) {
-			entries = append(entries, DuelStake{Login: login, Stake: n})
+	for field, v := range m {
+		entry, err := parseLedgerEntry(field, v)
+		if validStake(entry.Stake, err) {
+			entries = append(entries, entry)
 		}
 	}
 	return SortDuelStakes(entries)
@@ -102,7 +153,7 @@ func validStake(n int64, err error) bool {
 func sumStakes(vals []string) int64 {
 	var total int64
 	for _, v := range vals {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+		if n, _, err := parseLedgerValue(v); err == nil {
 			total += n
 		}
 	}
@@ -112,7 +163,7 @@ func sumStakes(vals []string) int64 {
 func ledgerMap(sorted []DuelStake) map[string]int64 {
 	m := make(map[string]int64, len(sorted))
 	for _, e := range sorted {
-		m[e.Login] = e.Stake
+		m[e.Login] += e.Stake
 	}
 	return m
 }

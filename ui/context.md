@@ -41,6 +41,8 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - `styles/brand.css`, `semantic.css`, `fonts.css`, `a11y.css`: primitive/role tokens,
   font faces and accessibility policies.
 - `styles/elements/`: component contracts; adapters import their own contract CSS.
+- [styles/elements.css](styles/elements.css): every element sheet in cascade order (the tiebreak for equal
+  specificity). Console apps ship it as two ordered kit files and skip the per-adapter imports.
 - `svelte/` and `astro/`: named component adapters; `index.ts` files provide aggregate exports.
 - [svelte/actions.ts](svelte/actions.ts): `use:` wrappers over shared reveal/decode/magnetic engines.
 - `lib/select.ts` and `lib/astro-select.ts`: option filtering/navigation and Astro enhancement.
@@ -55,7 +57,9 @@ Svelte `setUiI18n` and Astro `uiI18n(Astro)` resolve locale without product-spec
 - `lib/motion-gate.ts`, `tilt.ts`, `nested-scroll.ts`, `roving-focus.ts`: motion ownership/visibility,
   pointer effects, nested scroll and keyboard navigation. Inspect these before adding new listeners.
 - `svelte/forms.ts`: shared form enhancements; `locales/index.ts` is generated UI catalog data.
-- `fonts/`: local WOFF2 assets; consumers can import URLs for selective preloads.
+- `fonts/`: local WOFF2 assets; consumers can import URLs for selective preloads. `caveat-latin.woff2` holds only the
+  glyphs in `caveat-glyphs.txt` (derived from locale sign-off strings; `test/caveat-glyphs.test.ts` fails when a copy edit
+  needs another glyph, regenerate with the `pyftsubset` command in `scripts/caveat-glyphs.ts`).
 - `test/loaders.ts`: test-time framework compilation; `test/normalise.ts` normalizes parity output.
 - `test/__golden__/`: committed render contracts; update only for intentional markup changes.
 

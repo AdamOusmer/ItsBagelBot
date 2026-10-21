@@ -118,7 +118,7 @@ func TestDuelWinnerPickIsCanonicalAndBounded(t *testing.T) {
 		{Login: "alice", Stake: 30},
 		{Login: "bob", Stake: 20},
 	})
-	require.Equal(t, []DuelStake{{"alice", 30}, {"bob", 20}, {"zoe", 10}}, stakes,
+	require.Equal(t, []DuelStake{{Login: "alice", Stake: 30}, {Login: "bob", Stake: 20}, {Login: "zoe", Stake: 10}}, stakes,
 		"canonical order is login-sorted regardless of input order")
 
 	cases := []struct {

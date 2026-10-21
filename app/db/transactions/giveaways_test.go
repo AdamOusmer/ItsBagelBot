@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/transactions/ent"
 	"ItsBagelBot/app/db/transactions/ent/enttest"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
+	"ItsBagelBot/app/db/transactions/ent/hook"
 	"ItsBagelBot/app/db/transactions/web"
 	"ItsBagelBot/internal/testdb"
 
@@ -37,4 +39,33 @@ func TestBillingIncidentIsIdempotentAndFlagsLateCompletedCharge(t *testing.T) {
 	require.NoError(t, recordGiveawayBillingIncident(ctx, db, incident))
 	resolved := db.GiveawayAlert.GetX(ctx, alerts[0].ID)
 	require.Equal(t, "resolved", resolved.State)
+}
+
+func TestBillingIncidentTreatsConcurrentAlertInsertAsRecorded(t *testing.T) {
+	db := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name(t.Name())))
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+	_, err := db.GiveawayAward.Create().SetID("award-race").SetGiveawayID("campaign").SetDrawID("draw").SetUserID(43).SetOrdinal(1).SetPrizeMonths(1).SetIntervalRule("verified").SetState("scheduled").SetBillingState("protected").Save(ctx)
+	require.NoError(t, err)
+	raced := false
+	db.GiveawayAlert.Use(func(next ent.Mutator) ent.Mutator {
+		return hook.GiveawayAlertFunc(func(ctx context.Context, m *ent.GiveawayAlertMutation) (ent.Value, error) {
+			if m.Op().Is(ent.OpCreate) && !raced {
+				raced = true
+				id, _ := m.ID()
+				awardID, _ := m.AwardID()
+				category, _ := m.Category()
+				_, err := db.GiveawayAlert.Create().SetID(id).SetAwardID(awardID).SetOperationID("evt-race").SetCategory(category).SetState("unresolved").SetMessage("other replica").Save(ctx)
+				require.NoError(t, err)
+			}
+			return next.Mutate(ctx, m)
+		})
+	})
+
+	incident := web.BillingIncident{EventID: "evt-race", EventType: "payment.completed", Action: "activate", TransactionID: "tx-race", UserID: 43, OccurredAt: time.Now()}
+	require.NoError(t, recordGiveawayBillingIncident(ctx, db, incident))
+	require.True(t, raced)
+	count, err := db.GiveawayAlert.Query().Where(giveawayalert.AwardIDEQ("award-race")).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }

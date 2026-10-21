@@ -8,7 +8,6 @@ import {
   type DiscordConfig,
   type FieldError
 } from './discord-config';
-import { tCatalog } from './module-copy';
 import type { MessageKey } from './i18n/keys';
 
 type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -234,16 +233,23 @@ export function discordToggleOn(f: Pick<DiscordModuleField, 'defaultOn'>, value:
   return f.defaultOn === false ? value === 'on' : value !== 'off';
 }
 
-export function discordModuleKey(id: string, ...parts: string[]): MessageKey {
-  return ['discord', 'modules', id, ...parts].join('.') as MessageKey;
+interface Lookup {
+  key: string;
+  value: string;
+}
+
+function orFallback({ key, value }: Lookup, fallback: string): string {
+  return value === key ? fallback : value;
 }
 
 export function tDiscordModuleLabel(t: TFn, def: Pick<DiscordModuleDef, 'id' | 'label'>): string {
-  return tCatalog(t, discordModuleKey(def.id, 'label'), def.label);
+  const key = `discord.modules.${def.id}.label`;
+  return orFallback({ key, value: t(key) }, def.label);
 }
 
 export function tDiscordModuleTagline(t: TFn, def: Pick<DiscordModuleDef, 'id' | 'tagline'>): string {
-  return tCatalog(t, discordModuleKey(def.id, 'tagline'), def.tagline);
+  const key = `discord.modules.${def.id}.tagline`;
+  return orFallback({ key, value: t(key) }, def.tagline);
 }
 
 export function tDiscordModuleField(
@@ -252,11 +258,13 @@ export function tDiscordModuleField(
   f: DiscordModuleField,
   part: 'label' | 'help' | 'placeholder'
 ): string {
-  return tCatalog(t, discordModuleKey(moduleId, 'fields', f.key, part), f[part] ?? '');
+  const key = `discord.modules.${moduleId}.fields.${f.key}.${part}`;
+  return orFallback({ key, value: t(key) }, f[part] ?? '');
 }
 
 export function tDiscordModuleOption(t: TFn, moduleId: string, fieldKey: string, opt: DiscordModuleOption): string {
-  return tCatalog(t, discordModuleKey(moduleId, 'fields', fieldKey, 'options', opt.value), opt.label);
+  const key = `discord.modules.${moduleId}.fields.${fieldKey}.options.${opt.value}`;
+  return orFallback({ key, value: t(key) }, opt.label);
 }
 
 export type DiscordModuleSettings = Record<string, string>;
@@ -288,9 +296,13 @@ export function validateDiscordModule(
   return { settings, errors };
 }
 
+function isPlainRecord(raw: unknown): raw is Record<string, unknown> {
+  return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
+}
+
 export function parseDiscordModuleSettings(id: string, raw: unknown): DiscordModuleSettings {
   const def = BY_ID.get(id);
-  const src = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const src = isPlainRecord(raw) ? raw : {};
   const out: DiscordModuleSettings = {};
   for (const key of def ? discordModuleKeys(def) : []) {
     const v = src[key];

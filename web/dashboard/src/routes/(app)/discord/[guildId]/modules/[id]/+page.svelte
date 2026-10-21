@@ -11,7 +11,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createModuleDraft({ data: () => data, t });
+  const draft = createModuleDraft({ data: () => data }, t);
 </script>
 
 {#if layoutDownOf(data.layout) && data.def.fields.length > 0}

@@ -75,6 +75,9 @@ func createBillingAlert(ctx context.Context, db *ent.Client, input billingAlertI
 		builder.SetAffectedBoundary(input.award.PlannedStart)
 	}
 	_, err := builder.Save(ctx)
+	if ent.IsConstraintError(err) {
+		return nil
+	}
 	return err
 }
 

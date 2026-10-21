@@ -25,6 +25,8 @@ var fullUser = UserProjection{
 	Banned:             true,
 	Locale:             "fr",
 	CommandsPageHidden: true,
+
+	LeaderboardPageHidden: true,
 }
 
 func TestFullUserSetsEveryField(t *testing.T) {
@@ -45,6 +47,8 @@ func TestUserFromReplyCopiesEveryField(t *testing.T) {
 		Banned:             true,
 		Locale:             "fr",
 		CommandsPageHidden: true,
+
+		LeaderboardPageHidden: true,
 	})
 	require.Equal(t, fullUser, got)
 }
@@ -61,8 +65,21 @@ func TestUserFromChangedCopiesEveryField(t *testing.T) {
 		Banned:             true,
 		Locale:             "fr",
 		CommandsPageHidden: true,
+
+		LeaderboardPageHidden: true,
 	})
 	require.Equal(t, fullUser, got)
+}
+
+func TestSetUserRoundTripsLeaderboardPageHidden(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.SetUser(ctx, 73, UserProjection{Status: "vip", IsActive: true, LeaderboardPageHidden: true}))
+	assert.Equal(t, "1", f.hash("settings:73")["leaderboard_page_hidden"])
+
+	require.NoError(t, store.SetUser(ctx, 73, UserProjection{Status: "vip", IsActive: true}))
+	assert.Equal(t, "0", f.hash("settings:73")["leaderboard_page_hidden"], "an event without the flag folds to visible")
 }
 
 func TestSetUserGetUserRoundTripsCommandsPageHidden(t *testing.T) {

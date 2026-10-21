@@ -20,16 +20,28 @@ export function tCatalog(t: TFn, key: MessageKey, fallback: string): string {
   return value === key ? fallback : value;
 }
 
+interface Lookup {
+  key: string;
+  value: string;
+}
+
+function orFallback({ key, value }: Lookup, fallback: string): string {
+  return value === key ? fallback : value;
+}
+
 export function tModuleLabel(t: TFn, def: Pick<ModuleDef, 'id' | 'label'>): string {
-  return tCatalog(t, catalogKey(def.id, 'label'), def.label);
+  const key = `modules.catalog.${def.id}.label`;
+  return orFallback({ key, value: t(key) }, def.label);
 }
 
 export function tModuleTagline(t: TFn, def: Pick<ModuleDef, 'id' | 'tagline'>): string {
-  return tCatalog(t, catalogKey(def.id, 'tagline'), def.tagline);
+  const key = `modules.catalog.${def.id}.tagline`;
+  return orFallback({ key, value: t(key) }, def.tagline);
 }
 
 export function tModuleDescription(t: TFn, def: Pick<ModuleDef, 'id' | 'description'>): string {
-  return tCatalog(t, catalogKey(def.id, 'description'), def.description);
+  const key = `modules.catalog.${def.id}.description`;
+  return orFallback({ key, value: t(key) }, def.description);
 }
 
 export function tModuleFieldPart(
@@ -38,12 +50,9 @@ export function tModuleFieldPart(
   field: ModuleField,
   part: 'label' | 'help' | 'placeholder'
 ): string {
-  const fallback = field[part] ?? '';
-  const specific = t(catalogKey(moduleId, 'settings', field.key, part));
-  if (specific !== catalogKey(moduleId, 'settings', field.key, part)) return specific;
-  const shared = t(catalogKey('shared', field.key, part));
-  if (shared !== catalogKey('shared', field.key, part)) return shared;
-  return fallback;
+  const specific = `modules.catalog.${moduleId}.settings.${field.key}.${part}`;
+  const shared = `modules.catalog.shared.${field.key}.${part}`;
+  return orFallback({ key: specific, value: t(specific) }, orFallback({ key: shared, value: t(shared) }, field[part] ?? ''));
 }
 
 export function tModuleFieldOption(
@@ -52,7 +61,8 @@ export function tModuleFieldOption(
   fieldKey: string,
   opt: { value: string; label: string }
 ): string {
-  return tCatalog(t, catalogKey(moduleId, 'settings', fieldKey, 'options', opt.value), opt.label);
+  const key = `modules.catalog.${moduleId}.settings.${fieldKey}.options.${opt.value}`;
+  return orFallback({ key, value: t(key) }, opt.label);
 }
 
 export function tModuleReplyPart(
@@ -61,12 +71,13 @@ export function tModuleReplyPart(
   reply: ModuleReply,
   part: 'label' | 'tagline' | 'event'
 ): string {
-  return tCatalog(t, catalogKey(moduleId, 'replies', reply.key, part), reply[part]);
+  const key = `modules.catalog.${moduleId}.replies.${reply.key}.${part}`;
+  return orFallback({ key, value: t(key) }, reply[part]);
 }
 
 export function tModuleReplyDefault(t: TFn, moduleId: string, reply: ModuleReply): string {
-  const key = catalogKey(moduleId, 'replies', reply.key, 'defaultMessage');
-  return namespaceReplyTemplate(moduleId, reply, tCatalog(t, key, reply.defaultMessage));
+  const key = `modules.catalog.${moduleId}.replies.${reply.key}.defaultMessage`;
+  return namespaceReplyTemplate(moduleId, reply, orFallback({ key, value: t(key) }, reply.defaultMessage));
 }
 
 export function commandSummarySlug(trigger: string): string {
@@ -77,30 +88,32 @@ export function commandSummarySlug(trigger: string): string {
 }
 
 export function tModuleCommandSummary(t: TFn, moduleId: string, command: ModuleCommandInfo): string {
-  return tCatalog(t, catalogKey(moduleId, 'commands', commandSummarySlug(command.trigger)), command.summary);
+  const key = `modules.catalog.${moduleId}.commands.${commandSummarySlug(command.trigger)}`;
+  return orFallback({ key, value: t(key) }, command.summary);
 }
 
 export function tModuleCommandPreview(t: TFn, moduleId: string, command: ModuleCommandInfo): string {
-  return tCatalog(t, catalogKey(moduleId, 'previews', commandSummarySlug(command.trigger)), command.preview ?? '');
+  const key = `modules.catalog.${moduleId}.previews.${commandSummarySlug(command.trigger)}`;
+  return orFallback({ key, value: t(key) }, command.preview ?? '');
 }
 
-export const PERM_KEYS: Record<Perm, MessageKey> = {
+export const PERM_KEYS: Readonly<Record<Perm, MessageKey>> = Object.freeze({
   everyone: 'perm.everyone',
   sub: 'perm.sub',
   vip: 'perm.vip',
   mod: 'perm.mod',
   lead_mod: 'perm.lead_mod',
   broadcaster: 'perm.broadcaster'
-};
+});
 
-export const PERM_BADGE_KEYS: Record<Perm, MessageKey> = {
+export const PERM_BADGE_KEYS: Readonly<Record<Perm, MessageKey>> = Object.freeze({
   everyone: 'perm.badge.everyone',
   sub: 'perm.badge.sub',
   vip: 'perm.badge.vip',
   mod: 'perm.badge.mod',
   lead_mod: 'perm.badge.lead_mod',
   broadcaster: 'perm.badge.broadcaster'
-};
+});
 
 export function tPerm(t: TFn, perm: Perm): string {
   return t(PERM_KEYS[perm]);

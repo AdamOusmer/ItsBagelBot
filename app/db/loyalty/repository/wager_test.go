@@ -107,7 +107,7 @@ func checkConcurrentWagerSpends(t *testing.T, repo *loyaltyrepo.Loyalty, raw *sq
 		}()
 		go func() {
 			<-start
-			_, _, spent, err := repo.BalanceSpend(t.Context(), 2, "sender", 3)
+			_, _, spent, err := repo.BalanceSpendViewer(t.Context(), loyaltyrepo.Spend{UserID: 2, ViewerID: 7, Amount: 3})
 			result := wagerChange{err: err}
 			if spent {
 				result.debit = 3

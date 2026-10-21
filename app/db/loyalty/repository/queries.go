@@ -109,40 +109,45 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	return r.BalanceAdjustViewer(ctx, BalanceAdjustment{UserID: userID, ViewerID: row.ViewerID, ViewerLogin: login, Value: value, Absolute: absolute})
 }
 
+type Spend struct {
+	UserID, ViewerID uint64
+	ViewerLogin      string
+	Amount           int64
+}
+
+func (s Spend) valid() bool {
+	return s.UserID != 0 && s.ViewerID != 0 && s.Amount > 0
+}
+
 // The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.
-func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
-	login, err := normalizeSpendTarget(viewerLogin, amount)
-	if err != nil {
-		return nil, false, false, err
+func (r *Loyalty) BalanceSpendViewer(ctx context.Context, spend Spend) (*ent.Balance, bool, bool, error) {
+	if !spend.valid() {
+		return nil, false, false, fmt.Errorf("%w: user_id/viewer_id/amount", ErrInvalidInput)
 	}
 	row, found, err := getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
-			Where(balance.UserIDEQ(userID), balance.ViewerLoginEQ(login)).
-			Order(balance.ByUpdatedAt(entsql.OrderDesc()), balance.ByViewerID()).
-			First(ctx)
+			Where(balance.UserIDEQ(spend.UserID), balance.ViewerIDEQ(spend.ViewerID)).
+			Only(ctx)
 	})
 	if err != nil || !found {
 		return nil, false, found, err
 	}
-	n, err := r.client.Balance.Update().
-		Where(balance.IDEQ(row.ID), balance.PointsGTE(amount)).
-		AddPoints(-amount).
-		Save(ctx)
+	return r.spendRow(ctx, row.ID, spend.Amount, normalizeLogin(spend.ViewerLogin))
+}
+
+func (r *Loyalty) spendRow(ctx context.Context, rowID int, amount int64, login string) (*ent.Balance, bool, bool, error) {
+	update := r.client.Balance.Update().
+		Where(balance.IDEQ(rowID), balance.PointsGTE(amount)).
+		AddPoints(-amount)
+	if login != "" {
+		update.SetViewerLogin(login)
+	}
+	n, err := update.Save(ctx)
 	if err != nil {
 		return nil, true, false, err
 	}
-	if n == 0 {
-		fresh, ferr := r.client.Balance.Get(ctx, row.ID)
-		if ferr != nil {
-			return nil, true, false, ferr
-		}
-		return fresh, true, false, nil
-	}
-	spent, err := r.client.Balance.Get(ctx, row.ID)
-	if err != nil {
-		return nil, true, true, err
-	}
-	return spent, true, true, nil
+	fresh, err := r.client.Balance.Get(ctx, rowID)
+	return fresh, true, n > 0, err
 }
 
 func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {

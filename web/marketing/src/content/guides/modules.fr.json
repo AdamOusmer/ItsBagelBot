@@ -81,7 +81,7 @@
   "catalog.b1.props.modules.12.start": "Inactif par défaut",
   "catalog.b1.props.modules.12.tagline": "Laissez les viewers miser leurs points sur un lancer avec !gamble.",
   "catalog.b1.props.modules.13.cat": "Points",
-  "catalog.b1.props.modules.13.commands": "!duel, !duel <mise>, !duel <utilisateur> <mise>, !duel accept, !duel decline, !duel cancel",
+  "catalog.b1.props.modules.13.commands": "!duel, !duel <mise>, !duel @utilisateur <mise>, !duel accept, !duel decline, !duel cancel",
   "catalog.b1.props.modules.13.name": "Duels",
   "catalog.b1.props.modules.13.needs": "Loyalty Points activé. Duels est une ligne sur la page Loyalty.",
   "catalog.b1.props.modules.13.start": "Inactif par défaut",

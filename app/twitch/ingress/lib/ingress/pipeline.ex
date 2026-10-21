@@ -212,11 +212,22 @@ defmodule Ingress.Pipeline do
           message
       end
 
-    case emote_spans(event) do
-      [] -> {:publish, subject, message}
-      spans -> {:publish, subject, Map.put(message, :emotes, spans)}
+    message = put_unless_empty(message, :emotes, emote_spans(event))
+    {:publish, subject, put_unless_empty(message, :mentions, mentions(event))}
+  end
+
+  defp put_unless_empty(message, _key, []), do: message
+  defp put_unless_empty(message, key, value), do: Map.put(message, key, value)
+
+  @spec mentions(map()) :: [%{user_id: String.t(), user_login: String.t(), user_name: String.t()}]
+  def mentions(%{"message" => %{"fragments" => fragments}}) when is_list(fragments) do
+    for %{"type" => "mention", "mention" => %{"user_id" => id} = mention} <- fragments,
+        is_binary(id) do
+      %{user_id: id, user_login: mention["user_login"], user_name: mention["user_name"]}
     end
   end
+
+  def mentions(_event), do: []
 
   @emote_fragment_types ["emote", "cheermote"]
 

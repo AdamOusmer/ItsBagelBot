@@ -36,6 +36,7 @@ type fakeDuel struct {
 	cancelRes    engine.DuelCancelResult
 
 	statusRes engine.DuelStatus
+	callerIDs []uint64
 }
 
 func (f *fakeDuel) Open(_ context.Context, _ uint64, spec engine.DuelOpenSpec) (engine.DuelOpenResult, error) {
@@ -43,23 +44,27 @@ func (f *fakeDuel) Open(_ context.Context, _ uint64, spec engine.DuelOpenSpec) (
 	return f.openRes, f.openErr
 }
 
-func (f *fakeDuel) Join(_ context.Context, _ uint64, login string, stake int64) (engine.DuelJoinResult, error) {
-	f.joinLogin, f.joinStake = login, stake
+func (f *fakeDuel) Join(_ context.Context, _ uint64, who engine.DuelParty, stake int64) (engine.DuelJoinResult, error) {
+	f.joinLogin, f.joinStake = who.Login, stake
+	f.callerIDs = append(f.callerIDs, who.ID)
 	return f.joinRes, nil
 }
 
-func (f *fakeDuel) Accept(_ context.Context, _ uint64, login string) (engine.DuelAcceptResult, error) {
-	f.acceptLogin = login
+func (f *fakeDuel) Accept(_ context.Context, _ uint64, who engine.DuelParty) (engine.DuelAcceptResult, error) {
+	f.acceptLogin = who.Login
+	f.callerIDs = append(f.callerIDs, who.ID)
 	return f.acceptRes, nil
 }
 
-func (f *fakeDuel) Decline(_ context.Context, _ uint64, login string) (engine.DuelDeclineResult, error) {
-	f.declineLogin = login
+func (f *fakeDuel) Decline(_ context.Context, _ uint64, who engine.DuelParty) (engine.DuelDeclineResult, error) {
+	f.declineLogin = who.Login
+	f.callerIDs = append(f.callerIDs, who.ID)
 	return f.declineRes, nil
 }
 
-func (f *fakeDuel) Cancel(_ context.Context, _ uint64, byLogin string, moderator bool) (engine.DuelCancelResult, error) {
-	f.cancelLogin, f.cancelMod, f.cancelCalled = byLogin, moderator, true
+func (f *fakeDuel) Cancel(_ context.Context, _ uint64, who engine.DuelParty, moderator bool) (engine.DuelCancelResult, error) {
+	f.cancelLogin, f.cancelMod, f.cancelCalled = who.Login, moderator, true
+	f.callerIDs = append(f.callerIDs, who.ID)
 	return f.cancelRes, nil
 }
 
@@ -116,13 +121,19 @@ var duelCases = []duelCase{
 		contains: []string{"@bob you're in with 150", "3 in the duel", "450 points"}, calls: duelCalls{joinLogin: "bob", joinStake: 150}},
 	{name: "a stake opens a pot duel when idle", who: "bob", text: "!duel 250", fake: fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
 		contains: []string{"Pot duel is LIVE", "250 points"},
-		calls:    duelCalls{joinLogin: "bob", joinStake: 250, open: engine.DuelOpenSpec{Kind: engine.DuelPot, Opener: "bob", Stake: 250}}},
+		calls:    duelCalls{joinLogin: "bob", joinStake: 250, open: engine.DuelOpenSpec{Kind: engine.DuelPot, Opener: engine.DuelParty{ID: 42, Login: "bob"}, Stake: 250}}},
 	{name: "a stake under the minimum is refused", who: "bob", text: "!duel 5", config: `{"minStake":10,"maxStake":900}`,
 		contains: []string{"minimum stake is 10"}},
 	{name: "a stake over the maximum is refused", who: "bob", text: "!duel 1000", config: `{"minStake":10,"maxStake":900}`,
 		contains: []string{"max stake is 900"}},
 	{name: "a non numeric stake prints usage", who: "bob", text: "!duel lots", config: `{"minStake":10,"maxStake":900}`,
 		contains: []string{"!duel <amount>"}},
+	{name: "stake limits saved as text by the dashboard are honored", who: "bob", text: "!duel 1000", config: `{"minStake":"10","maxStake":"900"}`,
+		contains: []string{"max stake is 900"}},
+	{name: "a pot window saved as text sets the window", who: "bob", text: "!duel 250", config: `{"potSeconds":"90"}`,
+		fake:     fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"Pot duel is LIVE", "90s"},
+		calls:    duelCalls{joinLogin: "bob", joinStake: 250, open: engine.DuelOpenSpec{Kind: engine.DuelPot, Opener: engine.DuelParty{ID: 42, Login: "bob"}, Stake: 250, PotSeconds: 90}}},
 	{name: "a stake is blocked while a challenge is pending", who: "bob", text: "!duel 100",
 		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, ChallengePending: true}},
 		contains: []string{"head-to-head challenge is pending"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
@@ -135,7 +146,7 @@ var duelCases = []duelCase{
 		contains: []string{"already in this duel"}, calls: duelCalls{joinLogin: "bob", joinStake: 100}},
 	{name: "a challenge names the doubled pot", who: "maya", text: "!duel @crust 400", fake: fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
 		contains: []string{"@maya challenges @crust for 400 points", "Winner takes 800"},
-		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: "maya", Challenged: "crust", Stake: 400}}},
+		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: engine.DuelParty{ID: 42, Login: "maya"}, Challenged: engine.DuelParty{ID: 8, Login: "crust"}, Stake: 400}}},
 	{name: "TestDuelChallengeEmptyTarget", who: "maya", text: "!duel @ 400", contains: []string{"!duel <amount>"}},
 	{name: "dueling yourself is refused", who: "maya", text: "!duel maya 400", contains: []string{"can't duel yourself"}},
 	{name: "accepting a clean win names the winner", who: "crust", text: "!duel accept",

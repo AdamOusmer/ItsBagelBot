@@ -30,6 +30,22 @@
   .bb-ranking-card__track { height: 5px; margin: 10px 0 8px; background: rgba(var(--bb-tan-rgb), .08); border-radius: 5px; overflow: hidden; }
   .bb-ranking-card__track > span { display: block; height: 100%; background: var(--bb-green-glow); border-radius: inherit; }
   .bb-ranking-card__secondary { margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--bb-muted); }
+  .bb-ranking-card__footer { margin-top: 16px; }
+  .bb-ranking-card--board { --ranking-card-row: 76px; }
+  .bb-ranking-card--board .bb-ranking-card__description { min-height: 1lh; }
+  .bb-ranking-card--board .bb-ranking-card__list,
+  .bb-ranking-card--board .bb-ranking-card__empty { min-height: calc(var(--ranking-card-row) * 15); margin: 0; }
+  .bb-ranking-card--board .bb-ranking-card__empty { display: flow-root; }
+  .bb-ranking-card--board .bb-ranking-card__row { box-sizing: border-box; height: var(--ranking-card-row); padding: 0; }
+  .bb-ranking-card--board .bb-ranking-card__position { box-sizing: content-box; flex: none; width: 4ch; min-width: 4ch; overflow: hidden; text-align: end; font: 500 20px/1 var(--bb-font-mono); font-variant-numeric: tabular-nums; }
+  .bb-ranking-card--board .bb-ranking-card__line { flex-wrap: nowrap; }
+  .bb-ranking-card--board .bb-ranking-card__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bb-ranking-card--board .bb-ranking-card__value { flex: none; }
+  @media (max-width: 650px) {
+    .bb-ranking-card--board { --ranking-card-row: 72px; }
+    .bb-ranking-card--board .bb-ranking-card__position { font-size: 16px; }
+    .bb-ranking-card--board .bb-ranking-card__description { min-height: 2lh; }
+  }
   @media (max-width: 650px) {
     .bb-ranking-card { --ranking-card-pad: 22px 18px; --ranking-card-artwork-size: 38px; }
     .bb-ranking-card__head { grid-template-columns: minmax(0, 1fr); }

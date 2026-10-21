@@ -6,11 +6,11 @@ export type ImportFailure = 'offline' | 'timeout' | 'rate_limited' | 'unavailabl
 export const SERVER_ERROR_CODES = ['rate_limited', 'unavailable'] as const;
 
 const FAILURE_KEYS: Record<ImportFailure, string> = {
-  offline: 'import.errOffline',
-  timeout: 'import.errTimeout',
-  rate_limited: 'import.errRateLimited',
-  unavailable: 'import.errUnavailable',
-  generic: 'import.errGeneric'
+  offline: 'errOffline',
+  timeout: 'errTimeout',
+  rate_limited: 'errRateLimited',
+  unavailable: 'errUnavailable',
+  generic: 'errGeneric'
 };
 
 export function failureKey(kind: ImportFailure): string {

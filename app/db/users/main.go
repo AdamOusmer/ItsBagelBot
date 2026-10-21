@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/app/db/users/rollup"
 	"ItsBagelBot/app/db/users/rpc"
 	"ItsBagelBot/internal/analytics"
+	catalog "ItsBagelBot/internal/domain/analytics"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/bus/consumers"
@@ -35,6 +36,15 @@ const (
 )
 
 const shutdownFlushBudget = 10 * time.Second
+
+func ownedAccountLevels() []string {
+	return []string{
+		string(catalog.AccountsTotal), string(catalog.AccountsBotEnabled), string(catalog.AccountsOnboarded),
+		string(catalog.AccountsPaidSource), string(catalog.AccountsCancelPending), string(catalog.AccountsPaymentFailed),
+		string(catalog.AccountsLocale), string(catalog.AccountsPagesHidden), string(catalog.AccountsBySignupWeek),
+		string(catalog.PaidBySignupWeek),
+	}
+}
 
 func main() {
 	core, done := svcboot.NewCore(serviceName)
@@ -55,6 +65,7 @@ func main() {
 
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetAnalytics(recorder)
+	go recorder.SeedOnce(ctx, serviceName, ownedAccountLevels(), repo.AnalyticsSeed)
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {

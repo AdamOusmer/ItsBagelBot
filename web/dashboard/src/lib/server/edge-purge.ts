@@ -3,26 +3,35 @@
 
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { commandsHref } from '@bagel/kit/site-links';
-import { SEO_ORIGIN } from './seo-hosts';
+import { logger } from '@bagel/kit/server/logger';
+import { leaderboardCacheTag } from '$lib/edge-tags';
 import { accountState } from './services';
+import { channelPageUrls } from './channel-urls';
 
 const DEMO = dev && env.DEMO === '1';
 
 const PURGE_TIMEOUT_MS = 3000;
 
-const PURGE_DEBOUNCE_MS = 1500;
+// Cloudflare caps a purge request at 100 URLs or tags.
+const PURGE_BATCH = 100;
+
+const NOT_CONFIGURED = -1;
 
 const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
-const pending = new Set<string>();
+type PurgeKind = { field: 'files' | 'tags'; debounceMs: number; retryMs: number; label: string };
 
-async function purgeRequest(body: Record<string, unknown>): Promise<boolean> {
-  if (DEMO) return true;
+const PAGE_URLS: PurgeKind = { field: 'files', debounceMs: 1500, retryMs: 2000, label: 'channel page' };
+
+// Cloudflare Free allows 5 tag purges per minute (bucket 25): tags batch for 10 s and a 429 waits out one refill.
+const LEADERBOARD_TAGS: PurgeKind = { field: 'tags', debounceMs: 10_000, retryMs: 15_000, label: 'leaderboard tag' };
+
+async function purgeRequest(body: Record<string, unknown>): Promise<number> {
+  if (DEMO) return 200;
 
   const zoneId = env.CF_ZONE_ID;
   const token = env.CF_CACHE_PURGE_TOKEN;
-  if (!zoneId || !token) return false;
+  if (!zoneId || !token) return NOT_CONFIGURED;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PURGE_TIMEOUT_MS);
@@ -36,42 +45,98 @@ async function purgeRequest(body: Record<string, unknown>): Promise<boolean> {
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    return res.ok;
+    return res.status;
   } catch {
-    return false;
+    return 0;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function purgeEdge(urls: string[]): Promise<boolean> {
-  return purgeRequest({ files: urls });
+function succeeded(status: number): boolean {
+  return status >= 200 && status < 300;
 }
 
 export async function purgeEdgeByTag(tag: string): Promise<boolean> {
-  return purgeRequest({ tags: [tag] });
+  return succeeded(await purgeRequest({ tags: [tag] }));
 }
 
-export function channelPageUrls(login: string): string[] {
-  return [
-    commandsHref(login),
-    commandsHref(`@${login}`),
-    `${SEO_ORIGIN.leaderboard}/${login}`,
-    `${SEO_ORIGIN.leaderboard}/@${login}`
-  ];
+async function purgeBatchOnce(kind: PurgeKind, body: Record<string, unknown>): Promise<number> {
+  const status = await purgeRequest(body);
+  if (status !== 429) return status;
+  await new Promise((resolve) => setTimeout(resolve, kind.retryMs));
+  return purgeRequest(body);
 }
 
-async function purgeChannel(userId: string): Promise<void> {
-  const account = await accountState(userId).catch(() => null);
-  const login = (account?.username ?? '').toLowerCase();
-  if (LOGIN_RE.test(login)) await purgeEdge(channelPageUrls(login));
+async function purgeAll(kind: PurgeKind, items: string[]): Promise<boolean> {
+  let ok = true;
+  for (let i = 0; i < items.length; i += PURGE_BATCH) {
+    const batch = items.slice(i, i + PURGE_BATCH);
+    const status = await purgeBatchOnce(kind, { [kind.field]: batch });
+    if (status === NOT_CONFIGURED) return false;
+    if (succeeded(status)) continue;
+    ok = false;
+    logger.error({ status, count: batch.length }, `[edge-purge] ${kind.label} purge failed`);
+  }
+  return ok;
 }
 
-export function schedulePurgeChannel(userId: string): void {
-  if (DEMO || pending.has(userId)) return;
-  pending.add(userId);
-  setTimeout(() => {
-    pending.delete(userId);
-    void purgeChannel(userId);
-  }, PURGE_DEBOUNCE_MS).unref();
+class PurgeQueue {
+  private readonly pending = new Set<string>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly kind: PurgeKind) {}
+
+  add(items: readonly string[]): void {
+    for (const item of items) this.pending.add(item);
+    if (this.timer || this.pending.size === 0) return;
+    this.timer = setTimeout(() => void this.flush(), this.kind.debounceMs);
+    this.timer.unref?.();
+  }
+
+  private async flush(): Promise<void> {
+    this.timer = null;
+    const items = [...this.pending];
+    this.pending.clear();
+    await purgeAll(this.kind, items);
+  }
+}
+
+const pageQueue = new PurgeQueue(PAGE_URLS);
+const leaderboardQueue = new PurgeQueue(LEADERBOARD_TAGS);
+
+function canonicalLogin(raw: string | null | undefined): string | null {
+  const login = (raw ?? '').toLowerCase();
+  return LOGIN_RE.test(login) ? login : null;
+}
+
+async function knownLogins(userId: string, logins: readonly string[]): Promise<string[]> {
+  if (logins.length) return logins.flatMap((l) => canonicalLogin(l) ?? []);
+  try {
+    const login = canonicalLogin((await accountState(userId)).username);
+    return login ? [login] : [];
+  } catch (err) {
+    logger.error({ err, userId }, '[edge-purge] account lookup failed, purging id pages only');
+    return [];
+  }
+}
+
+export async function purgeChannelPages(userId: string): Promise<boolean> {
+  const logins = await knownLogins(userId, []);
+  const [pages, boards] = await Promise.all([
+    purgeAll(PAGE_URLS, channelPageUrls(userId, logins)),
+    logins.length > 0 && purgeAll(LEADERBOARD_TAGS, logins.map(leaderboardCacheTag))
+  ]);
+  return pages && boards;
+}
+
+export function schedulePurgeChannel(userId: string, logins: readonly string[] = []): void {
+  if (DEMO) return;
+  void knownLogins(userId, logins).then((known) => pageQueue.add(channelPageUrls(userId, known)));
+}
+
+// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, rename or deletion.
+export function scheduleLeaderboardPurge(userId: string, logins: readonly string[] = []): void {
+  if (DEMO) return;
+  void knownLogins(userId, logins).then((known) => leaderboardQueue.add(known.map(leaderboardCacheTag)));
 }

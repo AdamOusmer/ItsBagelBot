@@ -33,7 +33,7 @@ describe('admin nav registry', () => {
     ['/users/12345', 'users'],
     ['/events/stream', 'events'],
     ['/deploys/abc123/stream', 'deploys'],
-    ['/analytics', 'overview']
+    ['/analytics', 'analytics']
   ])('%s resolves to the %s section', (path, section) => {
     expect(adminSectionForPath(path)).toBe(section);
   });

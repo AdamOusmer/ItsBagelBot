@@ -157,25 +157,26 @@ func TestHandleBalanceTransfer(t *testing.T) {
 		stored  map[uint64]int64
 	}{
 		{
-			name:   "moves points to a recipient found by login",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "@Receiver", Value: 400},
+			name:   "moves points to an existing recipient by ID",
+			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "@Receiver", Value: 400},
 			want:   loyaltyrpc.Reply{Found: true, Spent: true, Balance: balanceOf("7", "sender", 600), TargetBalance: balanceOf("8", "receiver", 500)},
 			stored: map[uint64]int64{7: 600, 8: 500},
 		},
 		{
 			name:   "refuses a transfer above the balance without crediting anyone",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "receiver", Value: 5000},
+			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "8", ViewerLogin: "receiver", Value: 5000},
 			want:   loyaltyrpc.Reply{Found: true, Balance: balanceOf("7", "sender", 1000)},
 			stored: untouched,
 		},
 		{
-			name:   "reports an unknown recipient as not found",
-			req:    loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "ghost", Value: 10},
-			stored: untouched,
+			name:    "refuses a login-only recipient",
+			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "receiver", Value: 10},
+			refused: true,
+			stored:  untouched,
 		},
 		{
 			name:    "refuses a transfer to oneself",
-			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", ViewerLogin: "sender", Value: 10},
+			req:     loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "7", ViewerLogin: "sender", Value: 10},
 			refused: true,
 			stored:  untouched,
 		},
@@ -323,6 +324,39 @@ func TestCounterSetDecimalValue(t *testing.T) {
 			}
 			got := h.call(t, "counter.get", loyaltyrpc.Request{UserID: "2", Name: "deaths"})
 			assert.Equal(t, stored, got.Counter.Value)
+		})
+	}
+}
+
+func TestHandleTopGetPagesAndSearches(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.client.Balance.Create().SetUserID(2).SetViewerID(9).SetViewerLogin("mid").SetViewerName("MidViewer").SetPoints(500).Exec(context.Background()))
+
+	for _, tc := range []struct {
+		name      string
+		req       loyaltyrpc.Request
+		wantIDs   []string
+		wantRanks []int64
+		wantTotal int64
+	}{
+		{"legacy request keeps the plain board", loyaltyrpc.Request{UserID: "2"}, []string{"7", "9", "8"}, []int64{1, 2, 3}, 0},
+		{"offset pages the board with true ranks", loyaltyrpc.Request{UserID: "2", Limit: 1, Offset: 1}, []string{"9"}, []int64{2}, 3},
+		{"viewer id returns the one balance with its real rank", loyaltyrpc.Request{UserID: "2", ViewerID: "8"}, []string{"8"}, []int64{3}, 1},
+		{"unknown viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "999"}, nil, nil, 0},
+		{"zero viewer id matches nothing", loyaltyrpc.Request{UserID: "2", ViewerID: "0"}, nil, nil, 0},
+		{"legacy text query matches nothing instead of erroring", loyaltyrpc.Request{UserID: "2", Query: "@RECEIV"}, nil, nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := h.call(t, "top.get", tc.req)
+			var ids []string
+			var ranks []int64
+			for _, b := range reply.Top {
+				ids = append(ids, b.ViewerID)
+				ranks = append(ranks, b.Rank)
+			}
+			assert.Equal(t, tc.wantIDs, ids)
+			assert.Equal(t, tc.wantRanks, ranks)
+			assert.Equal(t, tc.wantTotal, reply.Total)
 		})
 	}
 }

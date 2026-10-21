@@ -283,12 +283,17 @@ export async function rpcReply<T>(subject: string, payload: unknown = {}, timeou
   });
 }
 
-export async function publish(subject: string, payload: unknown = {}): Promise<void> {
+export interface PublishOptions {
+  // Waits for the server to receive the message, for callers whose next step on another connection must land after it.
+  flush?: boolean;
+}
+
+export async function publish(subject: string, payload: unknown = {}, opts: PublishOptions = {}): Promise<void> {
   return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
     const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
     const nc = await get(role);
     nc.publish(subject, JSON.stringify(payload));
-    await nc.flush();
+    if (opts.flush) await nc.flush();
   });
 }
 
@@ -345,13 +350,13 @@ export function subscribeDurable(
         nc = await get('rpc');
       } catch {
         attempt++;
-        newrelic.recordMetric('Custom/NatsBus/dial_retry', 1);
+        newrelic.recordMetric('NatsBus/dial_retry', 1);
         await sleep(backoffMs(attempt));
         continue;
       }
 
       if (attempt > 0) {
-        newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+        newrelic.recordMetric('NatsBus/gap_flush', 1);
         gap();
       }
       attempt = 0;
@@ -360,7 +365,7 @@ export function subscribeDurable(
         try {
           for await (const s of nc.status()) {
             if (s.type === 'reconnect') {
-              newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
+              newrelic.recordMetric('NatsBus/gap_flush', 1);
               gap();
             }
           }
@@ -377,7 +382,7 @@ export function subscribeDurable(
       } catch {}
 
       attempt++;
-      newrelic.recordMetric('Custom/NatsBus/resubscribe', 1);
+      newrelic.recordMetric('NatsBus/resubscribe', 1);
       await sleep(backoffMs(attempt));
     }
   })();

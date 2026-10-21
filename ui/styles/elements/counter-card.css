@@ -37,6 +37,22 @@
     border-color: var(--bb-tan-pale);
     box-shadow: 0 7px 0 rgba(var(--bb-tan-rgb), .24);
   }
+  .bb-counter-card--silver {
+    --counter-card-secondary: var(--bb-tier-vip);
+    border-color: var(--bb-tier-vip-border);
+    background: linear-gradient(140deg, rgba(var(--bb-tier-vip-rgb), .16), transparent 85%), var(--bb-card-bg);
+  }
+  .bb-counter-card--solid.bb-counter-card--silver {
+    --counter-card-ink: var(--bb-black);
+    --counter-card-secondary: var(--bb-black);
+    --counter-card-seam: rgba(var(--bb-black-rgb), .15);
+    background: linear-gradient(155deg,
+      color-mix(in srgb, var(--bb-tier-vip) 90%, var(--bb-black)) 0%,
+      color-mix(in srgb, var(--bb-tier-vip) 74%, var(--bb-black)) 55%,
+      color-mix(in srgb, var(--bb-tier-vip) 84%, var(--bb-black)) 100%);
+    border-color: color-mix(in srgb, var(--bb-tier-vip) 80%, rgb(var(--bb-white-pure-rgb)));
+    box-shadow: inset 0 1px 0 rgba(var(--bb-white-pure-rgb), .5), 0 7px 0 rgba(var(--bb-tier-vip-rgb), .24);
+  }
   .bb-counter-card--tilt-left { transform: rotate(-.8deg); }
   .bb-counter-card--tilt-right { transform: rotate(.8deg); }
   .bb-counter-card__artwork {
@@ -61,6 +77,9 @@
     letter-spacing: -.065em;
     font-variant-numeric: tabular-nums;
   }
+  .bb-counter-card--spot .bb-counter-card__head { flex-wrap: nowrap; }
+  .bb-counter-card--spot .bb-counter-card__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bb-counter-card--spot .bb-counter-card__period { flex: none; font: 600 44px/1 var(--bb-font-display); letter-spacing: -.065em; font-variant-numeric: tabular-nums; }
   .bb-counter-card__unit { font: 500 clamp(36px, 10cqi, 52px)/1 var(--bb-font-display); color: var(--counter-card-secondary); }
   .bb-counter-card__detail { margin: 0; font: 400 20px/1.5 var(--bb-font-display); color: var(--counter-card-secondary); overflow-wrap: anywhere; }
   .bb-counter-card__foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 17px var(--counter-card-pad, 28px); border-top: 1px solid var(--counter-card-seam); }

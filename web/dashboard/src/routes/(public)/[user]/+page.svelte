@@ -2,21 +2,24 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import Code from '@bagel/ui/svelte/Code.svelte';
-  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import Lead from '@bagel/ui/svelte/Lead.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import Card from '@bagel/ui/svelte/Card.svelte';
-  import Table from '@bagel/ui/svelte/Table.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Pager from '@bagel/ui/svelte/Pager.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
+  import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import { untrack } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page as route } from '$app/state';
   import { formatPointValue, getI18n } from '@bagel/kit';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
+  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
+  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '$lib/leaderboard-board';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -24,8 +27,21 @@
 
   const { t, locale } = getI18n();
 
-  const rowName = (v: { viewerName: string; viewerLogin: string; viewerId: string }) =>
-    v.viewerName || v.viewerLogin || t('leaderboard.anonymousViewer');
+  type Viewer = PageData['podium'][number];
+
+  const friendPalettes = [
+    { head: '#52b788', eye: '#0a0a0a' },
+    { head: '#e0c49a', eye: '#0a0a0a' },
+    { head: '#f5e6cf', eye: '#0a0a0a' }
+  ];
+  const podiumLooks = [
+    { tone: 'warm', appearance: 'solid', palette: 0 },
+    { tone: 'silver', appearance: 'solid', palette: 1 },
+    { tone: 'accent', appearance: 'soft', palette: 2 }
+  ] as const;
+
+  const rowName = (v: Viewer) => v.viewerName || v.viewerLogin || t('leaderboard.anonymousViewer');
+  const artName = (v: Viewer) => v.viewerLogin || v.viewerId;
 
   const totalFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const hoursFmt = (seconds: number): string => {
@@ -35,16 +51,80 @@
       : totalFmt.format(Math.round(hours));
   };
 
-  const podium = $derived(data.top.slice(0, 3));
-  const rest = $derived(data.top.slice(3));
+  const podium = $derived(data.podium);
+  const topPoints = $derived(Number(podium[0]?.points ?? 0));
 
-  const commandTriggers = $derived(
-    (data.modules ?? [])
-      .flatMap((m) => m.commands.map((c) => c.label))
-      .sort((a, b) => a.localeCompare(b))
+  let search = $state(untrack(() => data.query));
+  let searchInput = $state<HTMLInputElement>();
+
+  $effect(() => {
+    const served = data.query;
+    untrack(() => {
+      if (document.activeElement !== searchInput) search = served;
+    });
+  });
+
+  function showQuery(value: string): Promise<void> {
+    const query = cleanQuery(value);
+    if (query === data.query && data.page === 1) return Promise.resolve();
+    return goto(boardHref({ query, page: 1 }, route.url.pathname), { replaceState: true, keepFocus: true, noScroll: true });
+  }
+
+  function submitSearch(event: SubmitEvent): void {
+    event.preventDefault();
+    void showQuery(search);
+  }
+
+  const resultsLine = $derived(
+    data.rows.length === 0
+      ? t('leaderboard.resultsNone')
+      : t(data.query ? 'leaderboard.resultsMatches' : 'leaderboard.resultsRange', {
+          from: totalFmt.format(data.range.from),
+          to: totalFmt.format(data.range.to),
+          total: totalFmt.format(data.range.total)
+        })
+  );
+  const pageLabel = $derived(
+    t('leaderboard.pageOf', { page: totalFmt.format(data.page), pages: totalFmt.format(data.pages) })
   );
 
+  const podiumCards = $derived(
+    podium.map((viewer, i) => ({
+      viewer,
+      look: podiumLooks[i],
+      rank: String(i + 1),
+      value: formatPointValue(viewer.points, locale)
+    }))
+  );
+
+  const rankingItems = $derived(
+    data.rows.map((viewer) => ({
+      id: viewer.viewerId,
+      label: rowName(viewer),
+      value: Number(viewer.points),
+      valueLabel: formatPointValue(viewer.points, locale),
+      secondary: `${hoursFmt(viewer.watchSeconds)} ${t('leaderboard.watchUnit')}`,
+      position: String(viewer.rank ?? 0),
+      art: artName(viewer)
+    }))
+  );
+  const artByItem = $derived(new Map(rankingItems.map((item) => [item.id, item.art])));
+
+  const crowdNames = $derived(
+    Array.from({ length: 6 }, (_, i) => {
+      const viewer = [...podium, ...data.rows][i];
+      return viewer ? artName(viewer) : `${data.login}-${i}`;
+    })
+  );
+
+  const emptyCopy = $derived.by(() => {
+    const keys = emptyCopyKeys({ query: data.query, degraded: data.degraded, busy: data.busy, podiumSize: podium.length });
+    if (!keys) return null;
+    return { title: keys.title && t(`leaderboard.${keys.title}`), body: t(`leaderboard.${keys.body}`, { channel: data.channelName }) };
+  });
+
   const channelHref = $derived(commandsHref(data.login));
+  const longName = $derived(data.channelName.length > 14);
 </script>
 
 <PublicHead
@@ -57,162 +137,123 @@
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
 <main class="lb-page">
-  <header class="hero">
-    <Eyebrow tone="go" class="reveal eyebrow"><span data-fit="">{t('leaderboard.eyebrow')}</span></Eyebrow>
-    <Heading level={1} class="headline">
-      <span class="word pre reveal"><span data-fit="">{t('leaderboard.headlinePrefix')}</span></span>
-      <span class="word name reveal">{data.channelName}&nbsp;</span>
-    </Heading>
-    <div class="lede reveal">
-      <Lead class="tagline"><span data-fit="block">{t('leaderboard.tagline', { channel: data.channelName })}</span></Lead>
-    </div>
-    <div class="channel-link reveal" data-fit-box aria-hidden={!data.commandsPage}>
-      {#if data.commandsPage}
-        <TextLink variant="arrow" tone="go" class="visit" href={channelHref} label={t('leaderboard.visitChannel')}><span data-fit="">{t('leaderboard.visitChannel')}</span></TextLink>
-      {/if}
-    </div>
-  </header>
-
-  {#if data.degraded}
-    <div class="notice reveal">
-      <AlertBanner tone="warning">{t('leaderboard.degraded')}</AlertBanner>
-    </div>
-  {:else if data.top.length === 0}
-    <div class="empty reveal">
-      <Card atmo>
-        <EmptyState title={t('leaderboard.emptyTitle')} body={t('leaderboard.emptyBody', { channel: data.channelName })} />
-      </Card>
-    </div>
-  {:else}
-    <section class="podium" aria-label={t('leaderboard.podiumLabel')}>
-      {#each podium as viewer, i (viewer.viewerId)}
-        <div class="spot-wrap reveal place-{i + 1}">
-          <Card atmo hover>
-            <div class="spot">
-              <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
-              <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
-              <span class="viewer-name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
-              <span class="points" data-fit-box>
-                <span data-fit="">
-                  <span class="num">{formatPointValue(viewer.points, locale)}</span>
-                  <span class="currency">{data.currencyName}</span>
-                </span>
-              </span>
-              <span class="watched">
-                <span data-fit="">{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</span>
-              </span>
-            </div>
-          </Card>
+  <StatsPageLayout arrangement="podium">
+    {#snippet heading()}
+      <div class="lb-heading">
+        <div class="lb-eyebrow" data-fit-box>
+          <Tag tone="live" mark="solid" sweep contain><span data-fit="">{t('leaderboard.eyebrow')}</span></Tag>
         </div>
+        <Heading level={1} class="stats-layout__title{longName ? ' lb-title--long' : ''}">{data.channelName}</Heading>
+        <div class="lb-tagline" data-fit-box>
+          <Text size="sm" tone="muted"><span data-fit="block">{t('leaderboard.tagline')}</span></Text>
+        </div>
+        <div class="lb-visit" data-fit-box aria-hidden={!data.commandsPage}>
+          {#if data.commandsPage}
+            <TextLink variant="arrow" tone="go" class="visit" href={channelHref} label={t('leaderboard.visitChannel')}><span data-fit="">{t('leaderboard.visitChannel')}</span></TextLink>
+          {/if}
+        </div>
+      </div>
+    {/snippet}
+
+    {#snippet crowd()}
+      {#each crowdNames as name, i (`${i}:${name}`)}
+        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} active gate /></span>
       {/each}
-    </section>
+    {/snippet}
 
-    <section class="board-wrap reveal" aria-label={t('leaderboard.boardLabel')}>
-      <Card atmo label={t('leaderboard.boardCh')}>
-        {#snippet band()}
-          <header class="board-head">
-            <div class="board-titles">
-              <Heading level={4} as="h2">{t('leaderboard.boardTitle')}</Heading>
-              <Text size="sm" tone="muted"><span data-fit="">{t('leaderboard.boardNote', { channel: data.channelName })}</span></Text>
+    {#snippet notice()}
+      {#if data.degraded}
+        <AlertBanner tone="warning">{t('leaderboard.degraded')}</AlertBanner>
+      {/if}
+    {/snippet}
+
+    {#snippet counters()}
+      {#each podiumCards as card (card.viewer.viewerId)}
+        <CounterCard
+          spot
+          label={rowName(card.viewer)}
+          value={card.value}
+          detail={data.currencyName}
+          rate={hoursFmt(card.viewer.watchSeconds)}
+          rateUnit={t('leaderboard.watchUnit')}
+          rateLabel={t('leaderboard.colWatched')}
+          period={card.rank}
+          tone={card.look.tone}
+          appearance={card.look.appearance}
+          style="--counter-card-value-size: {card.value.length > 7 ? 'clamp(26px, 13cqi, 48px)' : 'clamp(32px, 20cqi, 64px)'}"
+        >
+          {#snippet artwork()}
+            <span aria-hidden="true"><Bolota name={artName(card.viewer)} size={90} palette={friendPalettes[card.look.palette]} active gate /></span>
+          {/snippet}
+        </CounterCard>
+      {/each}
+    {/snippet}
+
+    {#snippet ranking()}
+      <RankingCard
+        board
+        title={t('leaderboard.boardTitle')}
+        description={t('leaderboard.boardNote')}
+        items={rankingItems}
+        scale={topPoints}
+      >
+        {#snippet actions()}
+          <form class="lb-search" method="GET" role="search" onsubmit={submitSearch}>
+            <SearchInput
+              fill
+              tall
+              name="q"
+              bind:value={search}
+              bind:element={searchInput}
+              debounceMs={250}
+              onValueChange={showQuery}
+              maxlength={MAX_QUERY_LENGTH}
+              autocomplete="off"
+              enterkeyhint="search"
+              placeholder={t('leaderboard.searchPlaceholder')}
+              aria-label={t('leaderboard.searchLabel')}
+            />
+          </form>
+        {/snippet}
+        {#snippet leading(item)}
+          <span aria-hidden="true"><Bolota name={artByItem.get(item.id) ?? item.id} size={48} /></span>
+        {/snippet}
+        {#snippet empty()}
+          {#if emptyCopy}
+            <div class="lb-empty">
+              <div class="lb-empty-title" data-fit-box>
+                <Text as="div" size="sm"><span data-fit="">{emptyCopy.title}</span></Text>
+              </div>
+              <div class="lb-empty-body" data-fit-box>
+                <Text as="div" size="xs" tone="muted"><span data-fit="block">{emptyCopy.body}</span></Text>
+              </div>
             </div>
-          </header>
+          {/if}
         {/snippet}
-        {#if rest.length === 0}
-          <Text size="sm" tone="muted">{t('leaderboard.soloNote')}</Text>
-        {:else}
-          <Table label={t('leaderboard.boardTitle')} class="standings">
-            <colgroup>
-              <col class="c-rank" />
-              <col />
-              <col class="c-watched" />
-              <col class="c-points" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col"><span data-fit="">{t('leaderboard.colRank')}</span></th>
-                <th scope="col"><span data-fit="">{t('leaderboard.colViewer')}</span></th>
-                <th class="r" scope="col"><span data-fit="">{t('leaderboard.colWatched')}</span></th>
-                <th class="r" scope="col"><span data-fit="">{t('leaderboard.colPoints')}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each rest as viewer, i (viewer.viewerId)}
-                <tr>
-                  <td class="rank"><Text as="span" size="xs" tone="muted" mono>{i + 4}</Text></td>
-                  <td>
-                    <span class="viewer">
-                      <span class="avatar-sm" aria-hidden="true">{rowName(viewer).slice(0, 1)}</span>
-                      <Text as="span" size="sm" truncate>{rowName(viewer)}</Text>
-                    </span>
-                  </td>
-                  <td class="r" data-fit-box>
-                    <Text as="span" size="xs" tone="muted" mono><span data-fit="">{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</span></Text>
-                  </td>
-                  <td class="r" data-fit-box><strong><span data-fit="">{formatPointValue(viewer.points, locale)}</span></strong></td>
-                </tr>
-              {/each}
-            </tbody>
-          </Table>
-          <Text size="xs" tone="muted" mono><span data-fit="">{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length), channel: data.channelName })}</span></Text>
-        {/if}
-      </Card>
-    </section>
-  {/if}
-
-  {#if data.commands.length > 0 || commandTriggers.length > 0}
-    <section class="cmds-wrap reveal" aria-label={t('leaderboard.commandsLabel')}>
-      <Card atmo label={t('leaderboard.commandsCh')}>
-        {#snippet band()}
-          <header class="cmds-head">
-            <Heading level={6} as="h2" class="cmds-title"><span data-fit="">{t('leaderboard.commandsTitle')}</span></Heading>
-          </header>
-        {/snippet}
-
-        {#if data.commands.length > 0}
-          <Table label={t('leaderboard.commandsTitle')} class="commands">
-            <colgroup>
-              <col class="c-command" />
-              <col />
-              <col class="c-perm" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col"><span data-fit="">{t('leaderboard.colCommand')}</span></th>
-                <th scope="col"><span data-fit="">{t('leaderboard.colResponse')}</span></th>
-                <th scope="col" class="r"><span data-fit="">{t('leaderboard.colPerm')}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each data.commands as cmd (cmd.trigger)}
-                <tr>
-                  <td>
-                    <Code tone="success">{cmd.trigger}</Code>
-                    {#if cmd.aliases.length > 0}
-                      <Text as="div" size="xs" tone="muted" mono>{cmd.aliases.join(' ')}</Text>
-                    {/if}
-                  </td>
-                  <td class="response">{cmd.response}</td>
-                  <td class="r" data-fit-box><Text as="span" size="xs" tone="muted" mono><span data-fit="">{cmd.perm}</span></Text></td>
-                </tr>
-              {/each}
-            </tbody>
-          </Table>
-        {/if}
-
-        {#if commandTriggers.length > 0}
-          <div class="chip-row">
-            {#each commandTriggers as trig (trig)}
-              <Chip as="span" tone="muted">{trig}</Chip>
-            {/each}
+        {#snippet footer()}
+          <div class="lb-results" role="status" aria-live="polite" data-fit-box>
+            <Text as="span" size="xs" tone="muted" mono><span data-fit="">{resultsLine}</span></Text>
           </div>
-        {/if}
-      </Card>
-    </section>
-  {/if}
+          <Pager
+            fixed
+            data-sveltekit-noscroll=""
+            label={pageLabel}
+            fit
+            prevHref={boardHref({ query: data.query, page: data.page - 1 }, route.url.pathname)}
+            nextHref={boardHref({ query: data.query, page: data.page + 1 }, route.url.pathname)}
+            hasPrev={data.page > 1}
+            hasNext={data.page < data.pages}
+          />
+        {/snippet}
+      </RankingCard>
+    {/snippet}
 
-  <footer class="foot reveal">
-    <Tag tone="live" mark="solid" sweep class="bb-tag--wrap earn"><span class="earn-note" data-fit-box><span data-fit="block">{t('leaderboard.earnNote')}</span></span></Tag>
-  </footer>
+    {#snippet footer()}
+      <div class="lb-foot">
+        <Tag tone="live" mark="solid" sweep class="bb-tag--wrap earn"><span class="earn-note" data-fit-box><span data-fit="block">{t('leaderboard.earnNote')}</span></span></Tag>
+      </div>
+    {/snippet}
+  </StatsPageLayout>
 </main>
 
 <style>
@@ -224,284 +265,52 @@
   }
 
   .lb-page {
-    --tbl-head-size: var(--bb-text-xs);
-
     position: relative;
     z-index: 1;
-    min-height: calc(100vh - var(--bb-nav-height));
-    max-width: var(--bb-content-max);
-    margin: 0 auto;
-    padding: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + clamp(40px, 8vh, 88px)) var(--bb-space-5)
-      var(--bb-space-8);
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-6);
-  }
-
-  .hero {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--bb-space-3);
-    overflow-wrap: anywhere;
-  }
-  .hero :global(.headline) { max-width: 24ch; }
-  .hero :global(.eyebrow) { width: 10em; text-align: center; }
-
-  .word { display: inline-block; }
-  .word.pre {
-    --i: 0.5;
-
-    font-size: 0.5em;
-    font-weight: 600;
-    color: var(--bb-muted);
-    vertical-align: middle;
-    margin-right: 0.35em;
-    text-transform: lowercase;
-    width: 9em;
-    text-align: end;
-  }
-  .word.name { --i: 1; }
-
-  .lede { --i: 2; width: 100%; }
-  .lede :global(.tagline) { height: calc(2 * 1lh); }
-  @media (max-width: 720px) {
-    .lede :global(.tagline) { height: calc(4 * 1lh); }
-  }
-  .channel-link { --i: 2.5; width: 240px; min-height: 1.75rem; display: flex; align-items: center; justify-content: center; }
-  .channel-link :global(.visit) { width: 100%; }
-  .channel-link :global(.visit > [data-fit]) { flex: 1; min-width: 0; justify-content: center; }
-
-  .notice { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
-  .empty { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
-
-  .podium {
-    --card-pad: clamp(20px, 2.4vw, 30px);
-
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--bb-space-4);
-    align-items: stretch;
-    max-width: 980px;
-    width: 100%;
-    margin: 0 auto;
-  }
-
-  .spot-wrap { display: grid; min-width: 0; }
-  .place-1 { --i: 3; order: 2; }
-  .place-2 { --i: 3.5; order: 1; }
-  .place-3 { --i: 4; order: 3; }
-  @media (max-width: 720px) {
-    .place-1, .place-2, .place-3 { order: 0; }
-  }
-
-  .spot {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: var(--bb-space-3);
     min-width: 0;
   }
-  .place-1 .spot {
-    padding-top: var(--bb-space-4);
+
+  .lb-page :global(.stats-layout__heading) { flex: 1 1 0; }
+  @media (max-width: 650px) {
+    .lb-page :global(.stats-layout__heading) { flex: none; width: 100%; }
+    .lb-heading :global(.stats-layout__title) { font-size: clamp(28px, 9vw, 48px); }
   }
-  .spot::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(var(--bb-white-pure-rgb), 0.14), transparent);
-  }
-  :global(:root[data-theme='light']) .spot::before {
-    background: linear-gradient(90deg, transparent, rgba(var(--bb-ink-rgb), 0.12), transparent);
+  .lb-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; width: min(100%, 36rem); }
+  .lb-eyebrow { display: flex; width: 11rem; min-width: 0; }
+  .lb-heading :global(.lb-title--long) { font-size: clamp(32px, 4.4vw, 48px); }
+
+  .lb-tagline { width: 100%; height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
+  .lb-visit { display: flex; align-items: center; width: min(100%, 20rem); min-height: 1.75rem; }
+  .lb-visit :global(.visit) { max-width: 100%; }
+  @media (max-width: 650px) {
+    .lb-tagline { height: calc(4 * 1lh); }
   }
 
-  .medal {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: var(--bb-text-sm);
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 1px solid var(--bb-border);
-    background: rgba(var(--bb-white-pure-rgb), 0.06);
-    color: var(--bb-muted);
-  }
-  .medal-1 {
-    background: rgba(var(--bb-tan-rgb), 0.16);
-    border-color: var(--bb-tan);
-    color: var(--bb-tan-light);
-    box-shadow: 0 0 18px rgba(var(--bb-tan-rgb), 0.25);
-  }
-  .medal-2 { background: rgba(var(--bb-white-pure-rgb), 0.1); color: var(--bb-white); }
-  .medal-3 { background: rgba(var(--bb-tan-rgb), 0.07); color: rgba(var(--bb-tan-rgb), 0.8); }
-
-  .avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 19px;
-    letter-spacing: var(--bb-tracking-tight);
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    background: rgba(var(--bb-green-glow-rgb), 0.1);
-    border: 1px solid var(--bb-border);
-  }
-  .place-1 .avatar {
-    width: 62px;
-    height: 62px;
-    font-size: 23px;
-    color: var(--bb-tan-light);
-    background: rgba(var(--bb-tan-rgb), 0.12);
+  .lb-search { width: 260px; max-width: 100%; }
+  @media (max-width: 650px) {
+    .lb-search { width: 100%; }
   }
 
-  .viewer-name {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 15px;
-    line-height: 1.35;
-    color: var(--bb-white);
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .points {
+  .lb-empty {
     display: flex;
-    justify-content: center;
-    width: 100%;
-    min-width: 0;
-    font-size: clamp(26px, 3.4vw, 40px);
-    line-height: 1;
-  }
-  .place-1 .points { font-size: clamp(32px, 4vw, 50px); }
-  .points > [data-fit] { align-items: baseline; gap: 0.18em; }
-  .points .num {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 1em;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    font-variant-numeric: tabular-nums;
-  }
-  .place-1 .points .num { color: var(--bb-tan-light); }
-  .points .currency {
-    font-family: var(--bb-font-mono);
-    font-size: 0.3em;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .place-1 .points .currency { font-size: 0.24em; }
-
-  .watched {
-    display: inline-flex;
-    width: 100%;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .board-wrap {
-    --i: 5;
-    --card-pad: clamp(20px, 2.4vw, 30px);
-    --card-band-h: calc(112px * var(--d));
-    --card-band-pad: calc(16px * var(--d)) var(--card-pad);
-
-    min-width: 0;
-    max-width: 980px;
-    width: 100%;
-    margin: 0 auto;
-  }
-
-  .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
-  .board-titles { display: flex; flex: 1; flex-direction: column; gap: var(--bb-space-1); min-width: 0; }
-
-  .board-wrap :global(.standings),
-  .cmds-wrap :global(.commands) { table-layout: fixed; }
-  .c-rank { width: 88px; }
-  .c-watched { width: 112px; }
-  .c-points { width: 112px; }
-  .c-command { width: 160px; }
-  .c-perm { width: 104px; }
-  @media (max-width: 720px) {
-    .c-rank { width: 52px; }
-    .c-watched { width: 92px; }
-    .c-points { width: 76px; }
-    .c-command { width: 104px; }
-    .c-perm { width: 72px; }
-  }
-
-  .viewer { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
-
-  .avatar-sm {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: var(--bb-text-xs);
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    background: rgba(var(--bb-green-glow-rgb), 0.1);
-    border: 1px solid var(--bb-border);
-  }
-
-  .cmds-wrap { --i: 6; }
-  .cmds-head :global(.cmds-title) { flex: 1; min-width: 0; }
-  .cmds-head {
-    display: flex;
+    flex-direction: column;
     align-items: center;
     gap: var(--bb-space-2);
+    margin: var(--bb-space-6) auto 0;
+    width: min(100%, 360px);
+    text-align: center;
   }
-  .response { overflow-wrap: anywhere; }
-  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
+  .lb-empty-title { width: 100%; height: 1lh; }
+  .lb-empty-body { width: 100%; height: calc(3 * 1lh); }
 
-  .foot {
-    --i: 7;
+  .lb-results { height: 1lh; margin-bottom: var(--bb-space-2); text-align: center; font-size: var(--bb-text-xs); }
+  .lb-results > :global(*) { display: block; }
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--bb-space-2);
-  }
-
-  .foot :global(.earn) { width: min(100%, 36rem); }
-  .earn-note { display: block; flex: 1; height: 1lh; text-align: center; }
+  .lb-foot { display: flex; align-items: center; justify-content: center; }
+  .lb-foot { width: min(100%, 44rem); margin-inline: auto; }
+  .lb-foot :global(.earn) { max-width: 100%; }
+  .earn-note { display: block; height: 1lh; text-align: center; }
   @media (max-width: 720px) {
     .earn-note { height: calc(2 * 1lh); }
-  }
-
-  @media (max-width: 900px) {
-    .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }
-  }
-  @media (max-width: 720px) {
-    .avatar-sm { display: none; }
   }
 </style>

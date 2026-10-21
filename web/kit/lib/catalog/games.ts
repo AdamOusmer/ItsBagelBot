@@ -53,7 +53,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     label: 'Duels',
     tagline: 'Viewer-vs-viewer point duels: pot free-for-alls and 1v1 challenges.',
     description:
-      "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake, and when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel <user> <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend, so nobody can wager what they do not have. Turned on from the Loyalty page; it uses the same currency name and stays off while loyalty is off.",
+      "Two ways to duel for points. A pot duel: someone types !duel <stake> and everyone has the window to add their own stake, and when time runs out the bot draws one winner weighted by stake and they take the whole pot. Or a challenge: !duel @user <stake> names an opponent who must type !duel accept before the window closes; equal stakes, a fair coin flip, winner takes both. Decline, cancellation and no-shows always refund every escrowed point, and every movement goes through the loyalty service's guarded spend, so nobody can wager what they do not have. Turned on from the Loyalty page; it uses the same currency name and stays off while loyalty is off.",
     category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
@@ -112,7 +112,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     commands: [
       { trigger: '!duel', summary: 'Show what runs: a pot (entrants, pool, seconds) or a pending challenge.' },
       { trigger: '!duel <stake>', summary: 'Open a pot duel, or join one that is running.' },
-      { trigger: '!duel <user> <stake>', summary: 'Challenge someone to even stakes; winner takes both.' },
+      { trigger: '!duel @user <stake>', summary: 'Challenge someone to even stakes; winner takes both.' },
       { trigger: '!duel accept', summary: 'The challenged party matches the stake and settles it instantly.' },
       { trigger: '!duel decline', summary: 'Only the challenged viewer can decline; the opener is refunded.' },
       { trigger: '!duel cancel', summary: 'Tear the running duel down with full refunds (opener or mod).', perm: 'mod' }

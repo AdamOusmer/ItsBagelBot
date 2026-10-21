@@ -50,8 +50,32 @@ func (l OwnerLock) Release(ctx context.Context) error {
 }
 
 func ClaimOnce(ctx context.Context, client valkey_go.Client, key string, ttl time.Duration) (bool, error) {
-	cmd := client.B().Set().Key(key).Value(claimValue).Nx().Ex(ttl).Build()
+	cmd := client.B().Set().Key(key).Value(claimValue).Nx().PxMilliseconds(ttl.Milliseconds()).Build()
 	return wonClaim(client.Do(ctx, cmd))
+}
+
+type Claim struct {
+	Key string
+	TTL time.Duration
+}
+
+var claimAllScript = valkey_go.NewLuaScript(`
+if redis.call('EXISTS', unpack(KEYS)) > 0 then return 0 end
+for i, key in ipairs(KEYS) do
+  redis.call('SET', key, '1', 'PX', ARGV[i])
+end
+return 1`)
+
+// ClaimAll wins every claim or none of them.
+func ClaimAll(ctx context.Context, client valkey_go.Client, claims []Claim) (bool, error) {
+	keys := make([]string, len(claims))
+	ttls := make([]string, len(claims))
+	for i, c := range claims {
+		keys[i] = c.Key
+		ttls[i] = strconv.FormatInt(c.TTL.Milliseconds(), 10)
+	}
+	n, err := claimAllScript.Exec(ctx, client, keys, ttls).AsInt64()
+	return n == 1, err
 }
 
 func wonClaim(res valkey_go.ValkeyResult) (bool, error) {

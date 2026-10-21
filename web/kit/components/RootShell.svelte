@@ -11,7 +11,7 @@
   import Cursor from '@bagel/ui/svelte/Cursor.svelte';
   import BackgroundOrbs from '@bagel/ui/svelte/BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
-  import { initLenis, resetSmoothScroll } from '../lib/actions';
+  import { initLenis, resetSmoothScroll, syncSmoothScroll } from '../lib/actions';
   import { getI18n, setI18n } from '../lib/i18n/context';
   import { setUiI18n } from '@bagel/ui/svelte/i18n';
   import '@bagel/ui/styles/elements/fit.css';
@@ -75,7 +75,9 @@
     };
   });
 
-  afterNavigate(() => void resetSmoothScroll());
+  afterNavigate(({ from, to }) => {
+    void (from?.url.pathname === to?.url.pathname ? syncSmoothScroll() : resetSmoothScroll());
+  });
 </script>
 
 <NavProgress />

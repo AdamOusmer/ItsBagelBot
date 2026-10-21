@@ -33,9 +33,24 @@ var (
 				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[2]},
 			},
 			{
+				Name:    "balance_user_id_viewer_login",
+				Unique:  false,
+				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[3]},
+			},
+			{
 				Name:    "balance_user_id_points",
 				Unique:  false,
 				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[5]},
+			},
+			{
+				Name:    "balance_user_id_points_viewer_id",
+				Unique:  false,
+				Columns: []*schema.Column{BalancesColumns[1], BalancesColumns[5], BalancesColumns[2]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						BalancesColumns[5].Name: true,
+					},
+				},
 			},
 		},
 	}

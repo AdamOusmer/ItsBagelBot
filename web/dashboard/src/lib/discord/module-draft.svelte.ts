@@ -29,7 +29,7 @@ export type ModuleDraftData = {
   enabled: boolean;
 };
 
-type DraftInit = { data: () => ModuleDraftData; t: I18n['t'] };
+type DraftInit = { data: () => ModuleDraftData };
 
 function fullConfig(settings: DiscordModuleSettings): DiscordConfig {
   return { ...blankDiscordConfig(), ...settings };
@@ -41,9 +41,7 @@ function slice(config: DiscordConfig, keys: readonly (keyof DiscordConfig)[]): s
   return JSON.stringify(out);
 }
 
-export function createModuleDraft(init: DraftInit) {
-  const { t } = init;
-
+export function createModuleDraft(init: DraftInit, t: I18n['t']) {
   const seed = untrack(init.data);
   let seedId = seed.def.id;
   let config = $state<DiscordConfig>(fullConfig(seed.settings));

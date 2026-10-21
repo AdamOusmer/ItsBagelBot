@@ -12,16 +12,18 @@
   "counter.usage": "Verwendung: !counter <name>; oder !counter create <name> [user|user+command], !counter <add|set|reset|delete> <name> [value], !counter list",
   "leaderboard": "Top {loyalty:name}: {loyalty:list}",
   "leaderboard.empty": "Noch keine Rangliste. Bleib während des Streams hier und verdiene etwas {loyalty:name}!",
+  "leaderboard.link": "Top {loyalty:name}: {loyalty:list} | Ganze Rangliste: {loyalty:url}",
   "leaderboard.usage": "Verwendung: !leaderboard [1-10]",
   "points": "@{loyalty:user} du hast {loyalty:points} {loyalty:name}. Angesehene Stunden: {loyalty:hours}.",
   "watchtime": "@{loyalty:user} deine bisherige Sehzeit: {loyalty:duration}.",
   "points.adjusted": "@{loyalty:target} hat jetzt {loyalty:points} {loyalty:name}.",
   "points.disabled": "@{loyalty:user} diese Aktion ist in diesem Kanal deaktiviert.",
   "points.gave": "@{loyalty:user} du hast @{loyalty:target} {loyalty:amount} {loyalty:name} gegeben. Du hast jetzt {loyalty:points}.",
+  "points.target.mention": "@{loyalty:user} erwähne die Person mit @, zum Beispiel !points give @name 100",
   "points.user.unknown": "@{loyalty:user} Twitch-Nutzer {loyalty:target} wurde nicht gefunden.",
-  "points.give.usage": "Verwendung: !points give <user> <amount>",
+  "points.give.usage": "Verwendung: !points give @user <amount>",
   "points.insufficient": "@{loyalty:user} du hast nur {loyalty:points} {loyalty:name}.",
   "points.self": "@{loyalty:user} du kannst dir nicht selbst {loyalty:name} geben.",
   "points.unknown": "@{loyalty:user} ich habe {loyalty:target} in diesem Kanal noch nicht gesehen.",
-  "points.usage": "Verwendung: !points; oder !points <set|add|remove> <user> <amount>; oder !points give <user> <amount>"
+  "points.usage": "Verwendung: !points; oder !points <set|add|remove> @user <amount>; oder !points give @user <amount>"
 }

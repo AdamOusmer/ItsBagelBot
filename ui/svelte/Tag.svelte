@@ -11,6 +11,7 @@
     tone?: TagTone;
     bare?: boolean;
     literal?: boolean;
+    contain?: boolean;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
     status?: boolean;
@@ -23,6 +24,7 @@
     tone = undefined,
     bare = false,
     literal = false,
+    contain = false,
     mark = undefined,
     sweep = false,
     status = false,
@@ -38,6 +40,7 @@
       tone ? `bb-tag--${tone}` : null,
       bare ? 'bb-tag--bare' : null,
       literal ? 'bb-tag--literal' : null,
+      contain ? 'bb-tag--contain' : null,
       className || null,
     ]
       .filter(Boolean)

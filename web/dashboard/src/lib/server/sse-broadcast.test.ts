@@ -200,6 +200,49 @@ describe('createBroadcast', () => {
   });
 });
 
+describe('createBroadcast unchanged frames', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function scripted(texts: string[]) {
+    let i = 0;
+    return async () => texts[Math.min(i++, texts.length - 1)];
+  }
+
+  test('a frame identical to the previous one is replaced by the unchanged chunk', async () => {
+    const b = createBroadcast(TICK, [scripted(['a', 'a', 'b', 'b'])], 'same');
+    const s = collector();
+    b.subscribe('k', s.sink);
+    await flush();
+    for (let t = 0; t < 3; t++) {
+      jest.advanceTimersByTime(TICK);
+      await flush();
+    }
+    expect(s.frames).toEqual(['a', 'same', 'b', 'same']);
+  });
+
+  test('a late joiner replays the last full frame, never the unchanged chunk', async () => {
+    const b = createBroadcast(TICK, [scripted(['a', 'a'])], 'same');
+    b.subscribe('k', collector().sink);
+    await flush();
+    jest.advanceTimersByTime(TICK);
+    await flush();
+    const late = collector();
+    b.subscribe('k', late.sink);
+    expect(late.frames).toEqual(['a']);
+  });
+
+  test('without an unchanged chunk identical frames are resent', async () => {
+    const b = createBroadcast(TICK, [scripted(['a', 'a'])]);
+    const s = collector();
+    b.subscribe('k', s.sink);
+    await flush();
+    jest.advanceTimersByTime(TICK);
+    await flush();
+    expect(s.frames).toEqual(['a', 'a']);
+  });
+});
+
 describe('broadcastResponse', () => {
   test('streams the connect comment then broadcast frames', async () => {
     const b = createBroadcast(60_000, [async () => 'data: 1\n\n']);

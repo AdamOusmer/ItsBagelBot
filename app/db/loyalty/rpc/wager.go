@@ -15,7 +15,7 @@ func (l *loyaltyRPC) handleBalanceWager(ctx context.Context, req loyaltyrpc.Requ
 	if !ok {
 		return reply
 	}
-	outcome, err := l.repo.BalanceWager(ctx, repository.Wager{UserID: userID, ViewerID: viewerID, Amount: req.Value, Won: req.Won})
+	outcome, err := l.repo.BalanceWager(ctx, repository.Wager{UserID: userID, ViewerID: viewerID, ViewerLogin: req.ViewerLogin, Amount: req.Value, Won: req.Won})
 	if err != nil {
 		return l.fail("loyalty balance.wager", err)
 	}

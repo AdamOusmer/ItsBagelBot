@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const claimValue = "1"
-
 type ValkeyStore struct {
 	client   valkey_go.Client
 	prefix   string
@@ -43,14 +41,12 @@ func NewValkeyStore(client valkey_go.Client, prefix string, log *zap.Logger) *Va
 
 func (s *ValkeyStore) Seen(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	full := storedKey(Key(s.prefix, key))
-	cmd := s.client.B().Set().Key(string(full)).Value(claimValue).Nx().PxMilliseconds(millis(ttl)).Build()
-	err := s.client.Do(ctx, cmd).Error()
-	seen, ok := setNXOutcome(err)
-	if !ok {
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, string(full), time.Duration(millis(ttl))*time.Millisecond)
+	if err != nil {
 		s.noteFailOpen(full, err)
 		return false, err
 	}
-	return seen, nil
+	return !won, nil
 }
 
 func (s *ValkeyStore) Release(ctx context.Context, key string) error {
@@ -72,17 +68,6 @@ func (s *ValkeyStore) noteFailOpen(key storedKey, err error) {
 }
 
 func (s *ValkeyStore) FailOpenCount() int64 { return s.failOpen.Load() }
-
-func setNXOutcome(err error) (seen, ok bool) {
-	switch {
-	case err == nil:
-		return false, true
-	case valkey_go.IsValkeyNil(err):
-		return true, true
-	default:
-		return false, false
-	}
-}
 
 func millis(ttl time.Duration) int64 {
 	ms := ttl.Milliseconds()

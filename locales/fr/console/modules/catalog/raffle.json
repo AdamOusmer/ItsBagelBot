@@ -1,7 +1,14 @@
 {
   "label": "Tirage",
   "tagline": "Tirages au sort chronométrés auxquels le chat s'inscrit avec !join.",
-  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Les gagnants confirment avec !claim dans une fenêtre de 15 minutes. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Chaque tirage verse son lot de points (1 000 par défaut, réparti à parts égales entre les gagnants) sur le solde de fidélité de chaque gagnant : les points de fidélité doivent donc être activés. Réglez le lot sur 0 pour un tirage sans points. Les gagnants confirment avec !claim dans une fenêtre de 15 minutes. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+  "settings": {
+    "prizePoints": {
+      "label": "Lot en points",
+      "help": "Total des points versés par un tirage, réparti à parts égales entre ses gagnants. 0 lance des tirages sans points.",
+      "placeholder": "1000"
+    }
+  },
   "replies": {
     "joined": {
       "label": "Confirmation d'inscription",
@@ -28,7 +35,7 @@
       "label": "Gagnants annoncés",
       "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) ! Tapez !claim dans les {claim} min pour confirmer votre lot !"
+      "defaultMessage": "{targets}, félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) : {amount} {points} par gagnant, déjà crédités !"
     },
     "claimOk": {
       "label": "Prix confirmé",

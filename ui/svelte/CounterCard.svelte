@@ -18,9 +18,10 @@
     rateLabel?: string;
     period?: string;
     'aria-description'?: string;
-    tone?: CardTone;
+    tone?: CardTone | 'silver';
     appearance?: 'solid' | 'soft';
     tilt?: 'left' | 'right' | 'none';
+    spot?: boolean;
     /** Decorative artwork can peek above the edge without clipping. */
     artwork?: Snippet;
     class?: string;
@@ -29,11 +30,11 @@
   let {
     label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
     rateLabel = i18n.t('data.rightNow'), period = i18n.t('data.allTime'), tone = 'accent',
-    appearance = 'soft', tilt = 'none', artwork, class: cls = '', ...rest
+    appearance = 'soft', tilt = 'none', spot = false, artwork, class: cls = '', ...rest
   }: Own & Omit<SvelteHTMLElements['article'], keyof Own> = $props();
   const classes = $derived([
     'bb-counter-card', `bb-counter-card--${tone}`, `bb-counter-card--${appearance}`,
-    tilt !== 'none' && `bb-counter-card--tilt-${tilt}`, cls,
+    tilt !== 'none' && `bb-counter-card--tilt-${tilt}`, spot && 'bb-counter-card--spot', cls,
   ].filter(Boolean).join(' '));
 </script>
 

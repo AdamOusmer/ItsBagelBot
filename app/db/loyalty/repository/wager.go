@@ -15,6 +15,7 @@ import (
 
 type Wager struct {
 	UserID, ViewerID uint64
+	ViewerLogin      string
 	Amount           int64
 	Won              bool
 }
@@ -59,6 +60,9 @@ func (r *Loyalty) applyWager(ctx context.Context, wager Wager) (bool, error) {
 		if wager.Won {
 			update.Where(balance.PointsLTE(math.MaxInt64 - wager.Amount))
 			delta = wager.Amount
+		}
+		if login := normalizeLogin(wager.ViewerLogin); login != "" {
+			update.SetViewerLogin(login)
 		}
 		var err error
 		updated, err = update.AddPoints(delta).Save(ctx)

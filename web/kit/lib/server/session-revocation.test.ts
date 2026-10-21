@@ -41,6 +41,52 @@ describe('isSessionRevoked', () => {
   });
 });
 
+describe('revocation read cache', () => {
+  function countingRead(result: [string | null, string | null] = [null, null]) {
+    const calls = { n: 0 };
+    setRevocationReadForTests(async () => {
+      calls.n++;
+      return result;
+    });
+    return calls;
+  }
+
+  test('repeat checks share one read', async () => {
+    const calls = countingRead();
+    await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 });
+    await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 });
+    expect(calls.n).toBe(1);
+  });
+
+  test('a failed read is not cached', async () => {
+    let fail = true;
+    setRevocationReadForTests(async () => {
+      if (fail) throw new Error('valkey unreachable');
+      return ['1', null];
+    });
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(false);
+    fail = false;
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(true);
+  });
+
+  test('a sign-out on this pod applies at once, even while reads still say not revoked', async () => {
+    countingRead();
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(false);
+    await revokeSession('s1', 60);
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(true);
+    expect(await isSessionRevoked({ sid: 's2', userId: 'u1', iat: 1000 })).toBe(false);
+  });
+
+  test('a revoke-all on this pod applies at once to older sessions only', async () => {
+    countingRead();
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(false);
+    await revokeAllForUser('u1', 2000, 60);
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 1000 })).toBe(true);
+    expect(await isSessionRevoked({ sid: 's3', userId: 'u1', iat: 2000 })).toBe(false);
+    expect(await isSessionRevoked({ sid: 's1', userId: 'u2', iat: 1000 })).toBe(false);
+  });
+});
+
 describe('revokeSession / revokeAllForUser', () => {
   test('resolve without throwing when Valkey is configured but unreachable', async () => {
     resetMasterClientForTests();

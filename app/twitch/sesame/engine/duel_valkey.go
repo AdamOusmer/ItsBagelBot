@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"ItsBagelBot/pkg/codec"
@@ -46,9 +47,30 @@ const (
 type DuelState struct {
 	Kind        DuelKind `json:"kind"`
 	Opener      string   `json:"opener"`
+	OpenerID    uint64   `json:"opener_id,omitempty"`
 	OpenerStake int64    `json:"opener_stake"`
 	Challenged  string   `json:"challenged,omitempty"`
+	ChallengeID uint64   `json:"challenged_id,omitempty"`
 	OpenedAt    int64    `json:"opened_at"`
+}
+
+func (st DuelState) openerStake() DuelStake {
+	return DuelStake{Login: st.Opener, ViewerID: st.OpenerID, Stake: st.OpenerStake}
+}
+
+func (st DuelState) challengedParty() DuelParty {
+	return DuelParty{ID: st.ChallengeID, Login: st.Challenged}
+}
+
+func (st DuelState) openerParty() DuelParty {
+	return DuelParty{ID: st.OpenerID, Login: st.Opener}
+}
+
+func (p DuelParty) is(other DuelParty) bool {
+	if p.ID != 0 && other.ID != 0 {
+		return p.ID == other.ID
+	}
+	return p.Login == other.Login
 }
 
 type DuelOutcome string
@@ -85,7 +107,7 @@ type LoyaltyWallet struct {
 func NewLoyaltyWallet(loyalty LoyaltyStore) *LoyaltyWallet { return &LoyaltyWallet{loyalty: loyalty} }
 
 func (w *LoyaltyWallet) Debit(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, bool, error) {
-	_, found, spent, err := w.loyalty.BalanceSpend(ctx, broadcasterID, entry.Login, entry.Stake)
+	_, found, spent, err := w.loyalty.BalanceSpend(ctx, PointSpend{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, Login: entry.Login, Amount: entry.Stake})
 	return found, spent, err
 }
 
@@ -93,7 +115,7 @@ func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry 
 	if entry.Stake <= 0 {
 		return nil
 	}
-	bal, found, err := w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
+	bal, found, err := w.credit(ctx, broadcasterID, entry)
 	if err != nil {
 		return err
 	}
@@ -103,10 +125,17 @@ func (w *LoyaltyWallet) Credit(ctx context.Context, broadcasterID uint64, entry 
 	return nil
 }
 
+func (w *LoyaltyWallet) credit(ctx context.Context, broadcasterID uint64, entry DuelStake) (loyaltyrpc.Balance, bool, error) {
+	if entry.ViewerID == 0 {
+		return w.loyalty.BalanceAdjust(ctx, broadcasterID, entry.Login, entry.Stake, false)
+	}
+	return w.loyalty.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerID: entry.ViewerID, ViewerLogin: entry.Login, Value: entry.Stake})
+}
+
 type DuelOpenSpec struct {
 	Kind             DuelKind
-	Opener           string
-	Challenged       string
+	Opener           DuelParty
+	Challenged       DuelParty
 	Stake            int64
 	PotSeconds       int64
 	ChallengeSeconds int64
@@ -176,10 +205,10 @@ type DuelStatus struct {
 
 type DuelStore interface {
 	Open(ctx context.Context, broadcasterID uint64, spec DuelOpenSpec) (DuelOpenResult, error)
-	Join(ctx context.Context, broadcasterID uint64, login string, stake int64) (DuelJoinResult, error)
-	Accept(ctx context.Context, broadcasterID uint64, login string) (DuelAcceptResult, error)
-	Decline(ctx context.Context, broadcasterID uint64, login string) (DuelDeclineResult, error)
-	Cancel(ctx context.Context, broadcasterID uint64, byLogin string, moderator bool) (DuelCancelResult, error)
+	Join(ctx context.Context, broadcasterID uint64, who DuelParty, stake int64) (DuelJoinResult, error)
+	Accept(ctx context.Context, broadcasterID uint64, who DuelParty) (DuelAcceptResult, error)
+	Decline(ctx context.Context, broadcasterID uint64, who DuelParty) (DuelDeclineResult, error)
+	Cancel(ctx context.Context, broadcasterID uint64, who DuelParty, moderator bool) (DuelCancelResult, error)
 	Status(ctx context.Context, broadcasterID uint64) (DuelStatus, error)
 	StartExpiryWatcher(ctx context.Context)
 }
@@ -187,7 +216,7 @@ type DuelStore interface {
 type DuelConfig struct {
 	AnnouncementConfig
 	Wallet DuelWallet
-	Expiry *ExpiryHub
+	Expiry *pkg_valkey.ExpiryHub
 }
 
 type ValkeyDuelStore struct {
@@ -208,13 +237,8 @@ func benign(err error) bool {
 }
 
 func (s *ValkeyDuelStore) holdSection(ctx context.Context, broadcasterID uint64) bool {
-	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(duelKey(duelDrawPrefix, broadcasterID)).Value("1").
-		Nx().PxMilliseconds(duelDrawLockTTL.Milliseconds()).Build()).ToString()
-	if err != nil {
-		return false
-	}
-	return got == "OK"
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, duelKey(duelDrawPrefix, broadcasterID), duelDrawLockTTL)
+	return err == nil && won
 }
 
 func (s *ValkeyDuelStore) releaseSection(ctx context.Context, broadcasterID uint64) {
@@ -255,7 +279,7 @@ func validateOpenSpec(spec DuelOpenSpec) error {
 	if spec.Stake > DuelMaxStake {
 		return fmt.Errorf("duel: stake above the ceiling (%d)", spec.Stake)
 	}
-	if spec.Opener == "" {
+	if spec.Opener.Login == "" || spec.Opener.ID == 0 {
 		return fmt.Errorf("duel: open without an opener")
 	}
 	if spec.Kind == DuelChallenge {
@@ -265,11 +289,11 @@ func validateOpenSpec(spec DuelOpenSpec) error {
 }
 
 func validateChallenged(spec DuelOpenSpec) error {
-	if spec.Challenged == "" {
+	if spec.Challenged.Login == "" || spec.Challenged.ID == 0 {
 		return fmt.Errorf("duel: challenge without a challenged party")
 	}
-	if spec.Opener == spec.Challenged {
-		return fmt.Errorf("duel: self-challenge (%q)", spec.Opener)
+	if spec.Opener.ID == spec.Challenged.ID {
+		return fmt.Errorf("duel: self-challenge (%q)", spec.Opener.Login)
 	}
 	return nil
 }
@@ -295,11 +319,11 @@ func openClock(spec DuelOpenSpec) int64 {
 func (s *ValkeyDuelStore) install(ctx context.Context, broadcasterID uint64, spec DuelOpenSpec) (DuelOpenResult, error) {
 	res := DuelOpenResult{}
 	state := DuelState{
-		Kind: spec.Kind, Opener: spec.Opener, OpenerStake: spec.Stake,
-		Challenged: spec.Challenged, OpenedAt: time.Now().UnixMilli(),
+		Kind: spec.Kind, Opener: spec.Opener.Login, OpenerID: spec.Opener.ID, OpenerStake: spec.Stake,
+		Challenged: spec.Challenged.Login, ChallengeID: spec.Challenged.ID, OpenedAt: time.Now().UnixMilli(),
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, DuelStake{Login: spec.Opener, Stake: spec.Stake})
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, spec.Opener.stake(spec.Stake))
 	switch {
 	case err != nil:
 		s.releaseSlot(ctx, broadcasterID)
@@ -336,7 +360,7 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 			s.client.B().Hsetex().Key(duelKey(duelEntriesPrefix, broadcasterID)).
 				Ex(int64(duelStateTTL.Seconds())).
 				Fields().Numfields(1).FieldValue().
-				FieldValue(spec.Opener, strconv.FormatInt(spec.Stake, 10)).
+				FieldValue(spec.Opener.stake(spec.Stake).ledgerField(), spec.Opener.stake(spec.Stake).ledgerValue()).
 				Build())
 	}
 	for _, r := range s.client.DoMulti(ctx, batch...) {
@@ -348,8 +372,7 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 }
 
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
-	entry := DuelStake{Login: state.Opener, Stake: state.OpenerStake}
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, state.openerStake()); err != nil {
 		s.log.Warn("duel: open rollback refund failed", module.BIDField(broadcasterID),
 			zap.String("login", state.Opener), zap.Int64("amount", state.OpenerStake), zap.Error(err))
 	}
@@ -363,7 +386,7 @@ func (s *ValkeyDuelStore) releaseSlot(ctx context.Context, broadcasterID uint64)
 	s.client.Do(ctx, s.client.B().Del().Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build())
 }
 
-func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, login string, stake int64) (DuelJoinResult, error) {
+func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, who DuelParty, stake int64) (DuelJoinResult, error) {
 	res := DuelJoinResult{}
 	if stake <= 0 || stake > DuelMaxStake {
 		return res, fmt.Errorf("duel: join stake invalid (%d)", stake)
@@ -383,7 +406,7 @@ func (s *ValkeyDuelStore) Join(ctx context.Context, broadcasterID uint64, login 
 		res.ChallengePending = true
 		return res, nil
 	}
-	return s.joinPot(ctx, broadcasterID, DuelStake{Login: login, Stake: stake}, res)
+	return s.joinPot(ctx, broadcasterID, who.stake(stake), res)
 }
 
 // Claim the seat before debiting so a duplicate join never moves points twice.
@@ -400,14 +423,14 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, ent
 	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, entry)
 	switch {
 	case err != nil:
-		s.unclaimSeat(ctx, broadcasterID, entry.Login)
+		s.unclaimSeat(ctx, broadcasterID, entry)
 		return res, err
 	case !found:
-		s.unclaimSeat(ctx, broadcasterID, entry.Login)
+		s.unclaimSeat(ctx, broadcasterID, entry)
 		res.Unknown = true
 		return s.joinTotals(ctx, broadcasterID, res)
 	case !spent:
-		s.unclaimSeat(ctx, broadcasterID, entry.Login)
+		s.unclaimSeat(ctx, broadcasterID, entry)
 		res.Short = true
 		return s.joinTotals(ctx, broadcasterID, res)
 	}
@@ -422,14 +445,14 @@ func (s *ValkeyDuelStore) joinPot(ctx context.Context, broadcasterID uint64, ent
 func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) (bool, error) {
 	added, err := s.client.Do(ctx, s.client.B().Hsetnx().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).
-		Field(entry.Login).Value(strconv.FormatInt(entry.Stake, 10)).Build()).AsInt64()
+		Field(entry.ledgerField()).Value(entry.ledgerValue()).Build()).AsInt64()
 	return added > 0, err
 }
 
-func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64, login string) {
-	if _, err := s.hdelEntry(ctx, broadcasterID, login); err != nil {
+func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64, entry DuelStake) {
+	if _, err := s.hdelEntry(ctx, broadcasterID, entry.ledgerField()); err != nil {
 		s.log.Warn("duel: join rollback unclaim failed", module.BIDField(broadcasterID),
-			zap.String("login", login), zap.Error(err))
+			zap.String("login", entry.Login), zap.Error(err))
 	}
 }
 
@@ -460,9 +483,9 @@ func (s *ValkeyDuelStore) readLedger(ctx context.Context, broadcasterID uint64) 
 	return poolSummary{entrants: int64(len(vals)), pot: sumStakes(vals)}, nil
 }
 
-func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, login string) (int64, error) {
+func (s *ValkeyDuelStore) hdelEntry(ctx context.Context, broadcasterID uint64, field string) (int64, error) {
 	return s.client.Do(ctx, s.client.B().Hdel().
-		Key(duelKey(duelEntriesPrefix, broadcasterID)).Field(login).Build()).AsInt64()
+		Key(duelKey(duelEntriesPrefix, broadcasterID)).Field(field).Build()).AsInt64()
 }
 
 func (s *ValkeyDuelStore) stateOf(ctx context.Context, broadcasterID uint64) *DuelState {
@@ -489,7 +512,7 @@ func (s *ValkeyDuelStore) beginResolution(ctx context.Context, broadcasterID uin
 	return s.stateOf(ctx, broadcasterID), false
 }
 
-func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, login string) (DuelAcceptResult, error) {
+func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, who DuelParty) (DuelAcceptResult, error) {
 	res := DuelAcceptResult{}
 	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
@@ -501,12 +524,12 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 		return res, nil
 	}
 	res.Found = true
-	if !challengeAddressed(st, login) {
+	if !challengeAddressed(st, who) {
 		res.WrongUser = true
 		return res, nil
 	}
 
-	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, DuelStake{Login: login, Stake: st.OpenerStake})
+	found, spent, err := s.cfg.Wallet.Debit(ctx, broadcasterID, who.stake(st.OpenerStake))
 	switch {
 	case err != nil:
 		return res, err
@@ -528,33 +551,32 @@ func (s *ValkeyDuelStore) Accept(ctx context.Context, broadcasterID uint64, logi
 }
 
 func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uint64, st *DuelState) (DuelReceipt, error) {
-	winner, loser, pot := st.Challenged, st.Opener, st.OpenerStake*2
+	winner, loser, pot := st.challengedParty(), st.openerParty(), st.OpenerStake*2
 	if FlipDuelCoin() {
-		winner, loser = st.Opener, st.Challenged
+		winner, loser = loser, winner
 	}
 	receipt := DuelReceipt{
-		Outcome: DuelWon, Winner: winner, Loser: loser, Pot: pot,
+		Outcome: DuelWon, Winner: winner.Login, Loser: loser.Login, Pot: pot,
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt, true)
-	return receipt, s.payWinner(ctx, broadcasterID, &receipt)
+	return receipt, s.payWinner(ctx, broadcasterID, winner.stake(pot))
 }
 
-func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) error {
-	entry := DuelStake{Login: receipt.Winner, Stake: receipt.Pot}
+func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, entry DuelStake) error {
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 		s.log.Warn("duel: winner credit failed", module.BIDField(broadcasterID),
-			zap.String("winner", receipt.Winner), zap.Int64("pot", receipt.Pot), zap.Error(err))
+			zap.String("winner", entry.Login), zap.Int64("pot", entry.Stake), zap.Error(err))
 		return err
 	}
 	return nil
 }
 
-func challengeAddressed(st *DuelState, login string) bool {
-	return st.Kind == DuelChallenge && login == st.Challenged
+func challengeAddressed(st *DuelState, who DuelParty) bool {
+	return st.Kind == DuelChallenge && st.challengedParty().is(who)
 }
 
-func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, login string) (DuelDeclineResult, error) {
+func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, who DuelParty) (DuelDeclineResult, error) {
 	res := DuelDeclineResult{}
 	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
@@ -566,7 +588,7 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 		return res, nil
 	}
 	res.Found = true
-	if !challengeAddressed(st, login) {
+	if !challengeAddressed(st, who) {
 		res.WrongUser = true
 		return res, nil
 	}
@@ -577,7 +599,7 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt, false)
-	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: refund})
+	s.refund(ctx, broadcasterID, st.openerStake())
 
 	res.Declined = true
 	res.Opener = st.Opener
@@ -585,7 +607,7 @@ func (s *ValkeyDuelStore) Decline(ctx context.Context, broadcasterID uint64, log
 	return res, nil
 }
 
-func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLogin string, moderator bool) (DuelCancelResult, error) {
+func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, who DuelParty, moderator bool) (DuelCancelResult, error) {
 	res := DuelCancelResult{}
 	st, busy := s.beginResolution(ctx, broadcasterID)
 	if busy {
@@ -597,7 +619,7 @@ func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLo
 		return res, nil
 	}
 	res.Found = true
-	if !moderator && byLogin != st.Opener {
+	if !moderator && !st.openerParty().is(who) {
 		return res, nil
 	}
 
@@ -630,7 +652,7 @@ func sumEntries(entries []DuelStake) int64 {
 }
 
 func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint64, st *DuelState) ([]DuelStake, error) {
-	fallback := []DuelStake{{Login: st.Opener, Stake: st.OpenerStake}}
+	fallback := []DuelStake{st.openerStake()}
 	if st.Kind != DuelPot {
 		return fallback, nil
 	}
@@ -732,7 +754,7 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 }
 
 func (s *ValkeyDuelStore) StartExpiryWatcher(ctx context.Context) {
-	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, duelDeadlinePrefix)
+	pkg_valkey.ExpiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, duelDeadlinePrefix)
 }
 
 func (s *ValkeyDuelStore) onExpired(ctx context.Context, key string) {
@@ -795,7 +817,8 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	for _, e := range sorted {
 		total += e.Stake
 	}
-	winner := PickDuelWinner(sorted, RollDuel(total))
+	payout := PickDuelStake(sorted, RollDuel(total))
+	winner := payout.Login
 
 	snap := duelSnapPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatInt(time.Now().UnixMilli(), 10)
 	receipt := DuelReceipt{
@@ -806,7 +829,8 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	}
 	s.teardownWithSnapshot(ctx, broadcasterID, &receipt)
 
-	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, DuelStake{Login: winner, Stake: total}); err != nil {
+	payout.Stake = total
+	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, payout); err != nil {
 		s.log.Warn("duel: pot payout failed", module.BIDField(broadcasterID),
 			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
 	}
@@ -819,14 +843,14 @@ func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, 
 		ResolvedAt: time.Now().UnixMilli(),
 	}
 	s.teardown(ctx, broadcasterID, &receipt, false)
-	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
+	s.refund(ctx, broadcasterID, st.openerStake())
 	s.announce(ctx, broadcasterID, func(v duelVoice) string { return duelNoShowText(v, st) })
 }
 
 func (s *ValkeyDuelStore) refundOnly(ctx context.Context, broadcasterID uint64, st *DuelState, outcome DuelOutcome) {
 	receipt := DuelReceipt{Outcome: outcome, RefundTo: st.Opener, Pot: st.OpenerStake, ResolvedAt: time.Now().UnixMilli()}
 	s.teardown(ctx, broadcasterID, &receipt, false)
-	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
+	s.refund(ctx, broadcasterID, st.openerStake())
 }
 
 func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) {

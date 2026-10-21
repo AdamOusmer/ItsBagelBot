@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -34,7 +35,7 @@ type wireCtx struct {
 	in     infra
 	cfg    *config.Config
 	log    *zap.Logger
-	expiry *engine.ExpiryHub
+	expiry *pkgvalkey.ExpiryHub
 }
 
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
@@ -118,6 +119,8 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Seq: rt.seq,
 
 		PublicBaseURL: cfg.PublicBaseURL,
+
+		LeaderboardBaseURL: cfg.LeaderboardBaseURL,
 	}
 }
 
@@ -207,8 +210,9 @@ func watchExpiry[T interface{ StartExpiryWatcher(context.Context) }](w wireCtx, 
 	return store
 }
 
-func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
-	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry}, w.log))
+func newRaffle(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyRaffleStore {
+	cfg := engine.RaffleConfig{AnnouncementConfig: announcementConfig(w, proj), Expiry: w.expiry, Wallet: engine.NewRaffleWallet(loyalty)}
+	return watchExpiry(w, engine.NewValkeyRaffleStore(w.in.vc, cfg, w.log))
 }
 
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {

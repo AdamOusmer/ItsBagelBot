@@ -118,6 +118,9 @@
   .stats-layout--gathering .stats-layout__crowd { width: 370px; }
   .stats-layout--gathering .stats-layout__crowd > * { left: calc(var(--crowd-order) * 52px); }
 
+  .stats-layout--podium .stats-layout__body { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'counters' 'ranking'; }
+  .stats-layout--podium .stats-layout__counters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
   @media (max-width: 900px) {
     .stats-layout { padding-inline: 28px; }
     .stats-layout__crowd { width: 290px; }
@@ -143,8 +146,10 @@
     .stats-layout--onboarding .stats-layout__body,
     .stats-layout--gathering .stats-layout__body { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'counters' 'ranking' 'community'; gap: 28px; }
     .stats-layout--gathering .stats-layout__body { grid-template-areas: 'community' 'ranking' 'counters'; }
+    .stats-layout--podium .stats-layout__body { gap: 28px; }
     .stats-layout__counters,
-    .stats-layout--gathering .stats-layout__counters { grid-template-columns: minmax(0, 1fr); gap: 42px; padding-inline: 4px; }
+    .stats-layout--gathering .stats-layout__counters,
+    .stats-layout--podium .stats-layout__counters { grid-template-columns: minmax(0, 1fr); gap: 42px; padding-inline: 4px; }
     .stats-layout--onboarding .stats-layout__counters { gap: 32px; }
   }
 

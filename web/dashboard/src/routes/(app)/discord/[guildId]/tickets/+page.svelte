@@ -22,7 +22,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createModuleDraft({ data: () => data, t });
+  const draft = createModuleDraft({ data: () => data }, t);
 
   const panel = $derived(ticketPanelSpec(draft.config));
   const repostSubmit = $derived(draft.actionSubmit(t('discord.toast.reposted'), t('discord.toast.repostFailed')));

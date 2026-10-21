@@ -6,8 +6,9 @@ import { rpc } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import * as valkey from '@bagel/kit/server/valkey-store';
 import type { CommandView, Perm } from '@bagel/kit';
+import { MOD } from '@bagel/kit/catalog';
 import { SUB, fabric, invalidate } from './services';
-import { schedulePurgeChannel } from './edge-purge';
+import { scheduleLeaderboardPurge, schedulePurgeChannel } from './edge-purge';
 
 const READ_TIMEOUT_MS = 2000;
 
@@ -84,20 +85,36 @@ function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
   fabric.cache.set(key, value, synced ? POLICY.projected : UNSYNCED_TTL_MS);
 }
 
+type ModuleWrite = { userId: string; name: string; isEnabled: boolean };
+
+// Loyalty on/off is the only module write that may tag-purge (Cloudflare Free: 5 tag purges per minute).
+async function watchLoyaltyToggle(write: ModuleWrite): Promise<() => void> {
+  if (write.name !== MOD.loyalty) return () => {};
+  const before = await listModules(write.userId).then(
+    (rows) => rows.find((m) => m.name === write.name)?.is_enabled ?? false,
+    () => null
+  );
+  return () => {
+    if (before !== write.isEnabled) scheduleLeaderboardPurge(write.userId);
+  };
+}
+
 export async function upsertModule(
   userId: string,
   name: string,
   isEnabled: boolean,
   configs?: unknown
-): Promise<{ modules: ModuleView[] }> {
+): Promise<{ modules: ModuleView[]; synced: boolean }> {
+  const afterLoyaltyWrite = await watchLoyaltyToggle({ userId, name, isEnabled });
   const reply = await rpc<{ modules: ModuleView[] }>(`${SUB.modules}.upsert`, {
     user_id: userId,
     name,
     is_enabled: isEnabled,
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
-  await replaceProjectedModules(userId, reply.modules);
-  return reply;
+  afterLoyaltyWrite();
+  const synced = await replaceProjectedModules(userId, reply.modules);
+  return { ...reply, synced };
 }
 
 export interface ModulePatch {
@@ -108,7 +125,8 @@ export interface ModulePatch {
   expectedRev: number;
 }
 
-export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean }> {
+export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean; synced: boolean }> {
+  const afterLoyaltyWrite = await watchLoyaltyToggle(p);
   const reply = await rpc<{ rev?: number; conflict?: boolean; modules: ModuleView[] }>(`${SUB.modules}.patch`, {
     user_id: p.userId,
     name: p.name,
@@ -118,10 +136,11 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
   });
   if (reply.conflict) {
     invalidate(cacheKey('modules', p.userId));
-    return { rev: reply.rev ?? p.expectedRev, conflict: true };
+    return { rev: reply.rev ?? p.expectedRev, conflict: true, synced: false };
   }
-  await replaceProjectedModules(p.userId, reply.modules);
-  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
+  afterLoyaltyWrite();
+  const synced = await replaceProjectedModules(p.userId, reply.modules);
+  return { rev: reply.rev ?? p.expectedRev + 1, conflict: false, synced };
 }
 
 export interface CommandInput {

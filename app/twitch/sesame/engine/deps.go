@@ -15,6 +15,7 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 
@@ -76,6 +77,8 @@ type Deps struct {
 	Seq            *Sequencer
 	Nuke           *Nuke
 	Analytics      *analytics.Recorder
+
+	LeaderboardBaseURL string
 }
 
 type FeedCounts struct {
@@ -133,10 +136,7 @@ type GreetStore interface {
 	ResetGreets(ctx context.Context, broadcasterID uint64) error
 }
 
-type CooldownWindow struct {
-	Key string
-	TTL time.Duration
-}
+type CooldownWindow = pkg_valkey.Claim
 
 type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)
@@ -182,6 +182,13 @@ type PointTransfer struct {
 	Amount         int64
 }
 
+type PointSpend struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	Login         string
+	Amount        int64
+}
+
 type PointWager struct {
 	BroadcasterID uint64
 	ViewerID      uint64
@@ -205,7 +212,7 @@ type LoyaltyStore interface {
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
 	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
-	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
+	BalanceSpend(ctx context.Context, spend PointSpend) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, transfer PointTransfer) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)

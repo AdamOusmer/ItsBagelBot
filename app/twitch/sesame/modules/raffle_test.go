@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,8 @@ type fakeRaffle struct {
 	lastResult *engine.RaffleResult
 	lastFound  bool
 	claim      engine.RaffleClaim
+	claimedBy  string
+	joinedIDs  []string
 	err        error
 }
 
@@ -38,17 +41,18 @@ func (f *fakeRaffle) Open(_ context.Context, _ uint64, spec engine.RaffleOpenSpe
 	return true, nil
 }
 
-func (f *fakeRaffle) Join(_ context.Context, _ uint64, userID string) (engine.RaffleEntry, error) {
+func (f *fakeRaffle) Join(_ context.Context, _ uint64, entrant engine.RaffleEntrant) (engine.RaffleEntry, error) {
 	entry := engine.RaffleEntry{Open: f.open, Entrants: int64(len(f.pool))}
 	for _, p := range f.pool {
-		if p == userID {
+		if p == entrant.Login {
 			return entry, nil
 		}
 	}
 	if !f.open {
 		return entry, nil
 	}
-	f.pool = append(f.pool, userID)
+	f.pool = append(f.pool, entrant.Login)
+	f.joinedIDs = append(f.joinedIDs, entrant.ID)
 	entry.Entrants = int64(len(f.pool))
 	entry.Joined = true
 	return entry, nil
@@ -79,8 +83,17 @@ func (f *fakeRaffle) LastResult(_ context.Context, _ uint64) (*engine.RaffleResu
 	return f.lastResult, true, f.err
 }
 
-func (f *fakeRaffle) Claim(context.Context, uint64, string) (engine.RaffleClaim, error) {
+func (f *fakeRaffle) Claim(_ context.Context, _ uint64, viewerID string) (engine.RaffleClaim, error) {
+	f.claimedBy = viewerID
 	return f.claim, nil
+}
+
+func winners(logins ...string) []engine.RaffleWinner {
+	out := make([]engine.RaffleWinner, len(logins))
+	for i, login := range logins {
+		out[i] = engine.RaffleWinner{ID: "id-" + login, Login: login}
+	}
+	return out
 }
 
 func (f *fakeRaffle) StartExpiryWatcher(context.Context) {}
@@ -150,7 +163,8 @@ const (
 )
 
 func TestRaffleChat(t *testing.T) {
-	won := &engine.RaffleResult{Winners: []string{"alice", "zoe"}, Entrants: 10}
+	won := &engine.RaffleResult{Winners: winners("alice", "zoe"), Entrants: 10}
+	paid := &engine.RaffleResult{Winners: []engine.RaffleWinner{{ID: "1", Login: "alice", Points: 1000}}, Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutPaid}
 	cases := []struct {
 		name     string
 		text     string
@@ -172,17 +186,19 @@ func TestRaffleChat(t *testing.T) {
 			raffle: fakeRaffle{open: true, drawResult: &engine.RaffleResult{}}, contains: []string{"No one entered"}},
 		{name: "drawing with nothing running says so", text: "!raffle draw", who: "mod", badge: "moderator", contains: []string{"No raffle is running"}},
 		{name: "the won template fills the winners", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonMessage":"{targets} takes it! {count} of {entrants}"}`,
-			raffle: fakeRaffle{drawResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 7}}, exact: "@alice takes it! 1 of 7"},
+			raffle: fakeRaffle{drawResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 7}}, exact: "@alice takes it! 1 of 7"},
+		{name: "a paid draw names the points", text: "!raffle draw", who: "mod", badge: "moderator", raffle: fakeRaffle{drawResult: paid},
+			contains: []string{"@alice", "1000 points per winner"}},
 		{name: "cancelling closes the raffle", text: "!raffle cancel", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"cancelled"}, open: raffleClosed},
 		{name: "status reports the entrants", text: "!raffle", who: "alice", raffle: fakeRaffle{open: true, pool: []string{"a", "b"}}, contains: []string{"2 entered"}},
 		{name: "status reports a closed raffle", text: "!raffle", who: "alice", contains: []string{"No raffle"}},
 		{name: "status ignores the join template", text: "!raffle", who: "alice", config: `{"joinMessage":"custom"}`, raffle: fakeRaffle{open: true, pool: []string{"a"}},
 			contains: []string{"1 entered"}},
 		{name: "an unknown subcommand prints usage", text: "!raffle gimmick", who: "alice", contains: []string{"!raffle"}},
-		{name: "winner recalls the last draw", text: "!winner", who: "alice", raffle: fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: []string{"alice"}, Entrants: 5}},
+		{name: "winner recalls the last draw", text: "!winner", who: "alice", raffle: fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 5}},
 			contains: []string{"@alice"}},
 		{name: "winner shows the confirmed claims", text: "!winner", who: "bob",
-			raffle:   fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: []string{"alice", "zoe"}, Entrants: 5, Claims: []string{"alice"}}},
+			raffle:   fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("alice", "zoe"), Entrants: 5, Claims: []string{"id-alice"}}},
 			contains: []string{"1/2 confirmed"}},
 		{name: "winner before any draw says so", text: "!winner", who: "alice", contains: []string{"No raffle has been drawn"}},
 		{name: "a winner's claim is confirmed", text: "!claim", who: "alice", raffle: fakeRaffle{claim: engine.ClaimOk}, contains: []string{"confirmed"}},
@@ -215,11 +231,11 @@ func TestRaffleOpenArgs(t *testing.T) {
 		args string
 		want engine.RaffleOpenSpec
 	}{
-		{"", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute}},
-		{"10", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute}},
-		{"10 2", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2}},
-		{"10 2 3", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: 3 * time.Minute}},
-		{"10 2 0", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: -time.Second}},
+		{"", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Prize: 1000}},
+		{"10", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Prize: 1000}},
+		{"10 2", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Prize: 1000}},
+		{"10 2 3", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: 3 * time.Minute, Prize: 1000}},
+		{"10 2 0", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: -time.Second, Prize: 1000}},
 	}
 	for _, tc := range cases {
 		r := &fakeRaffle{}
@@ -240,6 +256,47 @@ func TestRaffleOpenDefaultDuration(t *testing.T) {
 			assert.Equal(t, "Raffle is LIVE! Type !join to enter. Drawing in 10 min!", out[0].Text)
 		})
 	}
+}
+
+func TestRaffleOpenPrizeNeedsLoyalty(t *testing.T) {
+	loyaltyOn := []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: true}}
+	cases := []struct {
+		name      string
+		config    string
+		modules   []projection.ModuleView
+		wantOpen  bool
+		wantPrize int64
+		contains  string
+	}{
+		{name: "the default prize opens with loyalty on", modules: loyaltyOn, wantOpen: true, wantPrize: 1000, contains: "!join"},
+		{name: "a prize saved as text is honored", config: `{"prizePoints":"250"}`, modules: loyaltyOn, wantOpen: true, wantPrize: 250, contains: "!join"},
+		{name: "a points raffle is refused with loyalty off", contains: "Turn Loyalty on"},
+		{name: "a zero prize runs without loyalty", config: `{"prizePoints":"0"}`, wantOpen: true, contains: "!join"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &fakeRaffle{}
+			d := raffleDeps(r)
+			d.Proj = &fakeProj{modules: tc.modules}
+			out := runChat(t, Raffle(d), withConfig(chatCtx("42", "mod", "moderator"), tc.config), "!raffle open")
+			require.Len(t, out, 1)
+			assert.Contains(t, out[0].Text, tc.contains)
+			assert.Equal(t, tc.wantOpen, r.open)
+			assert.Equal(t, tc.wantPrize, r.lastSpec.Prize)
+		})
+	}
+}
+
+func TestRaffleKeysEntriesAndClaimsByViewerID(t *testing.T) {
+	r := &fakeRaffle{open: true}
+	m := Raffle(raffleDeps(r))
+
+	runChat(t, m, chatCtx("777", "Alice"), "!join")
+	runChat(t, m, chatCtx("777", "alice"), "!claim")
+
+	assert.Equal(t, []string{"777"}, r.joinedIDs)
+	assert.Equal(t, []string{"alice"}, r.pool, "the login is kept lower-cased for mentions")
+	assert.Equal(t, "777", r.claimedBy)
 }
 
 func TestRaffleStaysSilentWithoutAStore(t *testing.T) {

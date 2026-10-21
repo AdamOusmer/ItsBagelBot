@@ -74,7 +74,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-dashboard
-          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:v0.2.10-beta@sha256:b1e0f37d44325ff3fa2afa1941a74da0f43be5a08745c747df0309417b08139d
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:main-1792447880-e9fee69937c2@sha256:7b6d64dfdf0aaac8bce6f8291e7967b18089f1f1f8c48debbddde801b458274e
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
@@ -137,7 +137,7 @@ spec:
                   name: outgress-env
                   key: TWITCH_BOT_USER_ID
             - name: DASHBOARD_L1_CACHE_CAPACITY
-              value: "1000"
+              value: "5000"
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
               value: bagel.rpc.projector.dashboard
             - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX
@@ -166,9 +166,7 @@ spec:
             - name: NEW_RELIC_SPAN_EVENTS_ENABLED
               value: "true"
             - name: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED
-              value: "true"
-            - name: NEW_RELIC_APPLICATION_LOGGING_ENABLED
-              value: "true"
+              value: "false"
             - name: NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED
               value: "false"
             - name: NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED
@@ -180,6 +178,24 @@ spec:
             - name: NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ENABLED
               value: "true"
             - name: NEW_RELIC_ALLOW_ALL_HEADERS
+              value: "false"
+            - name: NEW_RELIC_IGNORING_RULES
+              value: "^/healthz$,^/readyz$"
+            - name: NEW_RELIC_INSTRUMENTATION_FS_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_DNS_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_NET_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_ZLIB_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_CHILD_PROCESS_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_CRYPTO_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_HTTP2_ENABLED
+              value: "false"
+            - name: NEW_RELIC_INSTRUMENTATION_UNDICI_ENABLED
               value: "false"
             - name: NEW_RELIC_LABELS
               value: "service:console-dashboard;tier:web;component:ssr"
@@ -216,7 +232,8 @@ spec:
             periodSeconds: 30
           readinessProbe:
             httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
-            periodSeconds: 10
+            periodSeconds: 2
+            failureThreshold: 15
       terminationGracePeriodSeconds: 45
       tolerations:
         - key: node.kubernetes.io/unreachable
@@ -265,7 +282,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
+      middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
       services:
         - name: console-dashboard
           port: 443
@@ -277,7 +294,7 @@ spec:
          Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
       kind: Rule
-      middlewares: [{name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
+      middlewares: [{name: error-pages}, {name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
       services:
         - name: console-dashboard
           port: 443
@@ -288,7 +305,7 @@ spec:
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
       kind: Rule
-      middlewares: [{name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
+      middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
       services:
         - name: console-dashboard
           port: 443
