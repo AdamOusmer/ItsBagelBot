@@ -1,8 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+export type ResetSchedule = 'off' | 'weekly' | 'monthly' | 'annually';
+export const RESET_SCHEDULES: readonly ResetSchedule[] = ['off', 'weekly', 'monthly', 'annually'];
+
+export function toResetSchedule(raw: unknown): ResetSchedule {
+  return RESET_SCHEDULES.find((s) => s === raw) ?? 'off';
+}
+
 export interface LoyaltyConfig {
   pointsName: string;
+  resetSchedule: ResetSchedule;
   subPoints: number;
   resubPoints: number;
   giftSubPoints: number;
@@ -16,6 +24,7 @@ export interface LoyaltyConfig {
 
 export const LOYALTY_DEFAULTS: LoyaltyConfig = {
   pointsName: 'points',
+  resetSchedule: 'off',
   subPoints: 500,
   resubPoints: 500,
   giftSubPoints: 100,
@@ -30,6 +39,7 @@ export const LOYALTY_DEFAULTS: LoyaltyConfig = {
 export function blankLoyaltyConfig(): LoyaltyConfig {
   return {
     pointsName: '',
+    resetSchedule: 'off',
     subPoints: 0,
     resubPoints: 0,
     giftSubPoints: 0,

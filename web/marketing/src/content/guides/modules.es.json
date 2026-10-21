@@ -92,7 +92,7 @@
   "catalog.b1.props.modules.14.start": "Desactivado por defecto",
   "catalog.b1.props.modules.14.tagline": "Deja que los espectadores se pongan en cola para jugar contigo, por orden de llegada.",
   "catalog.b1.props.modules.15.cat": "Juego",
-  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle, !raffle open [minutos] [ganadores] [recordatorio], !raffle draw [ganadores], !raffle close, !raffle cancel",
+  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle [cantidad] [segundos], !sraffle, !mraffle, !raffle draw [ganadores], !raffle close, !raffle cancel, !cancelraffle",
   "catalog.b1.props.modules.15.name": "Sorteo",
   "catalog.b1.props.modules.15.needs": "Sorteo toma el control de !join cuando Cola para jugar también está activa.",
   "catalog.b1.props.modules.15.start": "Desactivado por defecto",

@@ -21,7 +21,7 @@
   "step1Title": "Ative o Raffle",
   "step1Desc": "Entre com a Twitch, conecte seu canal e ative o módulo Raffle. Ele começa desativado.",
   "step2Title": "Escolha a duração do sorteio",
-  "step2Desc": "Use !raffle open 10 1 5 para um sorteio de dez minutos, um vencedor e lembretes a cada cinco minutos. Defina o último número como 0 para desativar os lembretes.",
+  "step2Desc": "Use !raffle 1000 60 para um sorteio de um minuto em que um vencedor leva 1000 pontos, ou !mraffle 5k 120 para dividir 5000 pontos entre vários vencedores.",
   "step3Title": "Convide os espectadores a participar",
   "step3Desc": "Os espectadores digitam !join enquanto o sorteio estiver aberto. Quando o sorteio terminar, cada vencedor terá quinze minutos para confirmar com !claim.",
   "tblTitle": "Comandos do sorteio e respostas de exemplo.",

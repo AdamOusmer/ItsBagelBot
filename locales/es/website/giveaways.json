@@ -21,7 +21,7 @@
   "step1Title": "Activa Raffle",
   "step1Desc": "Inicia sesión con Twitch, conecta tu canal y activa el módulo Raffle. Viene desactivado por defecto.",
   "step2Title": "Elige la duración del sorteo",
-  "step2Desc": "Usa !raffle open 10 1 5 para un sorteo de diez minutos, un ganador y recordatorios cada cinco minutos. Pon el último número en 0 para desactivar los recordatorios.",
+  "step2Desc": "Usa !raffle 1000 60 para un sorteo de un minuto en el que un ganador se lleva 1000 puntos, o !mraffle 5k 120 para repartir 5000 puntos entre varios ganadores.",
   "step3Title": "Pide a los espectadores que participen",
   "step3Desc": "Los espectadores escriben !join mientras las inscripciones estén abiertas. Cuando finalice el sorteo, cada ganador tiene quince minutos para confirmar con !claim.",
   "tblTitle": "Comandos de Raffle y respuestas de ejemplo.",

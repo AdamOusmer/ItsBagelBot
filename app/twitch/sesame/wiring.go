@@ -228,10 +228,23 @@ type loyaltyDeps struct {
 }
 
 func newLoyalty(w wireCtx, deps loyaltyDeps) (*engine.ValkeyLoyaltyStore, *engine.ValkeyLoyaltyClock) {
-	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), deps.reporter, w.log)
+	rpc := engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix)
+	store := engine.NewValkeyLoyaltyStore(w.in.vc, rpc, deps.reporter, w.log)
 	store.StartInvalidationListener(w.in.nc, w.cfg.CacheInvalidationPrefix)
+	startLoyaltyReset(w, deps.proj, rpc)
 	tick := newLoyaltyClock(w, deps)
 	return store, tick
+}
+
+func startLoyaltyReset(w wireCtx, proj *projection.Client, rpc *engine.LoyaltyRPC) {
+	reset := engine.NewLoyaltyResetClock(w.in.vc, proj, rpc, engine.LoyaltyResetConfig{
+		NC:                       w.in.nc,
+		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
+		Expiry:                   w.expiry,
+		Log:                      w.log,
+	})
+	go reset.StartExpiryWatcher(w.ctx)
+	go reset.StartRearmWatcher(w.ctx)
 }
 
 func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
