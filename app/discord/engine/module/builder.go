@@ -49,10 +49,8 @@ func (b *Builder) Build() Module {
 	if err := b.Validate(); err != nil {
 		panic("discord/engine/module: " + err.Error())
 	}
-	spec, _ := ddiscord.Spec(b.name)
 	return Module{
 		Name:    b.name,
-		Kind:    spec.Kind,
 		Events:  copyHandlers(b.events),
 		Slash:   copyHandlers(b.slash),
 		Buttons: copyHandlers(b.buttons),

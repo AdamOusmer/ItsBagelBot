@@ -75,17 +75,6 @@ func splitPin(entry string) (Pin, bool) {
 	return pin, true
 }
 
-func IsModStaff(memberRoles RoleIDs, cfg Config) bool {
-	return holdsAny(memberRoles, cfg.StaffRoleIDs())
-}
-
-func IsTicketStaff(memberRoles RoleIDs, cfg Config) bool {
-	if IsModStaff(memberRoles, cfg) {
-		return true
-	}
-	return holdsAny(memberRoles, cfg.TicketStaffRoleIDs())
-}
-
 func holdsAny(memberRoles, want RoleIDs) bool {
 	if len(memberRoles) == 0 || len(want) == 0 {
 		return false

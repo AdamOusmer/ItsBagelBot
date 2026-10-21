@@ -127,8 +127,8 @@ func TestSanitizeConfig(t *testing.T) {
 	t.Run("zeroed fields fall back to their defaults", func(t *testing.T) {
 		clean, _ := SanitizeConfig(Config{TicketOpenLimit: "12", TicketTranscriptEnabled: "yes"})
 
-		assert.Equal(t, TicketOpenLimitDefault, clean.TicketOpenLimitN())
-		assert.True(t, clean.TicketTranscriptOn(), "a zeroed transcript flag falls back to its default-ON reader")
+		assert.Equal(t, TicketOpenLimitDefault, clean.tickets().OpenLimitN())
+		assert.True(t, clean.tickets().TranscriptOn(), "a zeroed transcript flag falls back to its default-ON reader")
 	})
 
 	t.Run("leaves a valid config alone", func(t *testing.T) {

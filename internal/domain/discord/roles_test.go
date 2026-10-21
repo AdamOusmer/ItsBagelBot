@@ -70,7 +70,7 @@ func TestIsModStaff(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := IsModStaff(tc.roles, tc.cfg); got != tc.want {
+			if got := tc.cfg.roles().IsModStaff(tc.roles); got != tc.want {
 				t.Fatalf("IsModStaff = %v, want %v", got, tc.want)
 			}
 		})
@@ -96,12 +96,12 @@ func TestIsTicketStaff(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := IsTicketStaff(tc.roles, tc.cfg); got != tc.want {
+			if got := tc.cfg.tickets().IsStaff(tc.roles, tc.cfg.roles()); got != tc.want {
 				t.Fatalf("IsTicketStaff = %v, want %v", got, tc.want)
 			}
 		})
 	}
-	if !IsTicketStaff([]string{"o"}, withDesk) || !IsModStaff([]string{"o"}, withDesk) {
+	if !withDesk.tickets().IsStaff([]string{"o"}, withDesk.roles()) || !withDesk.roles().IsModStaff([]string{"o"}) {
 		t.Fatal("mod staff must always be ticket staff")
 	}
 }

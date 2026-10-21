@@ -229,10 +229,6 @@ export function discordModuleToggleable(def: Pick<DiscordModuleDef, 'kind'>): bo
   return def.kind !== 'core';
 }
 
-export function discordToggleOn(f: Pick<DiscordModuleField, 'defaultOn'>, value: string | undefined): boolean {
-  return f.defaultOn === false ? value === 'on' : value !== 'off';
-}
-
 interface Lookup {
   key: string;
   value: string;

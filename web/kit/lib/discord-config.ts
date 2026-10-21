@@ -27,7 +27,6 @@ export const CATEGORY_LIST_MAX = 500;
 
 export const TICKET_OPEN_LIMIT_MIN = 1;
 export const TICKET_OPEN_LIMIT_MAX = 5;
-export const TICKET_OPEN_LIMIT_DEFAULT = 1;
 
 export const LOG_IGNORED_CHANNELS_MAX = 25;
 export const VOICE_NAME_MAX = 100;
@@ -342,14 +341,6 @@ export function ticketPanelPayload(config: DiscordConfig): TicketPanelPayload {
     button: spec.button,
     ...(color === null ? {} : { color })
   };
-}
-
-export function ticketOpenLimitN(config: DiscordConfig): number {
-  const n = Number.parseInt(config.ticketOpenLimit, 10);
-  if (!Number.isFinite(n)) return TICKET_OPEN_LIMIT_DEFAULT;
-  if (n < TICKET_OPEN_LIMIT_MIN) return TICKET_OPEN_LIMIT_DEFAULT;
-  if (n > TICKET_OPEN_LIMIT_MAX) return TICKET_OPEN_LIMIT_DEFAULT;
-  return n;
 }
 
 export function ticketStaffRoleIds(config: DiscordConfig): Snowflake[] {

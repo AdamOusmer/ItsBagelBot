@@ -65,7 +65,7 @@ func TestConfigSetCreatesThenUpdates(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, 1, version)
 	assert.Equal(t, "123", cfg.LiveChannelID)
-	assert.True(t, cfg.LiveOn())
+	assert.Equal(t, "on", cfg.LiveEnabled)
 
 	version, err = f.repo.ConfigSet(f.ctx, repository.SetConfigParams{
 		GuildID: "g1", BroadcasterID: 42, ExpectedVersion: 1,

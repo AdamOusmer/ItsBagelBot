@@ -150,6 +150,16 @@ func (g GuildModules) Roles() RolesSettings {
 	return roles
 }
 
+func (g GuildModules) Ordered() []ModuleRow {
+	out := make([]ModuleRow, 0, len(g.Rows))
+	for _, spec := range Modules {
+		if row, ok := g.Rows[spec.Name]; ok {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
 func SplitConfig(cfg Config) []ModuleRow {
 	src := reflect.ValueOf(cfg)
 	rows := make([]ModuleRow, 0, len(Modules))
@@ -247,6 +257,18 @@ func ValidateModule(name string, settings codec.RawMessage) []FieldError {
 		return bad
 	}
 	return ValidateConfig(cfg)
+}
+
+func ValidateModuleFields(name string, settings codec.RawMessage) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, fe := range ValidateModule(name, settings) {
+		if !seen[fe.Field] {
+			seen[fe.Field] = true
+			out = append(out, fe.Field)
+		}
+	}
+	return out
 }
 
 func SanitizeModule(name string, settings codec.RawMessage) (codec.RawMessage, []FieldError) {
