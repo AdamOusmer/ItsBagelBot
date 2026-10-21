@@ -50,16 +50,13 @@ const (
 	maxRaffleWinners     = 100
 	raffleDefaultWinners = 1
 	raffleDefaultRemind  = int64(5 * time.Minute / time.Second)
-	minRaffleRemind      = int64(time.Minute / time.Second)
 )
 
 type RaffleState struct {
-	OpenedBy      string `json:"opened_by"`
-	OpenedAt      int64  `json:"opened_at"`
-	Winners       int64  `json:"winners"`
-	RemindSeconds int64  `json:"remind_s"`
-	Prize         int64  `json:"prize,omitempty"`
-	Multi         bool   `json:"multi,omitempty"`
+	OpenedBy string `json:"opened_by"`
+	OpenedAt int64  `json:"opened_at"`
+	Prize    int64  `json:"prize,omitempty"`
+	Multi    bool   `json:"multi,omitempty"`
 }
 
 type RaffleResult struct {
@@ -74,9 +71,7 @@ type RaffleResult struct {
 
 type RaffleOpenSpec struct {
 	OpenedBy string
-	Winners  int64
 	Duration time.Duration
-	Remind   time.Duration
 	Prize    int64
 	Multi    bool
 }
@@ -169,7 +164,7 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec
 	now := time.Now()
 	state, err := codec.Marshal(RaffleState{
 		OpenedBy: spec.OpenedBy, OpenedAt: now.UnixMilli(),
-		Winners: spec.Winners, RemindSeconds: remindSecs, Prize: spec.Prize, Multi: spec.Multi,
+		Prize: spec.Prize, Multi: spec.Multi,
 	})
 	if err != nil {
 		_ = s.client.Do(ctx, s.client.B().Del().
@@ -325,7 +320,7 @@ func (r *drawRead) winnerCount(override int64) int64 {
 	case r.State.Multi:
 		return multiRaffleWinners(len(r.Members))
 	}
-	return r.State.Winners
+	return raffleDefaultWinners
 }
 
 func (r *drawRead) result(drawnAt int64) *RaffleResult {
