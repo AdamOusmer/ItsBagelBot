@@ -5,6 +5,7 @@ package repository_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/app/db/dbtest"
@@ -13,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/repository"
 
+	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/testdb"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -344,4 +346,105 @@ func TestSpotifyRevokedGrantFlagLifecycle(t *testing.T) {
 		require.NoError(t, step.do(), step.name)
 		assert.Equal(t, step.want, needsReconnect(), step.name)
 	}
+}
+
+type unpackBarrier struct {
+	domaincrypto.Packer
+	parties int
+	mu      sync.Mutex
+	arrived int
+	release chan struct{}
+}
+
+func newUnpackBarrier(inner domaincrypto.Packer, parties int) *unpackBarrier {
+	return &unpackBarrier{Packer: inner, parties: parties, release: make(chan struct{})}
+}
+
+func (b *unpackBarrier) Unpack(envelope domaincrypto.SecureEnvelope) ([]byte, error) {
+	plain, err := b.Packer.Unpack(envelope)
+	b.mu.Lock()
+	b.arrived++
+	if b.arrived == b.parties {
+		close(b.release)
+	}
+	b.mu.Unlock()
+	<-b.release
+	return plain, err
+}
+
+func spotifyRace(t *testing.T, parties int, run ...func(*repository.SpotifyCreds) error) (*repository.SpotifyCreds, []error) {
+	t.Helper()
+	client := testdb.Open(t, "spotifyrace", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
+	packer := dbtest.NewPacker(t)
+	plain := repository.NewSpotifyCreds(client, packer)
+	require.NoError(t, plain.SetToken(context.Background(), 1001, repository.SpotifyGrant{RefreshToken: "first"}))
+
+	racing := repository.NewSpotifyCreds(client, newUnpackBarrier(packer, parties))
+	errs := make([]error, len(run))
+	var wg sync.WaitGroup
+	for i, fn := range run {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = fn(racing)
+		}()
+	}
+	wg.Wait()
+	return plain, errs
+}
+
+func TestSpotifyRotateRacesFromSamePrevToken(t *testing.T) {
+	ctx := context.Background()
+	rotate := func(next string) func(*repository.SpotifyCreds) error {
+		return func(c *repository.SpotifyCreds) error { return c.RotateToken(ctx, 1001, "first", next) }
+	}
+
+	plain, errs := spotifyRace(t, 2, rotate("from-a"), rotate("from-b"))
+
+	winners := 0
+	for _, err := range errs {
+		if err == nil {
+			winners++
+			continue
+		}
+		assert.ErrorIs(t, err, repository.ErrRotateStale)
+	}
+	assert.Equal(t, 1, winners, "exactly one rotation from the same previous token may win")
+	got, err := plain.Token(ctx, 1001)
+	require.NoError(t, err)
+	assert.Contains(t, []string{"from-a", "from-b"}, got)
+}
+
+func TestSpotifyDeadRacingRotationNeverKillsRotatedToken(t *testing.T) {
+	ctx := context.Background()
+
+	plain, errs := spotifyRace(t, 2,
+		func(c *repository.SpotifyCreds) error { return c.RotateToken(ctx, 1001, "first", "second") },
+		func(c *repository.SpotifyCreds) error { return c.MarkTokenDead(ctx, 1001, "first") },
+	)
+
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+	got, err := plain.Token(ctx, 1001)
+	require.NoError(t, err)
+	assert.Equal(t, "second", got)
+	status, err := plain.TokenStatus(ctx, 1001)
+	require.NoError(t, err)
+	assert.False(t, status.NeedsReconnect, "a dead report for the old token must not kill the rotated one")
+}
+
+func TestSpotifyMarkTokenDeadIgnoresStaleToken(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "second"}))
+
+	require.NoError(t, creds.MarkTokenDead(ctx, 1001, "first"))
+	status, err := creds.TokenStatus(ctx, 1001)
+	require.NoError(t, err)
+	assert.False(t, status.NeedsReconnect)
+
+	require.NoError(t, creds.MarkTokenDead(ctx, 1001, "second"))
+	status, err = creds.TokenStatus(ctx, 1001)
+	require.NoError(t, err)
+	assert.True(t, status.NeedsReconnect)
 }

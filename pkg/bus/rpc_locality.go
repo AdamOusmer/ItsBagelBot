@@ -44,14 +44,13 @@ func validSubjectToken(token rpcNodeName) bool {
 }
 
 func RequestWithContext(ctx context.Context, nc *nats.Conn, subject string, data []byte) (*nats.Msg, error) {
-	return requestLocalFirst(rpcRequestSubjects(rpcSubject(subject)), func(routedSubject string) (*nats.Msg, error) {
-		return nc.RequestWithContext(ctx, routedSubject, data)
-	})
+	return RequestMsgWithContext(ctx, nc, &nats.Msg{Subject: subject, Data: data})
 }
 
 // Never retry timeouts: the request may have executed, and a replayed mutation applies twice.
 func RequestMsgWithContext(ctx context.Context, nc *nats.Conn, msg *nats.Msg) (*nats.Msg, error) {
 	routed := &nats.Msg{Header: msg.Header, Data: msg.Data}
+	stampRequestDeadline(ctx, routed)
 	return requestLocalFirst(rpcRequestSubjects(rpcSubject(msg.Subject)), func(routedSubject string) (*nats.Msg, error) {
 		routed.Subject = routedSubject
 		return nc.RequestMsgWithContext(ctx, routed)
@@ -71,8 +70,9 @@ func requestLocalFirst(subjects []string, request func(string) (*nats.Msg, error
 	return nil, nats.ErrNoResponders
 }
 
+// handler must be safe to run concurrently with itself.
 func QueueSubscribeRPC(nc *nats.Conn, subject, queueGroup string, handler nats.MsgHandler) error {
-	_, err := subscribeRPCSubjects(nc, RPCSubscription{Subject: subject, QueueGroup: queueGroup}, handler)
+	_, err := QueueSubscribeRPCConcurrent(nc, RPCSubscription{Subject: subject, QueueGroup: queueGroup}, handler)
 	return err
 }
 

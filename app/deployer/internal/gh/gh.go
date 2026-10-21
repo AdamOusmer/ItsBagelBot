@@ -16,6 +16,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/cache"
 )
 
 const (
@@ -23,6 +24,9 @@ const (
 	logTimeout = time.Minute
 	cacheTTL   = 10 * time.Second
 	fanout     = 8
+
+	blobCapacity = 512
+	blobTTL      = time.Hour
 )
 
 type Config struct {
@@ -45,7 +49,7 @@ type Client struct {
 	openPRs  *ttlCache[ports.Branch, []deploy.PRInfo]
 	checks   *ttlCache[deploy.SHA, ports.CheckSummary]
 	required *ttlCache[ports.Branch, requirement]
-	blobs    sync.Map
+	blobs    *cache.Cache[[]byte]
 }
 
 var _ ports.GitHub = (*Client)(nil)
@@ -78,6 +82,7 @@ func New(cfg Config) (*Client, error) {
 		openPRs:  newCache[ports.Branch, []deploy.PRInfo](cacheTTL),
 		checks:   newCache[deploy.SHA, ports.CheckSummary](cacheTTL),
 		required: newCache[ports.Branch, requirement](cacheTTL),
+		blobs:    cache.New[[]byte](blobCapacity, blobTTL),
 	}, nil
 }
 
