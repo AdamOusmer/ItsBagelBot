@@ -5,6 +5,7 @@ package repository
 
 import (
 	"ItsBagelBot/internal/domain/event/data"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 	"bufio"
 	"context"
 	"fmt"
@@ -73,8 +74,13 @@ func (f *counterFakeValkey) DoMulti(ctx context.Context, commands ...valkey_go.C
 }
 
 func counterKnownScripts() map[string]string {
-	return map[string]string{counterClaim.sha: counterClaimScript, counterComplete.sha: counterCompleteScript, counterRelease.sha: counterReleaseScript}
+	return map[string]string{counterClaim.SHA1(): counterClaimScript, counterComplete.SHA1(): counterCompleteScript, counterRelease.SHA1(): counterReleaseScript}
 }
+
+var (
+	counterRelease       = pkg_valkey.NewOwnerLock(nil, "", "").ReleaseCall().Script
+	counterReleaseScript = counterRelease.Body()
+)
 
 func (f *counterFakeValkey) session(c net.Conn) {
 	defer c.Close()
@@ -144,7 +150,7 @@ func (f *counterFakeValkey) execute(args []string) []byte {
 	case "CLIENT", "AUTH", "SELECT", "COMMAND", "PING":
 		return []byte("+OK\r\n")
 	case "EVAL":
-		f.loaded[newCounterScript(args[1]).sha] = args[1]
+		f.loaded[pkg_valkey.NewScript(args[1]).SHA1()] = args[1]
 		return f.executeScript(args)
 	case "EVALSHA":
 		body, ok := f.loaded[args[1]]

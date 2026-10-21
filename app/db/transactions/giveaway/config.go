@@ -1,9 +1,9 @@
 package giveaway
 
 import (
-	"os"
-	"strconv"
 	"time"
+
+	"ItsBagelBot/pkg/env"
 )
 
 const (
@@ -38,13 +38,13 @@ func ConfigFromEnv() Config {
 	}
 }
 
-func envBool(key string) bool { value, _ := strconv.ParseBool(os.Getenv(key)); return value }
+func envBool(key string) bool { return env.GetBool(key, false) }
+
 func envDuration(key string, fallback time.Duration) time.Duration {
-	value, err := time.ParseDuration(os.Getenv(key))
-	if err != nil || value <= 0 {
-		return fallback
+	if value := env.GetDuration(key, fallback); value > 0 {
+		return value
 	}
-	return value
+	return fallback
 }
 
 func (c Config) CanCreateNewAwards() bool { return c.NewAwardsEnabled }
