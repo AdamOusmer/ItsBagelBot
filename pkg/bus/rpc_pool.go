@@ -159,6 +159,10 @@ func (p *RPCPool) dropWorker() {
 
 func (p *RPCPool) handle(job rpcJob) {
 	defer p.complete()
+	if requestExpired(job.msg, time.Now()) {
+		zap.L().Debug("rpc request expired before its handler started", zap.String("subject", job.msg.Subject))
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			zap.L().Error("rpc handler panic recovered",

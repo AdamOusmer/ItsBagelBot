@@ -170,43 +170,8 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 		return err
 	}
 
-	exists, err := r.defExists(ctx, userID, spec.Name)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		count, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-			return r.client.FetchDefinition.Query().
-				Where(fetchdefinition.UserIDEQ(userID)).
-				Count(ctx)
-		})
-		if err != nil {
-			return err
-		}
-		if count >= validate.MaxFetchDefsPerBroadcaster {
-			return validate.FetchDefQuotaError()
-		}
-	}
-
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.FetchDefinition.Create().
-			SetUserID(userID).
-			SetName(spec.Name).
-			SetURL(spec.URL).
-			SetJSONPath(spec.Path).
-			SetKeyLabel(spec.KeyLabel).
-			SetIsActive(spec.IsActive).
-			OnConflictColumns(fetchdefinition.FieldUserID, fetchdefinition.FieldName).
-			Update(
-				func(u *ent.FetchDefinitionUpsert) {
-					u.UpdateURL()
-					u.UpdateJSONPath()
-					u.UpdateKeyLabel()
-					u.UpdateIsActive()
-					u.UpdateUpdatedAt()
-				},
-			).
-			Exec(ctx)
+		return r.upsertDefWithinQuota(ctx, userID, spec)
 	}); err != nil {
 		return err
 	}
@@ -409,13 +374,61 @@ func (r *Fetches) Close() {
 	r.views.Close()
 }
 
-func (r *Fetches) defExists(ctx context.Context, userID uint64, name string) (bool, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
-		return r.client.FetchDefinition.Query().
-			Where(
-				fetchdefinition.UserIDEQ(userID),
-				fetchdefinition.NameEQ(name),
-			).
-			Exist(ctx)
-	})
+func (r *Fetches) upsertDefWithinQuota(ctx context.Context, userID uint64, spec FetchSpec) error {
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockBroadcasterDefs(ctx, tx, userID); err != nil {
+		return err
+	}
+	exists, err := tx.FetchDefinition.Query().
+		Where(fetchdefinition.UserIDEQ(userID), fetchdefinition.NameEQ(spec.Name)).
+		Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		count, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).Count(ctx)
+		if err != nil {
+			return err
+		}
+		if count >= validate.MaxFetchDefsPerBroadcaster {
+			return validate.FetchDefQuotaError()
+		}
+	}
+
+	err = tx.FetchDefinition.Create().
+		SetUserID(userID).
+		SetName(spec.Name).
+		SetURL(spec.URL).
+		SetJSONPath(spec.Path).
+		SetKeyLabel(spec.KeyLabel).
+		SetIsActive(spec.IsActive).
+		OnConflictColumns(fetchdefinition.FieldUserID, fetchdefinition.FieldName).
+		Update(
+			func(u *ent.FetchDefinitionUpsert) {
+				u.UpdateURL()
+				u.UpdateJSONPath()
+				u.UpdateKeyLabel()
+				u.UpdateIsActive()
+				u.UpdateUpdatedAt()
+			},
+		).
+		Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// Row locks make concurrent creates queue (RC has no gap locks); the caller's fresh count then sees the winner's commit. Quota is far above 1, so the broadcaster always has a row to queue on.
+func lockBroadcasterDefs(ctx context.Context, tx *ent.Tx, userID uint64) error {
+	_, err := tx.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(userID)).ForUpdate().IDs(ctx)
+	if err != nil && strings.Contains(err.Error(), `near "FOR"`) {
+		return nil
+	}
+	return err
 }

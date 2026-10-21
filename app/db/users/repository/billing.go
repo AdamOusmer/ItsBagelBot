@@ -22,28 +22,49 @@ const (
 	billingProceed billingOutcome = iota
 	billingSkip
 	billingReplay
+	billingApplied
 )
 
 func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (bool, error) {
 	if err := validateApply(req); err != nil {
 		return false, err
 	}
-	u, err := r.loadBillingUser(ctx, req.UserID)
+	counted := r.trackAccounts(ctx, req.UserID)
+	outcome, err := r.applyBillingTx(ctx, req)
 	if err != nil {
 		return false, err
 	}
-	switch billingOutcomeFor(u, req) {
-	case billingSkip:
-		return false, nil
+	switch outcome {
 	case billingReplay:
 		return true, r.publishChanged(ctx, req.UserID)
+	case billingApplied:
+		counted()
+		r.analytics.Count(catalog.BillingEvents, string(req.Action))
+		return true, r.finishBilling(ctx, req)
 	}
-	updated, err := r.saveBilling(ctx, u, req)
-	if err != nil || updated == 0 {
-		return false, err
-	}
-	r.analytics.Count(catalog.BillingEvents, string(req.Action))
-	return true, r.finishBilling(ctx, req)
+	return false, nil
+}
+
+func (r *Users) applyBillingTx(ctx context.Context, req billingrpc.ApplyRequest) (billingOutcome, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (billingOutcome, error) {
+		tx, err := r.client.Tx(ctx)
+		if err != nil {
+			return billingSkip, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		u, err := loadBillingUser(ctx, tx, req.UserID)
+		if err != nil {
+			return billingSkip, err
+		}
+		if outcome := billingOutcomeFor(u, req); outcome != billingProceed {
+			return outcome, nil
+		}
+		updated, err := saveBilling(ctx, tx, u, req)
+		if err != nil || updated == 0 {
+			return billingSkip, err
+		}
+		return billingApplied, tx.Commit()
+	})
 }
 
 func validateApply(req billingrpc.ApplyRequest) error {
@@ -56,10 +77,11 @@ func validateApply(req billingrpc.ApplyRequest) error {
 	return nil
 }
 
-func (r *Users) loadBillingUser(ctx context.Context, id uint64) (*ent.User, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
-		return r.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
-	})
+func loadBillingUser(ctx context.Context, tx *ent.Tx, id uint64) (*ent.User, error) {
+	if err := lockGrantUser(ctx, tx, id); err != nil {
+		return nil, err
+	}
+	return tx.User.Query().Where(user.IDEQ(id)).Only(ctx)
 }
 
 func billingOutcomeFor(u *ent.User, req billingrpc.ApplyRequest) billingOutcome {
@@ -85,18 +107,15 @@ func isReplayedBilling(u *ent.User, req billingrpc.ApplyRequest) bool {
 	return u.BillingEventID != nil && *u.BillingEventID == req.EventID
 }
 
-func (r *Users) saveBilling(ctx context.Context, u *ent.User, req billingrpc.ApplyRequest) (int, error) {
-	defer r.trackAccounts(ctx, req.UserID)()
-	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		q := r.client.User.Update().Where(
-			user.IDEQ(req.UserID),
-			user.Or(user.BillingEventAtIsNil(), user.BillingEventAtLTE(req.OccurredAt)),
-		)
-		if err := applyBillingAction(q, u, req); err != nil {
-			return 0, err
-		}
-		return q.Save(ctx)
-	})
+func saveBilling(ctx context.Context, tx *ent.Tx, u *ent.User, req billingrpc.ApplyRequest) (int, error) {
+	q := tx.User.Update().Where(
+		user.IDEQ(req.UserID),
+		user.Or(user.BillingEventAtIsNil(), user.BillingEventAtLTE(req.OccurredAt)),
+	)
+	if err := applyBillingAction(q, u, req); err != nil {
+		return 0, err
+	}
+	return q.Save(ctx)
 }
 
 func (r *Users) finishBilling(ctx context.Context, req billingrpc.ApplyRequest) error {
@@ -169,12 +188,16 @@ func refMismatch(u *ent.User, req billingrpc.ApplyRequest) bool {
 
 // Best effort: failing here makes Tebex retry and re-apply the entitlement.
 func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequest) {
-	if req.Action != billingrpc.ActionActivate || req.GifterID == 0 || req.GifterID == req.UserID {
+	if !giftedByAnother(req) {
 		return
 	}
 	_ = db.WithExec(ctx, func(ctx context.Context) error {
 		return r.client.User.Update().Where(user.IDEQ(req.GifterID)).AddGiftsSent(1).Exec(ctx)
 	})
+}
+
+func giftedByAnother(req billingrpc.ApplyRequest) bool {
+	return req.Action == billingrpc.ActionActivate && req.GifterID != 0 && req.GifterID != req.UserID
 }
 
 // An open expiry grants permanent premium; rejecting would loop Tebex retries forever.

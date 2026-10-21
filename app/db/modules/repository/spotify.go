@@ -257,9 +257,10 @@ func (s *SpotifyCreds) MarkTokenDead(ctx context.Context, userID SpotifyUserID, 
 	if current != token || row.RefreshFailedAt != nil {
 		return nil
 	}
-	return s.updateGrant(ctx, userID, func(u *ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate {
+	_, err = s.updateSealed(ctx, userID, row.TokenEnc, func(u *ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate {
 		return u.SetRefreshFailedAt(time.Now())
 	})
+	return err
 }
 
 func (s *SpotifyCreds) updateGrant(ctx context.Context, userID SpotifyUserID, edits ...func(*ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate) error {
@@ -273,20 +274,50 @@ func (s *SpotifyCreds) updateGrant(ctx context.Context, userID SpotifyUserID, ed
 	})
 }
 
+// Compare-and-swap on the sealed blob: the comparison and the write are one statement, so a concurrent writer leaves zero rows affected.
+func (s *SpotifyCreds) updateSealed(ctx context.Context, userID SpotifyUserID, sealed []byte, edit func(*ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate) (int, error) {
+	var affected int
+	err := s.write(ctx, userID, func(ctx context.Context) error {
+		n, err := edit(s.client.SpotifyCredential.Update().
+			Where(spotifycredential.UserIDEQ(uint64(userID)), spotifycredential.TokenEncEQ(sealed))).
+			Save(ctx)
+		affected = n
+		return err
+	})
+	return affected, err
+}
+
 var ErrRotateStale = errors.New("spotify refresh token changed since this rotation was minted")
 
 func (s *SpotifyCreds) RotateToken(ctx context.Context, userID SpotifyUserID, prev, next string) error {
 	if next == "" {
 		return errors.New("empty spotify refresh token")
 	}
-	current, err := s.Token(ctx, userID)
+	row, err := s.tokenRow(ctx, userID)
+	if err != nil {
+		return err
+	}
+	current, err := s.tokenFromRow(row)
 	if err != nil {
 		return err
 	}
 	if current != prev {
 		return ErrRotateStale
 	}
-	return s.SetToken(ctx, userID, SpotifyGrant{RefreshToken: next})
+	sealed, err := s.packer.Pack([]byte(next), spotifyAAD(userID, fieldToken))
+	if err != nil {
+		return err
+	}
+	affected, err := s.updateSealed(ctx, userID, row.TokenEnc, func(u *ent.SpotifyCredentialUpdate) *ent.SpotifyCredentialUpdate {
+		return u.SetTokenEnc(sealed.Ciphertext).ClearRefreshFailedAt().SetUpdatedAt(time.Now())
+	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrRotateStale
+	}
+	return nil
 }
 
 func (s *SpotifyCreds) tokenRow(ctx context.Context, userID SpotifyUserID) (*ent.SpotifyCredential, error) {
