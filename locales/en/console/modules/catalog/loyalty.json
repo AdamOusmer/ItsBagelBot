@@ -1,7 +1,7 @@
 {
   "label": "Loyalty Points",
   "tagline": "Viewers earn channel currency for subs, cheers and watch time.",
-  "description": "Give your community its own currency: viewers earn points for subscribing, resubscribing, gifting subs, cheering bits, and simply watching (everyone in chat earns on a 5-minute tick while you are live). Name the currency, tune every rate, and let mods grant points with !points set/add. Viewers check their standing with !points. Gamble and Duels spend this ledger and are armed from this page. They cannot run while the currency is off. Pairs with Counters and channel-point rewards that award points.",
+  "description": "Give your community its own currency: viewers earn points for subscribing, resubscribing, gifting subs, cheering bits, and simply watching (everyone in chat earns on a 5-minute tick while you are live). Name the currency, tune every rate, and let mods grant points with !points set/add. Viewers check their standing with !points. Gamble and Duels spend this ledger and are armed from this page. They cannot run while the currency is off. Pairs with Counters and channel-point rewards that award points. Reset every viewer's points from this page.",
   "commands": {
     "points": "Check your balance and watch time.",
     "points_give_user_500": "Give some of your own points to another viewer.",
