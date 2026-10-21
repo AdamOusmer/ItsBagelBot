@@ -92,7 +92,7 @@
   "catalog.b1.props.modules.14.start": "Inactif par défaut",
   "catalog.b1.props.modules.14.tagline": "Laissez les viewers se mettre en file pour jouer avec vous, premier arrivé premier servi.",
   "catalog.b1.props.modules.15.cat": "Jouer",
-  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle, !raffle open [minutes] [gagnants] [rappel], !raffle draw [gagnants], !raffle close, !raffle cancel",
+  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle [montant] [secondes], !sraffle, !mraffle, !raffle draw [gagnants], !raffle close, !raffle cancel, !cancelraffle",
   "catalog.b1.props.modules.15.name": "Raffle",
   "catalog.b1.props.modules.15.needs": "Raffle prend la main sur !join quand Play Queue est actif aussi.",
   "catalog.b1.props.modules.15.start": "Inactif par défaut",

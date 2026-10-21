@@ -221,9 +221,24 @@ var (
 func TestRaffleChat(t *testing.T) {
 	won, paid := raffleWon, rafflePaid
 	cases := []raffleChatCase{
-		{name: "a viewer cannot open a raffle", text: "!raffle open", who: "alice", silent: true, open: raffleClosed},
-		{name: "a mod opens a raffle with the defaults", text: "!raffle open", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
-		{name: "opening a running raffle is refused", text: "!raffle open 30", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"already"}},
+		{name: "a viewer cannot open a raffle", text: "!raffle 500", who: "alice", silent: true, open: raffleClosed},
+		{name: "a mod opens a raffle with the defaults", text: "!raffle", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
+		{name: "opening a running raffle is refused", text: "!raffle 500 30", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"already"}},
+		{name: "the old open subcommand prints usage", text: "!raffle open", who: "mod", badge: "moderator", contains: []string{"Usage"}, open: raffleClosed},
+		{name: "a viewer cannot start a single raffle", text: "!sraffle", who: "alice", silent: true, open: raffleClosed},
+		{name: "a viewer cannot start a multi raffle", text: "!mraffle", who: "alice", silent: true, open: raffleClosed},
+		{name: "a viewer cannot cancel", text: "!cancelraffle", who: "alice", raffle: fakeRaffle{open: true}, silent: true, open: raffleOpened},
+		{name: "cancelraffle cancels", text: "!cancelraffle", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true}, contains: []string{"cancelled"}, open: raffleClosed},
+		{name: "cancelraffle with nothing running says so", text: "!cancelraffle", who: "mod", badge: "moderator", contains: []string{"No raffle is running"}},
+		{name: "the singleraffle alias opens", text: "!singleraffle 50", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
+		{name: "the multiraffle alias opens", text: "!multiraffle 50", who: "mod", badge: "moderator", contains: []string{"!join"}, open: raffleOpened},
+		{name: "a seconds raffle announces seconds", text: "!raffle 100 30", who: "mod", badge: "moderator", exact: "Raffle is LIVE! Type !join to enter. Drawing in 30 sec!", open: raffleOpened},
+		{name: "a whole minute announces minutes", text: "!raffle 100 120", who: "mod", badge: "moderator", exact: "Raffle is LIVE! Type !join to enter. Drawing in 2 min!", open: raffleOpened},
+		{name: "junk amount prints usage", text: "!raffle lots", who: "mod", badge: "moderator", contains: []string{"Usage"}, open: raffleClosed},
+		{name: "junk seconds prints usage", text: "!mraffle 100 soon", who: "mod", badge: "moderator", contains: []string{"Usage"}, open: raffleClosed},
+		{name: "a viewer gets no reply to junk", text: "!raffle lots", who: "alice", silent: true},
+		{name: "status subcommand reports the entrants", text: "!raffle status", who: "alice", raffle: fakeRaffle{open: true, pool: []string{"a"}}, contains: []string{"1 entered"}},
+		{name: "a mod can read the status", text: "!raffle status", who: "mod", badge: "moderator", contains: []string{"No raffle"}},
 		{name: "drawing announces the winners", text: "!raffle draw 2", who: "mod", badge: "moderator", raffle: fakeRaffle{open: true, drawResult: won},
 			contains: []string{"@alice, @zoe", "2 winner(s) from 10"}, open: raffleClosed},
 		{name: "closing an empty raffle says no one entered", text: "!raffle close", who: "mod", badge: "moderator",
@@ -238,7 +253,7 @@ func TestRaffleChat(t *testing.T) {
 		{name: "status reports a closed raffle", text: "!raffle", who: "alice", contains: []string{"No raffle"}},
 		{name: "status ignores the join template", text: "!raffle", who: "alice", config: `{"joinMessage":"custom"}`, raffle: fakeRaffle{open: true, pool: []string{"a"}},
 			contains: []string{"1 entered"}},
-		{name: "an unknown subcommand prints usage", text: "!raffle gimmick", who: "alice", contains: []string{"!raffle"}},
+		{name: "an unknown subcommand is silent for a viewer", text: "!raffle gimmick", who: "alice", silent: true},
 		{name: "winner recalls the last draw", text: "!winner", who: "alice", raffle: fakeRaffle{lastFound: true, lastResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 5}},
 			contains: []string{"@alice"}},
 		{name: "winner shows the confirmed claims", text: "!winner", who: "bob",
@@ -261,7 +276,7 @@ func TestRaffleLineToggles(t *testing.T) {
 		{name: "a second claim is already confirmed", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimAlready}, contains: []string{"already"}},
 		{name: "a non winner gets no prize line", text: "!claim", who: "eve", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimNone}, contains: []string{"no raffle prize", "!claim"}},
 		{name: "a late claim cites the window", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimLate}, contains: []string{"window"}},
-		{name: "opening can be silenced", text: "!raffle open", who: "mod", badge: "moderator", config: `{"openedEnabled":"off"}`, silent: true, open: raffleOpened},
+		{name: "opening can be silenced", text: "!raffle", who: "mod", badge: "moderator", config: `{"openedEnabled":"off"}`, silent: true, open: raffleOpened},
 		{name: "a draw without the won line still posts the payout note", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"off"}`,
 			raffle:   fakeRaffle{drawResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutLoyaltyOff}},
 			contains: []string{"Loyalty is off"}, excludes: []string{"congratulations"}},
@@ -281,34 +296,52 @@ func TestRaffleLineToggles(t *testing.T) {
 	}
 }
 
-func TestRaffleOpenArgs(t *testing.T) {
+func TestRaffleStartArgs(t *testing.T) {
+	spec := func(prize int64, secs int, multi bool) engine.RaffleOpenSpec {
+		return engine.RaffleOpenSpec{OpenedBy: "mod", Duration: time.Duration(secs) * time.Second, Prize: prize, Multi: multi}
+	}
 	cases := []struct {
-		args string
-		want engine.RaffleOpenSpec
+		text   string
+		config string
+		want   engine.RaffleOpenSpec
 	}{
-		{"", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Prize: 1000}},
-		{"10", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Prize: 1000}},
-		{"10 2", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Prize: 1000}},
-		{"10 2 3", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: 3 * time.Minute, Prize: 1000}},
-		{"10 2 0", engine.RaffleOpenSpec{OpenedBy: "mod", Duration: 10 * time.Minute, Winners: 2, Remind: -time.Second, Prize: 1000}},
+		{"!raffle", "", spec(1000, 60, false)},
+		{"!raffle 500", "", spec(500, 60, false)},
+		{"!raffle 5k", "", spec(5000, 60, false)},
+		{"!raffle 1.5k 90", "", spec(1500, 90, false)},
+		{"!raffle 2M", "", spec(1_000_000, 60, false)},
+		{"!raffle 99999999m", "", spec(1_000_000, 60, false)},
+		{"!raffle 0", "", spec(0, 60, false)},
+		{"!raffle 100 2", "", spec(100, 2, false)},
+		{"!sraffle 100 45", "", spec(100, 45, false)},
+		{"!singleraffle 100", "", spec(100, 60, false)},
+		{"!mraffle", "", spec(1000, 60, true)},
+		{"!mraffle 2k 30", "", spec(2000, 30, true)},
+		{"!multiraffle 2k", "", spec(2000, 60, true)},
+		{"!raffle", `{"prizePoints":"250","durationSeconds":"20"}`, spec(250, 20, false)},
+		{"!raffle", `{"durationSeconds":"junk"}`, spec(1000, 60, false)},
+		{"!raffle 100", `{"durationSeconds":15}`, spec(100, 15, false)},
 	}
 	for _, tc := range cases {
-		r := &fakeRaffle{}
-		runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), "!raffle open "+tc.args)
-		assert.Equal(t, tc.want, r.lastSpec, "open %q", tc.args)
-		assert.True(t, r.open)
+		t.Run(tc.text+tc.config, func(t *testing.T) {
+			r := &fakeRaffle{}
+			d := raffleDeps(r)
+			d.Proj = &fakeProj{modules: []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: true}}}
+			runChat(t, Raffle(d), withConfig(chatCtx("42", "mod", "moderator"), tc.config), tc.text)
+			assert.True(t, r.open)
+			assert.Equal(t, tc.want, r.lastSpec)
+		})
 	}
 }
 
-func TestRaffleOpenDefaultDuration(t *testing.T) {
-	for _, command := range []string{"!raffle open", "!raffle open 0", "!raffle open -5"} {
-		t.Run(command, func(t *testing.T) {
+func TestRaffleRejectsMalformedArgs(t *testing.T) {
+	for _, text := range []string{"!raffle k", "!raffle 1.5", "!raffle -5", "!raffle 5%", "!raffle all", "!raffle 1e3", "!raffle 100 -1", "!raffle 100 1.5", "!mraffle abc"} {
+		t.Run(text, func(t *testing.T) {
 			r := &fakeRaffle{}
-			out := runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), command)
-			assert.True(t, r.open)
-			assert.Equal(t, 10*time.Minute, r.lastSpec.Duration)
+			out := runChat(t, Raffle(raffleDeps(r)), chatCtx("42", "mod", "moderator"), text)
+			assert.False(t, r.open)
 			require.Len(t, out, 1)
-			assert.Equal(t, "Raffle is LIVE! Type !join to enter. Drawing in 10 min!", out[0].Text)
+			assert.Contains(t, out[0].Text, "Usage")
 		})
 	}
 }
@@ -333,7 +366,7 @@ func TestRaffleOpenPrizeNeedsLoyalty(t *testing.T) {
 			r := &fakeRaffle{}
 			d := raffleDeps(r)
 			d.Proj = &fakeProj{modules: tc.modules}
-			out := runChat(t, Raffle(d), withConfig(chatCtx("42", "mod", "moderator"), tc.config), "!raffle open")
+			out := runChat(t, Raffle(d), withConfig(chatCtx("42", "mod", "moderator"), tc.config), "!raffle")
 			require.Len(t, out, 1)
 			assert.Contains(t, out[0].Text, tc.contains)
 			assert.Equal(t, tc.wantOpen, r.open)
@@ -357,5 +390,5 @@ func TestRaffleKeysEntriesAndClaimsByViewerID(t *testing.T) {
 func TestRaffleStaysSilentWithoutAStore(t *testing.T) {
 	m := Raffle(raffleDeps(nil))
 	assert.Empty(t, runChat(t, m, chatCtx("42", "alice"), "!join"))
-	assert.Empty(t, runChat(t, m, chatCtx("9", "mod", "moderator"), "!raffle open"))
+	assert.Empty(t, runChat(t, m, chatCtx("9", "mod", "moderator"), "!raffle"))
 }

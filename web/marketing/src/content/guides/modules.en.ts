@@ -119,7 +119,7 @@ const modules = [
     cat: 'Play',
     start: 'Off by default',
     needs: 'Raffle owns !join when Play Queue is on as well.',
-    commands: '!join, !claim, !winner, !raffle, !raffle open [minutes] [winners] [remind], !raffle draw [winners], !raffle close, !raffle cancel',
+    commands: '!join, !claim, !winner, !raffle [amount] [seconds], !sraffle, !mraffle, !raffle draw [winners], !raffle close, !raffle cancel, !cancelraffle',
   },
   {
     name: 'Song Requests',

@@ -1,12 +1,17 @@
 {
   "label": "Tirage",
   "tagline": "Tirages au sort chronométrés auxquels le chat s'inscrit avec !join.",
-  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Chaque tirage verse son lot de points (1 000 par défaut, réparti à parts égales entre les gagnants) sur le solde de fidélité de chaque gagnant : les points de fidélité doivent donc être activés. Réglez le lot sur 0 pour un tirage sans points. Chaque ligne du chat peut être désactivée séparément : la confirmation d'inscription par viewer est désactivée par défaut, les inscriptions restent donc silencieuses. !claim est facultatif et désactivé par défaut ; activez-le seulement pour un lot personnalisé (une clé de jeu, par exemple), tandis que les points sont toujours versés au tirage. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Chaque tirage verse son lot de points (1 000 par défaut, réparti à parts égales entre les gagnants) sur le solde de fidélité de chaque gagnant : les points de fidélité doivent donc être activés. Réglez le lot sur 0 pour un tirage sans points. Chaque ligne du chat peut être désactivée séparément : la confirmation d'inscription par viewer est désactivée par défaut, les inscriptions restent donc silencieuses. !claim est facultatif et désactivé par défaut ; activez-le seulement pour un lot personnalisé (une clé de jeu, par exemple), tandis que les points sont toujours versés au tirage. Vos modos pilotent tout depuis le chat avec les mêmes commandes que StreamElements : !raffle [montant] [secondes] (ou !sraffle) lance un tirage à un seul gagnant qui empoche tout le montant ; !mraffle répartit le montant à parts égales entre plusieurs gagnants, fixés selon le nombre d'inscrits (1 pour 20 au-delà de 200, 1 pour 8 jusqu'à 200, 1 pour 5 jusqu'à 50, 1 pour 4 jusqu'à 20, la moitié jusqu'à 10). Les montants acceptent k et m (5k, 1,5k). !raffle draw clôt plus tôt et annonce, !cancelraffle (ou !raffle cancel) l'annule sans tirer, et les viewers tapent !raffle pour voir l'état. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
   "settings": {
     "prizePoints": {
       "label": "Lot en points",
       "help": "Total des points versés par un tirage, réparti à parts égales entre ses gagnants. 0 lance des tirages sans points.",
       "placeholder": "1000"
+    },
+    "durationSeconds": {
+      "label": "Durée du tirage",
+      "help": "Secondes pendant lesquelles un tirage reste ouvert quand la commande n'en indique aucune. Minimum 5.",
+      "placeholder": "60"
     },
     "remindEnabled": {
       "label": "Rappels du temps restant",
@@ -41,7 +46,7 @@
     "opened": {
       "label": "Tirage ouvert",
       "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
-      "event": "!raffle open",
+      "event": "!raffle",
       "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min !"
     },
     "won": {
@@ -58,10 +63,12 @@
   },
   "commands": {
     "winner": "Rappeler les gagnants du dernier tirage et combien ont confirmé.",
-    "raffle": "Voir si un tirage tourne, les inscriptions et le temps restant.",
-    "raffle_open_minutes_winners_remind": "Lancer un tirage (défauts 10 min, 1 gagnant, rappels toutes les 5 min ; remind 0 coupe les rappels).",
+    "raffle_status": "Voir si un tirage tourne, les inscriptions et le temps restant (un viewer qui tape !raffle obtient la même chose).",
+    "raffle_amount_seconds": "Lancer un tirage à un seul gagnant : il empoche tout le montant (aussi !sraffle, !singleraffle). Les montants acceptent k et m ; défauts 1000 points, 60 secondes.",
+    "mraffle_amount_seconds": "Lancer un tirage à plusieurs gagnants : le montant est réparti à parts égales, le nombre de gagnants dépend du nombre d'inscrits au tirage (aussi !multiraffle).",
     "raffle_draw_winners": "Clore maintenant et annoncer les gagnants.",
     "raffle_close": "Identique à draw avec le nombre de gagnants configuré.",
-    "raffle_cancel": "Annuler sans tirer."
+    "raffle_cancel": "Annuler sans tirer.",
+    "cancelraffle": "Identique à !raffle cancel."
   }
 }

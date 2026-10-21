@@ -92,7 +92,7 @@
   "catalog.b1.props.modules.14.start": "Inativo por padrão",
   "catalog.b1.props.modules.14.tagline": "Deixe os espectadores entrarem na fila para jogar com você, quem chega primeiro joga primeiro.",
   "catalog.b1.props.modules.15.cat": "Jogar",
-  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle, !raffle open [minutos] [vencedores] [lembrete], !raffle draw [vencedores], !raffle close, !raffle cancel",
+  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle [valor] [segundos], !sraffle, !mraffle, !raffle draw [vencedores], !raffle close, !raffle cancel, !cancelraffle",
   "catalog.b1.props.modules.15.name": "Sorteio",
   "catalog.b1.props.modules.15.needs": "O Sorteio assume o !join quando a Fila para jogar também está ativa.",
   "catalog.b1.props.modules.15.start": "Inativo por padrão",

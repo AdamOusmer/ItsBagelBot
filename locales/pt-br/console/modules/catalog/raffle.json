@@ -1,12 +1,17 @@
 {
   "label": "Sorteio",
   "tagline": "Sorteios com prazo em que o chat participa com !join.",
-  "description": "Abra um sorteio e os espectadores digitam !join para participar. Durante o sorteio, o bot publica lembretes do tempo restante a cada poucos minutos (você define a frequência) e sorteia automaticamente quando o tempo acaba. Os vencedores são escolhidos aleatoriamente entre todos os participantes, com chances iguais; cada participação conta uma vez, e o sorteio deixa um comprovante verificável. Cada sorteio paga seu prêmio em pontos (1.000 por padrão, dividido igualmente entre quem venceu) no saldo de fidelidade de cada vencedor, então os pontos de fidelidade precisam estar ativados. Defina o prêmio como 0 para um sorteio sem pontos. Cada linha do chat pode ser desativada separadamente: a confirmação de participação por espectador vem desativada por padrão, então as inscrições ficam em silêncio. O !claim é opcional e vem desativado por padrão; ative-o só para um prêmio personalizado (uma chave de jogo, por exemplo), enquanto os pontos são sempre pagos no sorteio. Você (e seus moderadores) também controla tudo pelo chat: !raffle open inicia um sorteio, !raffle draw encerra antes do prazo e anuncia, !raffle cancel encerra sem sortear. Quando este módulo e a Fila para jogar estão ativados, !join pertence ao sorteio e a fila fica acessível por !queue join.",
+  "description": "Abra um sorteio e os espectadores digitam !join para participar. Durante o sorteio, o bot publica lembretes do tempo restante a cada poucos minutos (você define a frequência) e sorteia automaticamente quando o tempo acaba. Os vencedores são escolhidos aleatoriamente entre todos os participantes, com chances iguais; cada participação conta uma vez, e o sorteio deixa um comprovante verificável. Cada sorteio paga seu prêmio em pontos (1.000 por padrão, dividido igualmente entre quem venceu) no saldo de fidelidade de cada vencedor, então os pontos de fidelidade precisam estar ativados. Defina o prêmio como 0 para um sorteio sem pontos. Cada linha do chat pode ser desativada separadamente: a confirmação de participação por espectador vem desativada por padrão, então as inscrições ficam em silêncio. O !claim é opcional e vem desativado por padrão; ative-o só para um prêmio personalizado (uma chave de jogo, por exemplo), enquanto os pontos são sempre pagos no sorteio. Seus moderadores controlam tudo pelo chat com os mesmos comandos do StreamElements: !raffle [valor] [segundos] (ou !sraffle) inicia um sorteio de um único vencedor, que leva o valor inteiro; !mraffle divide o valor igualmente entre vários vencedores, definidos pelo número de participantes (1 a cada 20 acima de 200, 1 a cada 8 até 200, 1 a cada 5 até 50, 1 a cada 4 até 20, metade até 10). Os valores aceitam k e m (5k, 1,5k). !raffle draw encerra antes do prazo e anuncia, !cancelraffle (ou !raffle cancel) encerra sem sortear, e os espectadores usam !raffle para ver o andamento. Quando este módulo e a Fila para jogar estão ativados, !join pertence ao sorteio e a fila fica acessível por !queue join.",
   "settings": {
     "prizePoints": {
       "label": "Prêmio em pontos",
       "help": "Total de pontos que um sorteio paga, dividido igualmente entre quem venceu. 0 faz sorteios sem pontos.",
       "placeholder": "1000"
+    },
+    "durationSeconds": {
+      "label": "Duração do sorteio",
+      "help": "Segundos em que um sorteio fica aberto quando o comando não informa nenhum. Mínimo 5.",
+      "placeholder": "60"
     },
     "remindEnabled": {
       "label": "Lembretes de tempo restante",
@@ -41,7 +46,7 @@
     "opened": {
       "label": "Sorteio aberto",
       "tagline": "Quando um sorteio começa e as participações são abertas.",
-      "event": "!raffle open",
+      "event": "!raffle",
       "defaultMessage": "Sorteio ABERTO! Digite !join para participar. Sorteio em {mins} min!"
     },
     "won": {
@@ -58,10 +63,12 @@
   },
   "commands": {
     "winner": "Relembra quem venceu o último sorteio e quantas confirmações houve.",
-    "raffle": "Mostra se há um sorteio em andamento, as participações e o tempo restante.",
-    "raffle_open_minutes_winners_remind": "Inicia um sorteio (padrões: 10 min, 1 vencedor, lembretes a cada 5 min; remind 0 desativa os lembretes).",
+    "raffle_status": "Mostra se há um sorteio em andamento, as participações e o tempo restante (um espectador que digita !raffle recebe o mesmo).",
+    "raffle_amount_seconds": "Inicia um sorteio de um único vencedor, que leva o valor inteiro (também !sraffle, !singleraffle). Os valores aceitam k e m; padrões: 1000 pontos, 60 segundos.",
+    "mraffle_amount_seconds": "Inicia um sorteio de vários vencedores: o valor é dividido igualmente e a quantidade de vencedores depende dos participantes na hora do sorteio (também !multiraffle).",
     "raffle_draw_winners": "Encerra agora e anuncia quem venceu.",
     "raffle_close": "Igual a draw, com a quantidade de vencedores configurada.",
-    "raffle_cancel": "Encerra sem sortear."
+    "raffle_cancel": "Encerra sem sortear.",
+    "cancelraffle": "Igual a !raffle cancel."
   }
 }
