@@ -17,6 +17,12 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
+func TestBuildClientOptionBoundsUnresponsiveServers(t *testing.T) {
+	opts := BuildClientOption("valkey:6379", "password")
+
+	assert.Equal(t, 5*time.Second, opts.ConnWriteTimeout, "calls without a context deadline must not wait the library's 10s default")
+}
+
 func TestBuildClientOptionSelectsSentinelByPort(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

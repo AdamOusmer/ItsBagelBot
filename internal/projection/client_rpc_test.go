@@ -126,3 +126,25 @@ func TestLoadChannelServesStandardUserWithoutCachingRPCError(t *testing.T) {
 	require.Equal(t, "fr", user.Locale)
 	require.EqualValues(t, 2, served.Load())
 }
+
+func TestClientModulesBacksOffAfterRPCError(t *testing.T) {
+	nc := bustest.NATS(t)
+	store, _ := newTestStore(t)
+	subjects := Subjects{Modules: "test.modules"}
+	c := NewClient(Config{Store: store, NC: nc, Subjects: subjects, TTL: time.Minute, Log: zap.NewNop()})
+	t.Cleanup(c.Close)
+	served := bustest.Respond(t, nc, subjects.Modules, failedReply, `{"modules":[{"name":"automod","is_enabled":true}]}`)
+	ctx := context.Background()
+
+	_, err := c.Modules(ctx, 7)
+	require.Error(t, err)
+	_, err = c.Modules(ctx, 7)
+	require.Error(t, err, "the outage error is replayed without another RPC")
+	require.EqualValues(t, 1, served.Load())
+
+	c.onInvalidation(&nats.Msg{Subject: "invalidate.modules", Data: []byte(`{"broadcaster_id":"7"}`)})
+	mods, err := c.Modules(ctx, 7)
+	require.NoError(t, err, "an invalidation clears the backoff")
+	require.True(t, mods["automod"].IsEnabled)
+	require.EqualValues(t, 2, served.Load())
+}

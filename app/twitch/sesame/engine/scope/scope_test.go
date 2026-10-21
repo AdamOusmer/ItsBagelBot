@@ -6,7 +6,9 @@ package scope
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"ItsBagelBot/pkg/tmpl"
 
@@ -53,4 +55,57 @@ func TestChainRenderAppendsIntoCallerBuffer(t *testing.T) {
 	toks := tmpl.Lex("hi {who}")
 	values := chain.Plan(context.Background(), toks, nil)
 	assert.Equal(t, "pre hi sam", string(chain.Render([]byte("pre "), toks, values)))
+}
+
+type slowScope struct {
+	name  string
+	delay time.Duration
+	value string
+	panic bool
+}
+
+func (s slowScope) Owns(v Var) bool { return v.Name == s.name }
+
+func (s slowScope) Plan(ctx context.Context, _ []Var) (Values, error) {
+	if s.panic {
+		panic("boom")
+	}
+	select {
+	case <-time.After(s.delay):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return fixedValues{s.name: s.value}, nil
+}
+
+func TestChainPlansOwningScopesConcurrently(t *testing.T) {
+	chain := Chain{
+		slowScope{name: "a", delay: 200 * time.Millisecond, value: "A"},
+		slowScope{name: "b", delay: 200 * time.Millisecond, value: "B"},
+		slowScope{name: "c", delay: 200 * time.Millisecond, value: "C"},
+	}
+
+	started := time.Now()
+	out := render(t, "{a}{b}{c}", chain, nil)
+
+	assert.Equal(t, "ABC", out)
+	assert.Less(t, time.Since(started), 450*time.Millisecond, "scopes wait together, not one after another")
+}
+
+func TestChainDegradesAPanickingScopeWithoutLosingSiblings(t *testing.T) {
+	var mu sync.Mutex
+	var failures []string
+	chain := Chain{
+		slowScope{name: "a", panic: true},
+		slowScope{name: "b", value: "B"},
+	}
+
+	out := render(t, "[{a}][{b}]", chain, func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		failures = append(failures, err.Error())
+	})
+
+	assert.Equal(t, "[][B]", out)
+	assert.Equal(t, []string{"scope plan panicked: boom"}, failures)
 }
