@@ -36,7 +36,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createGuildDraft({ data: () => data, fields: TICKET_FIELDS, t });
+  const draft = createGuildDraft({ data: () => data, fields: TICKET_FIELDS }, t);
 
   const textChannels = $derived(textChannelsOf(data.layout));
   const categories = $derived(categoriesOf(data.layout));

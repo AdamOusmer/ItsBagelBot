@@ -39,7 +39,7 @@
   let { data, form } = $props();
 
   const { t, locale } = getI18n();
-  const failed = toastFailure(toast, t);
+  const failed = toastFailure(toast);
   const NOTICES = $derived<Record<string, string>>({
     access: t('settings.noticeAccess'),
     accessretry: t('settings.noticeAccessRetry'),
@@ -152,7 +152,7 @@
         fetchKeys = d.fetchKeys;
         return d;
       }
-      failed(d, 'fetches.keySaveFailed');
+      failed(d, t('fetches.keySaveFailed'));
     } catch {
       toast('danger', t('fetches.keySaveFailed'));
     } finally {

@@ -7,13 +7,21 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { stripDemoRoutes } from '../kit/scripts/strip-demo-routes.mjs';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
+import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
+import { i18nSlices } from '../kit/scripts/i18n-slices.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 
 // Route files that import @bagel/kit/styles/ui-console.css.
 const consoleRoutes = /\/src\/routes\/(\(app\)\/|welcome\/\+page\.svelte$|\+error\.svelte$)/;
 
 export default defineConfig({
-  plugins: [stripDemoRoutes(['/billing/demo-checkout/']), bundledUiSheets({ consoleRoutes }), sveltekit()],
+  plugins: [
+    stripDemoRoutes(['/billing/demo-checkout/']),
+    i18nCatalogs({ exclude: ['admin'], slices: true }),
+    i18nSlices(),
+    bundledUiSheets({ consoleRoutes }),
+    sveltekit()
+  ],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5173, fs: { allow: ['../kit', '../../ui', '../../locales'] } },
@@ -21,6 +29,7 @@ export default defineConfig({
   json: { namedExports: false },
   build: {
     minify: 'terser',
+    terserOptions: { ecma: 2020, module: true, toplevel: true, compress: { passes: 2, ecma: 2020 } },
     // Without this group each locales/<code>/console file ships as its own chunk and request.
     rolldownOptions: { output: { codeSplitting: { groups: [localeChunks] } } }
   }

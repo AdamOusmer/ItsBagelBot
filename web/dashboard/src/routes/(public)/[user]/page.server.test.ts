@@ -444,7 +444,7 @@ describe('(public)/[user] load: username search and reconcile', () => {
       rows: page!.rows.length,
       busy: page!.busy,
       copy: emptyCopyKeys({ query: page!.query, degraded: page!.degraded, busy: page!.busy, podiumSize: page!.podium.length })?.body
-    }).toEqual({ rows: 0, busy: true, copy: 'leaderboard.searchBusyBody' });
+    }).toEqual({ rows: 0, busy: true, copy: 'searchBusyBody' });
     expect(lastLocals.edgeOutcome).toBe('skip');
   });
 });
@@ -506,10 +506,10 @@ type Small = {
 };
 
 const smallBoards: { name: string; want: Small }[] = [
-  { name: 'no viewers', want: { viewers: 0, podium: 0, rows: [], range: { from: 0, to: 0, total: 0 }, pages: 1, copy: 'leaderboard.emptyBody' } },
-  { name: 'one viewer', want: { viewers: 1, podium: 1, rows: [], range: { from: 0, to: 0, total: 1 }, pages: 1, copy: 'leaderboard.soloNote' } },
-  { name: 'two viewers', want: { viewers: 2, podium: 2, rows: [], range: { from: 0, to: 0, total: 2 }, pages: 1, copy: 'leaderboard.podiumOnlyNote' } },
-  { name: 'three viewers', want: { viewers: 3, podium: 3, rows: [], range: { from: 0, to: 0, total: 3 }, pages: 1, copy: 'leaderboard.podiumOnlyNote' } },
+  { name: 'no viewers', want: { viewers: 0, podium: 0, rows: [], range: { from: 0, to: 0, total: 0 }, pages: 1, copy: 'emptyBody' } },
+  { name: 'one viewer', want: { viewers: 1, podium: 1, rows: [], range: { from: 0, to: 0, total: 1 }, pages: 1, copy: 'soloNote' } },
+  { name: 'two viewers', want: { viewers: 2, podium: 2, rows: [], range: { from: 0, to: 0, total: 2 }, pages: 1, copy: 'podiumOnlyNote' } },
+  { name: 'three viewers', want: { viewers: 3, podium: 3, rows: [], range: { from: 0, to: 0, total: 3 }, pages: 1, copy: 'podiumOnlyNote' } },
   { name: 'four viewers', want: { viewers: 4, podium: 3, rows: [4], range: { from: 4, to: 4, total: 4 }, pages: 1, copy: null } }
 ];
 

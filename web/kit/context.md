@@ -50,6 +50,14 @@ Catalog metadata, preview samples, and running service behavior are related but 
 - `lib/importer/`: adapters for supported bot formats, caps, strategies and canonical import types.
 - `lib/i18n/`: runtime/context, tree/flat catalog readers and generated keys. Catalog data lives in
   root `locales/<lang>/{chat,console,website,docs}/`; shared hooks await `ensureCatalog`.
+  `scripts/i18n-catalogs.ts` (Vite plugin, `virtual:bagel-i18n`) merges each locale over English at build time:
+  the server imports a locale whole, the browser fetches one content-hashed JSON per locale. The build fails
+  if a merged locale lacks an English key, so `t()` never needs English at runtime.
+  With `slices: true` (dashboard), `scripts/i18n-slices.ts` instead gives each SvelteKit node chunk the English
+  strings its chunks can translate and one merged JSON per other locale, loaded before the node evaluates;
+  app modules behind `import()` carry their own strings and slice the same way.
+  Every client `t`/`tl`/`translate` key must be a literal, a template or concatenation with literal text, a
+  frozen key table, or a translator passed to a function that follows the same rules; the build fails otherwise.
 - Static sites use `i18n/flat` or `i18n/fs`; keep server filesystem readers out of browser bundles.
 - `styles/`: console-specific theme glue; shared element contracts live in ui.
 

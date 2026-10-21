@@ -22,7 +22,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createGuildDraft({ data: () => data, fields: ROLE_FIELDS, t });
+  const draft = createGuildDraft({ data: () => data, fields: ROLE_FIELDS }, t);
 
   const roles = $derived(rolesOf(data.layout));
   const layoutDown = $derived(layoutDownOf(data.layout));

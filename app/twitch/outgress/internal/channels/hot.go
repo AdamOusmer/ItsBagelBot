@@ -5,6 +5,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 	"strconv"
 	"time"
+
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
 const hotIndexKey = "outgress:channels:hot"
@@ -57,11 +59,7 @@ func (r *Registry) RenewHot(ctx context.Context, keep func(context.Context, stri
 }
 
 func (r *Registry) claimRenewPass(ctx context.Context) (bool, error) {
-	err := r.client.Do(ctx, r.client.B().Set().Key(hotRenewLockKey).Value("1").Nx().ExSeconds(int64(hotRenewInterval/time.Second)).Build()).Error()
-	if valkey.IsValkeyNil(err) {
-		return false, nil
-	}
-	return err == nil, err
+	return pkg_valkey.ClaimOnce(ctx, r.client, hotRenewLockKey, hotRenewInterval.Truncate(time.Second))
 }
 
 func (r *Registry) renewalCandidates(ctx context.Context) ([]string, error) {

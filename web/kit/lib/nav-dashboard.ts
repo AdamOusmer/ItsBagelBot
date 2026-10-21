@@ -4,7 +4,7 @@
 import type { IconName } from '@bagel/ui/lib/icons';
 import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
-import { identity, navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
+import { navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
 
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
@@ -119,5 +119,5 @@ export function dashboardNavGroups(
   items: readonly NavLink[],
   t?: (key: MessageKey) => string
 ): NavGroupDef[] {
-  return navGroups((t ?? identity)('nav.manage'), items);
+  return navGroups(t ? t('nav.manage') : 'nav.manage', items);
 }

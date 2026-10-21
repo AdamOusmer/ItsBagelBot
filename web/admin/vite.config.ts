@@ -6,10 +6,11 @@ import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { localeChunks } from '../kit/scripts/locale-chunks.mjs';
+import { i18nCatalogs } from '../kit/scripts/i18n-catalogs.ts';
 import { bundledUiSheets } from '../kit/scripts/bundled-ui-sheets.mjs';
 
 export default defineConfig({
-  plugins: [bundledUiSheets(), sveltekit()],
+  plugins: [i18nCatalogs(), bundledUiSheets(), sveltekit()],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5174, fs: { allow: ['../kit', '../../ui', '../../locales'] } },

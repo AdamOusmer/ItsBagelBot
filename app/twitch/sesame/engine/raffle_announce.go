@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 
 	"ItsBagelBot/pkg/bus"
@@ -19,17 +20,77 @@ import (
 	"go.uber.org/zap"
 )
 
-func raffleAutoClosedText(locale string, res *RaffleResult) string {
-	return expandTokens(module.Locale(locale), tokenExpansion{
-		namespace: "raffle",
-		text:      i18n.T(locale, "raffle.auto_closed"),
-		kv: []string{
-			"targets", mentionList(res.Winners),
-			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
-			"entrants", strconv.FormatInt(res.Entrants, 10),
-			"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10),
-		},
+// Both the command path and the deadline path must render draws through this.
+type RaffleAnnouncement struct {
+	Locale string
+	Config RaffleModuleConfig
+	Points string
+}
+
+var rafflePayoutNotes = map[RafflePayout]string{
+	RafflePayoutLoyaltyOff: "raffle.payout.loyalty_off",
+	RafflePayoutFailed:     "raffle.payout.failed",
+}
+
+func (a RaffleAnnouncement) ResultLines(res *RaffleResult) []string {
+	if len(res.Winners) == 0 {
+		return []string{a.render("", "raffle.draw.empty")}
+	}
+	lines := a.wonLines(res)
+	if note := rafflePayoutNotes[res.Payout]; note != "" {
+		lines = append(lines, a.render("", note, "points", a.Points))
+	}
+	return lines
+}
+
+func (a RaffleAnnouncement) wonLines(res *RaffleResult) []string {
+	key := "raffle.won"
+	if res.Prize > 0 && res.Payout != RafflePayoutLoyaltyOff {
+		key = "raffle.won.points"
+	}
+	count := strconv.Itoa(len(res.Winners))
+	entrants := strconv.FormatInt(res.Entrants, 10)
+	claim := strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10)
+	amount := strconv.FormatInt(res.Winners[0].Points, 10)
+	return chunkMentions(res.Winners, func(targets string) string {
+		return a.render(a.Config.WonMessage, key,
+			"targets", targets, "count", count, "entrants", entrants,
+			"claim", claim, "amount", amount, "points", a.Points)
 	})
+}
+
+// A custom template that trips the floor falls back to the default, never to silence.
+func (a RaffleAnnouncement) render(override, key string, kv ...string) string {
+	if override != "" {
+		text := a.expand(override, kv)
+		if _, hit := moderation.CheckFloor(text); !hit {
+			return text
+		}
+	}
+	return a.expand(i18n.T(a.Locale, key), kv)
+}
+
+func (a RaffleAnnouncement) expand(text string, kv []string) string {
+	return expandTokens(module.Locale(a.Locale), tokenExpansion{namespace: "raffle", text: text, kv: kv})
+}
+
+// The chat cap truncates long lines, which would cut the last winners' names.
+func chunkMentions(winners []RaffleWinner, render func(targets string) string) []string {
+	var lines []string
+	group := ""
+	for _, w := range winners {
+		mention := "@" + w.Login
+		next := mention
+		if group != "" {
+			next = group + ", " + mention
+		}
+		if group != "" && len(render(next)) > validate.MaxResponseLineLength {
+			lines = append(lines, render(group))
+			next = mention
+		}
+		group = next
+	}
+	return append(lines, render(group))
 }
 
 func raffleRemindText(locale string, leftSeconds, entrants int64) string {
@@ -52,16 +113,21 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 		return
 	}
 	if res == nil {
+		s.client.Do(dctx, s.forgetDueCmd(broadcasterID))
 		return
 	}
-	locale := s.localeOf(dctx, broadcasterID)
-	var text string
-	if len(res.Winners) == 0 {
-		text = i18n.T(locale, "raffle.auto_empty")
-	} else {
-		text = raffleAutoClosedText(locale, res)
+	for _, line := range s.announcement(dctx, broadcasterID).ResultLines(res) {
+		s.post(dctx, broadcasterID, line)
 	}
-	s.post(dctx, broadcasterID, text)
+}
+
+func (s *ValkeyRaffleStore) announcement(ctx context.Context, broadcasterID uint64) RaffleAnnouncement {
+	loyalty, _ := ReadLoyaltyConfig(ctx, s.cfg.Proj, broadcasterID)
+	return RaffleAnnouncement{
+		Locale: s.localeOf(ctx, broadcasterID),
+		Config: ReadRaffleConfig(ctx, s.cfg.Proj, broadcasterID),
+		Points: loyalty.Name(),
+	}
 }
 
 func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64) {

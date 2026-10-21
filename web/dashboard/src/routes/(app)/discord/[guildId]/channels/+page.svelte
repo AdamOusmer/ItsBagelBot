@@ -14,7 +14,7 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const draft = createGuildDraft({ data: () => data, fields: CHANNEL_FIELDS, t });
+  const draft = createGuildDraft({ data: () => data, fields: CHANNEL_FIELDS }, t);
 
   const textChannels = $derived(textChannelsOf(data.layout));
   const voiceChannels = $derived(voiceChannelsOf(data.layout));

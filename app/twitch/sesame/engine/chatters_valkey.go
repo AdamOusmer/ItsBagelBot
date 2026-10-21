@@ -75,9 +75,8 @@ func (v *ValkeyChatters) TryFetchLock(ctx context.Context, broadcasterID uint64)
 	if v == nil || v.client == nil {
 		return false
 	}
-	seconds := int64(chattersFetchLockTTL.Seconds())
-	got, err := v.client.Do(ctx, v.client.B().Set().Key(chattersFetchLockKey(broadcasterID)).Value("1").Nx().ExSeconds(seconds).Build()).ToString()
-	return err == nil && got == "OK"
+	won, err := pkg_valkey.ClaimOnce(ctx, v.client, chattersFetchLockKey(broadcasterID), chattersFetchLockTTL)
+	return err == nil && won
 }
 
 func (v *ValkeyChatters) ReleaseFetchLock(ctx context.Context, broadcasterID uint64) {

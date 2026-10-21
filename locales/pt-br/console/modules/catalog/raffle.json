@@ -1,7 +1,14 @@
 {
   "label": "Sorteio",
   "tagline": "Sorteios com prazo em que o chat participa com !join.",
-  "description": "Abra um sorteio e os espectadores digitam !join para participar. Durante o sorteio, o bot publica lembretes do tempo restante a cada poucos minutos (você define a frequência) e sorteia automaticamente quando o tempo acaba. Os vencedores são escolhidos aleatoriamente entre todos os participantes, com chances iguais; cada participação conta uma vez, e o sorteio deixa um comprovante verificável. Quem vencer confirma com !claim em até 15 minutos. Você (e seus moderadores) também controla tudo pelo chat: !raffle open inicia um sorteio, !raffle draw encerra antes do prazo e anuncia, !raffle cancel encerra sem sortear. Quando este módulo e a Fila para jogar estão ativados, !join pertence ao sorteio e a fila fica acessível por !queue join.",
+  "description": "Abra um sorteio e os espectadores digitam !join para participar. Durante o sorteio, o bot publica lembretes do tempo restante a cada poucos minutos (você define a frequência) e sorteia automaticamente quando o tempo acaba. Os vencedores são escolhidos aleatoriamente entre todos os participantes, com chances iguais; cada participação conta uma vez, e o sorteio deixa um comprovante verificável. Cada sorteio paga seu prêmio em pontos (1.000 por padrão, dividido igualmente entre quem venceu) no saldo de fidelidade de cada vencedor, então os pontos de fidelidade precisam estar ativados. Defina o prêmio como 0 para um sorteio sem pontos. Quem vencer confirma com !claim em até 15 minutos. Você (e seus moderadores) também controla tudo pelo chat: !raffle open inicia um sorteio, !raffle draw encerra antes do prazo e anuncia, !raffle cancel encerra sem sortear. Quando este módulo e a Fila para jogar estão ativados, !join pertence ao sorteio e a fila fica acessível por !queue join.",
+  "settings": {
+    "prizePoints": {
+      "label": "Prêmio em pontos",
+      "help": "Total de pontos que um sorteio paga, dividido igualmente entre quem venceu. 0 faz sorteios sem pontos.",
+      "placeholder": "1000"
+    }
+  },
   "replies": {
     "joined": {
       "label": "Confirmação de participação",
@@ -28,7 +35,7 @@
       "label": "Resultado anunciado",
       "tagline": "Quando um sorteio define quem venceu (manual ou por prazo).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, parabéns pela vitória no sorteio! Total de vencedores: {count}; participantes: {entrants}. Digite !claim em até {claim} min para confirmar o prêmio!"
+      "defaultMessage": "{targets}, parabéns pela vitória no sorteio (vencedores: {count}; participantes: {entrants}): {amount} {points} por vencedor, já no seu saldo!"
     },
     "claimOk": {
       "label": "Prêmio confirmado",

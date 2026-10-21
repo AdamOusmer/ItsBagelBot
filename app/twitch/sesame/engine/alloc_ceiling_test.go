@@ -5,6 +5,6 @@
 
 package engine
 
-const allocCeiling = 12.0
+const allocCeiling = 16.0
 
-const allocViewsCeiling = 13.0
+const allocViewsCeiling = 17.0

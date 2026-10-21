@@ -216,7 +216,7 @@ type DuelStore interface {
 type DuelConfig struct {
 	AnnouncementConfig
 	Wallet DuelWallet
-	Expiry *ExpiryHub
+	Expiry *pkg_valkey.ExpiryHub
 }
 
 type ValkeyDuelStore struct {
@@ -237,13 +237,8 @@ func benign(err error) bool {
 }
 
 func (s *ValkeyDuelStore) holdSection(ctx context.Context, broadcasterID uint64) bool {
-	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(duelKey(duelDrawPrefix, broadcasterID)).Value("1").
-		Nx().PxMilliseconds(duelDrawLockTTL.Milliseconds()).Build()).ToString()
-	if err != nil {
-		return false
-	}
-	return got == "OK"
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, duelKey(duelDrawPrefix, broadcasterID), duelDrawLockTTL)
+	return err == nil && won
 }
 
 func (s *ValkeyDuelStore) releaseSection(ctx context.Context, broadcasterID uint64) {
@@ -753,7 +748,7 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 }
 
 func (s *ValkeyDuelStore) StartExpiryWatcher(ctx context.Context) {
-	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, duelDeadlinePrefix)
+	pkg_valkey.ExpiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, duelDeadlinePrefix)
 }
 
 func (s *ValkeyDuelStore) onExpired(ctx context.Context, key string) {
