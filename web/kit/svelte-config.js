@@ -3,6 +3,7 @@
 
 import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import { withBoundedCompress } from './scripts/bounded-compress.mjs';
 
 const BASE_DIRECTIVES = {
   'default-src': ['self'],
@@ -25,7 +26,7 @@ export function consoleKitConfig({ directives = {} } = {}) {
   return {
     preprocess: vitePreprocess(),
     kit: {
-      adapter: adapter({ precompress: true }),
+      adapter: withBoundedCompress(adapter({ precompress: true })),
       // RootShell's post-deploy full reload needs pollInterval; without it navigation fetches deleted bundles.
       version: { name: process.env.BUILD_VERSION || 'dev', pollInterval: 60000 },
       paths: {
