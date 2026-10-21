@@ -87,6 +87,7 @@
   "searchClear": "Effacer la recherche",
   "searchLabel": "Trouver un module",
   "searchPlaceholder": "Chansons, minuteries, !sr…",
+  "settingNeeds": "Ce réglage demande que {module} soit activé. Tant qu'il est désactivé, les tirages se déroulent sans points.",
   "settingsTitle": "Réglages",
   "stateDisabled": "Désactivé",
   "stateEnabled": "Activé",

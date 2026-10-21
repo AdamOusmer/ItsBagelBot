@@ -2994,6 +2994,7 @@ export type KnownMessageKey =
   | 'modules.searchLabel'
   | 'modules.searchPlaceholder'
   | 'modules.sectionNav'
+  | 'modules.settingNeeds'
   | 'modules.settingsTitle'
   | 'modules.stateDisabled'
   | 'modules.stateEnabled'

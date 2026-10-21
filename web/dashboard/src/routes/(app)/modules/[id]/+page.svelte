@@ -525,6 +525,10 @@
     ...(hasCommands ? [{ href: '#mod-commands', label: t('modules.commandsTitle') }] : [])
   ]);
 
+  function requiredDef(field: ModuleField) {
+    return field.requires && (data.requiresOff ?? []).includes(field.requires) ? moduleDef(field.requires) : undefined;
+  }
+
   function fieldCopy(field: ModuleField, part: 'label' | 'help' | 'placeholder'): string {
     return tModuleFieldPart(t, def.id, field, part);
   }
@@ -616,6 +620,7 @@
           {/if}
         </div>
         {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
+          {@const needs = requiredDef(field)}
           {#if field.type === 'toggle'}
             <div class="setting-row toggle">
               <SwitchRow
@@ -625,7 +630,7 @@
                 hintId="sh-{field.key}"
                 checked={settingToggleOn(field)}
                 busy={modStatus[`setting:${field.key}`] === 'saving'}
-                disabled={locked}
+                disabled={locked || !!needs}
                 title={locked ? t('modules.lockedHint') : undefined}
                 onCheckedChange={(v) => saveSetting(field, v ? 'on' : 'off')}
               >
@@ -683,13 +688,23 @@
                 <Input
                   id="mod-setting-{field.key}"
                   type={field.type === 'number' ? 'number' : 'text'}
-                  disabled={locked}
+                  disabled={locked || !!needs}
                   placeholder={fieldCopy(field, 'placeholder')}
                   value={config[field.key] ?? ''}
                   onchange={(e: Event & { currentTarget: HTMLInputElement }) => saveSetting(field, e.currentTarget.value)}
                   onkeydown={blurOnEnter}
                 />
               {/if}
+            </div>
+          {/if}
+          {#if needs}
+            <div class="disabled-note">
+              <AlertBanner tone="warning" stack>
+                {t('modules.settingNeeds', { module: tModuleLabel(t, needs) })}
+                {#snippet actions()}
+                  <ButtonLink href={needs.href ?? `/modules/${needs.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: tModuleLabel(t, needs) })}</ButtonLink>
+                {/snippet}
+              </AlertBanner>
             </div>
           {/if}
         {/each}

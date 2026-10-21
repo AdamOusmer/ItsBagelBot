@@ -178,9 +178,8 @@ func (rc raffleCmd) start(ctx context.Context, launch raffleLaunch, emit module.
 		rc.reply(emit, "", "raffle.err.usage")
 		return nil
 	}
-	if _, on := rc.loyalty(ctx); req.prize > 0 && !on {
-		rc.reply(emit, "", "raffle.err.loyalty_off")
-		return nil
+	if _, on := rc.loyalty(ctx); !on {
+		req.prize = 0
 	}
 
 	opened, err := rc.r.Open(ctx, rc.c.BroadcasterID, engine.RaffleOpenSpec{

@@ -29,8 +29,7 @@ type RaffleAnnouncement struct {
 }
 
 var rafflePayoutNotes = map[RafflePayout]string{
-	RafflePayoutLoyaltyOff: "raffle.payout.loyalty_off",
-	RafflePayoutFailed:     "raffle.payout.failed",
+	RafflePayoutFailed: "raffle.payout.failed",
 }
 
 func (a RaffleAnnouncement) ResultLines(res *RaffleResult) []string {

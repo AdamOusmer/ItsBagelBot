@@ -87,6 +87,7 @@
   "searchClear": "Borrar búsqueda",
   "searchLabel": "Buscar un módulo",
   "searchPlaceholder": "Peticiones de canciones, temporizadores, !sr…",
+  "settingNeeds": "Este ajuste necesita {module} activado. Mientras esté desactivado, los sorteos se hacen sin puntos.",
   "settingsTitle": "Ajustes",
   "stateDisabled": "Desactivado",
   "stateEnabled": "Activado",
