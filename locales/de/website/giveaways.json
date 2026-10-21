@@ -21,7 +21,7 @@
   "step1Title": "Raffle aktivieren",
   "step1Desc": "Melde dich mit Twitch an, verbinde deinen Kanal und aktiviere das Raffle-Modul. Es ist standardmäßig deaktiviert.",
   "step2Title": "Wähle eine Ziehungszeit",
-  "step2Desc": "Nutze !raffle open 10 1 5 für eine zehnminütige Verlosung, einen Gewinner und Erinnerungen alle fünf Minuten. Setze die letzte Zahl auf 0, um Erinnerungen zu deaktivieren.",
+  "step2Desc": "Nutze !raffle 1000 60 für eine einminütige Verlosung, bei der ein Gewinner 1000 Punkte erhält, oder !mraffle 5k 120, um 5000 Punkte auf mehrere Gewinner zu verteilen.",
   "step3Title": "Lade Zuschauer zum Mitmachen ein",
   "step3Desc": "Zuschauer tippen !join, solange die Teilnahme möglich ist. Nach Abschluss der Ziehung hat jeder Gewinner fünfzehn Minuten Zeit, um mit !claim zu bestätigen.",
   "tblTitle": "Raffle-Befehle und Beispielantworten.",

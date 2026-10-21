@@ -6006,12 +6006,20 @@
       "{raffle:noraffle:user}",
       "{raffle:mins}",
       "{raffle:opened:mins}",
+      "{raffle:secs}",
+      "{raffle:opened:secs}",
       "{raffle:targets}",
       "{raffle:won:targets}",
       "{raffle:won:count}",
       "{raffle:won:entrants}",
+      "{raffle:amount}",
+      "{raffle:won:amount}",
+      "{raffle:points}",
+      "{raffle:won:points}",
       "{raffle:claim}",
       "{raffle:won:claim}",
+      "{raffle:prize}",
+      "{raffle:won:prize}",
       "{raffle:claimok:user}"
     ],
     "examples": [
@@ -6082,12 +6090,22 @@
       },
       {
         "syntax": "{raffle:mins}",
-        "output": "10",
+        "output": "1",
         "surfaceId": "custom"
       },
       {
         "syntax": "{raffle:opened:mins}",
-        "output": "10",
+        "output": "1",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:secs}",
+        "output": "60",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:opened:secs}",
+        "output": "60",
         "surfaceId": "custom"
       },
       {
@@ -6111,6 +6129,26 @@
         "surfaceId": "custom"
       },
       {
+        "syntax": "{raffle:amount}",
+        "output": "500",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:won:amount}",
+        "output": "500",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:points}",
+        "output": "points",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:won:points}",
+        "output": "points",
+        "surfaceId": "custom"
+      },
+      {
         "syntax": "{raffle:claim}",
         "output": "15",
         "surfaceId": "custom"
@@ -6118,6 +6156,16 @@
       {
         "syntax": "{raffle:won:claim}",
         "output": "15",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:prize}",
+        "output": "a game key",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{raffle:won:prize}",
+        "output": "a game key",
         "surfaceId": "custom"
       },
       {

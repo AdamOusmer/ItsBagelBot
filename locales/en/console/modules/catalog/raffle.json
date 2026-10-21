@@ -1,12 +1,17 @@
 {
   "label": "Raffle",
   "tagline": "Timed random draws your chat enters with !join.",
-  "description": "Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically. Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Every draw pays its points prize (1,000 by default, split evenly across the winners) into the loyalty balance of each winner, so Loyalty must be on; set the prize to 0 for a raffle without points. Each chat line can be switched off on its own: the per-viewer join confirmation is off by default, so entries stay quiet. !claim is optional and off by default; turn it on only for a custom giveaway prize (a game key, say), while points are always paid at the draw. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.",
+  "description": "Open a raffle and viewers type !join to enter. When time runs out it draws automatically (raffles longer than the reminder gap also get a time-left reminder). Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Every draw pays its points prize (1,000 by default) into the loyalty balance of each winner, so Loyalty must be on; set the prize to 0 for a raffle without points. Each chat line can be switched off on its own: the per-viewer join confirmation is off by default, so entries stay quiet. !claim is optional and off by default; turn it on only for a custom giveaway prize (a game key, say), while points are always paid at the draw. Your mods run it from chat with the same commands StreamElements uses: !raffle [amount] [seconds] (or !sraffle) starts a single-winner raffle where one winner takes the whole amount; !mraffle splits the amount evenly across several winners, picked by entrant count (1 per 20 above 200 entries, 1 per 8 up to 200, 1 per 5 up to 50, 1 per 4 up to 20, half of them up to 10). Amounts take k and m (5k, 1.5k). !raffle draw closes early and announces, !cancelraffle (or !raffle cancel) tears it down without drawing, and viewers type !raffle for the status. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.",
   "settings": {
     "prizePoints": {
       "label": "Points prize",
-      "help": "Total points one draw pays, split evenly across its winners. 0 runs raffles without points.",
+      "help": "Total points one draw pays when the command gives no amount, split evenly across its winners. 0 runs raffles without points.",
       "placeholder": "1000"
+    },
+    "durationSeconds": {
+      "label": "Raffle length",
+      "help": "Seconds a raffle stays open when the command gives none. Minimum 5.",
+      "placeholder": "60"
     },
     "remindEnabled": {
       "label": "Time-left reminders",
@@ -41,7 +46,7 @@
     "opened": {
       "label": "Raffle opened",
       "tagline": "When a raffle starts and entries open.",
-      "event": "!raffle open",
+      "event": "!raffle",
       "defaultMessage": "Raffle is LIVE! Type !join to enter. Drawing in {mins} min!"
     },
     "won": {
@@ -58,10 +63,12 @@
   },
   "commands": {
     "winner": "Recall the last draw's winners and how many confirmed.",
-    "raffle": "Show whether a raffle is running, entries and time left.",
-    "raffle_open_minutes_winners_remind": "Start a raffle (defaults 10 min, 1 winner, reminders every 5 min; remind 0 turns reminders off).",
+    "raffle_status": "Show whether a raffle is running, entries and time left (a viewer typing !raffle gets the same).",
+    "raffle_amount_seconds": "Start a single-winner raffle: one winner takes the whole amount (also !sraffle, !singleraffle). Amounts take k and m; defaults 1000 points, 60 seconds.",
+    "mraffle_amount_seconds": "Start a multi-winner raffle: the amount is split evenly, with winners set by entrant count at the draw (also !multiraffle).",
     "raffle_draw_winners": "Close now and announce the winners.",
     "raffle_close": "Same as draw with the configured winner count.",
-    "raffle_cancel": "Tear down without drawing."
+    "raffle_cancel": "Tear down without drawing.",
+    "cancelraffle": "Same as !raffle cancel."
   }
 }

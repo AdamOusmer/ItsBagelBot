@@ -61,10 +61,10 @@ Assistants explaining features, selecting a module for a Twitch task, or helping
 
 ### `!raffle`
 
-- Syntax: `!raffle`, `!raffle open [minutes] [winners] [remind]`, `!raffle draw [winners]`, `!raffle close`, `!raffle cancel`
-- Aliases: None registered.
-- Who can run it: Anyone reads status. Open, draw, close, and cancel require moderator access.
-- Behaviour: Runs a timed giveaway. Close draws early; cancel stops without drawing.
+- Syntax: `!raffle status`, `!raffle [amount] [seconds]`, `!sraffle [amount] [seconds]`, `!mraffle [amount] [seconds]`, `!raffle draw [winners]`, `!raffle close`, `!raffle cancel`, `!cancelraffle`
+- Aliases: `!singleraffle` for `!sraffle`, `!multiraffle` for `!mraffle`.
+- Who can run it: Anyone reads status (a viewer typing `!raffle` gets it). Starting, draw, close, and cancel require moderator access.
+- Behaviour: Runs a timed giveaway. `!raffle` and `!sraffle` give one winner the whole amount; `!mraffle` splits it across winners set by entrant count at the draw. Amounts take k and m (5k). Close draws early; cancel stops without drawing.
 - Example reply template: "{{console:modules.catalog.raffle.replies.opened.defaultMessage}}".
 
 </command>
