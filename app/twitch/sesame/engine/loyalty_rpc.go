@@ -16,7 +16,10 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const loyaltyRPCTimeout = 3 * time.Second
+const (
+	loyaltyRPCTimeout   = 3 * time.Second
+	loyaltyResetTimeout = 30 * time.Second
+)
 
 type LoyaltyRPC struct {
 	nc     *nats.Conn
@@ -28,9 +31,13 @@ func NewLoyaltyRPC(nc *nats.Conn, prefix string) *LoyaltyRPC {
 }
 
 func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
+	return l.callWithin(ctx, loyaltyRPCTimeout, verb, req)
+}
+
+func (l *LoyaltyRPC) callWithin(ctx context.Context, timeout time.Duration, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
 	subject := l.prefix + "." + verb
 
-	ctx, cancel := context.WithTimeout(ctx, loyaltyRPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	body, err := codec.Marshal(req)
@@ -113,6 +120,11 @@ func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromVie
 		return loyaltyrpc.Balance{}, nil, false, false, nil
 	}
 	return *reply.Balance, reply.TargetBalance, true, reply.Spent && reply.TargetBalance != nil, nil
+}
+
+func (l *LoyaltyRPC) BalanceReset(ctx context.Context, broadcasterID uint64) error {
+	_, err := l.callWithin(ctx, loyaltyResetTimeout, "balance.reset", loyaltyrpc.Request{UserID: fmtID(broadcasterID)})
+	return err
 }
 
 func (l *LoyaltyRPC) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {

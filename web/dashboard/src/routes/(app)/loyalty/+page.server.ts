@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
-import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
+import { blankLoyaltyConfig, catalogChildren, moduleDef, toResetSchedule } from '@bagel/kit';
 import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '$lib/server/loyalty-store';
 import { listModules } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
@@ -78,6 +78,7 @@ function parseConfig(raw: string): LoyaltyConfig | null {
     .slice(0, 32);
   return {
     pointsName,
+    resetSchedule: toResetSchedule(obj.resetSchedule),
     subPoints: clampRate(obj.subPoints),
     resubPoints: clampRate(obj.resubPoints),
     giftSubPoints: clampRate(obj.giftSubPoints),
@@ -114,6 +115,15 @@ export const actions: Actions = {
   reset: mutate('reset', 'Invalid request.', async (uid, f) => {
     if (f.get('confirm') !== 'reset') return null;
     return String(await resetPoints(uid));
+  }),
+
+  schedule: mutate('schedule', 'Invalid schedule.', async (uid, f) => {
+    const raw = String(f.get('resetSchedule') ?? '');
+    const resetSchedule = toResetSchedule(raw);
+    if (resetSchedule !== raw) return null;
+    const cur = await readLoyalty(uid);
+    await writeLoyalty(uid, cur.enabled, { ...cur.config, resetSchedule });
+    return resetSchedule;
   }),
 
   toggleGame: mutate('toggleGame', 'Unknown game.', async (uid, f) => {
