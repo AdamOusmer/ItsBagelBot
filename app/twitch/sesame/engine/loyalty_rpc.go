@@ -20,21 +20,21 @@ const loyaltyRPCTimeout = 3 * time.Second
 
 type LoyaltyRPC struct {
 	nc     *nats.Conn
-	prefix string
+	prefix LoyaltyRPCPrefix
 }
 
-func NewLoyaltyRPC(nc *nats.Conn, prefix string) *LoyaltyRPC {
+type LoyaltyRPCPrefix string
+
+func NewLoyaltyRPC(nc *nats.Conn, prefix LoyaltyRPCPrefix) *LoyaltyRPC {
 	return &LoyaltyRPC{nc: nc, prefix: prefix}
 }
 
-func (l *LoyaltyRPC) call(ctx context.Context, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
-	return l.callWithin(ctx, loyaltyRPCTimeout, verb, req)
-}
+type loyaltyVerb string
 
-func (l *LoyaltyRPC) callWithin(ctx context.Context, timeout time.Duration, verb string, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
-	subject := l.prefix + "." + verb
+func (l *LoyaltyRPC) call(ctx context.Context, verb loyaltyVerb, req loyaltyrpc.Request) (loyaltyrpc.Reply, error) {
+	subject := string(l.prefix) + "." + string(verb)
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, loyaltyRPCTimeout)
 	defer cancel()
 
 	body, err := codec.Marshal(req)
@@ -73,7 +73,7 @@ func (l *LoyaltyRPC) BalanceAdjust(ctx context.Context, broadcasterID uint64, vi
 }
 
 func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
-	verb := "balance.add"
+	verb := loyaltyVerb("balance.add")
 	if adjustment.Absolute {
 		verb = "balance.set"
 	}

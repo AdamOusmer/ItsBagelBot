@@ -135,7 +135,7 @@ export function schedulePurgeChannel(userId: string, logins: readonly string[] =
   void knownLogins(userId, logins).then((known) => pageQueue.add(channelPageUrls(userId, known)));
 }
 
-// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, rename or deletion.
+// Leaderboard responses are tagged per login: call only on board visibility, loyalty on/off, points reset, rename or deletion.
 export function scheduleLeaderboardPurge(userId: string, logins: readonly string[] = []): void {
   if (DEMO) return;
   void knownLogins(userId, logins).then((known) => leaderboardQueue.add(known.map(leaderboardCacheTag)));
