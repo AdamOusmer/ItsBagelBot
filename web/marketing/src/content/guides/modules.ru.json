@@ -92,7 +92,7 @@
   "catalog.b1.props.modules.14.start": "Выключен по умолчанию",
   "catalog.b1.props.modules.14.tagline": "Позвольте зрителям записываться в очередь, чтобы играть с вами: кто первый, тот и играет.",
   "catalog.b1.props.modules.15.cat": "Игры",
-  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle, !raffle open [минуты] [победители] [напоминание], !raffle draw [победители], !raffle close, !raffle cancel",
+  "catalog.b1.props.modules.15.commands": "!join, !claim, !winner, !raffle [сумма] [секунды], !sraffle, !mraffle, !raffle draw [победители], !raffle close, !raffle cancel, !cancelraffle",
   "catalog.b1.props.modules.15.name": "Raffle",
   "catalog.b1.props.modules.15.needs": "Raffle забирает !join, когда также включена Play Queue.",
   "catalog.b1.props.modules.15.start": "Выключен по умолчанию",

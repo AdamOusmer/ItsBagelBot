@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"time"
 
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
@@ -14,7 +15,9 @@ const RaffleModuleName = "raffle"
 
 const (
 	raffleDefaultPrize = int64(1000)
-	maxRafflePrize     = int64(1_000_000)
+	MaxRafflePrize     = int64(1_000_000)
+
+	raffleDefaultDuration = time.Minute
 )
 
 // PrizePoints stays a Number: the dashboard saves "500" as a string, which an int64 field silently drops.
@@ -26,6 +29,7 @@ type RaffleModuleConfig struct {
 	WonMessage      string       `json:"wonMessage"`
 	ClaimOkMessage  string       `json:"claimOkMessage"`
 	PrizePoints     codec.Number `json:"prizePoints"`
+	DurationSeconds codec.Number `json:"durationSeconds"`
 
 	OpenedEnabled   string `json:"openedEnabled"`
 	JoinEnabled     string `json:"joinEnabled"`
@@ -56,7 +60,15 @@ func (c RaffleModuleConfig) Prize() int64 {
 	if err != nil {
 		return raffleDefaultPrize
 	}
-	return min(max(n, 0), maxRafflePrize)
+	return min(max(n, 0), MaxRafflePrize)
+}
+
+func (c RaffleModuleConfig) Duration() time.Duration {
+	n, err := c.DurationSeconds.Int64()
+	if err != nil || n <= 0 {
+		return raffleDefaultDuration
+	}
+	return time.Duration(min(n, int64(maxRaffleDuration/time.Second))) * time.Second
 }
 
 func ReadRaffleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) RaffleModuleConfig {

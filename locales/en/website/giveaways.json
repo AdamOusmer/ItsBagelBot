@@ -21,7 +21,7 @@
   "step1Title": "Enable Raffle",
   "step1Desc": "Sign in with Twitch, connect your channel and turn on the Raffle module. It starts disabled.",
   "step2Title": "Choose a draw time",
-  "step2Desc": "Use !raffle open 10 1 5 for a ten-minute raffle, one winner and reminders every five minutes. Set the last number to 0 to turn reminders off.",
+  "step2Desc": "Use !raffle 1000 60 for a one-minute raffle where one winner takes 1000 points, or !mraffle 5k 120 to split 5000 points across several winners.",
   "step3Title": "Ask viewers to join",
   "step3Desc": "Viewers type !join while entries are open. When the draw finishes, each winner has fifteen minutes to confirm with !claim.",
   "tblTitle": "Raffle commands and example replies.",

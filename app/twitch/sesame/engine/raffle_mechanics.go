@@ -32,7 +32,27 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 	default:
 		remindSecs = max(minRaffleRemind, int64(spec.Remind.Seconds()))
 	}
+	if remindSecs >= int64(spec.Duration.Seconds()) {
+		remindSecs = 0
+	}
 	return spec, remindSecs
+}
+
+func multiRaffleWinners(entrants int) int64 {
+	n := int64(entrants)
+	switch {
+	case n > 200:
+		return n / 20
+	case n > 50:
+		return n / 8
+	case n > 20:
+		return n / 5
+	case n > 10:
+		return n / 4
+	case n > 1:
+		return n / 2
+	}
+	return n
 }
 
 func pickWinners(members []string, n int64) []string {
