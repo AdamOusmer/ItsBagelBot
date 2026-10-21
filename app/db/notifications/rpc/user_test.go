@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/nats-io/nats-server/v2/server"
@@ -39,7 +39,7 @@ func TestMarkReadPublishesNotificationsInvalidation(t *testing.T) {
 	t.Cleanup(nc.Close)
 
 	_, err = nc.Subscribe("test.users.get", func(m *nats.Msg) {
-		body, _ := json.Marshal(usersrpc.AdminReply{User: &usersrpc.AdminUserView{ID: 42, CreatedAt: time.Now().Add(-time.Hour)}})
+		body, _ := codec.Marshal(usersrpc.AdminReply{User: &usersrpc.AdminUserView{ID: 42, CreatedAt: time.Now().Add(-time.Hour)}})
 		_ = m.Respond(body)
 	})
 	require.NoError(t, err)
@@ -56,6 +56,6 @@ func TestMarkReadPublishesNotificationsInvalidation(t *testing.T) {
 	msg, err := invalidations.NextMsg(time.Second)
 	require.NoError(t, err)
 	var dto invalidate.DTO
-	require.NoError(t, json.Unmarshal(msg.Data, &dto))
+	require.NoError(t, codec.Unmarshal(msg.Data, &dto))
 	require.Equal(t, "42", dto.BroadcasterID)
 }

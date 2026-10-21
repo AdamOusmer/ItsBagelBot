@@ -104,7 +104,7 @@ type RaffleStore interface {
 
 type RaffleConfig struct {
 	AnnouncementConfig
-	Expiry *ExpiryHub
+	Expiry *pkg_valkey.ExpiryHub
 	Wallet RaffleWallet
 }
 
@@ -122,17 +122,7 @@ func NewValkeyRaffleStore(client valkey.Client, cfg RaffleConfig, log *zap.Logge
 }
 
 func (s *ValkeyRaffleStore) armDeadline(ctx context.Context, broadcasterID uint64, duration time.Duration) (bool, error) {
-	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).
-		Value("1").
-		Nx().ExSeconds(int64(duration.Seconds())).Build()).ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return got == "OK", nil
+	return pkg_valkey.ClaimOnce(ctx, s.client, raffleKey(raffleDeadlinePrefix, broadcasterID), duration.Truncate(time.Second))
 }
 
 type raffleInstall struct {
@@ -292,12 +282,8 @@ func decodeReceipt(resultJSON, claimsJSON string) (*RaffleResult, bool) {
 }
 
 func (s *ValkeyRaffleStore) holdDraw(ctx context.Context, broadcasterID uint64) bool {
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(raffleKey(raffleDrawPrefix, broadcasterID)).Value("1").
-		Nx().PxMilliseconds(raffleDrawLockTTL.Milliseconds()).Build()).ToString()
-	if err != nil {
-		return false
-	}
-	return got == "OK"
+	won, err := pkg_valkey.ClaimOnce(ctx, s.client, raffleKey(raffleDrawPrefix, broadcasterID), raffleDrawLockTTL)
+	return err == nil && won
 }
 
 type drawRead struct {
@@ -411,7 +397,7 @@ func (s *ValkeyRaffleStore) recordPayout(ctx context.Context, broadcasterID uint
 // Expiry events are lost while no replica is subscribed; the due sweep still draws and pays those raffles.
 func (s *ValkeyRaffleStore) StartExpiryWatcher(ctx context.Context) {
 	go s.sweepOverdue(ctx)
-	expiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, raffleDeadlinePrefix, raffleRemindPrefix)
+	pkg_valkey.ExpiryHubOr(s.cfg.Expiry, s.client, 0, s.log).Watch(ctx, s.onExpired, raffleDeadlinePrefix, raffleRemindPrefix)
 }
 
 func (s *ValkeyRaffleStore) sweepOverdue(ctx context.Context) {

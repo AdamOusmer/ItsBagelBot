@@ -86,7 +86,7 @@ type ValkeyTimerStore struct {
 	outgressStandard string
 
 	keyspaceDB int
-	expiry     *ExpiryHub
+	expiry     *pkg_valkey.ExpiryHub
 	log        *zap.Logger
 
 	flagsCache *cache.Keyed[uint64, chatFlags]
@@ -112,7 +112,7 @@ type TimersConfig struct {
 	OutgressPremiumSubject   string
 	OutgressStandardSubject  string
 	KeyspaceDB               int
-	Expiry                   *ExpiryHub
+	Expiry                   *pkg_valkey.ExpiryHub
 	NC                       *nats.Conn
 	ModulesInvalidateSubject string
 	Log                      *zap.Logger
@@ -325,7 +325,8 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, at armedTimer, ex time.
 
 func (s *ValkeyTimerStore) armSchedule(ctx context.Context, ref timerRef, ex time.Duration) error {
 	if s.runtime == nil {
-		return s.client.Do(ctx, s.client.B().Set().Key(ref.scheduleKey()).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
+		_, err := pkg_valkey.ClaimOnce(ctx, s.client, ref.scheduleKey(), ex.Truncate(time.Second))
+		return err
 	}
 	state, err := s.runtime.Get(ctx, ref.broadcasterID)
 	if err != nil || !state.AllowsBackground() {
@@ -415,7 +416,7 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 }
 
 func (s *ValkeyTimerStore) StartExpiryWatcher(ctx context.Context) {
-	expiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, timerKeyPrefix)
+	pkg_valkey.ExpiryHubOr(s.expiry, s.client, s.keyspaceDB, s.log).Watch(ctx, s.onExpired, timerKeyPrefix)
 }
 
 func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {

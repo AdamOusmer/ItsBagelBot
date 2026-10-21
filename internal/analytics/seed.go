@@ -12,6 +12,7 @@ import (
 	"time"
 
 	catalog "ItsBagelBot/internal/domain/analytics"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -59,7 +60,7 @@ func (r *Recorder) SeedOnce(ctx context.Context, service string, owned Owned, se
 		return
 	}
 	marker := catalog.SeedMarkerKey(service)
-	claimed, err := r.client.Do(ctx, r.client.B().Set().Key(marker).Value("running").Nx().Ex(seedClaimTTL).Build()).AsBool()
+	claimed, err := pkg_valkey.ClaimOnce(ctx, r.client, marker, seedClaimTTL)
 	if err != nil || !claimed {
 		return
 	}
