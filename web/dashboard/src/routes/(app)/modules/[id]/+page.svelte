@@ -188,7 +188,8 @@
     const v = config[field.key] ?? '';
     if (v === 'on') return true;
     if (v === 'off') return false;
-    return field.followsLevel ? automodToggleDefault(config['level'] || 'moderate', field.key) : false;
+    if (field.followsLevel) return automodToggleDefault(config['level'] || 'moderate', field.key);
+    return field.defaultOn === true;
   }
 
   function replyOn(reply: ModuleReply): boolean {

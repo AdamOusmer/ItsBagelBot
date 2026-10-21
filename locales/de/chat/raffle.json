@@ -4,6 +4,7 @@
   "claim.late": "@{raffle:user} die Bestätigungsfrist für diesen Gewinn ist abgelaufen.",
   "claim.none": "Für @{raffle:user} wartet kein Gewinn aus einer Verlosung auf Bestätigung. Bei einem Gewinn: !claim eingeben!",
   "claim.ok": "@{raffle:user} dein Gewinn ist bestätigt. Viel Spaß!",
+  "claim.prize_default": "deinen Gewinn",
   "draw.empty": "Niemand hat an der Verlosung teilgenommen. Niemand zum Auslosen.",
   "err.loyalty_off": "Verlosungsgewinne werden in Treuepunkten ausgezahlt. Aktiviere Treuepunkte oder setze den Verlosungsgewinn auf 0 für eine Verlosung ohne Punkte.",
   "err.usage": "Verwendung: !raffle <open [minutes] [winners]|draw|cancel|status>. Zuschauer nehmen mit !join teil",
@@ -19,9 +20,12 @@
   "opened": "Die Verlosung läuft! Gib !join ein, um teilzunehmen. Auslosung in {raffle:mins} Min.!",
   "payout.failed": "Einige {raffle:points} aus der Verlosung konnten nicht ausgezahlt werden. Mods können sie mit !points add nachtragen.",
   "payout.loyalty_off": "Treuepunkte sind deaktiviert, daher wurden für diese Verlosung keine {raffle:points} ausgezahlt.",
-  "remind": "Erinnerung an die Verlosung: noch ~{raffle:mins} Min.! Bisherige Teilnehmerzahl: {raffle:count}. Gib !join ein! Gewinne müssen mit !claim bestätigt werden.",
+  "remind": "Erinnerung an die Verlosung: noch ~{raffle:mins} Min.! Bisherige Teilnehmerzahl: {raffle:count}. Gib !join ein!",
+  "remind.claim": "Erinnerung an die Verlosung: noch ~{raffle:mins} Min.! Bisherige Teilnehmerzahl: {raffle:count}. Gib !join ein! Gewinne müssen mit !claim bestätigt werden.",
   "status.closed": "Keine Verlosung läuft. Mods können mit !raffle open <minutes> eine starten.",
   "status.open": "Die Verlosung läuft. Teilnehmerzahl: {raffle:count}. Auslosung in ~{raffle:mins} Min.! Gib !join ein!",
-  "won": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants})! Gewinn innerhalb von {raffle:claim} Min. mit !claim bestätigen!",
-  "won.points": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants}): {raffle:amount} {raffle:points} pro Gewinner, bereits gutgeschrieben!"
+  "won": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants})! Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten!",
+  "won.plain": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants})!",
+  "won.points": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants}): {raffle:amount} {raffle:points} pro Gewinner, bereits gutgeschrieben!",
+  "won.points.claim": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants}): {raffle:amount} {raffle:points} pro Gewinner, bereits gutgeschrieben! Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten!"
 }

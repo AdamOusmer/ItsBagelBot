@@ -1,12 +1,25 @@
 {
   "label": "Tirage",
   "tagline": "Tirages au sort chronométrés auxquels le chat s'inscrit avec !join.",
-  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Chaque tirage verse son lot de points (1 000 par défaut, réparti à parts égales entre les gagnants) sur le solde de fidélité de chaque gagnant : les points de fidélité doivent donc être activés. Réglez le lot sur 0 pour un tirage sans points. Les gagnants confirment avec !claim dans une fenêtre de 15 minutes. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Chaque tirage verse son lot de points (1 000 par défaut, réparti à parts égales entre les gagnants) sur le solde de fidélité de chaque gagnant : les points de fidélité doivent donc être activés. Réglez le lot sur 0 pour un tirage sans points. Chaque ligne du chat peut être désactivée séparément : la confirmation d'inscription par viewer est désactivée par défaut, les inscriptions restent donc silencieuses. !claim est facultatif et désactivé par défaut ; activez-le seulement pour un lot personnalisé (une clé de jeu, par exemple), tandis que les points sont toujours versés au tirage. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
   "settings": {
     "prizePoints": {
       "label": "Lot en points",
       "help": "Total des points versés par un tirage, réparti à parts égales entre ses gagnants. 0 lance des tirages sans points.",
       "placeholder": "1000"
+    },
+    "remindEnabled": {
+      "label": "Rappels du temps restant",
+      "help": "Poste la ligne de rappel du temps restant pendant qu'un tirage est en cours."
+    },
+    "claimEnabled": {
+      "label": "Activer !claim",
+      "help": "Active !claim pour un lot personnalisé. Les points sont toujours versés au tirage, quel que soit ce réglage."
+    },
+    "claimPrize": {
+      "label": "Lot personnalisé",
+      "help": "Le nom du lot affiché dans la ligne des gagnants, pour un tirage qui n'est pas en points.",
+      "placeholder": "une clé de jeu"
     }
   },
   "replies": {

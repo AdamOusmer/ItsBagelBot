@@ -802,7 +802,8 @@
           "entrants",
           "amount",
           "points",
-          "claim"
+          "claim",
+          "prize"
         ],
         "message_key": "wonMessage"
       },
