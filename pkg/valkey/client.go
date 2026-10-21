@@ -18,6 +18,7 @@ const (
 	writePoolMinSize    = 4
 	writePoolBufferSize = 32 << 10
 	writePoolIdleTime   = 30 * time.Second
+	connWriteTimeout    = 5 * time.Second
 
 	localPipelineMultiplex = 5
 	localBufferSize        = 8 << 10
@@ -29,6 +30,7 @@ func BuildClientOption(address, password string) valkey_go.ClientOption {
 
 func withWritePool(opts valkey_go.ClientOption) valkey_go.ClientOption {
 	opts.DisableAutoPipelining = true
+	opts.ConnWriteTimeout = connWriteTimeout
 	opts.BlockingPoolSize = writePoolSize
 	opts.BlockingPoolCleanup = writePoolIdleTime
 	opts.BlockingPoolMinSize = writePoolMinSize
