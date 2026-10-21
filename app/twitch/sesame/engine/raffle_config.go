@@ -68,7 +68,7 @@ func (c RaffleModuleConfig) Duration() time.Duration {
 	if err != nil || n <= 0 {
 		return raffleDefaultDuration
 	}
-	return time.Duration(min(n, int64(maxRaffleDuration/time.Second))) * time.Second
+	return ClampRaffleDuration(time.Duration(min(n, int64(maxRaffleDuration/time.Second))) * time.Second)
 }
 
 func ReadRaffleConfig(ctx context.Context, proj projection.Reader, broadcasterID uint64) RaffleModuleConfig {

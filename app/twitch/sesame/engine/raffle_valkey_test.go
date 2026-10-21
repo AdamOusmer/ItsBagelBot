@@ -83,21 +83,19 @@ func openAndJoin(t *testing.T, store *ValkeyRaffleStore, id uint64, setup raffle
 func TestValkeyRaffleDrawsDistinctWinnersFromTheEntrants(t *testing.T) {
 	cases := []struct {
 		name        string
-		opened      int64
 		entrants    int
 		ask         int64
 		wantWinners int
 	}{
-		{"the opening spec decides the winner count when the draw does not override it", 3, 10, 0, 3},
-		{"a draw override beats the opening spec", 3, 10, 5, 5},
-		{"an ask beyond the pool draws every entrant once", 3, 4, 50, 4},
-		{"an unset opening spec draws a single winner", 0, 6, 0, 1},
+		{"a draw without a count picks a single winner", 6, 0, 1},
+		{"a draw count picks that many winners", 10, 5, 5},
+		{"an ask beyond the pool draws every entrant once", 4, 50, 4},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store, id := raffleStoreFor(t)
 			entrants := numberedEntrants(tc.entrants)
-			openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{OpenedBy: "streamer", Winners: tc.opened, Duration: time.Minute}, entrants})
+			openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{OpenedBy: "streamer", Duration: time.Minute}, entrants})
 
 			res, err := store.Draw(context.Background(), id, tc.ask)
 
@@ -154,7 +152,7 @@ func TestValkeyRaffleLifecycle(t *testing.T) {
 	store, id := raffleStoreFor(t)
 	ctx := context.Background()
 
-	opened, err := store.Open(ctx, id, RaffleOpenSpec{OpenedBy: "streamer", Winners: 1, Duration: time.Minute})
+	opened, err := store.Open(ctx, id, RaffleOpenSpec{OpenedBy: "streamer", Duration: time.Minute})
 	require.NoError(t, err)
 	require.True(t, opened)
 	reopened, err := store.Open(ctx, id, RaffleOpenSpec{OpenedBy: "other", Duration: time.Minute})
@@ -225,9 +223,9 @@ func TestValkeyRaffleSplitsThePrizeAcrossTheWinners(t *testing.T) {
 	wallet := &fakeRaffleWallet{}
 	cfg := RaffleConfig{AnnouncementConfig: AnnouncementConfig{Proj: loyaltyReader(true, "")}, Wallet: wallet}
 	store, id := raffleStoreWith(t, cfg)
-	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Winners: 3, Duration: time.Minute, Prize: 1000}, numberedEntrants(5)})
+	openAndJoin(t, store, id, raffleSetup{RaffleOpenSpec{Duration: time.Minute, Prize: 1000}, numberedEntrants(5)})
 
-	res, err := store.Draw(context.Background(), id, 0)
+	res, err := store.Draw(context.Background(), id, 3)
 
 	require.NoError(t, err)
 	assert.Equal(t, RafflePayoutPaid, res.Payout)
