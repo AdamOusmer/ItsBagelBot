@@ -330,7 +330,7 @@ func (r *Users) prepareGrantTx(ctx context.Context, req usersrpc.PreparePremiumG
 
 func lockGrantUser(ctx context.Context, tx *ent.Tx, id uint64) error {
 	_, err := tx.User.Query().Where(user.IDEQ(id)).ForUpdate().Only(ctx)
-	if err != nil && err.Error() == "sql: SELECT .. FOR UPDATE/SHARE not supported in SQLite" {
+	if db.RowLocksUnsupported(err) {
 		return nil
 	}
 	return err

@@ -26,6 +26,7 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
 )
 
@@ -178,7 +179,7 @@ type checkoutLeaseRequest struct {
 
 func checkoutLeaseRow(ctx context.Context, tx *ent.Tx, userID uint64) (*ent.GiveawayUserLease, error) {
 	row, err := tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).ForUpdate().Only(ctx)
-	if err != nil && err.Error() == "sql: SELECT .. FOR UPDATE/SHARE not supported in SQLite" {
+	if db.RowLocksUnsupported(err) {
 		return tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).Only(ctx)
 	}
 	return row, err
