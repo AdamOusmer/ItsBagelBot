@@ -47,6 +47,26 @@ describe('i18nCatalogs', () => {
     expect(names.fr).toBe('Français');
   });
 
+  test('generated modules hold no raw code-unsafe characters yet evaluate to the same values', () => {
+    const hostile = '</script>\u{2028}\u{2029}a/b';
+    const tree = { lang: { name: hostile }, greeting: hostile };
+    const { plugin } = build({ source: { locales: () => ['en', hostile], read: () => tree } });
+    const generate = (id: string, ssr: boolean) => {
+      const code = plugin.load(`\0${id}`, { ssr }) as string;
+      expect(code).not.toMatch(/<\/script>|[\u{2028}\u{2029}]/u);
+      return code;
+    };
+
+    const entry = generate('virtual:bagel-i18n', true);
+    const names = JSON.parse(/export const localeNames = (.*);/.exec(entry)![1]);
+    expect(names[hostile]).toBe(hostile);
+    expect(JSON.parse(/export const locales = (.*);/.exec(entry)![1])).toEqual(['en', hostile]);
+    const loaderKeys = new Function(`${entry.replaceAll('export const ', 'const ')}\nreturn Object.keys(loaders);`)();
+    expect(loaderKeys).toEqual(['en', hostile]);
+    const dataModule = generate('virtual:bagel-i18n/data/en', false);
+    expect(new Function(dataModule.replace('export default', 'return'))()).toEqual(tree);
+  });
+
   test('admin builds without exclusions keep the admin namespace', () => {
     const full = build({});
     expect(Object.keys(JSON.parse(full.emitted[full.urls.en.slice(1)]))).toContain('admin');
