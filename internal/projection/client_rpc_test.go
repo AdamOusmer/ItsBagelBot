@@ -148,3 +148,20 @@ func TestClientModulesBacksOffAfterRPCError(t *testing.T) {
 	require.True(t, mods["automod"].IsEnabled)
 	require.EqualValues(t, 2, served.Load())
 }
+
+func TestClientModulesDoesNotBackOffOnTheCallersOwnDeadline(t *testing.T) {
+	nc := bustest.NATS(t)
+	store, _ := newTestStore(t)
+	subjects := Subjects{Modules: "test.modules"}
+	c := NewClient(Config{Store: store, NC: nc, Subjects: subjects, TTL: time.Minute, Log: zap.NewNop()})
+	t.Cleanup(c.Close)
+	bustest.Respond(t, nc, subjects.Modules, `{"modules":[{"name":"automod","is_enabled":true}]}`)
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := c.Modules(expired, 7)
+	require.Error(t, err)
+	mods, err := c.Modules(context.Background(), 7)
+	require.NoError(t, err, "a caller that ran out of time does not blank the channel for the next one")
+	require.True(t, mods["automod"].IsEnabled)
+}
