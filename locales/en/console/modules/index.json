@@ -87,6 +87,7 @@
   "searchClear": "Clear search",
   "searchLabel": "Find a module",
   "searchPlaceholder": "Song requests, timers, !sr…",
+  "settingNeeds": "This setting needs {module} turned on. While it is off, raffles run without points.",
   "settingsTitle": "Settings",
   "stateDisabled": "Disabled",
   "stateEnabled": "Enabled",

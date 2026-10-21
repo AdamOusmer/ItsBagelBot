@@ -13,6 +13,7 @@ export interface ModuleField {
   hidden?: boolean;
   followsLevel?: boolean;
   defaultOn?: boolean;
+  requires?: string;
 }
 
 export const AUTOMOD_LEVEL_DEFAULTS: Record<string, Record<string, boolean>> = {
