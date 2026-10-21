@@ -38,6 +38,11 @@ function editorRows(uid: string, id: string, cookies: Cookies, url: URL): Promis
   return listModulesForEditing(uid);
 }
 
+function requiredModulesOff(def: ModuleDef, rows: ModuleView[]): string[] {
+  const required = new Set((def.settings ?? []).flatMap((s) => (s.requires ? [s.requires] : [])));
+  return [...required].filter((id) => rows.find((r) => r.name === id)?.is_enabled !== true);
+}
+
 export const load: PageServerLoad = async ({ params, locals, cookies, url }) => {
   gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
@@ -45,7 +50,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
   if (def.href) throw redirect(302, def.href);
 
   const locked = await moduleLocked(locals, def);
-  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 });
+  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, requiresOff: [] as string[] });
 
   return moduleLoad(def.id, locals.session, {
     demo: DEMO ? async () => blank() : undefined,
@@ -53,7 +58,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
       const rows = await editorRows(uid, def.id, cookies, url);
       const row = rows.find((r) => r.name === def.id);
       const { config, revision } = moduleEditState(row);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision };
+      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision, requiresOff: requiredModulesOff(def, rows) };
     },
     blank
   });

@@ -277,9 +277,12 @@ func TestRaffleLineToggles(t *testing.T) {
 		{name: "a non winner gets no prize line", text: "!claim", who: "eve", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimNone}, contains: []string{"no raffle prize", "!claim"}},
 		{name: "a late claim cites the window", text: "!claim", who: "alice", config: raffleClaimOn, raffle: fakeRaffle{claim: engine.ClaimLate}, contains: []string{"window"}},
 		{name: "opening can be silenced", text: "!raffle", who: "mod", badge: "moderator", config: `{"openedEnabled":"off"}`, silent: true, open: raffleOpened},
-		{name: "a draw without the won line still posts the payout note", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"off"}`,
+		{name: "a draw without the won line posts no loyalty note", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"off"}`,
+			raffle: fakeRaffle{drawResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutLoyaltyOff}},
+			silent: true},
+		{name: "a draw skipped for loyalty posts the plain won line", text: "!raffle draw", who: "mod", badge: "moderator",
 			raffle:   fakeRaffle{drawResult: &engine.RaffleResult{Winners: winners("alice"), Entrants: 4, Prize: 1000, Payout: engine.RafflePayoutLoyaltyOff}},
-			contains: []string{"Loyalty is off"}, excludes: []string{"congratulations"}},
+			contains: []string{"congratulations"}, excludes: []string{"Loyalty is off", "1000"}},
 		{name: "a draw with the won line off and no note is silent", text: "!raffle draw", who: "mod", badge: "moderator", config: `{"wonEnabled":"false"}`,
 			raffle: fakeRaffle{drawResult: paid}, silent: true},
 		{name: "the won line omits !claim when claim is off", text: "!raffle draw", who: "mod", badge: "moderator", raffle: fakeRaffle{drawResult: won},
@@ -346,7 +349,7 @@ func TestRaffleRejectsMalformedArgs(t *testing.T) {
 	}
 }
 
-func TestRaffleOpenPrizeNeedsLoyalty(t *testing.T) {
+func TestRaffleOpenPrizeFollowsLoyalty(t *testing.T) {
 	loyaltyOn := []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: true}}
 	cases := []struct {
 		name      string
@@ -358,7 +361,7 @@ func TestRaffleOpenPrizeNeedsLoyalty(t *testing.T) {
 	}{
 		{name: "the default prize opens with loyalty on", modules: loyaltyOn, wantOpen: true, wantPrize: 1000, contains: "!join"},
 		{name: "a prize saved as text is honored", config: `{"prizePoints":"250"}`, modules: loyaltyOn, wantOpen: true, wantPrize: 250, contains: "!join"},
-		{name: "a points raffle is refused with loyalty off", contains: "Turn Loyalty on"},
+		{name: "a points raffle opens without points when loyalty is off", wantOpen: true, contains: "!join"},
 		{name: "a zero prize runs without loyalty", config: `{"prizePoints":"0"}`, wantOpen: true, contains: "!join"},
 	}
 	for _, tc := range cases {

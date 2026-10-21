@@ -50,12 +50,14 @@ func TestRaffleResultLinesExpandEveryTokenInEveryLocale(t *testing.T) {
 			}
 			assert.Contains(t, a.ResultLines(results["paid"])[0], "@alice, @bob", locale)
 			assert.Contains(t, a.ResultLines(results["paid"])[0], "500 bagels", locale)
-			assert.Len(t, a.ResultLines(results["loyalty off"]), 2, locale)
+			assert.Len(t, a.ResultLines(results["loyalty off"]), 1, locale)
+			assert.NotContains(t, a.ResultLines(results["loyalty off"])[0], "500", locale)
 			assert.Equal(t, claim == "on", strings.Contains(a.ResultLines(results["paid"])[0], "!claim"), "%s claim=%q", locale, claim)
 			assert.Equal(t, claim == "on", strings.Contains(a.ResultLines(results["no prize"])[0], "!claim"), "%s claim=%q", locale, claim)
 		}
 		off := RaffleAnnouncement{Locale: locale, Points: "bagels", Config: RaffleModuleConfig{WonEnabled: "off"}}
-		assert.Len(t, off.ResultLines(results["loyalty off"]), 1, locale)
+		assert.Empty(t, off.ResultLines(results["loyalty off"]), locale)
+		assert.Len(t, off.ResultLines(results["failed"]), 1, locale)
 		assert.Empty(t, off.ResultLines(results["paid"]), locale)
 		custom := RaffleAnnouncement{Locale: locale, Config: RaffleModuleConfig{ClaimEnabled: "on", ClaimPrize: "a signed poster"}}
 		assert.Contains(t, custom.ResultLines(results["no prize"])[0], "a signed poster", locale)

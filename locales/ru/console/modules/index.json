@@ -87,6 +87,7 @@
   "searchClear": "Сбросить поиск",
   "searchLabel": "Найти модуль",
   "searchPlaceholder": "Заказы песен, таймеры, !sr…",
+  "settingNeeds": "Для этой настройки нужно включить раздел {module}. Пока он выключен, розыгрыши проходят без баллов.",
   "settingsTitle": "Настройки",
   "stateDisabled": "Отключён",
   "stateEnabled": "Включён",

@@ -87,6 +87,7 @@
   "searchClear": "Suche leeren",
   "searchLabel": "Modul finden",
   "searchPlaceholder": "Musikwünsche, Timer, !sr…",
+  "settingNeeds": "Diese Einstellung braucht aktiviertes {module}. Solange es aus ist, laufen Verlosungen ohne Punkte.",
   "settingsTitle": "Einstellungen",
   "stateDisabled": "Deaktiviert",
   "stateEnabled": "Aktiviert",
