@@ -164,7 +164,8 @@ func (p *Pipeline) Close() {
 const chatType = "channel.chat.message"
 
 func (p *Pipeline) Process(msg *bus.Message) error {
-	ctx := msg.Context()
+	ctx, cancel := messageContext(msg)
+	defer cancel()
 
 	env := GetEnvelope()
 	defer PutEnvelope(env)
@@ -296,7 +297,7 @@ func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
 		return
 	}
 	segment := startStage(ctx, "sesame.output.flush")
-	emission.err = p.pub.Flush(ctx)
+	emission.err = flushWithin(ctx, p.pub)
 	endStageForError(segment, emission.err, "error")
 }
 
@@ -447,10 +448,7 @@ func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID
 	if err != nil {
 		return err
 	}
-	if replayID == "" {
-		return bus.PublishRaw(ctx, p.pub, state.subject, body)
-	}
-	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
+	return publishWithin(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
 }
 
 func (p *Pipeline) encodeOutput(ctx context.Context, state *emitState, o *module.Output) ([]byte, error) {
