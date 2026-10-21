@@ -1,0 +1,40 @@
+{
+  "tag": "beta",
+  "version": "v0.2.11-beta",
+  "date": "2026-10-21",
+  "title": {
+    "en": "Raffles That Pay Out, a Rebuilt Discord Bot and a Searchable Leaderboard",
+    "fr": "Des tirages qui paient, un bot Discord reconstruit et un classement consultable"
+  },
+  "highlights": {
+    "en": [
+      "Raffles now pay their points prize straight into the winners' balances and announce timed draws with your own wording. !raffle opens a single-winner raffle for 1000 points, !mraffle splits the pot across several winners, and the StreamElements raffle commands work as you know them.",
+      "Every raffle chat line can be switched off on its own, and !claim is now optional. Raffles run even with Loyalty off; only the points prize needs it.",
+      "A raffle opened with a duration outside 5 seconds to 2 hours now announces the time it will actually run, instead of saying 0 minutes or 1440 minutes.",
+      "The Discord bot was rebuilt: each feature has its own settings page in the dashboard, you can preview the server template and apply it when you choose, and setup no longer fails with Missing Permissions on fresh servers.",
+      "The public leaderboard is searchable and paged, matches the stats page look, and links straight to your chat.",
+      "You can reset every viewer's points from the Loyalty page, and the public leaderboard updates right after.",
+      "Gifted subs now earn points scaled by sub tier.",
+      "Duel and gamble now follow the number settings saved in the dashboard.",
+      "When a trial channel signs up, it switches over right away and keeps the loyalty points its viewers earned during the trial.",
+      "The dashboard loads faster: editors load on demand, each module ships only its own text, and fonts appear on first paint.",
+      "Quotes answer faster, and a slow command can no longer hold up the rest of chat.",
+      "The dashboard, stats, commands and leaderboard pages show a proper error page when something fails or a request hits the rate limit, and viewer identifiers and addresses stay out of our monitoring."
+    ],
+    "fr": [
+      "Les tirages versent maintenant leur prix en points directement dans le solde des gagnants et annoncent les tirages programmés avec vos propres messages. !raffle ouvre un tirage à un gagnant pour 1000 points, !mraffle partage la cagnotte entre plusieurs gagnants, et les commandes de tirage StreamElements fonctionnent comme vous les connaissez.",
+      "Chaque message de tirage dans le chat peut être désactivé séparément, et !claim est maintenant facultatif. Les tirages fonctionnent même sans Fidélité ; seul le prix en points en a besoin.",
+      "Un tirage ouvert avec une durée hors de 5 secondes à 2 heures annonce maintenant la durée réelle, au lieu de dire 0 minute ou 1440 minutes.",
+      "Le bot Discord a été reconstruit : chaque fonction a sa propre page de réglages dans le tableau de bord, vous pouvez prévisualiser le modèle de serveur et l’appliquer quand vous le décidez, et la configuration n’échoue plus avec Missing Permissions sur un nouveau serveur.",
+      "Le classement public est consultable par recherche et par pages, reprend le style de la page de statistiques et renvoie directement vers votre chat.",
+      "Vous pouvez remettre à zéro les points de tous les spectateurs depuis la page Fidélité, et le classement public se met à jour juste après.",
+      "Les abonnements offerts rapportent maintenant des points selon leur palier.",
+      "Le duel et le pari suivent maintenant les réglages de nombres enregistrés dans le tableau de bord.",
+      "Quand une chaîne en essai s’inscrit, elle bascule tout de suite et garde les points de fidélité gagnés par ses spectateurs pendant l’essai.",
+      "Le tableau de bord se charge plus vite : les éditeurs se chargent à la demande, chaque module n’envoie que ses propres textes, et les polices s’affichent dès le premier rendu.",
+      "Les citations répondent plus vite, et une commande lente ne peut plus retenir le reste du chat.",
+      "Les pages du tableau de bord, des statistiques, des commandes et du classement affichent une vraie page d’erreur quand quelque chose échoue ou qu’une requête atteint la limite de débit, et les identifiants et adresses des spectateurs restent hors de notre supervision."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.11-beta"
+}
