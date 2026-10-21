@@ -190,7 +190,9 @@ export async function topStandings(userId: string, limit = 10): Promise<LoyaltyS
   return (reply.top ?? []).map(toStanding);
 }
 
-export async function resetPoints(userId: string): Promise<number> {
+type BroadcasterId = string;
+
+export async function resetPoints(userId: BroadcasterId): Promise<number> {
   const reply = await callLoyalty('balance.reset', { user_id: userId });
   schedulePurgeChannel(userId);
   return reply.total ?? 0;
