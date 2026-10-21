@@ -32,7 +32,6 @@ type LoyaltyModuleConfig struct {
 	ModAdjustPoints    int    `json:"modAdjustPoints"`
 	ViewerTransfers    int    `json:"viewerTransfers"`
 	StreamerPoints     int    `json:"streamerPoints"`
-	ResetSchedule      string `json:"resetSchedule"`
 }
 
 const maxRate = int64(1_000_000_000)

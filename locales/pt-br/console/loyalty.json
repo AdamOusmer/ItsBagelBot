@@ -68,11 +68,5 @@
   "resetConfirmBody": "Os “{name}” de todos os espectadores voltam a 0. O tempo assistido é mantido. Isso não pode ser desfeito.",
   "resetConfirm": "Zerar",
   "toastReset": "Pontos zerados. Todos os saldos agora estão em 0.",
-  "toastResetFailed": "Não foi possível zerar os pontos.",
-  "scheduleLabel": "Zerar automaticamente",
-  "scheduleHint": "Define como 0 os “{name}” de todos os espectadores às 00:00 UTC na segunda-feira (semanal), no dia 1 (mensal) ou em 1º de janeiro (anual). O tempo assistido é mantido.",
-  "scheduleOff": "Desativado",
-  "scheduleWeekly": "Toda semana",
-  "scheduleMonthly": "Todo mês",
-  "scheduleAnnually": "Todo ano"
+  "toastResetFailed": "Não foi possível zerar os pontos."
 }

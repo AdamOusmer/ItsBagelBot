@@ -3,7 +3,6 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { tick } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -17,7 +16,6 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import Select from '@bagel/ui/svelte/Select.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -33,9 +31,6 @@
     type MessageKey,
     moduleDef,
     catalogChildren,
-    RESET_SCHEDULES,
-    toResetSchedule,
-    type ResetSchedule,
     type LoyaltyConfig
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -157,32 +152,6 @@
         return;
       }
       toast('success', t('loyalty.toastReset'));
-      await invalidateAll();
-    };
-  };
-
-  const SCHEDULE_COPY: Record<ResetSchedule, MessageKey> = {
-    off: 'loyalty.scheduleOff',
-    weekly: 'loyalty.scheduleWeekly',
-    monthly: 'loyalty.scheduleMonthly',
-    annually: 'loyalty.scheduleAnnually'
-  };
-  const scheduleOptions = $derived(RESET_SCHEDULES.map((value) => ({ value, label: t(SCHEDULE_COPY[value]) })));
-  let scheduleBusy = $state(false);
-  let scheduleFormEl = $state<HTMLFormElement | null>(null);
-
-  async function pickSchedule(event: Event & { currentTarget: HTMLSelectElement }) {
-    config.resetSchedule = toResetSchedule(event.currentTarget.value);
-    await tick();
-    scheduleFormEl?.requestSubmit();
-  }
-
-  const scheduleSubmit: SubmitFunction = () => {
-    scheduleBusy = true;
-    return async ({ result }) => {
-      scheduleBusy = false;
-      const saved = result.type === 'success';
-      toast(saved ? 'success' : 'danger', t(saved ? 'loyalty.toastSaved' : 'loyalty.toastSaveFailed'));
       await invalidateAll();
     };
   };
@@ -380,26 +349,11 @@
     <Heading level={6} as="h2" variant="title" id="loy-reset-h">{t('loyalty.resetTitle')}</Heading>
     <Card>
       <div class="hint"><Text size="xs" tone="muted">{t('loyalty.resetHint', { name: pointsLabel })}</Text></div>
-      <div class="reset-row">
-        <form method="POST" action="?/schedule" use:enhance={scheduleSubmit} bind:this={scheduleFormEl} class="schedule">
-          <input type="hidden" name="resetSchedule" value={config.resetSchedule} />
-          <Field label={t('loyalty.scheduleLabel')}>
-            <Select
-              fill
-              id="loy-reset-schedule"
-              label={t('loyalty.scheduleLabel')}
-              value={config.resetSchedule}
-              options={scheduleOptions}
-              disabled={scheduleBusy}
-              onchange={pickSchedule}
-            />
-          </Field>
-        </form>
+      <div class="actions">
         <Button variant="secondary" tone="danger" type="button" onclick={() => (resetOpen = true)}>
           {t('loyalty.resetButton')}
         </Button>
       </div>
-      <div class="hint"><Text size="xs" tone="muted">{t('loyalty.scheduleHint', { name: pointsLabel })}</Text></div>
       <form method="POST" action="?/reset" use:enhance={resetSubmit} bind:this={resetFormEl} hidden>
         <input type="hidden" name="confirm" value="reset" />
       </form>
@@ -442,9 +396,6 @@
   .num { width: 100%; max-width: 160px; }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
-
-  .reset-row { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
-  .schedule { flex: 1 1 220px; max-width: 280px; }
 
   .cmd-block { margin-top: 26px; }
 
