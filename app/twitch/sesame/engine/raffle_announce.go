@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/internal/moderation"
 
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -162,15 +161,10 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	resps := s.client.DoMulti(dctx,
 		s.client.B().Ttl().Key(raffleKey(raffleDeadlinePrefix, broadcasterID)).Build(),
 		s.client.B().Zcard().Key(raffleKey(raffleEntriesPrefix, broadcasterID)).Build(),
-		s.client.B().Get().Key(raffleKey(raffleStatePrefix, broadcasterID)).Build(),
 	)
 	left, err := resps[0].AsInt64()
 	if err != nil || left <= 0 {
 		return
-	}
-	st := RaffleState{}
-	if v, err := resps[2].ToString(); err == nil {
-		_ = codec.UnmarshalFromString(v, &st)
 	}
 	entrants, err := resps[1].AsInt64()
 	if err != nil {
@@ -181,13 +175,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 		s.post(dctx, broadcasterID, a.RemindText(left, entrants))
 	}
 
-	next := st.RemindSeconds
-	if next <= 0 {
-		next = raffleDefaultRemind
-	}
-	if next > left {
-		next = left
-	}
+	next := min(raffleDefaultRemind, left)
 	s.client.Do(dctx, s.client.B().Set().Key(raffleKey(raffleRemindPrefix, broadcasterID)).
 		Value("1").ExSeconds(next).Build())
 }
