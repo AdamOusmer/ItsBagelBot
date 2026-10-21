@@ -2,6 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin, Rollup } from 'vite';
 import { CATALOGS_PLUGIN, type CatalogsApi } from './i18n-catalogs.ts';
 import type { AstNode } from './i18n-ast.ts';
@@ -14,6 +16,7 @@ import { analyzeModule, type Usage } from './i18n-usage.ts';
 
 export const NODE_PLACEHOLDER = '__BAGEL_I18N_NODE__';
 export const SLICE_DIR = '_app/immutable/i18n';
+const KIT_DIR = fileURLToPath(new URL('..', import.meta.url));
 const APP_MODULE = /\/generated\/client-optimized\/app\.js$/;
 const EXEMPT = /\/kit\/lib\/i18n\/(messages|context)\.ts$/;
 const API_MENTION = /\b(getI18n|setI18n|translate|translateList)\b/;
@@ -100,6 +103,7 @@ export function i18nSlices(): Plugin {
   const slices = new Map<string, UnitSlice>();
   let ancestors = new Map<number, Set<number>>();
   let routes: Route[] = [];
+  let appRoots: string[] = [];
 
   function builder(chunks: Record<string, Chunk>): SliceBuilder {
     return new SliceBuilder({ chunks, moduleKeys: index.moduleKeys, ancestors, units: new Set([...nodes, ...lazy.registered]) });
@@ -134,6 +138,10 @@ export function i18nSlices(): Plugin {
     configResolved(config) {
       const host = config.plugins.find((plugin) => plugin.name === CATALOGS_PLUGIN) as Plugin<CatalogsApi> | undefined;
       if (host?.api) catalogs = host.api.catalogs;
+      appRoots = [join(config.root, 'src'), KIT_DIR];
+    },
+    async buildStart() {
+      await lazy.scan(appRoots, async (source, importer) => (await this.resolve(source, importer))?.id);
     },
     async transform(code, id) {
       await lazy.note(code, id, moduleHost(this));
@@ -143,6 +151,8 @@ export function i18nSlices(): Plugin {
     },
     async buildEnd(error) {
       if (error) return;
+      const mismatches = lazy.mismatches();
+      if (mismatches.length) this.error(`i18n slices: lazy import scan disagrees with the parsed imports on:\n${mismatches.join('\n')}`);
       await index.resolve(this, leafPaths(catalogs().trees.en));
       routes = clientRoutes(this);
       ancestors = alwaysLoadedWith(routes);
