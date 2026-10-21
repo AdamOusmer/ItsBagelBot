@@ -45,9 +45,9 @@ const (
 )
 
 const (
-	minRaffleDuration    = time.Minute
+	minRaffleDuration    = 5 * time.Second
 	maxRaffleDuration    = 2 * time.Hour
-	maxRaffleWinners     = 20
+	maxRaffleWinners     = 100
 	raffleDefaultWinners = 1
 	raffleDefaultRemind  = int64(5 * time.Minute / time.Second)
 	minRaffleRemind      = int64(time.Minute / time.Second)
@@ -59,6 +59,7 @@ type RaffleState struct {
 	Winners       int64  `json:"winners"`
 	RemindSeconds int64  `json:"remind_s"`
 	Prize         int64  `json:"prize,omitempty"`
+	Multi         bool   `json:"multi,omitempty"`
 }
 
 type RaffleResult struct {
@@ -77,6 +78,7 @@ type RaffleOpenSpec struct {
 	Duration time.Duration
 	Remind   time.Duration
 	Prize    int64
+	Multi    bool
 }
 
 type RaffleEntry struct {
@@ -167,7 +169,7 @@ func (s *ValkeyRaffleStore) Open(ctx context.Context, broadcasterID uint64, spec
 	now := time.Now()
 	state, err := codec.Marshal(RaffleState{
 		OpenedBy: spec.OpenedBy, OpenedAt: now.UnixMilli(),
-		Winners: spec.Winners, RemindSeconds: remindSecs, Prize: spec.Prize,
+		Winners: spec.Winners, RemindSeconds: remindSecs, Prize: spec.Prize, Multi: spec.Multi,
 	})
 	if err != nil {
 		_ = s.client.Do(ctx, s.client.B().Del().
@@ -308,15 +310,22 @@ func (s *ValkeyRaffleStore) readDrawPhase(ctx context.Context, broadcasterID uin
 	}
 	read := &drawRead{}
 	_ = codec.UnmarshalFromString(v, &read.State)
-	read.Count = read.State.Winners
-	if override > 0 {
-		read.Count = override
-	}
 	if read.Members, err = resps[1].AsStrSlice(); err != nil {
 		return nil, err
 	}
+	read.Count = read.winnerCount(override)
 	read.Names, _ = resps[2].AsStrMap()
 	return read, nil
+}
+
+func (r *drawRead) winnerCount(override int64) int64 {
+	switch {
+	case override > 0:
+		return override
+	case r.State.Multi:
+		return multiRaffleWinners(len(r.Members))
+	}
+	return r.State.Winners
 }
 
 func (r *drawRead) result(drawnAt int64) *RaffleResult {

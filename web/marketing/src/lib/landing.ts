@@ -411,7 +411,7 @@ export function featureRows(id: FeatureId, lang: Lang, t: Translate): CommandRow
     }));
     return featureCommands(id).map((command) => ({
         cells: [command.trigger, featureWho(command, k), featureReply(command, lang)],
-        copy: command.trigger === '!raffle open [minutes] [winners] [remind]' ? command.trigger.split(' [')[0] + ' 10 1 5' : command.trigger,
+        copy: command.trigger === '!raffle [amount] [seconds]' ? command.trigger.split(' [')[0] + ' 1000 60' : command.trigger,
     }));
 }
 

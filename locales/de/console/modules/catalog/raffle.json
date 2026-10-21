@@ -1,12 +1,17 @@
 {
   "label": "Verlosung",
   "tagline": "Zeitgesteuerte Zufallsziehungen, an denen dein Chat mit !join teilnimmt.",
-  "description": "Starte eine Verlosung; Zuschauer nehmen mit !join teil. Während sie läuft, erinnert der Bot alle paar Minuten an die verbleibende Zeit (das Intervall legst du fest). Nach Ablauf zieht er automatisch. Alle Teilnahmen haben dieselbe Zufallschance, jede zählt einmal, und die Ziehung hinterlässt einen überprüfbaren Beleg. Jede Ziehung zahlt ihren Punktegewinn (standardmäßig 1.000, gleichmäßig auf die Gewinner verteilt) auf das Treuepunkte-Konto jedes Gewinners aus, daher müssen Treuepunkte aktiv sein. Setze den Gewinn auf 0 für eine Verlosung ohne Punkte. Jede Chatzeile lässt sich einzeln abschalten: Die Teilnahmebestätigung pro Zuschauer ist standardmäßig aus, Teilnahmen bleiben also still. !claim ist optional und standardmäßig aus; schalte es nur für einen eigenen Gewinn ein (zum Beispiel einen Spielekey), Punkte werden bei der Ziehung immer ausgezahlt. Du und deine Mods steuern auch alles im Chat: !raffle open startet eine Verlosung, !raffle draw beendet sie vorzeitig und verkündet das Ergebnis, !raffle cancel bricht ohne Ziehung ab. Sind dieses Modul und die Spielwarteschlange aktiv, gehört !join zur Verlosung; die Warteschlange ist über !queue join erreichbar.",
+  "description": "Starte eine Verlosung; Zuschauer nehmen mit !join teil. Während sie läuft, erinnert der Bot alle paar Minuten an die verbleibende Zeit (das Intervall legst du fest). Nach Ablauf zieht er automatisch. Alle Teilnahmen haben dieselbe Zufallschance, jede zählt einmal, und die Ziehung hinterlässt einen überprüfbaren Beleg. Jede Ziehung zahlt ihren Punktegewinn (standardmäßig 1.000, gleichmäßig auf die Gewinner verteilt) auf das Treuepunkte-Konto jedes Gewinners aus, daher müssen Treuepunkte aktiv sein. Setze den Gewinn auf 0 für eine Verlosung ohne Punkte. Jede Chatzeile lässt sich einzeln abschalten: Die Teilnahmebestätigung pro Zuschauer ist standardmäßig aus, Teilnahmen bleiben also still. !claim ist optional und standardmäßig aus; schalte es nur für einen eigenen Gewinn ein (zum Beispiel einen Spielekey), Punkte werden bei der Ziehung immer ausgezahlt. Deine Mods steuern alles im Chat mit denselben Befehlen wie bei StreamElements: !raffle [Betrag] [Sekunden] (oder !sraffle) startet eine Verlosung mit einem Gewinner, der den gesamten Betrag erhält; !mraffle teilt den Betrag gleichmäßig auf mehrere Gewinner auf, deren Anzahl sich nach den Teilnehmern richtet (1 pro 20 über 200, 1 pro 8 bis 200, 1 pro 5 bis 50, 1 pro 4 bis 20, die Hälfte bis 10). Beträge erlauben k und m (5k, 1,5k). !raffle draw beendet sie vorzeitig und verkündet das Ergebnis, !cancelraffle (oder !raffle cancel) bricht ohne Ziehung ab, und Zuschauer sehen mit !raffle den Stand. Sind dieses Modul und die Spielwarteschlange aktiv, gehört !join zur Verlosung; die Warteschlange ist über !queue join erreichbar.",
   "settings": {
     "prizePoints": {
       "label": "Punktegewinn",
       "help": "Gesamtpunkte, die eine Ziehung auszahlt, gleichmäßig auf ihre Gewinner verteilt. 0 startet Verlosungen ohne Punkte.",
       "placeholder": "1000"
+    },
+    "durationSeconds": {
+      "label": "Dauer der Verlosung",
+      "help": "Sekunden, die eine Verlosung offen bleibt, wenn der Befehl keine angibt. Minimum 5.",
+      "placeholder": "60"
     },
     "remindEnabled": {
       "label": "Restzeit-Erinnerungen",
@@ -41,7 +46,7 @@
     "opened": {
       "label": "Verlosung eröffnet",
       "tagline": "Wenn eine Verlosung startet und die Teilnahme öffnet.",
-      "event": "!raffle open",
+      "event": "!raffle",
       "defaultMessage": "Verlosung ist LIVE! Gib !join ein, um teilzunehmen. Ziehung in {mins} Min.!"
     },
     "won": {
@@ -58,10 +63,12 @@
   },
   "commands": {
     "winner": "Ruft die Gewinner der letzten Ziehung und die Anzahl der Bestätigungen ab.",
-    "raffle": "Zeigt, ob eine Verlosung läuft, die Teilnahmen und die Restzeit.",
-    "raffle_open_minutes_winners_remind": "Startet eine Verlosung (Standard: 10 Min., 1 Gewinner, Erinnerungen alle 5 Min.; remind 0 schaltet Erinnerungen aus).",
+    "raffle_status": "Zeigt, ob eine Verlosung läuft, die Teilnahmen und die Restzeit (Zuschauer, die !raffle eingeben, erhalten dasselbe).",
+    "raffle_amount_seconds": "Startet eine Verlosung mit einem Gewinner, der den gesamten Betrag erhält (auch !sraffle, !singleraffle). Beträge erlauben k und m; Standard: 1000 Punkte, 60 Sekunden.",
+    "mraffle_amount_seconds": "Startet eine Verlosung mit mehreren Gewinnern: Der Betrag wird gleichmäßig geteilt, die Gewinneranzahl richtet sich bei der Ziehung nach den Teilnehmern (auch !multiraffle).",
     "raffle_draw_winners": "Schließt sofort und verkündet die Gewinner.",
     "raffle_close": "Wie draw mit der eingestellten Gewinneranzahl.",
-    "raffle_cancel": "Bricht ohne Ziehung ab."
+    "raffle_cancel": "Bricht ohne Ziehung ab.",
+    "cancelraffle": "Wie !raffle cancel."
   }
 }

@@ -135,7 +135,8 @@ var shippedContract = map[string]moduleSpec{
 		command("valshop", roleEveryone, "valrotation"),
 	}},
 	"raffle": {module.KindOptIn, []commandSpec{
-		command("raffle", roleEveryone), command("join", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
+		command("raffle", roleEveryone), command("sraffle", roleEveryone, "singleraffle"), command("mraffle", roleEveryone, "multiraffle"),
+		command("cancelraffle", roleEveryone), command("join", roleEveryone), command("claim", roleEveryone), command("winner", roleEveryone),
 	}},
 	"queue": {module.KindOptIn, []commandSpec{
 		command("queue", roleEveryone), command("join", roleEveryone), command("leave", roleEveryone), command("list", roleEveryone, "queuelist"),
