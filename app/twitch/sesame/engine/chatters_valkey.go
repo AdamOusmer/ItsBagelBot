@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/cache"
-	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -56,18 +55,7 @@ func (v *ValkeyChatters) Snapshot(ctx context.Context, broadcasterID uint64) (en
 	if v == nil || v.client == nil {
 		return nil, false, nil
 	}
-	raw, err := v.client.Do(ctx, v.client.B().Get().Key(chattersSnapshotKey(broadcasterID)).Build()).AsBytes()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return nil, false, nil
-		}
-		return nil, false, err
-	}
-	var out []chattersSnapshotEntry
-	if err := codec.Unmarshal(raw, &out); err != nil {
-		return nil, false, err
-	}
-	return out, true, nil
+	return pkg_valkey.ReadJSON[[]chattersSnapshotEntry](ctx, v.client, chattersSnapshotKey(broadcasterID))
 }
 
 func (v *ValkeyChatters) Store(ctx context.Context, broadcasterID uint64, entries []chattersSnapshotEntry) {
@@ -77,14 +65,8 @@ func (v *ValkeyChatters) Store(ctx context.Context, broadcasterID uint64, entrie
 	if len(entries) > chattersSnapshotCap {
 		entries = entries[:chattersSnapshotCap]
 	}
-	body, err := codec.Marshal(entries)
-	if err != nil {
-		v.log.Warn("chatters: snapshot encode failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
-		return
-	}
-	seconds := int64(chattersSnapshotTTL.Seconds())
-	err = v.client.Do(ctx, v.client.B().Set().Key(chattersSnapshotKey(broadcasterID)).Value(string(body)).ExSeconds(seconds).Build()).Error()
-	if err != nil {
+	at := pkg_valkey.Key{Name: chattersSnapshotKey(broadcasterID), TTL: chattersSnapshotTTL}
+	if err := pkg_valkey.SetJSON(ctx, pkg_valkey.NewKV(v.client), at, entries); err != nil {
 		v.log.Warn("chatters: snapshot write failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
-	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -42,18 +41,7 @@ func NewCheckpointStore(client valkey.Client) Checkpoint {
 }
 
 func (c checkpointStore) Load(ctx context.Context) (Resume, bool, error) {
-	raw, err := c.client.Do(ctx, c.client.B().Get().Key(ddiscord.BotCheckpointKey).Build()).ToString()
-	if valkey.IsValkeyNil(err) {
-		return Resume{}, false, nil
-	}
-	if err != nil {
-		return Resume{}, false, err
-	}
-	var r Resume
-	if err := codec.Unmarshal([]byte(raw), &r); err != nil {
-		return Resume{}, false, err
-	}
-	return r, true, nil
+	return pkg_valkey.ReadJSON[Resume](ctx, c.client, ddiscord.BotCheckpointKey)
 }
 
 func (c checkpointStore) Save(ctx context.Context, r Resume) error {

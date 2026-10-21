@@ -85,13 +85,11 @@ func (c *Client) readBlobs(ctx context.Context, dir ports.FilePath, entries []*g
 }
 
 func (c *Client) blob(ctx context.Context, sha string) ([]byte, error) {
-	if b, ok := c.blobs.Load(sha); ok {
-		return b.([]byte), nil
-	}
-	b, resp, err := c.gh.Git.GetBlobRaw(ctx, c.owner, c.repo, sha)
-	if err != nil {
-		return nil, apiErr(resp, err)
-	}
-	c.blobs.Store(sha, b)
-	return b, nil
+	return c.blobs.GetOrLoad(ctx, sha, func(ctx context.Context) ([]byte, error) {
+		b, resp, err := c.gh.Git.GetBlobRaw(ctx, c.owner, c.repo, sha)
+		if err != nil {
+			return nil, apiErr(resp, err)
+		}
+		return b, nil
+	})
 }
