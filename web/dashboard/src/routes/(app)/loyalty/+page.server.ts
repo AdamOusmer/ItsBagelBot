@@ -4,7 +4,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
-import { readLoyalty, writeLoyalty, topStandings } from '$lib/server/loyalty-store';
+import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '$lib/server/loyalty-store';
 import { listModules } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
 import { disableChildren, isChildOf } from '$lib/server/module-parent';
@@ -109,6 +109,11 @@ export const actions: Actions = {
     const cur = await readLoyalty(uid);
     await writeLoyalty(uid, cur.enabled, config);
     return config.pointsName || 'points';
+  }),
+
+  reset: mutate('reset', 'Invalid request.', async (uid, f) => {
+    if (f.get('confirm') !== 'reset') return null;
+    return String(await resetPoints(uid));
   }),
 
   toggleGame: mutate('toggleGame', 'Unknown game.', async (uid, f) => {

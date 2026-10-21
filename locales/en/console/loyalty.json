@@ -60,5 +60,13 @@
   "unitGift": "{name} per gifted sub",
   "unitCheer": "{name} per 100 bits",
   "unitWatch": "{name} per 5 minutes",
-  "topEmptyCta": "Review earning rates"
+  "topEmptyCta": "Review earning rates",
+  "resetTitle": "Reset points",
+  "resetHint": "Sets every viewer's {name} to 0. Watch time is kept. This cannot be undone.",
+  "resetButton": "Reset points",
+  "resetConfirmTitle": "Reset all points?",
+  "resetConfirmBody": "This sets every viewer's {name} back to 0. Watch time is kept. This cannot be undone.",
+  "resetConfirm": "Reset points",
+  "toastReset": "Points reset. Every balance is now 0.",
+  "toastResetFailed": "Could not reset points."
 }
