@@ -141,7 +141,8 @@ func TestResolve(t *testing.T) {
 	f := newFixture(t)
 	multi := f.pushIndex(imageRef("sesame", "v1"), arch{amd64, shaA}, arch{arm64, shaA})
 	split := f.pushIndex(imageRef("gossip", "v1"), arch{amd64, shaA}, arch{arm64, shaB})
-	f.pushIndex(imageRef("outgress", "v1"), arch{amd64, shaA})
+	intel := f.pushIndex(imageRef("outgress", "v1"), arch{amd64, shaA})
+	f.pushIndex(imageRef("notifications", "v1"), arch{arm64, shaA})
 	require.NoError(t, remote.Write(f.tag(imageRef("users", "v1")), f.image(shaA), f.push()))
 
 	tests := []struct {
@@ -154,8 +155,10 @@ func TestResolve(t *testing.T) {
 			outcome{Info: ports.ImageInfo{Digest: multi, Platforms: both, Revision: shaA}}},
 		{"platform images from different commits", ghcrPull, imageRef("gossip", "v1"),
 			outcome{Info: ports.ImageInfo{Digest: split, Platforms: both}}},
-		{"one-platform index", ghcrPull, imageRef("outgress", "v1"), refused(ErrMissingPlatform,
-			"outgress:v1 is missing [linux/arm64] (its index carries [linux/amd64]).")},
+		{"Intel-only index", ghcrPull, imageRef("outgress", "v1"),
+			outcome{Info: ports.ImageInfo{Digest: intel, Platforms: []string{"linux/amd64"}, Revision: shaA}}},
+		{"index without Intel", ghcrPull, imageRef("notifications", "v1"), refused(ErrMissingPlatform,
+			"notifications:v1 is missing [linux/amd64] (its index carries [linux/arm64]).")},
 		{"single image, no index", ghcrPull, imageRef("users", "v1"), refused(ErrMissingPlatform,
 			"users:v1 is a single-platform image, not a multi-arch index.")},
 		{"missing tag", ghcrPull, imageRef("sesame", "v2"), refused(ports.ErrNotFound,

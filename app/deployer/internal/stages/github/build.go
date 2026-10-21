@@ -188,7 +188,7 @@ const (
 	manifestPrefix = "Publish manifest "
 )
 
-var archLabels = []string{" Intel x86_64", " ARM64"}
+const archLabel = " Intel x86_64"
 
 func jobImage(name string) (deploy.ImageName, bool) {
 	if img, ok := strings.CutPrefix(name, manifestPrefix); ok {
@@ -198,10 +198,7 @@ func jobImage(name string) (deploy.ImageName, bool) {
 	if !ok {
 		return "", false
 	}
-	for _, arch := range archLabels {
-		rest = strings.TrimSuffix(rest, arch)
-	}
-	return deploy.ImageName(rest), true
+	return deploy.ImageName(strings.TrimSuffix(rest, archLabel)), true
 }
 
 func jobKey(j ports.Job) string {
