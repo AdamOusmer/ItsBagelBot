@@ -49,11 +49,18 @@ func loadHelmCharts(t *testing.T) map[string]helmChart {
 	return charts
 }
 
+func isYAMLFile(d fs.DirEntry) bool {
+	return filepath.Ext(d.Name()) == ".yaml" && d.Type().IsRegular()
+}
+
 func yamlFiles(t *testing.T) []string {
 	t.Helper()
 	var paths []string
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".yaml") {
+		if err != nil {
+			return err
+		}
+		if isYAMLFile(d) {
 			paths = append(paths, path)
 		}
 		return err
