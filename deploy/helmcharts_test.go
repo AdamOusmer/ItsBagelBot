@@ -5,9 +5,7 @@ package deploy
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -39,30 +37,45 @@ var exactVersion = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 func loadHelmCharts(t *testing.T) map[string]helmChart {
 	t.Helper()
 	charts := map[string]helmChart{}
+	for _, path := range yamlFiles(t) {
+		for _, doc := range decodeDocs(t, path) {
+			if doc.Kind != "HelmChart" {
+				continue
+			}
+			require.NotContains(t, charts, doc.Metadata.Name, "duplicate HelmChart in %s", path)
+			charts[doc.Metadata.Name] = doc
+		}
+	}
+	return charts
+}
+
+func yamlFiles(t *testing.T) []string {
+	t.Helper()
+	var paths []string
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".yaml") {
-			return err
+		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".yaml") {
+			paths = append(paths, path)
 		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		dec := yaml.NewDecoder(bytes.NewReader(raw))
-		for {
-			var doc helmChart
-			if err := dec.Decode(&doc); errors.Is(err, io.EOF) {
-				return nil
-			} else if err != nil {
-				return nil
-			}
-			if doc.Kind == "HelmChart" {
-				require.NotContains(t, charts, doc.Metadata.Name, "duplicate HelmChart %s (%s)", doc.Metadata.Name, path)
-				charts[doc.Metadata.Name] = doc
-			}
-		}
+		return err
 	})
 	require.NoError(t, err)
-	return charts
+	return paths
+}
+
+func decodeDocs(t *testing.T, path string) []helmChart {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var docs []helmChart
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	for {
+		var doc helmChart
+		err := dec.Decode(&doc)
+		if err != nil {
+			return docs
+		}
+		docs = append(docs, doc)
+	}
 }
 
 // k3s's helm-controller re-reconciles every HelmChart object whenever the
