@@ -19,9 +19,13 @@ func (r *Loyalty) SetInvalidation(nc *nats.Conn, prefix string) {
 	r.nc, r.invalidationPrefix = nc, prefix
 }
 
+func (r *Loyalty) invalidationReady() bool {
+	return r.nc != nil && !r.nc.IsClosed() && r.invalidationPrefix != ""
+}
+
 // Caller must hold r.persistMu.
 func (r *Loyalty) publishEarned(earn map[balKey]*earnSum) {
-	if r.nc == nil || r.nc.IsClosed() || r.invalidationPrefix == "" {
+	if !r.invalidationReady() {
 		return
 	}
 	viewers := map[uint64][]string{}

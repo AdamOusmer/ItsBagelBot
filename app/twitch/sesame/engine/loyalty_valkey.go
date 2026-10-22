@@ -474,21 +474,31 @@ func (s *ValkeyLoyaltyStore) onInvalidation(msg *nats.Msg) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), balanceInvalidateTimeout)
 	defer cancel()
-	if err := s.dropBalances(ctx, id, dto.Keys); err != nil {
+	if err := s.dropBalances(ctx, balanceDrop{broadcasterID: id, viewerIDs: dto.Keys}); err != nil {
 		s.log.Warn("loyalty: failed to drop cached balances", module.BIDField(id), zap.Error(err))
 	}
 }
 
-func (s *ValkeyLoyaltyStore) dropBalances(ctx context.Context, broadcasterID uint64, viewerIDs []string) error {
-	if len(viewerIDs) == 0 {
-		return s.dropChannelBalances(ctx, broadcasterID)
-	}
-	keys := make([]string, 0, len(viewerIDs))
-	for _, raw := range viewerIDs {
+type balanceDrop struct {
+	broadcasterID uint64
+	viewerIDs     []string
+}
+
+func (d balanceDrop) keys() []string {
+	keys := make([]string, 0, len(d.viewerIDs))
+	for _, raw := range d.viewerIDs {
 		if id, err := strconv.ParseUint(raw, 10, 64); err == nil && id != 0 {
-			keys = append(keys, balanceKey(broadcasterID, id))
+			keys = append(keys, balanceKey(d.broadcasterID, id))
 		}
 	}
+	return keys
+}
+
+func (s *ValkeyLoyaltyStore) dropBalances(ctx context.Context, d balanceDrop) error {
+	if len(d.viewerIDs) == 0 {
+		return s.dropChannelBalances(ctx, d.broadcasterID)
+	}
+	keys := d.keys()
 	if len(keys) == 0 {
 		return nil
 	}
