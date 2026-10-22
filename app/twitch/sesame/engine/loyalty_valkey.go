@@ -474,9 +474,25 @@ func (s *ValkeyLoyaltyStore) onInvalidation(msg *nats.Msg) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), balanceInvalidateTimeout)
 	defer cancel()
-	if err := s.dropChannelBalances(ctx, id); err != nil {
+	if err := s.dropBalances(ctx, id, dto.Keys); err != nil {
 		s.log.Warn("loyalty: failed to drop cached balances", module.BIDField(id), zap.Error(err))
 	}
+}
+
+func (s *ValkeyLoyaltyStore) dropBalances(ctx context.Context, broadcasterID uint64, viewerIDs []string) error {
+	if len(viewerIDs) == 0 {
+		return s.dropChannelBalances(ctx, broadcasterID)
+	}
+	keys := make([]string, 0, len(viewerIDs))
+	for _, raw := range viewerIDs {
+		if id, err := strconv.ParseUint(raw, 10, 64); err == nil && id != 0 {
+			keys = append(keys, balanceKey(broadcasterID, id))
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return s.primary.Do(ctx, s.primary.B().Unlink().Key(keys...).Build()).Error()
 }
 
 func (s *ValkeyLoyaltyStore) dropChannelBalances(ctx context.Context, broadcasterID uint64) error {

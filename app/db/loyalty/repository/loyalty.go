@@ -21,6 +21,7 @@ import (
 
 	entsql "entgo.io/ent/dialect/sql"
 
+	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -102,6 +103,9 @@ type Loyalty struct {
 	sqldb      *sql.DB
 	app        *newrelic.Application
 	log        *zap.Logger
+
+	nc                 *nats.Conn
+	invalidationPrefix string
 
 	// A transaction-scoped writer reuses the same bulk statement builders.
 	writeChunk func(context.Context, chunkStmt)
@@ -289,6 +293,7 @@ func (r *Loyalty) Flush(ctx context.Context) {
 	ctx = newrelic.NewContext(ctx, txn)
 
 	r.flushEarned(ctx, txn, earn)
+	r.publishEarned(earn)
 	r.flushBumps(ctx, txn, bumps)
 }
 
