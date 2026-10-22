@@ -190,6 +190,8 @@ func main() {
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
+	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
+	repo.SetInvalidation(nc, invalidationPrefix)
 
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
@@ -203,7 +205,7 @@ func main() {
 	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
 		RPCWiring:          bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:               repo,
-		InvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
+		InvalidationPrefix: invalidationPrefix,
 	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
 	// The lane check must stay hard: a wedged consumer stops points accruing while health reads green.
