@@ -68,7 +68,7 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1791783777-e32454c7a2f3@sha256:20cf8148c278d864f99ff9995746dfff5618f757fcd2d1658c3db3aac4c59f1b
+          image: ghcr.io/adamousmer/itsbagelbot/nats-server:main-1792658170-def7d9409034@sha256:1234142f09bfe47c94a2a8d0646e04f4c0610b007ad898861b16864ce929e72e
 
 
           imagePullPolicy: IfNotPresent
