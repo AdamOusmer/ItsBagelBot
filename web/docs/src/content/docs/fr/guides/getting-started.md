@@ -30,7 +30,7 @@ Voir la [vue d'ensemble du système](/fr/reference/system-overview/) et `CONTEXT
 ## Prérequis
 
 * **Go** 1.26.5 (`go.mod`).
-* **Bun** 1.4.2 (`packageManager` dans `web/package.json`).
+* **Bun** 1.4.4 (`packageManager` dans `web/package.json`).
 * **Elixir** 1.17 ou plus récent, uniquement pour l'ingress Twitch (`app/twitch/ingress/mix.exs`).
 
 ## Installation locale
