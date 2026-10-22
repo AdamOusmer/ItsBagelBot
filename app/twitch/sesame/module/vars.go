@@ -9,11 +9,18 @@ import (
 )
 
 func Expand(dst []byte, s string, repl func(tok tmpl.Token) (val string, ok bool)) []byte {
-	return tmpl.Append(dst, s, repl)
+	return tmpl.Append(dst, s, literalValues(repl))
 }
 
 func ExpandString(s string, repl func(tok tmpl.Token) (val string, ok bool)) string {
-	return tmpl.Expand(s, repl)
+	return tmpl.Expand(s, literalValues(repl))
+}
+
+func literalValues(repl func(tok tmpl.Token) (val string, ok bool)) func(tok tmpl.Token) (string, bool) {
+	return func(tok tmpl.Token) (string, bool) {
+		val, ok := repl(tok)
+		return tmpl.ValueEscaper.Replace(val), ok
+	}
 }
 
 func pureFallback(tok tmpl.Token) (string, bool) {
@@ -142,11 +149,11 @@ func (p Palette) Resolve(tok tmpl.Token) (string, bool) {
 }
 
 func (p Palette) Expand(dst []byte, s string) []byte {
-	return tmpl.Append(dst, s, p.Resolve)
+	return Expand(dst, s, p.Resolve)
 }
 
 func (p Palette) ExpandString(s string) string {
-	return tmpl.Expand(s, p.Resolve)
+	return ExpandString(s, p.Resolve)
 }
 
 type Locale string
