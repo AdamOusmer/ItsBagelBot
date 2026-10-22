@@ -15,6 +15,13 @@ configMapGenerator:
       - auth.conf=nats-operator.conf
       - operator.jwt
       - accounts.conf=nats-accounts.conf
+  - name: nats-config-advertise
+    files:
+      - nats.conf=nats-client-advertise.conf
+      - nats-base.conf=nats-server.conf
+      - auth.conf=nats-operator.conf
+      - operator.jwt
+      - accounts.conf=nats-accounts.conf
   - name: nats-leaf-config
     files:
       - nats.conf=nats-leaf-server.conf

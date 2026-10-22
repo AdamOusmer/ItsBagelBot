@@ -67,7 +67,7 @@ func TestHubPinsTheBusAccountByPublicKey(t *testing.T) {
 func TestBothClustersMountTheOperatorTrustFiles(t *testing.T) {
 	kustomization := readText(t, "kustomization.yaml")
 	for _, entry := range []string{"auth.conf=nats-operator.conf", "- operator.jwt", "accounts.conf=nats-accounts.conf"} {
-		assert.Equal(t, 2, strings.Count(kustomization, entry), "%q must appear in both the hub and leaf config maps", entry)
+		assert.Equal(t, 3, strings.Count(kustomization, entry), "%q must appear in the hub, hub advertise and leaf config maps", entry)
 	}
 }
 
