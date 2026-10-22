@@ -24,8 +24,8 @@
   "status.closed": "Keine Verlosung läuft. Mods können mit !raffle oder !mraffle eine starten.",
   "status.open": "Die Verlosung läuft. Teilnehmerzahl: {raffle:count}. Auslosung in ~{raffle:mins} Min.! Gib !join ein!",
   "status.open.secs": "Die Verlosung läuft. Teilnehmerzahl: {raffle:count}. Auslosung in ~{raffle:secs} Sek.! Gib !join ein!",
-  "won": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants})! Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten!",
-  "won.plain": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants})!",
-  "won.points": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants}): {raffle:amount} {raffle:points} pro Gewinner, bereits gutgeschrieben!",
-  "won.points.claim": "{raffle:targets}, herzlichen Glückwunsch zum Gewinn bei der Verlosung (Gewinnerzahl: {raffle:count}, Teilnahmen: {raffle:entrants}): {raffle:amount} {raffle:points} pro Gewinner, bereits gutgeschrieben! Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten!"
+  "won": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung! Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten.",
+  "won.plain": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung!",
+  "won.points": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung! {raffle:amount} {raffle:points} sind bereits gutgeschrieben.",
+  "won.points.claim": "Glückwunsch {raffle:targets} zum Gewinn der Verlosung! {raffle:amount} {raffle:points} sind bereits gutgeschrieben. Gib innerhalb von {raffle:claim} Min. !claim ein, um {raffle:prize} zu erhalten."
 }

@@ -24,8 +24,8 @@
   "status.closed": "No hay ningún sorteo en curso. Los moderadores pueden abrir uno con !raffle o !mraffle.",
   "status.open": "Sorteo abierto. Participaciones: {raffle:count}. ¡Se sortea en ~{raffle:mins} min! ¡Escribe !join!",
   "status.open.secs": "Sorteo abierto. Participaciones: {raffle:count}. ¡Se sortea en ~{raffle:secs} s! ¡Escribe !join!",
-  "won": "¡{raffle:targets}, felicidades por ganar el sorteo! Ganadores: {raffle:count}; participaciones: {raffle:entrants}. ¡Escribe !claim en un plazo de {raffle:claim} min para recibir {raffle:prize}!",
-  "won.plain": "¡{raffle:targets}, felicidades por ganar el sorteo! Ganadores: {raffle:count}; participaciones: {raffle:entrants}.",
-  "won.points": "¡{raffle:targets}, felicidades por ganar el sorteo! Ganadores: {raffle:count}; participaciones: {raffle:entrants}. ¡{raffle:amount} {raffle:points} por ganador, ya en tu saldo!",
-  "won.points.claim": "¡{raffle:targets}, felicidades por ganar el sorteo! Ganadores: {raffle:count}; participaciones: {raffle:entrants}. ¡{raffle:amount} {raffle:points} por ganador, ya en tu saldo! ¡Escribe !claim en un plazo de {raffle:claim} min para recibir {raffle:prize}!"
+  "won": "¡Felicidades {raffle:targets}, ganaste el sorteo! Escribe !claim en un plazo de {raffle:claim} min para recibir {raffle:prize}.",
+  "won.plain": "¡Felicidades {raffle:targets}, ganaste el sorteo!",
+  "won.points": "¡Felicidades {raffle:targets}, ganaste el sorteo! {raffle:amount} {raffle:points} ya están en tu saldo.",
+  "won.points.claim": "¡Felicidades {raffle:targets}, ganaste el sorteo! {raffle:amount} {raffle:points} ya están en tu saldo. Escribe !claim en un plazo de {raffle:claim} min para recibir {raffle:prize}."
 }

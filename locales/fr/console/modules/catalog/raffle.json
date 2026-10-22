@@ -53,7 +53,7 @@
       "label": "Gagnants annoncés",
       "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) : {amount} {points} par gagnant, déjà crédités !"
+      "defaultMessage": "Bravo {targets}, vous avez gagné la loterie ! {amount} {points} sont déjà sur votre solde."
     },
     "claimOk": {
       "label": "Prix confirmé",

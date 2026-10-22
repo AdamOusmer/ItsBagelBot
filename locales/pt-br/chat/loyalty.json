@@ -19,7 +19,6 @@
   "points.adjusted": "@{loyalty:target} agora tem {loyalty:points} {loyalty:name}.",
   "points.disabled": "@{loyalty:user} essa ação está desativada neste canal.",
   "points.gave": "@{loyalty:user} você deu {loyalty:amount} {loyalty:name} a @{loyalty:target}. Seu saldo agora é {loyalty:points}.",
-  "points.target.mention": "@{loyalty:user} marque a pessoa com @, por exemplo !points give @nome 100",
   "points.user.unknown": "@{loyalty:user} o usuário {loyalty:target} não foi encontrado na Twitch.",
   "points.give.usage": "Uso: !points give @user <amount>",
   "points.insufficient": "@{loyalty:user} você só tem {loyalty:points} {loyalty:name}.",

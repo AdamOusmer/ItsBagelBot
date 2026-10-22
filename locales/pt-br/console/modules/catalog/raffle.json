@@ -53,7 +53,7 @@
       "label": "Resultado anunciado",
       "tagline": "Quando um sorteio define quem venceu (manual ou por prazo).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, parabéns pela vitória no sorteio (vencedores: {count}; participantes: {entrants}): {amount} {points} por vencedor, já no seu saldo!"
+      "defaultMessage": "Parabéns {targets}, você ganhou o sorteio! {amount} {points} já estão no seu saldo."
     },
     "claimOk": {
       "label": "Prêmio confirmado",

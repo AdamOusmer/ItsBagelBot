@@ -75,7 +75,7 @@ export const RAFFLE_MODULE: ModuleDef =
       enableKey: 'wonEnabled',
       messageKey: 'wonMessage',
       defaultMessage:
-        '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants}): {amount} {points} per winner, already in your balance!',
+        'Congrats {targets}, you won the raffle! {amount} {points} just landed in your balance.',
       tokens: replyTokens(['targets', 'count', 'entrants', 'amount', 'points', 'claim', 'prize'], { targets: '@SnackPackPanda, @crustycrumbs', count: '2', entrants: '18', amount: '500', points: 'points', claim: '15', prize: 'a game key' })
     },
     {

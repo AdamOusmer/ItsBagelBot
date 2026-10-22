@@ -53,7 +53,7 @@
       "label": "Winners announced",
       "tagline": "When a draw names its winners (manual or timed).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants}): {amount} {points} per winner, already in your balance!"
+      "defaultMessage": "Congrats {targets}, you won the raffle! {amount} {points} just landed in your balance."
     },
     "claimOk": {
       "label": "Prize confirmed",
