@@ -1,0 +1,29 @@
+apiVersion: cilium.io/v2
+kind: CiliumNodeConfig
+metadata:
+  name: worker-mtu-eth1
+  namespace: kube-system
+spec:
+  nodeSelector:
+    matchExpressions:
+      - key: kubernetes.io/hostname
+        operator: In
+        values: [node1, node2, node3]
+  defaults:
+    devices: eth0 eth1 tailscale0
+    direct-routing-device: eth1
+    mtu: "9000"
+---
+# cp1 sits on 10.0.0.0/24 and reaches the workers' 10.10.0.x InternalIPs only through a gateway,
+# so auto-direct-node-routes aborts datapath init there. Pod CIDRs ride Tailscale routes (table 52).
+apiVersion: cilium.io/v2
+kind: CiliumNodeConfig
+metadata:
+  name: cp1-skip-unreachable-direct-routes
+  namespace: kube-system
+spec:
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/hostname: cp1
+  defaults:
+    direct-routing-skip-unreachable: "true"

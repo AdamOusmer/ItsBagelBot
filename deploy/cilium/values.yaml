@@ -39,3 +39,18 @@ l7Proxy: false
 
 envoy:
   enabled: false
+  rollOutPods: true
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+
+operator:
+  replicas: 2
+
+rollOutCiliumPods: true
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
