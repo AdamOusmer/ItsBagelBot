@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -36,33 +37,40 @@ func (f *probeFetch) count() int {
 	return f.calls
 }
 
-func TestBuiltinCommandsKeepViewerTokensLiteral(t *testing.T) {
-	const probe = "{urlfetch:probe.secret}"
+const probeToken = "{urlfetch:probe.secret}"
+
+type builtinProbe struct {
+	module string
+	text   string
+}
+
+func builtinProbes() []builtinProbe {
 	nop := engine.Deps{Log: zap.NewNop(), Special: engine.NewSpecialSet("")}
+	var probes []builtinProbe
 	for _, m := range All(nop) {
 		for _, cmd := range m.Commands {
-			for _, args := range []string{probe, "add " + probe, "x " + probe, "@viewer " + probe} {
-				t.Run(cmd.Name+"/"+args, func(t *testing.T) {
-					fetch, out := runBuiltin(t, m.Name, "!"+cmd.Name+" "+args)
-					if fetch.count() != 0 {
-						t.Fatalf("viewer token ran a fetch; replies %q", out)
-					}
-					for _, line := range out {
-						if strings.Contains(line, "LEAKED") {
-							t.Fatalf("viewer token resolved in reply %q", line)
-						}
-					}
-				})
+			for _, prefix := range []string{"", "add ", "x ", "@viewer "} {
+				probes = append(probes, builtinProbe{module: m.Name, text: "!" + cmd.Name + " " + prefix + probeToken})
 			}
 		}
+	}
+	return probes
+}
+
+func TestBuiltinCommandsKeepViewerTokensLiteral(t *testing.T) {
+	for _, probe := range builtinProbes() {
+		t.Run(probe.text, func(t *testing.T) {
+			fetch, out := runBuiltin(t, probe.module, probe.text)
+			assert.Zero(t, fetch.count(), "viewer token ran a fetch; replies %q", out)
+			assert.NotContains(t, strings.Join(out, "\n"), "LEAKED")
+		})
 	}
 }
 
 func TestStoredQuoteKeepsTokensLiteral(t *testing.T) {
 	fetch, out := runBuiltin(t, "quotes", "!quote 1")
-	if fetch.count() != 0 || len(out) != 1 || !strings.Contains(out[0], "{urlfetch:probe.secret}") {
-		t.Fatalf("fetches=%d replies=%q", fetch.count(), out)
-	}
+	assert.Zero(t, fetch.count())
+	assert.Equal(t, []string{"Quote #1: said " + probeToken + " (2026-07-10)"}, out)
 }
 
 func runBuiltin(t *testing.T, moduleName, text string) (*probeFetch, []string) {
@@ -79,7 +87,7 @@ func runBuiltin(t *testing.T, moduleName, text string) (*probeFetch, []string) {
 		Special:     engine.NewSpecialSet(""),
 		Cooldown:    engine.NoopCooldown{},
 		Log:         zap.NewNop(),
-		Quotes:      newFakeQuotes("said {urlfetch:probe.secret}"),
+		Quotes:      newFakeQuotes("said " + probeToken),
 		Followage:   &fakeFollowage{},
 		CustomFetch: fetch,
 	}

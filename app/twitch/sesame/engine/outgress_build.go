@@ -63,7 +63,7 @@ func buildOutgressMessage(o *module.Output) (outgress.Message, error) {
 		return payloadMessage(outgress.TypeBatch, o.BroadcasterID, &outgress.Batch{ID: o.BatchID, Items: items})
 	}
 
-	o.Text = tmpl.Unescape(o.Text)
+	o.Text = tmpl.ValueUnescaper.Replace(o.Text)
 	build, ok := outgressBuilders[o.Type]
 	if !ok {
 		return outgress.Message{

@@ -19,7 +19,7 @@ func ExpandString(s string, repl func(tok tmpl.Token) (val string, ok bool)) str
 func literalValues(repl func(tok tmpl.Token) (val string, ok bool)) func(tok tmpl.Token) (string, bool) {
 	return func(tok tmpl.Token) (string, bool) {
 		val, ok := repl(tok)
-		return tmpl.Escape(val), ok
+		return tmpl.ValueEscaper.Replace(val), ok
 	}
 }
 

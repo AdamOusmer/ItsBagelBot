@@ -51,7 +51,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 func mcsrSessionText(call statsCall[mcsrConfig], r *gossiprpc.McsrSessionReply) string {
 	if !r.HasSnapshot {
 		started := i18n.T(call.Ctx.Locale, "mcsr.session.started")
-		return tmpl.Escape(r.Nickname) + ": " + fmt.Sprintf(started, mcsrElo(call.Ctx, r.Elo))
+		return tmpl.ValueEscaper.Replace(r.Nickname) + ": " + fmt.Sprintf(started, mcsrElo(call.Ctx, r.Elo))
 	}
 	return mcsrSessionPalette(call.Ctx, r).ExpandNamespaced("mcsr", mcsrSessionTemplate(call.Cfg.SessionMessage))
 }
@@ -360,7 +360,7 @@ func mcsrPbText(call statsCall[mcsrConfig], v mcsrPbView) string {
 }
 
 func mcsrPbEmptyText(c *module.Context, player, window string) string {
-	return tmpl.Escape(player) + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.pb.empty"), mcsrPbWindowLabel(c, window))
+	return tmpl.ValueEscaper.Replace(player) + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.pb.empty"), mcsrPbWindowLabel(c, window))
 }
 
 func mcsrPbWindowLabel(c *module.Context, window string) string {
