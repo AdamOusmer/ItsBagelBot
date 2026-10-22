@@ -77,3 +77,89 @@ spec:
               app.kubernetes.io/name: newrelic-prometheus-agent
       ports:
         - port: 7777
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-nats-leaf
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats-leaf
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-leaf-data-plane
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats-leaf
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ops
+          podSelector:
+            matchLabels:
+              app: deployer
+      ports:
+        - port: 4223
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nats-leaf
+      ports:
+        - port: 6223
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nats-leaf-monitor
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats-leaf
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+          podSelector:
+            matchLabels:
+              app: keda-operator
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ops
+          podSelector:
+            matchLabels:
+              app: deployer
+      ports:
+        - port: 8223
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: newrelic-prometheus-agent
+      ports:
+        - port: 7778
