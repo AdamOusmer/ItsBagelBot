@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/app/deployer/internal/events"
 	"ItsBagelBot/app/deployer/internal/gh"
 	"ItsBagelBot/app/deployer/internal/kube/apply"
+	"ItsBagelBot/app/deployer/internal/kube/certroll"
 	"ItsBagelBot/app/deployer/internal/kube/watch"
 	"ItsBagelBot/app/deployer/internal/natsclaims"
 	"ItsBagelBot/app/deployer/internal/ports"
@@ -32,6 +33,8 @@ import (
 const (
 	serviceName = "deployer"
 	queueGroup  = "deployer-rpc"
+
+	certRollNamespace = "app"
 )
 
 const (
@@ -70,6 +73,7 @@ func main() {
 		Log:      log,
 	})
 	stopped := runEngine(ctx, eng, log)
+	runCertRoller(ctx, kube, log)
 
 	wiring := bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log, Timeout: cfg.RPCTimeout}
 	svcboot.FatalIf(log, rpc.Serve(wiring, cfg.RPCPrefix, eng, rpc.NewAuthorizer(nc, rpc.AuthSubject(cfg.UsersAuthSubject))),
@@ -103,6 +107,12 @@ func runEngine(ctx context.Context, eng *engine.Engine, log *zap.Logger) <-chan 
 		}
 	}()
 	return stopped
+}
+
+func runCertRoller(ctx context.Context, kube *rest.Config, log *zap.Logger) {
+	roller, err := certroll.New(kube, log)
+	svcboot.FatalIf(log, err, "failed to build cert roller")
+	go roller.Run(ctx, []string{certRollNamespace}, certroll.Debounce)
 }
 
 func awaitEngine(stopped <-chan struct{}, log *zap.Logger) {
