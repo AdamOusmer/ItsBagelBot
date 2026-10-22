@@ -55,8 +55,8 @@ spec:
           - X25519
 
     service:
-      type: ClusterIP
       spec:
+        type: ClusterIP
         trafficDistribution: PreferClose
         internalTrafficPolicy: Local
 
