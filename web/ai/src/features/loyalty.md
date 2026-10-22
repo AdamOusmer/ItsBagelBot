@@ -142,7 +142,7 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 ### `!duel`
 
-- Syntax: `!duel`, `!duel <stake>`, `!duel @user <stake>`
+- Syntax: `!duel`, `!duel <stake|half|all>`, `!duel @user <stake|half|all>`
 - Aliases: None registered.
 - Who can run it: Everyone with enough points, while loyalty and duels are enabled.
 - Behaviour: Shows status, opens or joins a pot, or challenges a viewer to equal stakes.

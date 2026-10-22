@@ -11,6 +11,7 @@
   "challenge.unknown": "@{duel:user} no se encontró al usuario de Twitch {duel:target}.",
   "challenge.pending": "@{duel:user} hay un desafío entre dos personas pendiente. Espera a que se resuelva.",
   "challenge.self": "@{duel:user} no puedes batirte en duelo contigo mismo.",
+  "challenge.short": "@{duel:user} ahora @{duel:target} no puede cubrir {duel:stake} {duel:points}. Prueba con una apuesta menor.",
   "challenge.sent": "¡@{duel:user} desafía a @{duel:target} por {duel:stake} {duel:points}! @{duel:target}, escribe !duel accept en un plazo de {duel:secs}s. ¡Quien gane se lleva {duel:pot}!",
   "decline.ok": "@{duel:user} rechazó el desafío. Se devolvieron {duel:refund} {duel:points} a @{duel:opener}.",
   "join.already": "@{duel:user} ya estás en este duelo (participaciones: {duel:count}; bote: {duel:pot} {duel:points}).",
@@ -22,9 +23,10 @@
   "opened": "¡Duelo con bote ABIERTO! @{duel:user} aportó {duel:stake} {duel:points}. Escribe !duel <amount> para participar. ¡Sorteo en {duel:secs}s!",
   "stake.max": "@{duel:user} la apuesta máxima es {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} la apuesta mínima es {duel:min} {duel:points}.",
+  "stake.short": "@{duel:user} no puedes cubrir esa apuesta; tienes {duel:balance} {duel:points}.",
   "status.challenge": "Duelo pendiente: @{duel:opener} contra @{duel:target}, {duel:stake} {duel:points} por persona. El plazo para aceptar termina en {duel:secs}s.",
   "status.none": "No hay ningún duelo en curso. Abre un bote con !duel <amount>, o desafía a alguien con !duel @user <amount>.",
   "status.pot": "Duelo con bote abierto. Participaciones: {duel:count}; bote: {duel:pot} {duel:points}. Sorteo en ~{duel:secs}s. ¡Escribe !duel <amount> para participar!",
-  "usage": "Uso: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
+  "usage": "Uso: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
   "won": "¡Caen las espadas! @{duel:winner} vence a @{duel:loser} y se lleva {duel:pot} {duel:points}."
 }

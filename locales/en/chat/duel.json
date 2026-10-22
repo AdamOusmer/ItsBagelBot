@@ -11,6 +11,7 @@
   "challenge.unknown": "@{duel:user} Twitch user {duel:target} was not found.",
   "challenge.pending": "@{duel:user} a head-to-head challenge is pending. Wait for it to settle.",
   "challenge.self": "@{duel:user} you can't duel yourself.",
+  "challenge.short": "@{duel:user} @{duel:target} can't cover {duel:stake} {duel:points} right now. Try a smaller stake.",
   "challenge.sent": "@{duel:user} challenges @{duel:target} for {duel:stake} {duel:points}! @{duel:target}, type !duel accept within {duel:secs}s. Winner takes {duel:pot}!",
   "decline.ok": "@{duel:user} declined the challenge. @{duel:opener}'s {duel:refund} {duel:points} are back.",
   "join.already": "@{duel:user} you're already in this duel ({duel:count} entered, {duel:pot} {duel:points} in the pot).",
@@ -22,9 +23,10 @@
   "opened": "Pot duel is LIVE! @{duel:user} put up {duel:stake} {duel:points}. Type !duel <amount> to join. Drawing in {duel:secs}s!",
   "stake.max": "@{duel:user} max stake is {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} minimum stake is {duel:min} {duel:points}.",
+  "stake.short": "@{duel:user} you can't cover that stake, you have {duel:balance} {duel:points}.",
   "status.challenge": "Duel pending: @{duel:opener} vs @{duel:target}, {duel:stake} {duel:points} each. Accept window closes in {duel:secs}s.",
   "status.none": "No duel running. Open a pot with !duel <amount>, or challenge someone with !duel @user <amount>.",
   "status.pot": "Pot duel live: {duel:count} in, {duel:pot} {duel:points} in the pot. Drawing in ~{duel:secs}s. Type !duel <amount> to join!",
-  "usage": "Usage: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
+  "usage": "Usage: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
   "won": "The blades fall. @{duel:winner} defeats @{duel:loser} and takes {duel:pot} {duel:points}!"
 }
