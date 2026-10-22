@@ -136,6 +136,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: NATS_LOCAL_LEAF_HEALTH_URL
+              value: https://nats-leaf-local.messaging:8222/healthz
             - name: ADMIN_L1_CACHE_CAPACITY
               value: "250"
             - name: NATS_ADMIN_SUBJECT

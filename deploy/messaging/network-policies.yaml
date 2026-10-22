@@ -152,6 +152,12 @@ spec:
           podSelector:
             matchLabels:
               app: deployer
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: db
       ports:
         - port: 8223
     - from:

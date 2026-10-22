@@ -4,6 +4,7 @@
 package bus
 
 import (
+	"crypto/tls"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
@@ -43,7 +44,7 @@ func loadFailbackConfig() failbackConfig {
 	return failbackConfig{
 		nodeName: env.Get("NODE_NAME", ""),
 		// Keep the .messaging qualifier: other namespaces cannot resolve the short name.
-		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local.messaging:8222/healthz"),
+		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "https://nats-leaf-local.messaging:8222/healthz"),
 		interval:  durationEnv("NATS_FAILBACK_INTERVAL", defaultFailbackInterval),
 		successes: positiveIntEnv("NATS_FAILBACK_SUCCESSES", defaultFailbackSuccesses),
 		timeout:   durationEnv("NATS_FAILBACK_PROBE_TIMEOUT", defaultFailbackTimeout),
@@ -91,7 +92,9 @@ func localLeafReady(healthURL string, timeout time.Duration) bool {
 	if err != nil {
 		return false
 	}
-	resp, err := (&http.Client{Timeout: timeout}).Do(req)
+	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: natsCAPool(), MinVersion: tls.VersionTLS12}}
+	defer transport.CloseIdleConnections()
+	resp, err := (&http.Client{Timeout: timeout, Transport: transport}).Do(req)
 	if err != nil {
 		return false
 	}

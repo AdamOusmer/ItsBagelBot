@@ -1,6 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 mock.module('newrelic', () => ({
@@ -118,6 +121,48 @@ describe('local leaf failback probe', () => {
   test('rejects non-200 and unreachable endpoints', async () => {
     expect(await localLeafReady(`${server.url}missing`, 500)).toBe(false);
     expect(await localLeafReady('http://127.0.0.1:1/healthz', 25)).toBe(false);
+  });
+});
+
+describe('localLeafReady over TLS', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'leaf-health-'));
+  const file = (name: string) => join(dir, name);
+  const openssl = (...args: string[]) => {
+    const run = Bun.spawnSync(['openssl', ...args]);
+    if (run.exitCode !== 0) throw new Error(run.stderr.toString());
+  };
+  const ec = ['-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes'];
+  writeFileSync(file('leaf.ext'), 'subjectAltName=DNS:localhost');
+  openssl('req', '-x509', ...ec, '-days', '1', '-subj', '/CN=fleet-ca', '-keyout', file('ca.key'), '-out', file('ca.pem'));
+  openssl('req', '-new', ...ec, '-subj', '/CN=leaf', '-keyout', file('leaf.key'), '-out', file('leaf.csr'));
+  openssl('x509', '-req', '-in', file('leaf.csr'), '-CA', file('ca.pem'), '-CAkey', file('ca.key'),
+    '-set_serial', '1', '-days', '1', '-extfile', file('leaf.ext'), '-out', file('leaf.pem'));
+  openssl('req', '-x509', ...ec, '-days', '1', '-subj', '/CN=other-ca', '-keyout', file('other.key'), '-out', file('other.pem'));
+
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    tls: { cert: Bun.file(file('leaf.pem')), key: Bun.file(file('leaf.key')) },
+    fetch: () => new Response('ok')
+  });
+  const fleetCA = readFileSync(file('ca.pem'), 'utf8');
+  const otherCA = readFileSync(file('other.pem'), 'utf8');
+
+  afterAll(() => {
+    server.stop(true);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('accepts a leaf signed by the fleet CA', async () => {
+    expect(await localLeafReady(`https://localhost:${server.port}/healthz`, 2000, fleetCA)).toBe(true);
+  });
+
+  test('rejects a leaf outside the fleet CA', async () => {
+    expect(await localLeafReady(`https://localhost:${server.port}/healthz`, 2000, otherCA)).toBe(false);
+  });
+
+  test('rejects a host name missing from the leaf certificate', async () => {
+    expect(await localLeafReady(`https://127.0.0.1:${server.port}/healthz`, 2000, fleetCA)).toBe(false);
   });
 });
 
