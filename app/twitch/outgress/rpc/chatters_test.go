@@ -49,9 +49,6 @@ func (a *chatterFakeAPI) StreamSession(context.Context, string) (string, time.Ti
 	}
 	return "stream-1", time.Unix(100, 0), true, nil
 }
-func (a *chatterFakeAPI) SubscriberTiers(context.Context, string, []string) (map[string]string, error) {
-	return nil, nil
-}
 
 type chatterFakeLimiter struct {
 	requests []ratelimit.Request

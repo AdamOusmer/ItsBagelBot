@@ -20,6 +20,10 @@ import (
 
 const tieredPageBody = `{"data":[{"user_id":"7","user_login":"seven"},{"user_id":"8","user_login":"eight"}],"pagination":{}}`
 
+func (a *chatterFakeAPI) SubscriberTiers(context.Context, string, []string) (map[string]string, error) {
+	return nil, nil
+}
+
 func tierClient(rt func(*http.Request) (*http.Response, error)) *twitch.Client {
 	owner := twitch.NewBroadcasterTokens(func(string) *twitch.Source { return twitch.NewStaticTokenSource("owner") })
 	api := twitch.NewClient("client", twitch.NewStaticTokenSource("app"), twitch.NewStaticTokenSource("bot"), owner)
