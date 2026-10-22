@@ -86,25 +86,30 @@ func TestDuelCallsCarryTheChatterID(t *testing.T) {
 	assert.Equal(t, "renamedbob", fake.joinLogin)
 }
 
-func TestDuelChallengeTargetComesFromTheMention(t *testing.T) {
+func TestDuelChallengeTargetResolvesToAnID(t *testing.T) {
+	crust := engine.AccountAgeResult{TargetID: "77", UserFound: true}
 	for _, tc := range []struct {
 		name     string
 		mentions []lane.Mention
+		lookup   engine.AccountAgeResult
 		text     string
 		contains string
 		opened   bool
 	}{
-		{"mentioned target", []lane.Mention{{UserID: "77", UserLogin: "crust"}}, "!duel @Crust 400", "challenges", true},
-		{"no mention fragment", []lane.Mention{}, "!duel @Crust 400", "haven't seen", false},
-		{"plain word without an at sign", []lane.Mention{}, "!duel crust 400", "mention your opponent with @", false},
-		{"self under another login", []lane.Mention{{UserID: "42", UserLogin: "crust"}}, "!duel @Crust 400", "can't duel yourself", false},
+		{"mentioned target", []lane.Mention{{UserID: "77", UserLogin: "crust"}}, engine.AccountAgeResult{}, "!duel @Crust 400", "challenges", true},
+		{"no mention fragment", []lane.Mention{}, crust, "!duel @Crust 400", "was not found", false},
+		{"plain word resolves through twitch", []lane.Mention{}, crust, "!duel crust 400", "challenges", true},
+		{"plain word for an unknown user", []lane.Mention{}, engine.AccountAgeResult{}, "!duel crust 400", "was not found", false},
+		{"self under another login", []lane.Mention{{UserID: "42", UserLogin: "crust"}}, engine.AccountAgeResult{}, "!duel @Crust 400", "can't duel yourself", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
 			c := chatCtx("42", "maya")
 			c.Env.Mentions = tc.mentions
+			d := duelDeps(fake)
+			d.TwitchAccounts = &fakeAccountAge{result: tc.lookup}
 
-			out := runChat(t, Duel(duelDeps(fake)), c, tc.text)
+			out := runChat(t, Duel(d), c, tc.text)
 
 			require.Len(t, out, 1)
 			assert.Contains(t, strings.ToLower(out[0].Text), tc.contains)

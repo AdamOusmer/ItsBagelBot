@@ -8,7 +8,7 @@
   "busy": "@{duel:user} ce duel est en train d'être réglé, patiente une seconde.",
   "cancel.denied": "@{duel:user} seul l'auteur du duel ou un modo peut l'annuler.",
   "cancel.ok": "Duel annulé : {duel:refunds} remboursé(s), {duel:total} {duel:points} rendus.",
-  "challenge.mention": "@{duel:user} mentionne ton adversaire avec @, par exemple !duel @nom 50",
+  "challenge.unknown": "@{duel:user} l'utilisateur Twitch {duel:target} est introuvable.",
   "challenge.pending": "@{duel:user} un défi en face à face est en cours. Attends qu'il se règle.",
   "challenge.self": "@{duel:user} tu ne peux pas te défier toi-même.",
   "challenge.sent": "@{duel:user} défie @{duel:target} pour {duel:stake} {duel:points} ! @{duel:target}, tape !duel accept dans les {duel:secs}s. Le vainqueur prend {duel:pot} !",

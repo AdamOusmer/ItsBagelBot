@@ -8,7 +8,7 @@
   "busy": "@{duel:user} сейчас подводятся итоги дуэли, подождите немного.",
   "cancel.denied": "@{duel:user} отменить дуэль может только её инициатор или модератор.",
   "cancel.ok": "Дуэль отменена. Возвратов: {duel:refunds}, возвращено: {duel:total} {duel:points}.",
-  "challenge.mention": "@{duel:user} упомяните соперника через @, например !duel @name 50",
+  "challenge.unknown": "@{duel:user} пользователь Twitch {duel:target} не найден.",
   "challenge.pending": "@{duel:user} уже ожидается ответ на личный вызов. Дождитесь результата.",
   "challenge.self": "@{duel:user} нельзя вызвать на дуэль себя.",
   "challenge.sent": "@{duel:user} вызывает @{duel:target} на дуэль со ставкой {duel:stake} {duel:points}! @{duel:target}, введите !duel accept в течение {duel:secs} сек. Победитель заберёт {duel:pot}!",

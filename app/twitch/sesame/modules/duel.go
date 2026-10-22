@@ -45,11 +45,12 @@ type duelConfig struct {
 
 type duelCmd struct {
 	chatReplier
-	s   engine.DuelStore
-	c   *module.Context
-	cfg duelClamps
-	t   duelConfig
-	log *zap.Logger
+	s        engine.DuelStore
+	c        *module.Context
+	cfg      duelClamps
+	t        duelConfig
+	log      *zap.Logger
+	accounts engine.TwitchAccountLookup
 }
 
 type duelClamps struct {
@@ -74,8 +75,9 @@ func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.
 			MinStake: minOr(int64(raw.MinStake), duelMinStakeFloor),
 			MaxStake: min(maxOr(int64(raw.MaxStake), int64(raw.MinStake), duelDefaultMaxStake), engine.DuelMaxStake),
 		},
-		t:   raw,
-		log: log,
+		t:        raw,
+		log:      log,
+		accounts: d.TwitchAccounts,
 	}
 	return dc, true
 }
@@ -274,7 +276,7 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 		dc.refuseReply(emit, refused)
 		return nil
 	}
-	target, ok := dc.challengeTarget(who, req, emit)
+	target, ok := dc.challengeTarget(ctx, who, req, emit)
 	if !ok {
 		return nil
 	}
@@ -299,19 +301,15 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 	return nil
 }
 
-func (dc duelCmd) challengeTarget(who engine.DuelParty, req challengeReq, emit module.Emit) (engine.DuelParty, bool) {
+func (dc duelCmd) challengeTarget(ctx context.Context, who engine.DuelParty, req challengeReq, emit module.Emit) (engine.DuelParty, bool) {
 	login := req.target
 	if login == who.Login {
 		dc.reply(emit, "", "duel.challenge.self")
 		return engine.DuelParty{}, false
 	}
-	id := mentionedViewerID(dc.c.Env.Mentions, login)
-	if id == 0 && !req.atPrefixed {
-		dc.reply(emit, "", "duel.challenge.mention")
-		return engine.DuelParty{}, false
-	}
+	id := (viewerResolver{dc.accounts, dc.log}).resolve(ctx, dc.c.Env.Mentions, viewerTarget{login, req.atPrefixed})
 	if id == 0 {
-		dc.reply(emit, "", "duel.join.unknown")
+		dc.reply(emit, "", "duel.challenge.unknown", "target", login)
 		return engine.DuelParty{}, false
 	}
 	if id == who.ID {
