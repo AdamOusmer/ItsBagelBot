@@ -11,6 +11,7 @@
   "challenge.mention": "@{duel:user} marque seu oponente com @, por exemplo !duel @nome 50",
   "challenge.pending": "@{duel:user} há um desafio individual pendente. Aguarde a resolução.",
   "challenge.self": "@{duel:user} você não pode duelar consigo mesmo.",
+  "challenge.short": "@{duel:user} o saldo de @{duel:target} não cobre {duel:stake} {duel:points} agora. Tente uma aposta menor.",
   "challenge.sent": "@{duel:user} desafia @{duel:target} por {duel:stake} {duel:points}! @{duel:target}, digite !duel accept em até {duel:secs}s. Quem vencer leva {duel:pot}!",
   "decline.ok": "@{duel:user} recusou o desafio. @{duel:opener} recebeu de volta {duel:refund} {duel:points}.",
   "join.already": "@{duel:user} você já está neste duelo (participantes: {duel:count}, total acumulado: {duel:pot} {duel:points}).",
@@ -22,9 +23,10 @@
   "opened": "Duelo coletivo ABERTO! @{duel:user} apostou {duel:stake} {duel:points}. Digite !duel <amount> para entrar. Sorteio em {duel:secs}s!",
   "stake.max": "@{duel:user} a aposta máxima é {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} a aposta mínima é {duel:min} {duel:points}.",
+  "stake.short": "@{duel:user} seu saldo não cobre essa aposta: {duel:balance} {duel:points}.",
   "status.challenge": "Duelo pendente: @{duel:opener} vs @{duel:target}, {duel:stake} {duel:points} por pessoa. O prazo para aceitar termina em {duel:secs}s.",
   "status.none": "Nenhum duelo em andamento. Abra um duelo coletivo com !duel <amount> ou desafie alguém com !duel @user <amount>.",
   "status.pot": "Duelo coletivo aberto: participantes: {duel:count}; total acumulado: {duel:pot} {duel:points}. Sorteio em ~{duel:secs}s. Digite !duel <amount> para entrar!",
-  "usage": "Uso: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
+  "usage": "Uso: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
   "won": "As lâminas caem. @{duel:winner} derrota @{duel:loser} e leva {duel:pot} {duel:points}!"
 }

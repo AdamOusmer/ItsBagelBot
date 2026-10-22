@@ -45,11 +45,12 @@ type duelConfig struct {
 
 type duelCmd struct {
 	chatReplier
-	s   engine.DuelStore
-	c   *module.Context
-	cfg duelClamps
-	t   duelConfig
-	log *zap.Logger
+	s       engine.DuelStore
+	c       *module.Context
+	cfg     duelClamps
+	t       duelConfig
+	log     *zap.Logger
+	loyalty engine.LoyaltyStore
 }
 
 type duelClamps struct {
@@ -57,7 +58,7 @@ type duelClamps struct {
 }
 
 func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.Logger) (dc duelCmd, ok bool) {
-	if d.Duel == nil {
+	if d.Duel == nil || d.Loyalty == nil {
 		return duelCmd{}, false
 	}
 	var raw duelConfig
@@ -74,8 +75,9 @@ func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.
 			MinStake: minOr(int64(raw.MinStake), duelMinStakeFloor),
 			MaxStake: min(maxOr(int64(raw.MaxStake), int64(raw.MinStake), duelDefaultMaxStake), engine.DuelMaxStake),
 		},
-		t:   raw,
-		log: log,
+		t:       raw,
+		log:     log,
+		loyalty: d.Loyalty,
 	}
 	return dc, true
 }
@@ -138,8 +140,11 @@ func (dc duelCmd) routeKeyword(ctx context.Context, who engine.DuelParty, first 
 }
 
 func isChallengeShape(first string) bool {
+	if first == "" || isDerivedStake(first) {
+		return false
+	}
 	_, err := strconv.ParseInt(strings.TrimPrefix(first, "@"), 10, 64)
-	return err != nil && first != ""
+	return err != nil
 }
 
 type challengeReq struct {
@@ -184,10 +189,9 @@ func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 }
 
 func (dc duelCmd) stake(ctx context.Context, who engine.DuelParty, raw string, emit module.Emit) error {
-	stake, refused := dc.resolveStake(raw)
-	if refused != "" {
-		dc.refuseReply(emit, refused)
-		return nil
+	stake, ok, err := dc.resolveStake(ctx, who, raw, emit)
+	if !ok {
+		return err
 	}
 
 	res, err := dc.s.Join(ctx, dc.c.BroadcasterID, who, stake)
@@ -269,14 +273,16 @@ func (dc duelCmd) challenge(ctx context.Context, who engine.DuelParty, req chall
 		dc.reply(emit, "", "duel.usage")
 		return nil
 	}
-	stake, refused := dc.resolveStake(req.stake)
-	if refused != "" {
-		dc.refuseReply(emit, refused)
-		return nil
+	stake, ok, err := dc.resolveStake(ctx, who, req.stake, emit)
+	if !ok {
+		return err
 	}
 	target, ok := dc.challengeTarget(who, req, emit)
 	if !ok {
 		return nil
+	}
+	if covered, err := dc.targetCovers(ctx, target, stake, emit); !covered {
+		return err
 	}
 	res, err := dc.s.Open(ctx, dc.c.BroadcasterID, engine.DuelOpenSpec{
 		Kind:             engine.DuelChallenge,
@@ -406,30 +412,74 @@ const (
 	refUsage    stakeRefusal = "duel.usage"
 	refMinStake stakeRefusal = "duel.stake.min"
 	refMaxStake stakeRefusal = "duel.stake.max"
+	refShort    stakeRefusal = "duel.stake.short"
 )
 
-func (dc duelCmd) resolveStake(raw string) (int64, stakeRefusal) {
-	n, err := strconv.ParseInt(strings.TrimPrefix(raw, "@"), 10, 64)
-	if err != nil || n <= 0 {
-		return 0, refUsage
+func (dc duelCmd) resolveStake(ctx context.Context, who engine.DuelParty, raw string, emit module.Emit) (stake int64, ok bool, err error) {
+	bal, err := dc.loyalty.BalanceGet(ctx, dc.c.BroadcasterID, who.ID)
+	if err != nil {
+		dc.log.Warn("duel: balance read failed", dc.c.BID(), zap.Error(err))
+		return 0, false, err
 	}
-	switch {
-	case n < dc.cfg.MinStake:
-		return 0, refMinStake
-	case n > dc.cfg.MaxStake:
-		return 0, refMaxStake
+	stake, outcome := engine.ResolveGambleBet(raw, bal.Points, dc.cfg.MinStake, dc.cfg.MaxStake)
+	refused := stakeRefusalFor(outcome, isDerivedStake(raw) && bal.Points < dc.cfg.MinStake)
+	if refused != "" {
+		dc.refuseReply(emit, refused, bal.Points)
+		return 0, false, nil
 	}
-	return n, ""
+	return stake, true, nil
 }
 
-func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal) {
+func isDerivedStake(raw string) bool {
+	switch strings.ToLower(raw) {
+	case "all", "half":
+		return true
+	}
+	return false
+}
+
+func stakeRefusalFor(outcome engine.GambleBetOutcome, cannotCoverMin bool) stakeRefusal {
+	switch outcome {
+	case engine.BetOK:
+		return ""
+	case engine.BetEmpty, engine.BetInvalid:
+		return refUsage
+	case engine.BetBelowMin:
+		if cannotCoverMin {
+			return refShort
+		}
+		return refMinStake
+	case engine.BetAboveMax:
+		return refMaxStake
+	}
+	return refShort
+}
+
+func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal, balance int64) {
 	key := replyKey(refused)
 	switch refused {
 	case refMinStake:
 		dc.reply(emit, "", key, "min", strconv.FormatInt(dc.cfg.MinStake, 10))
 	case refMaxStake:
 		dc.reply(emit, "", key, "max", strconv.FormatInt(dc.cfg.MaxStake, 10))
+	case refShort:
+		dc.reply(emit, "", key, "balance", strconv.FormatInt(balance, 10))
 	default:
 		dc.reply(emit, "", key)
 	}
+}
+
+func (dc duelCmd) targetCovers(ctx context.Context, target engine.DuelParty, stake int64, emit module.Emit) (bool, error) {
+	bal, err := dc.loyalty.BalanceGet(ctx, dc.c.BroadcasterID, target.ID)
+	if err != nil {
+		dc.log.Warn("duel: target balance read failed", dc.c.BID(), zap.Error(err))
+		return false, err
+	}
+	if bal.Points < stake {
+		dc.reply(emit, "", "duel.challenge.short",
+			"target", target.Login,
+			"stake", strconv.FormatInt(stake, 10))
+		return false, nil
+	}
+	return true, nil
 }

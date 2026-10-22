@@ -11,6 +11,7 @@
   "challenge.mention": "@{duel:user} упомяните соперника через @, например !duel @name 50",
   "challenge.pending": "@{duel:user} уже ожидается ответ на личный вызов. Дождитесь результата.",
   "challenge.self": "@{duel:user} нельзя вызвать на дуэль себя.",
+  "challenge.short": "@{duel:user} у @{duel:target} сейчас недостаточно баллов для ставки {duel:stake} {duel:points}. Попробуйте ставку поменьше.",
   "challenge.sent": "@{duel:user} вызывает @{duel:target} на дуэль со ставкой {duel:stake} {duel:points}! @{duel:target}, введите !duel accept в течение {duel:secs} сек. Победитель заберёт {duel:pot}!",
   "decline.ok": "@{duel:user}: вызов отклонён. Возвращено @{duel:opener}: {duel:refund} {duel:points}.",
   "join.already": "@{duel:user} вы уже участвуете (участников: {duel:count}, в банке: {duel:pot} {duel:points}).",
@@ -22,9 +23,10 @@
   "opened": "Дуэль с общим банком НАЧАЛАСЬ! Ставка @{duel:user}: {duel:stake} {duel:points}. Введите !duel <amount>, чтобы участвовать. Розыгрыш через {duel:secs} сек.!",
   "stake.max": "@{duel:user} максимальная ставка: {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} минимальная ставка: {duel:min} {duel:points}.",
+  "stake.short": "@{duel:user} для этой ставки недостаточно баллов. У вас {duel:balance} {duel:points}.",
   "status.challenge": "Ожидается ответ на дуэль: @{duel:opener} против @{duel:target}, ставка каждого: {duel:stake} {duel:points}. Осталось на ответ: {duel:secs} сек.",
   "status.none": "Дуэль не идёт. Откройте общий банк командой !duel <amount> или вызовите кого-нибудь командой !duel @user <amount>.",
   "status.pot": "Дуэль с общим банком идёт. Участников: {duel:count}, в банке: {duel:pot} {duel:points}. Розыгрыш через ~{duel:secs} сек. Введите !duel <amount>, чтобы участвовать!",
-  "usage": "Использование: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
+  "usage": "Использование: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
   "won": "Клинки опускаются. @{duel:winner} побеждает @{duel:loser} и забирает {duel:pot} {duel:points}!"
 }

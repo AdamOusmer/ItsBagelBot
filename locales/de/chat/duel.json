@@ -11,6 +11,7 @@
   "challenge.mention": "@{duel:user} erwähne deinen Gegner mit @, zum Beispiel !duel @name 50",
   "challenge.pending": "@{duel:user} eine direkte Herausforderung steht noch aus. Warte, bis sie entschieden ist.",
   "challenge.self": "@{duel:user} du kannst dich nicht selbst duellieren.",
+  "challenge.short": "@{duel:user} das Guthaben von @{duel:target} reicht gerade nicht für {duel:stake} {duel:points}. Versuch einen kleineren Einsatz.",
   "challenge.sent": "@{duel:user} fordert @{duel:target} um {duel:stake} {duel:points} heraus! @{duel:target}, gib innerhalb von {duel:secs}s !duel accept ein. Zu gewinnen: {duel:pot}!",
   "decline.ok": "@{duel:user} hat die Herausforderung abgelehnt. @{duel:opener} hat {duel:refund} {duel:points} zurück.",
   "join.already": "@{duel:user} du bist schon in diesem Duell (Teilnehmerzahl: {duel:count}, {duel:pot} {duel:points} im Topf).",
@@ -22,9 +23,10 @@
   "opened": "Topfduell läuft! @{duel:user} hat {duel:stake} {duel:points} eingesetzt. Gib !duel <amount> ein, um mitzumachen. Auslosung in {duel:secs}s!",
   "stake.max": "@{duel:user} der Höchsteinsatz beträgt {duel:max} {duel:points}.",
   "stake.min": "@{duel:user} der Mindesteinsatz beträgt {duel:min} {duel:points}.",
+  "stake.short": "@{duel:user} dein Guthaben reicht nicht für diesen Einsatz. Du hast {duel:balance} {duel:points}.",
   "status.challenge": "Duell ausstehend: @{duel:opener} gegen @{duel:target}, jeweils {duel:stake} {duel:points}. Annahmefrist endet in {duel:secs}s.",
   "status.none": "Kein Duell läuft. Eröffne einen Topf mit !duel <amount> oder fordere jemanden mit !duel @user <amount> heraus.",
   "status.pot": "Topfduell läuft: Teilnehmerzahl: {duel:count}, {duel:pot} {duel:points} im Topf. Auslosung in ~{duel:secs}s. Gib !duel <amount> ein, um mitzumachen!",
-  "usage": "Verwendung: !duel <amount>; !duel @user <amount>; !duel accept|decline|cancel",
+  "usage": "Verwendung: !duel <amount|half|all>; !duel @user <amount|half|all>; !duel accept|decline|cancel",
   "won": "Die Klingen fallen. @{duel:winner} besiegt @{duel:loser} und bekommt {duel:pot} {duel:points}!"
 }
