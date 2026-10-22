@@ -124,24 +124,3 @@ spec:
       ports:
         - port: 3306
           protocol: TCP
----
-# WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; without this default-deny drops them.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-probe-ports
-  namespace: app
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [users, commands, loyalty, modules, transactions, projector, sesame, twitch-ingress, outgress, discord-ingress, discord-engine, discord-outgress, console-dashboard, console-admin, gossip, notifications, notifications-cleanup]
-  policyTypes:
-    - Ingress
-  ingress:
-    - ports:
-        - port: 8080
-          protocol: TCP
-        - port: 3000
-          protocol: TCP

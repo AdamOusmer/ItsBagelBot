@@ -147,6 +147,25 @@ func TestOperatorsPoliciesCoverBothDirections(t *testing.T) {
 	}
 }
 
+func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
+	paths, err := filepath.Glob("../*/network-policies.yaml")
+	require.NoError(t, err)
+	require.NotEmpty(t, paths)
+	paths = append(paths, appPolicies)
+
+	for _, path := range paths {
+		for name, policy := range loadNetworkPolicies(t, path) {
+			assert.NotEqual(t, "allow-probe-ports", name, "%s: kubelet probes are admitted by the host entity, not by a source-less port allow", path)
+			for _, rule := range policy.Spec.Ingress {
+				for _, peer := range rule.From {
+					assert.Nil(t, peer.IPBlock, "%s: %s ingress must not admit ipBlock sources (they match world, not only the kubelet)", path, name)
+				}
+				assert.NotEmpty(t, rule.From, "%s: %s ingress rule without a source admits every sender", path, name)
+			}
+		}
+	}
+}
+
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
 
@@ -204,8 +223,6 @@ func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	want := map[string][]string{
 		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
 			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
-		"allow-probe-ports": sorted("commands", "discord-data", "loyalty", "modules", "notifications",
-			"notifications-cleanup", "projector", "transactions", "users"),
 		"allow-public-https": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
 			"modules", "notifications", "projector", "transactions", "users"),
 		"allow-heatwave": sorted("backup-mysql", "commands", "discord-data", "loyalty", "modules",

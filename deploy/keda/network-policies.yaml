@@ -11,13 +11,6 @@ spec:
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.42.0.0/16]
-      ports:
-        - port: 8081
-        - port: 6443
-    - from:
         - podSelector:
             matchLabels:
               app: keda-metrics-apiserver
