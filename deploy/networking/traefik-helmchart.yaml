@@ -18,11 +18,10 @@ spec:
 
     deployment:
       kind: DaemonSet
-      # cloudflared reaches the Service with internalTrafficPolicy Local, so a
-      # node with no ready Traefik pod refuses connections ("no route to
-      # host"). The new pod must be ready and propagated before the old one
-      # leaves (surge, not unavailable), and the old one keeps serving past
-      # endpoint removal.
+      # Surge, not unavailable: the new pod is ready and propagated before the
+      # old one leaves, and the old one keeps serving past endpoint removal.
+      # Never use internalTrafficPolicy Local here: a node without a ready pod
+      # refuses connections ("no route to host") instead of failing over.
       minReadySeconds: 10
       terminationGracePeriodSeconds: 60
       lifecycle:
@@ -75,8 +74,8 @@ spec:
     service:
       spec:
         type: ClusterIP
-        trafficDistribution: PreferClose
-        internalTrafficPolicy: Local
+        trafficDistribution: PreferSameNode
+        internalTrafficPolicy: Cluster
 
     ports:
       traefik:
