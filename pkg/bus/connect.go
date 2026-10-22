@@ -91,13 +91,21 @@ func failedTLSOption(err error) nats.Option {
 	return func(*nats.Options) error { return err }
 }
 
-func tlsSecureOption() nats.Option {
+func natsCAPool() *x509.CertPool {
 	caPEM := env.Get("NATS_CA_PEM", "")
 	if caPEM == "" {
 		return nil
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM([]byte(caPEM)) {
+		return nil
+	}
+	return pool
+}
+
+func tlsSecureOption() nats.Option {
+	pool := natsCAPool()
+	if pool == nil {
 		return nil
 	}
 

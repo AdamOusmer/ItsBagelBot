@@ -4,6 +4,13 @@
 package bus
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -135,6 +142,36 @@ func TestLeafFailbackReconnectsOnlyWhenTheLocalLeafIsHealthyAndNotAlreadyConnect
 			}
 
 			assert.Equal(t, tc.reconnects, nc.Stats().Reconnects > 0)
+		})
+	}
+}
+
+func TestLocalLeafProbeVerifiesTheLeafAgainstTheFleetCA(t *testing.T) {
+	leaf := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer leaf.Close()
+	fleetCA := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leaf.Certificate().Raw}))
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "other"},
+		NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true,
+	}, &x509.Certificate{SerialNumber: big.NewInt(1)}, &key.PublicKey, key)
+	require.NoError(t, err)
+	otherPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+
+	for _, tc := range []struct {
+		name  string
+		caPEM string
+		want  bool
+	}{
+		{"a leaf signed by the fleet CA is ready", fleetCA, true},
+		{"a leaf outside the fleet CA is not ready", otherPEM, false},
+		{"without a fleet CA the leaf is not ready", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NATS_CA_PEM", tc.caPEM)
+
+			assert.Equal(t, tc.want, localLeafReady(leaf.URL, time.Second))
 		})
 	}
 }

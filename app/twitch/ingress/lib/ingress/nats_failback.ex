@@ -19,7 +19,10 @@ defmodule Ingress.NatsFailback do
     state = %{
       node: System.get_env("NODE_NAME", ""),
       health_url:
-        System.get_env("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local:8222/healthz"),
+        System.get_env(
+          "NATS_LOCAL_LEAF_HEALTH_URL",
+          "https://nats-leaf-local.messaging:8222/healthz"
+        ),
       interval: interval,
       required: positive_env("NATS_FAILBACK_SUCCESSES", 3),
       timeout: positive_env("NATS_FAILBACK_PROBE_TIMEOUT_MS", 1_000),
@@ -110,11 +113,10 @@ defmodule Ingress.NatsFailback do
   end
 
   @doc false
-  def local_leaf_ready?(health_url, timeout) do
-    with %URI{scheme: "http", host: host, port: port, path: path} when is_binary(host) <-
-           URI.parse(health_url),
-         {:ok, socket} <-
-           :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
+  def local_leaf_ready?(health_url, timeout, cacerts \\ fleet_cacerts()) do
+    with %URI{scheme: scheme, host: host, port: port, path: path}
+         when scheme in ["http", "https"] and is_binary(host) <- URI.parse(health_url),
+         {:ok, transport, socket} <- connect(scheme, host, port, timeout, cacerts) do
       request = [
         "GET ",
         if(path in [nil, ""], do: "/healthz", else: path),
@@ -124,8 +126,8 @@ defmodule Ingress.NatsFailback do
       ]
 
       result =
-        with :ok <- :gen_tcp.send(socket, request),
-             {:ok, response} <- :gen_tcp.recv(socket, 0, timeout) do
+        with :ok <- transport.send(socket, request),
+             {:ok, response} <- transport.recv(socket, 0, timeout) do
           response
           |> :binary.split("\r\n", [:global])
           |> List.first()
@@ -134,10 +136,42 @@ defmodule Ingress.NatsFailback do
           _ -> false
         end
 
-      :gen_tcp.close(socket)
+      transport.close(socket)
       result
     else
       _ -> false
+    end
+  end
+
+  defp connect("http", host, port, timeout, _cacerts) do
+    with {:ok, socket} <-
+           :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], timeout) do
+      {:ok, :gen_tcp, socket}
+    end
+  end
+
+  defp connect("https", host, port, timeout, cacerts) do
+    opts = [
+      :binary,
+      active: false,
+      verify: :verify_peer,
+      cacerts: cacerts,
+      server_name_indication: String.to_charlist(host),
+      depth: 3
+    ]
+
+    with {:ok, socket} <- :ssl.connect(String.to_charlist(host), port, opts, timeout) do
+      {:ok, :ssl, socket}
+    end
+  end
+
+  defp fleet_cacerts do
+    case System.get_env("NATS_CA_PEM") do
+      pem when is_binary(pem) and pem != "" ->
+        for {:Certificate, der, _} <- :public_key.pem_decode(pem), do: der
+
+      _ ->
+        []
     end
   end
 

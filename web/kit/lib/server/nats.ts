@@ -45,11 +45,16 @@ function positiveNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-export async function localLeafReady(healthURL: string, timeoutMs: number): Promise<boolean> {
+export async function localLeafReady(
+  healthURL: string,
+  timeoutMs: number,
+  ca: string | undefined = process.env.NATS_CA_PEM
+): Promise<boolean> {
   try {
     const response = await fetch(healthURL, {
       signal: AbortSignal.timeout(timeoutMs),
-      cache: 'no-store'
+      cache: 'no-store',
+      ...(ca ? { tls: { ca } } : {})
     });
     await response.body?.cancel();
     return response.ok;
@@ -67,7 +72,7 @@ export function enableLeafFailback(nc: NatsConnection): void {
   const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
   const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
   const healthURL =
-    process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'http://nats-leaf-local:8222/healthz';
+    process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'https://nats-leaf-local.messaging:8222/healthz';
   let consecutive = 0;
   let running = false;
 

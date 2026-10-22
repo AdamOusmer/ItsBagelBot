@@ -255,6 +255,8 @@ func TestNatsLeafIngressIsExact(t *testing.T) {
 			"kubernetes.io/metadata.name=tailscale | any | 8223/TCP",
 			"kubernetes.io/metadata.name=keda | app=keda-operator | 8223/TCP",
 			"kubernetes.io/metadata.name=ops | app=deployer | 8223/TCP",
+			"kubernetes.io/metadata.name=app | any | 8223/TCP",
+			"kubernetes.io/metadata.name=db | any | 8223/TCP",
 			"kubernetes.io/metadata.name=observability | app.kubernetes.io/name=newrelic-prometheus-agent | 7778/TCP",
 		},
 	}, got)

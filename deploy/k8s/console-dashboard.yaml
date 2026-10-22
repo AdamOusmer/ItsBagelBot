@@ -130,6 +130,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: NATS_LOCAL_LEAF_HEALTH_URL
+              value: https://nats-leaf-local.messaging:8222/healthz
             # Use the same bot identity as outgress so dashboard sign-in cannot
             # replace its moderator grant with a broadcaster grant.
             - name: TWITCH_BOT_USER_ID
