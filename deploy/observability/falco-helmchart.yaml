@@ -1,0 +1,138 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: falco
+  namespace: kube-system
+spec:
+  chart: falco
+  repo: https://falcosecurity.github.io/charts
+  version: 8.0.3
+  targetNamespace: observability
+  createNamespace: false
+  valuesContent: |-
+    driver:
+      kind: modern_ebpf
+
+    # -U/--unbuffered: flush stdout on EVERY alert. MANDATORY, and it must ship
+    # together with the customRules exceptions below. falco 0.43.1 block-buffers
+    # stdout (~4KB) despite buffered_outputs: false, so alerts sit in the libc
+    # buffer until enough accumulate. On the old cluster ~6.5k FP events/day
+    # acted as an accidental carrier keeping that buffer flushed; silencing the
+    # FPs without -U left lone real alerts unflushed indefinitely: a detector
+    # that never reports. Any future noise reduction must keep this flag.
+    # Diagnostic if in doubt: rules_matches_total (:8765/metrics) must equal
+    # the count of emitted "rule" log lines.
+    extra:
+      args: ["-U"]
+
+    falco:
+      # The log pipeline matches falco events on rule/priority/output_fields
+      # markers in the JSON line.
+      json_output: true
+
+    # Renders the falco-metrics Service and enables the prometheus endpoint on
+    # the webserver (port 8765). Near-free, and it is the source of the
+    # rules_matches_total counter above.
+    metrics:
+      enabled: true
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8765"
+      prometheus.io/path: /metrics
+
+    # Far below chart defaults (100m/512Mi -> 1000m/1024Mi); live-proven for
+    # this fleet.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # Falcosidekick forwards events; the web UI (and its Redis) stays off to
+    # reclaim RAM (2026-10-10). Single replica: not an alerting path, the log
+    # pipeline stays the durable record.
+    falcosidekick:
+      enabled: true
+      replicaCount: 1
+      webui:
+        enabled: false
+        replicaCount: 1
+
+    falcoctl:
+      artifact:
+        # No follow sidecar (see header). Install init container remains: it
+        # fetches falco-rules + the container plugin at pod start.
+        follow:
+          enabled: false
+      config:
+        artifact:
+          install:
+            # container is pinned to >= 0.7.1 ON PURPOSE. resolveDeps otherwise
+            # picks 0.6.3 via falco-rules, and 0.6.x nil-derefs in cri.go on
+            # containerd 2.3 CRI entries (falcosecurity/plugins#1353, fixed by
+            # #1354): every falco pod crash-looped the moment the node had
+            # exited/orphaned containers to enumerate.
+            refs: [falco-rules:5, container:0.7.1]
+
+    customRules:
+      bagelbot-exceptions.yaml: |-
+        # Local tuning of the stock falco-rules ruleset. Loaded from
+        # /etc/falco/rules.d AFTER /etc/falco/falco_rules.yaml, so the
+        # `override:` markers re-define the (never_true) customization stubs
+        # and empty allowlist lists upstream ships for exactly this purpose.
+
+        # --- 1. "Read sensitive file untrusted" family -----------------------
+        # EL10/systemd hosts: systemd-userdbd workers legitimately read
+        # /etc/shadow for NSS/userdb lookups, and systemd-executor (the
+        # systemd 254+ unit spawner) reads /etc/pam.d/* during PAM session
+        # setup for user@N.service. Known upstream FP family. Scoped to the
+        # exact host executable paths AND the exact files they touch, so any
+        # other sensitive-file read by these binaries still alerts.
+        - macro: user_known_read_sensitive_files_activities
+          condition: >
+            ((proc.exepath = /usr/lib/systemd/systemd-userwork and fd.name = /etc/shadow)
+             or (proc.exepath = /usr/lib/systemd/systemd-executor and fd.directory = /etc/pam.d))
+          override:
+            condition: replace
+
+        # --- 2. "Contact K8S API Server From Container" ----------------------
+        # Kept ENABLED with an allowlist (not disabled) so unexpected API-server
+        # access from app workloads still alerts. Listed namespaces are the
+        # infra controllers on THIS cluster that legitimately talk to the API:
+        # cert-manager (+ trust-manager), networking (traefik's
+        # kubernetesCRD provider), and observability (New Relic agents and KSM).
+        # kube-system is already excluded by the stock k8s_containers macro.
+        # Extend this list as infra returns (operators, ...) rather than
+        # widening to app namespaces.
+        - macro: user_known_contact_k8s_api_server_activities
+          condition: >
+            (k8s.ns.name in (cert-manager, networking, observability))
+          override:
+            condition: replace
+
+        # --- 3. Acceptance-test pods (drop-and-execute + stdio redirect) -----
+        # nats-live-acceptance / valkey-live-acceptance / wg-latency test pods
+        # run image alpine/k8s and get freshly built binaries kubectl-cp'd in
+        # and executed: textbook trigger for "Drop and execute new binary in
+        # container" and "Redirect STDOUT/STDIN to Network Connection in
+        # Container". The container plugin reports container.image.repository
+        # WITH the registry prefix, so both forms are listed.
+        - list: known_drop_and_execute_containers
+          items: [alpine/k8s, docker.io/alpine/k8s]
+          override:
+            items: append
+
+        - macro: user_known_stand_streams_redirect_activities
+          condition: >
+            (container.image.repository in (alpine/k8s, docker.io/alpine/k8s)
+             or k8s.pod.name startswith "nats-live-acceptance"
+             or k8s.pod.name startswith "valkey-live-acceptance"
+             or k8s.pod.name startswith "wg-latency")
+          override:
+            condition: replace

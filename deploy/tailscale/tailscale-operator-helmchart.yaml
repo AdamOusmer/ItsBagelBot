@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: tailscale-operator
+  namespace: kube-system
+spec:
+  chart: tailscale-operator
+  repo: https://pkgs.tailscale.com/helmcharts
+  version: 1.104.2
+  targetNamespace: tailscale
+  createNamespace: true
+  valuesContent: |-
+    # oauth left empty on purpose: the operator mounts the precreated
+    # operator-oauth Secret (Doppler-managed, above) instead of Helm writing
+    # credentials into a chart-owned Secret.
+    oauth: {}
+
+    operatorConfig:
+      hostname: tailscale-operator
+      defaultTags:
+        - "tag:k8s"
+      # Pin to the control plane. cp1's taint uses the fleet's bare role key
+      # (role=cp:NoSchedule), not the upstream control-plane taint.
+      nodeSelector:
+        role: cp
+      tolerations:
+        - key: role
+          operator: Equal
+          value: cp
+          effect: NoSchedule
+      resources:
+        requests: {cpu: 25m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
+
+    proxyConfig:
+      defaultTags: "tag:k8s"
+      defaultProxyClass: ts-ingress
+
+    # kubectl keeps going direct to cp1:6443 over the tailnet; no API server
+    # proxy.
+    apiServerProxyConfig:
+      mode: "false"
