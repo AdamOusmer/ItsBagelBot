@@ -75,7 +75,7 @@ func (f *fakeDuel) Status(_ context.Context, _ uint64) (engine.DuelStatus, error
 func (f *fakeDuel) StartExpiryWatcher(context.Context) {}
 
 func duelDeps(f *fakeDuel) engine.Deps {
-	return engine.Deps{Duel: f, Log: zap.NewNop()}
+	return engine.Deps{Duel: f, Loyalty: &fakeLoyalty{}, Log: zap.NewNop()}
 }
 
 type duelCalls struct {
@@ -105,6 +105,7 @@ type duelCase struct {
 	mod      bool
 	text     string
 	config   string
+	balances map[uint64]int64
 	fake     fakeDuel
 	contains []string
 	calls    duelCalls
@@ -127,7 +128,7 @@ var duelCases = []duelCase{
 	{name: "a stake over the maximum is refused", who: "bob", text: "!duel 1000", config: `{"minStake":10,"maxStake":900}`,
 		contains: []string{"max stake is 900"}},
 	{name: "a non numeric stake prints usage", who: "bob", text: "!duel lots", config: `{"minStake":10,"maxStake":900}`,
-		contains: []string{"!duel <amount>"}},
+		contains: []string{"!duel <amount|half|all>"}},
 	{name: "stake limits saved as text by the dashboard are honored", who: "bob", text: "!duel 1000", config: `{"minStake":"10","maxStake":"900"}`,
 		contains: []string{"max stake is 900"}},
 	{name: "a pot window saved as text sets the window", who: "bob", text: "!duel 250", config: `{"potSeconds":"90"}`,
@@ -147,7 +148,37 @@ var duelCases = []duelCase{
 	{name: "a challenge names the doubled pot", who: "maya", text: "!duel @crust 400", fake: fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
 		contains: []string{"@maya challenges @crust for 400 points", "Winner takes 800"},
 		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: engine.DuelParty{ID: 42, Login: "maya"}, Challenged: engine.DuelParty{ID: 8, Login: "crust"}, Stake: 400}}},
-	{name: "TestDuelChallengeEmptyTarget", who: "maya", text: "!duel @ 400", contains: []string{"!duel <amount>"}},
+	{name: "all opens a pot with the whole balance", who: "bob", text: "!duel all", balances: map[uint64]int64{42: 300},
+		fake:     fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"Pot duel is LIVE", "300 points"},
+		calls:    duelCalls{joinLogin: "bob", joinStake: 300, open: engine.DuelOpenSpec{Kind: engine.DuelPot, Opener: engine.DuelParty{ID: 42, Login: "bob"}, Stake: 300}}},
+	{name: "half joins with half the balance", who: "bob", text: "!duel half", balances: map[uint64]int64{42: 301},
+		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 2, Pot: 250}},
+		contains: []string{"@bob you're in with 150"}, calls: duelCalls{joinLogin: "bob", joinStake: 150}},
+	{name: "all caps at the max stake", who: "bob", text: "!duel all", config: `{"maxStake":900}`, balances: map[uint64]int64{42: 5000},
+		fake:     fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 2, Pot: 1800}},
+		contains: []string{"@bob you're in with 900"}, calls: duelCalls{joinLogin: "bob", joinStake: 900}},
+	{name: "a stake over the balance names the balance", who: "bob", text: "!duel 500", balances: map[uint64]int64{42: 120},
+		contains: []string{"can't cover that stake, you have 120 points"}},
+	{name: "all with an empty wallet names the balance", who: "bob", text: "!duel All", balances: map[uint64]int64{42: 0},
+		contains: []string{"can't cover that stake, you have 0 points"}},
+	{name: "half under the minimum quotes the minimum", who: "bob", text: "!duel half", config: `{"minStake":10}`, balances: map[uint64]int64{42: 15},
+		contains: []string{"minimum stake is 10"}},
+	{name: "a challenge with all stakes the whole balance", who: "maya", text: "!duel @crust all", balances: map[uint64]int64{42: 600, 8: 600},
+		fake:     fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"@maya challenges @crust for 600 points", "Winner takes 1200"},
+		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: engine.DuelParty{ID: 42, Login: "maya"}, Challenged: engine.DuelParty{ID: 8, Login: "crust"}, Stake: 600}}},
+	{name: "a challenge the target cannot cover is refused before escrow", who: "maya", text: "!duel @crust all", balances: map[uint64]int64{42: 600, 8: 200},
+		contains: []string{"@maya @crust can't cover 600 points right now"}},
+	{name: "all from the poorer challenger stakes only the challenger's balance", who: "maya", text: "!duel @crust all", config: `{"maxStake":5000}`,
+		balances: map[uint64]int64{42: 1000, 8: 3000},
+		fake:     fakeDuel{openRes: engine.DuelOpenResult{Started: true}},
+		contains: []string{"@maya challenges @crust for 1000 points", "Winner takes 2000"},
+		calls:    duelCalls{open: engine.DuelOpenSpec{Kind: engine.DuelChallenge, Opener: engine.DuelParty{ID: 42, Login: "maya"}, Challenged: engine.DuelParty{ID: 8, Login: "crust"}, Stake: 1000}}},
+	{name: "all from the richer challenger is refused when the target cannot match", who: "maya", text: "!duel @crust all", config: `{"maxStake":5000}`,
+		balances: map[uint64]int64{42: 3000, 8: 1000},
+		contains: []string{"@maya @crust can't cover 3000 points right now"}},
+	{name: "TestDuelChallengeEmptyTarget", who: "maya", text: "!duel @ 400", contains: []string{"!duel <amount|half|all>"}},
 	{name: "dueling yourself is refused", who: "maya", text: "!duel maya 400", contains: []string{"can't duel yourself"}},
 	{name: "accepting a clean win names the winner", who: "crust", text: "!duel accept",
 		fake:     fakeDuel{acceptRes: engine.DuelAcceptResult{Found: true, Accepted: true, Winner: "crust", Loser: "maya", Pot: 800, Stake: 400}},
@@ -182,7 +213,9 @@ func TestDuelChat(t *testing.T) {
 			if tc.mod {
 				c = chatCtx("42", tc.who, "moderator")
 			}
-			out := runChat(t, Duel(duelDeps(&fake)), withConfig(c, tc.config), tc.text)
+			d := duelDeps(&fake)
+			d.Loyalty = &fakeLoyalty{viewerPts: tc.balances}
+			out := runChat(t, Duel(d), withConfig(c, tc.config), tc.text)
 			require.Len(t, out, 1)
 			for _, want := range tc.contains {
 				assert.Contains(t, out[0].Text, want)

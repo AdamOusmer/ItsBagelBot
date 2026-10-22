@@ -336,6 +336,7 @@ type fakeLoyalty struct {
 	setCalls    int
 	setFound    bool
 	getPoints   int64
+	viewerPts   map[uint64]int64
 	wagerLimit  bool
 }
 
@@ -354,7 +355,10 @@ func (f *fakeLoyalty) CounterPeek(_ context.Context, target engine.CounterTarget
 	return c, ok, nil
 }
 
-func (f *fakeLoyalty) BalanceGet(context.Context, uint64, uint64) (loyaltyrpc.Balance, error) {
+func (f *fakeLoyalty) BalanceGet(_ context.Context, _, viewerID uint64) (loyaltyrpc.Balance, error) {
+	if pts, ok := f.viewerPts[viewerID]; ok {
+		return loyaltyrpc.Balance{Points: pts}, nil
+	}
 	if f.getPoints != 0 {
 		return loyaltyrpc.Balance{Points: f.getPoints}, nil
 	}
