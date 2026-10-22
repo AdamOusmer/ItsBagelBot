@@ -163,7 +163,7 @@ export function options(role: Role): ConnectionOptions {
     // Ordered on the RPC plane only: leaf first, hub second. Unshuffled BUS pools ended 0/5/222 across nats-0/1/2 after a hub roll (2026-10-11).
     noRandomize: isRpc,
     // Discovered hub pod IPs bypass Service readiness; dialing them piled 222 of 227 BUS clients on one hub (2026-10-11).
-    ignoreClusterUpdates: !isRpc,
+    ignoreClusterUpdates: true,
     name: `${process.env.NATS_CLIENT_NAME || 'console'}-${role}`,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,

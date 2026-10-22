@@ -91,7 +91,7 @@ describe('options() credential wiring', () => {
 
 describe('options() server pool order', () => {
   test.each([
-    ['rpc', true, false],
+    ['rpc', true, true],
     ['bus', false, true]
   ] as const)('%s plane', (role, noRandomize, ignoreClusterUpdates) => {
     const opts = options(role);

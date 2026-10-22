@@ -124,7 +124,7 @@ func (a *Adapter) Push(ctx context.Context, cluster ports.ClusterName, accountJW
 }
 
 func connect(cfg Config, url string) (*nats.Conn, error) {
-	opts := []nats.Option{nats.UserJWTAndSeed(cfg.SysJWT, cfg.SysSeed), nats.Timeout(connectTimeout), nats.Name("deployer-acl")}
+	opts := []nats.Option{nats.UserJWTAndSeed(cfg.SysJWT, cfg.SysSeed), nats.Timeout(connectTimeout), nats.Name("deployer-acl"), nats.IgnoreDiscoveredServers()}
 	secure, err := secureOption()
 	if err != nil {
 		return nil, err
