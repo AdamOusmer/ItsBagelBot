@@ -19,6 +19,12 @@ const (
 	defaultGiftSubPoints      = 100
 	defaultCheerPointsPer100  = 50
 	defaultWatchPointsPerTick = 10
+
+	defaultWatchTier1Percent = 150
+	defaultWatchTier2Percent = 200
+	defaultWatchTier3Percent = 600
+	minWatchTierPercent      = 100
+	maxWatchTierPercent      = 1000
 )
 
 type LoyaltyModuleConfig struct {
@@ -32,6 +38,10 @@ type LoyaltyModuleConfig struct {
 	ModAdjustPoints    int    `json:"modAdjustPoints"`
 	ViewerTransfers    int    `json:"viewerTransfers"`
 	StreamerPoints     int    `json:"streamerPoints"`
+	WatchSubBonus      bool   `json:"watchSubBonus"`
+	WatchTier1Percent  int64  `json:"watchTier1Percent"`
+	WatchTier2Percent  int64  `json:"watchTier2Percent"`
+	WatchTier3Percent  int64  `json:"watchTier3Percent"`
 }
 
 const maxRate = int64(1_000_000_000)
@@ -68,6 +78,34 @@ func (c LoyaltyModuleConfig) EffectiveCheerPointsPer100() int64 {
 }
 func (c LoyaltyModuleConfig) EffectiveWatchPointsPerTick() int64 {
 	return rate(c.WatchPointsPerTick, defaultWatchPointsPerTick)
+}
+
+func (c LoyaltyModuleConfig) WatchPointsFor(tier string) int64 {
+	base := c.EffectiveWatchPointsPerTick()
+	if !c.WatchSubBonus {
+		return base
+	}
+	return base * c.watchTierPercent(tier) / 100
+}
+
+func (c LoyaltyModuleConfig) watchTierPercent(tier string) int64 {
+	switch tier {
+	case "1000":
+		return tierPercent(c.WatchTier1Percent, defaultWatchTier1Percent)
+	case "2000":
+		return tierPercent(c.WatchTier2Percent, defaultWatchTier2Percent)
+	case "3000":
+		return tierPercent(c.WatchTier3Percent, defaultWatchTier3Percent)
+	default:
+		return 100
+	}
+}
+
+func tierPercent(v, def int64) int64 {
+	if v == 0 {
+		return def
+	}
+	return min(max(v, minWatchTierPercent), maxWatchTierPercent)
 }
 
 func capabilityOn(v int) bool { return v >= 0 }

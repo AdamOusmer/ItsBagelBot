@@ -65,6 +65,19 @@
   }
   // svelte-ignore state_referenced_locally
   let rates = $state(seedRates(data.config));
+
+  const TIER_MIN = 1;
+  const TIER_MAX = 10;
+  const TIER_KEYS = ['watchTier1Percent', 'watchTier2Percent', 'watchTier3Percent'] as const;
+  type TierKey = (typeof TIER_KEYS)[number];
+  type TierState = { multiplier: number | null; touched: boolean };
+  function seedTiers(cfg: LoyaltyConfig): Record<TierKey, TierState> {
+    return Object.fromEntries(
+      TIER_KEYS.map((k) => [k, { multiplier: (cfg[k] > 0 ? cfg[k] : LOYALTY_DEFAULTS[k]) / 100, touched: false }])
+    ) as Record<TierKey, TierState>;
+  }
+  // svelte-ignore state_referenced_locally
+  let tiers = $state(seedTiers(data.config));
   let attempted = $state(false);
   let formEl = $state<HTMLFormElement | null>(null);
   let busy = $state(false);
@@ -76,6 +89,7 @@
       enabled = data.enabled ?? false;
       config = { ...data.config };
       rates = seedRates(data.config);
+      tiers = seedTiers(data.config);
       games = seedGames(data);
     }
   });
@@ -93,10 +107,34 @@
     if (!r.on) return -1;
     return r.amount === LOYALTY_DEFAULTS[key] ? 0 : (r.amount ?? 0);
   }
+  function encodeTier(key: TierKey): number {
+    const m = tiers[key].multiplier;
+    if (m === null || tierInvalid(key)) return 0;
+    const percent = Math.round(m * 100);
+    return percent === LOYALTY_DEFAULTS[key] ? 0 : percent;
+  }
   const numberFmt = $derived(new Intl.NumberFormat(locale));
   const payload = $derived(
-    JSON.stringify({ ...config, ...Object.fromEntries(RATE_KEYS.map((k) => [k, encodeRate(k)])) })
+    JSON.stringify({
+      ...config,
+      ...Object.fromEntries(RATE_KEYS.map((k) => [k, encodeRate(k)])),
+      ...Object.fromEntries(TIER_KEYS.map((k) => [k, encodeTier(k)]))
+    })
   );
+
+  function oneDecimal(m: number): boolean {
+    return Math.abs(m * 10 - Math.round(m * 10)) < 1e-9;
+  }
+  function tierInvalid(key: TierKey): boolean {
+    if (tiersDisabled) return false;
+    const m = tiers[key].multiplier;
+    return m === null || !oneDecimal(m) || m < TIER_MIN || m > TIER_MAX;
+  }
+  function tierError(key: TierKey): string | undefined {
+    return (attempted || tiers[key].touched) && tierInvalid(key)
+      ? t('loyalty.errMultiplier', { min: numberFmt.format(TIER_MIN), max: numberFmt.format(TIER_MAX) })
+      : undefined;
+  }
 
   function rateInvalid(key: RateKey): boolean {
     const r = rates[key];
@@ -117,7 +155,7 @@
   }
 
   const saveSubmit: SubmitFunction = (input) => {
-    if (RATE_KEYS.some(rateInvalid)) {
+    if (RATE_KEYS.some(rateInvalid) || TIER_KEYS.some(tierInvalid)) {
       attempted = true;
       input.cancel();
       void focusFirstInvalid(formEl);
@@ -172,6 +210,16 @@
       dflt: LOYALTY_DEFAULTS[key]
     }))
   );
+
+  const TIER_LABELS: Record<TierKey, MessageKey> = {
+    watchTier1Percent: 'loyalty.watchTier1',
+    watchTier2Percent: 'loyalty.watchTier2',
+    watchTier3Percent: 'loyalty.watchTier3'
+  };
+  const tierFields = $derived(
+    TIER_KEYS.map((key) => ({ key, label: t(TIER_LABELS[key]), dflt: LOYALTY_DEFAULTS[key] / 100 }))
+  );
+  const tiersDisabled = $derived(!config.watchSubBonus || !rates.watchPointsPerTick.on);
 
   const permToggles = $derived([
     { key: 'modSetPoints', label: t('loyalty.permSet'), hint: t('loyalty.permSetHint') },
@@ -288,6 +336,49 @@
 
         <div class="hint"><Text size="xs" tone="muted">{t('loyalty.tierHint')}</Text></div>
 
+        <div class="perm">
+          <SwitchRow
+            control="end"
+            label={t('loyalty.watchSubBonus')}
+            hint={t('loyalty.watchSubBonusHint')}
+            hintId="watch-sub-bonus-hint"
+            checked={config.watchSubBonus}
+            onCheckedChange={(v) => (config.watchSubBonus = v)}
+          />
+        </div>
+
+        <div class="tiers">
+          {#each tierFields as tf (tf.key)}
+            {@const err = tierError(tf.key)}
+            <Field
+              label={tf.label}
+              tag={t('loyalty.defaultTag', { n: numberFmt.format(tf.dflt) })}
+              error={err}
+              errorId="tier-err-{tf.key}"
+            >
+              <span class="rate-input">
+                <span class="num">
+                  <Input
+                    fill
+                    type="number"
+                    inputmode="decimal"
+                    min={TIER_MIN}
+                    max={TIER_MAX}
+                    step={0.1}
+                    disabled={tiersDisabled}
+                    invalid={!!err}
+                    aria-invalid={err ? 'true' : undefined}
+                    aria-describedby={err ? `tier-err-${tf.key}` : undefined}
+                    bind:value={tiers[tf.key].multiplier}
+                    onblur={() => (tiers[tf.key].touched = true)}
+                  />
+                </span>
+                <Text as="span" size="sm" tone="muted">{t('loyalty.unitMultiplier')}</Text>
+              </span>
+            </Field>
+          {/each}
+        </div>
+
         <div class="perm-title"><Heading level={6} as="h3">{t('loyalty.permissionsTitle')}</Heading></div>
         <div class="hint"><Text size="xs" tone="muted">{t('loyalty.permissionsHint')}</Text></div>
 
@@ -394,6 +485,7 @@
   .rate-switch { padding-top: 26px; min-height: 44px; display: inline-flex; align-items: flex-start; }
   .rate-input { display: flex; align-items: center; gap: 10px; }
   .num { width: 100%; max-width: 160px; }
+  .tiers { display: grid; gap: 12px; padding: 12px 0 9px; }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 

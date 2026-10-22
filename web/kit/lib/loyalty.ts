@@ -12,6 +12,10 @@ export interface LoyaltyConfig {
   modAdjustPoints: number;
   viewerTransfers: number;
   streamerPoints: number;
+  watchSubBonus: boolean;
+  watchTier1Percent: number;
+  watchTier2Percent: number;
+  watchTier3Percent: number;
 }
 
 export const LOYALTY_DEFAULTS: LoyaltyConfig = {
@@ -24,7 +28,11 @@ export const LOYALTY_DEFAULTS: LoyaltyConfig = {
   modSetPoints: 0,
   modAdjustPoints: 0,
   viewerTransfers: 0,
-  streamerPoints: 0
+  streamerPoints: 0,
+  watchSubBonus: false,
+  watchTier1Percent: 150,
+  watchTier2Percent: 200,
+  watchTier3Percent: 600
 };
 
 export function blankLoyaltyConfig(): LoyaltyConfig {
@@ -38,7 +46,11 @@ export function blankLoyaltyConfig(): LoyaltyConfig {
     modSetPoints: 0,
     modAdjustPoints: 0,
     viewerTransfers: 0,
-    streamerPoints: 0
+    streamerPoints: 0,
+    watchSubBonus: false,
+    watchTier1Percent: 0,
+    watchTier2Percent: 0,
+    watchTier3Percent: 0
   };
 }
 

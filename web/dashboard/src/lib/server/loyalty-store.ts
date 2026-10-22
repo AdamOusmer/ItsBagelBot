@@ -65,7 +65,10 @@ const RATE_KEYS = [
   'modSetPoints',
   'modAdjustPoints',
   'viewerTransfers',
-  'streamerPoints'
+  'streamerPoints',
+  'watchTier1Percent',
+  'watchTier2Percent',
+  'watchTier3Percent'
 ] as const satisfies readonly (keyof LoyaltyConfig)[];
 
 function rate(v: unknown): number {
@@ -74,7 +77,11 @@ function rate(v: unknown): number {
 
 export async function readLoyalty(userId: string): Promise<LoyaltyView> {
   const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig>>(userId, LOYALTY_MODULE);
-  const config: LoyaltyConfig = { ...blankLoyaltyConfig(), pointsName: String(raw.pointsName ?? '') };
+  const config: LoyaltyConfig = {
+    ...blankLoyaltyConfig(),
+    pointsName: String(raw.pointsName ?? ''),
+    watchSubBonus: raw.watchSubBonus === true
+  };
   for (const key of RATE_KEYS) config[key] = rate(raw[key]);
   return { enabled, config };
 }

@@ -94,7 +94,7 @@ func (p *loyaltyPage) run(ctx context.Context) {
 		p.retry(ctx, err, 0)
 		return
 	}
-	reply, err := p.clock.fetchPage(ctx, p.id, p.state, checkLive)
+	reply, err := p.clock.fetchPage(ctx, p.id, p.state, chatterFetch{checkLive: checkLive, withTiers: cfg.WatchSubBonus})
 	if err != nil {
 		p.retry(ctx, err, 0)
 		return
@@ -251,7 +251,7 @@ func (p *loyaltyPage) viewerAwards(reply manage.ChattersReply, cfg LoyaltyModule
 			continue
 		}
 		seen[viewer] = struct{}{}
-		entries = append(entries, data.LoyaltyEarnEntry{ViewerID: viewer, ViewerLogin: ch.Login, Points: cfg.AutomaticPoints(p.id, viewer, cfg.EffectiveWatchPointsPerTick()), WatchSeconds: uint64(watchTickInterval / time.Second)})
+		entries = append(entries, data.LoyaltyEarnEntry{ViewerID: viewer, ViewerLogin: ch.Login, Points: cfg.AutomaticPoints(p.id, viewer, cfg.WatchPointsFor(ch.Tier)), WatchSeconds: uint64(watchTickInterval / time.Second)})
 	}
 	return entries
 }
