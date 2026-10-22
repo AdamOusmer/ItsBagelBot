@@ -14,10 +14,6 @@ spec:
   podManagementPolicy: Parallel
   revisionHistoryLimit: 10
   minReadySeconds: 30
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      partition: 2
   selector:
     matchLabels:
       app: nats
@@ -202,7 +198,7 @@ spec:
             name: fleet-intermediate-ca
         - name: config
           configMap:
-            name: nats-config-advertise
+            name: nats-config
         - name: certs
           secret:
             secretName: nats-hub-tls
