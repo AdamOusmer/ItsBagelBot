@@ -28,7 +28,7 @@ spec:
               tailscale.com/parent-resource-type: proxygroup
               tailscale.com/parent-resource: ts-ingress
       ports:
-        - port: 8080
+        - port: 8443
     - from:
         - namespaceSelector:
             matchLabels:

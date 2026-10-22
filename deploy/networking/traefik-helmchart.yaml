@@ -1,0 +1,121 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  chart: traefik
+  repo: https://traefik.github.io/charts
+  version: 41.2.0
+  targetNamespace: networking
+  createNamespace: false
+  valuesContent: |-
+    deployment:
+      kind: DaemonSet
+
+    # Global HTTP->HTTPS redirect on the web entrypoint. Static-config switch,
+    # no per-route opt-out. This is only the "client -> traefik" half; the
+    # "traefik -> backend" half is set per-service on each IngressRoute.
+    additionalArguments:
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      # The dashboard is served over TLS on websecure by the
+      # traefik-dashboard IngressRoute (host only the tailscale proxy sends).
+      # The plain :8080 `traefik` entrypoint keeps only /ping for kubelet
+      # probes.
+      - --api.dashboard=true
+
+    providers:
+      kubernetesCRD:
+        enabled: true
+        # The unrouted-host fallback proxies stray hostnames to the marketing
+        # site through an ExternalName Service, which the CRD provider refuses
+        # by default.
+        allowExternalNameServices: true
+      kubernetesIngress:
+        enabled: false
+
+    # Default TLS material presented to cloudflared: the Origin CA cert above.
+    # One cert covers the whole surface (apex + wildcard SANs), so no per-route
+    # certificate resolver is needed.
+    tlsStore:
+      default:
+        defaultCertificate:
+          secretName: traefik-origin-tls
+
+    tlsOptions:
+      default:
+        minVersion: VersionTLS12
+        curvePreferences:
+          - CurveP256
+          - X25519
+
+    service:
+      type: ClusterIP
+      spec:
+        trafficDistribution: PreferClose
+        internalTrafficPolicy: Local
+
+    ports:
+      web:
+        port: 8000
+        expose:
+          default: true
+        exposedPort: 80
+      websecure:
+        port: 8443
+        expose:
+          default: true
+        exposedPort: 443
+        http:
+          tls:
+            enabled: true
+
+    # Public ingress belongs to the app tier. Excluded by role, never by
+    # hostname: naming individual hosts is what once left this config pointing
+    # at a retired node.
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: role
+                  operator: NotIn
+                  values: [cp]
+
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
+
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+    podSecurityContext:
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+
+    resources:
+      requests:
+        cpu: 100m
+        # Per-node ingress proxies sit at 174-190Mi in steady state.
+        memory: 192Mi
+      limits:
+        cpu: 1000m
+        memory: 256Mi

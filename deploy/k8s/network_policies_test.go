@@ -257,6 +257,18 @@ func TestDeployerPoliciesAreExact(t *testing.T) {
 	}, got)
 }
 
+func TestTraefikDashboardReachableOnlyOverTLS(t *testing.T) {
+	ingress := ruleSummary(requirePolicy(t, loadNetworkPolicies(t, "../networking/network-policies.yaml"), "default-deny-networking").Spec.Ingress)
+	assert.Contains(t, ingress, "kubernetes.io/metadata.name=tailscale | tailscale.com/parent-resource-type=proxygroup;tailscale.com/parent-resource=ts-ingress | 8443/TCP")
+	for _, rule := range ingress {
+		assert.NotContains(t, rule, "tailscale.com/parent-resource=ts-ingress | 8080", "tailscale proxies must not reach the plain traefik entrypoint")
+	}
+
+	egress := ruleSummary(requirePolicy(t, loadNetworkPolicies(t, "../tailscale/network-policies.yaml"), "allow-proxy-backends").Spec.Egress)
+	assert.Contains(t, egress, "kubernetes.io/metadata.name=networking | app.kubernetes.io/name=traefik | 8443/TCP")
+	assert.NotContains(t, egress, "kubernetes.io/metadata.name=networking | app.kubernetes.io/name=traefik | 8080/TCP")
+}
+
 type ciliumNetworkPolicy struct {
 	Kind     string     `yaml:"kind"`
 	Metadata objectMeta `yaml:"metadata"`

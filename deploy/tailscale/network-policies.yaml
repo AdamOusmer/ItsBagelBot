@@ -63,7 +63,7 @@ spec:
             matchLabels:
               app.kubernetes.io/name: traefik
       ports:
-        - port: 8080
+        - port: 8443
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
