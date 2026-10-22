@@ -118,7 +118,7 @@ const SHORT_TTL = cached('max-age=60, stale-while-revalidate=60, stale-if-error=
 const PAGE = { edgeOutcome: 'page' };
 const BOARD = { ...PAGE, routeId: LEADERBOARD, edgeCacheTag: 'lb:foo' };
 const LEADERBOARD_TTL = {
-  ...cached('max-age=300, stale-while-revalidate=3600, stale-if-error=86400'),
+  ...cached('max-age=30, stale-while-revalidate=30, stale-if-error=86400'),
   'Cache-Tag': 'dashboard-edge-shell,lb:foo'
 };
 

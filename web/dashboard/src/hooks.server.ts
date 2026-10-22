@@ -75,7 +75,7 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
 export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
   '/(public)/login': [600, 86_400],
   '/(public)/stats': [30, 300],
-  '/(public)/[user]': [300, 3600],
+  '/(public)/[user]': [30, 30],
   '/(public)/user/[channel]': [3600, 3600]
 };
 
