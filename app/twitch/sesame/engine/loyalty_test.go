@@ -124,3 +124,34 @@ func TestWatchAwardsStreamerPointsPreference(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchAwardsScaleBySubTier(t *testing.T) {
+	reply := manage.ChattersReply{Chatters: []manage.Chatter{
+		{ID: "1", Login: "viewer"},
+		{ID: "2", Login: "tier1", Tier: "1000"},
+		{ID: "3", Login: "tier2", Tier: "2000"},
+		{ID: "4", Login: "tier3", Tier: "3000"},
+	}}
+	page := loyaltyPage{id: 42, clock: &ValkeyLoyaltyClock{botID: "99"}}
+	for _, tc := range []struct {
+		name string
+		raw  string
+		want []int64
+	}{
+		{"bonus off ignores tiers", `{"watchPointsPerTick": 10}`, []int64{10, 10, 10, 10}},
+		{"bonus on uses default multipliers", `{"watchPointsPerTick": 10, "watchSubBonus": true}`, []int64{10, 15, 20, 60}},
+		{"custom multipliers", `{"watchPointsPerTick": 10, "watchSubBonus": true, "watchTier1Percent": 120, "watchTier2Percent": 250, "watchTier3Percent": 400}`, []int64{10, 12, 25, 40}},
+		{"multipliers clamp to x1 and x10", `{"watchPointsPerTick": 10, "watchSubBonus": true, "watchTier1Percent": 50, "watchTier3Percent": 5000}`, []int64{10, 10, 20, 100}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := decodeWatchConfiguration([]byte(tc.raw))
+			require.NoError(t, err)
+			entries := page.viewerAwards(reply, cfg)
+			got := make([]int64, len(entries))
+			for i, e := range entries {
+				got[i] = e.Points
+			}
+			require.Equal(t, tc.want, got)
+		})
+	}
+}

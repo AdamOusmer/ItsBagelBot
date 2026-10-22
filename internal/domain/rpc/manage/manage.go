@@ -110,6 +110,7 @@ type RewardReply struct {
 type Chatter struct {
 	ID    string `json:"id"`
 	Login string `json:"login"`
+	Tier  string `json:"tier,omitempty"`
 }
 
 // ChattersRequest asks for one bounded attendance page. Identity and deadline
@@ -123,6 +124,7 @@ type ChattersRequest struct {
 	DeadlineUnixMilli int64  `json:"deadline_unix_milli"`
 	Cursor            string `json:"cursor,omitempty"`
 	CheckLive         bool   `json:"check_live,omitempty"`
+	WithTiers         bool   `json:"with_tiers,omitempty"`
 }
 
 // ChattersReply preserves request identity and explicitly distinguishes a page

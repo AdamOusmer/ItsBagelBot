@@ -66,6 +66,12 @@ function permValue(raw: unknown): number {
   return -1;
 }
 
+function tierPercent(raw: unknown): number {
+  const n = Math.trunc(Number(raw));
+  if (!Number.isFinite(n) || n === 0) return 0;
+  return Math.min(1000, Math.max(100, n));
+}
+
 function parseConfig(raw: string): LoyaltyConfig | null {
   let obj: Partial<LoyaltyConfig>;
   try {
@@ -86,7 +92,11 @@ function parseConfig(raw: string): LoyaltyConfig | null {
     modSetPoints: permValue(obj.modSetPoints),
     modAdjustPoints: permValue(obj.modAdjustPoints),
     viewerTransfers: permValue(obj.viewerTransfers),
-    streamerPoints: permValue(obj.streamerPoints)
+    streamerPoints: permValue(obj.streamerPoints),
+    watchSubBonus: obj.watchSubBonus === true,
+    watchTier1Percent: tierPercent(obj.watchTier1Percent),
+    watchTier2Percent: tierPercent(obj.watchTier2Percent),
+    watchTier3Percent: tierPercent(obj.watchTier3Percent)
   };
 }
 

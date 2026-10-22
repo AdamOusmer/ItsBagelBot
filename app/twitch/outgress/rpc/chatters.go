@@ -40,6 +40,7 @@ type ChattersOptions struct {
 type chatterAPI interface {
 	GetChattersPage(context.Context, twitch.ChattersPageRequest) (twitch.ChattersPage, error)
 	StreamSession(context.Context, string) (string, time.Time, bool, error)
+	SubscriberTiers(context.Context, string, []string) (map[string]string, error)
 }
 type chatters struct {
 	twitch chatterAPI
@@ -56,6 +57,7 @@ var (
 	chatterWatchSpec  = ratelimit.NewSpec(200, 200.0/60)
 	chatterLiveSpec   = ratelimit.NewSpec(100, 100.0/60)
 	chatterTenantSpec = ratelimit.NewSpec(30, 30.0/60)
+	chatterSubsSpec   = ratelimit.NewSpec(200, 200.0/60)
 )
 
 // SubscribeChatters serves one page per request on a bounded worker pool.
@@ -198,6 +200,9 @@ func (c *chatters) preflight(ctx context.Context, req manage.ChattersRequest) er
 func (c *chatters) attemptContext(ctx context.Context, req manage.ChattersRequest) context.Context {
 	ctx = twitch.WithAttemptAdmission(ctx, c.admit(req))
 	return twitch.WithProviderResetObserver(ctx, func(ctx context.Context, endpoint string, reset time.Time) error {
+		if isSubscriberLookup(endpoint) {
+			return nil
+		}
 		return c.recordProviderReset(ctx, c.providerIdentity(endpoint), reset)
 	})
 }
@@ -242,9 +247,30 @@ func (c *chatters) collectWatchPage(ctx context.Context, req manage.ChattersRequ
 		return reply, err
 	}
 	reply.Chatters = appendChatters(nil, page.Chatters)
+	if req.WithTiers {
+		c.addTiers(ctx, req.BroadcasterID, reply.Chatters)
+	}
 	reply.NextCursor = page.NextCursor
 	reply.Complete = page.Complete
 	return reply, nil
+}
+
+// A failed lookup leaves chatters untiered: attendance still pays the base rate.
+func (c *chatters) addTiers(ctx context.Context, broadcasterID string, list []manage.Chatter) {
+	if len(list) == 0 {
+		return
+	}
+	ids := make([]string, len(list))
+	for i, ch := range list {
+		ids[i] = ch.ID
+	}
+	tiers, err := c.twitch.SubscriberTiers(ctx, broadcasterID, ids)
+	for i := range list {
+		list[i].Tier = tiers[list[i].ID]
+	}
+	if err != nil && c.log != nil {
+		c.log.Debug("watchtime: subscriber tier lookup failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
+	}
 }
 func (c *chatters) confirmLive(ctx context.Context, req manage.ChattersRequest, reply manage.ChattersReply) (manage.ChattersReply, error) {
 	streamID, startedAt, live, err := c.twitch.StreamSession(ctx, req.BroadcasterID)
@@ -378,14 +404,27 @@ func (c *chatters) admit(req manage.ChattersRequest) twitch.AttemptAdmission {
 		if err := c.tenantReady(ctx, req); err != nil {
 			return err
 		}
+		if isSubscriberLookup(endpoint) {
+			share, shared := subscriberLookupQuotas(req.BroadcasterID)
+			return c.payQuotas(ctx, share, shared)
+		}
 		if err := c.providerReady(ctx, endpoint); err != nil {
 			return err
 		}
 		if err := c.payTenant(ctx, req.BroadcasterID); err != nil {
 			return err
 		}
-		return c.payShared(ctx, endpoint)
+		share, shared := attendanceQuotas(endpoint)
+		return c.payQuotas(ctx, share, shared)
 	}
+}
+func isSubscriberLookup(endpoint string) bool {
+	return strings.HasPrefix(endpoint, twitch.SubscriptionsPath+"?")
+}
+
+// Tier lookups spend the broadcaster's own token, never the bot's attendance budget.
+func subscriberLookupQuotas(broadcasterID string) (ratelimit.Request, ratelimit.Request) {
+	return chatterSubsSpec.ForDynamicKey("ratelimit:watch:subs:", "watch:subs", broadcasterID), ratelimit.HelixUserRequest(broadcasterID)
 }
 func (c *chatters) providerReady(ctx context.Context, endpoint string) error {
 	if c.opts.ProviderRetryAt == nil {
@@ -418,8 +457,7 @@ func attendanceQuotas(endpoint string) (ratelimit.Request, ratelimit.Request) {
 	}
 	return chatterWatchSpec.ForKey("ratelimit:watch:chatters"), ratelimit.HelixBotRequest()
 }
-func (c *chatters) payShared(ctx context.Context, endpoint string) error {
-	share, shared := attendanceQuotas(endpoint)
+func (c *chatters) payQuotas(ctx context.Context, share, shared ratelimit.Request) error {
 	denied, err := c.opts.Limiter.AllowOrdered(ctx, share, shared)
 	if err != nil {
 		return c.unavailable()

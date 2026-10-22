@@ -243,3 +243,7 @@ func specsForProfile(profile uint8) (shared, standard Spec, ok bool) {
 func HelixAppRequest() Request { return profileHelixShared.ForKey("ratelimit:helix:app") }
 
 func HelixBotRequest() Request { return profileHelixUserShared.ForKey("ratelimit:helix:user:bot") }
+
+func HelixUserRequest(broadcasterID string) Request {
+	return profileHelixUserShared.ForDynamicKey("ratelimit:helix:user:", "helix:user", broadcasterID)
+}
