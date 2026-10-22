@@ -8,7 +8,7 @@
   "busy": "@{duel:user} that duel is being settled right now, give it a second.",
   "cancel.denied": "@{duel:user} only the opener or a moderator can cancel a duel.",
   "cancel.ok": "Duel cancelled: {duel:refunds} refunded, {duel:total} {duel:points} returned.",
-  "challenge.mention": "@{duel:user} mention your opponent with @, for example !duel @name 50",
+  "challenge.unknown": "@{duel:user} Twitch user {duel:target} was not found.",
   "challenge.pending": "@{duel:user} a head-to-head challenge is pending. Wait for it to settle.",
   "challenge.self": "@{duel:user} you can't duel yourself.",
   "challenge.sent": "@{duel:user} challenges @{duel:target} for {duel:stake} {duel:points}! @{duel:target}, type !duel accept within {duel:secs}s. Winner takes {duel:pot}!",

@@ -330,32 +330,11 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 }
 
 func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string, atPrefixed bool) (uint64, bool) {
-	if id := mentionedViewerID(lc.c.Env.Mentions, login); id != 0 {
+	if id := resolveViewerID(ctx, lc.d.TwitchAccounts, lc.log, lc.c.Env.Mentions, viewerTarget{login, atPrefixed}); id != 0 {
 		return id, true
-	}
-	if !atPrefixed {
-		if id := lc.lookupLogin(ctx, login); id != 0 {
-			return id, true
-		}
 	}
 	lc.reply("loyalty.points.user.unknown", "target", login)
 	return 0, false
-}
-
-func (lc loyaltyCmd) lookupLogin(ctx context.Context, login string) uint64 {
-	if lc.d.TwitchAccounts == nil {
-		return 0
-	}
-	raw, found, err := lc.d.TwitchAccounts.ResolveLogin(ctx, login)
-	if err != nil {
-		lc.log.Warn("loyalty: login lookup failed", zap.String("login", login), zap.Error(err))
-		return 0
-	}
-	if !found {
-		return 0
-	}
-	id, _ := strconv.ParseUint(raw, 10, 64)
-	return id
 }
 
 func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
