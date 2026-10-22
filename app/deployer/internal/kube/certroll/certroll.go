@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -22,6 +21,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -149,7 +150,7 @@ func (r *Roller) mark(ctx context.Context, dep *appsv1.Deployment, fp string, ro
 			"annotations": map[string]string{annotationPodTemplate: fp},
 		}}}
 	}
-	body, err := json.Marshal(patch)
+	body, err := codec.Marshal(patch)
 	if err != nil {
 		return err
 	}
