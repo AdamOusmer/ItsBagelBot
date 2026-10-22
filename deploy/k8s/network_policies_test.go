@@ -149,12 +149,6 @@ func TestOperatorsPoliciesCoverBothDirections(t *testing.T) {
 	}
 }
 
-var probeIPBlockExceptions = map[string][]int{
-	"observability/default-deny-observability": {8765, 2801, 8080, 8081, 9090},
-	"operators/doppler-operator":               {8081},
-	"operators/cloudflared":                    {2000},
-}
-
 func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
 	paths, err := filepath.Glob("../*/network-policies.yaml")
 	require.NoError(t, err)
@@ -164,30 +158,19 @@ func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
 	for _, path := range paths {
 		for name, policy := range loadNetworkPolicies(t, path) {
 			assert.NotEqual(t, "allow-probe-ports", name, "%s: kubelet probes are admitted by the host entity, not by a source-less port allow", path)
-			key := policy.Metadata.Namespace + "/" + name
-			assertIngressHasClusterSources(t, path+": "+name, policy.Spec.Ingress, probeIPBlockExceptions[key])
+			assertIngressHasClusterSources(t, path+": "+name, policy.Spec.Ingress)
 		}
 	}
 }
 
-func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRule, allowedIPBlockPorts []int) {
+func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRule) {
 	t.Helper()
 	for _, rule := range rules {
 		assert.NotEmpty(t, rule.From, "%s ingress rule without a source admits every sender", label)
 		for _, peer := range rule.From {
-			if peer.IPBlock == nil {
-				continue
-			}
-			assert.True(t, ipBlockRuleIsAllowed(rule, allowedIPBlockPorts), "%s ingress must not admit ipBlock sources outside the cp1 probe exceptions (cilium#43012)", label)
+			assert.Nil(t, peer.IPBlock, "%s ingress must not admit ipBlock sources (they match world, not only the kubelet)", label)
 		}
 	}
-}
-
-func ipBlockRuleIsAllowed(rule policyRule, allowedPorts []int) bool {
-	if len(rule.Ports) == 0 {
-		return false
-	}
-	return !slices.ContainsFunc(rule.Ports, func(port policyPort) bool { return !slices.Contains(allowedPorts, port.Port) })
 }
 
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
