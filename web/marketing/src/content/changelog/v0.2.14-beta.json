@@ -1,0 +1,42 @@
+{
+  "tag": "beta",
+  "version": "v0.2.14-beta",
+  "date": "2026-10-22",
+  "title": {
+    "en": "Plain Usernames in Loyalty Commands, Safer Replies and a Hardened Platform",
+    "fr": "Noms d’utilisateur simples dans les commandes de fidélité, réponses plus sûres et plateforme renforcée"
+  },
+  "highlights": {
+    "en": [
+      "!points set, add, remove and give, and !duel, now accept a plain username as well as an @mention. An unknown Twitch user gets a clear \"not found\" reply.",
+      "!setpoints <user> <points> is a new moderator alias for !points set.",
+      "!duel accepts half and all stakes, capped at the maximum stake. A stake above your balance now names your balance, and a challenge the target cannot cover is refused before any points are held.",
+      "Broadcasters can turn on a sub bonus for watch time on the Loyalty page, with a multiplier per sub tier. If the sub lookup fails, that page of chatters is paid the base rate.",
+      "!points shows the new balance right after bits, subs, gift subs and channel point rewards pay out, instead of an older cached value.",
+      "The raffle win line no longer shows the winner and entrant counts and reads naturally for one or several winners.",
+      "Text typed by viewers is now always shown literally in built-in replies such as !quote, !followage, game stats and !time, and can no longer trigger a channel's custom fetch definitions.",
+      "Commands and modules authenticate to Valkey again, which fixes the restart loop they had in the previous release.",
+      "The Discord bot is paused for now and the Discord pages are hidden from the dashboard while per-action moderation checks are built.",
+      "The admin console now requires a staff sign-in on every page and data request.",
+      "Services are rebuilt on Go 1.27.3 with refreshed certificate authority bundles, and the web consoles run Bun 1.4.4.",
+      "Services now connect only to the messaging servers they are configured for, and the consoles reload their TLS certificate when it renews, without dropping requests.",
+      "NATS leaf failback health checks use HTTPS, so services return to their local leaf after an outage."
+    ],
+    "fr": [
+      "!points set, add, remove et give, ainsi que !duel, acceptent maintenant un nom d’utilisateur simple en plus d’une @mention. Un utilisateur Twitch inconnu reçoit une réponse « introuvable » claire.",
+      "!setpoints <utilisateur> <points> est un nouvel alias pour les modérateurs de !points set.",
+      "!duel accepte les mises half et all, plafonnées à la mise maximale. Une mise supérieure à votre solde indique maintenant votre solde, et un défi que la cible ne peut pas couvrir est refusé avant que des points ne soient bloqués.",
+      "Les diffuseurs peuvent activer un bonus d’abonné pour le temps de visionnage depuis la page Fidélité, avec un multiplicateur par palier d’abonnement. Si la recherche des abonnés échoue, cette page de spectateurs est payée au taux de base.",
+      "!points affiche le nouveau solde juste après le versement des bits, abonnements, abonnements offerts et récompenses de points de chaîne, au lieu d’une ancienne valeur en cache.",
+      "Le message de victoire d’un tirage n’affiche plus le nombre de gagnants et de participants et se lit naturellement pour un ou plusieurs gagnants.",
+      "Le texte saisi par les spectateurs est maintenant toujours affiché tel quel dans les réponses intégrées comme !quote, !followage, les statistiques de jeu et !time, et ne peut plus déclencher les définitions de récupération personnalisées d’une chaîne.",
+      "Les commandes et les modules s’authentifient de nouveau auprès de Valkey, ce qui corrige la boucle de redémarrage qu’ils avaient dans la version précédente.",
+      "Le bot Discord est mis en pause pour l’instant et les pages Discord sont masquées dans le tableau de bord, le temps de construire des contrôles de modération par action.",
+      "La console d’administration exige maintenant une connexion du personnel pour chaque page et chaque requête de données.",
+      "Les services sont reconstruits avec Go 1.27.3 et des lots d’autorités de certification actualisés, et les consoles web utilisent Bun 1.4.4.",
+      "Les services se connectent uniquement aux serveurs de messagerie pour lesquels ils sont configurés, et les consoles rechargent leur certificat TLS lors du renouvellement, sans interrompre les requêtes.",
+      "Les contrôles de santé de retour vers le leaf NATS local utilisent maintenant HTTPS, si bien que les services reviennent sur leur leaf local après une panne."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.14-beta"
+}
