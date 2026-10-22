@@ -9,6 +9,18 @@ metadata:
 spec:
   podSelector: {}
   policyTypes: [Ingress, Egress]
+  ingress:
+    # cp1 kubelet probes arrive as identity world (cilium#43012); keep until fixed.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.42.0.0/16]
+      ports:
+        - port: 8765
+        - port: 2801
+        - port: 8080
+        - port: 8081
+        - port: 9090
   egress:
     - to:
         - namespaceSelector:
