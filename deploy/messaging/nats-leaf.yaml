@@ -83,19 +83,19 @@ spec:
             capabilities: {drop: ["ALL"]}
             readOnlyRootFilesystem: true
           startupProbe:
-            httpGet: {path: /healthz, port: monitor}
+            httpGet: {path: /healthz, port: monitor, scheme: HTTPS}
             periodSeconds: 5
             failureThreshold: 10
             timeoutSeconds: 1
           livenessProbe:
-            httpGet: {path: /healthz, port: monitor}
+            httpGet: {path: /healthz, port: monitor, scheme: HTTPS}
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 12
           readinessProbe:
             # Plain /healthz: JetStream is disabled, so a JS-scoped probe never reports ready.
-            httpGet: {path: /healthz, port: monitor}
+            httpGet: {path: /healthz, port: monitor, scheme: HTTPS}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -131,9 +131,13 @@ spec:
         - name: prometheus-nats-exporter
           image: natsio/prometheus-nats-exporter:0.20.1@sha256:4fbf6dacb84780a45a1c3af9b1080c69451a288d20902deae671b80717bb8f61
           imagePullPolicy: IfNotPresent
-          args: ["-port", "7778", "-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8223"]
+          args: ["-port", "7778", "-varz", "-connz", "-subz", "-routez", "-jsz=all", "https://localhost:8223"]
+          env:
+            - {name: SSL_CERT_FILE, value: /etc/nats/intermediate-ca/ca.pem}
           ports:
             - {containerPort: 7778, name: metrics}
+          volumeMounts:
+            - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
           resources:
             requests: {cpu: 5m, memory: 32Mi}
             limits: {cpu: 100m, memory: 128Mi}
