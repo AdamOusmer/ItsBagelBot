@@ -38,7 +38,7 @@ func TestConnectPrefersTheLeafOverTheGivenURL(t *testing.T) {
 	}
 }
 
-func TestOnlyTheRPCPlaneKeepsAnOrderedPoolAndOnlyTheBusPlaneIgnoresDiscoveredServers(t *testing.T) {
+func TestOnlyTheRPCPlaneKeepsAnOrderedPoolAndBothPlanesIgnoreDiscoveredServers(t *testing.T) {
 	t.Setenv("NATS_CA_PEM", "")
 
 	for _, tc := range []struct {
@@ -47,7 +47,7 @@ func TestOnlyTheRPCPlaneKeepsAnOrderedPoolAndOnlyTheBusPlaneIgnoresDiscoveredSer
 		ordered          bool
 		ignoreDiscovered bool
 	}{
-		{"the RPC plane walks leaf then hub and follows discovery", rpcOptions("rpc-plane"), true, false},
+		{"the RPC plane walks leaf then hub and dials only configured servers", rpcOptions("rpc-plane"), true, true},
 		{"the BUS plane shuffles and dials only the hub Service", busOptions("bus-plane"), false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3,7 +3,8 @@
 
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
+import { createSecureContext } from 'node:tls';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import sirv from 'sirv';
@@ -96,14 +97,49 @@ const requestListener = (req, res) => {
 
 const tlsCert = process.env.TLS_CERT_FILE;
 const tlsKey = process.env.TLS_KEY_FILE;
-const server =
-  tlsCert && tlsKey
-    ? createHttpsServer({ cert: readFileSync(tlsCert), key: readFileSync(tlsKey) }, requestListener)
-    : createHttpServer(requestListener);
+const tlsOptions = () => ({ cert: readFileSync(tlsCert), key: readFileSync(tlsKey) });
+const tlsEnabled = Boolean(tlsCert && tlsKey);
 
-// Must outlast the proxy's idle timeout (Traefik and Go default 90 s), or it reuses a socket the pod just closed: 502.
-server.keepAliveTimeout = 95_000;
-server.headersTimeout = 96_000;
+function startServer() {
+  const instance = tlsEnabled ? createHttpsServer(tlsOptions(), requestListener) : createHttpServer(requestListener);
+  // Must outlast the proxy's idle timeout (Traefik and Go default 90 s), or it reuses a socket the pod just closed: 502.
+  instance.keepAliveTimeout = 95_000;
+  instance.headersTimeout = 96_000;
+  const onListening = () => {
+    console.log(socketPath ? `Listening on ${socketPath}` : `Listening on ${tlsEnabled ? 'https' : 'http'}://${host}:${port}`);
+  };
+  instance.listen(socketPath ? { path: socketPath } : { host, port }, onListening);
+  return instance;
+}
+
+let server = startServer();
+
+// Bun 1.4 has no setSecureContext and ignores SNICallback, so a renewed cert needs a fresh listener.
+function reloadTls() {
+  try {
+    createSecureContext(tlsOptions());
+  } catch (error) {
+    console.error(`TLS reload failed; keeping the previous certificate: ${error}`);
+    return;
+  }
+  const previous = server;
+  previous.close();
+  previous.closeIdleConnections?.();
+  setTimeout(() => previous.closeAllConnections?.(), shutdownTimeoutSeconds * 1000).unref();
+  server = startServer();
+  console.log('Reloaded TLS certificate');
+}
+
+if (tlsEnabled) {
+  let timer;
+  // Kubelet renews a secret volume by swapping the ..data symlink, so watch the directory, not the file.
+  for (const dir of new Set([path.dirname(tlsCert), path.dirname(tlsKey)])) {
+    watch(dir, () => {
+      clearTimeout(timer);
+      timer = setTimeout(reloadTls, 1000);
+    }).unref();
+  }
+}
 
 function shutdown(signal) {
   console.log(`Received ${signal}; closing HTTP server`);
@@ -119,13 +155,3 @@ function shutdown(signal) {
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
-
-if (socketPath) {
-  server.listen({ path: socketPath }, () => {
-    console.log(`Listening on ${socketPath}`);
-  });
-} else {
-  server.listen({ host, port }, () => {
-    console.log(`Listening on ${tlsCert && tlsKey ? 'https' : 'http'}://${host}:${port}`);
-  });
-}

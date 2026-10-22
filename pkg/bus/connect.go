@@ -51,6 +51,8 @@ func baseOptions(identity connectionIdentity) []nats.Option {
 		nats.RetryOnFailedConnect(true),
 		nats.IgnoreAuthErrorAbort(),
 		nats.ErrorHandler(logAsyncError),
+		// Discovered hub pod IPs bypass Service readiness; dialing them piled 222 of 227 BUS clients on one hub (2026-10-11).
+		nats.IgnoreDiscoveredServers(),
 	}
 
 	if option := tlsSecureOption(); option != nil {
@@ -126,13 +128,11 @@ func rpcOptions(name clientName) []nats.Option {
 }
 
 func busOptions(name clientName) []nats.Option {
-	opts := baseOptions(connectionIdentity{
+	return baseOptions(connectionIdentity{
 		name:     string(name),
 		jwt:      env.Get("NATS_JWT", ""),
 		nkeySeed: env.Get("NATS_NKEY_SEED", ""),
 	})
-	// Discovered hub pod IPs bypass Service readiness; dialing them piled 222 of 227 BUS clients on one hub (2026-10-11).
-	return append(opts, nats.IgnoreDiscoveredServers())
 }
 
 func Connect(url string, name string) (*nats.Conn, error) {
