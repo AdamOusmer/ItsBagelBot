@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/modulevars"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 func mcsrEloRun(d engine.Deps) module.RunFunc {
@@ -50,7 +51,7 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 func mcsrSessionText(call statsCall[mcsrConfig], r *gossiprpc.McsrSessionReply) string {
 	if !r.HasSnapshot {
 		started := i18n.T(call.Ctx.Locale, "mcsr.session.started")
-		return r.Nickname + ": " + fmt.Sprintf(started, mcsrElo(call.Ctx, r.Elo))
+		return tmpl.Escape(r.Nickname) + ": " + fmt.Sprintf(started, mcsrElo(call.Ctx, r.Elo))
 	}
 	return mcsrSessionPalette(call.Ctx, r).ExpandNamespaced("mcsr", mcsrSessionTemplate(call.Cfg.SessionMessage))
 }
@@ -359,7 +360,7 @@ func mcsrPbText(call statsCall[mcsrConfig], v mcsrPbView) string {
 }
 
 func mcsrPbEmptyText(c *module.Context, player, window string) string {
-	return player + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.pb.empty"), mcsrPbWindowLabel(c, window))
+	return tmpl.Escape(player) + ": " + fmt.Sprintf(i18n.T(c.Locale, "mcsr.pb.empty"), mcsrPbWindowLabel(c, window))
 }
 
 func mcsrPbWindowLabel(c *module.Context, window string) string {

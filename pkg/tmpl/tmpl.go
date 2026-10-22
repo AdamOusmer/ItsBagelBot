@@ -63,6 +63,14 @@ func TokenKey(tok Token, namespace string) string {
 	return tok.Key()
 }
 
+// LiteralBrace stands in for '{' inside substituted values until the final
+// render, so a later Lex pass cannot read viewer text as a token.
+const LiteralBrace = ""
+
+func Escape(s string) string { return strings.ReplaceAll(s, "{", LiteralBrace) }
+
+func Unescape(s string) string { return strings.ReplaceAll(s, LiteralBrace, "{") }
+
 func Lex(s string) []Token {
 	var out []Token
 	from := 0

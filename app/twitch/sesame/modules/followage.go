@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -113,7 +114,7 @@ func parseLookupTarget(args string, c *module.Context) lookupTarget {
 	if len(fields) > 0 {
 		login := strings.TrimPrefix(fields[0], "@")
 		if login != "" {
-			return lookupTarget{login: login, name: login}
+			return lookupTarget{login: login, name: tmpl.Escape(login)}
 		}
 	}
 	return lookupTarget{login: c.Env.ChatterUserLogin, name: c.Env.ChatterName(), id: c.Env.ChatterUserID}
