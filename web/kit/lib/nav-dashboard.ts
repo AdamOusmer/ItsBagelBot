@@ -28,6 +28,7 @@ export interface DashboardSectionDef extends SectionDef {
   grant?: GrantSection;
   /** Visible when any of these existing delegation grants opens the page. */
   grantsAny?: readonly GrantSection[];
+  offline?: boolean;
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
@@ -69,7 +70,8 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     icon: 'discord',
     href: '/discord',
     match: ['/discord'],
-    grant: 'discord'
+    grant: 'discord',
+    offline: true
   },
   {
     id: 'billing',
@@ -104,6 +106,7 @@ export function dashboardNavItems(opts: {
   return navItems({
     sections: DASHBOARD_SECTIONS,
     visible: (def) =>
+      !def.offline &&
       !(def.ownerOnly && isDelegate) &&
       (!isDelegate ||
         (def.grantsAny

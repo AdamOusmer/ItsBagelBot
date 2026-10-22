@@ -196,6 +196,22 @@ describe('handle edge caching', () => {
   });
 });
 
+test.each(['/(app)/discord', '/(app)/discord/[guildId]/settings', '/(app)/discord/connect', '/(app)/discord/callback'])(
+  'offline route %s answers 404 before any load or endpoint runs',
+  async (routeId) => {
+    let resolved = false;
+    const run = handle({
+      event: makeEvent({ routeId }) as never,
+      resolve: async () => {
+        resolved = true;
+        return htmlResponse(200);
+      }
+    });
+    await expect(run).rejects.toMatchObject({ status: 404 });
+    expect(resolved).toBe(false);
+  }
+);
+
 describe('edge cache and Set-Cookie', () => {
   test('a garbage session cookie carries a delete Set-Cookie: never cached, even with locals.session null', () => {
     const res = htmlResponse(200, { 'set-cookie': 'bagel_session=; Max-Age=0; Path=/' });
