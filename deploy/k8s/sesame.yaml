@@ -297,6 +297,7 @@ spec:
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
+        useHttps: "true"
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS
@@ -306,6 +307,7 @@ spec:
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
+        useHttps: "true"
         account: BUS
         accountID: ACIYGG26BMT5F25HWF456SM5NNKFDE5X7OBQVCCPQIKQVKY5GXWPNLSD
         stream: TWITCH_INGRESS_STANDARD

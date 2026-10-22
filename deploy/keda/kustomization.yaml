@@ -25,6 +25,16 @@ patches:
             topologyKey: kubernetes.io/hostname
             whenUnsatisfiable: ScheduleAnyway
             labelSelector: {matchLabels: {app: keda-operator}}
+  - target: {kind: Deployment, name: keda-operator, namespace: keda}
+    patch: |
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: fleet-intermediate-ca
+          configMap: {name: fleet-intermediate-ca}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: fleet-intermediate-ca, mountPath: /custom/ca, readOnly: true}
   - target: {kind: Deployment, name: keda-metrics-apiserver, namespace: keda}
     patch: |
       - op: add
