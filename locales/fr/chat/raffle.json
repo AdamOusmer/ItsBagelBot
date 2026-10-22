@@ -24,8 +24,8 @@
   "status.closed": "Aucune loterie en cours. Les modos peuvent en lancer une avec !raffle ou !mraffle.",
   "status.open": "Loterie en cours : {raffle:count} inscrits. Tirage dans ~{raffle:mins} min ! Tapez !join !",
   "status.open.secs": "Loterie en cours : {raffle:count} inscrits. Tirage dans ~{raffle:secs} s ! Tapez !join !",
-  "won": "{raffle:targets}, félicitations ! Vous avez gagné la loterie ({raffle:count} gagnant(s) parmi {raffle:entrants}) ! Tapez !claim dans les {raffle:claim} min pour recevoir {raffle:prize} !",
-  "won.plain": "{raffle:targets}, félicitations ! Vous avez gagné la loterie ({raffle:count} gagnant(s) parmi {raffle:entrants}) !",
-  "won.points": "{raffle:targets}, félicitations ! Vous avez gagné la loterie ({raffle:count} gagnant(s) parmi {raffle:entrants}) : {raffle:amount} {raffle:points} par gagnant, déjà crédités !",
-  "won.points.claim": "{raffle:targets}, félicitations ! Vous avez gagné la loterie ({raffle:count} gagnant(s) parmi {raffle:entrants}) : {raffle:amount} {raffle:points} par gagnant, déjà crédités ! Tapez !claim dans les {raffle:claim} min pour recevoir {raffle:prize} !"
+  "won": "Bravo {raffle:targets}, vous avez gagné la loterie ! Tapez !claim dans les {raffle:claim} min pour recevoir {raffle:prize}.",
+  "won.plain": "Bravo {raffle:targets}, vous avez gagné la loterie !",
+  "won.points": "Bravo {raffle:targets}, vous avez gagné la loterie ! {raffle:amount} {raffle:points} sont déjà sur votre solde.",
+  "won.points.claim": "Bravo {raffle:targets}, vous avez gagné la loterie ! {raffle:amount} {raffle:points} sont déjà sur votre solde. Tapez !claim dans les {raffle:claim} min pour recevoir {raffle:prize}."
 }

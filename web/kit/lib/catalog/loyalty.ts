@@ -20,6 +20,7 @@ export const LOYALTY_MODULE: ModuleDef =
     { trigger: '!points give @user 500', summary: "Give some of your own points to another viewer." },
     { trigger: '!leaderboard', summary: "Show the channel's top standings." },
     { trigger: '!points set @user 500', summary: "Set a viewer's balance.", perm: 'mod' },
+    { trigger: '!setpoints user 500', summary: "Set a viewer's balance (same as !points set).", perm: 'mod' },
     { trigger: '!points add @user 500', summary: 'Grant points to a viewer.', perm: 'mod' },
     { trigger: '!points remove @user 500', summary: 'Remove points from a viewer.', perm: 'mod' },
     { trigger: '!counter', summary: 'Manage counters (also on the Counters page).', perm: 'mod' }

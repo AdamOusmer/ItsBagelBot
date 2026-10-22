@@ -24,8 +24,8 @@
   "status.closed": "Não há sorteio em andamento. Moderadores podem iniciar um com !raffle ou !mraffle.",
   "status.open": "Sorteio aberto. Inscrições: {raffle:count}. Resultado em ~{raffle:mins} min! Digite !join!",
   "status.open.secs": "Sorteio aberto. Inscrições: {raffle:count}. Resultado em ~{raffle:secs} s! Digite !join!",
-  "won": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants})! Digite !claim em até {raffle:claim} min para receber {raffle:prize}!",
-  "won.plain": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants})!",
-  "won.points": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants}): {raffle:amount} {raffle:points} por ganhador, já no seu saldo!",
-  "won.points.claim": "{raffle:targets}, parabéns pelo prêmio do sorteio (ganhadores: {raffle:count}; inscrições: {raffle:entrants}): {raffle:amount} {raffle:points} por ganhador, já no seu saldo! Digite !claim em até {raffle:claim} min para receber {raffle:prize}!"
+  "won": "Parabéns {raffle:targets}, você ganhou o sorteio! Digite !claim em até {raffle:claim} min para receber {raffle:prize}.",
+  "won.plain": "Parabéns {raffle:targets}, você ganhou o sorteio!",
+  "won.points": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo.",
+  "won.points.claim": "Parabéns {raffle:targets}, você ganhou o sorteio! {raffle:amount} {raffle:points} já estão no seu saldo. Digite !claim em até {raffle:claim} min para receber {raffle:prize}."
 }

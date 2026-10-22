@@ -19,7 +19,6 @@
   "points.adjusted": "@{loyalty:target} теперь имеет {loyalty:points} {loyalty:name}.",
   "points.disabled": "@{loyalty:user} это действие отключено на канале.",
   "points.gave": "@{loyalty:user} вы передали {loyalty:amount} {loyalty:name} пользователю @{loyalty:target}. Остаток: {loyalty:points}.",
-  "points.target.mention": "@{loyalty:user} упомяните пользователя через @, например !points give @name 100",
   "points.user.unknown": "@{loyalty:user} пользователь Twitch {loyalty:target} не найден.",
   "points.give.usage": "Использование: !points give @user <amount>",
   "points.insufficient": "@{loyalty:user} у вас только {loyalty:points} {loyalty:name}.",

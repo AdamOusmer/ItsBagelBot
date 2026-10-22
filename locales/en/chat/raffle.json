@@ -24,8 +24,8 @@
   "status.closed": "No raffle is running. Mods can start one with !raffle or !mraffle.",
   "status.open": "Raffle is live with {raffle:count} entered. Drawing in ~{raffle:mins} min! Type !join!",
   "status.open.secs": "Raffle is live with {raffle:count} entered. Drawing in ~{raffle:secs} sec! Type !join!",
-  "won": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})! Type !claim within {raffle:claim} min to get {raffle:prize}!",
-  "won.plain": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants})!",
-  "won.points": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance!",
-  "won.points.claim": "{raffle:targets}, congratulations! You won the raffle ({raffle:count} winner(s) from {raffle:entrants}): {raffle:amount} {raffle:points} per winner, already in your balance! Type !claim within {raffle:claim} min to get {raffle:prize}!"
+  "won": "Congrats {raffle:targets}, you won the raffle! Type !claim within {raffle:claim} min to get {raffle:prize}.",
+  "won.plain": "Congrats {raffle:targets}, you won the raffle!",
+  "won.points": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance.",
+  "won.points.claim": "Congrats {raffle:targets}, you won the raffle! {raffle:amount} {raffle:points} just landed in your balance. Type !claim within {raffle:claim} min to get {raffle:prize}."
 }

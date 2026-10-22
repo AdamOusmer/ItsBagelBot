@@ -53,7 +53,7 @@
       "label": "Gewinner verkündet",
       "tagline": "Wenn eine Ziehung die Gewinner nennt (manuell oder zeitgesteuert).",
       "event": "!raffle draw",
-      "defaultMessage": "{targets}, herzlichen Glückwunsch zum Gewinn der Verlosung (Gewinner: {count}, Teilnahmen: {entrants}): {amount} {points} pro Gewinner, bereits gutgeschrieben!"
+      "defaultMessage": "Glückwunsch {targets} zum Gewinn der Verlosung! {amount} {points} sind bereits gutgeschrieben."
     },
     "claimOk": {
       "label": "Preis bestätigt",

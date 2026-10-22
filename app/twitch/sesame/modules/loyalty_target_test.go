@@ -35,24 +35,42 @@ func TestPointsAdjustTargetsTheMentionedIDNotTheStoredLogin(t *testing.T) {
 	assert.Equal(t, []adjustCall{{viewerID: 99, login: "newname", value: 10}}, fake.adjusts)
 }
 
-func TestPointsTargetNeedsAnAtMention(t *testing.T) {
+func TestPointsBareLoginResolvesThroughTwitch(t *testing.T) {
 	for _, tc := range []struct {
-		text     string
-		contains string
+		text      string
+		transfers []transferCall
+		adjusts   []adjustCall
 	}{
-		{"!points give bob 100", "mention them with @"},
-		{"!points add bob 10", "mention them with @"},
-		{"!points give @ghost 100", "was not found"},
+		{"!points give Bob 100", []transferCall{{fromID: 2, targetID: 8, login: "bob", amount: 100}}, nil},
+		{"!points set bob 0", nil, []adjustCall{{viewerID: 8, login: "bob", value: 0, absolute: true}}},
+		{"!setpoints bob 250", nil, []adjustCall{{viewerID: 8, login: "bob", value: 250, absolute: true}}},
 	} {
 		t.Run(tc.text, func(t *testing.T) {
 			fake := &fakeLoyalty{}
 			c := loyaltyChat(streamer, "")
 			c.Env.Mentions = []lane.Mention{}
 
-			out := runLoyaltyChat(t, fake, c, tc.text)
+			runLoyaltyChat(t, fake, c, tc.text)
+
+			assert.Equal(t, tc.transfers, fake.transfers)
+			assert.Equal(t, tc.adjusts, fake.adjusts)
+		})
+	}
+}
+
+func TestPointsUnknownTargetIsNotFound(t *testing.T) {
+	for _, text := range []string{"!points give ghost 100", "!points add ghost 10", "!points give @ghost 100"} {
+		t.Run(text, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			d := loyaltyDeps(fake)
+			d.TwitchAccounts = &fakeAccountAge{}
+			c := loyaltyChat(streamer, "")
+			c.Env.Mentions = []lane.Mention{}
+
+			out := runChat(t, Loyalty(d), c, text)
 
 			require.Len(t, out, 1)
-			assert.Contains(t, out[0].Text, tc.contains)
+			assert.Contains(t, out[0].Text, "was not found")
 			assert.Empty(t, fake.transfers)
 			assert.Empty(t, fake.adjusts)
 		})

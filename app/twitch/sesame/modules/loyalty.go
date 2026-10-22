@@ -93,6 +93,7 @@ func Loyalty(d engine.Deps) module.Module {
 	m.On("stream.offline", onStreamTick(d, false))
 
 	m.Command("points").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.pointsRun))
+	m.Command("setpoints").Mod().Run(loyaltyRun(d, log, loyaltyCmd.setPointsRun))
 	m.Command("watchtime").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.watchtimeShow))
 
 	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Aliases("top").Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
@@ -198,6 +199,14 @@ func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	return lc.grantVerb(grant.allowed(cfg) || lc.owner(), grant.run)
 }
 
+func (lc loyaltyCmd) setPointsRun(ctx context.Context, args string) error {
+	if len(strings.Fields(args)) != 2 {
+		lc.reply("loyalty.points.usage")
+		return nil
+	}
+	return lc.pointsRun(ctx, "set "+args)
+}
+
 func (lc loyaltyCmd) grant(ctx context.Context, verb, target, amount string) (pointsGrant, bool) {
 	switch verb {
 	case "set":
@@ -249,7 +258,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
-	viewerID, ok := lc.resolvePointsUser(login, strings.HasPrefix(target, "@"))
+	viewerID, ok := lc.resolvePointsUser(ctx, login, strings.HasPrefix(target, "@"))
 	if !ok {
 		return nil
 	}
@@ -308,7 +317,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
-	targetID, ok := lc.resolvePointsUser(req.login, req.atPrefixed)
+	targetID, ok := lc.resolvePointsUser(ctx, req.login, req.atPrefixed)
 	if !ok {
 		return nil
 	}
@@ -320,17 +329,33 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	return lc.transferPoints(ctx, req, cfg)
 }
 
-func (lc loyaltyCmd) resolvePointsUser(login string, atPrefixed bool) (uint64, bool) {
-	id := mentionedViewerID(lc.c.Env.Mentions, login)
-	switch {
-	case id != 0:
+func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string, atPrefixed bool) (uint64, bool) {
+	if id := mentionedViewerID(lc.c.Env.Mentions, login); id != 0 {
 		return id, true
-	case !atPrefixed:
-		lc.reply("loyalty.points.target.mention")
-	default:
-		lc.reply("loyalty.points.user.unknown", "target", login)
 	}
+	if !atPrefixed {
+		if id := lc.lookupLogin(ctx, login); id != 0 {
+			return id, true
+		}
+	}
+	lc.reply("loyalty.points.user.unknown", "target", login)
 	return 0, false
+}
+
+func (lc loyaltyCmd) lookupLogin(ctx context.Context, login string) uint64 {
+	if lc.d.TwitchAccounts == nil {
+		return 0
+	}
+	raw, found, err := lc.d.TwitchAccounts.ResolveLogin(ctx, login)
+	if err != nil {
+		lc.log.Warn("loyalty: login lookup failed", zap.String("login", login), zap.Error(err))
+		return 0
+	}
+	if !found {
+		return 0
+	}
+	id, _ := strconv.ParseUint(raw, 10, 64)
+	return id
 }
 
 func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
