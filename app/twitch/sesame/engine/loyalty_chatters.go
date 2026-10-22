@@ -15,12 +15,14 @@ import (
 	"github.com/nats-io/nuid"
 )
 
-func (s *ValkeyLoyaltyClock) fetchPage(ctx context.Context, id uint64, state loyaltySchedule, checkLive bool) (manage.ChattersReply, error) {
+type chatterFetch struct{ checkLive, withTiers bool }
+
+func (s *ValkeyLoyaltyClock) fetchPage(ctx context.Context, id uint64, state loyaltySchedule, fetch chatterFetch) (manage.ChattersReply, error) {
 	ctx, cancel := context.WithTimeout(ctx, chattersRPCTimeout)
 	defer cancel()
 	deadline, _ := ctx.Deadline()
 	requestID := nuid.Next()
-	req := manage.ChattersRequest{BroadcasterID: strconv.FormatUint(id, 10), RequestID: requestID, WindowID: state.window, SessionGeneration: state.generation, LiveSession: state.liveSession, Cursor: state.cursor, CheckLive: checkLive, DeadlineUnixMilli: deadline.UnixMilli()}
+	req := manage.ChattersRequest{BroadcasterID: strconv.FormatUint(id, 10), RequestID: requestID, WindowID: state.window, SessionGeneration: state.generation, LiveSession: state.liveSession, Cursor: state.cursor, CheckLive: fetch.checkLive, WithTiers: fetch.withTiers, DeadlineUnixMilli: deadline.UnixMilli()}
 	body, err := codec.Marshal(req)
 	if err != nil {
 		return manage.ChattersReply{}, err

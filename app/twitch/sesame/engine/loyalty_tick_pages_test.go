@@ -131,6 +131,38 @@ func pageContractScenarios() []pageContractScenario {
 	}
 }
 
+func TestWatchTickRequestsTiersOnlyWithSubBonus(t *testing.T) {
+	for i, tc := range []struct {
+		name   string
+		config string
+		want   bool
+	}{
+		{"bonus off", `{"watchPointsPerTick":7}`, false},
+		{"bonus on", `{"watchPointsPerTick":7,"watchSubBonus":true}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := watchFixture(t, uint64(77400+i))
+			settings := "settings:" + strconv.FormatUint(f.id, 10)
+			require.NoError(t, f.client.Do(t.Context(), f.client.B().Hset().Key(settings).FieldValue().FieldValue("module:loyalty:config", tc.config).Build()).Error())
+			requests := 0
+			f.clock.request = func(_ context.Context, _ string, body []byte) (*nats.Msg, error) {
+				var req manage.ChattersRequest
+				require.NoError(t, codec.Unmarshal(body, &req))
+				requests++
+				require.Equal(t, tc.want, req.WithTiers)
+				reply := correlatedWatchReply(req)
+				reply.Live, reply.CheckedAtUnixMilli, reply.Complete = true, f.now.UnixMilli(), true
+				encoded, err := codec.Marshal(reply)
+				return &nats.Msg{Data: encoded}, err
+			}
+
+			f.clock.fire(context.Background(), f.id)
+
+			require.Equal(t, 1, requests)
+		})
+	}
+}
+
 func TestWatchTickPageContract(t *testing.T) {
 	for i, scenario := range pageContractScenarios() {
 		t.Run(scenario.name, func(t *testing.T) {
