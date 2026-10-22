@@ -5,6 +5,7 @@ package watch
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"slices"
@@ -26,6 +27,9 @@ type Watcher struct {
 	http *http.Client
 	repo imageRepo
 	now  func() time.Time
+
+	natsRoots      *x509.CertPool
+	natsServerName func(app string) string
 }
 
 var _ ports.Watcher = (*Watcher)(nil)
@@ -41,7 +45,10 @@ func New(rc *rest.Config, cfg ports.Config, hc *http.Client) (*Watcher, error) {
 func newWatcher(cs kubernetes.Interface, cfg ports.Config, hc *http.Client) *Watcher {
 	client := *hc
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Watcher{cs: cs, cfg: cfg, http: &client, repo: imageRepo(cfg.ImageRepo), now: time.Now}
+	return &Watcher{
+		cs: cs, cfg: cfg, http: &client, repo: imageRepo(cfg.ImageRepo), now: time.Now,
+		natsRoots: natsRootsFromEnv(), natsServerName: natsServiceName,
+	}
 }
 
 func (w *Watcher) Reachable(ctx context.Context) error {
@@ -114,11 +121,15 @@ func (w *Watcher) Probe(ctx context.Context, url ports.URL) (int, error) {
 }
 
 func (w *Watcher) get(ctx context.Context, url string) (*http.Response, error) {
+	return w.getWith(ctx, w.http, url)
+}
+
+func (w *Watcher) getWith(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return w.http.Do(req)
+	return client.Do(req)
 }
 
 type imageRepo string
