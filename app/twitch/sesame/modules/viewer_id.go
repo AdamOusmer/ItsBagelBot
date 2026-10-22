@@ -29,13 +29,28 @@ type viewerTarget struct {
 	atPrefixed bool
 }
 
-func resolveViewerID(ctx context.Context, accounts engine.TwitchAccountLookup, log *zap.Logger, mentions []lane.Mention, target viewerTarget) uint64 {
-	if id := mentionedViewerID(mentions, target.login); id != 0 || target.atPrefixed || accounts == nil {
+type viewerResolver struct {
+	accounts engine.TwitchAccountLookup
+	log      *zap.Logger
+}
+
+func (r viewerResolver) resolve(ctx context.Context, mentions []lane.Mention, target viewerTarget) uint64 {
+	if id := mentionedViewerID(mentions, target.login); id != 0 {
 		return id
 	}
-	raw, found, err := accounts.ResolveLogin(ctx, target.login)
+	if target.atPrefixed {
+		return 0
+	}
+	return r.lookup(ctx, target.login)
+}
+
+func (r viewerResolver) lookup(ctx context.Context, login string) uint64 {
+	if r.accounts == nil {
+		return 0
+	}
+	raw, found, err := r.accounts.ResolveLogin(ctx, login)
 	if err != nil {
-		log.Warn("login lookup failed", zap.String("login", target.login), zap.Error(err))
+		r.log.Warn("login lookup failed", zap.String("login", login), zap.Error(err))
 		return 0
 	}
 	if !found {

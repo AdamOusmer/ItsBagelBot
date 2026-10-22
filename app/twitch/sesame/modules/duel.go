@@ -307,7 +307,7 @@ func (dc duelCmd) challengeTarget(ctx context.Context, who engine.DuelParty, req
 		dc.reply(emit, "", "duel.challenge.self")
 		return engine.DuelParty{}, false
 	}
-	id := resolveViewerID(ctx, dc.accounts, dc.log, dc.c.Env.Mentions, viewerTarget{login, req.atPrefixed})
+	id := (viewerResolver{dc.accounts, dc.log}).resolve(ctx, dc.c.Env.Mentions, viewerTarget{login, req.atPrefixed})
 	if id == 0 {
 		dc.reply(emit, "", "duel.challenge.unknown", "target", login)
 		return engine.DuelParty{}, false

@@ -330,7 +330,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 }
 
 func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string, atPrefixed bool) (uint64, bool) {
-	if id := resolveViewerID(ctx, lc.d.TwitchAccounts, lc.log, lc.c.Env.Mentions, viewerTarget{login, atPrefixed}); id != 0 {
+	if id := (viewerResolver{lc.d.TwitchAccounts, lc.log}).resolve(ctx, lc.c.Env.Mentions, viewerTarget{login, atPrefixed}); id != 0 {
 		return id, true
 	}
 	lc.reply("loyalty.points.user.unknown", "target", login)
