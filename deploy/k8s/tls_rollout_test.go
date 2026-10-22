@@ -85,11 +85,19 @@ func TestTLSOptInNamesOnlyIssuedSecrets(t *testing.T) {
 	issued := readText(t, "../app/certificates.yaml")
 	for _, filename := range manifestFilenames(t) {
 		for _, dep := range decodeFile[rolloutDeployment](t, filename) {
-			for name := range strings.SplitSeq(dep.Metadata.Annotations[restartOnTLSSecret], ",") {
-				if name != "" {
-					assert.Contains(t, issued, "secretName: "+name, "%s watches %s, which no app Certificate issues", dep.Metadata.Name, name)
-				}
+			for _, name := range watchedSecretNames(dep) {
+				assert.Contains(t, issued, "secretName: "+name, "%s watches %s, which no app Certificate issues", dep.Metadata.Name, name)
 			}
 		}
 	}
+}
+
+func watchedSecretNames(dep rolloutDeployment) []string {
+	var out []string
+	for name := range strings.SplitSeq(dep.Metadata.Annotations[restartOnTLSSecret], ",") {
+		if name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }

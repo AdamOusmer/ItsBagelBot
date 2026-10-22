@@ -20,42 +20,53 @@ const (
 // Blocks until ctx ends. Informer events only wake the loop; the fingerprint compare decides whether anything rolls.
 func (r *Roller) Run(ctx context.Context, namespaces []string, debounce time.Duration) {
 	wake := make(chan struct{}, 1)
+	for _, namespace := range namespaces {
+		if err := r.watchNamespace(ctx, namespace, wake); err != nil {
+			r.log.Error("certroll: add handler", zap.String("namespace", namespace), zap.Error(err))
+			return
+		}
+	}
+	r.loop(ctx, namespaces, wake, debounce)
+}
+
+func (r *Roller) watchNamespace(ctx context.Context, namespace string, wake chan<- struct{}) error {
 	poke := func() {
 		select {
 		case wake <- struct{}{}:
 		default:
 		}
 	}
-	handler := cache.ResourceEventHandlerFuncs{
+	informer := dynamicinformer.NewFilteredDynamicInformer(r.dyn, certificates, namespace, resync, cache.Indexers{}, nil).Informer()
+	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(any) { poke() },
 		UpdateFunc: func(any, any) { poke() },
-	}
-	for _, namespace := range namespaces {
-		informer := dynamicinformer.NewFilteredDynamicInformer(r.dyn, certificates, namespace, resync, cache.Indexers{}, nil).Informer()
-		if _, err := informer.AddEventHandler(handler); err != nil {
-			r.log.Error("certroll: add handler", zap.String("namespace", namespace), zap.Error(err))
-			return
-		}
+	})
+	if err == nil {
 		go informer.Run(ctx.Done())
 	}
-	r.loop(ctx, namespaces, wake, debounce)
+	return err
 }
 
 func (r *Roller) loop(ctx context.Context, namespaces []string, wake <-chan struct{}, debounce time.Duration) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-wake:
-		}
-		if !quiet(ctx, wake, debounce) {
-			return
-		}
+	for awaitSettled(ctx, wake, debounce) {
 		for _, namespace := range namespaces {
-			if err := r.Reconcile(ctx, namespace); err != nil {
-				r.log.Error("certroll: reconcile failed", zap.String("namespace", namespace), zap.Error(err))
-			}
+			r.reconcileLogged(ctx, namespace)
 		}
+	}
+}
+
+func (r *Roller) reconcileLogged(ctx context.Context, namespace string) {
+	if err := r.Reconcile(ctx, namespace); err != nil {
+		r.log.Error("certroll: reconcile failed", zap.String("namespace", namespace), zap.Error(err))
+	}
+}
+
+func awaitSettled(ctx context.Context, wake <-chan struct{}, debounce time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-wake:
+		return quiet(ctx, wake, debounce)
 	}
 }
 
