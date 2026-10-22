@@ -5,6 +5,13 @@ bandwidthManager:
 bpf:
   hostRouting: true
   masquerade: true
+  events:
+    trace:
+      enabled: false
+    policyVerdict:
+      enabled: false
+    drop:
+      enabled: true
 
 enableIPv4BIGTCP: true
 
