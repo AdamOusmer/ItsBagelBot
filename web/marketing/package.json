@@ -2,7 +2,7 @@
   "name": "marketing",
   "type": "module",
   "version": "0.0.1",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "dev": "bun --bun astro dev",
     "build": "bun --bun astro build",

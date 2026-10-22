@@ -4,7 +4,7 @@
 # Build context is the repository root; build with this image's ignorefile, as CI does:
 #   podman build -f web/dashboard/Containerfile \
 #     --ignorefile web/dashboard/Containerfile.ignore -t cd-test .
-FROM docker.io/oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS build
+FROM docker.io/oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS build
 WORKDIR /src
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=$BUILD_VERSION
@@ -32,7 +32,7 @@ RUN bun kit/scripts/runtime-node-modules.ts node_modules /runtime/node_modules n
 # Distroless bun aborts on dlopen of newrelic's Node/V8 addons (502 on first request), so strip them here; the runtime stage has no shell.
 RUN bun kit/scripts/strip-newrelic-node-addons.ts /runtime/node_modules
 
-FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
+FROM docker.io/oven/bun:1.4.4-distroless@sha256:153a951ae40106e125898103e6e990ee0f38e6aee7f561029e26cf9fbed23470 AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000

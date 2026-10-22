@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	appPolicies      = "network-policies.yaml"
-	dbPolicies       = "../db/network-policies.yaml"
-	deployerManifest = "deployer.yaml"
+	appPolicies       = "network-policies.yaml"
+	dbPolicies        = "../db/network-policies.yaml"
+	messagingPolicies = "../messaging/network-policies.yaml"
+	deployerManifest  = "deployer.yaml"
 )
 
 type networkPolicyManifest struct {
@@ -147,6 +149,12 @@ func TestOperatorsPoliciesCoverBothDirections(t *testing.T) {
 	}
 }
 
+var probeIPBlockExceptions = map[string][]int{
+	"observability/default-deny-observability": {8765, 2801, 8080, 8081, 9090},
+	"operators/doppler-operator":               {8081},
+	"operators/cloudflared":                    {2000},
+}
+
 func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
 	paths, err := filepath.Glob("../*/network-policies.yaml")
 	require.NoError(t, err)
@@ -156,19 +164,30 @@ func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
 	for _, path := range paths {
 		for name, policy := range loadNetworkPolicies(t, path) {
 			assert.NotEqual(t, "allow-probe-ports", name, "%s: kubelet probes are admitted by the host entity, not by a source-less port allow", path)
-			assertIngressHasClusterSources(t, path+": "+name, policy.Spec.Ingress)
+			key := policy.Metadata.Namespace + "/" + name
+			assertIngressHasClusterSources(t, path+": "+name, policy.Spec.Ingress, probeIPBlockExceptions[key])
 		}
 	}
 }
 
-func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRule) {
+func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRule, allowedIPBlockPorts []int) {
 	t.Helper()
 	for _, rule := range rules {
 		assert.NotEmpty(t, rule.From, "%s ingress rule without a source admits every sender", label)
 		for _, peer := range rule.From {
-			assert.Nil(t, peer.IPBlock, "%s ingress must not admit ipBlock sources (they match world, not only the kubelet)", label)
+			if peer.IPBlock == nil {
+				continue
+			}
+			assert.True(t, ipBlockRuleIsAllowed(rule, allowedIPBlockPorts), "%s ingress must not admit ipBlock sources outside the cp1 probe exceptions (cilium#43012)", label)
 		}
 	}
+}
+
+func ipBlockRuleIsAllowed(rule policyRule, allowedPorts []int) bool {
+	if len(rule.Ports) == 0 {
+		return false
+	}
+	return !slices.ContainsFunc(rule.Ports, func(port policyPort) bool { return !slices.Contains(allowedPorts, port.Port) })
 }
 
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
@@ -221,6 +240,41 @@ func TestAppEgressAllowlists(t *testing.T) {
 			assert.Equal(t, tc.wantCIDRs, sorted(cidrs...))
 		})
 	}
+}
+
+func TestMessagingPodsDenyByDefault(t *testing.T) {
+	policies := loadNetworkPolicies(t, messagingPolicies)
+	for _, app := range []string{"nats", "nats-leaf"} {
+		t.Run(app, func(t *testing.T) {
+			deny := slices.ContainsFunc(slices.Collect(maps.Values(policies)), func(p networkPolicyManifest) bool {
+				return p.Spec.PodSelector.MatchLabels["app"] == app && len(p.Spec.Ingress) == 0 && slices.Contains(p.Spec.PolicyTypes, "Ingress")
+			})
+			assert.True(t, deny, "no default-deny ingress policy selects app=%s", app)
+		})
+	}
+}
+
+func TestNatsLeafIngressIsExact(t *testing.T) {
+	policies := loadNetworkPolicies(t, messagingPolicies)
+	got := map[string][]string{}
+	for _, name := range []string{"allow-nats-leaf-data-plane", "allow-nats-leaf-monitor"} {
+		got[name] = ruleSummary(requirePolicy(t, policies, name).Spec.Ingress)
+	}
+	assert.Equal(t, map[string][]string{
+		"allow-nats-leaf-data-plane": {
+			"kubernetes.io/metadata.name=app | any | 4223/TCP",
+			"kubernetes.io/metadata.name=db | any | 4223/TCP",
+			"kubernetes.io/metadata.name=ops | app=deployer | 4223/TCP",
+			"any | app=nats-leaf | 6223/TCP",
+		},
+		"allow-nats-leaf-monitor": {
+			"kubernetes.io/metadata.name=observability | any | 8223/TCP",
+			"kubernetes.io/metadata.name=tailscale | any | 8223/TCP",
+			"kubernetes.io/metadata.name=keda | app=keda-operator | 8223/TCP",
+			"kubernetes.io/metadata.name=ops | app=deployer | 8223/TCP",
+			"kubernetes.io/metadata.name=observability | app.kubernetes.io/name=newrelic-prometheus-agent | 7778/TCP",
+		},
+	}, got)
 }
 
 func TestDBNamespaceCoversEveryDataService(t *testing.T) {

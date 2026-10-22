@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "sideEffects": [
     "**/*.css"
   ],
@@ -53,14 +53,6 @@
   "peerDependencies": {
     "astro": "^7.0.6",
     "svelte": "^5.56.4"
-  },
-  "peerDependenciesMeta": {
-    "astro": {
-      "optional": true
-    },
-    "svelte": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@astrojs/compiler": "^4.0.0",
