@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,9 +19,10 @@ import (
 )
 
 const (
-	appPolicies      = "network-policies.yaml"
-	dbPolicies       = "../db/network-policies.yaml"
-	deployerManifest = "deployer.yaml"
+	appPolicies       = "network-policies.yaml"
+	dbPolicies        = "../db/network-policies.yaml"
+	messagingPolicies = "../messaging/network-policies.yaml"
+	deployerManifest  = "deployer.yaml"
 )
 
 type networkPolicyManifest struct {
@@ -221,6 +223,41 @@ func TestAppEgressAllowlists(t *testing.T) {
 			assert.Equal(t, tc.wantCIDRs, sorted(cidrs...))
 		})
 	}
+}
+
+func TestMessagingPodsDenyByDefault(t *testing.T) {
+	policies := loadNetworkPolicies(t, messagingPolicies)
+	for _, app := range []string{"nats", "nats-leaf"} {
+		t.Run(app, func(t *testing.T) {
+			deny := slices.ContainsFunc(slices.Collect(maps.Values(policies)), func(p networkPolicyManifest) bool {
+				return p.Spec.PodSelector.MatchLabels["app"] == app && len(p.Spec.Ingress) == 0 && slices.Contains(p.Spec.PolicyTypes, "Ingress")
+			})
+			assert.True(t, deny, "no default-deny ingress policy selects app=%s", app)
+		})
+	}
+}
+
+func TestNatsLeafIngressIsExact(t *testing.T) {
+	policies := loadNetworkPolicies(t, messagingPolicies)
+	got := map[string][]string{}
+	for _, name := range []string{"allow-nats-leaf-data-plane", "allow-nats-leaf-monitor"} {
+		got[name] = ruleSummary(requirePolicy(t, policies, name).Spec.Ingress)
+	}
+	assert.Equal(t, map[string][]string{
+		"allow-nats-leaf-data-plane": {
+			"kubernetes.io/metadata.name=app | any | 4223/TCP",
+			"kubernetes.io/metadata.name=db | any | 4223/TCP",
+			"kubernetes.io/metadata.name=ops | app=deployer | 4223/TCP",
+			"any | app=nats-leaf | 6223/TCP",
+		},
+		"allow-nats-leaf-monitor": {
+			"kubernetes.io/metadata.name=observability | any | 8223/TCP",
+			"kubernetes.io/metadata.name=tailscale | any | 8223/TCP",
+			"kubernetes.io/metadata.name=keda | app=keda-operator | 8223/TCP",
+			"kubernetes.io/metadata.name=ops | app=deployer | 8223/TCP",
+			"kubernetes.io/metadata.name=observability | app.kubernetes.io/name=newrelic-prometheus-agent | 7778/TCP",
+		},
+	}, got)
 }
 
 func TestDBNamespaceCoversEveryDataService(t *testing.T) {
