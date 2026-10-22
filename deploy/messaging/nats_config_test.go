@@ -144,6 +144,16 @@ func TestHubJetStreamIngestWindowStaysByteBounded(t *testing.T) {
 	}
 }
 
+func TestLeafMonitoringIsHTTPSOnly(t *testing.T) {
+	conf := readText(t, "nats-leaf-server.conf")
+	manifest := readText(t, "nats-leaf.yaml")
+
+	assert.Regexp(t, `(?m)^https_port: 8223$`, conf)
+	assert.NotRegexp(t, `(?m)^http_port:`, conf)
+	assert.Equal(t, 3, strings.Count(manifest, "port: monitor, scheme: HTTPS}"), "startup, liveness and readiness probes must use HTTPS")
+	assert.Contains(t, manifest, `"https://localhost:8223"`)
+}
+
 func TestPodNetworkOnly(t *testing.T) {
 	for _, name := range []string{"nats.yaml", "nats-leaf.yaml"} {
 		assert.NotContains(t, readText(t, name), "hostNetwork", "%s must not set hostNetwork: members advertise headless FQDNs on the pod network", name)
