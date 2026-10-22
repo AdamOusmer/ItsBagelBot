@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
+import { error, type Handle, type HandleServerError, type ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
@@ -183,6 +183,13 @@ async function admitSession(event: HookEvent): Promise<Response | null> {
   return null;
 }
 
+const OFFLINE_ROUTE_ROOT = '/(app)/discord';
+
+function offlineRoute(event: HookEvent): boolean {
+  const id = event.route.id ?? '';
+  return id === OFFLINE_ROUTE_ROOT || id.startsWith(OFFLINE_ROUTE_ROOT + '/');
+}
+
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
@@ -201,6 +208,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
   countView(event);
+  if (offlineRoute(event)) error(404, 'Not Found');
 
   let langPatched = false;
   const res = await resolve(event, {
