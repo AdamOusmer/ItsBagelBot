@@ -57,11 +57,10 @@ describe('nav registry', () => {
       'en:nav.commands',
       'en:nav.modules',
       'en:nav.songqueue',
-      'en:nav.discord',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.current)).toEqual([false, false, false, false, false, true, false]);
+    expect(items.map((i) => i.current)).toEqual([false, false, false, false, true, false]);
   });
 
   test('a delegate sees only granted sections, never owner-only ones', () => {
@@ -74,8 +73,8 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
-    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/songqueue', '/discord', '/billing']);
-    expect(full.map((i) => i.current)).toEqual([false, true, false, false, false]);
+    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/songqueue', '/billing']);
+    expect(full.map((i) => i.current)).toEqual([false, true, false, false]);
   });
 
   test.each([
@@ -129,7 +128,7 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(7);
+    expect(groups[0].items).toHaveLength(6);
   });
 });
 
