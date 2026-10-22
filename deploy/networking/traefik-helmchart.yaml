@@ -18,6 +18,20 @@ spec:
 
     deployment:
       kind: DaemonSet
+      # cloudflared reaches the Service with internalTrafficPolicy Local, so a
+      # node with no ready Traefik pod refuses connections ("no route to
+      # host"). The new pod must be ready and propagated before the old one
+      # leaves (surge, not unavailable), and the old one keeps serving past
+      # endpoint removal.
+      minReadySeconds: 10
+      terminationGracePeriodSeconds: 60
+      lifecycle:
+        preStop:
+          sleep:
+            seconds: 15
+
+    core:
+      strictTLSOptions: true
 
     # Global HTTP->HTTPS redirect on the web entrypoint. Static-config switch,
     # no per-route opt-out. This is only the "client -> traefik" half; the
@@ -39,6 +53,7 @@ spec:
         # site through an ExternalName Service, which the CRD provider refuses
         # by default.
         allowExternalNameServices: true
+        defaultTLSResourcesNamespace: networking
       kubernetesIngress:
         enabled: false
 
@@ -64,19 +79,36 @@ spec:
         internalTrafficPolicy: Local
 
     ports:
+      traefik:
+        http:
+          aliasHeadersStrategy: delete
+      metrics:
+        http:
+          aliasHeadersStrategy: delete
       web:
         port: 8000
         expose:
           default: true
         exposedPort: 80
+        http:
+          aliasHeadersStrategy: delete
+        transport:
+          lifeCycle:
+            requestAcceptGraceTimeout: 10s
+            graceTimeOut: 30s
       websecure:
         port: 8443
         expose:
           default: true
         exposedPort: 443
         http:
+          aliasHeadersStrategy: delete
           tls:
             enabled: true
+        transport:
+          lifeCycle:
+            requestAcceptGraceTimeout: 10s
+            graceTimeOut: 30s
 
     # Public ingress belongs to the app tier. Excluded by role, never by
     # hostname: naming individual hosts is what once left this config pointing
@@ -93,8 +125,11 @@ spec:
     updateStrategy:
       type: RollingUpdate
       rollingUpdate:
-        maxUnavailable: 1
-        maxSurge: 0
+        maxUnavailable: 0
+        maxSurge: 1
+
+    readinessProbe:
+      periodSeconds: 2
 
     podDisruptionBudget:
       enabled: true
