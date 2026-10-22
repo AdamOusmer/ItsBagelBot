@@ -16,6 +16,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -70,14 +71,14 @@ func chatReplyError(c *module.Context, emit module.Emit, account string, err err
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: c.Env.BroadcasterUserID,
-			Text:          account + ": " + re.Message,
+			Text:          tmpl.ValueEscaper.Replace(account + ": " + re.Message),
 		})
 		return true
 	}
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
-		Text:          account + ": " + i18n.T(c.Locale, "external.retry"),
+		Text:          tmpl.ValueEscaper.Replace(account) + ": " + i18n.T(c.Locale, "external.retry"),
 	})
 	return false
 }
