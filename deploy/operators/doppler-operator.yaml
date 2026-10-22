@@ -447,5 +447,15 @@ spec:
           runAsNonRoot: true
       securityContext:
         runAsNonRoot: true
+      nodeSelector:
+        role: cp
       serviceAccountName: doppler-operator-controller-manager
       terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - effect: NoSchedule
+        key: role
+        operator: Equal
+        value: cp
