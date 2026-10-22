@@ -39,10 +39,13 @@ export const init: ServerInit = async () => {
   startInvalidationListener();
 };
 
-async function staleStaffSession(event: RequestEvent): Promise<boolean> {
-  if (DEMO || isPublicAdminRoute(event.url.pathname)) return false;
-  if (!event.locals.session) return false;
-  return !(await requireAdmin(event.locals.session));
+type StaffAdmission = 'open' | 'signin' | 'denied';
+
+// Page data requests can skip layout loads, so this hook is the only gate every route shares.
+async function staffAdmission(event: RequestEvent): Promise<StaffAdmission> {
+  if (DEMO || isPublicAdminRoute(event.url.pathname)) return 'open';
+  if (!event.locals.session) return 'signin';
+  return (await requireAdmin(event.locals.session)) ? 'open' : 'denied';
 }
 
 const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()';
@@ -51,7 +54,9 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
   event.locals.locale = await resolveLocale(event);
 
-  if (await staleStaffSession(event)) {
+  const admission = await staffAdmission(event);
+  if (admission === 'signin') throw redirect(303, '/login');
+  if (admission === 'denied') {
     event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
     event.locals.session = null;
     throw redirect(303, '/login?e=denied');
