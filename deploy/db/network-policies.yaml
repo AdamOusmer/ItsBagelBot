@@ -52,25 +52,6 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: cache
 ---
-# WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; without this default-deny drops them.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-probe-ports
-  namespace: db
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [users, commands, discord-data, loyalty, modules, transactions, projector, notifications, notifications-cleanup]
-  policyTypes:
-    - Ingress
-  ingress:
-    - ports:
-        - port: 8080
-          protocol: TCP
----
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

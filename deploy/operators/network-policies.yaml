@@ -14,13 +14,6 @@ spec:
     matchLabels:
       control-plane: controller-manager
   policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.42.0.0/16]
-      ports:
-        - port: 8081
   egress:
     - to:
         - namespaceSelector:
@@ -61,13 +54,6 @@ spec:
     matchLabels:
       app.kubernetes.io/name: cloudflared
   policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.42.0.0/16]
-      ports:
-        - port: 2000
   egress:
     - to:
         - namespaceSelector:

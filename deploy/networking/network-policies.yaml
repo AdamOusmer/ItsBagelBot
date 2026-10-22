@@ -38,12 +38,6 @@ spec:
               app.kubernetes.io/name: newrelic-prometheus-agent
       ports:
         - port: 9100
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.42.0.0/16]
-      ports:
-        - port: 8080
   egress:
     - to:
         - namespaceSelector:

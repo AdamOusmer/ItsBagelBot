@@ -65,11 +65,6 @@ spec:
           podSelector:
             matchLabels:
               app: keda-operator
-        # WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; the pod CIDR stays excluded.
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.42.0.0/16
       ports:
         - port: 8222
         - port: 8223
