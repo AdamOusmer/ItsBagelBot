@@ -22,10 +22,6 @@
         "astro": "^7.0.6",
         "svelte": "^5.56.4",
       },
-      "optionalPeers": [
-        "astro",
-        "svelte",
-      ],
     },
   },
   "packages": {

@@ -30,7 +30,7 @@ See the [system overview](/reference/system-overview/) and `CONTEXT-MAP.md` at t
 ## Prerequisites
 
 *   **Go** 1.26.5 (`go.mod`).
-*   **Bun** 1.4.2 (`packageManager` in `web/package.json`).
+*   **Bun** 1.4.4 (`packageManager` in `web/package.json`).
 *   **Elixir** 1.17 or newer, only for the Twitch ingress (`app/twitch/ingress/mix.exs`).
 
 ## Local Setup
