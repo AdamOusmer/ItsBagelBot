@@ -53,6 +53,25 @@ func TestLoyaltyInvalidationDropsChannelBalancesAndTop(t *testing.T) {
 	assert.EqualValues(t, 3, served.Load(), "only the reset channel reloads its top")
 }
 
+func TestLoyaltyKeyedInvalidationDropsOnlyEarnedViewers(t *testing.T) {
+	ctx := t.Context()
+	nc := testnats.Connect(t)
+	client := newHotPathTestClient(t)
+	store := NewValkeyLoyaltyStore(client, NewLoyaltyRPC(nc, counterRPCPrefix), nil, nil)
+	store.StartInvalidationListener(nc, invalidationTestPrefix)
+	t.Cleanup(store.Close)
+
+	channel := freshChannel()
+	for _, key := range []string{balanceKey(channel, 7), balanceKey(channel, 8)} {
+		require.NoError(t, client.Do(ctx, client.B().Set().Key(key).Value("5:0").ExSeconds(60).Build()).Error())
+	}
+
+	require.NoError(t, invalidate.PublishKeys(nc, invalidationTestPrefix, loyaltyrpc.InvalidateScope, strconv.FormatUint(channel, 10), "7"))
+
+	assert.Eventually(t, func() bool { return keyGone(t, client, balanceKey(channel, 7)) }, 3*time.Second, 10*time.Millisecond)
+	assert.False(t, keyGone(t, client, balanceKey(channel, 8)), "a viewer who earned nothing keeps the cached balance")
+}
+
 func keyGone(t *testing.T, client valkey.Client, key string) bool {
 	t.Helper()
 	_, err := client.Do(t.Context(), client.B().Get().Key(key).Build()).ToString()
