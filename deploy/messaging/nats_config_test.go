@@ -67,8 +67,13 @@ func TestHubPinsTheBusAccountByPublicKey(t *testing.T) {
 func TestBothClustersMountTheOperatorTrustFiles(t *testing.T) {
 	kustomization := readText(t, "kustomization.yaml")
 	for _, entry := range []string{"auth.conf=nats-operator.conf", "- operator.jwt", "accounts.conf=nats-accounts.conf"} {
-		assert.Equal(t, 3, strings.Count(kustomization, entry), "%q must appear in the hub, hub advertise and leaf config maps", entry)
+		assert.Equal(t, 2, strings.Count(kustomization, entry), "%q must appear in both the hub and leaf config maps", entry)
 	}
+}
+
+func TestHubAdvertisesItsHeadlessHostname(t *testing.T) {
+	assert.Regexp(t, `(?m)^client_advertise: \$CLIENT_ADVERTISE$`, readText(t, "nats-server.conf"))
+	assert.Contains(t, readText(t, "nats.yaml"), "value: $(POD_NAME).nats-headless.messaging.svc.cluster.local:4222")
 }
 
 func TestPreloadCoversEveryAccountSignedByTheOperator(t *testing.T) {
