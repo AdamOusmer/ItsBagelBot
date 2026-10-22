@@ -156,12 +156,17 @@ func TestNoIngressIsOpenToNonClusterSources(t *testing.T) {
 	for _, path := range paths {
 		for name, policy := range loadNetworkPolicies(t, path) {
 			assert.NotEqual(t, "allow-probe-ports", name, "%s: kubelet probes are admitted by the host entity, not by a source-less port allow", path)
-			for _, rule := range policy.Spec.Ingress {
-				for _, peer := range rule.From {
-					assert.Nil(t, peer.IPBlock, "%s: %s ingress must not admit ipBlock sources (they match world, not only the kubelet)", path, name)
-				}
-				assert.NotEmpty(t, rule.From, "%s: %s ingress rule without a source admits every sender", path, name)
-			}
+			assertIngressHasClusterSources(t, path+": "+name, policy.Spec.Ingress)
+		}
+	}
+}
+
+func assertIngressHasClusterSources(t *testing.T, label string, rules []policyRule) {
+	t.Helper()
+	for _, rule := range rules {
+		assert.NotEmpty(t, rule.From, "%s ingress rule without a source admits every sender", label)
+		for _, peer := range rule.From {
+			assert.Nil(t, peer.IPBlock, "%s ingress must not admit ipBlock sources (they match world, not only the kubelet)", label)
 		}
 	}
 }
