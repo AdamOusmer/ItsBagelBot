@@ -96,6 +96,10 @@ spec:
               value: /etc/nats-client/tls/tls.key
             - name: PORT
               value: "3000"
+            - name: TLS_CERT_FILE
+              value: /etc/console/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/console/tls/tls.key
             - name: NODE_ENV
               value: production
             - name: ORIGIN
@@ -197,6 +201,7 @@ spec:
                 name: console-admin-env
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: tls, mountPath: /etc/console/tls, readOnly: true}
             - name: valkey-client-tls
               mountPath: /etc/valkey/client-tls
               readOnly: true
@@ -218,15 +223,18 @@ spec:
               sleep:
                 seconds: 10
           livenessProbe:
-            httpGet: {path: /healthz, port: 3000}
+            httpGet: {path: /healthz, port: 3000, scheme: HTTPS}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /readyz, port: 3000}
+            httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
             periodSeconds: 10
       volumes:
         - name: nats-client-tls
           secret:
             secretName: nats-client-tls
+        - name: tls
+          secret:
+            secretName: console-admin-tls
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
@@ -251,8 +259,8 @@ spec:
   selector:
     app: console-admin
   ports:
-    - name: http
-      port: 80
+    - name: https
+      port: 443
       targetPort: 3000
 ---
 apiVersion: networking.k8s.io/v1
@@ -268,7 +276,7 @@ spec:
     service:
       name: console-admin
       port:
-        number: 80
+        number: 443
   tls:
     - hosts:
         - admin
