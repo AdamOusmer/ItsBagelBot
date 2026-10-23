@@ -203,5 +203,6 @@ func TestHubMonitoringIsHTTPSOnly(t *testing.T) {
 	assert.NotRegexp(t, `(?m)^http_port:`, conf)
 	assert.Equal(t, 3, strings.Count(manifest, "port: monitor, scheme: HTTPS}"), "startup, liveness and readiness probes must use HTTPS")
 	assert.Contains(t, manifest, `"https://localhost:8222"`)
-	assert.Contains(t, manifest, "- {name: https, port: 8222, targetPort: monitor}", "the Tailscale operator proxies https only to a Service port named https")
+	assert.Contains(t, manifest, "- {name: https, port: 8222, targetPort: monitor}")
+	assert.Regexp(t, `(?m)^      port:\n        name: https$`, manifest, "the Tailscale operator proxies https only when the Ingress backend port is named https")
 }

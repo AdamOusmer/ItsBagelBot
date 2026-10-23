@@ -277,7 +277,7 @@ spec:
     service:
       name: nats
       port:
-        number: 8222
+        name: https
   tls:
     - hosts:
         - nats-monitoring
