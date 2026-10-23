@@ -199,6 +199,16 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: NEW_RELIC_UTILIZATION_DETECT_AWS
+              value: "false"
+            - name: NEW_RELIC_UTILIZATION_DETECT_GCP
+              value: "false"
+            - name: NEW_RELIC_UTILIZATION_DETECT_AZURE
+              value: "false"
+            - name: NEW_RELIC_UTILIZATION_DETECT_AZUREFUNCTION
+              value: "false"
+            - name: NEW_RELIC_UTILIZATION_DETECT_PCF
+              value: "false"
           envFrom:
             - secretRef:
                 name: console-admin-env
