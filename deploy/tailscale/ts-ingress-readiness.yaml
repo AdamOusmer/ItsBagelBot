@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# The operator renders ProxyGroup ingress pods with no readiness probe, so the
+# StatefulSet restarts the next replica ~1s after the previous one is recreated,
+# before it has joined the tailnet. Both replicas are then down at once.
+# Probe containerboot's /healthz (TS_ENABLE_HEALTH_CHECK in the ProxyClass) and
+# hold each replica for minReadySeconds so control can elect it primary while
+# the previous replica still drains.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: ts-ingress-readiness
+spec:
+  failurePolicy: Ignore
+  reinvocationPolicy: Never
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: tailscale
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["statefulsets"]
+  matchConditions:
+    - name: ts-ingress
+      expression: "object.metadata.name == 'ts-ingress'"
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{
+            spec: Object.spec{
+              minReadySeconds: 15,
+              template: Object.spec.template{
+                spec: Object.spec.template.spec{
+                  containers: [
+                    Object.spec.template.spec.containers{
+                      name: "tailscale",
+                      readinessProbe: Object.spec.template.spec.containers.readinessProbe{
+                        httpGet: Object.spec.template.spec.containers.readinessProbe.httpGet{
+                          path: "/healthz",
+                          port: 9002
+                        },
+                        periodSeconds: 2,
+                        failureThreshold: 3
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: ts-ingress-readiness
+spec:
+  policyName: ts-ingress-readiness
