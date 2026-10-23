@@ -190,6 +190,18 @@ func TestScaledObjectsTargetTheBusAccountByID(t *testing.T) {
 		require.NotEmpty(t, matches, "%s declares no nats-jetstream trigger", path)
 		for _, m := range matches {
 			assert.Contains(t, m[1], want, "%s: a nats-jetstream trigger must carry the BUS public key, /jsz ignores the account name in operator mode", path)
+			assert.Contains(t, m[1], `useHttps: "true"`, "%s: the hub monitor listener is HTTPS only", path)
 		}
 	}
+}
+
+func TestHubMonitoringIsHTTPSOnly(t *testing.T) {
+	conf := readText(t, "nats-server.conf")
+	manifest := readText(t, "nats.yaml")
+
+	assert.Regexp(t, `(?m)^https_port: 8222$`, conf)
+	assert.NotRegexp(t, `(?m)^http_port:`, conf)
+	assert.Equal(t, 3, strings.Count(manifest, "port: monitor, scheme: HTTPS}"), "startup, liveness and readiness probes must use HTTPS")
+	assert.Contains(t, manifest, `"https://localhost:8222"`)
+	assert.Contains(t, manifest, "- {name: https, port: 8222, targetPort: monitor}", "the Tailscale operator proxies https only to a Service port named https")
 }

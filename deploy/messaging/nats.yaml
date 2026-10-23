@@ -138,19 +138,19 @@ spec:
                 command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
             # 10 minutes: the boot re-sync takes ~6.5 min, and a shorter budget crash-loops the member.
-            httpGet: {path: /healthz, port: monitor}
+            httpGet: {path: /healthz, port: monitor, scheme: HTTPS}
             periodSeconds: 5
             failureThreshold: 120
             timeoutSeconds: 1
           livenessProbe:
             # js-server-only: plain /healthz is 503 while a follower catches up, and a restart sets it further back.
-            httpGet: {path: "/healthz?js-server-only=true", port: monitor}
+            httpGet: {path: "/healthz?js-server-only=true", port: monitor, scheme: HTTPS}
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 12
           readinessProbe:
-            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor}
+            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor, scheme: HTTPS}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -181,9 +181,13 @@ spec:
         - name: prometheus-nats-exporter
           image: natsio/prometheus-nats-exporter:0.20.1@sha256:4fbf6dacb84780a45a1c3af9b1080c69451a288d20902deae671b80717bb8f61
           imagePullPolicy: IfNotPresent
-          args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "http://localhost:8222"]
+          args: ["-varz", "-connz", "-subz", "-routez", "-jsz=all", "https://localhost:8222"]
+          env:
+            - {name: SSL_CERT_FILE, value: /etc/nats/intermediate-ca/ca.pem}
           ports:
             - {containerPort: 7777, name: metrics}
+          volumeMounts:
+            - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
           resources:
             requests: {cpu: 5m, memory: 32Mi}
             limits: {cpu: 100m, memory: 128Mi}
@@ -243,7 +247,7 @@ spec:
     app: nats
   ports:
     - {name: client, port: 4222, targetPort: client}
-    - {name: monitor, port: 8222, targetPort: monitor}
+    - {name: https, port: 8222, targetPort: monitor}
 ---
 apiVersion: v1
 kind: Service

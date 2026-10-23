@@ -40,7 +40,10 @@ Namespace first and succeeds.
 
 **The NATS scaler needs pod-to-pod reach to port 8222.** It reads `/jsz` through
 the `nats` Service, then follows the cluster to the consumer's leader and dials
-that member's *advertised pod IP*. `deploy/messaging/network-policies.yaml`
+that member's *advertised* address (the `nats-N.nats-headless` hostname, which
+`nats-hub-tls` covers). The monitor listener is HTTPS: triggers set
+`useHttps: "true"` and the operator trusts the fleet intermediate CA mounted at
+`/custom/ca` (trust-manager Bundle `fleet-intermediate-ca` targets `keda`). `deploy/messaging/network-policies.yaml`
 denies pod-to-pod monitor traffic by design, so the `keda` namespace is listed
 there explicitly. Apply that file before expecting a scaler to work.
 
