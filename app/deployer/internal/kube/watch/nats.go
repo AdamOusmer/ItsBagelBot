@@ -5,6 +5,8 @@ package watch
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/env"
 )
 
 const (
@@ -52,8 +55,8 @@ func (w *Watcher) configLoaded(ctx context.Context, p *corev1.Pod) (time.Time, e
 	if !ok || p.Status.PodIP == "" {
 		return time.Time{}, fmt.Errorf("nats pod %s: no monitor address yet", p.Name)
 	}
-	url := "http://" + net.JoinHostPort(p.Status.PodIP, strconv.Itoa(int(port))) + "/varz"
-	resp, err := w.get(ctx, url)
+	url := "https://" + net.JoinHostPort(p.Status.PodIP, strconv.Itoa(int(port))) + "/varz"
+	resp, err := w.getWith(ctx, w.natsClient(p.Labels["app"]), url)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("nats pod %s: %w", p.Name, err)
 	}
@@ -66,6 +69,36 @@ func (w *Watcher) configLoaded(ctx context.Context, p *corev1.Pod) (time.Time, e
 		return time.Time{}, fmt.Errorf("nats pod %s: decode /varz: %w", p.Name, err)
 	}
 	return v.ConfigLoadTime, nil
+}
+
+// Pods are dialed by IP, so the certificate is checked against the Service name of their app.
+func (w *Watcher) natsClient(app string) *http.Client {
+	client := *w.http
+	client.Transport = &http.Transport{
+		DisableKeepAlives: true,
+		TLSClientConfig: &tls.Config{
+			RootCAs:    w.natsRoots,
+			ServerName: w.natsServerName(app),
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+	return &client
+}
+
+func natsServiceName(app string) string {
+	return app + "." + string(natsNamespace) + ".svc.cluster.local"
+}
+
+func natsRootsFromEnv() *x509.CertPool {
+	pem := env.Get("NATS_CA_PEM", "")
+	if pem == "" {
+		return nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(pem)) {
+		return nil
+	}
+	return pool
 }
 
 func monitorPort(p *corev1.Pod) (int32, bool) {

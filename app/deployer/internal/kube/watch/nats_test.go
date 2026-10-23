@@ -5,6 +5,7 @@ package watch
 
 import (
 	"context"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -23,7 +24,7 @@ func varzServer(t *testing.T, status int, loaded time.Time) (int32, func()) {
 	t.Helper()
 	body := `{"server_id":"NTEST","version":"2.14.6","start":"2026-09-20T08:00:00Z","config_load_time":"` +
 		loaded.Format(time.RFC3339Nano) + `","connections":4}`
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/varz" {
 			http.NotFound(w, r)
 			return
@@ -31,7 +32,26 @@ func varzServer(t *testing.T, status int, loaded time.Time) (int32, func()) {
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(body))
 	}))
+	tlsServerCert = srv.Certificate()
 	return int32(srv.Listener.Addr().(*net.TCPAddr).Port), srv.Close
+}
+
+var tlsServerCert *x509.Certificate
+
+func TestNATSServersVerifyTheServiceName(t *testing.T) {
+	port, closeSrv := varzServer(t, http.StatusOK, testNow)
+	defer closeSrv()
+	pod := natsSpec{name: "nats-0", app: "nats", node: "node1", ip: "127.0.0.1", port: port}.pod()
+
+	w := testWatcher(pod.obj())
+	w.natsRoots = x509.NewCertPool()
+	w.natsRoots.AddCert(tlsServerCert)
+	w.natsServerName = func(string) string { return "nats.invalid" }
+	_, err := w.NATSServers(context.Background())
+	assert.ErrorContains(t, err, "x509")
+
+	w.natsServerName = natsServiceName
+	assert.Equal(t, "nats-leaf.messaging.svc.cluster.local", w.natsServerName("nats-leaf"))
 }
 
 type natsSpec struct {
@@ -87,7 +107,11 @@ func TestNATSServers(t *testing.T) {
 			for _, p := range c.pods {
 				objs = append(objs, p.obj())
 			}
-			got, err := testWatcher(objs...).NATSServers(context.Background())
+			w := testWatcher(objs...)
+			w.natsRoots = x509.NewCertPool()
+			w.natsRoots.AddCert(tlsServerCert)
+			w.natsServerName = func(string) string { return "example.com" }
+			got, err := w.NATSServers(context.Background())
 			if c.wantErr {
 				assert.Error(t, err)
 				return
