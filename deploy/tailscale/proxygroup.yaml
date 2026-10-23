@@ -14,6 +14,8 @@ spec:
         env:
           - name: TS_USERSPACE
             value: "true"
+          - name: TS_ENABLE_HEALTH_CHECK
+            value: "true"
       tolerations:
         - {key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
         - {key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
@@ -35,3 +37,15 @@ spec:
   replicas: 2
   proxyClass: ts-ingress-ha
   hostnamePrefix: ts-ingress
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ts-ingress
+  namespace: tailscale
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      tailscale.com/parent-resource-type: proxygroup
+      tailscale.com/parent-resource: ts-ingress
