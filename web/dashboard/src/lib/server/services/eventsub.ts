@@ -65,35 +65,44 @@ function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
   return (KNOWN_SUB_STATES as readonly string[]).includes(s);
 }
 
+type SubStateReply = {
+  found: boolean;
+  channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
+  verification?: SubVerification;
+};
+
+function subStateFlags(opts: SubStateOptions): { verify?: true; repair?: true } {
+  return {
+    ...(opts.verify ? { verify: true } : {}),
+    ...(opts.repair ? { repair: true } : {})
+  };
+}
+
+function subStateFromReply(r: SubStateReply): ChannelSubState {
+  const verification = r.verification ? { verification: r.verification } : {};
+  const c = r.found ? r.channel : undefined;
+  if (!c || !isKnownSubState(c.sub_state)) {
+    return { ...unknownSubState(), ...verification };
+  }
+  return {
+    state: c.sub_state,
+    error: c.sub_error || '',
+    checkedAt: c.sub_checked_at || null,
+    ...verification
+  };
+}
+
 export async function channelSubState(
   broadcasterId: string,
   opts: SubStateOptions = {}
 ): Promise<ChannelSubState> {
   try {
-    const r = await rpc<{
-      found: boolean;
-      channel?: { sub_state: string; sub_error: string; sub_checked_at: string };
-      verification?: SubVerification;
-    }>(
+    const r = await rpc<SubStateReply>(
       `${SUB.outgressRpc}.channel.get`,
-      {
-        broadcaster_id: broadcasterId,
-        ...(opts.verify ? { verify: true } : {}),
-        ...(opts.repair ? { repair: true } : {})
-      },
+      { broadcaster_id: broadcasterId, ...subStateFlags(opts) },
       opts.verify ? SUB_VERIFY_TIMEOUT_MS : SUB_READ_TIMEOUT_MS
     );
-    const verification = r.verification ? { verification: r.verification } : {};
-    const c = r.found ? r.channel : undefined;
-    if (!c || !isKnownSubState(c.sub_state)) {
-      return { ...unknownSubState(), ...verification };
-    }
-    return {
-      state: c.sub_state,
-      error: c.sub_error || '',
-      checkedAt: c.sub_checked_at || null,
-      ...verification
-    };
+    return subStateFromReply(r);
   } catch {
     return unknownSubState();
   }
