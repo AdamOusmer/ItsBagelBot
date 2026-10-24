@@ -19,81 +19,16 @@ func matchReaction(raw string) (reaction, bool) {
 	if !personalityGate.screens(raw) {
 		return reaction{}, false
 	}
-	normBest := personalityPhrases.first(normalizeChat(raw))
+	normBest := personalityPhrases.first(normalizedText(normalizeChat(raw)))
 	for i, r := range personalityReactions {
-		if i == normBest || r.matchRaw && matchesAny(raw, r.phrases) {
+		if i == normBest {
+			return r, true
+		}
+		if r.matchRaw && matchesAny(raw, r.phrases) {
 			return r, true
 		}
 	}
 	return reaction{}, false
-}
-
-// phraseIndex answers word-boundary matching on normalized text by lookup: a
-// normalized line is word runes joined by single spaces, so a phrase occurs at
-// word edges exactly when it equals a run of consecutive words.
-type phraseIndex struct {
-	reaction map[string]int
-	maxWords int
-}
-
-var personalityPhrases = indexPhrases(personalityReactions)
-
-func indexPhrases(rs []reaction) phraseIndex {
-	idx := phraseIndex{reaction: make(map[string]int)}
-	for i, r := range rs {
-		if r.matchRaw {
-			continue
-		}
-		for _, p := range r.phrases {
-			idx.add(p, i)
-		}
-	}
-	return idx
-}
-
-func (idx *phraseIndex) add(phrase string, reaction int) {
-	if phrase == "" || normalizeChat(phrase) != phrase {
-		return
-	}
-	if _, claimed := idx.reaction[phrase]; !claimed {
-		idx.reaction[phrase] = reaction
-	}
-	idx.maxWords = max(idx.maxWords, strings.Count(phrase, " ")+1)
-}
-
-// first returns the lowest reaction index with a phrase in norm, or -1.
-func (idx phraseIndex) first(norm string) int {
-	best := -1
-	for start := 0; start < len(norm); {
-		best = idx.bestFrom(norm[start:], best)
-		next := strings.IndexByte(norm[start:], ' ')
-		if next < 0 {
-			break
-		}
-		start += next + 1
-	}
-	return best
-}
-
-func (idx phraseIndex) bestFrom(text string, best int) int {
-	end := 0
-	for range idx.maxWords {
-		next := strings.IndexByte(text[end:], ' ')
-		if next < 0 {
-			return idx.better(text, best)
-		}
-		end += next
-		best = idx.better(text[:end], best)
-		end++
-	}
-	return best
-}
-
-func (idx phraseIndex) better(run string, best int) int {
-	if i, ok := idx.reaction[run]; ok && (best < 0 || i < best) {
-		return i
-	}
-	return best
 }
 
 // anchor is one gate term: a literal substring that every line matching some
