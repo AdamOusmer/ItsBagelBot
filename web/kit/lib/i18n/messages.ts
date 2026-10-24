@@ -11,7 +11,13 @@ export type { Locale } from './types';
 export const LOCALES: readonly Locale[] = locales;
 export const DEFAULT_LOCALE: Locale = 'en';
 
-const catalogs: Record<string, MessageTree> = {};
+const catalogs = new Map<string, MessageTree>();
+
+function catalogFor(locale: Locale): MessageTree {
+  let tree = catalogs.get(locale);
+  if (!tree) catalogs.set(locale, (tree = {}));
+  return tree;
+}
 const loading = new Map<string, Promise<void>>();
 
 async function fetchTree(url: string): Promise<MessageTree> {
@@ -21,7 +27,7 @@ async function fetchTree(url: string): Promise<MessageTree> {
 }
 
 async function readCatalog(locale: Locale): Promise<void> {
-  catalogs[locale] = import.meta.env.SSR ? (await loaders[locale]()).default : await fetchTree(urls[locale]);
+  catalogs.set(locale, import.meta.env.SSR ? (await loaders[locale]()).default : await fetchTree(urls[locale]));
 }
 
 function once(id: string, read: () => Promise<void>): Promise<void> {
@@ -58,12 +64,12 @@ function documentLocale(): Locale {
 }
 
 function loadSlice(locale: Locale, file: string): Promise<void> {
-  return once(`${locale}/${file}`, async () => mergeInto((catalogs[locale] ??= {}), await fetchTree(`${sliceBases.get(file)}${locale}/${file}`)));
+  return once(`${locale}/${file}`, async () => mergeInto(catalogFor(locale), await fetchTree(`${sliceBases.get(file)}${locale}/${file}`)));
 }
 
 /** Called by every node or lazy chunk of a sliced build before it evaluates; an empty `h` means no slice to fetch. */
 export async function registerMessages(chunkUrl: string, messages: { h: string; m: MessageTree }): Promise<void> {
-  mergeInto((catalogs[DEFAULT_LOCALE] ??= {}), messages.m);
+  mergeInto(catalogFor(DEFAULT_LOCALE), messages.m);
   if (!messages.h) return;
   const file = chunkUrl.slice(chunkUrl.lastIndexOf('/') + 1).replace(/\.js$/, '.json');
   sliceBases.set(file, new URL('../i18n/', chunkUrl).href);
@@ -120,8 +126,8 @@ export function translate(
   params?: Record<string, string | number>
 ): string {
   let str =
-    lookup(catalogs[locale] ?? catalogs[DEFAULT_LOCALE], key) ??
-    lookup(catalogs[DEFAULT_LOCALE], key) ??
+    lookup(catalogs.get(locale) ?? catalogs.get(DEFAULT_LOCALE), key) ??
+    lookup(catalogs.get(DEFAULT_LOCALE), key) ??
     key;
   if (params) {
     for (const name in params) {
@@ -140,7 +146,7 @@ export function translateList(locale: Locale, key: string): string[] {
     }
     return Array.isArray(node) ? node : undefined;
   };
-  return from(catalogs[locale] ?? catalogs[DEFAULT_LOCALE]) ?? from(catalogs[DEFAULT_LOCALE]) ?? [];
+  return from(catalogs.get(locale) ?? catalogs.get(DEFAULT_LOCALE)) ?? from(catalogs.get(DEFAULT_LOCALE)) ?? [];
 }
 
 export function detectLocale(opts: { cookie?: string | null; accept?: string | null }): Locale {
