@@ -33,13 +33,27 @@ export function selectionKey(kind: RowKind, i: number): string {
   return `${kind}:${i}`;
 }
 
-export function itemDiags(
-  diagnostics: ImportDiagnostic[] | undefined,
-  kind: RowKind,
-  i: number
-): ImportDiagnostic[] {
-  return (diagnostics ?? []).filter((d) => d.item_index === i && d.code.startsWith(CODE_PREFIX[kind]));
+export type DiagIndex = ReadonlyMap<string, ImportDiagnostic[]>;
+
+export function indexDiagnostics(diagnostics: ImportDiagnostic[] | undefined): DiagIndex {
+  const index = new Map<string, ImportDiagnostic[]>();
+  for (const d of diagnostics ?? []) {
+    for (const kind of ROW_KINDS) {
+      if (!d.code.startsWith(CODE_PREFIX[kind])) continue;
+      const key = selectionKey(kind, d.item_index);
+      const rows = index.get(key);
+      if (rows) rows.push(d);
+      else index.set(key, [d]);
+    }
+  }
+  return index;
 }
+
+export const diagsAt = (index: DiagIndex, kind: RowKind, i: number): ImportDiagnostic[] =>
+  index.get(selectionKey(kind, i)) ?? [];
+
+export const itemDiags = (diagnostics: ImportDiagnostic[] | undefined, kind: RowKind, i: number): ImportDiagnostic[] =>
+  diagsAt(indexDiagnostics(diagnostics), kind, i);
 
 const isFatal = (diags: ImportDiagnostic[]) => diags.some((d) => d.severity === 'error');
 
@@ -47,9 +61,10 @@ export function buildSelection(preview: PreviewResponse | null, want: boolean): 
   const m = preview?.manifest;
   const out: Selection = {};
   if (!m) return out;
+  const index = indexDiagnostics(preview.diagnostics);
   for (const kind of ROW_KINDS) {
     rowsOf(m, kind).forEach((_, i) => {
-      out[selectionKey(kind, i)] = want && !isFatal(itemDiags(preview.diagnostics, kind, i));
+      out[selectionKey(kind, i)] = want && !isFatal(diagsAt(index, kind, i));
     });
   }
   return out;
@@ -74,9 +89,9 @@ export function countPicked(m: ImportManifest | undefined, selected: Selection):
 export function countFatal(preview: PreviewResponse | null): number {
   const m = preview?.manifest;
   if (!m) return 0;
+  const index = indexDiagnostics(preview.diagnostics);
   let n = 0;
-  for (const kind of ROW_KINDS)
-    rowsOf(m, kind).forEach((_, i) => isFatal(itemDiags(preview.diagnostics, kind, i)) && n++);
+  for (const kind of ROW_KINDS) rowsOf(m, kind).forEach((_, i) => isFatal(diagsAt(index, kind, i)) && n++);
   return n;
 }
 

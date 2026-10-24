@@ -3,10 +3,9 @@
 
 import { namespaceReplyTemplate, type ChannelPointReward } from '@bagel/kit';
 import { CHANNELPOINTS_MODULE } from '@bagel/kit/catalog/channelpoints';
+import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, wholeBetween } from '$lib/reward-fields';
 
 export const REWARD_DEFAULT_COLOR = '#9147ff';
-const COST_MAX = 10_000_000;
-const COOLDOWN_MAX = 604_800;
 
 const reply = CHANNELPOINTS_MODULE.replies.find((r) => r.key === 'reply')!;
 
@@ -34,16 +33,13 @@ export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Obj
   counter: 'rewardCounter.errNameRequired'
 });
 
-const wholeAtLeast = (n: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
-  Number.isInteger(n) && (n as number) >= min && (n as number) <= max;
-
-const invalidLimit = (enabled: boolean, value: unknown, max?: number) => enabled && !wholeAtLeast(value, 1, max);
+const invalidLimit = (enabled: boolean, value: unknown, max?: number) => enabled && !wholeBetween(value, 1, max);
 
 function limitErrors(draft: ChannelPointReward): RewardErrors {
   const errors: RewardErrors = {};
   if (invalidLimit(draft.maxPerStreamEnabled, draft.maxPerStream)) errors.perStream = REWARD_ERROR_KEYS.perStream;
   if (invalidLimit(draft.maxPerUserPerStreamEnabled, draft.maxPerUserPerStream)) errors.perUser = REWARD_ERROR_KEYS.perUser;
-  if (invalidLimit(draft.globalCooldownEnabled, draft.globalCooldownSeconds, COOLDOWN_MAX)) {
+  if (invalidLimit(draft.globalCooldownEnabled, draft.globalCooldownSeconds, REWARD_COOLDOWN_MAX)) {
     errors.cooldown = REWARD_ERROR_KEYS.cooldown;
   }
   return errors;
@@ -52,7 +48,7 @@ function limitErrors(draft: ChannelPointReward): RewardErrors {
 export function rewardErrors(draft: ChannelPointReward, counterOn: boolean): RewardErrors {
   const errors: RewardErrors = limitErrors(draft);
   if (!draft.title.trim()) errors.title = REWARD_ERROR_KEYS.title;
-  if (!wholeAtLeast(draft.cost, 1, COST_MAX)) errors.cost = REWARD_ERROR_KEYS.cost;
+  if (!wholeBetween(draft.cost, 1, REWARD_COST_MAX)) errors.cost = REWARD_ERROR_KEYS.cost;
   if (counterOn && !draft.counter.trim()) errors.counter = REWARD_ERROR_KEYS.counter;
   return errors;
 }

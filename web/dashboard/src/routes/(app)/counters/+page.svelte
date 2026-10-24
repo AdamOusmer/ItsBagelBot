@@ -2,11 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Select from '@bagel/ui/svelte/Select.svelte';
-  import { enhance, deserialize } from '$app/forms';
+  import { enhance } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick, untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -42,6 +42,7 @@
     type ActionOk
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
+  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
@@ -51,13 +52,8 @@
 
   // svelte-ignore state_referenced_locally
   let items = $state<CounterDef[]>(data.counters ?? []);
-  // svelte-ignore state_referenced_locally
-  let seed = data.counters;
-  $effect(() => {
-    if (data.counters !== seed) {
-      seed = data.counters;
-      items = data.counters ?? [];
-    }
+  reseedOnChange(() => data.counters, (next) => {
+    items = next ?? [];
   });
 
   let search = $state('');
@@ -100,9 +96,7 @@
     body.set('value', String(value));
     if (target?.viewerId && target.viewerId !== '0') body.set('viewer_id', target.viewerId);
     if (target?.command) body.set('command', target.command);
-    return fetch('?/set', { method: 'POST', body })
-      .then(async (res) => actionPayload(deserialize(await res.text())) ?? null)
-      .catch(() => null);
+    return postAction('set', body);
   }
 
   function focusSelect(node: HTMLElement) {
@@ -148,11 +142,20 @@
     document.getElementById('counter-name')?.focus();
   }
 
+  const blankSub = () => ({
+    renameValue: '',
+    renameError: '',
+    addUser: '',
+    addCommand: '',
+    addValue: '0',
+    addAttempted: false
+  });
+  let sub = $state(blankSub());
+
   function present(id: string | null, next: CounterDraft | null) {
     expanded = id;
     attempted = false;
-    renameError = '';
-    addAttempted = false;
+    sub = blankSub();
     if (id && next) {
       inspector.open(id, { ...next });
       draft = { ...next };
@@ -162,20 +165,11 @@
     }
   }
 
-  function clearSubFields() {
-    renameValue = '';
-    addUser = '';
-    addCommand = '';
-    addValue = '0';
-  }
-
   const discard = createDiscardGuard(
     () =>
-      inspector.dirty || renameValue.trim() !== '' || addUser.trim() !== '' || addCommand.trim() !== '',
-    () => {
-      clearSubFields();
-      present(null, null);
-    }
+      inspector.dirty ||
+      [sub.renameValue, sub.addUser, sub.addCommand].some((value) => value.trim() !== ''),
+    () => present(null, null)
   );
   const guarded = discard.guard;
 
@@ -186,7 +180,6 @@
 
   function openNew() {
     guarded(() => {
-      clearSubFields();
       present(NEW, { name: '', scope: 'channel', value: '0' });
       syncSelection(null);
     });
@@ -197,11 +190,10 @@
       closeEditor();
       return;
     }
+    const next: CounterDraft | null = c.scope === 'channel' ? { name: c.name, scope: c.scope, value: c.value } : null;
     guarded(() => {
-      clearSubFields();
-      const channel = c.scope === 'channel';
-      present(c.name, channel ? { name: c.name, scope: c.scope, value: c.value } : null);
-      syncSelection(channel ? null : c.name);
+      present(c.name, next);
+      syncSelection(next ? null : c.name);
     });
   }
 
@@ -240,6 +232,18 @@
     return requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
   }
 
+  async function finishAction(result: ActionResult, successText: string, onOk?: () => void): Promise<boolean> {
+    const payload = actionPayload(result);
+    if (result.type !== 'success' || !payload?.ok) {
+      failed(payload, t('counters.toastFailed'));
+      return false;
+    }
+    toast('success', successText);
+    onOk?.();
+    await invalidateAll();
+    return true;
+  }
+
   const createSubmit: SubmitFunction = (input) => {
     attempted = true;
     if (!normCounterName(draft?.name ?? '')) {
@@ -251,13 +255,9 @@
     return async ({ result }) => {
       const ok = result.type === 'success' && actionPayload(result)?.ok === true;
       const applied = endSaveRequest(requestId, ok);
-      if (!ok) {
-        failed(actionPayload(result), t('counters.toastFailed'));
-        return;
-      }
-      toast('success', t('counters.toastCreated'));
-      if (applied) present(null, null);
-      await invalidateAll();
+      await finishAction(result, t('counters.toastCreated'), () => {
+        if (applied) present(null, null);
+      });
     };
   };
 
@@ -272,24 +272,17 @@
     return async ({ result }) => {
       const ok = result.type === 'success' && actionPayload(result)?.ok === true;
       endSaveRequest(requestId, ok);
-      if (!ok) {
-        failed(actionPayload(result), t('counters.toastFailed'));
-        return;
-      }
-      toast('success', t('counters.toastSet'));
-      await invalidateAll();
+      await finishAction(result, t('counters.toastSet'));
     };
   };
 
-  let renameValue = $state('');
-  let renameError = $state('');
   let renameForm = $state<HTMLFormElement | null>(null);
   let renaming = $state(false);
   const renameSubmit: SubmitFunction = (input) => {
     const target = expanded;
-    const next = normCounterName(renameValue);
-    renameError = !next ? t('counters.errName') : next === target ? t('counters.errRenameSame') : '';
-    if (!next || next === target) {
+    const next = normCounterName(sub.renameValue);
+    sub.renameError = !next ? t('counters.errName') : next === target ? t('counters.errRenameSame') : '';
+    if (sub.renameError) {
       input.cancel();
       void focusFirstInvalid(document);
       return;
@@ -297,15 +290,10 @@
     renaming = true;
     return async ({ result }) => {
       renaming = false;
-      if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('success', t('counters.toastRenamed'));
-        clearSubFields();
+      await finishAction(result, t('counters.toastRenamed'), () => {
         present(null, null);
         syncSelection(null);
-        await invalidateAll();
-        return;
-      }
-      failed(actionPayload(result), t('counters.toastFailed'));
+      });
     };
   };
 
@@ -317,34 +305,25 @@
     return async ({ result }) => {
       resetting = false;
       resetTarget = null;
-      if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('success', t('counters.toastReset'));
-        await invalidateAll();
-        return;
-      }
-      failed(actionPayload(result), t('counters.toastFailed'));
+      await finishAction(result, t('counters.toastReset'));
     };
   };
 
-  let addUser = $state('');
-  let addCommand = $state('');
-  let addValue = $state('0');
   let adding = $state(false);
-  let addAttempted = $state(false);
   let addForm = $state<HTMLFormElement | null>(null);
   const addUserError = $derived(
-    addAttempted && selected?.scope !== 'command' && !addUser.trim() ? t('counters.errAddUser') : undefined
+    sub.addAttempted && selected?.scope !== 'command' && !sub.addUser.trim() ? t('counters.errAddUser') : undefined
   );
   const addCommandError = $derived(
-    addAttempted && selected?.scope !== 'viewer' && !normCounterName(addCommand)
+    sub.addAttempted && selected?.scope !== 'viewer' && !normCounterName(sub.addCommand)
       ? t('counters.errAddCommand')
       : undefined
   );
   const addSubmit: SubmitFunction = (input) => {
     const scope = selected?.scope;
-    addAttempted = true;
-    const missingUser = scope !== 'command' && !addUser.trim();
-    const missingCommand = scope !== 'viewer' && !normCounterName(addCommand);
+    sub.addAttempted = true;
+    const missingUser = scope !== 'command' && !sub.addUser.trim();
+    const missingCommand = scope !== 'viewer' && !normCounterName(sub.addCommand);
     if (!scope || missingUser || missingCommand) {
       input.cancel();
       void focusFirstInvalid(addForm);
@@ -355,10 +334,7 @@
       adding = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('success', t('counters.toastAdded'));
-        addUser = '';
-        addCommand = '';
-        addValue = '0';
-        addAttempted = false;
+        Object.assign(sub, { addUser: '', addCommand: '', addValue: '0', addAttempted: false });
         await invalidateAll();
         return;
       }
@@ -426,12 +402,7 @@
     return async ({ result }) => {
       entryDeleting = false;
       entryDeleteTarget = null;
-      if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('success', t('counters.toastEntryRemoved'));
-        await invalidateAll();
-        return;
-      }
-      failed(actionPayload(result), t('counters.toastFailed'));
+      await finishAction(result, t('counters.toastEntryRemoved'));
     };
   };
 
@@ -490,17 +461,17 @@
       placeholder={t('counters.renamePh')}
       aria-label={t('counters.rename')}
       required
-      invalid={!!renameError}
-      aria-invalid={renameError ? 'true' : undefined}
-      aria-describedby={renameError ? 'counter-rename-err' : undefined}
+      invalid={!!sub.renameError}
+      aria-invalid={sub.renameError ? 'true' : undefined}
+      aria-describedby={sub.renameError ? 'counter-rename-err' : undefined}
       maxlength={64}
-      bind:value={renameValue}
+      bind:value={sub.renameValue}
     />
     <Button variant="ghost" busy={renaming} onclick={() => renameForm?.requestSubmit()}>
       {t('counters.rename')}
     </Button>
   </div>
-  <FieldError id="counter-rename-err" message={renameError} />
+  <FieldError id="counter-rename-err" message={sub.renameError} />
 {/snippet}
 
 <section class="screen active">
@@ -741,7 +712,7 @@
                         invalid={!!addUserError}
                         aria-invalid={addUserError ? 'true' : undefined}
                         aria-describedby={addUserError ? 'counter-add-user-err' : undefined}
-                        bind:value={addUser}
+                        bind:value={sub.addUser}
                       />
                     </Field>
                   {/if}
@@ -755,14 +726,14 @@
                         invalid={!!addCommandError}
                         aria-invalid={addCommandError ? 'true' : undefined}
                         aria-describedby={addCommandError ? 'counter-add-command-err' : undefined}
-                        bind:value={addCommand}
+                        bind:value={sub.addCommand}
                       />
                     </Field>
                   {/if}
                   <div class="add-foot">
                     <div class="add-val">
                       <Field label={t('counters.colValue')}>
-                        <Input fill type="text" inputmode="numeric" name="value" bind:value={addValue} />
+                        <Input fill type="text" inputmode="numeric" name="value" bind:value={sub.addValue} />
                       </Field>
                     </div>
                     <Button variant="secondary" type="submit" busy={adding}>

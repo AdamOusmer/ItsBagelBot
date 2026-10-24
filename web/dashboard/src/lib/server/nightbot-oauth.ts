@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { env } from '$env/dynamic/private';
+import { isOwnerSession } from './owner';
 
 const AUTHORIZE_URL = 'https://api.nightbot.tv/oauth2/authorize';
 const TOKEN_URL = 'https://api.nightbot.tv/oauth2/token';
@@ -44,8 +45,7 @@ export function nightbotConfigured(): boolean {
 }
 
 export function importOwner(locals: App.Locals): boolean {
-  const s = locals.session;
-  return !!s && !s.delegate_of && !s.impersonator_id;
+  return isOwnerSession(locals.session);
 }
 
 export function nightbotAuthURL(state: string): URL {

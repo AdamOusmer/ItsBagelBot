@@ -3,7 +3,7 @@
 
 import type { Cookies } from '@sveltejs/kit';
 import type { ImportManifest, ImportSource } from '@bagel/kit';
-import type { ImportPreviewRequest, ParseOutcome } from './engine';
+import type { ImportPreviewRequest, ParseOutcome } from './outcome';
 import { streamelementsSource } from './sources/streamelements';
 import { fossabotSource } from './sources/fossabot';
 import { moobotSource } from './sources/moobot';

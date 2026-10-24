@@ -32,12 +32,15 @@
   import { IMPORT_SOURCES, type ImportSource, type ManifestCommand } from '@bagel/kit';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
   import ImportFailed from '$lib/import/ImportFailed.svelte';
+  import ImportGroup from '$lib/import/ImportGroup.svelte';
+  import ImportRow from '$lib/import/ImportRow.svelte';
   import ImportTimerChips from '$lib/import/ImportTimerChips.svelte';
   import ImportSkipped from '$lib/import/ImportSkipped.svelte';
   import { ImportSession } from '$lib/import/session.svelte';
 
   const { t, tl, locale } = getI18n();
   const importText = (text: string, params?: Record<string, string | number>) => t(`import.${text}`, params);
+  const rowText = { cannotImport: (m: string) => t('import.cannotImport', { m }), alreadyExists: () => t('import.alreadyExists') };
 
   const STAGES = [
     'import.stagePick',
@@ -336,116 +339,65 @@
       {/if}
 
       {#if previewResult.manifest.commands?.length}
-        <Card flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hCommands')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.commands.length}</Text>
-          </div>
+        <ImportGroup title={t('import.hCommands')} count={previewResult.manifest.commands.length}>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
-              {@const diags = session.diagsFor('commands', i)}
-              <li class="row-item" class:collision={session.collidedCommands.has(normalizeName(c.name))}>
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="commands" index={i} label={`!${c.name}`} collided={session.collidedCommands.has(normalizeName(c.name))}>
+                {#snippet body()}
                   <span class="row-source"><Text as="span" size="sm" tone="muted" truncate>{sourceLine(c)}</Text></span>
                   <Text as="span" size="sm" tone="muted" truncate>
                     {#each segmentResponse(c.responses?.join(' / ') ?? '') as seg, si (si)}
                       {#if seg.flagged}<Tag tone="alpha" literal>{seg.text}</Tag>{:else}{seg.text}{/if}
                     {/each}
                   </Text>
-                  <span class="chips">
-                    {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
-                    {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
-                    {#if c.user_cooldown_seconds}<Tag tone="bare">{t('import.userCooldownChip', { n: c.user_cooldown_seconds })}</Tag>{/if}
-                    {#each c.aliases ?? [] as a (a)}<Tag tone="bare" literal>!{a}</Tag>{/each}
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                    {#if session.collidedCommands.has(normalizeName(c.name))}
-                      <Tag tone="danger">{t('import.alreadyExists')}</Tag>
-                    {/if}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+                {#snippet chips()}
+                  {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
+                  {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
+                  {#if c.user_cooldown_seconds}<Tag tone="bare">{t('import.userCooldownChip', { n: c.user_cooldown_seconds })}</Tag>{/if}
+                  {#each c.aliases ?? [] as a (a)}<Tag tone="bare" literal>!{a}</Tag>{/each}
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if previewResult.manifest.timers?.length}
-        <Card flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hTimers')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.timers.length}</Text>
-          </div>
+        <ImportGroup title={t('import.hTimers')} count={previewResult.manifest.timers.length}>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
-              {@const diags = session.diagsFor('timers', i)}
-              <li class="row-item">
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('timers', i), (on) => session.toggle('timers', i, on)} aria-label={tm.message} />
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="timers" index={i} ariaLabel={tm.message}>
+                {#snippet body()}
                   <Text as="span" size="sm" tone="muted" truncate>{tm.message}</Text>
-                  <span class="chips">
-                    <ImportTimerChips timer={tm} {locale} />
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+                {#snippet chips()}
+                  <ImportTimerChips timer={tm} {locale} />
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if previewResult.manifest.triggers?.length}
-        <Card flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hTriggers')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.triggers.length}</Text>
-          </div>
+        <ImportGroup title={t('import.hTriggers')} count={previewResult.manifest.triggers.length}>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
-              {@const diags = session.diagsFor('triggers', i)}
-              <li class="row-item">
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="triggers" index={i} label={tg.phrase}>
+                {#snippet body()}
                   <Text as="span" size="sm" tone="muted" truncate>{tg.response}</Text>
-                  <span class="chips">
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if previewResult.manifest.quotes?.length}
-        <Card flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hQuotes')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.quotes.length}</Text>
-          </div>
+        <ImportGroup title={t('import.hQuotes')} count={previewResult.manifest.quotes.length}>
           <div class="group-note"><Text size="sm" tone="muted">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</Text></div>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if commitError}<ImportAlert message={commitError} />{/if}
@@ -621,41 +573,10 @@
     flex-direction: column;
     gap: 10px;
   }
-  .row-item {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    border: 1px solid var(--bb-glass-border);
-    border-radius: var(--bb-radius-sm);
-    padding: 16px 22px;
-    background: var(--bb-glass-fill);
-  }
-  .row-item.collision {
-    border-color: rgba(var(--bb-status-danger-border-rgb), 0.55);
-  }
-  .pick {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    --bb-check-align: center;
-  }
-  .row-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
   .row-source {
     min-width: 0;
     opacity: 0.6;
     font-style: italic;
-  }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
   }
 
   .conflict-lines { display: grid; gap: 10px; }
@@ -684,13 +605,6 @@
     flex: 1;
   }
 
-  .group-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 22px;
-    border-bottom: 1px solid var(--bb-border);
-  }
   .group-note {
     padding: 16px 22px;
   }

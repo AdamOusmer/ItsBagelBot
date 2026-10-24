@@ -25,6 +25,7 @@ import {
   type DiscordGuildTarget,
   type DiscordLayout,
   type DiscordModuleRow,
+  type DiscordSetup,
   type DiscordStatus,
   type DiscordView
 } from '$lib/server/discord-store';
@@ -137,14 +138,16 @@ export const loadGuildShell = async ({
   if (!view) return { ...blankPage(guildId, locked), degraded: true };
   ownedGuild(view.guilds, guildId);
 
-  const target = { userId: uid, guildId };
-  const flags = {
+  const reads = await guildReadsMigrated({ userId: uid, guildId }, view);
+  return { ...blankPage(guildId, locked), ...connectFlags(url), droppedPins, guilds: view.guilds, ...reads };
+};
+
+function connectFlags(url: URL): { justConnected: boolean; refused: boolean } {
+  return {
     justConnected: url.searchParams.get('connected') === '1',
     refused: url.searchParams.get('refused') === '1'
   };
-  const reads = await guildReadsMigrated(target, view);
-  return { ...blankPage(guildId, locked), ...flags, droppedPins, guilds: view.guilds, ...reads };
-};
+}
 
 type ListState = { found: boolean; degraded: boolean };
 
@@ -287,8 +290,7 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
       guildPresent: g.botPresent,
       needsReauth: g.needsReauth
     },
-    justConnected: url.searchParams.get('connected') === '1',
-    refused: url.searchParams.get('refused') === '1'
+    ...connectFlags(url)
   };
 }
 
@@ -394,25 +396,41 @@ async function assertOwned(ctx: ActionCtx): Promise<void> {
   ownedGuild(await listGuilds({ userId: ctx.uid }), ctx.guildId);
 }
 
+type ActionGuard = { ctx: ActionCtx } | { reply: ReturnType<typeof fail> };
+
+async function guardAction(event: RequestEvent): Promise<ActionGuard> {
+  const ctx = await actionContext(event);
+  if (!ctx) return { reply: fail(401, { ok: false, error: 'Not signed in.' }) };
+  if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
+    return {
+      reply: fail(403, { ok: false, code: 'locked', error: 'Discord is in beta and open to Premium channels only.' })
+    };
+  }
+  return { ctx };
+}
+
+function settleAction<T extends Record<string, unknown>>(r: Outcome<T | Refusal>) {
+  if (!r.ok) return fail(400, { ok: false, error: r.error });
+  const refusal = refusalOf(r.data);
+  if (refusal) return fail(400, { ok: false, ...refusal });
+  return { ok: true, ...r.data };
+}
+
 function discordAction<T extends Record<string, unknown>>(
   work: ActionWork,
   run: (ctx: ActionCtx) => Promise<T | Refusal>
 ) {
   return async (event: RequestEvent) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
-    if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
-      return fail(403, { ok: false, code: 'locked', error: 'Discord is in beta and open to Premium channels only.' });
-    }
+    const guard = await guardAction(event);
+    if ('reply' in guard) return guard.reply;
+    const { ctx } = guard;
     if (DEMO) return demoOutcome(work.label, ctx);
-    const r = await attempt(work, async () => {
-      await assertOwned(ctx);
-      return run(ctx);
-    });
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    const refusal = refusalOf(r.data);
-    if (refusal) return fail(400, { ok: false, ...refusal });
-    return { ok: true, ...r.data };
+    return settleAction(
+      await attempt(work, async () => {
+        await assertOwned(ctx);
+        return run(ctx);
+      })
+    );
   };
 }
 
@@ -501,6 +519,15 @@ export const moduleActions: Actions = {
   })
 };
 
+async function persistApplied(ctx: ActionCtx, result: DiscordSetup, login: string): Promise<Refusal | { refused: string }> {
+  const config = clearPinnedSlots({ ...result.config, twitchLogin: login }, result.droppedPins);
+  const saved = await persistSetup(ctx.target, config);
+  if (saved.error || saved.code) return { error: saved.error, code: saved.code };
+  auditDashboardImpersonation(ctx.session, 'discord:setup', ctx.guildId);
+  rememberDroppedPins(ctx.cookies, ctx.guildId, result.droppedPins);
+  return { refused: result.refused };
+}
+
 export const guildActions: Actions = {
   setup: discordAction({ label: 'setup', failMsg: 'Could not set up this server.' }, async (ctx) => {
     requireDiscordActor(ctx.locals);
@@ -517,13 +544,7 @@ export const guildActions: Actions = {
       },
       { ...row.config, twitchLogin: login }
     );
-    if (result.error) return { error: result.error, code: result.code };
-    const config = clearPinnedSlots({ ...result.config, twitchLogin: login }, result.droppedPins);
-    const saved = await persistSetup(ctx.target, config);
-    if (saved.error || saved.code) return { error: saved.error, code: saved.code };
-    auditDashboardImpersonation(ctx.session, 'discord:setup', ctx.guildId);
-    rememberDroppedPins(ctx.cookies, ctx.guildId, result.droppedPins);
-    return { refused: result.refused };
+    return result.error ? { error: result.error, code: result.code } : persistApplied(ctx, result, login);
   }),
 
   preview: discordAction({ label: 'preview', failMsg: 'Could not preview the server template.' }, async (ctx) => {

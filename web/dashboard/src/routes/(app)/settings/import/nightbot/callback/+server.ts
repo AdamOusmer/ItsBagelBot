@@ -5,6 +5,7 @@ import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { logger } from '@bagel/kit/server/logger';
+import { cookieOptions } from '$lib/server/cookies';
 import {
   NB_COOKIE_PATH,
   NB_RETURN_COOKIE,
@@ -34,13 +35,7 @@ async function parkToken(cookies: Cookies, url: URL, code: string): Promise<bool
     logger.error({ err }, '[nightbot-callback] code exchange failed');
     return false;
   }
-  cookies.set(NB_TOKEN_COOKIE, token, {
-    path: NB_COOKIE_PATH,
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: NB_TOKEN_TTL_SECONDS
-  });
+  cookies.set(NB_TOKEN_COOKIE, token, cookieOptions(url, NB_TOKEN_TTL_SECONDS, NB_COOKIE_PATH));
   return true;
 }
 

@@ -13,6 +13,7 @@ import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCurs
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '$env/dynamic/private';
+import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
 import { isBotAccount } from '$lib/server/bot-account';
 import { scheduleLeaderboardPurge, schedulePurgeChannel } from '$lib/server/edge-purge';
 
@@ -57,13 +58,7 @@ function verifyClaims(claims: IdTokenClaims, storedNonce: string | undefined): v
 }
 
 function setSessionCookie(cookies: Cookies, url: URL, session: Parameters<typeof seal>[0]): void {
-  cookies.set(COOKIE, seal(session), {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: SESSION_TTL_SECONDS
-  });
+  cookies.set(COOKIE, seal(session), cookieOptions(url, SESSION_TTL_SECONDS));
 }
 
 function streamerSession(id: Identity) {
@@ -100,7 +95,7 @@ async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity)
   cookies.delete('pending_delegation', { path: '/' });
   let result: Awaited<ReturnType<typeof delegationConsume>>;
   try {
-    result = await delegationConsume(pending, id.userId, id.login);
+    result = await delegationConsume({ token: pending, delegate: { id: id.userId, login: id.login } });
   } catch (err) {
     return delegationErrorLanding(err);
   }
@@ -153,42 +148,34 @@ function validOAuthState(code: string | null, state: string | null, stored: stri
   return !!stored && state === stored;
 }
 
+async function syncDeviceLocale(userId: string, deviceLocale: string): Promise<void> {
+  try {
+    await setLocale(userId, deviceLocale);
+  } catch (err) {
+    logger.error({ err }, '[callback] failed to sync pre-login locale to account');
+  }
+}
+
+async function applyLocale(cookies: Cookies, url: URL, userId: string): Promise<void> {
+  const saved = await userLocale(userId);
+  const existingCookie = cookies.get(LOCALE_COOKIE);
+  const deviceLocale = existingCookie && isLocale(existingCookie) ? existingCookie : null;
+
+  if (deviceLocale && deviceLocale !== saved) return syncDeviceLocale(userId, deviceLocale);
+  if (!isLocale(saved)) return;
+  cookies.set(LOCALE_COOKIE, saved, cookieOptions(url, YEAR_SECONDS));
+}
+
 async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
   try {
-    const saved = await userLocale(userId);
-    const existingCookie = cookies.get(LOCALE_COOKIE);
-    const deviceLocale = existingCookie && isLocale(existingCookie) ? existingCookie : null;
-
-    if (deviceLocale && deviceLocale !== saved) {
-      try {
-        await setLocale(userId, deviceLocale);
-      } catch (err) {
-        logger.error({ err }, '[callback] failed to sync pre-login locale to account');
-      }
-      return;
-    }
-    if (isLocale(saved)) {
-      cookies.set(LOCALE_COOKIE, saved, {
-        path: '/',
-        httpOnly: true,
-        secure: url.protocol === 'https:',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365
-      });
-    }
+    await applyLocale(cookies, url, userId);
   } catch {}
 }
 
 async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
   try {
     const on = await userCursor(userId);
-    cookies.set(CURSOR_COOKIE, on ? '1' : '0', {
-      path: '/',
-      httpOnly: true,
-      secure: url.protocol === 'https:',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 365
-    });
+    cookies.set(CURSOR_COOKIE, on ? '1' : '0', cookieOptions(url, YEAR_SECONDS));
   } catch {}
 }
 

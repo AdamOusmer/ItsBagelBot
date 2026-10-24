@@ -1,7 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -16,14 +15,14 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
-  import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { Bolota, getI18n, containsLink } from '@bagel/kit';
-  import { portal } from '@bagel/ui/lib/overlay-stack';
+  import { getI18n, containsLink } from '@bagel/kit';
+  import CelebrationModal from '$lib/components/billing/CelebrationModal.svelte';
+  import { reseedOnChange } from '$lib/client-actions.svelte';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { invalidateAll, replaceState } from '$app/navigation';
@@ -92,30 +91,6 @@
   let celebrateKind = $state<'premium' | 'gift'>('premium');
   let celebrateRecipient = $state('');
   let activationSlow = $state(false);
-  const celebrateLabel = $derived(
-    celebrateKind === 'gift'
-      ? t('billing.giftSent')
-      : isPaid
-        ? t('billing.premiumActivated')
-        : activationSlow
-          ? t('billing.paymentReceived')
-          : t('billing.paymentReceivedTitle')
-  );
-  let celebratedActivation = $state(false);
-  let confetti = $state<
-    {
-      tx: number;
-      peak: number;
-      fall: number;
-      rot: number;
-      delay: number;
-      dur: number;
-      color: string;
-      w: number;
-      h: number;
-    }[]
-  >([]);
-  let confettiOrigin = $state({ x: 0, y: 0 });
 
   const INTENT_KEY = 'bagel_checkout_intent';
 
@@ -146,77 +121,6 @@
     replaceState(url, {});
   }
 
-  const CONFETTI_COLORS = ['#c9a87c', '#e0c49a', '#52b788', '#f0ece4'];
-
-  function burst() {
-    if (prefersReducedMotion()) return;
-    const badge = document.querySelector('.celebrate-badge')?.getBoundingClientRect();
-    confettiOrigin = {
-      x: badge ? badge.left + badge.width / 2 : window.innerWidth / 2,
-      y: badge ? badge.top + badge.height / 2 : window.innerHeight / 2
-    };
-    const rise = window.innerHeight * 0.28;
-    const toFloor = window.innerHeight - confettiOrigin.y;
-    confetti = Array.from({ length: 90 }, () => {
-      const angle = (-170 + Math.random() * 160) * (Math.PI / 180);
-      const power = 0.55 + Math.random() * 0.75;
-      return {
-        tx: Math.round(Math.cos(angle) * window.innerWidth * 0.42 * power),
-        peak: Math.round(Math.abs(Math.sin(angle)) * rise * power),
-        fall: Math.round(toFloor + 120 + Math.random() * 200),
-        rot: Math.round((Math.random() - 0.5) * 720),
-        delay: Math.round(Math.random() * 320),
-        dur: Math.round(2600 + Math.random() * 1600),
-        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-        w: 6 + Math.round(Math.random() * 6),
-        h: 3 + Math.round(Math.random() * 4)
-      };
-    });
-    setTimeout(() => (confetti = []), 4600);
-  }
-
-  const SWIRL_MS = 1500;
-  const BURST_MS = 2400;
-  const BURST_SETTLED_MS = 2200;
-
-  let confettiPending = $state(false);
-  let celebrateSeq = $state<'entrance' | 'burst' | null>(null);
-  let celebrateSeqKey = $state(0);
-  let celebrateExpr = $state<string | null>(null);
-  let choreo: ReturnType<typeof setTimeout>[] = [];
-
-  function clearChoreo() {
-    choreo.forEach(clearTimeout);
-    choreo = [];
-    confettiPending = false;
-  }
-
-  function playCelebration() {
-    clearChoreo();
-    if (prefersReducedMotion()) {
-      celebrateSeq = null;
-      celebrateExpr = 'love';
-      confettiPending = false;
-      return;
-    }
-    celebrateExpr = 'love';
-    celebrateSeq = 'entrance';
-    celebrateSeqKey += 1;
-    choreo.push(
-      setTimeout(() => {
-        celebrateSeq = 'burst';
-        celebrateSeqKey += 1;
-      }, SWIRL_MS)
-    );
-    confettiPending = true;
-    choreo.push(
-      setTimeout(() => {
-        confettiPending = false;
-        burst();
-      }, SWIRL_MS + BURST_SETTLED_MS)
-    );
-  }
-
   function openGift() {
     giftModalOpen = true;
   }
@@ -236,14 +140,6 @@
     giftLaunching = true;
     stashIntent('gift', giftRecipient.trim());
   }
-  function closeCelebrate() {
-    celebrateOpen = false;
-    clearChoreo();
-    celebrateSeq = null;
-    celebrateExpr = null;
-    confetti = [];
-  }
-
   function openCancel() {
     cancelDialogOpen = true;
   }
@@ -256,11 +152,13 @@
     return fmtDateTime(value, '');
   }
 
+  const PRIZE_COPY: Record<string, string> = {
+    completed: 'billing.prizeCompleted',
+    active: 'billing.prizeActive',
+    scheduled: 'billing.prizeScheduled'
+  };
   function prizeCopy(prize: PrizeAward): string {
-    if (prize.state === 'completed') return t('billing.prizeCompleted');
-    if (prize.state === 'active') return t('billing.prizeActive');
-    if (prize.state === 'scheduled') return t('billing.prizeScheduled');
-    return t('billing.prizePending');
+    return t(PRIZE_COPY[prize.state] ?? 'billing.prizePending');
   }
   function confirmCancel() {
     cancelling = true;
@@ -302,7 +200,6 @@
     celebrateKind = intent?.kind ?? 'premium';
     celebrateRecipient = intent?.recipient ?? '';
     celebrateOpen = true;
-    playCelebration();
     stripCheckoutParam();
 
     if (celebrateKind === 'gift') {
@@ -312,16 +209,6 @@
 
     toast('success', t('billing.toastPaymentReceived'));
     return isPaid ? undefined : watchActivation();
-  });
-
-  const celebratingPremium = $derived(celebrateOpen && celebrateKind === 'premium');
-  const activationBurstDue = $derived(isPaid && !celebratedActivation && !confettiPending);
-
-  $effect(() => {
-    if (celebratingPremium && activationBurstDue) {
-      celebratedActivation = true;
-      burst();
-    }
   });
 
   const fmtDate = (iso?: string | null) =>
@@ -337,23 +224,19 @@
     toast('danger', t('billing.toastCheckoutCancelled'));
   });
 
-  // svelte-ignore state_referenced_locally
-  let lastForm: unknown = form;
-  $effect(() => {
-    if (form === lastForm) return;
-    lastForm = form;
-    if (!form) return;
+  reseedOnChange(() => form, (next) => {
+    if (!next) return;
     launching = null;
     giftLaunching = false;
     managing = false;
     resuming = false;
     cancelling = false;
     cancelDialogOpen = false;
-    if (form.error) toast('danger', String(form.error));
-    if (form.gift) {
+    if (next.error) toast('danger', String(next.error));
+    if (next.gift) {
       giftModalOpen = true;
-      if ('recipient' in form) giftRecipient = String(form.recipient);
-      if ('message' in form) giftMessage = String(form.message);
+      if ('recipient' in next) giftRecipient = String(next.recipient);
+      if ('message' in next) giftMessage = String(next.message);
     }
   });
 </script>
@@ -668,67 +551,13 @@
   </form>
 </Modal>
 
-<Modal open={celebrateOpen} onClose={closeCelebrate} label={celebrateLabel}>
-  <div class="celebrate">
-    <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
-      <Bolota
-        name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
-        size={58}
-        active={celebrateOpen}
-        cycle={false}
-        sequence={celebrateSeq}
-        sequenceKey={celebrateSeqKey}
-        sequenceFor={celebrateSeq === 'entrance' ? SWIRL_MS : BURST_MS}
-        expression={celebrateExpr}
-      />
-    </div>
-
-    {#if celebrateKind === 'gift'}
-      <div class="celebrate-title"><Heading level={3}>{t('billing.giftSent')}</Heading></div>
-      <div class="celebrate-body">
-        <Text size="sm" tone="muted">
-          {#if celebrateRecipient}
-            {t('billing.giftSentNamedPre')}<Text as="span" size="sm" tone="accent"><strong>@{celebrateRecipient}</strong></Text>{t('billing.giftSentNamedPost')}
-          {:else}
-            {t('billing.giftSentBody')}
-          {/if}
-        </Text>
-      </div>
-    {:else if isPaid}
-      <div class="celebrate-title"><Heading level={3}>{t('billing.premiumActivated')}</Heading></div>
-      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.premiumActivatedBody')}</Text></div>
-    {:else if activationSlow}
-      <div class="celebrate-title"><Heading level={3}>{t('billing.paymentReceived')}</Heading></div>
-      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.paymentSlowBody')}</Text></div>
-    {:else}
-      <div class="celebrate-title"><Heading level={3}>{t('billing.paymentReceivedTitle')}</Heading></div>
-      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.paymentReceivedBody')}</Text></div>
-      <div class="celebrate-spinner"><Spinner size="md" /></div>
-    {/if}
-
-    <div class="bb-modal__actions celebrate-actions">
-      <Button variant="primary" onclick={closeCelebrate}>
-        {celebrateKind === 'gift' ? t('common.done') : isPaid ? t('billing.explorePremium') : t('common.gotIt')}
-      </Button>
-    </div>
-  </div>
-</Modal>
-
-{#if confetti.length}
-  <div
-    class="confetti-layer"
-    aria-hidden="true"
-    style="--ox:{confettiOrigin.x}px; --oy:{confettiOrigin.y}px;"
-    use:portal
-  >
-    {#each confetti as p}
-      <span
-        class="confetti-piece"
-        style="--tx:{p.tx}px; --peak:{p.peak}px; --fall:{p.fall}px; --rot:{p.rot}deg; --delay:{p.delay}ms; --dur:{p.dur}ms; background:{p.color}; width:{p.w}px; height:{p.h}px;"
-      ></span>
-    {/each}
-  </div>
-{/if}
+<CelebrationModal
+  bind:open={celebrateOpen}
+  kind={celebrateKind}
+  recipient={celebrateRecipient}
+  {isPaid}
+  {activationSlow}
+/>
 
 <style>
   .starfield {
@@ -1020,125 +849,6 @@
   }
   .counter {
     align-self: flex-end;
-  }
-
-  .celebrate {
-    text-align: center;
-    padding: 4px 2px 0;
-  }
-  .celebrate-badge {
-    width: 68px;
-    height: 68px;
-    margin: 0 auto 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: var(--bb-tan-light);
-    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-tan-rgb), 0.28), rgba(var(--bb-tan-rgb), 0.06));
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.4);
-    animation: pop 620ms var(--bb-ease-out-back) both;
-  }
-  .celebrate-badge--gift {
-    color: var(--bb-green-light);
-    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-green-glow-rgb), 0.28), rgba(var(--bb-green-glow-rgb), 0.06));
-    border-color: rgba(var(--bb-green-glow-rgb), 0.4);
-  }
-  .celebrate-title {
-    margin: 0 0 10px;
-    animation: rise 500ms var(--bb-ease-out-expo) both;
-    animation-delay: 80ms;
-  }
-  .celebrate-body {
-    margin: 0 auto;
-    max-width: 42ch;
-    animation: rise 500ms var(--bb-ease-out-expo) both;
-    animation-delay: 140ms;
-  }
-  .celebrate-spinner {
-    margin-top: 18px;
-  }
-  .celebrate-actions {
-    justify-content: center;
-    margin-top: 24px;
-  }
-
-  @keyframes pop {
-    0% {
-      transform: scale(0);
-      opacity: 0;
-    }
-    60% {
-      transform: scale(1.12);
-    }
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-  @keyframes rise {
-    from {
-      transform: translateY(10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  .confetti-layer {
-    position: fixed;
-    inset: 0;
-    z-index: calc(var(--bb-z-overlay) + 100);
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .confetti-piece {
-    position: absolute;
-    top: var(--oy, 50%);
-    left: var(--ox, 50%);
-    border-radius: var(--bb-radius-xs);
-    opacity: 0;
-    animation: confetti var(--dur, 3000ms) linear var(--delay, 0ms) forwards;
-  }
-  @keyframes confetti {
-    0% {
-      transform: translate(-50%, -50%) rotate(0deg) scale(0.6);
-      opacity: 0;
-      animation-timing-function: cubic-bezier(0.12, 0.7, 0.35, 1);
-    }
-    6% {
-      opacity: 1;
-    }
-    42% {
-      transform: translate(calc(-50% + var(--tx) * 0.42), calc(-50% - var(--peak)))
-        rotate(calc(var(--rot) * 0.45)) scale(1);
-      animation-timing-function: cubic-bezier(0.45, 0, 0.75, 0.55);
-    }
-    88% {
-      opacity: 1;
-    }
-    100% {
-      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--fall))) rotate(var(--rot))
-        scale(1);
-      opacity: 0;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .celebrate-badge,
-    .celebrate-title,
-    .celebrate-body,
-    .confetti-piece {
-      animation: none;
-    }
-    .celebrate-badge,
-    .celebrate-title,
-    .celebrate-body {
-      opacity: 1;
-      transform: none;
-    }
   }
 
   @media (max-width: 760px) {

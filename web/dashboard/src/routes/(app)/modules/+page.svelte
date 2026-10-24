@@ -5,6 +5,7 @@
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import { reconcileModuleToggles } from '$lib/module-toggle';
   import { hydrateModules } from '$lib/module-states';
+  import { reseedOnChange } from '$lib/client-actions.svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -36,6 +37,8 @@
     tModuleLabel,
     tModuleTagline,
     tModuleDescription,
+    actionPayload,
+    type ActionOk,
     type ModuleState
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -47,14 +50,9 @@
 
   // svelte-ignore state_referenced_locally
   let items = $state<ModuleState[]>(hydrateModules(data.modules ?? []));
-  // svelte-ignore state_referenced_locally
-  let seed = data.modules;
   const pendingToggles = new Map<string, boolean>();
-  $effect(() => {
-    if (data.modules !== seed) {
-      seed = data.modules;
-      items = reconcileModuleToggles(hydrateModules(data.modules ?? []), untrack(() => items), pendingToggles);
-    }
+  reseedOnChange(() => data.modules, (next) => {
+    items = reconcileModuleToggles(hydrateModules(next ?? []), untrack(() => items), pendingToggles);
   });
 
   // svelte-ignore state_referenced_locally
@@ -145,10 +143,7 @@
       items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: !was } : x));
       setStatus(m.def.id, 'saving');
       return async ({ result }) => {
-        const payload =
-          result.type === 'success' || result.type === 'failure'
-            ? (result.data as { ok?: boolean; revision?: number } | undefined)
-            : undefined;
+        const payload = actionPayload<ActionOk & { revision?: number }>(result);
         pendingToggles.delete(m.def.id);
         if (result.type === 'success' && payload?.ok) {
           items = items.map((x) => x.def.id === m.def.id

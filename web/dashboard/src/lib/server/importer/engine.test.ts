@@ -159,3 +159,10 @@ test('out of range gate values clamp with a warning', async () => {
   const clamped = (res.diagnostics ?? []).filter((d) => d.code === 'timer_gate_clamped');
   expect(clamped.map((d) => d.severity)).toEqual(['warn', 'warn']);
 });
+
+test('automod overflow reports the dropped term count, not the added count', async () => {
+  const block = Array.from({ length: 205 }, (_, i) => `term${i}`);
+  const res = await commitImport(session, { source: 'nightbot', manifest: { automod: { block } }, overwrite: false });
+  const messages = (res.diagnostics ?? []).map((d) => d.message);
+  expect(messages).toContain('5 term(s) dropped past the 200-term limit');
+});

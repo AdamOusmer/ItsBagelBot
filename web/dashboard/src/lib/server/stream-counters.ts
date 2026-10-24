@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { masterClient } from '@bagel/kit/server/valkey-master';
-import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { valkeyGuard } from './valkey-guard';
 import { liveTotals } from './live-counters';
 import { degradedStreamCounters, type StreamCounters } from '$lib/overview-live';
 import { parseCounterValue } from '@bagel/kit/validation';
@@ -18,9 +18,7 @@ const COUNTER_MESSAGES = 'messages_processed';
 const COUNTER_ANSWERED = 'commands_answered';
 const COUNTER_MOD_ACTIONS = 'mod_actions';
 
-const OP_TIMEOUT_MS = 200;
-
-const breaker = new CircuitBreaker({ name: 'valkey-stream-counters', failureThreshold: 3, resetMs: 5_000 });
+const guarded = valkeyGuard('valkey-stream-counters', 'valkey-stream-counters');
 
 interface Baseline {
   known: boolean;
@@ -31,30 +29,22 @@ interface Baseline {
 
 const MISS_BASELINE: Baseline = { known: false, messages: '0', answered: '0', modActions: '0' };
 
+function toBaseline(messages: string | null, answered: string, modActions: string): Baseline {
+  if (messages === null) return MISS_BASELINE;
+  const parsed = [messages, answered, modActions].map(parseCounterValue);
+  if (parsed.some((v) => v === null)) return MISS_BASELINE;
+  const [msg, ans, mods] = parsed as string[];
+  return { known: true, messages: msg, answered: ans, modActions: mods };
+}
+
 async function readBaseline(uid: string): Promise<Baseline> {
   const c = masterClient();
   if (!c) return MISS_BASELINE;
   try {
-    const [messages, answered, modActions] = await breaker.run(() =>
-      withTimeout(
-        c.hmget(SETTINGS_PREFIX + uid, FIELD_MESSAGES, FIELD_ANSWERED, FIELD_MOD_ACTIONS),
-        OP_TIMEOUT_MS,
-        'valkey-stream-counters'
-      )
+    const [messages, answered, modActions] = await guarded(() =>
+      c.hmget(SETTINGS_PREFIX + uid, FIELD_MESSAGES, FIELD_ANSWERED, FIELD_MOD_ACTIONS)
     );
-    if (messages === null) return MISS_BASELINE;
-    const msg = parseCounterValue(messages);
-    const ans = parseCounterValue(answered ?? '0');
-    const mods = parseCounterValue(modActions ?? '0');
-    if (msg === null) return MISS_BASELINE;
-    if (ans === null) return MISS_BASELINE;
-    if (mods === null) return MISS_BASELINE;
-    return {
-      known: true,
-      messages: msg,
-      answered: ans,
-      modActions: mods
-    };
+    return toBaseline(messages, answered ?? '0', modActions ?? '0');
   } catch {
     return MISS_BASELINE;
   }

@@ -4,7 +4,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { onMount, untrack } from 'svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -220,27 +220,48 @@
     return () => clearInterval(poll);
   });
 
+  function settle(opts: {
+    fail: string;
+    ok?: string;
+    settled?: (ok: boolean) => void;
+    onFail?: () => void;
+    onOk?: () => void;
+  }) {
+    return async ({ result }: { result: ActionResult }) => {
+      const payload = actionPayload<SongQueueActionOk>(result);
+      const ok = isOk(result, payload);
+      opts.settled?.(ok);
+      if (!ok) {
+        opts.onFail?.();
+        reportFailure(payload, opts.fail);
+        return;
+      }
+      opts.onOk?.();
+      if (opts.ok) toast('success', opts.ok);
+      await invalidateAll();
+    };
+  }
+
   let connectionAction = $state<'disconnect' | 'clearApp' | null>(null);
   let connectionBusy = $state(false);
   let connectionForm = $state<HTMLFormElement | null>(null);
 
   const connectionSubmit: SubmitFunction = () => {
     if (!connectionAction || connectionBusy) return;
-    const action = connectionAction;
+    const clearing = connectionAction === 'clearApp';
     connectionBusy = true;
-    return async ({ result }) => {
-      connectionBusy = false;
-      connectionAction = null;
-      const payload = actionPayload<SongQueueActionOk>(result);
-      if (!isOk(result, payload)) {
-        reportFailure(payload, t(action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed'));
-        return;
+    return settle({
+      fail: t(clearing ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed'),
+      ok: t(clearing ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'),
+      settled: () => {
+        connectionBusy = false;
+        connectionAction = null;
+      },
+      onOk: () => {
+        if (clearing) app = { present: false, clientId: '' };
+        connected = false;
       }
-      if (action === 'clearApp') app = { present: false, clientId: '' };
-      connected = false;
-      toast('success', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
-      await invalidateAll();
-    };
+    });
   };
 
   function settingsSubmit(opts: {
@@ -251,16 +272,7 @@
   }): SubmitFunction {
     return ({ formData }) => {
       for (const [name, value] of Object.entries(opts.fields())) formData.set(name, value);
-      return async ({ result }) => {
-        const payload = actionPayload<SongQueueActionOk>(result);
-        if (!isOk(result, payload)) {
-          opts.revert();
-          reportFailure(payload, opts.fail);
-          return;
-        }
-        if (opts.ok) toast('success', opts.ok);
-        await invalidateAll();
-      };
+      return settle({ fail: opts.fail, ok: opts.ok, onFail: opts.revert });
     };
   }
 
@@ -287,16 +299,11 @@
   let quotaSaving = $state(false);
   const quotasSubmit: SubmitFunction = () => {
     quotaSaving = true;
-    return async ({ result }) => {
-      quotaSaving = false;
-      const payload = actionPayload<SongQueueActionOk>(result);
-      if (!isOk(result, payload)) {
-        reportFailure(payload, t('spotify.quota.saveFailed'));
-        return;
-      }
-      toast('success', t('spotify.quota.saved'));
-      await invalidateAll();
-    };
+    return settle({
+      fail: t('spotify.quota.saveFailed'),
+      ok: t('spotify.quota.saved'),
+      settled: () => (quotaSaving = false)
+    });
   };
 
   let srForm = $state<HTMLFormElement | null>(null);
@@ -355,18 +362,14 @@
     for (const [name, value] of Object.entries(spotifyFormFields(draft))) input.formData.set(name, value);
     const requestId = inspector.beginSave()?.requestId;
     busy = true;
-    return async ({ result }) => {
-      busy = false;
-      const payload = actionPayload<SongQueueActionOk>(result);
-      const ok = isOk(result, payload);
-      if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
-      if (!ok) {
-        reportFailure(payload, t('spotify.toast.saveFailed'));
-        return;
+    return settle({
+      fail: t('spotify.toast.saveFailed'),
+      ok: t('spotify.toast.saved'),
+      settled: (ok) => {
+        busy = false;
+        if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       }
-      toast('success', t('spotify.toast.saved'));
-      await invalidateAll();
-    };
+    });
   };
 
   let deletePending = $state(false);
@@ -375,18 +378,15 @@
 
   const deleteSubmit: SubmitFunction = () => {
     deleting = true;
-    return async ({ result }) => {
-      deleting = false;
-      deletePending = false;
-      const payload = actionPayload<SongQueueActionOk>(result);
-      if (!isOk(result, payload)) {
-        reportFailure(payload, t('spotify.toast.deleteFailed'));
-        return;
-      }
-      doClose();
-      toast('success', t('spotify.toast.deleted'));
-      await invalidateAll();
-    };
+    return settle({
+      fail: t('spotify.toast.deleteFailed'),
+      ok: t('spotify.toast.deleted'),
+      settled: () => {
+        deleting = false;
+        deletePending = false;
+      },
+      onOk: doClose
+    });
   };
 </script>
 

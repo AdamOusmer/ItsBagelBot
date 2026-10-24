@@ -17,7 +17,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import { parsePerm, signedInAction, type ActionContext } from '$lib/server/action-context';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -70,18 +70,10 @@ export const load: PageServerLoad = ({ locals }) =>
     })
   });
 
-async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
-  gate(locals.session);
-  if (!DEMO && !locals.session) return null;
-  return { uid: effectiveId(locals.session), session: locals.session, locale: locals.locale, form: await request.formData() };
-}
-
-const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
-
-type QuoteCtx = NonNullable<Awaited<ReturnType<typeof actionContext>>>;
+const quotesAction = signedInAction(gate, DEMO);
 
 async function runQuote<T extends object>(
-  ctx: QuoteCtx,
+  ctx: ActionContext,
   op: { verb: string; error?: string; run: () => Promise<{ audit: string; payload: T }> }
 ) {
   try {
@@ -95,10 +87,7 @@ async function runQuote<T extends object>(
 }
 
 export const actions: Actions = {
-  add: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-
+  add: quotesAction(async (ctx) => {
     const { text, error } = parseQuoteText(ctx.form.get('text'), ctx.locale);
     if (!text) return fail(400, { ok: false, error });
 
@@ -121,12 +110,9 @@ export const actions: Actions = {
         return { audit: String(quote.number), payload: { action: 'added', quote } };
       }
     });
-  },
+  }),
 
-  edit: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-
+  edit: quotesAction(async (ctx) => {
     const num = Math.trunc(Number(ctx.form.get('number')));
     if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid quote number.') });
 
@@ -148,12 +134,9 @@ export const actions: Actions = {
         return { audit: String(num), payload: { action: 'edited', quote } };
       }
     });
-  },
+  }),
 
-  delete: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-
+  delete: quotesAction(async (ctx) => {
     const num = Math.trunc(Number(ctx.form.get('number')));
     if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid quote number.') });
 
@@ -167,12 +150,9 @@ export const actions: Actions = {
         return { audit: String(num), payload: { action: 'deleted', number: num } };
       }
     });
-  },
+  }),
 
-  toggle: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-
+  toggle: quotesAction(async (ctx) => {
     const enabled = ctx.form.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled };
 
@@ -183,17 +163,13 @@ export const actions: Actions = {
         return { audit: String(enabled), payload: { enabled } };
       }
     });
-  },
+  }),
 
-  perm: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-
+  perm: quotesAction(async (ctx) => {
     const kind = PERM_KINDS[String(ctx.form.get('kind') ?? '')];
     if (!kind) return fail(400, { ok: false });
 
-    const raw = String(ctx.form.get('perm') ?? '');
-    const perm = (PERMS as readonly string[]).includes(raw) ? raw : 'mod';
+    const perm = parsePerm(ctx.form.get('perm'), PERMS, 'mod');
     if (DEMO) return { ok: true, kind, perm };
 
     return runQuote(ctx, {
@@ -203,5 +179,5 @@ export const actions: Actions = {
         return { audit: perm, payload: { kind, perm } };
       }
     });
-  }
+  })
 };

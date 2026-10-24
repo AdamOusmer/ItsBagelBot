@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { playHeroTitle } from '$lib/login-hero';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -52,87 +52,7 @@
     return Array.from(text, (g) => (g === ' ' ? '\u00a0' : g));
   }
 
-  function revealGlyphs(h1: HTMLElement): void {
-    h1.querySelectorAll<HTMLElement>('[data-hero-glyph]').forEach((g) => {
-      g.style.opacity = '1';
-      g.style.transform = 'none';
-      g.style.filter = 'none';
-    });
-  }
-
-  onMount(() => {
-    const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
-    if (!h1 || h1.dataset.heroMotionReady === 'true') return;
-    h1.dataset.heroMotionReady = 'true';
-    if (prefersReducedMotion()) return;
-    if (document.hidden) {
-      revealGlyphs(h1);
-      return;
-    }
-
-    let revealed = false;
-    const watchdog = window.setTimeout(() => {
-      revealed = true;
-      revealGlyphs(h1);
-    }, 1800);
-
-    void import('motion').then(({ animate, stagger, cubicBezier }) => {
-      window.clearTimeout(watchdog);
-      if (revealed) return;
-
-      const LINE_DELAY_BASE = 0.35;
-      const LINE_DELAY_STEP = 0.16;
-      const GLYPH_STAGGER = 0.024;
-      const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
-      const easeBackOut = cubicBezier(0.34, 1.56, 0.64, 1);
-
-      h1.querySelectorAll<HTMLElement>('[data-hero-line]').forEach((line, lineIndex) => {
-        const all = Array.from(line.querySelectorAll<HTMLElement>('[data-hero-glyph]'));
-        if (!all.length) return;
-        const lineDelay = LINE_DELAY_BASE + lineIndex * LINE_DELAY_STEP;
-        const period = all[all.length - 1];
-        const letters = all.slice(0, -1);
-
-        animate(
-          letters,
-          {
-            transform: ['translateY(118%) rotate(6deg)', 'translateY(0%) rotate(0deg)'],
-            opacity: [0, 1],
-            filter: ['blur(6px)', 'blur(0px)']
-          },
-          {
-            delay: stagger(GLYPH_STAGGER, { startDelay: lineDelay }),
-            duration: 0.8,
-            ease: easeOutQuint
-          }
-        );
-
-        const periodDelay = lineDelay + letters.length * GLYPH_STAGGER + 0.18;
-        animate(
-          period,
-          {
-            transform: ['translateY(0%) scale(0)', 'translateY(0%) scale(1)'],
-            opacity: [0, 1]
-          },
-          { delay: periodDelay, duration: 0.55, ease: easeBackOut }
-        );
-        animate(
-          period,
-          {
-            textShadow: [
-              '0 0 0px rgba(245, 230, 207, 0)',
-              '0 0 28px rgba(245, 230, 207, 0.85)',
-              '0 0 0px rgba(245, 230, 207, 0)'
-            ]
-          },
-          { delay: periodDelay, duration: 0.9, ease: 'easeOut' }
-        );
-      });
-    }).catch(() => {
-      window.clearTimeout(watchdog);
-      revealGlyphs(h1);
-    });
-  });
+  onMount(playHeroTitle);
 </script>
 
 <PublicHead title={t('login.metaTitle')} description={t('login.metaDescription')} url="https://dashboard.itsbagelbot.com/login" />

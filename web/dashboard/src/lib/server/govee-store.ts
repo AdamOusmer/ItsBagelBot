@@ -4,9 +4,11 @@
 import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
-import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
+import { SUB, fabric, invalidate } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
+import { deleteRemoteReward, saveRewardFlow, type MirroredReward } from './reward-wire';
+import type { RewardCore } from './reward-form';
 
 export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
 
@@ -22,13 +24,7 @@ export interface GoveeView {
   bindings: GoveeBinding[];
 }
 
-export interface RewardDraft {
-  title: string;
-  cost: number;
-  onRedeem: GoveeOnRedeem;
-  color: string;
-  cooldown: number;
-  replyMessage: string;
+export interface RewardDraft extends RewardCore {
   allowOff: boolean;
   allowOffline: boolean;
 }
@@ -74,71 +70,14 @@ function readBindings(configs: unknown): GoveeBinding[] {
   return single.device ? [single] : [];
 }
 
-interface RewardWire {
-  id?: string;
-  title: string;
-  cost: number;
-  prompt?: string;
-  background_color?: string;
-  is_enabled: boolean;
-  is_paused: boolean;
-  is_user_input_required: boolean;
-  should_skip_queue: boolean;
-  max_per_stream_enabled: boolean;
-  max_per_stream: number;
-  max_per_user_per_stream_enabled: boolean;
-  max_per_user_per_stream: number;
-  global_cooldown_enabled: boolean;
-  global_cooldown_seconds: number;
-}
-
-interface RewardReplyWire {
-  reward?: RewardWire & { id?: string };
-  missing_scope?: boolean;
-  error?: string;
-}
-
-function rewardWire(draft: RewardDraft, id: string): RewardWire {
-  const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
-  return {
-    id: id || undefined,
-    title: draft.title,
-    cost: draft.cost,
-    prompt: REWARD_PROMPT,
-    background_color: draft.color || undefined,
-    is_enabled: true,
-    is_paused: false,
-    is_user_input_required: true,
-    should_skip_queue: false,
-    max_per_stream_enabled: false,
-    max_per_stream: 1,
-    max_per_user_per_stream_enabled: false,
-    max_per_user_per_stream: 1,
-    global_cooldown_enabled: cooldown > 0,
-    global_cooldown_seconds: cooldown
-  };
-}
-
-function callReward(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
-}
-
-function bindingFromReply(
-  device: GoveeDevice,
-  draft: RewardDraft,
-  reply: NonNullable<RewardReplyWire['reward']>,
-  existingId: string
-): GoveeBinding {
-  const rewardId = reply.id ?? existingId;
-  const color = reply.background_color ?? draft.color;
-  const cooldown = reply.global_cooldown_enabled ? reply.global_cooldown_seconds : 0;
+function bindingFromReply(device: GoveeDevice, draft: RewardDraft, reward: MirroredReward): GoveeBinding {
   return {
     device: device.device,
     sku: device.sku,
     deviceName: device.name,
     onRedeem: draft.onRedeem,
-    rewardId,
-    reward: { rewardId, title: reply.title, cost: reply.cost, color, cooldown },
+    rewardId: reward.rewardId,
+    reward,
     allowOffline: draft.allowOffline,
     allowOff: draft.allowOff,
     replyMessage: draft.replyMessage
@@ -237,18 +176,12 @@ export function goveeStore(userId: string): GoveeStore {
   async function saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult> {
     const cur = await read();
     const existingId = cur.bindings.find((b) => b.device === device.device)?.rewardId ?? '';
-    const verb = existingId ? 'update' : 'create';
-    const req: Record<string, unknown> = { reward: rewardWire(draft, existingId) };
-    if (existingId) req.reward_id = existingId;
-
-    const reply = await callReward(userId, verb, req);
-    if (reply.missing_scope) return { ok: false, missingScope: true };
-    if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
-
-    const binding = bindingFromReply(device, draft, reply.reward, existingId);
-    await writeBindings(cur.enabled, [...cur.bindings.filter((b) => b.device !== device.device), binding]);
-    if (!existingId) await publishEventSubEnsureOptional(userId);
-    return { ok: true };
+    return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId }, (reward) =>
+      writeBindings(cur.enabled, [
+        ...cur.bindings.filter((b) => b.device !== device.device),
+        bindingFromReply(device, draft, reward)
+      ])
+    );
   }
 
   async function deleteReward(deviceId: string): Promise<GoveeResult> {
@@ -256,9 +189,8 @@ export function goveeStore(userId: string): GoveeStore {
     const target = cur.bindings.find((b) => b.device === deviceId);
     if (!target) return { ok: true };
     if (target.rewardId) {
-      const reply = await callReward(userId, 'delete', { reward_id: target.rewardId });
-      if (reply.missing_scope) return { ok: false, missingScope: true };
-      if (reply.error) return { ok: false, error: reply.error };
+      const remote = await deleteRemoteReward(userId, target.rewardId);
+      if (!remote.ok) return remote;
     }
     const bindings = cur.bindings.filter((b) => b.device !== deviceId);
     await writeBindings(cur.enabled, bindings);

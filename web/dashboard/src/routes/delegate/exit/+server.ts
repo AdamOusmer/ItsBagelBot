@@ -4,6 +4,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { COOKIE, seal } from '$lib/server/session';
+import { cookieOptions } from '$lib/server/cookies';
 
 export const GET: RequestHandler = ({ url, locals, cookies }) => {
   const s = locals.session;
@@ -18,13 +19,7 @@ export const GET: RequestHandler = ({ url, locals, cookies }) => {
       iat: s.iat,
       expires_at: s.expires_at
     });
-    cookies.set(COOKIE, value, {
-      path: '/',
-      httpOnly: true,
-      secure: url.protocol === 'https:',
-      sameSite: 'lax',
-      maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
-    });
+    cookies.set(COOKIE, value, cookieOptions(url, Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))));
   }
   throw redirect(302, '/');
 };

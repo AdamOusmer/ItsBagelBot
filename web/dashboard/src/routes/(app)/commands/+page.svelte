@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, tick, untrack } from 'svelte';
-  import { deserialize } from '$app/forms';
+  import { postAction as postActionShared, reseedOnChange } from '$lib/client-actions.svelte';
   import { invalidate, replaceState } from '$app/navigation';
   import { expectEcho } from '$lib/local-write';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -40,7 +40,7 @@
     usesCount,
     PERMS,
     COMMAND_NAME_MAX,
-    COOLDOWN_MAX,
+    actionPayload,
     type CommandView,
     type CommandErrors,
     type Perm
@@ -52,6 +52,7 @@
   import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
   import StarterCommands from '$lib/components/commands/StarterCommands.svelte';
   import { rovingList } from '$lib/components/commands/roving';
+  import { COMPOSE_PARAMS, parseComposeLink, type ComposeLink } from '$lib/components/commands/compose-link';
   import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
   import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
   import type { Starter } from '$lib/components/commands/starters';
@@ -70,24 +71,10 @@
   let items = $state.raw<CommandView[]>(data.commands ?? []);
 
   // svelte-ignore state_referenced_locally
-  let seed = data.commands;
-  $effect(() => {
-    if (data.commands !== seed) {
-      seed = data.commands;
-      items = data.commands ?? [];
-    }
-  });
-
-  // svelte-ignore state_referenced_locally
   let fetchDefs = $state<SourceDef[]>(data.defs ?? []);
-  // svelte-ignore state_referenced_locally
-  let defsSeed = data.defs;
-  $effect(() => {
-    if (data.defs !== defsSeed) {
-      defsSeed = data.defs;
-      fetchDefs = data.defs ?? [];
-    }
-  });
+
+  reseedOnChange(() => data.commands, (next) => (items = next ?? []));
+  reseedOnChange(() => data.defs, (next) => (fetchDefs = next ?? []));
 
   type ActionResult = SaveFailure & {
     ok: boolean;
@@ -370,8 +357,13 @@
     if (c) discard.guard(() => doOpenEdit(c));
   }
 
-  const COMMAND_ALIASES_MAX = 25;
-  const RESPONSE_COLUMN_MAX_CHARS = 2504;
+  function showNewEditor(errors: CommandErrors | null, draft: CommandDraft) {
+    serverErrors = errors;
+    editorDraft = draft;
+    expanded = NEW;
+    editorGen++;
+  }
+
   let composeDraft = $state<CommandDraft | null>(null);
   let composeBusy = $state(false);
   const matchingCustom = (name: string) => items.find((c) => !c.builtin && c.name === name);
@@ -381,20 +373,13 @@
     discardLegacyDrafts();
     const url = new URL(window.location.href);
     if (url.searchParams.get('compose') !== '1') return;
+    stageComposeLink(parseComposeLink(url.searchParams));
+    for (const key of COMPOSE_PARAMS) url.searchParams.delete(key);
+    setTimeout(() => replaceState(url, {}), 0);
+  });
 
-    const perm = url.searchParams.get('perm') ?? '';
-    const cooldown = Math.floor(Number(url.searchParams.get('cooldown')) || 0);
-    const aliases = (url.searchParams.get('aliases') ?? '').split(',').map(normName).filter(Boolean);
-
-    const draft: CommandDraft = {
-      ...blankDraft(),
-      name: normName(url.searchParams.get('name') ?? '').slice(0, COMMAND_NAME_MAX),
-      aliases: [...new Set(aliases)].slice(0, COMMAND_ALIASES_MAX),
-      response: (url.searchParams.get('response') ?? '').slice(0, RESPONSE_COLUMN_MAX_CHARS),
-      perm: (PERMS as readonly string[]).includes(perm) ? (perm as Perm) : 'everyone',
-      cooldown: Math.min(Math.max(cooldown, 0), COOLDOWN_MAX)
-    };
-
+  function stageComposeLink(link: ComposeLink) {
+    const draft: CommandDraft = { ...blankDraft(), ...link };
     const problems = validateCommand({
       name: draft.name,
       aliases: draft.aliases,
@@ -404,23 +389,10 @@
       allowedUserId: '',
       bumpCounter: ''
     });
-    if (BUILTIN_NAMES.has(draft.name)) {
-      problems.name = t('commands.errBuiltinName');
-    }
-    if (Object.keys(problems).length === 0) {
-      composeDraft = draft;
-    } else {
-      serverErrors = problems;
-      editorDraft = draft;
-      expanded = NEW;
-      editorGen++;
-    }
-
-    for (const key of ['compose', 'name', 'response', 'perm', 'cooldown', 'aliases', 'lang']) {
-      url.searchParams.delete(key);
-    }
-    setTimeout(() => replaceState(url, {}), 0);
-  });
+    if (BUILTIN_NAMES.has(draft.name)) problems.name = t('commands.errBuiltinName');
+    if (Object.keys(problems).length === 0) composeDraft = draft;
+    else showNewEditor(problems, draft);
+  }
 
   function composeCancel() {
     if (composeBusy) return;
@@ -432,17 +404,7 @@
     if (!d || composeBusy) return;
     composeBusy = true;
     const existing = matchingCustom(d.name);
-    const view: CommandView = {
-      name: d.name,
-      aliases: d.aliases,
-      response: d.response,
-      is_active: existing ? existing.is_active : true,
-      stream_online_only: false,
-      perm: d.perm,
-      cooldown: d.cooldown,
-      user_cooldown: d.user_cooldown,
-      allowed_user_id: ''
-    };
+    const view = composeView(d, existing);
     const body = formDataFor(view);
     if (existing) {
       body.set('edit', '1');
@@ -453,19 +415,32 @@
     composeBusy = false;
     composeDraft = null;
     if (payload?.ok) {
-      applyResult(payload);
-      if (!items.some((c) => c.name === d.name)) {
-        items = [...items, view];
-      }
-      ackSaved(d.name);
+      landCompose(view, payload);
       return;
     }
     flagError(d.name);
-    serverErrors = saveFailureErrors(payload, t);
-    editorDraft = d;
-    expanded = NEW;
-    editorGen++;
+    showNewEditor(saveFailureErrors(payload, t), d);
     if (!serverErrors) failed(payload, t('commands.toastSaveFailed'));
+  }
+
+  function composeView(d: CommandDraft, existing: CommandView | undefined): CommandView {
+    return {
+      name: d.name,
+      aliases: d.aliases,
+      response: d.response,
+      is_active: existing ? existing.is_active : true,
+      stream_online_only: false,
+      perm: d.perm,
+      cooldown: d.cooldown,
+      user_cooldown: d.user_cooldown,
+      allowed_user_id: ''
+    };
+  }
+
+  function landCompose(view: CommandView, payload: ActionResult) {
+    applyResult(payload);
+    if (!items.some((c) => c.name === view.name)) items = [...items, view];
+    ackSaved(view.name);
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -496,7 +471,28 @@
     formData.set('is_active', isActive ? 'on' : '');
 
     const prevRows = items.filter((c) => c.name === key || c.name === orig);
-    const optimistic: CommandView = {
+    items = [...items.filter((c) => c.name !== key && c.name !== orig), optimisticView(d, key, isActive, live)];
+    busy = true;
+    setStatus(key, 'saving');
+
+    return async ({ result }) => {
+      busy = false;
+      const payload = actionPayload<ActionResult>(result);
+      const stillOpen = expanded === submittedExpanded;
+
+      if (result.type === 'success' && payload?.ok) {
+        landSave(d, key, payload, stillOpen);
+        return;
+      }
+
+      items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
+      flagError(orig ?? key);
+      reportSaveFailure(payload, stillOpen);
+    };
+  };
+
+  function optimisticView(d: CommandDraft, key: string, isActive: boolean, live: CommandView | undefined): CommandView {
+    return {
       name: key,
       aliases: d.aliases.map(normName).filter(Boolean),
       response: d.response,
@@ -510,43 +506,24 @@
       uses: live?.uses,
       created_at: live?.created_at
     };
-    items = [...items.filter((c) => c.name !== key && c.name !== orig), optimistic];
-    busy = true;
-    setStatus(key, 'saving');
+  }
 
-    return async ({ result }) => {
-      busy = false;
-      const payload =
-        result.type === 'success' || result.type === 'failure'
-          ? (result.data as ActionResult | undefined)
-          : undefined;
-
-      const stillOpen = expanded === submittedExpanded;
-
-      if (result.type === 'success' && payload?.ok) {
-        applyResult({ ...payload, silent: true });
-        clearDraft(draftRef(data.board, d));
-        ackSaved(key);
-        if (stillOpen) {
-          const saved = items.find((c) => c.name === key);
-          if (saved) {
-            editorDraft = fromView(saved);
-            expanded = key;
-            openerKey = key;
-            serverErrors = null;
-            editorGen++;
-          } else {
-            doCloseEditor();
-          }
-        }
-        return;
-      }
-
-      items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
-      flagError(orig ?? key);
-      reportSaveFailure(payload, stillOpen);
-    };
-  };
+  function landSave(d: CommandDraft, key: string, payload: ActionResult, stillOpen: boolean) {
+    applyResult({ ...payload, silent: true });
+    clearDraft(draftRef(data.board, d));
+    ackSaved(key);
+    if (!stillOpen) return;
+    const saved = items.find((c) => c.name === key);
+    if (!saved) {
+      doCloseEditor();
+      return;
+    }
+    editorDraft = fromView(saved);
+    expanded = key;
+    openerKey = key;
+    serverErrors = null;
+    editorGen++;
+  }
 
   function reportSaveFailure(payload: ActionResult | undefined, stillOpen: boolean) {
     const errs = saveFailureErrors(payload, t);
@@ -559,88 +536,41 @@
     lingering = new Set([...lingering, ...names]);
   }
 
-  function settleToggle(name: string, before: CommandView, payload: ActionResult | null | undefined, ok: boolean) {
-    if (ok && payload?.ok) {
+  type FailKey = 'commands.toastToggleFailed' | 'commands.toastSaveFailed';
+
+  function settleRow(name: string, before: CommandView, payload: ActionResult | null | undefined, failKey: FailKey) {
+    if (payload?.ok) {
       applyResult(payload);
       ackSaved(name);
       return;
     }
     items = items.map((x) => (x.name === name ? before : x));
     flagError(name);
-    toast('danger', payload?.error ?? t('commands.toastToggleFailed'));
+    toast('danger', payload?.error ?? t(failKey));
   }
 
-  const toggleSubmit =
-    (c: CommandView): SubmitFunction =>
-    () => {
+  const rowSubmit =
+    (c: CommandView, patch: (formData: FormData, row: CommandView) => Partial<CommandView>, failKey: FailKey, lingers = false): SubmitFunction =>
+    ({ formData }) => {
       const before = { ...c };
-      items = items.map((x) => (x.name === c.name ? { ...x, is_active: !x.is_active } : x));
-      linger([c.name]);
+      items = items.map((x) => (x.name === c.name ? { ...x, ...patch(formData, x) } : x));
+      if (lingers) linger([c.name]);
       setStatus(c.name, 'saving');
       return async ({ result }) => {
-        const payload =
-          result.type === 'success' || result.type === 'failure'
-            ? (result.data as ActionResult | undefined)
-            : undefined;
-        settleToggle(c.name, before, payload, result.type === 'success');
+        settleRow(c.name, before, actionPayload<ActionResult>(result), failKey);
       };
     };
 
-  const replySubmit =
-    (c: CommandView): SubmitFunction =>
-    ({ formData }) => {
-      const next = String(formData.get('reply') ?? '');
-      const before = { ...c };
-      items = items.map((x) => (x.name === c.name ? { ...x, response: next } : x));
-      setStatus(c.name, 'saving');
-      return async ({ result }) => {
-        const payload =
-          result.type === 'success' || result.type === 'failure'
-            ? (result.data as ActionResult | undefined)
-            : undefined;
-        if (result.type === 'success' && payload?.ok) {
-          applyResult(payload);
-          ackSaved(c.name);
-        } else {
-          items = items.map((x) => (x.name === c.name ? before : x));
-          flagError(c.name);
-          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
-        }
-      };
-    };
-
-  const accessSubmit =
-    (c: CommandView): SubmitFunction =>
-    ({ formData }) => {
-      const perm = String(formData.get('perm') ?? '') as Perm;
-      const before = { ...c };
-      items = items.map((x) => (x.name === c.name ? { ...x, perm } : x));
-      setStatus(c.name, 'saving');
-      return async ({ result }) => {
-        const payload = result.type === 'success' || result.type === 'failure'
-          ? (result.data as ActionResult | undefined)
-          : undefined;
-        if (result.type === 'success' && payload?.ok) {
-          applyResult(payload);
-          ackSaved(c.name);
-        } else {
-          items = items.map((x) => (x.name === c.name ? before : x));
-          flagError(c.name);
-          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
-        }
-      };
-    };
+  const toggleSubmit = (c: CommandView) =>
+    rowSubmit(c, (_, row) => ({ is_active: !row.is_active }), 'commands.toastToggleFailed', true);
+  const replySubmit = (c: CommandView) =>
+    rowSubmit(c, (formData) => ({ response: String(formData.get('reply') ?? '') }), 'commands.toastSaveFailed');
+  const accessSubmit = (c: CommandView) =>
+    rowSubmit(c, (formData) => ({ perm: String(formData.get('perm') ?? '') as Perm }), 'commands.toastSaveFailed');
 
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
     expectEcho(data.board);
-    return fetch(`?/${action}`, { method: 'POST', body })
-      .then(async (res) => {
-        const result = deserialize(await res.text());
-        return result.type === 'success' || result.type === 'failure'
-          ? ((result.data as ActionResult | undefined) ?? null)
-          : null;
-      })
-      .catch(() => null);
+    return postActionShared<ActionResult>(action, body);
   }
 
   function formDataFor(c: CommandView): FormData {
@@ -811,7 +741,7 @@
     linger([c.name]);
     setStatus(c.name, 'saving');
     void postAction('toggle', formDataFor({ ...c, is_active: next })).then((payload) => {
-      settleToggle(c.name, before, payload, payload?.ok === true);
+      settleRow(c.name, before, payload, 'commands.toastToggleFailed');
     });
   }
 

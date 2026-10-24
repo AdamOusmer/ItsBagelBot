@@ -4,6 +4,7 @@
 import { json } from '@sveltejs/kit';
 import { CURSOR_COOKIE, type Session } from '$lib/server/session';
 import { setCursor } from '$lib/server/services';
+import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
 import type { RequestHandler } from './$types';
 
 function isOwner(s: Session | null): s is Session {
@@ -14,13 +15,7 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
   const body = (await request.json().catch(() => null)) as { enabled?: unknown } | null;
   const on = body?.enabled === true;
 
-  cookies.set(CURSOR_COOKIE, on ? '1' : '0', {
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365,
-    sameSite: 'lax',
-    httpOnly: true,
-    secure: url.protocol === 'https:'
-  });
+  cookies.set(CURSOR_COOKIE, on ? '1' : '0', cookieOptions(url, YEAR_SECONDS));
 
   const s = locals.session;
   if (isOwner(s)) {

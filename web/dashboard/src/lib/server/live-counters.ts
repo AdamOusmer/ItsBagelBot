@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { masterClient } from '@bagel/kit/server/valkey-master';
-import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { valkeyGuard } from './valkey-guard';
 import { parseCounterValue } from '@bagel/kit/validation';
 
 // internal/projection/valkey_live.go writes these keys; change both together.
@@ -11,9 +11,7 @@ const BOARD_PREFIX = 'ctr:board:v2:';
 const BOARD_SEEDED_PREFIX = 'ctr:board-seeded:v2:';
 const SEEDED_FIELD = 'seeded_at';
 
-const OP_TIMEOUT_MS = 200;
-
-const breaker = new CircuitBreaker({ name: 'valkey-live-counters', failureThreshold: 3, resetMs: 5_000 });
+const guarded = valkeyGuard('valkey-live-counters', 'valkey-live-counters');
 
 export type LiveTotals = Record<string, string>;
 
@@ -39,10 +37,6 @@ export function parseBoard(seeded: number, members: string[]): Map<string, strin
     ranked.set(member.slice(20), count);
   }
   return ranked;
-}
-
-function guarded<T>(op: () => Promise<T>): Promise<T> {
-  return breaker.run(() => withTimeout(op(), OP_TIMEOUT_MS, 'valkey-live-counters'));
 }
 
 export async function liveTotals(userId: string, names: readonly string[]): Promise<LiveTotals | null> {

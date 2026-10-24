@@ -196,6 +196,11 @@ function mergeUpserted(current: CommandView[], upserted: CommandView, originalNa
   return kept.map((c) => (c.name === upserted.name ? upserted : c));
 }
 
+async function projectCommands(userId: string, commands: CommandView[]): Promise<void> {
+  const synced = (await replaceProjected('commands', userId, commands)) !== null;
+  commitOptimistic(cacheKey('commands', userId), commands, synced);
+}
+
 export async function upsertCommand(
   userId: string,
   cmd: CommandInput,
@@ -212,8 +217,7 @@ export async function upsertCommand(
     const current = await listCommands(userId);
     const previous = current.find((c) => c.name === (originalName ?? cmd.name));
     const commands = mergeUpserted(current, upsertedView(cmd, previous, restored), originalName);
-    const synced = (await replaceProjected('commands', userId, commands)) !== null;
-    commitOptimistic(cacheKey('commands', userId), commands, synced);
+    await projectCommands(userId, commands);
     return { commands, restored };
   } catch {
     invalidate(cacheKey('commands', userId));
@@ -230,8 +234,7 @@ export async function deleteCommand(
   try {
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);
-    const synced = (await replaceProjected('commands', userId, commands)) !== null;
-    commitOptimistic(cacheKey('commands', userId), commands, synced);
+    await projectCommands(userId, commands);
     return { commands };
   } catch {
     invalidate(cacheKey('commands', userId));

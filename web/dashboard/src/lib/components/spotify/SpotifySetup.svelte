@@ -2,7 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { tick } from 'svelte';
-  import { fly } from 'svelte/transition';
   import { dev } from '$app/environment';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
@@ -10,8 +9,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk } from '@bagel/kit';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
-  import { bezier } from '@bagel/ui/lib/tween';
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -59,11 +57,10 @@
   let hover = $state(false);
   let heading = $state<HTMLHeadingElement | null>(null);
   const maxStep = $derived(appReady ? 3 : Math.min(furthest + 1, 2));
-  const expo = bezier(0.16, 1, 0.3, 1);
-  const arrive = (node: Element, { i = 0 } = {}) => prefersReducedMotion() ? { duration: 0 } :
-    fly(node, { x: dir * 72 * (i % 2 ? -1 : 1), duration: 760, delay: 160 + i * 70, easing: expo, opacity: 0 });
-  const depart = (node: Element, { i = 0 } = {}) => prefersReducedMotion() ? { duration: 0 } :
-    fly(node, { x: -dir * 56 * (i % 2 ? -1 : 1), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
+  const arrive = (node: Element, { i = 0 } = {}) =>
+    lateralFly(node, { x: dir * TRAVEL_IN * (i % 2 ? -1 : 1), duration: 760, delay: 160 + i * 70 });
+  const depart = (node: Element, { i = 0 } = {}) =>
+    lateralFly(node, { x: -dir * TRAVEL_OUT * (i % 2 ? -1 : 1), duration: 380, delay: i * 35 });
   async function go(target: number) {
     if (saving || done) return;
     target = Math.max(0, Math.min(target, maxStep));

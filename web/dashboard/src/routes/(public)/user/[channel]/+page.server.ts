@@ -10,18 +10,18 @@ import { accountState, userCommandsPage, type ResolvedChannel } from '$lib/serve
 import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
 import { lookupLogin } from '$lib/server/channel-lookup';
 import { requireHost } from '$lib/server/seo-hosts';
+import { LOGIN_RE, normalizeLogin } from '$lib/public-login';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
 const DEMO = dev && env.DEMO === '1';
 
-const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 const ID_RE = /^[1-9]\d{0,19}$/;
 
 type Segment = { login: string | null; id: string | null };
 
 function parseSegment(raw: string): Segment {
-  const cleaned = (raw ?? '').replace(/^@+/, '').toLowerCase();
+  const cleaned = normalizeLogin(raw ?? '');
   return {
     login: LOGIN_RE.test(cleaned) ? cleaned : null,
     id: ID_RE.test(raw) ? raw : null

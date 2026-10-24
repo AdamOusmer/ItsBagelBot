@@ -2,26 +2,16 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fetchNightbot, parseNightbot } from '@bagel/kit/importer/nightbot';
-import { CODE } from '@bagel/kit/importer/validate';
 import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
 import type { Cookies } from '@sveltejs/kit';
-import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
+import { fetchAndParse, type ImportPreviewRequest, type ParseOutcome } from '../outcome';
 import type { ServerSourceStrategy } from '../strategy';
 
-async function nightbotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  let envelope: Uint8Array;
-  try {
-    const fetched = await fetchNightbot(req.credential ?? '');
-    envelope = new TextEncoder().encode(JSON.stringify(fetched));
-  } catch (err) {
-    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
-  }
-  try {
-    const parsed = parseNightbot(envelope);
-    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-  } catch (err) {
-    return refused({ code: CODE.parseFailed, message: (err as Error).message });
-  }
+function nightbotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  return fetchAndParse(
+    async () => new TextEncoder().encode(JSON.stringify(await fetchNightbot(req.credential ?? ''))),
+    parseNightbot
+  );
 }
 
 function credential(_input: unknown, cookies: Cookies): string | null {

@@ -100,20 +100,20 @@ function counterValue(raw: unknown): string {
   return value;
 }
 
+function toCounterDef(c: CounterWire): CounterDef {
+  return { name: c.name, scope: toScope(c.scope), value: counterValue(c.value) };
+}
+
 export async function listCounters(userId: string): Promise<CounterDef[]> {
   const reply = await callLoyalty('counter.list', { user_id: userId });
-  return (reply.counters ?? []).map((c) => ({
-    name: c.name,
-    scope: toScope(c.scope),
-		value: counterValue(c.value)
-  }));
+  return (reply.counters ?? []).map(toCounterDef);
 }
 
 export async function createCounter(userId: string, name: string, scope: CounterScope): Promise<CounterDef> {
   const reply = await callLoyalty('counter.create', { user_id: userId, name, scope });
   const c = reply.counter;
   if (!c) throw new Error('empty counter reply');
-  return { name: c.name, scope: toScope(c.scope), value: counterValue(c.value) };
+  return toCounterDef(c);
 }
 
 export interface CounterTarget {
@@ -138,7 +138,7 @@ export async function setCounter(userId: string, name: string, value: string, ta
 export async function getCounter(userId: string, name: string): Promise<CounterDef | null> {
   const reply = await callLoyalty('counter.get', { user_id: userId, name });
   if (reply.found !== true || !reply.counter) return null;
-  return { name: reply.counter.name, scope: toScope(reply.counter.scope), value: counterValue(reply.counter.value) };
+  return toCounterDef(reply.counter);
 }
 
 export async function resolveViewerId(login: string): Promise<string> {
@@ -177,7 +177,7 @@ export async function counterEntries(userId: string, name: string, limit = 25): 
     viewerLogin: e.viewer_login ?? '',
     viewerName: e.viewer_name ?? '',
     command: e.command ?? '',
-		value: counterValue(e.value)
+    value: counterValue(e.value)
   }));
 }
 

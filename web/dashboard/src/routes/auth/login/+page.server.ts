@@ -7,6 +7,7 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
+import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
 import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
 import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
 
@@ -32,13 +33,7 @@ export const load: PageServerLoad = ({ cookies, url, locals }) => {
   const authUrl = twitch().createAuthorizationURL(state, scopes());
   authUrl.searchParams.set('nonce', nonce);
 
-  const cookieOpts = {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax' as const,
-    maxAge: 600
-  };
+  const cookieOpts = cookieOptions(url, STATE_TTL_SECONDS);
 
   cookies.set('oauth_state', state, cookieOpts);
   cookies.set('oauth_nonce', nonce, cookieOpts);

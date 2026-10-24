@@ -19,7 +19,9 @@
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
-  import { exactDisplay, formatStatTotal, validBoards, validStats } from '$lib/stats-values';
+  import { formatStatTotal, validBoards, validStats } from '$lib/stats-values';
+  import { frameDelta, resumedAfterGap, rewindTotals, seedFrame, stepFrame, targetFrame } from '$lib/stats-odometer';
+  import { isLoginShape } from '$lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
 
   let { data }: { data: PageData } = $props();
@@ -27,12 +29,6 @@
   const { t, locale } = getI18n();
 
   const POLL_MS = 2000;
-  const TAU_MS = 200;
-  const RATE_TAU_MS = 300;
-  const MAX_DT_MS = 250;
-  const RESUME_GAP_MS = 1000;
-  const MAX_PROJECT_S = 10;
-  const MIN_CRAWL = 0.25;
 
   const seed = untrack(() => validStats(data.stats) ?? {
     messages_total: '0',
@@ -54,63 +50,28 @@
 
   let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
-  let display = $state({
-    messages: exactDisplay(Number(seed.messages_total)),
-    events: exactDisplay(Number(seed.events_total)),
-    msgRate: seed.msg_rate_now ?? seed.msg_rate ?? 0,
-    eventRate: seed.event_rate_now ?? seed.event_rate ?? 0
-  });
-
-  type Frame = typeof display;
+  let display = $state(seedFrame(seed));
 
   let snapAt = 0;
   let lastFrame = 0;
   let reduced = false;
   let missedWhileHidden = false;
 
-  function targetFrame(now: number): Frame {
-    const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
-    const msgAvg = live.msg_rate ?? 0;
-    const eventAvg = live.event_rate ?? 0;
-    return {
-      messages: exactDisplay(Number(live.messages_total) + msgAvg * secs),
-      events: exactDisplay(Number(live.events_total) + eventAvg * secs),
-      msgRate: live.msg_rate_now ?? msgAvg,
-      eventRate: live.event_rate_now ?? eventAvg
-    };
-  }
-
-  function lerp(from: number, to: number, eased: number): number {
-    return from + (to - from) * eased;
-  }
-
-  function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
-    return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
-  }
-
   function tick(now: number): boolean {
-    if (now - lastFrame > RESUME_GAP_MS) {
+    if (resumedAfterGap(now, lastFrame)) {
       snap(now);
       return true;
     }
-    const dt = Math.min(now - lastFrame, MAX_DT_MS);
+    const dt = frameDelta(now, lastFrame);
     lastFrame = now;
     if (degraded) return true;
-    const target = targetFrame(now);
-    const k = 1 - Math.exp(-dt / TAU_MS);
-    const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
-    display = {
-      messages: advance(display.messages, target.messages, target.msgRate, dt, k),
-      events: advance(display.events, target.events, target.eventRate, dt, k),
-      msgRate: lerp(display.msgRate, target.msgRate, rateK),
-      eventRate: lerp(display.eventRate, target.eventRate, rateK)
-    };
+    display = stepFrame(display, targetFrame(live, snapAt, now), dt);
     return true;
   }
 
   function snap(now: number): void {
     lastFrame = now;
-    display = targetFrame(now);
+    display = targetFrame(live, snapAt, now);
   }
 
   function applySnapshot(raw: unknown): void {
@@ -128,10 +89,8 @@
       snap(snapAt);
       return;
     }
-    if (BigInt(next.messages_total) < BigInt(prev.messages_total)) display.messages = exactDisplay(Number(next.messages_total));
-    if (BigInt(next.events_total) < BigInt(prev.events_total)) display.events = exactDisplay(Number(next.events_total));
+    display = rewindTotals(display, prev, next);
   }
-
   async function fetchJson(path: string): Promise<unknown> {
     const res = await fetch(path, { headers: { accept: 'application/json' } });
     if (!res.ok) throw new Error(`${path} ${res.status}`);
@@ -229,9 +188,8 @@
   // Both boards label a channel with the name the fleet stored for it, which is
   // a display name: localized names are not necessarily valid Twitch logins.
   // Use the id for those names, and never turn an unknown name into a bad link.
-  const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
   const channelHref = (row: { id: string; name: string }) =>
-    commandsHref(LOGIN_SHAPE.test(row.name) ? row.name : row.id);
+    commandsHref(isLoginShape(row.name) ? row.name : row.id);
 
   // The server sends the message-ranked subset. The Events control only sorts
   // that same set; its localized note does not claim a global event ranking.

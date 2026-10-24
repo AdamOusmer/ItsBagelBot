@@ -5,6 +5,7 @@ import { redirect } from '@sveltejs/kit';
 import { generateState } from '@bagel/kit/server/oauth';
 import { spotifyAuthorizeURL, spotifyConfigured } from '$lib/server/oauth';
 import { spotifyStore } from '$lib/server/spotify-store';
+import { cookieOptions } from '$lib/server/cookies';
 import {
   SPOTIFY_STATE_COOKIE,
   SPOTIFY_STATE_TTL_SECONDS,
@@ -20,13 +21,7 @@ export const GET: RequestHandler = async ({ cookies, url, locals }) => {
   if (!app.present) throw redirect(302, '/songqueue?e=noapp');
 
   const state = generateState();
-  cookies.set(SPOTIFY_STATE_COOKIE, state, {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: SPOTIFY_STATE_TTL_SECONDS
-  });
+  cookies.set(SPOTIFY_STATE_COOKIE, state, cookieOptions(url, SPOTIFY_STATE_TTL_SECONDS));
 
   throw redirect(302, spotifyAuthorizeURL(app.clientId, state));
 };

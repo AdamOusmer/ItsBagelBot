@@ -26,6 +26,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';
 import { broadcasterPremium } from '$lib/server/module-gate';
 import { twitchScopeGap } from '$lib/server/oauth';
+import { isOwnerSession } from '$lib/server/owner';
 import { shareRecent } from '$lib/server/recent-share';
 
 const DEMO = dev && env.DEMO === '1';
@@ -148,7 +149,7 @@ function ownerNotOnboarded(locals: App.Locals): boolean {
 }
 
 function ownerScopeGap(s: App.Locals['session']): boolean {
-  return !!s && !s.delegate_of && !s.impersonator_id && twitchScopeGap(s.scopes);
+  return isOwnerSession(s) && twitchScopeGap(s.scopes);
 }
 
 async function needsTour(locals: App.Locals, commands: Promise<CommandDigest>): Promise<boolean> {

@@ -3,7 +3,7 @@
 
 import { parseStreamLabsDesktop } from '@bagel/kit/importer/streamlabs-desktop';
 import { CODE } from '@bagel/kit/importer/validate';
-import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
+import { parseLeg, refused, type ImportPreviewRequest, type ParseOutcome } from '../outcome';
 import { fileSourceInput, type ServerSourceStrategy } from '../strategy';
 
 const MAX_DECODED_FILE_BYTES = 25 << 20;
@@ -21,12 +21,7 @@ async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOut
     });
   }
 
-  try {
-    const parsed = await parseStreamLabsDesktop(file);
-    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-  } catch (err) {
-    return refused({ code: CODE.parseFailed, message: (err as Error).message });
-  }
+  return parseLeg(() => parseStreamLabsDesktop(file));
 }
 
 export const streamlabsDesktopSource: ServerSourceStrategy = {

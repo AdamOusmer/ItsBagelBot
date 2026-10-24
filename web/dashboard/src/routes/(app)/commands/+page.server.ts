@@ -32,6 +32,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { count } from '@bagel/kit/server/analytics';
 import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
+import { parsePerm, signedInAction } from '$lib/server/action-context';
 import { gateSection } from '$lib/server/module-gate';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
@@ -57,7 +58,7 @@ function builtinView(def: (typeof BUILTIN_COMMANDS)[number], row?: ModuleView): 
     // inspector's editor and rehearsal start from the real value.
     response: def.editable ? savedReply || def.preview : def.summary,
     is_active: row ? row.is_enabled : def.defaultActive,
-    perm: (PERMS as readonly string[]).includes(savedPerm) ? savedPerm as Perm : def.defaultPerm,
+    perm: parseKitPerm(savedPerm, def.defaultPerm),
     cooldown: def.defaultCooldown,
     stream_online_only: def.liveOnly,
     builtin: true
@@ -123,8 +124,7 @@ function parseCommand(f: FormData) {
   }
 
   const response = normalizeCommandResponse(String(f.get('response') ?? ''));
-  const permRaw = String(f.get('perm') ?? 'everyone');
-  const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
+  const perm = parseKitPerm(f.get('perm'), 'everyone' as Perm);
 
   const cooldown = seconds(f.get('cooldown'));
   const userCooldown = seconds(f.get('user_cooldown'));
@@ -157,18 +157,7 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
   };
 }
 
-async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
-  gateSection(locals.session, 'commands');
-  if (!DEMO && !locals.session) return null;
-  return {
-    uid: effectiveId(locals.session),
-    session: locals.session,
-    locale: locals.locale,
-    form: await request.formData()
-  };
-}
-
-const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
+const commandsAction = signedInAction((session) => gateSection(session, 'commands'), DEMO);
 
 // RPC failure detail can carry internal service information: log it, never return it.
 async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
@@ -180,9 +169,8 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   }
 }
 
-function builtinPermFromForm(f: FormData, defaultPerm: Perm): Perm {
-  const value = String(f.get('perm') ?? '');
-  return (PERMS as readonly string[]).includes(value) ? value as Perm : defaultPerm;
+function parseKitPerm<F>(raw: unknown, fallback: F): Perm | F {
+  return parsePerm(raw, PERMS, fallback);
 }
 
 function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean, perm: Perm = def.defaultPerm): CommandView {
@@ -263,30 +251,22 @@ function countCreated(isEdit: boolean): void {
 }
 
 export const actions: Actions = {
-  savefetch: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  savefetch: commandsAction(async (ctx) => {
     const r = await saveFetchDef(ctx.uid, ctx.session, ctx.form);
     return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
-  },
+  }),
 
-  deletefetch: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  deletefetch: commandsAction(async (ctx) => {
     const r = await removeFetchDef(ctx.uid, ctx.session, ctx.form);
     return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
-  },
+  }),
 
-  testfetch: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  testfetch: commandsAction(async (ctx) => {
     const r = await rehearseFetchDef(ctx.uid, ctx.form);
     return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
-  },
+  }),
 
-  save: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  save: commandsAction(async (ctx) => {
     const s = parseSaveForm(ctx.form);
 
     const errors = validateCommand({
@@ -321,11 +301,9 @@ export const actions: Actions = {
     auditDashboardImpersonation(ctx.session, s.isEdit ? 'command:update' : 'command:create', s.cmd.name);
     countCreated(s.isEdit);
     return saveResult(s, res.value.commands, res.value.restored);
-  },
+  }),
 
-  toggle: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  toggle: commandsAction(async (ctx) => {
     const { uid, form: f } = ctx;
 
     const cmd = parseCommand(f);
@@ -341,11 +319,9 @@ export const actions: Actions = {
     auditDashboardImpersonation(ctx.session, 'command:toggle', `${cmd.name}=${isActive}`);
 
     return { ok: true, action: 'updated', name: cmd.name, commands: res.value.commands, silent: true };
-  },
+  }),
 
-  delete: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  delete: commandsAction(async (ctx) => {
     const { uid, form: f } = ctx;
 
     const name = String(f.get('name') ?? '');
@@ -359,11 +335,9 @@ export const actions: Actions = {
     count('custom.commands', 'deleted');
 
     return { ok: true, action: 'deleted', name, commands: res.value.commands };
-  },
+  }),
 
-  bulk: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  bulk: commandsAction(async (ctx) => {
     const op = ctx.form.get('op');
     const names = bulkNames(ctx.form);
     if (!isBulkRequest(op, names)) {
@@ -377,18 +351,16 @@ export const actions: Actions = {
 
     auditDashboardImpersonation(ctx.session, `command:bulk_${op}`, names.join(','));
     return { ok: true, op, results: res.value };
-  },
+  }),
 
-  toggleBuiltin: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  toggleBuiltin: commandsAction(async (ctx) => {
     const { uid, form: f } = ctx;
 
     const name = normName(String(f.get('name') ?? ''));
     const def = builtinDef(name);
     if (!def) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown built-in command.') });
     const isActive = f.get('is_active') === 'on';
-    const perm = builtinPermFromForm(f, def.defaultPerm);
+    const perm = parseKitPerm(f.get('perm'), def.defaultPerm);
     const view = builtinRow(def, String(f.get('response') ?? def.summary), isActive, perm);
 
     if (DEMO) {
@@ -400,28 +372,16 @@ export const actions: Actions = {
 
     auditDashboardImpersonation(ctx.session, 'command:builtin_toggle', `${name}=${isActive}`);
     return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
-  },
+  }),
 
   // Save an editable built-in's custom reply template. Like the toggle, the
   // value lives in the modules service (under the built-in id, config key
   // def.replyKey), so this writes there, not the commands service. An empty
   // reply clears the override, so the bot falls back to the default template.
-  saveBuiltinReply: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
-    const { uid, form: f } = ctx;
-
-    const name = normName(String(f.get('name') ?? ''));
-    const def = editableBuiltin(name);
-    if (!def) {
-      return fail(400, { ok: false, error: actionError(ctx.locale, 'This command has no editable reply.') });
-    }
-    const reply = String(f.get('reply') ?? '').trim();
-    if (reply.length > RESPONSE_MAX) {
-      return fail(400, { ok: false, error: actionError(ctx.locale, `Reply is too long (max ${RESPONSE_MAX}).`) });
-    }
-    const isActive = f.get('is_active') === 'on';
-    const perm = builtinPermFromForm(f, def.defaultPerm);
+  saveBuiltinReply: commandsAction(async (ctx) => {
+    const parsed = parseBuiltinReply(ctx.form, ctx.locale);
+    if ('refusal' in parsed) return parsed.refusal;
+    const { name, def, reply, isActive, perm } = parsed;
     const view = builtinRow(def, reply || def.preview, isActive, perm);
 
     if (DEMO) {
@@ -429,25 +389,23 @@ export const actions: Actions = {
     }
 
     const res = await tryRpc('saveBuiltinReply', () =>
-      patchBuiltin(uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { [def.replyKey!]: reply } }))
+      patchBuiltin(ctx.uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { [def.replyKey]: reply } }))
     );
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'command:builtin_reply', name);
     return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
-  },
+  }),
 
-  saveBuiltinAccess: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn(event.locals.locale);
+  saveBuiltinAccess: commandsAction(async (ctx) => {
     const { uid, form: f } = ctx;
     const name = normName(String(f.get('name') ?? ''));
     const def = builtinDef(name);
-    const perm = String(f.get('perm') ?? '');
-    if (!def || !(PERMS as readonly string[]).includes(perm)) {
+    const perm = parseKitPerm(f.get('perm'), null);
+    if (!def || !perm) {
       return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid built-in command or access level.') });
     }
-    const view = builtinRow(def, String(f.get('response') ?? def.summary), f.get('is_active') === 'on', perm as Perm);
+    const view = builtinRow(def, String(f.get('response') ?? def.summary), f.get('is_active') === 'on', perm);
     if (DEMO) return { ok: true, action: 'updated', name, commands: [view], silent: true };
 
     const res = await tryRpc('saveBuiltinAccess', () =>
@@ -457,11 +415,24 @@ export const actions: Actions = {
 
     auditDashboardImpersonation(ctx.session, 'command:builtin_access', `${name}=${perm}`);
     return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
-  }
+  })
 };
 
 function editableBuiltin(name: string) {
   const def = builtinDef(name);
   if (!def?.editable || !def.replyKey) return undefined;
-  return def;
+  return def as typeof def & { replyKey: string };
+}
+
+function parseBuiltinReply(f: FormData, locale: App.Locals['locale']) {
+  const name = normName(String(f.get('name') ?? ''));
+  const def = editableBuiltin(name);
+  if (!def) {
+    return { refusal: fail(400, { ok: false, error: actionError(locale, 'This command has no editable reply.') }) };
+  }
+  const reply = String(f.get('reply') ?? '').trim();
+  if (reply.length > RESPONSE_MAX) {
+    return { refusal: fail(400, { ok: false, error: actionError(locale, `Reply is too long (max ${RESPONSE_MAX}).`) }) };
+  }
+  return { name, def, reply, isActive: f.get('is_active') === 'on', perm: parseKitPerm(f.get('perm'), def.defaultPerm) };
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance, deserialize } from '$app/forms';
+  import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -23,14 +23,14 @@
     type TimerDef,
     MasterToggle,
     actionPayload,
-    toastFailure,
-    type ActionOk
+    toastFailure
   } from '@bagel/kit';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
-  import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
+  import { firstTimerError } from '$lib/timer-validation';
+  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
   import { warmOnIntent } from '$lib/warm-on-intent';
   const loadTimerEditor = () => import('$lib/components/timers/TimerEditor.svelte');
 
@@ -41,14 +41,9 @@
   let timers = $state<TimerDef[]>(data.timers ?? []);
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
-  // svelte-ignore state_referenced_locally
-  let seed = data;
-  $effect(() => {
-    if (data !== seed) {
-      seed = data;
-      timers = data.timers ?? [];
-      enabled = data.enabled ?? false;
-    }
+  reseedOnChange(() => data, (next) => {
+    timers = next.timers ?? [];
+    enabled = next.enabled ?? false;
   });
 
   const rows = $derived(timers.toSorted((a, b) => a.intervalSeconds - b.intervalSeconds));
@@ -103,14 +98,7 @@
   const failed = toastFailure(toast);
 
   const saveSubmit: SubmitFunction = (input) => {
-    if (
-      !draft ||
-      !draft.message.trim() ||
-      !Number.isFinite(draft.intervalSeconds) ||
-      draft.intervalSeconds < 60 ||
-      draft.intervalSeconds > 86_400 ||
-      urlFetchNames(draft.message).length > URLFETCH_TOKEN_CAP
-    ) {
+    if (!draft || firstTimerError(draft)) {
       validationAttempted = true;
       input.cancel();
       void focusFirstInvalid(formEl);
@@ -150,12 +138,6 @@
         failed(payload, t('timers.toastToggleFailed'));
       };
     };
-
-  function postAction(action: string, body: FormData): Promise<ActionOk | null> {
-    return fetch(`?/${action}`, { method: 'POST', body })
-      .then(async (res) => actionPayload(deserialize(await res.text())) ?? null)
-      .catch(() => null);
-  }
 
   async function onDelete(tmr: TimerDef) {
     timers = timers.filter((x) => x.id !== tmr.id);

@@ -9,6 +9,7 @@ import { verifyViewAs } from '@bagel/kit/server/impersonation';
 import { claimOnce } from '@bagel/kit/server/rate-limit';
 import { COOKIE, seal, IMPERSONATION_TTL_SECONDS } from '$lib/server/session';
 import { LOCALE_COOKIE } from '@bagel/kit/i18n';
+import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
 
 const JTI_TTL_SECONDS = 6 * 60;
 
@@ -38,21 +39,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     impersonator_login: p.by_login
   });
 
-  cookies.set(COOKIE, value, {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: IMPERSONATION_TTL_SECONDS
-  });
+  cookies.set(COOKIE, value, cookieOptions(url, IMPERSONATION_TTL_SECONDS));
 
-  cookies.set(LOCALE_COOKIE, 'en', {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 365
-  });
+  cookies.set(LOCALE_COOKIE, 'en', cookieOptions(url, YEAR_SECONDS));
 
   throw redirect(302, '/');
 };

@@ -148,7 +148,11 @@
   let furthest = $state(importRequested ? choiceStep : 0);
   let dir = $state(1);
   let consentAccepted = $state(false);
-  let leaving = $state(false);
+  type Phase = 'idle' | 'clearing' | 'landed' | 'leaving';
+  let phase = $state<Phase>('idle');
+  const leaving = $derived(phase === 'leaving');
+  const clearing = $derived(phase === 'clearing');
+  const locked = $derived(clearing || leaving);
   let showCompletion = $state(false);
   let saveError = $state(false);
   let saveErrorServer = $state('');
@@ -159,6 +163,9 @@
   const maxStep = $derived(consentBlocked ? consentStep : Math.min(furthest + 1, steps.length - 1));
   const nextDisabled = $derived(step + 1 > maxStep);
   const canAdvance = $derived(!nextDisabled && !last);
+  const pastChoice = $derived(consentAccepted && step >= choiceStep);
+  const canImport = $derived(!leaving && pastChoice);
+  const canFinish = $derived(!locked && pastChoice && last && setup !== 'import');
   const blobRight = $derived(step % 2 === 1);
   const progress = $derived(
     setup === 'import'
@@ -175,13 +182,11 @@
       ? { duration: 0 }
       : fly(node, { x: dir * TRAVEL * sideOf(i), duration: 760, delay: 160 + i * 70, easing: expo, opacity: 0 });
   const depart = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion() || departed || instant
+    prefersReducedMotion() || phase === 'landed' || instant
       ? { duration: 0 }
       : fly(node, { x: -dir * 56 * sideOf(i), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
 
   const CLEAR_MS = 300;
-  let clearing = $state(false);
-  let departed = false;
   const isChoice = (i: number) => steps[i]?.kind === 'choice';
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
@@ -216,21 +221,23 @@
 
   function go(i: number) {
     const target = Math.max(0, Math.min(i, maxStep));
-    if (target === step || leaving || clearing) return;
+    if (target === step || locked) return;
     dir = target > step ? 1 : -1;
     hover = null;
     if (isChoice(target) !== isChoice(step) && !prefersReducedMotion()) {
-      clearing = true;
+      phase = 'clearing';
       setTimeout(() => land(target), CLEAR_MS);
       return;
     }
     land(target);
   }
+  function settleLanding() {
+    if (phase === 'landed') phase = 'idle';
+  }
   function land(target: number) {
-    departed = clearing;
-    clearing = false;
+    if (clearing) phase = 'landed';
     step = target;
-    tick().then(() => (departed = false));
+    tick().then(settleLanding);
     furthest = Math.max(furthest, target);
     play('entrance');
   }
@@ -316,7 +323,7 @@
   });
 
   function startImport() {
-    if (leaving || !consentAccepted || step < choiceStep) return;
+    if (!canImport) return;
     setup = 'import';
     pushState('/welcome?import=1', { importing: true });
   }
@@ -360,10 +367,10 @@
   let destination = $state('/');
   const EXIT_MS = 640;
   function finish() {
-    if (leaving || !consentAccepted || setup === 'import' || !last || step < choiceStep) return;
+    if (!canFinish) return;
     saveError = false;
     saveErrorServer = '';
-    leaving = true;
+    phase = 'leaving';
     hover = null;
     react('proud', 4000);
     play('burst');
@@ -398,7 +405,7 @@
       showCompletion = true;
       return;
     }
-    leaving = false;
+    phase = 'idle';
     saveErrorServer = result.type === 'failure' && result.status < 500 && typeof result.data?.error === 'string' ? result.data.error : '';
     saveError = true;
     react('attentive', 2400);

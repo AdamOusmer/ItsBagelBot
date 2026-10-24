@@ -2,8 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fetchStreamElements, parseStreamElements } from '@bagel/kit/importer/streamelements';
-import { CODE } from '@bagel/kit/importer/validate';
-import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
+import { fetchAndParse, type ImportPreviewRequest, type ParseOutcome } from '../outcome';
 import {
   credentialShapeRefusal,
   missingAnyInput,
@@ -12,16 +11,14 @@ import {
   type SourceInput
 } from '../strategy';
 
-async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  let envelope: string;
-  try {
-    const fetched = await fetchStreamElements(req.credential ?? '');
-    envelope = JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
-  } catch (err) {
-    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
-  }
-  const parsed = parseStreamElements(envelope);
-  return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
+function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  return fetchAndParse(
+    async () => {
+      const fetched = await fetchStreamElements(req.credential ?? '');
+      return JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
+    },
+    parseStreamElements
+  );
 }
 
 function acceptInput(input: SourceInput): InputRefusal {

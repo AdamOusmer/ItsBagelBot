@@ -3,6 +3,7 @@
 
 import { redirect, type Cookies } from '@sveltejs/kit';
 import { gateModulePage } from './module-gate';
+import { cookieOptions } from './cookies';
 import { effectiveId } from './board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
@@ -90,13 +91,7 @@ const BLOCKED_MAX = 8;
 export function rememberBoundElsewhere(cookies: Cookies, url: URL, guildId: GuildId): void {
   const next = encodeIdList([guildId, ...boundElsewhereIds(cookies)].slice(0, BLOCKED_MAX));
   if (!next) return;
-  cookies.set(BLOCKED_COOKIE, next, {
-    path: STATE_PATH,
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: BLOCKED_TTL_SECONDS
-  });
+  cookies.set(BLOCKED_COOKIE, next, cookieOptions(url, BLOCKED_TTL_SECONDS, STATE_PATH));
 }
 
 export function boundElsewhereIds(cookies: Cookies): GuildId[] {
@@ -144,6 +139,14 @@ export function discordFail(slug: DiscordErrorSlug): never {
   throw redirect(302, `/discord?e=${slug}`);
 }
 
+export function takeDiscordCode(ref: DiscordStateRef): OAuthCode {
+  returnIfDeclined(ref.url);
+  if (!discordStateOK(ref)) discordFail('state');
+  const code = (ref.url.searchParams.get('code') ?? '').trim();
+  if (!code) discordFail('oauth');
+  return code;
+}
+
 export function discordClientId(): string {
   return (env.DISCORD_CLIENT_ID || '').trim();
 }
@@ -164,18 +167,23 @@ export function discordConfigured(): boolean {
   return discordClientId() !== '' && discordClientSecret() !== '' && discordRedirectURI() !== '';
 }
 
-export function discordInviteURL(state: OAuthState): string {
+function authorizeURL(redirectURI: string, scope: string, state: OAuthState, extra: Record<string, string> = {}): string {
   const clientId = discordClientId();
-  const redirect = discordRedirectURI();
-  if (!clientId || !redirect) return '';
+  if (!clientId || !redirectURI) return '';
   const u = new URL('https://discord.com/oauth2/authorize');
   u.searchParams.set('client_id', clientId);
-  u.searchParams.set('permissions', String(DISCORD_BOT_PERMISSIONS));
-  u.searchParams.set('scope', 'bot applications.commands');
-  u.searchParams.set('redirect_uri', redirect);
+  for (const [key, value] of Object.entries(extra)) u.searchParams.set(key, value);
+  u.searchParams.set('scope', scope);
+  u.searchParams.set('redirect_uri', redirectURI);
   u.searchParams.set('response_type', 'code');
   if (state) u.searchParams.set('state', state);
   return u.toString();
+}
+
+export function discordInviteURL(state: OAuthState): string {
+  return authorizeURL(discordRedirectURI(), 'bot applications.commands', state, {
+    permissions: String(DISCORD_BOT_PERMISSIONS)
+  });
 }
 
 export function discordPickRedirectURI(): string {
@@ -187,16 +195,7 @@ export function discordPickRedirectURI(): string {
 }
 
 export function discordUserAuthURL(state: OAuthState): string {
-  const clientId = discordClientId();
-  const redirect = discordPickRedirectURI();
-  if (!clientId || !redirect) return '';
-  const u = new URL('https://discord.com/oauth2/authorize');
-  u.searchParams.set('client_id', clientId);
-  u.searchParams.set('scope', 'identify guilds');
-  u.searchParams.set('redirect_uri', redirect);
-  u.searchParams.set('response_type', 'code');
-  if (state) u.searchParams.set('state', state);
-  return u.toString();
+  return authorizeURL(discordPickRedirectURI(), 'identify guilds', state);
 }
 
 export function discordInstallURL(state: OAuthState, guildId: GuildId): string {
@@ -239,17 +238,18 @@ async function fetchGuildPage(token: AccessToken, after: GuildId): Promise<UserG
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(GUILDS_TIMEOUT_MS)
   }).catch(() => null);
-  if (!res) return { ok: false, code: 'discord_unavailable' };
-  if (res.status === 429) return { ok: false, code: 'rate_limited' };
-  if (!res.ok) return { ok: false, code: 'discord_unavailable' };
-  const json: unknown = await res.json().catch(() => null);
-  const guilds = parseUserGuilds(json);
-  if (!guilds) return { ok: false, code: 'discord_unavailable' };
-  return { ok: true, guilds };
+  if (res?.status === 429) return { ok: false, code: 'rate_limited' };
+  const guilds = await parseGuildPage(res);
+  return guilds ? { ok: true, guilds } : { ok: false, code: 'discord_unavailable' };
 }
 
-async function exchangeUserCode(code: OAuthCode): Promise<AccessToken> {
-  const res = await fetch(TOKEN_URL, {
+async function parseGuildPage(res: Response | null): Promise<DiscordUserGuild[] | null> {
+  if (!res?.ok) return null;
+  return parseUserGuilds(await res.json().catch(() => null));
+}
+
+function exchangeCode(code: OAuthCode, redirectURI: string): Promise<Response> {
+  return fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -257,10 +257,14 @@ async function exchangeUserCode(code: OAuthCode): Promise<AccessToken> {
       client_secret: discordClientSecret(),
       grant_type: 'authorization_code',
       code,
-      redirect_uri: discordPickRedirectURI()
+      redirect_uri: redirectURI
     }),
     signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS)
   });
+}
+
+async function exchangeUserCode(code: OAuthCode): Promise<AccessToken> {
+  const res = await exchangeCode(code, discordPickRedirectURI());
   if (!res.ok) return '';
   const json = (await res.json()) as { access_token?: unknown };
   return typeof json.access_token === 'string' ? json.access_token : '';
@@ -272,19 +276,7 @@ export function discordTemplateURL(): string {
 }
 
 export async function exchangeInstallCode(code: OAuthCode): Promise<GuildId> {
-  const body = new URLSearchParams({
-    client_id: discordClientId(),
-    client_secret: discordClientSecret(),
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: discordRedirectURI()
-  });
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS)
-  });
+  const res = await exchangeCode(code, discordRedirectURI());
   if (!res.ok) return '';
   const json = (await res.json()) as { guild?: { id?: unknown } };
   const id = json.guild?.id;

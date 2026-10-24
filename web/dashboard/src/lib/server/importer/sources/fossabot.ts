@@ -3,24 +3,14 @@
 
 import { fetchFossabot, parseFossabot } from '@bagel/kit/importer/fossabot';
 import { FOSSABOT_HANDLE_SHAPE, MAX_HANDLE_LEN } from '@bagel/kit/importer/strategy';
-import { CODE } from '@bagel/kit/importer/validate';
-import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
+import { fetchAndParse, type ImportPreviewRequest, type ParseOutcome } from '../outcome';
 import type { InputRefusal, ServerSourceStrategy, SourceInput } from '../strategy';
 
-async function fossabotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  let envelope: Uint8Array;
-  try {
-    const fetched = await fetchFossabot(req.credential ?? '');
-    envelope = new TextEncoder().encode(JSON.stringify(fetched));
-  } catch (err) {
-    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
-  }
-  try {
-    const parsed = parseFossabot(envelope);
-    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-  } catch (err) {
-    return refused({ code: CODE.parseFailed, message: (err as Error).message });
-  }
+function fossabotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
+  return fetchAndParse(
+    async () => new TextEncoder().encode(JSON.stringify(await fetchFossabot(req.credential ?? ''))),
+    parseFossabot
+  );
 }
 
 function acceptInput(input: SourceInput): InputRefusal {

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { redirect, fail } from '@sveltejs/kit';
+import { redirect, fail, type ActionFailure } from '@sveltejs/kit';
 import {
   delegationList,
   delegationAccess,
@@ -34,6 +34,7 @@ import { actionError } from '$lib/server/action-errors';
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import { cookieOptions, deleteOptions } from '$lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -41,15 +42,45 @@ function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
 }
 
-function ownerSession(s: Session | null): s is Session {
-  return !!s && !s.delegate_of && !s.impersonator_id;
+type OwnerPolicy = {
+  anon: readonly [number, string];
+  delegate: readonly [number, string];
+  impersonator?: true;
+  body?: { ok: false };
+};
+
+const NOT_ALLOWED = [403, 'Not allowed.'] as const;
+const NOT_SIGNED_IN = [401, 'Not signed in.'] as const;
+
+const OWNER_POLICY = {
+  quiet: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED },
+  page: { anon: NOT_ALLOWED, delegate: NOT_ALLOWED, impersonator: true },
+  account: { anon: NOT_SIGNED_IN, delegate: NOT_ALLOWED },
+  explicit: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'] },
+  keys: { anon: NOT_SIGNED_IN, delegate: [403, 'Only the account owner can do that.'], body: { ok: false } }
+} as const satisfies Record<string, OwnerPolicy>;
+
+function isBarred(s: Session, policy: OwnerPolicy): boolean {
+  if (s.delegate_of) return true;
+  return policy.impersonator === true && !!s.impersonator_id;
+}
+
+function requireOwner(
+  s: Session | null,
+  locale: Locale,
+  policy: OwnerPolicy
+): { session: Session } | { refusal: ActionFailure<{ ok?: false; error: string }> } {
+  if (s && !isBarred(s, policy)) return { session: s };
+  const [status, message] = s ? policy.delegate : policy.anon;
+  return { refusal: fail(status, { ...policy.body, error: actionError(locale, message) }) };
 }
 
 function pageToggle(write: (userId: string, hidden: boolean) => Promise<unknown>, action: string) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const s = locals.session;
     if (DEMO) return { ok: true, action, edgeDelayed: false };
-    if (!ownerSession(s)) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.page);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
 
@@ -68,8 +99,9 @@ function ownerAction<R>(
   run: (s: Session, form: FormData, locale: Locale) => Promise<R>
 ) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     const form = await request.formData();
     try {
@@ -163,12 +195,6 @@ function keyEntryError(label: string, value: string, locale: Locale): string | n
   return null;
 }
 
-function ownerActor(s: Session | null, locale: App.Locals['locale']): { session: Session } | { status: number; error: string } {
-  if (!s) return { status: 401, error: actionError(locale, 'Not signed in.') };
-  if (s.delegate_of) return { status: 403, error: actionError(locale, 'Only the account owner can do that.') };
-  return { session: s };
-}
-
 async function demoKeySet(label: string, value: string) {
   const d = await import('$lib/server/demo-data');
   const current = d.demoFetches();
@@ -204,8 +230,8 @@ export const actions: Actions = {
 
     if (DEMO) return demoKeySet(label, value);
 
-    const actor = ownerActor(locals.session, locals.locale);
-    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
+    const actor = requireOwner(locals.session, locals.locale, OWNER_POLICY.keys);
+    if ('refusal' in actor) return actor.refusal;
 
     try {
       const last4 = await setFetchKey({ userId: actor.session.user_id, label, value });
@@ -222,8 +248,8 @@ export const actions: Actions = {
 
     if (DEMO) return demoKeyDelete(label);
 
-    const actor = ownerActor(locals.session, locals.locale);
-    if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
+    const actor = requireOwner(locals.session, locals.locale, OWNER_POLICY.keys);
+    if ('refusal' in actor) return actor.refusal;
 
     try {
       await deleteFetchKey({ userId: actor.session.user_id, label });
@@ -236,10 +262,10 @@ export const actions: Actions = {
   },
 
   markRead: async ({ request, locals }) => {
-    const s = locals.session;
     if (DEMO) return { ok: true, action: 'read' };
-    if (!s) return fail(401, { error: actionError(locals.locale, 'Not signed in.') });
-    if (s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Only the account owner can do that.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.explicit);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     const id = Number(String((await request.formData()).get('id') ?? ''));
     if (!Number.isFinite(id) || id <= 0) return fail(400, { error: actionError(locals.locale, 'id required') });
@@ -257,9 +283,10 @@ export const actions: Actions = {
   setLeaderboardPage: pageToggle(setLeaderboardPage, 'leaderboard_page'),
 
   markAllRead: async ({ request, locals }) => {
-    const s = locals.session;
     if (DEMO) return { ok: true, action: 'all_read' };
-    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     const ids = String((await request.formData()).get('ids') ?? '')
       .split(',')
@@ -275,9 +302,10 @@ export const actions: Actions = {
   },
 
   markPeeked: async ({ locals }) => {
-    const s = locals.session;
     if (DEMO) return { ok: true, action: 'peeked' };
-    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     try {
       await notificationMarkPeeked(s.user_id);
@@ -288,9 +316,9 @@ export const actions: Actions = {
   },
 
   delete: async ({ locals, cookies, url }) => {
-    const s = locals.session;
-    if (!s) return fail(401, { error: actionError(locals.locale, 'Not signed in.') });
-    if (s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.account);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     try {
       // Unenroll before the row goes away: never a deleted account with live EventSub subs.
@@ -303,13 +331,7 @@ export const actions: Actions = {
       return fail(502, { error: actionError(locals.locale, 'Could not delete account.') });
     }
     cookies.delete(COOKIE, { path: '/' });
-    cookies.set(ACCOUNT_DELETED_COOKIE, '1', {
-      path: '/',
-      httpOnly: true,
-      secure: url.protocol === 'https:',
-      sameSite: 'lax',
-      maxAge: 60
-    });
+    cookies.set(ACCOUNT_DELETED_COOKIE, '1', cookieOptions(url, 60));
     throw redirect(302, '/goodbye');
   },
 
@@ -317,7 +339,7 @@ export const actions: Actions = {
     const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
     if (sections.length === 0) return fail(400, { error: actionError(locale, 'Pick at least one section.') });
 
-    const token = await delegationCreate(s.user_id, s.login, sections);
+    const token = await delegationCreate({ owner: { id: s.user_id, login: s.login }, sections });
     auditDashboardImpersonation(s, 'delegation:create', `sections=${sections.join(',')}`);
     return {
       ok: true,
@@ -337,7 +359,7 @@ export const actions: Actions = {
     const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
     if (sections.length === 0) return fail(400, { error: actionError(locale, 'Pick at least one section.') });
 
-    await delegationUpdate(s.user_id, token, sections);
+    await delegationUpdate({ ownerId: s.user_id, token, sections });
     auditDashboardImpersonation(s, 'delegation:update', `${tokenLabel(token)} sections=${sections.join(',')}`);
     return { ok: true, action: 'updated', updatedToken: token, updatedSections: sections };
   }),
@@ -346,7 +368,7 @@ export const actions: Actions = {
     const token = String(f.get('token') ?? '');
     if (!token) return fail(400, { error: actionError(locale, 'Missing token.') });
 
-    await delegationRevoke(s.user_id, token);
+    await delegationRevoke({ ownerId: s.user_id, token });
     auditDashboardImpersonation(s, 'delegation:revoke', tokenLabel(token));
     return { ok: true, action: 'revoked' };
   }),
@@ -355,20 +377,21 @@ export const actions: Actions = {
     const ownerId = String(f.get('owner_user_id') ?? '');
     if (!ownerId) return fail(400, { error: actionError(locale, 'Missing dashboard.') });
 
-    await delegationOptOut(s.user_id, ownerId);
+    await delegationOptOut({ delegateId: s.user_id, ownerId });
     auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
     return { ok: true, action: 'opted_out' };
   }),
 
   signOutEverywhere: async ({ locals, cookies, url }) => {
-    const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
+    const owner = requireOwner(locals.session, locals.locale, OWNER_POLICY.quiet);
+    if ('refusal' in owner) return owner.refusal;
+    const s = owner.session;
 
     const now = Math.floor(Date.now() / 1000);
     await revokeAllForUser(s.user_id, now, SESSION_TTL_SECONDS);
     if (s.sid) await revokeSession(s.sid, s.expires_at - now);
 
-    cookies.delete(COOKIE, { path: '/', secure: url.protocol === 'https:' });
+    cookies.delete(COOKIE, deleteOptions(url));
     throw redirect(303, '/login?e=revoked');
   }
 };

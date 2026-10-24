@@ -1,18 +1,13 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import Select from '@bagel/ui/svelte/Select.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
-  import Field from '@bagel/ui/svelte/Field.svelte';
-  import Input from '@bagel/ui/svelte/Input.svelte';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { namespaceReplySamples, getI18n } from '@bagel/kit';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import DurationField from '$lib/components/shared/DurationField.svelte';
-  import { GOVEE_ERROR_KEYS, GOVEE_COOLDOWN_MAX, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
+  import RewardCoreFields from '$lib/components/channelpoints/RewardCoreFields.svelte';
+  import { GOVEE_ERROR_KEYS, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
 
   let {
     draft = $bindable<GoveeDraft>(),
@@ -35,11 +30,9 @@
   const DEFAULT_REPLY = '@{govee:user} set the lights to {govee:color}!';
   const replySamples: Record<string, string> = namespaceReplySamples('govee', { user: 'sesame_sam', input: 'blue', color: 'Blue' });
 
-  const errors = $derived(goveeErrors(draft));
-  const shown = (field: GoveeErrorField) => (attempted && errors[field] ? t(GOVEE_ERROR_KEYS[field]) : undefined);
-  const titleError = $derived(shown('title'));
-  const costError = $derived(shown('cost'));
-  const cooldownError = $derived(shown('cooldown'));
+  const failed = $derived(goveeErrors(draft));
+  const shown = (field: GoveeErrorField) => (attempted && failed[field] ? t(GOVEE_ERROR_KEYS[field]) : undefined);
+  const errors = $derived({ title: shown('title'), cost: shown('cost'), cooldown: shown('cooldown') });
 </script>
 
 <div class="editor">
@@ -47,68 +40,25 @@
     {t('govee.editorHintNames')} <Code>{colors.join(', ')}</Code>. {t('govee.editorHintHex')} <Code>#00ccff</Code>.
   </Text>
 
-  <Field label={t('govee.fieldTitle')} error={titleError} errorId="govee-title-err">
-    <Input
-      fill
-      invalid={!!titleError}
-      type="text"
-      maxlength={45}
-      bind:value={draft.title}
-      aria-invalid={titleError ? 'true' : undefined}
-      aria-describedby={titleError ? 'govee-title-err' : undefined}
-      required
-    />
-  </Field>
-
-  <div class="field-row">
-    <div class="field-grow">
-      <Field label={t('govee.fieldCost')} error={costError} errorId="govee-cost-err">
-        <Input
-          fill
-          invalid={!!costError}
-          type="number"
-          min={1}
-          max={10000000}
-          bind:value={draft.cost}
-          aria-invalid={costError ? 'true' : undefined}
-          aria-describedby={costError ? 'govee-cost-err' : undefined}
-          required
-        />
-      </Field>
-    </div>
-    <div class="color-field">
-      <Field label={t('govee.fieldColor')}>
-        <span class="color-row">
-          <span class="swatch"><Input type="color" bind:value={draft.color} /></span>
-          <Text as="span" size="xs" mono tone="accent">{draft.color.toUpperCase()}</Text>
-        </span>
-      </Field>
-    </div>
-  </div>
-
-  <Field label={t('govee.fieldCooldown')} tag={t('govee.fieldCooldownTag')} error={cooldownError} errorId="govee-cooldown-err">
-    <DurationField
-      bind:value={draft.cooldown}
-      min={0}
-      max={GOVEE_COOLDOWN_MAX}
-      label={t('govee.fieldCooldown')}
-      invalid={!!cooldownError}
-      describedby={cooldownError ? 'govee-cooldown-err' : undefined}
-    />
-  </Field>
-
-  <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
-    <ResponseEditor bind:value={draft.replyMessage} surface="reward:govee" placeholder={DEFAULT_REPLY} />
-  </Field>
-  <ChatPreview kind="reply" response={draft.replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
-
-  <Field label={t('govee.afterTitle')}>
-    <Select
-      fill
-      bind:value={draft.onRedeem}
-      options={[{ value: 'fulfill', label: t('govee.afterFulfill') }, { value: 'cancel', label: t('govee.afterCancel') }, { value: 'leave', label: t('govee.afterLeave') }]}
-    />
-  </Field>
+  <RewardCoreFields
+    bind:draft
+    {errors}
+    idPrefix="govee"
+    labels={{
+      title: t('govee.fieldTitle'),
+      cost: t('govee.fieldCost'),
+      color: t('govee.fieldColor'),
+      cooldown: t('govee.fieldCooldown'),
+      cooldownTag: t('govee.fieldCooldownTag'),
+      reply: t('govee.fieldReply'),
+      after: t('govee.afterTitle')
+    }}
+    afterOptions={[{ value: 'fulfill', label: t('govee.afterFulfill') }, { value: 'cancel', label: t('govee.afterCancel') }, { value: 'leave', label: t('govee.afterLeave') }]}
+    surface="reward:govee"
+    defaultReply={DEFAULT_REPLY}
+    {replySamples}
+    previewTag={t('govee.previewTag')}
+  />
 
   <div class="setrow" class:on={draft.allowOff}>
     <SwitchRow
@@ -141,13 +91,6 @@
 <style>
   .editor { --field-mb: 0; padding: 4px 2px 2px; display: grid; gap: 14px; }
 
-  .field-row { display: flex; gap: 12px; align-items: flex-start; }
-  .field-grow { flex: 1; min-width: 0; }
-
-  .color-field { flex: none; width: 116px; }
-  .color-row { display: flex; align-items: center; gap: 8px; }
-  .swatch { display: block; flex: none; width: 44px; }
-
   .setrow {
     padding: 11px 12px;
     border: 1px solid var(--bb-border);
@@ -156,9 +99,4 @@
   .setrow.on { border-color: rgba(var(--bb-tan-rgb), 0.45); background: rgba(var(--bb-tan-rgb), 0.06); }
 
   .del-row { display: flex; }
-
-  @media (max-width: 480px) {
-    .field-row { flex-direction: column; gap: 12px; }
-    .color-field { width: 100%; }
-  }
 </style>

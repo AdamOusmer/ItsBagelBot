@@ -12,9 +12,13 @@ function editableConfig(stored: Record<string, unknown>): Record<string, string>
   return Object.fromEntries(fields.map(([key, value]) => [key, value == null ? '' : String(value)]));
 }
 
+function revisionOf(row: ModuleView | undefined, stored: Record<string, unknown>): number {
+  return row?.revision ?? (Number(stored.__rev) || 0);
+}
+
 // The row revision is authoritative; __rev supports older service replies.
 // Internal metadata must never become an editable setting.
 export function moduleEditState(row?: ModuleView): { config: Record<string, string>; revision: number } {
   const stored = storedConfig(row?.configs);
-  return { config: editableConfig(stored), revision: row?.revision ?? (Number(stored.__rev) || 0) };
+  return { config: editableConfig(stored), revision: revisionOf(row, stored) };
 }
