@@ -40,8 +40,11 @@ const loadCatalog = (locale: Locale): Promise<void> => once(locale, () => readCa
 
 const isBranch = (node: unknown): node is MessageTree => typeof node === 'object' && node !== null && !Array.isArray(node);
 
+const isPrototypeKey = (key: string): boolean => key === '__proto__' || key === 'constructor' || key === 'prototype';
+
 function mergeInto(target: MessageTree, source: MessageTree): void {
   for (const [key, value] of Object.entries(source)) {
+    if (isPrototypeKey(key)) continue;
     const existing = target[key];
     if (isBranch(value) && isBranch(existing)) mergeInto(existing, value);
     else target[key] = value;
