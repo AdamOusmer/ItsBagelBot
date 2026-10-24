@@ -3,18 +3,10 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { GOVEE_COLOR_NAMES } from '@bagel/kit';
-import {
-  goveeStore,
-  type GoveeDevice,
-  type GoveeOnRedeem,
-  type GoveeResult,
-  type GoveeStore,
-  type GoveeView,
-  type RewardDraft
-} from '$lib/server/govee-store';
+import { goveeStore, type GoveeDevice, type GoveeView, type RewardDraft } from '$lib/server/govee-store';
 import { moduleLoad } from '$lib/server/module-page';
-import { moduleAction } from '$lib/server/module-action';
-import type { MutationRefusal } from '@bagel/kit/server/form-action';
+import { done, storeMutator } from '$lib/server/reward-action';
+import { parseRewardCore } from '$lib/server/reward-form';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -59,45 +51,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
   });
 };
 
-function resultFail(r: Extract<GoveeResult, { ok: false }>) {
-  if (r.missingScope) return fail(403, { ok: false, missingScope: true });
-  if (r.code) return fail(400, { ok: false, code: r.code });
-  return fail(400, { ok: false, error: r.error ?? 'failed' });
-}
-
-function asOnRedeem(v: FormDataEntryValue | null): GoveeOnRedeem {
-  return v === 'cancel' || v === 'leave' ? v : 'fulfill';
-}
-
 function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
-  const title = String(f.get('title') ?? '').trim();
-  if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
-
-  const cost = Math.trunc(Number(f.get('cost')));
-  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
-  if (cost < 1 || cost > 10_000_000) return { error: 'Enter a valid point cost.' };
-
-  const color = String(f.get('color') ?? '').trim();
-  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return { error: 'Pick a valid colour.' };
-
-  const replyMessage = String(f.get('replyMessage') ?? '').trim();
-  if (replyMessage.length > 200) return { error: 'Reply is too long (max 200 characters).' };
-
-  const rawCooldown = Math.trunc(Number(f.get('cooldown') ?? 0));
-  const cooldown = Number.isFinite(rawCooldown) ? Math.min(Math.max(rawCooldown, 0), 604_800) : 0;
-
-  return {
-    draft: {
-      title,
-      cost,
-      onRedeem: asOnRedeem(f.get('onRedeem')),
-      color,
-      cooldown,
-      replyMessage,
-      allowOff: f.get('allow_off') === 'on',
-      allowOffline: f.get('allow_offline') === 'on'
-    }
-  };
+  const core = parseRewardCore(f);
+  if ('error' in core) return core;
+  return { draft: { ...core.draft, allowOff: f.get('allow_off') === 'on', allowOffline: f.get('allow_offline') === 'on' } };
 }
 
 function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft } | { error: string } {
@@ -110,17 +67,7 @@ function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft
   return { device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true }, draft: parsed.draft };
 }
 
-function mutate(
-  op: string,
-  invalid: string,
-  run: (store: GoveeStore, f: FormData) => Promise<string | null | MutationRefusal>
-) {
-  return moduleAction('govee', op, (uid, f) => run(goveeStore(uid), f), { demo: DEMO, invalid });
-}
-
-function done(res: GoveeResult, detail: string): string | MutationRefusal {
-  return res.ok ? detail : resultFail(res);
-}
+const mutate = storeMutator('govee', DEMO, goveeStore);
 
 export const actions: Actions = {
   saveKey: async (event) => {

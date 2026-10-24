@@ -15,6 +15,7 @@
   import type { VariableSurface } from '@bagel/kit/variables';
   import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import { splitPastedLines } from '$lib/components/commands/response-lines';
 
   const i18n = getI18n();
   const uid = $props.id();
@@ -151,11 +152,7 @@
   function onInput(i: number) {
     const v = fields[i];
     if (!/[\r\n]/.test(v)) return;
-    const parts = v.split(/\r\n|\r|\n/);
-    const room = maxLines - fields.length;
-    const keep = parts.slice(0, room + 1);
-    const overflow = parts.slice(room + 1);
-    if (overflow.length) keep[keep.length - 1] = [keep[keep.length - 1], ...overflow].join(' ');
+    const keep = splitPastedLines(v, maxLines - fields.length);
     fields.splice(i, 1, ...keep);
     focused = Math.min(i + keep.length - 1, fields.length - 1);
   }

@@ -5,22 +5,25 @@ import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';
 import type { Session } from './session';
 
-export type ModuleLoadSpec<T> = {
-  read: (uid: string) => Promise<T>;
-  blank: () => T;
+export type ModuleLoadSpec<T, C = undefined> = {
+  context?: () => Promise<C>;
+  read: (uid: string, context: C) => Promise<T>;
+  blank: (context: C | undefined) => T;
   demo?: () => Promise<T>;
 };
 
-export async function moduleLoad<T>(
+export async function moduleLoad<T, C = undefined>(
   modId: string,
   session: Session | null | undefined,
-  spec: ModuleLoadSpec<T>
+  spec: ModuleLoadSpec<T, C>
 ): Promise<T | (T & { degraded: true })> {
   gateModulePage(session, modId);
   if (spec.demo) return spec.demo();
+  let context: C | undefined;
   try {
-    return await spec.read(effectiveId(session));
+    context = await spec.context?.();
+    return await spec.read(effectiveId(session), context as C);
   } catch {
-    return { ...spec.blank(), degraded: true };
+    return { ...spec.blank(context), degraded: true };
   }
 }

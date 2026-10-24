@@ -3,15 +3,14 @@
 
 // Must match internal/chatvolume's wire format.
 import { masterClient } from '@bagel/kit/server/valkey-master';
-import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { valkeyGuard } from './valkey-guard';
 import { logger } from '@bagel/kit/server/logger';
 import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../overview-live';
 
 const RING_WIDTH = 60;
-const OP_TIMEOUT_MS = 200;
 const KEY_PREFIX = 'chatvol:';
 
-const breaker = new CircuitBreaker({ name: 'valkey-chat-volume', failureThreshold: 3, resetMs: 5_000 });
+const guarded = valkeyGuard('valkey-chat-volume', 'valkey chat-volume read');
 
 function chatVolKey(uid: string): string {
   return KEY_PREFIX + uid;
@@ -56,9 +55,7 @@ export async function chatVolume(uid: string): Promise<ChatVolume> {
   const c = masterClient();
   if (!c) return degradedChatVolume();
   try {
-    const fields = await breaker.run(() =>
-      withTimeout(c.hgetall(chatVolKey(uid)), OP_TIMEOUT_MS, 'valkey chat-volume read')
-    );
+    const fields = await guarded(() => c.hgetall(chatVolKey(uid)));
     return buildChatVolume(fields, Math.floor(Date.now() / 60_000));
   } catch (err) {
     logger.warn({ err }, '[chat-volume] read failed, degrading');

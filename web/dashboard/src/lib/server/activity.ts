@@ -4,7 +4,7 @@
 // Must match internal/activity/store.go's key layout and wire format.
 import type Redis from 'iovalkey';
 import { replicaClient } from '@bagel/kit/server/valkey-store';
-import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { valkeyGuard } from './valkey-guard';
 import {
   degradedActivityFeed,
   type ActivityFeed,
@@ -19,9 +19,7 @@ const DROPPED_PREFIX = 'activity:dropped:';
 const FEED_CAP = 50;
 const LATENCY_CAP = 32;
 
-const OP_TIMEOUT_MS = 200;
-
-const breaker = new CircuitBreaker({ name: 'valkey-activity-feed', failureThreshold: 3, resetMs: 5_000 });
+const guarded = valkeyGuard('valkey-activity-feed', 'activity-feed');
 
 interface wireRow {
   k?: ActivityKind;
@@ -82,7 +80,7 @@ export async function activityFeed(uid: string): Promise<ActivityFeed> {
   const c = replicaClient();
   if (!c) return degradedActivityFeed();
   try {
-    return await breaker.run(() => withTimeout(readFeed(c, uid), OP_TIMEOUT_MS, 'activity-feed'));
+    return await guarded(() => readFeed(c, uid));
   } catch {
     return degradedActivityFeed();
   }

@@ -2,17 +2,17 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount, tick, untrack } from 'svelte';
-  import { fly } from 'svelte/transition';
   import { page } from '$app/state';
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
-  import { bezier } from '@bagel/ui/lib/tween';
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
   import ImportFailed from '$lib/import/ImportFailed.svelte';
+  import ImportGroup from '$lib/import/ImportGroup.svelte';
+  import ImportRow from '$lib/import/ImportRow.svelte';
   import ImportTimerChips from '$lib/import/ImportTimerChips.svelte';
   import ImportSkipped from '$lib/import/ImportSkipped.svelte';
   import { ImportSession } from '$lib/import/session.svelte';
@@ -45,7 +45,7 @@
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { parallax } from '@bagel/ui/svelte/actions';
-  import { PermBadge, Bolota } from '@bagel/kit';
+  import { PermBadge, Bolota, actionPayload } from '@bagel/kit';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
@@ -58,6 +58,7 @@
   let { onback, onexit, consentAccepted, locale }: { onback: (welcomeStep: number) => void; onexit: (to: string) => void; consentAccepted: boolean; locale: Locale } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
   const importText = (text: string, params?: Record<string, string | number>) => translate(locale, `import.${text}`, params);
+  const rowText = { cannotImport: (m: string) => t('import.cannotImport', { m }), alreadyExists: () => t('import.alreadyExists') };
 
   const BEFORE_IMPORT = $derived([
     t('onboarding.consentTitle'),
@@ -76,6 +77,7 @@
 
   type Step = 'pick' | 'instructions' | 'commands' | 'extras' | 'review' | 'done';
   const ORDER: Step[] = ['pick', 'instructions', 'commands', 'extras', 'review', 'done'];
+  const PREVIEW_STEPS = ORDER.slice(ORDER.indexOf('commands'));
 
   const session = new ImportSession();
   session.configure({ t: importText, isConnected: () => sourceConnected, onPosting: () => play('entrance') });
@@ -148,9 +150,15 @@
       else onback(i + 1);
       return;
     }
-    const importIndex = i - BEFORE_IMPORT.length;
-    const target = ORDER[importIndex];
-    if (importIndex <= maxRailStep && (importIndex < 2 || previewResult || target === 'done' && commitResult)) goStep(target);
+    const target = ORDER[i - BEFORE_IMPORT.length];
+    if (railReachable(target)) goStep(target);
+  }
+
+  function railReachable(target: Step): boolean {
+    const index = ORDER.indexOf(target);
+    if (index > maxRailStep) return false;
+    if (!PREVIEW_STEPS.includes(target)) return true;
+    return !!previewResult || (target === 'done' && !!commitResult);
   }
 
   function confirmLeave() {
@@ -159,17 +167,9 @@
     if (target !== null) onback(target + 1);
   }
 
-  const expo = bezier(0.16, 1, 0.3, 1);
-  const TRAVEL = 72;
   let dir = $state(1);
-  const sceneIn = (node: Element) =>
-    prefersReducedMotion()
-      ? { duration: 0 }
-      : fly(node, { x: dir * TRAVEL, duration: 720, delay: 140, easing: expo, opacity: 0 });
-  const sceneOut = (node: Element) =>
-    prefersReducedMotion()
-      ? { duration: 0 }
-      : fly(node, { x: -dir * 56, duration: 360, easing: expo, opacity: 0 });
+  const sceneIn = (node: Element) => lateralFly(node, { x: dir * TRAVEL_IN, duration: 720, delay: 140 });
+  const sceneOut = (node: Element) => lateralFly(node, { x: -dir * TRAVEL_OUT, duration: 360 });
 
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
   const STAGE_FACE: Record<Step, string> = {
@@ -320,7 +320,24 @@
     if (result === 'failed') react('attentive', 2400);
     if (result !== 'ok') return;
     react('proud', 1800);
-    goStep(previewResult?.manifest?.commands?.length ? 'commands' : 'extras');
+    goStep(hasCommands ? 'commands' : 'extras');
+  }
+
+  const hasCommands = $derived(!!previewResult?.manifest?.commands?.length);
+  const nextStep = $derived(ORDER[stepIndex + 1]);
+  const prevStep = $derived.by(() => {
+    const prev = ORDER[stepIndex - 1];
+    return prev === 'commands' && !hasCommands ? ORDER[stepIndex - 2] : prev;
+  });
+
+  function backFromInstructions() {
+    if (submitting) session.cancel();
+    else goStep(prevStep);
+  }
+
+  function backFromReview() {
+    if (submitting) session.cancel();
+    else reset();
   }
 
   async function runCommit() {
@@ -353,7 +370,7 @@
       body.set('consent', consentAccepted ? 'yes' : 'no');
       const res = await fetch('/welcome?/finishImport', { method: 'POST', body });
       const result = deserialize(await res.text());
-      if (result.type === 'success' && (result.data as { ok?: boolean } | undefined)?.ok) return true;
+      if (result.type === 'success' && actionPayload(result)?.ok) return true;
     } catch {
     }
     finishFailed(t('onboardingImport.saveFailed'));
@@ -543,7 +560,7 @@
         }}
       >
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : goStep('pick'))}
+          <Button variant="ghost" type="button" onclick={backFromInstructions}
             >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
           <Button type="submit" variant="primary" busy={submitting}>
@@ -592,111 +609,60 @@
       {/if}
 
       {#if step === 'commands' && previewResult.manifest.commands?.length}
-        <Card glass flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hCommands')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.commands.length}</Text>
-          </div>
+        <ImportGroup glass title={t('import.hCommands')} count={previewResult.manifest.commands.length}>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
-              {@const diags = session.diagsFor('commands', i)}
-              <li class="row-item" class:collision={session.collidedCommands.has(normalizeName(c.name))}>
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="commands" index={i} label={`!${c.name}`} collided={session.collidedCommands.has(normalizeName(c.name))}>
+                {#snippet body()}
                   <Text as="span" size="sm" tone="muted">{c.responses?.join(' / ')}</Text>
-                  <span class="chips">
-                    {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
-                    {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
-                    {#if c.user_cooldown_seconds}<Tag tone="bare">{t('import.userCooldownChip', { n: c.user_cooldown_seconds })}</Tag>{/if}
-                    {#each c.aliases ?? [] as a (a)}<Tag bare literal>!{a}</Tag>{/each}
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                    {#if session.collidedCommands.has(normalizeName(c.name))}
-                      <Tag tone="danger">{t('import.alreadyExists')}</Tag>
-                    {/if}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+                {#snippet chips()}
+                  {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
+                  {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
+                  {#if c.user_cooldown_seconds}<Tag tone="bare">{t('import.userCooldownChip', { n: c.user_cooldown_seconds })}</Tag>{/if}
+                  {#each c.aliases ?? [] as a (a)}<Tag bare literal>!{a}</Tag>{/each}
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.timers?.length}
-        <Card glass flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hTimers')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.timers.length}</Text>
-          </div>
+        <ImportGroup glass title={t('import.hTimers')} count={previewResult.manifest.timers.length}>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
-              {@const diags = session.diagsFor('timers', i)}
-              <li class="row-item">
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('timers', i), (on) => session.toggle('timers', i, on)} aria-label={tm.message} />
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="timers" index={i} ariaLabel={tm.message}>
+                {#snippet body()}
                   <Text as="span" size="sm" tone="muted">{tm.message}</Text>
-                  <span class="chips">
-                    <ImportTimerChips timer={tm} {locale} />
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+                {#snippet chips()}
+                  <ImportTimerChips timer={tm} {locale} />
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.triggers?.length}
-        <Card glass flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hTriggers')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.triggers.length}</Text>
-          </div>
+        <ImportGroup glass title={t('import.hTriggers')} count={previewResult.manifest.triggers.length}>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
-              {@const diags = session.diagsFor('triggers', i)}
-              <li class="row-item">
-                <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
-                </span>
-                <div class="row-body">
+              <ImportRow {session} text={rowText} kind="triggers" index={i} label={tg.phrase}>
+                {#snippet body()}
                   <Text as="span" size="sm" tone="muted">{tg.response}</Text>
-                  <span class="chips">
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                  </span>
-                </div>
-              </li>
+                {/snippet}
+              </ImportRow>
             {/each}
           </ul>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.quotes?.length}
-        <Card glass flush>
-          <div class="group-head">
-            <Eyebrow>{t('import.hQuotes')}</Eyebrow>
-            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.quotes.length}</Text>
-          </div>
+        <ImportGroup glass title={t('import.hQuotes')} count={previewResult.manifest.quotes.length}>
           <div class="group-note"><Text size="sm" tone="muted">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</Text></div>
-        </Card>
+        </ImportGroup>
       {/if}
 
       {#if commitError}<ImportAlert message={commitError} />{/if}
@@ -711,7 +677,7 @@
       >
         <Label mono as="span">{session.selectionLine}</Label>
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
+          <Button variant="ghost" type="button" onclick={backFromReview}
             >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
           <Button type="submit" variant="primary" busy={submitting}>
@@ -721,8 +687,8 @@
       </form>
       {:else}
         <div class="category-actions">
-          <Button variant="ghost" type="button" onclick={() => goStep(step === 'extras' && previewResult?.manifest?.commands?.length ? 'commands' : 'instructions')}>{t('import.back')}</Button>
-          <Button variant="primary" type="button" onclick={() => goStep(step === 'commands' ? 'extras' : 'review')}>{t('onboardingImport.continue')}</Button>
+          <Button variant="ghost" type="button" onclick={() => goStep(prevStep)}>{t('import.back')}</Button>
+          <Button variant="primary" type="button" onclick={() => goStep(nextStep)}>{t('onboardingImport.continue')}</Button>
         </div>
       {/if}
   {:else if step === 'done'}
@@ -1021,38 +987,6 @@
     flex-direction: column;
     gap: 10px;
   }
-  .row-item {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    border: 1px solid var(--bb-glass-border);
-    border-radius: var(--bb-radius-sm);
-    padding: 16px 22px;
-    background: var(--bb-glass-fill);
-  }
-  .row-item.collision {
-    border-color: rgba(var(--bb-status-danger-border-rgb), 0.55);
-  }
-  .pick {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    --bb-check-align: center;
-  }
-  .row-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-  }
 
   .conflict-lines { display: grid; gap: 10px; }
   .overwrite-toggle {
@@ -1080,13 +1014,6 @@
     flex: 1;
   }
 
-  .group-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 22px;
-    border-bottom: 1px solid var(--bb-border);
-  }
   .group-note {
     padding: 16px 22px;
   }

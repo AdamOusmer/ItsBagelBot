@@ -11,9 +11,12 @@ import { moduleLoad } from '$lib/server/module-page';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
-import { moduleAction } from '$lib/server/module-action';
+import { storeMutator } from '$lib/server/reward-action';
 
 const DEMO = dev && env.DEMO === '1';
+
+const hasEntries = (counters: CounterDef[], name: string) =>
+  counters.some((c) => c.name === name && c.scope !== 'channel');
 
 export const load: PageServerLoad = ({ locals, url }) => {
   const selected = normalizeCounterName(url.searchParams.get('c'));
@@ -22,14 +25,14 @@ export const load: PageServerLoad = ({ locals, url }) => {
       ? async () => {
           const { demoCounters, demoEntries } = await import('$lib/server/demo-data');
           const demo = demoCounters();
-          const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
+          const sel = hasEntries(demo, selected) ? selected : '';
           return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
         }
       : undefined,
     read: async (uid) => {
       const counters = await listCounters(uid);
       let entries: CounterEntryView[] = [];
-      if (selected && counters.some((c) => c.name === selected && c.scope !== 'channel')) {
+      if (selected && hasEntries(counters, selected)) {
         try {
           entries = await counterEntries(uid, selected, 25);
         } catch {
@@ -43,20 +46,17 @@ export const load: PageServerLoad = ({ locals, url }) => {
 
 type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 
+const mutateCounter = storeMutator('counters', DEMO, (uid) => uid);
+
 function mutate(op: string, run: Mutation) {
-  return moduleAction(
-    'counters',
-    op,
-    async (uid, f) => {
-      try {
-        return await run(uid, f);
-      } catch (e) {
-        if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
-        throw e;
-      }
-    },
-    { demo: DEMO, invalid: 'Invalid counter.' }
-  );
+  return mutateCounter(op, 'Invalid counter.', async (uid, f) => {
+    try {
+      return await run(uid, f);
+    } catch (e) {
+      if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
+      throw e;
+    }
+  });
 }
 
 export const actions: Actions = {

@@ -6,6 +6,7 @@ import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { delegateAllowedPaths, pathnameAllowed } from '@bagel/kit';
 import { COOKIE, seal, type Session } from '$lib/server/session';
+import { cookieOptions, deleteOptions } from '$lib/server/cookies';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
 import { RpcError } from '@bagel/kit/server/nats';
 import { isSessionRevoked } from '@bagel/kit/server/session-revocation';
@@ -20,7 +21,7 @@ function isPublic(pathname: string): boolean {
 }
 
 function wipe(event: RequestEvent): void {
-  event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+  event.cookies.delete(COOKIE, deleteOptions(event.url));
 }
 
 const GONE_CODES: ReadonlySet<string> = new Set(['not_found']);
@@ -82,13 +83,11 @@ function resealSections(event: RequestEvent, s: Session, sections: string[]): vo
   if (sameSections(s.sections ?? [], sections)) return;
   s.sections = sections;
   try {
-    event.cookies.set(COOKIE, seal(s), {
-      path: '/',
-      httpOnly: true,
-      secure: event.url.protocol === 'https:',
-      sameSite: 'lax',
-      maxAge: Math.max(1, s.expires_at - Math.floor(Date.now() / 1000))
-    });
+    event.cookies.set(
+      COOKIE,
+      seal(s),
+      cookieOptions(event.url, Math.max(1, s.expires_at - Math.floor(Date.now() / 1000)))
+    );
   } catch {
   }
 }

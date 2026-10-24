@@ -6,6 +6,7 @@
     Bolota,
     getI18n,
     toastFailure,
+    type ActionOk,
     type Locale
   } from '@bagel/kit';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -25,7 +26,8 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { page } from '$app/state';
-  import { enhance, deserialize } from '$app/forms';
+  import { enhance } from '$app/forms';
+  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
@@ -130,34 +132,20 @@
 
   // svelte-ignore state_referenced_locally
   let fetchKeys = $state(data.fetchKeys ?? []);
-  // svelte-ignore state_referenced_locally
-  let fetchKeysSeed = data.fetchKeys;
-  $effect(() => {
-    if (data.fetchKeys !== fetchKeysSeed) {
-      fetchKeysSeed = data.fetchKeys;
-      fetchKeys = data.fetchKeys ?? [];
-    }
+  reseedOnChange(() => data.fetchKeys, (next) => {
+    fetchKeys = next ?? [];
   });
   let keyBusy = $state(false);
 
   async function postKeyAction(action: string, body: FormData) {
     keyBusy = true;
-    try {
-      const res = await fetch(`/settings?/${action}`, { method: 'POST', body });
-      const r = deserialize(await res.text());
-      const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
-        | { ok?: boolean; name?: string; fetchKeys?: typeof fetchKeys; error?: string }
-        | undefined;
-      if (d?.ok && d.fetchKeys) {
-        fetchKeys = d.fetchKeys;
-        return d;
-      }
-      failed(d, t('fetches.keySaveFailed'));
-    } catch {
-      toast('danger', t('fetches.keySaveFailed'));
-    } finally {
-      keyBusy = false;
+    const d = await postAction<ActionOk & { fetchKeys?: typeof fetchKeys }>(action, body, '/settings');
+    keyBusy = false;
+    if (d?.ok && d.fetchKeys) {
+      fetchKeys = d.fetchKeys;
+      return d;
     }
+    failed(d, t('fetches.keySaveFailed'));
     return undefined;
   }
 
@@ -214,17 +202,13 @@
     opted_out: () => t('settings.toastOptedOut'),
     all_read: () => t('settings.toastAllRead')
   };
-  // svelte-ignore state_referenced_locally
-  let lastForm: unknown = form;
-  $effect(() => {
-    if (form === lastForm) return;
-    lastForm = form;
-    if (!form) return;
-    if (form.error) {
-      toast('danger', String(form.error));
+  reseedOnChange(() => form, (next) => {
+    if (!next) return;
+    if (next.error) {
+      toast('danger', String(next.error));
       return;
     }
-    const message = form.ok ? actionToast[String(form.action)] : undefined;
+    const message = next.ok ? actionToast[String(next.action)] : undefined;
     if (message) toast('success', message());
   });
 

@@ -16,6 +16,8 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect, type Cookies } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
+import { notSignedIn } from '$lib/server/action-context';
+import { baseCookie } from '$lib/server/cookies';
 import { moduleEditState } from '$lib/server/module-edit-state';
 
 const DEMO = dev && env.DEMO === '1';
@@ -24,7 +26,7 @@ const FRESH_READ_COOKIE = 'bagel_module_fresh';
 const FRESH_READ_MAX_AGE_SEC = 30;
 
 function freshReadCookie(id: string, url: URL) {
-  return { path: `/modules/${id}`, httpOnly: true, sameSite: 'lax' as const, secure: url.protocol === 'https:' };
+  return baseCookie(url, `/modules/${id}`);
 }
 
 // The reload after a revision conflict must read the owning service: the projection may still hold the losing revision.
@@ -64,45 +66,37 @@ export const load: PageServerLoad = async ({ params, locals, cookies, url }) => 
   });
 };
 
-function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
-  const get = (key: string) => String(f.get(`cfg.${key}`) ?? '').trim();
-  const config: Record<string, string> = {};
-  for (const reply of def.replies) {
-    const msg = get(reply.messageKey);
-    if (msg) config[reply.messageKey] = msg;
-    if (reply.enableKey && get(reply.enableKey) === 'off') config[reply.enableKey] = 'off';
-  }
-  for (const field of (def.settings ?? []).filter((s) => get(s.key))) {
-    config[field.key] = get(field.key);
-  }
-  const rules = def.id === MOD.triggers ? get('rules') : '';
-  if (rules) config.rules = rules;
-  return config;
+function valueKeys(def: ModuleDef): string[] {
+  const rules = def.id === MOD.triggers ? ['rules'] : [];
+  return [...def.replies.map((r) => r.messageKey), ...(def.settings ?? []).map((s) => s.key), ...rules];
 }
 
-// Mirrors buildConfig key for key, so a forged patch cannot stash arbitrary keys.
+function enableKeys(def: ModuleDef): string[] {
+  return def.replies.flatMap((r) => (r.enableKey ? [r.enableKey] : []));
+}
+
+function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
+  const get = (key: string) => String(f.get(`cfg.${key}`) ?? '').trim();
+  const values = valueKeys(def).filter((key) => get(key)).map((key) => [key, get(key)]);
+  const disabled = enableKeys(def).filter((key) => get(key) === 'off').map((key) => [key, 'off']);
+  return Object.fromEntries([...values, ...disabled]);
+}
+
+// Same keys as buildConfig, so a forged patch cannot stash arbitrary keys.
 function allowedConfigKeys(def: ModuleDef): Set<string> {
-  const keys = new Set<string>();
-  for (const reply of def.replies) {
-    keys.add(reply.messageKey);
-    if (reply.enableKey) keys.add(reply.enableKey);
-  }
-  for (const field of def.settings ?? []) keys.add(field.key);
-  if (def.id === MOD.triggers) keys.add('rules');
-  return keys;
+  return new Set([...valueKeys(def), ...enableKeys(def)]);
 }
 
 type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: string };
 
 async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget> {
-  const session = locals.session;
-  gateSection(session, 'modules');
+  gateSection(locals.session, 'modules');
   const def = moduleDef(id);
   if (!def || def.href) return { denied: fail(404, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
   const denied = await moduleWriteDenial(locals, def);
   if (denied) return { denied };
-  if (!DEMO && !session) return { denied: fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') }) };
-  return { def, uid: effectiveId(session) };
+  if (!DEMO && !locals.session) return { denied: notSignedIn(locals.locale) };
+  return { def, uid: effectiveId(locals.session) };
 }
 
 async function gatedEnabled(uid: string, def: ModuleDef, requested: boolean): Promise<boolean> {
@@ -117,18 +111,15 @@ export const actions: Actions = {
     const { def, uid } = target;
 
     const f = await request.formData();
-    const enabled = DEMO ? f.get('is_enabled') === 'on' : await gatedEnabled(uid, def, f.get('is_enabled') === 'on');
-    const config = DEMO ? buildConfig(def, f) : await attachLinkedUUID(def, buildConfig(def, f), locals);
+    const requested = f.get('is_enabled') === 'on';
+    if (DEMO) return { ok: true, enabled: requested };
 
-    if (DEMO) return { ok: true, enabled };
+    const enabled = await gatedEnabled(uid, def, requested);
+    const config = await attachLinkedUUID(def, buildConfig(def, f), locals);
 
-    try {
-      const saved = await upsertModule(uid, def.id, enabled, config);
-      if (!saved.synced) requestFreshRead(cookies, def.id, url);
-    } catch (e) {
-      logger.error({ err: e }, `[modules] save ${def.id} failed`);
-      return fail(400, { ok: false });
-    }
+    const synced = await upsertSynced(uid, def, { enabled, config });
+    if (synced === null) return fail(400, { ok: false });
+    if (!synced) requestFreshRead(cookies, def.id, url);
 
     auditDashboardImpersonation(locals.session, 'module:update', `${def.id}=${enabled}`);
     return { ok: true, enabled };
@@ -153,6 +144,19 @@ export const actions: Actions = {
     return result;
   }
 };
+
+async function upsertSynced(
+  uid: string,
+  def: ModuleDef,
+  draft: { enabled: boolean; config: Record<string, string> }
+): Promise<boolean | null> {
+  try {
+    return (await upsertModule(uid, def.id, draft.enabled, draft.config)).synced;
+  } catch (e) {
+    logger.error({ err: e }, `[modules] save ${def.id} failed`);
+    return null;
+  }
+}
 
 async function applyPatch(
   def: ModuleDef,

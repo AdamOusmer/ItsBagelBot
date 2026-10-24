@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // user_id always comes from the authenticated Session, never from caller-supplied data.
-// Import cycle via ./strategy and ./sources/*: read cross-module bindings only inside functions.
 import { randomUUID } from 'node:crypto';
 import { SERVER_STRATEGIES } from './strategy';
+import { emptyStats, errorDiag, refused, type ImportPreviewRequest, type ParseOutcome } from './outcome';
 import {
   CODE,
   FailedItems,
@@ -56,45 +56,13 @@ interface GateField {
 const MIN_LINES_FIELD: GateField = { label: 'minimum chat lines', min: 0, max: 100 };
 const WINDOW_FIELD: GateField = { label: 'chat window (minutes)', min: 1, max: 60 };
 
-export type ImportPreviewRequest = {
-  source: ImportSource | '';
-  credential?: string;
-  file_b64?: string;
-  manifest?: ImportManifest;
-};
+export type { ImportPreviewRequest };
 
 export type ImportCommitRequest = {
   source: ImportSource | '';
   manifest: ImportManifest;
   overwrite: boolean;
 };
-
-export function emptyStats(): ImportStats {
-  return { commands: 0, timers: 0, triggers: 0, quotes: 0 };
-}
-
-export function errorDiag(item_index: number, code: string, message: string): ImportDiagnostic {
-  return { severity: 'error', item_index, code, message };
-}
-
-export type ParseOutcome =
-  | { manifest: ImportManifest; diags: ImportDiagnostic[] }
-  | { refusal: PreviewResponse };
-
-export interface RefusalDiag {
-  code: string;
-  message: string;
-}
-
-export function refused(diag: RefusalDiag): ParseOutcome {
-  return {
-    refusal: {
-      stats: emptyStats(),
-      diagnostics: [errorDiag(-1, diag.code, diag.message)],
-      error: diag.message
-    }
-  };
-}
 
 export async function previewImport(s: Session, req: ImportPreviewRequest): Promise<PreviewResponse> {
   let outcome: ParseOutcome;
@@ -324,8 +292,8 @@ function failUnavailableModules(ctx: CommitContext): void {
 
 async function commitTimersAndTriggers(ctx: CommitContext): Promise<void> {
   if (!ctx.modules) return failUnavailableModules(ctx);
-  await applyTimers(ctx, moduleBlob(ctx, 'timers'));
-  await applyTriggers(ctx, moduleBlob(ctx, 'triggers'));
+  await applyRows(ctx, moduleBlob(ctx, 'timers'), TIMERS_LEG);
+  await applyRows(ctx, moduleBlob(ctx, 'triggers'), TRIGGERS_LEG);
 }
 
 async function commitQuotes(ctx: CommitContext): Promise<void> {
@@ -390,73 +358,77 @@ function timerGate(ctx: CommitContext, t: ManifestTimer, idx: number): Pick<Time
   };
 }
 
-async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
-  const targets = eligibleIndexes(ctx, 'timers');
-  if (targets.length === 0) return;
-
-  const existing = Array.isArray(blob.timers) ? (blob.timers as TimerDef[]) : [];
-  const merged = [...existing];
-  for (const idx of targets) {
-    const t = ctx.manifest.timers![idx];
-    let interval = t.interval_seconds;
-    if (interval < MIN_TIMER_INTERVAL_SECONDS) {
-      interval = MIN_TIMER_INTERVAL_SECONDS;
-      ctx.diags.push(
-        warnDiag(idx, CODE.intervalClamped, `interval ${t.interval_seconds}s clamped to ${MIN_TIMER_INTERVAL_SECONDS}s (engine floor)`)
-      );
-    }
-    if (interval > MAX_TIMER_INTERVAL_SECONDS) {
-      interval = MAX_TIMER_INTERVAL_SECONDS;
-      ctx.diags.push(warnDiag(idx, CODE.intervalClamped, `interval ${t.interval_seconds}s clamped to ${MAX_TIMER_INTERVAL_SECONDS}s`));
-    }
-    merged.push({
-      id: randomUUID(),
-      message: t.message.trim(),
-      intervalSeconds: interval,
-      enabled: true,
-      ...timerGate(ctx, t, idx),
-      allowOffline: t.online_only === false,
-      maxFiresPerStream: 0,
-      endsAt: ''
-    } satisfies TimerDef);
+function clampInterval(ctx: CommitContext, requested: number, idx: number): number {
+  const interval = Math.min(Math.max(requested, MIN_TIMER_INTERVAL_SECONDS), MAX_TIMER_INTERVAL_SECONDS);
+  if (interval !== requested) {
+    const floor = interval === MIN_TIMER_INTERVAL_SECONDS ? ' (engine floor)' : '';
+    ctx.diags.push(warnDiag(idx, CODE.intervalClamped, `interval ${requested}s clamped to ${interval}s${floor}`));
   }
-  try {
-    await patchModule(ctx, { name: 'timers', configs: { timers: merged } });
-    ctx.applied.timers += targets.length;
-  } catch (err) {
-    for (const idx of targets) failRow(ctx, { kind: 'timers', idx }, 'module', err);
-  }
+  return interval;
 }
 
-async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
-  const targets = eligibleIndexes(ctx, 'triggers');
-  if (targets.length === 0) return;
+interface RowLeg {
+  collection: 'timers' | 'triggers';
+  build(ctx: CommitContext, blob: Record<string, unknown>, targets: number[]): { configs: Record<string, unknown>; landed: number[] };
+}
 
-  const existingRules = typeof blob.rules === 'string' ? blob.rules : '';
-  const lines = existingRules
-    .trim()
-    .split('\n')
-    .filter((l) => l.trim() !== '');
-  const landed: number[] = [];
-  for (const idx of targets) {
-    const tr = ctx.manifest.triggers![idx];
-    const problem = triggerLineProblem(tr);
-    if (problem) {
-      ctx.diags.push(errorDiag(idx, CODE.triggerInvalid, problem));
-      ctx.failures.push({ kind: 'trigger', name: rowLabel('triggers', tr), reason: 'invalid' });
-      continue;
-    }
-    lines.push(`${tr.phrase.trim()} => ${tr.response.trim()}`);
-    landed.push(idx);
-  }
+async function applyRows(ctx: CommitContext, blob: Record<string, unknown>, leg: RowLeg): Promise<void> {
+  const targets = eligibleIndexes(ctx, leg.collection);
+  if (targets.length === 0) return;
+  const { configs, landed } = leg.build(ctx, blob, targets);
   if (landed.length === 0) return;
   try {
-    await patchModule(ctx, { name: 'triggers', configs: { rules: lines.join('\n') } });
-    ctx.applied.triggers += landed.length;
+    await patchModule(ctx, { name: leg.collection, configs });
+    ctx.applied[leg.collection] += landed.length;
   } catch (err) {
-    for (const idx of landed) failRow(ctx, { kind: 'triggers', idx }, 'module', err);
+    for (const idx of landed) failRow(ctx, { kind: leg.collection, idx }, 'module', err);
   }
 }
+
+const TIMERS_LEG: RowLeg = {
+  collection: 'timers',
+  build(ctx, blob, targets) {
+    const merged = Array.isArray(blob.timers) ? [...(blob.timers as TimerDef[])] : [];
+    for (const idx of targets) {
+      const t = ctx.manifest.timers![idx];
+      merged.push({
+        id: randomUUID(),
+        message: t.message.trim(),
+        intervalSeconds: clampInterval(ctx, t.interval_seconds, idx),
+        enabled: true,
+        ...timerGate(ctx, t, idx),
+        allowOffline: t.online_only === false,
+        maxFiresPerStream: 0,
+        endsAt: ''
+      } satisfies TimerDef);
+    }
+    return { configs: { timers: merged }, landed: targets };
+  }
+};
+
+const TRIGGERS_LEG: RowLeg = {
+  collection: 'triggers',
+  build(ctx, blob, targets) {
+    const existingRules = typeof blob.rules === 'string' ? blob.rules : '';
+    const lines = existingRules
+      .trim()
+      .split('\n')
+      .filter((l) => l.trim() !== '');
+    const landed: number[] = [];
+    for (const idx of targets) {
+      const tr = ctx.manifest.triggers![idx];
+      const problem = triggerLineProblem(tr);
+      if (problem) {
+        ctx.diags.push(errorDiag(idx, CODE.triggerInvalid, problem));
+        ctx.failures.push({ kind: 'trigger', name: rowLabel('triggers', tr), reason: 'invalid' });
+        continue;
+      }
+      lines.push(`${tr.phrase.trim()} => ${tr.response.trim()}`);
+      landed.push(idx);
+    }
+    return { configs: { rules: lines.join('\n') }, landed };
+  }
+};
 
 function triggerLineProblem(tr: ManifestTrigger): string | null {
   const phrase = tr.phrase.trim();
@@ -486,46 +458,25 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
   }
 }
 
-interface TermBook {
-  seen: Map<string, true>;
-  terms: string[];
-  added: number;
-}
-
-function recordTerm(book: TermBook, t: string): void {
-  book.seen.set(t.toLowerCase(), true);
-  book.terms.push(t);
-}
-
 function mergeTermList(existingTerms: string[], imported: string[]): { value: string; diags: ImportDiagnostic[] } {
-  const book: TermBook = { seen: new Map(), terms: [], added: 0 };
-  for (const t of existingTerms) {
-    recordTerm(book, t);
-  }
-  const truncated = importTerms(book, imported);
-  return {
-    value: book.terms.join(','),
-    diags: truncated
-      ? [warnDiag(-1, CODE.automodTermsTooMany, `${book.added} term(s) dropped past the ${MAX_AUTOMOD_TERMS}-term limit`)]
-      : []
-  };
-}
-
-function importTerms(book: TermBook, imported: string[]): boolean {
+  const terms = [...existingTerms];
+  const seen = new Set(terms.map((t) => t.toLowerCase()));
+  let dropped = 0;
   for (const raw of imported) {
-    if (absorbTerm(raw, book)) return true;
+    const t = raw.trim();
+    const key = t.toLowerCase();
+    if (t === '' || seen.has(key)) continue;
+    seen.add(key);
+    if (terms.length >= MAX_AUTOMOD_TERMS) dropped++;
+    else terms.push(t);
   }
-  return false;
-}
-
-function absorbTerm(raw: string, book: TermBook): boolean {
-  const t = raw.trim();
-  if (t === '') return false;
-  if (book.seen.has(t.toLowerCase())) return false;
-  if (book.terms.length >= MAX_AUTOMOD_TERMS) return true;
-  recordTerm(book, t);
-  book.added++;
-  return false;
+  return {
+    value: terms.join(','),
+    diags:
+      dropped > 0
+        ? [warnDiag(-1, CODE.automodTermsTooMany, `${dropped} term(s) dropped past the ${MAX_AUTOMOD_TERMS}-term limit`)]
+        : []
+  };
 }
 
 function splitTermList(s: string): string[] {

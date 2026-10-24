@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { error, type Handle, type HandleServerError, type ServerInit } from '@sveltejs/kit';
+import { error, type Handle, type HandleServerError, type ResolveOptions, type ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
-import { LOCALE_COOKIE } from '@bagel/kit/i18n';
+import { LOCALE_COOKIE, type Locale } from '@bagel/kit/i18n';
 import { warm as warmValkey } from '@bagel/kit/server/valkey-store';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
@@ -193,6 +193,26 @@ function offlineRoute(event: HookEvent): boolean {
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
+async function prepareRequest(event: HookEvent): Promise<void> {
+  const locale = await resolveLocale(event, !!event.locals.session?.impersonator_id);
+  event.locals.locale = locale;
+  event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
+  tagTransaction(newrelic, event, event.locals.session);
+  countView(event);
+  if (offlineRoute(event)) error(404, 'Not Found');
+}
+
+function pageChunkTransform(locale: Locale): NonNullable<ResolveOptions['transformPageChunk']> {
+  let langPatched = false;
+  return ({ html }) => {
+    if (!langPatched && html.includes('<html')) {
+      html = html.replace('lang="en"', `lang="${locale}"`);
+      langPatched = true;
+    }
+    return preloadCatalog(html, locale);
+  };
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/readyz') return resolve(event);
 
@@ -203,24 +223,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     return limited;
   }
 
-  const locale = await resolveLocale(event, !!event.locals.session?.impersonator_id);
-  event.locals.locale = locale;
-  event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
-  tagTransaction(newrelic, event, event.locals.session);
-  countView(event);
-  if (offlineRoute(event)) error(404, 'Not Found');
-
-  let langPatched = false;
-  const res = await resolve(event, {
-    preload: preloadStrategy,
-    transformPageChunk: ({ html }) => {
-      if (!langPatched && html.includes('<html')) {
-        html = html.replace('lang="en"', `lang="${locale}"`);
-        langPatched = true;
-      }
-      return preloadCatalog(html, locale);
-    }
-  });
+  await prepareRequest(event);
+  const locale = event.locals.locale;
+  const res = await resolve(event, { preload: preloadStrategy, transformPageChunk: pageChunkTransform(locale) });
 
   preloadSlices(res.headers, locale);
   harden(res, PERMISSIONS_POLICY);

@@ -85,17 +85,15 @@
 
   const q = $derived(query.trim().toLowerCase());
 
+  const matchesQuery = (r: Row, needle: string) =>
+    !needle ||
+    [r.trigger, r.aliases.join(' '), r.response, r.source].some((field) => field.toLowerCase().includes(needle));
+
+  const inScope = (r: Row) => (moduleId ? r.moduleId === moduleId : filter === 'all' || r.kind === filter);
+
   const rows = $derived(
     all
-      .filter((r) => (moduleId ? r.moduleId === moduleId : filter === 'all' || r.kind === filter))
-      .filter(
-        (r) =>
-          !q ||
-          r.trigger.toLowerCase().includes(q) ||
-          r.aliases.join(' ').toLowerCase().includes(q) ||
-          r.response.toLowerCase().includes(q) ||
-          r.source.toLowerCase().includes(q)
-      )
+      .filter((r) => inScope(r) && matchesQuery(r, q))
       .sort((a, b) => a.trigger.localeCompare(b.trigger))
   );
 

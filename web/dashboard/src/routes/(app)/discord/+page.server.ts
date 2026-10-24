@@ -44,18 +44,17 @@ export const load: PageServerLoad = ({ locals, url }) => {
   const rawSlug = url.searchParams.get('e') ?? '';
   const errorSlug = (DISCORD_ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
 
-  let locked = false;
-  return moduleLoad<DiscordListPage>('discord', locals.session, {
+  return moduleLoad<DiscordListPage, boolean>('discord', locals.session, {
     demo: DEMO ? demoPage : undefined,
-    read: async (uid) => {
-      locked = await moduleLocked(locals, DISCORD_DEF);
+    context: () => moduleLocked(locals, DISCORD_DEF),
+    read: async (uid, locked) => {
       const view = await readDiscord({ userId: uid }).catch((e) => {
         logger.warn({ err: e }, '[discord] server list unavailable');
         throw e;
       });
       return { ...blankPage(errorSlug, locked), ...view };
     },
-    blank: () => blankPage(errorSlug, locked)
+    blank: (locked) => blankPage(errorSlug, locked ?? false)
   });
 };
 

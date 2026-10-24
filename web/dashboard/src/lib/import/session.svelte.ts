@@ -20,8 +20,9 @@ import {
   countFatal,
   countPicked,
   countRows,
+  diagsAt,
+  indexDiagnostics,
   isChecked,
-  itemDiags,
   mergeRetry,
   retryable,
   type RowKind,
@@ -73,7 +74,8 @@ export class ImportSession {
 
   private t: ImportTranslate = (text, params) => this.env.t(text, params);
 
-  diagsFor = (kind: RowKind, i: number) => itemDiags(this.previewResult?.diagnostics, kind, i);
+  diagIndex = $derived(indexDiagnostics(this.previewResult?.diagnostics));
+  diagsFor = (kind: RowKind, i: number) => diagsAt(this.diagIndex, kind, i);
   isPicked = (kind: RowKind, i: number) => isChecked(this.selected, kind, i);
 
   fatalCount = $derived(countFatal(this.previewResult));

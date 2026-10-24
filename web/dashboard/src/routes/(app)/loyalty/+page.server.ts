@@ -9,7 +9,7 @@ import { listModules } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
 import { disableChildren, isChildOf } from '$lib/server/module-parent';
 import { moduleLoad } from '$lib/server/module-page';
-import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
+import { storeMutator } from '$lib/server/reward-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -100,9 +100,7 @@ function parseConfig(raw: string): LoyaltyConfig | null {
   };
 }
 
-function mutate(op: string, invalid: string, run: ModuleMutation) {
-  return moduleAction('loyalty', op, run, { demo: DEMO, invalid });
-}
+const mutate = storeMutator('loyalty', DEMO, (uid) => uid);
 
 export const actions: Actions = {
   toggle: mutate('toggle', 'Invalid settings.', async (uid, f) => {

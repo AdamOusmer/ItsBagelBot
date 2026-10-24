@@ -2,8 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Select from '@bagel/ui/svelte/Select.svelte';
-  import { namespaceReplyTemplate } from '@bagel/kit';
-  import { deserialize } from '$app/forms';
+  import { namespaceReplyTemplate, type ActionOk } from '@bagel/kit';
+  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -36,6 +36,7 @@
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import ModuleCommandEditor, { commandLevel } from '$lib/components/modules/ModuleCommandEditor.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
+  import { MATCH_KEY, TriggerRules } from '$lib/components/modules/trigger-rules.svelte';
   import TimezonePicker from '$lib/components/modules/TimezonePicker.svelte';
 
   let { data } = $props();
@@ -56,25 +57,14 @@
   let rev = $state<number>(data.revision ?? 0);
 
   const isTriggers = $derived(def.id === MOD.triggers);
-  // svelte-ignore state_referenced_locally
-  let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
   const rehearsable = $derived((def.commands ?? []).some((c) => !!c.preview));
   const hasInspector = $derived(isTriggers || hasReplies || rehearsable);
   const locked = $derived(data.locked === true);
   const hasDeck = $derived(hasInspector || (def.commands?.length ?? 0) > 0);
 
-  // svelte-ignore state_referenced_locally
-  let seedId = data.def.id;
-  $effect(() => {
-    if (data.def.id !== seedId) {
-      seedId = data.def.id;
-      enabled = data.enabled;
-      config = { ...data.config };
-      rev = data.revision ?? 0;
-      rules = parseRules(data.config.rules ?? '');
-      ruleIndex = null;
-      expanded = null;
-    }
+  reseedOnChange(() => data.def.id, () => {
+    resetFromData();
+    doClose();
   });
 
   let modStatus = $state<Record<string, SaveState>>({});
@@ -99,6 +89,13 @@
   type RefetchEdits = { partial: Record<string, string>; enabled?: boolean };
   let refetchEdits: RefetchEdits | null = null;
 
+  function resetFromData(edits?: RefetchEdits) {
+    enabled = edits?.enabled ?? data.enabled;
+    config = { ...data.config, ...edits?.partial };
+    rev = data.revision ?? 0;
+    rulesCtl.reset(config.rules ?? '');
+  }
+
   async function reloadAfterConflict() {
     // Cancel queued edits drafted against the state being replaced.
     writeGeneration += 1;
@@ -108,10 +105,7 @@
     await invalidateAll();
     refetchEdits = null;
     // The reseed effect only fires on module navigation, so refresh in place.
-    enabled = edits.enabled ?? data.enabled;
-    config = { ...data.config, ...edits.partial };
-    rev = data.revision ?? 0;
-    rules = parseRules(config.rules ?? '');
+    resetFromData(edits);
   }
 
   async function runPatch(partial: Record<string, string>, en: boolean): Promise<PatchOutcome> {
@@ -119,14 +113,8 @@
     body.set('is_enabled', en ? 'on' : '');
     body.set('expected_rev', String(rev));
     body.set('partial', JSON.stringify(partial));
-    const res = await fetch('?/patch', { method: 'POST', body }).catch(() => null);
-    if (!res) return 'failed';
-    const result = deserialize(await res.text());
-    const payload =
-      result.type === 'success' || result.type === 'failure'
-        ? (result.data as { ok?: boolean; rev?: number; conflict?: boolean } | undefined)
-        : undefined;
-    if (result.type === 'success' && payload?.ok) {
+    const payload = await postAction<ActionOk & { rev?: number; conflict?: boolean }>('patch', body);
+    if (payload?.ok) {
       if (typeof payload.rev === 'number') rev = payload.rev;
       return 'saved';
     }
@@ -149,19 +137,36 @@
     return result;
   }
 
+  async function optimisticWrite(write: {
+    key: string;
+    partial: Record<string, string>;
+    failText: string;
+    revert: () => void;
+    onSaved?: () => void;
+  }) {
+    setStatus(write.key, 'saving');
+    const outcome = await patch(write.partial, enabled);
+    if (outcome === 'saved') {
+      ackSaved(write.key);
+      write.onSaved?.();
+      return;
+    }
+    flagError(write.key);
+    if (outcome === 'failed') {
+      write.revert();
+      toast('danger', write.failText);
+    }
+  }
+
   async function toggleModule() {
     const before = enabled;
     enabled = !enabled;
-    setStatus('module', 'saving');
-    const outcome = await patch({}, enabled);
-    if (outcome === 'saved') ackSaved('module');
-    else {
-      flagError('module');
-      if (outcome === 'failed') {
-        enabled = before;
-        toast('danger', t('modules.couldNotToggle', { label: modLabel }));
-      }
-    }
+    await optimisticWrite({
+      key: 'module',
+      partial: {},
+      failText: t('modules.couldNotToggle', { label: modLabel }),
+      revert: () => (enabled = before)
+    });
   }
 
   async function saveSetting(field: ModuleField, value: string) {
@@ -172,16 +177,12 @@
     const before = config[key] ?? '';
     if (value.trim() === before.trim()) return;
     config = { ...config, [key]: value.trim() };
-    setStatus(`setting:${key}`, 'saving');
-    const outcome = await patch({ [key]: value.trim() }, enabled);
-    if (outcome === 'saved') ackSaved(`setting:${key}`);
-    else {
-      flagError(`setting:${key}`);
-      if (outcome === 'failed') {
-        config = { ...config, [key]: before };
-        toast('danger', t('modules.saveFailed'));
-      }
-    }
+    await optimisticWrite({
+      key: `setting:${key}`,
+      partial: { [key]: value.trim() },
+      failText: t('modules.saveFailed'),
+      revert: () => (config = { ...config, [key]: before })
+    });
   }
 
   function settingToggleOn(field: ModuleField): boolean {
@@ -203,17 +204,14 @@
     if (!reply.enableKey) return;
     const key = reply.enableKey;
     const was = replyOn(reply);
-    config = { ...config, [key]: was ? 'off' : 'on' };
-    setStatus(reply.key, 'saving');
-    const outcome = await patch({ [key]: was ? 'off' : 'on' }, enabled);
-    if (outcome === 'saved') ackSaved(reply.key);
-    else {
-      flagError(reply.key);
-      if (outcome === 'failed') {
-        config = { ...config, [key]: was ? 'on' : 'off' };
-        toast('danger', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
-      }
-    }
+    const next = was ? 'off' : 'on';
+    config = { ...config, [key]: next };
+    await optimisticWrite({
+      key: reply.key,
+      partial: { [key]: next },
+      failText: t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }),
+      revert: () => (config = { ...config, [key]: was ? 'on' : 'off' })
+    });
   }
 
   let expanded = $state<string | null>(null);
@@ -241,7 +239,7 @@
   const discard = createDiscardGuard(() => inspectorDirty);
   function doClose() {
     expanded = null;
-    ruleIndex = null;
+    rulesCtl.index = null;
   }
 
   function openReply(reply: ModuleReply) {
@@ -275,207 +273,60 @@
     const prev = config[r.messageKey];
     config = { ...config, [r.messageKey]: editMessage };
     busy = true;
-    setStatus(r.key, 'saving');
-    const outcome = await patch({ [r.messageKey]: editMessage }, enabled);
+    await optimisticWrite({
+      key: r.key,
+      partial: { [r.messageKey]: editMessage },
+      failText: t('modules.saveFailed'),
+      revert: () => (config = { ...config, [r.messageKey]: prev ?? '' }),
+      onSaved: () => toast('success', t('modules.saved', { label: modLabel }))
+    });
     busy = false;
-    if (outcome === 'saved') {
-      ackSaved(r.key);
-      // Save keeps the inspector open on the saved reply (now clean); no close.
-      toast('success', t('modules.saved', { label: modLabel }));
-    } else {
-      flagError(r.key);
-      if (outcome === 'failed') {
-        config = { ...config, [r.messageKey]: prev ?? '' };
-        toast('danger', t('modules.saveFailed'));
-      }
-    }
   }
 
-  type Match = 'word' | 'contains' | 'exact' | 'prefix';
-  type Rule = { phrase: string; response: string; match: Match; enabled: boolean };
-
-  const MODE_LABEL = $derived<Record<Match, string>>({
-    word: t('modules.matchWord'),
-    contains: t('modules.matchContains'),
-    exact: t('modules.matchExact'),
-    prefix: t('modules.matchPrefix')
+  // svelte-ignore state_referenced_locally
+  const rulesCtl = new TriggerRules(data.config.rules ?? '', {
+    get expanded() {
+      return expanded;
+    },
+    set expanded(value) {
+      expanded = value;
+    },
+    get editMessage() {
+      return editMessage;
+    },
+    set editMessage(value) {
+      editMessage = value;
+    },
+    get busy() {
+      return busy;
+    },
+    set busy(value) {
+      busy = value;
+    },
+    get locked() {
+      return locked;
+    },
+    text: {
+      newRule: () => t('modules.newRule'),
+      match: (match) => t(MATCH_KEY[match]),
+      event: (rule) => t('modules.ruleEvent', { phrase: rule.phrase || '…' }),
+      saveFailed: () => t('modules.saveFailed'),
+      couldNotToggle: (rule) => t('modules.couldNotToggle', { label: rule.phrase }),
+      saved: () => t('modules.saved', { label: modLabel })
+    },
+    guard: discard.guard,
+    closeInspector,
+    doClose,
+    setSaving: (key) => setStatus(key, 'saving'),
+    ackSaved,
+    flagError,
+    persist: async (serialized) => {
+      const outcome = await patch({ rules: serialized }, enabled);
+      if (outcome === 'saved') config = { ...config, rules: serialized };
+      return outcome;
+    }
   });
-
-  function splitMode(left: string): [Match, string] {
-    const c = left.indexOf(':');
-    if (c < 0) return ['word', left];
-    const pre = left.slice(0, c).trim().toLowerCase();
-    if (pre === 'word' || pre === 'contains' || pre === 'exact' || pre === 'prefix') return [pre, left.slice(c + 1).trim()];
-    return ['word', left];
-  }
-  function parseRules(raw: string): Rule[] {
-    const s = raw.trim();
-    if (!s) return [];
-    if (s[0] === '[') return parseJSONRules(s);
-    const out: Rule[] = [];
-    for (const line of raw.split('\n')) {
-      let ln = line.trim();
-      if (!ln) continue;
-      let on = true;
-      if (ln.startsWith('#')) {
-        const rest = ln.slice(1).trim();
-        if (!rest.includes('=>')) continue;
-        on = false;
-        ln = rest;
-      }
-      const sep = ln.indexOf('=>');
-      if (sep < 0) continue;
-      const [match, phrase] = splitMode(ln.slice(0, sep).trim());
-      const response = ln.slice(sep + 2).trim();
-      if (!phrase || !response) continue;
-      out.push({ phrase, response, match, enabled: on });
-    }
-    return out;
-  }
-  function parseJSONRules(s: string): Rule[] {
-    const modes: Match[] = ['word', 'contains', 'exact', 'prefix'];
-    try {
-      const arr = JSON.parse(s);
-      if (!Array.isArray(arr)) return [];
-      return (arr as Array<Record<string, unknown>>)
-        .map((r) => ({
-          phrase: String(r.phrase ?? ''),
-          response: String(r.response ?? ''),
-          match: (modes.includes(r.match as Match) ? (r.match as Match) : 'word'),
-          enabled: r.enabled !== false
-        }))
-        .filter((r) => r.phrase.trim() && r.response.trim());
-    } catch {
-      return [];
-    }
-  }
-  function serializeRules(list: Rule[]): string {
-    return JSON.stringify(
-      list
-        .filter((r) => r.phrase.trim() && r.response.trim())
-        .map((r) => ({
-          phrase: r.phrase.trim(),
-          response: r.response.replace(/\s*\n\s*/g, ' ').trim(),
-          match: r.match,
-          enabled: r.enabled
-        }))
-    );
-  }
-
-  const ruleRows: ModuleReply[] = $derived(
-    rules.map((r, i) => ({
-      key: `rule:${i}`,
-      label: r.phrase || t('modules.newRule'),
-      tagline: MODE_LABEL[r.match],
-      event: t('modules.ruleEvent', { phrase: r.phrase || '…' }),
-      messageKey: `rule:${i}`,
-      enableKey: `rule:${i}`,
-      defaultMessage: r.response
-    }))
-  );
-
-  let ruleIndex = $state<number | null>(null);
-  let draftPhrase = $state('');
-  let draftMatch = $state<Match>('word');
-
-  async function persistRules(next: Rule[]): Promise<PatchOutcome> {
-    const rulesStr = serializeRules(next);
-    const outcome = await patch({ rules: rulesStr }, enabled);
-    if (outcome === 'saved') config = { ...config, rules: rulesStr };
-    return outcome;
-  }
-
-  function openRule(i: number) {
-    if (locked) return;
-    if (expanded === `rule:${i}`) return closeInspector();
-    discard.guard(() => {
-      const r = rules[i];
-      ruleIndex = i;
-      draftPhrase = r.phrase;
-      draftMatch = r.match;
-      editMessage = namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, r.response);
-      expanded = `rule:${i}`;
-    });
-  }
-  function addRule() {
-    if (locked) return;
-    discard.guard(() => {
-      ruleIndex = -1;
-      draftPhrase = '';
-      draftMatch = 'word';
-      editMessage = '';
-      expanded = 'rule:new';
-    });
-  }
-
-  async function saveRule() {
-    if (ruleIndex === null) return;
-    editMessage = namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, editMessage);
-    // Phrases are stored as structured JSON now, so any characters are safe:
-    // no reserved-syntax restriction.
-    const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
-    const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
-    const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
-    const key = expanded ?? 'rule';
-    busy = true;
-    setStatus(key, 'saving');
-    const outcome = await persistRules(next);
-    busy = false;
-    if (outcome === 'saved') {
-      rules = next;
-      // Keep the inspector open on the saved rule (a new rule becomes the last
-      // row); it now reads clean.
-      if (ruleIndex === -1) {
-        ruleIndex = next.length - 1;
-        expanded = `rule:${next.length - 1}`;
-      }
-      toast('success', t('modules.saved', { label: modLabel }));
-    } else {
-      flagError(key);
-      if (outcome === 'failed') toast('danger', t('modules.saveFailed'));
-    }
-  }
-
-  let deleteIndex = $state<number | null>(null);
-  const deletePhrase = $derived(deleteIndex === null ? '' : (rules[deleteIndex]?.phrase ?? ''));
-  function askDeleteRule() {
-    if (ruleIndex !== null && ruleIndex >= 0) deleteIndex = ruleIndex;
-    else closeInspector();
-  }
-  function confirmDeleteRule() {
-    const i = deleteIndex;
-    deleteIndex = null;
-    if (i !== null) void deleteRule(i);
-  }
-
-  async function deleteRule(i: number) {
-    const next = rules.filter((_, idx) => idx !== i);
-    busy = true;
-    setStatus(`rule:${i}`, 'saving');
-    const outcome = await persistRules(next);
-    busy = false;
-    if (outcome === 'saved') {
-      rules = next;
-      if (expanded === `rule:${i}`) doClose();
-      toast('success', t('modules.saved', { label: modLabel }));
-    } else {
-      flagError(`rule:${i}`);
-      if (outcome === 'failed') toast('danger', t('modules.saveFailed'));
-    }
-  }
-
-  async function toggleRule(i: number) {
-    const next = rules.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r));
-    setStatus(`rule:${i}`, 'saving');
-    const outcome = await persistRules(next);
-    if (outcome === 'saved') {
-      rules = next;
-      ackSaved(`rule:${i}`);
-    } else {
-      flagError(`rule:${i}`);
-      if (outcome === 'failed') toast('danger', t('modules.couldNotToggle', { label: rules[i].phrase }));
-    }
-  }
+  const ruleRows: ModuleReply[] = $derived(rulesCtl.rows());
 
   let browserZone = $state('');
   let tzZones = $state<string[]>([]);
@@ -491,19 +342,14 @@
 
   const inspectorDirty = $derived.by(() => {
     if (!expanded) return false;
-    if (isTriggers) {
-      if (ruleIndex === null) return false;
-      if (ruleIndex === -1) return draftPhrase.trim() !== '' || editMessage.trim() !== '';
-      const r = rules[ruleIndex];
-      return !r || draftPhrase !== r.phrase || draftMatch !== r.match || editMessage !== namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, r.response);
-    }
+    if (isTriggers) return rulesCtl.dirty();
     if (selectedReply) return editMessage !== namespaceReplyTemplate(def.id, selectedReply, config[selectedReply.messageKey] ?? '');
     return false;
   });
 
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
-    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : (selectedCommand?.trigger ?? t('modules.inspector'))
+    isTriggers ? (rulesCtl.index === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : (selectedCommand?.trigger ?? t('modules.inspector'))
   );
 
   let replyQuery = $state('');
@@ -722,7 +568,7 @@
               <Text as="span" size="xs" tone="muted">{t('modules.triggerRulesHint')}</Text>
             </div>
             {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
-            <Button variant="ghost" onclick={addRule} disabled={locked}>{t('modules.addTrigger')}</Button>
+            <Button variant="ghost" onclick={() => rulesCtl.add()} disabled={locked}>{t('modules.addTrigger')}</Button>
           </div>
           {#if ruleRows.length}
             <ul class="list" aria-label={t('modules.triggerRulesTitle')}>
@@ -731,14 +577,14 @@
                   <ReplyRow
                     moduleId={def.id}
                     {reply}
-                    message={rules[i].response}
+                    message={rulesCtl.rules[i].response}
                     index={i + 1}
                     status={modStatus[reply.key] ?? 'idle'}
                     expanded={expanded === reply.key}
-                    enabled={rules[i].enabled}
+                    enabled={rulesCtl.rules[i].enabled}
                     disabled={locked}
-                    onExpand={() => openRule(i)}
-                    onToggle={() => toggleRule(i)}
+                    onExpand={() => rulesCtl.open(i)}
+                    onToggle={() => rulesCtl.toggle(i)}
                   />
                 </li>
               {/each}
@@ -801,14 +647,14 @@
             <Scroller fill padding="16px" smooth>
               {#key expanded}
                 <TriggerRuleEditor
-                  bind:phrase={draftPhrase}
-                  bind:match={draftMatch}
+                  bind:phrase={rulesCtl.phrase}
+                  bind:match={rulesCtl.match}
                   bind:message={editMessage}
                   {busy}
-                  isNew={ruleIndex === -1}
-                  onSave={saveRule}
+                  isNew={rulesCtl.index === -1}
+                  onSave={() => rulesCtl.save()}
                   onCancel={closeInspector}
-                  onDelete={askDeleteRule}
+                  onDelete={() => rulesCtl.askDelete()}
                 />
               {/key}
             </Scroller>
@@ -837,13 +683,13 @@
 </section>
 
 <ConfirmDialog
-  open={deleteIndex !== null}
+  open={rulesCtl.deleteIndex !== null}
   title={t('modules.deleteRuleTitle')}
-  body={t('modules.deleteRuleBody', { phrase: deletePhrase })}
+  body={t('modules.deleteRuleBody', { phrase: rulesCtl.deletePhrase })}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  onCancel={() => (deleteIndex = null)}
-  onConfirm={confirmDeleteRule}
+  onCancel={() => (rulesCtl.deleteIndex = null)}
+  onConfirm={() => rulesCtl.confirmDelete()}
   tone="danger"
 />
 

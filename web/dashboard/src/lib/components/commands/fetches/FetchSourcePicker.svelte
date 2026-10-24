@@ -30,6 +30,7 @@
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import {
     getI18n,
+    actionPayload,
     slugifyName,
     buildJsonPath,
     DEFS_PER_BROADCASTER
@@ -77,133 +78,123 @@
     open = false;
   }
 
-  let displayName = $state('');
-  let slug = $state('');
-  let slugTouched = $state(false);
-  let url = $state('');
-  let keyLabel = $state('');
-  let sample = $state('');
-  let path = $state<string[]>([]);
-  let pathPicked = $state(false);
+  const blankForm = () => ({
+    displayName: '',
+    slug: '',
+    slugTouched: false,
+    url: '',
+    keyLabel: '',
+    sample: '',
+    path: [] as string[],
+    pathPicked: false,
+    notice: '',
+    err: '',
+    showPaste: false,
+    nameAttempted: false,
+    urlAttempted: false
+  });
+
+  let form = $state(blankForm());
   let fetching = $state(false);
   let creating = $state(false);
-  let notice = $state('');
-  let err = $state('');
-  let showPaste = $state(false);
+
+  type SampleReply = { ok?: boolean; sample?: string; status?: string; error?: string };
+  type DefsReply = { ok?: boolean; defs?: SourceDef[]; error?: string };
 
   const atQuota = $derived(defs.length >= DEFS_PER_BROADCASTER);
-  let nameAttempted = $state(false);
-  let urlAttempted = $state(false);
   let buildEl = $state<HTMLDivElement | null>(null);
-  const nameError = $derived(nameAttempted && !slug ? t('fetches.errNameRequired') : undefined);
-  const urlError = $derived(urlAttempted && !url.trim() ? t('fetches.errUrlRequired') : undefined);
+  const nameError = $derived(form.nameAttempted && !form.slug ? t('fetches.errNameRequired') : undefined);
+  const urlError = $derived(form.urlAttempted && !form.url.trim() ? t('fetches.errUrlRequired') : undefined);
 
   function onDisplayName() {
-    if (!slugTouched) slug = slugifyName(displayName);
+    if (!form.slugTouched) form.slug = slugifyName(form.displayName);
   }
 
   function openBuilder() {
-    displayName = '';
-    slug = '';
-    slugTouched = false;
-    url = '';
-    keyLabel = '';
-    sample = '';
-    path = [];
-    pathPicked = false;
-    notice = '';
-    err = '';
-    showPaste = false;
-    nameAttempted = false;
-    urlAttempted = false;
+    form = blankForm();
     open = false;
     building = true;
   }
 
   function draftForm(): FormData {
     const f = new FormData();
-    f.set('name', slug);
-    f.set('url', url.trim());
-    f.set('kind', pathPicked && path.length > 0 ? 'json' : 'plain');
-    f.set('path', buildJsonPath(path));
-    f.set('key_label', keyLabel);
+    f.set('name', form.slug);
+    f.set('url', form.url.trim());
+    f.set('kind', form.pathPicked && form.path.length > 0 ? 'json' : 'plain');
+    f.set('path', buildJsonPath(form.path));
+    f.set('key_label', form.keyLabel);
     f.set('edit', '0');
     return f;
   }
 
-  async function post(action: string, body: FormData) {
+  async function post<T>(action: string, body: FormData) {
     const res = await fetch(`/commands?/${action}`, { method: 'POST', body });
-    return deserialize(await res.text());
+    return actionPayload<T>(deserialize(await res.text()));
+  }
+
+  function applySample(reply: SampleReply | undefined) {
+    if (reply?.sample) {
+      form.sample = reply.sample;
+      form.showPaste = false;
+      if (reply.status && reply.status !== 'ok') form.notice = t(`fetches.test_${reply.status}`);
+      return;
+    }
+    form.showPaste = true;
+    if (reply?.ok) form.notice = t('fetches.builderNoSample');
+    else form.err = reply?.error ?? t('fetches.testNoAnswer');
   }
 
   async function fetchSample() {
-    urlAttempted = true;
-    if (!url.trim()) {
+    form.urlAttempted = true;
+    if (!form.url.trim()) {
       void focusFirstInvalid(buildEl);
       return;
     }
-    err = '';
-    notice = '';
+    form.err = '';
+    form.notice = '';
     fetching = true;
     try {
       const f = draftForm();
       f.set('kind', 'plain');
       f.set('path', '');
-      const r = await post('testfetch', f);
-      const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
-        | { ok?: boolean; sample?: string; status?: string; error?: string }
-        | undefined;
-      if (d?.sample) {
-        sample = d.sample;
-        showPaste = false;
-        if (d.status && d.status !== 'ok') notice = t(`fetches.test_${d.status}`);
-      } else if (d?.ok) {
-        notice = t('fetches.builderNoSample');
-        showPaste = true;
-      } else {
-        err = d?.error ?? t('fetches.testNoAnswer');
-        showPaste = true;
-      }
+      applySample(await post<SampleReply>('testfetch', f));
     } catch {
-      err = t('fetches.testNoAnswer');
-      showPaste = true;
+      form.err = t('fetches.testNoAnswer');
+      form.showPaste = true;
     }
     fetching = false;
   }
 
   function onPickPath(segs: string[]) {
-    path = [...segs];
-    pathPicked = true;
+    form.path = [...segs];
+    form.pathPicked = true;
   }
 
   function useWholeResponse() {
-    path = [];
-    pathPicked = false;
+    form.path = [];
+    form.pathPicked = false;
   }
 
   async function create() {
-    nameAttempted = true;
-    urlAttempted = true;
-    if (!slug || !url.trim()) {
+    form.nameAttempted = true;
+    form.urlAttempted = true;
+    if (!form.slug || !form.url.trim()) {
       void focusFirstInvalid(buildEl);
       return;
     }
-    err = '';
+    form.err = '';
     creating = true;
     try {
-      const r = await post('savefetch', draftForm());
-      const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
-        | { ok?: boolean; defs?: SourceDef[]; error?: string }
-        | undefined;
-      if (d?.ok) {
-        if (d.defs) onDefsChanged?.(d.defs);
-        onInsert(tokenFor(slug));
+      const reply = await post<DefsReply>('savefetch', draftForm());
+      if (reply?.ok) {
+        if (reply.defs) onDefsChanged?.(reply.defs);
+        onInsert(tokenFor(form.slug));
         building = false;
       } else {
-        err = d?.error ?? t('fetches.toastSaveFailed');
+        form.err = reply?.error ?? t('fetches.toastSaveFailed');
       }
     } catch {
-      err = t('fetches.toastSaveFailed');
+      form.err = t('fetches.toastSaveFailed');
     }
     creating = false;
   }
@@ -221,15 +212,12 @@
     const f = new FormData();
     f.set('name', name);
     try {
-      const r = await post('deletefetch', f);
-      const d = (r.type === 'success' || r.type === 'failure' ? r.data : undefined) as
-        | { ok?: boolean; defs?: SourceDef[]; error?: string }
-        | undefined;
-      if (d?.ok && d.defs) {
-        onDefsChanged?.(d.defs);
+      const reply = await post<DefsReply>('deletefetch', f);
+      if (reply?.ok && reply.defs) {
+        onDefsChanged?.(reply.defs);
         return;
       }
-      panelErr = d?.error ?? t('fetches.toastDeleteFailed', { name });
+      panelErr = reply?.error ?? t('fetches.toastDeleteFailed', { name });
     } catch {
       panelErr = t('fetches.toastDeleteFailed', { name });
     }
@@ -300,7 +288,7 @@
     <Text size="sm" tone="muted">{t('fetches.builderIntro')}</Text>
 
     <Field label={t('fetches.displayName')}>
-      <Input fill placeholder={t('fetches.displayNamePh')} bind:value={displayName} oninput={onDisplayName} />
+      <Input fill placeholder={t('fetches.displayNamePh')} bind:value={form.displayName} oninput={onDisplayName} />
     </Field>
 
     <Field label={t('fetches.slug')} hint={t('fetches.slugHint')} error={nameError} errorId="fetch-name-err">
@@ -311,10 +299,10 @@
         required
         aria-invalid={nameError ? 'true' : undefined}
         aria-describedby={nameError ? 'fetch-name-err' : undefined}
-        bind:value={slug}
+        bind:value={form.slug}
         oninput={() => {
-          slugTouched = true;
-          slug = slugifyName(slug);
+          form.slugTouched = true;
+          form.slug = slugifyName(form.slug);
         }}
       />
     </Field>
@@ -330,7 +318,7 @@
         required
         aria-invalid={urlError ? 'true' : undefined}
         aria-describedby={urlError ? 'fetch-url-err' : undefined}
-        bind:value={url}
+        bind:value={form.url}
       />
     </Field>
 
@@ -344,7 +332,7 @@
       {:else}
         <Select
           fill
-          bind:value={keyLabel}
+          bind:value={form.keyLabel}
           options={[{ value: '', label: t('fetches.authNone') }, ...keys.toSorted((a, b) => a.label.localeCompare(b.label)).map((k) => ({ value: k.label, label: k.label }))]}
         />
       {/if}
@@ -354,15 +342,15 @@
       <Button variant="secondary" busy={fetching} onclick={fetchSample}>
         {fetching ? t('fetches.builderFetching') : t('fetches.builderFetch')}
       </Button>
-      {#if !showPaste && sample === ''}
-        <Button variant="ghost" size="sm" onclick={() => (showPaste = true)}>{t('fetches.builderPasteInstead')}</Button>
+      {#if !form.showPaste && form.sample === ''}
+        <Button variant="ghost" size="sm" onclick={() => (form.showPaste = true)}>{t('fetches.builderPasteInstead')}</Button>
       {/if}
     </div>
 
-    {#if notice}<Text as="small" size="xs" tone="accent" role="status">{notice}</Text>{/if}
-    <FieldError message={err} />
+    {#if form.notice}<Text as="small" size="xs" tone="accent" role="status">{form.notice}</Text>{/if}
+    <FieldError message={form.err} />
 
-    {#if showPaste}
+    {#if form.showPaste}
       <Textarea
         fill
         mono
@@ -370,17 +358,17 @@
         spellcheck="false"
         placeholder={t('fetches.pickerPlaceholder')}
         aria-label={t('fetches.pickerSampleAria')}
-        bind:value={sample}
+        bind:value={form.sample}
       />
     {/if}
 
-    {#if sample !== ''}
+    {#if form.sample !== ''}
       <Text size="xs" tone="accent">{t('fetches.builderPickPrompt')}</Text>
-      <JsonTree json={sample} onPick={onPickPath} leafTitle={(segs) => `${tokenFor(slug || 'name')} → ${buildJsonPath(segs)}`} />
+      <JsonTree json={form.sample} onPick={onPickPath} leafTitle={(segs) => `${tokenFor(form.slug || 'name')} → ${buildJsonPath(segs)}`} />
       <div class="chosen">
-        {#if pathPicked && path.length > 0}
+        {#if form.pathPicked && form.path.length > 0}
           <Tag tone="bare">{t('fetches.builderPicked')}</Tag>
-          <Code tone="success">{buildJsonPath(path)}</Code>
+          <Code tone="success">{buildJsonPath(form.path)}</Code>
           <Button variant="ghost" size="sm" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</Button>
         {:else}
           <Text as="span" size="xs" tone="muted">{t('fetches.builderWholeSelected')}</Text>

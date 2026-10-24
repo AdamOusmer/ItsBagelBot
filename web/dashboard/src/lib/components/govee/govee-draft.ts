@@ -3,20 +3,18 @@
 
 import { namespaceReplyTemplate, type GoveeBinding, type GoveeDevice } from '@bagel/kit';
 import { GOVEE_MODULE } from '@bagel/kit/catalog/govee';
+import {
+  rewardCoreErrors,
+  rewardCoreFormFields,
+  type RewardCoreDraft,
+  type RewardCoreErrorField,
+  type RewardCoreErrors
+} from '$lib/reward-fields';
 
-export interface GoveeDraft {
-  title: string;
-  cost: number;
-  color: string;
-  cooldown: number;
-  onRedeem: string;
-  replyMessage: string;
+export interface GoveeDraft extends RewardCoreDraft {
   allowOff: boolean;
   liveOnly: boolean;
 }
-
-const COST_MAX = 10_000_000;
-export const GOVEE_COOLDOWN_MAX = 604_800;
 
 const reply = GOVEE_MODULE.replies.find((r) => r.key === 'reply')!;
 
@@ -56,8 +54,8 @@ export function goveeDraftFor(
   };
 }
 
-export type GoveeErrorField = 'title' | 'cost' | 'cooldown';
-export type GoveeErrors = Partial<Record<GoveeErrorField, string>>;
+export type GoveeErrorField = RewardCoreErrorField;
+export type GoveeErrors = RewardCoreErrors;
 
 export const GOVEE_ERROR_KEYS: Readonly<Record<GoveeErrorField, string>> = Object.freeze({
   title: 'govee.errTitleRequired',
@@ -65,25 +63,11 @@ export const GOVEE_ERROR_KEYS: Readonly<Record<GoveeErrorField, string>> = Objec
   cooldown: 'govee.errCooldown'
 });
 
-const whole = (n: unknown, min: number, max: number) =>
-  Number.isInteger(n) && (n as number) >= min && (n as number) <= max;
-
-export function goveeErrors(draft: GoveeDraft): GoveeErrors {
-  const errors: GoveeErrors = {};
-  if (!draft.title.trim()) errors.title = GOVEE_ERROR_KEYS.title;
-  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = GOVEE_ERROR_KEYS.cost;
-  if (!whole(draft.cooldown, 0, GOVEE_COOLDOWN_MAX)) errors.cooldown = GOVEE_ERROR_KEYS.cooldown;
-  return errors;
-}
+export const goveeErrors = (draft: GoveeDraft): GoveeErrors => rewardCoreErrors(draft, GOVEE_ERROR_KEYS);
 
 export function goveeFormFields(draft: GoveeDraft): Record<string, string> {
   return {
-    title: draft.title,
-    cost: String(draft.cost),
-    color: draft.color,
-    cooldown: String(draft.cooldown),
-    onRedeem: draft.onRedeem,
-    replyMessage: namespaceGoveeReply(draft.replyMessage),
+    ...rewardCoreFormFields(draft, namespaceGoveeReply),
     allow_off: draft.allowOff ? 'on' : '',
     allow_offline: draft.liveOnly ? '' : 'on'
   };

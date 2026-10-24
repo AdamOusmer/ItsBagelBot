@@ -4,6 +4,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
+import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
 import {
   NB_RETURN_COOKIE,
   NB_STATE_COOKIE_PATH,
@@ -20,21 +21,9 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   if (!nightbotConfigured()) throw redirect(302, `${wizard}&e=nb_config`);
 
   const state = randomBytes(16).toString('base64url');
-  cookies.set(NB_STATE_COOKIE, state, {
-    path: NB_STATE_COOKIE_PATH,
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: 600
-  });
+  cookies.set(NB_STATE_COOKIE, state, cookieOptions(url, STATE_TTL_SECONDS, NB_STATE_COOKIE_PATH));
   if (welcome) {
-    cookies.set(NB_RETURN_COOKIE, 'welcome', {
-      path: NB_STATE_COOKIE_PATH,
-      httpOnly: true,
-      secure: url.protocol === 'https:',
-      sameSite: 'lax',
-      maxAge: 600
-    });
+    cookies.set(NB_RETURN_COOKIE, 'welcome', cookieOptions(url, STATE_TTL_SECONDS, NB_STATE_COOKIE_PATH));
   } else {
     cookies.delete(NB_RETURN_COOKIE, { path: NB_STATE_COOKIE_PATH });
   }

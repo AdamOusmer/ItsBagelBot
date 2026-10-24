@@ -10,9 +10,11 @@ import type {
   SpotifySrPerm
 } from '@bagel/kit';
 import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/kit';
-import { SUB, publishEventSubEnsureOptional } from './services';
+import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';
+import { deleteRemoteReward, saveRewardFlow } from './reward-wire';
+import type { RewardCore } from './reward-form';
 
 export type {
   SpotifySrConfig,
@@ -64,14 +66,7 @@ export async function readSpotifyPlayerQueue(userId: string): Promise<SpotifyPla
   }
 }
 
-export interface RewardDraft {
-  title: string;
-  cost: number;
-  onRedeem: RewardOnRedeem;
-  color: string;
-  cooldown: number;
-  replyMessage: string;
-}
+export type RewardDraft = RewardCore;
 
 export type SpotifyResult = { ok: true } | { ok: false; missingScope?: boolean; missingSpotifyScope?: boolean; error?: string; code?: string };
 
@@ -83,9 +78,11 @@ function coerceOnRedeem(v: unknown): RewardOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
+const isObject = (v: unknown): v is object => !!v && typeof v === 'object';
+
 function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
   const sr = blankSpotifySr();
-  if (!raw || typeof raw !== 'object') return { ...sr, enabled: true };
+  if (!isObject(raw)) return { ...sr, enabled: true };
   sr.enabled = raw.enabled !== false;
   sr.perm = coercePerm(raw.perm);
   sr.allowOffline = raw.allowOffline === true;
@@ -93,8 +90,7 @@ function readSr(raw: Partial<SpotifySrConfig> | undefined): SpotifySrConfig {
 }
 
 function mirroredReward(raw: Partial<SpotifyReward> | null | undefined): SpotifyReward | null {
-  if (!raw) return null;
-  if (typeof raw !== 'object') return null;
+  if (!isObject(raw)) return null;
   if (!raw.rewardId) return null;
   return {
     rewardId: String(raw.rewardId),
@@ -116,7 +112,7 @@ function readRedeem(
   raw: (Partial<SpotifyRedeemConfig> & { reward?: Partial<SpotifyReward> | null }) | undefined
 ): SpotifyRedeemConfig {
   const redeem = blankSpotifyRedeem();
-  if (!raw || typeof raw !== 'object') return redeem;
+  if (!isObject(raw)) return redeem;
   redeem.enabled = raw.enabled === true;
   redeem.rewardId = String(raw.rewardId ?? '');
   redeem.onRedeem = coerceOnRedeem(raw.onRedeem);
@@ -128,7 +124,7 @@ function readRedeem(
 
 function readQuotas(raw: Partial<SpotifyQuotas> | undefined): SpotifyQuotas {
   const q = blankSpotifyQuotas();
-  if (!raw || typeof raw !== 'object') return q;
+  if (!isObject(raw)) return q;
   for (const tier of ['everyone', 'sub', 'vip', 'mod'] as const) {
     const v = raw[tier];
     q[tier] = typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : null;
@@ -143,55 +139,6 @@ function readView(configs: unknown): SpotifyView {
     quotas?: Partial<SpotifyQuotas>;
   };
   return { enabled: false, sr: readSr(c.sr), redeem: readRedeem(c.redeem), quotas: readQuotas(c.quotas) };
-}
-
-interface RewardWire {
-  id?: string;
-  title: string;
-  cost: number;
-  prompt?: string;
-  background_color?: string;
-  is_enabled: boolean;
-  is_paused: boolean;
-  is_user_input_required: boolean;
-  should_skip_queue: boolean;
-  max_per_stream_enabled: boolean;
-  max_per_stream: number;
-  max_per_user_per_stream_enabled: boolean;
-  max_per_user_per_stream: number;
-  global_cooldown_enabled: boolean;
-  global_cooldown_seconds: number;
-}
-
-interface RewardReplyWire {
-  reward?: RewardWire & { id?: string };
-  missing_scope?: boolean;
-  error?: string;
-}
-
-function rewardWire(draft: RewardDraft, id: string): RewardWire {
-  const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
-  return {
-    id: id || undefined,
-    title: draft.title,
-    cost: draft.cost,
-    prompt: REWARD_PROMPT,
-    background_color: draft.color || undefined,
-    is_enabled: true,
-    is_paused: false,
-    is_user_input_required: true,
-    should_skip_queue: false,
-    max_per_stream_enabled: false,
-    max_per_stream: 1,
-    max_per_user_per_stream_enabled: false,
-    max_per_user_per_stream: 1,
-    global_cooldown_enabled: cooldown > 0,
-    global_cooldown_seconds: cooldown
-  };
-}
-
-function callReward(userId: string, verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
 }
 
 export interface SpotifyApp {
@@ -274,12 +221,8 @@ export function spotifyStore(userId: string): SpotifyStore {
     return { ok: true };
   }
 
-  async function writeBlob(
-    enabled: boolean,
-    sr: SpotifySrConfig,
-    redeem: SpotifyRedeemConfig,
-    quotas: SpotifyQuotas
-  ): Promise<void> {
+  async function write(view: SpotifyView): Promise<void> {
+    const { enabled, sr, redeem, quotas } = view;
     const base = await rawConfigs();
     await upsertModule(userId, SONGQUEUE_MODULE, enabled, {
       ...base,
@@ -296,66 +239,31 @@ export function spotifyStore(userId: string): SpotifyStore {
     } as unknown as Record<string, unknown>);
   }
 
-  async function setEnabled(enabled: boolean): Promise<SpotifyResult> {
+  async function patch(change: (cur: SpotifyView) => Partial<SpotifyView>): Promise<SpotifyResult> {
     const cur = await read();
-    await writeBlob(enabled, cur.sr, cur.redeem, cur.quotas);
+    await write({ ...cur, ...change(cur) });
     return { ok: true };
   }
 
-  async function saveQuotas(quotas: SpotifyQuotas): Promise<SpotifyResult> {
-    const cur = await read();
-    await writeBlob(cur.enabled, cur.sr, cur.redeem, quotas);
-    return { ok: true };
-  }
-
-  async function saveSr(sr: SpotifySrConfig): Promise<SpotifyResult> {
-    const cur = await read();
-    await writeBlob(cur.enabled, sr, cur.redeem, cur.quotas);
-    return { ok: true };
-  }
-
-  async function setRedeemPath(path: { enabled: boolean; allowOffline: boolean }): Promise<SpotifyResult> {
-    const cur = await read();
-    await writeBlob(cur.enabled, cur.sr, { ...cur.redeem, ...path }, cur.quotas);
-    return { ok: true };
-  }
+  const setEnabled = (enabled: boolean) => patch(() => ({ enabled }));
+  const saveQuotas = (quotas: SpotifyQuotas) => patch(() => ({ quotas }));
+  const saveSr = (sr: SpotifySrConfig) => patch(() => ({ sr }));
+  const setRedeemPath = (path: { enabled: boolean; allowOffline: boolean }) =>
+    patch((cur) => ({ redeem: { ...cur.redeem, ...path } }));
 
   async function saveReward(draft: RewardDraft): Promise<SpotifyResult> {
     const cur = await read();
-    const existingId = cur.redeem.rewardId;
-    const verb = existingId ? 'update' : 'create';
-    const req: Record<string, unknown> = { reward: rewardWire(draft, existingId) };
-    if (existingId) req.reward_id = existingId;
-
-    const reply = await callReward(userId, verb, req);
-    if (reply.missing_scope) return { ok: false, missingScope: true };
-    if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
-
-    const rewardId = reply.reward.id ?? existingId;
-    const redeem: SpotifyRedeemConfig = {
-      ...cur.redeem,
-      enabled: cur.redeem.enabled,
-      rewardId,
-      reward: {
-        rewardId,
-        title: reply.reward.title,
-        cost: reply.reward.cost,
-        color: reply.reward.background_color ?? draft.color,
-        cooldown: reply.reward.global_cooldown_enabled ? reply.reward.global_cooldown_seconds : 0
-      }
-    };
-    await writeBlob(cur.enabled, cur.sr, redeem, cur.quotas);
-    if (!existingId) await publishEventSubEnsureOptional(userId);
-    return { ok: true };
+    return saveRewardFlow(userId, { draft, prompt: REWARD_PROMPT, existingId: cur.redeem.rewardId }, (reward) =>
+      write({ ...cur, redeem: { ...cur.redeem, rewardId: reward.rewardId, reward } })
+    );
   }
 
   async function deleteReward(): Promise<SpotifyResult> {
     const cur = await read();
     if (!cur.redeem.rewardId) return { ok: true };
-    const reply = await callReward(userId, 'delete', { reward_id: cur.redeem.rewardId });
-    if (reply.missing_scope) return { ok: false, missingScope: true };
-    if (reply.error) return { ok: false, error: reply.error };
-    await writeBlob(cur.enabled, cur.sr, { ...blankSpotifyRedeem() }, cur.quotas);
+    const remote = await deleteRemoteReward(userId, cur.redeem.rewardId);
+    if (!remote.ok) return remote;
+    await write({ ...cur, redeem: blankSpotifyRedeem() });
     return { ok: true };
   }
 

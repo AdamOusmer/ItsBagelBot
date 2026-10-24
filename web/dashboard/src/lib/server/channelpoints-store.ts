@@ -2,43 +2,20 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Twitch first, then the binding blob, so the two never diverge on a failed call.
-import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
+import { rpcRefusal } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { logger } from '@bagel/kit/server/logger';
 import { type ChannelPointReward, MOD } from '@bagel/kit';
-import { SUB, publishEventSubEnsureOptional } from './services';
+import { publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { createCounter } from './loyalty-store';
+import { callReward, type RewardReplyWire, type RewardWire } from './reward-wire';
+
+type UserId = string;
+type RewardId = string;
 
 const CP_MODULE = MOD.channelpoints;
-
-interface RewardWire {
-  id?: string;
-  title: string;
-  cost: number;
-  prompt?: string;
-  background_color?: string;
-  is_enabled: boolean;
-  is_paused: boolean;
-  is_user_input_required: boolean;
-  should_skip_queue: boolean;
-  max_per_stream_enabled: boolean;
-  max_per_stream: number;
-  max_per_user_per_stream_enabled: boolean;
-  max_per_user_per_stream: number;
-  global_cooldown_enabled: boolean;
-  global_cooldown_seconds: number;
-}
-
-interface RewardReplyWire {
-  reward?: RewardWire;
-  rewards?: RewardWire[];
-  missing_scope?: boolean;
-  not_affiliate?: boolean;
-  error?: string;
-  code?: string;
-}
 
 export type RewardResult =
   | { ok: true; reward?: ChannelPointReward }
@@ -100,7 +77,7 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
   };
 }
 
-async function ensureRewardCounter(userId: string, reward: ChannelPointReward): Promise<void> {
+async function ensureRewardCounter(userId: UserId, reward: ChannelPointReward): Promise<void> {
   if (!reward.counter) return;
   try {
     await createCounter(userId, reward.counter, reward.counterScope);
@@ -109,17 +86,13 @@ async function ensureRewardCounter(userId: string, reward: ChannelPointReward): 
   }
 }
 
-export async function readRewards(userId: string): Promise<RewardsView> {
+export async function readRewards(userId: UserId): Promise<RewardsView> {
   const { enabled, configs } = await readModuleBlob<{ rewards?: ChannelPointReward[] }>(userId, CP_MODULE);
   return { enabled, rewards: Array.isArray(configs.rewards) ? configs.rewards : [] };
 }
 
-async function writeRewards(userId: string, enabled: boolean, rewards: ChannelPointReward[]): Promise<void> {
+async function writeRewards(userId: UserId, enabled: boolean, rewards: ChannelPointReward[]): Promise<void> {
   await upsertModule(userId, CP_MODULE, enabled, rewards.length ? { rewards } : {});
-}
-
-async function callReward(verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpcReply<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, req, 8000);
 }
 
 function refusal(reply: RewardReplyWire): RewardFailure | null {
@@ -131,7 +104,7 @@ function refusal(reply: RewardReplyWire): RewardFailure | null {
   return null;
 }
 
-export async function createReward(userId: string, draft: ChannelPointReward): Promise<RewardResult> {
+export async function createReward(userId: UserId, draft: ChannelPointReward): Promise<RewardResult> {
   const reply = await callReward('create', { broadcaster_id: userId, reward: toWire(draft) });
   const refused = refusal(reply);
   if (refused) return refused;
@@ -146,7 +119,7 @@ export async function createReward(userId: string, draft: ChannelPointReward): P
   return { ok: true, reward: created };
 }
 
-export async function updateReward(userId: string, draft: ChannelPointReward): Promise<RewardResult> {
+export async function updateReward(userId: UserId, draft: ChannelPointReward): Promise<RewardResult> {
   if (!draft.id) return { ok: false, error: 'missing reward id' };
   const reply = await callReward('update', { broadcaster_id: userId, reward_id: draft.id, reward: toWire(draft) });
   const refused = refusal(reply);
@@ -161,7 +134,7 @@ export async function updateReward(userId: string, draft: ChannelPointReward): P
   return { ok: true, reward: updated };
 }
 
-export async function deleteReward(userId: string, rewardId: string): Promise<RewardResult> {
+export async function deleteReward(userId: UserId, rewardId: RewardId): Promise<RewardResult> {
   const refused = refusal(await callReward('delete', { broadcaster_id: userId, reward_id: rewardId }));
   if (refused) return refused;
 
@@ -170,6 +143,6 @@ export async function deleteReward(userId: string, rewardId: string): Promise<Re
   return { ok: true };
 }
 
-export async function setChannelPointsEnabled(userId: string, enabled: boolean): Promise<void> {
+export async function setChannelPointsEnabled(userId: UserId, enabled: boolean): Promise<void> {
   await setModuleEnabled(userId, CP_MODULE, enabled);
 }

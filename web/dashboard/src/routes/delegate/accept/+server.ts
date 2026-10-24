@@ -4,6 +4,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { delegationGet } from '$lib/server/services';
+import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const token = url.searchParams.get('t');
@@ -12,13 +13,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   const view = await delegationGet(token);
   if (!view || view.consumed) throw redirect(302, '/login?e=link');
 
-  cookies.set('pending_delegation', token, {
-    path: '/',
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax',
-    maxAge: 600
-  });
+  cookies.set('pending_delegation', token, cookieOptions(url, STATE_TTL_SECONDS));
 
   throw redirect(302, '/auth/login');
 };

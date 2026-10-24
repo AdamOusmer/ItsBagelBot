@@ -11,11 +11,10 @@ import {
   boundElsewhereIds,
   discordFail,
   discordInstallURL,
-  discordStateOK,
   listUserGuilds,
   putDiscordState,
   requireDiscordActor,
-  returnIfDeclined,
+  takeDiscordCode,
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
 import { listGuilds, type DiscordGuildSummary } from '$lib/server/discord-store';
@@ -41,7 +40,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
   if (DEMO) return demoPick(cookies);
 
   const uid = requireDiscordActor(locals);
-  const guilds = await manageableGuilds(takePickCode(cookies, url, uid));
+  const guilds = await manageableGuilds(takeDiscordCode({ cookies, url, leg: DISCORD_PICK_LEG, uid }));
   if (guilds.length === 0) discordFail('noguilds');
 
   const state = generateState();
@@ -80,14 +79,6 @@ async function manageableGuilds(code: string): Promise<DiscordUserGuild[]> {
   const r = await listUserGuilds(code);
   if (!r.ok) discordFail(r.code);
   return r.guilds.filter(canManageGuild);
-}
-
-function takePickCode(cookies: Cookies, url: URL, uid: string): string {
-  returnIfDeclined(url);
-  if (!discordStateOK({ cookies, url, leg: DISCORD_PICK_LEG, uid })) discordFail('state');
-  const code = (url.searchParams.get('code') ?? '').trim();
-  if (!code) discordFail('oauth');
-  return code;
 }
 
 async function demoPick(cookies: Cookies): Promise<{ choices: PickChoice[] }> {

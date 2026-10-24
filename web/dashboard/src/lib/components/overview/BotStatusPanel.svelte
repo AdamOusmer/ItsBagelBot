@@ -53,55 +53,41 @@
 
   const strip = $derived(kind === 'online');
 
-  const title = $derived.by(() => {
-    switch (kind) {
-      case 'dormant': return t('overview.lifecycle.dormant');
-      case 'recovering': return t('overview.lifecycle.recovering');
-      case 'timed_out': return t('overview.lifecycle.timedOut');
-      case 'disabled': return t('overview.lifecycle.disabledByYou');
-      case 'online':
-        return t('overview.onlineInChat');
-      case 'connecting':
-        return t('overview.connecting');
-      case 'degraded':
-        return t('overview.lifecycle.connectionCheckFailed');
-      case 'reauth_required':
-        return t('overview.twitchAccessLost');
-      case 'bot_banned':
-        return t('overview.botBanned');
-      case 'sub_unknown':
-        return t('overview.connectedIdle');
-      case 'unavailable':
-        return t('overview.unavailable');
-      default:
-        return t('overview.notConnected');
-    }
-  });
+  type Kind = ConnUi['kind'];
+  const NOT_CONNECTED = 'overview.notConnected';
+  const TITLES: Partial<Record<Kind, string>> = {
+    dormant: 'overview.lifecycle.dormant',
+    recovering: 'overview.lifecycle.recovering',
+    timed_out: 'overview.lifecycle.timedOut',
+    disabled: 'overview.lifecycle.disabledByYou',
+    online: 'overview.onlineInChat',
+    connecting: 'overview.connecting',
+    degraded: 'overview.lifecycle.connectionCheckFailed',
+    reauth_required: 'overview.twitchAccessLost',
+    bot_banned: 'overview.botBanned',
+    sub_unknown: 'overview.connectedIdle',
+    unavailable: 'overview.unavailable'
+  };
+  const DETAILS: Partial<Record<Kind, string>> = {
+    dormant: 'overview.lifecycle.issueDormant',
+    recovering: 'overview.lifecycle.issueRecovering',
+    timed_out: 'overview.lifecycle.issueTimedOut',
+    online: 'overview.allGood',
+    degraded: 'overview.lifecycle.issueConnectionCheckFailed',
+    reauth_required: 'overview.issueReauth',
+    sub_unknown: 'overview.issueIdle',
+    auth_required: 'overview.issueNoAuth',
+    unavailable: 'overview.commandsUnavailableDesc'
+  };
 
+  const title = $derived(t(TITLES[kind] ?? NOT_CONNECTED));
   const detail = $derived.by(() => {
-    switch (kind) {
-      case 'dormant': return t('overview.lifecycle.issueDormant');
-      case 'recovering': return t('overview.lifecycle.issueRecovering');
-      case 'timed_out': return t('overview.lifecycle.issueTimedOut');
-      case 'online':
-        return t('overview.allGood');
-      case 'degraded':
-        return t('overview.lifecycle.issueConnectionCheckFailed');
-      case 'reauth_required':
-        return t('overview.issueReauth');
-      case 'bot_banned':
-        return ui?.automaticRecovery ? t('overview.lifecycle.issueBotBannedAutomatic') : t('overview.lifecycle.issueBotBannedUnavailable');
-      case 'sub_unknown':
-        return t('overview.issueIdle');
-      case 'disabled':
-        return ui?.retainedBan ? t('overview.lifecycle.retainedBan') : t('overview.statusPausedDetail');
-      case 'auth_required':
-        return t('overview.issueNoAuth');
-      case 'unavailable':
-        return t('overview.commandsUnavailableDesc');
-      default:
-        return '';
+    if (kind === 'disabled') return ui?.retainedBan ? t('overview.lifecycle.retainedBan') : t('overview.statusPausedDetail');
+    if (kind === 'bot_banned') {
+      return ui?.automaticRecovery ? t('overview.lifecycle.issueBotBannedAutomatic') : t('overview.lifecycle.issueBotBannedUnavailable');
     }
+    const key = DETAILS[kind];
+    return key ? t(key) : '';
   });
 </script>
 

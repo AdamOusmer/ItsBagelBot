@@ -9,11 +9,10 @@ import {
   DISCORD_ERROR_SLUGS,
   DISCORD_INSTALL_LEG,
   discordFail,
-  discordStateOK,
   exchangeInstallCode,
   rememberBoundElsewhere,
   requireDiscordActor,
-  returnIfDeclined,
+  takeDiscordCode,
   type DiscordErrorSlug
 } from '$lib/server/discord-oauth';
 import {
@@ -39,30 +38,24 @@ import { redirect, isRedirect } from '@sveltejs/kit';
 export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   const uid = requireDiscordActor(locals);
   const target = { userId: uid, guildId: await exchangedGuild(cookies, url, uid) };
-  try {
-    throw redirect(302, `/discord/${target.guildId}?${await connectGuild(locals, cookies, url, target)}`);
-  } catch (err) {
-    if (isRedirect(err)) throw err;
-    logger.error({ err }, '[discord-callback] persist failed');
-    discordFail('setup');
-  }
+  const query = await connectGuild(locals, cookies, url, target).catch(setupFailed);
+  throw redirect(302, `/discord/${target.guildId}?${query}`);
 };
 
+function setupFailed(err: unknown): never {
+  if (isRedirect(err)) throw err;
+  logger.error({ err }, '[discord-callback] persist failed');
+  discordFail('setup');
+}
+
 async function exchangedGuild(cookies: Cookies, url: URL, uid: string): Promise<string> {
-  const guildId = await exchangeInstallCode(takeInstallCode(cookies, url, uid)).catch((err) => {
+  const code = takeDiscordCode({ cookies, url, leg: DISCORD_INSTALL_LEG, uid });
+  const guildId = await exchangeInstallCode(code).catch((err) => {
     logger.warn({ err }, '[discord-callback] code exchange failed');
     return '';
   });
   if (!guildId) discordFail('oauth');
   return guildId;
-}
-
-function takeInstallCode(cookies: Cookies, url: URL, uid: string): string {
-  returnIfDeclined(url);
-  if (!discordStateOK({ cookies, url, leg: DISCORD_INSTALL_LEG, uid })) discordFail('state');
-  const code = (url.searchParams.get('code') ?? '').trim();
-  if (!code) discordFail('oauth');
-  return code;
 }
 
 function failWithCode(code: DiscordCode): never {
@@ -91,12 +84,20 @@ async function connectGuild(
     seeded
   );
   refuseSetup(result, cookies, url, target);
-  const saved = await persistSetup(target, { ...result.config, twitchLogin: login });
+  await persistConnected(locals, target, login, result.config);
+  return result.refused ? 'connected=1&refused=1' : 'connected=1';
+}
+
+async function persistConnected(
+  locals: App.Locals,
+  target: DiscordGuildTarget,
+  login: string,
+  config: DiscordConfig
+): Promise<void> {
+  const saved = await persistSetup(target, { ...config, twitchLogin: login });
   if (saved.error || saved.code) failWithCode(saved.code);
   await saveDiscordModule({ userId: target.userId, enabled: true, twitchLogin: login });
   auditDashboardImpersonation(locals.session, 'discord:connect', target.guildId);
-  if (result.refused) return 'connected=1&refused=1';
-  return 'connected=1';
 }
 
 async function connectLogin(locals: App.Locals, target: DiscordGuildTarget): Promise<string> {

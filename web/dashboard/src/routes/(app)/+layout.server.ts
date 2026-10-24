@@ -56,20 +56,30 @@ async function loadModuleFlags(s: Session): Promise<Record<string, boolean>> {
   return bestEffort(moduleFlags(s.user_id), DEFAULT_MODULE_FLAGS);
 }
 
+async function requireSession(locals: App.Locals, url: URL): Promise<Session> {
+  const s = locals.session ?? (DEMO ? (await import('$lib/server/demo-data')).demoSession() : null);
+  if (s) return s;
+  const next = url.pathname + url.search;
+  throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
+}
+
+function delegateView(s: Session) {
+  if (!s.delegate_of) return { delegateOf: s.delegate_of, delegateLogin: undefined, sections: undefined };
+  return { delegateOf: s.delegate_of, delegateLogin: s.delegate_login, sections: s.sections ?? [] };
+}
+
+function isPremiumAccount(acc: AccountState | null): boolean {
+  return acc?.status === 'vip' || acc?.status === 'paid';
+}
+
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-  let s = locals.session;
-  if (!s && DEMO) s = (await import('$lib/server/demo-data')).demoSession();
-  if (!s) {
-    const next = url.pathname + url.search;
-    throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
-  }
+  const s = await requireSession(locals, url);
 
   const [acc, authorizedDashboards, flags] = await Promise.all([
     loadAccountState(locals, s),
     loadAuthorizedDashboards(s),
     loadModuleFlags(s)
   ]);
-  const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
     moduleNav: moduleSectionLinks((key) => translate(locals.locale, key)),
@@ -79,13 +89,11 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     login: s.login,
     impersonatorLogin: s.impersonator_id ? s.impersonator_login : undefined,
     board: effectiveId(s),
-    delegateOf: s.delegate_of,
-    delegateLogin: s.delegate_of ? s.delegate_login : undefined,
-    sections: s.delegate_of ? (s.sections ?? []) : undefined,
+    ...delegateView(s),
     bell: loadBellPeek(s),
     authorizedDashboards,
-    isPremium,
-    onboarded: acc ? acc.onboarded : false,
+    isPremium: isPremiumAccount(acc),
+    onboarded: acc?.onboarded ?? false,
     moduleFlags: flags
   };
 };

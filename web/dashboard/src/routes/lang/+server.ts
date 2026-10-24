@@ -5,6 +5,7 @@ import { safeReturnPath } from '@bagel/kit/return-path';
 import { redirect } from '@sveltejs/kit';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { setLocale } from '$lib/server/services';
+import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, url, cookies, locals }) => {
@@ -18,13 +19,7 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
       await setLocale(s.user_id, to);
     }
 
-    cookies.set(LOCALE_COOKIE, s?.impersonator_id ? 'en' : to, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: 'lax',
-      httpOnly: true,
-      secure: url.protocol === 'https:'
-    });
+    cookies.set(LOCALE_COOKIE, s?.impersonator_id ? 'en' : to, cookieOptions(url, YEAR_SECONDS));
 
   }
 

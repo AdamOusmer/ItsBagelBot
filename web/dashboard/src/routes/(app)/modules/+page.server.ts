@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { toWire, type ModuleStateWire } from '$lib/module-states';
-import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/kit';
+import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef, type ModuleDef } from '@bagel/kit';
 import { listModules, type ModuleView } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
 import { auditDashboardImpersonation } from '$lib/server/services';
@@ -13,6 +13,7 @@ import { moduleEditState } from '$lib/server/module-edit-state';
 import { disableChildren } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
+import { signedInAction } from '$lib/server/action-context';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -47,38 +48,25 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 };
 
-type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
-
-async function resolveToggle(name: string, locals: App.Locals): Promise<ToggleTarget> {
-  const session = locals.session;
-  const def = moduleDef(name);
-  if (!def || def.toggleable === false || def.parent) return { denied: fail(400, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
-  const denied = await moduleWriteDenial(locals, def);
-  if (denied) return { denied };
-  return { uid: effectiveId(session) };
+function userToggleable(def: ModuleDef | undefined): def is ModuleDef {
+  return def !== undefined && def.toggleable !== false && !def.parent;
 }
 
-async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
-  gateSection(locals.session, 'modules');
-  if (!DEMO && !locals.session) return null;
-  return { session: locals.session, form: await request.formData() };
-}
+const modulesAction = signedInAction((session) => gateSection(session, 'modules'), DEMO);
 
 export const actions: Actions = {
-  toggle: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return fail(401, { ok: false, error: actionError(event.locals.locale, 'Not signed in.') });
-
-    const f = ctx.form;
-    const name = String(f.get('name') ?? '');
-    const target = await resolveToggle(name, event.locals);
-    if ('denied' in target) return target.denied;
-    const enabled = f.get('is_enabled') === 'on';
+  toggle: modulesAction(async (ctx, { locals }) => {
+    const name = String(ctx.form.get('name') ?? '');
+    const def = moduleDef(name);
+    if (!userToggleable(def)) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown module.') });
+    const denied = await moduleWriteDenial(locals, def);
+    if (denied) return denied;
+    const enabled = ctx.form.get('is_enabled') === 'on';
 
     if (DEMO) return { ok: true, name, enabled };
 
-    return flipModule({ name, uid: target.uid, enabled }, ctx.session);
-  }
+    return flipModule({ name, uid: ctx.uid, enabled }, ctx.session);
+  })
 };
 
 // Write the stored config back untouched: rebuilding it from the form stringifies nested blobs.

@@ -2,21 +2,15 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/kit';
-import type {
-  RewardDraft,
-  RewardOnRedeem,
-  SpotifyResult,
-  SpotifyStore,
-  SpotifySrPerm
-} from '$lib/server/spotify-store';
+import type { SpotifySrPerm } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
+import { done, storeMutator } from '$lib/server/reward-action';
+import { oneOf, parseRewardCore } from '$lib/server/reward-form';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
 import { getSongQueue } from '@bagel/kit/server/songqueue-store';
 import type { QueueView } from '$lib/server/songqueue-view';
 import { queueView } from '$lib/server/songqueue-live';
 import { moduleLoad } from '$lib/server/module-page';
-import { moduleAction } from '$lib/server/module-action';
-import type { MutationRefusal } from '@bagel/kit/server/form-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -99,94 +93,9 @@ export const load: PageServerLoad = ({ locals, url }) => {
   });
 };
 
-function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
-  if (r.missingScope) return fail(403, { ok: false, missingScope: true });
-  if (r.missingSpotifyScope) return fail(403, { ok: false, missingSpotifyScope: true });
-  if (r.code) return fail(400, { ok: false, code: r.code });
-  return fail(400, { ok: false, error: r.error ?? 'failed' });
-}
+const mutate = storeMutator('songqueue', DEMO, spotifyStore, 'spotify');
 
-function mutate(
-  op: string,
-  invalid: string,
-  run: (store: SpotifyStore, f: FormData) => Promise<string | null | MutationRefusal>
-) {
-  return moduleAction('songqueue', op, (uid, f) => run(spotifyStore(uid), f), {
-    demo: DEMO,
-    invalid,
-    auditAs: 'spotify'
-  });
-}
-
-function done(res: SpotifyResult, detail: string): string | MutationRefusal {
-  return res.ok ? detail : resultFail(res);
-}
-
-function asPerm(v: FormDataEntryValue | null): SpotifySrPerm {
-  return SPOTIFY_SR_PERMS.includes(v as SpotifySrPerm) ? (v as SpotifySrPerm) : 'everyone';
-}
-
-function asOnRedeem(v: FormDataEntryValue | null): RewardOnRedeem {
-  return v === 'cancel' || v === 'leave' ? v : 'fulfill';
-}
-
-type Checked<T> = { value: T } | { error: string };
-
-function checkTitle(f: FormData): Checked<string> {
-  const title = String(f.get('title') ?? '').trim();
-  if (!title || title.length > 45) return { error: 'Title is required (max 45 characters).' };
-  return { value: title };
-}
-
-const COST_MIN = 1;
-const COST_MAX = 10_000_000;
-
-function checkCost(f: FormData): Checked<number> {
-  const cost = Math.trunc(Number(f.get('cost')));
-  if (!Number.isFinite(cost)) return { error: 'Enter a valid point cost.' };
-  if (cost < COST_MIN) return { error: 'Enter a valid point cost.' };
-  if (cost > COST_MAX) return { error: 'Enter a valid point cost.' };
-  return { value: cost };
-}
-
-function checkColor(f: FormData): Checked<string> {
-  const color = String(f.get('color') ?? '').trim();
-  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return { error: 'Pick a valid colour.' };
-  return { value: color };
-}
-
-function checkReply(f: FormData): Checked<string> {
-  const replyMessage = String(f.get('replyMessage') ?? '').trim();
-  if (replyMessage.length > 200) return { error: 'Reply is too long (max 200 characters).' };
-  return { value: replyMessage };
-}
-
-function readCooldown(f: FormData): number {
-  const raw = Math.trunc(Number(f.get('cooldown') ?? 0));
-  return Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 604_800) : 0;
-}
-
-function parseRewardDraft(f: FormData): { draft: RewardDraft } | { error: string } {
-  const title = checkTitle(f);
-  if ('error' in title) return title;
-  const cost = checkCost(f);
-  if ('error' in cost) return cost;
-  const color = checkColor(f);
-  if ('error' in color) return color;
-  const replyMessage = checkReply(f);
-  if ('error' in replyMessage) return replyMessage;
-
-  return {
-    draft: {
-      title: title.value,
-      cost: cost.value,
-      onRedeem: asOnRedeem(f.get('onRedeem')),
-      color: color.value,
-      cooldown: readCooldown(f),
-      replyMessage: replyMessage.value
-    }
-  };
-}
+const asPerm = oneOf<SpotifySrPerm>(SPOTIFY_SR_PERMS, 'everyone');
 
 export const actions: Actions = {
   saveApp: mutate('app', "That does not look like a Client ID and Client Secret. Copy both again from your app's Settings page in the Spotify Developer Dashboard, with no spaces.", async (store, f) => {
@@ -231,7 +140,7 @@ export const actions: Actions = {
   }),
 
   saveReward: mutate('reward', 'Invalid reward.', async (store, f) => {
-    const parsed = parseRewardDraft(f);
+    const parsed = parseRewardCore(f);
     if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
     return done(await store.saveReward(parsed.draft), parsed.draft.title);
   }),

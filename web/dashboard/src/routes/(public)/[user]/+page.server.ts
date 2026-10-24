@@ -25,12 +25,12 @@ import { channelLabel } from '$lib/server/public-directory';
 import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
 import { lookupLogin } from '$lib/server/channel-lookup';
 import { leaderboardCacheTag } from '$lib/edge-tags';
+import { LOGIN_RE, normalizeLogin } from '$lib/public-login';
 
 const DEMO = dev && env.DEMO === '1';
 
 const LEADERBOARD_HOST = 'leaderboard.itsbagelbot.com';
 
-const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
 type Channel = { userId: string; login: string; channelName: string };
 
@@ -45,7 +45,7 @@ function channelNotFound(): never {
 }
 
 function requireLogin(segment: string, locals: App.Locals): string {
-	const login = segment.replace(/^@+/, '').toLowerCase();
+	const login = normalizeLogin(segment);
 	if (LOGIN_RE.test(login)) return login;
 	markEdge(locals, 'missing');
 	return channelNotFound();
