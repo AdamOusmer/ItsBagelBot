@@ -524,6 +524,14 @@ func rosterCases() []tokenCase {
 			want: "Robert",
 		},
 		{
+			name: "a renamed chatter keeps one roster slot",
+			fix: tokenFixture{
+				response: "{chatters} {random.chatter}",
+				chatted:  []chatterIdentity{{id: "7", login: "bob", name: "Bob"}, {id: "7", login: "robert", name: "Robert"}},
+			},
+			want: "2 Robert",
+		},
+		{
 			name: "the roster stays bounded per channel",
 			fix:  tokenFixture{response: "{chatters}", chatted: numberedChatters(rosterCapacityPerChannel + 10)},
 			want: strconv.Itoa(rosterCapacityPerChannel),

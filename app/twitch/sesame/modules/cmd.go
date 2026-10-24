@@ -401,10 +401,7 @@ func emitStreamUpdate(c *module.Context, field, value string, emit module.Emit) 
 }
 
 func streamIsSetAlias(c *module.Context) bool {
-	t := strings.TrimSpace(c.Env.Text)
-	t = strings.TrimPrefix(t, "!")
-	first, _, _ := strings.Cut(t, " ")
-	switch strings.ToLower(first) {
+	switch c.Command {
 	case "settitle", "setgame", "settags":
 		return true
 	}

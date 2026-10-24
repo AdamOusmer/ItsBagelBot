@@ -31,9 +31,13 @@ func (p *Pipeline) chatterViewers(c *module.Context) scope.Viewers {
 	return viewerSource{rpc: p.viewers, roster: p.roster, broadcasterID: c.BroadcasterID}
 }
 
+func parseBotUserID(raw string) uint64 {
+	botID, _ := strconv.ParseUint(raw, 10, 64)
+	return botID
+}
+
 func (p *Pipeline) undrawableChatters(c *module.Context) []uint64 {
-	botID, _ := strconv.ParseUint(p.botID, 10, 64)
-	return []uint64{botID, c.BroadcasterID}
+	return []uint64{p.botUserID, c.BroadcasterID}
 }
 
 func (p *Pipeline) undrawableViewers(c *module.Context) []uint64 {
@@ -67,12 +71,18 @@ type rosterView struct {
 	broadcasterID uint64
 }
 
-func (v rosterView) Chatters() []scope.Chatter {
-	seen := v.roster.Snapshot(v.broadcasterID)
-	out := make([]scope.Chatter, 0, len(seen))
-	for i := range seen {
-		out = append(out, scope.Chatter{ID: seen[i].ID, Name: chatterName(seen[i])})
-	}
+func (v rosterView) View(read func(scope.RosterView)) {
+	v.roster.View(v.broadcasterID, read)
+}
+
+func (v rosterView) chatters() []scope.Chatter {
+	var out []scope.Chatter
+	v.View(func(view scope.RosterView) {
+		out = make([]scope.Chatter, view.Len())
+		for i := range out {
+			out[i] = view.At(i)
+		}
+	})
 	return out
 }
 
@@ -87,7 +97,7 @@ func (v viewerSource) Viewers(ctx context.Context) ([]scope.Chatter, bool) {
 	if state == viewerSnapshotOK {
 		return viewerChatters(entries), true
 	}
-	return rosterView{roster: v.roster, broadcasterID: v.broadcasterID}.Chatters(), true
+	return rosterView{roster: v.roster, broadcasterID: v.broadcasterID}.chatters(), true
 }
 
 func viewerChatters(entries []chattersSnapshotEntry) []scope.Chatter {

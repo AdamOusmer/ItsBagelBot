@@ -159,7 +159,7 @@ func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 	ch := freshChannel()
-	short := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: 40 * time.Millisecond, stkWin: 40 * time.Millisecond}
+	short := newValkeyEmotePlay(newHotPathTestClient(t), 40*time.Millisecond, 40*time.Millisecond)
 	bumpShort := func(msgID string, width int) EmotePlayResult {
 		res, err := short.Bump(ctx, EmotePlayUpdate{BroadcasterID: ch, MsgID: msgID, Emote: "Kappa", Width: width, Copies: 1})
 		require.NoError(t, err)
@@ -179,7 +179,7 @@ func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
 	ch := freshChannel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
-	racing := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: time.Minute, stkWin: time.Minute}
+	racing := newValkeyEmotePlay(newHotPathTestClient(t), time.Minute, time.Minute)
 	for _, w := range []struct {
 		msgID string
 		width int

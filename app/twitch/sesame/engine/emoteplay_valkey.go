@@ -37,14 +37,34 @@ type EmotePlayResult struct {
 	Streak          int
 }
 
+var streakLadderArg = joinLadder(streakLadder)
+
+func joinLadder(ladder []int) string {
+	parts := make([]string, len(ladder))
+	for i, r := range ladder {
+		parts[i] = strconv.Itoa(r)
+	}
+	return strings.Join(parts, ",")
+}
+
 type ValkeyEmotePlay struct {
 	client valkey.Client
-	pyrWin time.Duration
-	stkWin time.Duration
+	pyrArg string
+	stkArg string
+	ttlArg string
 }
 
 func NewValkeyEmotePlay(client valkey.Client) *ValkeyEmotePlay {
-	return &ValkeyEmotePlay{client: client, pyrWin: pyramidWindow, stkWin: streakWindow}
+	return newValkeyEmotePlay(client, pyramidWindow, streakWindow)
+}
+
+func newValkeyEmotePlay(client valkey.Client, pyrWin, stkWin time.Duration) *ValkeyEmotePlay {
+	return &ValkeyEmotePlay{
+		client: client,
+		pyrArg: strconv.FormatInt(pyrWin.Milliseconds(), 10),
+		stkArg: strconv.FormatInt(stkWin.Milliseconds(), 10),
+		ttlArg: strconv.FormatInt((2 * pyrWin).Milliseconds(), 10),
+	}
 }
 
 var emoteplayScript = valkey.NewLuaScript(`
@@ -160,19 +180,15 @@ func emoteplayKey(broadcasterID uint64) string {
 }
 
 func (s *ValkeyEmotePlay) Bump(ctx context.Context, u EmotePlayUpdate) (EmotePlayResult, error) {
-	ladder := make([]string, len(streakLadder))
-	for i, r := range streakLadder {
-		ladder[i] = strconv.Itoa(r)
-	}
 	args := []string{
 		u.Emote,
 		strconv.Itoa(u.Width),
 		strconv.Itoa(u.Copies),
 		u.MsgID,
-		strconv.FormatInt(s.pyrWin.Milliseconds(), 10),
-		strconv.FormatInt(s.stkWin.Milliseconds(), 10),
-		strconv.FormatInt((2 * s.pyrWin).Milliseconds(), 10),
-		strings.Join(ladder, ","),
+		s.pyrArg,
+		s.stkArg,
+		s.ttlArg,
+		streakLadderArg,
 	}
 	values, err := emoteplayScript.Exec(ctx, s.client,
 		[]string{emoteplayKey(u.BroadcasterID)}, args).ToArray()

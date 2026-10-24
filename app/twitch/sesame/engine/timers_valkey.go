@@ -263,7 +263,7 @@ func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
 		return
 	}
 	for _, id := range s.liveBroadcasters(ctx) {
-		s.Rearm(ctx, id)
+		s.ArmAll(ctx, id)
 	}
 }
 
@@ -341,22 +341,31 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 	if !ok {
 		return
 	}
+	var keys []string
 	for _, td := range cfg.Timers {
-		if td.ID != "" {
-			s.disarmOne(ctx, armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td})
+		if td.ID == "" {
+			continue
 		}
+		at := armedTimer{ref: timerRef{broadcasterID: broadcasterID, id: td.ID}, def: td}
+		s.badEndsAtWarned.Delete(at.ref)
+		s.blankFireWarned.Delete(at.ref)
+		if td.AllowOffline {
+			s.delAuxKey(ctx, at.ref, at.ref.firesKey())
+			s.armOne(ctx, at)
+			continue
+		}
+		keys = append(keys, at.ref.firesKey(), at.ref.scheduleKey())
 	}
+	s.delKeys(ctx, broadcasterID, keys)
 }
 
-func (s *ValkeyTimerStore) disarmOne(ctx context.Context, at armedTimer) {
-	s.delAuxKey(ctx, at.ref, at.ref.firesKey())
-	s.badEndsAtWarned.Delete(at.ref)
-	s.blankFireWarned.Delete(at.ref)
-	if at.def.AllowOffline {
-		s.armOne(ctx, at)
+func (s *ValkeyTimerStore) delKeys(ctx context.Context, broadcasterID uint64, keys []string) {
+	if len(keys) == 0 {
 		return
 	}
-	s.delAuxKey(ctx, at.ref, at.ref.scheduleKey())
+	if err := s.client.Do(ctx, s.client.B().Del().Key(keys...).Build()).Error(); err != nil {
+		s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.Int("keys", len(keys)), zap.Error(err))
+	}
 }
 
 func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, ref timerRef, key string) {

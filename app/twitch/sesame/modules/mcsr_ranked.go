@@ -56,9 +56,10 @@ func mcsrSessionText(call statsCall[mcsrConfig], r *gossiprpc.McsrSessionReply) 
 	return mcsrSessionPalette(call.Ctx, r).ExpandNamespaced("mcsr", mcsrSessionTemplate(call.Cfg.SessionMessage))
 }
 
+var canonicalLegacyMcsrSessionTemplate = modulevars.NamespaceTemplate("mcsr", []string{"player", "elochange", "elo", "wins", "losses", "matches"}, legacyMcsrSessionTemplate)
+
 func mcsrSessionTemplate(stored string) string {
-	canonicalLegacy := modulevars.NamespaceTemplate("mcsr", []string{"player", "elochange", "elo", "wins", "losses", "matches"}, legacyMcsrSessionTemplate)
-	if text := strings.TrimSpace(stored); text == legacyMcsrSessionTemplate || text == canonicalLegacy {
+	if text := strings.TrimSpace(stored); text == legacyMcsrSessionTemplate || text == canonicalLegacyMcsrSessionTemplate {
 		return defaultMcsrSessionTemplate
 	}
 	return orDefault(stored, defaultMcsrSessionTemplate)

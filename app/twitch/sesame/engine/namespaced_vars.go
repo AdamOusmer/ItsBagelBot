@@ -26,7 +26,7 @@ func (p *Pipeline) namespaceChain(ctx context.Context, run commandRun, toks []tm
 			continue
 		}
 		checked[tok.Name] = true
-		reader := newNamespaceReads(p, nil, m.Variables)
+		reader := newNamespaceReads(p, m)
 		c, enabled := p.namespaceContext(ctx, run.c, m)
 		if !enabled {
 			denied[m.Name] = reader
@@ -52,7 +52,8 @@ func (p *Pipeline) namespaceModule(tok tmpl.Token) (module.Module, bool) {
 	if !found {
 		return module.Module{}, false
 	}
-	return m, newNamespaceReads(p, nil, m.Variables).Has(scope.NamespaceField(tok))
+	_, has := p.registry.variableFields[m.Name][scope.NamespaceField(tok)]
+	return m, has
 }
 
 func (p *Pipeline) namespaceContext(ctx context.Context, original *module.Context, m module.Module) (*module.Context, bool) {
@@ -115,18 +116,22 @@ type namespaceReads struct {
 	fields map[string]int
 }
 
-func newNamespaceReads(p *Pipeline, c *module.Context, groups []module.VariableGroup) namespaceReads {
-	s := namespaceReads{p: p, c: c, groups: groups, fields: make(map[string]int)}
+func newNamespaceReads(p *Pipeline, m module.Module) namespaceReads {
+	return namespaceReads{p: p, groups: m.Variables, fields: p.registry.variableFields[m.Name]}
+}
+
+func namespaceFieldIndex(groups []module.VariableGroup) map[string]int {
+	fields := make(map[string]int)
 	for i, group := range groups {
 		for _, field := range group.Fields {
 			field = strings.ToLower(field)
-			if _, claimed := s.fields[field]; !claimed {
-				s.fields[field] = i
+			if _, claimed := fields[field]; !claimed {
+				fields[field] = i
 			}
-			s.fields[strings.ToLower(group.Name)+":"+field] = i
+			fields[strings.ToLower(group.Name)+":"+field] = i
 		}
 	}
-	return s
+	return fields
 }
 
 func (s namespaceReads) Has(field string) bool {

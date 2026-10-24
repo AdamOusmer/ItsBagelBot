@@ -87,23 +87,28 @@ func (e Emotes) drawCodes(sets EmoteSets) []string {
 	if e.Draws <= 0 {
 		return nil
 	}
-	pool := drawPool(sets)
-	if len(pool) == 0 {
+	total := len(sets.SevenTV) + len(sets.BTTV) + len(sets.FFZ)
+	if total == 0 {
 		return nil
 	}
 	wanted := min(e.Draws, MaxEmoteDraws)
 	draws := make([]string, 0, wanted)
 	for i := 0; i < wanted; i++ {
-		draws = append(draws, pool[e.pick(len(pool))])
+		draws = append(draws, sets.at(e.pick(total)))
 	}
 	return draws
 }
 
-func drawPool(sets EmoteSets) []string {
-	pool := make([]string, 0, len(sets.SevenTV)+len(sets.BTTV)+len(sets.FFZ))
-	pool = append(pool, sets.SevenTV...)
-	pool = append(pool, sets.BTTV...)
-	return append(pool, sets.FFZ...)
+// at indexes the 7TV, BTTV, FFZ concatenation without building it.
+func (sets EmoteSets) at(i int) string {
+	if i < len(sets.SevenTV) {
+		return sets.SevenTV[i]
+	}
+	i -= len(sets.SevenTV)
+	if i < len(sets.BTTV) {
+		return sets.BTTV[i]
+	}
+	return sets.FFZ[i-len(sets.BTTV)]
 }
 
 func (e Emotes) pick(n int) int {
