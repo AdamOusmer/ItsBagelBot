@@ -40,6 +40,14 @@ describe('sliced messages', () => {
     expect(translate('fr', 'quotes.title')).toBe('Citations');
   });
 
+  test('a slice carrying __proto__ cannot pollute Object.prototype', async () => {
+    serve({ 'https://dash.example/_app/immutable/i18n/fr/9.ddd.json': JSON.parse('{"__proto__":{"polluted":"yes"},"poll":{"title":"Sondage"}}') });
+    await registerMessages(`${CHUNKS}9.ddd.js`, { h: 'ddd', m: { poll: { title: 'Poll' } } });
+    await ensureCatalog('fr');
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(translate('fr', 'poll.title')).toBe('Sondage');
+  });
+
   test('a chunk with no slice registers its English without fetching', async () => {
     serve({});
     await registerMessages(`${CHUNKS}8.ccc.js`, { h: '', m: {} });
