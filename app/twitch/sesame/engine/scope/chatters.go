@@ -6,6 +6,7 @@ package scope
 import (
 	"context"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 )
 
@@ -22,8 +23,14 @@ type Chatter struct {
 	Name string
 }
 
+type RosterView interface {
+	Len() int
+	At(i int) Chatter
+	Slot(id uint64) (int, bool)
+}
+
 type Roster interface {
-	Chatters() []Chatter
+	View(read func(RosterView))
 }
 
 type Viewers interface {
@@ -46,10 +53,12 @@ func (Chatters) Owns(v Var) bool {
 }
 
 func (c Chatters) Plan(ctx context.Context, _ []Var) (Values, error) {
-	roster := c.snapshot()
-	out := &chatterValues{
-		count: len(roster),
-		draws: c.drawFrom(chatterDrawPool(roster, c.Exclude), c.Draws),
+	out := &chatterValues{}
+	if c.Roster != nil {
+		c.Roster.View(func(v RosterView) {
+			out.count = v.Len()
+			out.draws = c.drawRoster(v)
+		})
 	}
 	if c.ViewerDraws > 0 && c.Viewers != nil {
 		if viewers, ok := c.Viewers.Viewers(ctx); ok {
@@ -59,11 +68,54 @@ func (c Chatters) Plan(ctx context.Context, _ []Var) (Values, error) {
 	return out, nil
 }
 
-func (c Chatters) snapshot() []Chatter {
-	if c.Roster == nil {
+// drawRoster maps each draw over the drawable count onto a roster slot by
+// skipping the excluded slots, so it never builds the pool. An unnamed slot
+// falls back to the pool path, which keeps the draw uniform over named chatters.
+func (c Chatters) drawRoster(v RosterView) []string {
+	skip := excludedSlots(v, c.Exclude)
+	size := v.Len() - len(skip)
+	if size <= 0 || c.Draws <= 0 {
 		return nil
 	}
-	return c.Roster.Chatters()
+	wanted := min(c.Draws, MaxChatterDraws)
+	draws := make([]string, 0, wanted)
+	for range wanted {
+		who := v.At(slotAfterSkips(c.pick(size), skip))
+		if who.Name == "" {
+			return c.drawFrom(chatterDrawPool(rosterEntries(v), c.Exclude), c.Draws)
+		}
+		draws = append(draws, who.Name)
+	}
+	return draws
+}
+
+func excludedSlots(v RosterView, exclude []uint64) []int {
+	skip := make([]int, 0, len(exclude))
+	for _, id := range exclude {
+		if slot, ok := v.Slot(id); ok && !slices.Contains(skip, slot) {
+			skip = append(skip, slot)
+		}
+	}
+	slices.Sort(skip)
+	return skip
+}
+
+func slotAfterSkips(k int, sortedSkip []int) int {
+	for _, s := range sortedSkip {
+		if s > k {
+			break
+		}
+		k++
+	}
+	return k
+}
+
+func rosterEntries(v RosterView) []Chatter {
+	out := make([]Chatter, v.Len())
+	for i := range out {
+		out[i] = v.At(i)
+	}
+	return out
 }
 
 func (c Chatters) drawFrom(names []string, n int) []string {

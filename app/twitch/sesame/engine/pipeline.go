@@ -71,6 +71,7 @@ type Pipeline struct {
 	roster        *chatterRoster
 
 	botID            string
+	botUserID        uint64
 	outgressPremium  string
 	outgressStandard string
 
@@ -117,6 +118,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,
 		botID:             cfg.BotID,
+		botUserID:         parseBotUserID(cfg.BotID),
 		outgressPremium:   cfg.OutgressPremium,
 		outgressStandard:  cfg.OutgressStandard,
 		automod:           d.Automod,

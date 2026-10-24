@@ -12,22 +12,19 @@ import (
 // @ItsBagelBot!!" reads as "gn itsbagelbot"; raw rows see the lowercased
 // original, "@" and emoji intact.
 //
-// The gate runs first because everything after it is expensive and almost never
-// pays: normalizeChat allocates three times (Map, Fields, Join) and the table
-// expands to hundreds of phrases, each a full containsWord pass. Ordinary chat, which
-// is nearly every line on the non-command path, now costs three substring scans
-// and no allocation.
+// The gate runs first because normalizeChat allocates three times (Map, Fields,
+// Join) and almost never pays. Ordinary chat, which is nearly every line on the
+// non-command path, costs three substring scans and no allocation.
 func matchReaction(raw string) (reaction, bool) {
 	if !personalityGate.screens(raw) {
 		return reaction{}, false
 	}
-	norm := normalizeChat(raw)
-	for _, r := range personalityReactions {
-		text := norm
-		if r.matchRaw {
-			text = raw
+	normBest := personalityPhrases.first(normalizedText(normalizeChat(raw)))
+	for i, r := range personalityReactions {
+		if i == normBest {
+			return r, true
 		}
-		if matchesAny(text, r.phrases) {
+		if r.matchRaw && matchesAny(raw, r.phrases) {
 			return r, true
 		}
 	}

@@ -15,9 +15,20 @@ type fakeRoster struct {
 	reads  int
 }
 
-func (f *fakeRoster) Chatters() []Chatter {
+func (f *fakeRoster) View(read func(RosterView)) {
 	f.reads++
-	return f.people
+	read(f)
+}
+
+func (f *fakeRoster) Len() int         { return len(f.people) }
+func (f *fakeRoster) At(i int) Chatter { return f.people[i] }
+func (f *fakeRoster) Slot(id uint64) (int, bool) {
+	for i, who := range f.people {
+		if who.ID == id {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 func room(people ...Chatter) *fakeRoster { return &fakeRoster{people: people} }

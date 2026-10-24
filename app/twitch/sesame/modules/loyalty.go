@@ -172,7 +172,7 @@ func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Cont
 		if err := c.Decode(&cfg); err != nil {
 			return err
 		}
-		return fn(loyaltyCmd{newChatReplier(c), d, emit, log}, ctx, args)
+		return fn(loyaltyCmd{newChatReplier(c), d, emit, log, cfg}, ctx, args)
 	}
 }
 
@@ -186,8 +186,7 @@ func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	if len(fields) != 3 {
 		return lc.pointsShow(ctx)
 	}
-	var cfg engine.LoyaltyModuleConfig
-	_ = lc.c.Decode(&cfg)
+	cfg := lc.cfg
 	verb := strings.ToLower(fields[0])
 	if verb == "give" {
 		return lc.pointsGive(ctx, fields[1], fields[2], cfg.ViewersMayTransfer() || lc.owner())
@@ -234,6 +233,7 @@ type loyaltyCmd struct {
 	d    engine.Deps
 	emit module.Emit
 	log  *zap.Logger
+	cfg  engine.LoyaltyModuleConfig
 }
 
 func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
@@ -266,8 +266,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 }
 
 func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.BalanceAdjustment) error {
-	var cfg engine.LoyaltyModuleConfig
-	_ = lc.c.Decode(&cfg)
+	cfg := lc.cfg
 
 	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
 	if duplicate {
@@ -302,8 +301,7 @@ func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
 }
 
 func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enabled bool) error {
-	var cfg engine.LoyaltyModuleConfig
-	_ = lc.c.Decode(&cfg)
+	cfg := lc.cfg
 	if !enabled {
 		lc.reply("loyalty.points.disabled", "name", cfg.Name())
 		return nil
@@ -411,8 +409,7 @@ func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 		lc.reply("loyalty.leaderboard.empty")
 		return nil
 	}
-	var cfg engine.LoyaltyModuleConfig
-	_ = lc.c.Decode(&cfg)
+	cfg := lc.cfg
 	lc.leaderboardReply(ctx, top, cfg)
 	return nil
 }
@@ -511,8 +508,7 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 		lc.log.Warn("loyalty: balance read failed", lc.c.BID(), zap.Error(err))
 		return nil
 	}
-	var cfg engine.LoyaltyModuleConfig
-	_ = lc.c.Decode(&cfg)
+	cfg := lc.cfg
 	lc.reply("loyalty.points",
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),

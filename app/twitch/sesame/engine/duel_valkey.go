@@ -662,7 +662,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 }
 
 func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, entries []DuelStake) (refunded int64) {
-	for _, entry := range SortDuelStakes(entries) {
+	for _, entry := range entries {
 		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
 			s.log.Warn("duel: cancel refund failed", module.BIDField(broadcasterID),
 				zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))

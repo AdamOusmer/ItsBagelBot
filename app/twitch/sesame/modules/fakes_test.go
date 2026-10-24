@@ -51,6 +51,7 @@ func runChatErr(t *testing.T, m module.Module, c *module.Context, text string) (
 	bound, num, ok := engine.NewRegistry(zap.NewNop(), m).ResolveCommand(strings.ToLower(name))
 	require.True(t, ok, "no command or alias %q", name)
 	c.Num = num
+	c.Command = strings.ToLower(name)
 	var col collector
 	err := bound.Cmd.Run(t.Context(), c, strings.TrimSpace(args), col.emit)
 	return col.out, err

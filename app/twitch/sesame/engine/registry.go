@@ -19,6 +19,7 @@ type BoundCommand struct {
 
 type Registry struct {
 	variableModules map[string]module.Module
+	variableFields  map[string]map[string]int
 	byName          map[string]module.Module
 	byEvent         map[string][]module.Module
 	commands        map[string][]BoundCommand
@@ -28,6 +29,7 @@ type Registry struct {
 func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 	r := &Registry{
 		variableModules: make(map[string]module.Module),
+		variableFields:  make(map[string]map[string]int),
 		byName:          make(map[string]module.Module),
 		byEvent:         make(map[string][]module.Module),
 		commands:        make(map[string][]BoundCommand),
@@ -39,6 +41,7 @@ func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 		}
 		if len(m.Variables) > 0 {
 			r.variableModules[m.Name] = m
+			r.variableFields[m.Name] = namespaceFieldIndex(m.Variables)
 		}
 		r.indexEvents(m)
 		r.indexCommands(log, m)

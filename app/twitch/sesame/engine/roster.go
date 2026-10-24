@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/event/lane"
 )
 
@@ -33,13 +34,62 @@ func (who chatterIdentity) rosterKey() (string, uint64) {
 	return strings.ToLower(who.login), viewerID
 }
 
+type chanRoster struct {
+	list    []Viewer
+	byLogin map[string]int
+	byID    map[uint64]int
+}
+
+func newChanRoster() *chanRoster {
+	return &chanRoster{byLogin: make(map[string]int), byID: make(map[uint64]int)}
+}
+
+// put keeps one slot per login and per id; Slot's O(1) exclusion depends on it.
+func (c *chanRoster) put(entry Viewer) {
+	if slot, seen := c.byID[entry.ID]; seen && c.list[slot].Login != entry.Login {
+		c.remove(slot)
+	}
+	if slot, seen := c.byLogin[entry.Login]; seen && c.list[slot].ID != entry.ID {
+		c.remove(slot)
+	}
+	if slot, seen := c.byLogin[entry.Login]; seen {
+		c.list[slot] = entry
+		return
+	}
+	if len(c.list) >= rosterCapacityPerChannel {
+		c.evictOne()
+	}
+	c.byLogin[entry.Login] = len(c.list)
+	c.byID[entry.ID] = len(c.list)
+	c.list = append(c.list, entry)
+}
+
+func (c *chanRoster) remove(slot int) {
+	victim := c.list[slot]
+	last := len(c.list) - 1
+	moved := c.list[last]
+	c.list[slot] = moved
+	c.byLogin[moved.Login] = slot
+	c.byID[moved.ID] = slot
+	c.list = c.list[:last]
+	delete(c.byLogin, victim.Login)
+	delete(c.byID, victim.ID)
+}
+
+func (c *chanRoster) evictOne() {
+	for _, slot := range c.byLogin {
+		c.remove(slot)
+		return
+	}
+}
+
 type chatterRoster struct {
 	mu    sync.RWMutex
-	chans map[uint64]map[string]Viewer
+	chans map[uint64]*chanRoster
 }
 
 func newChatterRoster() *chatterRoster {
-	return &chatterRoster{chans: make(map[uint64]map[string]Viewer)}
+	return &chatterRoster{chans: make(map[uint64]*chanRoster)}
 }
 
 func (r *chatterRoster) ObserveEnvelope(broadcasterID uint64, env *lane.Envelope) {
@@ -75,20 +125,14 @@ func (r *chatterRoster) Observe(broadcasterID uint64, who chatterIdentity) {
 	defer r.mu.Unlock()
 	chanViewers := r.chans[broadcasterID]
 	if chanViewers == nil {
-		chanViewers = make(map[string]Viewer)
+		chanViewers = newChanRoster()
 		r.chans[broadcasterID] = chanViewers
 	}
-	prev, seen := chanViewers[login]
-	if !seen {
-		if len(chanViewers) >= rosterCapacityPerChannel {
-			evictOne(chanViewers)
-		}
-	}
 	entry := Viewer{ID: viewerID, Login: login, Name: who.name}
-	if who.name == "" {
-		entry.Name = prev.Name
+	if slot, seen := chanViewers.byLogin[login]; seen && who.name == "" {
+		entry.Name = chanViewers.list[slot].Name
 	}
-	chanViewers[login] = entry
+	chanViewers.put(entry)
 }
 
 func (r *chatterRoster) Resolve(broadcasterID uint64, login string) (Viewer, bool) {
@@ -103,27 +147,45 @@ func (r *chatterRoster) Resolve(broadcasterID uint64, login string) (Viewer, boo
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	v, ok := r.chans[broadcasterID][strings.ToLower(login)]
-	return v, ok
+	chanViewers := r.chans[broadcasterID]
+	if chanViewers == nil {
+		return Viewer{}, false
+	}
+	slot, ok := chanViewers.byLogin[strings.ToLower(login)]
+	if !ok {
+		return Viewer{}, false
+	}
+	return chanViewers.list[slot], true
 }
 
-func (r *chatterRoster) Snapshot(broadcasterID uint64) []Viewer {
+func (r *chatterRoster) View(broadcasterID uint64, read func(scope.RosterView)) {
 	if r == nil || broadcasterID == 0 {
-		return nil
+		read(chanRosterView{})
+		return
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	chanViewers := r.chans[broadcasterID]
-	out := make([]Viewer, 0, len(chanViewers))
-	for _, v := range chanViewers {
-		out = append(out, v)
-	}
-	return out
+	read(chanRosterView{r.chans[broadcasterID]})
 }
 
-func evictOne(chanViewers map[string]Viewer) {
-	for victim := range chanViewers {
-		delete(chanViewers, victim)
-		break
+type chanRosterView struct{ c *chanRoster }
+
+func (v chanRosterView) Len() int {
+	if v.c == nil {
+		return 0
 	}
+	return len(v.c.list)
+}
+
+func (v chanRosterView) At(i int) scope.Chatter {
+	who := v.c.list[i]
+	return scope.Chatter{ID: who.ID, Name: chatterName(who)}
+}
+
+func (v chanRosterView) Slot(id uint64) (int, bool) {
+	if v.c == nil {
+		return 0, false
+	}
+	slot, ok := v.c.byID[id]
+	return slot, ok
 }
