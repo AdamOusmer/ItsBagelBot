@@ -3,7 +3,7 @@
 
 import { namespaceReplyTemplate, type ChannelPointReward } from '@bagel/kit';
 import { CHANNELPOINTS_MODULE } from '@bagel/kit/catalog/channelpoints';
-import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, wholeBetween } from '$lib/reward-fields';
+import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, normalizeCounterName, wholeBetween } from '$lib/reward-fields';
 
 export const REWARD_DEFAULT_COLOR = '#9147ff';
 
@@ -21,7 +21,7 @@ export function rewardDraftFrom(reward: ChannelPointReward): ChannelPointReward 
   };
 }
 
-export type RewardErrorField = 'title' | 'cost' | 'counter' | 'perStream' | 'perUser' | 'cooldown';
+export type RewardErrorField = 'title' | 'cost' | 'counter' | 'points' | 'perStream' | 'perUser' | 'cooldown';
 export type RewardErrors = Partial<Record<RewardErrorField, string>>;
 
 export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Object.freeze({
@@ -30,8 +30,11 @@ export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Obj
   cooldown: 'channelpoints.errCooldown',
   title: 'channelpoints.errTitleRequired',
   cost: 'channelpoints.errCost',
-  counter: 'rewardCounter.errNameRequired'
+  counter: 'rewardCounter.errNameRequired',
+  points: 'rewardCounter.errPointsRequired'
 });
+
+const REWARD_POINTS_MAX = 100_000_000;
 
 const invalidLimit = (enabled: boolean, value: unknown, max?: number) => enabled && !wholeBetween(value, 1, max);
 
@@ -45,10 +48,11 @@ function limitErrors(draft: ChannelPointReward): RewardErrors {
   return errors;
 }
 
-export function rewardErrors(draft: ChannelPointReward, counterOn: boolean): RewardErrors {
+export function rewardErrors(draft: ChannelPointReward, counterOn: boolean, pointsOn: boolean): RewardErrors {
   const errors: RewardErrors = limitErrors(draft);
   if (!draft.title.trim()) errors.title = REWARD_ERROR_KEYS.title;
   if (!wholeBetween(draft.cost, 1, REWARD_COST_MAX)) errors.cost = REWARD_ERROR_KEYS.cost;
-  if (counterOn && !draft.counter.trim()) errors.counter = REWARD_ERROR_KEYS.counter;
+  if (counterOn && !normalizeCounterName(draft.counter)) errors.counter = REWARD_ERROR_KEYS.counter;
+  if (pointsOn && !wholeBetween(draft.points, 1, REWARD_POINTS_MAX)) errors.points = REWARD_ERROR_KEYS.points;
   return errors;
 }

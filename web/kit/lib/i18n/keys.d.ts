@@ -3876,6 +3876,7 @@ export type KnownMessageKey =
   | 'replyVars.urchin.tags.tags.name'
   | 'rewardCounter.enable'
   | 'rewardCounter.errNameRequired'
+  | 'rewardCounter.errPointsRequired'
   | 'rewardCounter.liveOnly'
   | 'rewardCounter.liveOnlyHint'
   | 'rewardCounter.nameHint'

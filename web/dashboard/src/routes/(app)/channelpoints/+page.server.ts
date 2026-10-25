@@ -14,7 +14,7 @@ import {
 import { moduleLoad } from '$lib/server/module-page';
 import { done, storeMutator } from '$lib/server/reward-action';
 import { flag, hexOrEmpty, int, oneOf, text } from '$lib/server/reward-form';
-import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle } from '$lib/reward-fields';
+import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle, normalizeCounterName } from '$lib/reward-fields';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
@@ -54,7 +54,7 @@ const NORMALISERS: Normalisers = {
   action: oneOf(REWARD_ACTIONS, 'none'),
   message: text(400),
   onRedeem: oneOf(REWARD_ON_REDEEM, 'leave'),
-  counter: (v) => trimmed(v).replace(/^!/, '').toLowerCase().slice(0, 64),
+  counter: (v) => normalizeCounterName(trimmed(v)),
   counterScope: oneOf(COUNTER_SCOPES, 'viewer_command'),
   points: int(0, 100_000_000, 0),
   liveOnly: flag(false)
