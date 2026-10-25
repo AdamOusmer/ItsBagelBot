@@ -7,6 +7,9 @@ import { CHANNELPOINTS_MODULE } from '@bagel/kit/catalog/channelpoints';
 export const REWARD_DEFAULT_COLOR = '#9147ff';
 const COST_MAX = 10_000_000;
 const COOLDOWN_MAX = 604_800;
+const POINTS_MAX = 100_000_000;
+
+export const normalizeCounterName = (value: string) => value.trim().replace(/^!/, '').toLowerCase().slice(0, 64);
 
 const reply = CHANNELPOINTS_MODULE.replies.find((r) => r.key === 'reply')!;
 
@@ -22,7 +25,7 @@ export function rewardDraftFrom(reward: ChannelPointReward): ChannelPointReward 
   };
 }
 
-export type RewardErrorField = 'title' | 'cost' | 'counter' | 'perStream' | 'perUser' | 'cooldown';
+export type RewardErrorField = 'title' | 'cost' | 'counter' | 'points' | 'perStream' | 'perUser' | 'cooldown';
 export type RewardErrors = Partial<Record<RewardErrorField, string>>;
 
 export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Object.freeze({
@@ -31,7 +34,8 @@ export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Obj
   cooldown: 'channelpoints.errCooldown',
   title: 'channelpoints.errTitleRequired',
   cost: 'channelpoints.errCost',
-  counter: 'rewardCounter.errNameRequired'
+  counter: 'rewardCounter.errNameRequired',
+  points: 'channelpoints.errCost'
 });
 
 const wholeAtLeast = (n: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
@@ -49,10 +53,11 @@ function limitErrors(draft: ChannelPointReward): RewardErrors {
   return errors;
 }
 
-export function rewardErrors(draft: ChannelPointReward, counterOn: boolean): RewardErrors {
+export function rewardErrors(draft: ChannelPointReward, counterOn: boolean, pointsOn: boolean): RewardErrors {
   const errors: RewardErrors = limitErrors(draft);
   if (!draft.title.trim()) errors.title = REWARD_ERROR_KEYS.title;
   if (!wholeAtLeast(draft.cost, 1, COST_MAX)) errors.cost = REWARD_ERROR_KEYS.cost;
-  if (counterOn && !draft.counter.trim()) errors.counter = REWARD_ERROR_KEYS.counter;
+  if (counterOn && !normalizeCounterName(draft.counter)) errors.counter = REWARD_ERROR_KEYS.counter;
+  if (pointsOn && !wholeAtLeast(draft.points, 1, POINTS_MAX)) errors.points = REWARD_ERROR_KEYS.points;
   return errors;
 }

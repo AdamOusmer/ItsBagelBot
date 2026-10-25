@@ -5,6 +5,7 @@ import {
   initial,
   openClean,
   edit as mEdit,
+  rebase as mRebase,
   requestSave,
   resolveSave,
   type InspectorState,
@@ -39,6 +40,9 @@ export function createInspector<T>() {
     },
     edit(draft: T) {
       state = mEdit(state, draft);
+    },
+    rebase(patch: Partial<T>) {
+      state = mRebase(state as InspectorState<T & object>, patch as Partial<T & object>) as InspectorState<T>;
     },
     reset() {
       state = initial<T>();

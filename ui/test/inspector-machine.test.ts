@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	openClean,
 	edit,
+	rebase,
 	requestSave,
 	resolveSave,
 	type InspectorState
@@ -78,6 +79,18 @@ describe('inspector-machine', () => {
 		expect(s.status).toBe('error');
 		expect(s.dirty).toBe(true);
 		expect(s.draft?.response).toBe('x');
+	});
+
+	test('rebase moves committed and draft together, keeping other edits dirty', () => {
+		let s = openClean('a', A);
+		s = rebase(s, { response: 'new' });
+		expect(s.dirty).toBe(false);
+		expect(s.committed).toEqual({ ...A, response: 'new' });
+		s = edit(s, { name: 'edited', response: 'new' });
+		s = rebase(s, { response: 'newer' });
+		expect(s.dirty).toBe(true);
+		expect(s.draft).toEqual({ name: 'edited', response: 'newer' });
+		expect(s.committed).toEqual({ ...A, response: 'newer' });
 	});
 
 	test('requestSave is a no-op when nothing is dirty', () => {

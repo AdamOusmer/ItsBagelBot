@@ -14,6 +14,7 @@ import {
 } from '$lib/server/channelpoints-store';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
+import { normalizeCounterName } from '$lib/components/channelpoints/reward-draft';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -69,7 +70,7 @@ function parseReward(raw: string): ChannelPointReward | null {
     action,
     message: String(obj.message ?? '').slice(0, 400),
     onRedeem,
-    counter: String(obj.counter ?? '').trim().replace(/^!/, '').toLowerCase().slice(0, 64),
+    counter: normalizeCounterName(String(obj.counter ?? '')),
     counterScope: COUNTER_SCOPES.includes(obj.counterScope as CounterScope)
       ? (obj.counterScope as CounterScope)
       : 'viewer_command',

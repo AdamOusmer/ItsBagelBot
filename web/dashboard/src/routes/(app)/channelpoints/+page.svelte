@@ -60,6 +60,7 @@
   const inspector = createInspector<ChannelPointReward>();
   let draft = $state<ChannelPointReward | null>(null);
   let counterOn = $state(false);
+  let pointsOn = $state(false);
   let busy = $state(false);
   let validationAttempted = $state(false);
   let formEl = $state<HTMLFormElement | null>(null);
@@ -84,6 +85,7 @@
     validationAttempted = false;
     const base = rewardDraftFrom(reward);
     counterOn = !!base.counter.trim();
+    pointsOn = base.points > 0;
     inspector.open(id, base);
     draft = { ...base };
   }
@@ -125,7 +127,7 @@
       input.cancel();
       return;
     }
-    if (Object.keys(rewardErrors(draft, counterOn)).length) {
+    if (Object.keys(rewardErrors(draft, counterOn, pointsOn)).length) {
       validationAttempted = true;
       input.cancel();
       void focusFirstInvalid(formEl);
@@ -158,11 +160,18 @@
     (r: ChannelPointReward): SubmitFunction =>
     () => {
       const was = r.isEnabled;
-      rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled: !was } : x));
+      const setEnabled = (isEnabled: boolean) => {
+        rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled } : x));
+        if (draft && inspector.selectedId === r.id) {
+          draft = { ...draft, isEnabled };
+          inspector.rebase({ isEnabled });
+        }
+      };
+      setEnabled(!was);
       return async ({ result }) => {
         const payload = actionPayload<RewardActionOk>(result);
         if (result.type === 'success' && payload?.ok) return;
-        rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled: was } : x));
+        setEnabled(was);
         failed(payload, t('channelpoints.toastToggleFailed'));
       };
     };
@@ -273,7 +282,7 @@
           <Scroller fill padding="16px" smooth>
             {#key inspector.selectedId}
               {#await loadRewardEditor() then { default: RewardEditor }}
-                <RewardEditor bind:draft bind:counterOn attempted={validationAttempted} />
+                <RewardEditor bind:draft bind:counterOn bind:pointsOn attempted={validationAttempted} />
               {/await}
             {/key}
           </Scroller>
