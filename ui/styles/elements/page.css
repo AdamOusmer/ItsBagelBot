@@ -99,6 +99,9 @@
   .bb-scroller {
     --bb-scrollbar-size: 6px;
 
+    /* Hidden checkbox inputs are absolute; unanchored, they overflow the
+       docked inspector and focusing one scrolls its clipped box blank. */
+    position: relative;
     overflow-y: auto;
   }
 

@@ -9,6 +9,8 @@ export const REWARD_REPLY_MAX = 200;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+export const normalizeCounterName = (value: string) => value.trim().replace(/^!/, '').toLowerCase().slice(0, 64);
+
 export const isHexColor = (value: string) => HEX_COLOR.test(value);
 
 export const isValidRewardTitle = (title: string) => title.length > 0 && title.length <= REWARD_TITLE_MAX;

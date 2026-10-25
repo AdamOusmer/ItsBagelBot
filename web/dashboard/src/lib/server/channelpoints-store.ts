@@ -5,7 +5,7 @@
 import { rpcRefusal } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { logger } from '@bagel/kit/server/logger';
-import { type ChannelPointReward, MOD } from '@bagel/kit';
+import { blankReward, type ChannelPointReward, MOD } from '@bagel/kit';
 import { publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
@@ -88,7 +88,11 @@ async function ensureRewardCounter(userId: UserId, reward: ChannelPointReward): 
 
 export async function readRewards(userId: UserId): Promise<RewardsView> {
   const { enabled, configs } = await readModuleBlob<{ rewards?: ChannelPointReward[] }>(userId, CP_MODULE);
-  return { enabled, rewards: Array.isArray(configs.rewards) ? configs.rewards : [] };
+  const stored = Array.isArray(configs.rewards) ? configs.rewards : [];
+  const rewards = stored
+    .filter((r) => r !== null && typeof r === 'object')
+    .map((r) => ({ ...blankReward(), ...r }));
+  return { enabled, rewards };
 }
 
 async function writeRewards(userId: UserId, enabled: boolean, rewards: ChannelPointReward[]): Promise<void> {
@@ -104,6 +108,14 @@ function refusal(reply: RewardReplyWire): RewardFailure | null {
   return null;
 }
 
+async function rollbackCreatedReward(userId: UserId, rewardId: RewardId): Promise<void> {
+  try {
+    await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
+  } catch (e) {
+    logger.error({ err: e, rewardId }, '[channelpoints] rollback of created reward failed');
+  }
+}
+
 export async function createReward(userId: UserId, draft: ChannelPointReward): Promise<RewardResult> {
   const reply = await callReward('create', { broadcaster_id: userId, reward: toWire(draft) });
   const refused = refusal(reply);
@@ -111,9 +123,14 @@ export async function createReward(userId: UserId, draft: ChannelPointReward): P
   if (!reply.reward) return { ok: false, error: 'create failed' };
 
   const created = mergeTwitch(reply.reward, draft);
-  const cur = await readRewards(userId);
-  const enabled = cur.rewards.length === 0 ? true : cur.enabled;
-  await writeRewards(userId, enabled, [...cur.rewards, created]);
+  try {
+    const cur = await readRewards(userId);
+    const enabled = cur.rewards.length === 0 ? true : cur.enabled;
+    await writeRewards(userId, enabled, [...cur.rewards, created]);
+  } catch (e) {
+    await rollbackCreatedReward(userId, created.id);
+    throw e;
+  }
   await ensureRewardCounter(userId, created);
   await publishEventSubEnsureOptional(userId);
   return { ok: true, reward: created };
@@ -128,7 +145,9 @@ export async function updateReward(userId: UserId, draft: ChannelPointReward): P
 
   const updated = mergeTwitch(reply.reward, draft);
   const cur = await readRewards(userId);
-  const rewards = cur.rewards.map((r) => (r.id === draft.id ? updated : r));
+  const rewards = cur.rewards.some((r) => r.id === draft.id)
+    ? cur.rewards.map((r) => (r.id === draft.id ? updated : r))
+    : [...cur.rewards, updated];
   await writeRewards(userId, cur.enabled, rewards);
   await ensureRewardCounter(userId, updated);
   return { ok: true, reward: updated };

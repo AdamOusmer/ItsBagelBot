@@ -45,6 +45,13 @@ export function edit<T>(state: InspectorState<T>, draft: T): InspectorState<T> {
   return { ...state, draft, dirty, status: state.status === 'saving' ? 'saving' : 'idle' };
 }
 
+export function rebase<T extends object>(state: InspectorState<T>, patch: Partial<T>): InspectorState<T> {
+  if (state.committed === null || state.draft === null) return state;
+  const committed = { ...state.committed, ...patch };
+  const draft = { ...state.draft, ...patch };
+  return { ...state, committed, draft, dirty: !same(draft, committed) };
+}
+
 function submittable<T>(state: InspectorState<T>): boolean {
   return state.selectedId !== null && state.draft !== null && state.dirty && state.status !== 'saving';
 }

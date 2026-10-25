@@ -15,10 +15,12 @@
   let {
     draft = $bindable<ChannelPointReward>(),
     counterOn = $bindable(false),
+    pointsOn = $bindable(false),
     attempted = false
   }: {
     draft: ChannelPointReward;
     counterOn?: boolean;
+    pointsOn?: boolean;
     attempted?: boolean;
   } = $props();
 
@@ -36,8 +38,6 @@
     points: String(draft.points || 0)
   }));
 
-  // svelte-ignore state_referenced_locally
-  let pointsOn = $state(draft.points > 0);
   $effect(() => {
     if (!counterOn && draft.counter) draft.counter = '';
   });
@@ -54,11 +54,12 @@
   const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
-  const errors = $derived(rewardErrors(draft, counterOn));
+  const errors = $derived(rewardErrors(draft, counterOn, pointsOn));
   const shown = (field: RewardErrorField) => (attempted && errors[field] ? t(REWARD_ERROR_KEYS[field]) : undefined);
   const titleError = $derived(shown('title'));
   const costError = $derived(shown('cost'));
   const counterError = $derived(shown('counter'));
+  const pointsError = $derived(shown('points'));
   const perStreamError = $derived(shown('perStream'));
   const perUserError = $derived(shown('perUser'));
   const cooldownError = $derived(shown('cooldown'));
@@ -172,10 +173,17 @@
       {#if pointsOn}
         <div class="hook-body">
           <div class="points-field">
-            <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')}>
+            <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} error={pointsError} errorId="reward-points-err">
               <span class="points-input">
                 <span class="plus">+</span>
-                <span class="points-num"><Input type="number" min={1} bind:value={draft.points} /></span>
+                <span class="points-num"><Input
+                    type="number"
+                    min={1}
+                    invalid={!!pointsError}
+                    aria-invalid={pointsError ? 'true' : undefined}
+                    aria-describedby={pointsError ? 'reward-points-err' : undefined}
+                    bind:value={draft.points}
+                  /></span>
               </span>
             </Field>
           </div>
