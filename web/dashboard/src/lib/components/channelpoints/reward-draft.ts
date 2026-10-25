@@ -31,7 +31,7 @@ export const REWARD_ERROR_KEYS: Readonly<Record<RewardErrorField, string>> = Obj
   title: 'channelpoints.errTitleRequired',
   cost: 'channelpoints.errCost',
   counter: 'rewardCounter.errNameRequired',
-  points: 'rewardCounter.errPointsRequired'
+  points: 'channelpoints.errCost'
 });
 
 const REWARD_POINTS_MAX = 100_000_000;
