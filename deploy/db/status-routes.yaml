@@ -61,6 +61,17 @@ spec:
     attempts: 3
     initialInterval: 100ms
 ---
+# Without a preconnect Link, Cloudflare caches no Early Hint and every probe of these URLs logs a 504 miss.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: early-hints-link
+  namespace: db
+spec:
+  headers:
+    customResponseHeaders:
+      Link: "<https://itsbagelbot.com>; rel=preconnect"
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -71,7 +82,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/db`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: projector-status
           port: 443
@@ -79,7 +90,7 @@ spec:
           serversTransport: projector-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/billing`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: transactions
           port: 443

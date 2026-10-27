@@ -45,6 +45,7 @@ spec:
       kind: Rule
       priority: 1
       middlewares:
+        - name: early-hints-link
         - name: unrouted-host-404
       services:
         - name: web-origin

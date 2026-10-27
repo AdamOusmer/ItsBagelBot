@@ -63,6 +63,17 @@ spec:
     attempts: 3
     initialInterval: 100ms
 ---
+# Without a preconnect Link, Cloudflare caches no Early Hint and every probe of these URLs logs a 504 miss.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: early-hints-link
+  namespace: app
+spec:
+  headers:
+    customResponseHeaders:
+      Link: "<https://itsbagelbot.com>; rel=preconnect"
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -82,7 +93,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/twitch`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: sesame-status
           port: 443
@@ -90,7 +101,7 @@ spec:
           serversTransport: sesame-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/discord`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: discord-engine-status
           port: 443
@@ -98,7 +109,7 @@ spec:
           serversTransport: discord-engine-status-transport
     - match: Host(`health.itsbagelbot.com`) && Path(`/console`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: console-dashboard
           port: 443
@@ -107,7 +118,7 @@ spec:
           nativeLB: true
     - match: Host(`health.itsbagelbot.com`) && Path(`/gossip`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: gossip-status
           port: 443
@@ -156,6 +167,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
+  name: early-hints-link
+  namespace: db
+spec:
+  headers:
+    customResponseHeaders:
+      Link: "<https://itsbagelbot.com>; rel=preconnect"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
   name: status-path
   namespace: db
 spec:
@@ -173,7 +194,7 @@ spec:
   routes:
     - match: Host(`health.itsbagelbot.com`) && Path(`/billing`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: transactions
           port: 443
@@ -182,7 +203,7 @@ spec:
           nativeLB: true
     - match: Host(`health.itsbagelbot.com`) && Path(`/db`)
       kind: Rule
-      middlewares: [{name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
+      middlewares: [{name: early-hints-link}, {name: status-ratelimit}, {name: strip-client-ip}, {name: status-retry}, {name: status-path}]
       services:
         - name: projector-status
           port: 443
