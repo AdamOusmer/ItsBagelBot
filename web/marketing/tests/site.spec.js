@@ -82,7 +82,7 @@ test.describe('ItsBagelBot site', () => {
     test('home renders hero + Act II sections', async ({ page }) => {
         await page.goto('/');
 
-        await expect(page.locator('h1').first()).toContainText('Your Stream');
+        await expect(page.locator('h1').first()).toContainText('The free Twitch chat bot.');
 
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
