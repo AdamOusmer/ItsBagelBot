@@ -18,8 +18,6 @@ import Cursor from '@bagel/ui/astro/Cursor.astro'
 import Nav from '@bagel/ui/astro/Nav.astro'
 import Footer from '@bagel/ui/astro/Footer.astro'
 import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro'
-import SocialRail from '@bagel/ui/astro/SocialRail.astro'
-import { SOCIAL_LINKS } from '@bagel/kit/social'
 import {
     SITE_NAV,
     SITE_FOOTER,
@@ -300,7 +298,6 @@ const contentSecurityPolicy = [
             <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>
         </Fragment>
     </Nav>
-    <SocialRail items={SOCIAL_LINKS} label={t('nav.social')}/>
     <ReadingProgress/>
     <Brackets/>
     <Footer
