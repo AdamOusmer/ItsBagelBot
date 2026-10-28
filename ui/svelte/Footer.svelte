@@ -7,7 +7,7 @@
   import LightField from './LightField.svelte';
   import NavLink from './NavLink.svelte';
   import type { Snippet } from 'svelte';
-  import { FOOTER_RING, stackColumns } from '../lib/footer-layout';
+  import { stackColumns } from '../lib/footer-layout';
   import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
 
   type Own = {
@@ -40,7 +40,7 @@
 </script>
 
 <footer class={classes} {...rest}
-  ><div class="bb-footer__ring" aria-hidden="true">{@html FOOTER_RING}</div><LightField />{#if signoff}<div
+  ><LightField />{#if signoff}<div
       class="bb-footer__signoff"
       data-reveal
       ><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{#if signoff.sub}<p

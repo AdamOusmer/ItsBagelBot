@@ -7,7 +7,7 @@ import '../styles/elements/footer.css';
 import Brand from './Brand.astro';
 import LightField from './LightField.astro';
 import NavLink from './NavLink.astro';
-import { FOOTER_RING, stackColumns } from '../lib/footer-layout';
+import { stackColumns } from '../lib/footer-layout';
 import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
 
 interface Props extends Omit<HTMLAttributes<'footer'>, 'brand' | 'signoff' | 'columns' | 'legal' | 'copyright' | 'note' | 'studio' | 'class'> {
@@ -38,7 +38,7 @@ const stacks = stackColumns(columns);
 const colophon = ((await Astro.slots.render('colophon')) ?? '').trim();
 ---
 
-<footer class={classes} {...rest}><div class="bb-footer__ring" aria-hidden="true" set:html={FOOTER_RING} /><LightField />{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__cols">{stacks.map((stack, i) => (
+<footer class={classes} {...rest}><LightField />{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__cols">{stacks.map((stack, i) => (
   <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}>{stack.map((column) => (
     <div class="bb-footer__group"><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{column.links.map((link) => (
       <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup={`bb-footer-links-${i}`} />
