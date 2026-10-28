@@ -3,20 +3,14 @@
   "title": "Ce dont il s'occupe pendant que vous streamez.",
   "goveeReward": "PrincessBarney a échangé · coucher de soleil",
   "goveeTitle": "Vos lumières, télécommandées par le chat.",
-  "goveeDesc": "Les points de chaîne pilotent vos lumières Govee. Un échange, et la pièce glisse vers la couleur choisie par le chat.",
   "cmdOut": "bienvenue, PrincessBarney. installe-toi 🥯",
   "cmdTitle": "Il accueille vos habitués par leur nom.",
-  "cmdDesc": "Commandes, délais et shout-outs, écrits dans vos mots depuis le tableau de bord.",
   "songTitle": "Les demandes Spotify, pilotées par le chat.",
-  "songDesc": "Le viewer tape !sr et le morceau tombe direct dans votre file Spotify. Lecture en direct, !skip, !srlist, et une limite par personne que vous fixez.",
   "songNow": "à l’écoute",
   "songTrack": "late night lo-fi · demandé par PrincessBarney",
   "songAck": "en file · n°2",
   "queueTitle": "Votre chat fait la file pour jouer.",
-  "queueDesc": "Les viewers tapent !join et vous appelez le prochain joueur avec !queue next.",
   "winLabel": "gagnant",
   "winTitle": "Chaque participation a les mêmes chances.",
-  "winDesc": "Le tirage est aléatoire et le résultat est consigné.",
-  "beatTitle": "Il reste dans le chat quand vous êtes hors ligne.",
-  "beatDesc": "Les commandes répondent entre les directs, et chaque minuteur réglé pour publier hors ligne continue de publier."
+  "beatTitle": "Il reste dans le chat quand vous êtes hors ligne."
 }

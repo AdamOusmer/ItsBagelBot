@@ -3,20 +3,14 @@
   "title": "Was er erledigt, während du streamst.",
   "goveeReward": "PrincessBarney hat eingelöst · Sonnenuntergang",
   "goveeTitle": "Deine Beleuchtung, die Fernbedienung des Chats.",
-  "goveeDesc": "Kanalpunkte sind direkt mit deiner Govee-Einrichtung verbunden. Eine Einlösung und der Raum nimmt die vom Chat gewählte Farbe an.",
   "cmdOut": "willkommen, PrincessBarney. nimm platz 🥯",
   "cmdTitle": "Er begrüßt deine Stammgäste mit Namen.",
-  "cmdDesc": "Befehle, Abklingzeiten und Shout-outs, im Dashboard in deinen Worten verfasst.",
   "songTitle": "Spotify-Songwünsche, gesteuert vom Chat.",
-  "songDesc": "Zuschauer geben !sr ein und der Titel landet direkt in deiner Spotify-Warteschlange. Aktuelle Wiedergabe live, !skip, !srlist und ein von dir festgelegtes Limit pro Zuschauer.",
   "songNow": "läuft gerade",
   "songTrack": "late night lo-fi · gewünscht von PrincessBarney",
   "songAck": "eingereiht · #2",
   "queueTitle": "Dein Chat reiht sich zum Mitspielen ein.",
-  "queueDesc": "Zuschauer tippen !join, und du rufst mit !queue next den nächsten Spieler auf.",
   "winLabel": "Gewinner",
   "winTitle": "Jede Teilnahme hat dieselben Chancen.",
-  "winDesc": "Die Auslosung ist zufällig und das Ergebnis wird protokolliert.",
-  "beatTitle": "Er bleibt im Chat, wenn du offline bist.",
-  "beatDesc": "Befehle antworten auch zwischen den Streams, und jeder Timer, den du auf offline stellst, postet weiter."
+  "beatTitle": "Er bleibt im Chat, wenn du offline bist."
 }

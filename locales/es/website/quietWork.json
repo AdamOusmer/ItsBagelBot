@@ -3,20 +3,14 @@
   "title": "Lo que resuelve mientras transmites.",
   "goveeReward": "PrincessBarney canjeó · atardecer",
   "goveeTitle": "Tus luces, el mando del chat.",
-  "goveeDesc": "Los puntos del canal se conectan directamente a tu configuración de Govee. Un canje y la habitación pasa al color que eligió el chat.",
   "cmdOut": "bienvenido, PrincessBarney. toma asiento 🥯",
   "cmdTitle": "Saluda a tus habituales por su nombre.",
-  "cmdDesc": "Comandos, tiempos de espera y menciones a otros canales, escritos con tus palabras en el panel.",
   "songTitle": "Solicitudes de canciones de Spotify, a cargo del chat.",
-  "songDesc": "Los espectadores escriben !sr y la canción entra directamente en tu cola de Spotify. Canción actual en directo, !skip, !srlist y un límite por espectador que tú decides.",
   "songNow": "sonando",
   "songTrack": "late night lo-fi · solicitada por PrincessBarney",
   "songAck": "en cola · #2",
   "queueTitle": "Tu chat hace cola para jugar.",
-  "queueDesc": "Los espectadores escriben !join y tú llamas al siguiente jugador con !queue next.",
   "winLabel": "ganador",
   "winTitle": "Todas las participaciones tienen la misma probabilidad.",
-  "winDesc": "El sorteo es aleatorio y el resultado queda registrado.",
-  "beatTitle": "Sigue en el chat cuando estás desconectado.",
-  "beatDesc": "Los comandos siguen respondiendo entre directos, y cualquier temporizador que configures para publicar sin conexión sigue publicando."
+  "beatTitle": "Sigue en el chat cuando estás desconectado."
 }

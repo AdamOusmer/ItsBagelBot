@@ -7,7 +7,6 @@ import Header from '../../components/home/Header.astro'
 import Encryption from '../../components/home/Encryption.astro'
 import Playground from '../../components/home/Playground.astro'
 import Games from '../../components/home/Games.astro'
-import EcoFriendly from '../../components/home/EcoFriendly.astro'
 import QuietWork from '../../components/home/QuietWork.astro'
 import SafetyLayers from '../../components/home/SafetyLayers.astro'
 import Steps from '../../components/home/Steps.astro'
@@ -21,12 +20,11 @@ const t = useTranslations(getLangFromUrl(Astro.url));
 
 <Layout title={t('home.metaTitle')} description={t('home.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md">
     <Header />
-    <Encryption />
     <Playground />
     <QuietWork />
-    <SafetyLayers />
     <Games />
-    <EcoFriendly />
+    <SafetyLayers />
+    <Encryption />
     <Steps />
     <Finale />
 </Layout>

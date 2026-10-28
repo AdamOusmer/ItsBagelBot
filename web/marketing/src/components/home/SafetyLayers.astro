@@ -2,13 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
-import Heading from '@bagel/ui/astro/Heading.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import Section from '@bagel/ui/astro/Section.astro';
-import Text from '@bagel/ui/astro/Text.astro';
+import BentoGrid from './BentoGrid.astro';
+import FeatureCard from './FeatureCard.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -33,9 +32,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         <Badge slot="badge" tone="incoming" mark="plus" class="safe__badge"><span class="safe__badge-label"><span data-fit>{t('badge.beta')}</span></span></Badge>
     </SectionHeading>
 
-    <div class="safe__grid">
-        <Card atmo hover class="safe__card" data-reveal>
-            <div class="safe__demo safe__demo--jury" slot="band" aria-hidden="true">
+    <BentoGrid cols={3}>
+        <FeatureCard tone="green" index={0}>
+            <div slot="demo" class="safe__demo safe__demo--jury">
                 <span class="jury__case"><span data-fit>{t('safetyLayers.spam')} / {t('safetyLayers.hate')}</span></span>
                 <div class="jury__table">
                     <span class="jury__evidence">msg</span>
@@ -47,17 +46,16 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                     <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
                     <span class="jury__tally">
                         <small class="jury__verdict"><span data-fit>{t('safetyLayers.juryVerdict')}</span></small>
-                        <b class="jury__count">5-1</b>
+                        <b class="jury__count fcard-value">5-1</b>
                         <em>block</em>
                     </span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.juryTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.juryDesc')}</span></Text>
-        </Card>
+            {t('safetyLayers.juryTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="safe__card" data-reveal style="--reveal-i: 1">
-            <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
+        <FeatureCard tone="green" index={1}>
+            <div slot="demo" class="safe__demo safe__demo--gates">
                 <div class="gates__lane bb-track">
                     <span class="gates__packet bb-layers"><span>MSG</span><span class="gates__packet-ok">MSG</span></span>
                     <span class="gates__gate" style="--gate-i: 0"><i></i><b class="gates__name"><span data-fit>{t('safetyLayers.gateRate')}</span></b></span>
@@ -72,12 +70,11 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                     <em><span data-fit>{t('safetyLayers.gatesPassed')}</span></em>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.gatesTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.gatesDesc')}</span></Text>
-        </Card>
+            {t('safetyLayers.gatesTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
-            <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
+        <FeatureCard tone="green" index={2}>
+            <div slot="demo" class="safe__demo safe__demo--network">
                 <div class="network__map bb-layers">
                     {NETWORK_WAVES.map((wave) => (
                         <svg class="network__layer network__links" viewBox="0 0 360 112" style={`--wave-i: ${wave}`}>
@@ -111,51 +108,21 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
                 <span class="network__alert"><span data-fit>{t('safetyLayers.networkAlert')}</span></span>
                 <span class="network__status"><span data-fit>{t('safetyLayers.networkStatus')}</span></span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="safe__card-title"><span class="safe__card-title-text"><span data-fit="block">{t('safetyLayers.networkTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="safe__desc"><span data-fit="block">{t('safetyLayers.networkDesc')}</span></Text>
-        </Card>
-    </div>
+            {t('safetyLayers.networkTitle')}
+        </FeatureCard>
+    </BentoGrid>
 </Section>
 
 <style>
     .safe {
         --section-heading-lines: 2;
         --section-heading-lines-phone: 3;
+        --fcard-demo-h: 170px;
         position: relative;
         max-width: var(--bb-content-max);
         margin: 0 auto;
         padding-inline: 24px;
         z-index: 3;
-    }
-
-    .safe__grid {
-        position: relative;
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 20px;
-        --card-band-h: 164px;
-    }
-
-    .safe__card {
-        min-width: 0;
-    }
-
-    .safe__card-title {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 9px;
-        margin: 0 0 9px;
-    }
-
-    .safe__card-title-text {
-        display: block;
-        align-self: stretch;
-        height: calc(var(--safe-title-lines, 2) * 1lh);
-    }
-
-    .safe__desc {
-        height: calc(var(--safe-desc-lines, 3) * 1lh);
     }
 
     .safe__badge {
@@ -171,6 +138,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         position: relative;
         height: 100%;
         overflow: hidden;
+        container-type: inline-size;
         font-family: var(--bb-font-mono);
         font-size: 0.66rem;
     }
@@ -178,15 +146,16 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .safe__demo--jury {
         display: grid;
         place-items: center;
-        padding: 9px 18px;
+        padding: 0 4px;
     }
 
     .jury__case {
         position: absolute;
-        top: 9px;
-        left: 11px;
-        right: 11px;
-        color: rgba(var(--bb-status-danger-rgb), 0.74);
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1lh;
+        color: var(--bb-muted);
         font-size: 0.54rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -195,19 +164,18 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .jury__table {
         position: relative;
         width: min(310px, 82%);
-        height: 92px;
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.18);
+        height: 116px;
+        border: 1px solid var(--bb-border);
         border-radius: 50%;
-        background: radial-gradient(ellipse, rgba(var(--bb-tan-rgb), 0.07), transparent 68%);
-        box-shadow: inset 0 0 24px rgba(var(--bb-tan-rgb), 0.025);
     }
 
     .jury__table::after {
         content: "";
         position: absolute;
         inset: 10px 24px;
-        border: 1px solid rgba(var(--bb-white-rgb), 0.04);
+        border: 1px solid var(--bb-border);
         border-radius: 50%;
+        opacity: 0.5;
     }
 
     .jury__seat {
@@ -224,9 +192,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         left: 8px;
         width: 8px;
         height: 8px;
-        border: 1px solid rgba(var(--bb-white-rgb), 0.58);
+        border: 1px solid var(--bb-muted);
         border-radius: 50%;
-        background: var(--bb-inset-bg);
+        background: var(--bb-bg-0);
     }
 
     .jury__seat::after {
@@ -236,10 +204,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         left: 8px;
         width: 8px;
         height: 8px;
-        border: 1px solid color-mix(in srgb, var(--bb-tan-light) 90%, transparent);
+        border: 1px solid var(--bb-white);
         border-radius: 50%;
-        background: var(--bb-inset-bg);
-        box-shadow: 0 0 7px rgba(var(--bb-tan-rgb), 0.5);
+        background: var(--bb-bg-0);
         opacity: 0;
         animation: jurySeatThink 7.2s ease-in-out infinite;
         animation-delay: calc(var(--jury-i) * 70ms);
@@ -252,9 +219,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         left: 4px;
         width: 16px;
         height: 9px;
-        border: 1px solid rgba(var(--bb-white-rgb), 0.36);
+        border: 1px solid var(--bb-muted);
         border-bottom: 0;
-        border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
+        border-radius: var(--bb-radius-sm) var(--bb-radius-sm) 0 0;
     }
 
     .jury__seat em {
@@ -265,22 +232,16 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         border: 1px solid rgba(var(--bb-status-danger-rgb), 0.42);
         border-radius: var(--bb-radius-xs);
         color: var(--bb-status-danger);
-        background: var(--bb-inset-bg);
+        background: var(--bb-bg-0);
         font-size: 0.42rem;
         font-style: normal;
         text-transform: uppercase;
         opacity: 0;
-        transform: translate(-50%, 9px) rotate(var(--ballot-rot, -5deg)) scale(0.85);
+        transform: translate(-50%, 9px) scale(0.85);
         animation: juryBallot 7.2s ease infinite;
         animation-delay: calc(var(--jury-i) * 140ms);
     }
 
-    .jury__seat--tl,
-    .jury__seat--l,
-    .jury__seat--bl { --ballot-rot: -5deg; }
-    .jury__seat--tr,
-    .jury__seat--r,
-    .jury__seat--br { --ballot-rot: 5deg; }
     .jury__seat--r em { color: var(--bb-green-glow); border-color: rgba(var(--bb-green-glow-rgb), 0.42); }
 
     .jury__evidence {
@@ -289,10 +250,10 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         top: 50%;
         left: 50%;
         padding: 3px 7px;
-        border: 1px dashed rgba(var(--bb-status-danger-rgb), 0.5);
+        border: 1px solid rgba(var(--bb-status-danger-rgb), 0.5);
         border-radius: var(--bb-radius-xs);
-        color: rgba(var(--bb-status-danger-rgb), 0.9);
-        background: var(--bb-inset-bg);
+        color: var(--bb-status-danger);
+        background: var(--bb-bg-0);
         font-size: 0.52rem;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -303,38 +264,35 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
     .jury__seat--tl { top: -9px; left: 22%; }
     .jury__seat--tr { top: -9px; right: 22%; }
-    .jury__seat--l { top: 31px; left: -13px; }
-    .jury__seat--r { top: 31px; right: -13px; }
+    .jury__seat--l { top: 43px; left: -13px; }
+    .jury__seat--r { top: 43px; right: -13px; }
     .jury__seat--bl { bottom: -11px; left: 22%; }
     .jury__seat--br { right: 22%; bottom: -11px; }
 
     .jury__tally {
         position: absolute;
         z-index: 2;
-        inset: 23px 32%;
+        inset: 14px 30%;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: 2px;
         text-align: center;
-        text-shadow: 0 0 12px rgba(var(--bb-status-danger-rgb), 0.3);
         opacity: 0;
         animation: juryTally 7.2s ease-in-out infinite;
     }
 
     .jury__verdict {
         align-self: stretch;
+        color: var(--bb-muted);
         font-size: 0.44rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
     }
 
     .jury__count {
-        font-family: var(--bb-font-display);
-        font-size: 1rem;
-        line-height: 1;
-        color: var(--bb-white);
+        font-size: 2.4rem;
     }
 
     .jury__tally em {
@@ -358,10 +316,10 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     @keyframes juryBallot {
-        0%, 24% { opacity: 0; transform: translate(-50%, 9px) rotate(var(--ballot-rot, -5deg)) scale(0.85); animation-timing-function: var(--bb-ease-out-back); }
-        31% { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)) scale(1); }
-        80% { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)) scale(1); }
-        87%, 100% { opacity: 0; transform: translate(-50%, -4px) rotate(var(--ballot-rot, -5deg)) scale(0.95); }
+        0%, 24% { opacity: 0; transform: translate(-50%, 9px) scale(0.85); animation-timing-function: var(--bb-ease-out-back); }
+        31% { opacity: 1; transform: translate(-50%, -7px) scale(1); }
+        80% { opacity: 1; transform: translate(-50%, -7px) scale(1); }
+        87%, 100% { opacity: 0; transform: translate(-50%, -4px) scale(0.95); }
     }
 
     @keyframes juryTally {
@@ -374,7 +332,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .safe__demo--gates {
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: center;
+        gap: 28px;
     }
 
     .gates__lane {
@@ -389,7 +348,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         left: 8px;
         right: 8px;
         height: 1px;
-        background: rgba(var(--bb-white-rgb), 0.08);
+        background: var(--bb-border);
     }
 
     .gates__packet {
@@ -401,11 +360,10 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         place-items: center;
         width: 36px;
         height: 27px;
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.42);
+        border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-xs);
-        color: var(--bb-tan-light);
-        background: var(--bb-inset-bg);
-        box-shadow: 0 0 12px rgba(var(--bb-tan-rgb), 0.1);
+        color: var(--bb-muted);
+        background: var(--bb-bg-0);
         opacity: 0;
         animation: gatePacket 7.2s ease infinite;
     }
@@ -450,10 +408,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
     .gates__gate i {
         position: relative;
-        width: 2px;
+        width: 1px;
         height: 48px;
-        background: color-mix(in srgb, var(--bb-muted) 56%, transparent);
-        box-shadow: 0 0 0 4px var(--bb-inset-bg);
+        background: var(--bb-muted);
         transform-origin: top;
     }
 
@@ -466,8 +423,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .gates__gate i::before {
-        background: color-mix(in srgb, var(--bb-tan-light) 95%, transparent);
-        box-shadow: 0 0 9px rgba(var(--bb-tan-rgb), 0.55);
+        background: var(--bb-white);
     }
 
     .gates__gate i::after {
@@ -499,7 +455,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         place-items: center;
         width: 26px;
         height: 26px;
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.28);
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.42);
         border-radius: 50%;
         color: var(--bb-green-glow);
         opacity: 0;
@@ -511,6 +467,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr);
         align-items: center;
         gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--bb-border);
         color: var(--bb-muted);
     }
 
@@ -598,7 +556,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         98%, 100% { opacity: 0.26; transform: translateY(2px); }
     }
 
-    .safe__demo--network { padding: 10px 16px; }
+    .safe__demo--network { padding: 0; }
 
     .network__map {
         width: 100%;
@@ -623,25 +581,23 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .network__node {
-        fill: var(--bb-inset-bg);
-        stroke: color-mix(in srgb, var(--bb-muted) 52%, transparent);
+        fill: var(--bb-bg-0);
+        stroke: var(--bb-muted);
         stroke-width: 1;
     }
 
     .network__ring {
-        fill: rgba(var(--bb-status-danger-rgb), 0.04);
-        stroke: color-mix(in srgb, var(--bb-muted) 35%, transparent);
+        fill: none;
+        stroke: var(--bb-muted);
     }
 
     .network__dot {
-        fill: color-mix(in srgb, var(--bb-muted) 60%, transparent);
+        fill: var(--bb-muted);
     }
 
     .network__lit {
         fill: var(--bb-green-glow);
-        stroke: rgba(var(--bb-mint-glow-rgb), 0.86);
-        stroke-width: 1;
-        filter: drop-shadow(0 0 6px rgba(var(--bb-green-glow-rgb), 0.62));
+        stroke: none;
         opacity: 0;
         animation: networkNode 7.2s ease-in-out infinite;
         animation-delay: calc(var(--wave-i) * 200ms);
@@ -650,7 +606,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .network__ping {
         fill: none;
         stroke: rgba(var(--bb-green-glow-rgb), 0.55);
-        stroke-width: 2.9;
+        stroke-width: 1;
         opacity: 0;
         transform: scale(0.1724);
         animation: networkPing 7.2s ease-out infinite;
@@ -664,26 +620,24 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .network__dot-alert {
-        fill: rgba(var(--bb-status-danger-rgb), 0.9);
-        filter: drop-shadow(0 0 8px rgba(var(--bb-status-danger-rgb), 0.65));
+        fill: var(--bb-status-danger);
         opacity: 0;
         animation: networkDotAlert 7.2s ease-in-out infinite;
     }
 
     .network__core-safe {
-        filter: drop-shadow(0 0 7px rgba(var(--bb-green-glow-rgb), 0.55));
         opacity: 0;
         animation: networkCoreSafe 7.2s ease-in-out infinite;
     }
 
     .network__core-safe .network__ring { stroke: rgba(var(--bb-green-glow-rgb), 0.5); }
-    .network__core-safe .network__dot { fill: rgba(var(--bb-green-glow-rgb), 0.85); }
+    .network__core-safe .network__dot { fill: var(--bb-green-glow); }
 
     .network__alert,
     .network__status {
         position: absolute;
-        top: 11px;
-        width: min(160px, calc(50% - 18px));
+        top: 0;
+        width: min(160px, calc(50% - 4px));
         padding: 4px 7px;
         text-align: center;
         border-radius: var(--bb-radius-xs);
@@ -693,19 +647,16 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .network__alert {
-        left: 12px;
-        border: 1px solid rgba(var(--bb-status-danger-rgb), 0.28);
-        color: rgba(var(--bb-status-danger-rgb), 0.9);
-    }
-
-    .network__alert {
+        left: 0;
+        border: 1px solid rgba(var(--bb-status-danger-rgb), 0.42);
+        color: var(--bb-status-danger);
         opacity: 0;
         animation: networkAlert 7.2s ease infinite;
     }
 
     .network__status {
-        right: 12px;
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.26);
+        right: 0;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.42);
         color: var(--bb-green-glow);
         opacity: 0;
         animation: networkStatus 7.2s ease infinite;
@@ -764,15 +715,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         94%, 100% { opacity: 0; transform: translateY(-4px); }
     }
 
-    @media (min-width: 720px) {
-        .safe__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .safe__card--network { grid-column: 1 / -1; }
-    }
-
-    @media (min-width: 1024px) {
-        .safe__card--network .safe__demo { padding-inline: 28px; }
-    }
-
     @media (prefers-reduced-motion: reduce) {
         .jury__evidence,
         .jury__seat::after,
@@ -794,7 +736,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         }
 
         .jury__evidence { opacity: 0; }
-        .jury__seat em { opacity: 1; transform: translate(-50%, -7px) rotate(var(--ballot-rot, -5deg)); }
+        .jury__seat em { opacity: 1; transform: translate(-50%, -7px); }
         .jury__tally,
         .gates__exit,
         .gates__receipt em,
@@ -809,12 +751,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         .network__core-safe { opacity: 1; transform: none; }
     }
 
-    @media (max-width: 480px) {
-    }
-
     @media (max-width: 640px) {
         .safe { padding-inline: 20px; }
-        .safe__demo { height: 126px; }
         .network__alert,
         .network__status { font-size: 0.52rem; }
     }

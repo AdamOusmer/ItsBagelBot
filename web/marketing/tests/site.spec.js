@@ -27,11 +27,20 @@ function releasesNewestFirst() {
         });
 }
 
-function encryptionTookCanvas(previousId) {
+function scrollToEncryptionUntilItTakesCanvas(previousId) {
+    const section = document.querySelector('#enc-section');
+    if (!section) return false;
+    const rect = section.getBoundingClientRect();
+    if (rect.top > window.innerHeight || rect.bottom < 0) {
+        const target = rect.top + window.scrollY;
+        window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
+        window.scrollTo({ top: target, behavior: 'instant' });
+        return false;
+    }
     const canvas = document.querySelector('#enc-canvas');
     const active = window.__itsbagelbotPreload?.activeEncryption;
     return active?.id > previousId
-        && active.section === document.querySelector('#enc-section')
+        && active.section === section
         && canvas?.width !== 300;
 }
 
@@ -55,13 +64,14 @@ function encryptionSized(previousId) {
 
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
-        await page.evaluate(() => {
+        await page.waitForFunction(() => {
+            if (window.scrollY > 500) return true;
             const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
             const target = Math.min(Math.max(window.innerHeight * 1.4, 700), maxScroll);
             window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
             window.scrollTo({ top: target, behavior: 'instant' });
-        });
-        await page.waitForFunction(() => window.scrollY > 500);
+            return false;
+        }, null, { polling: 100 });
     }
 
     async function expectPageTop(page) {
@@ -74,8 +84,7 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
-        await page.waitForFunction(encryptionTookCanvas, previousId);
-        await jumpDown(page);
+        await page.waitForFunction(scrollToEncryptionUntilItTakesCanvas, previousId, { polling: 100 });
         await page.waitForFunction(encryptionSized, previousId);
     }
 

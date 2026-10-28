@@ -2,9 +2,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Card from '@bagel/ui/astro/Card.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import IconButton from '@bagel/ui/astro/IconButton.astro';
 import Input from '@bagel/ui/astro/Input.astro';
@@ -14,7 +15,7 @@ import Tag from '@bagel/ui/astro/Tag.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 
 // DOM + textContent only: never innerHTML for anything user-typed.
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, dashLoginHref } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -59,10 +60,12 @@ const playStrings = {
         </div>
 
         <Text size="xs" mono tone="muted" class="play__hint" data-reveal><span data-fit="block">{t('playground.hint')}</span></Text>
+
+        <ButtonLink class="play__cta" href={dashLoginHref(lang)} tone="success" data-reveal><span data-fit>{t('nav.cta')}</span></ButtonLink>
     </div>
 
     <div class="play__stage" data-reveal data-playground>
-        <Card flush class="play__window">
+        <HaloPanel tone="green" class="play__window">
             <div class="play__bar">
                 <span class="play__channel">#your_channel</span>
                 <Tag tone="live" class="play__live" mark="solid" sweep><span class="play__live-label"><span data-fit>{t('playground.live')}</span></span></Tag>
@@ -85,7 +88,7 @@ const playStrings = {
                 />
                 <IconButton type="submit" label={t('playground.sendAria')} class="play__send">↵</IconButton>
             </form>
-        </Card>
+        </HaloPanel>
     </div>
 </Section>
 
@@ -167,16 +170,21 @@ const playStrings = {
         opacity: 0.75;
     }
 
+    .play__cta {
+        --reveal-i: 5;
+        --btn-w: 216px;
+        --btn-justify: center;
+        margin-top: 24px;
+    }
+
     .play__stage {
         --reveal-i: 2;
     }
 
     .play__window {
-        --card-radius: var(--bb-radius-lg);
         display: flex;
         flex-direction: column;
         height: clamp(420px, 56vh, 520px);
-        box-shadow: 0 24px 80px rgba(var(--bb-shadow-rgb), 0.5);
     }
 
     .play__bar {

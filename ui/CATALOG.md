@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **108** blocks;
-**100** ship both adapters.
+Every block the library ships, by family. **109** blocks;
+**101** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 108 times
+omitted: nearly every block takes both, and listing them 109 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -134,6 +134,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **DeckList** | `as`: T | svelte + astro | stable | `styles/elements/card.css, styles/elements/deck-list.css` |
 | **Fact** | `term*`: string<br>`tone`: 'danger'<br>`mono`: boolean<br>`wide`: boolean<br>`truncate`: boolean | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' | svelte + astro | stable | `styles/elements/fact-list.css` |
+| **HaloPanel** | `as`: 'div' \| 'a' \| 'article' \| 'section' \| 'aside'<br>`href`: string<br>`tone`: 'gold' \| 'green' | svelte + astro | stable | `styles/elements/halo-panel.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | stable | `styles/elements/icon.css` |
 | **LineSeries** | `points*`: readonly LinePoint[]<br>`series*`: readonly LineSeriesSpec[]<br>`label*`: string<br>`description`: string<br>`unit`: string<br>`emptyLabel`: string<br>`formatValue`: (value: number \| null \| undefined) => string<br>`formatTime`: (at: number) => string | svelte + astro<br>*Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.* | stable | `styles/elements/line-series.css` |
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | svelte-only | `styles/elements/log-tail.css` |
