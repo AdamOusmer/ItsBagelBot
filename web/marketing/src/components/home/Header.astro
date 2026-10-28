@@ -2,7 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { SITE } from '@bagel/kit/site-links';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Text from '@bagel/ui/astro/Text.astro';
@@ -50,10 +49,10 @@ const t = useTranslations(lang);
 
 
     <div class="header-material">
-        <a class="eyebrow" href={SITE.discord} target="_blank" rel="noopener noreferrer">
+        <div class="eyebrow">
             <Tag tone="live" mark="solid" sweep class="eyebrow__tag"><span class="eyebrow__tag-label"><span data-fit>{t('hero.devBadge')}</span></span></Tag>
             <Eyebrow tone="go" class="eyebrow__text"><span data-fit>{t('hero.topText')}</span></Eyebrow>
-        </a>
+        </div>
 
         <div class="split">
             <h1 aria-label={`${t('hero.title1')} ${t('hero.title2')} ${t('hero.title3')}`} data-hero-title>
@@ -308,11 +307,6 @@ const t = useTranslations(lang);
         flex: none;
         width: 440px;
         font-size: 0.9rem;
-        transition: color var(--bb-dur-fast);
-    }
-
-    .eyebrow:hover .eyebrow__text {
-        color: var(--bb-white);
     }
 
     h1 {
