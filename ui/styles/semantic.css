@@ -27,9 +27,9 @@
     --bb-focus: var(--bb-tan-light);
 
     --bb-status-success: var(--bb-green-glow);
-    --bb-status-success-fg: #8fe0b4;
-    --bb-status-success-bg: #0f2118;
-    --bb-status-success-border: #2f7355;
+    --bb-status-success-fg: #9fd5c4;
+    --bb-status-success-bg: #0e1f1b;
+    --bb-status-success-border: #2f735f;
 
     --bb-status-warning: var(--bb-tan-light);
     --bb-status-warning-fg: #eccfa3;

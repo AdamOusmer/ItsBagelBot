@@ -35,7 +35,7 @@ const mermaidDarkVars = {
 
 	tertiaryColor: '#15201b',
 	tertiaryTextColor: '#eadbbd',
-	tertiaryBorderColor: '#5cc995',
+	tertiaryBorderColor: '#62a593',
 
 	lineColor: '#eadbbd',
 	textColor: '#f4f4f5',
@@ -44,8 +44,8 @@ const mermaidDarkVars = {
 	secondBkg: '#f6efe1',
 	nodeBorder: '#8f7a58',
 
-	clusterBkg: 'rgba(92, 201, 149, 0.08)',
-	clusterBorder: 'rgba(92, 201, 149, 0.45)',
+	clusterBkg: 'rgba(98, 165, 147, 0.08)',
+	clusterBorder: 'rgba(98, 165, 147, 0.45)',
 
 	edgeLabelBackground: '#1f1f23',
 	titleColor: '#f4f4f5',
@@ -57,14 +57,14 @@ const mermaidDarkVars = {
 	signalColor: '#f4f4f5',
 	signalTextColor: '#f4f4f5',
 	labelBoxBkgColor: '#15201b',
-	labelBoxBorderColor: '#5cc995',
+	labelBoxBorderColor: '#62a593',
 	labelTextColor: '#eadbbd',
 	loopTextColor: '#f4f4f5',
 	noteBkgColor: '#1f1f23',
 	noteTextColor: '#eadbbd',
 	noteBorderColor: '#d8bf91',
-	activationBkgColor: 'rgba(92, 201, 149, 0.22)',
-	activationBorderColor: '#5cc995',
+	activationBkgColor: 'rgba(98, 165, 147, 0.22)',
+	activationBorderColor: '#62a593',
 };
 
 export default defineConfig({

@@ -78,10 +78,10 @@
         <defs>
           <linearGradient id="login-g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
             <stop stop-color="#d8bf91" offset="0" />
-            <stop offset="1" stop-color="#2f7d5b" />
+            <stop offset="1" stop-color="#24584a" />
           </linearGradient>
           <linearGradient id="login-g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#3a9b70" offset="0" />
+            <stop stop-color="#2f735f" offset="0" />
             <stop offset="1" stop-color="#d8bf91" />
           </linearGradient>
         </defs>

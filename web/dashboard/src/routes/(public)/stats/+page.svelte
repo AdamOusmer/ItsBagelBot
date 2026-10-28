@@ -221,7 +221,7 @@
     Array.from({ length: 3 }, (_, i) => feed.entries[i]?.name || feed.entries[i]?.id || `ItsBagelBot-feed-${i}`)
   );
   const friendPalettes = [
-    { head: '#5cc995', eye: '#111113' },
+    { head: '#62a593', eye: '#111113' },
     { head: '#eadbbd', eye: '#111113' },
     { head: '#f6efe1', eye: '#111113' }
   ];
