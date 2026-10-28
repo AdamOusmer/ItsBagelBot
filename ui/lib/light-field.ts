@@ -18,8 +18,8 @@ export type FieldOptions = {
 const FRAME_MS = 1000 / 60;
 const EDGE_PX = 10;
 const RESIZE_DEBOUNCE_MS = 150;
-const TAN_RGB = '201, 168, 124';
-const GREEN_GLOW_RGB = '82, 183, 136';
+const TAN_RGB = '216, 191, 145';
+const GREEN_GLOW_RGB = '92, 201, 149';
 
 function channel(host: HTMLElement, name: string, fallback: string): string {
     return getComputedStyle(host).getPropertyValue(name).trim() || fallback;

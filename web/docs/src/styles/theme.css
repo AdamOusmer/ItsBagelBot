@@ -524,7 +524,10 @@ site-search button[data-open-modal]:hover {
 .hero h1 mark {
     color: var(--bb-green-glow);
     font-style: normal;
-    background: transparent;
+    background: var(--bb-green-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 :root[data-theme="light"] .hero h1 {
@@ -536,6 +539,7 @@ site-search button[data-open-modal]:hover {
 :root[data-theme="light"] .hero h1 mark {
     color: var(--bb-green);
     background: transparent;
+    -webkit-text-fill-color: currentColor;
 }
 
 .hero .tagline {

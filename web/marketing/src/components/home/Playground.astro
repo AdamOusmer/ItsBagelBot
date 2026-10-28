@@ -321,9 +321,9 @@ const playStrings = {
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
     const VIEWERS: Array<[string, string]> = [
-        ['PrincessBarney', '#e0c49a'],
-        ['SnackPackPanda', '#52b788'],
-        ['Lotti', '#c9a87c'],
+        ['PrincessBarney', '#eadbbd'],
+        ['SnackPackPanda', '#5cc995'],
+        ['Lotti', '#d8bf91'],
         ['MikanMeerkat', '#9ad1b5'],
         ['Ayshacinder', '#d9c08a'],
     ];
@@ -447,7 +447,7 @@ const playStrings = {
         function handleCommand(raw: string) {
             const text = raw.trim();
             if (!text) return;
-            addChat('you', '#e0c49a', text, 'pmsg--you');
+            addChat('you', '#eadbbd', text, 'pmsg--you');
 
             if (!text.startsWith('!')) {
                 if (!quietNoteShown) {
@@ -489,8 +489,8 @@ const playStrings = {
 
         document.addEventListener('visibilitychange', scheduleAmbient);
 
-        addChat('SnackPackPanda', '#52b788', S.seed1);
-        addChat('PrincessBarney', '#e0c49a', S.seedTry);
+        addChat('SnackPackPanda', '#5cc995', S.seed1);
+        addChat('PrincessBarney', '#eadbbd', S.seedTry);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();

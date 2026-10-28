@@ -32,12 +32,12 @@ const t = useTranslations(lang);
                       stroke="url(#g2)" stroke-width="1.5" fill="none"/>
                 <defs>
                     <linearGradient id="g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
-                        <stop stop-color="#c9a87c" offset="0"/>
-                        <stop offset="1" stop-color="#2d6a4f"/>
+                        <stop stop-color="#d8bf91" offset="0"/>
+                        <stop offset="1" stop-color="#2f7d5b"/>
                     </linearGradient>
                     <linearGradient id="g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
-                        <stop stop-color="#40916c" offset="0"/>
-                        <stop offset="1" stop-color="#c9a87c"/>
+                        <stop stop-color="#3a9b70" offset="0"/>
+                        <stop offset="1" stop-color="#d8bf91"/>
                     </linearGradient>
                 </defs>
             </svg>
@@ -143,9 +143,9 @@ const t = useTranslations(lang);
                 period,
                 {
                     textShadow: [
-                        '0 0 0px rgba(245, 230, 207, 0)',
-                        '0 0 28px rgba(245, 230, 207, 0.85)',
-                        '0 0 0px rgba(245, 230, 207, 0)',
+                        '0 0 0px rgba(246, 239, 225, 0)',
+                        '0 0 28px rgba(246, 239, 225, 0.85)',
+                        '0 0 0px rgba(246, 239, 225, 0)',
                     ],
                 },
                 { delay: periodDelay, duration: 0.9, ease: 'easeOut' },
@@ -328,12 +328,17 @@ const t = useTranslations(lang);
         margin-block: -0.12em;
     }
 
-    h1 .line.tan {
-        color: var(--bb-tan);
+    h1 .line.tan .text,
+    h1 .line.green .text {
+        background: var(--bb-gold-gradient);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        -webkit-text-fill-color: transparent;
     }
 
-    h1 .line.green {
-        color: var(--bb-green-glow);
+    h1 .line.green .text {
+        background-image: var(--bb-green-gradient);
     }
 
     h1 .glyph {

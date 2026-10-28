@@ -77,12 +77,12 @@
         />
         <defs>
           <linearGradient id="login-g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#c9a87c" offset="0" />
-            <stop offset="1" stop-color="#2d6a4f" />
+            <stop stop-color="#d8bf91" offset="0" />
+            <stop offset="1" stop-color="#2f7d5b" />
           </linearGradient>
           <linearGradient id="login-g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#40916c" offset="0" />
-            <stop offset="1" stop-color="#c9a87c" />
+            <stop stop-color="#3a9b70" offset="0" />
+            <stop offset="1" stop-color="#d8bf91" />
           </linearGradient>
         </defs>
       </svg>

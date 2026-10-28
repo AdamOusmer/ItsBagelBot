@@ -30,9 +30,9 @@
   type Viewer = PageData['podium'][number];
 
   const friendPalettes = [
-    { head: '#52b788', eye: '#0a0a0a' },
-    { head: '#e0c49a', eye: '#0a0a0a' },
-    { head: '#f5e6cf', eye: '#0a0a0a' }
+    { head: '#5cc995', eye: '#111113' },
+    { head: '#eadbbd', eye: '#111113' },
+    { head: '#f6efe1', eye: '#111113' }
   ];
   const podiumLooks = [
     { tone: 'warm', appearance: 'solid', palette: 0 },

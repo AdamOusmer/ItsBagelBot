@@ -54,7 +54,7 @@
   const ACCENT: Record<string, string> = {
     primary: 'var(--bb-tan-light)',
     blue: '#4a9eff',
-    green: '#52b788',
+    green: '#5cc995',
     orange: '#ff9f45',
     purple: '#c77dff'
   };
