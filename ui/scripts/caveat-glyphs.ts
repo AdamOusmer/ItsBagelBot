@@ -12,7 +12,6 @@ const LOCALES = join(import.meta.dir, "../../locales");
 const SOURCES: Array<[file: string, path: string[]]> = [
   ["console/public.json", ["footer", "signoffSub"]],
   ["website/footer.json", ["signoffSub"]],
-  ["website/letter.json", ["signature"]],
 ];
 
 function readString(locale: string, [file, path]: (typeof SOURCES)[number]): string {

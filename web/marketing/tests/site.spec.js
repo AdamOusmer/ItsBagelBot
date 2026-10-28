@@ -118,8 +118,7 @@ test.describe('ItsBagelBot site', () => {
             await expect(how).toContainText(step);
         }
 
-        await expect(page.locator('#letter')).toContainText('Nothing here is sold to advertisers');
-        await expect(page.locator('[data-letter-stamp]')).toHaveCount(1);
+        await expect(page.locator('#letter')).toHaveCount(0);
         await expect(page.locator('.finale')).toContainText('tomorrow');
 
         const about = page.locator('#about');
