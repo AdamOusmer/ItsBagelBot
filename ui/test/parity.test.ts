@@ -727,7 +727,7 @@ const REMAINING: {
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
       '<span class="bb-page-hero__eyebrow"><span data-fit>Pricing</span></span>' +
-      '<h1 class="bb-page-hero__title"><span data-fit="block" data-decode="Simple pricing">Simple pricing</span></h1>' +
+      '<h1 class="bb-page-hero__title"><span data-fit="block">Simple pricing</span></h1>' +
       '<p class="bb-page-hero__desc"><span data-fit="block">One plan.</span></p></div></header>',
   },
   {
@@ -740,7 +740,7 @@ const REMAINING: {
       LIGHT_FIELD +
       '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
       '<div class="bb-page-hero__inner">' +
-      '<h1 class="bb-page-hero__title"><span data-fit="block" data-decode="Contact">Contact</span></h1></div></header>',
+      '<h1 class="bb-page-hero__title"><span data-fit="block">Contact</span></h1></div></header>',
   },
   {
     name: 'SectionHeading: left with eyebrow',
