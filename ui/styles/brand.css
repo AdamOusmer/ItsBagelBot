@@ -14,11 +14,11 @@
     --bb-muted: #a1a1aa;
     --bb-muted-light: #b4b4bc;
     --bb-muted-soft: #c2c2c9;
-    --bb-mint: #cdeedd;
+    --bb-mint: #cde5dc;
 
-    --bb-green: #2f7d5b;
-    --bb-green-light: #3a9b70;
-    --bb-green-glow: #5cc995;
+    --bb-green: #24584a;
+    --bb-green-light: #2f735f;
+    --bb-green-glow: #62a593;
 
     --bb-tan: #d8bf91;
     --bb-tan-light: #eadbbd;
@@ -28,7 +28,7 @@
     --bb-tan-mid: #6f5d42;
     --bb-tan-darkest: #4a3f2e;
     --bb-gold-gradient: linear-gradient(180deg, #f3e6cb, #bfa27a);
-    --bb-green-gradient: linear-gradient(180deg, #b9ecd2, #4fb487);
+    --bb-green-gradient: linear-gradient(180deg, #b2d9cc, #4a8c78);
 
     --bb-warn: #f2c879;
 
@@ -37,10 +37,10 @@
     --bb-white-rgb: 244, 244, 245;
     --bb-white-pure-rgb: 255, 255, 255;
     --bb-shadow-rgb: 0, 0, 0;
-    --bb-green-rgb: 47, 125, 91;
-    --bb-green-light-rgb: 58, 155, 112;
-    --bb-green-glow-rgb: 92, 201, 149;
-    --bb-mint-glow-rgb: 210, 242, 226;
+    --bb-green-rgb: 36, 88, 74;
+    --bb-green-light-rgb: 47, 115, 95;
+    --bb-green-glow-rgb: 98, 165, 147;
+    --bb-mint-glow-rgb: 205, 229, 220;
     --bb-tan-rgb: 216, 191, 145;
     --bb-tan-light-rgb: 234, 219, 189;
     --bb-muted-rgb: 161, 161, 170;

@@ -30,7 +30,7 @@
   type Viewer = PageData['podium'][number];
 
   const friendPalettes = [
-    { head: '#5cc995', eye: '#111113' },
+    { head: '#62a593', eye: '#111113' },
     { head: '#eadbbd', eye: '#111113' },
     { head: '#f6efe1', eye: '#111113' }
   ];

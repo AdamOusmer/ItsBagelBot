@@ -86,7 +86,7 @@ Email clients are not browsers. The rules that keep this rendering right:
   | Tan light | `#eadbbd` |
   | Text | `#f4f4f5` / body `#b4b4bc` |
   | Muted | `#a1a1aa` |
-  | Green (done) | `#5cc995` |
+  | Green (done) | `#62a593` |
   | Display font | Syne |
   | Body font | DM Sans |
   | Label / mono | DM Mono |

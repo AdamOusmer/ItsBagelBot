@@ -13,7 +13,7 @@ export type ConfettiPiece = {
   h: number;
 };
 
-const CONFETTI_COLORS = ['#d8bf91', '#eadbbd', '#5cc995', '#f4f4f5'];
+const CONFETTI_COLORS = ['#d8bf91', '#eadbbd', '#62a593', '#f4f4f5'];
 const PIECE_COUNT = 90;
 
 export function confettiPieces(viewportWidth: number, viewportHeight: number, originY: number): ConfettiPiece[] {

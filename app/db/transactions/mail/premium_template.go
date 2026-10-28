@@ -18,7 +18,7 @@ const (
 	colorTanLt  = "#eadbbd"
 	colorWhite  = "#f4f4f5"
 	colorMuted  = "#a1a1aa"
-	colorGreen  = "#5cc995"
+	colorGreen  = "#62a593"
 
 	fontDisplay = "'Syne','Avenir Next','Helvetica Neue',Arial,sans-serif"
 	fontBody    = "'DM Sans','Helvetica Neue',Arial,sans-serif"
@@ -155,7 +155,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
               <td valign="middle">
                 <span style="display:inline-block;">
                   <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
-                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(216,191,145,0.7),rgba(92,201,149,0.5));font-size:0;line-height:0;">&nbsp;</span>
+                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(216,191,145,0.7),rgba(98,165,147,0.5));font-size:0;line-height:0;">&nbsp;</span>
                 </span>
               </td>
               <td valign="middle" align="right" width="66">
