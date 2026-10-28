@@ -9,9 +9,9 @@
     --bb-bg-0: var(--bb-black);
     --bb-bg-1: var(--bb-card-bg);
 
-    --bb-border: rgba(var(--bb-tan-rgb), 0.15);
-    --bb-border-strong: rgba(var(--bb-tan-rgb), 0.35);
-    --bb-border-chip: rgba(var(--bb-tan-rgb), 0.28);
+    --bb-border: rgba(var(--bb-white-pure-rgb), 0.08);
+    --bb-border-strong: rgba(var(--bb-white-pure-rgb), 0.16);
+    --bb-border-chip: rgba(var(--bb-white-pure-rgb), 0.12);
     --bb-glow-tan: rgba(var(--bb-tan-rgb), 0.18);
     --bb-glow-green: rgba(var(--bb-green-glow-rgb), 0.16);
     --bb-accent-soft: rgba(var(--bb-green-glow-rgb), 0.12);
@@ -67,7 +67,7 @@
 
     --bb-tier-inactive: var(--bb-muted);
     --bb-tier-inactive-bg: rgba(var(--bb-white-pure-rgb), 0.04);
-    --bb-tier-inactive-border: rgba(var(--bb-tan-rgb), 0.20);
+    --bb-tier-inactive-border: rgba(var(--bb-white-pure-rgb), 0.12);
 }
 
 }

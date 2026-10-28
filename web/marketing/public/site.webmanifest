@@ -5,8 +5,8 @@
   "id": "/",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0a0a0a",
-  "background_color": "#0a0a0a",
+  "theme_color": "#111113",
+  "background_color": "#111113",
   "lang": "en",
   "categories": ["productivity", "utilities", "entertainment"],
   "icons": [

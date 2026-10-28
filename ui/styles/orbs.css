@@ -51,9 +51,9 @@
     }
 
     .bb-orb--tan {
-        background: var(--bb-tan);
-        --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.78);
-        --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.32);
+        background: rgba(var(--bb-tan-rgb), 0.35);
+        --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.27);
+        --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.11);
     }
 
     :root[data-theme="light"] .bb-orb--green {

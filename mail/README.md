@@ -79,14 +79,14 @@ Email clients are not browsers. The rules that keep this rendering right:
 
   | Token | Value |
   | --- | --- |
-  | Canvas | `#0a0a0a` |
-  | Card | `#111110` |
-  | Border | `#2b241b` |
-  | Tan (accent) | `#c9a87c` |
-  | Tan light | `#e0c49a` |
-  | Text | `#f0ece4` / body `#a89f92` |
-  | Muted | `#888077` |
-  | Green (done) | `#52b788` |
+  | Canvas | `#111113` |
+  | Card | `#1a1a1d` |
+  | Border | `#2a2a2e` |
+  | Tan (accent) | `#d8bf91` |
+  | Tan light | `#eadbbd` |
+  | Text | `#f4f4f5` / body `#b4b4bc` |
+  | Muted | `#a1a1aa` |
+  | Green (done) | `#5cc995` |
   | Display font | Syne |
   | Body font | DM Sans |
   | Label / mono | DM Mono |

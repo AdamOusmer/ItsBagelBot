@@ -7,43 +7,45 @@
 @layer bb.tokens {
 
 :root {
-    --bb-black: #0a0a0a;
-    --bb-card-bg: #111110;
-    --bb-inset-bg: #0b0b0a;
-    --bb-white: #f0ece4;
-    --bb-muted: #888077;
-    --bb-muted-light: #a39c92;
-    --bb-muted-soft: #b0a898;
-    --bb-mint: #b8f0d4;
+    --bb-black: #111113;
+    --bb-card-bg: #1a1a1d;
+    --bb-inset-bg: #121214;
+    --bb-white: #f4f4f5;
+    --bb-muted: #a1a1aa;
+    --bb-muted-light: #b4b4bc;
+    --bb-muted-soft: #c2c2c9;
+    --bb-mint: #cdeedd;
 
-    --bb-green: #2d6a4f;
-    --bb-green-light: #40916c;
-    --bb-green-glow: #52b788;
+    --bb-green: #2f7d5b;
+    --bb-green-light: #3a9b70;
+    --bb-green-glow: #5cc995;
 
-    --bb-tan: #c9a87c;
-    --bb-tan-light: #e0c49a;
-    --bb-tan-pale: #f5e6cf;
-    --bb-tan-low: #2a2316;
-    --bb-tan-deep: #8a6a3e;
-    --bb-tan-mid: #6e5026;
-    --bb-tan-darkest: #4a3416;
+    --bb-tan: #d8bf91;
+    --bb-tan-light: #eadbbd;
+    --bb-tan-pale: #f6efe1;
+    --bb-tan-low: #26221b;
+    --bb-tan-deep: #8f7a58;
+    --bb-tan-mid: #6f5d42;
+    --bb-tan-darkest: #4a3f2e;
+    --bb-gold-gradient: linear-gradient(180deg, #f3e6cb, #bfa27a);
+    --bb-green-gradient: linear-gradient(180deg, #b9ecd2, #4fb487);
 
     --bb-warn: #f2c879;
 
-    --bb-black-rgb: 10, 10, 10;
-    --bb-card-bg-rgb: 17, 17, 16;
-    --bb-white-rgb: 240, 236, 228;
+    --bb-black-rgb: 17, 17, 19;
+    --bb-card-bg-rgb: 26, 26, 29;
+    --bb-white-rgb: 244, 244, 245;
     --bb-white-pure-rgb: 255, 255, 255;
     --bb-shadow-rgb: 0, 0, 0;
-    --bb-green-rgb: 45, 106, 79;
-    --bb-green-light-rgb: 64, 145, 108;
-    --bb-green-glow-rgb: 82, 183, 136;
-    --bb-mint-glow-rgb: 167, 243, 208;
-    --bb-tan-rgb: 201, 168, 124;
-    --bb-tan-light-rgb: 224, 196, 154;
-    --bb-muted-rgb: 136, 128, 119;
-    --bb-tan-pale-rgb: 245, 230, 207;
-    --bb-tan-deep-rgb: 138, 106, 62;
+    --bb-green-rgb: 47, 125, 91;
+    --bb-green-light-rgb: 58, 155, 112;
+    --bb-green-glow-rgb: 92, 201, 149;
+    --bb-mint-glow-rgb: 210, 242, 226;
+    --bb-tan-rgb: 216, 191, 145;
+    --bb-tan-light-rgb: 234, 219, 189;
+    --bb-muted-rgb: 161, 161, 170;
+    --bb-tan-pale-rgb: 246, 239, 225;
+    --bb-tan-deep-rgb: 143, 122, 88;
 
     --bb-radius-xs: 4px;
     --bb-radius-sm: 8px;
@@ -106,37 +108,37 @@
     --card-pad: calc(24px * var(--d));
     --row-gap: calc(28px * var(--d));
 
-    --bb-ink: #14110c;
-    --bb-ink-soft: #2a251e;
-    --bb-ink-mid: #46403a;
-    --bb-ink-rgb: 20, 17, 12;
+    --bb-ink: #111113;
+    --bb-ink-soft: #27272a;
+    --bb-ink-mid: #3f3f46;
+    --bb-ink-rgb: 17, 17, 19;
 
-    --bb-paper: #fffbf0;
-    --bb-paper-warm: #faf5e9;
-    --bb-paper-sidebar: #f3ecdb;
-    --bb-paper-cluster: #f3e7d2;
-    --bb-paper-card: #f7f1e4;
-    --bb-paper-invert: #fbf6ec;
-    --bb-paper-warm-rgb: 250, 245, 233;
-    --bb-paper-sidebar-rgb: 243, 236, 219;
+    --bb-paper: #fbfbfc;
+    --bb-paper-warm: #f6f6f7;
+    --bb-paper-sidebar: #efeff1;
+    --bb-paper-cluster: #ebebee;
+    --bb-paper-card: #f3f3f5;
+    --bb-paper-invert: #fafafa;
+    --bb-paper-warm-rgb: 246, 246, 247;
+    --bb-paper-sidebar-rgb: 239, 239, 241;
 
-    --bb-gray-3-light: #6b6359;
-    --bb-gray-4-light: #968d80;
-    --bb-gray-5-light: #d8d0c1;
-    --bb-gray-6-light: #ede6d7;
+    --bb-gray-3-light: #52525b;
+    --bb-gray-4-light: #8e8e96;
+    --bb-gray-5-light: #d4d4d8;
+    --bb-gray-6-light: #e8e8eb;
 
-    --bb-gray-1-dark: #e3ddd0;
-    --bb-gray-4-dark: #5a5650;
-    --bb-gray-5-dark: #2e2b26;
-    --bb-gray-6-dark: #1a1814;
+    --bb-gray-1-dark: #e4e4e7;
+    --bb-gray-4-dark: #52525b;
+    --bb-gray-5-dark: #2a2a2e;
+    --bb-gray-6-dark: #1c1c1f;
 
-    --bb-elev-1: #16140f;
-    --bb-elev-2: #1d1a14;
-    --bb-elev-2-rgb: 29, 26, 20;
+    --bb-elev-1: #18181b;
+    --bb-elev-2: #1f1f23;
+    --bb-elev-2-rgb: 31, 31, 35;
 
-    --bb-mermaid-panel: #0d0c0a;
+    --bb-mermaid-panel: #141416;
     --bb-mermaid-cluster: #15201b;
-    --bb-mermaid-panel-rgb: 13, 12, 10;
+    --bb-mermaid-panel-rgb: 20, 20, 22;
 }
 
 @media (max-width: 760px) {

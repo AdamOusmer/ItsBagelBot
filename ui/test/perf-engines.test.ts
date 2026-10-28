@@ -315,7 +315,7 @@ describe('light field', () => {
     const cool = host(1000);
     field(cool.el as unknown as HTMLElement, { warmth: 0 });
     observers.intersection[1]([{ isIntersecting: true }]);
-    expect(backgrounds(cool.children).every((b) => b.startsWith('rgba(82, 183, 136, '))).toBe(true);
+    expect(backgrounds(cool.children).every((b) => b.startsWith('rgba(92, 201, 149, '))).toBe(true);
     expect(styleReads).toBe(4);
   });
 

@@ -56,9 +56,9 @@ function animateLine({ animate, stagger, cubicBezier }: Motion, line: HTMLElemen
     period,
     {
       textShadow: [
-        '0 0 0px rgba(245, 230, 207, 0)',
-        '0 0 28px rgba(245, 230, 207, 0.85)',
-        '0 0 0px rgba(245, 230, 207, 0)'
+        '0 0 0px rgba(246, 239, 225, 0)',
+        '0 0 28px rgba(246, 239, 225, 0.85)',
+        '0 0 0px rgba(246, 239, 225, 0)'
       ]
     },
     { delay: periodDelay, duration: 0.9, ease: 'easeOut' }

@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	colorBlack  = "#0a0a0a"
-	colorCard   = "#111110"
-	colorBorder = "#2b241b"
-	colorTan    = "#c9a87c"
-	colorTanLt  = "#e0c49a"
-	colorWhite  = "#f0ece4"
-	colorMuted  = "#888077"
-	colorGreen  = "#52b788"
+	colorBlack  = "#111113"
+	colorCard   = "#1a1a1d"
+	colorBorder = "#2a2a2e"
+	colorTan    = "#d8bf91"
+	colorTanLt  = "#eadbbd"
+	colorWhite  = "#f4f4f5"
+	colorMuted  = "#a1a1aa"
+	colorGreen  = "#5cc995"
 
 	fontDisplay = "'Syne','Avenir Next','Helvetica Neue',Arial,sans-serif"
 	fontBody    = "'DM Sans','Helvetica Neue',Arial,sans-serif"
@@ -75,22 +75,22 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
           </div>
 
 {{if .Giveaway}}
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
+          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#b4b4bc;padding-bottom:20px;">
             {{.GiveawayIntro}} <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
           </div>
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#d8d0c4;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
+          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#d4d4d8;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
 {{if .Giveaway.Subscriber}}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
+            <tr><td style="background-color:#161618;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
               <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.SubscriptionLabel}}</div>
-              <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#a89f92;">{{.Giveaway.Situation}}</div>
+              <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#b4b4bc;">{{.Giveaway.Situation}}</div>
             </td></tr>
           </table>
 {{else if .Giveaway.Situation}}
-          <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#a89f92;padding-bottom:24px;">{{.Giveaway.Situation}}</div>
+          <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#b4b4bc;padding-bottom:24px;">{{.Giveaway.Situation}}</div>
 {{end}}
 {{else}}
-          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
+          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#b4b4bc;padding-bottom:20px;">
             {{if .Gift.Gifter}}<strong style="color:` + colorTanLt + `;font-weight:600;">{{.Gift.Gifter}}</strong> {{.GiftIntro}}{{else}}{{.GiftIntro}}{{end}}
             <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
             {{.GiftNoStrings}}
@@ -98,9 +98,9 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 {{if .Gift.Message}}
           <!-- personal note from the buyer -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
+            <tr><td style="background-color:#161618;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
               <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.Gift.NoteLabel}}</div>
-              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d8d0c4;font-style:italic;">&ldquo;{{.Gift.Message}}&rdquo;</div>
+              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d4d4d8;font-style:italic;">&ldquo;{{.Gift.Message}}&rdquo;</div>
             </td></tr>
           </table>
 {{end}}
@@ -155,11 +155,11 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
               <td valign="middle">
                 <span style="display:inline-block;">
                   <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
-                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(201,168,124,0.7),rgba(82,183,136,0.5));font-size:0;line-height:0;">&nbsp;</span>
+                  <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(216,191,145,0.7),rgba(92,201,149,0.5));font-size:0;line-height:0;">&nbsp;</span>
                 </span>
               </td>
               <td valign="middle" align="right" width="66">
-                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(201,168,124,0.4);border-radius:50%;transform:rotate(8deg);">&#129391;</div>
+                <div style="display:inline-block;width:55px;height:55px;line-height:55px;text-align:center;font-size:24px;border:1.5px dashed rgba(216,191,145,0.4);border-radius:50%;transform:rotate(8deg);">&#129391;</div>
               </td>
             </tr>
           </table>
