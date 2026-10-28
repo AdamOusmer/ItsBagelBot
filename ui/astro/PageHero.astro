@@ -16,4 +16,24 @@ const { eyebrow, title, description, class: className = '', ...rest } = Astro.pr
 const classes = ['bb-page-hero', className].filter(Boolean).join(' ');
 ---
 
-<header class={classes} {...rest}><LightField /><div class="bb-page-hero__glow" aria-hidden="true"></div><div class="bb-page-hero__inner">{eyebrow && <span class="bb-page-hero__eyebrow"><span data-fit>{eyebrow}</span></span>}<h1 class="bb-page-hero__title"><span data-fit="block" data-decode={title}>{title}</span></h1>{description && <p class="bb-page-hero__desc"><span data-fit="block">{description}</span></p>}</div></header>
+<header class={classes} {...rest}><LightField /><div class="bb-page-hero__glow" aria-hidden="true"></div><div class="bb-page-hero__inner">{eyebrow && <span class="bb-page-hero__eyebrow"><span data-fit>{eyebrow}</span></span>}<h1 class="bb-page-hero__title"><span data-fit="block">{title}</span></h1>{description && <p class="bb-page-hero__desc"><span data-fit="block">{description}</span></p>}</div></header>
+
+<script>
+    import { riseLines } from '../lib/line-rise';
+
+    const running = new Set<() => void>();
+
+    function setup(): void {
+        document.querySelectorAll<HTMLElement>('.bb-page-hero__title').forEach((title) => running.add(riseLines(title)));
+    }
+
+    function teardown(): void {
+        running.forEach((stop) => stop());
+        running.clear();
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+    document.addEventListener('astro:before-swap', teardown);
+    window.addEventListener('pagehide', teardown);
+</script>

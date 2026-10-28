@@ -159,6 +159,14 @@ const ENTRIES: {
              globalThis.x = observeDecode;`,
   },
   {
+    // 850 B gzip measured 2026-10-28, ~10% room.
+    name: "line-rise",
+    budget: 940,
+    external: [],
+    source: `import { riseLines } from "../../lib/line-rise";
+             globalThis.x = riseLines;`,
+  },
+  {
     name: "reading-progress",
     budget: 740,
     external: [],
@@ -273,7 +281,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/management-row", budget: 1040 }, // 788 B: link, static, title/meta, wrap and stacked actions (2026-09-29)
   { name: "elements/modal", budget: 1690 }, // 1380 B: viewer variant and static preview
   { name: "elements/overview-grid", budget: 420 },
-  { name: "elements/page-hero", budget: 1090 },
+  { name: "elements/page-hero", budget: 1240 }, // 1121 B: title line-rise layer, lines and keyframe (2026-10-28)
   { name: "elements/reading-progress", budget: 450 },
   { name: "elements/section-heading", budget: 560 },
   { name: "elements/surface", budget: 980 },
