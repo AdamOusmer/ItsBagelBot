@@ -41,6 +41,7 @@ mock.module(new URL("../lib/motion-query.ts", import.meta.url).pathname, () => (
   hasFinePointer: () => true,
   reduceMotion: { matches: false, addEventListener() {}, removeEventListener() {} },
   finePointer: { matches: true, addEventListener() {}, removeEventListener() {} },
+  mediaQuery: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
 }));
 
 let subscriptions = 0;
