@@ -6,8 +6,7 @@
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { decode } from '@bagel/ui/svelte/actions';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';

@@ -32,8 +32,8 @@ import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revoc
 import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import { actionError } from '$lib/server/action-errors';
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { cookieOptions, deleteOptions } from '$lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';

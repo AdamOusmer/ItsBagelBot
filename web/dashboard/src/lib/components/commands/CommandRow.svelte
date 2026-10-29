@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { formatCounterValue } from '@bagel/kit/validation';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import '@bagel/ui/styles/elements/row-body.css';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';

@@ -4,7 +4,7 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 
 process.env.NEW_RELIC_ENABLED = 'false';
-mock.module('$app/environment', () => ({ dev: false }));
+mock.module('$app/env', () => ({ dev: false }));
 
 const calls: Array<{ subject: string; body: any; timeoutMs?: number }> = [];
 let reply: unknown;

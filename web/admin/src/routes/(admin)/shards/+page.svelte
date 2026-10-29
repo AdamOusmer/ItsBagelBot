@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';

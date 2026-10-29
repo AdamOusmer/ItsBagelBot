@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { overviewLanes } from '$lib/server/overview-lanes';
 import { broadcastResponse, createBroadcast } from '$lib/server/sse-broadcast';
 

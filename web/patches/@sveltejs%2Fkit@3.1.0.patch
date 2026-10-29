@@ -1,10 +1,10 @@
 diff --git a/src/runtime/server/page/render.js b/src/runtime/server/page/render.js
-index ca7e044248e5137d52322650d677503f3872c9f1..f9ccffe3235a1a9a8ea2c84686a0d013aac6ed8c 100644
+index 0000000000000000000000000000000000000000..1111111111111111111111111111111111111111 100644
 --- a/src/runtime/server/page/render.js
 +++ b/src/runtime/server/page/render.js
-@@ -638,7 +638,10 @@ export async function render_response({
+@@ -621,7 +621,10 @@ export async function render_response({
  		})) || '';
- 
+
  	if (!chunks) {
 -		headers.set('etag', `"${hash(transformed)}"`);
 +		headers.set(
@@ -12,5 +12,5 @@ index ca7e044248e5137d52322650d677503f3872c9f1..f9ccffe3235a1a9a8ea2c84686a0d013
 +			`"${typeof Bun === 'undefined' ? hash(transformed) : Bun.hash(transformed).toString(36)}"`
 +		);
  	}
- 
+
  	if (DEV) {

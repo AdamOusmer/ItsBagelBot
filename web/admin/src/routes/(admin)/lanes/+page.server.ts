@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import {
   loadLanes,
   laneAlias,

@@ -7,8 +7,8 @@ import { goveeStore, type GoveeDevice, type GoveeView, type RewardDraft } from '
 import { moduleLoad } from '$lib/server/module-page';
 import { done, storeMutator } from '$lib/server/reward-action';
 import { parseRewardCore } from '$lib/server/reward-form';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';

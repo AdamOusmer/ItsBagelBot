@@ -12,7 +12,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor, accountState } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
 import { isBotAccount } from '$lib/server/bot-account';
 import { scheduleLeaderboardPurge, schedulePurgeChannel } from '$lib/server/edge-purge';

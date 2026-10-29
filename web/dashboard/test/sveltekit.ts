@@ -48,9 +48,9 @@ export function stubSvelteKit(options: { dev?: boolean } = {}): void {
   aliasLib();
   stubI18n();
   stubCatalogBundle();
-  mock.module('$app/environment', () => ({ browser: false, building: false, dev: options.dev ?? false }));
+  mock.module('$app/env', () => ({ browser: false, building: false, dev: options.dev ?? false }));
   mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {} }));
   mock.module('$app/state', () => ({ navigating: {}, page: {}, updated: {} }));
   mock.module('$app/forms', () => ({ enhance: () => ({ destroy: () => {} }) }));
-  mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
+  mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 }

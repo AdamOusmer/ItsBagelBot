@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { error, fail, redirect, type ActionFailure } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { RpcError } from '@bagel/kit/server/nats';
 import type { RpcCode } from '@bagel/kit/server/rpc-code';
 import type { Locale } from '@bagel/kit/i18n';

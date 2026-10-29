@@ -3,8 +3,8 @@
 import { redirect } from '@sveltejs/kit';
 import { gateModulePage } from '$lib/server/module-gate';
 import { effectiveId } from '$lib/server/board';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 

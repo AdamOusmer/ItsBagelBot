@@ -27,5 +27,5 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   } else {
     cookies.delete(NB_RETURN_COOKIE, { path: NB_STATE_COOKIE_PATH });
   }
-  throw redirect(302, nightbotAuthURL(state).toString());
+  throw redirect(302, nightbotAuthURL(state).toString(), { external: true });
 };

@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { error } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { MOD } from '@bagel/kit';
 import { lookupLogin } from '$lib/server/channel-lookup';
 import { markEdge, pageOutcome, readVisibility, type EdgeOutcome } from '$lib/server/edge-cache';

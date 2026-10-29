@@ -1,9 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { namespaceReplyTemplate } from '@bagel/kit';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';

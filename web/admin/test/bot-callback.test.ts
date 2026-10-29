@@ -28,7 +28,7 @@ const botTokenSet = mock(async (_actor: unknown, _grant: unknown) => {
 });
 const loggerError = spyOn(logger, 'error').mockImplementation(() => {});
 
-mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
+mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 mock.module('$lib/server/oauth', () => ({ botClientId: () => 'bot-client', botScopes: () => GRANTED, botTwitch }));
 mock.module('$lib/server/services', () => ({ botTokenSet }));
 

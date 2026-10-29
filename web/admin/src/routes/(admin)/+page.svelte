@@ -28,7 +28,7 @@
   const { t } = getI18n();
 
   function setWindow(days: EnrollmentWindow) {
-    goto(days === 30 ? '/' : `/?days=${days}`, { keepFocus: true, noScroll: true });
+    goto(days === 30 ? '/' : `/?days=${days}`, { reset: false });
   }
 </script>
 

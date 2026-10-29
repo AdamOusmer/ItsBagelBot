@@ -7,7 +7,7 @@ import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch } from '$lib/server/oauth';
 import { adminCheck } from '$lib/server/services';
 import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');

@@ -3,7 +3,7 @@
 
 import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 import { untrack } from 'svelte';
-import type { SubmitFunction } from '@sveltejs/kit';
+import type { SubmitFunction } from '$app/forms';
 import {
   blankDiscordConfig,
   discordModuleKeys,

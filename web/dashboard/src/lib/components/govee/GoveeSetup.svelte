@@ -2,10 +2,9 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { tick } from 'svelte';
-  import { dev } from '$app/environment';
-  import { enhance } from '$app/forms';
+  import { dev } from '$app/env';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk, type GoveeDevice } from '@bagel/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';

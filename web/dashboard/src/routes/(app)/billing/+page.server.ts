@@ -8,8 +8,8 @@ import type { Session } from '$lib/server/session';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { giveawayPrizes, type PrizeAward } from '$lib/server/giveaways';
 import { actionError } from '$lib/server/action-errors';
 
@@ -246,7 +246,7 @@ export const actions: Actions = {
 
     const url = await subscribeCheckout(actor, packageType, getClientAddress());
     if (!url) return fail(503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
-    throw redirect(303, url);
+    throw redirect(303, url, { external: true });
   },
 
   gift: async ({ locals, request, getClientAddress }) => {
@@ -265,7 +265,7 @@ export const actions: Actions = {
 
     const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress(), locals.locale);
     if (!checkout.ok) return fail(checkout.status, checkout.data);
-    throw redirect(303, checkout.url);
+    throw redirect(303, checkout.url, { external: true });
   },
 
   cancel: async ({ locals }) => {
@@ -285,6 +285,6 @@ export const actions: Actions = {
     const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);
     if (blocked) return fail(blocked.status, blocked.data);
 
-    throw redirect(303, url);
+    throw redirect(303, url, { external: true });
   }
 };

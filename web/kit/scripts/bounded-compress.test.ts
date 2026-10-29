@@ -32,6 +32,6 @@ describe('boundedCompress', () => {
   });
 
   test('a missing directory is a no-op', async () => {
-    await expect(boundedCompress(join(tmpdir(), 'bounded-compress-missing'))).resolves.toBeUndefined();
+    await expect(boundedCompress(join(tmpdir(), 'bounded-compress-missing'))).resolves.toEqual([]);
   });
 });

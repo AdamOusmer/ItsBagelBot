@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { fail, redirect, type ActionFailure, type RequestEvent } from '@sveltejs/kit';
 import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/kit';
 import type { Session } from '$lib/server/session';

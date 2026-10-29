@@ -18,8 +18,8 @@ import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { parsePerm, signedInAction, type ActionContext } from '$lib/server/action-context';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 

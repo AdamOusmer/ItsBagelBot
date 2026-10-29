@@ -34,8 +34,8 @@ import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
 import { parsePerm, signedInAction } from '$lib/server/action-context';
 import { gateSection } from '$lib/server/module-gate';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';

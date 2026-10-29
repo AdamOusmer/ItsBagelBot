@@ -3,7 +3,7 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { allows } from '$lib/server/access';
 import { analyticsSeries, type AnalyticsWindow } from '$lib/server/services';
 import { ANALYTICS_WINDOWS, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '$lib/analytics-page';

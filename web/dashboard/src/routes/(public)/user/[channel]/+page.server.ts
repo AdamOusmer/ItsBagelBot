@@ -11,8 +11,8 @@ import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
 import { lookupLogin } from '$lib/server/channel-lookup';
 import { requireHost } from '$lib/server/seo-hosts';
 import { LOGIN_RE, normalizeLogin } from '$lib/public-login';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 

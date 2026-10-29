@@ -24,5 +24,5 @@ export const GET: RequestHandler = ({ cookies, url }) => {
   cookies.set('oauth_state', state, cookieOpts);
   cookies.set('oauth_nonce', nonce, cookieOpts);
 
-  throw redirect(302, authUrl.toString());
+  throw redirect(302, authUrl.toString(), { external: true });
 };

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import { setOnboarded } from '$lib/server/services';
 import { applyFeaturePreset } from '$lib/server/feature-presets';

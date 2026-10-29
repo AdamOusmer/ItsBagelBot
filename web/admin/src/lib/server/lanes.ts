@@ -4,7 +4,7 @@
 import { jsm, js } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { Kvm, type KV } from '@nats-io/kv';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type DeliverySample } from './lane-telemetry';
 
 // Do not import access.ts: it pulls in services.ts, an import cycle through hooks.server.ts at boot.

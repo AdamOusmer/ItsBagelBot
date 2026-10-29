@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type ActionResult } from '$app/forms';
   import { onMount } from 'svelte';
   import { visibleEventSource } from '$lib/visible-stream';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -17,7 +17,6 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, mergeConnectionSignals, type ConnSignals, type ConnUi, type ChannelLifecycle } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
-  import type { ActionResult } from '@sveltejs/kit';
   import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
   import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';

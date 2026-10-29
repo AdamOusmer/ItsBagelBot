@@ -9,7 +9,7 @@ import { assertModuleUnlocked, moduleLocked } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
 import { DISCORD_DEF } from '$lib/server/discord-def';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 

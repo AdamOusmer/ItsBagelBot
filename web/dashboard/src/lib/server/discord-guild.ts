@@ -52,7 +52,7 @@ import {
 } from '@bagel/kit';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { error, fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.

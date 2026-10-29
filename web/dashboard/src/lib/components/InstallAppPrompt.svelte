@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { page } from '$app/state';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';

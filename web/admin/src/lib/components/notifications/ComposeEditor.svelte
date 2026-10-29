@@ -4,8 +4,7 @@
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';

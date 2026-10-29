@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
 import { previewImport, commitImport, SERVER_STRATEGIES } from '$lib/server/importer';

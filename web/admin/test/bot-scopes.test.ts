@@ -3,7 +3,7 @@
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { expect, mock, test } from 'bun:test';
 
-mock.module('$env/dynamic/private', () => ({ env: {
+mock.module('@bagel/kit/server/env', () => ({ env: {
   DASHBOARD_TWITCH_CLIENT_ID: 'bot-client',
   DASHBOARD_TWITCH_CLIENT_SECRET: 'test-secret',
   // Stale deployment overrides must not strip the bot's required permissions.

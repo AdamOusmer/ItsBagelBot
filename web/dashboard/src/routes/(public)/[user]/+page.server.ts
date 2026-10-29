@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { error, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import type { PageServerLoad } from './$types';
 import { userCommandsPage, userLeaderboardPage } from '$lib/server/services';
 import { readLoyalty, standingsPage, topStandings } from '$lib/server/loyalty-store';

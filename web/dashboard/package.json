@@ -18,7 +18,7 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
-    "@sveltejs/adapter-node": "^5.5.5",
+    "@sveltejs/adapter-node": "^6.0.0",
     "terser": "^5.48.0"
   }
 }

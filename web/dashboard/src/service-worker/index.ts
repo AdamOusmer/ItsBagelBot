@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /// <reference types="@sveltejs/kit" />
-import { version } from '$service-worker';
+import { version } from '$app/env';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 

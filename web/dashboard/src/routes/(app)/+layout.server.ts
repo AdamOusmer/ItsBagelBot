@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import type { LayoutServerLoad } from './$types';
 import { DASHBOARD_SECTIONS, moduleSectionLinks } from '@bagel/kit/nav';
 import { translate } from '@bagel/kit/i18n';

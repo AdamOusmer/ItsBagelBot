@@ -3,9 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
@@ -84,15 +83,15 @@
 
   function pickState(label: string) {
     const next = USER_STATES[stateLabels.indexOf(label)];
-    if (next) goto(href({ q: data.search, state: next, order: data.order }), { keepFocus: true });
+    if (next) goto(href({ q: data.search, state: next, order: data.order }), { reset: false });
   }
 
   function pickOrder(order: string) {
-    goto(href({ q: data.search, state: data.state, order }), { keepFocus: true });
+    goto(href({ q: data.search, state: data.state, order }), { reset: false });
   }
 
   function submitSearch() {
-    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { keepFocus: true });
+    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { reset: false });
   }
 
   let selectedId = $state<string | null>(null);

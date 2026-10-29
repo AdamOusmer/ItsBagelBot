@@ -20,7 +20,7 @@ import {
 import { listGuilds, type DiscordGuildSummary } from '$lib/server/discord-store';
 import { canManageGuild, guildIconURL, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
 import { gateModulePage } from '$lib/server/module-gate';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';

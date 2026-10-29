@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -14,7 +14,6 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n } from '@bagel/kit';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import { invalidateAll } from '$app/navigation';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/action-result';
   import type { TemplateItem, TemplatePlan } from '$lib/server/discord-store';

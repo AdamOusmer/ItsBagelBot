@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { gateModulePage } from '$lib/server/module-gate';
 import { effectiveId } from '$lib/server/board';
 import { readQueueView } from '$lib/server/songqueue-live';

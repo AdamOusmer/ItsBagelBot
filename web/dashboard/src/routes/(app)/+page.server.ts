@@ -19,8 +19,8 @@ import {
   delegationList,
 } from '$lib/server/services';
 import { listCommands, listModules } from '$lib/server/commands-store';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';

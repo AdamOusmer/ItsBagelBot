@@ -15,8 +15,8 @@ import { moduleLoad } from '$lib/server/module-page';
 import { done, storeMutator } from '$lib/server/reward-action';
 import { flag, hexOrEmpty, int, oneOf, text } from '$lib/server/reward-form';
 import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle, normalizeCounterName } from '$lib/reward-fields';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 

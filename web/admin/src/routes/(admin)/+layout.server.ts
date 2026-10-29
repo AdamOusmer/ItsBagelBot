@@ -3,7 +3,7 @@
 
 import type { LayoutServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { requireAdmin } from '$lib/server/access';
 import { notificationsList, type NotificationWire } from '$lib/server/services';
 

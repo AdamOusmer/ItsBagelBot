@@ -17,6 +17,6 @@ export function stubSvelteKit(options: { dev?: boolean } = {}): void {
     const real = join(LIB, file);
     mock.module(`$lib/${file.slice(0, -'.ts'.length)}`, () => require(real));
   }
-  mock.module('$app/environment', () => ({ browser: false, building: false, dev: options.dev ?? false }));
-  mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
+  mock.module('$app/env', () => ({ browser: false, building: false, dev: options.dev ?? false }));
+  mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 }

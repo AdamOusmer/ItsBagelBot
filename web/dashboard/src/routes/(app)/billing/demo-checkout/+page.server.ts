@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { error, redirect } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 

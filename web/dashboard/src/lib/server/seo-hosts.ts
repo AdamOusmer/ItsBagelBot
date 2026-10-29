@@ -4,7 +4,7 @@
 // Keep in step with the Host() matchers in deploy/k8s/console-dashboard.yaml.
 
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 
 export type SeoHost = 'dashboard' | 'stats' | 'leaderboard' | 'commands' | 'queue';
 
@@ -29,5 +29,5 @@ export const SEO_ORIGIN: Readonly<Record<SeoHost, string>> = {
 
 export function requireHost(url: URL, host: SeoHost): void {
   if (dev || seoHost(url) === host) return;
-  throw redirect(308, `${SEO_ORIGIN[host]}${url.pathname}${url.search}`);
+  throw redirect(308, `${SEO_ORIGIN[host]}${url.pathname}${url.search}`, { external: true });
 }

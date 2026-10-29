@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import { isOwnerSession } from './owner';
 
 const AUTHORIZE_URL = 'https://api.nightbot.tv/oauth2/authorize';

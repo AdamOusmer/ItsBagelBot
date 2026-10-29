@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { delegateAllowedPaths, pathnameAllowed } from '@bagel/kit';
 import { COOKIE, seal, type Session } from '$lib/server/session';

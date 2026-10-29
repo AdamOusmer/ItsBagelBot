@@ -15,8 +15,8 @@ import { listFetches, rehearseFetch, upsertFetchDef, deleteFetchDef } from '$lib
 import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
 import { logger } from '@bagel/kit/server/logger';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 

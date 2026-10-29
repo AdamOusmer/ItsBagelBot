@@ -40,15 +40,15 @@ function compressFile(file, format) {
  * @param {number} [concurrency]
  */
 export async function boundedCompress(directory, concurrency = COMPRESS_CONCURRENCY) {
-  if (!existsSync(directory)) return;
-  const jobs = listFiles(directory)
-    .filter((file) => EXTENSIONS.has(extname(file)))
-    .flatMap((file) => [() => compressFile(file, 'gz'), () => compressFile(file, 'br')]);
+  if (!existsSync(directory)) return [];
+  const files = listFiles(directory).filter((file) => EXTENSIONS.has(extname(file)));
+  const jobs = files.flatMap((file) => [() => compressFile(file, 'gz'), () => compressFile(file, 'br')]);
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) await jobs[next++]();
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
+  return files;
 }
 
 /**

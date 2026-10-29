@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';

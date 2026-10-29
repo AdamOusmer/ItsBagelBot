@@ -3,8 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import '@bagel/kit/styles/ui-console.css';
   import { page } from '$app/state';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { toast } from '@bagel/ui/svelte/toast';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';

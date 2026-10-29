@@ -10,8 +10,8 @@ import { setModuleEnabled } from '$lib/server/module-blob';
 import { disableChildren, isChildOf } from '$lib/server/module-parent';
 import { moduleLoad } from '$lib/server/module-page';
 import { storeMutator } from '$lib/server/reward-action';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';

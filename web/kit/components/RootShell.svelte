@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import { toast } from '@bagel/ui/svelte/toast';

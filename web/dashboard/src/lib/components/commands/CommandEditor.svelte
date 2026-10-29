@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onDestroy, onMount } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Grid from '@bagel/ui/svelte/Grid.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';

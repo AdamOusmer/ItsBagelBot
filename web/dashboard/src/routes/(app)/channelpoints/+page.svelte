@@ -2,10 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 	import '@bagel/ui/styles/elements/layout.css';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { untrack } from 'svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';

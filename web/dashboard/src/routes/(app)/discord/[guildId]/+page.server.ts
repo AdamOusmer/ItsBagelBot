@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { logger } from '@bagel/kit/server/logger';
 import type { PageServerLoad } from './$types';
 import { effectiveId } from '$lib/server/board';

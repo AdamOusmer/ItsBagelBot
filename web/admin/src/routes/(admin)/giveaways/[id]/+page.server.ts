@@ -1,6 +1,6 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { allows, requireRole } from '$lib/server/access';
 import { audited, okReply } from '$lib/server/admin-action';
 import { actionError, adminText } from '$lib/server/admin-action';

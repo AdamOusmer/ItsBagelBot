@@ -16,11 +16,11 @@ import {
   type ServiceHealth,
   type TrialSnapshot
 } from '$lib/server/services';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { allows } from '$lib/server/access';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import { emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '$lib/server/fallback';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import type { ShardSnapshot } from '@bagel/kit';
 import { parseEnrollmentWindow, type EnrollmentWindow } from '$lib/enrollment-window';
 import { giveawayAlerts, type GiveawayAlertWire } from '$lib/server/giveaways';

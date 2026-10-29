@@ -23,5 +23,5 @@ export const GET: RequestHandler = async ({ cookies, url, locals }) => {
   const state = generateState();
   cookies.set(SPOTIFY_STATE_COOKIE, state, cookieOptions(url, SPOTIFY_STATE_TTL_SECONDS));
 
-  throw redirect(302, spotifyAuthorizeURL(app.clientId, state));
+  throw redirect(302, spotifyAuthorizeURL(app.clientId, state), { external: true });
 };

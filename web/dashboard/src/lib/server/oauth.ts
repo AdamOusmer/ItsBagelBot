@@ -3,7 +3,7 @@
 
 import { safeReturnPath } from '@bagel/kit/return-path';
 import { Twitch } from '@bagel/kit/server/oauth';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import { scopeGap } from '@bagel/kit';
 
 function requiredTwitchConfig(value: string | undefined): string {

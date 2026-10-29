@@ -1,10 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { untrack } from 'svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';

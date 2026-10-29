@@ -8,8 +8,8 @@ import { listCounters, createCounter, renameCounter, deleteCounter, counterEntri
 import { UserError, normalizeCounterName } from '$lib/server/counter-form';
 import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';
 import { moduleLoad } from '$lib/server/module-page';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 import { storeMutator } from '$lib/server/reward-action';
 

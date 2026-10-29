@@ -1,9 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import { copyText } from '@bagel/ui/lib/clipboard';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';

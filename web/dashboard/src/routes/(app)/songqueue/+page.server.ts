@@ -11,8 +11,8 @@ import { getSongQueue } from '@bagel/kit/server/songqueue-store';
 import type { QueueView } from '$lib/server/songqueue-view';
 import { queueView } from '$lib/server/songqueue-live';
 import { moduleLoad } from '$lib/server/module-page';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';

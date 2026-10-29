@@ -3,8 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
   import { untrack } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';

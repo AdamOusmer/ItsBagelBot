@@ -6,7 +6,7 @@
   import { postAction as postActionShared, reseedOnChange } from '$lib/client-actions.svelte';
   import { invalidate, replaceState } from '$app/navigation';
   import { expectEcho } from '$lib/local-write';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import type { SubmitFunction } from '$app/forms';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';

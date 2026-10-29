@@ -4,7 +4,9 @@
 import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { withBoundedCompress } from './scripts/bounded-compress.mjs';
+import { withPrunedChunks } from './scripts/prune-server-chunks.mjs';
 
+/** @type {NonNullable<NonNullable<import('@sveltejs/kit/vite').Config['csp']>['directives']>} */
 const BASE_DIRECTIVES = {
   'default-src': ['self'],
   'script-src': ['self', 'https://js-agent.newrelic.com'],
@@ -20,22 +22,21 @@ const BASE_DIRECTIVES = {
 
 /**
  * @param {{ directives?: Record<string, string[]> }} [options]
- * @returns {import('@sveltejs/kit').Config}
+ * @returns {import('@sveltejs/kit/vite').Config}
  */
 export function consoleKitConfig({ directives = {} } = {}) {
   return {
     preprocess: vitePreprocess(),
-    kit: {
-      adapter: withBoundedCompress(adapter({ precompress: true })),
-      // RootShell's post-deploy full reload needs pollInterval; without it navigation fetches deleted bundles.
-      version: { name: process.env.BUILD_VERSION || 'dev', pollInterval: 60000 },
-      paths: {
-        relative: false
-      },
-      csp: {
-        mode: 'auto',
-        directives: { ...BASE_DIRECTIVES, ...directives }
-      }
+    adapter: withPrunedChunks(withBoundedCompress(adapter({ precompress: true }))),
+    alias: { $lib: 'src/lib' },
+    // RootShell's post-deploy full reload needs pollInterval; without it navigation fetches deleted bundles.
+    version: { name: process.env.BUILD_VERSION || 'dev', pollInterval: 60000 },
+    paths: {
+      relative: false
+    },
+    csp: {
+      mode: 'auto',
+      directives: { ...BASE_DIRECTIVES, ...directives }
     }
   };
 }

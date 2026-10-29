@@ -19,5 +19,5 @@ export const GET: RequestHandler = async ({ cookies, url, locals }) => {
 
   const state = generateState();
   putDiscordState({ cookies, url, leg: DISCORD_PICK_LEG, uid }, state);
-  throw redirect(302, discordUserAuthURL(state));
+  throw redirect(302, discordUserAuthURL(state), { external: true });
 };

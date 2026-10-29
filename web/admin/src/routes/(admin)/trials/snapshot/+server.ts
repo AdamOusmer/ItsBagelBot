@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { error, json } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { requireRole } from '$lib/server/access';
 import { trialList } from '$lib/server/services';
 

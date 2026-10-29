@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import {
   notificationsList,
   notificationSend,

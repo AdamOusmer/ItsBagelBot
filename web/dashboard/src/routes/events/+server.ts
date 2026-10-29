@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { subscribe } from '$lib/server/live-hub';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 

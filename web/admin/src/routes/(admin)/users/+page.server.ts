@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import {
   userOverview,
   USER_MAX_PAGES,
@@ -44,7 +44,7 @@ import {
 } from '$lib/server/admin-action';
 import { audit } from '$lib/server/audit';
 import { signViewAs } from '@bagel/kit/server/impersonation';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import { EMPTY_USER_STATS } from '$lib/server/fallback';
 import type { UserStats } from '@bagel/kit';
 import { parsePage, normalizeSearch } from '$lib/server/paging';

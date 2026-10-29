@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { shardSnapshot, shardScale, shardAutoscale, trialList } from '$lib/server/services';
 import { allows, requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';

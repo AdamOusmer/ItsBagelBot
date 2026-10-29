@@ -4,7 +4,7 @@
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 import type { Session } from './session';
 import { adminCheck } from './services';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 export {
   ROLE_FOR,
   allows,

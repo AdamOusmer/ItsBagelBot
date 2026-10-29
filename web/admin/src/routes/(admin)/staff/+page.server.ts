@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { allows, requireRole, canManage, type AdminIdentity } from '$lib/server/access';
 import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '$lib/server/services';
 import type { AdminAcct } from '$lib/server/services';

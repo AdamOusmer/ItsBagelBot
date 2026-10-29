@@ -5,9 +5,8 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';

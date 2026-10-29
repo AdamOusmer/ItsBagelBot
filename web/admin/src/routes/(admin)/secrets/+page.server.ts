@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { auditAppend } from '$lib/server/services';
 import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';

@@ -38,7 +38,7 @@
 
   function pick(label: string) {
     const days = data.windows[labels.indexOf(label)];
-    if (days) goto(days === data.windows[0] ? '/analytics' : `/analytics?days=${days}`, { keepFocus: true, noScroll: true });
+    if (days) goto(days === data.windows[0] ? '/analytics' : `/analytics?days=${days}`, { reset: false });
   }
 </script>
 

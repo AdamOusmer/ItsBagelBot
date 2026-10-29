@@ -2,8 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
-  import { applyAction, enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { applyAction, enhance, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';

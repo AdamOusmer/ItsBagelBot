@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { error, type Handle, type HandleServerError, type ResolveOptions, type ServerInit } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
+import type { Handle, HandleServerError, ResolveOptions, ServerInit } from '@sveltejs/kit/hooks';
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
@@ -234,7 +235,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   return res;
 };
 
-export const handleError: HandleServerError = ({ error, event, status }) => {
-  noticeServerError(newrelic, error, event, status);
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+  noticeServerError(newrelic, error, event, kind === 'unknown' ? 500 : error.status);
   return { message: 'Internal Error' };
 };

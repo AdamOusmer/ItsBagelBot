@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { requireAdmin } from '$lib/server/access';
 import { shardSnapshot } from '$lib/server/services';
 
