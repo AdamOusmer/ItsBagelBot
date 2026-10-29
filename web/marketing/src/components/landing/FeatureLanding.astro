@@ -211,7 +211,7 @@ const {
         <Heading level={5} as="h2" class="flrel__title"><span data-fit>{related.title}</span></Heading>
         <ul class="flrel__list">
             {related.links.map((link) => (
-                <li class="flrel__item"><TextLink href={link.href}><span data-fit>{link.label}</span></TextLink></li>
+                <li class="flrel__item"><TextLink href={link.href} label={link.label} fit /></li>
             ))}
         </ul>
     </Section>
@@ -295,14 +295,21 @@ const {
     .flrel__title { height: 1lh; margin: 0 0 16px; text-align: center; }
 
     .flrel__list {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
         gap: 12px 28px;
         margin: 0;
         padding: 0;
         list-style: none;
     }
+
+    .flrel__item {
+        display: flex;
+        justify-content: center;
+        min-width: 0;
+    }
+
+    .flrel__item > :global(a) { max-width: 100%; }
 
     .flhow { --card-pad: 28px; }
 
