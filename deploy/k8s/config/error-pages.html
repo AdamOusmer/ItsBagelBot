@@ -191,6 +191,112 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
+    .bb-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(var(--bb-orb-blur, 80px));
+        opacity: var(--bb-orb-opacity, 0.16);
+        transform: var(--bb-orb-transform, none);
+        transform-origin: center;
+        will-change: var(--bb-orb-will-change, opacity, transform);
+    }
+
+    .bb-orb--fixed { position: fixed; pointer-events: none; }
+
+    .bb-orb--halo::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: inherit;
+        animation: bb-orb-pulse 5s ease-in-out infinite;
+        animation-delay: var(--bb-orb-pulse-delay, 0s);
+        animation-play-state: var(--bb-orb-play-state, running);
+    }
+
+    .bb-orb--halo::after {
+        content: "";
+        position: absolute;
+        inset: 8%;
+        border-radius: inherit;
+        background: radial-gradient(
+            circle,
+            var(--bb-orb-core) 0 24%,
+            var(--bb-orb-soft) 48%,
+            transparent 72%
+        );
+        opacity: var(--bb-orb-core-opacity, 0.45);
+        transform: scale(var(--bb-orb-core-scale, 0.42));
+        transform-origin: center;
+        will-change: opacity, transform;
+    }
+
+    .bb-orb--green {
+        background: var(--bb-green);
+        --bb-orb-core: rgba(var(--bb-mint-glow-rgb), 0.85);
+        --bb-orb-soft: rgba(var(--bb-green-glow-rgb), 0.34);
+    }
+
+    .bb-orb--tan {
+        background: rgba(var(--bb-tan-rgb), 0.35);
+        --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.27);
+        --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.11);
+    }
+
+    :root[data-theme="light"] .bb-orb--green {
+        background: var(--bb-green-light);
+        opacity: 0.1;
+    }
+
+    :root[data-theme="light"] .bb-orb--tan {
+        opacity: 0.12;
+    }
+
+    @keyframes bb-orb-pulse {
+        0%, 100% { opacity: 0.55; transform: scale(1); }
+        50%      { opacity: 1;    transform: scale(1.1); }
+    }
+
+    .bb-orb--wash-green {
+        background: radial-gradient(ellipse at 40% 60%, rgba(var(--bb-green-rgb), 0.55), transparent 65%);
+    }
+
+    .bb-orb--wash-tan {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-tan-rgb), 0.28), transparent 60%);
+    }
+
+    .bb-orb--aurora-green {
+        background: radial-gradient(circle at 38% 38%, rgba(var(--bb-green-glow-rgb), 0.45), rgba(var(--bb-green-rgb), 0.2) 46%, transparent 70%);
+    }
+
+    .bb-orb--aurora-green-soft {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-green-glow-rgb), 0.28), transparent 66%);
+    }
+
+    .bb-orb--aurora-tan {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-tan-rgb), 0.36), transparent 64%);
+    }
+
+    .bb-orb--drift-1 { animation: bb-orb-drift-1 24s ease-in-out infinite; }
+    .bb-orb--drift-2 { animation: bb-orb-drift-2 30s ease-in-out infinite; }
+    .bb-orb--drift-3 { animation: bb-orb-drift-3 26s ease-in-out infinite; }
+
+    @keyframes bb-orb-drift-1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(4%, 5%) scale(1.08); } }
+    @keyframes bb-orb-drift-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-5%, -3%) scale(1.1); } }
+    @keyframes bb-orb-drift-3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-6%, 7%); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-orb,
+        .bb-orb--halo::before { animation: none; }
+    }
+}
+
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
     .bb-light-field {
         position: absolute;
         inset: 0;
@@ -238,80 +344,42 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 
 @layer bb.elements {
   .bb-error-scene {
+    --bb-error-code: clamp(96px, min(24svh, 19vw), 220px);
+
     position: relative;
     isolation: isolate;
     overflow: hidden;
     display: grid;
     place-items: center;
     min-height: 100svh;
-    padding: 72px 24px;
+    padding: calc(var(--nav-offset, 0px) + 24px) 40px 24px;
     text-align: center;
     background: var(--bb-black);
   }
 
-  .bb-error-scene__glow {
+  .bb-error-scene__orbs {
     position: absolute;
+    inset: 0;
     z-index: -1;
-    left: 50%;
-    top: 48%;
-    width: min(920px, 110vw);
-    aspect-ratio: 1.35;
-    translate: -50% -50%;
-    border-radius: 50%;
+    overflow: hidden;
     pointer-events: none;
-    filter: blur(18px);
-    background:
-      radial-gradient(circle at 48% 44%, rgba(var(--bb-tan-rgb), 0.16), transparent 34%),
-      radial-gradient(circle at 54% 58%, rgba(var(--bb-green-glow-rgb), 0.09), transparent 58%);
-    animation: bb-error-glow 7s ease-in-out infinite;
   }
 
-  .bb-error-scene__orbits {
-    position: absolute;
-    z-index: -1;
-    left: 50%;
-    top: 47%;
-    width: min(650px, 82vw);
-    aspect-ratio: 1;
-    translate: -50% -50%;
-    pointer-events: none;
-    opacity: 0;
-    animation: bb-orbit-in 1.2s 100ms var(--bb-ease-out-expo) forwards;
+  .bb-error-scene__orb {
+    width: 520px;
+    height: 520px;
+    top: -140px;
+    right: -80px;
   }
 
-  .bb-error-scene__orbit {
-    position: absolute;
-    inset: 8%;
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.13);
-    border-radius: 50%;
-    transform: rotate(-18deg) scaleY(0.46);
-    animation: bb-orbit-one 18s linear infinite;
-  }
-
-  .bb-error-scene__orbit::after {
-    content: "";
-    position: absolute;
-    top: 48%;
-    left: -4px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--bb-tan-light);
-    box-shadow: 0 0 16px rgba(var(--bb-tan-light-rgb), 0.8);
-  }
-
-  .bb-error-scene__orbit--two {
-    inset: 18%;
-    border-color: rgba(var(--bb-green-glow-rgb), 0.13);
-    transform: rotate(38deg) scaleY(0.58);
-    animation: bb-orbit-two 23s linear infinite reverse;
-  }
-
-  .bb-error-scene__orbit--two::after {
-    left: auto;
-    right: -3px;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.75);
+  .bb-error-scene__orb--two {
+    width: 420px;
+    height: 420px;
+    top: auto;
+    right: auto;
+    bottom: -120px;
+    left: -100px;
+    --bb-orb-pulse-delay: 400ms;
   }
 
   .bb-error-scene__content {
@@ -320,7 +388,7 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: min(100%, 760px);
+    width: min(100%, 900px);
   }
 
   .bb-error-scene__mark {
@@ -328,20 +396,20 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     place-items: center;
     margin-bottom: 20px;
     opacity: 0;
-    animation: bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-perch 1s 20ms var(--bb-ease-out-expo) forwards;
   }
 
   .bb-error-scene__eyebrow {
-    margin: 0 0 18px;
+    margin: 0 0 clamp(10px, 2svh, 18px);
     color: var(--bb-green-glow);
     font-family: var(--bb-font-mono);
-    font-size: clamp(0.68rem, 1.6vw, 0.78rem);
+    font-size: 0.72rem;
     line-height: 1.4;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    text-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.45);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
     opacity: 0;
-    animation: bb-error-rise 720ms 100ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-rise 800ms 100ms var(--bb-ease-out-expo) forwards;
   }
 
   .bb-error-scene__eyebrow span {
@@ -349,53 +417,76 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
   }
 
   .bb-error-scene__code {
-    margin: 0 0 -0.18em;
-    color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--bb-error-code) * 0.04);
+    margin: 0 0 clamp(14px, 3svh, 28px);
     font-family: var(--bb-font-display);
-    font-size: clamp(6.8rem, 24vw, 13.5rem);
+    font-size: calc(var(--bb-error-code) * 0.98);
     font-weight: 800;
-    line-height: 0.72;
-    letter-spacing: -0.08em;
-    -webkit-text-stroke: 1px rgba(var(--bb-tan-rgb), 0.28);
-    text-shadow: 0 0 60px rgba(var(--bb-tan-rgb), 0.08);
-    position: relative;
+    line-height: 1;
+    letter-spacing: var(--bb-tracking-display);
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
     opacity: 0;
-    animation: bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-rise 800ms 150ms var(--bb-ease-out-expo) forwards;
   }
 
-  .bb-error-scene__code::after {
-    content: "";
+  .bb-error-scene__code:has(.bb-error-scene__mascot) {
+    margin-top: calc(var(--bb-error-code) * 0.42);
+  }
+
+  .bb-error-scene__perch {
+    position: relative;
+  }
+
+  .bb-error-scene__mascot {
     position: absolute;
-    inset: -12% -8%;
-    background: radial-gradient(closest-side, rgba(var(--bb-tan-rgb), 0.12), transparent);
-    opacity: 0;
-    pointer-events: none;
-    animation: bb-code-breathe 6s 1.1s ease-in-out infinite;
+    left: 50%;
+    bottom: 64%;
+    width: calc(var(--bb-error-code) * 0.56);
+    height: calc(var(--bb-error-code) * 0.56);
+    margin-left: calc(var(--bb-error-code) * -0.28);
+    animation:
+      bb-error-perch 1.1s 0.5s var(--bb-ease-out-back) both,
+      bb-error-bob 6.5s ease-in-out infinite alternate;
+  }
+
+  .bb-error-scene__mascot > :where(svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
   }
 
   .bb-error-scene__title {
-    max-width: 13ch;
-    margin: 0;
-    color: var(--bb-white);
-    font-family: var(--bb-font-display);
-    font-size: clamp(2.2rem, 6.5vw, 4.5rem);
-    font-weight: 800;
-    line-height: 0.98;
-    letter-spacing: -0.035em;
-    text-shadow: 0 3px 18px rgba(var(--bb-shadow-rgb), 0.9), 0 0 38px rgba(var(--bb-tan-rgb), 0.16);
+    max-width: 100%;
+    margin: 0 0 16px;
+    color: var(--bb-tan-pale);
+    font-family: var(--bb-font-body);
+    font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
     opacity: 0;
-    animation: bb-error-rise 780ms 260ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-title 900ms 300ms var(--bb-ease-out-expo) forwards;
   }
 
   .bb-error-scene__desc {
-    max-width: 49ch;
-    margin: 24px 0 0;
+    max-width: 560px;
+    margin: 0;
     color: var(--bb-muted-light);
     font-family: var(--bb-font-body);
-    font-size: clamp(0.98rem, 1.8vw, 1.12rem);
-    line-height: 1.7;
+    font-size: var(--bb-text-md);
+    line-height: 1.6;
+    text-wrap: pretty;
     opacity: 0;
-    animation: bb-error-rise 780ms 390ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-rise 900ms 550ms var(--bb-ease-out-expo) forwards;
   }
 
   .bb-error-scene__actions {
@@ -403,127 +494,141 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     align-items: center;
     justify-content: center;
     gap: 12px;
-    margin-top: 34px;
+    margin-top: clamp(20px, 4svh, 36px);
     opacity: 0;
-    animation: bb-error-rise 780ms 500ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-rise 900ms 750ms var(--bb-ease-out-expo) forwards;
   }
 
   .bb-error-scene__action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 216px;
     min-height: 48px;
-    padding: 0 22px;
+    padding: 13px 16px;
     border: 1px solid transparent;
     border-radius: var(--bb-radius-sm);
-    font-family: var(--bb-font-display);
-    font-size: 0.88rem;
-    font-weight: 700;
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    font-weight: 600;
     text-decoration: none;
     cursor: pointer;
     transition:
-      transform 320ms var(--bb-ease-out-expo),
       background 220ms ease,
-      border-color 220ms ease,
-      box-shadow 320ms ease;
+      border-color 220ms ease;
   }
 
   .bb-error-scene__action--primary {
-    background: var(--bb-tan);
-    color: var(--bb-black);
+    background: rgb(var(--bb-white-pure-rgb));
+    color: var(--bb-ink);
   }
 
   .bb-error-scene__action--primary:hover,
   .bb-error-scene__action--primary:focus-visible {
-    background: var(--bb-tan-light);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 32px rgba(var(--bb-tan-rgb), 0.22);
+    background: var(--bb-gray-1-dark);
   }
 
   .bb-error-scene__action--quiet {
-    background: rgba(var(--bb-black-rgb), 0.32);
-    border-color: rgba(var(--bb-tan-rgb), 0.3);
-    color: var(--bb-tan-light);
+    border-color: var(--bb-border-strong);
+    background: var(--bb-card-bg);
+    color: var(--bb-white);
   }
 
   .bb-error-scene__action--quiet:hover,
   .bb-error-scene__action--quiet:focus-visible {
-    border-color: rgba(var(--bb-tan-rgb), 0.58);
-    background: rgba(var(--bb-tan-rgb), 0.08);
-    transform: translateY(-2px);
+    border-color: var(--bb-muted);
+    background: var(--bb-elev-2);
   }
 
   .bb-error-scene__aside {
-    margin: 32px 0 0;
+    max-width: 48ch;
+    margin: clamp(14px, 3svh, 28px) 0 0;
     color: var(--bb-muted);
     font-family: var(--bb-font-mono);
     font-size: 0.68rem;
     line-height: 1.6;
     letter-spacing: 0.08em;
     opacity: 0;
-    animation: bb-error-rise 780ms 610ms var(--bb-ease-out-expo) forwards;
+    animation: bb-error-rise 900ms 900ms var(--bb-ease-out-expo) forwards;
   }
 
   @keyframes bb-error-rise {
-    from { opacity: 0; transform: translateY(18px); }
+    from { opacity: 0; transform: translateY(24px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  @keyframes bb-code-in {
-    from { opacity: 0; transform: scale(0.92); filter: blur(8px); }
-    to { opacity: 1; transform: scale(1); filter: blur(0); }
+  @keyframes bb-error-title {
+    from { opacity: 0; transform: translateY(40%) rotate(1deg); }
+    to { opacity: 1; transform: translateY(0) rotate(0deg); }
   }
-  @keyframes bb-code-breathe {
-    50% { opacity: 1; }
+  @keyframes bb-error-perch {
+    from { opacity: 0; transform: translateY(70%) scale(0.86); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
-  @keyframes bb-error-glow {
-    50% { opacity: 0.72; transform: scale(1.06); }
-  }
-  @keyframes bb-orbit-in {
-    to { opacity: 1; }
-  }
-  @keyframes bb-orbit-one {
-    to { transform: rotate(342deg) scaleY(0.46); }
-  }
-  @keyframes bb-orbit-two {
-    to { transform: rotate(398deg) scaleY(0.58); }
+  @keyframes bb-error-bob {
+    from { translate: 0 0; }
+    to { translate: 0 -7px; }
   }
 
-  @media (max-width: 520px) {
-    .bb-error-scene { padding-inline: 20px; }
-    .bb-error-scene__orbits { width: 110vw; }
-    .bb-error-scene__actions { width: 100%; flex-direction: column; }
-    .bb-error-scene__action { width: min(100%, 300px); }
-    .bb-error-scene__aside { max-width: 33ch; }
+  @media (max-height: 820px) {
+    .bb-error-scene {
+      padding-block: calc(var(--nav-offset, 0px) + 8px) 12px;
+    }
+
+    .bb-error-scene__action {
+      min-height: 44px;
+      padding-block: 10px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .bb-error-scene {
+      --bb-error-code: clamp(88px, min(20svh, 30vw), 180px);
+      padding-inline: 20px;
+    }
+
+    .bb-error-scene__title {
+      font-size: clamp(1.2rem, 4.6vw, 1.8rem);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .bb-error-scene {
+      --bb-error-code: clamp(80px, min(18svh, 28vw), 120px);
+      padding-inline: 16px;
+    }
+
+    .bb-error-scene__desc {
+      font-size: var(--bb-text-sm);
+    }
+
+    .bb-error-scene__actions {
+      width: 100%;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bb-error-scene__action {
+      width: min(100%, 240px);
+    }
+  }
+
+  @media (max-width: 480px), (max-height: 640px) {
+    .bb-error-scene__aside {
+      display: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bb-error-scene__glow,
-    .bb-error-scene__orbits,
-    .bb-error-scene__orbit,
     .bb-error-scene__mark,
     .bb-error-scene__eyebrow,
     .bb-error-scene__code,
-    .bb-error-scene__code::after,
-    .bb-error-scene__title,
-    .bb-error-scene__desc,
-    .bb-error-scene__actions,
-    .bb-error-scene__aside {
-      animation: none;
-    }
-
-    .bb-error-scene__orbits,
-    .bb-error-scene__mark,
-    .bb-error-scene__eyebrow,
-    .bb-error-scene__code,
+    .bb-error-scene__mascot,
     .bb-error-scene__title,
     .bb-error-scene__desc,
     .bb-error-scene__actions,
     .bb-error-scene__aside {
       opacity: 1;
-    }
-
-    .bb-error-scene__action:hover {
-      transform: none;
+      animation: none;
     }
   }
 }
@@ -532,12 +637,11 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 </head>
 <body>
 <main class="bb-error-scene" aria-labelledby="error-title" data-group="{{ if or (eq .StatusCode 404) (eq .StatusCode 410) }}notFound{{ else if or (eq .StatusCode 401) (eq .StatusCode 403) }}access{{ else if eq .StatusCode 429 }}rateLimited{{ else if or (eq .StatusCode 502) (eq .StatusCode 503) (eq .StatusCode 504) }}unavailable{{ else if ge .StatusCode 500 }}server{{ else }}unexpected{{ end }}">
-<div class="bb-light-field" data-field aria-hidden="true"></div>
-<div class="bb-error-scene__glow" aria-hidden="true"></div>
-<div class="bb-error-scene__orbits" aria-hidden="true"><span class="bb-error-scene__orbit"></span><span class="bb-error-scene__orbit bb-error-scene__orbit--two"></span></div>
+<div class="bb-light-field bb-light-field--bleed" data-field aria-hidden="true"></div>
+<div class="bb-error-scene__orbs" aria-hidden="true"><span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"></span><span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"></span></div>
 <div class="bb-error-scene__content">
 <p class="bb-error-scene__eyebrow"><span>{{ .StatusCode }}</span> · <b data-copy="*Eyebrow">{{ if or (eq .StatusCode 404) (eq .StatusCode 410) }}Lost in the crumbs{{ else if or (eq .StatusCode 401) (eq .StatusCode 403) }}Behind the counter{{ else if eq .StatusCode 429 }}Slow down{{ else if or (eq .StatusCode 502) (eq .StatusCode 503) (eq .StatusCode 504) }}Fresh batch coming up{{ else if ge .StatusCode 500 }}A little overbaked{{ else }}An unexpected detour{{ end }}</b></p>
-<p class="bb-error-scene__code" aria-hidden="true">{{ .StatusCode }}</p>
+<p class="bb-error-scene__code" aria-hidden="true">{{ slice (printf "%d" .StatusCode) 0 1 }}<span class="bb-error-scene__perch">{{ slice (printf "%d" .StatusCode) 1 2 }}<span class="bb-error-scene__mascot"><svg viewBox="0 0 100 100" aria-hidden="true" data-error-bolota="oven_fresh" data-size="240" data-head="#62a593" data-eye="#111113"><g data-pose><g fill="#62a593"><path d="M83.16 49.85C84.07 57.97 80.22 71.62 73.22 77.44C66.23 83.25 49.51 87.35 41.19 84.73C32.86 82.12 26.94 69.87 23.25 61.76C19.57 53.65 16.01 43.5 19.08 36.06C22.16 28.62 33.6 18.32 41.71 17.1C49.81 15.87 60.81 23.26 67.72 28.72C74.63 34.18 82.24 41.73 83.16 49.85Z"/></g><g fill="#111113"><path d="M39.16 47.78C39.04 45.66 40.67 43.84 42.8 43.72L42.8 43.72C44.93 43.6 46.75 45.23 46.87 47.36L47.3 55.16C47.41 57.29 45.78 59.11 43.66 59.23L43.66 59.23C41.53 59.35 39.71 57.72 39.59 55.59Z"/><path d="M56.48 47.75C56.38 45.81 57.87 44.16 59.8 44.06L59.8 44.06C61.74 43.96 63.39 45.45 63.49 47.38L63.91 55.38C64.01 57.31 62.53 58.97 60.59 59.07L60.59 59.07C58.65 59.17 57 57.68 56.9 55.74Z"/></g></g></svg></span></span>{{ slice (printf "%d" .StatusCode) 2 }}</p>
 <h1 class="bb-error-scene__title" id="error-title" data-copy="*Title">{{ if or (eq .StatusCode 404) (eq .StatusCode 410) }}This page wandered off.{{ else if or (eq .StatusCode 401) (eq .StatusCode 403) }}This one is staff only.{{ else if eq .StatusCode 429 }}The bagel is still in the oven.{{ else if or (eq .StatusCode 502) (eq .StatusCode 503) (eq .StatusCode 504) }}Back in a moment.{{ else if ge .StatusCode 500 }}Something went sideways.{{ else }}I hit a rough patch.{{ end }}</h1>
 <p class="bb-error-scene__desc" data-copy="*Description">{{ if or (eq .StatusCode 404) (eq .StatusCode 410) }}I looked under every sesame seed, but the page you're after isn't here.{{ else if or (eq .StatusCode 401) (eq .StatusCode 403) }}Sign in with an account that has access to the dashboard.{{ else if eq .StatusCode 429 }}That was a lot of requests in a short time. Give it a few seconds, then try again.{{ else if or (eq .StatusCode 502) (eq .StatusCode 503) (eq .StatusCode 504) }}This page can't be reached right now, usually because an update is rolling out. Wait a few seconds, then try again.{{ else if ge .StatusCode 500 }}A tray tipped over behind the scenes. Give it a moment, then try the page again.{{ else }}Something unexpected happened while loading this page.{{ end }}</p>
 <div class="bb-error-scene__actions">{{ if or (eq .StatusCode 404) (eq .StatusCode 410) }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="/" data-copy="backToDashboard">Back to dashboard</a>{{ else if or (eq .StatusCode 401) (eq .StatusCode 403) }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="/login" data-copy="signIn">Sign in</a>{{ else if eq .StatusCode 429 }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="" data-copy="tryAgain">Try again</a>{{ else if or (eq .StatusCode 502) (eq .StatusCode 503) (eq .StatusCode 504) }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="" data-copy="tryAgain">Try again</a>{{ else if ge .StatusCode 500 }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="" data-copy="tryAgain">Try again</a>{{ else }}<a class="bb-error-scene__action bb-error-scene__action--primary" href="" data-copy="tryAgain">Try again</a>{{ end }}<a class="bb-error-scene__action bb-error-scene__action--quiet" href="/" data-error-back data-copy="goBack">Go back</a></div>
@@ -545,6 +649,6 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
 </div>
 </main>
 <script type="application/json" id="error-copy">{"en":{"notFoundEyebrow":"Lost in the crumbs","notFoundTitle":"This page wandered off.","notFoundDescription":"I looked under every sesame seed, but the page you're after isn't here.","accessEyebrow":"Behind the counter","accessTitle":"This one is staff only.","accessDescription":"Sign in with an account that has access to the dashboard.","rateLimitedEyebrow":"Slow down","rateLimitedTitle":"The bagel is still in the oven.","rateLimitedDescription":"That was a lot of requests in a short time. Give it a few seconds, then try again.","unavailableEyebrow":"Fresh batch coming up","unavailableTitle":"Back in a moment.","unavailableDescription":"This page can't be reached right now, usually because an update is rolling out. Wait a few seconds, then try again.","serverEyebrow":"A little overbaked","serverTitle":"Something went sideways.","serverDescription":"A tray tipped over behind the scenes. Give it a moment, then try the page again.","unexpectedEyebrow":"An unexpected detour","unexpectedTitle":"I hit a rough patch.","unexpectedDescription":"Something unexpected happened while loading this page.","aside":"The oven is still warm. Everything else is right where you left it.","goBack":"Go back","backToDashboard":"Back to dashboard","signIn":"Sign in","tryAgain":"Try again"},"fr":{"notFoundEyebrow":"Perdu dans les miettes","notFoundTitle":"Cette page s’est égarée.","notFoundDescription":"J’ai cherché sous chaque graine de sésame, mais la page demandée est introuvable.","accessEyebrow":"Derrière le comptoir","accessTitle":"Cette page est réservée au personnel.","accessDescription":"Connectez-vous avec un compte qui a accès à tableau de bord.","rateLimitedEyebrow":"Pas si vite","rateLimitedTitle":"Le bagel est encore au four.","rateLimitedDescription":"Cela fait beaucoup de requêtes en peu de temps. Patientez quelques secondes, puis réessayez.","unavailableEyebrow":"Nouvelle fournée en vue","unavailableTitle":"Bientôt de retour.","unavailableDescription":"Cette page est inaccessible pour l’instant, généralement parce qu’une mise à jour est en cours de déploiement. Patientez quelques secondes, puis réessayez.","serverEyebrow":"Un peu trop cuite","serverTitle":"Quelque chose a dérapé.","serverDescription":"Une plaque a basculé en coulisses. Patientez un instant, puis réessayez.","unexpectedEyebrow":"Un détour imprévu","unexpectedTitle":"J’ai rencontré un obstacle.","unexpectedDescription":"Un problème inattendu est survenu pendant le chargement de cette page.","aside":"Le four est encore chaud. Tout le reste est exactement là où vous l’avez laissé.","goBack":"Retour","backToDashboard":"Retour au tableau de bord","signIn":"Se connecter","tryAgain":"Réessayer"},"es":{"notFoundEyebrow":"Entre las migas","notFoundTitle":"Esta página se ha ido de paseo.","notFoundDescription":"Busqué bajo cada semilla de sésamo, pero la página que buscas no está aquí.","accessEyebrow":"Detrás del mostrador","accessTitle":"Esto es solo para el personal.","accessDescription":"Inicia sesión con una cuenta que tenga acceso a esta sección (panel).","rateLimitedEyebrow":"Más despacio","rateLimitedTitle":"El bagel sigue en el horno.","rateLimitedDescription":"Fueron muchas peticiones en poco tiempo. Espera unos segundos y vuelve a intentarlo.","unavailableEyebrow":"Nueva hornada en camino","unavailableTitle":"Volvemos enseguida.","unavailableDescription":"No se puede acceder a esta página ahora mismo, normalmente porque se está lanzando una actualización. Espera unos segundos y vuelve a intentarlo.","serverEyebrow":"Un poco pasado de horno","serverTitle":"Algo se torció.","serverDescription":"Una bandeja se cayó entre bastidores. Espera un momento y vuelve a intentar abrir la página.","unexpectedEyebrow":"Un desvío inesperado","unexpectedTitle":"He encontrado un bache.","unexpectedDescription":"Ocurrió algo inesperado al cargar esta página.","aside":"El horno sigue caliente. Todo lo demás está donde lo dejaste.","goBack":"Volver","backToDashboard":"Volver al panel","signIn":"Iniciar sesión","tryAgain":"Reintentar"},"pt-br":{"notFoundEyebrow":"Perdido nas migalhas","notFoundTitle":"Esta página saiu andando.","notFoundDescription":"Procurei sob cada semente de gergelim, mas a página que você quer não está aqui.","accessEyebrow":"Atrás do balcão","accessTitle":"Esta área é só para a equipe.","accessDescription":"Entre com uma conta que tenha acesso ao aplicativo: painel.","rateLimitedEyebrow":"Mais devagar","rateLimitedTitle":"O bagel ainda está no forno.","rateLimitedDescription":"Foram muitas requisições em pouco tempo. Aguarde alguns segundos e tente novamente.","unavailableEyebrow":"Nova fornada a caminho","unavailableTitle":"Já voltamos.","unavailableDescription":"Esta página não pode ser acessada agora, geralmente porque uma atualização está sendo lançada. Aguarde alguns segundos e tente novamente.","serverEyebrow":"Passou um pouco do ponto","serverTitle":"Algo deu errado.","serverDescription":"Uma bandeja virou nos bastidores. Aguarde um instante e tente abrir a página novamente.","unexpectedEyebrow":"Um desvio inesperado","unexpectedTitle":"Encontrei um obstáculo.","unexpectedDescription":"Algo inesperado aconteceu ao carregar esta página.","aside":"O forno ainda está quente. Todo o resto está onde você deixou.","goBack":"Voltar","backToDashboard":"Voltar ao painel","signIn":"Entrar","tryAgain":"Tentar novamente"},"de":{"notFoundEyebrow":"In den Krümeln verloren","notFoundTitle":"Diese Seite ist davongelaufen.","notFoundDescription":"Ich habe unter jedem Sesamkorn gesucht, aber die gesuchte Seite ist nicht hier.","accessEyebrow":"Hinter dem Tresen","accessTitle":"Hier dürfen nur Mitarbeiter rein.","accessDescription":"Melde dich mit einem Konto an, das Zugriff auf diesen Bereich (Dashboard) hat.","rateLimitedEyebrow":"Nicht so hastig","rateLimitedTitle":"Der Bagel ist noch im Ofen.","rateLimitedDescription":"Das waren ganz schön viele Anfragen in kurzer Zeit. Warte ein paar Sekunden und versuche es dann erneut.","unavailableEyebrow":"Frische Fuhre im Anmarsch","unavailableTitle":"Gleich wieder da.","unavailableDescription":"Diese Seite ist gerade nicht erreichbar, meistens weil ein Update eingespielt wird. Warte ein paar Sekunden und versuche es dann erneut.","serverEyebrow":"Etwas zu lange gebacken","serverTitle":"Etwas ist schiefgelaufen.","serverDescription":"Hinter den Kulissen ist ein Blech umgekippt. Warte kurz und versuche die Seite dann erneut.","unexpectedEyebrow":"Ein unerwarteter Umweg","unexpectedTitle":"Ich bin ins Stolpern geraten.","unexpectedDescription":"Beim Laden dieser Seite ist etwas Unerwartetes passiert.","aside":"Der Ofen ist noch warm. Alles andere ist genau da, wo du es gelassen hast.","goBack":"Zurück","backToDashboard":"Zurück zum Dashboard","signIn":"Anmelden","tryAgain":"Erneut versuchen"},"ru":{"notFoundEyebrow":"Затерялось среди крошек","notFoundTitle":"Эта страница куда-то ушла.","notFoundDescription":"Я заглянул под каждое кунжутное семечко, но нужной страницы здесь нет.","accessEyebrow":"За прилавком","accessTitle":"Только для сотрудников.","accessDescription":"Войдите с аккаунтом, у которого есть доступ: панель управления.","rateLimitedEyebrow":"Не так быстро","rateLimitedTitle":"Бейгл ещё в печи.","rateLimitedDescription":"Слишком много запросов за короткое время. Подождите несколько секунд и попробуйте снова.","unavailableEyebrow":"Свежая партия на подходе","unavailableTitle":"Скоро вернёмся.","unavailableDescription":"Сейчас эта страница недоступна, обычно из-за установки обновления. Подождите несколько секунд и попробуйте снова.","serverEyebrow":"Немного перепеклось","serverTitle":"Что-то пошло не так.","serverDescription":"За кулисами опрокинулся противень. Подождите немного и откройте страницу снова.","unexpectedEyebrow":"Неожиданный поворот","unexpectedTitle":"Попался трудный участок.","unexpectedDescription":"При загрузке страницы произошло что-то неожиданное.","aside":"Духовка ещё тёплая. Всё остальное там, где вы оставили.","goBack":"Назад","backToDashboard":"В панель управления","signIn":"Войти","tryAgain":"Попробовать снова"}}</script>
-<script>var H={matches:!1,addEventListener(){},removeEventListener(){}};function w(e){if(typeof window>"u"||typeof window.matchMedia!=="function")return H;return window.matchMedia(e)}var C=w("(prefers-reduced-motion: reduce)"),N=w("(hover: hover) and (pointer: fine)");function E(){return C.matches}var O=16.666666666666668,f=10,A=150,Q="216, 191, 145",_="98, 165, 147";function x(e,o,n){return getComputedStyle(e).getPropertyValue(o).trim()||n}function L(e,o={}){if(E())return null;if(typeof e.animate!=="function")return null;let n=o.warmth??0.7,t=0,a=0,c=!1,s=new Set,u=x(e,"--bb-tan-rgb",Q),k=x(e,"--bb-green-glow-rgb",_),l;function d(){for(let i of s)i.cancel();s.clear(),e.replaceChildren()}function p(i,r,h){let M=Math.random()*t-r.r,v=(h+f)/r.vy,m=i.animate([{transform:`translate(${M}px, ${h-r.r}px)`},{transform:`translate(${M+r.vx*v}px, ${-f-r.r}px)`}],{duration:v*O,easing:"linear"});s.add(m),m.onfinish=()=>{s.delete(m),p(i,r,a+f)}}function g(){if(d(),t=e.clientWidth,a=e.clientHeight,!t||!a)return;for(let i of B(t,n)){let r=document.createElement("span");r.style.width=r.style.height=`${i.r*2}px`,r.style.background=`rgba(${i.warm?u:k}, ${i.alpha.toFixed(3)})`,e.append(r),p(r,i,Math.random()*a)}}let y=new IntersectionObserver(([i])=>{if(c=i.isIntersecting,c)g();else d()},{rootMargin:"150px"}),S=()=>e.clientWidth!==t||e.clientHeight!==a,b=new ResizeObserver(()=>{clearTimeout(l),l=setTimeout(()=>{if(c&&S())g()},A)});return y.observe(e),b.observe(e),()=>{y.disconnect(),b.disconnect(),clearTimeout(l),d()}}function B(e,o){let n=e<700?40:70;return Array.from({length:n},()=>({r:0.6+Math.random()*2,vy:0.05+Math.random()*0.2,vx:(Math.random()-0.5)*0.1,alpha:0.12+Math.random()*0.45,warm:Math.random()<o}))}function q(e){let o=navigator.languages?.length?navigator.languages:[navigator.language];for(let n of o.map((t)=>t.toLowerCase())){if(e[n])return n;let t=n.split("-")[0],a=Object.keys(e).find((c)=>c===t||c.startsWith(`${t}-`));if(a)return a}return}function F(e){let o=document.getElementById("error-copy"),n=JSON.parse(o?.textContent??"{}"),t=q(n);if(!t||t==="en")return;let a=e.dataset.group??"";document.documentElement.lang=t;for(let c of e.querySelectorAll("[data-copy]")){let s=c.dataset.copy??"",u=n[t][s.startsWith("*")?a+s.slice(1):s];if(u)c.textContent=u}}function G(){document.querySelector("[data-error-back]")?.addEventListener("click",(o)=>{if(window.history.length<=1)return;o.preventDefault(),window.history.back()})}var T=document.querySelector(".bb-error-scene");if(T)F(T);G();var R=document.querySelector("[data-field]");if(R)L(R);</script>
+<script>var br={matches:!1,addEventListener(){},removeEventListener(){}};function le(t){if(typeof window>"u"||typeof window.matchMedia!=="function")return br;return window.matchMedia(t)}var wr=le("(prefers-reduced-motion: reduce)"),En=le("(hover: hover) and (pointer: fine)");function vt(){return wr.matches}var vr=16.666666666666668,Ft=10,kr=150,zr="216, 191, 145",$r="98, 165, 147";function se(t,e,r){return getComputedStyle(t).getPropertyValue(e).trim()||r}function he(t,e={}){if(vt())return null;if(typeof t.animate!=="function")return null;let r=e.warmth??0.7,n=0,a=0,i=!1,o=new Set,l=se(t,"--bb-tan-rgb",zr),s=se(t,"--bb-green-glow-rgb",$r),u;function c(){for(let M of o)M.cancel();o.clear(),t.replaceChildren()}function h(M,f,x){let b=Math.random()*n-f.r,k=(x+Ft)/f.vy,E=M.animate([{transform:`translate(${b}px, ${x-f.r}px)`},{transform:`translate(${b+f.vx*k}px, ${-Ft-f.r}px)`}],{duration:k*vr,easing:"linear"});o.add(E),E.onfinish=()=>{o.delete(E),h(M,f,a+Ft)}}function p(){if(c(),n=t.clientWidth,a=t.clientHeight,!n||!a)return;for(let M of Ar(n,r)){let f=document.createElement("span");f.style.width=f.style.height=`${M.r*2}px`,f.style.background=`rgba(${M.warm?l:s}, ${M.alpha.toFixed(3)})`,t.append(f),h(f,M,Math.random()*a)}}let d=new IntersectionObserver(([M])=>{if(i=M.isIntersecting,i)p();else c()},{rootMargin:"150px"}),y=()=>t.clientWidth!==n||t.clientHeight!==a,m=new ResizeObserver(()=>{clearTimeout(u),u=setTimeout(()=>{if(i&&y())p()},kr)});return d.observe(t),m.observe(t),()=>{d.disconnect(),m.disconnect(),clearTimeout(u),c()}}function Ar(t,e){let r=t<700?40:70;return Array.from({length:r},()=>({r:0.6+Math.random()*2,vy:0.05+Math.random()*0.2,vx:(Math.random()-0.5)*0.1,alpha:0.12+Math.random()*0.45,warm:Math.random()<e}))}function Zt({l:t,c:e,h:r}){let n=r*Math.PI/180,a=e*Math.cos(n),i=e*Math.sin(n),o=t+0.3963377774*a+0.2158037573*i,l=t-0.1055613458*a-0.0638541728*i,s=t-0.0894841775*a-1.291485548*i,u=o*o*o,c=l*l*l,h=s*s*s;return[4.0767416621*u-3.3077115913*c+0.2309699292*h,-1.2684380046*u+2.6097574011*c-0.3413193965*h,-0.0041960863*u-0.7034186147*c+1.707614701*h]}var ce=(t)=>t.every((e)=>e>=-0.0001&&e<=1.0001);function Re(t){let e=Zt(t);if(!ce(e)){let r=0,n=t.c;for(let a=0;a<12;a++){let i=(r+n)/2;if(ce(Zt({...t,c:i})))r=i;else n=i}e=Zt({...t,c:r})}return e.map((r)=>Math.min(1,Math.max(0,r)))}function ue(t){let[e,r,n]=Re(t);return 0.2126*e+0.7152*r+0.0722*n}function kt(t,e){let r=ue(t),n=ue(e);return(Math.max(r,n)+0.05)/(Math.min(r,n)+0.05)}function Xe(t,e,r){if(kt(t,e)>=r)return t;let n=t.l>=e.l?1:-1;for(let o of[n,-n]){let l={...t};for(let s=0;s<60;s++){if(l.l=Math.min(1,Math.max(0,l.l+o*0.02)),kt(l,e)>=r)return l;if(l.l===0||l.l===1)break}}let a={...t,l:0,c:0},i={...t,l:1,c:0};return kt(a,e)>=kt(i,e)?a:i}function Pr(t){return"#"+Re(t).map((e)=>{let r=e<=0.0031308?12.92*e:1.055*Math.pow(e,0.4166666666666667)-0.055;return Math.round(r*255).toString(16).padStart(2,"0")}).join("")}var pe=[[0.2,{l:0.86,c:0.085}],[0.36,{l:0.9,c:0.028}],[0.62,{l:0.73,c:0.135}],[0.8,{l:0.62,c:0.165}],[0.93,{l:0.87,c:0.16}],[1,{l:0.34,c:0.035}]],Or=(t)=>pe.find(([e])=>t<e)?.[1]??pe[0][1],Cr={l:0.145,c:0,h:0},Ir=1.5,qr=(t,e)=>{let r=Or(e),n=Xe({l:r.l,c:r.c,h:t},Cr,Ir);return{bg:{l:0.965,c:0.01,h:t},head:n,eye:{l:0.17,c:0.02,h:t}}},Er=[["head","bg",1.25]];function Br(t,e=!0,r=0){let n=qr(t,r);if(e)for(let[a,i,o]of Er)n[a]=Xe(n[a],n[i],o);return n}function Vr(t,e=!0,r=0){let n=Br(t,e,r),a={};for(let i in n)a[i]=Pr(n[i]);return a}var O=(t)=>{let e=Math.round(t*100)/100;return Object.is(e,-0)?"0":String(e)};function Wt({cx:t,cy:e,rx:r,ry:n,n:a=4,rot:i=0}){let o=Math.min(1,(8*Math.pow(2,-1/a)-4)/3),l=r,s=n,u=l*o,c=s*o,h=[[l,0],[l,c],[u,s],[0,s],[-u,s],[-l,c],[-l,0],[-l,-c],[-u,-s],[0,-s],[u,-s],[l,-c],[l,0]],p=i*Math.PI/180,d=Math.cos(p),y=Math.sin(p),m=(f)=>{let[x,b]=h[f];return`${O(t+x*d-b*y)} ${O(e+x*y+b*d)}`},M=`M${m(0)}`;for(let f=1;f<13;f+=3)M+=`C${m(f)} ${m(f+1)} ${m(f+2)}`;return M+"Z"}function Lr(t,e,r,n,a,i=0){let o=a.length,l=i*Math.PI/180,s=a.map((h,p)=>{let d=l+2*Math.PI*p/o;return[t+r*h*Math.cos(d),e+n*h*Math.sin(d)]}),u=(h)=>s[(h%o+o)%o],c=`M${O(u(0)[0])} ${O(u(0)[1])}`;for(let h=0;h<o;h++){let[p,d]=u(h-1),[y,m]=u(h),[M,f]=u(h+1),[x,b]=u(h+2);c+=`C${O(y+(M-p)/6)} ${O(m+(f-d)/6)} ${O(M-(x-y)/6)} ${O(f-(b-m)/6)} ${O(M)} ${O(f)}`}return c+"Z"}function Sr({cx:t,cy:e,rx:r,ry:n,sides:a,round:i=0.3,rot:o=0}){let l=i>0?i<1?i/2:0.5:0,s=o*Math.PI/180-Math.PI/2,u=Array.from({length:a},(d,y)=>{let m=s+2*Math.PI*y/a;return[t+r*Math.cos(m),e+n*Math.sin(m)]}),c=(d)=>u[(d%a+a)%a],h=(d,y)=>{let[m,M]=c(d),[f,x]=c(y);return`${O(m+(f-m)*l)} ${O(M+(x-M)*l)}`},p=`M${h(0,-1)}`;for(let d=0;d<a;d++){let[y,m]=c(d);if(p+=`Q${O(y)} ${O(m)} ${h(d,d+1)}`,l<0.5)p+=`L${h(d+1,d)}`}return p+"Z"}function Fr(t,e,r,n){let a=O(t-r),i=O(t+r);return`M${a} ${O(e-n)}H${i}V${O(e+n)}H${a}Z`}function Zr(t,e,r,n,a){let i=Math.max(1.05,a),o=r*Math.sqrt(1-1/(i*i)),l=e-n/i,s=e-i*n,u=o*0.14,c=l+0.86*(s-l);return`M${O(t-o)} ${O(l)}L${O(t-u)} ${O(c)}Q${O(t)} ${O(s)} ${O(t+u)} ${O(c)}L${O(t+o)} ${O(l)}Z`}var jr=0.5522847498;function Kr(t,e,r,n,a=0){let i=Math.max(r,0.01)/2,o=Math.max(n,0.01)/2,l=Math.min(i,o),s=l*jr,u=a*Math.PI/180,c=Math.cos(u),h=Math.sin(u),p=(d,y)=>`${O(t+d*c-y*h)} ${O(e+d*h+y*c)}`;return`M${p(-i,-o+l)}C${p(-i,-o+l-s)} ${p(-i+l-s,-o)} ${p(-i+l,-o)}L${p(i-l,-o)}C${p(i-l+s,-o)} ${p(i,-o+l-s)} ${p(i,-o+l)}L${p(i,o-l)}C${p(i,o-l+s)} ${p(i-l+s,o)} ${p(i-l,o)}L${p(-i+l,o)}C${p(-i+l-s,o)} ${p(-i,o-l+s)} ${p(-i,o-l)}Z`}function Ut(t,e){for(let r=0;r<e.length;r++)t=Math.imul(t^e[r],3432918353),t=t<<13|t>>>19;return t}function Ur(t){return t=Math.imul(t^t>>>16,2246822507),t=Math.imul(t^t>>>13,3266489909),(t^t>>>16)>>>0}var Ge=new TextEncoder;function Hr(t){return t.normalize("NFC").trim().toLowerCase()}function Rr(t,e=!0){let r=e?Hr(t):t;return Ut(1779033703^r.length,Ge.encode(r))}function Xr(t,e){return Ur(Ut(Ut(t,Uint8Array.of(255)),Ge.encode(e)))/4294967296}function Gr(t,e=!0,r){let n=Rr(t,e),a=(i)=>{let o=r?.[i];return o===void 0?Xr(n,i):o>0?o<1?o:0.999999:0};return a.num=(i,o,l)=>o+a(i)*(l-o),a.int=(i,o,l)=>o+Math.floor(a(i)*(l-o+1)),a.pick=(i,o)=>o[Math.floor(a(i)*o.length)],a.bool=(i,o=0.5)=>a(i)<o,a.jitter=(i,o)=>(a(i)*2-1)*o,a}function Tr(t,e,r){let n=e.expression;if(r||!n)return{l:t,wrap:""};return n.bake(t,n.p)}var Wr=(t,e)=>e?.tint?e.tint(t,e.p):t,_r=(t,e)=>e?`<g transform="${e}">${t}</g>`:t,Dr=(t)=>t.replace(/[&<>]/g,(e)=>e==="&"?"&amp;":e==="<"?"&lt;":"&gt;");function Te(t,e){let r=Gr(t,e.normalize??!0,e.traits);return{t:r,palette:{...Vr(e.hue??r.num("hue",0,360),e.contrast??!0,e.tone??r("tone")),...e.palette}}}var Yr=(t)=>t.title?`<title>${Dr(t.title)}</title>`:"";function Nr(t,e,r){let n=e.background??t.background;if(n===!1)return;return{d:n==="square"?"M0 0H100V100H0Z":Wt({cx:50,cy:50,rx:50,ry:50,n:n==="circle"?2:6}),fill:r.bg}}var Jr=(t)=>t?`<path d="${t.d}" fill="${t.fill}"/>`:"";function Qr(t){return(e,r={})=>{let{t:n,palette:a}=Te(e,r),i=Wr(a,r.expression),o=r.size?` width="${r.size}" height="${r.size}"`:"",l=Tr(t.layout(n),r),s=Yr(r)+Jr(Nr(t,r,i))+_r(t.render(l.l,i),l.wrap);return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"${o}>${s}</svg>`}}var t0=(t,e,r)=>{let n=e.rx,a=t.num("eye.rx",0.085,0.115)*n,i=t.num("eye.ratio",1.9,3.2),o=t.num("eye.scale",0.78,1.24),l=t.num("eye.stretch",0.85,1.18),s=t.num("eye.gap",0.1,0.24)*n,u=a*Math.max(1,o),c=a*i*Math.max(1,o*l),h=u+n*0.03+s,p=t.jitter("gaze.x",0.09)*r.rx,d=t.num("gaze.y",-0.2,0.08)*r.ry,y=t.jitter("eye.dy",0.04)*r.ry,m=Math.hypot(u,c),M=Math.hypot((Math.abs(p)+h+m)/r.rx,(Math.abs(d)+Math.abs(y)+m)/r.ry),f=M>0.9?0.9/M:1,x=a*f,b=x*i,k=h*f,E=Math.max(0,Math.min(1,s/c)),L=Math.min(12,Math.asin(E)*180/Math.PI),S=t.num("eye.lean",-1,1)*L,B=Math.max(-12,Math.min(12,S+t.jitter("eye.lean2",3.5))),_=r.cx+p*f,Y=r.cy+d*f;return[{cx:_-k,cy:Y,rx:x,ry:b,n:t.num("eye.n",3.5,6),rot:S},{cx:_+k,cy:Y+y*f,rx:x*o,ry:b*o*l,n:t.num("eye.n",3.5,6),rot:B}]};function e0(t,e){let r=(i)=>(t.find(([,o])=>i<o)??t[t.length-1])[0];function n(i){let o=r(i("shape")),l=i.num("body.r",31,38)*o.core,s={cx:50+i.jitter("body.x",1.5),cy:50+i.jitter("body.y",1.5),rx:l,ry:l*i.num("body.ratio",0.92,1.08),n:i.num("body.n",1.9,2.5),rot:0,radii:Array.from({length:i.int("body.pts",6,8)},(h,p)=>1+i.jitter(`body.r${p}`,0.16))};o.body?.(i,s);let u=o.face?.(s)??s,c={petals:[],extra:[]};return o.decorate?.(i,s,c),{shape:o.name,draw:o.path,body:s,face:u,petals:c.petals,extra:c.extra,eyes:e(i,s,u)}}function a(i,o,l){let s=(h)=>Math.round(h*100)/100,u=(h,p)=>{let d=`<path d="${Kr(h.cx,h.cy,h.rx*2,h.ry*2,h.rot)}"/>`;return l?`<g class="mo-eye" style="--mo-wrap:${p?1:-1};--mo-lean:${s(h.rot)};transform-origin:${s(h.cx)}px ${s(h.cy)}px">${d}</g>`:d},c=`<g fill="${o.head}">`+i.petals.map((h)=>`<circle cx="${s(h.cx)}" cy="${s(h.cy)}" r="${s(h.r)}"/>`).join("")+i.extra.map((h)=>`<path d="${h}"/>`).join("")+`<path d="${i.draw?i.draw(i.body):Wt(i.body)}"/></g><g fill="${o.eye}"${l?' class="mo-eyes"':""}>`+i.eyes.map(u).join("")+"</g>";return l?`<g class="mo-breathe"><g class="mo-bob">${c}</g></g>`:c}return{layout:n,render:a,background:!1}}var We=(t)=>Sr(t),_e=(t)=>Lr(t.cx,t.cy,t.rx,t.ry,t.radii,t.rot),_t=(t)=>(e)=>({cx:e.cx,cy:e.cy,rx:e.rx*t,ry:e.ry*t}),De=(t)=>_t(Math.min(...t.radii)*0.95)(t),r0=(t)=>_t(0.84)(t),n0={name:"round",core:1},i0={name:"organic",core:0.98,path:_e,face:De},a0={name:"boxy",core:0.86,body:(t,e)=>{e.n=t.num("body.n",3.4,6),e.rot=t.num("body.rot",-20,20)}},o0={name:"capsule",core:1.02,body:(t,e)=>{e.ry*=t.num("capsule.squat",0.55,0.68)},face:_t(0.94),decorate:(t,e,r)=>{for(let n of[-1,1])r.petals.push({cx:e.cx+n*(e.rx-e.ry),cy:e.cy,r:e.ry})},path:(t)=>Fr(t.cx,t.cy,t.rx-t.ry,t.ry)},l0={name:"nub",core:0.88,decorate:(t,e,r)=>{let n=t.int("nub.n",1,2);for(let a=0;a<n;a++){let i=t.num(`nub.a${a}`,0,2*Math.PI);r.petals.push({cx:e.cx+Math.cos(i)*e.rx*0.88,cy:e.cy+Math.sin(i)*e.rx*0.88,r:e.rx*t.num(`nub.r${a}`,0.24,0.4)})}}},s0={name:"cloud",core:0.78,face:De,path:_e,decorate:(t,e,r)=>{let n=t.int("cloud.n",4,6);for(let a=0;a<n;a++){let i=Math.PI+Math.PI*(a+0.5)/n;r.petals.push({cx:e.cx+Math.cos(i)*e.rx*0.8,cy:e.cy+Math.sin(i)*e.rx*0.5,r:e.rx*t.num(`cloud.r${a}`,0.44,0.62)})}}},h0={name:"droplet",core:0.78,body:(t,e)=>{e.cy+=0.22*e.ry,e.n=2},face:(t)=>({cx:t.cx,cy:t.cy+t.ry*0.05,rx:t.rx*0.88,ry:t.ry*0.88}),decorate:(t,e,r)=>{r.extra.push(Zr(e.cx,e.cy,e.rx,e.ry,t.num("droplet.tip",1.4,1.65)))}},c0={name:"hexagon",core:1.05,path:We,face:r0,body:(t,e)=>{e.sides=6,e.rot=t.num("body.rot",-12,12),e.round=t.num("poly.round",0.24,0.5)}},u0={name:"sun",core:0.7,decorate:(t,e,r)=>{let n=t.int("sun.n",6,9),a=e.rx*t.num("sun.dist",1,1.08),i=e.rx*t.num("sun.r",0.2,0.26),o=t.num("sun.rot",0,2*Math.PI);for(let l=0;l<n;l++){let s=o+2*Math.PI*l/n;r.petals.push({cx:e.cx+Math.cos(s)*a,cy:e.cy+Math.sin(s)*a,r:i})}}},p0={name:"triangle",core:1.15,path:We,body:(t,e)=>{e.sides=3,e.rot=t.num("body.rot",-5,5),e.round=t.num("poly.round",0.24,0.5)},face:(t)=>({cx:t.cx,cy:t.cy+t.ry*0.1,rx:t.rx*0.54,ry:t.ry*0.36})},d0=[[n0,0.22],[i0,0.48],[a0,0.6],[o0,0.7],[l0,0.79],[s0,0.86],[h0,0.915],[c0,0.95],[u0,0.98],[p0,1]],Ye=e0(d0,t0),Sn=Qr(Ye);function f0(t,e={}){let{t:r,palette:n}=Te(t,e),a=Ye.layout(r),i=e.expression,o=i?i.bake(a,i.p).l:a;return{palette:i?.tint?i.tint(n,i.p):n,...o}}var Z=Math.PI*2,A=(t,e=0,r=1)=>t<e?e:t>r?r:t,v=(t,e,r)=>t+(e-t)*r,U={easeOutCubic:(t)=>1-(1-t)**3,easeInOutCubic:(t)=>t<0.5?4*t**3:1-(-2*t+2)**3/2,easeOutQuint:(t)=>1-(1-t)**5};function ut(t,e,r=0){let n=t/e*Z;return 0.55*Math.sin(n+r)+0.3*Math.sin(2*n+r*1.7+1.1)+0.15*Math.sin(3*n+r*2.3+2.4)}function Ct(t){let e=t>>>0;return()=>{e=e+1831565813>>>0;let r=Math.imul(e^e>>>15,1|e);return r=r+Math.imul(r^r>>>7,61|r)^r,((r^r>>>14)>>>0)/4294967296}}var w=(t)=>Math.round(t*100)/100;function jt(t,e=0.55,r=0.62){let n=(t%360+360)%360,a=(1-Math.abs(2*r-1))*e,i=a*(1-Math.abs(n/60%2-1)),o=r-a/2,[l,s,u]=n<60?[a,i,0]:n<120?[i,a,0]:n<180?[0,a,i]:n<240?[0,i,a]:n<300?[i,0,a]:[a,0,i],c=(h)=>Math.round((h+o)*255).toString(16).padStart(2,"0");return`#${c(l)}${c(s)}${c(u)}`}function y0(t,e,r,n,a=1){let i=t.phase+e*t.speed*Z,o=Math.cos(t.tilt),l=Math.sin(t.tilt),s=Math.sqrt(Math.max(0,1-t.k*t.k)),u=64,c=t.sweep*Z,h="",p="",d=null;for(let M=0;M<=64;M++){let f=i+M/64*c,x=Math.cos(f),b=Math.sin(f),k=t.a*(x*o+b*-l*t.k)+t.cx,E=t.a*(x*l+b*o*t.k)+t.cy,L=t.a*b*s<0,S=w(k*r),B=w(E*r),_=L!==d?"M":"L";if(L)p+=`${_}${S} ${B}`;else h+=`${_}${S} ${B}`;d=L}let y=Math.cos(t.tilt)*t.a*r,m=Math.sin(t.tilt)*t.a*r;return{id:n,front:h,back:p,width:t.width*r,opacity:a,grad:{x1:w(t.cx*r-y),y1:w(t.cy*r-m),x2:w(t.cx*r+y),y2:w(t.cy*r+m),stops:[jt(t.hue),jt(t.hue+t.hueSpan*0.5),jt(t.hue+t.hueSpan)]}}}var et=Ct(659918),de=Array.from({length:6},(t,e)=>({a:1.3+et()*0.1,k:0.05+et()*0.4,tilt:e/6*Math.PI+et()*0.5,speed:3+et()*0.7,phase:et()*Z,sweep:0.6+et()*0.25,hue:e*360/6+et()*30,hueSpan:60+et()*60,width:0.05+et()*0.012,cx:0,cy:0.1})),m0=Array.from({length:4},(t,e)=>({a:0.78+e*0.2,k:0.05+e*0.02,tilt:-0.62+e*0.05,speed:0.3,phase:0.06*e,sweep:0.4,hue:95+e*62,hueSpan:100,width:0.05,cx:0,cy:-0.12})),fe=[-0.557,-0.013,0.532],ye=0.165,me=1.25,Me=Ct(48879),M0=Array.from({length:5},(t,e)=>({birth:e*0.2,angle:Me()*Z,rho:0.58+Me()*0.18}));function x0(t,e){let r=[];for(let n of M0){let a=t-n.birth;if(a<0||a>0.62)continue;let i=n.rho*Math.pow(0.75,a*10),o=n.angle+a*100*Math.PI/180;r.push({x:Math.cos(o)*i*e,y:Math.sin(o)*i*e,r:(0.04+0.028*A(a/0.55))*e,depth:A(1-i/0.8),opacity:A(a/0.06)*A((0.62-a)/0.08)})}return r}var xe=Ct(49383),g0=Array.from({length:4},(t,e)=>{let r=e-1.5;return{a:0.85*(1+r*0.03),k:0.17647058823529413*(1+r*0.16),tilt:34*Math.PI/180+r*0.035,speed:0.5833333333333334,phase:-e*0.045+xe()*0.012,sweep:0.34,hue:e*85+xe()*20,hueSpan:80,width:0.095,cx:0,cy:0}}),b0=0.129,w0=-42,ge=1.003,v0=0.15,k0=1.14,z0=0.054,Dt=15.46,Ht=0.186,Rt=0.412,Ne={yaw:28.49,pitch:28.62,roll:-13},zt=(t)=>t*Math.PI/180;function $t(t,e,r){let n=Math.cos(r),a=Math.sin(r);return[[t[0]*n+e[0]*a,t[1]*n+e[1]*a,t[2]*n+e[2]*a],[e[0]*n-t[0]*a,e[1]*n-t[1]*a,e[2]*n-t[2]*a]]}function Je(t,e,r=Dt){let n=[0,0,1],a=[1,0,0],i=[0,1,0];[n,a]=$t(n,a,zt(t.yaw)),[i,n]=$t(i,n,zt(t.pitch)),[a,i]=$t(a,i,zt(t.roll));let o=(l)=>{let[s,u]=$t(n,a,zt(r*l));return{x:s[0]*e,y:s[1]*e,a:u[0],b:u[1],c:i[0],d:i[1],depth:s[2]}};return[o(-1),o(1)]}var be=Ct(24301),we=(()=>{let t=[],e=1.4;while(e<900)if(t.push(e),e+=1.9+be()*2.7,be()<0.18)t.push(e),e+=0.24;return t})(),$0=0.18;function A0(t){for(let e=0;e<we.length;e++){let r=we[e];if(t<r)break;let n=(t-r)/$0;if(n>=0&&n<=1)return n<0.45?1-n/0.45:(n-0.45)/0.55}return 1}var Qe=7.81,tr=2.27,er=7.75,rr=2.33,P0=3.28,O0=Qe+tr,nr=er+rr;function C0(t,e={}){let{wander:r=1,blink:n=!0,float:a=!0}=e;return{dYaw:(ut(t,6,0.4)*Qe+ut(t,1.8,2.1)*tr)*r,dPitch:(ut(t,5.1,1.3)*er+ut(t,2.1,0.7)*rr)*r,dRoll:ut(t,7.3,3.2)*P0*r,lid:n?A0(t):1,driftX:a?ut(t,7.9,1.9)*0.006:0,driftY:a?ut(t,5.3,0.3)*0.007:0,breath:n?1+Math.sin(t/3.4*Math.PI*2)*0.005:1}}function I0(t){return 0.06+0.94*A(t)}var Q=(t,e,r=0,n=1)=>({w:t,h:e,tilt:r,open:n}),X=(t,e,r=0,n=1)=>[Q(t,e,r,n),Q(t,e,-r,n)],wt=[{id:"wander",gaze:{...Ne},split:Dt,eyes:[Q(Ht,Rt),Q(Ht,Rt)]},{id:"attentive",gaze:{yaw:4,pitch:5,roll:-4},split:16,eyes:X(0.21,0.44)},{id:"surprised",gaze:{yaw:3,pitch:-3,roll:0},split:19,eyes:X(0.45,0.47)},{id:"excited",gaze:{yaw:6,pitch:-14,roll:0},split:19.5,eyes:X(0.4,0.56,-10)},{id:"happy",gaze:{yaw:5,pitch:9,roll:0},split:17,eyes:X(0.27,0.17,14)},{id:"laughing",gaze:{yaw:4,pitch:14,roll:0},split:18,eyes:X(0.34,0.13,20)},{id:"angry",gaze:{yaw:3,pitch:7,roll:0},split:17,eyes:X(0.34,0.15,30)},{id:"sad",gaze:{yaw:3,pitch:-13,roll:0},split:16,eyes:X(0.22,0.4,-28)},{id:"scared",gaze:{yaw:2,pitch:-20,roll:0},split:20.5,eyes:X(0.4,0.6)},{id:"suspicious",gaze:{yaw:12,pitch:6,roll:-6},split:16,eyes:[Q(0.21,0.4),Q(0.22,0.15)]},{id:"confused",gaze:{yaw:-14,pitch:3,roll:8},split:16.5,eyes:[Q(0.2,0.44,-18),Q(0.28,0.17,14)]},{id:"curious",gaze:{yaw:16,pitch:-9,roll:-15},split:16.5,eyes:[Q(0.24,0.46,-8),Q(0.2,0.38,-8)]},{id:"proud",gaze:{yaw:5,pitch:17,roll:0},split:17,eyes:X(0.3,0.15,18)},{id:"shy",gaze:{yaw:-19,pitch:-14,roll:-7},split:14,eyes:X(0.17,0.3)},{id:"unimpressed",gaze:{yaw:-22,pitch:2,roll:0},split:16,eyes:X(0.3,0.12)},{id:"sleepy",gaze:{yaw:6,pitch:-9,roll:-3},split:16,eyes:X(0.2,0.42,0,0.42)},{id:"love",gaze:{yaw:4,pitch:7,roll:0},split:15,eyes:X(0.16,0.53,10)}],q0=new Map(wt.map((t)=>[t.id,t])),ve=(t,e,r)=>({w:v(t.w,e.w,r),h:v(t.h,e.h,r),tilt:v(t.tilt??0,e.tilt??0,r),open:v(t.open,e.open,r)});function E0(t,e,r){return{id:e.id,gaze:{yaw:v(t.gaze.yaw,e.gaze.yaw,r),pitch:v(t.gaze.pitch,e.gaze.pitch,r),roll:v(t.gaze.roll,e.gaze.roll,r)},split:v(t.split,e.split,r),eyes:[ve(t.eyes[0],e.eyes[0],r),ve(t.eyes[1],e.eyes[1],r)]}}var j=64,B0={egg:[0.8369,0.8424,0.8497,0.8585,0.8674,0.8775,0.8878,0.8983,0.9089,0.9185,0.9288,0.9374,0.9445,0.9504,0.9543,0.9559,0.9555,0.9519,0.9466,0.9389,0.9302,0.9193,0.9085,0.8969,0.8852,0.8734,0.8625,0.8513,0.8411,0.8325,0.8243,0.8179,0.8137,0.8112,0.8102,0.8128,0.8178,0.8262,0.8374,0.8518,0.8702,0.8922,0.9169,0.9446,0.9741,1.0023,1.0267,1.0433,1.0481,1.0393,1.0216,0.997,0.9697,0.9418,0.9169,0.8949,0.876,0.8604,0.849,0.8394,0.8337,0.8314,0.8305,0.8326],hexagon:[0.921,0.9282,0.9441,0.9706,0.9984,1.0059,0.9896,0.9562,0.929,0.9124,0.9047,0.9058,0.9157,0.9349,0.9642,0.9873,0.9882,0.9665,0.9336,0.9105,0.8968,0.8918,0.8955,0.908,0.9293,0.9611,0.982,0.9812,0.959,0.9282,0.9089,0.8978,0.8964,0.9026,0.9189,0.9439,0.9778,0.999,0.9964,0.9713,0.9439,0.9274,0.9196,0.9206,0.9308,0.9502,0.9799,1.0121,1.0226,1.0071,0.9752,0.951,0.9366,0.9316,0.9351,0.9485,0.9711,1.0026,1.0213,1.0155,0.9863,0.9547,0.9347,0.9232],triangle:[0.7819,0.8211,0.8747,0.944,1.0223,1.096,1.1401,1.134,1.0808,1.0047,0.9265,0.8603,0.8104,0.773,0.745,0.7273,0.7151,0.7118,0.7148,0.7245,0.7427,0.768,0.8037,0.8518,0.9148,0.9876,1.0583,1.1073,1.1109,1.0667,0.994,0.9164,0.8482,0.7948,0.7555,0.7261,0.7056,0.6925,0.6859,0.6869,0.6938,0.7084,0.7305,0.7615,0.804,0.8595,0.9311,1.0092,1.0791,1.1171,1.1054,1.0501,0.9779,0.905,0.845,0.799,0.7656,0.7413,0.7258,0.716,0.7146,0.7204,0.733,0.7528]},Yt=Array.from({length:j},(t,e)=>e/j*Z),It=Yt.map(Math.cos),qt=Yt.map(Math.sin);function V0(t,e={}){return{radii:[...B0[t]],rot:0,cx:0,cy:0,sx:1,sy:1,...e}}function pt(t,e={}){return{radii:Array(j).fill(t),rot:0,cx:0,cy:0,sx:1,sy:1,...e}}function L0(t,e,r,n){let a=n??{radii:Array(j),rot:0,cx:0,cy:0,sx:1,sy:1};for(let o=0;o<j;o++)a.radii[o]=v(t.radii[o]??1,e.radii[o]??1,r);let i=e.rot-t.rot;while(i>Math.PI)i-=Z;while(i<-Math.PI)i+=Z;return a.rot=t.rot+i*r,a.cx=v(t.cx,e.cx,r),a.cy=v(t.cy,e.cy,r),a.sx=v(t.sx,e.sx,r),a.sy=v(t.sy,e.sy,r),a}function Xt(t,e,r=[]){let n=Math.cos(t.rot),a=Math.sin(t.rot);for(let i=0;i<j;i++){let o=t.radii[i]??1,l=o*(It[i]??0),s=o*(qt[i]??0),u=l*n-s*a,c=l*a+s*n,h=r[i]??{x:0,y:0};h.x=(u*t.sx+t.cx)*e,h.y=(c*t.sy+t.cy)*e,r[i]=h}return r.length=j,r}function S0(t,e=0.16666666666666666){let r=t.length;if(r<3)return"";let n=t[0],a=`M${w(n.x)} ${w(n.y)}`;for(let i=0;i<r;i++){let o=t[(i-1+r)%r],l=t[i],s=t[(i+1)%r],u=t[(i+2)%r],c=l.x+(s.x-o.x)*e,h=l.y+(s.y-o.y)*e,p=s.x-(u.x-l.x)*e,d=s.y-(u.y-l.y)*e;a+=`C${w(c)} ${w(h)} ${w(p)} ${w(d)} ${w(s.x)} ${w(s.y)}`}return`${a}Z`}function Nt(t,e,r){let n=Array(j).fill(0),a=t.length;for(let i=0;i<j;i++){let o=It[i]??0,l=qt[i]??0,s=0;for(let u=0;u<a;u++){let c=t[u],h=t[(u+1)%a],p=h.x-c.x,d=h.y-c.y,y=o*d-l*p;if(Math.abs(y)<0.000000001)continue;let m=c.x-e,M=c.y-r,f=(m*d-M*p)/y,x=(m*l-M*o)/y;if(f>s&&x>=0&&x<=1)s=f}n[i]=s}return n}function Et(t,e,r,n,a,i,o=96){let l=n-t,s=a-e,u=Math.hypot(l,s)||0.000001,c=Math.atan2(s,l),h=Math.acos(Math.max(-1,Math.min(1,(r-i)/u))),p=[];for(let d=0;d<=o/2;d++){let y=c+h+(Z-2*h)*d/(o/2);p.push({x:t+Math.cos(y)*r,y:e+Math.sin(y)*r})}for(let d=0;d<=o/2;d++){let y=c-h+2*h*d/(o/2);p.push({x:n+Math.cos(y)*i,y:a+Math.sin(y)*i})}return p}function Jt(t,e){let r=t.length,n=(e/Z%1+1)%1*r,a=Math.floor(n);return v(t[a%r]??1,t[(a+1)%r]??1,n-a)}function F0(t,e=1,r=1){return Yt.map((n,a)=>{let i=Math.abs((It[a]??0)/e)**t,o=Math.abs((qt[a]??0)/r)**t;return(i+o)**(-1/t)})}function Z0(t){let e=Array(j).fill(0);for(let r=0;r<j;r++){let n=It[r]??0,a=qt[r]??0,i=0;for(let o of t){let l=n*o.x+a*o.y,s=l*l-(o.x*o.x+o.y*o.y-o.r*o.r);if(s<0)continue;let u=l+Math.sqrt(s);if(u>i)i=u}e[r]=i}return e}function j0(t,e,r=10){let n=t.length,a=[],i=(o,l)=>{let s=l.x-o.x,u=l.y-o.y,c=Math.hypot(s,u)||1;return Math.atan2(-s/c,u/c)};for(let o=0;o<n;o++){let l=t[(o-1+n)%n],s=t[o],u=t[(o+1)%n],c=i(l,s),h=i(s,u)-c;while(h>Math.PI)h-=Z;while(h<-Math.PI)h+=Z;for(let p=0;p<=r;p++){let d=c+h*p/r;a.push({x:s.x+Math.cos(d)*e,y:s.y+Math.sin(d)*e})}}return a}function ke(t,e,r,n=0){let a=n*Math.PI/180,i=Array.from({length:t},(o,l)=>{let s=a+l/t*Z;return{x:Math.cos(s)*(e-r),y:Math.sin(s)*(e-r)}});return Nt(j0(i,r),0,0)}function ir(t,e=1){if(t.length<3)return"";let r="";for(let n=0;n<t.length;n++){let a=t[n];r+=`${n===0?"M":"L"}${w(a.x*e)} ${w(a.y*e)}`}return`${r}Z`}function K0(t,e){let r=Math.max(t,0.01)/2,n=Math.max(e,0.01)/2,a=Math.min(r,n);return`M${w(-r)} ${w(-n+a)}A${w(a)} ${w(a)} 0 0 1 ${w(-r+a)} ${w(-n)}L${w(r-a)} ${w(-n)}A${w(a)} ${w(a)} 0 0 1 ${w(r)} ${w(-n+a)}L${w(r)} ${w(n-a)}A${w(a)} ${w(a)} 0 0 1 ${w(r-a)} ${w(n)}L${w(-r+a)} ${w(n)}A${w(a)} ${w(a)} 0 0 1 ${w(-r)} ${w(n-a)}Z`}function Bt(t,e=1){let r=Math.max(...t);if(r<=0)return t;let n=e/r;return t.map((a)=>a*n)}var U0=Array.from({length:j},(t,e)=>e/j*Math.PI*2),H0=Bt(U0.map((t)=>1+0.075*Math.cos(2*t+0.5)+0.035*Math.cos(3*t+2.1)),1.02),R0=Bt(Z0([{x:-0.44,y:0.2,r:0.54},{x:0.46,y:0.2,r:0.5},{x:0.02,y:0.3,r:0.6},{x:-0.24,y:-0.3,r:0.48},{x:0.3,y:-0.24,r:0.44}]),1.02),X0=Bt(Nt(Et(0,0.28,0.66,0,-0.96,0.05),0,0),1.04),G0=Nt(Et(-0.42,0,0.62,0.42,0,0.62),0,0),ar=[{id:"circle",radii:Array(j).fill(1)},{id:"pebble",radii:H0},{id:"squircle",radii:Bt(F0(4.2),1.15)},{id:"capsule",radii:G0},{id:"triangle",radii:ke(3,1.12,0.34,-90)},{id:"hexagon",radii:ke(6,1.04,0.26,0)},{id:"cloud",radii:R0},{id:"drop",radii:X0}],Fn=new Map(ar.map((t)=>[t.id,t])),T0=[{id:"ink",hex:"#0a0a0c"},{id:"brown",hex:"#8b5e3c"},{id:"red",hex:"#e8483f"},{id:"orange",hex:"#f08a24"},{id:"amber",hex:"#f0b429"},{id:"green",hex:"#3ecf8e"},{id:"turquoise",hex:"#2fbfa0"},{id:"blue",hex:"#3b93f0"},{id:"violet",hex:"#8b5cf6"},{id:"pink",hex:"#e152b0"},{id:"gray",hex:"#a3a3a3"},{id:"cream",hex:"#f1efe9"}],Zn=new Map(T0.map((t)=>[t.id,t])),bt=(t,e)=>[{w:t,h:e,open:1},{w:t,h:e,open:1}],rt={yaw:0,pitch:0,roll:0};function H(t={}){return{sil:pt(1),offX:0,offY:0,gaze:{...Ne},split:Dt,eyes:bt(Ht,Rt),eyeAlpha:1,bodyAlpha:1,dots:[],arcs:[],notif:null,dotsBehind:!1,...t}}var W0=ir(Et(0,-0.5,0.145,0,0.5,0.082)),_0=ir(Et(0,-0.5,0.12,0,0.5,0.12)),ze=0.34,Gt=0.42,or=-0.55,$e=Gt-or,Ae=0.213,Pe=3.2,D0=16,Y0=10,N0=6;function Oe(t){return V0("triangle",{rot:t,cx:-Ae*Math.sin(t),cy:Ae*Math.cos(t)})}var ft=0.16,At=0.12,Tt=0.18,J0=1.04,Q0=ft+At+Tt+J0;function Ce(t,e){let r=((t-e*0.5)/1.5%1+1)%1,n=r<0.5?0.5-0.5*Math.cos(r*Z):0;return A(n*2)}var lr=[{id:"idle",duration:2.4,morph:0.45,blinkIn:!1,baseFace:!0,baseBody:!0,ownsLiveliness:!0,pose:()=>H({gaze:{...rt}})},{id:"wander",duration:2.4,morph:0.45,blinkIn:!1,baseFace:!0,baseBody:!0,pose:()=>H()},{id:"thinking",duration:2.6,morph:0.4,baseFace:!1,baseBody:!1,blinkIn:!0,pose:(t)=>{let e=Ce(t,1),r=0.3+0.7*U.easeOutCubic(A(t/0.3));return H({sil:pt(ye*(1+(me-1)*e),{cx:fe[1]}),eyeAlpha:0,dots:[0,2].map((n)=>{let a=Ce(t,n);return{x:fe[n]*r,y:0,r:ye*(1+(me-1)*a),opacity:0.55+0.45*a}})})}},{id:"wink",duration:1.6,morph:0.3,blinkIn:!0,baseFace:!1,baseBody:!0,period:Q0,pose:(t)=>{let e={w:0.236,h:0.464},r={w:0.447,h:0.089},n;if(t<ft)n=U.easeInOutCubic(A(t/ft));else if(t<ft+At)n=1;else if(t<ft+At+Tt)n=1-U.easeInOutCubic(A((t-ft-At)/Tt));else n=0;return H({gaze:{yaw:-5.37,pitch:4.55,roll:6.7},split:16.25,eyes:[{w:e.w,h:e.h,open:1},{w:v(e.w,r.w,n),h:v(e.h,r.h,n),open:1}]})}},{id:"wide",duration:1.8,morph:0.55,blinkIn:!0,baseFace:!1,baseBody:!0,pose:()=>H({gaze:{yaw:6.92,pitch:-21.96,roll:11.6},split:18.43,eyes:bt(0.356,0.875)})},{id:"alert",duration:2.4,minDuration:2,morph:0.45,baseFace:!1,baseBody:!1,blinkIn:!1,pose:(t)=>{let e=A(t/1.5),r=U.easeInOutCubic(e)*0.82-0.087,n=t>1.6?A((t-1.6)/0.4):0,a=r*(1-n)+0.1*n,i=Math.sin(t*2.5*Z)*0.005,o=17.7*Math.PI/180,l=Gt+i*2.8;return H({gaze:{...rt},sil:pt(ze,{cx:a,cy:l}),dots:[{x:a+Math.sin(o)*$e,y:l-Math.cos(o)*$e-i,r:0.12,d:_0,rot:o*180/Math.PI,opacity:1}]})}},{id:"notify",duration:2.2,morph:0.5,blinkIn:!0,baseFace:!1,baseBody:!0,pose:(t)=>{let e=A(t/0.45),r=1+(k0-1)*Math.sin(e*Math.PI)*(1-e*0.35),n=v0*(e<1?r:1),a=w0*Math.PI/180;return H({gaze:{yaw:-21.94,pitch:-5.82,roll:-12.2},split:18.89,eyes:bt(0.505,0.498),notif:{x:Math.cos(a)*ge,y:Math.sin(a)*ge,r:n,notch:n+z0}})}},{id:"exclaim",duration:2,morph:0.45,baseFace:!1,baseBody:!1,blinkIn:!1,pose:()=>H({gaze:{...rt},sil:pt(ze,{cy:Gt}),dots:[{x:0,y:or,r:0.145,d:W0,opacity:1}]})},{id:"snooze",duration:2.4,morph:0.5,baseFace:!1,baseBody:!1,blinkIn:!1,pose:(t)=>H({sil:pt(0.1585,{cy:0.11+Math.sin(t*(Z/0.6))*0.19}),eyeAlpha:0})},{id:"play",duration:2,morph:0.5,baseFace:!1,acceptsExpression:!0,baseBody:!1,blinkIn:!0,pose:(t)=>{let e=A(t/0.35)*A((2.2-t)/0.5);return H({sil:Oe(0),gaze:{yaw:12,pitch:-8,roll:-6},split:15,eyes:bt(0.18,0.34),arcs:m0.map((r,n)=>({id:`sw${n}`,seed:{...r,cx:0.45-t*0.42},t,opacity:e}))})}},{id:"orbit",duration:3.4,morph:0.6,baseFace:!1,baseBody:!1,blinkIn:!1,ownsLiveliness:!0,period:Pe,pose:(t)=>{let e=-Z*1.25*t,r=Oe(e),n=A(t/0.8)*A((Pe-t)/0.9);return H({sil:r,gaze:{yaw:rt.yaw+Math.sin(e)*D0,pitch:rt.pitch+Math.cos(e)*Y0,roll:rt.roll+Math.sin(e*2)*N0},eyes:bt(0.18,0.34),arcs:de.map((a,i)=>({id:`rg${i}`,seed:a,t,opacity:n*A((t-i*0.13)/0.3)}))})}},{id:"swirl",duration:1.3,minDuration:1.3,morph:0.3,baseFace:!0,baseBody:!0,blinkIn:!0,pose:(t)=>H({gaze:{...rt},arcs:de.slice(0,3).map((e,r)=>({id:`sw${r}`,seed:e,t,opacity:A((t-r*0.06)/0.14)*A((1.22-t)/0.34)}))})},{id:"burst",fill:"hold",duration:2.6,minDuration:2.4,morph:0.4,baseFace:!1,acceptsExpression:!0,baseBody:!1,blinkIn:!1,pose:(t)=>{let e=U.easeOutQuint(A(t/0.7)),r=1-0.834*e,n=U.easeOutQuint(A((t-1.7)/0.7)),a=r+(1-r)*n;return H({sil:pt(a),gaze:{...rt},eyeAlpha:t<1.7?1-e:n,dots:x0(t,1),dotsBehind:!0})}},{id:"comet",fill:"hold",duration:2.4,minDuration:2.4,morph:0.45,baseFace:!1,acceptsExpression:!0,baseBody:!1,blinkIn:!1,pose:(t)=>{let e=U.easeOutQuint(A(t/0.55)),r=1-(1-b0)*e,n=U.easeOutQuint(A((t-1.85)/0.6)),a=r+(1-r)*n,i=A((t-0.15)/0.25)*A((1.95-t)/0.3);return H({sil:pt(a,{cy:Math.sin(A(t/1.7)*Math.PI)*0.035}),gaze:{...rt},eyeAlpha:t<1.85?1-e:n,arcs:g0.map((o,l)=>({id:`cm${l}`,seed:o,t,opacity:i}))})}}],W=new Map(lr.map((t)=>[t.id,t])),tn={idle:1,wander:1,thinking:1.1,wink:0.8,wide:0.8,alert:0.75,notify:0.9,exclaim:0.8,snooze:0.45,play:0.9,orbit:1.2,swirl:0.5,burst:0.45,comet:1.15},it=100,Ie=O0,qe=nr,en=0.006,rn=0.007;function Ee(t,e,r){let n=[],a=Je(t.gaze,it,t.split);for(let i=0;i<2;i++){let o=a[i];if(o.depth<=0.02)continue;let l=t.eyes[i],s=(l.tilt??0)*Math.PI/180,u=Math.cos(s),c=Math.sin(s),h=o.a*u+o.c*c,p=o.b*u+o.d*c,d=-o.a*c+o.c*u,y=-o.b*c+o.d*u,m=Math.max(l.w*it,0.01)/2,M=Math.max(l.h*it,0.01)/2,f=Math.min(m,M),x=M>m,b=x?M-f:m-f,k=Jt(r,Math.atan2(o.y,o.x)-e.rot);n.push({x:o.x*k,y:o.y*k,ax:(x?d:h)*b,ay:(x?y:p)*b,r:f,m:[h,p,d,y]})}return n}function nn(t,e,r,n,a){let i=n-e,o=a-r,l=i*i+o*o,s=1/0,u=0,c=0;for(let p=0;p<t.length;p++){let d=t[p],y=l>0?((d.x-e)*i+(d.y-r)*o)/l:0;y=y<0?0:y>1?1:y;let m=e+y*i-d.x,M=r+y*o-d.y,f=m*m+M*M;if(f<s)s=f,u=m,c=M}let h=Math.sqrt(s);return{d:h,ux:h>0.000000001?u/h:0,uy:h>0.000000001?c/h:0}}var an=Math.hypot(en,rn)*it;function Be(t,e,r,n){let a=1/0,i=0,o=0;for(let l of e){let s=l.x+r,u=l.y+n,c=nn(t,s-l.ax,u-l.ay,s+l.ax,u+l.ay),[h,p,d,y]=l.m,m=l.r*Math.hypot(h*c.ux+p*c.uy,d*c.ux+y*c.uy)+an;if(c.d-m<a)a=c.d-m,i=c.ux,o=c.uy}return{margin:a,ux:i,uy:o}}var Ve=12,on=8;function ln(t){if(!t.length)return{x:0,y:0};let e=(f,x)=>{let b=1/0;for(let k of t)b=Math.min(b,Be(k.contour,k.footprints,f,x).margin);return b},r=1/0;for(let f of t)r=Math.min(r,Be(f.calContour,f.reference,0,0).margin);let n=0,a=0,i=t[0].footprints;for(let f of i)n-=f.x/i.length,a-=f.y/i.length;let o=Math.max(0.35*it,Math.hypot(n,a)*1.25);r=Math.min(r,e(n,a));let l=e(0,0);if(l>=r&&l>=0)return{x:0,y:0};let s=Math.max(r,0),u=0,c=0,h=1/0,p=0,d=0,y=l;for(let f=0;f<Ve;f++){let x=f/Ve*Math.PI*2,b=Math.cos(x),k=Math.sin(x);if(e(b*o,k*o)<s){for(let S of[0.3,0.6,1]){let B=e(b*o*S,k*o*S);if(B>y)y=B,p=b*o*S,d=k*o*S}continue}let E=0,L=o;for(let S=0;S<on;S++){let B=(E+L)/2;if(e(b*B,k*B)>=s)L=B;else E=B}if(L<h)h=L,u=b*L,c=k*L}let m=h===1/0?p:u,M=h===1/0?d:c;return{x:+(m/it).toFixed(6),y:+(M/it).toFixed(6)}}function sn(t,e,r){if(t.baseFace&&r)return{gaze:r.gaze,split:r.split,eyes:r.eyes};return{gaze:e.gaze,split:e.split,eyes:e.eyes}}function hn(t){let e=(n)=>JSON.stringify([n.gaze,n.split,n.eyes,n.sil.rot,n.sil.cx,n.sil.cy,n.sil.sx,n.sil.sy]);if(e(t.pose(0))===e(t.pose(t.duration)))return[0];let r=3;return Array.from({length:r},(n,a)=>a/(r-1)*t.duration)}function sr(t,e,r){let n=[];for(let a of hn(t)){let i=t.pose(a),o=Xt({...i.sil,radii:e},it),l=Xt(i.sil,it),s=sn(t,i,r),u=[];for(let c of[-Ie,Ie])for(let h of[-qe,qe])u.push({...s,gaze:{yaw:s.gaze.yaw+c,pitch:s.gaze.pitch+h,roll:s.gaze.roll}});for(let c of u)n.push({footprints:Ee(c,i.sil,e),reference:Ee(c,i.sil,i.sil.radii),contour:o,calContour:l})}return ln(n)}var hr={x:0,y:0},Pt=(t,e)=>`${t}|${e??""}`;function cn(){return new Map(ar.map((t)=>{let e=new Map;for(let r of lr){if(!r.baseBody)continue;let n=r.baseFace?[null,...wt]:[null];for(let a of n)e.set(Pt(r.id,a?.id??null),sr(r,t.radii,a))}return[t.radii,e]}))}var Le=cn();function un(t,e,r){let n=W.get(e);if(!n||!n.baseBody)return hr;let a=n.baseFace?wt.find((i)=>i.id===r)??null:null;return sr(n,t,a)}function Se(t,e,r){if(!t)return hr;let n=Le.get(t),a=n?.get(Pt(e,r))??n?.get(Pt(e,null));if(a)return a;let i=un(t,e,r);if(!n)n=new Map,Le.set(t,n);return n.set(Pt(e,r),i),i}var Kt={yaw:0,pitch:0,mix:0,spin:0,wander:1},pn=(t,e,r)=>({yaw:v(t.yaw,e.yaw,r),pitch:v(t.pitch,e.pitch,r),mix:v(t.mix,e.mix,r),spin:v(t.spin,e.spin,r),wander:v(t.wander,e.wander,r)}),Fe=(t,e,r)=>({w:v(t.w,e.w,r),h:v(t.h,e.h,r),open:v(t.open,e.open,r),tilt:v(t.tilt??0,e.tilt??0,r)});function Ze(t,e,r){let n=1-r;return{sil:L0(t.sil,e.sil,r),offX:v(t.offX,e.offX,r),offY:v(t.offY,e.offY,r),gaze:{yaw:v(t.gaze.yaw,e.gaze.yaw,r),pitch:v(t.gaze.pitch,e.gaze.pitch,r),roll:v(t.gaze.roll,e.gaze.roll,r)},split:v(t.split,e.split,r),eyes:[Fe(t.eyes[0],e.eyes[0],r),Fe(t.eyes[1],e.eyes[1],r)],eyeAlpha:v(t.eyeAlpha,e.eyeAlpha,r),bodyAlpha:v(t.bodyAlpha,e.bodyAlpha,r),dots:[...t.dots.map((a)=>({...a,opacity:a.opacity*n})),...e.dots.map((a)=>({...a,opacity:a.opacity*r}))],arcs:[...t.arcs.map((a)=>({...a,id:`a${a.id}`,opacity:a.opacity*n})),...e.arcs.map((a)=>({...a,id:`b${a.id}`,opacity:a.opacity*r}))],notif:r<0.5?t.notif:e.notif,dotsBehind:r<0.5?t.dotsBehind:e.dotsBehind}}class nt{scale;cur;prev=null;frozenStart=null;tCur=0;tPrev=0;blinkAt=-10;looping=!1;stretchOf=null;stretchBy=1;pts=[];shape=null;shapePrev=null;shapeAt=-10;expr=null;exprPrev=null;exprAt=-10;look=Kt;lookPrev=Kt;lookAt=-10;lookMorph=0.24;static SHAPE_MORPH=0.45;static EXPRESSION_MORPH=0.55;static LOOK_MORPH=0.24;constructor(t=100,e="idle",r=null,n=null){this.scale=t,this.cur=e,this.shape=r,this.expr=n}setExpression(t,e=0){if(t===this.expr)return;this.exprPrev=this.expr,this.expr=t,this.exprAt=e}exprBlend(t){let e=this.expr,r=this.exprPrev;if(e===r)return{from:r,to:e,k:1};let n=A((t-this.exprAt)/nt.EXPRESSION_MORPH);return{from:r,to:e,k:n}}setShape(t,e=0){if(t===this.shape)return;this.shapePrev=this.shape,this.shape=t,this.shapeAt=e}shapeAtTime(t){let e=this.shape,r=this.shapePrev;if(!e||!r)return e;let n=(t-this.shapeAt)/nt.SHAPE_MORPH;if(n>=1)return e;let a=U.easeOutQuint(A(n));return e.map((i,o)=>v(r[o]??i,i,a))}setLook(t,e,r=nt.LOOK_MORPH){if(t&&!Number.isFinite(t.yaw+t.pitch+t.mix+t.spin+t.wander))return;this.lookPrev=this.lookAtTime(e),this.look=t??Kt,this.lookAt=e,this.lookMorph=r}lookAtTime(t){let e=(t-this.lookAt)/this.lookMorph;if(e>=1)return this.look;return pn(this.lookPrev,this.look,U.easeInOutCubic(A(e)))}posed(t,e,r,n){let a=t.pose(e);if(t.baseFace||t.acceptsExpression){let i=(l)=>l??{...wt[0],gaze:a.gaze,split:a.split,eyes:a.eyes},o=n.k>=1?i(n.to):E0(i(n.from),i(n.to),U.easeInOutCubic(n.k));a={...a,gaze:o.gaze,split:o.split,eyes:o.eyes}}if(t.baseBody&&r)a={...a,sil:{...a.sil,radii:r}};else if(r){let i=a.sil.radii.reduce((l,s)=>l+s,0)/a.sil.radii.length,o=a.eyes.map((l)=>({...l,w:l.w*i,h:l.h*i}));a={...a,sil:{...a.sil,radii:r.map((l)=>l*i)},eyes:o}}return a}offsetAtTime(t,e){let r=(a,i,o,l,s)=>{if(o===l)return l;let u=(t-a)/i;if(u>=1)return l;let c=s(A(u));return{x:v(o.x,l.x,c),y:v(o.y,l.y,c)}},n=(a)=>r(this.exprAt,nt.EXPRESSION_MORPH,Se(a,e,this.exprPrev?.id??null),Se(a,e,this.expr?.id??null),U.easeInOutCubic);return r(this.shapeAt,nt.SHAPE_MORPH,n(this.shapePrev),n(this.shape),U.easeOutQuint)}get state(){return this.cur}reset(t,e,r=!1){this.cur=t,this.prev=null,this.frozenStart=null,this.tCur=e,this.tPrev=e,this.blinkAt=-10,this.looping=r}wrapped(t,e){let r=t.id===this.stretchOf?e*this.stretchBy:e;return this.looping&&t.period?r%t.period:r}stretch(t,e=1){this.stretchOf=t,this.stretchBy=e>0?e:1}origin(t,e,r){if(this.frozenStart)return this.frozenStart;if(!this.prev)return null;let n=W.get(this.prev);return this.posed(n,this.wrapped(n,Math.max(0,t-this.tPrev)),e,r)}composedPose(t){let e=W.get(this.cur),r=this.shapeAtTime(t),n=this.exprBlend(t),a=this.posed(e,this.wrapped(e,Math.max(0,t-this.tCur)),r,n),i=t-this.tCur;if(i>=e.morph)return a;let o=this.origin(t,r,n);if(!o)return a;return Ze(o,a,U.easeOutQuint(A(i/e.morph)))}setState(t,e,r=!1){if(t===this.cur){this.looping=r;return}let n=W.get(this.cur).morph,a=this.prev!==null&&e-this.tCur<n;if(this.frozenStart=a?this.composedPose(e):null,this.prev=this.cur,this.tPrev=this.tCur,this.cur=t,this.tCur=e,this.looping=r,W.get(t)?.blinkIn)this.blinkAt=e}sample(t){let e=this.scale,r=W.get(this.cur),n=this.shapeAtTime(t),a=this.exprBlend(t),i=this.posed(r,this.wrapped(r,Math.max(0,t-this.tCur)),n,a),o=this.offsetAtTime(t,this.cur),l=t-this.tCur,s=l<r.morph?this.origin(t,n,a):null;if(s){let C=U.easeOutQuint(A(l/r.morph));i=Ze(s,i,C);let K=this.prev;if(K){let q=this.offsetAtTime(t,K);o={x:v(q.x,o.x,C),y:v(q.y,o.y,C)}}}let u=i.eyeAlpha>0.01,c=this.lookAtTime(t),h=r.ownsLiveliness??!1,p=C0(t,{wander:h?0:u?c.wander:0,blink:u,float:!h}),d={yaw:v(i.gaze.yaw,c.yaw,c.mix)+p.dYaw-c.spin,pitch:v(i.gaze.pitch,c.pitch,c.mix)+p.dPitch,roll:i.gaze.roll+p.dRoll},y=A((t-this.blinkAt)/0.2),m=y<1?Math.abs(y*2-1):1,M=Math.min(p.lid,m),f=i.offX+p.driftX,x=i.offY+p.driftY,b={...i.sil,cx:i.sil.cx+f,cy:i.sil.cy+x,sy:i.sil.sy*p.breath},k=S0(Xt(b,e,this.pts)),E=(C,K)=>Jt(i.sil.radii,Math.atan2(K,C)-i.sil.rot),L=i.sil.cx*e,S=i.sil.cy*e,B=[];if(i.eyeAlpha>0.01){let C=Je(d,e,i.split);for(let K=0;K<2;K++){let q=C[K];if(q.depth<=0.02)continue;let N=i.eyes[K],yt=E(q.x,q.y),T=(N.tilt??0)*Math.PI/180,st=Math.cos(T),D=Math.sin(T),mt=q.a*st+q.c*D,at=q.b*st+q.d*D,Mt=-q.a*D+q.c*st,ht=-q.b*D+q.d*st,ot=I0(Math.min(M,N.open));B.push({d:K0(N.w*e,N.h*e),matrix:`matrix(${w(mt)},${w(at*ot)},${w(Mt)},${w(ht*ot)},${w(q.x*yt+L+(f+o.x)*e)},${w(q.y*yt+S+(x+o.y)*e)})`,alpha:i.eyeAlpha*A(q.depth/0.12)})}}let _=i.dots.filter((C)=>C.opacity>0.01&&C.r>0.0005).map((C)=>({...C,x:(C.x+f)*e,y:(C.y+x)*e,r:C.r*e})),Y=i.notif?E(i.notif.x,i.notif.y):1,lt=i.notif?(i.notif.x*Y+f)*e:0,G=i.notif?(i.notif.y*Y+x)*e:0,dt=i.notif?{x:lt,y:G,r:i.notif.r*e}:null,V=i.notif?{x:lt,y:G,r:i.notif.notch*e}:null;return{bodyPath:k,bodyAlpha:i.bodyAlpha,eyes:B,dots:_,dotsBehind:i.dotsBehind,arcs:i.arcs.filter((C)=>C.opacity>0.01).map((C)=>y0(C.seed,C.t,e,C.id,C.opacity)),notif:dt,notch:V}}}var dn=100,fn=158,Ot=10,yn="http://www.w3.org/2000/svg";function je(t,e=12){let r=t.match(/[MLHVCQZ][^MLHVCQZ]*/gi)??[],n=(c)=>(c.match(/-?\d+\.?\d*/g)??[]).map(Number),a=[],i=[],o=0,l=0,s=0,u=0;for(let c of r){let h=n(c.slice(1));switch(c[0].toUpperCase()){case"M":if(i.length>1)a.push(i);o=h[0],l=h[1],s=o,u=l,i=[[o,l]];break;case"L":o=h[0],l=h[1],i.push([o,l]);break;case"H":o=h[0],i.push([o,l]);break;case"V":l=h[0],i.push([o,l]);break;case"C":{let[p,d,y,m,M,f]=h;for(let x=1;x<=e;x++){let b=x/e,k=1-b;i.push([k**3*o+3*k**2*b*p+3*k*b**2*y+b**3*M,k**3*l+3*k**2*b*d+3*k*b**2*m+b**3*f])}o=M,l=f;break}case"Q":{let[p,d,y,m]=h;for(let M=1;M<=e;M++){let f=M/e,x=1-f;i.push([x**2*o+2*x*f*p+f**2*y,x**2*l+2*x*f*d+f**2*m])}o=y,l=m;break}case"Z":o=s,l=u,i.push([s,u]);break}}if(i.length>1)a.push(i);return a}function mn(t,e,r,n=32){let a=[];for(let i=0;i<=n;i++){let o=i/n*Math.PI*2;a.push([t+r*Math.cos(o),e+r*Math.sin(o)])}return a}function Mn(t,e,r,n){let a=Math.cos(r),i=Math.sin(r),o=0;for(let l of n)for(let s=0;s<l.length-1;s++){let[u,c]=l[s],[h,p]=l[s+1],d=h-u,y=p-c,m=d*i-y*a;if(Math.abs(m)<0.000000001)continue;let M=(d*(c-e)-y*(u-t))/m,f=(a*(c-e)-i*(u-t))/m;if(M>o&&f>=0&&f<=1)o=M}return o}function xn(t,e,r,n){let a=je(e?e(t):Wt(t));for(let o of r)a.push(mn(o.cx,o.cy,o.r));for(let o of n)a.push(...je(o));let i=Array(j);for(let o=0;o<j;o++){let l=o/j*Math.PI*2,s=Mn(t.cx,t.cy,l,a);i[o]=(s>0?s:t.rx)/t.rx}return i}var cr=35,gn=nr,ur=Ot+gn,pr=-45;function bn(t,e){let r=e<=0?ur:pr;return{yaw:t*cr,pitch:Ot+Math.abs(e)*(r-Ot),mix:1,spin:0,wander:0}}function wn(t,e){let r=new nt(t,"idle",e,null),n=0.9,a=(l,s)=>{let[u,c,h,p,d,y]=s.slice(7,-1).split(",").map(Number),m=l.match(/-?\d+(?:\.\d+)?/g)?.map(Number)??[],M=1/0,f=-1/0,x=1/0,b=-1/0;for(let k=0;k+1<m.length;k+=2)M=Math.min(M,m[k]),f=Math.max(f,m[k]),x=Math.min(x,m[k+1]),b=Math.max(b,m[k+1]);if(!Number.isFinite(M))return[];return[[M,x],[f,x],[M,b],[f,b]].map(([k,E])=>[u*k+h*E+d,c*k+p*E+y])},i=(l,s)=>{for(let u of s){r.setLook({yaw:u,pitch:l,mix:1,spin:0,wander:0},0,0);for(let c of[0.2,1.4,3.1,5.7,9.3,14.6,23.2,37.5])for(let{d:h,matrix:p}of r.sample(c).eyes)for(let[d,y]of a(h,p)){let m=Jt(e,Math.atan2(y,d))*t;if(m>0&&Math.hypot(d,y)/m>0.9)return!1}}return!0},o=(l,s)=>{for(let u=l;Math.abs(u)>1;u*=0.85)if(s(u))return u;return 0};return{yaw:o(cr,(l)=>i(Ot,[-l,l])),up:o(ur,(l)=>i(l,[0])),down:o(pr,(l)=>i(l,[0]))}}function vn(t,e,r){let n=A(t,-r.yaw,r.yaw),a=r.yaw>0?Math.abs(n)/r.yaw:0,i=Math.sqrt(Math.max(0,1-a*a));return{yaw:n,pitch:A(e,r.down*i,r.up*i)}}function kn(t,e,r,n){let a=3*t,i=3*(r-t)-a,o=1-a-i,l=3*e,s=3*(n-e)-l,u=1-l-s,c=(d)=>((o*d+i)*d+a)*d,h=(d)=>((u*d+s)*d+l)*d,p=(d)=>(3*o*d+2*i)*d+a;return(d)=>{if(d<=0)return 0;if(d>=1)return 1;let y=d;for(let m=0;m<8;m++){let M=p(y);if(Math.abs(M)<0.000001)break;y-=(c(y)-d)/M}return h(y)}}var zn=kn(0.25,0.1,0.25,1),Ke=0.45,Ue=0.08,He=0.001;function R(t,e,r={}){let n=t.createElementNS(yn,e);for(let[a,i]of Object.entries(r))n.setAttribute(a,String(i));return n}function $n(){return[...W.keys()]}function An(){return wt.map((t)=>t.id)}function dr(t,e,r){let n=t.ownerDocument,{palette:a,body:i,draw:o,petals:l,extra:s}=f0(e,r),u=a.head??"#000",c=a.eye??"#fff",h=xn(i,o,l,s),p=new nt(i.rx,"idle",h,null),d=wn(i.rx,h),y=Math.random().toString(36).slice(2,8),m=i.rx*(fn/dn);t.setAttribute("viewBox",`${i.cx-m} ${i.cy-m} ${m*2} ${m*2}`);let M=R(n,"g",{transform:`translate(${i.cx} ${i.cy})`}),f=R(n,"defs"),x=R(n,"g",{fill:"none","stroke-linecap":"round"}),b=R(n,"path",{fill:u}),k=R(n,"g"),E=R(n,"g",{fill:"none","stroke-linecap":"round"});M.append(f,x,b,k,E),t.appendChild(M);let L=(g,I,z)=>{z.replaceChildren(...g.arcs.map((P)=>R(n,"path",{d:P[I],stroke:`url(#${y}-${P.id})`,"stroke-width":P.width,opacity:P.opacity})))},S=(g,I)=>{I.replaceChildren(...g.dots.map((z)=>z.d?R(n,"path",{d:z.d,transform:`translate(${z.x} ${z.y}) rotate(${z.rot??0}) scale(${i.rx})`,fill:z.color??u,opacity:z.opacity}):R(n,"circle",{cx:z.x,cy:z.y,r:z.r,fill:z.color??u,opacity:z.opacity})))},B=null,_=null,Y=(g)=>{if(f.replaceChildren(...g.arcs.map((P)=>{let F=R(n,"linearGradient",{id:`${y}-${P.id}`,gradientUnits:"userSpaceOnUse",x1:P.grad.x1,y1:P.grad.y1,x2:P.grad.x2,y2:P.grad.y2});return F.append(...P.grad.stops.map((tt,J)=>R(n,"stop",{offset:P.grad.stops.length>1?J/(P.grad.stops.length-1):0,"stop-color":tt}))),F})),L(g,"back",x),L(g,"front",E),B)B.remove();if(_)_.remove();let I=g.dotsBehind?x:E,z=R(n,"g");if(I.appendChild(z),S(g,z),g.dotsBehind)B=z;else _=z;if(b.setAttribute("d",g.bodyPath),b.setAttribute("opacity",String(g.bodyAlpha)),k.replaceChildren(...g.eyes.map((P)=>R(n,"path",{d:P.d,transform:P.matrix,opacity:P.alpha,fill:c}))),g.notif)E.appendChild(R(n,"circle",{cx:g.notif.x,cy:g.notif.y,r:g.notif.r,fill:"#2496e8"}))},lt=n.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)").matches??!1,G=0,dt=0,V=0,C=!1,K=0,q="idle",N="idle",yt=Ke,T=0,st=0,D=!1,mt=!1,at=null,Mt=null,ht=null,ot=null,Qt=0,te=0,ee=0,re=0,Vt=0,xt=!1;function ne(g){let I=A((g-Vt)/Ue),z=zn(I);return{yaw:v(Qt,ee,z),pitch:v(te,re,z)}}function Lt(){Mt?.(),Mt=null,mt=!1,at=null}function xr(g){Lt();let I=n.defaultView;if(!I)return;let z=g==="window"?I:g,P=g==="window"?n:g,F=(J)=>{let ct=J;if(ct.pointerType==="touch")return;at={x:ct.clientX,y:ct.clientY}},tt=()=>{at=null};z.addEventListener("pointermove",F),P.addEventListener("pointerleave",tt),Mt=()=>{z.removeEventListener("pointermove",F),P.removeEventListener("pointerleave",tt)},mt=!0,ht=null,ot=null,xt=!1,St()}function gr(g){if(!mt)return;let I=t.getBoundingClientRect();if(!I||I.width===0||I.height===0)return;let z=!W.get(q)?.baseFace;if(!at||z){if(ht!==null||ot!==null)ht=null,ot=null,xt=!1,p.setLook(null,g);return}let P=n.defaultView,F=Math.max(1,P.innerWidth/2),tt=Math.max(1,P.innerHeight/2),J=A((at.x-(I.left+I.width/2))/F,-1,1),ct=A((at.y-(I.top+I.height/2))/tt,-1,1);if(J!==ht||ct!==ot){let gt=ne(g);Qt=gt.yaw,te=gt.pitch;let ae=bn(J,ct),oe=vn(ae.yaw,ae.pitch,d);ee=oe.yaw,re=oe.pitch,Vt=g,ht=J,ot=ct,xt=!0}if(xt){let gt=ne(g);if(p.setLook({yaw:gt.yaw,pitch:gt.pitch,mix:1,spin:0,wander:0},g-He,He),g-Vt>=Ue)xt=!1}}Y(p.sample(0));function ie(g){G=n.defaultView.requestAnimationFrame(ie);let I=dt?Math.min((g-dt)/1000,0.034):0;dt=g,V+=I;let z=W.get(q),P=!!z.period;if((C||D)&&!P){if(V-K>=z.duration+z.morph)p.reset(q,V),K=V}else if((!C||D)&&(T===0||V-st>=T)&&q!==N&&V-K>=z.duration+yt)q=N,K=V,T=0,D=!1,p.stretch(null),p.setState(N,V);gr(V);let F=p.sample(V);Y(F)}function St(){if(!G&&!lt)dt=0,G=n.defaultView.requestAnimationFrame(ie)}return{states:$n(),expressions:An(),play(g,I){if(!W.has(g))throw Error(`mountEngine: unknown bloub state "${g}"`);let z=g,P=I?.rest;if(P!==void 0&&!W.has(P))throw Error(`mountEngine: unknown bloub state "${P}"`);if(lt){p.reset(z,0),Y(p.sample(tn[z]));return}q=z,K=V,C=!!I?.loop,yt=Math.max(0,I?.hold??Ke),st=V;let F=W.get(z),tt=C?0:Math.max(0,I?.for??0);T=tt>F.duration?tt:0;let J=T>0&&!F.period&&F.fill!=="hold";if(p.stretch(J?z:null,J?F.duration/T:1),D=T>0&&!!F.period,D)T=Math.ceil(T/F.period)*F.period;N=P??(C?z:N),p.setState(z,V,C||D),St()},loop(g){this.play(g,{loop:!0})},setExpression(g){let I=g===null?null:q0.get(g);if(g!==null&&!I)throw Error(`mountEngine: unknown bloub expression "${g}"`);if(lt){p.setExpression(I??null,V-nt.SHAPE_MORPH),Y(p.sample(V));return}p.setExpression(I??null,V),St()},stop(){if(G)n.defaultView.cancelAnimationFrame(G),G=0},follow(g="window"){if(g===!1){Lt(),p.setLook(null,V);return}if(lt)return;xr(g)},destroy(){if(Lt(),G)n.defaultView.cancelAnimationFrame(G);G=0,M.remove()}}}var fr=["curious","surprised","shy","attentive"],Pn=3400;function On(t){if(vt())return;let e=dr(t,t.dataset.errorBolota??"oven_fresh",{size:Number(t.dataset.size)||240,palette:{head:t.dataset.head??"",eye:t.dataset.eye??""},background:!1});t.querySelector("[data-pose]")?.setAttribute("display","none"),e.loop("idle"),e.follow("window");let r=0,n=()=>e.setExpression(fr[r++%fr.length]);n(),setInterval(n,Pn)}function Cn(t){let e=navigator.languages?.length?navigator.languages:[navigator.language];for(let r of e.map((n)=>n.toLowerCase())){if(t[r])return r;let n=r.split("-")[0],a=Object.keys(t).find((i)=>i===n||i.startsWith(`${n}-`));if(a)return a}return}function In(t){let e=document.getElementById("error-copy"),r=JSON.parse(e?.textContent??"{}"),n=Cn(r);if(!n||n==="en")return;let a=t.dataset.group??"";document.documentElement.lang=n;for(let i of t.querySelectorAll("[data-copy]")){let o=i.dataset.copy??"",l=r[n][o.startsWith("*")?a+o.slice(1):o];if(l)i.textContent=l}}function qn(){document.querySelector("[data-error-back]")?.addEventListener("click",(e)=>{if(window.history.length<=1)return;e.preventDefault(),window.history.back()})}var yr=document.querySelector(".bb-error-scene");if(yr)In(yr);qn();var mr=document.querySelector("[data-field]");if(mr)he(mr);var Mr=document.querySelector("[data-error-bolota]");if(Mr)On(Mr);</script>
 </body>
 </html>

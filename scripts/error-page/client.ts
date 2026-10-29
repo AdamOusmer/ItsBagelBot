@@ -2,6 +2,27 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { field } from '../../ui/lib/light-field';
+import { prefersReducedMotion } from '../../ui/lib/motion-query';
+import { mountEngine } from '../../web/node_modules/@luzir/bolota/dist/engine.js';
+
+const EXPRESSIONS = ['curious', 'surprised', 'shy', 'attentive'];
+const EXPRESSION_MS = 3400;
+
+function wakeMascot(svg: SVGSVGElement): void {
+  if (prefersReducedMotion()) return;
+  const handle = mountEngine(svg, svg.dataset.errorBolota ?? 'oven_fresh', {
+    size: Number(svg.dataset.size) || 240,
+    palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+    background: false,
+  });
+  svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
+  handle.loop('idle');
+  handle.follow('window');
+  let step = 0;
+  const next = () => handle.setExpression(EXPRESSIONS[step++ % EXPRESSIONS.length]);
+  next();
+  setInterval(next, EXPRESSION_MS);
+}
 
 type Copy = Record<string, string>;
 
@@ -44,3 +65,5 @@ if (scene) localize(scene);
 wireBack();
 const host = document.querySelector<HTMLElement>('[data-field]');
 if (host) field(host);
+const mascot = document.querySelector<SVGSVGElement>('[data-error-bolota]');
+if (mascot) wakeMascot(mascot);
