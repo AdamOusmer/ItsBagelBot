@@ -26,3 +26,16 @@ const classes = [
 ---
 
 <details class={classes} open={open} {...rest}><summary class="bb-disclosure__summary">{index && <span class="bb-disclosure__index" aria-hidden="true">{index}</span>}<span class="bb-disclosure__label"><span data-fit="block">{summary}</span></span><span class="bb-disclosure__icon" aria-hidden="true"></span></summary><div class="bb-disclosure__body"><div class="bb-disclosure__content"><slot /></div></div></details>
+
+<script>
+    import { wireDisclosure } from '../lib/disclosure';
+
+    function bindDisclosures() {
+        document.querySelectorAll<HTMLDetailsElement>('details.bb-disclosure:not([data-motion])').forEach((details) => {
+            wireDisclosure(details);
+        });
+    }
+
+    bindDisclosures();
+    document.addEventListener('astro:page-load', bindDisclosures);
+</script>
