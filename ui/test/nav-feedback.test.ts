@@ -225,7 +225,21 @@ describe('ErrorScene actions', () => {
     secondary: { label: 'Back', 'data-error-back': '/' },
   };
 
-  contracts(SvelteErrorScene, AstroErrorScene, [{ name: 'primary link and secondary button', props }]);
+  contracts(SvelteErrorScene, AstroErrorScene, [
+    { name: 'primary link and secondary button', props },
+    { name: 'no status drops the code', props: { eyebrow: 'Closed', title: 'Bye', description: 'Gone.' } },
+    {
+      name: 'no status renders the mark above the eyebrow',
+      props: { eyebrow: 'Closed', title: 'Bye', description: 'Gone.' },
+      slots: { mark: '<svg></svg>' },
+    },
+  ]);
+
+  test('no status renders the eyebrow alone and no code', () => {
+    const html = svelteHtml(SvelteErrorScene, { eyebrow: 'Closed', title: 'Bye', description: 'Gone.' });
+    expect(html).toContain('<p class="bb-error-scene__eyebrow">Closed</p>');
+    expect(html).not.toContain('bb-error-scene__code');
+  });
 
   test('the actions render on the scene contract classes', () => {
     expect(svelteHtml(SvelteErrorScene, props)).toContain(
