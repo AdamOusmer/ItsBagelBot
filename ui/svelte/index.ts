@@ -141,6 +141,7 @@ export { default as ProfileMenu } from './ProfileMenu.svelte';
 export { default as SkipLink } from './SkipLink.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as CopySurface } from './CopySurface.svelte';
+export { default as VarCard } from './VarCard.svelte';
 
 export { setUiI18n, getUiI18n } from './i18n';
 export type { UiI18n, UiLocale, UiMessageKey, UiOverride } from '../lib/i18n';

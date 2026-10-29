@@ -84,10 +84,6 @@
     align-items: center;
     gap: 13px;
     padding: 14px 2px;
-    border-bottom: 1px solid var(--bb-border);
-  }
-  .ov-setup__row:last-child {
-    border-bottom: 0;
   }
   .ov-setup__ico {
     display: inline-flex;

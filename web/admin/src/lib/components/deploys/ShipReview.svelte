@@ -6,7 +6,7 @@
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { STAGES_FOR } from '$lib/deploys/types';
   import { KIND_KEY, STAGE_KEY, shortSha } from './view';
@@ -75,9 +75,7 @@
     <div class="chips">
       {#each seen as s (s)}
         {@const rolls = services.includes(s)}
-        <span class="chip" class:off={!rolls} aria-hidden={!rolls}>
-          <Tag tone={rolls ? 'live' : 'quiet'} mark={rolls ? 'solid' : 'hollow'}>{s}</Tag>
-        </span>
+        <Chip as="span" pressed={rolls} class={rolls ? '' : 'bb-chip--off'} aria-hidden={!rolls}>{s}</Chip>
       {/each}
     </div>
   </Stack>
@@ -106,8 +104,5 @@
     flex-wrap: wrap;
     gap: var(--bb-space-2);
     min-height: 28px;
-  }
-  .chip.off {
-    opacity: 0.45;
   }
 </style>

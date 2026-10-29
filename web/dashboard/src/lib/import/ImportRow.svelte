@@ -53,14 +53,13 @@
     display: flex;
     align-items: baseline;
     gap: 14px;
-    border-radius: var(--bb-radius-sm);
+    border-radius: var(--bb-radius-md);
     padding: 16px 22px;
     background: var(--bb-elev-2);
     box-shadow: var(--bb-depth-1);
   }
   .row-item.collision {
     background: color-mix(in srgb, rgb(var(--bb-status-danger-border-rgb)) 14%, var(--bb-elev-2));
-    box-shadow: var(--bb-depth-1), inset 0 0 0 1px rgba(var(--bb-status-danger-border-rgb), 0.55);
   }
   .pick {
     display: inline-flex;

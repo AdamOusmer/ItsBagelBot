@@ -14,6 +14,7 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -321,6 +322,7 @@
   <Card>
     <div class="sec-title"><Heading level={6} as="h2" id="h-account">{t('settings.account')}</Heading></div>
     <div class="hint"><Text size="sm" tone="muted">{t('settings.accountHint')}</Text></div>
+    <Card style="--card-pad: 16px">
     <div class="identity">
       <span class="identity-face"><Bolota name={data.login ?? ''} size={44} active /></span>
       <div class="identity-main">
@@ -336,6 +338,7 @@
       </div>
       <ButtonLink href="/auth/login?reauth=1" variant="ghost">{t('common.reconnect')}</ButtonLink>
     </div>
+    </Card>
   </Card>
   </section>
 
@@ -352,10 +355,10 @@
     </div>
 
     {#if creating}
+      <Card dashed style="--card-pad: 16px; margin-top: 18px">
       <form
         method="POST"
         action="?/create"
-        class="create"
         use:enhance={({ formData, cancel }) => {
           if (!hasSelection(formData)) {
             createError = t('settings.pickSectionError');
@@ -382,6 +385,7 @@
           <Button type="submit" variant="primary">{t('common.generate')}</Button>
         </div>
       </form>
+      </Card>
     {/if}
 
     {#if given.length === 0}
@@ -392,7 +396,8 @@
       <div class="group-label"><Eyebrow>{t('settings.inUseCount', { n: inUse.length })}</Eyebrow></div>
       <ul class="grants">
         {#each inUse as g (g.token)}
-          <li class="grant consumed">
+          <Card as="li" style="--card-pad: 14px 16px">
+          <div class="grant">
             <span class="face"><Bolota name={g.delegate_login} size={30} /></span>
             <div class="grant-main">
               <Text as="span" size="sm"><b>{g.delegate_login}</b></Text>
@@ -403,7 +408,8 @@
               <Button size="sm" onclick={() => (revokeTarget = g)} tone="danger">{t('common.revoke')}</Button>
             </div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
-          </li>
+          </div>
+          </Card>
         {/each}
       </ul>
     {/if}
@@ -413,7 +419,8 @@
       <div class="hint"><Text size="sm" tone="muted">{t('settings.inviteLinksHint')}</Text></div>
       <ul class="grants">
         {#each pending as g (g.token)}
-          <li class="grant pending">
+          <Card as="li" style="--card-pad: 14px 16px">
+          <div class="grant pending">
             <Tag tone="alpha" mark="dash">{t('settings.stageWaiting')}</Tag>
             <div class="grant-link"><Code>{linkFor(g.token)}</Code></div>
             <div class="actions">
@@ -430,11 +437,13 @@
             </div>
             <div class="grant-sections">{@render sectionChips(g.sections)}</div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
-          </li>
+          </div>
+          </Card>
         {/each}
       </ul>
     {/if}
 
+    <Divider />
     <div class="sub-block">
       <div class="group-label"><Eyebrow>{t('settings.sharedWithYou')}</Eyebrow></div>
       {#if received.length === 0}
@@ -442,7 +451,8 @@
       {:else}
         <ul class="grants">
           {#each received as r (r.owner_user_id)}
-            <li class="grant consumed">
+            <Card as="li" style="--card-pad: 14px 16px">
+            <div class="grant">
               <span class="face"><Bolota name={r.owner_login} size={30} /></span>
               <div class="grant-main">
                 <Text as="span" size="sm"><b>{r.owner_login}</b></Text>
@@ -458,7 +468,8 @@
                   tone="danger"
                 >{t('common.leave')}</Button>
               </div>
-            </li>
+            </div>
+            </Card>
           {/each}
         </ul>
       {/if}
@@ -482,7 +493,7 @@
     {:else}
       <ul class="notif-list">
         {#each shownNotifications as n (n.id)}
-          <li class="notif-item" class:unread={!n.read}>
+          <Card as="li" raised={!n.read} style="--card-pad: 12px 14px"><div class="notif-item">
             <Tag tone={LEVEL_TONE[n.level] ?? 'quiet'}>{levelLabel(n.level)}</Tag>
             <div class="notif-text">
               <Text as="span" size="sm"><b>{n.title}</b></Text>
@@ -495,7 +506,7 @@
                 <Button type="submit" variant="ghost" size="sm">{t('common.read')}</Button>
               </form>
             {/if}
-          </li>
+          </div></Card>
         {/each}
       </ul>
       {#if hiddenNotificationCount > 0}
@@ -755,21 +766,12 @@
   .sec-intro { display: grid; gap: 4px; }
 
   .group-label { margin: 22px 0 10px; }
-  .sub-block {
-    margin-top: 26px;
-    padding-top: 18px;
-    border-top: 1px solid var(--bb-border);
-  }
   .sub-block .group-label { margin-top: 0; }
 
   .identity {
     display: flex;
     align-items: center;
     gap: 18px;
-    padding: 16px;
-    border-radius: var(--bb-radius-md);
-    background: rgba(var(--bb-green-glow-rgb), 0.04);
-    box-shadow: var(--bb-depth-1);
   }
   .identity-face { flex: none; display: flex; }
   .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -782,13 +784,6 @@
     padding: 12px 0 0;
   }
   .row-text { display: grid; gap: 4px; }
-  .create {
-    margin-top: 18px;
-    padding: 16px;
-    border: 1px dashed var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    background: rgba(var(--bb-white-pure-rgb), 0.02);
-  }
   .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
   .grants { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
@@ -797,13 +792,7 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
-    border-radius: var(--bb-radius-md);
-    padding: 14px 16px;
-    background: rgba(var(--bb-white-pure-rgb), 0.02);
-    box-shadow: var(--bb-depth-1);
   }
-  .grant.pending { background: rgba(var(--bb-tan-rgb), 0.05); }
-  .grant.consumed { background: rgba(var(--bb-green-glow-rgb), 0.04); }
 
   .face { flex: none; display: flex; }
   .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
@@ -825,11 +814,7 @@
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
-    border-radius: var(--bb-radius-sm);
-    padding: 12px 14px; background: rgba(var(--bb-white-pure-rgb), 0.02);
-    box-shadow: var(--bb-depth-1);
   }
-  .notif-item.unread { background: rgba(var(--bb-tan-rgb), 0.07); }
   .notif-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
   .notif-more { margin-top: 12px; }
 

@@ -11,6 +11,7 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import { getI18n } from '@bagel/kit';
 
   let { data } = $props();
@@ -38,13 +39,15 @@
         <Label mono as="span">{data.copy.demoPlan}</Label>
         <Text as="span" size="sm">{planLabel}</Text>
       </div>
+      <Divider flush />
       {#if isGift}
         <div class="row">
           <Label mono as="span">{data.copy.demoGiftTo}</Label>
           <Text as="span" size="sm">@{data.recipient}</Text>
         </div>
+        <Divider flush />
       {/if}
-      <div class="row row-total">
+      <div class="row">
         <Label mono as="span">{data.copy.demoTotal}</Label>
         <Heading level={4} as="span">${PRICE}.00 CAD</Heading>
       </div>
@@ -88,10 +91,6 @@
     align-items: baseline;
     justify-content: space-between;
     padding: 12px 0;
-    border-bottom: 1px solid var(--bb-border);
-  }
-  .row-total {
-    border-bottom: none;
   }
 
   .pay-form {

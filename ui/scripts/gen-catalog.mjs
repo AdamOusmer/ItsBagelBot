@@ -36,7 +36,7 @@ const FAMILY = {
   ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
-  SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback',
+  SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback', VarCard: 'Data',
 };
 
 const ADAPTER_NOTE = {
@@ -48,6 +48,7 @@ const ADAPTER_NOTE = {
   LogTail: 'Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.',
   ProfileMenu: 'Svelte only: an account menu with open state, scrim and Escape handling that only a client has.',
   Popover: 'Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.',
+  VarCard: 'Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.',
   StepList: 'The navigable form (`onSelect`) is Svelte only; Astro renders the static list.',
   Stepper: 'Clickable steps (`onSelect`) are Svelte only; Astro renders the static rail.',
   LineSeries: 'Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.',

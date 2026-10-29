@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import Chip from '@bagel/ui/svelte/Chip.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
+  import VarCard from '@bagel/ui/svelte/VarCard.svelte';
   import { getI18n } from '@bagel/kit';
   import { chipHint, type VariableChip } from '@bagel/kit/variables';
 
@@ -15,10 +14,7 @@
 {#if chips.length > 0}
   <ul class="reply-tokens">
     {#each chips as c (c.token)}
-      <li class="row">
-        <Chip as="span" tone="muted">{c.token}</Chip>
-        {#if c.hintKey}<span class="row-hint"><Text as="span" size="xs" tone="muted">{chipHint(t, c)}</Text></span>{/if}
-      </li>
+      <li><VarCard token={c.token} hint={c.hintKey ? chipHint(t, c) : undefined} /></li>
     {/each}
   </ul>
 {/if}
@@ -30,8 +26,6 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
-  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .row-hint { flex: 1; min-width: 80px; }
 </style>

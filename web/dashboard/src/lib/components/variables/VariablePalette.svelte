@@ -6,12 +6,13 @@
   import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
-  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import VarCard from '@bagel/ui/svelte/VarCard.svelte';
   import { rovingFocus } from '@bagel/ui/svelte/actions';
   import { chipHint, pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
@@ -130,13 +131,11 @@
 {/snippet}
 
 {#snippet row(c: VariableChip)}
-  <PickerOption as="li" onclick={() => pick(c)} onfocus={() => (focusedId = c.id ?? null)}>
-    <span class="row">
-      <Chip as="span" tone="muted">{c.token}</Chip>
-      {#if rowHint(c)}<span class="row-hint"><Text as="span" size="xs" tone="muted">{rowHint(c)}</Text></span>{/if}
-      {@render rowTag(c)}
-    </span>
-  </PickerOption>
+  <li>
+    <VarCard token={c.token} hint={rowHint(c)} onclick={() => pick(c)} onfocus={() => (focusedId = c.id ?? null)}>
+      {#if c.requires}<span class="row-tags">{@render rowTag(c)}</span>{/if}
+    </VarCard>
+  </li>
 {/snippet}
 
 <div class="vp">
@@ -177,7 +176,7 @@
 
   <PickerPanel {open} anchor={btnEl} label={t('commandEditor.allVariables')} width={380} maxHeight={480} onClose={closeSheet}>
     {#snippet children()}
-      <div class="sheet" role="toolbar" tabindex="-1" aria-label={t('commandEditor.allVariables')} use:rovingFocus={{ selector: '.bb-picker-option__main' }}>
+      <div class="sheet" role="toolbar" tabindex="-1" aria-label={t('commandEditor.allVariables')} use:rovingFocus={{ selector: '.bb-var-card' }}>
         <SearchInput
           fill
           debounceMs={120}
@@ -211,6 +210,7 @@
           {/each}
         </div>
 
+        <Divider flush />
         <div class="sheet-foot">
           <Text size="xs" tone="muted">{t('commandEditor.fallbackHint')}</Text>
           <Text size="xs"><TextLink variant="inline" href={fullReferenceHref} external>{t('commandEditor.fullReference')}</TextLink></Text>
@@ -256,15 +256,8 @@
 
   .sec { display: flex; flex-direction: column; gap: 6px; }
 
-  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .row { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .row-hint { flex: 1; min-width: 80px; }
+  .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .row-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 
-  .sheet-foot {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding-top: 8px;
-    border-top: 1px solid var(--bb-border);
-  }
+  .sheet-foot { display: flex; flex-direction: column; gap: 6px; }
 </style>

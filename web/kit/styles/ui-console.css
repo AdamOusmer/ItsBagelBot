@@ -41,4 +41,5 @@
 @import '@bagel/ui/styles/elements/setup-stage.css';
 @import '@bagel/ui/styles/elements/setup-step.css';
 @import '@bagel/ui/styles/elements/feed.css';
+@import '@bagel/ui/styles/elements/var-card.css';
 @import './notifications.css';

@@ -19,6 +19,7 @@
     type BuiltinCommandDef,
     type Perm
   } from '@bagel/kit';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
 
@@ -87,6 +88,7 @@
       switchLabel={t('commandRow.toggleAria', { name: c.name })}
     />
   </form>
+  <Divider flush />
 
   <div class="desc"><Text size="sm" tone="muted">{def.description}</Text></div>
 
@@ -155,13 +157,9 @@
     font-family: var(--bb-font-body);
   }
 
-  .toggle-row {
-    padding-bottom: 16px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid var(--bb-border);
-  }
+  .toggle-row { padding-bottom: 16px; }
 
-  .desc { margin-bottom: 16px; }
+  .desc { margin: 16px 0; }
 
   .reply-form { margin-bottom: 14px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
