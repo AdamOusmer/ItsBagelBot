@@ -14,11 +14,9 @@
     "@astrojs/sitemap": "^3.7.3",
     "@bagel/kit": "workspace:*",
     "@luzir/bolota": "0.1.6",
-    "@types/three": "^0.186.0",
     "astro": "^7.0.6",
     "cookie": "^2.0.1",
     "motion": "^13.0.0",
-    "three": "^0.186.0",
     "typescript": "^7.0.0"
   },
   "devDependencies": {

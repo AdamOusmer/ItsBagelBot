@@ -50,7 +50,7 @@ Preview samples illustrate behavior; availability and variable grammar come from
   `screens/` renders instructional dashboard depictions; `widgets/` holds interactive blocks.
 - [CommandBuilder.astro](src/components/builder/CommandBuilder.astro): composer UI and client behavior.
 - `src/lib/variables/`: marketing presentation adapters over shared variable inventory.
-- `src/script/`: navigation bindings, reveal/scroll effects, WebGL geometry and other site interaction.
+- `src/script/`: navigation bindings, reveal/scroll effects and other site interaction.
 - `src/styles/style.css`: app styling layered over shared UI brand/element contracts.
 
 ## Route/content areas and data flow
