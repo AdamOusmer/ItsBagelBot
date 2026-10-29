@@ -696,11 +696,10 @@
     margin-top: 24px;
     padding: 32px;
     border-radius: var(--bb-radius-lg);
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.4);
     background: radial-gradient(circle at 10% 0%, rgba(var(--bb-tan-rgb), 0.12) 0%, rgba(var(--bb-black-rgb), 0) 60%),
                 linear-gradient(180deg, rgba(var(--bb-tan-rgb), 0.05) 0%, rgba(var(--bb-black-rgb), 0) 100%),
                 var(--bb-card-bg);
-    box-shadow: 0 12px 64px rgba(var(--bb-tan-rgb), 0.1);
+    box-shadow: var(--bb-elev-2), 0 12px 64px rgba(var(--bb-tan-rgb), 0.1);
     display: flex;
     flex-direction: column;
     gap: 32px;

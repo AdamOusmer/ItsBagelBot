@@ -93,10 +93,10 @@
 
   .setrow {
     padding: 11px 12px;
-    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
+    box-shadow: var(--bb-elev-1);
   }
-  .setrow.on { border-color: rgba(var(--bb-tan-rgb), 0.45); background: rgba(var(--bb-tan-rgb), 0.06); }
+  .setrow.on { background: rgba(var(--bb-tan-rgb), 0.08); }
 
   .del-row { display: flex; }
 </style>

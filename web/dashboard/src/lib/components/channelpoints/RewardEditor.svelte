@@ -287,7 +287,7 @@
     margin-bottom: 4px;
   }
   .hook { display: flex; flex-direction: column; --bb-check-align: center; }
-  .hook + .hook { border-top: 1px solid rgba(var(--bb-white-rgb), 0.06); padding-top: 12px; margin-top: 6px; }
+  .hook + .hook { padding-top: 12px; margin-top: 6px; }
 
   .hook-body {
     display: flex;

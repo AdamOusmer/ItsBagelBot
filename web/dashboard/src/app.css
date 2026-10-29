@@ -3,3 +3,69 @@
 
 @import '@bagel/kit/styles/tokens.css';
 @import '@bagel/kit/styles/console.css';
+
+@layer bb.app {
+  :root {
+    --bb-scrollbar-thumb: rgba(var(--bb-white-pure-rgb), 0.16);
+    --bb-border: transparent;
+    --bb-border-strong: transparent;
+    --bb-border-chip: transparent;
+    --bb-glass-border: transparent;
+    --bb-tier-inactive-border: transparent;
+    --profile-border: transparent;
+
+    --bb-rim: inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.045);
+    --bb-elev-1: var(--bb-rim), 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45), 0 6px 16px rgba(var(--bb-shadow-rgb), 0.3);
+    --bb-elev-2: var(--bb-rim), 0 2px 4px rgba(var(--bb-shadow-rgb), 0.5), 0 14px 32px rgba(var(--bb-shadow-rgb), 0.42);
+    --bb-elev-3: var(--bb-rim), 0 4px 8px rgba(var(--bb-shadow-rgb), 0.5), 0 24px 56px rgba(var(--bb-shadow-rgb), 0.55);
+    --bb-sunken: inset 0 1px 3px rgba(var(--bb-shadow-rgb), 0.55), inset 0 0 0 1px rgba(var(--bb-shadow-rgb), 0.2);
+  }
+
+  .bb-card,
+  .bb-tbl-wrap {
+    box-shadow: var(--bb-elev-1);
+  }
+
+  .bb-card--accent {
+    box-shadow: var(--bb-elev-2), 0 0 40px rgba(var(--bb-tan-rgb), 0.08);
+  }
+
+  .bb-topbar,
+  .bb-surface--docked.bb-card,
+  .bb-notifications__icon-btn,
+  .bb-btn--icon:not(.bb-btn--sm) {
+    box-shadow: var(--bb-elev-2);
+  }
+
+  .bb-card--danger,
+  .bb-rail__subs-inner,
+  .bb-tbl td,
+  .bb-tbl th[scope="row"] {
+    border-color: transparent;
+  }
+
+  .bb-rail {
+    border-right-color: transparent;
+    box-shadow: 1px 0 0 rgba(var(--bb-shadow-rgb), 0.35), 8px 0 28px rgba(var(--bb-shadow-rgb), 0.35);
+  }
+
+  .bb-modal__card,
+  .bb-surface--sheet {
+    box-shadow: var(--bb-elev-3);
+  }
+
+  .bb-input,
+  .bb-search,
+  .bb-select__trigger,
+  .bb-check__box {
+    box-shadow: var(--bb-sunken);
+  }
+
+  .bb-chip {
+    box-shadow: var(--bb-elev-1);
+  }
+
+  .bb-kbd {
+    box-shadow: inset 0 1px 0 rgba(var(--bb-white-rgb), 0.1), 0 1px 0 rgba(var(--bb-shadow-rgb), 0.6), 0 2px 4px rgba(var(--bb-shadow-rgb), 0.35);
+  }
+}
