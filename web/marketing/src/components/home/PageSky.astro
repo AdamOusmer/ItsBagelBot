@@ -1,0 +1,39 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import LightField from '@bagel/ui/astro/LightField.astro';
+---
+
+<div class="sky" aria-hidden="true"><LightField /></div>
+
+<style>
+    .sky {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: min(1, calc(var(--hero-p, 0) * 1.5));
+    }
+
+    @supports (animation-timeline: view()) {
+        @media (prefers-reduced-motion: no-preference) {
+            :global(:is(
+                #main-content > section:not(.enc) > :not(script, style, [data-field], .bento, .finale__glow),
+                #main-content > section > .bento > *
+            )) {
+                animation: section-handoff linear both;
+                animation-timeline: view();
+                animation-range: exit -12vh exit 85%;
+            }
+        }
+    }
+
+    @keyframes section-handoff {
+        to {
+            opacity: 0;
+            scale: 0.94;
+            filter: blur(8px);
+        }
+    }
+</style>

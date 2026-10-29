@@ -99,10 +99,10 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
-        await expect(page.locator('.bb-light-field--bleed[data-field]')).toHaveCount(3);
+        await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(2);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
-        await expect(page.locator('#safety-layers .bb-light-field')).toHaveCount(1);
-        await expect(page.locator('#how .bb-light-field')).toHaveCount(1);
+        await expect(page.locator('.sky .bb-light-field')).toHaveCount(1);
+        await expect(page.locator('.seam')).toHaveCount(6);
 
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Try it here.');

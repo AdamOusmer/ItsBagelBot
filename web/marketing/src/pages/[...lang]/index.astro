@@ -11,6 +11,8 @@ import QuietWork from '../../components/home/QuietWork.astro'
 import SafetyLayers from '../../components/home/SafetyLayers.astro'
 import Steps from '../../components/home/Steps.astro'
 import Finale from '../../components/home/Finale.astro'
+import PageSky from '../../components/home/PageSky.astro'
+import SectionSeam from '../../components/home/SectionSeam.astro'
 import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
@@ -19,12 +21,19 @@ const t = useTranslations(getLangFromUrl(Astro.url));
 ---
 
 <Layout title={t('home.metaTitle')} description={t('home.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md">
+    <PageSky />
     <Header />
+    <SectionSeam />
     <Playground />
+    <SectionSeam tone="tan" />
     <QuietWork />
+    <SectionSeam />
     <Games />
+    <SectionSeam tone="tan" />
     <SafetyLayers />
     <Encryption />
+    <SectionSeam />
     <Steps />
+    <SectionSeam tone="tan" />
     <Finale />
 </Layout>
