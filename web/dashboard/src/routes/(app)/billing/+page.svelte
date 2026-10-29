@@ -253,6 +253,11 @@
     description={isPaid ? t('billing.descManage') : t('billing.descChoose')}
   >
     {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
+    {#snippet trailing()}
+      <div class="gift-trail">
+        <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
+      </div>
+    {/snippet}
   </PageHead>
 
   {#if data.degraded}
@@ -381,9 +386,6 @@
       </Card>
     </div>
 
-    <div class="gift-link-row">
-      <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
-    </div>
     {#if form?.error && !form?.gift}
       <div class="form-error"><FieldError message={String(form.error)} /></div>
     {/if}
@@ -693,12 +695,7 @@
     text-align: center;
   }
 
-  .gift-link-row {
-    --btn-min-h: 44px;
-    display: flex;
-    justify-content: center;
-    margin-top: 22px;
-  }
+  .gift-trail { --btn-min-h: 44px; }
 
   .premium-halo { margin-top: 24px; }
   .premium-dashboard-hero {
