@@ -806,4 +806,17 @@
     position: static;
     margin: 0 0 var(--bb-space-1);
   }
+
+  :where([data-surface='tonal']) .bb-topbar {
+    box-shadow: var(--bb-depth-2);
+  }
+
+  :where([data-surface='tonal']) .bb-rail {
+    border-right-color: transparent;
+    box-shadow: inset -6px 0 8px -6px rgba(var(--bb-shadow-rgb), 0.6);
+  }
+
+  :where([data-surface='tonal']) .bb-rail__subs-inner {
+    border-color: transparent;
+  }
 }

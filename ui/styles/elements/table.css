@@ -78,4 +78,7 @@
         line-height: 1.6;
         vertical-align: top;
     }
+
+    :where([data-surface='tonal']) .bb-tbl-wrap { box-shadow: var(--bb-depth-1); }
+    :where([data-surface='tonal']) .bb-tbl :is(td, th[scope="row"]) { border-color: transparent; }
 }

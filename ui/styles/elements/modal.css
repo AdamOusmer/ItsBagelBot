@@ -250,4 +250,8 @@
       animation: none;
     }
   }
+
+  :where([data-surface='tonal']) .bb-modal__card {
+    box-shadow: var(--bb-depth-3);
+  }
 }

@@ -205,4 +205,8 @@
     color: var(--bb-tan-pale);
   }
 
+  :where([data-surface='tonal']) .bb-card--danger {
+    border-color: transparent;
+  }
+
 }

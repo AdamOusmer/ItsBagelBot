@@ -188,4 +188,6 @@
         .bb-check__box,
         .bb-check__box::after { transition: none; }
     }
+
+    :where([data-surface='tonal']) .bb-check__box { box-shadow: var(--bb-depth-0); }
 }
