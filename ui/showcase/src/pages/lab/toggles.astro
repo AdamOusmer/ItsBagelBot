@@ -1,0 +1,224 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../../layouts/Showcase.astro';
+import Button from '../../../../astro/Button.astro';
+import TextLink from '../../../../astro/TextLink.astro';
+import Switch from '../../../../astro/Switch.astro';
+import Checkbox from '../../../../astro/Checkbox.astro';
+
+const options = [
+  { id: 'current', title: 'Library (C1)', note: 'Shipped. Green track, white knob with a soft drop shadow. Stretches on press.' },
+  { id: 'c', title: 'C. First draft', note: 'White track, flat green knob.' },
+  { id: 'c2', title: 'C2. White track, green bead', note: 'Keeps C: white track, the green knob gains depth, a highlight and a wider stroke.' },
+  { id: 'c3', title: 'C3. White track, ink knob, green signal', note: 'Ink knob like the primary button text, a small green light inside shows the state.' },
+  { id: 'g1', title: 'G1. Gold track, white knob', note: 'C1 with the gold gradient in the track.' },
+  { id: 'g2', title: 'G2. White track, gold bead', note: 'C2 with a gold bead and a warm glow.' },
+  { id: 'g3', title: 'G3. White track, ink knob, gold signal', note: 'C3 with a gold light inside the ink knob.' },
+  { id: 'g4', title: 'G4. Gold on black', note: 'Dark warm track, gold bead. The quietest of the set.' },
+];
+---
+
+<Showcase title="Switch and checkbox" lead="Borderless drafts that follow the Monolith buttons. Each column restyles the real Switch and Checkbox blocks; click to flip, press and hold to feel the stretch.">
+  <section class="sc-block">
+    <h2>Reference</h2>
+    <div class="sc-row">
+      <Button>Save changes</Button>
+      <Button variant="secondary">Cancel</Button>
+      <TextLink href="#" label="Open commands" variant="arrow" tone="lead" />
+    </div>
+  </section>
+
+  <section class="sc-grid">
+    {options.map((option) => (
+      <div class:list={['sc-block', `lab-${option.id}`]}>
+        <h2>{option.title}</h2>
+        <p>{option.note}</p>
+        <div class="sc-row">
+          <Switch label={`${option.title} off`} />
+          <Switch label={`${option.title} on`} checked />
+          <Switch label={`${option.title} disabled`} checked disabled />
+        </div>
+        <Checkbox>Unchecked</Checkbox>
+        <Checkbox checked>Checked</Checkbox>
+      </div>
+    ))}
+  </section>
+</Showcase>
+
+<style is:global>
+  @layer bb.app {
+    .lab-c .bb-switch,
+    .lab-c .bb-check__box {
+      border-color: transparent;
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 10%);
+      box-shadow: var(--bb-depth-0);
+    }
+
+    .lab-c .bb-switch::after { top: 3px; left: 3px; }
+    .lab-c .bb-switch[data-state='on']::after { left: calc(var(--switch-w) - var(--switch-knob) - 3px); background: var(--bb-green-glow); box-shadow: none; }
+    .lab-c .bb-switch[data-state='on'],
+    .lab-c .bb-check__input:checked + .bb-check__box { background: var(--bb-white); box-shadow: none; }
+    .lab-c .bb-check__box::after { background: var(--bb-green-glow); }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch {
+      --switch-w: 42px;
+      --switch-h: 24px;
+      --switch-knob: 20px;
+      --knob-pad: 2px;
+      --knob-stretch: 0px;
+      border: 0;
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 12%);
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+      transition: background-color var(--bb-dur-base) var(--bb-ease-out-expo), box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch::after {
+      top: var(--knob-pad);
+      left: var(--knob-pad);
+      width: calc(var(--switch-knob) + var(--knob-stretch));
+      height: var(--switch-knob);
+      border-radius: var(--bb-radius-pill);
+      background: linear-gradient(180deg, #fff, var(--bb-gray-1-dark));
+      box-shadow:
+        0 1px 1px rgba(var(--bb-shadow-rgb), 0.25),
+        0 2px 6px rgba(var(--bb-shadow-rgb), 0.35);
+      transition:
+        left var(--bb-dur-base) var(--bb-ease-out-expo),
+        width var(--bb-dur-fast) var(--bb-ease-out-expo),
+        background var(--bb-dur-base) var(--bb-ease-out-expo),
+        box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:active:not(:disabled) { --knob-stretch: 5px; }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch[data-state='on']::after {
+      left: calc(var(--switch-w) - var(--switch-knob) - var(--knob-stretch) - var(--knob-pad));
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:hover:not(:disabled):not([data-state='on']) {
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-switch:focus-visible,
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check__input:focus-visible + .bb-check__box {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check { --bb-check-align: center; }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check__box {
+      width: 18px;
+      height: 18px;
+      margin-top: 0;
+      border: 0;
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 12%);
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+      transition: background-color var(--bb-dur-fast) var(--bb-ease-out-expo), box-shadow var(--bb-dur-fast) var(--bb-ease-out-expo), scale var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check__box::after { inset: 4px; }
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check:active .bb-check__box { scale: 0.92; }
+    :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) .bb-check:hover .bb-check__input:not(:checked) + .bb-check__box {
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
+    }
+
+    .lab-c2 .bb-switch[data-state='on'],
+    .lab-c2 .bb-check__input:checked + .bb-check__box {
+      background: var(--bb-white);
+      box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
+    }
+
+    .lab-c2 .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+
+    .lab-c2 .bb-switch[data-state='on']::after {
+      background: linear-gradient(180deg, color-mix(in srgb, var(--bb-green-glow) 80%, #fff), var(--bb-green-glow) 60%);
+      box-shadow:
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.35),
+        0 1px 2px rgba(var(--bb-shadow-rgb), 0.3),
+        0 2px 8px rgba(var(--bb-green-glow-rgb), 0.45);
+    }
+
+    .lab-c2 .bb-check__box::after {
+      background: var(--bb-green-glow);
+      inset: 3.5px;
+    }
+
+    .lab-c3 .bb-switch[data-state='on'],
+    .lab-c3 .bb-check__input:checked + .bb-check__box {
+      background: var(--bb-white);
+      box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
+    }
+
+    .lab-c3 .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+
+    .lab-c3 .bb-switch[data-state='on']::after {
+      background:
+        radial-gradient(circle at 50% 50%, var(--bb-green-glow) 0 3px, rgba(var(--bb-green-glow-rgb), 0.35) 4.5px, transparent 7px),
+        linear-gradient(180deg, #2a2a2f, var(--bb-ink));
+      box-shadow: 0 1px 2px rgba(var(--bb-shadow-rgb), 0.4), 0 2px 6px rgba(var(--bb-shadow-rgb), 0.3);
+    }
+
+    .lab-c3 .bb-check__box::after { background: var(--bb-ink); }
+
+    .lab-g1 .bb-switch[data-state='on'],
+    .lab-g1 .bb-check__input:checked + .bb-check__box {
+      background: var(--bb-gold-gradient);
+      box-shadow: inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.35), inset 0 -1px 2px rgba(var(--bb-tan-deep-rgb), 0.5);
+    }
+
+    .lab-g1 .bb-switch[data-state='on']:hover:not(:disabled) { filter: brightness(1.05); }
+    .lab-g1 .bb-check__box::after { background: var(--bb-ink); }
+
+    :is(.lab-g2, .lab-g3) .bb-switch[data-state='on'],
+    :is(.lab-g2, .lab-g3) .bb-check__input:checked + .bb-check__box {
+      background: var(--bb-white);
+      box-shadow: inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.12);
+    }
+
+    :is(.lab-g2, .lab-g3) .bb-switch[data-state='on']:hover:not(:disabled) { background: var(--bb-gray-1-dark); }
+
+    .lab-g2 .bb-switch[data-state='on']::after {
+      background: var(--bb-gold-gradient);
+      box-shadow:
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.5),
+        0 1px 2px rgba(var(--bb-shadow-rgb), 0.3),
+        0 2px 8px rgba(var(--bb-tan-rgb), 0.55);
+    }
+
+    .lab-g2 .bb-check__box::after { background: var(--bb-tan-deep); inset: 3.5px; }
+
+    .lab-g3 .bb-switch[data-state='on']::after {
+      background:
+        radial-gradient(circle at 50% 50%, var(--bb-tan) 0 3px, rgba(var(--bb-tan-rgb), 0.35) 4.5px, transparent 7px),
+        linear-gradient(180deg, #2a2a2f, var(--bb-ink));
+      box-shadow: 0 1px 2px rgba(var(--bb-shadow-rgb), 0.4), 0 2px 6px rgba(var(--bb-shadow-rgb), 0.3);
+    }
+
+    .lab-g3 .bb-check__box::after { background: var(--bb-ink); }
+
+    .lab-g4 .bb-switch[data-state='on'],
+    .lab-g4 .bb-check__input:checked + .bb-check__box {
+      background: var(--bb-tan-low);
+      box-shadow: inset 0 0 0 1px rgba(var(--bb-tan-rgb), 0.22), inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.5);
+    }
+
+    .lab-g4 .bb-switch[data-state='on']:hover:not(:disabled) { background: color-mix(in srgb, var(--bb-tan-low), var(--bb-tan) 10%); }
+
+    .lab-g4 .bb-switch[data-state='on']::after {
+      background: var(--bb-gold-gradient);
+      box-shadow:
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.5),
+        0 1px 2px rgba(var(--bb-shadow-rgb), 0.5),
+        0 0 10px rgba(var(--bb-tan-rgb), 0.35);
+    }
+
+    .lab-g4 .bb-check__box::after { background: var(--bb-tan); }
+
+    @media (prefers-reduced-motion: reduce) {
+      :is(.lab-c2, .lab-c3, .lab-g1, .lab-g2, .lab-g3, .lab-g4) :is(.bb-switch, .bb-switch::after, .bb-check__box) { transition: none; }
+    }
+  }
+</style>
