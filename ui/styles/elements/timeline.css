@@ -1,0 +1,94 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-timeline {
+    --timeline-rail-x: 11px;
+    --timeline-gutter: 40px;
+    --timeline-dot-x: 6px;
+    --timeline-dot-y: 22px;
+    --timeline-dot-size: 11px;
+    --timeline-rail: linear-gradient(
+      180deg,
+      rgba(var(--bb-tan-rgb), 0.55),
+      rgba(var(--bb-green-glow-rgb), 0.35) 55%,
+      transparent
+    );
+
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--timeline-gap, 28px);
+    list-style: none;
+  }
+
+  .bb-timeline--bridge {
+    --timeline-rail: linear-gradient(to bottom, rgba(var(--bb-green-glow-rgb), 0.5), rgba(var(--bb-tan-rgb), 0.4));
+  }
+
+  .bb-timeline::before {
+    content: "";
+    display: var(--timeline-rail-display, block);
+    position: absolute;
+    left: var(--timeline-rail-x);
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: var(--timeline-rail);
+    pointer-events: none;
+  }
+
+  .bb-timeline--draw::before {
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 1400ms var(--bb-ease-out-expo) 200ms;
+  }
+
+  .bb-timeline--draw.is-revealed::before { transform: scaleY(1); }
+
+  .bb-timeline__item {
+    position: relative;
+    padding-inline-start: var(--timeline-gutter);
+  }
+
+  .bb-timeline__item > .bb-round-badge { position: relative; z-index: 1; }
+
+  .bb-timeline__dot {
+    position: absolute;
+    left: var(--timeline-dot-x);
+    top: var(--timeline-dot-y);
+    z-index: 1;
+    box-sizing: border-box;
+    width: var(--timeline-dot-size);
+    height: var(--timeline-dot-size);
+    border: 1.5px solid var(--bb-tan);
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-black);
+    box-shadow: 0 0 10px rgba(var(--bb-tan-rgb), 0.35);
+    transition: background var(--bb-dur-fast), box-shadow var(--bb-dur-fast);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .bb-timeline__item:hover > .bb-timeline__dot {
+      background: var(--bb-tan);
+      box-shadow: 0 0 14px rgba(var(--bb-tan-rgb), 0.6);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .bb-timeline {
+      --timeline-rail-x: 7px;
+      --timeline-gutter: 28px;
+      --timeline-dot-x: 2px;
+      --timeline-dot-y: 18px;
+      --timeline-dot-size: 10px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-timeline--draw::before { transform: none; transition: none; }
+    .bb-timeline__dot { transition: none; }
+  }
+}

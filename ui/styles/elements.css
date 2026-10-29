@@ -82,6 +82,8 @@
 @import './elements/setup-stage.css';
 @import './elements/setup-step.css';
 @import './elements/feed.css';
+@import './elements/round-badge.css';
+@import './elements/timeline.css';
 @import './elements/var-card.css';
 @import './elements/row-body.css';
 @import './elements/swatch.css';

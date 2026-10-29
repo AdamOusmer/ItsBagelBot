@@ -4,6 +4,7 @@
 
 import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
+import RoundBadge from '@bagel/ui/astro/RoundBadge.astro';
 
 interface Props {
     label?: string;
@@ -29,7 +30,7 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
         {(label || href) && (
             <div class="fcard__top">
                 {label && <span class="fcard__label"><span data-fit>{label}</span></span>}
-                {href && <span class="fcard__go" data-cursor aria-hidden="true">→</span>}
+                {href && <RoundBadge size="md" muted class="fcard__go" data-cursor aria-hidden="true">→</RoundBadge>}
             </div>
         )}
         <div class="fcard__demo" aria-hidden="true"><slot name="demo" /></div>
@@ -73,25 +74,8 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
     }
 
     .fcard__go {
-        display: grid;
-        place-items: center;
-        flex: none;
-        width: 32px;
-        height: 32px;
         margin-left: auto;
         font-size: var(--bb-text-sm);
-        color: var(--bb-muted);
-        border: 1px solid transparent;
-        box-shadow: var(--bb-depth-1);
-        border-radius: var(--bb-radius-pill);
-        transition:
-            color var(--bb-dur-fast) ease,
-            background-color var(--bb-dur-fast) ease;
-    }
-
-    .fcard[href]:hover .fcard__go {
-        color: var(--bb-black);
-        background: var(--bb-white);
     }
 
     .fcard__demo {
@@ -124,11 +108,5 @@ const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Ast
 
     .fcard--green :global(.fcard-value) {
         background-image: var(--bb-green-gradient);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .fcard__go {
-            transition: none;
-        }
     }
 </style>

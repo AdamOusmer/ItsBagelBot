@@ -42,21 +42,7 @@
   .bb-var-card--medium .bb-var-card__body small { height: calc(5 * 1lh); }
   .bb-var-card--long .bb-var-card__body small { height: calc(8 * 1lh); }
 
-  .bb-var-card__plus {
-    grid-area: 1 / 2;
-    display: grid;
-    place-items: center;
-    width: 25px;
-    height: 25px;
-    border-radius: 50%;
-    background: transparent;
-    box-shadow: var(--bb-depth-1);
-    color: var(--bb-white);
-    font-style: normal;
-    transition: background var(--bb-dur-fast), color var(--bb-dur-fast);
-  }
-  button.bb-var-card:hover .bb-var-card__plus,
-  .bb-var-card__insert:hover .bb-var-card__plus { background: var(--bb-white); color: var(--bb-black); }
+  .bb-var-card__plus { grid-area: 1 / 2; }
 
   .bb-var-card--counter {
     grid-column: 1 / -1;
@@ -90,7 +76,7 @@
   }
   .bb-var-card__insert:hover { box-shadow: var(--bb-depth-2); }
   .bb-var-card__insert code { color: var(--bb-tan-light); font: 11px var(--bb-font-mono); }
-  .bb-var-card__insert .bb-var-card__plus { width: 20px; height: 20px; }
+  .bb-var-card__insert .bb-var-card__plus { --round-badge-size: 20px; }
 
   .bb-var-card--list {
     grid-template-columns: auto minmax(0, 1fr) 25px;
@@ -116,6 +102,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bb-var-card, .bb-var-card__plus, .bb-var-card__insert { transition: none; }
+    .bb-var-card, .bb-var-card__insert { transition: none; }
   }
 }

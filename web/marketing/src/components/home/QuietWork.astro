@@ -2,9 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Container from '@bagel/ui/astro/Container.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
+import ProgressBar from '@bagel/ui/astro/ProgressBar.astro';
 import Section from '@bagel/ui/astro/Section.astro';
+import StatusDot from '@bagel/ui/astro/StatusDot.astro';
 import BentoGrid from './BentoGrid.astro';
 import FeatureCard from './FeatureCard.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -13,8 +16,10 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
 const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
+const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'danger' } as const;
 ---
 
+<Container class="qw-wrap">
 <Section size="page" class="qw" id="quiet-work" data-motion>
     <SectionHeading eyebrow={t('quietWork.eyebrow')} title={t('quietWork.title')} />
 
@@ -27,7 +32,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-song__meta">
                     <span class="qw-song__now">{t('quietWork.songNow')}</span>
                     <span class="qw-song__track">{t('quietWork.songTrack')}</span>
-                    <span class="qw-song__scrub"><i></i></span>
+                    <ProgressBar class="qw-song__scrub" value={0.06} size="sm" tone="success" gradient label={t('quietWork.songNow')} />
                 </span>
                 <span class="qw-song__req">
                     <span class="qw-song__cmd">!sr late night lo-fi</span>
@@ -51,7 +56,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 </span>
                 <span class="qw-govee__redeem">
                     <span class="qw-govee__dot bb-layers">
-                        {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
+                        {GOVEE_TONES.map((tone) => (
+                            <span class={`qw-govee__tone qw-govee__tone--${tone}`}><StatusDot tone={GOVEE_DOT[tone]} /></span>
+                        ))}
                     </span>
                     <span class="qw-govee__redeem-text"><span data-fit="block">{t('quietWork.goveeReward')}</span></span>
                 </span>
@@ -98,15 +105,13 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         </FeatureCard>
     </BentoGrid>
 </Section>
+</Container>
 
 <style>
     .qw {
         --section-heading-lines: 2;
         --section-heading-lines-phone: 3;
         position: relative;
-        padding-inline: 24px;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
         z-index: 3;
     }
 
@@ -193,21 +198,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         text-overflow: ellipsis;
     }
 
-    .qw-song__scrub {
-        display: block;
-        height: 3px;
-        border-radius: var(--bb-radius-xs);
-        background: rgba(var(--bb-white-rgb), 0.08);
-        overflow: hidden;
-    }
-
-    .qw-song__scrub i {
-        display: block;
-        height: 100%;
-        transform: scaleX(0.06);
-        transform-origin: left;
-        border-radius: var(--bb-radius-xs);
-        background: linear-gradient(90deg, rgba(var(--bb-green-glow-rgb), 0.5), var(--bb-green-glow));
+    .qw-song__scrub > :global(span) {
         animation: qwSongScrub 9s var(--bb-ease-out-expo) infinite;
     }
 
@@ -308,14 +299,12 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
     .qw-govee__dot {
         flex: none;
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
     }
 
-    .qw-govee__dot i {
-        border-radius: 50%;
-        background: currentColor;
-        box-shadow: 0 0 8px currentColor;
+    .qw-govee__dot .qw-govee__tone {
+        display: flex;
     }
 
     .qw-govee__tone {
@@ -470,12 +459,12 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     @media (prefers-reduced-motion: reduce) {
         .qw-govee__glow, .qw-govee__bulb, .qw-govee__tone, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
-        .qw-song__eq i, .qw-song__scrub i, .qw-song__cmd, .qw-song__ack,
+        .qw-song__eq i, .qw-song__scrub > :global(span), .qw-song__cmd, .qw-song__ack,
         .qw-beat {
             animation: none;
         }
         .qw-song__eq i { transform: scaleY(0.7); }
-        .qw-song__scrub i { transform: scaleX(0.46); }
+        .qw-song__scrub > :global(span) { transform: scaleX(0.46); }
         .qw-song__cmd, .qw-song__ack { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
         .qw-govee__bulb { opacity: 1; }
@@ -487,7 +476,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     @media (max-width: 640px) {
-        .qw { padding-inline: 20px; }
+        .qw-wrap { --container-pad: 20px; }
     }
 </style>
 

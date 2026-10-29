@@ -4,6 +4,7 @@
 
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import BentoGrid from './BentoGrid.astro';
@@ -26,6 +27,7 @@ const NETWORK_WAVES = [0, 1];
 const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === wave);
 ---
 
+<Container class="safe-wrap">
 <Section size="page" class="safe" id="safety-layers" data-motion>
     <LightField class="bb-light-field--bleed" />
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
@@ -112,6 +114,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         </FeatureCard>
     </BentoGrid>
 </Section>
+</Container>
 
 <style>
     .safe {
@@ -119,9 +122,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         --section-heading-lines-phone: 3;
         --fcard-demo-h: 170px;
         position: relative;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding-inline: 24px;
         z-index: 3;
     }
 
@@ -754,7 +754,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     @media (max-width: 640px) {
-        .safe { padding-inline: 20px; }
+        .safe-wrap { --container-pad: 20px; }
         .network__alert,
         .network__status { font-size: 0.52rem; }
     }

@@ -39,6 +39,7 @@ const FAMILY = {
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback', VarCard: 'Data',
   Well: 'Layout', Window: 'Layout', JsonTree: 'Data',
   IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
+  RoundBadge: 'Feedback', Timeline: 'Data', TimelineItem: 'Data',
 };
 
 const ADAPTER_NOTE = {

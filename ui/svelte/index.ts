@@ -106,6 +106,9 @@ export { reveal, decode, magnetic } from './actions';
 export { focusFirstInvalid } from './forms';
 
 export { default as StatusDot } from './StatusDot.svelte';
+export { default as RoundBadge } from './RoundBadge.svelte';
+export { default as Timeline } from './Timeline.svelte';
+export { default as TimelineItem } from './TimelineItem.svelte';
 
 
 export { default as AmbientSky } from './AmbientSky.svelte';
