@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount, tick, untrack } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
   import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
@@ -164,6 +165,10 @@
     leaveTarget = null;
     if (target !== null) onback(target + 1);
   }
+
+  const compact = new MediaQuery('(max-width: 760px), (max-height: 760px)');
+  const phone = new MediaQuery('max-width: 560px');
+  const cardPad = $derived(compact.current ? '--card-pad: 16px' : undefined);
 
   let dir = $state(1);
   const sceneIn = (node: Element) => lateralFly(node, { x: dir * TRAVEL_IN, duration: 720, delay: 140 });
@@ -389,6 +394,7 @@
   stepLabel={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })}
   onSelect={selectRail}
   wide
+  fill
   leaving={showCompletion}
   class="welcome-import"
   data-orbs="off"
@@ -402,7 +408,7 @@
   <div class="scene" data-step={step} in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
-    <Card>
+    <Card style={cardPad}>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.stepPick'))}</Heading></div>
       <div class="hint"><Text size="sm" tone="muted">{t('import.pickHint')}</Text></div>
 
@@ -410,6 +416,8 @@
         <RadioGroup
           variant="cards"
           min="220px"
+          cols={phone.current ? 2 : undefined}
+          terse={compact.current}
           name="source-pick"
           label={unnumbered(t('import.stepPick'))}
           value={source}
@@ -433,7 +441,7 @@
   {:else if step === 'instructions' && source}
     {@const st = IMPORT_STRATEGIES[source]}
     {@const spec = st.input}
-    <Card>
+    <Card style={cardPad}>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
         <Heading level={6} as="h2">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
@@ -524,7 +532,7 @@
     </Card>
   {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
     {#if step === 'review'}
-    <Card>
+    <Card style={cardPad}>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.reviewTitle'))}</Heading></div>
       <div class="hint"><Text size="sm" tone="muted">{reviewHint}</Text></div>
 
@@ -645,7 +653,7 @@
         </div>
       {/if}
   {:else if step === 'done'}
-    <Card>
+    <Card style={cardPad}>
       <span class="done-seal" aria-hidden="true"><Icon name="check" size={22} /></span>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.doneTitle'))}</Heading></div>
       {#if commitResult}
@@ -709,8 +717,6 @@
 {#if showCompletion}<Completion label={t('onboardingImport.stageDone')} oncomplete={afterCompletion} />{/if}
 
 <style>
-  :global(.bb-setup-stage.welcome-import .bb-setup-stage__main) { grid-template-rows: auto minmax(0, 1fr); }
-  :global(.bb-setup-stage.welcome-import .bb-setup-stage__content) { min-height: 0; }
   .category-head {
     padding: 26px 30px;
     border-radius: var(--bb-radius-md);
@@ -890,14 +896,11 @@
   .audit { margin-top: 24px; }
 
   @media (max-width: 760px), (max-height: 760px) {
-    .tiles { --choice-min-h: 0; margin: 8px 0 0; }
-    .tiles :global(.bb-choice__desc) { display: none; }
-    .scene :global(.bb-card) { --card-pad: 16px; }
+    .tiles { margin: 8px 0 0; }
     .scene { gap: 12px; }
     .actions { margin-top: 12px; }
   }
   @media (max-width: 560px) {
-    .tiles :global(.bb-choices) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .commit-bar {
       border-radius: var(--bb-radius-sm);
       padding: 14px 16px;

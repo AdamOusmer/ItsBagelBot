@@ -94,6 +94,14 @@
     min-width: 0;
   }
 
+  .bb-setup-stage--fill .bb-setup-stage__main {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .bb-setup-stage--fill .bb-setup-stage__content {
+    min-height: 0;
+  }
+
   .bb-setup-stage__foot {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

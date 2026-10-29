@@ -21,6 +21,7 @@
     cols?: number;
     rail?: 'sm' | 'md';
     maxHeight?: string;
+    terse?: boolean;
     onValueChange?: (value: string) => void;
     onSelect?: (value: string) => void;
     leading?: Snippet<[RadioOption, boolean]>;
@@ -37,6 +38,7 @@
     cols,
     rail,
     maxHeight,
+    terse = false,
     onValueChange,
     onSelect,
     leading,
@@ -52,6 +54,7 @@
       cols ? 'bb-choices--cols' : null,
       rail ? `bb-choices--rail-${rail}` : null,
       maxHeight ? 'bb-choices--scroll bb-scroll' : null,
+      terse ? 'bb-choices--terse' : null,
       className || null,
     ]
       .filter(Boolean)

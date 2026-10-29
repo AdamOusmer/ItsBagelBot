@@ -15,6 +15,7 @@
     stepLabel?: string;
     onSelect?: (index: number) => void;
     wide?: boolean;
+    fill?: boolean;
     hero?: boolean;
     leaving?: boolean;
     class?: string;
@@ -34,6 +35,7 @@
     stepLabel = '',
     onSelect,
     wide = false,
+    fill = false,
     hero = false,
     leaving = false,
     class: className = '',
@@ -50,6 +52,7 @@
     [
       'bb-setup-stage',
       wide && 'bb-setup-stage--wide',
+      fill && 'bb-setup-stage--fill',
       hero && 'bb-setup-stage--hero',
       leaving && 'bb-setup-stage--leaving',
       className || null,

@@ -89,6 +89,7 @@
   const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
   const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
   const compactChoices = new MediaQuery('max-width: 560px');
+  const terseChoices = new MediaQuery('(max-width: 560px), (max-height: 700px)');
   function pickSetup(id: string) {
     const choice = choiceOf(id);
     if (setup === choice.id) return;
@@ -425,8 +426,7 @@
   hero={step === 0}
   wide={choiceLayout}
   {leaving}
-  class={['welcome', choiceLayout && 'choice'].filter(Boolean).join(' ')}
-  style="--choice-position: {choicePosition}; --choice-position-compact: {choicePositionCompact};"
+  style={choiceLayout ? `--setup-art-x: calc(${compactChoices.current ? choicePositionCompact : choicePosition} - 50%)` : undefined}
   data-orbs="off"
 >
   {#snippet start()}<Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
@@ -456,6 +456,7 @@
           <RadioGroup
             variant="cards"
             cols={compactChoices.current ? 2 : 4}
+            terse={terseChoices.current}
             name="setup"
             label={tr('onboarding.choiceTitle')}
             value={setup}
@@ -558,10 +559,6 @@
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  :global(.bb-setup-stage.welcome.choice) {
-    --setup-art-x: calc(var(--choice-position) - 50%);
-    --setup-art-scale: calc(var(--setup-art-hero) * 0.6);
-  }
   .consent { display: flex; align-items: center; gap: 14px; }
   .consent-hint { min-height: 20px; visibility: hidden; opacity: 0; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
   .consent-hint.shown { visibility: visible; opacity: 1; }
@@ -606,13 +603,6 @@
     animation-timing-function: var(--bb-ease-out-expo);
   }
 
-  @media (max-width: 560px), (max-height: 700px) {
-    .role-choices { --choice-min-h: 0; }
-    .role-choices :global(.bb-choice__desc) { display: none; }
-  }
-  @media (max-width: 560px) {
-    :global(.bb-setup-stage.welcome.choice) { --setup-art-x: calc(var(--choice-position-compact) - 50%); }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .role-preview, .consent-hint, .role-glyph { transition: none; }
