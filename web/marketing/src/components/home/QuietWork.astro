@@ -34,12 +34,12 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
                 <span class="qw-song__meta">
                     <span class="qw-song__now"><span data-fit>{t('quietWork.songNow')}</span></span>
                     <span class="qw-song__track bb-layers">
-                        <span class="qw-song__title qw-song__title--a">One More Time<small>Daft Punk</small></span>
-                        <span class="qw-song__title qw-song__title--b">Midnight City<small>M83</small></span>
+                        <span class="qw-song__title qw-song__title--a">One More Time<small class="qw-song__artist">Daft Punk</small></span>
+                        <span class="qw-song__title qw-song__title--b">Midnight City<small class="qw-song__artist">M83</small></span>
                     </span>
                     <span class="qw-song__scrub"><i></i></span>
                     <span class="qw-song__req">
-                        <span class="qw-song__cmd"><b>PrincessBarney</b>!sr late night lo-fi</span>
+                        <span class="qw-song__cmd"><b class="qw__user">PrincessBarney</b>!sr late night lo-fi</span>
                         <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
                     </span>
                 </span>
@@ -93,8 +93,8 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         <FeatureCard index={3} tone="gold" href={localizePath('/viewer-queue', lang)}>
             <div slot="demo" class="qw__demo qw__demo--queue">
                 <span class="qw-queue__chat bb-layers">
-                    <span class="qw-queue__msg qw-queue__msg--join"><b>MikanMeerkat</b>!join</span>
-                    <span class="qw-queue__msg qw-queue__msg--next"><b>Ayshacinder</b>!queue next</span>
+                    <span class="qw-queue__msg qw-queue__msg--join"><b class="qw__user">MikanMeerkat</b>!join</span>
+                    <span class="qw-queue__msg qw-queue__msg--next"><b class="qw__user">Ayshacinder</b>!queue next</span>
                 </span>
                 <span class="qw-queue__list">
                     <span class="qw-queue__row qw-queue__row--a">
@@ -122,11 +122,11 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         <FeatureCard index={4} tone="gold" href={localizePath('/giveaways', lang)}>
             <div slot="demo" class="qw__demo qw__demo--win" data-qw-draw>
                 <span class="qw-win__chat bb-layers">
-                    <span class="qw-win__msg qw-win__msg--open"><b>Ayshacinder</b>!raffle 1000 60</span>
-                    <span class="qw-win__msg qw-win__msg--join1"><b>Lotti</b>!join</span>
-                    <span class="qw-win__msg qw-win__msg--join2"><b>PrincessBarney</b>!join</span>
-                    <span class="qw-win__msg qw-win__msg--draw"><b>Ayshacinder</b>!raffle draw</span>
-                    <span class="qw-win__msg qw-win__msg--claim"><b>MikanMeerkat</b>!claim<em>✓</em></span>
+                    <span class="qw-win__msg qw-win__msg--open"><b class="qw__user">Ayshacinder</b>!raffle 1000 60</span>
+                    <span class="qw-win__msg qw-win__msg--join1"><b class="qw__user">Lotti</b>!join</span>
+                    <span class="qw-win__msg qw-win__msg--join2"><b class="qw__user">PrincessBarney</b>!join</span>
+                    <span class="qw-win__msg qw-win__msg--draw"><b class="qw__user">Ayshacinder</b>!raffle draw</span>
+                    <span class="qw-win__msg qw-win__msg--claim"><b class="qw__user">MikanMeerkat</b>!claim<em>✓</em></span>
                 </span>
                 <span class="qw-win__pool">
                     <span class="qw-win__dots">
@@ -168,7 +168,9 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         font-size: 0.74rem;
     }
 
-    .qw__demo b {
+    .qw__user,
+    .qw-song__pos,
+    .qw-queue__pos {
         font-weight: 500;
     }
 
@@ -282,7 +284,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         animation-iteration-count: infinite;
     }
 
-    .qw-song__title small {
+    .qw-song__artist {
         font-size: 0.62rem;
         color: var(--bb-muted);
     }
@@ -326,9 +328,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         color: var(--bb-white);
     }
 
-    .qw-song__cmd b,
-    .qw-queue__msg b,
-    .qw-win__msg b {
+    .qw__user {
         margin-right: 0.6em;
         color: var(--bb-tan);
     }
@@ -506,7 +506,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
        keeps the request line and the queue column goes. */
     @media (max-width: 1023px) {
         .qw-song__next { display: none; }
-        .qw-song__cmd b { display: none; }
+        .qw-song__cmd .qw__user { display: none; }
     }
 
     /* Govee lights. */
