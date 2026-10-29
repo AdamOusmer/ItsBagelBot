@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -35,19 +36,36 @@ func Core(d engine.Deps) module.Module {
 		return nil
 	})
 
-	m.Command("itsbagelbot").Everyone().Run(localizedChatLine("core.itsbagelbot"))
-	m.Command("source").Everyone().Run(localizedChatLine("core.source"))
+	m.Command("itsbagelbot").Everyone().Run(itsBagelBot(d))
 
 	m.On("channel.chat.message", bagelGreet(d))
 
 	return m.Build()
 }
 
-func localizedChatLine(key string) module.RunFunc {
-	return func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: i18n.T(c.Locale, key)})
+func itsBagelBot(d engine.Deps) module.RunFunc {
+	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
+		text := i18n.T(c.Locale, "core.itsbagelbot")
+		if fields := strings.Fields(args); len(fields) > 0 && strings.EqualFold(fields[0], "source") {
+			text = i18n.T(c.Locale, "core.source")
+		} else if code := creatorCode(ctx, c, d); code != "" {
+			text += " | " + fmt.Sprintf(i18n.T(c.Locale, "core.creator_code"), code)
+		}
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 		return nil
 	}
+}
+
+func creatorCode(ctx context.Context, c *module.Context, d engine.Deps) string {
+	if d.Proj == nil {
+		return ""
+	}
+	user, err := d.Proj.User(ctx, c.BroadcasterID)
+	if err != nil {
+		c.Log.Warn("core: creator code lookup failed", c.BID(), zap.Error(err))
+		return ""
+	}
+	return user.CreatorCode
 }
 
 func chatLine(text string) module.RunFunc {

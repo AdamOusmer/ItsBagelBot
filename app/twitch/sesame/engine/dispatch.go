@@ -84,7 +84,7 @@ func (p *Pipeline) moduleLookup(views map[string]projection.ModuleView, c *modul
 
 func trialReadOnlyCommand(name string) bool {
 	switch name {
-	case "ping", "source", "itsbagelbot", "clip", "followage", "accountage", "uptime",
+	case "ping", "itsbagelbot", "clip", "followage", "accountage", "uptime",
 		"bagels", "fed", "bagelcount", "bagelboard", "feedboard", "bagellb",
 		"title", "settitle", "game", "setgame", "tags", "settags", "commercial", "ad", "marker":
 		return true
