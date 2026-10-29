@@ -13,7 +13,7 @@ const VIEWPORTS = [
 ];
 const SKIP = [
     'script', 'style', 'svg *', 'canvas', '[popover]', '.bb-mobile-menu *', '.play__feed *', '.bb-skip-link',
-    '[data-chat] > .line', '[data-chat] > .line *',
+    '[data-chat] .bb-chat__line', '[data-chat] .bb-chat__line *',
     '[data-fit]', '[data-fit] *',
 ].join(', ');
 const TOLERANCE_PX = 1;
