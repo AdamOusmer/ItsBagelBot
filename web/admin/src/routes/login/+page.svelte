@@ -32,7 +32,7 @@
 
 <main class="login">
   <div class="panel">
-    <Card glass>
+    <Card>
       <Stack gap={5}>
         <Stack gap={4} align="center">
           <img class="logo" src="/logo.png" alt={t('common.appName')} width="44" height="44" />

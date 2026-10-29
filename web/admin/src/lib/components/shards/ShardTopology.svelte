@@ -179,7 +179,7 @@
   .spread { justify-content: space-between; }
   .dotted { display: inline-flex; align-items: center; gap: var(--bb-space-2); }
   .network { --path: var(--bb-green-glow); --wire: rgba(var(--bb-green-glow-rgb), .32); --line-style: solid; --card-pad: var(--bb-space-5); --card-bg: radial-gradient(ellipse at top left, rgba(var(--bb-green-glow-rgb), .045), transparent 65%); min-width: 0; }
-  .network-body { --card-pad: var(--bb-space-4); --card-border: var(--wire); --card-bg: var(--bb-card-bg); }
+  .network-body { --card-pad: var(--bb-space-4); --card-bg: var(--bb-card-bg); }
   .network-head { display: flex; justify-content: space-between; align-items: start; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
   .path-mark { display: inline-block; vertical-align: middle; width: 18px; height: 0; margin-right: var(--bb-space-2); border-top: 2px var(--line-style) var(--path); }
   .hub { width: fit-content; max-width: 100%; margin-left: 18px; }
@@ -196,12 +196,11 @@
   .pod { --card-bg: rgba(var(--bb-green-glow-rgb), .025); }
   .pod-head, .trial-socket-head { margin-bottom: var(--bb-space-4); }
   .pod-empty { padding-top: var(--bb-space-4); }
-  .sockets { --card-bg: var(--bb-card-bg); --card-border: var(--bb-border); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: var(--bb-space-3); }
+  .sockets { --card-bg: var(--bb-card-bg); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: var(--bb-space-3); }
   .sockets > li { position: relative; min-width: 0; }
   .sockets > li::before { content: ''; position: absolute; top: -10px; left: 20px; height: 9px; border-left: 1px solid var(--wire); }
   .trials { --path: var(--bb-tan); --wire: rgba(var(--bb-tan-rgb), .35); --line-style: dashed; --card-bg: radial-gradient(ellipse at top left, rgba(var(--bb-tan-rgb), .05), transparent 65%); }
   .trial-socket { --card-bg: transparent; }
-  .trial-members { --card-border: var(--wire); }
   .trial-socket-head { gap: var(--bb-space-2); }
   .trial-socket-name { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); }
   .trial-channel { display: grid; gap: var(--bb-space-3); }

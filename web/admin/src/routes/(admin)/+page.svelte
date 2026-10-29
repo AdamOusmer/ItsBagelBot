@@ -121,15 +121,13 @@
 
 <style>
   .pending-awards {
-    --card-bg: color-mix(in srgb, var(--bb-warn) 6%, transparent);
-    --card-border: color-mix(in srgb, var(--bb-warn) 35%, transparent);
+    --card-bg: color-mix(in srgb, var(--bb-warn) 10%, var(--bb-elev-1));
     --card-pad: var(--bb-space-4);
   }
   .pending-row {
     display: grid;
     gap: var(--bb-space-1);
     padding: var(--bb-space-2) 0;
-    border-top: 1px solid var(--bb-border);
     color: inherit;
     text-decoration: none;
   }
