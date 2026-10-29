@@ -25,6 +25,7 @@ import type { GoveeDevice, GoveeView } from './govee-store';
 import type { FetchDefView, FetchKeyView } from './fetches-store';
 import type { PublicStats } from './public-stats';
 import type { PublicBoards } from './public-boards';
+import type { QueueView } from '../queue-snapshot';
 import type { CommandDigest, ConnData, ModuleDigest, ShareDigest } from '../../routes/(app)/+page.server';
 import type {
   StreamMeta,
@@ -793,3 +794,30 @@ const demoLeaderboardHead: LoyaltyStanding[] = [
   { viewerId: '511', viewerLogin: 'rye_not', viewerName: 'rye_not', points: '3120', watchSeconds: 41_400 },
   { viewerId: '512', viewerLogin: 'lurkinglarry', viewerName: '', points: '940', watchSeconds: 9_300 }
 ];
+
+const DEMO_QUEUE_STEP_MS = 4000;
+const DEMO_QUEUE_HEAD_START_MS = 90_000;
+const demoQueueLogins = [
+  'crumbcatcher', 'toastedtomato', 'sesame_sam', 'lox_and_load', 'pixelpretzel', 'nightowl_nox',
+  'cream_cheese_kid', 'everythingbagel', 'mossy_mallow', 'quietquokka', 'rye_not', 'lurkinglarry',
+  'butterbean', 'poppyseed_pete', 'onion_ring', 'garlicgoblin', 'schmear_queen', 'wheatwizard',
+  'salty_pretzel', 'honeyoat', 'cinnamon_swirl', 'plain_jane', 'jalapeno_jo', 'blueberry_bo'
+];
+
+function demoQueueSize(step: number): number {
+  const phase = step % 12;
+  return 3 + (phase < 6 ? phase : 12 - phase);
+}
+
+export function demoQueue(now: number): QueueView {
+  const step = Math.floor(now / DEMO_QUEUE_STEP_MS);
+  const size = demoQueueSize(step);
+  const entries = Array.from({ length: size }, (_, i) => {
+    const joiner = step - size + 1 + i;
+    return {
+      login: demoQueueLogins[joiner % demoQueueLogins.length],
+      joinedAt: joiner * DEMO_QUEUE_STEP_MS - DEMO_QUEUE_HEAD_START_MS
+    };
+  });
+  return { open: step % 20 < 16, total: size, entries, degraded: false };
+}

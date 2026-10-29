@@ -292,7 +292,8 @@ spec:
   routes:
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`) ||
+         Host(`queue.itsbagelbot.com`)) &&
         (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
       kind: Rule
       middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: health-mask}]
@@ -304,7 +305,8 @@ spec:
           nativeLB: true
     - match: >-
         (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`) ||
+         Host(`queue.itsbagelbot.com`)) &&
         (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
       kind: Rule
       middlewares: [{name: error-pages}, {name: dashboard-auth-ratelimit}, {name: strip-client-ip}]
@@ -316,7 +318,8 @@ spec:
           nativeLB: true
     - match: >-
         Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
-        Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
+        Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`) ||
+        Host(`queue.itsbagelbot.com`)
       kind: Rule
       middlewares: [{name: error-pages}, {name: dashboard-ratelimit}, {name: strip-client-ip}, {name: dashboard-compress}]
       services:

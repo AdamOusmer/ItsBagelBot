@@ -195,3 +195,33 @@ func TestQueueListSubcommandSharesCooldown(t *testing.T) {
 	require.Equal(t, []string{engine.CommandCooldownKey(100, "list")}, cd.keys)
 	assert.Empty(t, runChat(t, m, chatCtx("43", "bob"), "!queue list"))
 }
+
+func TestQueueFullLink(t *testing.T) {
+	cases := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "default base", want: "https://queue.itsbagelbot.com/streamer"},
+		{name: "configured base without a double slash", baseURL: "https://staging.example.com/", want: "https://staging.example.com/streamer"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := queueDeps(&fakeQueue{})
+			d.QueueBaseURL = tc.baseURL
+			out := runChat(t, Queue(d), chatCtx("42", "alice"), "!queue full")
+			require.Len(t, out, 1)
+			assert.Contains(t, out[0].Text, tc.want)
+			assert.NotContains(t, out[0].Text, "queue.full")
+		})
+	}
+}
+
+func TestQueueFullSharesCooldown(t *testing.T) {
+	cd := &fakeCooldown{allow: []bool{true, false}}
+	d := queueDeps(&fakeQueue{})
+	d.Cooldown = cd
+	m := Queue(d)
+	require.Len(t, runChat(t, m, chatCtx("42", "alice"), "!queue full"), 1)
+	assert.Empty(t, runChat(t, m, chatCtx("43", "bob"), "!queue full"))
+}

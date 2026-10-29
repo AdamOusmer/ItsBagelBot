@@ -46,6 +46,7 @@
     "queue_close": "Stop accepting joins; the line is kept.",
     "queue_next": "Pull up the next player and announce them.",
     "queue_remove_user": "Take someone out of the line.",
-    "queue_clear": "Empty the line."
+    "queue_clear": "Empty the line.",
+    "queue_full": "Link the public page with the whole line."
   }
 }

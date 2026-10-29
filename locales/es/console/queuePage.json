@@ -1,0 +1,23 @@
+{
+  "title": "Cola de juego de {channel}",
+  "metaDescription": "Mira quién está en la cola para jugar con {channel} en ItsBagelBot, actualizada en vivo.",
+  "eyebrow": "Cola de juego",
+  "tagline": "Quién espera y a quién llaman después, actualizado en vivo.",
+  "joinHint": "Únete desde el chat con !join o !queue join.",
+  "statusOpen": "Entradas abiertas",
+  "statusClosed": "Entradas cerradas",
+  "statusUnknown": "Estado no disponible",
+  "inLine": "En la cola",
+  "live": "En vivo",
+  "upNext": "Siguiente",
+  "ahead": "{count} por delante",
+  "nobodyYet": "Nadie todavía",
+  "justJoined": "Recién unido",
+  "boardTitle": "La cola",
+  "boardNote": "Primero en llegar, primero en ser llamado. Muestra hasta {max} espectadores.",
+  "moreNote": "Mostrando los primeros {shown} de {total} espectadores",
+  "emptyTitle": "Nadie está en la cola",
+  "emptyBody": "Cuando los espectadores se unan a la cola, aparecerán aquí.",
+  "degradedTitle": "No se puede cargar la cola",
+  "degraded": "La cola no se puede cargar ahora mismo. Esta página sigue intentándolo."
+}

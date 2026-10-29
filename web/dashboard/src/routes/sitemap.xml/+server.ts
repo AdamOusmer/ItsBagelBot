@@ -9,7 +9,8 @@ const PATHS: Readonly<Record<SeoHost, readonly string[]>> = {
   dashboard: [],
   stats: ['/'],
   leaderboard: [],
-  commands: []
+  commands: [],
+  queue: []
 };
 
 function urlset(origin: string, paths: readonly string[]): string {

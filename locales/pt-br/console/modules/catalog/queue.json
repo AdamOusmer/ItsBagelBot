@@ -46,6 +46,7 @@
     "queue_close": "Pare de aceitar entradas; a fila é mantida.",
     "queue_next": "Chame e anuncie o próximo jogador.",
     "queue_remove_user": "Retire alguém da fila.",
-    "queue_clear": "Esvazie a fila."
+    "queue_clear": "Esvazie a fila.",
+    "queue_full": "Envia o link da página pública com a fila toda."
   }
 }

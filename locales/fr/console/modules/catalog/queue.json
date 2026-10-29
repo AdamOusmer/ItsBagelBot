@@ -46,6 +46,7 @@
     "queue_close": "Arrêter d'accepter les entrées ; la file est conservée.",
     "queue_next": "Faire monter le joueur suivant et l'annoncer.",
     "queue_remove_user": "Retirer quelqu'un de la file.",
-    "queue_clear": "Vider la file."
+    "queue_clear": "Vider la file.",
+    "queue_full": "Partage le lien de la page publique avec toute la file."
   }
 }

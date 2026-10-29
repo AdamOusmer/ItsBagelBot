@@ -1,0 +1,23 @@
+{
+  "title": "{channel} play queue",
+  "metaDescription": "See who is in line to play with {channel} on ItsBagelBot, updated live.",
+  "eyebrow": "Play queue",
+  "tagline": "Who is in line and who gets called next, updated live.",
+  "joinHint": "Join from chat with !join or !queue join.",
+  "statusOpen": "Joins open",
+  "statusClosed": "Joins closed",
+  "statusUnknown": "Status unavailable",
+  "inLine": "In line",
+  "live": "Live",
+  "upNext": "Up next",
+  "ahead": "{count} ahead",
+  "nobodyYet": "Nobody yet",
+  "justJoined": "Just joined",
+  "boardTitle": "The line",
+  "boardNote": "First in, first called. Shows up to {max} viewers.",
+  "moreNote": "Showing the first {shown} of {total} viewers",
+  "emptyTitle": "Nobody is in line",
+  "emptyBody": "When viewers join the queue, they show up here.",
+  "degradedTitle": "Can't load the queue",
+  "degraded": "The queue can't load right now. This page keeps trying."
+}

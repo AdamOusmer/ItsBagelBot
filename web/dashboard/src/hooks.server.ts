@@ -76,6 +76,7 @@ export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: nu
   '/(public)/login': [600, 86_400],
   '/(public)/stats': [30, 300],
   '/(public)/[user]': [30, 30],
+  '/(public)/queue/[user]': [5, 5],
   '/(public)/user/[channel]': [3600, 3600]
 };
 
