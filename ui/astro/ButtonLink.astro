@@ -4,6 +4,7 @@
 import type { HTMLAttributes } from 'astro/types';
 import { buttonClass, hasMark, type ButtonSize, type ButtonTone, type ButtonVariant } from '../lib/button';
 import '../styles/elements/button.css';
+import Icon from './Icon.astro';
 
 interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'class'> {
     href: string;
@@ -23,5 +24,5 @@ const link = disabled ? { role: 'link', 'aria-disabled': 'true' } : { href };
 
 <a class={classes} {...link} data-mark="" {...rest}>
     {hasMark(variant) && <i class="bb-btn__mark" aria-hidden="true" />}
-    <span class="bb-btn__content"><slot /></span>
+    <span class="bb-btn__content">{variant === 'twitch' && <Icon name="twitch" />}<slot /></span>
 </a>

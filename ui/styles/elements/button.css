@@ -171,6 +171,29 @@
     box-shadow: 0 0 24px var(--btn-brand-glow, transparent);
   }
 
+  .bb-btn--twitch {
+    background: rgb(var(--bb-white-pure-rgb));
+    color: var(--bb-ink);
+    --btn-spinner: var(--bb-ink);
+  }
+
+  .bb-btn--twitch:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: var(--bb-gray-1-dark);
+  }
+
+  .bb-btn--twitch .bb-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--bb-twitch);
+  }
+
+  /* Label fills the rest so the glyph holds its spot in every locale. */
+  .bb-btn--twitch .bb-btn__content > [data-fit],
+  .bb-btn--twitch > .bb-nav-link__label[data-fit] {
+    flex: 1 1 0;
+    justify-content: safe center;
+  }
+
   .bb-btn--add {
     --btn-pad: 5px 12px;
     --btn-gap: 8px;
@@ -297,6 +320,15 @@
   :where(:root[data-theme='light']) a:hover .bb-btn--static.bb-btn--primary {
     background: var(--bb-ink-soft);
     color: var(--bb-paper);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--twitch {
+    border-color: var(--bb-gray-5-light);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--twitch:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: var(--bb-paper-sidebar);
+    color: var(--bb-ink);
   }
 
   :where(:root[data-theme='light']) .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
