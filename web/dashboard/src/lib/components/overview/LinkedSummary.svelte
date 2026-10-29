@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import type { IconName } from '@bagel/ui/lib/icons';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -25,12 +26,13 @@
     sharesOk?: boolean;
   } = $props();
 
-  type SummaryLink = { id: string; href: string; label: string };
+  type SummaryLink = { id: string; href: string; icon: IconName; label: string };
 
   const links = $derived.by<SummaryLink[]>(() => [
     {
       id: 'commands',
       href: '/commands',
+      icon: 'commands',
       label: !commandsOk
         ? t('overview.allCommands')
         : active > 0
@@ -40,6 +42,7 @@
     {
       id: 'modules',
       href: '/modules',
+      icon: 'modules',
       label: !modulesOk
         ? t('overview.quickModules')
         : modulesOn > 0
@@ -49,11 +52,13 @@
     {
       id: 'plan',
       href: '/billing',
+      icon: 'card',
       label: t('overview.summaryPlan', { plan: planLabel })
     },
     {
       id: 'shares',
       href: '/settings#access',
+      icon: 'users',
       label: !sharesOk
         ? t('overview.manageInSettings')
         : people > 1
@@ -70,9 +75,11 @@
   <ul class="ov-summary__grid">
     {#each links as link (link.id)}
       <li>
-        <ButtonLink href={link.href} variant="ghost">
+        <a class="ov-summary__tile" href={link.href}>
+          <span class="ov-summary__icon"><Icon name={link.icon} /></span>
           <span class="ov-summary__label">{link.label}</span>
-        </ButtonLink>
+          <span class="ov-summary__go"><Icon name="chevron" /></span>
+        </a>
       </li>
     {/each}
   </ul>
@@ -85,19 +92,69 @@
     margin-bottom: var(--row-gap);
   }
   .ov-summary__grid {
-    --btn-w: 100%;
-    --btn-min-h: 56px;
-    --btn-pad: 14px 18px;
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
+  }
+  .ov-summary__tile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 100%;
+    min-height: 64px;
+    padding: 14px 16px;
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
+    color: var(--bb-white);
+    font-size: var(--bb-text-sm);
+    line-height: 1.35;
+    text-decoration: none;
+    transition: background var(--bb-dur-base) var(--bb-ease-out-expo),
+                box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+  .ov-summary__tile:hover {
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-2);
+  }
+  .ov-summary__tile:focus-visible {
+    outline: 2px solid var(--bb-focus);
+    outline-offset: 2px;
+  }
+  .ov-summary__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--bb-radius-sm);
+    background: rgba(var(--bb-tan-rgb), 0.1);
+    color: var(--bb-tan-light);
+  }
+  .ov-summary__icon :global(svg) {
+    width: 18px;
+    height: 18px;
   }
   .ov-summary__label {
+    flex: 1;
     min-width: 0;
-    white-space: normal;
+  }
+  .ov-summary__go {
+    display: flex;
+    flex: none;
+    color: var(--bb-muted);
+    transform: rotate(-90deg);
+    transition: color var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+  .ov-summary__go :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+  .ov-summary__tile:hover .ov-summary__go {
+    color: var(--bb-tan-light);
   }
 
   @media (max-width: 560px) {

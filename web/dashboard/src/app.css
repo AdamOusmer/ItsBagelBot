@@ -3,3 +3,87 @@
 
 @import '@bagel/kit/styles/tokens.css';
 @import '@bagel/kit/styles/console.css';
+
+@layer bb.app {
+  :root {
+    --bb-scrollbar-thumb: rgba(var(--bb-white-pure-rgb), 0.16);
+    --bb-border: transparent;
+    --bb-border-strong: transparent;
+    --bb-border-chip: transparent;
+    --bb-glass-border: transparent;
+    --bb-tier-inactive-border: transparent;
+    --profile-border: transparent;
+
+    --bb-focus-ring: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+  }
+
+  .bb-tbl-wrap,
+  .bb-alert:not(.bb-alert--callout) {
+    box-shadow: var(--bb-depth-1);
+  }
+
+  .bb-topbar,
+  .bb-notifications__icon-btn {
+    box-shadow: var(--bb-depth-2);
+  }
+
+  .bb-modal__card,
+  .bb-surface--sheet {
+    box-shadow: var(--bb-depth-3);
+  }
+
+  .bb-alert:not(.bb-alert--callout),
+  .bb-card--danger,
+  .bb-rail__subs-inner,
+  .bb-tbl td,
+  .bb-tbl th[scope="row"] {
+    border-color: transparent;
+  }
+
+  .bb-rail {
+    border-right-color: transparent;
+    box-shadow: inset -6px 0 8px -6px rgba(var(--bb-shadow-rgb), 0.6);
+  }
+
+  .bb-input,
+  .bb-search,
+  .bb-check__box {
+    box-shadow: var(--bb-depth-0);
+  }
+
+  .bb-input:focus-within:not(:where([data-invalid])) {
+    border-color: transparent;
+    box-shadow: var(--bb-depth-0), 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
+  }
+
+  .bb-select__trigger,
+  .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted), .is-done, [data-pressed])),
+  .bb-btn--secondary,
+  .bb-btn--icon:not(.bb-btn--sm) {
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
+  }
+
+  .bb-select__trigger:hover,
+  .bb-select__trigger[aria-expanded='true'],
+  .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted), .is-done, [data-pressed])):hover,
+  .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--icon:not(.bb-btn--sm):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
+    box-shadow: var(--bb-depth-2);
+  }
+
+  .bb-select__trigger:focus-visible,
+  .bb-chip:focus-visible,
+  .bb-btn--secondary:focus-visible,
+  .bb-btn--icon:focus-visible {
+    outline: none;
+    border-color: transparent;
+    box-shadow: var(--bb-focus-ring);
+  }
+
+  .bb-kbd {
+    box-shadow: inset 0 1px 0 rgba(var(--bb-white-rgb), 0.1), 0 1px 0 rgba(var(--bb-shadow-rgb), 0.6), 0 2px 4px rgba(var(--bb-shadow-rgb), 0.35);
+  }
+}

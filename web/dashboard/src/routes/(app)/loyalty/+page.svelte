@@ -478,7 +478,6 @@
   .perm-title { margin: 18px 0 6px; }
   .perm {
     padding: 9px 0;
-    border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.05);
   }
 
   .rate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }

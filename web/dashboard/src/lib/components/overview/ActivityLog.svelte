@@ -105,7 +105,6 @@
     align-items: center;
     gap: 13px;
     padding: 11px 20px;
-    border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.09);
     animation: ov-feed-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }
   .ov-log__time {
