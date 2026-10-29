@@ -19,8 +19,8 @@ import LightField from '@bagel/ui/astro/LightField.astro';
     @supports (animation-timeline: view()) {
         @media (prefers-reduced-motion: no-preference) {
             :global(:is(
-                #main-content > section:not(.enc) > :not(script, style, [data-field], .bento, .finale__glow),
-                #main-content > section > .bento > *
+                #main-content > section > :not(script, style, [data-field], .bento, ol, .finale__glow),
+                #main-content > section > :is(.bento, ol) > *
             )) {
                 animation: section-handoff linear both;
                 animation-timeline: view();
