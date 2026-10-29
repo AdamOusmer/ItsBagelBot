@@ -30,7 +30,7 @@ const t = useTranslations(lang);
                 <span class="eco__key"><span data-fit>{t('ecoFriendly.statDash')}</span></span>
             </span>
         </div>
-        <TextLink variant="arrow" tone="go" class="eco__more" href={localizePath('/green-hosting', lang)} data-reveal><span data-fit>{t('ecoFriendly.more')}</span></TextLink>
+        <TextLink variant="arrow" tone="go" class="eco__more" href={localizePath('/green-hosting', lang)} data-reveal><span class="eco__more-text"><span data-fit>{t('ecoFriendly.more')}</span></span></TextLink>
     </div>
 </section>
 
@@ -136,8 +136,18 @@ const t = useTranslations(lang);
 
     .eco__body :global(.eco__more) {
         --reveal-i: 4;
-        width: 220px;
         height: 1lh;
+    }
+
+    .eco__more-text {
+        display: inline-block;
+        width: 150px;
+        height: 1lh;
+        text-align: start;
+    }
+
+    @media (max-width: 720px) {
+        .eco__more-text { text-align: center; }
     }
 
     @keyframes ecoDraw {

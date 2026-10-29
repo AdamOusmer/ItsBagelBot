@@ -304,6 +304,17 @@ const {
         list-style: none;
     }
 
+    .flrel__item {
+        display: flex;
+        justify-content: center;
+        width: 200px;
+        min-width: 0;
+    }
+
+    .flrel__item :global(.bb-text-link) {
+        max-width: 100%;
+    }
+
     .flhow { --card-pad: 28px; }
 
     .flhow__card { height: 100%; }
