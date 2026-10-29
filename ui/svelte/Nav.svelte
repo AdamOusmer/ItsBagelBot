@@ -10,7 +10,9 @@
   import Hamburger from './Hamburger.svelte';
   import MobileMenu from './MobileMenu.svelte';
   import LanguageSwitcher from './LanguageSwitcher.svelte';
+  import Glide from './Glide.svelte';
   import { mountHomeLogo, mountTopDownMenu } from '../lib/nav-menu';
+  import { mountGlide } from '../lib/glide';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
@@ -47,6 +49,16 @@
   const menuPanel = $derived(menuLabels.panel ?? i18n.t('nav.menu'));
 
   let navEl = $state<HTMLElement | null>(null);
+  let innerEl = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    if (!innerEl) return;
+    void links;
+    return mountGlide(innerEl, {
+      observe: innerEl,
+      selector: '.bb-nav__links .bb-nav-link[aria-current="page"]',
+    });
+  });
 
   $effect(() => {
     const root = navEl?.parentElement;
@@ -78,8 +90,8 @@
   {...rest}
   class="bb-nav"
   aria-label={label}
-  ><div class="bb-nav__inner"
-    ><Brand
+  ><div bind:this={innerEl} class="bb-nav__inner"
+    ><Glide /><Brand
       class="bb-nav__brand"
       title={brand.title}
       sub={brand.sub}
