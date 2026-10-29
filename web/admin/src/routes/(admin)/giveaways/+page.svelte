@@ -210,7 +210,6 @@
   }
   .warning {
     --card-bg: color-mix(in srgb, var(--bb-warn) 12%, transparent);
-    --card-border: transparent;
     --card-pad: var(--bb-space-3);
   }
   @media (max-width: 760px) {
