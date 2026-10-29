@@ -14,6 +14,8 @@
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
     dashed?: boolean;
+    solid?: boolean;
+    wrap?: boolean;
     literal?: boolean;
     status?: boolean;
     children: Snippet;
@@ -26,6 +28,8 @@
     mark = undefined,
     sweep = false,
     dashed = false,
+    solid = false,
+    wrap = false,
     literal = false,
     status = false,
     children,
@@ -39,6 +43,8 @@
       shape === 'pill' ? 'bb-badge--pill' : null,
       tone ? `bb-tag--${tone}` : null,
       dashed ? 'bb-badge--dashed' : null,
+      solid ? 'bb-badge--solid' : null,
+      wrap ? 'bb-tag--wrap' : null,
       literal ? 'bb-tag--literal' : null,
       className || null,
     ]

@@ -5,14 +5,16 @@
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Section from '@bagel/ui/astro/Section.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Table from '@bagel/ui/astro/Table.astro';
 import Disclosure from '@bagel/ui/astro/Disclosure.astro';
-import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import StepCard from '@bagel/ui/astro/StepCard.astro';
+import LinkRow from '@bagel/ui/astro/LinkRow.astro';
 import Grid from '@bagel/ui/astro/Grid.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
 import type { CompareContent } from '../../lib/compare/content';
@@ -56,7 +58,8 @@ const columns = [
 
 <Text size="xs" mono tone="muted" class="vs__reviewed"><time datetime={reviewed}>{labels.reviewed}</time></Text>
 
-<Section class="vs">
+<Section size="band">
+  <Container>
     <SectionHeading title={labels.suitsTitle} />
     <Grid cols={2} gap={5} stackAt="md" class="vs__suits">
         {columns.map((column, i) => (
@@ -68,9 +71,11 @@ const columns = [
             </Card>
         ))}
     </Grid>
+  </Container>
 </Section>
 
-<Section class="vs">
+<Section size="band">
+  <Container>
     <SectionHeading eyebrow={labels.tableEyebrow} title={labels.tableTitle} />
     <Card flush class="vs__table" data-reveal>
         <Table roomy label={labels.title} minWidth="52rem">
@@ -94,18 +99,15 @@ const columns = [
             </tbody>
         </Table>
     </Card>
+  </Container>
 </Section>
 
-<Section class="vs">
+<Section size="band">
+  <Container>
     <SectionHeading eyebrow={labels.migrateEyebrow} title={migrate.title} />
-    <Grid as="ol" cols={3} gap={5} stackAt="md" class="vs__steps">
+    <Grid as="ol" cols={3} gap={5} stackAt="md">
         {migrate.steps.map((step, i) => (
-            <li>
-                <Card atmo hover class="vs__step" data-reveal style={`--reveal-i: ${i}`}>
-                    <Eyebrow aria-hidden="true">{String(i + 1).padStart(2, '0')}</Eyebrow>
-                    <Text size="sm" tone="muted">{step}</Text>
-                </Card>
-            </li>
+            <StepCard index={i + 1} data-reveal style={`--reveal-i: ${i}`}>{step}</StepCard>
         ))}
     </Grid>
     <Cluster justify="center" gap={3} class="vs__actions" data-reveal>
@@ -113,9 +115,11 @@ const columns = [
         <ButtonLink variant="secondary" href={loginHref}>{labels.cta}</ButtonLink>
         <ButtonLink variant="secondary" href={other.href}>{other.label}</ButtonLink>
     </Cluster>
+  </Container>
 </Section>
 
-<Section class="vs">
+<Section size="band">
+  <Container>
     <SectionHeading eyebrow={labels.faqEyebrow} title={labels.faqTitle} />
     <div class="vs__faq">
         {faq.map((item, i) => (
@@ -124,24 +128,16 @@ const columns = [
             </Disclosure>
         ))}
     </div>
+  </Container>
 </Section>
 
-<Section class="vs vs--last">
-    <Heading level={5} as="h2" class="vs__sources-title">{labels.sourcesTitle}</Heading>
-    <ul class="vs__sources">
-        {sources.map((source) => (
-            <li><TextLink href={source.url} external>{source.label}</TextLink></li>
-        ))}
-    </ul>
+<Section size="band" class="vs--last">
+  <Container>
+    <LinkRow title={labels.sourcesTitle} links={sources.map((source) => ({ href: source.url, label: source.label, external: true }))} />
+  </Container>
 </Section>
 
 <style>
-    .vs {
-        max-width: var(--bb-content-max);
-        margin-inline: auto;
-        padding: var(--bb-space-section-sm) var(--bb-space-7);
-    }
-
     .vs--last { padding-bottom: var(--bb-space-section); }
 
     .vs__reviewed {
@@ -169,25 +165,5 @@ const columns = [
 
     .vs__feature { min-width: 9rem; }
 
-    .vs__steps { --card-pad: 28px; }
-
-    .vs__step { height: 100%; }
-
     .vs__actions { margin-top: 40px; }
-
-    .vs__sources-title { margin: 0 0 16px; text-align: center; }
-
-    .vs__sources {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 12px 28px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-    }
-
-    @media (max-width: 860px) {
-        .vs { padding-inline: var(--bb-space-5); }
-    }
 </style>

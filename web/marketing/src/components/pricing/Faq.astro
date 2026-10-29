@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Section from '@bagel/ui/astro/Section.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Disclosure from '@bagel/ui/astro/Disclosure.astro';
 import Text from '@bagel/ui/astro/Text.astro';
@@ -47,7 +48,8 @@ const faqLd = {
 };
 ---
 
-<Section size="page" class="faq">
+<Section size="page">
+  <Container>
     <SectionHeading eyebrow={eyebrow} title={title} />
 
     <div class="faq__list">
@@ -59,15 +61,10 @@ const faqLd = {
     </div>
 
     <script type="application/ld+json" set:html={JSON.stringify(faqLd)} is:inline />
+  </Container>
 </Section>
 
 <style>
-    .faq {
-        padding-inline: 48px;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-    }
-
     .faq__list {
         max-width: var(--bb-content-hero);
         margin: 0 auto;
@@ -76,7 +73,6 @@ const faqLd = {
     .faq__answer { height: calc(3 * 1lh); }
 
     @media (max-width: 640px) {
-        .faq { padding-inline: 24px; }
         .faq__answer { height: calc(7 * 1lh); }
         .faq__list { --disclosure-label-lines: 2; }
     }

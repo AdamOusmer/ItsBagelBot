@@ -1,0 +1,21 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-step-card {
+    --card-pad: 28px;
+    height: 100%;
+  }
+
+  .bb-step-card__title {
+    box-sizing: content-box;
+    height: calc(var(--step-card-title-lines, 2) * 1lh);
+    padding-block: 10px 8px;
+  }
+
+  .bb-step-card__body {
+    height: calc(var(--step-card-body-lines) * 1lh);
+  }
+}

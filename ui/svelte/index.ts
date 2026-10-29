@@ -120,6 +120,8 @@ export { default as DeckLayout } from './DeckLayout.svelte';
 export { default as Disclosure } from './Disclosure.svelte';
 export { default as Fact } from './Fact.svelte';
 export { default as FactList } from './FactList.svelte';
+export { default as StepCard } from './StepCard.svelte';
+export { default as LinkRow } from './LinkRow.svelte';
 export { default as Pager } from './Pager.svelte';
 
 export { default as Stepper } from './Stepper.svelte';

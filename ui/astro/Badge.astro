@@ -4,12 +4,14 @@
 import '../styles/elements/tag.css';
 import '../styles/elements/mark.css';
 import '../styles/elements/badge.css';
-const { tone, shape = 'tag', mark, sweep = false, dashed = false, literal = false, status = false, class: className = '', ...rest } = Astro.props;
+const { tone, shape = 'tag', mark, sweep = false, dashed = false, solid = false, wrap = false, literal = false, status = false, class: className = '', ...rest } = Astro.props;
 const cls = [
     'bb-tag bb-badge',
     shape === 'pill' ? 'bb-badge--pill' : null,
     tone ? `bb-tag--${tone}` : null,
     dashed ? 'bb-badge--dashed' : null,
+    solid ? 'bb-badge--solid' : null,
+    wrap ? 'bb-tag--wrap' : null,
     literal ? 'bb-tag--literal' : null,
     className,
 ]

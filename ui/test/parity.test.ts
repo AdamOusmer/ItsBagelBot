@@ -922,6 +922,10 @@ import SvelteDivider from '../svelte/Divider.svelte';
 import AstroDivider from '../astro/Divider.astro';
 import SvelteHaloPanel from '../svelte/HaloPanel.svelte';
 import AstroHaloPanel from '../astro/HaloPanel.astro';
+import SvelteStepCard from '../svelte/StepCard.svelte';
+import AstroStepCard from '../astro/StepCard.astro';
+import SvelteLinkRow from '../svelte/LinkRow.svelte';
+import AstroLinkRow from '../astro/LinkRow.astro';
 import SvelteSpacer from '../svelte/Spacer.svelte';
 import AstroSpacer from '../astro/Spacer.astro';
 import SvelteInput from '../svelte/Input.svelte';
@@ -1176,6 +1180,21 @@ const PRIMITIVES: {
     props: {"tone":"green","href":"/x","class":"tile"},
     slot: "x",
     html: "<a class=\"bb-halo-panel bb-halo-panel--green tile\" href=\"/x\"><span class=\"bb-halo-panel__halo\" aria-hidden=\"true\"></span>x</a>",
+  },
+  {
+    name: "StepCard",
+    svelte: SvelteStepCard,
+    astro: AstroStepCard,
+    props: {"index":3,"title":"Go"},
+    slot: "x",
+    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><span data-fit=\"block\">Go</span></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><span data-fit=\"block\">x</span></p></div></li>",
+  },
+  {
+    name: "LinkRow",
+    svelte: SvelteLinkRow,
+    astro: AstroLinkRow,
+    props: {"title":"See also","links":[{"href":"https://b.test","label":"B","external":true}]},
+    html: "<nav class=\"bb-link-row\" aria-label=\"See also\"><h2 class=\"bb-h bb-h--l5 bb-link-row__title\"><span data-fit>See also</span></h2><ul class=\"bb-link-row__list\"><li><a class=\"bb-text-link\" href=\"https://b.test\" aria-label=\"B\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"bb-text-link__mask\" aria-hidden=\"true\" data-fit><span class=\"bb-text-link__row bb-text-link__row--rest\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span><span class=\"bb-text-link__row bb-text-link__row--over\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span></span></a></li></ul></nav>",
   },
   {
     name: "Spacer",

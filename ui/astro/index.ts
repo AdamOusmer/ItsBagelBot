@@ -107,6 +107,8 @@ export { default as DeckLayout } from './DeckLayout.astro';
 export { default as Disclosure } from './Disclosure.astro';
 export { default as Fact } from './Fact.astro';
 export { default as FactList } from './FactList.astro';
+export { default as StepCard } from './StepCard.astro';
+export { default as LinkRow } from './LinkRow.astro';
 export { default as Pager } from './Pager.astro';
 export { default as ProgressBar } from './ProgressBar.astro';
 

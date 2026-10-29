@@ -6,7 +6,7 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/fact-list.css';
 
 interface Props extends Omit<HTMLAttributes<'dl'>, 'layout' | 'class'> {
-    layout?: 'rows' | 'tiles' | 'inline';
+    layout?: 'rows' | 'tiles' | 'inline' | 'list';
     class?: string;
 }
 

@@ -297,7 +297,9 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/ranking-card", budget: 1190 }, // 928 B
   // Blocks added 2026-09-28, macOS/arm64: measured gzip +150 B platform variance and ~10% room.
   { name: "elements/deck-layout", budget: 400 }, // 206 B
-  { name: "elements/fact-list", budget: 930 }, // 687 B
+  { name: "elements/fact-list", budget: 1100 }, // 868 B: list layout (2026-10-28)
+  { name: "elements/step-card", budget: 400 }, // 195 B (2026-10-28)
+  { name: "elements/link-row", budget: 400 }, // 206 B (2026-10-28)
   { name: "elements/pager", budget: 370 }, // 184 B
   { name: "elements/disclosure", budget: 1260 }, // 989 B
   { name: "elements/feed", budget: 740 }, // 516 B
