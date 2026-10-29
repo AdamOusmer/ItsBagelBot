@@ -360,7 +360,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         place-items: center;
         width: 36px;
         height: 27px;
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-1);
         border-radius: var(--bb-radius-xs);
         color: var(--bb-muted);
         background: var(--bb-bg-0);

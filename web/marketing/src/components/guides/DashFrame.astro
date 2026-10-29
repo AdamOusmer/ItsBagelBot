@@ -45,11 +45,11 @@ const { path = '/', notes = [], caption } = Astro.props;
     .dframe { margin: 20px 0 28px; }
 
     .dframe__win {
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
         border-radius: var(--bb-radius-md);
         background: var(--bb-inset-bg);
         overflow: hidden;
-        box-shadow: 0 24px 55px rgba(var(--bb-shadow-rgb), 0.4);
+        box-shadow: var(--bb-depth-2);
     }
 
     .dframe__bar {
@@ -68,7 +68,8 @@ const { path = '/', notes = [], caption } = Astro.props;
         font-size: 0.64rem;
         color: var(--bb-muted);
         background: rgba(var(--bb-white-rgb), 0.04);
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.1);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-0);
         border-radius: var(--bb-radius-pill);
         padding: 5px 12px;
         overflow: hidden;

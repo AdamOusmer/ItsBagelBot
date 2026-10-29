@@ -530,13 +530,13 @@ test.describe('guides & command builder', () => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
-        const tokens = page.locator('[data-vars] .var code');
+        const tokens = page.locator('[data-vars] .bb-var-card__token');
         await expect(tokens).toHaveCount(6);
         await expect(tokens.first()).toHaveText('{user}');
 
         await page.fill('[data-name]', 'greet');
         await page.fill('[data-template]', 'Hello ');
-        await page.click('[data-vars] .var:first-child');
+        await page.click('[data-vars] .bb-var-card:first-child');
         await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
         await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello PrincessBarney');
         await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('PrincessBarney');
@@ -567,7 +567,7 @@ test.describe('guides & command builder', () => {
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
         await expect(page.locator('.bb-page-hero__title')).toContainText('Des commandes puissantes.');
-        await expect(page.locator('[data-vars] .var code')).toHaveCount(6);
+        await expect(page.locator('[data-vars] .bb-var-card__token')).toHaveCount(6);
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('lang=fr');
     });
@@ -577,9 +577,9 @@ test.describe('guides & command builder', () => {
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
         await page.click('[data-mode="module"]');
-        await page.selectOption('[data-surface]', 'shoutout');
+        await page.selectOption('[data-cb-surface]', 'shoutout');
 
-        await expect(page.locator('[data-vars] .var code').first()).toHaveText('{shoutout:raider}');
+        await expect(page.locator('[data-vars] .bb-var-card__token').first()).toHaveText('{shoutout:raider}');
         await expect(page.locator('[data-send-wrap]')).toBeHidden();
         await expect(page.locator('[data-module-link]')).toHaveAttribute(
             'href',

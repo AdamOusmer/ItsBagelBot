@@ -301,6 +301,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/pager", budget: 370 }, // 184 B
   { name: "elements/disclosure", budget: 1260 }, // 989 B
   { name: "elements/feed", budget: 740 }, // 516 B
+  { name: "elements/var-card", budget: 1060 }, // 807 B: script-built variable cards
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
   { name: "elements/slider", budget: 380 }, // 191 B
   { name: "elements/file-drop", budget: 740 }, // 514 B

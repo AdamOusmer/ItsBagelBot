@@ -80,7 +80,7 @@ const sample =
     .gpath__grid { display: grid; gap: 12px; }
     @media (min-width: 720px) { .gpath__grid { grid-template-columns: 1fr 1fr; } }
     .gpath__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
-    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.7); }
+    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid transparent; box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.7); }
     .gpath :global(.gpath__hint) { font-family: var(--bb-font-body); font-size: 0.78rem; color: var(--bb-muted); }
     .gpath__tree :global(.key) { font-family: var(--bb-font-mono); font-size: 0.68rem; color: var(--bb-tan-light); }
     .gpath__tree :global(.kids) { display: grid; gap: 2px; margin-left: 9px; padding-left: 9px; border-left: 1px solid var(--bb-border); }
@@ -90,7 +90,7 @@ const sample =
     .gpath__tree :global(.leaf:focus-visible) { outline: 2px solid var(--bb-green-glow); outline-offset: -2px; }
     .gpath__tree :global(.leaf:disabled) { cursor: not-allowed; color: var(--bb-muted); }
     .gpath__tree :global(.leaf.is-picked) { background: rgba(var(--bb-green-glow-rgb), 0.14); color: var(--bb-green-glow); }
-    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.5); }
+    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid transparent; box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.5); }
     .gpath__out p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
     .gpath__out i { font-style: normal; min-width: 150px; font-family: var(--bb-font-body); font-size: 0.72rem; color: var(--bb-muted); }
     .gpath__out code { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan-light); word-break: break-all; }

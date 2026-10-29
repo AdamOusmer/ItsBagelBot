@@ -70,7 +70,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
                 <div class="module-pick" hidden data-module-pick>
                     <Field label={ui.surfaceLabel} for="cb-surface" hint={firstSurfaceHint} hintId="cb-surface-hint">
-                        <Select id="cb-surface" fill options={surfaceOptions} label={ui.surfaceLabel} data-surface aria-describedby="cb-surface-hint" />
+                        <Select id="cb-surface" fill options={surfaceOptions} label={ui.surfaceLabel} data-cb-surface aria-describedby="cb-surface-hint" />
                     </Field>
                 </div>
 
@@ -278,7 +278,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         const permSel = $<HTMLSelectElement>('[data-perm]');
         const cdInput = $<HTMLInputElement>('[data-cooldown]');
         const styleSel = $<HTMLSelectElement>('[data-style]');
-        const surfaceSel = $<HTMLSelectElement>('[data-surface]');
+        const surfaceSel = $<HTMLSelectElement>('[data-cb-surface]');
         const surfaceHint = root.querySelector<HTMLElement>('#cb-surface-hint');
         const modeGroup = $<HTMLElement>('[data-modes]');
         const sendLink = $<HTMLAnchorElement>('[data-send]');
@@ -546,13 +546,13 @@ for (const surface of builderData(defaultLang).surfaces) {
         function buildSimpleVar(item: Var): HTMLElement {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'var';
+            btn.className = 'bb-var-card';
             const size = payload.descSize[`${surfaceId} ${item.token}`];
-            if (size) btn.classList.add(`var--${size}`);
-            const code = el('code', '', item.token);
-            const span = el('span', '');
+            if (size) btn.classList.add(`bb-var-card--${size}`);
+            const code = el('code', 'bb-var-card__token', item.token);
+            const span = el('span', 'bb-var-card__body');
             span.append(fitIn('b', item.name, ''), fitIn('small', item.desc, 'block'));
-            btn.append(code, span, el('i', '', '+'));
+            btn.append(code, span, el('i', 'bb-var-card__plus', '+'));
             btn.addEventListener('click', () => insert(item.token));
             return btn;
         }
@@ -561,9 +561,9 @@ for (const surface of builderData(defaultLang).surfaces) {
             const scopes = item.scopes ?? [];
             const defaultName = spanOf(item.token)?.payload || 'name';
 
-            const card = el('div', 'var var--counter');
+            const card = el('div', 'bb-var-card bb-var-card--counter');
 
-            const head = el('div', 'ctr-head');
+            const head = el('div', 'bb-var-card__head');
             head.append(fitIn('b', item.name, ''), fitIn('small', item.desc, 'block'));
 
             const nameInput = document.createElement('input');
@@ -586,14 +586,14 @@ for (const surface of builderData(defaultLang).surfaces) {
             const tokenCode = el('code', '', item.token);
             const insertBtn = document.createElement('button');
             insertBtn.type = 'button';
-            insertBtn.className = 'ctr-insert';
-            insertBtn.append(tokenCode, el('i', '', '+'));
+            insertBtn.className = 'bb-var-card__insert';
+            insertBtn.append(tokenCode, el('i', 'bb-var-card__plus', '+'));
 
-            const hint = el('small', 'ctr-hint');
+            const hint = el('small', 'bb-var-card__hint');
             const hintText = el('span', '');
             hintText.dataset.fit = 'block';
             hint.append(hintText);
-            const row = el('div', 'ctr-row');
+            const row = el('div', 'bb-var-card__row');
             row.append(inputShell(nameInput), inputShell(scopeSelect), insertBtn);
 
             const cleanCounterName = () =>
@@ -1020,101 +1020,3 @@ for (const surface of builderData(defaultLang).surfaces) {
     }
 </style>
 
-<style is:global>
-    [data-vars] .var {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 25px;
-        gap: 10px 12px;
-        align-items: center;
-        padding: 12px 13px;
-        text-align: left;
-        color: var(--bb-white);
-        background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.025), rgba(var(--bb-white-pure-rgb), 0.01));
-        border: 1px solid var(--bb-border);
-        border-radius: var(--bb-radius-md);
-        box-shadow: inset 0 1px rgba(var(--bb-white-pure-rgb), 0.025);
-        transition: border-color var(--bb-dur-fast), background var(--bb-dur-fast), transform var(--bb-dur-fast);
-    }
-
-    [data-vars] .var:hover {
-        border-color: rgba(var(--bb-green-glow-rgb), 0.47);
-        background: linear-gradient(135deg, rgba(var(--bb-green-glow-rgb), 0.07), rgba(var(--bb-green-glow-rgb), 0.025));
-        transform: translateY(-1px);
-    }
-
-    [data-vars] .var code {
-        grid-area: 1 / 1;
-        justify-self: start;
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        padding: 7px 9px;
-        color: var(--bb-tan-light);
-        background: rgba(var(--bb-tan-rgb), 0.07);
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.12);
-        border-radius: var(--bb-radius-xs);
-        font: 11px var(--bb-font-mono);
-        white-space: nowrap;
-    }
-
-    [data-vars] .var > span { grid-area: 2 / 1 / 3 / -1; display: grid; gap: 4px; min-width: 0; }
-    [data-vars] .var--medium > span small { height: calc(5 * 1lh); }
-    [data-vars] .var--long > span small { height: calc(8 * 1lh); }
-    [data-vars] .var b { min-width: 0; font: 700 var(--bb-text-sm) var(--bb-font-display); }
-    [data-vars] .var small { height: calc(3 * 1lh); color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
-
-    [data-vars] .var i {
-        grid-area: 1 / 2;
-        display: grid;
-        place-items: center;
-        width: 25px;
-        height: 25px;
-        color: var(--bb-green-glow);
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.33);
-        border-radius: 50%;
-        font-style: normal;
-        transition: background var(--bb-dur-fast), color var(--bb-dur-fast);
-    }
-
-    [data-vars] .var:hover i { color: var(--bb-black); background: var(--bb-green-glow); }
-
-    [data-vars] .var--counter {
-        grid-column: 1 / -1;
-        grid-template-columns: 1fr;
-        gap: 10px;
-        cursor: default;
-    }
-    [data-vars] .var--counter:hover { border-color: var(--bb-border); background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.025), rgba(var(--bb-white-pure-rgb), 0.01)); transform: none; }
-
-    [data-vars] .ctr-head { display: grid; gap: 4px; }
-    [data-vars] .ctr-head small { height: calc(3 * 1lh); color: var(--bb-muted-light); font: 400 11.5px/1.45 var(--bb-font-body); }
-
-    [data-vars] .ctr-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px; align-items: center; }
-
-    [data-vars] .ctr-insert {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        height: 38px;
-        padding: 0 12px;
-        color: var(--bb-white);
-        background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.025), rgba(var(--bb-white-pure-rgb), 0.01));
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.33);
-        border-radius: var(--bb-radius-sm);
-        white-space: nowrap;
-        transition: border-color var(--bb-dur-fast), background var(--bb-dur-fast);
-    }
-    [data-vars] .ctr-insert:hover { border-color: rgba(var(--bb-green-glow-rgb), 0.6); background: rgba(var(--bb-green-glow-rgb), 0.08); }
-    [data-vars] .ctr-insert code { padding: 0; background: none; border: 0; color: var(--bb-tan-light); font: 11px var(--bb-font-mono); }
-    [data-vars] .ctr-insert i { font-style: normal; color: var(--bb-green-glow); }
-
-    [data-vars] small.ctr-hint { display: block; height: calc(2 * 1lh); color: var(--bb-muted); font: 11.5px/1.5 var(--bb-font-body); }
-
-    @media (max-width: 700px) {
-        [data-vars] .ctr-row { grid-template-columns: 1fr; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        [data-vars] .var, [data-vars] .var i, [data-vars] .ctr-insert { transition: none; }
-    }
-</style>

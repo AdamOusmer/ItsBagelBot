@@ -107,7 +107,8 @@ const steps = [
         height: 54px;
         border-radius: 50%;
         background: var(--bb-card-bg);
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-1);
         font-family: var(--bb-font-mono);
         font-size: 0.8rem;
         color: var(--bb-tan-light);
@@ -119,8 +120,7 @@ const steps = [
 
     @media (hover: hover) and (pointer: fine) {
         .step:hover .step__num {
-            border-color: rgba(var(--bb-tan-rgb), 0.55);
-            box-shadow: 0 0 24px rgba(var(--bb-tan-rgb), 0.25);
+            box-shadow: var(--bb-depth-2), 0 0 24px rgba(var(--bb-tan-rgb), 0.25);
             color: var(--bb-tan-pale);
         }
     }
@@ -166,16 +166,16 @@ const steps = [
         letter-spacing: 0.05em;
         color: var(--bb-green-glow);
         background: rgba(var(--bb-green-glow-rgb), 0.06);
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.18);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-0);
         border-radius: var(--bb-radius-sm);
         padding: 6px 10px;
-        transition: box-shadow var(--bb-dur-base) ease, border-color var(--bb-dur-base) ease;
+        transition: box-shadow var(--bb-dur-base) ease;
     }
 
     @media (hover: hover) and (pointer: fine) {
         .step:hover .step__receipt {
-            border-color: rgba(var(--bb-green-glow-rgb), 0.4);
-            box-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.14);
+            box-shadow: var(--bb-depth-0), 0 0 18px rgba(var(--bb-green-glow-rgb), 0.14);
         }
     }
 
