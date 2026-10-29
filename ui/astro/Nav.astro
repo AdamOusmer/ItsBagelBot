@@ -10,6 +10,7 @@ import NavLink from './NavLink.astro';
 import Hamburger from './Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
+import Glide from './Glide.astro';
 import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
 interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 'locales' | 'localeLabel' | 'label' | 'menuLabels' | 'menuMeta' | 'menuId' | 'class'> {
@@ -43,12 +44,15 @@ const menuClose = menuLabels.close ?? t('nav.menuClose');
 const menuPanel = menuLabels.panel ?? t('nav.menu');
 ---
 
-<nav {...rest} class="bb-nav" aria-label={label}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
+<nav {...rest} class="bb-nav" aria-label={label}><div class="bb-nav__inner"><Glide /><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
   <li><NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit data-astro-prefetch={link.current || link.external ? undefined : 'hover'} /></li>
 ))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} label={localeLabel} menuId={`${menuId}-lang`} />}{cta && <NavLink class="bb-nav__cta" variant={cta.icon === 'twitch' ? 'twitch' : 'cta'} href={cta.href} label={cta.label} external={cta.external} fit />}</div><Hamburger label={menuOpen} closeLabel={menuClose} controls={menuId} /></div></nav><MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuPanel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>
 
 <script>
   import { mountTopDownMenu, mountHomeLogo } from '../lib/nav-menu';
+  import { mountGlide } from '../lib/glide';
+
+  const NAV_CURRENT = '.bb-nav__links .bb-nav-link[aria-current="page"]';
 
   let disposers: (() => void)[] = [];
 
@@ -76,9 +80,16 @@ const menuPanel = menuLabels.panel ?? t('nav.menu');
     disposers.push(mountHomeLogo(logo));
   }
 
+  function mountSelection(): void {
+    const inner = document.querySelector<HTMLElement>('.bb-nav__inner');
+    if (!inner) return;
+    disposers.push(mountGlide(inner, { observe: inner, selector: NAV_CURRENT }));
+  }
+
   function mount(): void {
     mountMenu();
     mountLogo();
+    mountSelection();
   }
 
   mount();

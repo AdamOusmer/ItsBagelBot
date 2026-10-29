@@ -47,6 +47,7 @@
   }
 
   .bb-nav__inner {
+    position: relative;
     display: grid;
     grid-template-columns:
       var(--nav-brand-w)
@@ -120,6 +121,10 @@
 
   .bb-nav .bb-nav__links .bb-nav-link {
     --bb-nav-link-gap: 6px;
+  }
+
+  .bb-nav .bb-nav__links .bb-nav-link[aria-current="page"] {
+    background-color: transparent;
   }
 
   .bb-nav__actions {

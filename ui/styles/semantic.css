@@ -91,4 +91,14 @@
     --bb-tier-inactive-border: rgba(var(--bb-white-pure-rgb), 0.12);
 }
 
+:root[data-surface='tonal'] {
+    --bb-scrollbar-thumb: rgba(var(--bb-white-pure-rgb), 0.16);
+    --bb-border: transparent;
+    --bb-border-strong: transparent;
+    --bb-border-chip: transparent;
+    --bb-glass-border: transparent;
+    --bb-tier-inactive-border: transparent;
+    --profile-border: transparent;
+}
+
 }
