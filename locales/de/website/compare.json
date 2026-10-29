@@ -20,5 +20,6 @@
   "hubMetaDesc": "ItsBagelBot im Vergleich mit Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot und WizeBot, mit Quelle für jede Zeile.",
   "hubTitle": "ItsBagelBot im Vergleich",
   "hubLead": "Jede Seite prüft einen Bot Funktion für Funktion, nennt für jede Zeile eine Quelle und zeigt, wie du deine Befehle mitnimmst.",
-  "allComparisons": "Alle Vergleiche"
+  "allComparisons": "Alle Vergleiche",
+  "guidesPrompt": "Du kommst von einem anderen Bot? Sieh dir ItsBagelBot im Vergleich an."
 }
