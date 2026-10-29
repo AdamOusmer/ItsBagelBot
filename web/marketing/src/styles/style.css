@@ -134,16 +134,3 @@
         --card-body-pad: 20px;
     }
 }
-
-@layer bb.app {
-    .bb-nav {
-        --nav-max: 1100px;
-        --nav-brand-w: 196px;
-    }
-
-    .bb-nav .bb-nav__brand {
-        --brand-mark: 32px;
-        --brand-name-size: 17px;
-        --brand-gap: 10px;
-    }
-}
