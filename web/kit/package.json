@@ -99,7 +99,8 @@
     "./live-poll": "./lib/live-poll.ts",
     "./rates": "./lib/rates.ts",
     "./social": "./lib/social.ts",
-    "./site-links": "./lib/site-links.ts"
+    "./site-links": "./lib/site-links.ts",
+    "./site-footer": "./lib/site-footer.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
@@ -109,10 +110,6 @@
     "motion": "^13.0.0",
     "oauth4webapi": "^3.8.7",
     "pino": "^10.3.1",
-    "three": "^0.186.0",
     "sql.js": "1.14.2"
-  },
-  "devDependencies": {
-    "@types/three": "^0.186.0"
   }
 }

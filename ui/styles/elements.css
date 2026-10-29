@@ -76,4 +76,6 @@
 @import './elements/overview-grid.css';
 @import './elements/area-series.css';
 @import './elements/stepper.css';
+@import './elements/setup-stage.css';
+@import './elements/setup-step.css';
 @import './elements/feed.css';

@@ -42,9 +42,10 @@ interface Props {
     loginHref: string;
     importHref: string;
     other: { href: string; label: string };
+    related: { title: string; links: { href: string; label: string }[] };
 }
 
-const { content, labels, loginHref, importHref, other } = Astro.props;
+const { content, labels, loginHref, importHref, other, related } = Astro.props;
 const { hero, suits, rows, migrate, faq, sources, reviewed } = content;
 const columns = [
     { heading: labels.suitsUs, items: suits.us },
@@ -126,11 +127,20 @@ const columns = [
     </div>
 </Section>
 
-<Section class="vs vs--last">
+<Section class="vs">
     <Heading level={5} as="h2" class="vs__sources-title">{labels.sourcesTitle}</Heading>
     <ul class="vs__sources">
         {sources.map((source) => (
-            <li><TextLink href={source.url} external>{source.label}</TextLink></li>
+            <li><TextLink href={source.url} label={source.label} external /></li>
+        ))}
+    </ul>
+</Section>
+
+<Section class="vs vs--last vs__related">
+    <Heading level={5} as="h2" class="vs__sources-title"><span data-fit>{related.title}</span></Heading>
+    <ul class="vs__links">
+        {related.links.map((link) => (
+            <li class="vs__link"><TextLink href={link.href} label={link.label} fit /></li>
         ))}
     </ul>
 </Section>
@@ -186,6 +196,23 @@ const columns = [
         padding: 0;
         list-style: none;
     }
+
+    .vs__links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        gap: 12px 28px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .vs__link {
+        display: flex;
+        justify-content: center;
+        min-width: 0;
+    }
+
+    .vs__link > :global(a) { max-width: 100%; }
 
     @media (max-width: 860px) {
         .vs { padding-inline: var(--bb-space-5); }

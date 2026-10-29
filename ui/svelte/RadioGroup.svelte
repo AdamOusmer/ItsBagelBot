@@ -21,6 +21,7 @@
     cols?: number;
     rail?: 'sm' | 'md';
     maxHeight?: string;
+    terse?: boolean;
     onValueChange?: (value: string) => void;
     onSelect?: (value: string) => void;
     leading?: Snippet<[RadioOption, boolean]>;
@@ -37,6 +38,7 @@
     cols,
     rail,
     maxHeight,
+    terse = false,
     onValueChange,
     onSelect,
     leading,
@@ -52,6 +54,7 @@
       cols ? 'bb-choices--cols' : null,
       rail ? `bb-choices--rail-${rail}` : null,
       maxHeight ? 'bb-choices--scroll bb-scroll' : null,
+      terse ? 'bb-choices--terse' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -108,7 +111,7 @@
         />{#if variant === 'cards'}<span class="bb-choice__top"
             >{#if leading}<span class="bb-choice__lead">{@render leading(opt, value === opt.value)}</span>{/if}<span
               class="bb-choice__tick"
-              aria-hidden="true"><Icon name="check" size={12} /></span
+              aria-hidden="true"><Icon name="check" size={14} /></span
             ></span
           >{/if}<span class="bb-choice__label">{opt.label}</span>{#if opt.description}<span class="bb-choice__desc"
             >{opt.description}</span

@@ -95,10 +95,11 @@
   .bb-stepper__track {
     position: absolute;
     left: calc(var(--stepper-cell) / 2);
-    right: calc(var(--stepper-cell) / 2);
+    width: calc(max(var(--stepper-n) - 1, 0) * var(--stepper-cell));
     bottom: 0;
     height: 1px;
     background: var(--bb-border);
+    transition: width calc(var(--bb-dur-slow) * 0.7) var(--bb-ease-out-expo);
     pointer-events: none;
   }
 
@@ -251,6 +252,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .bb-stepper__step,
+    .bb-stepper__track,
     .bb-stepper__pip,
     .bb-stepper__trail,
     .bb-stepper__glide,

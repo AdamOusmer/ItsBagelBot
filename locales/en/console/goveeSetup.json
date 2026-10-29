@@ -8,7 +8,7 @@
   "needTitle": "Let your chat colour the room.",
   "needBody": "Viewers spend channel points to change the colour of your Govee lights. I’ll help you connect them, one step at a time.",
   "needNoteTitle": "What you need",
-  "needNoteBody": "A Govee Home account, and Govee lights already set up in the Govee Home app. Lights that only use Bluetooth may not show up.",
+  "needNoteBody": "A Govee Home account, and Wi-Fi colour Govee lights already set up in the Govee Home app. Bluetooth-only lights do not work, because Govee's API cannot reach them.",
   "start": "Let’s set up Govee",
   "keyTitle": "Ask Govee for a key.",
   "keyBody": "Govee gives out free API keys from the Govee Home app on your phone. Follow this path and fill in the short form.",

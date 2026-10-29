@@ -159,6 +159,7 @@ jobs:
               "image": "warp",
               "context": ".",
               "containerfile": "app/warp/Containerfile",
+              "layer_cache": false,
               "description": "Cloudflare WARP client for the gossip untrusted-egress sidecar"
             },
             {
@@ -177,6 +178,7 @@ jobs:
               "image": "twitch-ingress",
               "context": "app/twitch/ingress",
               "containerfile": "app/twitch/ingress/Containerfile",
+              "layer_cache": false,
               "description": "ItsBagelBot Twitch ingress service"
             },
             {
@@ -197,6 +199,7 @@ jobs:
               "image": "nats-server",
               "context": "deploy/messaging/nats-server",
               "containerfile": "deploy/messaging/nats-server/Containerfile",
+              "layer_cache": false,
               "description": "nats-server 2.15.1 with the ItsBagelBot patch set (x86-64-v3 on Intel)"
             }
           ]'
@@ -462,6 +465,14 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # The ubuntu-24.04 image ships Ubuntu's own buildah and podman, the
+          # same packages apt would install, so apt only runs when either is
+          # missing. That skips an apt-get update on every build job.
+          if command -v buildah >/dev/null && command -v podman >/dev/null; then
+            buildah version
+            podman version
+            exit 0
+          fi
           # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
           # If those feeds 403, apt-get update fails before reaching Ubuntu's
           # buildah/podman packages, so remove only the optional feeds here.
@@ -475,6 +486,13 @@ jobs:
           buildah version
           podman version
 
+      # Before the build, and on PRs too: the layer cache below lives in GHCR
+      # and the build reads it. Pushing stays main/tag/dispatch only.
+      - name: Login to GHCR
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+
       - name: Build native image
         id: build
         shell: bash
@@ -486,6 +504,8 @@ jobs:
           IGNOREFILE: ${{ matrix.ignorefile }}
           PLATFORM: ${{ matrix.platform }}
           DESCRIPTION: ${{ matrix.description }}
+          LAYER_CACHE: ${{ matrix.layer_cache }}
+          CACHE_REPO: ${{ steps.meta.outputs.registry }}/${{ env.IMAGE_REPOSITORY }}/buildcache
         run: |
           set -euo pipefail
 
@@ -505,7 +525,24 @@ jobs:
             ignore_args+=(--ignorefile "$IGNOREFILE")
           fi
 
-          buildah bud \
+          # Layer cache in GHCR. It only skips steps whose inputs are byte-for-byte
+          # unchanged (go.mod/go.sum + `go mod download`, the bun lockfile
+          # installs), so it never changes what a cached step produces. Images
+          # whose steps run apt-get/apk opt out with "layer_cache": false: a
+          # cached layer would keep shipping the OS packages of the day it was
+          # cached instead of picking up security updates on every rebuild.
+          # PRs read the cache and never write it, so a branch cannot seed a
+          # layer that main later ships.
+          cache_args=()
+          if [[ "${LAYER_CACHE:-true}" != "false" ]]; then
+            cache_args+=(--layers --cache-from "$CACHE_REPO")
+            if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+              cache_args+=(--cache-to "$CACHE_REPO")
+            fi
+          fi
+
+          build() {
+            buildah bud \
             --platform "$PLATFORM" \
             --format oci \
             --ulimit nofile=65536:65536 \
@@ -518,13 +555,24 @@ jobs:
             -f "$CONTAINERFILE" \
             "${ignore_args[@]}" \
             "${tag_args[@]}" \
+            "$@" \
             "$CONTEXT"
+          }
 
-      - name: Login to GHCR
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+          # The cache is an optimisation, never a reason a main build fails: if
+          # the cached build errors (registry hiccup, cache push refused), build
+          # again without it. A real build error fails both and still fails the
+          # job.
+          if (( ${#cache_args[@]} )) && build "${cache_args[@]}"; then
+            exit 0
+          fi
+          if (( ${#cache_args[@]} )); then
+            echo "::warning::cached build failed; rebuilding without the layer cache"
+            # --layers alone keeps the same layer layout as a cached build.
+            build --layers
+          else
+            build
+          fi
 
       - name: Push native image to GHCR
         if: github.event_name != 'pull_request'
@@ -582,6 +630,11 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # Preinstalled on ubuntu-24.04; apt only runs when it is missing.
+          if command -v podman >/dev/null; then
+            podman version
+            exit 0
+          fi
           # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
           # If those feeds 403, apt-get update fails before reaching Ubuntu's
           # podman package, so remove only the optional feeds here.

@@ -2,1447 +2,321 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { SITE } from '@bagel/kit/site-links';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
+import Section from '@bagel/ui/astro/Section.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+
+const CODE_LINES = [
+    { width: 62, indent: 0 },
+    { width: 44, indent: 16 },
+    { width: 78, indent: 0 },
+    { width: 30, indent: 0 },
+    { width: 56, indent: 16 },
+    { width: 70, indent: 0 },
+    { width: 38, indent: 0 },
+];
 ---
 
-<section class="enc" id="enc-section">
-    <div class="enc-pin">
+<Section size="page" class="enc" id="enc-section">
+    <div class="enc__grid">
+        <HaloPanel as="article" tone="green" class="enc__card">
+            <div class="enc__inner" data-reveal style="--reveal-i: 0">
+                <div class="enc__demo enc__demo--lock" aria-hidden="true">
+                    <span class="lock__ring lock__ring--outer"></span>
+                    <span class="lock__ring lock__ring--inner"></span>
+                    <span class="lock__lane"><span class="lock__packet">TLS</span></span>
+                    <span class="lock__lane lock__lane--late"><span class="lock__packet">TLS</span></span>
+                    <svg class="lock__glyph" viewBox="0 0 40 48"><path d="M10 21v-7a10 10 0 0 1 20 0v7" /><rect x="5" y="21" width="30" height="23" rx="5" /><circle cx="20" cy="31" r="2.5" /><path d="M20 33.5v4" /></svg>
+                </div>
+                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p1Title')}</span></Heading>
+                <Text class="enc__desc"><span data-fit="block">{t('encryption.p1Desc')}</span></Text>
+            </div>
+        </HaloPanel>
 
-        <canvas class="enc-canvas" id="enc-canvas"></canvas>
-
-        <div class="enc-node-lines" aria-hidden="true">
-            <span class="enc-node-line" id="enc-line-0">
-                <span class="enc-node-line__node"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
-            </span>
-            <span class="enc-node-line" id="enc-line-1">
-                <span class="enc-node-line__node"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
-            </span>
-            <span class="enc-node-line" id="enc-line-2">
-                <span class="enc-node-line__node"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
-            </span>
-        </div>
-
-        <div class="enc-overlay" id="enc-ov-0">
-            <Eyebrow tone="go" class="enc-eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
-            <Heading level={2} class="enc-h2"><span data-fit="block">{t('encryption.p1Title')}</span></Heading>
-            <Text class="enc-p"><span data-fit="block">{t('encryption.p1Desc')}</span></Text>
-        </div>
-
-        <div class="enc-overlay enc-overlay--right" id="enc-ov-1">
-            <Eyebrow tone="go" class="enc-eyebrow"><span data-fit="block">{t('encryption.p2Eyebrow')}</span></Eyebrow>
-            <Heading level={2} class="enc-h2"><span data-fit="block">{t('encryption.p2Title')}</span></Heading>
-            <Text class="enc-p"><span data-fit="block">{t('encryption.p2Desc')}</span></Text>
-        </div>
-
-        <div class="enc-overlay" id="enc-ov-2">
-            <Eyebrow tone="go" class="enc-eyebrow"><span data-fit="block">{t('encryption.p3Eyebrow')}</span></Eyebrow>
-            <Heading level={2} class="enc-h2"><span data-fit="block">{t('encryption.p3Title')}</span></Heading>
-            <Text class="enc-p"><span data-fit="block">{t('encryption.p3Desc')}</span></Text>
-        </div>
-
+        <HaloPanel
+            tone="gold"
+            href={SITE.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="enc__card enc__card--link"
+            data-cursor="quiet"
+        >
+            <div class="enc__inner" data-reveal style="--reveal-i: 1">
+                <div class="enc__demo enc__demo--code" aria-hidden="true">
+                    <div class="code__win">
+                        <span class="code__bar">
+                            <span class="code__dots"><i></i><i></i><i></i></span>
+                            <span class="code__go" data-cursor>↗</span>
+                        </span>
+                        {CODE_LINES.map((line) => (
+                            <span class="code__line" style={`--w: ${line.width}%; --indent: ${line.indent}px`}></span>
+                        ))}
+                        <span class="code__caret"></span>
+                    </div>
+                </div>
+                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p3Eyebrow')}</span></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p3Title')}</span></Heading>
+                <Text class="enc__desc"><span data-fit="block">{t('encryption.p3Desc')}</span></Text>
+            </div>
+        </HaloPanel>
     </div>
-</section>
+</Section>
 
 <style>
     .enc {
-        height: 420vh;
-        width: 100%;
-        max-width: none;
-        padding: 0;
-        margin: 0;
         position: relative;
+        max-width: var(--bb-content-max);
+        margin: 0 auto;
+        padding-inline: 24px;
+        z-index: 3;
     }
 
-    .enc-pin {
-        position: sticky;
-        top: 0;
-        height: 100vh;
-        width: 100%;
-        overflow: hidden;
-        z-index: 4;
+    .enc__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
     }
 
-    .enc-canvas {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        display: block;
-        opacity: var(--hero-p, 0);
-        pointer-events: none;
-        will-change: opacity;
+    .enc__card {
+        display: flex;
+        min-width: 0;
+        padding: 28px;
     }
 
-    .enc-node-lines {
-        position: absolute;
-        inset: 0;
-        z-index: 9;
-        pointer-events: none;
-        overflow: hidden;
+    .enc__inner {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-width: 0;
     }
 
-    .enc-node-line {
-        position: absolute;
-        inset: 0;
-        opacity: var(--line-alpha, 0);
-        transition: opacity 120ms linear;
-        --node-x: 0px;
-        --node-y: 0px;
-        --elbow-x: 0px;
-        --elbow-y: 0px;
-        --diag-len: 0;
-        --diag-angle: 0rad;
-        --diag-progress: 0;
-        --flat-len: 0;
-        --flat-angle: 0rad;
-        --flat-progress: 0;
-        --node-scale: 0;
-    }
-
-    .enc-node-line__segment {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100px;
-        height: 1px;
-        transform-origin: left center;
-        background: linear-gradient(90deg, rgba(var(--bb-mint-glow-rgb), 0), rgba(var(--bb-white-rgb), 0.92));
-        box-shadow:
-            0 0 8px rgba(var(--bb-mint-glow-rgb), 0.42),
-            0 0 18px rgba(var(--bb-shadow-rgb), 0.65);
-        will-change: transform;
-    }
-
-    .enc-node-line__segment--diag {
-        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(calc(var(--diag-len) / 100 * var(--diag-progress)));
-    }
-
-    .enc-node-line__segment--flat {
-        background: linear-gradient(90deg, rgba(var(--bb-white-rgb), 0.92), rgba(var(--bb-white-rgb), 0.68));
-        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(calc(var(--flat-len) / 100 * var(--flat-progress)));
-    }
-
-    .enc-node-line__node {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 9px;
-        height: 9px;
-        border: 1px solid rgba(var(--bb-white-rgb), 0.82);
-        border-radius: var(--bb-radius-pill);
-        background: rgba(var(--bb-mint-glow-rgb), 0.42);
-        box-shadow:
-            0 0 10px rgba(var(--bb-mint-glow-rgb), 0.85),
-            0 0 22px rgba(var(--bb-green-glow-rgb), 0.55);
-        transform: translate3d(calc(var(--node-x) - 4.5px), calc(var(--node-y) - 4.5px), 0) scale(var(--node-scale));
-    }
-
-    .enc-overlay {
-        --enc-eyebrow-lines: 1;
-        --enc-title-lines: 2;
-        --enc-desc-lines: 3;
-        position: absolute;
-        top: 50%;
-        left: 6vw;
-        transform: translateY(-50%);
-        width: min(480px, calc(100vw - 12vw));
-        opacity: 0;
-        pointer-events: none;
-        z-index: 10;
-        transform-origin: left center;
-        will-change: opacity, transform, filter;
-        padding: 28px 32px;
-    }
-
-    .enc-overlay--right {
-        left: auto;
-        right: 6vw;
-        text-align: right;
-        transform-origin: right center;
-    }
-
-    .enc-overlay :where(h2, p, span) {
+    .enc__inner :where(h3, p, span) {
         overflow-wrap: normal;
         word-break: normal;
         hyphens: none;
     }
 
-    .enc-eyebrow {
+    .enc__demo {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: 170px;
+        margin-bottom: 24px;
+        overflow: hidden;
+        font-family: var(--bb-font-mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+    }
+
+    .enc__eyebrow {
         display: block;
-        height: calc(var(--enc-eyebrow-lines) * 1lh);
-        margin-bottom: 16px;
-        text-shadow:
-            0 0 16px rgba(var(--bb-green-glow-rgb), 0.55),
-            0 2px 12px rgba(var(--bb-shadow-rgb), 0.95);
+        height: calc(var(--enc-eyebrow-lines, 1) * 1lh);
+        margin-bottom: 10px;
     }
 
-    #enc-ov-0,
-    #enc-ov-1 {
-        --enc-title-lines: 3;
+    .enc__title {
+        height: calc(var(--enc-title-lines, 1) * 1lh);
+        margin-bottom: 10px;
     }
 
-    .enc-h2 {
+    .enc__desc {
+        height: calc(var(--enc-desc-lines, 3) * 1lh);
+        color: var(--bb-muted-soft);
+    }
+
+    .lock__ring {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        border-radius: 50%;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.35);
+    }
+
+    .lock__ring--outer {
+        width: 132px;
+        height: 132px;
+        border-style: dashed;
+        animation: enc-spin 24s linear infinite;
+    }
+
+    .lock__ring--inner {
+        width: 92px;
+        height: 92px;
+        border-color: rgba(var(--bb-tan-rgb), 0.3);
+        animation: enc-breathe 4s ease-in-out infinite;
+    }
+
+    .lock__lane {
+        position: absolute;
+        top: calc(50% - 10px);
+        left: 0;
+        width: 100%;
+        animation: enc-travel 4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+    }
+
+    .lock__lane--late {
+        animation-delay: -2s;
+    }
+
+    .lock__packet {
+        display: inline-block;
+        padding: 2px 6px;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.45);
+        border-radius: var(--bb-radius-xs);
+        background: var(--bb-bg-0);
+        color: var(--bb-green-glow);
+        translate: -100% 0;
+    }
+
+    .lock__glyph {
+        position: relative;
+        width: 34px;
+        fill: none;
+        stroke: var(--bb-mint);
+        stroke-width: 1.6;
+        filter: drop-shadow(0 0 10px rgba(var(--bb-green-glow-rgb), 0.6));
+    }
+
+    .lock__glyph circle {
+        fill: var(--bb-mint);
+        stroke: none;
+    }
+
+    .code__win {
+        position: relative;
+        display: grid;
+        align-content: start;
+        gap: 9px;
+        width: 100%;
+        height: 100%;
+        padding: 14px 16px;
+        overflow: hidden;
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        background: rgba(var(--bb-white-rgb), 0.02);
+    }
+
+    .code__bar {
         display: flex;
-        flex-direction: column;
-        justify-content: safe flex-end;
-        font-size: clamp(1.7rem, 3.6vw, 3rem);
-        font-weight: 800;
-        letter-spacing: var(--bb-tracking-tight);
-        height: calc(var(--enc-title-lines) * 1lh);
-        margin-bottom: 46px;
-        text-shadow:
-            0 0 22px rgba(var(--bb-white-rgb), 0.24),
-            0 3px 18px rgba(var(--bb-shadow-rgb), 0.95),
-            0 0 34px rgba(var(--bb-green-glow-rgb), 0.28);
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
     }
 
-    .enc-p {
-        height: calc(var(--enc-desc-lines) * 1lh);
-        opacity: 0.9;
-        text-shadow:
-            0 2px 10px rgba(var(--bb-shadow-rgb), 0.95),
-            0 0 18px rgba(var(--bb-green-glow-rgb), 0.18);
+    .code__dots {
+        display: flex;
+        gap: 5px;
     }
 
-    @media (max-width: 900px) {
-        .enc-overlay,
-        .enc-overlay--right {
-            left: 5vw;
-            right: 5vw;
-            width: calc(100vw - 10vw);
-            text-align: left;
-            padding: 20px 22px;
-        }
+    .code__go {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        font-size: var(--bb-text-sm);
+        color: var(--bb-muted);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-pill);
+        transition:
+            color var(--bb-dur-fast) ease,
+            border-color var(--bb-dur-fast) ease,
+            background-color var(--bb-dur-fast) ease;
+    }
 
-        .enc-eyebrow {
-            margin-bottom: 12px;
-        }
+    .enc__card--link:hover .code__go {
+        color: var(--bb-black);
+        background: var(--bb-white);
+        border-color: var(--bb-white);
+    }
 
-        #enc-ov-0,
-        #enc-ov-1 {
-            --enc-title-lines: 2;
-        }
+    .enc__card--link:focus-visible .code__go {
+        border-color: var(--bb-green-glow);
+    }
 
-        .enc-h2 {
-            margin-bottom: 42px;
+    .code__dots i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(var(--bb-white-rgb), 0.14);
+    }
+
+    .code__line {
+        width: var(--w);
+        height: 5px;
+        margin-left: var(--indent);
+        border-radius: 3px;
+        background: rgba(var(--bb-tan-rgb), 0.28);
+    }
+
+    .code__line:nth-child(3n) {
+        background: rgba(var(--bb-green-glow-rgb), 0.35);
+    }
+
+    .code__caret {
+        width: 7px;
+        height: 12px;
+        border-radius: 1px;
+        background: var(--bb-tan);
+        animation: enc-blink 1.1s steps(1) infinite;
+    }
+
+    @keyframes enc-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes enc-breathe {
+        50% { transform: scale(1.06); opacity: 0.7; }
+    }
+
+    @keyframes enc-travel {
+        0% { transform: translateX(0); opacity: 0; }
+        15% { opacity: 1; }
+        42%, 58% { opacity: 0; }
+        85% { opacity: 1; }
+        100% { transform: translateX(calc(100% + 48px)); opacity: 0; }
+    }
+
+    @keyframes enc-blink {
+        50% { opacity: 0; }
+    }
+
+    @media (min-width: 1024px) {
+        .enc__grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 
-    @media (max-width: 480px) {
-        #enc-ov-0 {
+    @media (max-width: 640px) {
+        .enc { padding-inline: 20px; }
+        .enc__card { padding: 22px; }
+        .enc__inner {
             --enc-eyebrow-lines: 2;
-            --enc-title-lines: 3;
+            --enc-title-lines: 2;
+            --enc-desc-lines: 5;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .lock__ring,
+        .lock__lane,
+        .code__caret {
+            animation: none;
         }
 
-        #enc-ov-2 {
-            --enc-desc-lines: 4;
+        .code__go {
+            transition: none;
+        }
+
+        .lock__lane {
+            opacity: 0;
         }
     }
 </style>
-
-<script>
-    import { mediaQuery, reduceMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
-
-    import lenis from '../../script/scroll.js';
-    import {
-        buildEncryptionGeometryData,
-        FLOW_CURVE_SAMPLES,
-        N_NODES,
-    } from '../../script/encryption-geometry.js';
-
-    type Group = import('three').Group;
-    type Vector3 = import('three').Vector3;
-    type Mesh = import('three').Mesh;
-    type LineSegments = import('three').LineSegments;
-    type Points = import('three').Points;
-    type EncryptionGeometryData = ReturnType<typeof buildEncryptionGeometryData>;
-    type VirtualScrollData = { deltaX: number; deltaY: number; event: WheelEvent | TouchEvent };
-    type EncryptionScrollAssist = (data: VirtualScrollData) => boolean | void;
-    type EncryptionCleanup = (event?: Event) => void;
-    type WindowWithEncryptionAssist = Window & {
-        __encryptionScrollAssist?: EncryptionScrollAssist;
-        __itsbagelbotPreload?: {
-            bootComplete?: boolean;
-            preloadEncryption?: () => Promise<void>;
-            encryptionData?: EncryptionGeometryData;
-            activeEncryption?: { id: number; cleanup: EncryptionCleanup; section?: HTMLElement };
-            nextEncryptionInstanceId?: number;
-        };
-    };
-    type LenisController = {
-        scroll?: number;
-        targetScroll?: number;
-        velocity?: number;
-        isScrolling?: boolean | string;
-        on?: (event: 'virtual-scroll', callback: (data: VirtualScrollData) => void) => void;
-        off?: (event: 'virtual-scroll', callback: (data: VirtualScrollData) => void) => void;
-        scrollTo?: (target: number, options?: {
-            duration?: number;
-            easing?: (time: number) => number;
-            immediate?: boolean;
-            lock?: boolean;
-            userData?: Record<string, unknown>;
-            onComplete?: () => void;
-        }) => void;
-    };
-
-    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-    const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-
-    function ss(e0: number, e1: number, x: number) {
-        const t = clamp01((x - e0) / (e1 - e0));
-        return t * t * (3 - 2 * t);
-    }
-
-    const GREEN = 0x62a593;
-    const LIGHT = 0xcde5dc;
-    const TAN = 0xd8bf91;
-    const WHITE = 0xf4f4f5;
-
-    function setupEncryption() {
-    const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement | null;
-    const section = document.getElementById('enc-section') as HTMLElement | null;
-    if (!canvas || !section) return;
-
-    const pin = section.querySelector('.enc-pin') as HTMLElement | null;
-    if (!pin) return;
-
-    const BEAT_COUNT = 3;
-    const BEAT_SPAN = 1 / BEAT_COUNT;
-    const beatIndices = Array.from({length: BEAT_COUNT}, (_, i) => i);
-
-    const overlays = beatIndices.map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
-    const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
-    const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
-    const connectors = beatIndices.map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
-    const headingLabels = headings.map(el => el?.querySelector<HTMLElement>('[data-fit]') ?? el);
-    const headingText = headingLabels.map(el => el?.textContent ?? '');
-    const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
-    const TITLE_SCRAMBLE_SPAN = 0.115;
-    const TEXT_ENTER_SPAN = 0.06;
-    const TEXT_EXIT_SPAN = 0.045;
-    const SNAP_POINTS = beatIndices.map(i => (i + 0.5) * BEAT_SPAN);
-    const SNAP_PROXIMITY = 0.09;
-    const SNAP_ACTIVE_MIN = 0.045;
-    const SNAP_ACTIVE_MAX = 0.94;
-    const SNAP_DEBOUNCE_MS = 150;
-    const SNAP_SETTLE_DELAY_MS = 70;
-    const SNAP_SETTLE_ATTEMPTS = 10;
-    const SNAP_MIN_DISTANCE_PX = 3;
-    const NODE_SLOW_RADIUS = 0.09;
-    const NODE_SLOW_MIN_MULTIPLIER = 0.78;
-    const NODE_SLOW_MAX_DELTA_PROGRESS = 0.22;
-    const NODE_SLOW_SNAP_OVERSHOOT = SNAP_PROXIMITY * 0.75;
-    const NODE_SLOW_MIN_DELTA_PX = 24;
-    let destroyed = false;
-    let loadObserver: IntersectionObserver | null = null;
-    let initPromise: Promise<void> | null = null;
-    let cleanupScene: ((deferGpuDispose?: boolean) => void) | null = null;
-    const scrollController = lenis as LenisController;
-    const assistedWindow = window as WindowWithEncryptionAssist;
-    const preloadRegistry = (assistedWindow.__itsbagelbotPreload ??= {});
-    const previousActiveEncryption = preloadRegistry.activeEncryption;
-    if (previousActiveEncryption?.section === section) return;
-
-    const instanceId = (preloadRegistry.nextEncryptionInstanceId ?? 0) + 1;
-    preloadRegistry.nextEncryptionInstanceId = instanceId;
-    const POST_BOOT_INIT_DELAY_MS = 960;
-    const POST_BOOT_SCROLL_THRESHOLD = 36;
-    let preloadModulesPromise: Promise<[
-        typeof import('../../script/three-slim.js'),
-        typeof import('three/addons/postprocessing/RenderPass.js'),
-        typeof import('three/addons/postprocessing/UnrealBloomPass.js'),
-    ]> | null = null;
-    let pendingStart = false;
-    let preloadScheduled = false;
-    let bootCompleted =
-        preloadRegistry.bootComplete === true ||
-        document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
-        !document.getElementById('loader-wrapper');
-    let postBootStartTimer = 0;
-
-    function ownsActiveEncryption() {
-        return preloadRegistry.activeEncryption?.id === instanceId;
-    }
-
-    function isSectionNearViewport() {
-        const rect = section.getBoundingClientRect();
-        return rect.bottom >= -900 && rect.top <= window.innerHeight + 900;
-    }
-
-    function preloadEncryptionModules() {
-        if (!preloadModulesPromise) {
-            preloadModulesPromise = Promise.all([
-                import('../../script/three-slim.js'),
-                import('three/addons/postprocessing/RenderPass.js'),
-                import('three/addons/postprocessing/UnrealBloomPass.js'),
-            ]);
-        }
-
-        return preloadModulesPromise;
-    }
-
-    function preloadEncryptionScene() {
-        const fontReady = 'fonts' in document ? document.fonts.ready : Promise.resolve();
-        return Promise.allSettled([preloadEncryptionModules(), fontReady]).then(() => undefined);
-    }
-
-    preloadRegistry.preloadEncryption = preloadEncryptionScene;
-
-    function preloadEncryptionWhenIdle() {
-        if (destroyed) return;
-        void preloadEncryptionScene();
-    }
-
-    function schedulePreloadEncryption() {
-        const ready = bootCompleted || window.scrollY >= POST_BOOT_SCROLL_THRESHOLD;
-        if (preloadScheduled || destroyed || !ready) return;
-        preloadScheduled = true;
-        const idle =
-            typeof window.requestIdleCallback === 'function'
-                ? window.requestIdleCallback.bind(window)
-                : null;
-        if (idle) idle(preloadEncryptionWhenIdle, {timeout: POST_BOOT_INIT_DELAY_MS});
-        else window.setTimeout(preloadEncryptionWhenIdle, 0);
-    }
-
-    function encryptionScrollMetrics() {
-        const top = section.offsetTop;
-        const total = Math.max(1, section.offsetHeight - window.innerHeight);
-        return {top, total};
-    }
-
-    function encryptionTargetScrollY() {
-        const targetScroll = scrollController.targetScroll;
-        if (typeof targetScroll === 'number' && Number.isFinite(targetScroll)) return targetScroll;
-
-        const scroll = scrollController.scroll;
-        return typeof scroll === 'number' && Number.isFinite(scroll) ? scroll : window.scrollY;
-    }
-
-    function encryptionProgressFromScroll(scrollY: number) {
-        return clamp01(encryptionRawProgressFromScroll(scrollY));
-    }
-
-    function encryptionRawProgressFromScroll(scrollY: number) {
-        const {top, total} = encryptionScrollMetrics();
-        return (scrollY - top) / total;
-    }
-
-    function nearestTravelDistanceToNode(from: number, to: number) {
-        const low = Math.min(from, to);
-        const high = Math.max(from, to);
-        let distance = Number.POSITIVE_INFINITY;
-        let crossesNode = false;
-
-        for (const point of SNAP_POINTS) {
-            if (point >= low && point <= high) {
-                crossesNode = true;
-                distance = 0;
-                break;
-            }
-
-            distance = Math.min(distance, Math.abs(point - from), Math.abs(point - to));
-        }
-
-        return {crossesNode, distance};
-    }
-
-    function nextNodeInDirection(progress: number, direction: number) {
-        const currentNodeBuffer = SNAP_PROXIMITY * 0.35;
-
-        if (direction > 0) {
-            return SNAP_POINTS.find(point => point > progress + currentNodeBuffer) ?? null;
-        }
-
-        for (let i = SNAP_POINTS.length - 1; i >= 0; i--) {
-            const point = SNAP_POINTS[i];
-            if (point < progress - currentNodeBuffer) return point;
-        }
-
-        return null;
-    }
-
-    function dampEncryptionScroll(data: VirtualScrollData) {
-        const {deltaX, deltaY, event} = data;
-        if (event instanceof WheelEvent && event.ctrlKey) return true;
-        if (Math.abs(deltaY) < NODE_SLOW_MIN_DELTA_PX || Math.abs(deltaY) <= Math.abs(deltaX)) return true;
-
-        const {total} = encryptionScrollMetrics();
-        const targetScroll = encryptionTargetScrollY();
-        const from = encryptionRawProgressFromScroll(targetScroll);
-        const to = encryptionRawProgressFromScroll(targetScroll + deltaY);
-        if (Math.max(from, to) < SNAP_ACTIVE_MIN || Math.min(from, to) > SNAP_ACTIVE_MAX) return true;
-
-        const {crossesNode, distance} = nearestTravelDistanceToNode(from, to);
-        if (!crossesNode && distance > NODE_SLOW_RADIUS) return true;
-
-        const influence = crossesNode ? 1 : 1 - ss(0, NODE_SLOW_RADIUS, distance);
-        let adjustedDeltaY = deltaY * lerp(1, NODE_SLOW_MIN_MULTIPLIER, influence);
-
-        if (crossesNode) {
-            const nextNode = nextNodeInDirection(from, Math.sign(deltaY));
-            const maxProgressDelta = nextNode === null
-                ? NODE_SLOW_MAX_DELTA_PROGRESS
-                : Math.abs(nextNode - from) + NODE_SLOW_SNAP_OVERSHOOT;
-            const maxDelta = total * maxProgressDelta;
-            adjustedDeltaY = Math.sign(adjustedDeltaY) * Math.min(Math.abs(adjustedDeltaY), maxDelta);
-        }
-
-        data.deltaY = adjustedDeltaY;
-        return true;
-    }
-
-    assistedWindow.__encryptionScrollAssist = dampEncryptionScroll;
-
-    function scrambleTitle(text: string, progress: number, seed: number) {
-        const chars = Array.from(text);
-        const revealCount = Math.floor(chars.length * progress);
-        const tick = Math.floor(progress * 16);
-
-        return chars.map((char, i) => {
-            if (char === ' ' || /\W/.test(char)) return char;
-            if (i < revealCount) return char;
-
-            const n = (i * 19 + tick * 7 + seed * 13) % SCRAMBLE_CHARS.length;
-            return SCRAMBLE_CHARS[n];
-        }).join('');
-    }
-
-    async function initEncryption() {
-        const [
-            three,
-            {RenderPass},
-            {UnrealBloomPass},
-        ] = await preloadEncryptionModules();
-
-        if (destroyed || !ownsActiveEncryption() || !canvas.isConnected) return;
-
-        const {
-            WebGLRenderer, Scene, Group, PerspectiveCamera,
-            LineBasicMaterial, MeshBasicMaterial, PointsMaterial,
-            LineSegments, Mesh, Points,
-            IcosahedronGeometry, SphereGeometry, OctahedronGeometry,
-            TetrahedronGeometry, DodecahedronGeometry, BufferGeometry,
-            WireframeGeometry, EdgesGeometry,
-            Vector3, Vector2, BufferAttribute, Timer,
-            ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending, HalfFloatType
-        } = three;
-
-        const compactQuery = mediaQuery('(max-width: 900px)');
-        const isCompact = compactQuery.matches;
-        const maxPixelRatio = isCompact ? 1.25 : 1.5;
-        const MAX_DRAW_PIXELS = 3e6;
-        const pixelRatioFor = (width: number, height: number) => Math.min(
-            devicePixelRatio,
-            maxPixelRatio,
-            Math.max(0.75, Math.sqrt(MAX_DRAW_PIXELS / Math.max(1, width * height))),
-        );
-        const ringSegments = 72;
-
-        let geometryData = preloadRegistry.encryptionData;
-        if (!geometryData || geometryData.isCompact !== isCompact) {
-            geometryData = buildEncryptionGeometryData(three, {isCompact});
-            preloadRegistry.encryptionData = geometryData;
-        }
-
-        const renderer = new WebGLRenderer({
-            canvas,
-            antialias: false,
-            alpha: true,
-            powerPreference: 'high-performance',
-            outputBufferType: HalfFloatType,
-        });
-        renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(pixelRatioFor(canvas.clientWidth, canvas.clientHeight));
-        renderer.toneMapping = ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.0;
-        renderer.outputColorSpace = SRGBColorSpace;
-
-        const scene = new Scene();
-        const world = new Group();
-        scene.add(world);
-
-        const camera = new PerspectiveCamera(50, 1, 0.1, 100);
-
-        const matNodeGreen = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.9});
-        const matNodeTan = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.9});
-        const matCoreOuter = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.55});
-        const matCoreInner = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.85});
-        const matConnNode = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.32});
-        const matConnInter = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.22});
-        const matNodeCenter = new MeshBasicMaterial({color: LIGHT});
-
-        const coreGroup = new Group();
-        world.add(coreGroup);
-
-        const coreOuterSource = new IcosahedronGeometry(1.6, 1);
-        const coreOuter = new LineSegments(
-            new WireframeGeometry(coreOuterSource),
-            matCoreOuter,
-        );
-        coreGroup.add(coreOuter);
-
-        const coreInnerSource = new IcosahedronGeometry(0.8, 0);
-        const coreInner = new LineSegments(
-            new EdgesGeometry(coreInnerSource),
-            matCoreInner,
-        );
-        coreGroup.add(coreInner);
-
-        coreGroup.add(new Mesh(
-            new SphereGeometry(0.13, 12, 12),
-            new MeshBasicMaterial({color: LIGHT}),
-        ));
-
-        const NODE_GEOS = [
-            new OctahedronGeometry(0.30, 0),
-            new TetrahedronGeometry(0.32, 0),
-            new IcosahedronGeometry(0.28, 0),
-            new DodecahedronGeometry(0.28, 0),
-        ];
-        const NODE_WIRES = NODE_GEOS.map(g => new WireframeGeometry(g));
-        const NODE_DOT_GEO = new SphereGeometry(0.05, 6, 6);
-        const SOURCE_GEOS = [coreOuterSource, coreInnerSource, ...NODE_GEOS];
-
-        const nodes: { group: Group; pos: Vector3 }[] = [];
-        for (let i = 0; i < N_NODES; i++) {
-            const pos = new Vector3(
-                geometryData.nodePositions[i * 3],
-                geometryData.nodePositions[i * 3 + 1],
-                geometryData.nodePositions[i * 3 + 2],
-            );
-
-            const g = new Group();
-            g.position.copy(pos);
-
-            g.add(new LineSegments(
-                NODE_WIRES[i % NODE_WIRES.length],
-                i % 4 === 0 ? matNodeTan : matNodeGreen,
-            ));
-            g.add(new Mesh(NODE_DOT_GEO, matNodeCenter));
-
-            world.add(g);
-            nodes.push({group: g, pos});
-        }
-
-        const nodeConnGeo = new BufferGeometry();
-        nodeConnGeo.setAttribute('position', new BufferAttribute(geometryData.nodeConnectionPoints, 3));
-        world.add(new LineSegments(nodeConnGeo, matConnNode));
-
-        const interConnGeo = new BufferGeometry();
-        interConnGeo.setAttribute('position', new BufferAttribute(geometryData.interConnectionPoints, 3));
-        world.add(new LineSegments(interConnGeo, matConnInter));
-
-        const partCount = geometryData.flowCount;
-        const partSamples = geometryData.flowSamples;
-        const partSpeed = geometryData.flowSpeed;
-        const partT = new Float32Array(geometryData.flowT);
-
-        const partGeo = new BufferGeometry();
-        const partPos = new Float32Array(partCount * 3);
-        const partPositionAttr = new BufferAttribute(partPos, 3);
-        partGeo.setAttribute('position', partPositionAttr);
-        world.add(new Points(partGeo, new PointsMaterial({
-            color: LIGHT, size: 0.05, transparent: true, opacity: 0.95,
-            sizeAttenuation: true, depthWrite: false, blending: AdditiveBlending,
-        })));
-
-        const bgPos = new Float32Array(geometryData.bgPositions);
-        const bgVel = new Float32Array(geometryData.bgVelocities);
-        const bgGeo = new BufferGeometry();
-        const bgPositionAttr = new BufferAttribute(bgPos, 3);
-        bgGeo.setAttribute('position', bgPositionAttr);
-        scene.add(new Points(bgGeo, new PointsMaterial({
-            color: WHITE, size: 0.022, transparent: true, opacity: 0.35,
-            sizeAttenuation: true, depthWrite: false,
-        })));
-
-        const rings: LineSegments[] = [];
-        [2.5, 3.0, 3.5].forEach((r, i) => {
-            const pts: Vector3[] = [];
-            const seg = ringSegments;
-            for (let j = 0; j < seg; j++) {
-                const a1 = (j / seg) * Math.PI * 2;
-                const a2 = ((j + 1) / seg) * Math.PI * 2;
-                pts.push(new Vector3(Math.cos(a1) * r, 0, Math.sin(a1) * r));
-                pts.push(new Vector3(Math.cos(a2) * r, 0, Math.sin(a2) * r));
-            }
-            const ring = new LineSegments(
-                new BufferGeometry().setFromPoints(pts),
-                new LineBasicMaterial({color: i === 1 ? TAN : GREEN, transparent: true, opacity: 0.28}),
-            );
-            ring.rotation.x = i * 0.55;
-            ring.rotation.z = i * 0.7;
-            world.add(ring);
-            rings.push(ring);
-        });
-
-        const renderPass = new RenderPass(scene, camera);
-        const bloomPass = new UnrealBloomPass(new Vector2(256, 256), 0.7, 0.5, 0.15);
-        renderer.setEffects([renderPass, bloomPass]);
-
-        type KF = {
-            p: number;
-            pos: Vector3;
-            fov: number;
-            node?: number;
-        };
-
-        const FEATURE_NODES = [1, 5, 12];
-
-        const BEAT_WIDE_AT = 0.10;
-        const BEAT_NODE_IN_AT = 0.42;
-        const BEAT_NODE_OUT_AT = 0.80;
-
-        type BeatCamera = {
-            wide: {pos: Vector3; fov: number};
-            nodeIn: {pos: Vector3; fov: number};
-            nodeOut: {pos: Vector3; fov: number};
-        };
-
-        const BEAT_CAMERAS: BeatCamera[] = [
-            {
-                wide: {pos: new Vector3(2.5, 1.5, 6.0), fov: 52},
-                nodeIn: {pos: new Vector3(0.4, 0.5, 1.7), fov: 60},
-                nodeOut: {pos: new Vector3(-0.5, 0.7, 1.5), fov: 62},
-            },
-            {
-                wide: {pos: new Vector3(-3, 2.5, 6.5), fov: 50},
-                nodeIn: {pos: new Vector3(0.5, -0.4, 1.6), fov: 60},
-                nodeOut: {pos: new Vector3(0.7, 0.6, 1.7), fov: 62},
-            },
-            {
-                wide: {pos: new Vector3(5, 0, 8), fov: 48},
-                nodeIn: {pos: new Vector3(0.5, 0.4, 1.6), fov: 60},
-                nodeOut: {pos: new Vector3(-0.4, 0.5, 1.7), fov: 62},
-            },
-        ];
-
-        const CAM: KF[] = [
-            {p: 0.00, pos: new Vector3(0, 0, 8.5), fov: 50},
-            ...BEAT_CAMERAS.flatMap((beat, i): KF[] => {
-                const start = i * BEAT_SPAN;
-                const node = FEATURE_NODES[i];
-                return [
-                    {p: start + BEAT_WIDE_AT * BEAT_SPAN, pos: beat.wide.pos, fov: beat.wide.fov},
-                    {p: start + BEAT_NODE_IN_AT * BEAT_SPAN, pos: beat.nodeIn.pos, fov: beat.nodeIn.fov, node},
-                    {p: start + BEAT_NODE_OUT_AT * BEAT_SPAN, pos: beat.nodeOut.pos, fov: beat.nodeOut.fov, node},
-                ];
-            }),
-            {p: 1.00, pos: new Vector3(0, 0.5, 9), fov: 50},
-        ];
-
-        function resolveKF(kf: KF, outPos: Vector3, outLook: Vector3): number {
-            if (kf.node !== undefined) {
-                nodes[kf.node].group.getWorldPosition(outLook);
-                outPos.copy(outLook).add(kf.pos);
-            } else {
-                outPos.copy(kf.pos);
-                outLook.set(0, 0, 0);
-            }
-            return kf.fov;
-        }
-
-        const camPos = new Vector3().copy(CAM[0].pos);
-        const camLook = new Vector3();
-        let camFov = CAM[0].fov;
-        const _aPos = new Vector3();
-        const _aLook = new Vector3();
-        const _bPos = new Vector3();
-        const _bLook = new Vector3();
-        const _tgtPos = new Vector3();
-        const _tgtLook = new Vector3();
-        const _nodeWorld = new Vector3();
-        const _nodeNdc = new Vector3();
-        const nodeRotationXSpeed = nodes.map((_, i) => 0.25 + (i % 4) * 0.08);
-        const nodeRotationYSpeed = nodes.map((_, i) => 0.18 + (i % 3) * 0.10);
-        const ringBaseX = rings.map((_, i) => i * 0.55);
-        const ringBaseZ = rings.map((_, i) => i * 0.70);
-        const ringYSpeed = rings.map((_, i) => 0.10 * (i + 1));
-        let camIndex = 0;
-
-        type ConnectorLayout = {
-            textLeft: number;
-            textRight: number;
-            flatLen: number;
-            lineY: number;
-        };
-        let connectorLayouts: ConnectorLayout[] = [];
-        let canvasWidth = 0;
-        let canvasHeight = 0;
-        const connectorVisible = connectors.map(() => false);
-        const overlayStyleCache: { opacity: string; transform: string; filter: string }[] =
-            overlays.map(() => ({opacity: '', transform: '', filter: ''}));
-
-        function setOverlayStyle(i: number, el: HTMLElement, opacity: string, transform: string, filter: string) {
-            const previous = overlayStyleCache[i];
-            if (previous.opacity !== opacity) {
-                el.style.opacity = opacity;
-                previous.opacity = opacity;
-            }
-            if (previous.transform !== transform) {
-                el.style.transform = transform;
-                previous.transform = transform;
-            }
-            if (previous.filter !== filter) {
-                el.style.filter = filter;
-                previous.filter = filter;
-            }
-        }
-
-        function refreshConnectorLayout() {
-            const pinRect = pin.getBoundingClientRect();
-            const pad = compactQuery.matches ? 22 : 32;
-
-            connectorLayouts = overlays.map((overlay, i) => {
-                const heading = headings[i];
-                const paragraph = paragraphs[i];
-                if (!overlay || !heading || !paragraph || !pinRect.width) {
-                    return {textLeft: 0, textRight: 0, flatLen: 0, lineY: 0};
-                }
-
-                const previousTransform = overlay.style.transform;
-                overlay.style.transform = 'translateY(-50%)';
-                const overlayRect = overlay.getBoundingClientRect();
-                const headingRect = heading.getBoundingClientRect();
-                const paragraphRect = paragraph.getBoundingClientRect();
-                overlay.style.transform = previousTransform;
-
-                const textLeft = overlayRect.left - pinRect.left + pad;
-                const textRight = overlayRect.right - pinRect.left - pad;
-                return {
-                    textLeft,
-                    textRight,
-                    flatLen: Math.min(360, Math.max(140, textRight - textLeft)),
-                    lineY: (headingRect.bottom + paragraphRect.top) * 0.5 - pinRect.top,
-                };
-            });
-        }
-
-        function camTarget(p: number) {
-            const lastIndex = CAM.length - 1;
-            while (camIndex < lastIndex - 1 && p > CAM[camIndex + 1].p) {
-                camIndex++;
-            }
-            while (camIndex > 0 && p < CAM[camIndex].p) {
-                camIndex--;
-            }
-
-            if (p <= CAM[lastIndex].p && camIndex < lastIndex) {
-                const a = CAM[camIndex], b = CAM[camIndex + 1];
-                const t = ss(0, 1, (p - a.p) / (b.p - a.p));
-                const fa = resolveKF(a, _aPos, _aLook);
-                const fb = resolveKF(b, _bPos, _bLook);
-                _tgtPos.lerpVectors(_aPos, _bPos, t);
-                _tgtLook.lerpVectors(_aLook, _bLook, t);
-                return {fov: lerp(fa, fb, t)};
-            }
-            const last = CAM[lastIndex];
-            const fov = resolveKF(last, _tgtPos, _tgtLook);
-            return {fov};
-        }
-
-        function projectedNode(group: Group, width: number, height: number) {
-            group.getWorldPosition(_nodeWorld);
-            _nodeNdc.copy(_nodeWorld).project(camera);
-
-            return {
-                x: (_nodeNdc.x * 0.5 + 0.5) * width,
-                y: (-_nodeNdc.y * 0.5 + 0.5) * height,
-                z: _nodeNdc.z,
-            };
-        }
-
-        const connectorVarCache: Array<Record<string, string>> = connectors.map(() => ({}));
-        const headingCharLengths = headingText.map((text) => Array.from(text).length);
-        const SCRAMBLE_ORIGINAL = -1;
-        const headingScrambleState: number[] = headings.map(() => SCRAMBLE_ORIGINAL - 1);
-
-        function setConnectorVar(index: number, name: string, value: string) {
-            const cache = connectorVarCache[index];
-            if (cache[name] === value) return;
-            connectors[index].style.setProperty(name, value);
-            cache[name] = value;
-        }
-
-        function updateNodeConnector(i: number, alpha: number, progress: number, dy: number) {
-            const connector = connectors[i];
-            const layout = connectorLayouts[i];
-            if (!connector || !layout || alpha <= 0.01 || progress <= 0.001) {
-                if (connector && connectorVisible[i]) {
-                    setConnectorVar(i, '--line-alpha', '0');
-                    connectorVisible[i] = false;
-                }
-                return;
-            }
-
-            connectorVisible[i] = true;
-            const node = projectedNode(nodes[FEATURE_NODES[i]].group, canvasWidth, canvasHeight);
-            const lineY = layout.lineY + dy;
-            const textMid = (layout.textLeft + layout.textRight) * 0.5;
-            const fromRight = node.x > textMid;
-            const elbowX = fromRight ? layout.textRight : layout.textLeft;
-            const flatAngle = fromRight ? Math.PI : 0;
-            const dx = elbowX - node.x;
-            const dyLine = lineY - node.y;
-            const diagLen = Math.hypot(dx, dyLine);
-            const diagProgress = Math.min(1, progress * 1.65);
-            const flatProgress = Math.max(0, Math.min(1, (progress - 0.35) / 0.65));
-            const depthAlpha = node.z < -1 || node.z > 1 ? 0.25 : 1;
-
-            setConnectorVar(i, '--line-alpha', String(alpha * depthAlpha));
-            setConnectorVar(i, '--node-x', `${node.x}px`);
-            setConnectorVar(i, '--node-y', `${node.y}px`);
-            setConnectorVar(i, '--elbow-x', `${elbowX}px`);
-            setConnectorVar(i, '--elbow-y', `${lineY}px`);
-            setConnectorVar(i, '--diag-len', String(diagLen));
-            setConnectorVar(i, '--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
-            setConnectorVar(i, '--diag-progress', String(diagProgress));
-            setConnectorVar(i, '--flat-len', String(layout.flatLen));
-            setConnectorVar(i, '--flat-angle', `${flatAngle}rad`);
-            setConnectorVar(i, '--flat-progress', String(flatProgress));
-            setConnectorVar(i, '--node-scale', String(Math.min(1, progress * 2)));
-        }
-
-        let rawP = 0;
-        let curP = 0;
-        let snapTimer = 0;
-        let isSnapping = false;
-        let escapeDir = 0;
-        let escapeAccum = 0;
-
-        function scrollMetrics() {
-            const top = section.offsetTop;
-            const total = Math.max(1, section.offsetHeight - window.innerHeight);
-            return {top, total};
-        }
-
-        function currentScrollY() {
-            const scroll = scrollController.scroll;
-            return typeof scroll === 'number' && Number.isFinite(scroll) ? scroll : window.scrollY;
-        }
-
-        function progressFromScroll(scrollY: number) {
-            const {top, total} = scrollMetrics();
-            return clamp01((scrollY - top) / total);
-        }
-
-        function scrollFromProgress(progress: number) {
-            const {top, total} = scrollMetrics();
-            return top + total * clamp01(progress);
-        }
-
-        function nearestSnapPoint(progress: number) {
-            if (progress < SNAP_ACTIVE_MIN || progress > SNAP_ACTIVE_MAX) return null;
-
-            let target = SNAP_POINTS[0];
-            let distance = Math.abs(progress - target);
-            for (let i = 1; i < SNAP_POINTS.length; i++) {
-                const nextDistance = Math.abs(progress - SNAP_POINTS[i]);
-                if (nextDistance < distance) {
-                    target = SNAP_POINTS[i];
-                    distance = nextDistance;
-                }
-            }
-
-            return distance <= SNAP_PROXIMITY ? target : null;
-        }
-
-        function isScrollSettled() {
-            const scroll = currentScrollY();
-            const targetScroll = scrollController.targetScroll;
-            const target = typeof targetScroll === 'number' && Number.isFinite(targetScroll) ? targetScroll : scroll;
-            const velocity = Math.abs(scrollController.velocity ?? 0);
-
-            return Math.abs(target - scroll) < 1.5 || (scrollController.isScrolling === false && velocity < 0.35);
-        }
-
-        function finishSnap() {
-            isSnapping = false;
-            escapeDir = 0;
-            escapeAccum = 0;
-            rawP = progressFromScroll(currentScrollY());
-        }
-
-        function runSnap(attempt = 0) {
-            if (destroyed || isSnapping) return;
-
-            const scroll = currentScrollY();
-            const progress = progressFromScroll(scroll);
-            const snapProgress = nearestSnapPoint(progress);
-            if (snapProgress === null) return;
-
-            const {total: escTotal} = scrollMetrics();
-            const movedPast = Math.sign(progress - snapProgress);
-            if (escapeDir !== 0 && movedPast === escapeDir && escapeAccum > escTotal * SNAP_PROXIMITY) {
-                return;
-            }
-
-            if (!isScrollSettled() && attempt < SNAP_SETTLE_ATTEMPTS) {
-                snapTimer = window.setTimeout(() => runSnap(attempt + 1), SNAP_SETTLE_DELAY_MS);
-                return;
-            }
-
-            const snapScroll = scrollFromProgress(snapProgress);
-            if (Math.abs(snapScroll - scroll) < SNAP_MIN_DISTANCE_PX) return;
-
-            isSnapping = true;
-            if (typeof scrollController.scrollTo === 'function') {
-                scrollController.scrollTo(snapScroll, {
-                    duration: reducedMotion.matches ? 0.01 : 0.68,
-                    easing: (t) => t * t * (3 - 2 * t),
-                    lock: false,
-                    userData: {initiator: 'encryption-aim-assist'},
-                    onComplete: finishSnap,
-                });
-            } else {
-                window.scrollTo({
-                    top: snapScroll,
-                    behavior: reducedMotion.matches ? 'auto' : 'smooth',
-                });
-                snapTimer = window.setTimeout(finishSnap, reducedMotion.matches ? 0 : 720);
-            }
-        }
-
-        function queueSnap(delay = SNAP_DEBOUNCE_MS) {
-            if (destroyed) return;
-            isSnapping = false;
-            window.clearTimeout(snapTimer);
-            snapTimer = window.setTimeout(() => runSnap(), delay);
-        }
-
-        function onVirtualScroll({event}: VirtualScrollData) {
-            if (event instanceof WheelEvent && event.ctrlKey) return;
-            queueSnap(event.type.includes('touch') ? SNAP_DEBOUNCE_MS + 90 : SNAP_DEBOUNCE_MS);
-        }
-
-        function onWheel(event: WheelEvent) {
-            if (event.ctrlKey) return;
-            const dir = Math.sign(event.deltaY);
-            if (dir !== 0) {
-                if (dir === escapeDir) escapeAccum += Math.abs(event.deltaY);
-                else { escapeDir = dir; escapeAccum = Math.abs(event.deltaY); }
-            }
-            queueSnap();
-        }
-
-        function onTouchEnd() {
-            queueSnap(SNAP_DEBOUNCE_MS + 90);
-        }
-
-        let inView = true;
-        let revealed = window.scrollY > 0;
-        let drawing = true;
-
-        function syncDrawing() {
-            const next = inView && revealed;
-            if (next === drawing) return;
-            drawing = next;
-            if (drawing) resize();
-            else renderer.setSize(1, 1, false);
-        }
-
-        function onScroll() {
-            rawP = progressFromScroll(window.scrollY);
-            revealed = window.scrollY > 0;
-            syncDrawing();
-        }
-
-        scrollController.on?.('virtual-scroll', onVirtualScroll);
-        window.addEventListener('wheel', onWheel, {passive: true});
-        window.addEventListener('touchend', onTouchEnd, {passive: true});
-        window.addEventListener('scroll', onScroll, {passive: true});
-        onScroll();
-
-        const obs = new IntersectionObserver(
-            (entries) => {
-                inView = entries[0].isIntersecting;
-                syncDrawing();
-            },
-            {rootMargin: '120px'},
-        );
-        obs.observe(section);
-
-        let pageVisible = !document.hidden;
-        function onVisibilityChange() {
-            pageVisible = !document.hidden;
-        }
-        document.addEventListener('visibilitychange', onVisibilityChange);
-
-        const easeOver = (k: number, steps: number) => 1 - Math.pow(1 - k, steps);
-
-        function update(p: number, t: number, steps: number) {
-            const {fov} = camTarget(p);
-            const camEase = easeOver(0.06, steps);
-            camPos.lerp(_tgtPos, camEase);
-            camLook.lerp(_tgtLook, camEase);
-            camFov = lerp(camFov, fov, camEase);
-            camera.position.copy(camPos);
-            camera.position.x += Math.sin(t * 0.27) * 0.18;
-            camera.position.y += Math.cos(t * 0.31) * 0.13;
-            camera.lookAt(camLook);
-            if (Math.abs(camera.fov - camFov) > 0.02) {
-                camera.fov = camFov;
-                camera.updateProjectionMatrix();
-            }
-            camera.updateMatrixWorld();
-
-            world.rotation.y = t * 0.04 + p * 0.35;
-            world.rotation.x = Math.sin(t * 0.09) * 0.08;
-
-            coreOuter.rotation.x = t * 0.18;
-            coreOuter.rotation.y = t * 0.22;
-            coreInner.rotation.x = -t * 0.28;
-            coreInner.rotation.z = t * 0.20;
-            coreGroup.scale.setScalar(1 + Math.sin(t * 1.4) * 0.05);
-
-            for (let i = 0; i < nodes.length; i++) {
-                const g = nodes[i].group;
-                g.rotation.x = t * nodeRotationXSpeed[i];
-                g.rotation.y = t * nodeRotationYSpeed[i];
-            }
-
-            for (let i = 0; i < rings.length; i++) {
-                const r = rings[i];
-                r.rotation.y = t * ringYSpeed[i];
-                r.rotation.x = ringBaseX[i] + t * 0.06;
-                r.rotation.z = ringBaseZ[i] + t * 0.04;
-            }
-
-            let pi = 0;
-            for (let i = 0; i < partCount; i++) {
-                let u = partT[i] + partSpeed[i] * 0.016 * steps;
-                if (u >= 1) u -= 1;
-                partT[i] = u;
-                const samples = partSamples[i];
-                const samplePosition = u * FLOW_CURVE_SAMPLES;
-                const sampleIndex = samplePosition | 0;
-                const mix = samplePosition - sampleIndex;
-                const base = sampleIndex * 3;
-                const next = base + 3;
-                partPos[pi++] = samples[base] + (samples[next] - samples[base]) * mix;
-                partPos[pi++] = samples[base + 1] + (samples[next + 1] - samples[base + 1]) * mix;
-                partPos[pi++] = samples[base + 2] + (samples[next + 2] - samples[base + 2]) * mix;
-            }
-            partPositionAttr.needsUpdate = true;
-
-            const drift = steps / 2;
-            for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
-                const x = bgPos[i3] + bgVel[i3] * drift;
-                const y = bgPos[i3 + 1] + bgVel[i3 + 1] * drift;
-                const z = bgPos[i3 + 2] + bgVel[i3 + 2] * drift;
-                bgPos[i3] = x;
-                bgPos[i3 + 1] = y;
-                bgPos[i3 + 2] = z;
-                if (x > 14 || x < -14) bgVel[i3] *= -1;
-                if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
-                if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
-            }
-            bgPositionAttr.needsUpdate = true;
-
-            for (let i = 0; i < overlays.length; i++) {
-                const el = overlays[i];
-                if (!el) continue;
-                const start = i * BEAT_SPAN;
-                const end = start + BEAT_SPAN;
-                const fadeIn = ss(start, start + TEXT_ENTER_SPAN, p);
-                const isLastBeat = i === overlays.length - 1;
-                const exitProgress = isLastBeat ? 0 : ss(end - TEXT_EXIT_SPAN, end + 0.012, p);
-                const fadeOut = 1 - exitProgress;
-                const alpha = fadeIn * fadeOut;
-                const dy = (1 - fadeIn) * 18 - exitProgress * 26;
-                const scale = 1 - exitProgress * 0.025;
-                const blur = exitProgress * 5;
-                const lineProgress = Math.min(fadeIn, ss(start + 0.015, start + 0.11, p));
-                const titleProgress = ss(start, start + TITLE_SCRAMBLE_SPAN, p);
-                setOverlayStyle(
-                    i,
-                    el,
-                    String(alpha),
-                    `translateY(calc(-50% + ${dy}px)) scale(${scale})`,
-                    blur > 0.01 ? `blur(${blur}px)` : '',
-                );
-                updateNodeConnector(i, alpha, lineProgress, dy);
-
-                const heading = headingLabels[i];
-                const original = headingText[i];
-                if (!heading) continue;
-
-                if (alpha > 0.01 && titleProgress < 1) {
-                    const revealCount = Math.floor(headingCharLengths[i] * titleProgress);
-                    const tick = Math.floor(titleProgress * 16);
-                    const state = revealCount * 32 + tick;
-                    if (state !== headingScrambleState[i]) {
-                        heading.textContent = scrambleTitle(original, titleProgress, i);
-                        headingScrambleState[i] = state;
-                    }
-                } else if (headingScrambleState[i] !== SCRAMBLE_ORIGINAL) {
-                    heading.textContent = original;
-                    headingScrambleState[i] = SCRAMBLE_ORIGINAL;
-                }
-            }
-        }
-
-        function resize() {
-            const w = canvas.clientWidth;
-            const h = canvas.clientHeight;
-            if (!w || !h) return;
-            canvasWidth = w;
-            canvasHeight = h;
-            camera.aspect = w / h;
-            camera.updateProjectionMatrix();
-            refreshConnectorLayout();
-            if (!drawing) return;
-            renderer.setPixelRatio(pixelRatioFor(w, h));
-            renderer.setSize(w, h, false);
-        }
-
-        let disposed = false;
-        let gpuDisposed = false;
-        let disposeFallbackTimer = 0;
-        let removeAfterSwapDispose: (() => void) | null = null;
-
-        window.addEventListener('resize', resize);
-        compactQuery.addEventListener('change', resize);
-        resize();
-        document.fonts?.ready
-            .then(() => { if (!disposed) refreshConnectorLayout(); })
-            .catch(() => {});
-
-        const timer = new Timer();
-        timer.reset();
-
-        function disposeGpu() {
-            if (gpuDisposed) return;
-            gpuDisposed = true;
-            window.clearTimeout(disposeFallbackTimer);
-            removeAfterSwapDispose?.();
-            removeAfterSwapDispose = null;
-
-            renderer.setEffects([]);
-            renderPass.dispose();
-            bloomPass.dispose();
-
-            const disposedGeometries = new Set<unknown>();
-            const disposedMaterials = new Set<unknown>();
-
-            scene.traverse((object) => {
-                const item = object as Mesh | LineSegments | Points;
-                const geometry = item.geometry as { dispose?: () => void } | undefined;
-                if (geometry && !disposedGeometries.has(geometry)) {
-                    geometry.dispose?.();
-                    disposedGeometries.add(geometry);
-                }
-
-                const material = item.material;
-                const materials = Array.isArray(material) ? material : [material];
-                materials.forEach((mat) => {
-                    const disposable = mat as { dispose?: () => void } | undefined;
-                    if (disposable && !disposedMaterials.has(disposable)) {
-                        disposable.dispose?.();
-                        disposedMaterials.add(disposable);
-                    }
-                });
-            });
-
-            SOURCE_GEOS.forEach((geometry) => {
-                if (disposedGeometries.has(geometry)) return;
-                geometry.dispose();
-                disposedGeometries.add(geometry);
-            });
-
-            renderer.dispose();
-            renderer.forceContextLoss();
-            canvas.width = 0;
-            canvas.height = 0;
-        }
-
-        function scheduleGpuDisposeAfterSwap() {
-            const disposeAfterSwap = () => {
-                removeAfterSwapDispose = null;
-                requestAnimationFrame(disposeGpu);
-            };
-
-            document.addEventListener('astro:after-swap', disposeAfterSwap, {once: true});
-            removeAfterSwapDispose = () => document.removeEventListener('astro:after-swap', disposeAfterSwap);
-            disposeFallbackTimer = window.setTimeout(disposeGpu, 1400);
-        }
-
-        cleanupScene = (deferGpuDispose = false) => {
-            if (disposed) {
-                if (!deferGpuDispose) disposeGpu();
-                return;
-            }
-            disposed = true;
-
-            window.clearTimeout(snapTimer);
-            scrollController.off?.('virtual-scroll', onVirtualScroll);
-            window.removeEventListener('wheel', onWheel);
-            window.removeEventListener('touchend', onTouchEnd);
-            renderer.setAnimationLoop(null);
-            window.removeEventListener('scroll', onScroll);
-            window.removeEventListener('resize', resize);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-            compactQuery.removeEventListener('change', resize);
-            obs.disconnect();
-            timer.dispose();
-
-            if (deferGpuDispose) scheduleGpuDisposeAfterSwap();
-            else disposeGpu();
-        };
-
-        const TUNED_FRAME_MS = 1000 / 60;
-        // Skip whole refreshes only, locked while drawing: a cap that is not a
-        // divisor of the refresh rate (48 fps on 60 or 200 Hz) alternates gap
-        // lengths and judders. floor(Hz / 44) lands every rate at 45-75 fps.
-        const strideFor = (refreshMs: number) => Math.max(1, Math.floor(1000 / refreshMs / 44));
-        let refreshMs = TUNED_FRAME_MS;
-        let lastTick = 0;
-        let tickCount = 0;
-        let stride = 0;
-        let lastRender = 0;
-
-        renderer.setAnimationLoop((time) => {
-            if (disposed) return;
-            timer.update(time);
-            const tick = time - lastTick;
-            lastTick = time;
-            if (tick > 2 && tick < 50) refreshMs += (tick - refreshMs) * 0.05;
-            if (!drawing || !pageVisible) {
-                stride = 0;
-                return;
-            }
-            if (stride === 0) stride = strideFor(refreshMs);
-            if (++tickCount % stride !== 0) return;
-            const steps = Math.min(time - lastRender, 100) / TUNED_FRAME_MS;
-            lastRender = time;
-            curP += (rawP - curP) * easeOver(0.06, steps);
-            update(curP, timer.getElapsed(), steps);
-            renderer.render(scene, camera);
-        });
-    }
-
-    function startEncryption() {
-        if (destroyed || !ownsActiveEncryption() || initPromise) return;
-        initPromise = initEncryption().catch((error: unknown) => {
-            console.error('Encryption scene failed to load', error);
-        });
-    }
-
-    function clearPostBootTimer() {
-        if (!postBootStartTimer) return;
-        window.clearTimeout(postBootStartTimer);
-        postBootStartTimer = 0;
-    }
-
-    function maybeStartAfterBoot() {
-        if (destroyed || !ownsActiveEncryption() || !pendingStart || !bootCompleted) return;
-
-        if (window.scrollY >= POST_BOOT_SCROLL_THRESHOLD) {
-            clearPostBootTimer();
-            startEncryption();
-            return;
-        }
-
-        if (postBootStartTimer) return;
-        postBootStartTimer = window.setTimeout(() => {
-            postBootStartTimer = 0;
-            startEncryption();
-        }, POST_BOOT_INIT_DELAY_MS);
-    }
-
-    function requestEncryptionStart() {
-        if (destroyed || !ownsActiveEncryption()) return;
-        pendingStart = true;
-        schedulePreloadEncryption();
-        maybeStartAfterBoot();
-    }
-
-    function onBootLoaderComplete() {
-        bootCompleted = true;
-        preloadRegistry.bootComplete = true;
-        schedulePreloadEncryption();
-        maybeStartAfterBoot();
-    }
-
-    function onBootScroll() {
-        if (window.scrollY < POST_BOOT_SCROLL_THRESHOLD) return;
-        if (!pendingStart && isSectionNearViewport()) {
-            requestEncryptionStart();
-            return;
-        }
-        schedulePreloadEncryption();
-        maybeStartAfterBoot();
-    }
-
-    function cleanup(event?: Event) {
-        if (destroyed) return;
-        destroyed = true;
-        clearPostBootTimer();
-        loadObserver?.disconnect();
-        loadObserver = null;
-        if (assistedWindow.__encryptionScrollAssist === dampEncryptionScroll) {
-            delete assistedWindow.__encryptionScrollAssist;
-        }
-        if (preloadRegistry.preloadEncryption === preloadEncryptionScene) {
-            delete preloadRegistry.preloadEncryption;
-        }
-        if (preloadRegistry.activeEncryption?.id === instanceId) {
-            delete preloadRegistry.activeEncryption;
-        }
-        cleanupScene?.(event?.type === 'astro:before-swap');
-        cleanupScene = null;
-        document.removeEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
-        window.removeEventListener('scroll', onBootScroll);
-        document.removeEventListener('astro:before-swap', cleanup);
-        window.removeEventListener('pagehide', cleanup);
-    }
-
-    previousActiveEncryption?.cleanup(new Event('itsbagelbot:replace'));
-    preloadRegistry.activeEncryption = {id: instanceId, cleanup, section};
-
-    loadObserver = new IntersectionObserver(
-        ([entry]) => {
-            if (!entry.isIntersecting || !ownsActiveEncryption()) return;
-            loadObserver?.disconnect();
-            loadObserver = null;
-            requestEncryptionStart();
-        },
-        {rootMargin: '900px 0px'},
-    );
-    loadObserver.observe(section);
-    document.addEventListener('itsbagelbot:loader-complete', onBootLoaderComplete);
-    window.addEventListener('scroll', onBootScroll, {passive: true});
-
-    if (bootCompleted) {
-        maybeStartAfterBoot();
-    }
-
-    requestAnimationFrame(() => {
-        if (!destroyed && ownsActiveEncryption() && isSectionNearViewport()) {
-            loadObserver?.disconnect();
-            loadObserver = null;
-            requestEncryptionStart();
-        }
-    });
-
-    document.addEventListener('astro:before-swap', cleanup, {once: true});
-    window.addEventListener('pagehide', cleanup, {once: true});
-    }
-
-    setupEncryption();
-    document.addEventListener('astro:page-load', setupEncryption);
-</script>
