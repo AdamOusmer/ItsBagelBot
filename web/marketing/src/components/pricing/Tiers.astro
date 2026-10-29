@@ -78,15 +78,16 @@ const enterpriseFeatures = [
                     </li>
                 ))}
             </ul>
-            <ButtonLink
-                variant="secondary"
-                block
-                class="tier__cta"
-                href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
-                target="_blank"
-                rel="noopener noreferrer"
-            ><span data-fit>{t('pricingTiers.chipIn')}</span></ButtonLink>
-            <Text size="xs" mono tone="muted" class="tier__tebex-note">{t('pricingTiers.tebexNote')}</Text>
+            <div class="tier__foot">
+                <ButtonLink
+                    variant="secondary"
+                    block
+                    href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                ><span data-fit>{t('pricingTiers.chipIn')}</span></ButtonLink>
+                <Text size="xs" mono tone="muted" class="tier__note">{t('pricingTiers.tebexNote')}</Text>
+            </div>
         </Card>
 
         <Card atmo hover class="tier--enterprise" data-reveal>
@@ -115,7 +116,10 @@ const enterpriseFeatures = [
                     </li>
                 ))}
             </ul>
-            <ButtonLink variant="secondary" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com"><span data-fit>{t('pricingTiers.contactSales')}</span></ButtonLink>
+            <div class="tier__foot">
+                <ButtonLink variant="secondary" block href="mailto:enterprise@itsbagelbot.com"><span data-fit>{t('pricingTiers.contactSales')}</span></ButtonLink>
+                <Text size="xs" mono tone="muted" class="tier__note tier__note--space" aria-hidden="true">&nbsp;</Text>
+            </div>
         </Card>
     </div>
 
@@ -127,6 +131,7 @@ const enterpriseFeatures = [
         --card-body-display: flex;
         --card-body-dir: column;
         --card-body-h: 100%;
+        --card-body-pad: var(--card-pad);
         padding-bottom: var(--bb-space-section);
         display: flex;
         flex-direction: column;
@@ -184,14 +189,17 @@ const enterpriseFeatures = [
             grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
             gap: 48px;
             align-items: center;
-            padding: 8px;
         }
     }
 
-    .tier__tebex-note {
-        text-align: center;
-        margin-top: 12px;
+    .tier__foot {
+        display: grid;
+        gap: 12px;
+        margin-top: auto;
     }
+
+    .tier__note { text-align: center; }
+    .tier__note--space { visibility: hidden; }
 
     .tier__badge {
         font-size: var(--bb-text-xs);
@@ -346,12 +354,9 @@ const enterpriseFeatures = [
         .tier-free__features { border-top: none; border-left: 1px solid var(--bb-border); padding: 0 0 0 40px; }
     }
 
-    .tier__cta {
-        margin-top: auto;
-    }
-
     .tiers__oath {
-        display: block;
+        display: grid;
+        place-items: center;
         font-size: var(--bb-text-xs);
         line-height: 1.45;
         text-align: center;
