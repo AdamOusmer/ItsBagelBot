@@ -77,8 +77,8 @@
   );
   const upNextName = $derived(upNext?.login ?? t('queuePage.nobodyYet'));
   const upNextDetail = $derived(upNext ? waitLabel(waits[0]) : t('queuePage.emptyTitle'));
-  const longName = $derived(data.channelName.length > 14);
-  const crowdNames = $derived(Array.from({ length: 6 }, (_, i) => `${data.login}-${i}`));
+  const titleSize = $derived(data.channelName.length > 16 ? 'long' : data.channelName.length > 9 ? 'mid' : '');
+  const crowdNames = $derived(Array.from({ length: 12 }, (_, i) => `${data.login}-${i}`));
   const friendPalettes = [
     { head: '#62a593', eye: '#111113' },
     { head: '#eadbbd', eye: '#111113' },
@@ -142,7 +142,7 @@
             <Tag tone={joinsOpen ? 'success' : 'inactive'} mark="solid" contain><span data-fit="">{statusText}</span></Tag>
           </div>
         </div>
-        <Heading level={1} class="stats-layout__title{longName ? ' q-title--long' : ''}">{data.channelName}</Heading>
+        <Heading level={1} class="stats-layout__title{titleSize ? ` q-title--${titleSize}` : ''}">{data.channelName}</Heading>
         <div class="q-note" data-fit-box>
           <Text size="sm" tone="muted"><span data-fit="block">{t('queuePage.tagline')}</span></Text>
         </div>
@@ -154,7 +154,7 @@
 
     {#snippet crowd()}
       {#each crowdNames as name, i (`${i}:${name}`)}
-        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} active gate /></span>
+        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} motionState="idle" active gate /></span>
       {/each}
     {/snippet}
 
@@ -228,18 +228,17 @@
     min-width: 0;
   }
 
-  .q-page :global(.stats-layout__heading) { flex: 1 1 0; }
+  .q-heading { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(100%, 60rem); }
+  .q-heading :global(.q-title--mid) { font-size: clamp(40px, 5.4vw, 68px); }
+  .q-heading :global(.q-title--long) { font-size: clamp(32px, 3.8vw, 48px); }
   @media (max-width: 650px) {
-    .q-page :global(.stats-layout__heading) { flex: none; width: 100%; }
-    .q-heading :global(.stats-layout__title) { font-size: clamp(28px, 9vw, 48px); }
+    .q-heading :global(.stats-layout__title) { font-size: clamp(30px, 10vw, 52px); }
   }
-  .q-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; width: min(100%, 36rem); }
-  .q-heading :global(.q-title--long) { font-size: clamp(32px, 4.4vw, 48px); }
 
-  .q-tags { display: flex; flex-wrap: wrap; gap: var(--bb-space-2); }
-  .q-tag { display: flex; width: 11rem; min-width: 0; }
+  .q-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--bb-space-2); }
+  .q-tag { display: flex; justify-content: center; width: 11rem; min-width: 0; }
 
-  .q-note { width: 100%; height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
+  .q-note { width: min(100%, 36rem); height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
   @media (max-width: 650px) {
     .q-note { height: calc(4 * 1lh); }
   }
