@@ -15,5 +15,10 @@
   "faqTitle": "Fragen zum Umstieg",
   "sourcesTitle": "Quellen",
   "crumbHome": "Startseite",
-  "otherVs": "Vergleich mit {name}"
+  "otherVs": "Vergleich mit {name}",
+  "hubMetaTitle": "ItsBagelBot im Vergleich mit anderen Twitch-Bots",
+  "hubMetaDesc": "ItsBagelBot im Vergleich mit Nightbot, StreamElements, Fossabot, Moobot, Streamlabs Chatbot und WizeBot, mit Quelle für jede Zeile.",
+  "hubTitle": "ItsBagelBot im Vergleich",
+  "hubLead": "Jede Seite prüft einen Bot Funktion für Funktion, nennt für jede Zeile eine Quelle und zeigt, wie du deine Befehle mitnimmst.",
+  "allComparisons": "Alle Vergleiche"
 }

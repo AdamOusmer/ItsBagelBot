@@ -23,6 +23,17 @@ const otherSlug = compareSlugs.find((s) => s !== slug) as CompareSlug;
 const otherName = competitorNames[otherSlug];
 const fill = (key: string, params: Record<string, string>) =>
     Object.entries(params).reduce((text, [k, v]) => text.replace(`{${k}}`, v), t(key));
+const hubHref = localizePath('/vs', lang);
+const related = {
+    title: t('landing.relatedTitle'),
+    links: [
+        ...compareSlugs.filter((s) => s !== slug).map((s) => ({
+            href: localizePath(`/vs/${s}`, lang),
+            label: fill('compare.vsTitle', { name: competitorNames[s] }),
+        })),
+        { href: hubHref, label: t('compare.allComparisons') },
+    ],
+};
 
 const origin = new URL(Astro.site!).origin;
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
@@ -51,7 +62,7 @@ const schema: Record<string, unknown>[] = [
         '@id': `${pageUrl}#breadcrumbs`,
         itemListElement: [
             { '@type': 'ListItem', position: 1, name: t('compare.crumbHome'), item: new URL(localizePath('/', lang), Astro.site).href },
-            { '@type': 'ListItem', position: 2, name: t('footer.compare'), item: pageUrl },
+            { '@type': 'ListItem', position: 2, name: t('footer.compare'), item: new URL(hubHref, Astro.site).href },
             { '@type': 'ListItem', position: 3, name: content.hero.title, item: pageUrl },
         ],
     },
@@ -98,5 +109,6 @@ const labels = {
         loginHref={dashLoginHref(lang)}
         importHref={localizePath('/import', lang)}
         other={{ href: localizePath(`/vs/${otherSlug}`, lang), label: fill('compare.otherVs', { name: otherName }) }}
+        related={related}
     />
 </Layout>
