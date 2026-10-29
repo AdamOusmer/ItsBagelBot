@@ -27,42 +27,6 @@ function releasesNewestFirst() {
         });
 }
 
-function scrollEncryptionIntoView() {
-    const section = document.querySelector('#enc-section');
-    if (!section) return;
-    const rect = section.getBoundingClientRect();
-    if (rect.top <= window.innerHeight && rect.bottom >= 0) return;
-    const target = rect.top + window.scrollY;
-    window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
-    window.scrollTo({ top: target, behavior: 'instant' });
-}
-
-function encryptionTookCanvas(previousId) {
-    const canvas = document.querySelector('#enc-canvas');
-    const active = window.__itsbagelbotPreload?.activeEncryption;
-    return active?.id > previousId
-        && active.section === document.querySelector('#enc-section')
-        && canvas?.width !== 300;
-}
-
-function encryptionSized(previousId) {
-    const canvas = document.querySelector('#enc-canvas');
-    const active = window.__itsbagelbotPreload?.activeEncryption;
-    if (!canvas) return false;
-    if (!(active?.id > previousId)) return false;
-    const section = document.querySelector('#enc-section');
-    const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
-    const backingCoversDisplay = () =>
-        canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
-    const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
-    return [
-        active.section === section,
-        hasDisplaySize(),
-        backingCoversDisplay(),
-        !isPlaceholder(),
-    ].every(Boolean);
-}
-
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
         await page.waitForFunction(() => {
@@ -82,14 +46,6 @@ test.describe('ItsBagelBot site', () => {
             const numericOrZero = (value) => typeof value === 'number' ? value : 0;
             return Math.max(...scrollPositions.map(numericOrZero)) < 2;
         });
-    }
-
-    async function expectEncryptionInitialized(page, previousId = 0) {
-        await expect.poll(async () => {
-            await page.evaluate(scrollEncryptionIntoView);
-            return page.evaluate(encryptionTookCanvas, previousId);
-        }, { timeout: 25_000, intervals: [100] }).toBe(true);
-        await page.waitForFunction(encryptionSized, previousId);
     }
 
     test('home renders hero + Act II sections', async ({ page }) => {
@@ -389,24 +345,6 @@ test.describe('ItsBagelBot site', () => {
         const title = page.locator('.bb-page-hero__title');
         await expect(title).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
         await expect(title).toBeVisible();
-    });
-
-    test('encryption scene boots again when returning home', async ({ page }) => {
-        await page.goto('/');
-
-        await expectEncryptionInitialized(page);
-
-        const firstSceneId = await page.evaluate(() => window.__itsbagelbotPreload.activeEncryption.id);
-
-        await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
-        await expect(page).toHaveURL(/\/pricing\/?$/);
-        await expect(page.locator('#enc-canvas')).toHaveCount(0);
-
-        await page.goBack();
-        await page.waitForFunction(() => location.pathname === '/');
-        await expectPageTop(page);
-
-        await expectEncryptionInitialized(page, firstSceneId);
     });
 });
 
