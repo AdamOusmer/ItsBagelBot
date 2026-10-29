@@ -23,8 +23,6 @@
   "saved": "Your app is saved and ready.",
   "readyCta": "Set up song requests",
   "preview": "Setup preview",
-  "previewConnect": "Preview connection",
-  "previewHint": "Try the flow without connecting an account.",
   "footer": "A soundtrack, picked together.",
   "later": "I’ll do this later",
   "redirectMissing": "The Redirect URI is unavailable on our side right now, so you cannot continue yet. Try again later.",

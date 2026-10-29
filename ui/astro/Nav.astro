@@ -12,7 +12,7 @@ import MobileMenu from './MobileMenu.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
-interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 'locales' | 'localeLabel' | 'label' | 'menuLabels' | 'menuMeta' | 'menuId' | 'variant' | 'menu' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 'locales' | 'localeLabel' | 'label' | 'menuLabels' | 'menuMeta' | 'menuId' | 'class'> {
   brand: UiBrand;
   links: UiNavLink[];
   cta?: UiNavLink;
@@ -22,9 +22,6 @@ interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 
   menuLabels?: { open?: string; close?: string; panel?: string };
   menuMeta?: string;
   menuId?: string;
-  variant?: 'pill' | 'bar';
-  menu?: boolean;
-  class?: string;
 }
 
 const { t } = uiI18n(Astro);
@@ -38,21 +35,17 @@ const {
   menuLabels = {},
   menuMeta,
   menuId = 'bb-mobile-menu',
-  variant = 'pill',
-  menu = true,
-  class: className = '',
   ...rest
 } = Astro.props;
 
-const classes = ['bb-nav', className || null].filter(Boolean).join(' ');
 const menuOpen = menuLabels.open ?? t('nav.menuOpen');
 const menuClose = menuLabels.close ?? t('nav.menuClose');
 const menuPanel = menuLabels.panel ?? t('nav.menu');
 ---
 
-<nav class={classes} aria-label={label} data-variant={variant} {...rest}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
+<nav {...rest} class="bb-nav" aria-label={label}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
   <li><NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit data-astro-prefetch={link.current || link.external ? undefined : 'hover'} /></li>
-))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} label={localeLabel} menuId={`${menuId}-lang`} />}{cta && <NavLink class="bb-nav__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} fit />}<slot name="actions" /></div>{menu && <Hamburger label={menuOpen} closeLabel={menuClose} controls={menuId} />}</div></nav>{menu && <MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuPanel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>}
+))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} label={localeLabel} menuId={`${menuId}-lang`} />}{cta && <NavLink class="bb-nav__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} fit />}</div><Hamburger label={menuOpen} closeLabel={menuClose} controls={menuId} /></div></nav><MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuPanel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>
 
 <script>
   import { mountTopDownMenu, mountHomeLogo } from '../lib/nav-menu';

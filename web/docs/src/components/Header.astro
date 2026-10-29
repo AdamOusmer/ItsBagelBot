@@ -5,7 +5,9 @@
 import { SITE } from '@bagel/kit/site-links';
 import { docsI18n, docsLocaleOptions } from '../i18n/ui';
 
-import Nav from '@bagel/ui/astro/Nav.astro';
+import Brand from '@bagel/ui/astro/Brand.astro';
+import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro';
+import NavLink from '@bagel/ui/astro/NavLink.astro';
 import '@bagel/ui/styles/elements/fit.css';
 import Search from '@astrojs/starlight/components/Search.astro';
 import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
@@ -22,22 +24,58 @@ const path = Astro.url.pathname;
 const isActive = (href: string) => path === href || path.startsWith(href);
 ---
 
-<Nav
-  variant="bar"
-  menu={false}
-  brand={{ title: 'ItsBagelBot', sub: t('brand'), href: localizedPath('/') }}
-  links={links.map((link) => ({ ...link, current: isActive(link.href) }))}
-  cta={{ href: `${SITE.web}${localizedPath('/')}`, label: t('mainSite'), external: true }}
-  locales={docsLocaleOptions(Astro.url.pathname, locale)}
-  localeLabel={Astro.locals.t('languageSelect.accessibleLabel')}
-  label={t('brand')}
-  menuLabels={{ open: t('menu.open'), close: t('menu.close'), panel: t('menu.panel') }}
->
-  <Fragment slot="actions">
+<nav class="docs-bar" aria-label={t('brand')}>
+  <Brand class="docs-bar__brand" title="ItsBagelBot" sub={t('brand')} href={localizedPath('/')} size="sm" />
+  <ul class="docs-bar__links">
+    {links.map((link) => (
+      <li><NavLink href={link.href} label={link.label} current={isActive(link.href)} fit /></li>
+    ))}
+  </ul>
+  <div class="docs-bar__actions">
+    <LanguageSwitcher options={docsLocaleOptions(Astro.url.pathname, locale)} label={Astro.locals.t('languageSelect.accessibleLabel')} menuId="docs-lang" />
+    <NavLink variant="cta" href={`${SITE.web}${localizedPath('/')}`} label={t('mainSite')} external fit />
     <Search />
     <ThemeSelect />
-  </Fragment>
-</Nav>
+  </div>
+</nav>
+
+<style>
+  .docs-bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    font-family: var(--bb-font-display);
+    --bb-lang-switch-rest: currentColor;
+    --bb-lang-switch-hover: currentColor;
+    --bb-lang-switch-lit: currentColor;
+    --bb-nav-link-rest: currentColor;
+    --bb-nav-link-size: 14px;
+  }
+
+  .docs-bar__links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    margin: 0;
+    padding: 0 1.5rem;
+    list-style: none;
+  }
+
+  .docs-bar__links > li {
+    display: flex;
+    align-items: center;
+  }
+
+  .docs-bar__actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+  }
+</style>
 
 <script>
   import { mountTextFit } from '@bagel/ui/lib/text-fit';

@@ -9,7 +9,7 @@ const guide: GuideContent = {
     aiDoc: 'https://ai.itsbagelbot.com/govee/setup.md',
     title: 'Set Up Govee Lights for Twitch Rewards | ItsBagelBot',
     description:
-      'Connect compatible Govee lights, add channel-point rewards and test colours. Follow API key setup and troubleshoot device access.',
+      'Connect Wi-Fi colour Govee lights, add channel-point rewards and test colours. Follow API key setup and troubleshoot device access.',
     eyebrow: 'Guide',
     heading: 'Govee Lights',
     lead: 'Let viewers change the colour of your Govee lights with channel points. This guide covers the key, the setup wizard, the reward, and the messages you might see.',
@@ -26,7 +26,7 @@ const guide: GuideContent = {
     {
       id: 'need',
       heading: 'What you need',
-      note: 'A Govee Home account, colour lights set up in the Govee Home app, and a Twitch channel that can have channel-points rewards.',
+      note: 'A Govee Home account, Wi-Fi colour lights set up in the Govee Home app, and a Twitch channel that can have channel-points rewards.',
       blocks: [
         {
           kind: 'callout',
@@ -37,8 +37,9 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                You need a Govee Home account and Govee lights that are already set up in the Govee Home
-                app. Lights that only use Bluetooth may not show up. You also need a Twitch channel
+                You need a Govee Home account and Govee lights that can change colour, connect to
+                Wi-Fi, and are already set up in the Govee Home app. Bluetooth-only lights do not
+                work, because Govee's API cannot reach them. You also need a Twitch channel
                 that can create channel-points rewards. The dashboard's Channel points page says
                 that Twitch only lets Affiliate and Partner channels create them. Viewers spend
                 channel points to change the colour of your lights.

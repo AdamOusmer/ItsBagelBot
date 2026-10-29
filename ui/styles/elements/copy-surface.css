@@ -193,6 +193,20 @@
     color: var(--bb-green-glow);
   }
 
+  :where([data-surface='tonal']) .bb-copy--well {
+    border-color: transparent;
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
+  }
+
+  :where([data-surface='tonal']) .bb-copy--well:hover {
+    background: var(--bb-elev-2);
+  }
+
+  :where([data-surface='tonal']) .bb-copy--well:is(:hover, [data-copied]) {
+    border-color: transparent;
+  }
+
   .bb-copy--row {
     display: block;
     width: 100%;

@@ -35,12 +35,12 @@ import AstroFileDrop from '../astro/FileDrop.astro';
 import SveltePickerOption from '../svelte/PickerOption.svelte';
 import AstroPickerOption from '../astro/PickerOption.astro';
 
-const icon12 = (path: string) =>
-  '<svg class="bb-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+const icon = (size: number, path: string) =>
+  `<svg class="bb-icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" ` +
   `stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"></svg>`;
 
-const CHECK_ICON = icon12('M20 6L9 17l-5-5');
-const X_ICON = icon12('M18 6L6 18M6 6l12 12');
+const CHECK_ICON = icon(14, 'M20 6L9 17l-5-5');
+const X_ICON = icon(12, 'M18 6L6 18M6 6l12 12');
 
 const RELEASES = [{ value: 'v2', label: 'v2.0.0', description: 'abc1234', meta: '2h' }];
 const KINDS = [

@@ -259,8 +259,8 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/card", budget: 1760 }, // 1470 B: halo surface and light-theme shadow in the base card (2026-10-28)
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
-  { name: "elements/nav", budget: 3450 }, // 2981 B: flagged locale popover replaced the code row (2026-09-30)
-  { name: "elements/footer", budget: 1950 }, // 1740 B: signature layout with ring, orbs, stacked groups and the colophon slot; +150 B platform delta, ~5% room (2026-10-01)
+  { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
+  { name: "elements/footer", budget: 1950 }, // 1811 B: signature layout with ring, orbs, upward elevation shadow and the colophon slot; ~7% room (2026-10-28)
   { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },
   { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
@@ -269,7 +269,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/search-input", budget: 520 },
   { name: "elements/skeleton", budget: 700 },
   { name: "elements/stat-tile", budget: 980 },
-  { name: "elements/toggle", budget: 820 },
+  { name: "elements/toggle", budget: 1000 }, // 840 B: tonal recessed switch track (2026-10-28)
   { name: "elements/alert", budget: 1100 }, // 847 B: tip/note callouts, exit action, phone stack and second row (2026-09-29)
   { name: "elements/area-series", budget: 390 },
   { name: "elements/aurora", budget: 450 },
@@ -306,6 +306,8 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/file-drop", budget: 740 }, // 514 B
   { name: "elements/picker-panel", budget: 1360 }, // 1081 B
   { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)
+  { name: "elements/setup-stage", budget: 1330 }, // 1029 B: shared onboarding/setup shell, viewport-fit sizing (2026-10-28)
+  { name: "elements/setup-step", budget: 1330 }, // 1157 B: setup step copy, lifted note and recessed rows (2026-10-28)
   { name: "elements/spinner", budget: 500 }, // 303 B
   { name: "elements/line-series", budget: 940 }, // 704 B
   { name: "elements/skip-link", budget: 480 }, // 283 B

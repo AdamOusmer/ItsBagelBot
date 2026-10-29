@@ -18,17 +18,18 @@
     isolation: isolate;
     background: var(--bb-footer-bg);
     border-top: 1px solid var(--bb-border);
+    box-shadow:
+      inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.07),
+      0 -2px 4px rgba(var(--bb-shadow-rgb), 0.3),
+      0 -16px 40px -12px rgba(var(--bb-shadow-rgb), 0.65);
     padding: var(--footer-pad);
     overflow: hidden;
+    /* Clears a sticky page hero (z-index 5) that stays stuck through the footer. */
+    z-index: 6;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-  }
-
-  /* Clears a sticky page hero (z-index 5) that stays stuck through the footer. */
-  .bb-footer--raised {
-    z-index: 6;
   }
 
   .bb-footer::before {

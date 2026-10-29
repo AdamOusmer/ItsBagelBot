@@ -31,7 +31,6 @@ export interface SiteLinkDef {
 export interface SiteColumnDef {
   key: string;
   links: readonly SiteLinkDef[];
-  stacked?: boolean;
 }
 
 export interface SiteLink {
@@ -44,7 +43,6 @@ export interface SiteLink {
 export interface SiteColumn {
   title: string;
   links: SiteLink[];
-  stacked?: boolean;
 }
 
 export interface SiteLinkContext {
@@ -129,8 +127,33 @@ export function resolveSiteColumns(
   return defs.map((column) => ({
     title: ctx.label(column.key),
     links: resolveSiteLinks(column.links, ctx),
-    ...(column.stacked ? { stacked: true } : {}),
   }));
+}
+
+export interface SiteNavInput {
+  home: string;
+  logoSrc: string;
+  links: SiteLink[];
+  ctaHref: string;
+  text: {
+    cta: string;
+    aria: string;
+    menuOpen: string;
+    menuClose: string;
+    menu: string;
+    menuMeta: string;
+  };
+}
+
+export function siteNavProps({ home, logoSrc, links, ctaHref, text }: SiteNavInput) {
+  return {
+    brand: { title: 'ItsBagelBot', href: home, logoSrc, logoAlt: '' },
+    links,
+    cta: { href: ctaHref, label: text.cta },
+    label: text.aria,
+    menuLabels: { open: text.menuOpen, close: text.menuClose, panel: text.menu },
+    menuMeta: text.menuMeta,
+  };
 }
 
 export function webHref(locale: Locale, path: string): string {

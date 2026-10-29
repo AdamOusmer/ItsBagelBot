@@ -39,7 +39,7 @@ The user is in the {{console:common.appName}} dashboard, running the Govee setup
 
 - A Govee Home account.
 - Govee lights already set up in the Govee Home app. The dashboard says: {{console:goveeSetup.needNoteBody}}
-- Only lights that can change colour are used.
+- Only lights that can change colour and connect to Wi-Fi are used. Bluetooth-only lights have no API access.
 
 </facts>
 

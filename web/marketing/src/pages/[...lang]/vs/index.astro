@@ -1,0 +1,129 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, langParam } from '../../../i18n/ui';
+import { getCompare } from '../../../lib/compare/content';
+import { compareSlugs, compareLocales, competitorNames } from '../../../lib/compare/slugs';
+
+export function getStaticPaths() {
+    return compareLocales.map((l) => ({ params: { lang: langParam(l) } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const pages = compareSlugs.map((slug) => ({
+    name: competitorNames[slug],
+    href: localizePath(`/vs/${slug}`, lang),
+    title: t('compare.vsTitle').replace('{name}', competitorNames[slug]),
+    description: getCompare(slug, lang).meta.description,
+}));
+
+const origin = new URL(Astro.site!).origin;
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+const schema: Record<string, unknown>[] = [
+    {
+        '@type': 'CollectionPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: t('compare.hubMetaTitle'),
+        description: t('compare.hubMetaDesc'),
+        inLanguage: lang,
+        isPartOf: { '@id': `${origin}/#website` },
+        about: { '@id': `${origin}/#software` },
+    },
+    {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumbs`,
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: t('compare.crumbHome'), item: new URL(localizePath('/', lang), Astro.site).href },
+            { '@type': 'ListItem', position: 2, name: t('footer.compare'), item: pageUrl },
+        ],
+    },
+    {
+        '@type': 'ItemList',
+        numberOfItems: pages.length,
+        itemListElement: pages.map((page, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: page.title,
+            url: new URL(page.href, Astro.site).href,
+        })),
+    },
+];
+---
+
+<Layout
+    title={t('compare.hubMetaTitle')}
+    description={t('compare.hubMetaDesc')}
+    aiDoc="https://ai.itsbagelbot.com/migration.md"
+    alternateLocales={compareLocales}
+    extraSchema={schema}
+>
+    <PageHero eyebrow={t('compare.eyebrow')} title={t('compare.hubTitle')} description={t('compare.hubLead')} />
+
+    <Section size="flush" class="vshub">
+        <ul class="vshub__grid">
+            {pages.map((page, i) => (
+                <li>
+                    <Card atmo hover as="a" href={page.href} label={page.name} class="vshub__card" data-cursor="quiet" data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                        <Heading level={4} as="span" class="vshub__title"><span data-fit>{page.title}</span></Heading>
+                        <Text as="span" tone="muted-light" class="vshub__desc"><span data-fit="block">{page.description}</span></Text>
+                    </Card>
+                </li>
+            ))}
+        </ul>
+        <Cluster justify="center" gap={3} class="vshub__actions" data-reveal>
+            <ButtonLink href={localizePath('/import', lang)}><span data-fit>{t('landing.relImport')}</span></ButtonLink>
+            <ButtonLink variant="secondary" href={dashLoginHref(lang)}><span data-fit>{t('nav.cta')}</span></ButtonLink>
+        </Cluster>
+    </Section>
+</Layout>
+
+<style>
+    .vshub {
+        width: min(var(--bb-content-max), calc(100% - 48px));
+        margin-inline: auto;
+        padding-bottom: 110px;
+    }
+
+    .vshub__grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .vshub__card { height: 100%; }
+
+    .vshub__title {
+        display: block;
+        margin-bottom: var(--bb-space-2);
+    }
+
+    .vshub__desc {
+        display: block;
+        height: calc(3 * 1lh);
+    }
+
+    .vshub__actions { margin-top: 44px; }
+
+    @media (max-width: 860px) {
+        .vshub__grid { grid-template-columns: 1fr; }
+        .vshub__desc { height: calc(4 * 1lh); }
+    }
+
+    @media (max-width: 760px) {
+        .vshub { width: calc(100% - 32px); }
+    }
+</style>

@@ -35,8 +35,8 @@ Assistants answering feature questions, explaining chat commands, or helping str
 
 <facts>
 
-- Plan: {{website:pricingTiers.free}}. External prerequisites: a Govee Home account, supported colour-capable lights, and a Govee API key.
-- Lights must be available through Govee's API. Bluetooth-only devices may not appear.
+- Plan: {{website:pricingTiers.free}}. External prerequisites: a Govee Home account, colour-capable Wi-Fi lights, and a Govee API key.
+- Lights must be on Wi-Fi to be reachable through Govee's API. Bluetooth-only devices have no API access and do not work.
 - Dashboard: [{{console:modules.catalog.govee.label}}](https://dashboard.itsbagelbot.com/govee).
 - Paste the key only into "{{console:govee.keyFieldLabel}}". It is stored encrypted and never shown back.
 - A new Govee key invalidates older keys for that account. Avoid replacing a working key without a reason.

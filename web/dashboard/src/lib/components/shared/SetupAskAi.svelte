@@ -59,4 +59,8 @@
   .ask-ai-label { display: grid; justify-items: center; }
   .ask-ai-label > span { grid-area: 1 / 1; }
   .is-hidden { visibility: hidden; }
+  @media (max-width: 760px), (max-height: 700px) {
+    .ask-ai { height: auto; }
+    .ask-ai-links { display: none; }
+  }
 </style>
