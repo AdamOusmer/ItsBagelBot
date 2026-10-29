@@ -2,10 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/page-hero.css';
 import LightField from './LightField.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'header'>, 'class' | 'title'> {
     eyebrow?: string;
     title: string;
     description?: string;

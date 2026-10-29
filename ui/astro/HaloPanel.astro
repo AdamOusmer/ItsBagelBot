@@ -5,7 +5,7 @@ import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/halo-panel.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'class'> {
+interface Props extends Omit<HTMLAttributes<'a'>, 'class'> {
     as?: 'div' | 'a' | 'article' | 'section' | 'aside';
     href?: string;
     tone?: 'gold' | 'green';
