@@ -45,6 +45,7 @@ type UserChangedDTO struct {
 	// folds "visible", the pre-feature behaviour.
 	CommandsPageHidden bool `json:"commands_page_hidden"`
 	LeaderboardPageHidden bool `json:"leaderboard_page_hidden"`
+	CreatorCode           string `json:"creator_code,omitempty"`
 }
 
 type UserDeletedDTO struct {

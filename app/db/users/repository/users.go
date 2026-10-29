@@ -301,6 +301,13 @@ func normalizeCreatorCode(raw string) (*string, error) {
 	return &code, nil
 }
 
+func (v UserView) CreatorCodeText() string {
+	if v.CreatorCode == nil {
+		return ""
+	}
+	return *v.CreatorCode
+}
+
 func (r *Users) SetCreatorCode(ctx context.Context, id uint64, raw string) error {
 	code, err := normalizeCreatorCode(raw)
 	if err != nil {
@@ -449,6 +456,7 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 		CommandsPageHidden: view.CommandsPageHidden,
 
 		LeaderboardPageHidden: view.LeaderboardPageHidden,
+		CreatorCode:           view.CreatorCodeText(),
 	})
 }
 
@@ -499,6 +507,7 @@ func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error
 		AccountCreatedAt: row.CreatedAt.UnixMicro(),
 		StateRevision:    row.StateRevision,
 		Status:           string(row.Status), Banned: row.Banned, Locale: row.Locale,
+		CreatorCode: UserView{CreatorCode: row.CreatorCode}.CreatorCodeText(),
 	})
 }
 

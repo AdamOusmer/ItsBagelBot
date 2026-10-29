@@ -24,6 +24,7 @@ func TestInvalidationRefreshesTheCachedUser(t *testing.T) {
 		{"live", fakeField{"status", "paid"}, User{Status: "paid", IsActive: true}},
 		{"commands_page", fakeField{"commands_page_hidden", "1"}, User{Status: "standard", IsActive: true, CommandsPageHidden: true}},
 		{"leaderboard_page", fakeField{"leaderboard_page_hidden", "1"}, User{Status: "standard", IsActive: true, LeaderboardPageHidden: true}},
+		{"status", fakeField{"creator_code", "BAGEL10"}, User{Status: "standard", IsActive: true, CreatorCode: "BAGEL10"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.scope+" scope drops the cached user", func(t *testing.T) {

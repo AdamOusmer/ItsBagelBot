@@ -51,8 +51,9 @@ type UserReply struct {
 	// CommandsPageHidden mirrors internal/projection.User's field of the same
 	// name; field set and json tag match exactly so the worker's cold-key RPC
 	// reply decodes without conversion (see CommandView's comment above).
-	CommandsPageHidden    bool `json:"commands_page_hidden,omitempty"`
-	LeaderboardPageHidden bool `json:"leaderboard_page_hidden,omitempty"`
+	CommandsPageHidden    bool   `json:"commands_page_hidden,omitempty"`
+	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
+	CreatorCode           string `json:"creator_code,omitempty"`
 	rpc.Refusal
 }
 

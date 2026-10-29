@@ -87,7 +87,7 @@ var variableOnlyModules = []string{"stream", "timers", "counters", "discord", "a
 
 var shippedContract = map[string]moduleSpec{
 	"~ping": {module.KindCore, []commandSpec{
-		command("ping", roleEveryone), command("itsbagelbot", roleEveryone), command("source", roleEveryone),
+		command("ping", roleEveryone), command("itsbagelbot", roleEveryone),
 	}},
 	"personality": {module.KindDefault, []commandSpec{
 		command("bagels", roleEveryone, "fed", "bagelcount"), command("bagelboard", roleEveryone, "feedboard", "bagellb"),

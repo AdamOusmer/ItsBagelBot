@@ -195,6 +195,8 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	assert.Equal(t, "MAVEY10", *view.CreatorCode)
 	require.NotNil(t, client.User.GetX(ctx, 1001).CreatorCode)
 	assert.Equal(t, "MAVEY10", *client.User.GetX(ctx, 1001).CreatorCode)
+	changed := decodeChanged(t, pub)
+	assert.Equal(t, "MAVEY10", changed[len(changed)-1].CreatorCode, "the code must ride the user projection")
 
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, ""))
 	repo.Close(context.Background())
@@ -204,6 +206,8 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	assert.Nil(t, view.CreatorCode)
 	assert.Nil(t, client.User.GetX(ctx, 1001).CreatorCode)
 	assert.Len(t, pub.On(data.SubjectUserChanged), 3, "register, set and clear must announce state")
+	changed = decodeChanged(t, pub)
+	assert.Empty(t, changed[len(changed)-1].CreatorCode, "a cleared code must clear the projected value")
 }
 
 func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {

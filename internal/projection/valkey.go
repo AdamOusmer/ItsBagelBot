@@ -45,8 +45,9 @@ type UserProjection struct {
 	// CommandsPageHidden mirrors the inverted flag (D2): written unconditionally
 	// (unlike Locale below), so an absent hash field decodes as false, meaning
 	// visible -- the pre-feature behaviour needs no "skip when empty" rule.
-	CommandsPageHidden bool
+	CommandsPageHidden    bool
 	LeaderboardPageHidden bool
+	CreatorCode           string
 }
 
 func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) error {
@@ -77,7 +78,7 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	if u.Lifecycle != nil {
 		background = background && u.Lifecycle.AllowsBackground()
 	}
-	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden))
+	args = append(args, utils.BoolField(background), utils.BoolField(u.LeaderboardPageHidden), u.CreatorCode)
 	return userAdmissionWriteScript.Exec(ctx, v.primary, []string{key, watchtime.AdmissionKey(userID)}, args).Error()
 }
 
@@ -101,7 +102,7 @@ end
 if active ~= ARGV[1] or banned ~= ARGV[2] or changed then redis.call('HINCRBY',KEYS[2],'epoch',1) end
 redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'commands_page_hidden',ARGV[4])
 redis.call('HSET',KEYS[1],'account_created_at',ARGV[7],'lifecycle',ARGV[9])
-redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11])
+redis.call('HSET',KEYS[1],'runtime_background',ARGV[10],'leaderboard_page_hidden',ARGV[11],'creator_code',ARGV[12])
 if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
 local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
 return 1`

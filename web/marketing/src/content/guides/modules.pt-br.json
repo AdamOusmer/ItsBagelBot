@@ -31,7 +31,7 @@
   "builtins.b1.rows.8.0": "<code>!marker</code>",
   "builtins.b1.rows.8.1": "Moderador líder, somente ao vivo",
   "builtins.b1.rows.8.2": "Cria um marcador que você encontra no VOD.",
-  "builtins.b2.html": "\n            <p>\n                Alguns outros respondem sem aparecer em lugar nenhum: <code>!ping</code> prova que o\n                bot está acordado, <code>!itsbagelbot</code> e <code>!source</code> dizem o que ele\n                é, <code>!bagels</code> conta os bagels que o chat deu a ele, e\n                <code>!bagelboard</code> classifica quem mais doou. Os moderadores têm <code>!cmd</code>\n                (também <code>!commands</code>) para a lista de comandos, e <code>!nuke</code>\n                quando uma raid inunda o chat com a mesma linha.\n            </p>",
+  "builtins.b2.html": "\n            <p>\n                Alguns outros respondem sem aparecer em lugar nenhum: <code>!ping</code> prova que o\n                bot está acordado, <code>!itsbagelbot</code> e <code>!itsbagelbot source</code> dizem o que ele\n                é, <code>!bagels</code> conta os bagels que o chat deu a ele, e\n                <code>!bagelboard</code> classifica quem mais doou. Os moderadores têm <code>!cmd</code>\n                (também <code>!commands</code>) para a lista de comandos, e <code>!nuke</code>\n                quando uma raid inunda o chat com a mesma linha.\n            </p>",
   "builtins.b3.html": "\n                <b>Nota</b>\n                Um moderador líder é um moderador que você promoveu no painel, um degrau acima dos seus\n                outros moderadores. É o nível por trás dos controles da live.",
   "builtins.heading": "Sempre ativos",
   "builtins.note": "Nove comandos vêm com o bot, mais alguns pequenos.",
