@@ -220,10 +220,10 @@ describe('Pager', () => {
       props: { label: 'Page 1 of 3', prevHref: '?page=0', nextHref: '?page=2', hasPrev: false },
       html:
         '<nav class="bb-pager" aria-label="Pagination">' +
-        '<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true" data-mark>' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Previous</span></a>' +
         '<span class="bb-pager__label" aria-current="page">Page 1 of 3</span>' +
-        '<a class="bb-btn bb-btn--ghost" href="?page=2" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" href="?page=2" data-mark>' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Next</span></a></nav>',
     },
     {
@@ -239,10 +239,10 @@ describe('Pager', () => {
       },
       html:
         '<nav class="bb-pager" aria-label="Pages">' +
-        '<a class="bb-btn bb-btn--ghost" href="?page=2" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" href="?page=2" data-mark>' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Précédent</span></a>' +
         '<span class="bb-pager__label" aria-current="page">Page 3 sur 3</span>' +
-        '<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true" data-mark>' +
+        '<a class="bb-btn bb-btn--secondary" role="link" aria-disabled="true" data-mark>' +
         '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Suivant</span></a></nav>',
     },
   ]);

@@ -8,6 +8,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import { livePoll } from '@bagel/ui/lib/live-poll';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { onMount, untrack } from 'svelte';
@@ -59,17 +60,24 @@
     }))
   );
 
+  let search = $state('');
+  const needle = $derived(search.trim().toLowerCase());
+  const visibleItems = $derived(
+    needle ? rankingItems.filter((item) => item.label.toLowerCase().includes(needle)) : rankingItems
+  );
+  const noMatch = $derived(needle !== '' && rankingItems.length > 0 && visibleItems.length === 0);
+
   const statusLine = $derived.by(() => {
     if (trouble) return t('queuePage.degraded');
     if (snapshot.total > shown) return t('queuePage.moreNote', { shown: countFmt.format(shown), total: countFmt.format(snapshot.total) });
     return '';
   });
 
-  const emptyCopy = $derived(
-    trouble
-      ? { title: t('queuePage.degradedTitle'), body: t('queuePage.degraded') }
-      : { title: t('queuePage.emptyTitle'), body: t('queuePage.emptyBody') }
-  );
+  const emptyCopy = $derived.by(() => {
+    if (trouble) return { title: t('queuePage.degradedTitle'), body: t('queuePage.degraded') };
+    if (noMatch) return { title: t('queuePage.noMatchTitle'), body: t('queuePage.noMatchBody') };
+    return { title: t('queuePage.emptyTitle'), body: t('queuePage.emptyBody') };
+  });
 
   const joinsOpen = $derived(snapshot.open && !snapshot.degraded);
   const statusText = $derived(
@@ -187,9 +195,23 @@
           board
           title={t('queuePage.boardTitle')}
           description={t('queuePage.boardNote', { max: countFmt.format(MAX_QUEUE_ENTRIES) })}
-          items={rankingItems}
+          items={visibleItems}
           scale={longestWait}
         >
+          {#snippet actions()}
+            <form class="q-search" role="search" onsubmit={(event) => event.preventDefault()}>
+              <SearchInput
+                fill
+                tall
+                name="q"
+                bind:value={search}
+                autocomplete="off"
+                enterkeyhint="search"
+                placeholder={t('queuePage.searchPlaceholder')}
+                aria-label={t('queuePage.searchLabel')}
+              />
+            </form>
+          {/snippet}
           {#snippet leading(item)}
             <span aria-hidden="true"><Bolota name={item.id} size={48} /></span>
           {/snippet}
@@ -245,6 +267,11 @@
 
   .q-page :global(.stats-layout__ranking) { grid-column: 1 / -1; }
   .q-list { display: grid; min-height: 24rem; }
+
+  .q-search { width: 260px; max-width: 100%; }
+  @media (max-width: 650px) {
+    .q-search { width: 100%; }
+  }
 
   .q-empty {
     display: flex;
