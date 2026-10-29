@@ -30,7 +30,9 @@ const BUDGETS: Record<string, Budget> = {
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
   // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
   '/(app)/commands': { js: 142000, css: 46500, catalog: 4600, lazy: 31200 },
-  '/(public)/user/[channel]': { js: 100000, css: 21500, catalog: 2800, lazy: 0 }
+  // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
+  // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
+  '/(public)/user/[channel]': { js: 101500, css: 22000, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {

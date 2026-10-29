@@ -62,9 +62,12 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
     }
   }
 
+  const animate = !prefersReducedMotion();
+
   async function wake(): Promise<void> {
     await paint();
-    if (live || stopped || prefersReducedMotion()) return;
+    if (!animate) return;
+    if (live || stopped) return;
     live = true;
     const { mountEngine } = await import('@luzir/bolota/engine');
     if (!live || stopped) return;
