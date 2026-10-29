@@ -9,6 +9,7 @@ import Label from '@bagel/ui/astro/Label.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
 import Slider from '@bagel/ui/astro/Slider.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import Well from '@bagel/ui/astro/Well.astro';
 
 interface Props {
     labels?: Record<string, string>;
@@ -49,13 +50,13 @@ const sourceOptions = ['1', '2', '3', '4'];
                 <SegmentedControl options={sourceOptions} value={String(sources)} label={L.sourcesLabel} data-fb-sources />
             </fieldset>
         </div>
-        <div class="gbudget__readout" aria-live="polite">
+        <Well class="gbudget__readout" aria-live="polite">
             <FactList>
                 <Fact term={L.fetchesLabel}><span data-fb-made>{made}</span> {L.fetchesUnit}</Fact>
                 <Fact term={L.cachedLabel}><span data-fb-cached>{runs * sources - wanted}</span> {L.fetchesUnit}</Fact>
                 <Fact term={L.blockedLabel}><span data-fb-blocked>{wanted - made}</span> {L.fetchesUnit}</Fact>
             </FactList>
-        </div>
+        </Well>
         <Text size="sm" tone="muted-light" data-fb-blocked-line hidden={wanted <= 6}>{L.blockedLine}</Text>
         <Text size="sm" tone="muted-light">{L.why}</Text>
     </div>
@@ -67,7 +68,7 @@ const sourceOptions = ['1', '2', '3', '4'];
     .gbudget__controls { display: grid; gap: 14px; }
     @media (min-width: 720px) { .gbudget__controls { grid-template-columns: 1.4fr 1fr; align-items: start; } }
     .gbudget__field { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; min-width: 0; }
-    .gbudget__readout { padding: 11px 12px; border: 1px solid transparent; box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-sm); background: var(--bb-inset-bg); }
+    .gbudget__readout { padding: 11px 12px; }
 </style>
 
 <script>

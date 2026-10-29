@@ -5,6 +5,7 @@
 import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 
@@ -38,10 +39,10 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     <span class="gcard__body">
         <Heading level={4} as="span" class="gcard__title"><span data-fit>{title}</span></Heading>
         <Text as="span" tone="muted-light" class="gcard__desc"><span data-fit="block">{description}</span></Text>
-        <span class="gcard__foot">
+        <Cluster as="span" gap={3} justify="between" class="gcard__foot">
             <Text as="span" size="xs" mono tone="muted" class="gcard__meta"><span data-fit>{meta}</span></Text>
             <Button as="span" variant="secondary" class="gcard__cta" data-cursor><span data-fit>{cta}</span></Button>
-        </span>
+        </Cluster>
     </span>
 </Card>
 
@@ -75,14 +76,7 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         margin-bottom: 18px;
     }
 
-    .gcard__foot {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-top: auto;
-    }
+    .gcard__foot { margin-top: auto; }
 
     .gcard__meta {
         flex: 0 0 11rem;
