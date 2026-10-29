@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   // Composition only: callers supply live data, copy and their own artwork.
-  // The shared layout owns responsive placement and the onboarding sky.
+  // The shared layout owns responsive placement, the sky and the hero crowd.
   import type { Snippet } from 'svelte';
   import AmbientSky from '@bagel/ui/svelte/AmbientSky.svelte';
   import './stats-page-layout.css';
@@ -13,7 +13,7 @@
     arrangement = 'playful', class: className = '', ...rest
   }: {
     heading: Snippet;
-    /** Up to six decorative figures, each inside a direct child wrapper. */
+    /** Up to twelve decorative figures, back row first, each inside a direct child wrapper. */
     crowd?: Snippet;
     /** The pair of lifetime counters. */
     counters: Snippet;

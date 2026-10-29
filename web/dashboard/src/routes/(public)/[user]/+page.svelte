@@ -111,7 +111,7 @@
   const artByItem = $derived(new Map(rankingItems.map((item) => [item.id, item.art])));
 
   const crowdNames = $derived(
-    Array.from({ length: 6 }, (_, i) => {
+    Array.from({ length: 12 }, (_, i) => {
       const viewer = [...podium, ...data.rows][i];
       return viewer ? artName(viewer) : `${data.login}-${i}`;
     })
@@ -124,7 +124,7 @@
   });
 
   const channelHref = $derived(commandsHref(data.login));
-  const longName = $derived(data.channelName.length > 14);
+  const titleSize = $derived(data.channelName.length > 16 ? 'long' : data.channelName.length > 9 ? 'mid' : '');
 </script>
 
 <PublicHead
@@ -143,7 +143,7 @@
         <div class="lb-eyebrow" data-fit-box>
           <Tag tone="live" mark="solid" sweep contain><span data-fit="">{t('leaderboard.eyebrow')}</span></Tag>
         </div>
-        <Heading level={1} class="stats-layout__title{longName ? ' lb-title--long' : ''}">{data.channelName}</Heading>
+        <Heading level={1} class="stats-layout__title{titleSize ? ` lb-title--${titleSize}` : ''}">{data.channelName}</Heading>
         <div class="lb-tagline" data-fit-box>
           <Text size="sm" tone="muted"><span data-fit="block">{t('leaderboard.tagline')}</span></Text>
         </div>
@@ -157,7 +157,7 @@
 
     {#snippet crowd()}
       {#each crowdNames as name, i (`${i}:${name}`)}
-        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} active gate /></span>
+        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} motionState="idle" active gate /></span>
       {/each}
     {/snippet}
 
@@ -270,17 +270,16 @@
     min-width: 0;
   }
 
-  .lb-page :global(.stats-layout__heading) { flex: 1 1 0; }
+  .lb-heading { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(100%, 60rem); }
+  .lb-eyebrow { display: flex; justify-content: center; width: 11rem; min-width: 0; }
+  .lb-heading :global(.lb-title--mid) { font-size: clamp(40px, 5.4vw, 68px); }
+  .lb-heading :global(.lb-title--long) { font-size: clamp(32px, 3.8vw, 48px); }
   @media (max-width: 650px) {
-    .lb-page :global(.stats-layout__heading) { flex: none; width: 100%; }
-    .lb-heading :global(.stats-layout__title) { font-size: clamp(28px, 9vw, 48px); }
+    .lb-heading :global(.stats-layout__title) { font-size: clamp(30px, 10vw, 52px); }
   }
-  .lb-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; width: min(100%, 36rem); }
-  .lb-eyebrow { display: flex; width: 11rem; min-width: 0; }
-  .lb-heading :global(.lb-title--long) { font-size: clamp(32px, 4.4vw, 48px); }
 
-  .lb-tagline { width: 100%; height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
-  .lb-visit { display: flex; align-items: center; width: min(100%, 20rem); min-height: 1.75rem; }
+  .lb-tagline { width: min(100%, 36rem); height: calc(2 * 1lh); font-size: var(--bb-text-sm); }
+  .lb-visit { display: flex; align-items: center; justify-content: center; width: min(100%, 20rem); min-height: 1.75rem; }
   .lb-visit :global(.visit) { max-width: 100%; }
   @media (max-width: 650px) {
     .lb-tagline { height: calc(4 * 1lh); }
