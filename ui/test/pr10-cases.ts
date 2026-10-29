@@ -156,8 +156,7 @@ export const CASES: ParityCase[] = [
     svelte: SvelteFooter,
     astro: AstroFooter,
     props: {
-      brand: { ...brand, sub: 'One bot, every stream.' },
-      signoff: { line: 'See you on stream.', sub: 'take care' },
+      brand,
       columns: [
         { title: 'Product', links: [{ href: '/pricing', label: 'Pricing' }] },
         {
