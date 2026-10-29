@@ -70,6 +70,7 @@ export { default as NavGroup } from './NavGroup.svelte';
 export { default as NavLink } from './NavLink.svelte';
 export { default as PageHead } from './PageHead.svelte';
 export { default as PageToolbar } from './PageToolbar.svelte';
+export { default as Glide } from './Glide.svelte';
 export { default as Rail } from './Rail.svelte';
 export { default as RailItem } from './RailItem.svelte';
 export { default as SectionNav } from './SectionNav.svelte';

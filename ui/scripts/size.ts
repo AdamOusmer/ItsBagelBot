@@ -122,10 +122,10 @@ const ENTRIES: {
              globalThis.x = [tween, bezier];`,
   },
   {
-    name: "rail-glide",
+    name: "glide",
     budget: 560,
     external: [],
-    source: `import { mountGlide } from "../../lib/rail-glide";
+    source: `import { mountGlide } from "../../lib/glide";
              globalThis.x = mountGlide;`,
   },
   {

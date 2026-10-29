@@ -136,35 +136,10 @@
     }
   }
 
-  .bb-rail__glide {
-    position: absolute;
+  .bb-rail > .bb-glide {
     left: var(--rail-pad, 14px);
     right: var(--rail-pad, 14px);
-    top: var(--glide-top, 0);
-    height: var(--glide-h, 0);
-    pointer-events: none;
-    border-radius: var(--bb-radius-sm);
-    background: rgba(var(--bb-white-rgb), 0.05);
-    opacity: 0;
-    transition:
-      top var(--bb-dur-slow) var(--bb-ease-out-expo),
-      height var(--bb-dur-slow) var(--bb-ease-out-expo),
-      opacity var(--bb-dur-fast) ease;
-  }
-
-  .bb-rail__glide[data-shown] {
-    opacity: 1;
-  }
-
-  .bb-rail__glide-edge {
-    position: absolute;
-    left: 0;
-    top: 10px;
-    bottom: 10px;
-    width: 2px;
-    border-radius: var(--bb-radius-pill);
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), 0.5);
+    width: auto;
   }
 
   .bb-rail__nav {
@@ -313,6 +288,12 @@
   .bb-rail-item .bb-icon {
     width: 17px;
     height: 17px;
+    opacity: 0.6;
+    transition: opacity var(--bb-dur-fast) ease;
+  }
+
+  .bb-rail-item:is(:hover, [data-active]) .bb-icon {
+    opacity: 1;
   }
 
   .bb-rail-item__label {
@@ -333,7 +314,7 @@
   }
 
   .bb-rail-item[data-active] {
-    color: var(--bb-tan-pale);
+    color: var(--bb-white);
   }
 
   .bb-rail-item[data-locked] {
@@ -775,7 +756,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bb-rail__glide,
     .bb-rail__chev svg,
     .bb-rail__subs {
       transition: none;

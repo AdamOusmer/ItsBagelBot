@@ -958,6 +958,8 @@ import SvelteGrid from '../svelte/Grid.svelte';
 import AstroGrid from '../astro/Grid.astro';
 import SvelteDivider from '../svelte/Divider.svelte';
 import AstroDivider from '../astro/Divider.astro';
+import SvelteGlide from '../svelte/Glide.svelte';
+import AstroGlide from '../astro/Glide.astro';
 import SvelteHaloPanel from '../svelte/HaloPanel.svelte';
 import AstroHaloPanel from '../astro/HaloPanel.astro';
 import SvelteStepCard from '../svelte/StepCard.svelte';
@@ -1202,6 +1204,20 @@ const PRIMITIVES: {
     astro: AstroDivider,
     props: {"vertical":true,"fade":true},
     html: "<span class=\"bb-divider bb-divider--v bb-divider--fade\" aria-hidden=\"true\"></span>",
+  },
+  {
+    name: "Glide",
+    svelte: SvelteGlide,
+    astro: AstroGlide,
+    props: {},
+    html: "<span class=\"bb-glide\" aria-hidden=\"true\"></span>",
+  },
+  {
+    name: "Glide|shown",
+    svelte: SvelteGlide,
+    astro: AstroGlide,
+    props: {"shown":true},
+    html: "<span class=\"bb-glide\" aria-hidden=\"true\" data-shown></span>",
   },
   {
     name: "HaloPanel",
