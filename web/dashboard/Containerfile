@@ -29,8 +29,8 @@ COPY web/dashboard dashboard
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=$BUILD_VERSION
 RUN cd dashboard && bun run build && find build -name '*.map' -delete
-# Runtime externals: newrelic and pino (vite ssr.external), sirv (serve-node.js), sql.js (createRequire). A missing one fails only the route that loads it.
-RUN bun kit/scripts/runtime-node-modules.ts node_modules /runtime/node_modules newrelic pino sirv sql.js
+# Runtime externals: newrelic, iovalkey and pino (vite ssr.external), sirv (serve-node.js), sql.js (createRequire). A missing one fails only the route that loads it.
+RUN bun kit/scripts/runtime-node-modules.ts node_modules /runtime/node_modules newrelic iovalkey pino sirv sql.js
 # Distroless bun aborts on dlopen of newrelic's Node/V8 addons (502 on first request), so strip them here; the runtime stage has no shell.
 RUN bun kit/scripts/strip-newrelic-node-addons.ts /runtime/node_modules
 
