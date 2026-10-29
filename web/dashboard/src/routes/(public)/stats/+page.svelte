@@ -232,7 +232,7 @@
 <main class="stats-page">
   <StatsPageLayout
     arrangement="playful"
-    style={t('stats.pageHeadline').length > 9 ? '--bb-stats-heading-size: clamp(30px, 9vw, 64px)' : undefined}
+    style={t('stats.pageHeadline').length > 9 ? '--stats-heading-size: clamp(30px, 9vw, 64px)' : undefined}
   >
     {#snippet heading()}
       <div class="stats-heading">

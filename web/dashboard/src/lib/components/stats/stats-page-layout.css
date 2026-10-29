@@ -47,7 +47,7 @@
   .stats-layout__title {
     max-width: 100%;
     font-family: var(--bb-font-display);
-    font-size: var(--bb-stats-heading-size, clamp(48px, 7vw, 84px));
+    font-size: var(--stats-heading-size, clamp(48px, 7vw, 84px));
     font-weight: 800;
     line-height: 1.08;
     letter-spacing: var(--bb-tracking-display);
@@ -168,7 +168,7 @@
 
   @media (max-width: 650px) {
     .stats-layout { padding: calc(var(--nav-offset, var(--bb-nav-height)) + 28px) 18px 48px; }
-    .stats-layout__title { font-size: var(--bb-stats-heading-size, clamp(40px, 12vw, 56px)); }
+    .stats-layout__title { font-size: var(--stats-heading-size, clamp(40px, 12vw, 56px)); }
     .stats-layout__crowd { --crowd-scale: 0.62; width: calc(100% + 36px); height: 170px; }
     .stats-layout__crowd > :nth-child(-n + 5) { --row-bottom: 66%; }
     .stats-layout__crowd > :is(:nth-child(1), :nth-child(5)) { display: none; }
