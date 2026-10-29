@@ -38,6 +38,12 @@ const { tone = 'green' } = Astro.props;
         width: min(1200px, 92vw);
         height: 520px;
         translate: -50% -50%;
+    }
+
+    .seam__glow::before {
+        content: '';
+        position: absolute;
+        inset: 0;
         border-radius: 50%;
         background: radial-gradient(
             ellipse at center,
@@ -76,28 +82,30 @@ const { tone = 'green' } = Astro.props;
     }
 
     @media (prefers-reduced-motion: no-preference) {
-        .seam__glow {
+        .seam__glow::before {
             animation: seam-float 14s ease-in-out infinite alternate;
         }
 
+        /* Longhands only: a minifier folds them into `animation: … view()`, which Chrome drops. */
         @supports (animation-timeline: view()) {
+            .seam > i {
+                animation-timing-function: linear;
+                animation-fill-mode: both;
+                animation-timeline: view();
+            }
+
             .seam__glow {
-                animation:
-                    seam-float 14s ease-in-out infinite alternate,
-                    seam-glow linear both;
-                animation-timeline: auto, view();
-                animation-range: normal, cover 0% cover 100%;
+                animation-name: seam-glow;
+                animation-range: cover 0% cover 100%;
             }
 
             .seam__line {
-                animation: seam-draw linear both;
-                animation-timeline: view();
+                animation-name: seam-draw;
                 animation-range: cover 0% cover 55%;
             }
 
             .seam__node {
-                animation: seam-node linear both;
-                animation-timeline: view();
+                animation-name: seam-node;
                 animation-range: cover 20% cover 55%;
             }
         }
