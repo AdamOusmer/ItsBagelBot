@@ -9,24 +9,111 @@ on:
   push:
     branches: [ "main" ]
 
+# A new push to a PR supersedes the run on the previous head; main runs are
+# grouped by commit so none of them is ever cancelled (they refresh the cache).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: '1.27.3'
+
 jobs:
-  test:
-    name: Run Unit Tests
+  # The suite only runs when the change can reach Go. A PR whose every changed
+  # file is outside what Go builds or reads skips the shards, and the "Run Unit
+  # Tests" gate below still reports success, so it can stay a required check.
+  # The list is deliberately short: Go tests read deploy/, locales/<lang>/chat
+  # and app/twitch/ingress (the Elixir sources), so none of those may be added
+  # here. Pushes to main always run the suite.
+  scope:
+    name: Detect Go-relevant changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
 
     steps:
-      # 1. Check out the code
+      - name: Checkout code
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect Go-relevant changes
+        id: scope
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run=true
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # --no-renames: a moved file must count under its old path too, or
+            # moving a Go file into docs/ would read as a docs-only change. The
+            # diff goes to a file first so a git failure fails the step instead
+            # of looking like an empty, skippable change.
+            git diff --no-renames --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed"
+            run=false
+            # locales/<lang>/{website,console,docs} feed only the web apps; Go
+            # embeds and walks locales/<lang>/chat and manifest.json alone.
+            not_go='^(web/|ui/|docs/|mail/|locales/[^/]+/(website|console|docs)/|.*\.md$)'
+            while IFS= read -r path; do
+              if [[ ! "$path" =~ $not_go ]]; then
+                run=true
+                echo "Go-relevant change: $path"
+                break
+              fi
+            done < "$RUNNER_TEMP/changed"
+          fi
+          [[ "$run" == "true" ]] || echo "No Go-relevant changes; skipping the Go suite."
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  # The suite is split across parallel runners by package. A change under pkg/
+  # or internal/ invalidates almost every package, and recompiling and
+  # re-running all of them under -race on one runner took ~5 minutes; each
+  # shard now compiles and runs only its own slice.
+  shard:
+    name: Go tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 1, 2, 3 ]
+
+    steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # setup-go@v5 caches the module cache + build cache by default, keyed on
-      # go.sum, so no separate actions/cache step is needed.
+      # setup-go's built-in cache is keyed on go.sum alone and only saves on a
+      # key miss, so the build cache froze at the last go.sum change and every
+      # run recompiled most of the tree under -race. The cache is managed by
+      # hand instead: every main push saves a fresh one per shard keyed by
+      # commit, and PRs restore the newest main cache through the prefix.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.3'
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Restore Go cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-
+            go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-
 
       - name: Install dependencies
         run: go mod download
@@ -53,7 +140,65 @@ jobs:
             go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock "./$schema"
           done
 
-      # -race detects race conditions (good for a concurrent bot); -v names the
-      # failing test.
+      # -race detects race conditions (good for a concurrent bot). No -v: a
+      # failing test prints its name and output without it, and -v buried that
+      # under ~17k lines of passing-test noise.
+      #
+      # Packages are dealt round-robin from the sorted list, which spreads the
+      # heavy app/ packages across shards and keeps each shard's slice stable
+      # from run to run, so its cache stays warm. With the restored cache,
+      # packages whose sources, read files and env are unchanged report
+      # "(cached)" instead of re-running. buildguard is the exception: it shells
+      # out to `go list -deps`, an input the test cache cannot see, so shard 1
+      # forces it to run every time.
       - name: Run Tests
-        run: go test -v -race ./...
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ strategy.job-total }}
+        run: |
+          set -euo pipefail
+          guard=ItsBagelBot/internal/buildguard
+          mapfile -t pkgs < <(go list ./... | grep -vx "$guard" | sort | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i % n')
+          echo "Shard $SHARD/$SHARDS: ${#pkgs[@]} packages"
+          go test -race "${pkgs[@]}"
+          if [[ "$SHARD" == "1" ]]; then
+            go test -race -count=1 "$guard"
+          fi
+
+      - name: Save Go cache
+        if: github.event_name == 'push' && success()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-s${{ matrix.shard }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+
+  # The required check. It keeps the name the branch protection already knows
+  # and turns the shards into one verdict: green when every shard passed or
+  # when scope decided the change cannot reach Go, red otherwise (a failed,
+  # cancelled or never-run shard included).
+  test:
+    name: Run Unit Tests
+    needs: [ scope, shard ]
+    # Not on a run a newer push cancelled: that commit is superseded.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Check shard results
+        env:
+          SCOPE: ${{ needs.scope.result }}
+          RUN: ${{ needs.scope.outputs.run }}
+          SHARDS: ${{ needs.shard.result }}
+        run: |
+          echo "scope=$SCOPE run=$RUN shards=$SHARDS"
+          if [[ "$SCOPE" != "success" ]]; then
+            echo "::error::change detection did not succeed"
+            exit 1
+          fi
+          if [[ "$RUN" == "true" && "$SHARDS" != "success" ]]; then
+            echo "::error::Go tests did not pass"
+            exit 1
+          fi
