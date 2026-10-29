@@ -18,7 +18,7 @@ const isNode = (s) => s.startsWith('node:') || NODE_BUILTINS.has(s.split('/')[0]
 
 const EVERYWHERE = [
   { test: (s) => s.startsWith('@bagel/'), what: 'another @bagel package' },
-  { test: (s) => s.startsWith('$lib') || s.startsWith('$env'), what: 'an app alias ($lib, $env)' },
+  { test: (s) => s.startsWith('$lib') || s.startsWith('#lib') || s.startsWith('$env'), what: 'an app alias ($lib, #lib, $env)' },
 ];
 
 const BANS = {

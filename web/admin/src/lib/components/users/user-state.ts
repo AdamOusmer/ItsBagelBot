@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { AdminUserWire } from '$lib/server/services';
+import type { AdminUserWire } from '#lib/server/services';
 
 export type UserState = 'banned' | 'inactive' | 'vip' | 'paid' | 'free';
 

@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import {
   userOverview,
   USER_MAX_PAGES,
@@ -28,8 +28,8 @@ import {
   type UserDirectoryQuery,
   type UserOrder,
   type UserRef
-} from '$lib/server/services';
-import { requireRole, type AccessKey, type AdminIdentity } from '$lib/server/access';
+} from '#lib/server/services';
+import { requireRole, type AccessKey, type AdminIdentity } from '#lib/server/access';
 import {
   audited,
   actionError,
@@ -41,13 +41,13 @@ import {
   softNotice,
   type ParseRefusal,
   type ParseResult
-} from '$lib/server/admin-action';
-import { audit } from '$lib/server/audit';
+} from '#lib/server/admin-action';
+import { audit } from '#lib/server/audit';
 import { signViewAs } from '@bagel/kit/server/impersonation';
-import { env } from '$env/dynamic/private';
-import { EMPTY_USER_STATS } from '$lib/server/fallback';
+import { env } from '@bagel/kit/server/env';
+import { EMPTY_USER_STATS } from '#lib/server/fallback';
 import type { UserStats } from '@bagel/kit';
-import { parsePage, normalizeSearch } from '$lib/server/paging';
+import { parsePage, normalizeSearch } from '#lib/server/paging';
 
 const CREATOR_CODE_MAX_LENGTH = 64;
 const DEMO = dev && process.env.DEMO === '1';
@@ -152,7 +152,7 @@ export const load: PageServerLoad = async ({ url, parent }) => {
   };
 
   const directory: Promise<UserDirectory> = DEMO
-    ? import('$lib/server/demo-data').then((fixtures) => demoPage(q, fixtures))
+    ? import('#lib/server/demo-data').then((fixtures) => demoPage(q, fixtures))
     : loadDirectory(id, q);
 
   return { directory, ...q };
@@ -309,7 +309,7 @@ function creatorCodeDemoNotice(ctx: ActionCtx<CreatorCode>) {
 }
 
 async function demoCreatorCode(ctx: ActionCtx<CreatorCode>) {
-  const { sampleUsers } = await import('$lib/server/demo-data');
+  const { sampleUsers } = await import('#lib/server/demo-data');
   const user = sampleUsers.find((u) => String(u.id) === ctx.ref.userId);
   const { code } = ctx.payload;
   return {
@@ -352,7 +352,7 @@ export const actions: Actions = {
     if (!q) return fail(400, { error: actionError(locals.locale, 'query required') });
     if (q.length > 128) return fail(400, { error: actionError(locals.locale, 'query too long') });
     if (DEMO) {
-      const { sampleUsers } = await import('$lib/server/demo-data');
+      const { sampleUsers } = await import('#lib/server/demo-data');
       return demoLookup(q, sampleUsers, locals.locale);
     }
     try {

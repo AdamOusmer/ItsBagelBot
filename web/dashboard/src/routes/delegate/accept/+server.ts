@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { delegationGet } from '$lib/server/services';
-import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
+import { delegationGet } from '#lib/server/services';
+import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const token = url.searchParams.get('t');

@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { logger } from '@bagel/kit/server/logger';
 import type { PageServerLoad } from './$types';
-import { effectiveId } from '$lib/server/board';
-import { listGuildModules } from '$lib/server/discord-store';
+import { effectiveId } from '#lib/server/board';
+import { listGuildModules } from '#lib/server/discord-store';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 // Enabled flag per stored module row; modules without a row are absent and follow their kind default.

@@ -15,14 +15,14 @@ let queueView: View = { open: true, total: 2, entries: [{ login: 'first', joined
 const queueReads: string[] = [];
 const moduleReads: string[] = [];
 
-mock.module('$lib/server/services', () => ({ resolveLogin: () => resolveReply() }));
-mock.module('$lib/server/module-blob', () => ({
+mock.module('#lib/server/services', () => ({ resolveLogin: () => resolveReply() }));
+mock.module('#lib/server/module-blob', () => ({
   readModuleBlob: async (userId: string, modId: string) => {
     moduleReads.push(`${userId}:${modId}`);
     return { enabled: await moduleEnabled(), configs: {} };
   }
 }));
-mock.module('$lib/server/queue-store', () => ({
+mock.module('#lib/server/queue-store', () => ({
   readQueue: async (userId: string) => {
     queueReads.push(userId);
     return queueView;

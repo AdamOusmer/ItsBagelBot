@@ -2,8 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { untrack } from 'svelte';
-  import { applyAction, enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { applyAction, enhance, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -16,7 +15,7 @@
   import StepList, { type StepItem } from '@bagel/ui/svelte/StepList.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployPlan, RunKind } from '$lib/deploys/types';
+  import type { DeployPlan, RunKind } from '#lib/deploys/types';
   import DeployScreen from './DeployScreen.svelte';
   import StageScene from './StageScene.svelte';
   import Mascot from './Mascot.svelte';

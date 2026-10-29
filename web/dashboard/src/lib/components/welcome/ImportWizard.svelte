@@ -5,23 +5,23 @@
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
-  import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
+  import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '#lib/scene-motion';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
-  import Completion from '$lib/components/welcome/Completion.svelte';
-  import ImportAlert from '$lib/import/ImportAlert.svelte';
-  import ImportFailed from '$lib/import/ImportFailed.svelte';
-  import ImportGroup from '$lib/import/ImportGroup.svelte';
-  import ImportRow from '$lib/import/ImportRow.svelte';
-  import ImportTimerChips from '$lib/import/ImportTimerChips.svelte';
-  import ImportSkipped from '$lib/import/ImportSkipped.svelte';
-  import ImportApplied from '$lib/import/ImportApplied.svelte';
-  import ImportAudit from '$lib/import/ImportAudit.svelte';
-  import ImportCommitBar from '$lib/import/ImportCommitBar.svelte';
-  import ImportSourcePicker from '$lib/import/ImportSourcePicker.svelte';
-  import ImportSteps from '$lib/import/ImportSteps.svelte';
-  import { ImportSession } from '$lib/import/session.svelte';
+  import Completion from '#lib/components/welcome/Completion.svelte';
+  import ImportAlert from '#lib/import/ImportAlert.svelte';
+  import ImportFailed from '#lib/import/ImportFailed.svelte';
+  import ImportGroup from '#lib/import/ImportGroup.svelte';
+  import ImportRow from '#lib/import/ImportRow.svelte';
+  import ImportTimerChips from '#lib/import/ImportTimerChips.svelte';
+  import ImportSkipped from '#lib/import/ImportSkipped.svelte';
+  import ImportApplied from '#lib/import/ImportApplied.svelte';
+  import ImportAudit from '#lib/import/ImportAudit.svelte';
+  import ImportCommitBar from '#lib/import/ImportCommitBar.svelte';
+  import ImportSourcePicker from '#lib/import/ImportSourcePicker.svelte';
+  import ImportSteps from '#lib/import/ImportSteps.svelte';
+  import { ImportSession } from '#lib/import/session.svelte';
   import {
     clearSnapshot,
     loadSnapshot,
@@ -29,7 +29,7 @@
     retainSnapshot,
     saveSelection,
     saveSnapshot
-  } from '$lib/import/persist';
+  } from '#lib/import/persist';
   import { deserialize } from '$app/forms';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';

@@ -3,15 +3,15 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
-import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
-import type { Session } from '$lib/server/session';
+import { billingState, checkoutBasketCreate, type BillingState } from '#lib/server/services';
+import type { Session } from '#lib/server/session';
 import { RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
-import { giveawayPrizes, type PrizeAward } from '$lib/server/giveaways';
-import { actionError } from '$lib/server/action-errors';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
+import { giveawayPrizes, type PrizeAward } from '#lib/server/giveaways';
+import { actionError } from '#lib/server/action-errors';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -204,7 +204,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const autostart = url.searchParams.get('subscribe') === '1';
 
   if (DEMO) {
-    const { demoBilling } = await import('$lib/server/demo-data');
+    const { demoBilling } = await import('#lib/server/demo-data');
     const { account, links } = demoBilling();
     return { account, links: links satisfies BillingLinks, degraded: false, prizeDegraded: false, autostart, prizes: [] as PrizeAward[] };
   }
@@ -246,7 +246,7 @@ export const actions: Actions = {
 
     const url = await subscribeCheckout(actor, packageType, getClientAddress());
     if (!url) return fail(503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
-    throw redirect(303, url);
+    throw redirect(303, url, { external: true });
   },
 
   gift: async ({ locals, request, getClientAddress }) => {
@@ -265,12 +265,12 @@ export const actions: Actions = {
 
     const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress(), locals.locale);
     if (!checkout.ok) return fail(checkout.status, checkout.data);
-    throw redirect(303, checkout.url);
+    throw redirect(303, checkout.url, { external: true });
   },
 
   cancel: async ({ locals }) => {
     if (DEMO) {
-      const { demoCancelPending } = await import('$lib/server/demo-data');
+      const { demoCancelPending } = await import('#lib/server/demo-data');
       demoCancelPending();
       throw redirect(303, '/billing');
     }
@@ -285,6 +285,6 @@ export const actions: Actions = {
     const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);
     if (blocked) return fail(blocked.status, blocked.data);
 
-    throw redirect(303, url);
+    throw redirect(303, url, { external: true });
   }
 };

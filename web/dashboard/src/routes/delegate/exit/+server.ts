@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { COOKIE, seal } from '$lib/server/session';
-import { cookieOptions } from '$lib/server/cookies';
+import { COOKIE, seal } from '#lib/server/session';
+import { cookieOptions } from '#lib/server/cookies';
 
 export const GET: RequestHandler = ({ url, locals, cookies }) => {
   const s = locals.session;

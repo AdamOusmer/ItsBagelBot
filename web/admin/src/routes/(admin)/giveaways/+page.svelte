@@ -1,8 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -22,12 +21,12 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import StatePill from '#lib/components/StatePill.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { giveawaySummary, MAX_PRIZE_MONTHS } from '@bagel/kit/giveaway';
-  import type { GiveawayPreviewWire, GiveawayWire } from '$lib/server/giveaways';
+  import type { GiveawayPreviewWire, GiveawayWire } from '#lib/server/giveaways';
 
   let { data, form } = $props();
   const errorMessage = $derived((form as { error?: string } | null)?.error);

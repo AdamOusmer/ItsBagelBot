@@ -17,7 +17,7 @@ import { analyzeModule, type Usage } from './i18n-usage.ts';
 export const NODE_PLACEHOLDER = '__BAGEL_I18N_NODE__';
 export const SLICE_DIR = '_app/immutable/i18n';
 const KIT_DIR = fileURLToPath(new URL('..', import.meta.url));
-const APP_MODULE = /\/generated\/client-optimized\/app\.js$/;
+const APP_MODULE = /\/generated\/(?:build\/)?client-optimized\/app\.js$/;
 const EXEMPT = /\/kit\/lib\/i18n\/(messages|context)\.ts$/;
 const API_MENTION = /\b(getI18n|setI18n|translate|translateList)\b/;
 const PLACEHOLDER_LITERAL = new RegExp(`(["'\`])${NODE_PLACEHOLDER}\\1`, 'g');

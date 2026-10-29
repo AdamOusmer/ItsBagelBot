@@ -10,7 +10,7 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ShardSnapshot } from '@bagel/kit';
-  import type { TrialSnapshot } from '$lib/server/services';
+  import type { TrialSnapshot } from '#lib/server/services';
   import type { Panel } from '../../../routes/(admin)/+page.server';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import { onMount } from 'svelte';

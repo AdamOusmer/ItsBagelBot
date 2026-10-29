@@ -4,8 +4,8 @@
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { RUN_KINDS, STAGES_FOR } from '$lib/deploys/types';
-  import type { RunKind } from '$lib/deploys/types';
+  import { RUN_KINDS, STAGES_FOR } from '#lib/deploys/types';
+  import type { RunKind } from '#lib/deploys/types';
   import { KIND_HINT_KEY, KIND_KEY } from './view';
 
   let { kind, onpick }: { kind: RunKind; onpick: (k: RunKind) => void } = $props();

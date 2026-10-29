@@ -3,7 +3,7 @@
 
 import { expect, mock, test } from 'bun:test';
 
-mock.module('$app/environment', () => ({ dev: false, browser: false, building: false }));
+mock.module('$app/env', () => ({ dev: false, browser: false, building: false }));
 
 let reads = 0;
 mock.module('./live-counters', () => ({

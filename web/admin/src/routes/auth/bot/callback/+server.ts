@@ -5,9 +5,9 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { logger } from '@bagel/kit/server/logger';
-import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
-import { botTokenSet, type TokenGrant } from '$lib/server/services';
-import { env } from '$env/dynamic/private';
+import { botTwitch, botClientId, botScopes } from '#lib/server/oauth';
+import { botTokenSet, type TokenGrant } from '#lib/server/services';
+import { env } from '@bagel/kit/server/env';
 
 type BotIdentity = {
   claims: { sub: string; aud?: string | string[]; iss?: string; nonce?: string };

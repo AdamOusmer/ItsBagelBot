@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { AccessKey } from '$lib/access';
-import type { AdminUserWire } from '$lib/server/services';
+import type { AccessKey } from '#lib/access';
+import type { AdminUserWire } from '#lib/server/services';
 
 // `action` is the server form-action name: a rename silently 404s the POST and splits the audit trail.
 

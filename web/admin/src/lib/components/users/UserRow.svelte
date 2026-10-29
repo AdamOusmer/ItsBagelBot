@@ -5,7 +5,7 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AdminUserWire } from '$lib/server/services';
+  import type { AdminUserWire } from '#lib/server/services';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';
 

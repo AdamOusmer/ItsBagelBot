@@ -4,8 +4,8 @@
   import '@bagel/ui/styles/elements/row-body.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import { getI18n } from '@bagel/kit';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
-  import type { QuoteView } from '$lib/server/quotes-store';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
+  import type { QuoteView } from '#lib/server/quotes-store';
 
   let {
     quote,

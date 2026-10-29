@@ -4,7 +4,7 @@
 import { masterClient } from '@bagel/kit/server/valkey-master';
 import { valkeyGuard } from './valkey-guard';
 import { liveTotals } from './live-counters';
-import { degradedStreamCounters, type StreamCounters } from '$lib/overview-live';
+import { degradedStreamCounters, type StreamCounters } from '#lib/overview-live';
 import { parseCounterValue } from '@bagel/kit/validation';
 
 const SETTINGS_PREFIX = 'settings:';

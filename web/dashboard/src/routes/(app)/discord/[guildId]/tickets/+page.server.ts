@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { guildActions, loadGuildModule, moduleActions } from '$lib/server/discord-guild';
+import { guildActions, loadGuildModule, moduleActions } from '#lib/server/discord-guild';
 
 const MODULE_ID = 'tickets';
 

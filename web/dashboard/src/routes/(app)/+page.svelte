@@ -1,9 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type ActionResult } from '$app/forms';
   import { onMount } from 'svelte';
-  import { visibleEventSource } from '$lib/visible-stream';
+  import { visibleEventSource } from '#lib/visible-stream';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
@@ -17,17 +17,16 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, mergeConnectionSignals, type ConnSignals, type ConnUi, type ChannelLifecycle } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
-  import type { ActionResult } from '@sveltejs/kit';
-  import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
-  import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
-  import QuickActions from '$lib/components/overview/QuickActions.svelte';
-  import LinkedSummary from '$lib/components/overview/LinkedSummary.svelte';
-  import TopCommands from '$lib/components/overview/TopCommands.svelte';
-  import SetupProgress from '$lib/components/overview/SetupProgress.svelte';
-  import StreamSection from '$lib/components/overview/StreamSection.svelte';
-  import RetryButton from '$lib/components/overview/RetryButton.svelte';
-  import ActivityLog from '$lib/components/overview/ActivityLog.svelte';
-  import AnsweredTonight from '$lib/components/overview/AnsweredTonight.svelte';
+  import BotStatusPanel from '#lib/components/overview/BotStatusPanel.svelte';
+  import NeedsAttention from '#lib/components/overview/NeedsAttention.svelte';
+  import QuickActions from '#lib/components/overview/QuickActions.svelte';
+  import LinkedSummary from '#lib/components/overview/LinkedSummary.svelte';
+  import TopCommands from '#lib/components/overview/TopCommands.svelte';
+  import SetupProgress from '#lib/components/overview/SetupProgress.svelte';
+  import StreamSection from '#lib/components/overview/StreamSection.svelte';
+  import RetryButton from '#lib/components/overview/RetryButton.svelte';
+  import ActivityLog from '#lib/components/overview/ActivityLog.svelte';
+  import AnsweredTonight from '#lib/components/overview/AnsweredTonight.svelte';
   import { livePoll } from '@bagel/kit/live-poll';
   import {
     CONNECTION_POLL_FAST_MS,
@@ -35,8 +34,8 @@
     connectionPollDelay,
     connectionPollSettled,
     type ConnectionPollGoal
-  } from '$lib/connection-poll';
-  import { LIVE_STALE_MS, isFreshChannel, mergeLive, type LiveLanes } from '$lib/overview-live';
+  } from '#lib/connection-poll';
+  import { LIVE_STALE_MS, isFreshChannel, mergeLive, type LiveLanes } from '#lib/overview-live';
   let { data } = $props();
 
   const { t } = getI18n();

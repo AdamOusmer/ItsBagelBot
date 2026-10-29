@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { RpcError } from '@bagel/kit/server/nats';
-import { resolveLogin, type ResolvedChannel } from '$lib/server/services';
+import { resolveLogin, type ResolvedChannel } from '#lib/server/services';
 
 const DEFINITIVE_MISS: ReadonlySet<string> = new Set(['not_found', 'invalid']);
 

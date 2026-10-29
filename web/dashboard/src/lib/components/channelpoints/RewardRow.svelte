@@ -2,15 +2,14 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 	import '@bagel/ui/styles/elements/typography.css';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import '@bagel/ui/styles/elements/row-body.css';
   import '@bagel/ui/styles/elements/swatch.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n, type ChannelPointReward } from '@bagel/kit';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 

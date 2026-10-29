@@ -8,7 +8,7 @@ import {
   isHexColor,
   isValidRewardCost,
   isValidRewardTitle
-} from '$lib/reward-fields';
+} from '#lib/reward-fields';
 
 export interface RewardCore {
   title: string;

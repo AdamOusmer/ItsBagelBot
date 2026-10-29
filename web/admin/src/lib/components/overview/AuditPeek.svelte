@@ -8,7 +8,7 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AuditEntry } from '$lib/server/services';
+  import type { AuditEntry } from '#lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';

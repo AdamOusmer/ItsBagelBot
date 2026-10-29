@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { logger } from '@bagel/kit/server/logger';
-import { cookieOptions } from '$lib/server/cookies';
+import { cookieOptions } from '#lib/server/cookies';
 import {
   NB_COOKIE_PATH,
   NB_RETURN_COOKIE,
@@ -15,7 +15,7 @@ import {
   NB_TOKEN_TTL_SECONDS,
   exchangeNightbotCode,
   importOwner
-} from '$lib/server/nightbot-oauth';
+} from '#lib/server/nightbot-oauth';
 
 function consumeCallback(cookies: Cookies, url: URL): string | null {
   const stored = cookies.get(NB_STATE_COOKIE);

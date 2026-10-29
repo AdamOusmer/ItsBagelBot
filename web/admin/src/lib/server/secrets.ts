@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // No broad-token fallback: a missing scoped DOPPLER_TOKEN_<SERVICE> must stay missing.
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 import { nanoid } from 'nanoid';
 import mysql from 'mysql2/promise';
 

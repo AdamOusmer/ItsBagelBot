@@ -27,17 +27,16 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { page } from '$app/state';
-  import { enhance } from '$app/forms';
-  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
-  import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
-  import LangSwitch from '$lib/components/LangSwitch.svelte';
-  import CursorSwitch from '$lib/components/CursorSwitch.svelte';
-  import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
-  import DeleteAccountDialog from '$lib/components/settings/DeleteAccountDialog.svelte';
-  import { busyEnhance } from '$lib/components/settings/busy-enhance';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
+  import FetchKeyManager from '#lib/components/commands/fetches/FetchKeyManager.svelte';
+  import LangSwitch from '#lib/components/LangSwitch.svelte';
+  import CursorSwitch from '#lib/components/CursorSwitch.svelte';
+  import SectionPicker from '#lib/components/settings/SectionPicker.svelte';
+  import DeleteAccountDialog from '#lib/components/settings/DeleteAccountDialog.svelte';
+  import { busyEnhance } from '#lib/components/settings/busy-enhance';
   import { commandsHref, leaderboardHref } from '@bagel/kit/site-links';
-  import type { DelegationGrant, NotificationWire } from '$lib/server/services';
+  import type { DelegationGrant, NotificationWire } from '#lib/server/services';
 
   let { data, form } = $props();
 

@@ -10,7 +10,7 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AuditEntry } from '$lib/server/services';
+  import type { AuditEntry } from '#lib/server/services';
   import StatePill from '../StatePill.svelte';
   import { KIND_LABEL, auditKind } from './audit-kinds';
 

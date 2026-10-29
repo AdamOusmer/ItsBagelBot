@@ -5,7 +5,7 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import RewardCoreFields from '$lib/components/channelpoints/RewardCoreFields.svelte';
+  import RewardCoreFields from '#lib/components/channelpoints/RewardCoreFields.svelte';
   import { SPOTIFY_ERROR_KEYS, spotifyErrors, type SpotifyErrorField, type SpotifyRewardDraft } from './spotify-draft';
 
   let {

@@ -3,13 +3,13 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
-import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
-import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
-import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
+import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
+import { twitch, scopes, safeNextPath } from '#lib/server/oauth';
+import { skipAuthorizeIfSignedIn } from '#lib/server/oauth-start';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -42,5 +42,5 @@ export const load: PageServerLoad = ({ cookies, url, locals }) => {
   if (next) cookies.set('login_next', next, cookieOpts);
   else cookies.delete('login_next', { path: '/' });
 
-  throw redirect(302, authUrl.toString());
+  throw redirect(302, authUrl.toString(), { external: true });
 };

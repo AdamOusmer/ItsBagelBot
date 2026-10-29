@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 // `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
 export const SUB = {
   broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT || 'bagel.rpc.broadcaster.status.get',

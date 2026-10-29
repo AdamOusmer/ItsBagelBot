@@ -9,7 +9,7 @@
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
+  import { clockFace, type ActivityFeed, type ActivityKind } from '#lib/overview-live';
 
   const { t, locale } = getI18n();
 

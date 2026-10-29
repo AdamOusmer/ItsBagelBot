@@ -7,7 +7,7 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
-  import type { QueueView } from '$lib/server/songqueue-view';
+  import type { QueueView } from '#lib/server/songqueue-view';
 
   const TICK_MS = 1000;
 

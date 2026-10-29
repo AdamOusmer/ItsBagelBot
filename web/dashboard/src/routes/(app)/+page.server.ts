@@ -17,17 +17,17 @@ import {
   type ChannelSubState,
   auditDashboardImpersonation,
   delegationList,
-} from '$lib/server/services';
-import { listCommands, listModules } from '$lib/server/commands-store';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+} from '#lib/server/services';
+import { listCommands, listModules } from '#lib/server/commands-store';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
-import { overviewLanes } from '$lib/server/overview-lanes';
-import { broadcasterPremium } from '$lib/server/module-gate';
-import { twitchScopeGap } from '$lib/server/oauth';
-import { isOwnerSession } from '$lib/server/owner';
-import { shareRecent } from '$lib/server/recent-share';
+import { overviewLanes } from '#lib/server/overview-lanes';
+import { broadcasterPremium } from '#lib/server/module-gate';
+import { twitchScopeGap } from '#lib/server/oauth';
+import { isOwnerSession } from '#lib/server/owner';
+import { shareRecent } from '#lib/server/recent-share';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -95,8 +95,8 @@ export type ModuleDigest = { on: number; switchedOn: number; total: number; ok: 
 
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
-function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
-  return DEMO ? import('$lib/server/demo-data').then(pick) : real();
+function demoOr<T>(pick: (m: typeof import('#lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
+  return DEMO ? import('#lib/server/demo-data').then(pick) : real();
 }
 
 function commandDigest(uid: string): Promise<CommandDigest> {

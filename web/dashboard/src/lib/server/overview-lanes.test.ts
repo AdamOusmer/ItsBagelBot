@@ -12,10 +12,10 @@ const track = <T>(name: string, value: T) => async (uid: string) => {
   return value;
 };
 
-mock.module('$lib/server/stream', () => ({ streamMeta: track('stream', { ok: true }) }));
-mock.module('$lib/server/stream-counters', () => ({ streamCounters: track('counters', { ok: true }) }));
-mock.module('$lib/server/chat-volume', () => ({ chatVolume: track('volume', { ok: true }) }));
-mock.module('$lib/server/activity', () => ({
+mock.module('#lib/server/stream', () => ({ streamMeta: track('stream', { ok: true }) }));
+mock.module('#lib/server/stream-counters', () => ({ streamCounters: track('counters', { ok: true }) }));
+mock.module('#lib/server/chat-volume', () => ({ chatVolume: track('volume', { ok: true }) }));
+mock.module('#lib/server/activity', () => ({
   activityFeed: track('feed', {
     ok: true,
     rows: [

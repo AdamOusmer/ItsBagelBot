@@ -13,7 +13,7 @@ let changes: string[] = [];
 let failSave = false;
 
 const services = await import('../../lib/server/services');
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   ...services,
   setLocale: async (user: string, locale: string) => {
     changes.push(`save:${user}:${locale}`);

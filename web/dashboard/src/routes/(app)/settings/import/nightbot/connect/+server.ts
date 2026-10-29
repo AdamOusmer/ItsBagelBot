@@ -4,7 +4,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
-import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
+import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
 import {
   NB_RETURN_COOKIE,
   NB_STATE_COOKIE_PATH,
@@ -12,7 +12,7 @@ import {
   importOwner,
   nightbotAuthURL,
   nightbotConfigured
-} from '$lib/server/nightbot-oauth';
+} from '#lib/server/nightbot-oauth';
 
 export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   if (!importOwner(locals)) throw redirect(302, '/');
@@ -27,5 +27,5 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
   } else {
     cookies.delete(NB_RETURN_COOKIE, { path: NB_STATE_COOKIE_PATH });
   }
-  throw redirect(302, nightbotAuthURL(state).toString());
+  throw redirect(302, nightbotAuthURL(state).toString(), { external: true });
 };

@@ -2,17 +2,17 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/kit';
-import type { SpotifySrPerm } from '$lib/server/spotify-store';
-import { spotifyStore } from '$lib/server/spotify-store';
-import { done, storeMutator } from '$lib/server/reward-action';
-import { oneOf, parseRewardCore } from '$lib/server/reward-form';
-import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
+import type { SpotifySrPerm } from '#lib/server/spotify-store';
+import { spotifyStore } from '#lib/server/spotify-store';
+import { done, storeMutator } from '#lib/server/reward-action';
+import { oneOf, parseRewardCore } from '#lib/server/reward-form';
+import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '#lib/server/oauth';
 import { getSongQueue } from '@bagel/kit/server/songqueue-store';
-import type { QueueView } from '$lib/server/songqueue-view';
-import { queueView } from '$lib/server/songqueue-live';
-import { moduleLoad } from '$lib/server/module-page';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import type { QueueView } from '#lib/server/songqueue-view';
+import { queueView } from '#lib/server/songqueue-live';
+import { moduleLoad } from '#lib/server/module-page';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
@@ -29,7 +29,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
   return moduleLoad('songqueue', locals.session, {
     demo: DEMO
       ? async () => {
-          const { demoSpotifyView } = await import('$lib/server/demo-data');
+          const { demoSpotifyView } = await import('#lib/server/demo-data');
           const setupPreview = url.searchParams.get('setup') === '1';
           return {
             ...demoSpotifyView(),

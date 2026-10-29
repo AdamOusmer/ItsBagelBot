@@ -14,7 +14,7 @@ import {
   requireDiscordActor,
   takeDiscordCode,
   type DiscordErrorSlug
-} from '$lib/server/discord-oauth';
+} from '#lib/server/discord-oauth';
 import {
   blankDiscordConfig,
   persistSetup,
@@ -30,9 +30,9 @@ import {
   type DiscordGuildConfig,
   type DiscordGuildTarget,
   type DiscordSetup
-} from '$lib/server/discord-store';
+} from '#lib/server/discord-store';
 import { alertOff, legacyConfigFor } from '@bagel/kit';
-import { auditDashboardImpersonation } from '$lib/server/services';
+import { auditDashboardImpersonation } from '#lib/server/services';
 import { redirect, isRedirect } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ locals, cookies, url }) => {

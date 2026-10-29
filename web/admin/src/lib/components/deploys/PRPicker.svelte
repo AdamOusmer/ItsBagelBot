@@ -9,7 +9,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployPRInfo } from '$lib/deploys/types';
+  import type { DeployPRInfo } from '#lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
   import { CHECK_KEY, checkTone, tickable } from './view';
 

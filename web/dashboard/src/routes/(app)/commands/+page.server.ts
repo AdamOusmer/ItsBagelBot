@@ -20,22 +20,22 @@ import {
   type FetchDefErrors
 } from '@bagel/kit';
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
-import { listCommands, upsertCommand, deleteCommand, listModules, listModulesForEditing, patchModule, type ModuleView } from '$lib/server/commands-store';
-import { moduleEditState } from '$lib/server/module-edit-state';
-import { saveConflict, conflictField } from '$lib/server/command-conflict';
-import { isBulkRequest, runBulk } from '$lib/server/commands-bulk';
-import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
-import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
-import { auditDashboardImpersonation, userCommandsPage } from '$lib/server/services';
+import { listCommands, upsertCommand, deleteCommand, listModules, listModulesForEditing, patchModule, type ModuleView } from '#lib/server/commands-store';
+import { moduleEditState } from '#lib/server/module-edit-state';
+import { saveConflict, conflictField } from '#lib/server/command-conflict';
+import { isBulkRequest, runBulk } from '#lib/server/commands-bulk';
+import { listFetches, upsertFetchDef, deleteFetchDef } from '#lib/server/fetches-store';
+import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '#lib/server/fetch-def-actions';
+import { auditDashboardImpersonation, userCommandsPage } from '#lib/server/services';
 import { commandsHref } from '@bagel/kit/site-links';
 import { logger } from '@bagel/kit/server/logger';
 import { count } from '@bagel/kit/server/analytics';
-import { actionError, actionErrorBody } from '$lib/server/action-errors';
-import { effectiveId } from '$lib/server/board';
-import { parsePerm, signedInAction } from '$lib/server/action-context';
-import { gateSection } from '$lib/server/module-gate';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { actionError, actionErrorBody } from '#lib/server/action-errors';
+import { effectiveId } from '#lib/server/board';
+import { parsePerm, signedInAction } from '#lib/server/action-context';
+import { gateSection } from '#lib/server/module-gate';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
   gateSection(locals.session, 'commands');
   const uid = effectiveId(locals.session);
   if (DEMO) {
-    const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
+    const { demoCommandRows, demoFetches } = await import('#lib/server/demo-data');
     return {
       commands: mergeCommands(demoCommandRows, []),
       ...demoFetches(),

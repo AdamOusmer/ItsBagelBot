@@ -8,8 +8,8 @@
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { EnrollmentWire } from '$lib/server/services';
-  import { ENROLLMENT_WINDOWS, type EnrollmentWindow } from '$lib/enrollment-window';
+  import type { EnrollmentWire } from '#lib/server/services';
+  import { ENROLLMENT_WINDOWS, type EnrollmentWindow } from '#lib/enrollment-window';
 
   let {
     enrollment,

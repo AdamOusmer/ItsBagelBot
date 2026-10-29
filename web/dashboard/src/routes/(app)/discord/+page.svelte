@@ -13,11 +13,11 @@
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { MasterToggle, getI18n, guildBotState } from '@bagel/kit';
-  import { DISCORD_SLUG_KEYS } from '$lib/discord-messages';
-  import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
-  import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
-  import { sinceParts } from '$lib/discord/guild-view';
-  import type { DiscordGuildSummary } from '$lib/server/discord-store';
+  import { DISCORD_SLUG_KEYS } from '#lib/discord-messages';
+  import DiscordStateTag from '#lib/components/discord/DiscordStateTag.svelte';
+  import GuildCrest from '#lib/components/discord/GuildCrest.svelte';
+  import { sinceParts } from '#lib/discord/guild-view';
+  import type { DiscordGuildSummary } from '#lib/server/discord-store';
 
   let { data } = $props();
   const { t } = getI18n();

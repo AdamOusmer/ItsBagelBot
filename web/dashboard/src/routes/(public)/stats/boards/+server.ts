@@ -3,7 +3,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { publicBoards } from '$lib/server/public-boards';
+import { publicBoards } from '#lib/server/public-boards';
 import { STATS_EDGE_HEADERS } from '../edge-headers';
 
 export const GET: RequestHandler = async () =>

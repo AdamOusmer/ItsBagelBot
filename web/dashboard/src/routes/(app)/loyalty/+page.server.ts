@@ -4,14 +4,14 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
-import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '$lib/server/loyalty-store';
-import { listModules } from '$lib/server/commands-store';
-import { setModuleEnabled } from '$lib/server/module-blob';
-import { disableChildren, isChildOf } from '$lib/server/module-parent';
-import { moduleLoad } from '$lib/server/module-page';
-import { storeMutator } from '$lib/server/reward-action';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { readLoyalty, writeLoyalty, topStandings, resetPoints } from '#lib/server/loyalty-store';
+import { listModules } from '#lib/server/commands-store';
+import { setModuleEnabled } from '#lib/server/module-blob';
+import { disableChildren, isChildOf } from '#lib/server/module-parent';
+import { moduleLoad } from '#lib/server/module-page';
+import { storeMutator } from '#lib/server/reward-action';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
@@ -29,7 +29,7 @@ export const load: PageServerLoad = ({ locals }) =>
       ? async () => ({
           enabled: true,
           config: blankLoyaltyConfig(),
-          top: (await import('$lib/server/demo-data')).demoStandings(),
+          top: (await import('#lib/server/demo-data')).demoStandings(),
           games: gameFlags([])
         })
       : undefined,

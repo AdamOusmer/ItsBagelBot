@@ -9,7 +9,7 @@ import {
   type RewardCoreDraft,
   type RewardCoreErrorField,
   type RewardCoreErrors
-} from '$lib/reward-fields';
+} from '#lib/reward-fields';
 
 export type SpotifyRewardDraft = RewardCoreDraft;
 

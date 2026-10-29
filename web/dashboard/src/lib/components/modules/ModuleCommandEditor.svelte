@@ -16,7 +16,7 @@
   import SaveStatus, { type SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import { COMMAND_SAMPLES, getI18n, tModuleCommandPreview, tPerm, type ModuleCommandInfo } from '@bagel/kit';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
 
   let {
     moduleId,

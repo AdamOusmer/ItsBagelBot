@@ -18,7 +18,7 @@ mock.module('@bagel/kit/server/nats', () => ({
   RpcError: class RpcError extends Error {}
 }));
 
-mock.module('$lib/deploys/types', () => ({ DEPLOY_PREFIX: 'bagel.rpc.admin.deploy', DEPLOY_EVENTS_PREFIX: 'bagel.deploy.events' }));
+mock.module('#lib/deploys/types', () => ({ DEPLOY_PREFIX: 'bagel.rpc.admin.deploy', DEPLOY_EVENTS_PREFIX: 'bagel.deploy.events' }));
 
 process.env.NEW_RELIC_ENABLED = 'false';
 const { botTokenSet, tokenStatus } = await import('../src/lib/server/services');

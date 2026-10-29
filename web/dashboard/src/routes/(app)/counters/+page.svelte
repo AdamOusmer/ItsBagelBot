@@ -2,11 +2,10 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Select from '@bagel/ui/svelte/Select.svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick, untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -42,8 +41,8 @@
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
-  import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
+  import CounterRow from '#lib/components/counters/CounterRow.svelte';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
@@ -175,8 +174,8 @@
   const guarded = discard.guard;
 
   function syncSelection(name: string | null) {
-    if (name) void goto(`/counters?c=${encodeURIComponent(name)}`, { noScroll: true, keepFocus: true });
-    else if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
+    if (name) void goto(`/counters?c=${encodeURIComponent(name)}`, { reset: false });
+    else if (data.selected) void goto('/counters', { reset: false });
   }
 
   function openNew() {
@@ -424,7 +423,7 @@
       if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('success', t('counters.toastDeleted'));
         if (data.selected && snapshot && data.selected === snapshot.name) {
-          await goto('/counters', { noScroll: true });
+          await goto('/counters', { reset: false });
         }
         return;
       }

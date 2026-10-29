@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { IngressCapacity, ShardSnapshot, TrialSocket } from '@bagel/kit';
-  import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
+  import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -10,11 +10,11 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import { durationLabel } from '$lib/duration';
+  import { durationLabel } from '#lib/duration';
   import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
   import type { StatusTone } from '@bagel/kit/status-tone';
   import LoadMeter from './LoadMeter.svelte';
-  import { eventsPerSecond, utilizationPct } from '$lib/throughput';
+  import { eventsPerSecond, utilizationPct } from '#lib/throughput';
   import ShardCard from './ShardCard.svelte';
   import { groupShardNodes } from './shard-topology';
   import { podIndex, rateLabel } from './shard-state';

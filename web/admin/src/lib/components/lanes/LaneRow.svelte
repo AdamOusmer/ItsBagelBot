@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { LaneView } from '$lib/server/lanes';
+  import type { LaneView } from '#lib/server/lanes';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '../StatePill.svelte';

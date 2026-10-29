@@ -3,8 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
   import { untrack } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
@@ -28,14 +27,14 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { BotCounter } from '$lib/server/services';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import type { BotCounter } from '#lib/server/services';
+  import StatePill from '#lib/components/StatePill.svelte';
   import {
     NEW_COUNTER,
     blankCounter,
     counterComplete,
     type CounterDraft
-  } from '$lib/components/counters/counter-draft';
+  } from '#lib/components/counters/counter-draft';
   import type { BotCountersBundle } from './+page.server';
 
   let { data } = $props();

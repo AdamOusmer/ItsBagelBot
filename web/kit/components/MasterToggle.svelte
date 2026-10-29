@@ -1,8 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { toast } from '@bagel/ui/svelte/toast';
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import { getI18n } from '../lib/i18n/context';

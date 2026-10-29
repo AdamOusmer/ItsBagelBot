@@ -5,9 +5,9 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import { getI18n, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import { chipsFor } from '@bagel/kit/variables';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import ReplyTokenList from '$lib/components/variables/ReplyTokenList.svelte';
+  import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
+  import ReplyTokenList from '#lib/components/variables/ReplyTokenList.svelte';
 
   let {
     moduleId,

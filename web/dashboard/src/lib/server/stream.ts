@@ -9,7 +9,7 @@ import {
   allRead,
   degradedStreamMeta,
   type StreamMeta
-} from '$lib/overview-live';
+} from '#lib/overview-live';
 
 const STREAM_INFO_SUBJECT =
   process.env.NATS_BROADCASTER_STREAM_INFO_SUBJECT || 'bagel.rpc.broadcaster.stream_info.get';

@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
-import { leaderboardCacheTag } from '$lib/edge-tags';
+import { leaderboardCacheTag } from '#lib/edge-tags';
 import { accountState } from './services';
 import { channelPageUrls } from './channel-urls';
 

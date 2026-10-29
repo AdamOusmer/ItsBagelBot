@@ -1,8 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
@@ -17,9 +16,9 @@
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AccessKey } from '$lib/access';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
-  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
+  import type { AccessKey } from '#lib/access';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
+  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';

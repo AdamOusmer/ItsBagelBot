@@ -8,7 +8,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AnsweredTonight } from '$lib/overview-live';
+  import type { AnsweredTonight } from '#lib/overview-live';
 
   const { t, locale } = getI18n();
 

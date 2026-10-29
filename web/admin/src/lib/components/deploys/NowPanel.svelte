@@ -8,7 +8,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployStage } from '$lib/deploys/types';
+  import type { DeployStage } from '#lib/deploys/types';
   import { flight } from './flight';
   import { POD_PHASE_KEY, currentItem, groupNodes, queueTone, ratio, stageTone } from './view';
 

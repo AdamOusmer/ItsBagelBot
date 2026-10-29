@@ -3,19 +3,19 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { shardSnapshot, shardScale, shardAutoscale, trialList } from '$lib/server/services';
-import { allows, requireRole } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
-import { shardPageReads } from '$lib/server/shard-page-reads';
-import { actionError, adminText } from '$lib/server/admin-action';
+import { dev } from '$app/env';
+import { shardSnapshot, shardScale, shardAutoscale, trialList } from '#lib/server/services';
+import { allows, requireRole } from '#lib/server/access';
+import { audit } from '#lib/server/audit';
+import { shardPageReads } from '#lib/server/shard-page-reads';
+import { actionError, adminText } from '#lib/server/admin-action';
 
 const DEMO = dev && process.env.DEMO === '1';
 
 export const load: PageServerLoad = async ({ parent }) => {
   const { role } = await parent();
   const withTrials = allows(role, 'trials.manage');
-  const demo = DEMO ? import('$lib/server/demo-data') : null;
+  const demo = DEMO ? import('#lib/server/demo-data') : null;
   const readFleet = () => demo ? demo.then(({ sampleSnapshot }) => sampleSnapshot) : shardSnapshot();
   const readTrials = () => {
     if (!withTrials) return Promise.resolve(null);
@@ -34,7 +34,7 @@ export const actions: Actions = {
     const count = parseInt(raw, 10);
     if (!raw || isNaN(count) || count < 1) return fail(400, { error: adminText(locals.locale, 'admin.action.countPositive') });
     if (DEMO) {
-      const { sampleSnapshot } = await import('$lib/server/demo-data');
+      const { sampleSnapshot } = await import('#lib/server/demo-data');
       return { action: { ok: true, notice: adminText(locals.locale, 'admin.shards.scaleDemo', { count }), snapshot: sampleSnapshot } };
     }
     try {
@@ -54,7 +54,7 @@ export const actions: Actions = {
     const f = await request.formData();
     const enabled = f.get('enabled') === 'true';
     if (DEMO) {
-      const { sampleSnapshot } = await import('$lib/server/demo-data');
+      const { sampleSnapshot } = await import('#lib/server/demo-data');
       return { action: { ok: true, notice: adminText(locals.locale, enabled ? 'admin.shards.autoscaleOnDemo' : 'admin.shards.autoscaleOffDemo'), snapshot: sampleSnapshot } };
     }
     try {

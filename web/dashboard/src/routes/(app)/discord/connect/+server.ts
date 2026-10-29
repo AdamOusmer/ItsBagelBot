@@ -11,7 +11,7 @@ import {
   discordFail,
   putDiscordState,
   requireDiscordActor
-} from '$lib/server/discord-oauth';
+} from '#lib/server/discord-oauth';
 
 export const GET: RequestHandler = async ({ cookies, url, locals }) => {
   const uid = requireDiscordActor(locals);
@@ -19,5 +19,5 @@ export const GET: RequestHandler = async ({ cookies, url, locals }) => {
 
   const state = generateState();
   putDiscordState({ cookies, url, leg: DISCORD_PICK_LEG, uid }, state);
-  throw redirect(302, discordUserAuthURL(state));
+  throw redirect(302, discordUserAuthURL(state), { external: true });
 };

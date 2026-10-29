@@ -9,7 +9,7 @@
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { NotificationWire } from '$lib/server/services';
+  import type { NotificationWire } from '#lib/server/services';
   import StatePill from '../StatePill.svelte';
   import { LEVEL_LABEL, LEVEL_TONE, audienceOf } from './notification-compose';
 

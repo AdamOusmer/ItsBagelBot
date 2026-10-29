@@ -39,10 +39,10 @@ const servicesMock = () => ({
     hiddenWrites.push({ page: 'leaderboard_page', userId, hidden });
   }
 });
-mock.module('$lib/server/services', servicesMock);
+mock.module('#lib/server/services', servicesMock);
 mock.module('../../../lib/server/services', servicesMock);
 const fetchesStore = await import('../../../lib/server/fetches-store');
-mock.module('$lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
+mock.module('#lib/server/fetches-store', () => ({ ...fetchesStore, listFetches: async () => ({ defs: [], keys: [] }) }));
 
 const { channelPageUrls } = await import('../../../lib/server/channel-urls');
 const { actions, load } = await import('./+page.server');

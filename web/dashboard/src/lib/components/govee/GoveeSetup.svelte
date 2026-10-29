@@ -2,10 +2,9 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import { tick } from 'svelte';
-  import { dev } from '$app/environment';
-  import { enhance } from '$app/forms';
+  import { dev } from '$app/env';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk, type GoveeDevice } from '@bagel/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -22,7 +21,7 @@
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
-  import SetupAskAi from '$lib/components/shared/SetupAskAi.svelte';
+  import SetupAskAi from '#lib/components/shared/SetupAskAi.svelte';
 
   type DeviceList = { devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' };
   let { name, devices, preview = false, onFinish }: {

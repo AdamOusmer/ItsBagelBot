@@ -6,7 +6,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployCommit } from '$lib/deploys/types';
+  import type { DeployCommit } from '#lib/deploys/types';
   import { shortSha } from './view';
   import { countKey } from './ship';
 

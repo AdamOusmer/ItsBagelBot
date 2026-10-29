@@ -6,7 +6,7 @@
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployPlan, DeployRun, DeployRunSummary } from '$lib/deploys/types';
+  import type { DeployPlan, DeployRun, DeployRunSummary } from '#lib/deploys/types';
   import { KIND_KEY, RUN_STATE_KEY, STAGE_KEY, currentStageId, runName, shortSha } from './view';
 
   let {

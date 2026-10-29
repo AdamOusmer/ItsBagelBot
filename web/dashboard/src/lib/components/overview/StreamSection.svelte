@@ -18,7 +18,7 @@
     type StreamMeta,
     type StreamCounters,
     type ChatVolume
-  } from '$lib/overview-live';
+  } from '#lib/overview-live';
 
   const { t, locale } = getI18n();
 

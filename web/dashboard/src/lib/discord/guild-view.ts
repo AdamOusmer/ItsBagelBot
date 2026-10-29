@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { DiscordEntry, DiscordGuildInfo, DiscordLayout, DiscordStatus } from '$lib/server/discord-store';
+import type { DiscordEntry, DiscordGuildInfo, DiscordLayout, DiscordStatus } from '#lib/server/discord-store';
 import { guildBotState, type GuildBotState } from '@bagel/kit';
 
 export type GuildShell = {

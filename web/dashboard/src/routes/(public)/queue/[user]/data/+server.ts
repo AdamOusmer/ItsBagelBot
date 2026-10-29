@@ -3,7 +3,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { readQueueChannel, requireQueueLogin } from '$lib/server/queue-channel';
+import { readQueueChannel, requireQueueLogin } from '#lib/server/queue-channel';
 import { QUEUE_EDGE_HEADERS, QUEUE_UNCACHED_HEADERS } from '../edge-headers';
 
 export const GET: RequestHandler = async ({ params, url, locals }) => {

@@ -3,7 +3,7 @@
 
 import { rpc } from '@bagel/kit/server/nats';
 import { parseCounterValue } from '@bagel/kit/validation';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { sharedSnapshot } from '@bagel/kit/server/shared-snapshot';
 import { fabric, SUB, accountState } from './services';

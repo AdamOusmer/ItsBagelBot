@@ -12,11 +12,11 @@
     TICKET_PANEL_BUTTON_MAX,
     TICKET_PANEL_TITLE_MAX
   } from '@bagel/kit';
-  import ModuleFields from '$lib/components/discord/ModuleFields.svelte';
-  import ModuleShell from '$lib/components/discord/ModuleShell.svelte';
-  import { fieldLabelOf } from '$lib/discord/action-result';
-  import { createModuleDraft } from '$lib/discord/module-draft.svelte';
-  import { layoutDownOf } from '$lib/discord/guild-view';
+  import ModuleFields from '#lib/components/discord/ModuleFields.svelte';
+  import ModuleShell from '#lib/components/discord/ModuleShell.svelte';
+  import { fieldLabelOf } from '#lib/discord/action-result';
+  import { createModuleDraft } from '#lib/discord/module-draft.svelte';
+  import { layoutDownOf } from '#lib/discord/guild-view';
   import DiscordEmbedPreview from '../DiscordEmbedPreview.svelte';
 
   let { data } = $props();

@@ -3,12 +3,12 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
-  import { reconcileModuleToggles } from '$lib/module-toggle';
-  import { hydrateModules } from '$lib/module-states';
-  import { reseedOnChange } from '$lib/client-actions.svelte';
+  import { reconcileModuleToggles } from '#lib/module-toggle';
+  import { hydrateModules } from '#lib/module-states';
+  import { reseedOnChange } from '#lib/client-actions.svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import type { SubmitFunction } from '$app/forms';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Kbd from '@bagel/ui/svelte/Kbd.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
@@ -43,7 +43,7 @@
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
-  import ModuleIndexRow from '$lib/components/modules/ModuleIndexRow.svelte';
+  import ModuleIndexRow from '#lib/components/modules/ModuleIndexRow.svelte';
 
   let { data } = $props();
 
@@ -58,7 +58,7 @@
 
   // svelte-ignore state_referenced_locally
   const initial = readModuleIndexQuery(
-    page.url.searchParams,
+    new URLSearchParams(page.url.search),
     [...new Set(items.map((m) => m.def.category))]
   );
 
@@ -115,7 +115,7 @@
   });
   $effect(() => {
     if (!urlReady) return;
-    const url = new URL(page.url);
+    const url = new URL(page.url.href);
     writeModuleIndexQuery(url, { q: searchQuery, category: '', status: statusFilter });
     const next = url.pathname + url.search;
     if (next !== page.url.pathname + page.url.search) replaceState(url, {});

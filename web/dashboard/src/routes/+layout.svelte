@@ -6,7 +6,7 @@
   import RootShell from '@bagel/kit/components/RootShell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { translate } from '@bagel/kit/i18n';
-  import InstallAppPrompt from '$lib/components/InstallAppPrompt.svelte';
+  import InstallAppPrompt from '#lib/components/InstallAppPrompt.svelte';
   let { data, children } = $props();
 
   const DEFAULT_TITLE = $derived(translate(data.locale, 'meta.defaultTitle'));

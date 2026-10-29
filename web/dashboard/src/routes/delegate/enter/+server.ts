@@ -3,10 +3,10 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { delegationAccess } from '$lib/server/services';
-import { COOKIE, seal } from '$lib/server/session';
-import { cookieOptions } from '$lib/server/cookies';
-import { isOwnerSession } from '$lib/server/owner';
+import { delegationAccess } from '#lib/server/services';
+import { COOKIE, seal } from '#lib/server/session';
+import { cookieOptions } from '#lib/server/cookies';
+import { isOwnerSession } from '#lib/server/owner';
 
 async function findGrant(userId: string, owner: string | null) {
   if (!owner) throw redirect(302, '/settings?e=access');

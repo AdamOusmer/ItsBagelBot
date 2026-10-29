@@ -8,7 +8,7 @@
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import { formatCounterValue } from '@bagel/kit/validation';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { FeedBoard } from '$lib/server/services';
+  import type { FeedBoard } from '#lib/server/services';
 
   let { board, ok }: { board: FeedBoard; ok: boolean } = $props();
 

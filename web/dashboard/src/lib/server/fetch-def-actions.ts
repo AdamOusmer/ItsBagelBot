@@ -11,12 +11,12 @@ import {
   validateFetchDef,
   type FetchDefErrors
 } from '@bagel/kit';
-import { listFetches, rehearseFetch, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import type { Session } from '$lib/server/session';
+import { listFetches, rehearseFetch, upsertFetchDef, deleteFetchDef } from '#lib/server/fetches-store';
+import { auditDashboardImpersonation } from '#lib/server/services';
+import type { Session } from '#lib/server/session';
 import { logger } from '@bagel/kit/server/logger';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -101,7 +101,7 @@ function rehearsalName(def: DefForm): string {
 }
 
 export async function demoTestReply() {
-  const { demoFetchTestRun } = await import('$lib/server/demo-data');
+  const { demoFetchTestRun } = await import('#lib/server/demo-data');
   const demo = demoFetchTestRun();
   return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
 }
@@ -166,7 +166,7 @@ export async function saveFetchDef(uid: string, session: Session | null, form: F
 }
 
 async function demoSaveReply(def: DefForm): Promise<Record<string, unknown>> {
-  const { demoFetches } = await import('$lib/server/demo-data');
+  const { demoFetches } = await import('#lib/server/demo-data');
   const current = demoFetches();
   const defs = current.defs.filter((d) => d.name !== def.originalName && d.name !== def.name);
   defs.push({ name: def.name, url: def.url, json_path: def.path, is_active: true, key_label: def.keyLabel });
@@ -177,7 +177,7 @@ export async function removeFetchDef(uid: string, session: Session | null, form:
   const name = slugifyName(String(form.get('name') ?? ''));
 
   if (DEMO) {
-    const { demoFetches } = await import('$lib/server/demo-data');
+    const { demoFetches } = await import('#lib/server/demo-data');
     const current = demoFetches();
     return {
       ok: true,

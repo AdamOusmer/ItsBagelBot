@@ -9,9 +9,9 @@ process.env.SESSION_KEY = Buffer.alloc(32, 7).toString('base64');
 stubSvelteKit();
 
 let adminReply: { id: string } | null = null;
-mock.module('$lib/server/access', () => ({ requireAdmin: async () => adminReply }));
-mock.module('$lib/server/lanes', () => ({ ensureLaneStoreHA: async () => {} }));
-mock.module('$lib/server/services', () => ({ startInvalidationListener() {} }));
+mock.module('#lib/server/access', () => ({ requireAdmin: async () => adminReply }));
+mock.module('#lib/server/lanes', () => ({ ensureLaneStoreHA: async () => {} }));
+mock.module('#lib/server/services', () => ({ startInvalidationListener() {} }));
 mock.module('@bagel/kit/server/boot', () => ({ initConsoleRuntime() {} }));
 mock.module('newrelic', () => ({ default: { noticeError() {}, addCustomAttributes() {}, setTransactionName() {} } }));
 mock.module('@bagel/kit/server/analytics', () => ({ countView() {}, setAnalyticsApp() {} }));

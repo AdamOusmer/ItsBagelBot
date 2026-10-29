@@ -15,15 +15,15 @@ import {
   type AuditEntry,
   type ServiceHealth,
   type TrialSnapshot
-} from '$lib/server/services';
-import { dev } from '$app/environment';
-import { allows } from '$lib/server/access';
+} from '#lib/server/services';
+import { dev } from '$app/env';
+import { allows } from '#lib/server/access';
 import { bestEffort } from '@bagel/kit/server/best-effort';
-import { emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '$lib/server/fallback';
-import { env } from '$env/dynamic/private';
+import { emptyEnrollment, emptyFeedBoard, emptyShardSnapshot } from '#lib/server/fallback';
+import { env } from '@bagel/kit/server/env';
 import type { ShardSnapshot } from '@bagel/kit';
-import { parseEnrollmentWindow, type EnrollmentWindow } from '$lib/enrollment-window';
-import { giveawayAlerts, type GiveawayAlertWire } from '$lib/server/giveaways';
+import { parseEnrollmentWindow, type EnrollmentWindow } from '#lib/enrollment-window';
+import { giveawayAlerts, type GiveawayAlertWire } from '#lib/server/giveaways';
 
 const AUDIT_PEEK = 6;
 const DEMO = dev && process.env.DEMO === '1';
@@ -78,7 +78,7 @@ function liveReads(
 }
 
 function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
-  const fixtures = import('$lib/server/demo-data');
+  const fixtures = import('#lib/server/demo-data');
   const from = <T>(pick: (f: Awaited<typeof fixtures>) => T): Promise<Panel<T>> =>
     fixtures.then((f) => ({ value: pick(f), ok: true }));
   return {

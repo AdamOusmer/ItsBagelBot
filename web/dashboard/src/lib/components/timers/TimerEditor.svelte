@@ -8,9 +8,9 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { DEFAULT_CHAT_LINES, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import DurationField from '$lib/components/shared/DurationField.svelte';
+  import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
+  import DurationField from '#lib/components/shared/DurationField.svelte';
 
   const MIN_INTERVAL_SECONDS = 60;
   const MAX_INTERVAL_SECONDS = 86_400;

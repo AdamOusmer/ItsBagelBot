@@ -4,7 +4,7 @@
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { pctLabel } from '$lib/throughput';
+  import { pctLabel } from '#lib/throughput';
   import { loadTone, rateLabel } from './shard-state';
 
   let {

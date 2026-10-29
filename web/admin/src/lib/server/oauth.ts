@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { Twitch } from '@bagel/kit/server/oauth';
-import { env } from '$env/dynamic/private';
+import { env } from '@bagel/kit/server/env';
 
 export function scopes(): string[] {
   return ['openid', 'user:read:email'];

@@ -1,23 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { Glob } from 'bun';
 import { mock } from 'bun:test';
-import { join } from 'node:path';
 import { STATIC_LOCALES, staticText } from '../../kit/lib/i18n/static';
 import type { Locale } from '../../kit/lib/i18n/types';
 
-const LIB = join(import.meta.dir, '../src/lib');
-
 export const privateEnv: Record<string, string | undefined> = {};
-
-function aliasLib(): void {
-  for (const file of new Glob('**/*.ts').scanSync(LIB)) {
-    if (file.endsWith('.test.ts')) continue;
-    const real = join(LIB, file);
-    mock.module(`$lib/${file.slice(0, -'.ts'.length)}`, () => require(real));
-  }
-}
 
 function stubI18n(): void {
   const isLocale = (value: unknown): value is Locale => typeof value === 'string' && STATIC_LOCALES.includes(value);
@@ -45,12 +33,11 @@ function stubCatalogBundle(): void {
 export function stubSvelteKit(options: { dev?: boolean } = {}): void {
   process.env.NEW_RELIC_ENABLED = 'false';
   process.env.LOG_LEVEL = 'silent';
-  aliasLib();
   stubI18n();
   stubCatalogBundle();
-  mock.module('$app/environment', () => ({ browser: false, building: false, dev: options.dev ?? false }));
+  mock.module('$app/env', () => ({ browser: false, building: false, dev: options.dev ?? false }));
   mock.module('$app/navigation', () => ({ afterNavigate: () => {}, beforeNavigate: () => {} }));
   mock.module('$app/state', () => ({ navigating: {}, page: {}, updated: {} }));
   mock.module('$app/forms', () => ({ enhance: () => ({ destroy: () => {} }) }));
-  mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
+  mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 }

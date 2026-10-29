@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { DeployRun } from '$lib/deploys/types';
+import type { DeployRun } from '#lib/deploys/types';
 
 export type StreamConn = 'connecting' | 'live' | 'reconnecting';
 

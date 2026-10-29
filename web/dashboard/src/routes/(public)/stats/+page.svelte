@@ -13,15 +13,15 @@
   import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
   import CommunityCard from '@bagel/ui/svelte/CommunityCard.svelte';
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
-  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
+  import StatsPageLayout from '#lib/components/stats/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
-  import { formatStatTotal, validBoards, validStats } from '$lib/stats-values';
-  import { frameDelta, resumedAfterGap, rewindTotals, seedFrame, stepFrame, targetFrame } from '$lib/stats-odometer';
-  import { isLoginShape } from '$lib/public-login';
+  import { formatStatTotal, validBoards, validStats } from '#lib/stats-values';
+  import { frameDelta, resumedAfterGap, rewindTotals, seedFrame, stepFrame, targetFrame } from '#lib/stats-odometer';
+  import { isLoginShape } from '#lib/public-login';
   import { formatCounterValue } from '@bagel/kit/validation';
 
   let { data }: { data: PageData } = $props();

@@ -6,7 +6,7 @@ import { literalString, nameOf, typeOf, type AstNode } from './i18n-ast.ts';
 
 export const ROOT_LAYOUT = 0;
 export const ROOT_ERROR = 1;
-const NODE_MODULE = /\/generated\/client-optimized\/nodes\/(\d+)\.js$/;
+const NODE_MODULE = /\/generated\/(?:build\/)?client-optimized\/nodes\/(\d+)\.js$/;
 
 export interface Chunk {
   fileName: string;

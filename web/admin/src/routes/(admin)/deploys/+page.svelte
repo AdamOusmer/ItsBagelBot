@@ -11,8 +11,8 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import StatusStrip from '$lib/components/deploys/StatusStrip.svelte';
-  import RunHistory from '$lib/components/deploys/RunHistory.svelte';
+  import StatusStrip from '#lib/components/deploys/StatusStrip.svelte';
+  import RunHistory from '#lib/components/deploys/RunHistory.svelte';
 
   let { data } = $props();
 

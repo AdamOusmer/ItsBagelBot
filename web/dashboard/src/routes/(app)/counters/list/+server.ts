@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
-import { listCounters } from '$lib/server/loyalty-store';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
+import { listCounters } from '#lib/server/loyalty-store';
 import type { RequestHandler } from './$types';
 
 const DEMO = dev && env.DEMO === '1';

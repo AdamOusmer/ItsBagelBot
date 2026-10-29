@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
@@ -15,7 +14,7 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { LaneView } from '$lib/server/lanes';
+  import type { LaneView } from '#lib/server/lanes';
   import { ALIAS_MAX, type LaneDraft } from './lane-view';
 
   let {

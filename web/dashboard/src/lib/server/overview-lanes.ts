@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import {
   degradedAnsweredTonight,
   type StreamMeta,
@@ -10,17 +10,17 @@ import {
   type ChatVolume,
   type ActivityFeed,
   type AnsweredTonight
-} from '$lib/overview-live';
-import { streamMeta } from '$lib/server/stream';
-import { streamCounters } from '$lib/server/stream-counters';
-import { chatVolume } from '$lib/server/chat-volume';
-import { activityFeed } from '$lib/server/activity';
-import { shareRecent } from '$lib/server/recent-share';
+} from '#lib/overview-live';
+import { streamMeta } from '#lib/server/stream';
+import { streamCounters } from '#lib/server/stream-counters';
+import { chatVolume } from '#lib/server/chat-volume';
+import { activityFeed } from '#lib/server/activity';
+import { shareRecent } from '#lib/server/recent-share';
 
 const DEMO = dev && env.DEMO === '1';
 
-function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
-  return DEMO ? import('$lib/server/demo-data').then(pick) : real();
+function demoOr<T>(pick: (m: typeof import('#lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
+  return DEMO ? import('#lib/server/demo-data').then(pick) : real();
 }
 
 function answeredFromFeed(feed: ActivityFeed): AnsweredTonight {

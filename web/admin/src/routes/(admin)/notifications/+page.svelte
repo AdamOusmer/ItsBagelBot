@@ -3,8 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
 	import '@bagel/ui/styles/elements/layout.css';
   import { untrack } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
@@ -24,10 +23,10 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure, ago, type AdminActionOk } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { NotificationWire } from '$lib/server/services';
-  import StatePill from '$lib/components/StatePill.svelte';
-  import ComposeEditor from '$lib/components/notifications/ComposeEditor.svelte';
-  import NotificationDetail from '$lib/components/notifications/NotificationDetail.svelte';
+  import type { NotificationWire } from '#lib/server/services';
+  import StatePill from '#lib/components/StatePill.svelte';
+  import ComposeEditor from '#lib/components/notifications/ComposeEditor.svelte';
+  import NotificationDetail from '#lib/components/notifications/NotificationDetail.svelte';
   import {
     NEW_NOTIFICATION,
     LEVEL_LABEL,
@@ -36,7 +35,7 @@
     blankCompose,
     composeComplete,
     type ComposeDraft
-  } from '$lib/components/notifications/notification-compose';
+  } from '#lib/components/notifications/notification-compose';
 
   let { data } = $props();
 

@@ -1,10 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type ActionResult, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { onMount, untrack } from 'svelte';
-  import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -44,21 +43,21 @@
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
-  import type { QueueView } from '$lib/server/songqueue-view';
-  import SpotifySetup from '$lib/components/spotify/SpotifySetup.svelte';
-  import SpotifyConnectionCard from '$lib/components/spotify/SpotifyConnectionCard.svelte';
-  import SpotifyQueueCard from '$lib/components/spotify/SpotifyQueueCard.svelte';
-  import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
-  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
-  import { warmOnIntent } from '$lib/warm-on-intent';
+  import type { QueueView } from '#lib/server/songqueue-view';
+  import SpotifySetup from '#lib/components/spotify/SpotifySetup.svelte';
+  import SpotifyConnectionCard from '#lib/components/spotify/SpotifyConnectionCard.svelte';
+  import SpotifyQueueCard from '#lib/components/spotify/SpotifyQueueCard.svelte';
+  import SpotifyRewardRow from '#lib/components/spotify/SpotifyRewardRow.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import { warmOnIntent } from '#lib/warm-on-intent';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
-  const loadSpotifyRewardEditor = () => import('$lib/components/spotify/SpotifyRewardEditor.svelte');
+  const loadSpotifyRewardEditor = () => import('#lib/components/spotify/SpotifyRewardEditor.svelte');
   import {
     spotifyDraftFor,
     spotifyErrors,
     spotifyFormFields,
     type SpotifyRewardDraft
-  } from '$lib/components/spotify/spotify-draft';
+  } from '#lib/components/spotify/spotify-draft';
 
   const QUEUE_POLL_MS = 15000;
 

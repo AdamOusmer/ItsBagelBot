@@ -17,9 +17,9 @@
   import { goto } from '$app/navigation';
   import { page as route } from '$app/state';
   import { formatPointValue, getI18n } from '@bagel/kit';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
-  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
-  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '$lib/leaderboard-board';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
+  import StatsPageLayout from '#lib/components/stats/StatsPageLayout.svelte';
+  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '#lib/leaderboard-board';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -67,7 +67,7 @@
   function showQuery(value: string): Promise<void> {
     const query = cleanQuery(value);
     if (query === data.query && data.page === 1) return Promise.resolve();
-    return goto(boardHref({ query, page: 1 }, route.url.pathname), { replaceState: true, keepFocus: true, noScroll: true });
+    return goto(boardHref({ query, page: 1 }, route.url.pathname), { replaceState: true, reset: false });
   }
 
   function submitSearch(event: SubmitEvent): void {
@@ -236,7 +236,7 @@
           </div>
           <Pager
             fixed
-            data-sveltekit-noscroll=""
+            data-sveltekit-reset="false"
             label={pageLabel}
             fit
             prevHref={boardHref({ query: data.query, page: data.page - 1 }, route.url.pathname)}

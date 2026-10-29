@@ -8,7 +8,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, tDiscordModuleLabel, tDiscordModuleTagline, type DiscordModuleDef } from '@bagel/kit';
-  import { moduleHrefOf, type ModuleState } from '$lib/discord/module-view';
+  import { moduleHrefOf, type ModuleState } from '#lib/discord/module-view';
 
   let {
     def,

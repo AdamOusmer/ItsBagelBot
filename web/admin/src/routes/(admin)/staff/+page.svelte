@@ -3,8 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
 	import '@bagel/ui/styles/elements/layout.css';
   import { untrack } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
@@ -22,16 +21,16 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { canManage, grantableRoles, type AdminRole } from '$lib/access';
-  import type { AdminAcct, AuditEntry } from '$lib/server/services';
-  import StaffRow from '$lib/components/staff/StaffRow.svelte';
-  import StaffEditor from '$lib/components/staff/StaffEditor.svelte';
+  import { canManage, grantableRoles, type AdminRole } from '#lib/access';
+  import type { AdminAcct, AuditEntry } from '#lib/server/services';
+  import StaffRow from '#lib/components/staff/StaffRow.svelte';
+  import StaffEditor from '#lib/components/staff/StaffEditor.svelte';
   import {
     NEW_MEMBER,
     blankDraft,
     draftComplete,
     type StaffDraft
-  } from '$lib/components/staff/staff-roles';
+  } from '#lib/components/staff/staff-roles';
   import { STAFF_RANK } from '@bagel/kit/staff-role';
 
   let { data } = $props();

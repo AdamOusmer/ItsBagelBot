@@ -8,11 +8,11 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, droppedPinNotice } from '@bagel/kit';
-  import GuildHeader from '$lib/components/discord/GuildHeader.svelte';
-  import GuildNav from '$lib/components/discord/GuildNav.svelte';
-  import { SLOT_LABEL_KEYS } from '$lib/discord/guild-fields';
-  import { guildInfoOf, needsReauthOf, pillStateOf } from '$lib/discord/guild-view';
-  import '$lib/components/discord/guild-forms.css';
+  import GuildHeader from '#lib/components/discord/GuildHeader.svelte';
+  import GuildNav from '#lib/components/discord/GuildNav.svelte';
+  import { SLOT_LABEL_KEYS } from '#lib/discord/guild-fields';
+  import { guildInfoOf, needsReauthOf, pillStateOf } from '#lib/discord/guild-view';
+  import '#lib/components/discord/guild-forms.css';
 
   let { data, children } = $props();
   const { t } = getI18n();

@@ -3,11 +3,11 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { allows } from '$lib/server/access';
-import { analyticsSeries, type AnalyticsWindow } from '$lib/server/services';
-import { ANALYTICS_WINDOWS, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '$lib/analytics-page';
-import type { AnalyticsRow } from '$lib/analytics-view';
+import { dev } from '$app/env';
+import { allows } from '#lib/server/access';
+import { analyticsSeries, type AnalyticsWindow } from '#lib/server/services';
+import { ANALYTICS_WINDOWS, buildAnalytics, type AnalyticsReads, type AnalyticsView } from '#lib/analytics-page';
+import type { AnalyticsRow } from '#lib/analytics-view';
 
 const DEMO = dev && process.env.DEMO === '1';
 const COHORT_DAYS = 120;
@@ -54,7 +54,7 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   if (!allows(layout.role, 'analytics.read')) throw redirect(302, '/');
   const days = windowDays(url.searchParams.get('days'));
   const reads = DEMO
-    ? import('$lib/server/demo-data').then(({ demoAnalytics }) => demoAnalytics(days))
+    ? import('#lib/server/demo-data').then(({ demoAnalytics }) => demoAnalytics(days))
     : read(layout.id, days);
   const bundle: Promise<{ view: AnalyticsView; degraded: boolean }> = reads
     .then((r) => ({ view: buildAnalytics(r), degraded: false }))

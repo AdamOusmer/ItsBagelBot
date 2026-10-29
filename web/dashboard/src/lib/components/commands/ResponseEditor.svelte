@@ -13,9 +13,9 @@
   import { RESPONSE_MAX, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';
-  import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
-  import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
-  import { splitPastedLines } from '$lib/components/commands/response-lines';
+  import VariablePalette from '#lib/components/variables/VariablePalette.svelte';
+  import type { SourceDef } from '#lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import { splitPastedLines } from '#lib/components/commands/response-lines';
 
   const i18n = getI18n();
   const uid = $props.id();

@@ -31,7 +31,7 @@ describe('discord beta gate', () => {
 
     for (const file of files) {
       const src = readFileSync(file, 'utf8');
-      expect(src).toMatch(/import \{[^}]*\b(guildActions|moduleActions)\b[^}]*\} from '\$lib\/server\/discord-guild'/);
+      expect(src).toMatch(/import \{[^}]*\b(guildActions|moduleActions)\b[^}]*\} from '#lib\/server\/discord-guild'/);
       expect(src).toMatch(/export const actions(: Actions)? = (guildActions|moduleActions|\{)/);
     }
   });

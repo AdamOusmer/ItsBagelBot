@@ -3,8 +3,8 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { ACCOUNT_DELETED_COOKIE } from '$lib/server/session';
-import { deleteOptions } from '$lib/server/cookies';
+import { ACCOUNT_DELETED_COOKIE } from '#lib/server/session';
+import { deleteOptions } from '#lib/server/cookies';
 
 export const load: PageServerLoad = ({ locals, cookies, url }) => {
   const wasDeleted = cookies.get(ACCOUNT_DELETED_COOKIE) === '1';

@@ -3,10 +3,10 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, tick, untrack } from 'svelte';
-  import { postAction as postActionShared, reseedOnChange } from '$lib/client-actions.svelte';
+  import { postAction as postActionShared, reseedOnChange } from '#lib/client-actions.svelte';
   import { invalidate, replaceState } from '$app/navigation';
-  import { expectEcho } from '$lib/local-write';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { expectEcho } from '#lib/local-write';
+  import type { SubmitFunction } from '$app/forms';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
@@ -47,21 +47,21 @@
     type Perm
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import CommandRow from '$lib/components/commands/CommandRow.svelte';
-  import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
-  import BulkBar from '$lib/components/commands/BulkBar.svelte';
-  import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
-  import StarterCommands from '$lib/components/commands/StarterCommands.svelte';
-  import { rovingList } from '$lib/components/commands/roving';
-  import { COMPOSE_PARAMS, parseComposeLink, type ComposeLink } from '$lib/components/commands/compose-link';
-  import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
-  import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
-  import type { Starter } from '$lib/components/commands/starters';
-  import { loadDraft, clearDraft, draftedNames, draftsMatch, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
-  import { warmOnIntent } from '$lib/warm-on-intent';
-  const loadCommandEditor = () => import('$lib/components/commands/CommandEditor.svelte');
-  const loadBuiltinInspector = () => import('$lib/components/commands/BuiltinInspector.svelte');
-  const loadChatPreview = () => import('$lib/components/commands/ChatPreview.svelte');
+  import CommandRow from '#lib/components/commands/CommandRow.svelte';
+  import type { SourceDef } from '#lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import BulkBar from '#lib/components/commands/BulkBar.svelte';
+  import PublicPageChip from '#lib/components/commands/PublicPageChip.svelte';
+  import StarterCommands from '#lib/components/commands/StarterCommands.svelte';
+  import { rovingList } from '#lib/components/commands/roving';
+  import { COMPOSE_PARAMS, parseComposeLink, type ComposeLink } from '#lib/components/commands/compose-link';
+  import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '#lib/components/commands/list-model';
+  import { saveFailureErrors, isUnavailable, type SaveFailure } from '#lib/components/commands/save-errors';
+  import type { Starter } from '#lib/components/commands/starters';
+  import { loadDraft, clearDraft, draftedNames, draftsMatch, discardLegacyDrafts, draftRef, type CommandDraft } from '#lib/components/commands/drafts';
+  import { warmOnIntent } from '#lib/warm-on-intent';
+  const loadCommandEditor = () => import('#lib/components/commands/CommandEditor.svelte');
+  const loadBuiltinInspector = () => import('#lib/components/commands/BuiltinInspector.svelte');
+  const loadChatPreview = () => import('#lib/components/commands/ChatPreview.svelte');
 
   let { data } = $props();
 

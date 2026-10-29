@@ -12,8 +12,8 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
-  import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
-  import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
+  import { DISCORD_BADGE_KEYS } from '#lib/discord-messages';
+  import GuildCrest from '#lib/components/discord/GuildCrest.svelte';
 
   let { data } = $props();
   const { t } = getI18n();

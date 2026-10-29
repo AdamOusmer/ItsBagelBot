@@ -66,7 +66,7 @@
   );
   const footer = $derived(siteFooterProps(footerContext, '/logo.png'));
   const locales = $derived(
-    localeOptions(LOCALES, locale, page.url, (code) => page.data.localeNames?.[code] ?? code)
+    localeOptions(LOCALES, locale, new URL(page.url.href), (code) => page.data.localeNames?.[code] ?? code)
   );
 </script>
 

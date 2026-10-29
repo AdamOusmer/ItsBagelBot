@@ -5,7 +5,7 @@ import { beforeEach, expect, mock, setSystemTime, test } from 'bun:test';
 import { registerServerConfig } from '@bagel/kit/server/config';
 
 process.env.NEW_RELIC_ENABLED = 'false';
-mock.module('$app/environment', () => ({ dev: false }));
+mock.module('$app/env', () => ({ dev: false }));
 registerServerConfig({ cacheInvalidationPrefix: 'inv' });
 
 let deliver: (subject: string, data: Uint8Array) => void = () => {};

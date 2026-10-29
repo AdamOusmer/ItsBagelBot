@@ -5,7 +5,7 @@
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import type { ChatVolume } from '$lib/overview-live';
+  import type { ChatVolume } from '#lib/overview-live';
 
   const { t } = getI18n();
 

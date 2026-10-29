@@ -12,7 +12,7 @@ const subCalls: SubOpts[] = [];
 let subReplies: Array<{ state: string; error: string; checkedAt: string | null }> = [];
 
 const services = await import('../../lib/server/services');
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   ...services,
   hasGrant: async () => true,
   accountState: async () => ({ active: true, status: 'free', lifecycle: 'active' }),
@@ -23,13 +23,13 @@ mock.module('$lib/server/services', () => ({
   }
 }));
 const commandsStore = await import('../../lib/server/commands-store');
-mock.module('$lib/server/commands-store', () => ({
+mock.module('#lib/server/commands-store', () => ({
   ...commandsStore,
   listCommands: async () => [],
   listModules: async () => []
 }));
 const lanes = await import('../../lib/server/overview-lanes');
-mock.module('$lib/server/overview-lanes', () => ({ ...lanes, overviewLanes: () => ({}) }));
+mock.module('#lib/server/overview-lanes', () => ({ ...lanes, overviewLanes: () => ({}) }));
 
 const { load } = await import('./+page.server');
 

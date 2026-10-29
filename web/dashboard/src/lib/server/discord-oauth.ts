@@ -5,8 +5,8 @@ import { redirect, type Cookies } from '@sveltejs/kit';
 import { gateModulePage } from './module-gate';
 import { cookieOptions } from './cookies';
 import { effectiveId } from './board';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { decodeKey } from '@bagel/kit/server/session';
 import { openOAuthState, sealOAuthState } from '@bagel/kit/server/oauth-state';
 import { encodeIdList, parseIdList, parseUserGuilds, type DiscordUserGuild } from '@bagel/kit';
@@ -19,7 +19,7 @@ export type GuildId = string;
 export type UserId = string;
 type AccessToken = string;
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 // One cookie and HMAC label per leg: a shared one lets either flow's state validate the other.

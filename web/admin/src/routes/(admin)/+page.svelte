@@ -13,22 +13,22 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
-  import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
-  import HealthPanel from '$lib/components/overview/HealthPanel.svelte';
-  import FeedPanel from '$lib/components/overview/FeedPanel.svelte';
-  import AuditPeek from '$lib/components/overview/AuditPeek.svelte';
-  import QuickActions from '$lib/components/overview/QuickActions.svelte';
-  import BotCard from '$lib/components/overview/BotCard.svelte';
-  import type { EnrollmentWindow } from '$lib/enrollment-window';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import EnrollmentPanel from '#lib/components/overview/EnrollmentPanel.svelte';
+  import FleetPanel from '#lib/components/overview/FleetPanel.svelte';
+  import HealthPanel from '#lib/components/overview/HealthPanel.svelte';
+  import FeedPanel from '#lib/components/overview/FeedPanel.svelte';
+  import AuditPeek from '#lib/components/overview/AuditPeek.svelte';
+  import QuickActions from '#lib/components/overview/QuickActions.svelte';
+  import BotCard from '#lib/components/overview/BotCard.svelte';
+  import type { EnrollmentWindow } from '#lib/enrollment-window';
+  import StatePill from '#lib/components/StatePill.svelte';
 
   let { data } = $props();
 
   const { t } = getI18n();
 
   function setWindow(days: EnrollmentWindow) {
-    goto(days === 30 ? '/' : `/?days=${days}`, { keepFocus: true, noScroll: true });
+    goto(days === 30 ? '/' : `/?days=${days}`, { reset: false });
   }
 </script>
 

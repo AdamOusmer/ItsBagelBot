@@ -15,7 +15,7 @@
     KEY_VALUE_MAX,
     slugifyName
   } from '@bagel/kit';
-  import type { FetchKeyView } from '$lib/server/fetches-store';
+  import type { FetchKeyView } from '#lib/server/fetches-store';
 
   const { t } = getI18n();
 

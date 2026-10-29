@@ -14,10 +14,10 @@
     type DiscordConfig
   } from '@bagel/kit';
   import type { Snippet } from 'svelte';
-  import type { DiscordLayout } from '$lib/server/discord-store';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
-  import { fieldLimit, PLACEHOLDER_DEFAULTS, SEGMENTED_NUMBERS } from '$lib/discord/module-view';
-  import { categoriesOf, rolesOf, textChannelsOf, voiceChannelsOf } from '$lib/discord/guild-view';
+  import type { DiscordLayout } from '#lib/server/discord-store';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
+  import { fieldLimit, PLACEHOLDER_DEFAULTS, SEGMENTED_NUMBERS } from '#lib/discord/module-view';
+  import { categoriesOf, rolesOf, textChannelsOf, voiceChannelsOf } from '#lib/discord/guild-view';
   import ChannelListField from './ChannelListField.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
   import ColorField from './ColorField.svelte';

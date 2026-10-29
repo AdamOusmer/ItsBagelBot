@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
-import { channelSubState, accountState } from '$lib/server/services';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
+import { channelSubState, accountState } from '#lib/server/services';
 import type { RequestHandler } from './$types';
 
 const DEMO = dev && env.DEMO === '1';

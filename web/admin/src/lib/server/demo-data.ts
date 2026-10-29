@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import type {
   TrialSnapshot,
@@ -14,8 +14,8 @@ import type {
   ServiceHealth
 } from './services';
 import type { AdminIdentity } from './access';
-import type { AnalyticsReads } from '$lib/analytics-page';
-import type { AnalyticsRow } from '$lib/analytics-view';
+import type { AnalyticsReads } from '#lib/analytics-page';
+import type { AnalyticsRow } from '#lib/analytics-view';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
@@ -35,7 +35,7 @@ import {
   type StageId,
   type StageState,
   type StartRequest
-} from '$lib/deploys/types';
+} from '#lib/deploys/types';
 
 if (!dev) throw new Error('ADMIN_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 

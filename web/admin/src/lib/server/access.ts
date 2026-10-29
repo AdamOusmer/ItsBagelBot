@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 import type { Session } from './session';
 import { adminCheck } from './services';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 export {
   ROLE_FOR,
   allows,
@@ -13,9 +13,9 @@ export {
   grantableRoles,
   type AccessKey,
   type AdminRole
-} from '$lib/access';
-import { allows, type AccessKey } from '$lib/access';
-import type { AdminRole } from '$lib/access';
+} from '#lib/access';
+import { allows, type AccessKey } from '#lib/access';
+import type { AdminRole } from '#lib/access';
 
 export interface AdminIdentity {
   id: string;

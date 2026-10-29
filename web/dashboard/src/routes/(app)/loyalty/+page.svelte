@@ -1,9 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
@@ -34,8 +33,8 @@
     type LoyaltyConfig
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
-  import LoyaltyGameRow from '$lib/components/loyalty/LoyaltyGameRow.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import LoyaltyGameRow from '#lib/components/loyalty/LoyaltyGameRow.svelte';
 
   let { data } = $props();
   const { t, locale } = getI18n();

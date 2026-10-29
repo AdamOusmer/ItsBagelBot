@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import {
   MODULE_CATALOG,
   catalogIndexable,
@@ -35,7 +35,7 @@ import type {
   ActivityRow,
   ActivityKind,
   AnsweredTonight
-} from '$lib/overview-live';
+} from '#lib/overview-live';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 

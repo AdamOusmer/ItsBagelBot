@@ -3,9 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import { enhance } from '$app/forms';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { goto } from '$app/navigation';
-  import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
@@ -25,16 +24,16 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows, type AccessKey } from '$lib/access';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
-  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
-  import UserRow from '$lib/components/users/UserRow.svelte';
-  import UserInspector from '$lib/components/users/UserInspector.svelte';
-  import MessageDialog from '$lib/components/users/MessageDialog.svelte';
-  import { usersCsv } from '$lib/components/users/csv';
+  import { allows, type AccessKey } from '#lib/access';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
+  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
+  import UserRow from '#lib/components/users/UserRow.svelte';
+  import UserInspector from '#lib/components/users/UserInspector.svelte';
+  import MessageDialog from '#lib/components/users/MessageDialog.svelte';
+  import { usersCsv } from '#lib/components/users/csv';
   import { downloadCsv } from '@bagel/ui/lib/csv';
-  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '$lib/components/users/user-state';
-  import { USER_ACTIONS, type UserActionDef } from '$lib/components/users/user-actions';
+  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
+  import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
   import type { UserDirectory } from './+page.server';
 
   let { data } = $props();
@@ -84,15 +83,15 @@
 
   function pickState(label: string) {
     const next = USER_STATES[stateLabels.indexOf(label)];
-    if (next) goto(href({ q: data.search, state: next, order: data.order }), { keepFocus: true });
+    if (next) goto(href({ q: data.search, state: next, order: data.order }), { reset: false });
   }
 
   function pickOrder(order: string) {
-    goto(href({ q: data.search, state: data.state, order }), { keepFocus: true });
+    goto(href({ q: data.search, state: data.state, order }), { reset: false });
   }
 
   function submitSearch() {
-    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { keepFocus: true });
+    goto(href({ q: search.trim(), state: stateFilter, order: data.order }), { reset: false });
   }
 
   let selectedId = $state<string | null>(null);

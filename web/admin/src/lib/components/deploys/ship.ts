@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { deserialize } from '$app/forms';
-import type { ChangelogEntry, DeployCommit, DeployPlan, RunKind } from '$lib/deploys/types';
-import { STAGES_FOR } from '$lib/deploys/types';
+import type { ChangelogEntry, DeployCommit, DeployPlan, RunKind } from '#lib/deploys/types';
+import { STAGES_FOR } from '#lib/deploys/types';
 import { shortSha } from './view';
 
 export type KindUses = {

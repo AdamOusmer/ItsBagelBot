@@ -11,17 +11,17 @@ import {
   setPerm,
   type QuotePerms,
   type QuoteView
-} from '$lib/server/quotes-store';
-import { auditDashboardImpersonation } from '$lib/server/services';
+} from '#lib/server/quotes-store';
+import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
-import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { parsePerm, signedInAction, type ActionContext } from '$lib/server/action-context';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { gateModulePage } from '#lib/server/module-gate';
+import { moduleLoad } from '#lib/server/module-page';
+import type { Session } from '#lib/server/session';
+import { parsePerm, signedInAction, type ActionContext } from '#lib/server/action-context';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-import { actionError } from '$lib/server/action-errors';
+import { actionError } from '#lib/server/action-errors';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -57,7 +57,7 @@ function actingLogin(session: Session | null | undefined): string {
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('quotes', locals.session, {
-    demo: DEMO ? async () => (await import('$lib/server/demo-data')).demoQuotesView() : undefined,
+    demo: DEMO ? async () => (await import('#lib/server/demo-data')).demoQuotesView() : undefined,
     read: async (uid) => {
       const view = await readQuotes(uid);
       return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };

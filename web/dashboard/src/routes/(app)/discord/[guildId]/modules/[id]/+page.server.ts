@@ -4,7 +4,7 @@
 import { redirect } from '@sveltejs/kit';
 import { discordModuleById } from '@bagel/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { loadGuildModule, moduleActions } from '$lib/server/discord-guild';
+import { loadGuildModule, moduleActions } from '#lib/server/discord-guild';
 
 export const load: PageServerLoad = (event) => {
   const dedicated = discordModuleById(event.params.id)?.href;

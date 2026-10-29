@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { fetchNightbot, parseNightbot } from '@bagel/kit/importer/nightbot';
-import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
+import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '#lib/server/nightbot-oauth';
 import type { Cookies } from '@sveltejs/kit';
 import { fetchAndParse, type ImportPreviewRequest, type ParseOutcome } from '../outcome';
 import type { ServerSourceStrategy } from '../strategy';

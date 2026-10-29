@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { AdminRole } from '$lib/access';
+import type { AdminRole } from '#lib/access';
 
 export const ROLE_LABEL = {
   moderator: 'admin.roleModerator',

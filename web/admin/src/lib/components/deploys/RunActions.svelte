@@ -1,8 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { applyAction, enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { applyAction, enhance, type SubmitFunction } from '$app/forms';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
@@ -10,7 +9,7 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployRun } from '$lib/deploys/types';
+  import type { DeployRun } from '#lib/deploys/types';
   import { approvalStage, cancellable, failedStage, isTerminal, offered } from './view';
 
   let { run, onrun }: { run: DeployRun; onrun: (run: DeployRun) => void } = $props();

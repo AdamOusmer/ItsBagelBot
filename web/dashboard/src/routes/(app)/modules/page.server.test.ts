@@ -14,7 +14,9 @@ type Loaded = { degraded?: boolean; modules: { id: string; def?: unknown; enable
 const listed: string[] = [];
 let listing: () => Promise<ModuleRow[]> = async () => [];
 
-mock.module('$lib/server/commands-store', () => ({
+const commandsStore = await import('#lib/server/commands-store');
+mock.module('#lib/server/commands-store', () => ({
+  ...commandsStore,
   listModules: async (userId: string) => {
     listed.push(userId);
     return listing();

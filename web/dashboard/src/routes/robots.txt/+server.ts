@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { seoHost, type SeoHost } from '$lib/server/seo-hosts';
+import { seoHost, type SeoHost } from '#lib/server/seo-hosts';
 
 const DASHBOARD = `# ItsBagelBot Dashboard: https://dashboard.itsbagelbot.com
 # A private, auth-gated app. Only the public sign-in landing should be indexed;

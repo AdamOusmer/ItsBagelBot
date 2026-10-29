@@ -2,18 +2,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '$lib/server/discord-store';
-import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib/server/discord-oauth';
+import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '#lib/server/discord-store';
+import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '#lib/server/discord-oauth';
 import { logger } from '@bagel/kit/server/logger';
-import { assertModuleUnlocked, moduleLocked } from '$lib/server/module-gate';
-import { moduleLoad } from '$lib/server/module-page';
-import { moduleAction } from '$lib/server/module-action';
-import { DISCORD_DEF } from '$lib/server/discord-def';
-import { dev } from '$app/environment';
+import { assertModuleUnlocked, moduleLocked } from '#lib/server/module-gate';
+import { moduleLoad } from '#lib/server/module-page';
+import { moduleAction } from '#lib/server/module-action';
+import { DISCORD_DEF } from '#lib/server/discord-def';
+import { dev } from '$app/env';
 import { fail } from '@sveltejs/kit';
-import { actionError } from '$lib/server/action-errors';
+import { actionError } from '#lib/server/action-errors';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 type DiscordListPage = {
@@ -59,7 +59,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 };
 
 async function demoPage(): Promise<DiscordListPage> {
-  const { demoDiscordView } = await import('$lib/server/demo-data');
+  const { demoDiscordView } = await import('#lib/server/demo-data');
   return { ...blankPage('', false), ...demoDiscordView(), templateURL: 'https://discord.new/demo', configured: true };
 }
 

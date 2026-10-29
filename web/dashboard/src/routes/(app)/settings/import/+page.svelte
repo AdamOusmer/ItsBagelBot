@@ -29,18 +29,18 @@
     type InputSpec
   } from '@bagel/kit/importer/strategy';
   import type { ImportSource, ManifestCommand } from '@bagel/kit';
-  import ImportApplied from '$lib/import/ImportApplied.svelte';
-  import ImportAudit from '$lib/import/ImportAudit.svelte';
-  import ImportCommitBar from '$lib/import/ImportCommitBar.svelte';
-  import ImportSourcePicker from '$lib/import/ImportSourcePicker.svelte';
-  import ImportSteps from '$lib/import/ImportSteps.svelte';
-  import ImportAlert from '$lib/import/ImportAlert.svelte';
-  import ImportFailed from '$lib/import/ImportFailed.svelte';
-  import ImportGroup from '$lib/import/ImportGroup.svelte';
-  import ImportRow from '$lib/import/ImportRow.svelte';
-  import ImportTimerChips from '$lib/import/ImportTimerChips.svelte';
-  import ImportSkipped from '$lib/import/ImportSkipped.svelte';
-  import { ImportSession } from '$lib/import/session.svelte';
+  import ImportApplied from '#lib/import/ImportApplied.svelte';
+  import ImportAudit from '#lib/import/ImportAudit.svelte';
+  import ImportCommitBar from '#lib/import/ImportCommitBar.svelte';
+  import ImportSourcePicker from '#lib/import/ImportSourcePicker.svelte';
+  import ImportSteps from '#lib/import/ImportSteps.svelte';
+  import ImportAlert from '#lib/import/ImportAlert.svelte';
+  import ImportFailed from '#lib/import/ImportFailed.svelte';
+  import ImportGroup from '#lib/import/ImportGroup.svelte';
+  import ImportRow from '#lib/import/ImportRow.svelte';
+  import ImportTimerChips from '#lib/import/ImportTimerChips.svelte';
+  import ImportSkipped from '#lib/import/ImportSkipped.svelte';
+  import { ImportSession } from '#lib/import/session.svelte';
 
   const { t, tl, locale } = getI18n();
   const importText = (text: string, params?: Record<string, string | number>) => t(`import.${text}`, params);

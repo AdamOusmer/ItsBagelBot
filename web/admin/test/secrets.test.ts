@@ -9,7 +9,7 @@ const query = mock(async (_sql: string, _params?: unknown[]) => [[], []]);
 const end = mock(async () => {});
 const createConnection = mock(async (_options: unknown) => ({ query, end }));
 
-mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
+mock.module('@bagel/kit/server/env', () => ({ env: privateEnv }));
 mock.module('mysql2/promise', () => ({ default: { createConnection } }));
 
 const { revokeCredential, rotateCredential, setCredential } = await import(

@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { untrack, onMount } from 'svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
@@ -28,18 +27,18 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows } from '$lib/access';
-  import type { LaneView, LanesResult } from '$lib/server/lanes';
-  import LaneRow from '$lib/components/lanes/LaneRow.svelte';
-  import LaneEditor from '$lib/components/lanes/LaneEditor.svelte';
-  import { matchesPipeline } from '$lib/components/lanes/lane-pipeline';
+  import { allows } from '#lib/access';
+  import type { LaneView, LanesResult } from '#lib/server/lanes';
+  import LaneRow from '#lib/components/lanes/LaneRow.svelte';
+  import LaneEditor from '#lib/components/lanes/LaneEditor.svelte';
+  import { matchesPipeline } from '#lib/components/lanes/lane-pipeline';
   import {
     currentAlias,
     groupLanes,
     laneKey,
     normalizeAlias,
     type LaneDraft
-  } from '$lib/components/lanes/lane-view';
+  } from '#lib/components/lanes/lane-view';
 
   let { data } = $props();
 

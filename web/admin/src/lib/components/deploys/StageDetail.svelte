@@ -8,7 +8,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployItem, DeployStage } from '$lib/deploys/types';
+  import type { DeployItem, DeployStage } from '#lib/deploys/types';
   import ItemRow from './ItemRow.svelte';
   import NodeDots from './NodeDots.svelte';
   import { STAGE_KEY } from './view';

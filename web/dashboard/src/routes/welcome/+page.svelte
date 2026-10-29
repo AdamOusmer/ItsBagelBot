@@ -6,8 +6,7 @@
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { decode } from '@bagel/ui/svelte/actions';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -26,10 +25,10 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import { localeFlag } from '@bagel/kit/site-links';
-  import CursorSwitch from '$lib/components/CursorSwitch.svelte';
-  import Completion from '$lib/components/welcome/Completion.svelte';
-  import ImportWizard from '$lib/components/welcome/ImportWizard.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import CursorSwitch from '#lib/components/CursorSwitch.svelte';
+  import Completion from '#lib/components/welcome/Completion.svelte';
+  import ImportWizard from '#lib/components/welcome/ImportWizard.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
 
   let { data } = $props();
 

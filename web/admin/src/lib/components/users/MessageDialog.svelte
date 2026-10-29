@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
+  import { enhance, type SubmitFunction } from '$app/forms';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';

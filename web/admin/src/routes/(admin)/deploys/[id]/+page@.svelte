@@ -11,15 +11,15 @@
   import StepList, { type StepItem } from '@bagel/ui/svelte/StepList.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { RunState, StageId } from '$lib/deploys/types';
-  import StatePill from '$lib/components/StatePill.svelte';
-  import { RunStream, type StreamConn } from '$lib/components/deploys/run-stream.svelte';
-  import DeployScreen from '$lib/components/deploys/DeployScreen.svelte';
-  import StageScene from '$lib/components/deploys/StageScene.svelte';
-  import Mascot from '$lib/components/deploys/Mascot.svelte';
-  import NowPanel from '$lib/components/deploys/NowPanel.svelte';
-  import RunActions from '$lib/components/deploys/RunActions.svelte';
-  import StageDetail from '$lib/components/deploys/StageDetail.svelte';
+  import type { RunState, StageId } from '#lib/deploys/types';
+  import StatePill from '#lib/components/StatePill.svelte';
+  import { RunStream, type StreamConn } from '#lib/components/deploys/run-stream.svelte';
+  import DeployScreen from '#lib/components/deploys/DeployScreen.svelte';
+  import StageScene from '#lib/components/deploys/StageScene.svelte';
+  import Mascot from '#lib/components/deploys/Mascot.svelte';
+  import NowPanel from '#lib/components/deploys/NowPanel.svelte';
+  import RunActions from '#lib/components/deploys/RunActions.svelte';
+  import StageDetail from '#lib/components/deploys/StageDetail.svelte';
   import {
     KIND_KEY,
     RUN_STATE_KEY,
@@ -38,7 +38,7 @@
     stageTone,
     stageValue,
     type Tone
-  } from '$lib/components/deploys/view';
+  } from '#lib/components/deploys/view';
 
   let { data } = $props();
 

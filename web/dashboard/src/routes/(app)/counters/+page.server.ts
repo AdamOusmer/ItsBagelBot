@@ -4,14 +4,14 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/kit';
 import { COUNTER_SCOPES } from '@bagel/kit';
-import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
-import { UserError, normalizeCounterName } from '$lib/server/counter-form';
-import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';
-import { moduleLoad } from '$lib/server/module-page';
-import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '#lib/server/loyalty-store';
+import { UserError, normalizeCounterName } from '#lib/server/counter-form';
+import { runSet, runAddEntry, runDeleteEntry } from '#lib/server/counter-actions';
+import { moduleLoad } from '#lib/server/module-page';
+import { dev } from '$app/env';
+import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-import { storeMutator } from '$lib/server/reward-action';
+import { storeMutator } from '#lib/server/reward-action';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -23,7 +23,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
   return moduleLoad('counters', locals.session, {
     demo: DEMO
       ? async () => {
-          const { demoCounters, demoEntries } = await import('$lib/server/demo-data');
+          const { demoCounters, demoEntries } = await import('#lib/server/demo-data');
           const demo = demoCounters();
           const sel = hasEntries(demo, selected) ? selected : '';
           return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
