@@ -5,7 +5,6 @@
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
-  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -45,7 +44,7 @@
 </script>
 
 {#if current}
-  <Card as="section" glass flush aria-label={heading()}>
+  <Card as="section" flush aria-label={heading()}>
     <div class="now">
       <Eyebrow as="p" tone={finished ? 'default' : 'go'}>{heading()}</Eyebrow>
 
@@ -60,19 +59,14 @@
               <div class="lanes">
                 {#each nodes as n (n.node)}
                   {@const live = n.pods.some((p) => p.phase === 'pending')}
-                  <Card flush style="--card-radius: var(--bb-radius-sm)">
-                    <div class="lane">
-                      <span class="node">
-                        {#if live}<StatusDot tone="success" />{/if}
-                        <Text as="span" size="xs" mono tone="soft" truncate>{n.node}</Text>
-                      </span>
-                      <span class="pods">
-                        {#each n.pods as p (p.pod)}
-                          <span class="pod {p.phase}" title={podLabel(p.pod, p.phase)}></span>
-                        {/each}
-                      </span>
-                    </div>
-                  </Card>
+                  <div class="lane" class:live>
+                    <Text as="span" size="xs" mono tone="soft" truncate>{n.node}</Text>
+                    <span class="pods">
+                      {#each n.pods as p (p.pod)}
+                        <span class="pod {p.phase}" title={podLabel(p.pod, p.phase)}></span>
+                      {/each}
+                    </span>
+                  </div>
                 {/each}
               </div>
             {:else}
@@ -135,18 +129,31 @@
     gap: var(--bb-space-2);
   }
   .lane {
+    position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--bb-space-2);
     height: 30px;
     padding: 0 var(--bb-space-2);
+    overflow: hidden;
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
   }
-  .node {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--bb-space-2);
-    min-width: 0;
+  .lane.live {
+    box-shadow:
+      var(--bb-depth-0),
+      inset 0 0 0 1px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+  .lane.live::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(var(--bb-green-glow-rgb), 0.16), transparent);
+    transform: translateX(-100%);
+    animation: sweep calc(var(--bb-dur-slow) * 3) var(--bb-ease-out-expo) infinite;
+    pointer-events: none;
   }
   .pods {
     display: inline-flex;
@@ -156,16 +163,20 @@
     width: 22px;
     height: 10px;
     border-radius: var(--bb-radius-pill);
-    background: rgba(var(--bb-white-rgb), 0.1);
-    box-shadow: var(--bb-depth-0);
-    transition: background var(--bb-dur-slow) var(--bb-ease-out-expo);
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
+    transition:
+      background var(--bb-dur-slow) var(--bb-ease-out-expo),
+      box-shadow var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.new {
     background: var(--bb-green-glow);
     animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.pending {
-    background: rgba(var(--bb-green-glow-rgb), 0.45);
+    box-shadow:
+      var(--bb-depth-1),
+      inset 0 0 0 1px var(--bb-green-glow);
     animation: pulse calc(var(--bb-dur-slow) * 2) ease-in-out infinite;
   }
   .pod.failing {
@@ -183,13 +194,21 @@
     height: 26px;
     overflow: hidden;
     border-radius: var(--bb-radius-sm);
-    background: rgba(var(--bb-white-rgb), 0.06);
+    background: var(--bb-elev-1);
     box-shadow: var(--bb-depth-0);
-    transition: background var(--bb-dur-slow) var(--bb-ease-out-expo);
+    transition:
+      background var(--bb-dur-slow) var(--bb-ease-out-expo),
+      box-shadow var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .job.done {
     background: linear-gradient(100deg, var(--bb-tan), rgba(var(--bb-green-glow-rgb), 0.8));
+    box-shadow: var(--bb-depth-1);
     animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
+  }
+  .job.live {
+    box-shadow:
+      var(--bb-depth-0),
+      inset 0 0 0 1px var(--bb-green-glow);
   }
   .job.live::after {
     content: '';
@@ -242,6 +261,7 @@
     .job {
       transition: none;
     }
+    .lane.live::after,
     .job.live::after,
     .pod.new,
     .pod.pending,

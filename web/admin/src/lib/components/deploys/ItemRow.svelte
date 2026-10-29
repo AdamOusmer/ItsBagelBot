@@ -37,10 +37,6 @@
     align-items: center;
     gap: var(--bb-space-3);
     height: 32px;
-    border-bottom: 1px solid var(--bb-border);
-  }
-  .item:last-child {
-    border-bottom: none;
   }
   .extra {
     display: inline-flex;
