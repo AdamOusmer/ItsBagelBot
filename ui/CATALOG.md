@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **120** blocks;
-**103** ship both adapters.
+Every block the library ships, by family. **122** blocks;
+**105** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 120 times
+omitted: nearly every block takes both, and listing them 122 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -45,7 +45,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **PageHero** | `eyebrow`: string<br>`title*`: string<br>`description`: string | svelte + astro | stable | `styles/elements/page-hero.css` |
 | **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`id`: string<br>`width`: number<br>`maxHeight`: number<br>`placement`: 'beside' \| 'below'<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | svelte-only | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string<br>`smooth`: boolean | svelte + astro | stable | `styles/elements/page.css` |
-| **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: 'section' \| 'article' \| 'div' \| 'ul' \| 'ol' \| 'li' \| 'header' \| 'footer' \| 'aside' \| 'main' | svelte + astro | stable | `styles/elements/layout.css` |
+| **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page' \| 'band'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: 'section' \| 'article' \| 'div' \| 'ul' \| 'ol' \| 'li' \| 'header' \| 'footer' \| 'aside' \| 'main' | svelte + astro | stable | `styles/elements/layout.css` |
 | **SetupStage** | `label*`: string<br>`steps`: readonly StepperStep[]<br>`current`: number<br>`maxStep`: number<br>`stepLabel`: string<br>`onSelect`: (index: number) => void<br>`wide`: boolean<br>`fill`: boolean<br>`hero`: boolean<br>`leaving`: boolean<br>`start`: Snippet<br>`art`: Snippet<br>`aside`: Snippet<br>`foot`: Snippet<br>`end`: Snippet | svelte | svelte-only | `styles/elements/setup-stage.css` |
 | **SetupStep** | `kicker*`: string<br>`title*`: string<br>`body`: string<br>`dir`: number<br>`instant`: boolean<br>`hero`: boolean<br>`heading`: HTMLHeadingElement \| null<br>`status`: Snippet | svelte | svelte-only | `styles/elements/page-hero.css, styles/elements/setup-step.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
@@ -60,7 +60,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Button** | `variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`as`: 'button' \| 'span'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`busy`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css` |
 | **ButtonLink** | `href*`: string<br>`variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | stable | `styles/elements/input.css` |
-| **CopySurface** | `text*`: string<br>`copiedLabel`: string<br>`announce`: string<br>`variant`: 'card' \| 'row' \| 'well'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`onCopy`: (copied: boolean) => void | svelte + astro | stable | `styles/elements/copy-surface.css` |
+| **CopySurface** | `text*`: string<br>`copiedLabel`: string<br>`announce`: string<br>`variant`: 'card' \| 'row' \| 'well' \| 'chip'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`onCopy`: (copied: boolean) => void | svelte + astro | stable | `styles/elements/copy-surface.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | stable | `styles/elements/field.css, styles/elements/tag.css` |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | svelte-only | `styles/elements/field.css` |
 | **FileDrop** | `label*`: string<br>`file`: File \| null<br>`accept`: string<br>`onFileChange`: (file: File \| undefined) => void<br>`onDragChange`: (over: boolean) => void | svelte + astro | stable | `styles/elements/file-drop.css` |
@@ -81,7 +81,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **AlertBanner** | `role`: 'alert' \| 'status' \| 'note'<br>`cta`: AlertCta<br>`actions`: Snippet | svelte + astro | stable | `styles/elements/alert.css` |
-| **Badge** | `shape`: 'tag' \| 'pill'<br>`tone`: BadgeTone<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`dashed`: boolean<br>`literal`: boolean<br>`status`: boolean | svelte + astro | stable | `styles/elements/badge.css, styles/elements/mark.css, styles/elements/tag.css` |
+| **Badge** | `shape`: 'tag' \| 'pill'<br>`tone`: BadgeTone<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`dashed`: boolean<br>`solid`: boolean<br>`wrap`: boolean<br>`literal`: boolean<br>`status`: boolean | svelte + astro | stable | `styles/elements/badge.css, styles/elements/mark.css, styles/elements/tag.css` |
 | **Chip** | `pressed`: boolean<br>`type`: 'button' \| 'submit' \| 'reset'<br>`tone`: 'muted' \| 'danger' \| 'eyebrow' \| 'free' \| 'paid' \| 'vip' \| 'banned' \| 'inactive'<br>`as`: 'button' \| 'span' | svelte + astro | stable | `styles/elements/chip.css` |
 | **ConfirmDialog** | `open*`: boolean<br>`title*`: string<br>`body`: string<br>`confirmLabel`: string<br>`cancelLabel`: string<br>`busyLabel`: string<br>`tone`: 'neutral' \| 'danger'<br>`busy`: boolean<br>`onConfirm*`: () => void<br>`onCancel`: () => void<br>`onOpenChange`: (open: boolean) => void | svelte<br>*Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.* | svelte-only | `styles/elements/modal.css` |
 | **EmptyState** | `title*`: string<br>`body`: string | svelte + astro | stable | `styles/elements/empty-state.css` |
@@ -112,6 +112,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Footer** | `brand*`: UiBrand<br>`signoff`: { line: string; sub?: string }<br>`columns`: UiFooterColumn[]<br>`legal`: UiNavLink[]<br>`copyright*`: string<br>`note`: string<br>`studio`: string<br>`colophon`: Snippet | svelte + astro | stable | `styles/elements/footer.css` |
 | **Hamburger** | `label`: string<br>`closeLabel`: string<br>`controls`: string | svelte + astro | stable | `styles/elements/nav.css` |
 | **LanguageSwitcher** | `options*`: { code: string; label: string; href?: string; current?: boolean; title?: string; flag?: string }[]<br>`label`: string<br>`action`: string<br>`name`: string<br>`fields`: Record<string, string><br>`onSelect`: (code: string) => void<br>`variant`: 'compact' \| 'field'<br>`menuId`: string | svelte + astro | stable | `styles/elements/nav.css` |
+| **LinkRow** | `title`: string<br>`links*`: { href: string; label: string; external?: boolean }[] | svelte + astro | stable | `styles/elements/link-row.css` |
 | **MobileMenu** | `links*`: UiNavLink[]<br>`cta`: UiNavLink<br>`id`: string<br>`panelLabel`: string<br>`meta`: string<br>`footer`: Snippet | svelte + astro | stable | `styles/elements/nav.css` |
 | **Nav** | `brand*`: UiBrand<br>`links*`: UiNavLink[]<br>`cta`: UiNavLink<br>`locales`: UiLocaleOption[]<br>`localeLabel`: string<br>`label`: string<br>`menuLabels`: { open?: string; close?: string; panel?: string }<br>`menuMeta`: string<br>`menuId`: string<br>`variant`: 'pill' \| 'bar'<br>`menu`: boolean<br>`actions`: Snippet<br>`mobileFooter`: Snippet | svelte + astro | stable | `styles/elements/nav.css` |
 | **NavGroup** | `label`: string<br>`items*`: UiNavLink[]<br>`startIndex`: number | svelte + astro | stable | `styles/elements/nav.css` |
@@ -139,8 +140,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **CommunityCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: CardTone<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/community-card.css` |
 | **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: CardTone \| 'silver'<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`spot`: boolean<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/counter-card.css` |
 | **DeckList** | `as`: T | svelte + astro | stable | `styles/elements/card.css, styles/elements/deck-list.css` |
-| **Fact** | `term*`: string<br>`tone`: 'danger'<br>`mono`: boolean<br>`wide`: boolean<br>`truncate`: boolean | svelte + astro | stable | `styles/elements/fact-list.css` |
-| **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' | svelte + astro | stable | `styles/elements/fact-list.css` |
+| **Fact** | `term*`: string<br>`tone`: 'danger'<br>`mono`: boolean<br>`wide`: boolean<br>`truncate`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/fact-list.css` |
+| **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' \| 'list' | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **HaloPanel** | `as`: 'div' \| 'a' \| 'article' \| 'section' \| 'aside'<br>`href`: string<br>`tone`: 'gold' \| 'green' | svelte + astro | stable | `styles/elements/halo-panel.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | stable | `styles/elements/icon.css` |
 | **IconTile** | `size`: 'sm' \| 'md' \| 'lg'<br>`tone`: 'success'<br>`picked`: boolean | svelte | svelte-only | `styles/elements/icon-tile.css` |
@@ -152,6 +153,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
+| **StepCard** | `index*`: number<br>`title`: string | svelte + astro | stable | `styles/elements/step-card.css` |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
 | **VarCard** | `token*`: string<br>`hint`: string<br>`title`: string<br>`onclick`: () => void<br>`onfocus`: () => void | svelte<br>*Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.* | svelte-only | `styles/elements/var-card.css` |
 

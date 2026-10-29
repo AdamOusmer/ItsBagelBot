@@ -4,9 +4,10 @@
 
 import { SITE } from '@bagel/kit/site-links';
 
-import Icon from '@bagel/ui/astro/Icon.astro';
+import Container from '@bagel/ui/astro/Container.astro';
+import Divider from '@bagel/ui/astro/Divider.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
-import Chip from '@bagel/ui/astro/Chip.astro';
+import CopySurface from '@bagel/ui/astro/CopySurface.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -65,9 +66,11 @@ const lines: Line[] = [
 ];
 ---
 
-<section class="board">
+<Container as="section" class="board">
     <div class="board__list">
         {lines.map((line, i) => (
+            <Fragment>
+            <Divider flush />
             <div
                 class:list={['line', `line--${line.tone}`]}
                 data-reveal
@@ -94,41 +97,30 @@ const lines: Line[] = [
                 </span>
                 <span class="line__meta">
                     {line.copy ? (
-                        <Chip
-                            tone="muted"
+                        <CopySurface
+                            variant="chip"
+                            text={line.copy}
                             class="line__copy"
-                            data-copy={line.copy}
                             aria-label={`${t('switchboard.copy')} ${line.copy}`}
-                        >
-                            <span>{line.hint}</span>
-                            <span class="line__copy-icon line__copy-icon--default" aria-hidden="true">
-                                <Icon name="copy" size={13} strokeWidth={2} />
-                            </span>
-                            <span class="line__copy-icon line__copy-icon--done" aria-hidden="true">
-                                <Icon name="check" size={13} strokeWidth={2.5} />
-                            </span>
-                        </Chip>
+                        />
                     ) : (
                         <Text as="span" size="xs" mono tone="muted" class="line__hint"><span data-fit>{line.hint}</span></Text>
                     )}
                     <span class="line__arrow" aria-hidden="true">→</span>
                 </span>
             </div>
+            </Fragment>
         ))}
+        <Divider flush />
     </div>
 
     <Text size="xs" mono tone="muted" class="board__note" data-reveal><span data-fit="block">{t('switchboard.note')}</span></Text>
-</section>
+</Container>
 
 <style>
     .board {
-        max-width: 860px;
-        margin: 0 auto;
-        padding: 0 24px var(--bb-space-section);
-    }
-
-    .board__list {
-        border-top: 1px solid var(--bb-border);
+        --container-max: 860px;
+        padding-bottom: var(--bb-space-section);
     }
 
     .line {
@@ -137,7 +129,6 @@ const lines: Line[] = [
         align-items: center;
         gap: 20px;
         padding: 26px 12px;
-        border-bottom: 1px solid var(--bb-border);
         text-decoration: none;
         overflow: hidden;
         transition: padding-left var(--bb-dur-base) var(--bb-ease-out-expo), background var(--bb-dur-base) ease;
@@ -218,16 +209,7 @@ const lines: Line[] = [
 
     .line:hover .line__hint { color: var(--bb-tan-light); }
 
-    .line__copy {
-        position: relative;
-        z-index: 2;
-    }
-
-    .line__copy-icon { display: inline-flex; line-height: 0; }
-    .line__copy-icon--done { display: none; }
-
-    .line__copy.is-done .line__copy-icon--default { display: none; }
-    .line__copy.is-done .line__copy-icon--done { display: inline-flex; }
+    .line__copy { z-index: 2; }
 
     .line__arrow {
         font-family: var(--bb-font-mono);

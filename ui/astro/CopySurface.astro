@@ -11,7 +11,7 @@ interface Props extends Omit<HTMLAttributes<'button'>, 'text' | 'copiedLabel' | 
     text: string;
     copiedLabel?: string;
     announce?: string;
-    variant?: 'card' | 'row' | 'well';
+    variant?: 'card' | 'row' | 'well' | 'chip';
     label?: string;
     hint?: string;
     flashMs?: number;
@@ -33,11 +33,12 @@ const {
     ...rest
 } = Astro.props;
 const classes = ['bb-copy', `bb-copy--${variant}`, className].filter(Boolean).join(' ');
-const glyphs = variant === 'well';
+const iconOnly = variant === 'chip';
+const glyphs = variant === 'well' || iconOnly;
 const hasChildren = Astro.slots.has('default');
 ---
 
-<span class="bb-copy-host"><button {...rest} class={classes} type="button" data-copy={text} data-copy-announce={announce} data-copy-ms={flashMs} data-copy-legacy={legacyFallback ? '' : undefined}>{label && <span class="bb-copy__label">{label}</span>}<span class="bb-copy__row"><span class="bb-copy__value">{hasChildren ? <slot /> : text}</span><span class="bb-copy__hint" aria-hidden="true"><span class="bb-copy__idle">{glyphs && <Icon name="copy" size={12} />}{hint}</span><span class="bb-copy__done">{glyphs && <Icon name="check" size={12} />}{copiedLabel}</span></span></span></button><span class="bb-copy__status" role="status"></span></span>
+<span class="bb-copy-host"><button {...rest} class={classes} type="button" data-copy={text} data-copy-announce={announce ?? (iconOnly ? copiedLabel : undefined)} data-copy-ms={flashMs} data-copy-legacy={legacyFallback ? '' : undefined}>{label && <span class="bb-copy__label">{label}</span>}<span class="bb-copy__row"><span class="bb-copy__value">{hasChildren ? <slot /> : text}</span><span class="bb-copy__hint" aria-hidden="true"><span class="bb-copy__idle">{glyphs && <Icon name="copy" size={12} />}{!iconOnly && hint}</span><span class="bb-copy__done">{glyphs && <Icon name="check" size={12} />}{!iconOnly && copiedLabel}</span></span></span></button><span class="bb-copy__status" role="status"></span></span>
 
 <script>
     import { copyText } from '../lib/clipboard';

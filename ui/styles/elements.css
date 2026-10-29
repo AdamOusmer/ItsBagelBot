@@ -72,6 +72,8 @@
 @import './elements/deck-list.css';
 @import './elements/spinner.css';
 @import './elements/fact-list.css';
+@import './elements/step-card.css';
+@import './elements/link-row.css';
 @import './elements/management-row.css';
 @import './elements/radio-group.css';
 @import './elements/overview-grid.css';

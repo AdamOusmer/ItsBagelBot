@@ -8,6 +8,7 @@ import Card from '@bagel/ui/astro/Card.astro';
 import Faq from '../pricing/Faq.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Section from '@bagel/ui/astro/Section.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import Grid from '@bagel/ui/astro/Grid.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
@@ -16,7 +17,10 @@ import Text from '@bagel/ui/astro/Text.astro';
 import Table from '@bagel/ui/astro/Table.astro';
 import CopySurface from '@bagel/ui/astro/CopySurface.astro';
 import Code from '@bagel/ui/astro/Code.astro';
-import TextLink from '@bagel/ui/astro/TextLink.astro';
+import StepCard from '@bagel/ui/astro/StepCard.astro';
+import LinkRow from '@bagel/ui/astro/LinkRow.astro';
+import Fact from '@bagel/ui/astro/Fact.astro';
+import FactList from '@bagel/ui/astro/FactList.astro';
 import ChatMock from '../guides/ChatMock.astro';
 import type { ChatLine } from '../guides/ChatWindow.astro';
 
@@ -108,7 +112,8 @@ const {
 )}
 
 {table && (
-    <Section class="flsec fltbl">
+    <Section size="band" class="fltbl">
+      <Container>
         <SectionHeading eyebrow={table.eyebrow} title={table.title} />
         <Card flush class="fltbl__card" data-reveal>
             <Table roomy label={table.title} minWidth="52rem" style={`--fltbl-lines: ${table.rowLines ?? 2}`}>
@@ -136,20 +141,24 @@ const {
             </Table>
         </Card>
         {table.note && <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{table.note}</span></Text>}
+      </Container>
     </Section>
 )}
 
 {demo && (
-    <Section class="flsec fldemo">
+    <Section size="band" class="fldemo">
+      <Container>
         <SectionHeading eyebrow={demo.eyebrow} title={demo.title} />
         <div class="fldemo__frame">
             <ChatMock title={demo.channel} lines={demo.lines} caption={demo.caption} />
         </div>
+      </Container>
     </Section>
 )}
 
 {prereq && (
-    <Section class="flsec flprereq">
+    <Section size="band" class="flprereq">
+      <Container>
         <Card class="flprereq__card" data-reveal>
             <Heading level={5} as="h2" class="flprereq__title"><span data-fit>{prereq.title}</span></Heading>
             <ul class="flprereq__list">
@@ -158,11 +167,13 @@ const {
                 ))}
             </ul>
         </Card>
+      </Container>
     </Section>
 )}
 
 {convert && (
-    <Section class="flsec flconv">
+    <Section size="band" class="flconv">
+      <Container>
         <SectionHeading eyebrow={convert.eyebrow} title={convert.title} />
         <Grid cols={2} gap={5} stackAt="md" class="flconv__pair">
             <div class="flconv__side" data-reveal>
@@ -175,69 +186,55 @@ const {
             </div>
         </Grid>
         <Text size="sm" tone="muted" class="flsec__note" data-reveal><span data-fit="block">{convert.note}</span></Text>
+      </Container>
     </Section>
 )}
 
-<Section class="flhow">
+<Section size="band" class="flhow">
+  <Container>
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
     <Grid as="ol" cols={3} gap={5} stackAt="md">
         {steps.map((step, i) => (
-            <li>
-                <Card atmo hover class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
-                    <Eyebrow aria-hidden="true">{String(i + 1).padStart(2, '0')}</Eyebrow>
-                    <Heading level={5} as="h3" class="flhow__title"><span data-fit="block">{step.title}</span></Heading>
-                    <Text size="sm" tone="muted" class="flhow__desc"><span data-fit="block">{step.desc}</span></Text>
-                </Card>
-            </li>
+            <StepCard index={i + 1} title={step.title} data-reveal style={`--reveal-i: ${i}`}>{step.desc}</StepCard>
         ))}
     </Grid>
+  </Container>
 </Section>
 
-<Section class="fllist">
+<Section size="band" class="fllist">
+  <Container>
     <SectionHeading eyebrow={listEyebrow} title={listTitle} />
-    <dl class="fllist__list">
+    <FactList layout="list" class="fllist__list">
         {listItems.map((item, i) => (
-            <div class="fllist__row" data-reveal style={`--reveal-i: ${i}`}>
-                <Text as="dt" size="sm" mono tone="accent" class="fllist__name"><span data-fit>{item.name}</span></Text>
-                <Text as="dd" size="sm" tone="muted" class="fllist__desc"><span data-fit="block">{item.desc}</span></Text>
-            </div>
+            <Fact term={item.name ?? ''} fit data-reveal style={`--reveal-i: ${i}`}>{item.desc}</Fact>
         ))}
-    </dl>
+    </FactList>
     {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal><span data-fit="block">{listNote}</span></Text>}
+  </Container>
 </Section>
 
 {related && (
-    <Section class="flsec flrel">
-        <Heading level={5} as="h2" class="flrel__title"><span data-fit>{related.title}</span></Heading>
-        <ul class="flrel__list">
-            {related.links.map((link) => (
-                <li class="flrel__item"><TextLink href={link.href}><span data-fit>{link.label}</span></TextLink></li>
-            ))}
-        </ul>
+    <Section size="band">
+      <Container>
+        <LinkRow title={related.title} links={related.links} />
+      </Container>
     </Section>
 )}
 
 <Faq eyebrow={faqEyebrow} title={faqTitle} items={faqItems} />
 
-<Section class="flcta">
+<Section size="band" class="flcta">
+  <Container>
     <SectionHeading title={ctaTitle} class="flcta__title" />
     <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
         <ButtonLink href={ctaPrimary.href} class="flcta__btn"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
         {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><span data-fit>{ctaSecondary.label}</span></ButtonLink>}
     </Cluster>
     {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><span data-fit="block">{legal}</span></Text>}
+  </Container>
 </Section>
 
 <style>
-    .flhow,
-    .fllist,
-    .flsec,
-    .flcta {
-        max-width: var(--bb-content-max);
-        margin-inline: auto;
-        padding: var(--bb-space-section-sm) var(--bb-space-7);
-    }
-
     .flupd {
         height: 1lh;
         margin: -8px 0 0;
@@ -292,51 +289,12 @@ const {
 
     .flconv__code { min-height: calc(3 * 1lh); }
 
-    .flrel__title { height: 1lh; margin: 0 0 16px; text-align: center; }
-
-    .flrel__list {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 12px 28px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-    }
-
-    .flhow { --card-pad: 28px; }
-
-    .flhow__card { height: 100%; }
-
-    .flhow__title {
-        height: calc(2 * 1lh);
-        margin: 10px 0 8px;
-    }
-
-    .flhow__desc { height: calc(5 * 1lh); }
+    .flhow { --step-card-body-lines: 5; }
 
     .fllist__list {
+        --fact-value-h: calc(2 * 1lh);
         max-width: var(--bb-content-hero);
         margin: 0 auto;
-    }
-
-    .fllist__row {
-        display: flex;
-        align-items: baseline;
-        gap: 20px;
-        padding: 16px 4px;
-        border-bottom: 1px solid var(--bb-border);
-    }
-
-    .fllist__name {
-        flex: 0 0 24ch;
-        min-width: 0;
-    }
-
-    .fllist__desc {
-        flex: 1 1 0;
-        min-width: 0;
-        height: calc(2 * 1lh);
     }
 
     .fllist__note {
@@ -367,24 +325,7 @@ const {
         opacity: 0.75;
     }
 
-    @media (max-width: 860px) {
-        .flhow,
-        .fllist,
-        .flsec { padding-inline: var(--bb-space-5); }
-    }
-
     @media (max-width: 640px) {
-        .fllist__row {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 6px;
-        }
-
-        .fllist__name { flex-basis: auto; }
-
-        .fllist__desc {
-            flex-basis: auto;
-            height: calc(3 * 1lh);
-        }
+        .fllist__list { --fact-value-h: calc(3 * 1lh); }
     }
 </style>
