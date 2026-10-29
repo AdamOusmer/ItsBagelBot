@@ -23,8 +23,8 @@ interface Budget {
 // reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
   '/(public)/login': { js: 90900, css: 21900, catalog: 2900, lazy: 0 },
-  '/(app)': { js: 116600, css: 39100, catalog: 5000, lazy: 0 },
-  '/(app)/commands': { js: 137500, css: 41900, catalog: 4600, lazy: 31200 },
+  '/(app)': { js: 116600, css: 42600, catalog: 5000, lazy: 0 },
+  '/(app)/commands': { js: 137500, css: 45100, catalog: 4600, lazy: 31200 },
   '/(public)/user/[channel]': { js: 96600, css: 21500, catalog: 2800, lazy: 0 }
 };
 

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **109** blocks;
+Every block the library ships, by family. **112** blocks;
 **101** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 109 times
+omitted: nearly every block takes both, and listing them 112 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -46,6 +46,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`id`: string<br>`width`: number<br>`maxHeight`: number<br>`placement`: 'beside' \| 'below'<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | svelte-only | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string<br>`smooth`: boolean | svelte + astro | stable | `styles/elements/page.css` |
 | **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: 'section' \| 'article' \| 'div' \| 'ul' \| 'ol' \| 'li' \| 'header' \| 'footer' \| 'aside' \| 'main' | svelte + astro | stable | `styles/elements/layout.css` |
+| **SetupStage** | `label*`: string<br>`steps`: readonly StepperStep[]<br>`current`: number<br>`maxStep`: number<br>`stepLabel`: string<br>`onSelect`: (index: number) => void<br>`wide`: boolean<br>`fill`: boolean<br>`hero`: boolean<br>`leaving`: boolean<br>`start`: Snippet<br>`art`: Snippet<br>`aside`: Snippet<br>`foot`: Snippet<br>`end`: Snippet | svelte | svelte-only | `styles/elements/setup-stage.css` |
+| **SetupStep** | `kicker*`: string<br>`title*`: string<br>`body`: string<br>`dir`: number<br>`instant`: boolean<br>`hero`: boolean<br>`heading`: HTMLHeadingElement \| null<br>`status`: Snippet | svelte | svelte-only | `styles/elements/page-hero.css, styles/elements/setup-step.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
 | **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 
@@ -63,7 +65,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`tone`: 'neutral' \| 'danger'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | stable | `styles/elements/button.css, styles/elements/tooltip.css` |
 | **Input** | `value`: string \| number \| null<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search' \| 'date' \| 'datetime-local' \| 'month' \| 'time' \| 'week' \| 'color'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`align`: 'start' \| 'end'<br>`leading`: Snippet<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/field.css, styles/elements/input.css` |
 | **PickerOption** | `label`: string<br>`description`: string<br>`layout`: 'inline' \| 'stacked'<br>`selected`: boolean<br>`disabled`: boolean<br>`remove`: { label: string; armed?: boolean; armedLabel?: string; onclick: () => void }<br>`as`: 'div' \| 'li'<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/picker-panel.css` |
-| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[]<br>`value*`: string<br>`label`: string<br>`variant`: 'tabs' \| 'cards' \| 'rows'<br>`min`: string<br>`cols`: number<br>`rail`: 'sm' \| 'md'<br>`maxHeight`: string<br>`onValueChange`: (value: string) => void<br>`onSelect`: (value: string) => void<br>`leading`: Snippet<[RadioOption, boolean]> | svelte + astro | stable | `styles/elements/radio-group.css, styles/elements/tabs.css` |
+| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[]<br>`value*`: string<br>`label`: string<br>`variant`: 'tabs' \| 'cards' \| 'rows'<br>`min`: string<br>`cols`: number<br>`rail`: 'sm' \| 'md'<br>`maxHeight`: string<br>`terse`: boolean<br>`onValueChange`: (value: string) => void<br>`onSelect`: (value: string) => void<br>`leading`: Snippet<[RadioOption, boolean]> | svelte + astro | stable | `styles/elements/radio-group.css, styles/elements/tabs.css` |
 | **SearchInput** | `value`: string<br>`element`: HTMLInputElement<br>`placeholder`: string<br>`debounceMs`: number<br>`clearLabel`: string<br>`fill`: boolean<br>`tall`: boolean<br>`onValueChange`: (value: string) => void | svelte + astro | stable | `styles/elements/field.css, styles/elements/search-input.css` |
 | **SegmentedControl** | `options*`: readonly (string \| { value: string; label: string; count?: number \| string; attrs?: Record<string, string> })[]<br>`value*`: string<br>`label`: string<br>`onValueChange`: (value: string) => void | svelte + astro | stable | `styles/elements/tabs.css` |
 | **Select** | `value`: string<br>`options*`: readonly SelectOption[]<br>`searchable`: boolean<br>`searchPlaceholder`: string<br>`searchClearLabel`: string<br>`emptyLabel`: string<br>`placeholder`: string<br>`label`: string<br>`filterOptions`: (options: readonly SelectOption[], query: string) => SelectOption[]<br>`invalid`: boolean<br>`fill`: boolean<br>`id`: string<br>`name`: string<br>`form`: string<br>`disabled`: boolean<br>`required`: boolean<br>`onchange`: (event: Event & { currentTarget: HTMLSelectElement }) => void<br>`oninput`: (event: Event & { currentTarget: HTMLSelectElement }) => void | svelte + astro | stable | `styles/elements/field.css, styles/elements/input.css, styles/elements/picker-panel.css, styles/elements/search-input.css, styles/elements/select.css` |
@@ -87,6 +89,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Popover** | `open`: boolean<br>`label*`: string<br>`title*`: string<br>`closeLabel`: string<br>`expands`: boolean<br>`placement`: 'top' \| 'bottom'<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`onActivate`: () => void<br>`dismissLabel`: string<br>`onDismiss`: () => void<br>`pill*`: Snippet | svelte<br>*Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.* | svelte-only | `styles/elements/popover.css` |
 | **ProgressBar** | `value*`: number \| null<br>`tone`: ProgressTone<br>`label*`: string<br>`size`: 'sm' \| 'md'<br>`gradient`: boolean<br>`ramp`: 1 \| 2 \| 3<br>`target`: number<br>`segments`: readonly (ProgressTone \| null)[]<br>`current`: number | svelte + astro | stable | `styles/elements/progress-bar.css` |
 | **SaveStatus** | `state`: SaveState<br>`compact`: boolean<br>`savingLabel`: string<br>`savedLabel`: string<br>`liveLabel`: string<br>`errorLabel`: string | svelte + astro | stable | `styles/elements/mark.css, styles/elements/tag.css` |
+| **SetupNote** | `title*`: string<br>`body`: string<br>`icon`: Snippet | svelte | svelte-only | `styles/elements/setup-step.css` |
 | **Skeleton** | `variant`: 'text' \| 'pill' \| 'block'<br>`width`: string<br>`height`: string<br>`lines`: number | svelte + astro | stable | `styles/elements/skeleton.css` |
 | **SkeletonStack** | `rows*`: number<br>`height*`: string<br>`columns`: 1 \| 2 | svelte + astro | stable | `styles/elements/skeleton.css` |
 | **Spinner** | `size`: 'sm' \| 'md' | svelte + astro | stable | `styles/elements/spinner.css` |

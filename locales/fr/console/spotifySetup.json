@@ -23,8 +23,6 @@
   "saved": "Ton application est enregistrée et prête.",
   "readyCta": "Configurer les demandes",
   "preview": "Aperçu de la configuration",
-  "previewConnect": "Simuler la connexion",
-  "previewHint": "Essaie le parcours sans connecter de compte.",
   "footer": "Une bande-son choisie ensemble.",
   "later": "Je le ferai plus tard",
   "redirectMissing": "La Redirect URI est indisponible de notre côté pour le moment, tu ne peux donc pas encore continuer. Réessaie plus tard.",

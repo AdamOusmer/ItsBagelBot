@@ -8,7 +8,7 @@ import '../styles/elements/tabs.css';
 import '../styles/elements/radio-group.css';
 import Icon from './Icon.astro';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'terse' | 'class'> {
     name: string;
     options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
     value?: string;
@@ -18,11 +18,12 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value'
     cols?: number;
     rail?: 'sm' | 'md';
     maxHeight?: string;
+    terse?: boolean;
     class?: string;
 }
 
 const { t } = uiI18n(Astro);
-const { name, options, value = '', label = t('choice.options'), variant = 'tabs', min, cols, rail, maxHeight, class: className = '', ...rest } = Astro.props;
+const { name, options, value = '', label = t('choice.options'), variant = 'tabs', min, cols, rail, maxHeight, terse = false, class: className = '', ...rest } = Astro.props;
 const tabsClass = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 const choicesClass = [
     'bb-choices',
@@ -30,6 +31,7 @@ const choicesClass = [
     cols ? 'bb-choices--cols' : null,
     rail ? `bb-choices--rail-${rail}` : null,
     maxHeight ? 'bb-choices--scroll bb-scroll' : null,
+    terse ? 'bb-choices--terse' : null,
     className,
 ]
     .filter(Boolean)
@@ -42,7 +44,7 @@ const style = [min && `--choices-min: ${min};`, cols && `--choices-cols: ${cols}
 {variant === 'tabs' ? (
 <div class={tabsClass} role="radiogroup" aria-label={label} {...rest}>{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} /> {opt.label}</label>))}</div>
 ) : (
-<div class={choicesClass} role="radiogroup" aria-label={label} style={style} {...rest}>{options.map((opt) => (<label class="bb-choice"><input class="bb-choice__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} />{variant === 'cards' && (<span class="bb-choice__top"><span class="bb-choice__tick" aria-hidden="true"><Icon name="check" size={12} /></span></span>)}<span class="bb-choice__label">{opt.label}</span>{opt.description && <span class="bb-choice__desc">{opt.description}</span>}{opt.meta && <span class="bb-choice__meta">{opt.meta}</span>}</label>))}</div>
+<div class={choicesClass} role="radiogroup" aria-label={label} style={style} {...rest}>{options.map((opt) => (<label class="bb-choice"><input class="bb-choice__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} />{variant === 'cards' && (<span class="bb-choice__top"><span class="bb-choice__tick" aria-hidden="true"><Icon name="check" size={14} /></span></span>)}<span class="bb-choice__label">{opt.label}</span>{opt.description && <span class="bb-choice__desc">{opt.description}</span>}{opt.meta && <span class="bb-choice__meta">{opt.meta}</span>}</label>))}</div>
 )}
 
 <script>

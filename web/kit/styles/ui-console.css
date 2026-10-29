@@ -18,6 +18,7 @@
 @import '@bagel/ui/styles/elements/skeleton.css';
 @import '@bagel/ui/styles/elements/file-drop.css';
 @import '@bagel/ui/styles/elements/toggle.css';
+@import '@bagel/ui/styles/elements/page-hero.css';
 @import '@bagel/ui/styles/elements/badge.css';
 @import '@bagel/ui/styles/elements/progress-bar.css';
 @import '@bagel/ui/styles/elements/tooltip.css';
@@ -37,5 +38,7 @@
 @import '@bagel/ui/styles/elements/overview-grid.css';
 @import '@bagel/ui/styles/elements/area-series.css';
 @import '@bagel/ui/styles/elements/stepper.css';
+@import '@bagel/ui/styles/elements/setup-stage.css';
+@import '@bagel/ui/styles/elements/setup-step.css';
 @import '@bagel/ui/styles/elements/feed.css';
 @import './notifications.css';
