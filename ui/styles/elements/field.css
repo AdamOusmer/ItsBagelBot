@@ -81,4 +81,11 @@
         .bb-input { min-height: 44px; font-size: 16px; }
         .bb-input input { font-size: 16px; }
     }
+
+    :where([data-surface='tonal']) .bb-input { box-shadow: var(--bb-depth-0); }
+
+    :where([data-surface='tonal']) .bb-input:focus-within:not(:where([data-invalid])) {
+        border-color: transparent;
+        box-shadow: var(--bb-depth-0), 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
+    }
 }

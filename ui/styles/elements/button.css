@@ -362,6 +362,22 @@
     }
   }
 
+  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)) {
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
+  }
+
+  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon:not(.bb-btn--sm)):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
+    box-shadow: var(--bb-depth-2);
+  }
+
+  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon):focus-visible {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+  }
+
 }
 
 @keyframes bb-btn-spin {

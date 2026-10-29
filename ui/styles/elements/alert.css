@@ -161,4 +161,9 @@
       flex-basis: 100%;
     }
   }
+
+  :where([data-surface='tonal']) .bb-alert:not(.bb-alert--callout) {
+    border-color: transparent;
+    box-shadow: var(--bb-depth-1);
+  }
 }

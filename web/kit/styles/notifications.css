@@ -83,4 +83,6 @@
   @media (prefers-reduced-motion: reduce) {
     .bb-notifications__dropdown { animation: none; }
   }
+
+  :where([data-surface='tonal']) .bb-notifications__icon-btn { box-shadow: var(--bb-depth-2); }
 }

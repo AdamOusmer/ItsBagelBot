@@ -37,4 +37,18 @@
   .bb-select__group { padding: 8px 10px 3px; font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
   .bb-select__empty { margin: 0; padding: 6px 2px; font-family: var(--bb-font-body); font-size: 12px; font-style: italic; color: var(--bb-muted); }
   @media (pointer: coarse) { .bb-select__trigger, .bb-select__option { min-height: 44px; } }
+
+  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger {
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
+  }
+  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger:is(:hover, [aria-expanded='true']) {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
+    box-shadow: var(--bb-depth-2);
+  }
+  :where([data-surface='tonal']) .bb-select__trigger.bb-select__trigger:focus-visible {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+  }
 }
