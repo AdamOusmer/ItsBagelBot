@@ -105,6 +105,10 @@ spec:
               value: production
             - name: ORIGIN
               value: https://admin.tail451e6d.ts.net
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: HOST_HEADER
+              value: x-forwarded-host
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
