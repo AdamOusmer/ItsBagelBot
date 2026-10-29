@@ -1,0 +1,28 @@
+{
+  "tag": "beta",
+  "version": "v0.3.0-beta",
+  "date": "2026-10-29",
+  "title": {
+    "en": "A calmer new look across ItsBagelBot",
+    "fr": "Une nouvelle apparence plus sobre pour ItsBagelBot"
+  },
+  "highlights": {
+    "en": [
+      "New look across the site, dashboard, docs and emails: a calmer titanium and pine green palette, cards with depth, and one shared navigation bar and footer.",
+      "The home page is shorter and clearer, with a new hero and reworked sections on encryption and green hosting.",
+      "New public queue page, linked from !queue. The stats and leaderboard pages have a new header and easier navigation.",
+      "Onboarding, Spotify and Govee setup now run on one simpler setup screen. Govee setup says that lights need Wi-Fi.",
+      "Channel point reward fixes in the dashboard.",
+      "Faster chat command handling, plus stability and security fixes on the platform."
+    ],
+    "fr": [
+      "Nouvelle apparence sur le site, le tableau de bord, la documentation et les courriels : une palette titane et vert pin plus sobre, des cartes avec de la profondeur, et une barre de navigation et un pied de page communs.",
+      "La page d’accueil est plus courte et plus claire, avec un nouvel en-tête et des sections retravaillées sur le chiffrement et l’hébergement vert.",
+      "Nouvelle page publique de file d’attente, accessible avec !queue. Les pages de statistiques et de classement ont un nouvel en-tête et une navigation plus simple.",
+      "L’accueil des nouveaux utilisateurs et la configuration de Spotify et de Govee passent par un seul écran de configuration simplifié. La configuration Govee précise que les lumières doivent être connectées au Wi-Fi.",
+      "Corrections des récompenses de points de chaîne dans le tableau de bord.",
+      "Traitement plus rapide des commandes du chat, et corrections de stabilité et de sécurité sur la plateforme."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.3.0-beta"
+}
