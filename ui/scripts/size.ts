@@ -260,7 +260,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3640 }, // 3511 B: tonal depth on the field trigger and locale menu (2026-10-28)
-  { name: "elements/footer", budget: 1950 }, // 1811 B: signature layout with ring, orbs, upward elevation shadow and the colophon slot; ~7% room (2026-10-28)
+  { name: "elements/footer", budget: 2460 }, // 2284 B: full-height frame with built-in aurora sky, grain tile and peeking bolota crew; footer no longer loads light-field.css; ~7% room (2026-10-29)
   { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },
   { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)

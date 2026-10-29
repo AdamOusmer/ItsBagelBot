@@ -49,6 +49,7 @@
     "test": "bun test && bun scripts/size.ts"
   },
   "dependencies": {
+    "@luzir/bolota": "0.1.7",
     "lenis": "^1.3.23"
   },
   "peerDependencies": {
