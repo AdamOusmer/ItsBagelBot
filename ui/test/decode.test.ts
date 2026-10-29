@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import { isolatedLib, snapshotGlobals } from './dom-fakes';
 
 const restoreGlobals = snapshotGlobals(['requestAnimationFrame', 'cancelAnimationFrame', 'IntersectionObserver', 'Element']);
@@ -14,6 +14,10 @@ globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
 globalThis.cancelAnimationFrame = (() => {
   queue = [];
 }) as typeof cancelAnimationFrame;
+
+// decode() stamps its start with performance.now(); a frozen clock makes that start the tests' t0 exactly,
+// so frame offsets don't drift with how long the call took on the runner.
+const clock = spyOn(performance, 'now').mockReturnValue(1_000);
 
 function frame(time: number): void {
   const pending = queue;
@@ -28,6 +32,7 @@ const { isRunning, wake } = await lib.load<typeof import('../lib/raf-loop')>('ra
 afterAll(() => {
   lib.remove();
   restoreGlobals();
+  clock.mockRestore();
 });
 
 const textNode = () => ({ textContent: '' }) as unknown as HTMLElement;
