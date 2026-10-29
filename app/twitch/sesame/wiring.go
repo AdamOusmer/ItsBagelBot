@@ -121,6 +121,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		PublicBaseURL: cfg.PublicBaseURL,
 
 		LeaderboardBaseURL: cfg.LeaderboardBaseURL,
+		QueueBaseURL:       cfg.QueueBaseURL,
 	}
 }
 

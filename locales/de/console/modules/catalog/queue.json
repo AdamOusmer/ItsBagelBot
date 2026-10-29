@@ -46,6 +46,7 @@
     "queue_close": "Stoppe neue Einträge; die Warteschlange bleibt erhalten.",
     "queue_next": "Rufe den nächsten Spieler auf und kündige ihn an.",
     "queue_remove_user": "Entferne jemanden aus der Warteschlange.",
-    "queue_clear": "Leere die Warteschlange."
+    "queue_clear": "Leere die Warteschlange.",
+    "queue_full": "Verlinkt die öffentliche Seite mit der ganzen Warteschlange."
   }
 }

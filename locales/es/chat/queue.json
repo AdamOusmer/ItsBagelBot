@@ -1,7 +1,8 @@
 {
   "cleared": "Se vació la cola.",
   "closed": "La cola ya no admite nuevas incorporaciones.",
-  "err.usage": "Uso: !queue <open|close|next|list|remove|clear>; o !join / !leave / !list",
+  "err.usage": "Uso: !queue <open|close|next|list|full|remove|clear>; o !join / !leave / !list",
+  "full": "Mira toda la cola: {queue:url}",
   "join.already": "@{queue:user} ya estás en la cola en la posición #{queue:pos}.",
   "join.closed": "@{queue:user} la cola está cerrada ahora.",
   "join.ok": "@{queue:user} entraste en la cola en la posición #{queue:pos}.",

@@ -1,7 +1,8 @@
 {
   "cleared": "The queue has been cleared.",
   "closed": "The queue is now closed to new joins.",
-  "err.usage": "Usage: !queue <open|close|next|list|remove|clear>; or !join / !leave / !list",
+  "err.usage": "Usage: !queue <open|close|next|list|full|remove|clear>; or !join / !leave / !list",
+  "full": "See the whole line: {queue:url}",
   "join.already": "@{queue:user} you are already in the queue at position #{queue:pos}.",
   "join.closed": "@{queue:user} the queue is closed right now.",
   "join.ok": "@{queue:user} you joined the queue at position #{queue:pos}.",

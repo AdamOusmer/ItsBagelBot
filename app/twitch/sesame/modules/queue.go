@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/internal/projection"
 
 	"go.uber.org/zap"
 )
@@ -77,46 +78,47 @@ func queueDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 			return nil
 		}
 		sub, rest := splitFirst(args)
-		isMod := c.Chatter().Allows(module.RoleModerator)
-
-		switch strings.ToLower(sub) {
-		case "":
-			return qc.status(ctx, emit)
-		case "open":
-			if !isMod {
-				return nil
-			}
-			return qc.setOpen(ctx, emit, true)
-		case "close":
-			if !isMod {
-				return nil
-			}
-			return qc.setOpen(ctx, emit, false)
-		case "next":
-			if !isMod {
-				return nil
-			}
-			return qc.next(ctx, emit)
-		case "remove":
-			if !isMod {
-				return nil
-			}
-			return qc.remove(ctx, rest, emit)
-		case "clear":
-			if !isMod {
-				return nil
-			}
-			return qc.clear(ctx, emit)
-		case "join":
-			return qc.join(ctx, emit)
-		case "leave":
-			return qc.leave(ctx, emit)
-		case "list":
-			return qc.listCooled(ctx, d.Cooldown, emit)
-		default:
+		h, known := queueSubcommands(d)[strings.ToLower(sub)]
+		if !known {
 			qc.reply(emit, "", "queue.err.usage")
 			return nil
 		}
+		if h.mod && !c.Chatter().Allows(module.RoleModerator) {
+			return nil
+		}
+		return h.run(qc, ctx, rest, emit)
+	}
+}
+
+type queueSub struct {
+	mod bool
+	run func(qc queueCmd, ctx context.Context, rest string, emit module.Emit) error
+}
+
+func queueSubcommands(d engine.Deps) map[string]queueSub {
+	return map[string]queueSub{
+		"": {run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error { return qc.status(ctx, emit) }},
+		"open": {mod: true, run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error {
+			return qc.setOpen(ctx, emit, true)
+		}},
+		"close": {mod: true, run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error {
+			return qc.setOpen(ctx, emit, false)
+		}},
+		"next": {mod: true, run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error { return qc.next(ctx, emit) }},
+		"remove": {mod: true, run: func(qc queueCmd, ctx context.Context, rest string, emit module.Emit) error {
+			return qc.remove(ctx, rest, emit)
+		}},
+		"clear": {mod: true, run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error { return qc.clear(ctx, emit) }},
+		"join":  {run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error { return qc.join(ctx, emit) }},
+		"leave": {run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error { return qc.leave(ctx, emit) }},
+		"list": {run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error {
+			return qc.cooled(ctx, d.Cooldown, "list", emit, qc.list)
+		}},
+		"full": {run: func(qc queueCmd, ctx context.Context, _ string, emit module.Emit) error {
+			return qc.cooled(ctx, d.Cooldown, "queue_full", emit, func(ctx context.Context, emit module.Emit) error {
+				return qc.full(ctx, d, emit)
+			})
+		}},
 	}
 }
 
@@ -239,14 +241,25 @@ func (qc queueCmd) clear(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-func (qc queueCmd) listCooled(ctx context.Context, cd engine.CooldownStore, emit module.Emit) error {
+func (qc queueCmd) cooled(ctx context.Context, cd engine.CooldownStore, name string, emit module.Emit, run func(context.Context, module.Emit) error) error {
 	if cd != nil {
-		ok, err := cd.Allow(ctx, engine.CommandCooldownKey(qc.c.BroadcasterID, "list"), queueListCooldown)
+		ok, err := cd.Allow(ctx, engine.CommandCooldownKey(qc.c.BroadcasterID, name), queueListCooldown)
 		if err != nil || !ok {
 			return err
 		}
 	}
-	return qc.list(ctx, emit)
+	return run(ctx, emit)
+}
+
+func (qc queueCmd) full(ctx context.Context, d engine.Deps, emit module.Emit) error {
+	link, _ := publicPageURL(ctx, qc.c, d, publicPage{
+		base:        d.QueueBaseURL,
+		defaultBase: "https://queue.itsbagelbot.com",
+		path:        "/",
+		hidden:      func(projection.User) bool { return false },
+	})
+	qc.reply(emit, "", "queue.full", "url", link)
+	return nil
 }
 
 func (qc queueCmd) list(ctx context.Context, emit module.Emit) error {
