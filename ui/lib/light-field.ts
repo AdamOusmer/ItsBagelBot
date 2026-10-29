@@ -75,13 +75,21 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
         }
     }
 
+    const resized = () => host.clientWidth !== width || host.clientHeight !== height;
+
+    function setPlaying(playing: boolean) {
+        for (const animation of animations) {
+            if (playing) animation.play();
+            else animation.pause();
+        }
+    }
+
     const observer = new IntersectionObserver(([entry]) => {
         visible = entry.isIntersecting;
-        if (visible) build();
-        else clear();
+        if (!visible) setPlaying(false);
+        else if (animations.size === 0 || resized()) build();
+        else setPlaying(true);
     }, { rootMargin: '150px' });
-
-    const resized = () => host.clientWidth !== width || host.clientHeight !== height;
 
     const resizer = new ResizeObserver(() => {
         clearTimeout(rebuild);

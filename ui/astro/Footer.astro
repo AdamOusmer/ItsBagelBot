@@ -21,10 +21,10 @@ const { brand, signoff, columns = [], legal = [], copyright, note, studio } = As
 const colophon = ((await Astro.slots.render('colophon')) ?? '').trim();
 ---
 
-<footer class="bb-footer"><LightField />{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__cols">{columns.map((column, i) => (
-  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><div class="bb-footer__group"><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{column.links.map((link) => (
+<footer class="bb-footer"><LightField />{signoff && <div class="bb-footer__signoff"><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{signoff.sub && <p class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p>}</div>}<div class="bb-footer__cols">{columns.map((column, i) => (
+  <div class="bb-footer__col"><div class="bb-footer__group"><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{column.links.map((link) => (
     <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup={`bb-footer-links-${i}`} />
   ))}</div></div>
-))}</div><div class="bb-footer__mark" data-reveal>{studio && <p class="bb-footer__studio"><span data-fit>{studio}</span></p>}<Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" wordmark fit /></div><div class="bb-footer__bottom"><div class="bb-footer__legal">{legal.map((link) => (
+))}</div><div class="bb-footer__mark">{studio && <p class="bb-footer__studio"><span data-fit>{studio}</span></p>}<Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" wordmark fit /></div><div class="bb-footer__bottom"><div class="bb-footer__legal">{legal.map((link) => (
   <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup="bb-footer-legal" />
 ))}</div><p class="bb-footer__fine"><span data-fit="block"><span>{copyright}</span>{note && <Fragment><span class="bb-footer__sep" aria-hidden="true">·</span><span>{note}</span></Fragment>}</span></p>{colophon && <div class="bb-footer__colophon" set:html={colophon} />}</div></footer>

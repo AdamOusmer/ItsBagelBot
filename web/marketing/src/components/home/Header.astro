@@ -76,7 +76,7 @@ const poses = SEATS.map((seat, i) => ({
 const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 ---
 
-<header class="hero">
+<header class="hero" data-hero-progress>
 
     <div class="starfield" aria-hidden="true">
         <LightField class="bb-light-field--bleed" />
@@ -170,6 +170,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     let engines: Live[] = [];
     let observer: IntersectionObserver | null = null;
     let mounting = false;
+    let crowdVisible = false;
 
     let enginePromise: Promise<typeof import('@luzir/bolota/engine')> | null = null;
     const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
@@ -215,6 +216,29 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
         engines.forEach((live) => scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS));
         mounting = false;
+        if (!crowdVisible) pauseCrowd();
+    }
+
+    function pauseCrowd(): void {
+        engines.forEach((live) => {
+            if (live.timer) clearTimeout(live.timer);
+            live.timer = null;
+            live.handle.stop();
+        });
+    }
+
+    function resumeCrowd(): void {
+        engines.forEach((live) => {
+            live.handle.loop('idle');
+            scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
+        });
+    }
+
+    function onCrowdVisibility(crowd: HTMLElement, visible: boolean): void {
+        crowdVisible = visible;
+        if (!visible) pauseCrowd();
+        else if (engines.length) resumeCrowd();
+        else mountCrowd(crowd);
     }
 
     function unmountCrowd(): void {
@@ -234,12 +258,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         if (prefersReducedMotion()) return;
 
         if (typeof IntersectionObserver !== 'function') {
-            mountCrowd(crowd);
+            onCrowdVisibility(crowd, true);
             return;
         }
         observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting) mountCrowd(crowd);
-            else unmountCrowd();
+            onCrowdVisibility(crowd, entries[0].isIntersecting);
         }, { threshold: 0.05 });
         observer.observe(crowd);
     }

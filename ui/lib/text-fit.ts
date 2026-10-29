@@ -224,8 +224,11 @@ export function mountTextFit(root: ParentNode = document): () => void {
         prune(registry);
         fitAll(Array.from(registry.targets.values()));
     };
-    const onMutations = (records: MutationRecord[]) => {
+    // Fit targets are HTML, and animated SVG rewrites its children every frame.
+    const onMutations = (all: MutationRecord[]) => {
         if (!registry.active) return;
+        const records = all.filter((record) => !(record.target instanceof SVGElement));
+        if (records.length === 0) return;
         prune(registry);
         refit(registry, [...touchedTargets(records, registry), ...adoptAdded(registry, records)]);
     };
