@@ -147,21 +147,20 @@ function forgetHeroState() {
     lastHeroComplete = null;
 }
 
-let traversing = false;
+let traversedTop = null;
 let routeFrame = 0;
 
-// A follow-up frame left over from the previous swap would run on the next history entry and
-// overwrite its saved position. Astro itself saves on scrollend, which a mid-scroll click beats.
+// Read when the navigation starts: a scrollend still pending from the last restore lands on the
+// new history entry and Astro saves it there. A follow-up frame left over from the previous swap
+// would overwrite the saved position the same way. Astro saves on scrollend, which a mid-scroll
+// click beats.
 document.addEventListener('astro:before-preparation', (event) => {
     cancelAnimationFrame(routeFrame);
-    traversing = event.navigationType === 'traverse';
+    const top = history.state?.scrollY;
+    const traversing = event.navigationType === 'traverse';
+    traversedTop = traversing && Number.isFinite(top) ? top : null;
     if (!traversing) stampCurrentHistoryPosition(window.scrollX, window.scrollY);
 });
-
-function traversedScrollY() {
-    const top = history.state?.scrollY;
-    return traversing && Number.isFinite(top) ? top : null;
-}
 
 let scrolledSinceSwap = false;
 
@@ -181,7 +180,7 @@ function settleRouteScroll(settle) {
 
 function resetRouteScroll() {
     forgetHeroState();
-    const keptScrollY = getLangSwitchScrollY() ?? traversedScrollY();
+    const keptScrollY = getLangSwitchScrollY() ?? traversedTop;
     if (keptScrollY !== null) settleRouteScroll(() => restoreRouteScroll(keptScrollY));
     else settleRouteScroll(jumpToPageTop);
 }

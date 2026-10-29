@@ -344,7 +344,10 @@ test.describe('ItsBagelBot site', () => {
 
         await page.goForward();
         await expect(page).toHaveURL(/\/contact\/?$/);
-        await expectPageTop(page);
+        await expect.poll(() => page.evaluate(() => {
+            const lenis = window.__lenis;
+            return [window.scrollY, lenis?.scroll ?? 0, lenis?.targetScroll ?? 0, history.state?.scrollY ?? 0].map(Math.round);
+        })).toEqual([0, 0, 0, 0]);
     });
 
     test('page hero title shows after client route swaps', async ({ page }) => {
