@@ -6,7 +6,7 @@
   import type { Snippet } from 'svelte';
 
   type Own = {
-    width?: 'default' | 'narrow' | 'text';
+    width?: 'default' | 'hero' | 'narrow' | 'text';
     flush?: boolean;
     as?: T;
     class?: string;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/row-body.css';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
@@ -55,8 +56,8 @@
     onSelect={onExpand}
   >
     {#snippet primary()}
-      <span class="prow">
-        {#if idx}<span class="idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>{/if}
+      <span class="prow bb-row-body bb-row-body--stack">
+        {#if idx}<span class="bb-row-body__idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>{/if}
         <span class="cmd">
           <Heading level={6} as="span">{tModuleReplyPart(t, moduleId, reply, 'label')}</Heading>
           <Text as="span" size="xs" tone="muted" truncate>{preview}</Text>
@@ -75,13 +76,7 @@
 </div>
 
 <style>
-  .prow {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .idx { opacity: 0.55; }
+  .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
   .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .state { min-width: 0; }
@@ -89,7 +84,6 @@
 
   @media (max-width: 760px) {
     .prow { grid-template-columns: minmax(0, 1fr) auto; }
-    .idx { display: none; }
     .state { display: none; }
   }
 </style>

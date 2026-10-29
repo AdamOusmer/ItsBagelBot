@@ -4,6 +4,9 @@
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import HaloPanel from '@bagel/ui/svelte/HaloPanel.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
+  import Table from '@bagel/ui/svelte/Table.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -266,17 +269,25 @@
           <div class="prize-cell"><Eyebrow>{t('billing.prizeTitle')}</Eyebrow><Heading level={5} as="h2" id="prize-title">{t('billing.prizeTimeline')}</Heading></div>
           <span class="prize-mark" aria-hidden="true">✦</span>
         </div>
-        {#each prizes as prize (prize.id)}
-          <article class="prize-row">
-            <div class="prize-cell"><strong>{t('billing.prizeMonths', { n: prize.prizeMonths })}</strong><Text as="span" size="xs" tone="muted">{prizeCopy(prize)}</Text></div>
-            <div class="prize-cell">
-              {#if prize.confirmedStart || prize.plannedStart}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</Text>{/if}
-              {#if prize.confirmedEnd || prize.plannedEnd}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</Text>{/if}
-              {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warning">{t('billing.prizeBillingPending')}</Text>{/if}
-            </div>
-            {#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warning">{t('billing.prizeEmailMissing')}</Text>{/if}
-          </article>
-        {/each}
+        <Table label={t('billing.prizeTimeline')} compact minWidth="520px">
+          <tbody>
+            {#each prizes as prize (prize.id)}
+              <tr>
+                <th scope="row">
+                  <div class="prize-cell"><strong>{t('billing.prizeMonths', { n: prize.prizeMonths })}</strong><Text as="span" size="xs" tone="muted">{prizeCopy(prize)}</Text></div>
+                </th>
+                <td>
+                  <div class="prize-cell">
+                    {#if prize.confirmedStart || prize.plannedStart}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</Text>{/if}
+                    {#if prize.confirmedEnd || prize.plannedEnd}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</Text>{/if}
+                    {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warning">{t('billing.prizeBillingPending')}</Text>{/if}
+                  </div>
+                </td>
+                <td>{#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warning">{t('billing.prizeEmailMissing')}</Text>{/if}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </Table>
       </Card>
     </div>
   {/if}
@@ -364,7 +375,11 @@
       </Card>
     </div>
 
-    <p class="oath">{t('billing.oath')}</p>
+    <div class="oath">
+      <Card style="--card-pad: 11px 22px">
+        <Text size="xs" mono tone="muted">{t('billing.oath')}</Text>
+      </Card>
+    </div>
 
     <div class="gift-link-row">
       <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
@@ -383,11 +398,11 @@
         {/snippet}
       </AlertBanner>
     {/if}
+    <div class="premium-halo">
+    <HaloPanel as="section" aria-label={statusLabel}>
     <div class="premium-dashboard-hero">
       <div class="premium-hero-content">
-        <div class="premium-hero-badge">
-          <img src="/premium-logo.png" alt="" />
-        </div>
+        <MarkBadge src="/premium-logo.png" size="lg" tone="premium" />
         <div class="premium-hero-text" role="status">
           <Eyebrow>{t('billing.currentPlan')}</Eyebrow>
           <h2 class="premium-title">{statusLabel}</h2>
@@ -448,6 +463,8 @@
           <div class="form-error"><FieldError message={String(form.error)} /></div>
         {/if}
       </div>
+    </div>
+    </HaloPanel>
     </div>
 
     <section class="premium-includes">
@@ -579,8 +596,6 @@
   .prize-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
   .prize-cell { display:flex; flex-direction:column; gap:5px; }
   .prize-mark { color:var(--bb-tan-pale); font-size:24px; }
-  .prize-row { display:grid; grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) minmax(160px,1fr); gap:16px; padding:14px 0; border-top:1px solid var(--bb-border); }
-  @media (max-width:700px) { .prize-row { grid-template-columns:1fr; gap:7px; } }
 
   .plan-status {
     display: inline-flex;
@@ -673,16 +688,9 @@
   }
 
   .oath {
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
-    letter-spacing: 0.05em;
-    color: var(--bb-muted);
-    text-align: center;
-    border: 1px dashed rgba(var(--bb-tan-rgb), 0.22);
-    border-radius: var(--bb-radius-pill);
-    padding: 11px 22px;
     margin: 18px auto 0;
     max-width: fit-content;
+    text-align: center;
   }
 
   .gift-link-row {
@@ -692,14 +700,9 @@
     margin-top: 22px;
   }
 
+  .premium-halo { margin-top: 24px; }
   .premium-dashboard-hero {
-    margin-top: 24px;
     padding: 32px;
-    border-radius: var(--bb-radius-lg);
-    background: radial-gradient(circle at 10% 0%, rgba(var(--bb-tan-rgb), 0.12) 0%, rgba(var(--bb-black-rgb), 0) 60%),
-                linear-gradient(180deg, rgba(var(--bb-tan-rgb), 0.05) 0%, rgba(var(--bb-black-rgb), 0) 100%),
-                var(--bb-card-bg);
-    box-shadow: var(--bb-depth-2), 0 12px 64px rgba(var(--bb-tan-rgb), 0.1);
     display: flex;
     flex-direction: column;
     gap: 32px;
@@ -716,24 +719,6 @@
     display: flex;
     align-items: flex-start;
     gap: 24px;
-  }
-
-  .premium-hero-badge {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: rgba(var(--bb-tan-rgb), 0.15);
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-shadow: 0 0 24px rgba(var(--bb-tan-rgb), 0.2);
-  }
-  .premium-hero-badge img {
-    width: 36px;
-    height: 36px;
-    object-fit: contain;
   }
 
   .premium-hero-text {
@@ -765,7 +750,7 @@
     font-family: var(--bb-font-body);
     font-size: 14.5px;
     line-height: 1.5;
-    color: rgba(var(--bb-white-rgb), 0.7);
+    color: var(--bb-muted-light);
     max-width: 46ch;
     margin: 0;
   }
@@ -790,7 +775,7 @@
 
   .premium-tiny-hint {
     font-size: var(--bb-text-xs);
-    color: rgba(var(--bb-white-rgb), 0.55);
+    color: var(--bb-muted);
     margin: 0;
     max-width: 40ch;
   }

@@ -4,6 +4,7 @@
 	import '@bagel/ui/styles/elements/typography.css';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import '@bagel/ui/styles/elements/row-body.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -52,15 +53,15 @@
   onSelect={onExpand}
 >
   {#snippet primary()}
-    <span class="prow">
-      {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+    <span class="prow bb-row-body bb-row-body--stack">
+      {#if idx}<span class="bb-row-body__idx" aria-hidden="true">{idx}</span>{/if}
       <span class="msg">
-        <span class="msg-text">{r.message}</span>
+        <span class="bb-row-body__name">{r.message}</span>
       </span>
-      <span class="meta">
+      <span class="bb-row-body__meta meta">
         <span class="m-sched">
           <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
-          <span class="sched-val">{schedule}</span>
+          <span class="bb-row-body__val">{schedule}</span>
         </span>
         <Tag class="m-state" tone={r.enabled ? 'live' : 'quiet'} mark={r.enabled ? 'solid' : 'hollow'}>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
@@ -92,47 +93,11 @@
 </ManagementRow>
 
 <style>
-  .prow {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
+  .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
   .msg { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-  .msg-text {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
 
-  .meta { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
-  .sched-val {
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-sm);
-    color: var(--bb-tan-light);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
+  .meta { flex-wrap: wrap; gap: 8px 12px; }
 
   .meta :global(.m-state), .meta :global(.m-pill) { flex: none; }
-
-  @media (max-width: 760px) {
-    .prow {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas:
-        'msg'
-        'meta';
-      row-gap: 4px;
-    }
-    .idx { display: none; }
-    .msg { grid-area: msg; }
-    .meta { grid-area: meta; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-  }
 </style>

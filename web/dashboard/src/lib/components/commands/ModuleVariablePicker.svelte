@@ -4,11 +4,11 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
-  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
   import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import VarCard from '@bagel/ui/svelte/VarCard.svelte';
   import { getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { MODULE_VARIABLES } from '@bagel/kit/variables';
 
@@ -48,7 +48,7 @@
       <Text size="xs" tone="muted">{t('commandEditor.moduleVariableContext')}</Text>
       <ul class="variables">
         {#each selected.forms as form (form.example)}
-          <PickerOption as="li" label={form.example} title={form.output} onclick={() => insert(form.example)} />
+          <li><VarCard token={form.example} hint={form.output} title={form.output} onclick={() => insert(form.example)} /></li>
         {/each}
       </ul>
     </div>
@@ -57,5 +57,5 @@
 
 <style>
   .body { display: contents; --field-gap: 5px; --field-mb: 0; }
-  .variables { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .variables { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 </style>

@@ -445,6 +445,14 @@ describe('CopySurface', () => {
         `</span></span>${STATUS}`,
     },
     {
+      name: 'chip is icon only and announces the copied label',
+      props: { text: 'a@b.c', variant: 'chip', copiedLabel: 'Copied' },
+      html:
+        '<span class="bb-copy-host"><button class="bb-copy bb-copy--chip" type="button" data-copy="a@b.c" data-copy-announce="Copied">' +
+        '<span class="bb-copy__row"><span class="bb-copy__value">a@b.c</span><span class="bb-copy__hint" aria-hidden="true">' +
+        `<span class="bb-copy__idle">${icon('copy', 12)}</span><span class="bb-copy__done">${icon('check', 12)}</span></span></span>${STATUS}`,
+    },
+    {
       name: 'announce text rides on the surface for the status region',
       props: { text: '!hi', variant: 'row', hint: '', copiedLabel: 'Copied', announce: 'Copied !hi' },
       html:

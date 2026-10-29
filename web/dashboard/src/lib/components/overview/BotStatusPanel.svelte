@@ -12,6 +12,7 @@
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import Mark from '@bagel/ui/svelte/Mark.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
@@ -140,7 +141,7 @@
   <div class="ov-status-wrap">
     <Card as="section" sheen tone={isPremium ? 'accent' : undefined} aria-labelledby="ov-status-h">
       <div class="ov-status" class:premium={isPremium}>
-        <div class="ov-status__mark"><img src={logoSrc} alt="" /></div>
+<MarkBadge src={logoSrc} tone={isPremium ? 'premium' : undefined} />
 
         <div class="ov-status__body">
           <div class="ov-status__heading">
@@ -228,27 +229,6 @@
   .ov-strip :global(.ov-strip__off:hover:not(:disabled)) {
     color: var(--bb-status-danger-fg);
     background: rgba(var(--bb-status-danger-rgb), 0.12);
-  }
-
-  .ov-status__mark {
-    width: 58px;
-    height: 58px;
-    border-radius: 50%;
-    background: rgba(var(--bb-green-glow-rgb), 0.07);
-    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-  }
-  .premium .ov-status__mark {
-    border-color: rgba(var(--bb-tan-rgb), 0.4);
-    background: rgba(var(--bb-tan-rgb), 0.05);
-  }
-  .ov-status__mark img {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
   }
 
   .ov-status__body {

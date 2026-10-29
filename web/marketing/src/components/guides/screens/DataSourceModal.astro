@@ -4,10 +4,13 @@
 
 import Button from '@bagel/ui/astro/Button.astro';
 import Field from '@bagel/ui/astro/Field.astro';
+import Input from '@bagel/ui/astro/Input.astro';
+import JsonTree from '@bagel/ui/astro/JsonTree.astro';
 import Modal from '@bagel/ui/astro/Modal.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Well from '@bagel/ui/astro/Well.astro';
 import '@bagel/ui/styles/elements/field.css';
 
 interface Props {
@@ -43,13 +46,27 @@ const L = {
     create: 'Add source',
     ...labels,
 };
+const tree = [
+    {
+        key: L.treeRoot,
+        children: [
+            {
+                key: L.treeBranch,
+                children: [
+                    { key: L.treeLeafKey, value: L.treeLeafValue, picked: true },
+                    { key: L.treeLeaf2Key, value: L.treeLeaf2Value },
+                ],
+            },
+        ],
+    },
+];
 ---
 
 <div class="dframe__screen dframe__screen--panel">
     <Modal title={L.panelHead} closeLabel={L.close} titleId="gs-dsm-title">
         <p class="gs-hint">{L.intro}</p>
         <Field label={L.fieldDisplayName}>
-            <span class="bb-input gs-value">{L.displayNameValue}<i class="gs-mark" data-note="1"></i></span>
+            <Input fill inert value={L.displayNameValue}><i slot="trailing" class="gs-mark" data-note="1"></i></Input>
         </Field>
         <Field label={L.fieldSlug}>
             <span class="bb-input gs-value" data-focus>
@@ -58,10 +75,10 @@ const L = {
         </Field>
         <p class="gs-hint"><Fragment set:html={L.slugHint} /></p>
         <Field label={L.fieldUrl}>
-            <span class="bb-input gs-value dsm__url">{L.urlValue}<i class="gs-mark" data-note="3"></i></span>
+            <Input fill inert mono value={L.urlValue}><i slot="trailing" class="gs-mark" data-note="3"></i></Input>
         </Field>
         <Field label={L.fieldAuth}>
-            <span class="bb-input gs-value" data-placeholder>{L.authValue}</span>
+            <Input fill inert placeholder={L.authValue} />
         </Field>
         <div class="gs-actions">
             <Button variant="ghost" size="sm">{L.fetchSample}</Button>
@@ -69,16 +86,7 @@ const L = {
             <i class="gs-mark" data-note="4"></i>
         </div>
         <p class="gs-hint">{L.pickPrompt}</p>
-        <div class="dsm__tree">
-            <span class="dsm__key">{L.treeRoot}</span>
-            <div class="dsm__kids">
-                <span class="dsm__key">{L.treeBranch}</span>
-                <div class="dsm__kids">
-                    <span class="dsm__leaf is-picked"><b class="dsm__leaf-key">{L.treeLeafKey}</b><em>{L.treeLeafValue}</em></span>
-                    <span class="dsm__leaf"><b class="dsm__leaf-key">{L.treeLeaf2Key}</b><em>{L.treeLeaf2Value}</em></span>
-                </div>
-            </div>
-        </div>
+        <Well container class="dsm__tree"><JsonTree nodes={tree} /></Well>
         <div class="gs-actions">
             <Tag tone="live" mark="solid">{L.picked}</Tag>
             <Text as="span" size="xs"><TextLink variant="inline" href="#" tabindex={-1}>{L.wholeResponse}</TextLink></Text>
@@ -92,39 +100,5 @@ const L = {
 </div>
 
 <style>
-    .dsm__url { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); word-break: break-all; }
-
-    .dsm__tree {
-        display: grid;
-        gap: 3px;
-        padding: 8px 9px;
-        border: 1px solid var(--bb-border);
-        border-radius: var(--bb-radius-sm);
-        background: rgba(var(--bb-black-rgb), 0.6);
-    }
-
-    .dsm__kids {
-        display: grid;
-        gap: 3px;
-        margin-left: 8px;
-        padding-left: 8px;
-        border-left: 1px solid var(--bb-border);
-    }
-
-    .dsm__key { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan-light); }
-
-    .dsm__leaf {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 3px 5px;
-        border-radius: var(--bb-radius-sm);
-        font-family: var(--bb-font-mono);
-        font-size: var(--bb-text-xs);
-    }
-
-    .dsm__leaf-key { font-weight: 400; color: rgba(var(--bb-white-rgb), 0.8); }
-    .dsm__leaf em { font-style: normal; color: var(--bb-muted); }
-    .dsm__leaf.is-picked { background: rgba(var(--bb-green-glow-rgb), 0.12); }
-    .dsm__leaf.is-picked .dsm__leaf-key { color: var(--bb-green-glow); }
+    .dsm__tree { padding: 8px 9px; }
 </style>

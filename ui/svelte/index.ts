@@ -42,6 +42,7 @@ export { default as Textarea } from './Textarea.svelte';
 
 export { default as AlertBanner } from './AlertBanner.svelte';
 export { default as Badge } from './Badge.svelte';
+export { default as ChatPreview } from './ChatPreview.svelte';
 export { default as Chip } from './Chip.svelte';
 export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
@@ -105,6 +106,9 @@ export { reveal, decode, magnetic } from './actions';
 export { focusFirstInvalid } from './forms';
 
 export { default as StatusDot } from './StatusDot.svelte';
+export { default as RoundBadge } from './RoundBadge.svelte';
+export { default as Timeline } from './Timeline.svelte';
+export { default as TimelineItem } from './TimelineItem.svelte';
 
 
 export { default as AmbientSky } from './AmbientSky.svelte';
@@ -120,12 +124,17 @@ export { default as DeckLayout } from './DeckLayout.svelte';
 export { default as Disclosure } from './Disclosure.svelte';
 export { default as Fact } from './Fact.svelte';
 export { default as FactList } from './FactList.svelte';
+export { default as StepCard } from './StepCard.svelte';
+export { default as LinkRow } from './LinkRow.svelte';
 export { default as Pager } from './Pager.svelte';
 
 export { default as Stepper } from './Stepper.svelte';
 export { default as SetupStage } from './SetupStage.svelte';
 export { default as SetupStep } from './SetupStep.svelte';
 export { default as SetupNote } from './SetupNote.svelte';
+export { default as IconTile } from './IconTile.svelte';
+export { default as ActionBar } from './ActionBar.svelte';
+export { default as MarkBadge } from './MarkBadge.svelte';
 export { default as Spinner } from './Spinner.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export type { LinePoint, LineSeriesSpec } from '../lib/line-series';
@@ -141,6 +150,7 @@ export { default as ProfileMenu } from './ProfileMenu.svelte';
 export { default as SkipLink } from './SkipLink.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as CopySurface } from './CopySurface.svelte';
+export { default as VarCard } from './VarCard.svelte';
 
 export { setUiI18n, getUiI18n } from './i18n';
 export type { UiI18n, UiLocale, UiMessageKey, UiOverride } from '../lib/i18n';
@@ -149,3 +159,4 @@ export type { AlertTone, AlertVariant, AlertPlacement, AlertCta } from '../lib/a
 export type {
   Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
 } from '../lib/tone';
+export { default as Well } from './Well.svelte';

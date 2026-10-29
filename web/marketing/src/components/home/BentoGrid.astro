@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Grid from '@bagel/ui/astro/Grid.astro';
+
 interface Props {
     cols?: 3 | 4;
     class?: string;
@@ -10,18 +12,12 @@ interface Props {
 const { cols = 3, class: cls = '' } = Astro.props;
 ---
 
-<div class:list={['bento', `bento--${cols}`, cls]}><slot /></div>
+<Grid class:list={['bento', `bento--${cols}`, cls]}><slot /></Grid>
 
 <style>
-    .bento {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 16px;
-    }
-
     @media (min-width: 720px) {
         .bento {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            --grid-cols: 2;
         }
 
         .bento > :global(.fcard--span-3),
@@ -32,11 +28,11 @@ const { cols = 3, class: cls = '' } = Astro.props;
 
     @media (min-width: 1024px) {
         .bento--3 {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            --grid-cols: 3;
         }
 
         .bento--4 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            --grid-cols: 4;
         }
 
         .bento > :global(:last-child:nth-child(odd):not(.fcard--span-2)) {

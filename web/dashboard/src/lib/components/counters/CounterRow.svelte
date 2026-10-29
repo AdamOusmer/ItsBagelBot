@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/row-body.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -41,15 +42,15 @@
 
 <ManagementRow selected={expanded} {expanded} controls="counter-inspector" onSelect={onExpand}>
   {#snippet primary()}
-    <span class="prow">
-      {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+    <span class="prow bb-row-body bb-row-body--stack">
+      {#if idx}<span class="bb-row-body__idx" aria-hidden="true">{idx}</span>{/if}
       <span class="name">
-        <span class="c-name">{c.name}</span>
+        <span class="bb-row-body__name bb-row-body__name--display">{c.name}</span>
         <Tag tone="bare" class="c-tag">{scopeLabel}</Tag>
       </span>
-      <span class="meta">
+      <span class="bb-row-body__meta">
         {#if isChannel}
-          <span class="m-val">
+          <span class="bb-row-body__val">
             <span class="bb-sr-only">{t('counters.colValue')} </span>{formatCounterValue(c.value)}
           </span>
         {:else}
@@ -64,46 +65,8 @@
 </ManagementRow>
 
 <style>
-  .prow {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
+  .prow { --row-cols: 28px minmax(0, 1fr) auto; }
 
   .name { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-  .c-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
   .name :global(.c-tag) { flex: none; }
-
-  .meta { display: inline-flex; align-items: center; justify-content: flex-end; }
-  .m-val {
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-sm);
-    color: var(--bb-tan-light);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  @media (max-width: 760px) {
-    .prow {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas:
-        'name'
-        'meta';
-      row-gap: 4px;
-    }
-    .idx { display: none; }
-    .name { grid-area: name; }
-    .meta { grid-area: meta; justify-content: flex-start; }
-  }
 </style>

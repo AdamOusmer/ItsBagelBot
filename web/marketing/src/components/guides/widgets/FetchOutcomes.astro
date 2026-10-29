@@ -3,8 +3,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Card from '@bagel/ui/astro/Card.astro';
+import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import ChatLines from '../ChatLines.astro';
 
 interface Outcome {
     id: string;
@@ -42,13 +44,14 @@ const options = outcomes.map((outcome) => ({
 <Card flush class="gout-card">
     <div class="gout" data-fetchoutcomes>
         <SegmentedControl options={options} value={outcomes[0]?.id} label={L.legend} data-go-tabs />
-        <div class="gout__win">
-            <div class="gout__bar"><span>{L.title}</span></div>
-            <div class="gout__feed">
-                <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span class="gout__line">{L.viewerText}</span></p>
-                <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span class="gout__line" data-go-line>{outcomes[0]?.bot}</span></p>
-            </div>
-        </div>
+        <ChatPreview title={L.title}>
+            <ChatLines
+                lines={[
+                    { who: 'viewer', name: L.viewer, text: L.viewerText },
+                    { who: 'bot', name: L.botName, text: outcomes[0]?.bot ?? '', hook: 'go-line' },
+                ]}
+            />
+        </ChatPreview>
         <div aria-live="polite">
             {outcomes.map((outcome, i) => (
                 <Text size="sm" tone="muted-light" id={`gout-why-${outcome.id}`} data-go-why={outcome.id} data-go-bot={outcome.bot} hidden={i !== 0}>
@@ -62,36 +65,21 @@ const options = outcomes.map((outcome) => ({
 <style>
     .gout-card { margin: 22px 0; }
     .gout { display: grid; gap: 12px; padding: 15px 16px; }
-    .gout__win { border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.7); overflow: hidden; }
-    .gout__bar { padding: 7px 11px; border-bottom: 1px solid var(--bb-border); font-family: var(--bb-font-mono); font-size: 0.62rem; color: var(--bb-muted); }
-    .gout__feed { display: grid; gap: 7px; padding: 11px; }
-    .gout__msg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-family: var(--bb-font-body); font-size: 0.86rem; line-height: 1.5; color: rgba(var(--bb-white-rgb), 0.85); }
-    .gout__viewer, .gout__bot { font-weight: 600; }
-    .gout__viewer { color: var(--bb-tan-light); }
-    .gout__bot { color: var(--bb-green-glow); }
-    .gout__line { font-family: var(--bb-font-mono); font-size: var(--bb-text-sm); }
-    .gout__line.is-new { animation: gout-slide var(--bb-dur-fast) var(--bb-ease-out-expo); }
-
-    @keyframes gout-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-
-    @media (prefers-reduced-motion: reduce) {
-        .gout__line.is-new { animation: none; }
-    }
 </style>
 
 <script>
     import { bindOnce } from '../../../script/bind';
 
     function replay(line: HTMLElement) {
-        line.classList.remove('is-new');
+        line.classList.remove('bb-chat__reply');
         void line.offsetWidth;
-        line.classList.add('is-new');
+        line.classList.add('bb-chat__reply');
     }
 
     function setupFetchOutcomes(root: HTMLElement) {
         const group = root.querySelector<HTMLElement>('[data-go-tabs]')!;
         const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>('button[role="radio"]'));
-        const line = root.querySelector<HTMLElement>('[data-go-line]')!;
+        const line = root.querySelector<HTMLElement>('[data-chat-hook="go-line"]')!;
         const whys = Array.from(root.querySelectorAll<HTMLElement>('[data-go-why]'));
 
         function select(index: number) {

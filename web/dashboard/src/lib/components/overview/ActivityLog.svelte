@@ -7,6 +7,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
 
@@ -59,6 +60,7 @@
       {/if}
     {/if}
   </div>
+  <Divider flush />
 
   {#if !feed.ok}
     <div class="ov-log__empty"><Text size="sm" tone="muted">{t('overview.feedUnavailable')}</Text></div>
@@ -89,7 +91,6 @@
     justify-content: space-between;
     gap: 12px;
     padding: 17px 20px 14px;
-    border-bottom: 1px solid var(--bb-border);
   }
   .ov-log__list {
     list-style: none;

@@ -104,7 +104,6 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 14px;
     padding-top: 6px;
-    border-top: 1px solid var(--bb-border);
   }
   .metric { display: flex; flex-direction: column; gap: var(--bb-space-1); text-align: left; }
   .value {

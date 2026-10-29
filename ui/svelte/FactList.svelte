@@ -6,7 +6,7 @@
   import type { Snippet } from 'svelte';
 
   type Own = {
-    layout?: 'rows' | 'tiles' | 'inline';
+    layout?: 'rows' | 'tiles' | 'inline' | 'list';
     class?: string;
     children?: Snippet;
   };

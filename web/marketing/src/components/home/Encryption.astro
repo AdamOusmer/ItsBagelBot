@@ -6,6 +6,7 @@ import { SITE } from '@bagel/kit/site-links';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
+import RoundBadge from '@bagel/ui/astro/RoundBadge.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -31,8 +32,6 @@ const CODE_LINES = [
                 <div class="enc__demo enc__demo--lock" aria-hidden="true">
                     <span class="lock__ring lock__ring--outer"></span>
                     <span class="lock__ring lock__ring--inner"></span>
-                    <span class="lock__lane"><span class="lock__packet">TLS</span></span>
-                    <span class="lock__lane lock__lane--late"><span class="lock__packet">TLS</span></span>
                     <svg class="lock__glyph" viewBox="0 0 40 48"><path d="M10 21v-7a10 10 0 0 1 20 0v7" /><rect x="5" y="21" width="30" height="23" rx="5" /><circle cx="20" cy="31" r="2.5" /><path d="M20 33.5v4" /></svg>
                 </div>
                 <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
@@ -54,7 +53,7 @@ const CODE_LINES = [
                     <div class="code__win">
                         <span class="code__bar">
                             <span class="code__dots"><i></i><i></i><i></i></span>
-                            <span class="code__go" data-cursor>↗</span>
+                            <RoundBadge size="md" muted class="code__go" data-cursor>→</RoundBadge>
                         </span>
                         {CODE_LINES.map((line) => (
                             <span class="code__line" style={`--w: ${line.width}%; --indent: ${line.indent}px`}></span>
@@ -154,28 +153,6 @@ const CODE_LINES = [
         animation: enc-breathe 4s ease-in-out infinite;
     }
 
-    .lock__lane {
-        position: absolute;
-        top: calc(50% - 10px);
-        left: 0;
-        width: 100%;
-        animation: enc-travel 4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
-    }
-
-    .lock__lane--late {
-        animation-delay: -2s;
-    }
-
-    .lock__packet {
-        display: inline-block;
-        padding: 2px 6px;
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.45);
-        border-radius: var(--bb-radius-xs);
-        background: var(--bb-bg-0);
-        color: var(--bb-green-glow);
-        translate: -100% 0;
-    }
-
     .lock__glyph {
         position: relative;
         width: 34px;
@@ -199,9 +176,10 @@ const CODE_LINES = [
         height: 100%;
         padding: 14px 16px;
         overflow: hidden;
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
         border-radius: var(--bb-radius-md);
         background: rgba(var(--bb-white-rgb), 0.02);
+        box-shadow: var(--bb-depth-0);
     }
 
     .code__bar {
@@ -216,30 +194,7 @@ const CODE_LINES = [
         gap: 5px;
     }
 
-    .code__go {
-        display: grid;
-        place-items: center;
-        width: 28px;
-        height: 28px;
-        font-size: var(--bb-text-sm);
-        color: var(--bb-muted);
-        border: 1px solid var(--bb-border);
-        border-radius: var(--bb-radius-pill);
-        transition:
-            color var(--bb-dur-fast) ease,
-            border-color var(--bb-dur-fast) ease,
-            background-color var(--bb-dur-fast) ease;
-    }
-
-    .enc__card--link:hover .code__go {
-        color: var(--bb-black);
-        background: var(--bb-white);
-        border-color: var(--bb-white);
-    }
-
-    .enc__card--link:focus-visible .code__go {
-        border-color: var(--bb-green-glow);
-    }
+    .code__bar :global(.code__go) { font-size: var(--bb-text-sm); }
 
     .code__dots i {
         width: 7px;
@@ -276,14 +231,6 @@ const CODE_LINES = [
         50% { transform: scale(1.06); opacity: 0.7; }
     }
 
-    @keyframes enc-travel {
-        0% { transform: translateX(0); opacity: 0; }
-        15% { opacity: 1; }
-        42%, 58% { opacity: 0; }
-        85% { opacity: 1; }
-        100% { transform: translateX(calc(100% + 48px)); opacity: 0; }
-    }
-
     @keyframes enc-blink {
         50% { opacity: 0; }
     }
@@ -306,17 +253,8 @@ const CODE_LINES = [
 
     @media (prefers-reduced-motion: reduce) {
         .lock__ring,
-        .lock__lane,
         .code__caret {
             animation: none;
-        }
-
-        .code__go {
-            transition: none;
-        }
-
-        .lock__lane {
-            opacity: 0;
         }
     }
 </style>

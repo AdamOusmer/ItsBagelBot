@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -35,6 +36,7 @@
     <Heading level={6} as="h2" variant="title" id="ov-ans-h">{t('overview.answeredTonight')}</Heading>
     <TextLink href="/commands" label={`${t('overview.answeredAll')} →`} />
   </div>
+  <Divider flush />
 
   {#if !answered.ok}
     <div class="ov-ans__empty"><Text size="sm" tone="muted">{t('overview.answeredUnavailable')}</Text></div>
@@ -62,7 +64,6 @@
     justify-content: space-between;
     gap: 12px;
     padding: 17px 20px 14px;
-    border-bottom: 1px solid var(--bb-border);
   }
   .ov-ans__list {
     list-style: none;

@@ -15,21 +15,25 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
-  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
-  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import IconTile from '@bagel/ui/svelte/IconTile.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import Stepper from '@bagel/ui/svelte/Stepper.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import {
-    CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
     isImportSource,
     type ImportSourceStrategy,
     type InputSpec
   } from '@bagel/kit/importer/strategy';
-  import { IMPORT_SOURCES, type ImportSource, type ManifestCommand } from '@bagel/kit';
+  import type { ImportSource, ManifestCommand } from '@bagel/kit';
+  import ImportApplied from '$lib/import/ImportApplied.svelte';
+  import ImportAudit from '$lib/import/ImportAudit.svelte';
+  import ImportCommitBar from '$lib/import/ImportCommitBar.svelte';
+  import ImportSourcePicker from '$lib/import/ImportSourcePicker.svelte';
+  import ImportSteps from '$lib/import/ImportSteps.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
   import ImportFailed from '$lib/import/ImportFailed.svelte';
   import ImportGroup from '$lib/import/ImportGroup.svelte';
@@ -89,19 +93,6 @@
 
   const stepIndex = $derived(
     step === 'pick' ? 0 : step === 'instructions' ? 1 : step === 'review' ? 2 : 3
-  );
-
-  const sourceOptions = $derived(
-    IMPORT_SOURCES.map((id) => {
-      const s = IMPORT_STRATEGIES[id];
-      return {
-        value: id,
-        label: s.label,
-        description: importText(s.i18n.desc),
-        meta: s.available ? t('import.tileCta') : undefined,
-        disabled: !s.available
-      };
-    })
   );
 
   function choose(value: string) {
@@ -206,39 +197,19 @@
       <div class="step-title"><Heading level={6} as="h2">{t('import.stepPick')}</Heading></div>
       <div class="hint"><Text size="sm" tone="muted">{t('import.pickHint')}</Text></div>
 
-      <div class="tiles">
-        <RadioGroup
-          variant="cards"
-          min="250px"
-          name="source-pick"
-          label={t('import.stepPick')}
-          value={source}
-          options={sourceOptions}
-          onValueChange={choose}
-        >
-          {#snippet leading(option, on)}
-            {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
-            <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
-            {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
-          {/snippet}
-        </RadioGroup>
-      </div>
+      <ImportSourcePicker {locale} {source} label={t('import.stepPick')} onchoose={choose} min="250px" />
     </Card>
   {:else if step === 'instructions' && source}
     {@const st = IMPORT_STRATEGIES[source]}
     {@const spec = st.input}
     <Card>
       <div class="instr-head">
-        <span class="glyph" aria-hidden="true">{st.initials}</span>
+        <IconTile>{st.initials}</IconTile>
         <Heading level={6} as="h2">{t('import.stepInstructions', { source: st.label })}</Heading>
       </div>
       <div class="hint"><Text size="sm" tone="muted">{t('import.instrHint', { source: st.label })}</Text></div>
 
-      {#if instrSteps.length}
-        <ol class="steps">
-          {#each instrSteps as s, i (i)}<Text as="li" size="sm">{s}</Text>{/each}
-        </ol>
-      {/if}
+      <ImportSteps items={instrSteps} />
 
       {#if spec.kind === 'text'}
         {#if spec.linkHref && spec.linkLabel}
@@ -402,34 +373,27 @@
 
       {#if commitError}<ImportAlert message={commitError} />{/if}
 
-      <form
-        class="commit-bar"
-        onsubmit={(e) => {
-          e.preventDefault();
-          runCommit();
-        }}
-      >
-        <Label mono as="span">{session.selectionLine}</Label>
-        <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
-            >{submitting ? t('common.cancel') : t('import.startOver')}</Button
-          >
-          <Button type="submit" variant="primary" busy={submitting}>
-            {t('import.importNow')}
-          </Button>
-        </div>
-      </form>
+      <ImportCommitBar
+        line={session.selectionLine}
+        {submitting}
+        cancelLabel={submitting ? t('common.cancel') : t('import.startOver')}
+        submitLabel={t('import.importNow')}
+        oncancel={() => (submitting ? session.cancel() : reset())}
+        oncommit={runCommit}
+      />
   {:else if step === 'done'}
     <Card>
       <span class="done-blob">
-        <Bolota
-          name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
-          size={58}
-          active={true}
-          cycle={false}
-          sequence="entrance"
-          sequenceKey={commitResult?.audit_id ?? 'done'}
-        />
+        <MarkBadge tone="success" size="lg">
+          <Bolota
+            name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
+            size={58}
+            active={true}
+            cycle={false}
+            sequence="entrance"
+            sequenceKey={commitResult?.audit_id ?? 'done'}
+          />
+        </MarkBadge>
       </span>
       <div class="step-title"><Heading level={6} as="h2">{t('import.doneTitle')}</Heading></div>
       {#if commitResult}
@@ -452,13 +416,7 @@
           {locale}
         />
         {#if commitError}<ImportAlert message={commitError} />{/if}
-        {#if session.appliedTiles.length}
-          <div class="applied">
-            {#each session.appliedTiles as a (a.label)}
-              <div class="applied-tile"><StatTile inline static label={a.label} value={String(a.n)} /></div>
-            {/each}
-          </div>
-        {/if}
+        <ImportApplied tiles={session.appliedTiles} />
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
           <AlertBanner tone={d.severity === 'error' ? 'danger' : 'warning'} role="status">{d.message}</AlertBanner>
         {/each}
@@ -470,7 +428,7 @@
         <Button variant="ghost" onclick={reset}>{t('import.importAnother')}</Button>
       </div>
       {#if commitResult?.audit_id}
-        <div class="audit"><Text size="xs" mono tone="muted">{t('import.auditFoot', { n: commitResult.audit_id })}</Text></div>
+        <ImportAudit text={t('import.auditFoot', { n: commitResult.audit_id })} />
       {/if}
     </Card>
   {/if}
@@ -514,39 +472,6 @@
     }
   }
 
-  .tiles { margin: 16px 0 4px; }
-  .glyph {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--bb-glass-border);
-    background: rgba(var(--bb-white-pure-rgb), 0.04);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan-light);
-    transition:
-      border-color var(--bb-dur-fast) ease,
-      color var(--bb-dur-fast) ease;
-  }
-  .glyph.picked {
-    border-color: rgba(var(--bb-tan-rgb), 0.55);
-    color: var(--bb-tan);
-  }
-
-  .steps {
-    margin: 6px 0 16px;
-    padding-left: 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    overflow-wrap: anywhere;
-  }
   .instr-link { margin: 0 0 14px; }
   .cred {
     display: flex;
@@ -609,51 +534,8 @@
     padding: 16px 22px;
   }
 
-  .commit-bar {
-    position: sticky;
-    bottom: 18px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-pill);
-    background: rgba(var(--bb-card-bg-rgb), 0.92);
-    backdrop-filter: blur(18px);
-    padding: 14px 16px 14px 24px;
-    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.35);
-  }
-
   .done-blob {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 76px;
-    height: 76px;
-    border-radius: var(--bb-radius-lg);
-    background: rgba(var(--bb-green-glow-rgb), 0.12);
-    border: 1px solid var(--bb-border-strong);
     margin-bottom: 14px;
-  }
-  .applied {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 12px;
-    margin: 22px 0 26px;
-  }
-  .applied-tile {
-    padding: 16px 18px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    background: var(--bb-glass-fill);
-  }
-  .audit { margin-top: 24px; }
-
-  @media (max-width: 560px) {
-    .commit-bar {
-      border-radius: var(--bb-radius-sm);
-      padding: 14px 16px;
-    }
   }
 </style>

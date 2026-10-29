@@ -4,6 +4,7 @@
   import { formatCounterValue } from '@bagel/kit/validation';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import '@bagel/ui/styles/elements/row-body.css';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -79,7 +80,7 @@
     onSelect={onExpand}
   >
     {#snippet primary()}
-      <span class="prow" class:selecting>
+      <span class="prow bb-row-body" class:selecting>
         <span class="idx">
           {#if selecting}
             <span class="pick" class:on={checked} aria-hidden="true">{#if checked}<Icon name="check" size={11} />{/if}</span>
@@ -165,10 +166,7 @@
 
 <style>
   .prow {
-    display: grid;
-    grid-template-columns: 22px 190px minmax(0, 1fr) 104px 92px 44px auto;
-    align-items: center;
-    gap: 14px;
+    --row-cols: 22px 190px minmax(0, 1fr) 104px 92px 44px auto;
     min-height: 26px;
   }
 

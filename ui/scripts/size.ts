@@ -297,10 +297,24 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/ranking-card", budget: 1350 }, // 1227 B: tonal row divider, room ~10%
   // Blocks added 2026-09-28, macOS/arm64: measured gzip +150 B platform variance and ~10% room.
   { name: "elements/deck-layout", budget: 400 }, // 206 B
-  { name: "elements/fact-list", budget: 930 }, // 687 B
+  { name: "elements/fact-list", budget: 1100 }, // 868 B: list layout (2026-10-28)
+  { name: "elements/step-card", budget: 400 }, // 195 B (2026-10-28)
+  { name: "elements/link-row", budget: 400 }, // 206 B (2026-10-28)
   { name: "elements/pager", budget: 370 }, // 184 B
   { name: "elements/disclosure", budget: 1260 }, // 989 B
   { name: "elements/feed", budget: 740 }, // 516 B
+  { name: "elements/var-card", budget: 1060 }, // 807 B: script-built variable cards
+  { name: "elements/row-body", budget: 1000 }, // 858 B: shared list-row body, device and module variants (2026-10-29)
+  { name: "elements/swatch", budget: 350 }, // 194 B: recessed colour chip (2026-10-29)
+  { name: "elements/well", budget: 230 }, // 151 B: inset surface
+  { name: "elements/json-tree", budget: 470 }, // 360 B: tree rails and neutral picked row
+  { name: "elements/window", budget: 420 }, // 314 B: window frame with title bar
+  { name: "elements/chat-preview", budget: 1620 }, // 1325 B: shared chat rehearsal window
+  { name: "elements/icon-tile", budget: 590 }, // 385 B
+  { name: "elements/action-bar", budget: 540 }, // 337 B
+  { name: "elements/mark-badge", budget: 530 }, // 330 B
+  { name: "elements/round-badge", budget: 630 }, // 418 B: shared circle badge and var-card plus (2026-10-28)
+  { name: "elements/timeline", budget: 960 }, // 720 B: rail, drawn rail and marker dot (2026-10-28)
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
   { name: "elements/slider", budget: 380 }, // 191 B
   { name: "elements/file-drop", budget: 740 }, // 514 B

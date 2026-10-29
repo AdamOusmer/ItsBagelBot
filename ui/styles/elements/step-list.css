@@ -110,6 +110,35 @@
     margin-bottom: 14px;
   }
 
+  .bb-steps--numbered {
+    gap: 14px;
+    counter-reset: bb-step;
+  }
+
+  .bb-steps--numbered .bb-step__item {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    padding: 14px 16px 14px 46px;
+    counter-increment: bb-step;
+  }
+
+  .bb-steps--numbered .bb-step__item::before {
+    content: counter(bb-step, decimal-leading-zero);
+    position: absolute;
+    top: 15px;
+    left: 16px;
+    color: var(--bb-tan);
+    font-family: var(--bb-font-mono);
+    font-size: 0.7rem;
+  }
+
+  @media (max-width: 640px) {
+    .bb-steps--numbered .bb-step__item {
+      padding: 12px 13px 13px 40px;
+    }
+  }
+
   .bb-steps--nav {
     --steps-row: clamp(44px, calc((100svh - 300px) / var(--steps-n)), 60px);
     position: relative;

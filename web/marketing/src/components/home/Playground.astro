@@ -4,6 +4,7 @@
 
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
@@ -45,10 +46,11 @@ const playStrings = {
 };
 ---
 
+<Container class="play-wrap">
 <Section size="page" class="play" id="playground">
     <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
-        <Eyebrow tone="go" class="play__eyebrow" data-reveal><span data-fit>{t('playground.eyebrow')}</span></Eyebrow>
+        <Eyebrow class="play__eyebrow" data-reveal><span data-fit>{t('playground.eyebrow')}</span></Eyebrow>
         <Heading level={2} class="play__title" data-reveal><span data-fit="block">{t('playground.title')}</span></Heading>
         <Lead class="play__sub" data-reveal><span data-fit="block">{t('playground.sub')}</span></Lead>
 
@@ -91,6 +93,7 @@ const playStrings = {
         </HaloPanel>
     </div>
 </Section>
+</Container>
 
 <style>
     .play {
@@ -99,18 +102,16 @@ const playStrings = {
         grid-template-columns: 1fr;
         gap: 48px;
         align-items: center;
-        padding-inline: 24px;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
         z-index: 3;
         scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     @media (min-width: 960px) {
+        .play-wrap { --container-pad: 48px; }
+
         .play {
             grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
             gap: 64px;
-            padding-inline: 48px;
         }
     }
 
@@ -192,8 +193,8 @@ const playStrings = {
         align-items: center;
         gap: 10px;
         padding: 14px 18px;
-        border-bottom: 1px solid var(--bb-border);
-        background: rgba(var(--bb-white-pure-rgb), 0.015);
+        background: var(--bb-card-bg);
+        box-shadow: var(--bb-depth-1);
     }
 
     .play__channel {
@@ -246,7 +247,7 @@ const playStrings = {
         font-family: var(--bb-font-mono);
         font-size: 0.78rem;
         flex-shrink: 0;
-        color: var(--hue, var(--bb-tan));
+        color: var(--bb-tan-light);
     }
 
     .play__feed :global(.pmsg__text) {
@@ -281,6 +282,10 @@ const playStrings = {
         padding-top: 4px;
     }
 
+    .play__feed :global(.pmsg--spam .pmsg__name) {
+        color: var(--bb-status-danger);
+    }
+
     .play__feed :global(.pmsg--spam .pmsg__text) {
         color: rgba(var(--bb-status-danger-rgb), 0.9);
     }
@@ -299,20 +304,19 @@ const playStrings = {
         font-family: var(--bb-font-mono);
         font-size: 0.7rem;
         letter-spacing: 0.06em;
-        color: var(--bb-green-glow);
-        background: rgba(var(--bb-green-glow-rgb), 0.07);
-        border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.3);
-        border-radius: var(--bb-radius-md);
+        color: var(--bb-tan-light);
+        background: rgba(var(--bb-tan-rgb), 0.07);
+        box-shadow: var(--bb-depth-0);
+        border-radius: var(--bb-radius-xs);
         padding: 6px 10px;
     }
-
 
     .play__composer {
         display: flex;
         gap: 10px;
         padding: 12px 14px;
-        border-top: 1px solid var(--bb-border);
-        background: rgba(var(--bb-white-pure-rgb), 0.015);
+        background: var(--bb-card-bg);
+        box-shadow: var(--bb-depth-1);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -320,7 +324,7 @@ const playStrings = {
     }
 
     @media (max-width: 640px) {
-        .play { padding-inline: 20px; }
+        .play-wrap { --container-pad: 20px; }
         .play__window { height: 420px; }
     }
 </style>
@@ -328,12 +332,12 @@ const playStrings = {
 <script>
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    const VIEWERS: Array<[string, string]> = [
-        ['PrincessBarney', '#eadbbd'],
-        ['SnackPackPanda', '#62a593'],
-        ['Lotti', '#d8bf91'],
-        ['MikanMeerkat', '#9ad1b5'],
-        ['Ayshacinder', '#d9c08a'],
+    const VIEWERS = [
+        'PrincessBarney',
+        'SnackPackPanda',
+        'Lotti',
+        'MikanMeerkat',
+        'Ayshacinder',
     ];
 
     const SPAM_LINES = [
@@ -401,11 +405,10 @@ const playStrings = {
             return row;
         }
 
-        function addChat(name: string, hue: string, text: string, cls = '') {
+        function addChat(name: string, text: string, cls = '') {
             const row = baseMsg(cls);
             const who = document.createElement('span');
             who.className = 'pmsg__name';
-            who.style.setProperty('--hue', hue);
             who.textContent = name;
             const body = document.createElement('span');
             body.className = 'pmsg__text';
@@ -433,13 +436,13 @@ const playStrings = {
             const wait = reduceMotion.matches ? 80 : delay;
             window.setTimeout(() => {
                 typing.remove();
-                addChat('itsbagelbot', '', text, 'pmsg--bot');
+                addChat('itsbagelbot', text, 'pmsg--bot');
             }, wait);
         }
 
         function addSpam() {
             const line = SPAM_LINES[seq++ % SPAM_LINES.length];
-            const row = addChat('definitely_human_01', '#d98a8a', line, 'pmsg--spam');
+            const row = addChat('definitely_human_01', line, 'pmsg--spam');
             const catchDelay = reduceMotion.matches ? 150 : 650;
             window.setTimeout(() => {
                 row.classList.add('is-caught');
@@ -455,7 +458,7 @@ const playStrings = {
         function handleCommand(raw: string) {
             const text = raw.trim();
             if (!text) return;
-            addChat('you', '#eadbbd', text, 'pmsg--you');
+            addChat('you', text, 'pmsg--you');
 
             if (!text.startsWith('!')) {
                 if (!quietNoteShown) {
@@ -481,8 +484,8 @@ const playStrings = {
             if (!visible || document.hidden) return;
             const wait = 2600 + Math.random() * 2600;
             ambientTimer = window.setTimeout(() => {
-                const [name, hue] = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
-                addChat(name, hue, S.ambient[Math.floor(Math.random() * S.ambient.length)]);
+                const name = VIEWERS[Math.floor(Math.random() * VIEWERS.length)];
+                addChat(name, S.ambient[Math.floor(Math.random() * S.ambient.length)]);
                 if (++seq % 7 === 0) addSpam();
                 scheduleAmbient();
             }, wait);
@@ -497,8 +500,8 @@ const playStrings = {
 
         document.addEventListener('visibilitychange', scheduleAmbient);
 
-        addChat('SnackPackPanda', '#62a593', S.seed1);
-        addChat('PrincessBarney', '#eadbbd', S.seedTry);
+        addChat('SnackPackPanda', S.seed1);
+        addChat('PrincessBarney', S.seedTry);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();

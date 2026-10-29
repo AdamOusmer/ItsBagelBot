@@ -58,8 +58,8 @@ const schema = landingSchema({
         related={{
             title: t('landing.relatedTitle'),
             links: [
-                { href: 'https://www.websitecarbon.com/website/itsbagelbot-com/', label: t('ecoFriendly.relCarbonSite') },
-                { href: 'https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/', label: t('ecoFriendly.relCarbonDash') },
+                { href: 'https://www.websitecarbon.com/website/itsbagelbot-com/', label: t('ecoFriendly.relCarbonSite'), external: true },
+                { href: 'https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/', label: t('ecoFriendly.relCarbonDash'), external: true },
                 { href: localizePath('/pricing', lang), label: t('landing.relPricing') },
             ],
         }}

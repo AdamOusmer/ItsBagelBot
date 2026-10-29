@@ -4,6 +4,7 @@
 
 import Card from '@bagel/ui/astro/Card.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 
 interface Props {
@@ -20,9 +21,9 @@ const { columns = 2, items } = Astro.props;
             <Heading level={6} as="div" class="gcards__title">{item.title}</Heading>
             <div class="gcards__body" set:html={item.html}></div>
             {item.chips && item.chips.length > 0 && (
-                <div class="gcards__chips">
+                <Cluster class="gcards__chips">
                     {item.chips.map((chip) => <Badge tone="bare">{chip}</Badge>)}
-                </div>
+                </Cluster>
             )}
         </Card>
     ))}
@@ -40,7 +41,7 @@ const { columns = 2, items } = Astro.props;
 
     .gcards__body :global(p) { margin: 0; }
 
-    .gcards__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .gcards__chips { margin-top: 8px; }
 
     @media (min-width: 640px) {
         .gcards { grid-template-columns: repeat(var(--gcards-cols), minmax(0, 1fr)); }

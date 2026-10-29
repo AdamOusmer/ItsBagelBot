@@ -6,7 +6,7 @@
   import type { Snippet } from 'svelte';
 
   type Own = {
-    size?: 'default' | 'sm' | 'lg' | 'flush' | 'page';
+    size?: 'default' | 'sm' | 'lg' | 'flush' | 'page' | 'band';
     anchor?: boolean;
     reveal?: boolean;
     as?: 'section' | 'article' | 'div' | 'ul' | 'ol' | 'li' | 'header' | 'footer' | 'aside' | 'main';

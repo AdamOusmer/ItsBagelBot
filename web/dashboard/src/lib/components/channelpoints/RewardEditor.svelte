@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -133,6 +135,7 @@
     />
   </Field>
 
+  <Card style="--card-pad: 14px; margin-bottom: 14px">
   <section class="hooks">
     <header class="hooks-head">
       <Text as="span" size="sm" tone="muted">{t('channelpoints.loyaltyTitle')}</Text>
@@ -163,7 +166,7 @@
             <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
           </Field>
 
-          <div class="token-note"><Text size="xs" mono tone="muted">{t('rewardCounter.tokenNote')}</Text></div>
+          <Code block wrap>{t('rewardCounter.tokenNote')}</Code>
         </div>
       {/if}
     </div>
@@ -198,7 +201,9 @@
       </div>
     {/if}
   </section>
+  </Card>
 
+  <Card style="--card-pad: 14px; margin-bottom: 14px">
   <div class="limits">
     <Text as="span" size="sm" tone="muted">{t('channelpoints.limits')}</Text>
 
@@ -256,6 +261,7 @@
       <Text as="small" size="xs" tone="danger">{cooldownError ?? ''}</Text>
     </span>
   </div>
+  </Card>
 
   <div class="check">
     <Checkbox bind:checked={draft.isEnabled}>{t('channelpoints.visible')}</Checkbox>
@@ -275,10 +281,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    padding: 14px;
-    margin-bottom: 14px;
   }
   .hooks-head {
     display: flex;
@@ -297,13 +299,6 @@
   }
   .hook-body { --field-mb: 0; }
 
-  .token-note {
-    background: rgba(var(--bb-shadow-rgb), 0.28);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    padding: 8px 10px;
-  }
-
   .live-gate { gap: 4px; }
   .live-hint { margin: 2px 0 0 26px; }
 
@@ -321,10 +316,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    padding: 14px;
-    margin-bottom: 14px;
   }
   .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
   .limit-num { display: block; width: 88px; flex: none; }

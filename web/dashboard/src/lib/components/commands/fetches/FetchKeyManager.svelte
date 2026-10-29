@@ -196,10 +196,8 @@
     align-items: center;
     gap: 10px;
     padding: 9px 2px;
-    border-bottom: 1px solid var(--bb-border);
     flex-wrap: wrap;
   }
-  .key-row:last-child { border-bottom: none; }
   .label { min-width: 120px; }
   .acts { margin-left: auto; display: inline-flex; gap: 8px; }
 

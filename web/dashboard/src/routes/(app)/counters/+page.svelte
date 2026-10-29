@@ -24,6 +24,7 @@
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -748,6 +749,7 @@
                 {@render renameBlock()}
               </div>
             </Scroller>
+            <Divider flush />
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
               <Button onclick={() => (resetTarget = selected)} tone="danger">
@@ -847,7 +849,6 @@
     justify-content: flex-end;
     gap: 10px;
     padding: 12px 16px;
-    border-top: 1px solid var(--bb-border);
     background: var(--bb-bg-1);
     flex: none;
   }
@@ -857,7 +858,7 @@
   .ins-sub { margin: 0 0 16px; }
 
   .sec { padding: 0 0 16px; }
-  .sec + .sec { padding-top: 16px; border-top: 1px solid var(--bb-border); }
+  .sec + .sec { padding-top: 16px; }
   .sec-util { --input-fs: var(--bb-text-xs); }
 
   .sec-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }

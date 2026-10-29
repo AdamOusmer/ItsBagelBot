@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -77,6 +78,7 @@
 {#if parsed.error}
   <FieldError message={parsed.error} />
 {:else if parsed.tree.length > 0}
+  <Divider flush />
   <div class="tree">
     {#each parsed.tree as root (root.segs.join('.'))}
       {@render node(root)}
@@ -113,7 +115,6 @@
     max-height: 260px;
     overflow-y: auto;
     padding-top: 8px;
-    border-top: 1px solid var(--bb-border);
   }
 
   .branch .kids {

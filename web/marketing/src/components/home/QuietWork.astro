@@ -2,9 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Container from '@bagel/ui/astro/Container.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
+import ProgressBar from '@bagel/ui/astro/ProgressBar.astro';
 import Section from '@bagel/ui/astro/Section.astro';
+import StatusDot from '@bagel/ui/astro/StatusDot.astro';
 import BentoGrid from './BentoGrid.astro';
 import FeatureCard from './FeatureCard.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -13,10 +16,12 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
 const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
+const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'danger' } as const;
 // Sixteen raffle entries in an 8x2 grid; the ring lands on the winner's slot.
 const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 ---
 
+<Container class="qw-wrap">
 <Section size="page" class="qw" id="quiet-work" data-motion>
     <SectionHeading eyebrow={t('quietWork.eyebrow')} title={t('quietWork.title')} />
 
@@ -37,7 +42,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
                         <span class="qw-song__title qw-song__title--a">One More Time<small class="qw-song__artist">Daft Punk</small></span>
                         <span class="qw-song__title qw-song__title--b">Midnight City<small class="qw-song__artist">M83</small></span>
                     </span>
-                    <span class="qw-song__scrub"><i></i></span>
+                    <ProgressBar class="qw-song__scrub" value={0} size="sm" tone="success" gradient label={t('quietWork.songNow')} />
                     <span class="qw-song__req">
                         <span class="qw-song__cmd"><b class="qw__user">PrincessBarney</b>!sr late night lo-fi</span>
                         <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
@@ -74,7 +79,9 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
                 </span>
                 <span class="qw-govee__redeem">
                     <span class="qw-govee__dot bb-layers">
-                        {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
+                        {GOVEE_TONES.map((tone) => (
+                            <span class={`qw-govee__tone qw-govee__tone--${tone}`}><StatusDot tone={GOVEE_DOT[tone]} /></span>
+                        ))}
                     </span>
                     <span class="qw-govee__redeem-text"><span data-fit="block">{t('quietWork.goveeReward')}</span></span>
                 </span>
@@ -145,15 +152,13 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         </FeatureCard>
     </BentoGrid>
 </Section>
+</Container>
 
 <style>
     .qw {
         --section-heading-lines: 2;
         --section-heading-lines-phone: 3;
         position: relative;
-        padding-inline: 24px;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
         z-index: 3;
     }
 
@@ -292,21 +297,8 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
     .qw-song__title--a { animation-name: qwSongTitleA; }
     .qw-song__title--b { animation-name: qwSongTitleB; }
 
-    .qw-song__scrub {
-        display: block;
-        height: 3px;
-        border-radius: var(--bb-radius-xs);
-        background: rgba(var(--bb-white-rgb), 0.08);
-        overflow: hidden;
-    }
-
-    .qw-song__scrub i {
-        display: block;
-        height: 100%;
-        transform: scaleX(0);
+    .qw-song__scrub > :global(span) {
         transform-origin: left;
-        border-radius: var(--bb-radius-xs);
-        background: linear-gradient(90deg, rgba(var(--bb-green-glow-rgb), 0.5), var(--bb-green-glow));
         animation: qwSongScrub 10s linear infinite;
     }
 
@@ -562,14 +554,12 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 
     .qw-govee__dot {
         flex: none;
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
     }
 
-    .qw-govee__dot i {
-        border-radius: 50%;
-        background: currentColor;
-        box-shadow: 0 0 8px currentColor;
+    .qw-govee__dot .qw-govee__tone {
+        display: flex;
     }
 
     .qw-govee__tone {
@@ -1032,7 +1022,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         .qw-govee__glow, .qw-govee__bulb, .qw-govee__tone, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
         .qw-song__glow i, .qw-song__vinyl i, .qw-song__title,
-        .qw-song__scrub i, .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item,
+        .qw-song__scrub > :global(span), .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item,
         .qw-song__pos-was, .qw-song__pos-now,
         .qw-queue__msg, .qw-queue__list, .qw-queue__row, .qw-queue__row--a::after, .qw-queue__tag,
         .qw-queue__joined, .qw-queue__pos-was, .qw-queue__pos-now,
@@ -1041,7 +1031,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
             animation: none;
         }
         .qw-song__glow-a, .qw-song__title--a { opacity: 1; }
-        .qw-song__scrub i { transform: scaleX(0.46); }
+        .qw-song__scrub > :global(span) { transform: scaleX(0.46); }
         .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item--b { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
         .qw-govee__bulb { opacity: 1; }
@@ -1057,7 +1047,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
     }
 
     @media (max-width: 640px) {
-        .qw { padding-inline: 20px; }
+        .qw-wrap { --container-pad: 20px; }
     }
 </style>
 

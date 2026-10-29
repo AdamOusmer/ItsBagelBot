@@ -43,6 +43,7 @@ export { default as Textarea } from './Textarea.astro';
 
 export { default as AlertBanner } from './AlertBanner.astro';
 export { default as Badge } from './Badge.astro';
+export { default as ChatPreview } from './ChatPreview.astro';
 export { default as Chip } from './Chip.astro';
 export { default as EmptyState } from './EmptyState.astro';
 export { default as ErrorScene } from './ErrorScene.astro';
@@ -93,6 +94,9 @@ export { default as ReadingProgress } from './ReadingProgress.astro';
 export { default as NavProgress } from './NavProgress.astro';
 
 export { default as StatusDot } from './StatusDot.astro';
+export { default as RoundBadge } from './RoundBadge.astro';
+export { default as Timeline } from './Timeline.astro';
+export { default as TimelineItem } from './TimelineItem.astro';
 
 export { default as AmbientSky } from './AmbientSky.astro';
 
@@ -107,6 +111,8 @@ export { default as DeckLayout } from './DeckLayout.astro';
 export { default as Disclosure } from './Disclosure.astro';
 export { default as Fact } from './Fact.astro';
 export { default as FactList } from './FactList.astro';
+export { default as StepCard } from './StepCard.astro';
+export { default as LinkRow } from './LinkRow.astro';
 export { default as Pager } from './Pager.astro';
 export { default as ProgressBar } from './ProgressBar.astro';
 
@@ -124,3 +130,6 @@ export { default as SkipLink } from './SkipLink.astro';
 export { default as CopySurface } from './CopySurface.astro';
 
 export { uiI18n } from './i18n';
+export { default as Well } from './Well.astro';
+export { default as JsonTree } from './JsonTree.astro';
+export { default as Window } from './Window.astro';
