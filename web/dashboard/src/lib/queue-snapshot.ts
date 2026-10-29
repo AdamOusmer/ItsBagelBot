@@ -18,12 +18,23 @@ function validEntry(raw: unknown): raw is QueueEntry {
   return typeof entry?.login === 'string' && entry.login !== '' && Number.isFinite(entry.joinedAt);
 }
 
+const SNAPSHOT_CHECKS: readonly ((snap: Partial<QueueSnapshot>) => boolean)[] = [
+  (s) => typeof s.open === 'boolean',
+  (s) => typeof s.degraded === 'boolean',
+  (s) => Number.isFinite(s.total),
+  (s) => Number.isFinite(s.at),
+  (s) => Array.isArray(s.entries) && s.entries.every(validEntry)
+];
+
+function validSnapshot(raw: unknown): raw is QueueSnapshot {
+  const snap = (raw ?? {}) as Partial<QueueSnapshot>;
+  return SNAPSHOT_CHECKS.every((check) => check(snap));
+}
+
 export function parseSnapshot(raw: unknown): QueueSnapshot | null {
-  const snap = raw as Partial<QueueSnapshot> | null;
-  if (!snap || typeof snap.open !== 'boolean' || typeof snap.degraded !== 'boolean') return null;
-  if (!Number.isFinite(snap.total) || !Number.isFinite(snap.at)) return null;
-  if (!Array.isArray(snap.entries) || !snap.entries.every(validEntry)) return null;
-  return { open: snap.open, degraded: snap.degraded, total: snap.total as number, at: snap.at as number, entries: snap.entries };
+  if (!validSnapshot(raw)) return null;
+  const { open, degraded, total, at, entries } = raw;
+  return { open, degraded, total, at, entries };
 }
 
 export function waitedSeconds(entry: QueueEntry, nowMs: number): number {
