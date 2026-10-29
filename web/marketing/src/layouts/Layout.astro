@@ -20,15 +20,13 @@ import Footer from '@bagel/ui/astro/Footer.astro'
 import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro'
 import {
     SITE_NAV,
-    SITE_FOOTER,
-    SITE_LEGAL,
     dashboardHref,
     linkLocale,
     resolveSiteLinks,
-    resolveSiteColumns,
     siteNavProps,
     type SiteLinkContext,
 } from '@bagel/kit/site-links'
+import { siteFooterProps } from '@bagel/kit/site-footer'
 import Brackets from '@bagel/ui/astro/Brackets.astro'
 import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro'
 import SkipLink from '@bagel/ui/astro/SkipLink.astro'
@@ -178,8 +176,6 @@ const footerContext = {
 } satisfies SiteLinkContext;
 
 const navLinks = resolveSiteLinks(SITE_NAV, navContext);
-const footerColumns = resolveSiteColumns(SITE_FOOTER, footerContext);
-const footerLegal = resolveSiteLinks(SITE_LEGAL, footerContext);
 const navLocales = localeOptions(Astro.url);
 const getAppHref = dashboardHref('/?install=1', langQuery);
 
@@ -199,6 +195,7 @@ const navProps = siteNavProps({
     },
 });
 const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
+const footer = siteFooterProps(footerContext, footerLogo.src);
 
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
 const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
@@ -307,16 +304,7 @@ const contentSecurityPolicy = [
     </Nav>
     <ReadingProgress/>
     <Brackets/>
-    <Footer
-        brand={{ title: 'ItsBagelBot', sub: t('footer.tagline'), logoSrc: footerLogo.src, logoAlt: t('footer.logoAlt') }}
-        signoff={{ line: t('footer.signoff'), sub: t('footer.signoffSub') }}
-        columns={footerColumns}
-        legal={footerLegal}
-        copyright="© 2026 ItsBagelBot"
-        note={t('footer.note')}
-        class="bb-footer--raised"
-        studio={t('footer.studio')}
-    >
+    <Footer {...footer}>
         {isHome && <div slot="colophon" id="about">
             <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
             <p><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></p>
