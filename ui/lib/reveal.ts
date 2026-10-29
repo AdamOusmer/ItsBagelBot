@@ -14,7 +14,7 @@ export type RevealOptions = {
 
 const DEFAULTS: Required<RevealOptions> = {
     rootMargin: '0px 0px -10% 0px',
-    threshold: 0.08,
+    threshold: 0,
     instant: false,
 };
 
