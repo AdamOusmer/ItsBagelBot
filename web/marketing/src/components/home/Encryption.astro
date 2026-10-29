@@ -31,8 +31,6 @@ const CODE_LINES = [
                 <div class="enc__demo enc__demo--lock" aria-hidden="true">
                     <span class="lock__ring lock__ring--outer"></span>
                     <span class="lock__ring lock__ring--inner"></span>
-                    <span class="lock__lane"><span class="lock__packet">TLS</span></span>
-                    <span class="lock__lane lock__lane--late"><span class="lock__packet">TLS</span></span>
                     <svg class="lock__glyph" viewBox="0 0 40 48"><path d="M10 21v-7a10 10 0 0 1 20 0v7" /><rect x="5" y="21" width="30" height="23" rx="5" /><circle cx="20" cy="31" r="2.5" /><path d="M20 33.5v4" /></svg>
                 </div>
                 <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
@@ -154,28 +152,6 @@ const CODE_LINES = [
         animation: enc-breathe 4s ease-in-out infinite;
     }
 
-    .lock__lane {
-        position: absolute;
-        top: calc(50% - 10px);
-        left: 0;
-        width: 100%;
-        animation: enc-travel 4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
-    }
-
-    .lock__lane--late {
-        animation-delay: -2s;
-    }
-
-    .lock__packet {
-        display: inline-block;
-        padding: 2px 6px;
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.45);
-        border-radius: var(--bb-radius-xs);
-        background: var(--bb-bg-0);
-        color: var(--bb-green-glow);
-        translate: -100% 0;
-    }
-
     .lock__glyph {
         position: relative;
         width: 34px;
@@ -276,14 +252,6 @@ const CODE_LINES = [
         50% { transform: scale(1.06); opacity: 0.7; }
     }
 
-    @keyframes enc-travel {
-        0% { transform: translateX(0); opacity: 0; }
-        15% { opacity: 1; }
-        42%, 58% { opacity: 0; }
-        85% { opacity: 1; }
-        100% { transform: translateX(calc(100% + 48px)); opacity: 0; }
-    }
-
     @keyframes enc-blink {
         50% { opacity: 0; }
     }
@@ -306,17 +274,12 @@ const CODE_LINES = [
 
     @media (prefers-reduced-motion: reduce) {
         .lock__ring,
-        .lock__lane,
         .code__caret {
             animation: none;
         }
 
         .code__go {
             transition: none;
-        }
-
-        .lock__lane {
-            opacity: 0;
         }
     }
 </style>
