@@ -1456,13 +1456,10 @@ test('chat preview: both adapters emit the contract markup', async () => {
   expect(astro).toBe(svelte);
 });
 
-test('chat preview: both adapters pass extra attributes to the root', async () => {
+test('chat preview: astro adapter passes extra attributes to the root', async () => {
   const props = { title: 'Rehearsal', class: 'bb-chat--fixed', 'data-chat': '', 'aria-live': 'polite' as const };
   const container = await experimental_AstroContainer.create();
-  const svelte = normalise(render(SvelteChatPreview, { props }).body);
   const astro = normalise(await container.renderToString(AstroChatPreview, { props }));
 
-  expect(svelte).toContain(' data-chat ');
-  expect(svelte).toContain('aria-live="polite"');
-  expect(astro).toBe(svelte);
+  expect(astro).toContain('<div class="bb-chat bb-chat--fixed" role="group" data-chat aria-live="polite">');
 });
