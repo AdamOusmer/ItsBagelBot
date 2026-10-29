@@ -3,8 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Layout from '../../layouts/Layout.astro';
-import PageHero from '@bagel/ui/astro/PageHero.astro';
-import Switchboard from '../../components/contact/Switchboard.astro';
+import ContactStage from '../../components/contact/ContactStage.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
@@ -14,10 +13,5 @@ const t = useTranslations(lang);
 ---
 
 <Layout title={t('contact.metaTitle')} description={t('contact.metaDesc')}>
-    <PageHero
-        eyebrow={t('contact.eyebrow')}
-        title={t('contact.title')}
-        description={t('contact.desc')}
-    />
-    <Switchboard />
+    <ContactStage />
 </Layout>
