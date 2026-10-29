@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import '@bagel/ui/styles/elements/row-body.css';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
@@ -60,11 +61,11 @@
 
 <ManagementRow as="article" {href} id={def.id} class="loyalty-game">
   {#snippet primary()}
-    <span class="copy">
+    <span class="bb-row-body__copy bb-row-body__copy--tight">
       <Heading level={6} as="span">{tModuleLabel(t, def)}</Heading>
-      <span class="tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
+      <span class="bb-row-body__tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
       {#if chips.length}
-        <span class="cmds">
+        <span class="bb-row-body__cmds">
           {#each chips as chip (chip)}
             <Tag bare literal>{chip}</Tag>
           {/each}
@@ -88,16 +89,6 @@
 </ManagementRow>
 
 <style>
-  .copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .tagline {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .cmds { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
-
   @media (max-width: 560px) {
     :global(.loyalty-game) { flex-wrap: wrap; justify-content: flex-end; }
     .game-toggle { padding-bottom: 8px; }

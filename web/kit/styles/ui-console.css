@@ -41,4 +41,6 @@
 @import '@bagel/ui/styles/elements/setup-stage.css';
 @import '@bagel/ui/styles/elements/setup-step.css';
 @import '@bagel/ui/styles/elements/feed.css';
+@import '@bagel/ui/styles/elements/row-body.css';
+@import '@bagel/ui/styles/elements/swatch.css';
 @import './notifications.css';

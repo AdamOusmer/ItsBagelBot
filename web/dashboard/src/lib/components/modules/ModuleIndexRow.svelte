@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import '@bagel/ui/styles/elements/row-body.css';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
@@ -43,15 +44,15 @@
 
 <ManagementRow as="article" {href} label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
   {#snippet primary()}
-    <span class="main">
-      <span class="copy">
+    <span class="bb-row-body--main">
+      <span class="bb-row-body__copy">
         <Heading level={6} as="span">
           {tModuleLabel(t, def)}
           {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
         </Heading>
-        <span class="tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
+        <span class="bb-row-body__tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
         {#if chips.chips.length}
-          <span class="cmds">
+          <span class="bb-row-body__cmds">
             {#each chips.chips as chip (chip)}
               <Tag bare literal>{chip}</Tag>
             {/each}
@@ -61,13 +62,13 @@
           </span>
         {/if}
       </span>
-      <span class="open-action" aria-hidden="true" title={t('modules.openSettings')}>
+      <span class="bb-row-body__go" aria-hidden="true" title={t('modules.openSettings')}>
         <Icon name="gear" size={16} />
       </span>
     </span>
   {/snippet}
   {#snippet actions()}
-    <span class="side">
+    <span class="bb-row-body__side">
       <SaveStatus state={status} compact />
       {#if locked}
         <TextLink href="/billing" label={t('modules.betaPremium')} />
@@ -93,56 +94,9 @@
 </ManagementRow>
 
 <style>
-  .main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-width: 0;
-  }
-  .open-action {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-    margin-left: auto;
-    padding: 8px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-tan-light);
-  }
-  :global(:hover) > .main .open-action { border-color: var(--bb-tan); }
-
-  .copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .tagline {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .cmds {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    margin-top: 6px;
-  }
-
   .beta {
     display: inline-flex;
     vertical-align: 1px;
     margin-left: 8px;
-  }
-  .side {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    width: 7.25rem;
-  }
-
-  @media (max-width: 760px) {
-    .main { gap: 10px; }
-    .side { width: 6.75rem; }
   }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import '@bagel/ui/styles/elements/row-body.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import { getI18n } from '@bagel/kit';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
@@ -29,10 +30,10 @@
 
 <ManagementRow as="li" class="reveal" selected={expanded} {expanded} controls="quote-inspector" onSelect={onExpand}>
   {#snippet primary()}
-    <span class="prow">
+    <span class="prow bb-row-body">
       <span class="num" class:on={expanded}>#{quote.number}</span>
-      <span class="quote-text">{quote.text}</span>
-      <span class="date">{formatDate(quote.created_at)}</span>
+      <span class="quote-text bb-row-body__name">{quote.text}</span>
+      <span class="date bb-row-body__val bb-row-body__val--xs">{formatDate(quote.created_at)}</span>
     </span>
   {/snippet}
   {#snippet actions()}
@@ -42,11 +43,8 @@
 
 <style>
   .prow {
-    display: grid;
-    grid-template-columns: 48px minmax(0, 1fr) auto;
+    --row-cols: 48px minmax(0, 1fr) auto;
     grid-template-areas: 'num quote date';
-    align-items: center;
-    gap: 14px;
     min-height: 20px;
   }
 
@@ -59,25 +57,8 @@
   }
   .num.on { color: var(--bb-tan); }
 
-  .quote-text {
-    grid-area: quote;
-    min-width: 0;
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .date {
-    grid-area: date;
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
-    color: var(--bb-tan-light);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
+  .quote-text { grid-area: quote; }
+  .date { grid-area: date; }
 
   @media (max-width: 700px) {
     .prow {
