@@ -19,6 +19,11 @@ on:
       - 'locales/**'
       - '.github/workflows/console-test.yml'
 
+# Superseded PR runs are cancelled; main runs are grouped by commit and never are.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: bun run test

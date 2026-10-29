@@ -9,6 +9,15 @@ on:
   push:
     branches: [ "main" ]
 
+# A new push to a PR supersedes the run on the previous head; main runs are
+# grouped by commit so none of them is ever cancelled (they refresh the cache).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: '1.27.3'
+
 jobs:
   test:
     name: Run Unit Tests
@@ -20,15 +29,67 @@ jobs:
       # 1. Check out the code
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      # setup-go@v5 caches the module cache + build cache by default, keyed on
-      # go.sum, so no separate actions/cache step is needed.
+      # The job always runs, so "Run Unit Tests" can stay a required check, but a
+      # PR whose every changed file is outside what Go builds or reads skips the
+      # Go steps and passes in seconds. The list is deliberately short: Go tests
+      # read deploy/, locales/<lang>/chat and app/twitch/ingress (the Elixir
+      # sources), so none of those may be added here. Pushes to main always
+      # run the suite.
+      - name: Detect Go-relevant changes
+        id: scope
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run=true
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            run=false
+            # locales/<lang>/{website,console,docs} feed only the web apps; Go
+            # embeds and walks locales/<lang>/chat and manifest.json alone.
+            not_go='^(web/|ui/|docs/|mail/|locales/[^/]+/(website|console|docs)/|.*\.md$)'
+            while IFS= read -r path; do
+              if [[ ! "$path" =~ $not_go ]]; then
+                run=true
+                echo "Go-relevant change: $path"
+                break
+              fi
+            done < <(git diff --name-only "$BASE...$HEAD")
+          fi
+          [[ "$run" == "true" ]] || echo "No Go-relevant changes; skipping the Go suite."
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      # setup-go's built-in cache is keyed on go.sum alone and only saves on a
+      # key miss, so the build cache froze at the last go.sum change and every
+      # run recompiled most of the tree under -race (~4 of the ~6 minutes). The
+      # cache is managed by hand instead: every main push saves a fresh one keyed
+      # by commit, and PRs restore the newest main cache through the prefix.
       - name: Set up Go
+        if: steps.scope.outputs.run == 'true'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.3'
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Restore Go cache
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-race-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('go.sum') }}-
+            go-race-${{ runner.os }}-${{ env.GO_VERSION }}-
 
       - name: Install dependencies
+        if: steps.scope.outputs.run == 'true'
         run: go mod download
 
       # Regenerate every service's Ent client. Discovered by searching for
@@ -39,6 +100,7 @@ jobs:
       # verbatim, so ent received the literal "app/*/ent/schema" and failed
       # with a confusing "directory not found" instead of finding nothing.
       - name: Generate Ent clients
+        if: steps.scope.outputs.run == 'true'
         run: |
           set -euo pipefail
           for schema in $(find app -type d -path '*/ent/schema' | sort); do
@@ -53,7 +115,25 @@ jobs:
             go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock "./$schema"
           done
 
-      # -race detects race conditions (good for a concurrent bot); -v names the
-      # failing test.
+      # -race detects race conditions (good for a concurrent bot). No -v: a
+      # failing test prints its name and output without it, and -v buried that
+      # under ~17k lines of passing-test noise.
+      #
+      # With the restored cache, packages whose sources, read files and env are
+      # unchanged report "(cached)" instead of re-running. buildguard is the
+      # exception: it shells out to `go list -deps`, an input the test cache
+      # cannot see, so it is forced to run every time.
       - name: Run Tests
-        run: go test -v -race ./...
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          go test -race ./...
+          go test -race -count=1 ./internal/buildguard
+
+      - name: Save Go cache
+        if: steps.scope.outputs.run == 'true' && github.event_name == 'push' && success()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('go.sum') }}-${{ github.sha }}

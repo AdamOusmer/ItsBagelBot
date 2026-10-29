@@ -462,6 +462,14 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # The ubuntu-24.04 image ships Ubuntu's own buildah and podman, the
+          # same packages apt would install, so apt only runs when either is
+          # missing. That skips an apt-get update on every build job.
+          if command -v buildah >/dev/null && command -v podman >/dev/null; then
+            buildah version
+            podman version
+            exit 0
+          fi
           # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
           # If those feeds 403, apt-get update fails before reaching Ubuntu's
           # buildah/podman packages, so remove only the optional feeds here.
@@ -582,6 +590,11 @@ jobs:
 
       - name: Install Podman toolchain
         run: |
+          # Preinstalled on ubuntu-24.04; apt only runs when it is missing.
+          if command -v podman >/dev/null; then
+            podman version
+            exit 0
+          fi
           # GitHub-hosted Ubuntu runners may ship optional Microsoft apt feeds.
           # If those feeds 403, apt-get update fails before reaching Ubuntu's
           # podman package, so remove only the optional feeds here.
