@@ -24,6 +24,7 @@
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';
 @import '@bagel/ui/styles/a11y.css';
+@import '@bagel/ui/styles/lenis.css';
 
 :root {
     --card-pad: 32px;

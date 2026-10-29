@@ -25,15 +25,12 @@
 <footer class="bb-footer"
   ><LightField />{#if signoff}<div
       class="bb-footer__signoff"
-      data-reveal
       ><p class="bb-footer__signoff-line"><span data-fit="block">{signoff.line}</span></p>{#if signoff.sub}<p
           class="bb-footer__signoff-sub"><span data-fit>{signoff.sub}</span></p
         >{/if}</div
     >{/if}<div class="bb-footer__cols"
     >{#each columns as column, i (column.title)}<div
         class="bb-footer__col"
-        data-reveal
-        style="--reveal-i: {i + 1}"
         ><div class="bb-footer__group"
           ><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{#each column.links as link (link.href)}<NavLink
               href={link.href}
@@ -45,7 +42,7 @@
             />{/each}</div
         ></div
       >{/each}</div
-  ><div class="bb-footer__mark" data-reveal
+  ><div class="bb-footer__mark"
     >{#if studio}<p class="bb-footer__studio"><span data-fit>{studio}</span></p>{/if}<Brand
       class="bb-footer__brand"
       title={brand.title}

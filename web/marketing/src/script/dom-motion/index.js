@@ -26,11 +26,6 @@ const MOTION_CSS = `
         will-change: translate, transform;
     }
 
-    :root.${ACTIVE_CLASS} body > footer {
-        translate: var(--dom-motion-page-x, 0px) var(--dom-motion-page-y, 0px);
-        will-change: translate;
-    }
-
     :root.${ACTIVE_CLASS} body > .ornaments--page {
         translate: var(--dom-motion-frame-x, 0px) var(--dom-motion-frame-y, 0px);
         will-change: translate;

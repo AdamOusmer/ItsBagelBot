@@ -34,7 +34,8 @@ const nativeScroll = {
 
 const scrollController = smooth?.lenis ?? nativeScroll;
 
-const root = document.documentElement;
+// Kept off :root, where a per-frame custom property restyles every element on the page.
+let hero = document.querySelector('[data-hero-progress]');
 let viewportHeight = Math.max(1, window.innerHeight);
 let lastHeroProgress = -1;
 let lastHeroUiHidden = null;
@@ -61,22 +62,23 @@ const HERO_COMPLETE_HINTS = [
 
 function applyHeroComplete(complete) {
     for (const [name, done, live] of HERO_COMPLETE_HINTS) {
-        root.style.setProperty(name, complete ? done : live);
+        hero.style.setProperty(name, complete ? done : live);
     }
 }
 
 function updateHeroProgress() {
+    if (!hero) return;
     const heroProgress = Math.min(1, Math.max(0, window.scrollY / viewportHeight));
     const heroUiHidden = heroProgress >= 2 / 3;
     const heroComplete = heroProgress >= 1;
 
     if (Math.abs(heroProgress - lastHeroProgress) > 0.0005) {
-        root.style.setProperty('--hero-p', heroProgress.toFixed(4));
+        hero.style.setProperty('--hero-p', heroProgress.toFixed(4));
         lastHeroProgress = heroProgress;
     }
 
     if (heroUiHidden !== lastHeroUiHidden) {
-        root.style.setProperty('--hero-ui-pointer-events', heroUiHidden ? 'none' : 'auto');
+        hero.style.setProperty('--hero-ui-pointer-events', heroUiHidden ? 'none' : 'auto');
         lastHeroUiHidden = heroUiHidden;
     }
 
@@ -137,8 +139,9 @@ function restoreRouteScroll(top) {
     updateHeroProgress();
 }
 
-// The swap replaces the root's inline style, so the cached values no longer match what is on the page.
+// The swap brings a new hero without inline style, so the cached values no longer match what is on the page.
 function forgetHeroState() {
+    hero = document.querySelector('[data-hero-progress]');
     lastHeroProgress = -1;
     lastHeroUiHidden = null;
     lastHeroComplete = null;
