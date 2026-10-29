@@ -211,7 +211,7 @@ const {
         <Heading level={5} as="h2" class="flrel__title"><span data-fit>{related.title}</span></Heading>
         <ul class="flrel__list">
             {related.links.map((link) => (
-                <li class="flrel__item"><TextLink href={link.href}><span data-fit>{link.label}</span></TextLink></li>
+                <li class="flrel__item"><TextLink href={link.href} label={link.label} fit external={link.href.startsWith('http')} /></li>
             ))}
         </ul>
     </Section>

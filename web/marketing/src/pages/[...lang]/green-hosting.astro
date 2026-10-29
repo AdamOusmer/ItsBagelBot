@@ -1,0 +1,67 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
+import { landingSchema } from '../../lib/landing';
+
+export const getStaticPaths = localeStaticPaths;
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const updated = { text: t('ecoFriendly.updated'), iso: '2026-10-28' };
+const schema = landingSchema({
+    site: Astro.site!,
+    url: Astro.url,
+    lang,
+    name: t('ecoFriendly.metaTitle'),
+    crumb: t('ecoFriendly.eyebrow'),
+    homeLabel: t('compare.crumbHome'),
+    description: t('ecoFriendly.metaDesc'),
+    modified: updated.iso,
+});
+---
+
+<Layout title={t('ecoFriendly.metaTitle')} description={t('ecoFriendly.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md" extraSchema={schema}>
+    <FeatureLanding
+        eyebrow={t('ecoFriendly.eyebrow')}
+        title={t('ecoFriendly.title')}
+        lead={t('ecoFriendly.desc')}
+        howEyebrow={t('ecoFriendly.howEyebrow')}
+        howTitle={t('ecoFriendly.howTitle')}
+        steps={[
+            { title: t('ecoFriendly.step1Title'), desc: t('ecoFriendly.step1Desc') },
+            { title: t('ecoFriendly.step2Title'), desc: t('ecoFriendly.step2Desc') },
+            { title: t('ecoFriendly.step3Title'), desc: t('ecoFriendly.step3Desc') },
+        ]}
+        listEyebrow={t('ecoFriendly.listEyebrow')}
+        listTitle={t('ecoFriendly.listTitle')}
+        listItems={[
+            { name: t('ecoFriendly.item1Name'), desc: t('ecoFriendly.item1Desc') },
+            { name: t('ecoFriendly.item2Name'), desc: t('ecoFriendly.item2Desc') },
+            { name: t('ecoFriendly.item3Name'), desc: t('ecoFriendly.item3Desc') },
+        ]}
+        listNote={t('ecoFriendly.listNote')}
+        faqEyebrow={t('ecoFriendly.faqEyebrow')}
+        faqTitle={t('ecoFriendly.faqTitle')}
+        faqItems={[
+            { question: t('ecoFriendly.faqQ1'), answer: t('ecoFriendly.faqA1') },
+            { question: t('ecoFriendly.faqQ2'), answer: t('ecoFriendly.faqA2') },
+            { question: t('ecoFriendly.faqQ3'), answer: t('ecoFriendly.faqA3') },
+        ]}
+        ctaTitle={t('ecoFriendly.ctaTitle')}
+        ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
+        ctaSecondary={{ href: localizePath('/pricing', lang), label: t('finale.seePricing') }}
+        updated={updated}
+        related={{
+            title: t('landing.relatedTitle'),
+            links: [
+                { href: 'https://www.websitecarbon.com/website/itsbagelbot-com/', label: t('ecoFriendly.relCarbonSite') },
+                { href: 'https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/', label: t('ecoFriendly.relCarbonDash') },
+                { href: localizePath('/pricing', lang), label: t('landing.relPricing') },
+            ],
+        }}
+    />
+</Layout>

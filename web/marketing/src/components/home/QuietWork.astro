@@ -30,11 +30,6 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
                 <span class="qw-song__disc">
                     <span class="qw-song__vinyl"><i></i></span>
                     <span class="qw-song__sheen"></span>
-                    <span class="qw-song__art bb-layers">
-                        <i class="qw-song__cover qw-song__cover--a"></i>
-                        <i class="qw-song__cover qw-song__cover--b"></i>
-                        <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
-                    </span>
                 </span>
                 <span class="qw-song__meta">
                     <span class="qw-song__now"><span data-fit>{t('quietWork.songNow')}</span></span>
@@ -179,7 +174,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 
     /* Song requests: a record player on the left, the request landing in the
        queue on the right, and the queue advancing when the track ends. Ten
-       second loop; the glow, cover, title and scrub all flip at the change. */
+       second loop; the glow, title and scrub all flip at the change. */
 
     .qw__demo--song {
         position: relative;
@@ -191,8 +186,8 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 
     .qw-song__glow {
         position: absolute;
-        inset: -40px auto -40px -40px;
-        width: 260px;
+        inset: 0 auto 0 0;
+        width: 200px;
         pointer-events: none;
     }
 
@@ -217,16 +212,13 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
     .qw-song__disc {
         position: relative;
         flex: none;
-        width: 80px;
+        width: 56px;
         height: 56px;
     }
 
     .qw-song__vinyl {
         position: absolute;
-        top: 3px;
-        left: 30px;
-        width: 50px;
-        height: 50px;
+        inset: 0;
         border-radius: 50%;
         box-shadow:
             0 0 0 1px rgba(var(--bb-white-rgb), 0.08),
@@ -247,67 +239,11 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 
     .qw-song__sheen {
         position: absolute;
-        top: 3px;
-        left: 30px;
-        width: 50px;
-        height: 50px;
+        inset: 0;
         border-radius: 50%;
         background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.1), transparent 48%);
         pointer-events: none;
     }
-
-    .qw-song__art {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 56px;
-        height: 56px;
-        place-items: center;
-        border-radius: var(--bb-radius-md);
-        box-shadow:
-            inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.08),
-            4px 0 14px rgba(var(--bb-black-rgb), 0.45);
-        overflow: hidden;
-    }
-
-    .qw-song__cover {
-        opacity: 0;
-        animation-duration: 10s;
-        animation-timing-function: ease-in-out;
-        animation-iteration-count: infinite;
-    }
-
-    .qw-song__cover--a {
-        background: linear-gradient(145deg, rgba(var(--bb-green-glow-rgb), 0.2), rgba(var(--bb-tan-rgb), 0.1));
-        animation-name: qwSongLayerA;
-    }
-
-    .qw-song__cover--b {
-        background: linear-gradient(145deg, rgba(var(--bb-tan-rgb), 0.26), rgba(var(--bb-green-glow-rgb), 0.08));
-        animation-name: qwSongLayerB;
-    }
-
-    .qw-song__eq {
-        display: flex;
-        align-items: flex-end;
-        gap: 3px;
-        height: 22px;
-    }
-
-    .qw-song__eq i {
-        width: 3px;
-        height: 100%;
-        border-radius: var(--bb-radius-pill);
-        background: var(--bb-green-glow);
-        transform-origin: bottom;
-        transform: scaleY(0.25);
-        animation: qwSongEq 1.15s ease-in-out infinite alternate;
-    }
-
-    .qw-song__eq i:nth-child(2) { animation-delay: 0.16s; }
-    .qw-song__eq i:nth-child(3) { animation-delay: 0.34s; }
-    .qw-song__eq i:nth-child(4) { animation-delay: 0.08s; }
-    .qw-song__eq i:nth-child(5) { animation-delay: 0.26s; }
 
     .qw-song__meta {
         position: relative;
@@ -493,11 +429,6 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         to { transform: rotate(360deg); }
     }
 
-    @keyframes qwSongEq {
-        from { transform: scaleY(0.2); opacity: 0.55; }
-        to   { transform: scaleY(1);   opacity: 1; }
-    }
-
     @keyframes qwSongLayerA {
         0%, 54% { opacity: 1; }
         59%, 94% { opacity: 0; }
@@ -578,10 +509,6 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         .qw-song__cmd b { display: none; }
     }
 
-    @media (max-width: 560px) {
-        .qw-song__glow { width: 200px; }
-    }
-
     /* Govee lights. */
 
     .qw__demo--govee {
@@ -593,16 +520,15 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 
     .qw-govee__glow {
         position: absolute;
-        inset: 0;
+        inset: 0 auto 0 0;
+        width: 160px;
         opacity: 0.05;
-        transform-origin: 38px 50%;
         animation: qwGoveeBloom 9s ease-in-out infinite;
         pointer-events: none;
-        mask-image: radial-gradient(160px 50% at 38px 50%, #000 35%, transparent);
     }
 
     .qw-govee__glow i {
-        background: radial-gradient(circle at 38px 50%, currentColor, transparent 72%);
+        background: radial-gradient(closest-side, currentColor, transparent);
     }
 
     .qw-govee__bulb {
@@ -1105,7 +1031,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
     @media (prefers-reduced-motion: reduce) {
         .qw-govee__glow, .qw-govee__bulb, .qw-govee__tone, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
-        .qw-song__glow i, .qw-song__vinyl i, .qw-song__cover, .qw-song__eq i, .qw-song__title,
+        .qw-song__glow i, .qw-song__vinyl i, .qw-song__title,
         .qw-song__scrub i, .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item,
         .qw-song__pos-was, .qw-song__pos-now,
         .qw-queue__msg, .qw-queue__list, .qw-queue__row, .qw-queue__row--a::after, .qw-queue__tag,
@@ -1114,8 +1040,7 @@ const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
         .qw-win__result {
             animation: none;
         }
-        .qw-song__glow-a, .qw-song__cover--a, .qw-song__title--a { opacity: 1; }
-        .qw-song__eq i { transform: scaleY(0.7); }
+        .qw-song__glow-a, .qw-song__title--a { opacity: 1; }
         .qw-song__scrub i { transform: scaleX(0.46); }
         .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item--b { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
