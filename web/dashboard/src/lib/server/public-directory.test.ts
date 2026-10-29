@@ -47,6 +47,17 @@ describe('public directory module commands', () => {
     expect(queue).toEqual(MODULE_CATALOG.find((def) => def.id === 'queue')!.commands!.map((c) => c.trigger));
   });
 
+  test('lists !claim only while the streamer has it turned on', () => {
+    const off = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
+    const on = commandsOf([{ name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } }], 'raffle').map((c) => c.label);
+    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: true });
+  });
+
+  test('raffle !join reads as a command, not a reply line', () => {
+    const join = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').find((c) => c.label === '!join');
+    expect(join?.meta).toBe(staticText('en', 'modules.catalog.raffle.commands.join'));
+  });
+
   test('shows the level each command needs', () => {
     const queue = commandsOf([{ name: 'queue', is_enabled: true }], 'queue');
     expect(queue.find((c) => c.label === '!join')?.perm).toBe(staticText('en', 'perm.everyone'));

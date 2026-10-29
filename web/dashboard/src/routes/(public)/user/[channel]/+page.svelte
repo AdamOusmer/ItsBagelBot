@@ -42,6 +42,7 @@
     source: string;
     moduleId: string | null;
   };
+  type Group = { key: string; title: string; tagline: string; rows: Row[] };
 
   const FILTERS: Array<{ id: Filter; label: string; heading: string }> = [
     { id: 'all', label: t('public.commands.filterAll'), heading: t('public.commands.filterAllHeading') },
@@ -91,11 +92,26 @@
 
   const inScope = (r: Row) => (moduleId ? r.moduleId === moduleId : filter === 'all' || r.kind === filter);
 
-  const rows = $derived(
-    all
-      .filter((r) => inScope(r) && matchesQuery(r, q))
-      .sort((a, b) => a.trigger.localeCompare(b.trigger))
-  );
+  const rows = $derived(all.filter((r) => inScope(r) && matchesQuery(r, q)));
+
+  // Custom commands first, then one block per module in catalog order (viewer
+  // commands before mod ones), then the built-ins together in one block.
+  const groups = $derived.by((): Group[] => {
+    const custom: Group = { key: 'custom', title: t('public.commands.filterCustomHeading'), tagline: '', rows: [] };
+    const builtin: Group = { key: 'builtin', title: t('public.commands.filterBuiltinHeading'), tagline: '', rows: [] };
+    const modules = new Map<string, Group>(
+      data.modules
+        .filter((m) => m.category !== 'Built-in')
+        .toSorted((a, b) => a.label.localeCompare(b.label))
+        .map((m) => [m.id, { key: m.id, title: m.label, tagline: m.tagline, rows: [] }])
+    );
+    for (const row of rows) {
+      const group = row.kind === 'custom' ? custom : row.kind === 'builtin' ? builtin : modules.get(row.moduleId ?? '');
+      group?.rows.push(row);
+    }
+    builtin.rows.sort((a, b) => a.trigger.localeCompare(b.trigger));
+    return [custom, ...modules.values(), builtin].filter((g) => g.rows.length > 0);
+  });
 
   const countOf = (id: Filter) => all.filter((r) => id === 'all' || r.kind === id).length;
 
@@ -189,54 +205,66 @@
         </div>
 
         {#if rows.length}
-          <ul class="rows">
-            {#each rows as row (row.key)}
-              <li>
-                <CopySurface
-                  variant="row"
-                  text={row.trigger}
-                  hint=""
-                  copiedLabel={t('common.copied')}
-                  flashMs={COPY_FLASH_MS}
-                  announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
-                >
-                  <span class="row__trigger">
-                    <Code tone="success">{row.trigger}</Code>
-                    {#if row.aliases.length}
-                      <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
-                    {/if}
-                  </span>
-                  <span class="row__response"><Text as="span">{row.response}</Text></span>
-                  <span class="row__tags">
-                    <Tag tone="alpha">{row.source}</Tag>
-                    {#if row.perm}
-                      <Tag tone="bare">{row.perm}</Tag>
-                    {/if}
-                    {#if row.cooldown > 0}
-                      <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
-                        <Icon name="clock" size={11} />
-                        <span aria-hidden="true">{row.cooldown}s</span>
-                        <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
-                      </Tag>
-                    {/if}
-                    {#if row.userCooldown > 0}
-                      <Tag tone="bare" title={t('public.commands.userCooldownSeconds', { n: row.userCooldown })}>
-                        <Icon name="clock" size={11} />
-                        <span aria-hidden="true">{t('public.commands.userCooldownShort', { n: row.userCooldown })}</span>
-                        <VisuallyHidden>{t('public.commands.userCooldownSeconds', { n: row.userCooldown })}</VisuallyHidden>
-                      </Tag>
-                    {/if}
-                    {#if row.liveOnly}
-                      <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
-                    {/if}
-                    {#if row.uses}
-                      <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
-                    {/if}
-                  </span>
-                </CopySurface>
-              </li>
-            {/each}
-          </ul>
+          {#each groups as group (group.key)}
+            <section class="group" aria-labelledby={`group-${group.key}`}>
+              <header class="group__head">
+                <span class="group__title">
+                  <Heading level={2} variant="card" id={`group-${group.key}`}>{group.title}</Heading>
+                  <Label mono as="span">{group.rows.length}</Label>
+                </span>
+                {#if group.tagline}
+                  <Text size="sm" tone="muted">{group.tagline}</Text>
+                {/if}
+              </header>
+              <ul class="rows">
+                {#each group.rows as row (row.key)}
+                  <li>
+                    <CopySurface
+                      variant="row"
+                      text={row.trigger}
+                      hint=""
+                      copiedLabel={t('common.copied')}
+                      flashMs={COPY_FLASH_MS}
+                      announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
+                    >
+                      <span class="row__trigger">
+                        <Code tone="success">{row.trigger}</Code>
+                        {#if row.aliases.length}
+                          <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
+                        {/if}
+                      </span>
+                      <span class="row__response"><Text as="span">{row.response}</Text></span>
+                      <span class="row__tags">
+                        {#if row.perm}
+                          <Tag tone="bare">{row.perm}</Tag>
+                        {/if}
+                        {#if row.cooldown > 0}
+                          <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
+                            <Icon name="clock" size={11} />
+                            <span aria-hidden="true">{row.cooldown}s</span>
+                            <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
+                          </Tag>
+                        {/if}
+                        {#if row.userCooldown > 0}
+                          <Tag tone="bare" title={t('public.commands.userCooldownSeconds', { n: row.userCooldown })}>
+                            <Icon name="clock" size={11} />
+                            <span aria-hidden="true">{t('public.commands.userCooldownShort', { n: row.userCooldown })}</span>
+                            <VisuallyHidden>{t('public.commands.userCooldownSeconds', { n: row.userCooldown })}</VisuallyHidden>
+                          </Tag>
+                        {/if}
+                        {#if row.liveOnly}
+                          <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
+                        {/if}
+                        {#if row.uses}
+                          <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
+                        {/if}
+                      </span>
+                    </CopySurface>
+                  </li>
+                {/each}
+              </ul>
+            </section>
+          {/each}
         {:else if all.length === 0}
           <EmptyState title={t('public.commands.noCommands')} />
         {:else}
@@ -399,6 +427,20 @@
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
 
+  .group + .group { border-top: 1px solid var(--bb-border); }
+  .group__head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 20px 24px 8px;
+  }
+  .group__title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   .row__trigger {
     flex: 0 0 168px;
     min-width: 0;
@@ -414,7 +456,7 @@
     overflow-wrap: anywhere;
   }
   .row__tags {
-    flex: 0 0 auto;
+    flex: 0 0 196px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -484,7 +526,8 @@
     .mod__tagline { display: none; }
     .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
-    .row__tags { justify-content: flex-start; }
+    .row__tags { flex-basis: 100%; justify-content: flex-start; }
     .list__head { padding: 14px 18px; }
+    .group__head { padding: 16px 18px 6px; }
   }
 </style>
