@@ -46,6 +46,4 @@ export interface UiCrumb {
 export interface UiFooterColumn {
   title: string;
   links: UiNavLink[];
-  /** Renders under the previous column instead of beside it. */
-  stacked?: boolean;
 }

@@ -15,7 +15,7 @@
     "getApp": "App holen"
   },
   "footer": {
-    "signoff": "Spät gebacken. Frisch serviert.",
+    "signoff": "Spät gebacken, frisch serviert.",
     "signoffSub": "Wir sehen uns im Chat.",
     "logoAlt": "ItsBagelBot-Logo",
     "tagline": "Dein Stream. Deine Regeln.",
@@ -49,8 +49,7 @@
     "stats": "Statistiken",
     "status": "Status",
     "community": "Community",
-    "copyright": "© 2026 ItsBagelBot",
-    "note": "Keine Tracker. Deine Daten werden nie verkauft.",
+    "note": "Deine Daten werden nie verkauft · Quellcode auf GitHub verfügbar",
     "privacy": "Datenschutzerklärung",
     "terms": "Nutzungsbedingungen",
     "creatorTerms": "Creator-Codes"

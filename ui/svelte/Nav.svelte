@@ -25,11 +25,7 @@
     menuLabels?: { open?: string; close?: string; panel?: string };
     menuMeta?: string;
     menuId?: string;
-    variant?: 'pill' | 'bar';
-    menu?: boolean;
-    actions?: Snippet;
     mobileFooter?: Snippet;
-    class?: string;
   };
 
   let {
@@ -42,15 +38,10 @@
     menuLabels = {},
     menuMeta,
     menuId = 'bb-mobile-menu',
-    variant = 'pill',
-    menu = true,
-    actions,
     mobileFooter,
-    class: className = '',
     ...rest
-  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own | 'class'> = $props();
 
-  const classes = $derived(['bb-nav', className || null].filter(Boolean).join(' '));
   const menuOpen = $derived(menuLabels.open ?? i18n.t('nav.menuOpen'));
   const menuClose = $derived(menuLabels.close ?? i18n.t('nav.menuClose'));
   const menuPanel = $derived(menuLabels.panel ?? i18n.t('nav.menu'));
@@ -84,10 +75,9 @@
 
 <nav
   bind:this={navEl}
-  class={classes}
-  aria-label={label}
-  data-variant={variant}
   {...rest}
+  class="bb-nav"
+  aria-label={label}
   ><div class="bb-nav__inner"
     ><Brand
       class="bb-nav__brand"
@@ -122,18 +112,18 @@
           label={cta.label}
           external={cta.external}
           fit
-        />{/if}{#if actions}{@render actions()}{/if}</div
-    >{#if menu}<Hamburger
-        label={menuOpen}
-        closeLabel={menuClose}
-        controls={menuId}
-      />{/if}</div
+        />{/if}</div
+    ><Hamburger
+      label={menuOpen}
+      closeLabel={menuClose}
+      controls={menuId}
+    /></div
   ></nav
->{#if menu}<MobileMenu
-    {links}
-    {cta}
-    id={menuId}
-    panelLabel={menuPanel}
-    meta={menuMeta}
-    footer={mobileFooter}
-  />{/if}
+><MobileMenu
+  {links}
+  {cta}
+  id={menuId}
+  panelLabel={menuPanel}
+  meta={menuMeta}
+  footer={mobileFooter}
+/>

@@ -12,17 +12,16 @@
   import { reveal } from '@bagel/ui/svelte/actions';
   import {
     SITE,
-    SITE_FOOTER,
-    SITE_LEGAL,
     SITE_NAV,
     dashboardHref,
     localeOptions,
-    resolveSiteColumns,
     linkLocale,
     resolveSiteLinks,
+    siteNavProps,
     webHref,
     type SiteLinkContext
   } from '@bagel/kit/site-links';
+  import { siteFooterProps } from '@bagel/kit/site-footer';
 
   let { children } = $props();
 
@@ -49,32 +48,32 @@
     langQuery
   } satisfies SiteLinkContext);
 
-  const links = $derived(resolveSiteLinks(SITE_NAV, navContext));
-  const columns = $derived(resolveSiteColumns(SITE_FOOTER, footerContext));
-  const legal = $derived(resolveSiteLinks(SITE_LEGAL, footerContext));
+  const navProps = $derived(
+    siteNavProps({
+      home: locale === 'en' ? SITE.web : `${SITE.web}/${locale}/`,
+      logoSrc: '/logo.png',
+      links: resolveSiteLinks(SITE_NAV, navContext),
+      ctaHref: dashboardHref('/auth/login', langQuery),
+      text: {
+        cta: t('public.nav.cta'),
+        aria: t('public.nav.aria'),
+        menuOpen: t('public.nav.menuOpen'),
+        menuClose: t('public.nav.menuClose'),
+        menu: t('public.nav.menu'),
+        menuMeta: t('public.nav.menuMeta')
+      }
+    })
+  );
+  const footer = $derived(siteFooterProps(footerContext, '/logo.png'));
   const locales = $derived(
     localeOptions(LOCALES, locale, page.url, (code) => page.data.localeNames?.[code] ?? code)
   );
 </script>
 
 <Nav
-  brand={{
-    title: 'ItsBagelBot',
-    href: locale === 'en' ? SITE.web : `${SITE.web}/${locale}/`,
-    logoSrc: '/logo.png',
-    logoAlt: ''
-  }}
-  {links}
-  cta={{ href: dashboardHref('/auth/login', langQuery), label: t('public.nav.cta') }}
+  {...navProps}
   {locales}
   localeLabel={t('lang.switchAria')}
-  label={t('public.nav.aria')}
-  menuLabels={{
-    open: t('public.nav.menuOpen'),
-    close: t('public.nav.menuClose'),
-    panel: t('public.nav.menu')
-  }}
-  menuMeta={t('public.nav.menuMeta')}
   data-sveltekit-preload-data="off"
 >
   {#snippet mobileFooter()}
@@ -87,31 +86,13 @@
 
 {@render children()}
 
-<div class="footer-ground" use:reveal>
-  <Footer
-    brand={{
-      title: 'ItsBagelBot',
-      sub: t('public.footer.tagline'),
-      logoSrc: '/logo.png',
-      logoAlt: t('public.footer.logoAlt')
-    }}
-    signoff={{ line: t('public.footer.signoff'), sub: t('public.footer.signoffSub') }}
-    {columns}
-    {legal}
-    copyright={t('public.footer.copyright')}
-    note={t('public.footer.note')}
-    studio={t('public.footer.studio')}
-  />
+<div use:reveal>
+  <Footer {...footer} />
 </div>
 
 <style>
-  .footer-ground {
-    background: var(--bb-bg-0);
-  }
-
   .menu-lang {
     display: flex;
     justify-content: center;
-    padding-bottom: 10px;
   }
 </style>

@@ -172,24 +172,6 @@ export const CASES: ParityCase[] = [
     },
   },
   {
-    name: 'FooterStacked',
-    svelte: SvelteFooter,
-    astro: AstroFooter,
-    props: {
-      brand: { title: 'ItsBagelBot', href: '/' },
-      columns: [
-        { title: 'Company', links: [{ href: '/contact', label: 'Contact' }] },
-        { title: 'Compare', links: [{ href: '/vs/nightbot', label: 'vs Nightbot' }], stacked: true },
-        { title: 'Community', links: [{ href: '/discord', label: 'Discord' }] },
-      ],
-      legal: [
-        { href: '/privacy', label: 'Privacy' },
-        { href: '/terms', label: 'Terms' },
-      ],
-      copyright: '© 2026 ItsBagelBot',
-    },
-  },
-  {
     name: 'RailItem',
     svelte: SvelteRailItem,
     astro: AstroRailItem,
