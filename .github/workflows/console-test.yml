@@ -19,6 +19,11 @@ on:
       - 'locales/**'
       - '.github/workflows/console-test.yml'
 
+# Superseded PR runs are cancelled; main runs are grouped by commit and never are.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: bun run test
@@ -62,9 +67,26 @@ jobs:
         working-directory: web
         run: bun install --frozen-lockfile
 
+      # The browser download is cached per lockfile (which pins the Playwright
+      # version and so the browser build). The OS libraries it needs are not
+      # cacheable, so install-deps still runs on a hit; only the download is
+      # skipped.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/bun.lock') }}
+
       - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         working-directory: web/marketing
         run: bunx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: web/marketing
+        run: bunx playwright install-deps chromium
 
       - name: Build marketing site
         working-directory: web/marketing
