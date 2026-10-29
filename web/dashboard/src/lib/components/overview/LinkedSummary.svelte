@@ -107,8 +107,8 @@
     min-height: 64px;
     padding: 14px 16px;
     border-radius: var(--bb-radius-md);
-    background: var(--bb-card-bg);
-    box-shadow: var(--bb-elev-1);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
     color: var(--bb-white);
     font-size: var(--bb-text-sm);
     line-height: 1.35;
@@ -117,8 +117,8 @@
                 box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
   }
   .ov-summary__tile:hover {
-    background: color-mix(in srgb, var(--bb-card-bg), var(--bb-tan) 6%);
-    box-shadow: var(--bb-elev-2);
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-2);
   }
   .ov-summary__tile:focus-visible {
     outline: 2px solid var(--bb-focus);

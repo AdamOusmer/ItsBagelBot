@@ -769,7 +769,7 @@
     padding: 16px;
     border-radius: var(--bb-radius-md);
     background: rgba(var(--bb-green-glow-rgb), 0.04);
-    box-shadow: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
   }
   .identity-face { flex: none; display: flex; }
   .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -800,7 +800,7 @@
     border-radius: var(--bb-radius-md);
     padding: 14px 16px;
     background: rgba(var(--bb-white-pure-rgb), 0.02);
-    box-shadow: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
   }
   .grant.pending { background: rgba(var(--bb-tan-rgb), 0.05); }
   .grant.consumed { background: rgba(var(--bb-green-glow-rgb), 0.04); }
@@ -827,7 +827,7 @@
     display: flex; align-items: flex-start; gap: 12px;
     border-radius: var(--bb-radius-sm);
     padding: 12px 14px; background: rgba(var(--bb-white-pure-rgb), 0.02);
-    box-shadow: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
   }
   .notif-item.unread { background: rgba(var(--bb-tan-rgb), 0.07); }
   .notif-text { flex: 1; min-width: 0; display: grid; gap: 4px; }

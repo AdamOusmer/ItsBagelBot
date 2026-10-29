@@ -94,7 +94,7 @@
   .setrow {
     padding: 11px 12px;
     border-radius: var(--bb-radius-sm);
-    box-shadow: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
   }
   .setrow.on { background: rgba(var(--bb-tan-rgb), 0.08); }
 
