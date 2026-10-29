@@ -43,6 +43,11 @@
     opacity: 1;
   }
 
+  :where([data-surface='tonal']) .bb-halo-panel {
+    border-color: transparent;
+    box-shadow: var(--bb-depth-2);
+  }
+
   a.bb-halo-panel:focus-visible {
     outline: 2px solid var(--bb-green-glow);
     outline-offset: 3px;

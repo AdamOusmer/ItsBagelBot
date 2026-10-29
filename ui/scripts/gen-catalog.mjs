@@ -38,6 +38,7 @@ const FAMILY = {
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback', VarCard: 'Data',
   Well: 'Layout', Window: 'Layout', JsonTree: 'Data',
+  IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
 };
 
 const ADAPTER_NOTE = {

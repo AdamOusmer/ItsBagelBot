@@ -308,6 +308,9 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/json-tree", budget: 470 }, // 360 B: tree rails and neutral picked row
   { name: "elements/window", budget: 420 }, // 314 B: window frame with title bar
   { name: "elements/chat-preview", budget: 1620 }, // 1325 B: shared chat rehearsal window
+  { name: "elements/icon-tile", budget: 590 }, // 385 B
+  { name: "elements/action-bar", budget: 540 }, // 337 B
+  { name: "elements/mark-badge", budget: 530 }, // 330 B
   { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
   { name: "elements/slider", budget: 380 }, // 191 B
   { name: "elements/file-drop", budget: 740 }, // 514 B

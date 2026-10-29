@@ -23,7 +23,6 @@
 @import './elements/light-field.css';
 @import './elements/footer.css';
 @import './elements/card.css';
-@import './elements/halo-panel.css';
 @import './elements/tag.css';
 @import './elements/tabs.css';
 @import './elements/field.css';
@@ -36,6 +35,8 @@
 @import './elements/copy-surface.css';
 @import './elements/ranking-card.css';
 @import './elements/pager.css';
+@import './elements/icon-tile.css';
+@import './elements/halo-panel.css';
 @import './elements/chip.css';
 @import './elements/table.css';
 @import './elements/step-list.css';
@@ -86,3 +87,5 @@
 @import './elements/json-tree.css';
 @import './elements/window.css';
 @import './elements/chat-preview.css';
+@import './elements/action-bar.css';
+@import './elements/mark-badge.css';
