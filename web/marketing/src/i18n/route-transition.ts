@@ -1,7 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { splitLocale } from './ui';
+import manifest from '../../../../locales/manifest.json';
+import { defaultLang } from './lang';
+
+// Client code: importing ./ui would ship every locale's catalog with it.
+const prefixes = new Set<string>(manifest.filter((code) => code !== defaultLang));
+
+function routeOf(pathname: string): { lang: string; path: string } {
+    const first = pathname.split('/')[1] ?? '';
+    const lang = prefixes.has(first) ? first : defaultLang;
+    const path = (lang === defaultLang ? pathname : pathname.slice(lang.length + 1)).replace(/\/+$/, '') || '/';
+    return { lang, path };
+}
 
 let langSwitchScrollY: number | null = null;
 
@@ -12,8 +23,8 @@ function onBeforePreparation(event: Event): void {
         return;
     }
 
-    const fromRoute = splitLocale(from.pathname);
-    const toRoute = splitLocale(to.pathname);
+    const fromRoute = routeOf(from.pathname);
+    const toRoute = routeOf(to.pathname);
     langSwitchScrollY =
         fromRoute.lang !== toRoute.lang && fromRoute.path === toRoute.path ? window.scrollY : null;
 }
