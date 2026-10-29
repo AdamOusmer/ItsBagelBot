@@ -317,17 +317,18 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	changed := spec.dto(userID)
-	changed.Uses = r.currentUses(ctx, commandKey{userID: userID, name: spec.Name})
-	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, changed)
+	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, r.renamedState(ctx, userID, spec))
 }
 
-func (r *Commands) currentUses(ctx context.Context, key commandKey) int64 {
+// renamedState reloads the renamed row so the event keeps its uses and
+// created_at; the dashboard sorts on both.
+func (r *Commands) renamedState(ctx context.Context, userID uint64, spec CommandSpec) data.CommandChangedDTO {
+	key := commandKey{userID: userID, name: spec.Name}
 	states, err := r.rowStates(ctx, []commandKey{key})
-	if err != nil {
-		return 0
+	if s, ok := states[key]; err == nil && ok {
+		return s
 	}
-	return states[key].Uses
+	return spec.dto(userID)
 }
 
 func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
