@@ -52,6 +52,6 @@ const demo = lines && {
         ctaSecondary={link(spec.guide, k('ctaGuide'))}
         updated={updated} table={table} demo={demo}
         prereq={{ title: t('landing.prereqTitle'), items: [k('prereq1'), k('prereq2')] }}
-        related={{ title: t('landing.relatedTitle'), links: spec.related.map((id) => link(FEATURES[id].path, t(FEATURES[id].ns + '.eyebrow'))) }}
+        related={{ title: t('landing.relatedTitle'), links: [...spec.related.map((id) => link(FEATURES[id].path, t(FEATURES[id].ns + '.eyebrow'))), link('/vs', t('landing.relCompare'))] }}
     />
 </Layout>

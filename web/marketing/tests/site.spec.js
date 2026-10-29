@@ -368,6 +368,7 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
+        await expect(page.locator('.ghub__compare a[href="/vs/"]')).toHaveAccessibleName('All comparisons');
 
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
     });

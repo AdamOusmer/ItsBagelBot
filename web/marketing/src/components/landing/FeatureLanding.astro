@@ -295,9 +295,8 @@ const {
     .flrel__title { height: 1lh; margin: 0 0 16px; text-align: center; }
 
     .flrel__list {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
         gap: 12px 28px;
         margin: 0;
         padding: 0;
@@ -307,13 +306,10 @@ const {
     .flrel__item {
         display: flex;
         justify-content: center;
-        width: 200px;
         min-width: 0;
     }
 
-    .flrel__item :global(.bb-text-link) {
-        max-width: 100%;
-    }
+    .flrel__item > :global(a) { max-width: 100%; }
 
     .flhow { --card-pad: 28px; }
 
