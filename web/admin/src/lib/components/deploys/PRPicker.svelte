@@ -34,7 +34,7 @@
 </script>
 
 {#if prs.length === 0}
-  <Card glass flush>
+  <Card flush>
     <div class="empty"><Text size="sm" tone="muted">{t('admin.deploys.prsEmpty')}</Text></div>
   </Card>
 {:else}

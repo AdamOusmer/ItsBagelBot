@@ -50,10 +50,17 @@
     padding: clamp(10px, 2svh, 20px) var(--setup-gutter) 0;
   }
 
-  .bb-setup-stage__start {
+  .bb-setup-stage__start,
+  .bb-setup-stage__trail {
     display: flex;
     align-items: center;
+    gap: 12px 24px;
     min-width: 0;
+  }
+
+  .bb-setup-stage__trail {
+    flex-wrap: wrap;
+    margin-left: auto;
   }
 
   .bb-setup-stage__main {
@@ -95,7 +102,15 @@
   }
 
   .bb-setup-stage--fill .bb-setup-stage__main {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .bb-setup-stage--fill .bb-setup-stage__main:has(> .bb-setup-stage__art) {
     grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .bb-setup-stage--full .bb-setup-stage__main {
+    --setup-content-w: 1480px;
   }
 
   .bb-setup-stage--fill .bb-setup-stage__content {
