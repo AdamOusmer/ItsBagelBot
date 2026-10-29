@@ -46,6 +46,7 @@ test.describe('ItsBagelBot site', () => {
             const numericOrZero = (value) => typeof value === 'number' ? value : 0;
             return Math.max(...scrollPositions.map(numericOrZero)) < 2;
         });
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     }
 
     test('home renders hero + Act II sections', async ({ page }) => {
@@ -320,7 +321,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"][aria-current="page"]')).toHaveCount(1);
     });
 
-    test('client route changes always start at the top', async ({ page }) => {
+    test('client route changes start at the top and back returns to the left position', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
 
@@ -329,13 +330,24 @@ test.describe('ItsBagelBot site', () => {
         await expectPageTop(page);
 
         await jumpDown(page);
+        const left = await page.evaluate(() => Math.round(window.scrollY));
         await page.locator('.bb-nav__links a.bb-nav-link[href="/contact/"]').click();
         await expect(page).toHaveURL(/\/contact\/?$/);
         await expectPageTop(page);
 
         await page.goBack();
         await expect(page).toHaveURL(/\/pricing\/?$/);
-        await expectPageTop(page);
+        await expect.poll(() => page.evaluate(() => {
+            const lenis = window.__lenis;
+            return [window.scrollY, lenis?.scroll ?? window.scrollY, lenis?.targetScroll ?? window.scrollY].map(Math.round);
+        })).toEqual([left, left, left]);
+
+        await page.goForward();
+        await expect(page).toHaveURL(/\/contact\/?$/);
+        await expect.poll(() => page.evaluate(() => {
+            const lenis = window.__lenis;
+            return [window.scrollY, lenis?.scroll ?? 0, lenis?.targetScroll ?? 0, history.state?.scrollY ?? 0].map(Math.round);
+        })).toEqual([0, 0, 0, 0]);
     });
 
     test('page hero title shows after client route swaps', async ({ page }) => {

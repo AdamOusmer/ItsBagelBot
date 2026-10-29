@@ -11,6 +11,7 @@ const locales = surfaceLocales('website');
 const defaultLocale = 'en';
 const guideDir = new URL('./src/content/guides/', import.meta.url);
 
+/** @param {string} url */
 function hasGuideBody(url) {
   const match = new URL(url).pathname.match(/^\/(?:([^/]+)\/)?guides\/(?:([^/]+)\/)?$/);
   if (!match) return true;

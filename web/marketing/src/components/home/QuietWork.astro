@@ -15,7 +15,7 @@ import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
+const GOVEE_TONES = ['off', 'green', 'tan', 'red'] as const;
 const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'danger' } as const;
 // Sixteen raffle entries in an 8x2 grid; the ring lands on the winner's slot.
 const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);

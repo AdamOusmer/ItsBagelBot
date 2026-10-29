@@ -147,25 +147,42 @@ function forgetHeroState() {
     lastHeroComplete = null;
 }
 
-function resetRouteScroll() {
-    forgetHeroState();
-    const langSwitchScrollY = getLangSwitchScrollY();
-    if (langSwitchScrollY !== null) {
-        restoreRouteScroll(langSwitchScrollY);
+let traversedTop = null;
+let routeFrame = 0;
 
-        requestAnimationFrame(() => {
-            restoreRouteScroll(langSwitchScrollY);
-            scrollController.resize?.();
-        });
-        return;
-    }
+// Read when the navigation starts: a scrollend still pending from the last restore lands on the
+// new history entry and Astro saves it there. A follow-up frame left over from the previous swap
+// would overwrite the saved position the same way. Astro saves on scrollend, which a mid-scroll
+// click beats.
+document.addEventListener('astro:before-preparation', (event) => {
+    cancelAnimationFrame(routeFrame);
+    const top = history.state?.scrollY;
+    const traversing = event.navigationType === 'traverse';
+    traversedTop = traversing && Number.isFinite(top) ? top : null;
+    if (!traversing) stampCurrentHistoryPosition(window.scrollX, window.scrollY);
+});
 
-    jumpToPageTop();
+let scrolledSinceSwap = false;
 
-    requestAnimationFrame(() => {
-        jumpToPageTop();
+for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
+    window.addEventListener(type, () => { scrolledSinceSwap = true; }, {passive: true, capture: true});
+}
+
+// The follow-up frame can land late on a busy main thread, after the reader already moved.
+function settleRouteScroll(settle) {
+    settle();
+    scrolledSinceSwap = false;
+    routeFrame = requestAnimationFrame(() => {
+        if (!scrolledSinceSwap) settle();
         scrollController.resize?.();
     });
+}
+
+function resetRouteScroll() {
+    forgetHeroState();
+    const keptScrollY = getLangSwitchScrollY() ?? traversedTop;
+    if (keptScrollY !== null) settleRouteScroll(() => restoreRouteScroll(keptScrollY));
+    else settleRouteScroll(jumpToPageTop);
 }
 
 window.addEventListener('resize', () => {
