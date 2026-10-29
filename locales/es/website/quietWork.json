@@ -7,10 +7,9 @@
   "cmdTitle": "Saluda a tus habituales por su nombre.",
   "songTitle": "Solicitudes de canciones de Spotify, a cargo del chat.",
   "songNow": "sonando",
-  "songTrack": "late night lo-fi · solicitada por PrincessBarney",
   "songAck": "en cola · #2",
+  "upNext": "siguiente",
   "queueTitle": "Tu chat hace cola para jugar.",
   "winLabel": "ganador",
-  "winTitle": "Todas las participaciones tienen la misma probabilidad.",
-  "beatTitle": "Sigue en el chat cuando estás desconectado."
+  "winTitle": "Todas las participaciones tienen la misma probabilidad."
 }

@@ -7,10 +7,9 @@
   "cmdTitle": "Er begrüßt deine Stammgäste mit Namen.",
   "songTitle": "Spotify-Songwünsche, gesteuert vom Chat.",
   "songNow": "läuft gerade",
-  "songTrack": "late night lo-fi · gewünscht von PrincessBarney",
   "songAck": "eingereiht · #2",
+  "upNext": "als Nächstes",
   "queueTitle": "Dein Chat reiht sich zum Mitspielen ein.",
   "winLabel": "Gewinner",
-  "winTitle": "Jede Teilnahme hat dieselben Chancen.",
-  "beatTitle": "Er bleibt im Chat, wenn du offline bist."
+  "winTitle": "Jede Teilnahme hat dieselben Chancen."
 }

@@ -7,10 +7,9 @@
   "cmdTitle": "Il accueille vos habitués par leur nom.",
   "songTitle": "Les demandes Spotify, pilotées par le chat.",
   "songNow": "à l’écoute",
-  "songTrack": "late night lo-fi · demandé par PrincessBarney",
   "songAck": "en file · n°2",
+  "upNext": "à suivre",
   "queueTitle": "Votre chat fait la file pour jouer.",
   "winLabel": "gagnant",
-  "winTitle": "Chaque participation a les mêmes chances.",
-  "beatTitle": "Il reste dans le chat quand vous êtes hors ligne."
+  "winTitle": "Chaque participation a les mêmes chances."
 }

@@ -72,7 +72,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(play.locator('.pmsg--bot').last()).toContainText('fresh from the oven', { timeout: 5000 });
 
         const quiet = page.locator('#quiet-work');
-        await expect(quiet.locator('[data-card]')).toHaveCount(6);
+        await expect(quiet.locator('[data-card]')).toHaveCount(5);
         await expect(quiet).toContainText('The things it handles while you stream.');
         await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
 
