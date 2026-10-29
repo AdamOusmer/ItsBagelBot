@@ -23,8 +23,10 @@ interface Budget {
 // reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
   '/(public)/login': { js: 97700, css: 21900, catalog: 2900, lazy: 0 },
-  '/(app)': { js: 118700, css: 44700, catalog: 5000, lazy: 0 },
-  '/(app)/commands': { js: 138900, css: 46000, catalog: 4600, lazy: 31200 },
+  // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
+  '/(app)': { js: 121000, css: 44700, catalog: 5000, lazy: 0 },
+  // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
+  '/(app)/commands': { js: 142000, css: 46000, catalog: 4600, lazy: 31200 },
   '/(public)/user/[channel]': { js: 100000, css: 21500, catalog: 2800, lazy: 0 }
 };
 
