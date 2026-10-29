@@ -52,7 +52,7 @@
           {#if step.done}
             <Tag tone="live">{t('common.done')}</Tag>
           {:else}
-            <ButtonLink href={step.href} variant="ghost">{step.cta}</ButtonLink>
+            <ButtonLink href={step.href} variant="secondary">{step.cta}</ButtonLink>
           {/if}
         </li>
       {/each}

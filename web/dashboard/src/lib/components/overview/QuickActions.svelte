@@ -12,8 +12,8 @@
   <Heading level={6} as="h2" variant="title" id="ov-quick-h">{t('overview.quickHeading')}</Heading>
   <div class="ov-quick__row">
     <ButtonLink href="/commands" variant="primary">{t('overview.quickNewCommand')}</ButtonLink>
-    <ButtonLink href="/modules" variant="ghost">{t('overview.quickModules')}</ButtonLink>
-    <ButtonLink href="/songqueue" variant="ghost">{t('nav.songqueue')}</ButtonLink>
+    <ButtonLink href="/modules" variant="secondary">{t('overview.quickModules')}</ButtonLink>
+    <ButtonLink href="/songqueue" variant="secondary">{t('nav.songqueue')}</ButtonLink>
   </div>
 </section>
 

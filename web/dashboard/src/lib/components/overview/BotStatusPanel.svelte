@@ -101,11 +101,11 @@
         <span aria-hidden="true"><Skeleton variant="text" width="18ch" /></span>
         <div class="ov-strip__spacer"></div>
         <span class="ov-strip__ghost" aria-hidden="true">
-          <Chip as="span" tone="muted">
+          <Chip as="span">
             <Icon name="bolt" />
             {t('overview.restart')}
           </Chip>
-          <Chip as="span" tone="muted">
+          <Chip as="span">
             <Icon name="power" />
             {t('overview.disconnect')}
           </Chip>
@@ -124,11 +124,11 @@
         {#if isDelegate}
           <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
         {:else if ui?.canManage}
-          <Chip tone="muted" disabled={busy} onclick={() => onRestart?.()}>
+          <Chip disabled={busy} onclick={() => onRestart?.()}>
             <Icon name="bolt" />
             {t('overview.restart')}
           </Chip>
-          <Chip tone="muted" disabled={busy} onclick={() => onDisconnect?.()}>
+          <Chip class="ov-strip__off" disabled={busy} onclick={() => onDisconnect?.()}>
             <Icon name="power" />
             {t('overview.disconnect')}
           </Chip>
@@ -173,12 +173,12 @@
                 disabled={busy}
                 onclick={() => onRestart?.()}
               >{kind === 'degraded' ? t('common.reconnect') : t('overview.restart')}</Button>
-              <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
+              <Button variant="secondary" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.verifyRepair}
               <form method="POST" action="?/retry" use:enhance={enableSubmit}>
                 <Button variant="primary" type="submit" busy={busy}>{kind === 'bot_banned' ? t('overview.lifecycle.verifyUnban') : t('overview.lifecycle.retryConnection')}</Button>
               </form>
-              <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
+              <Button variant="secondary" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.showEnable}
               <form method="POST" action={ui.retainedBan ? "?/enableAndVerify" : "?/enable"} use:enhance={enableSubmit}>
                 <Button variant="primary" type="submit" busy={busy}>{ui.retainedBan ? t('overview.lifecycle.enableAndVerify') : t('overview.enable')}</Button>
@@ -224,6 +224,10 @@
   .ov-strip__spacer {
     flex: 1 1 auto;
     min-width: 8px;
+  }
+  .ov-strip :global(.ov-strip__off:hover:not(:disabled)) {
+    color: var(--bb-status-danger-fg);
+    background: rgba(var(--bb-status-danger-rgb), 0.12);
   }
 
   .ov-status__mark {
