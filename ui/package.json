@@ -14,6 +14,7 @@
     "./lib/count-up": "./lib/count-up.ts",
     "./lib/csv": "./lib/csv.ts",
     "./lib/decode": "./lib/decode.ts",
+    "./lib/glide": "./lib/glide.ts",
     "./lib/hotkeys": "./lib/hotkeys.ts",
     "./lib/icons": "./lib/icons.ts",
     "./lib/inspector-machine": "./lib/inspector-machine.ts",

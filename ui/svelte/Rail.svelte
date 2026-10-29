@@ -6,7 +6,8 @@
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import RailItem from './RailItem.svelte';
-  import { mountGlide } from '../lib/rail-glide';
+  import Glide from './Glide.svelte';
+  import { mountGlide } from '../lib/glide';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
@@ -43,7 +44,7 @@
     if (!railEl) return;
     void groups;
     void manual;
-    return mountGlide(railEl, { navEl });
+    return mountGlide(railEl, { observe: navEl, selector: '.bb-rail-item[data-active]' });
   });
 </script>
 
@@ -55,9 +56,7 @@
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
     logoShape={brand.logoShape}
-  /><span class="bb-rail__glide" aria-hidden="true"
-    ><span class="bb-rail__glide-edge"></span></span
-  ><div bind:this={navEl} class="bb-rail__nav"
+  /><Glide /><div bind:this={navEl} class="bb-rail__nav"
     >{#each groups as group (group.label ?? '')}{#if group.label}<div
           class="bb-rail__label">{group.label}</div
         >{/if}<div class="bb-rail__group"
