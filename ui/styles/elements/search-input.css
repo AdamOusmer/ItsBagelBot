@@ -31,4 +31,6 @@
 
     .bb-search__clear:hover { color: var(--bb-white); }
     .bb-search__clear[hidden] { display: none; }
+
+    :where([data-surface='tonal']) .bb-search { box-shadow: var(--bb-depth-0); }
 }

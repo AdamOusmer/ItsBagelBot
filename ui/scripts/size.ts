@@ -263,7 +263,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/footer", budget: 1950 }, // 1740 B: signature layout with ring, orbs, stacked groups and the colophon slot; +150 B platform delta, ~5% room (2026-10-01)
   { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },
-  { name: "elements/chip", budget: 1110 }, // 864 B: chip base and tier tones, split from tags.css (2026-09-29)
+  { name: "elements/chip", budget: 1230 }, // 1114 B: tonal surface fill, lift and focus ring for plain chips (2026-10-29)
   { name: "elements/empty-state", budget: 500 },
   { name: "elements/field", budget: 760 },
   { name: "elements/search-input", budget: 520 },
