@@ -6,7 +6,7 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/layout.css';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'width' | 'flush' | 'as' | 'class'> {
-    width?: 'default' | 'narrow' | 'text';
+    width?: 'default' | 'hero' | 'narrow' | 'text';
     flush?: boolean;
     as?: 'div' | 'section' | 'article' | 'aside' | 'header' | 'footer' | 'main' | 'nav' | 'ul' | 'ol' | 'li' | 'form';
     class?: string;

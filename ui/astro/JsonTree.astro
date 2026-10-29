@@ -1,0 +1,35 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/json-tree.css';
+import PickerOption from './PickerOption.astro';
+import JsonTree from './JsonTree.astro';
+
+interface JsonTreeNode {
+    key: string;
+    value?: string;
+    picked?: boolean;
+    disabled?: boolean;
+    children?: JsonTreeNode[];
+}
+
+interface Props extends Omit<HTMLAttributes<'div'>, 'nodes' | 'nested' | 'class'> {
+    nodes: JsonTreeNode[];
+    nested?: boolean;
+    class?: string;
+}
+
+const { nodes, nested = false, class: className = '', ...rest } = Astro.props;
+const classes = nested ? 'bb-json-tree__kids' : ['bb-json-tree', className].filter(Boolean).join(' ');
+---
+
+<div class={classes} {...rest}>
+    {nodes.map((node) => node.children ? (
+        <div class="bb-json-tree__branch"><span class="bb-json-tree__key">{node.key}</span><JsonTree nodes={node.children} nested /></div>
+    ) : (
+        <PickerOption label={node.key} description={node.value} selected={node.picked} disabled={node.disabled} tabindex={-1} />
+    ))}
+    <slot />
+</div>

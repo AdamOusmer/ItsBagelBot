@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/link-row.css';
+import Heading from './Heading.astro';
+import TextLink from './TextLink.astro';
+
+interface Props extends Omit<HTMLAttributes<'nav'>, 'title' | 'links' | 'class'> {
+    title?: string;
+    links: { href: string; label: string; external?: boolean }[];
+    class?: string;
+}
+
+const { title, links, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-link-row', className].filter(Boolean).join(' ');
+---
+
+<nav class={classes} aria-label={title} {...rest}>{title && <Heading level={5} as="h2" class="bb-link-row__title"><span data-fit>{title}</span></Heading>}<ul class="bb-link-row__list">{links.map((link) => (<li><TextLink href={link.href} label={link.label} external={link.external} fit /></li>))}</ul></nav>

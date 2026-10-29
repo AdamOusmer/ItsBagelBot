@@ -27,11 +27,12 @@
 .vref-table th { vertical-align: top; }
 .vref-table tr[id] { scroll-margin-top: calc(var(--nav-offset) + 16px); }
 
-.vref-td-variable {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.vref-copy {
+    width: 100%;
+    padding: 8px 12px;
 }
+
+.vref-copy:hover { transform: none; }
 
 .vref-td-means { min-width: 22ch; }
 

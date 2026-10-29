@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 	import '@bagel/ui/styles/elements/layout.css';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type ModuleCommandInfo, type Perm } from '@bagel/kit';
@@ -33,6 +34,7 @@
     <Heading level={6} as="h2" variant="eyebrow" id={headingId}>{t('modules.commandsTitle')}</Heading>
     <Text as="span" size="xs" tone="muted">{t('modules.commandsHint')}</Text>
   </div>
+  <Divider flush />
   <ul class="bb-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
       <li>
@@ -56,7 +58,6 @@
     align-items: flex-start;
     gap: 2px;
     padding: 12px 18px;
-    border-bottom: 1px solid var(--bb-border);
     scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px);
   }
   .cmd-head:focus { outline: none; }

@@ -2,7 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Cluster from '@bagel/ui/astro/Cluster.astro';
+import Stack from '@bagel/ui/astro/Stack.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import Well from '@bagel/ui/astro/Well.astro';
+import Window from '@bagel/ui/astro/Window.astro';
 import '../../styles/guide-screen.css';
 
 interface Note {
@@ -20,23 +24,21 @@ const { path = '/', notes = [], caption } = Astro.props;
 ---
 
 <figure class="dframe" data-reveal>
-    <div class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
-        <div class="dframe__bar">
-            <span class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></span>
-        </div>
+    <Window class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
+        <Well as="span" slot="title" class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></Well>
         <div class="dframe__body" data-static>
             <slot />
         </div>
-    </div>
+    </Window>
     {notes.length > 0 && (
-        <ul class="dframe__legend">
+        <Stack as="ul" gap={2} class="dframe__legend">
             {notes.map((note) => (
-                <Text as="li" tone="muted-soft" class="dframe__note" data-note-for={note.n} tabindex={0}>
+                <Cluster as="li" gap={3} align="baseline" nowrap class="dframe__note" data-note-for={note.n} tabindex={0}>
                     <i class="dframe__idx" aria-hidden="true">{String(note.n).padStart(2, '0')}</i>
-                    <span>{note.text}</span>
-                </Text>
+                    <Text as="span" tone="muted-soft">{note.text}</Text>
+                </Cluster>
             ))}
-        </ul>
+        </Stack>
     )}
     {caption && <figcaption class="dframe__caption"><Text as="span" size="xs" mono tone="muted">{caption}</Text></figcaption>}
 </figure>
@@ -44,33 +46,11 @@ const { path = '/', notes = [], caption } = Astro.props;
 <style>
     .dframe { margin: 20px 0 28px; }
 
-    .dframe__win {
-        border: 1px solid var(--bb-border);
-        border-radius: var(--bb-radius-md);
-        background: var(--bb-inset-bg);
-        overflow: hidden;
-        box-shadow: 0 24px 55px rgba(var(--bb-shadow-rgb), 0.4);
-    }
-
-    .dframe__bar {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 10px 14px;
-        border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.1);
-        background: rgba(var(--bb-card-bg-rgb), 0.92);
-    }
-
     .dframe__url {
         flex: 1;
         max-width: 340px;
-        font-family: var(--bb-font-mono);
-        font-size: 0.64rem;
-        color: var(--bb-muted);
-        background: rgba(var(--bb-white-rgb), 0.04);
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.1);
-        border-radius: var(--bb-radius-pill);
         padding: 5px 12px;
+        font-size: 0.64rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -81,16 +61,11 @@ const { path = '/', notes = [], caption } = Astro.props;
     .dframe__body { position: relative; padding: 18px; }
 
     .dframe__legend {
-        display: grid;
-        gap: 8px;
         margin-top: 14px;
         padding-left: 2px;
     }
 
     .dframe__note {
-        display: flex;
-        gap: 12px;
-        align-items: baseline;
         padding: 2px 6px;
         margin: 0 -6px;
         border-radius: var(--bb-radius-sm);

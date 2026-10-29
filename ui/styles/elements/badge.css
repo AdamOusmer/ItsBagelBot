@@ -20,6 +20,12 @@
         background: var(--badge-bg, var(--tone-bg, transparent));
     }
 
+    .bb-badge.bb-badge--solid.bb-tag {
+        color: var(--bb-black);
+        border-color: var(--tone, var(--bb-tan));
+        background: var(--tone, var(--bb-tan));
+    }
+
     .bb-badge--dashed { border-bottom-style: dashed; }
     .bb-badge--pill.bb-badge--dashed { border-style: dashed; }
 }

@@ -4,6 +4,7 @@
 
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
+import Divider from '@bagel/ui/astro/Divider.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
@@ -17,10 +18,11 @@ const t = useTranslations(lang);
 const titleWords = t('finale.title').split(' ');
 ---
 
+<Divider flush />
 <section class="finale" data-motion>
     <div class="finale__glow" aria-hidden="true"></div>
     <div class="finale__inner">
-        <Eyebrow tone="go" class="finale__eyebrow" data-reveal><span data-fit>{t('finale.eyebrow')}</span></Eyebrow>
+        <Eyebrow class="finale__eyebrow" data-reveal><span data-fit>{t('finale.eyebrow')}</span></Eyebrow>
         <Heading level={2} class="finale__title" aria-label={titleWords.join(' ')}>
             <span class="finale__title-text" data-fit="block">{titleWords.map((word, i) => (
                 <Fragment><span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>{i < titleWords.length - 1 ? ' ' : ''}</Fragment>
@@ -98,7 +100,7 @@ const titleWords = t('finale.title').split(' ');
     .finale__eyebrow {
         width: 100%;
         margin-bottom: 22px;
-        text-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.55), 0 2px 12px rgba(var(--bb-shadow-rgb), 0.95);
+        text-shadow: 0 2px 12px rgba(var(--bb-shadow-rgb), 0.95);
     }
 
     .finale__title {

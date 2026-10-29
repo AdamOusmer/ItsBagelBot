@@ -18,6 +18,7 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
@@ -153,7 +154,7 @@
         <div class="bb-setup-actions"><ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink></div>
       {:else if step === 0}
         <SetupNote title={t('spotifySetup.premiumTitle')} body={t('spotifySetup.premiumBody')}>
-          {#snippet icon()}<span class="glyph">♪</span>{/snippet}
+          {#snippet icon()}♪{/snippet}
         </SetupNote>
         <div class="bb-setup-actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
       {:else if step === 1}
@@ -170,7 +171,7 @@
       {:else if step === 2}
         {#if appReady && !replacing}
           <div class="ready">
-            <span class="ready-mark" aria-hidden="true"><Icon name="check" size={14} /></span>
+            <MarkBadge size="xs" tone="success" aria-hidden="true"><Icon name="check" size={14} /></MarkBadge>
             <Text as="span" size="sm">{t('spotifySetup.saved')}</Text>
             <Text as="span" size="xs" mono tone="muted">{app.clientId || clientId}</Text>
           </div>
@@ -195,7 +196,7 @@
         {/if}
       {:else}
         <div class="ready">
-          <span class="ready-mark" aria-hidden="true"><Icon name="check" size={14} /></span>
+          <MarkBadge size="xs" tone="success" aria-hidden="true"><Icon name="check" size={14} /></MarkBadge>
           <Text as="span" size="sm">{t('spotifySetup.saved')}</Text>
         </div>
         <div class="bb-setup-actions"><Button variant="ghost" onclick={() => go(2)}>{t('onboarding.back')}</Button>
@@ -210,9 +211,7 @@
 </SetupStage>
 
 <style>
-  .glyph { font-size: 20px; line-height: 1; }
   .ready { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }
-  .ready-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--bb-radius-pill); background: rgba(var(--bb-green-glow-rgb), 0.16); color: var(--bb-green-glow); }
   .block { display: grid; gap: 8px; }
   .redirect-value { flex: 1; min-width: 0; user-select: all; }
   form { --field-mb: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

@@ -10,6 +10,7 @@
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
@@ -33,7 +34,7 @@
   <CardHead title={t('admin.overview.botTitle')} />
 
   <div class="row">
-    <div class="mark"><img class="logo" src="/logo.png" alt="" /></div>
+    <MarkBadge src="/logo.png" size="sm" />
     <Stack gap={1}>
       <Cluster gap={2} nowrap>
         <StatusDot tone={statusTone(present ? 'online' : 'auth_required')} />
@@ -74,22 +75,6 @@
     display: flex;
     align-items: center;
     gap: 14px;
-  }
-  .mark {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    flex: none;
-    background: rgba(var(--bb-green-glow-rgb), 0.07);
-    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .logo {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
   }
   .cta {
     margin-left: auto;

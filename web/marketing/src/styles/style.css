@@ -13,6 +13,13 @@
 @import '@bagel/ui/styles/elements/mark.css';
 @import '@bagel/ui/styles/elements/chip.css';
 @import '@bagel/ui/styles/elements/tabs.css';
+@import '@bagel/ui/styles/elements/round-badge.css';
+@import '@bagel/ui/styles/elements/timeline.css';
+@import '@bagel/ui/styles/elements/var-card.css';
+@import '@bagel/ui/styles/elements/well.css';
+@import '@bagel/ui/styles/elements/window.css';
+@import '@bagel/ui/styles/elements/json-tree.css';
+@import '@bagel/ui/styles/elements/chat-preview.css';
 @import '@bagel/ui/styles/motion.css';
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';

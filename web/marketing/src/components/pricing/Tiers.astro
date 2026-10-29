@@ -5,6 +5,7 @@
 import { dashboardHref } from '@bagel/kit/site-links';
 
 import Card from '@bagel/ui/astro/Card.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
@@ -30,7 +31,7 @@ const enterpriseFeatures = [
 ];
 ---
 
-<section class="tiers">
+<Container as="section" class="tiers">
     <div class="tier-glow" data-reveal>
     <Card atmo hover tone="accent">
         <div class="tier-free__layout">
@@ -63,7 +64,7 @@ const enterpriseFeatures = [
                     <Image src={premiumLogo} alt="" class="tier__premium-logo tier__premium-logo--lit" width={160} height={160} loading="lazy" />
                 </span>
             </div>
-            <Badge shape="pill" class="tier__badge"><span data-fit>{t('pricingTiers.premiumBadge')}</span></Badge>
+            <Badge shape="pill" tone="paid" solid class="tier__badge"><span data-fit>{t('pricingTiers.premiumBadge')}</span></Badge>
             <Heading level={5} as="h3" variant="title" uppercase class="tier__name"><span data-fit>{t('pricingTiers.premium')}</span></Heading>
             <div class="tier__price">
                 <Heading level={2} as="span" data-tier-count>7$</Heading>
@@ -118,17 +119,15 @@ const enterpriseFeatures = [
         </Card>
     </div>
 
-    <Text size="xs" mono tone="muted" class="tiers__oath" data-reveal><span data-fit="block">{t('pricingTiers.oath')}</span></Text>
-</section>
+    <Badge shape="pill" tone="neutral" dashed wrap literal class="tiers__oath" data-reveal><span data-fit="block">{t('pricingTiers.oath')}</span></Badge>
+</Container>
 
 <style>
     .tiers {
         --card-body-display: flex;
         --card-body-dir: column;
         --card-body-h: 100%;
-        padding: 0 24px var(--bb-space-section);
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
+        padding-bottom: var(--bb-space-section);
         display: flex;
         flex-direction: column;
         gap: 24px;
@@ -195,10 +194,7 @@ const enterpriseFeatures = [
     }
 
     .tier__badge {
-        --badge-pill-size: var(--bb-text-xs);
-        --badge-tone: var(--bb-black);
-        --badge-bg: var(--bb-tan);
-        --badge-tone-rule: var(--bb-tan);
+        font-size: var(--bb-text-xs);
         position: absolute;
         top: 0;
         left: 50%;
@@ -259,9 +255,10 @@ const enterpriseFeatures = [
         align-items: center;
         gap: 8px;
         padding: 4px 8px;
-        border: 1px solid rgba(var(--bb-tan-rgb), 0.15);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-0);
         border-radius: var(--bb-radius-xs);
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(var(--bb-shadow-rgb), 0.3);
         overflow: hidden;
     }
 
@@ -354,9 +351,10 @@ const enterpriseFeatures = [
     }
 
     .tiers__oath {
+        display: block;
+        font-size: var(--bb-text-xs);
+        line-height: 1.45;
         text-align: center;
-        border: 1px dashed rgba(var(--bb-tan-rgb), 0.22);
-        border-radius: var(--bb-radius-pill);
         width: min(36rem, 100%);
         height: calc(2 * 1lh + 24px);
         padding: 12px 24px;

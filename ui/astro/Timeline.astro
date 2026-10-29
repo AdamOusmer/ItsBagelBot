@@ -1,0 +1,26 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import type { HTMLAttributes } from 'astro/types';
+import '../styles/elements/timeline.css';
+
+interface Props extends Omit<HTMLAttributes<'ol'>, 'rail' | 'draw' | 'as' | 'class'> {
+    rail?: 'fade' | 'bridge';
+    draw?: boolean;
+    as?: 'ol' | 'ul' | 'div';
+    class?: string;
+}
+
+const { rail = 'fade', draw = false, as: Tag = 'ol', class: className = '', ...rest } = Astro.props;
+const classes = [
+    'bb-timeline',
+    rail === 'fade' ? null : `bb-timeline--${rail}`,
+    draw ? 'bb-timeline--draw' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

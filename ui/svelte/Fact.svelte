@@ -11,6 +11,7 @@
     mono?: boolean;
     wide?: boolean;
     truncate?: boolean;
+    fit?: boolean;
     class?: string;
     children?: Snippet;
   };
@@ -21,6 +22,7 @@
     mono = false,
     wide = false,
     truncate = false,
+    fit = false,
     class: className = '',
     children,
     ...rest
@@ -40,4 +42,4 @@
   );
 </script>
 
-<div class={classes} {...rest}><dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value">{#if children}{@render children()}{/if}</dd></div>
+<div class={classes} {...rest}>{#if fit}<dt class="bb-fact__term"><span data-fit>{term}</span></dt><dd class="bb-fact__value"><span data-fit="block">{#if children}{@render children()}{/if}</span></dd>{:else}<dt class="bb-fact__term">{term}</dt><dd class="bb-fact__value">{#if children}{@render children()}{/if}</dd>{/if}</div>

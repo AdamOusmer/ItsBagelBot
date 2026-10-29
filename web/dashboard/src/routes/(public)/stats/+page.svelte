@@ -349,7 +349,7 @@
   .feeding-friends :global(svg + svg) { margin-left: -5px; }
   .feed-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .feed-list { list-style: none; margin: 0; padding: 0; }
-  .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bb-border); font-variant-numeric: tabular-nums; }
+  .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; font-variant-numeric: tabular-nums; }
   .feed-channel { min-width: 0; overflow-wrap: anywhere; font-size: var(--bb-text-sm); }
   .feed-link { color: var(--bb-white); text-decoration: none; }
   .feed-link:hover { color: var(--bb-tan-light); }

@@ -9,6 +9,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { formatCounterValue } from '@bagel/kit/validation';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import ChatVolumeChart from './ChatVolumeChart.svelte';
   import {
     formatDuration,
@@ -111,13 +112,15 @@
         <div class="ov-stream__spacer"></div>
 
         {#if !slim && counters.ok}
+          <Divider />
           <div class="ov-stream__stats">
             {#each stats as s (s.id)}
               <StatTile inline static tone={s.tone} label={s.label} value={s.value} />
             {/each}
           </div>
         {:else if !slim}
-          <div class="ov-stream__notice ov-stream__notice--foot">
+          <Divider />
+          <div class="ov-stream__notice">
             <Text size="sm" tone="muted">{t('overview.countersUnavailable')}</Text>
           </div>
         {/if}
@@ -184,20 +187,12 @@
   .ov-stream__notice {
     max-width: 40ch;
   }
-  .ov-stream__notice--foot {
-    margin-top: 22px;
-    padding-top: 18px;
-    border-top: 1px solid var(--bb-border);
-  }
   .ov-stream__spacer {
     flex: 1;
   }
   .ov-stream__stats {
     display: flex;
     gap: 22px;
-    margin: 22px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--bb-border);
   }
 
   .ov-stream--slim .ov-stream__grid {

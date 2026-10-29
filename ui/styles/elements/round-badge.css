@@ -1,0 +1,42 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-round-badge,
+  .bb-var-card__plus {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: var(--round-badge-size, 25px);
+    height: var(--round-badge-size, 25px);
+    border-radius: var(--bb-radius-pill);
+    background: transparent;
+    box-shadow: var(--bb-depth-1);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-style: normal;
+    letter-spacing: normal;
+    line-height: 1;
+    transition: background var(--bb-dur-fast), color var(--bb-dur-fast);
+  }
+
+  .bb-round-badge--xs { --round-badge-size: 20px; }
+  .bb-round-badge--md { --round-badge-size: 32px; }
+  .bb-round-badge--lg { --round-badge-size: 54px; }
+  .bb-round-badge--solid { background: var(--bb-card-bg); }
+  .bb-round-badge--muted { color: var(--bb-muted); }
+
+  .bb-round-badge:hover,
+  .bb-var-card__plus:hover,
+  :is(a, button, [data-badge-host]):hover .bb-round-badge,
+  :is(a, button, [data-badge-host]):hover .bb-var-card__plus {
+    background: var(--bb-white);
+    color: var(--bb-black);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-round-badge, .bb-var-card__plus { transition: none; }
+  }
+}

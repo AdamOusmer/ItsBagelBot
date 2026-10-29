@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import SectionNav from '@bagel/ui/astro/SectionNav.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Label from '@bagel/ui/astro/Label.astro';
@@ -35,7 +36,7 @@ const tocItems = sections.map((section) => ({
 }));
 ---
 
-<div class="lshell">
+<Container class="lshell">
     <div class="lshell__grid">
         <div class="lshell__toc">
             <Label mono as="span" class="lshell__toc-label">{labels.toc}</Label>
@@ -43,28 +44,24 @@ const tocItems = sections.map((section) => ({
         </div>
 
         <article class="lshell__content">
-            <Text size="xs" mono tone="success" class="lshell__updated" data-reveal>{`${labels.updated} ${updated}`}</Text>
+            <Text size="xs" mono tone="muted" class="lshell__updated" data-reveal>{`${labels.updated} ${updated}`}</Text>
 
             {sections.map((section, i) => {
                 const Content = section.Content;
                 return (
-                    <div class="lshell__block" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                    <div class="lshell__block bb-prose" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                         <Heading level={4} as="h2" class="lshell__heading">{section.heading}</Heading>
-                        <AlertBanner tone="success" role="note" class="lshell__plain" variant="callout"><Tag tone="live" bare class="lshell__plain-tag"><span data-fit>{labels.plain}</span></Tag>{section.plain}</AlertBanner>
+                        <AlertBanner tone="neutral" role="note" class="lshell__plain" variant="callout"><Tag tone="neutral" bare class="lshell__plain-tag"><span data-fit>{labels.plain}</span></Tag>{section.plain}</AlertBanner>
                         <Content />
                     </div>
                 );
             })}
         </article>
     </div>
-</div>
+</Container>
 
 <style>
-    .lshell {
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding: 0 24px 96px;
-    }
+    .lshell { padding-bottom: 96px; }
 
     .lshell__grid {
         display: grid;
@@ -128,21 +125,10 @@ const tocItems = sections.map((section) => ({
     }
 
     .lshell__block :global(ul li) { margin-bottom: 7px; }
-    .lshell__block :global(ul li::marker) { color: var(--bb-green-glow); }
-
-    .lshell__block :global(a) {
-        color: var(--bb-tan);
-        border-bottom: 1px solid transparent;
-        transition: color var(--bb-dur-fast) ease, border-color var(--bb-dur-fast) ease;
-    }
-
-    .lshell__block :global(a:hover) {
-        color: var(--bb-tan-light);
-        border-bottom-color: var(--bb-tan-light);
-    }
+    .lshell__block :global(ul li::marker) { color: var(--bb-muted); }
 
     @media (max-width: 480px) {
-        .lshell { padding: 0 16px 72px; }
+        .lshell { padding-bottom: 72px; }
         .lshell__heading { margin-top: 40px; }
     }
 </style>

@@ -3,9 +3,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import Code from '@bagel/ui/astro/Code.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
+import RoundBadge from '@bagel/ui/astro/RoundBadge.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Timeline from '@bagel/ui/astro/Timeline.astro';
+import TimelineItem from '@bagel/ui/astro/TimelineItem.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -29,98 +34,49 @@ const steps = [
 ];
 ---
 
-<Section size="page" class="steps" id="how">
-    <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
+<Container width="hero" class="steps-wrap">
+    <Section size="page" class="steps" id="how">
+        <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
 
-    <ol class="steps__list" data-reveal>
-        <span class="steps__rail" aria-hidden="true"></span>
-        {steps.map((step, i) => (
-            <li class="step" data-reveal style={`--reveal-i: ${i + 2}`}>
-                <span class="step__num" aria-hidden="true">{step.num}</span>
-                <div class="step__body">
-                    <Heading level={4} as="h3" class="step__title"><span data-fit="block">{step.title}</span></Heading>
-                    <span class="step__receipt"><span data-fit data-decode={step.receipt}>{step.receipt}</span></span>
-                </div>
-            </li>
-        ))}
-    </ol>
-</Section>
+        <Timeline rail="bridge" draw class="steps__list" data-reveal>
+            {steps.map((step, i) => (
+                <TimelineItem dot={false} class="step" data-badge-host data-reveal style={`--reveal-i: ${i + 2}`}>
+                    <RoundBadge size="lg" solid class="step__num" aria-hidden="true">{step.num}</RoundBadge>
+                    <div class="step__body">
+                        <Heading level={4} as="h3" class="step__title"><span data-fit="block">{step.title}</span></Heading>
+                        <Code class="step__receipt"><span data-fit data-decode={step.receipt}>{step.receipt}</span></Code>
+                    </div>
+                </TimelineItem>
+            ))}
+        </Timeline>
+    </Section>
+</Container>
 
 <style>
     .steps {
         --section-heading-lines: 3;
         --section-heading-lines-phone: 3;
         position: relative;
-        padding-inline: 24px;
-        max-width: var(--bb-content-hero);
-        margin: 0 auto;
         z-index: 3;
         scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
     .steps__list {
         --reveal-i: 2;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: 32px;
-        padding-left: 0;
-        margin: 0;
-    }
-
-    .steps__rail {
-        position: absolute;
-        left: 27px;
-        top: 8px;
-        bottom: 8px;
-        width: 1px;
-        background: linear-gradient(
-            to bottom,
-            rgba(var(--bb-green-glow-rgb), 0.5),
-            rgba(var(--bb-tan-rgb), 0.4)
-        );
-        transform: scaleY(0);
-        transform-origin: top;
-        transition: transform 1400ms var(--bb-ease-out-expo) 200ms;
-    }
-
-    .steps__list.is-revealed .steps__rail {
-        transform: scaleY(1);
+        --timeline-gap: 32px;
+        --timeline-gutter: 0px;
+        --timeline-rail-x: 27px;
     }
 
     .step {
-        position: relative;
         display: flex;
         gap: 28px;
         align-items: flex-start;
     }
 
     .step__num {
-        position: relative;
-        z-index: 1;
-        flex-shrink: 0;
-        display: grid;
-        place-items: center;
-        width: 54px;
-        height: 54px;
-        border-radius: 50%;
-        background: var(--bb-card-bg);
-        border: 1px solid var(--bb-border);
         font-family: var(--bb-font-mono);
         font-size: 0.8rem;
-        color: var(--bb-tan-light);
-        transition:
-            border-color var(--bb-dur-base) var(--bb-ease-out-expo),
-            box-shadow var(--bb-dur-base) var(--bb-ease-out-expo),
-            color var(--bb-dur-base) ease;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .step:hover .step__num {
-            border-color: rgba(var(--bb-tan-rgb), 0.55);
-            box-shadow: 0 0 24px rgba(var(--bb-tan-rgb), 0.25);
-            color: var(--bb-tan-pale);
-        }
     }
 
     .step__body {
@@ -136,13 +92,8 @@ const steps = [
 
     @media (min-width: 1024px) {
         .steps__list {
-            display: grid;
+            --timeline-rail-display: none;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 32px;
-        }
-
-        .steps__rail {
-            display: none;
         }
 
         .step {
@@ -159,36 +110,15 @@ const steps = [
     .step__receipt {
         display: block;
         width: min(100%, 300px);
-        font-family: var(--bb-font-mono);
         font-size: var(--bb-text-xs);
         letter-spacing: 0.05em;
-        color: var(--bb-green-glow);
-        background: rgba(var(--bb-green-glow-rgb), 0.06);
-        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.18);
-        border-radius: var(--bb-radius-sm);
         padding: 6px 10px;
-        transition: box-shadow var(--bb-dur-base) ease, border-color var(--bb-dur-base) ease;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .step:hover .step__receipt {
-            border-color: rgba(var(--bb-green-glow-rgb), 0.4);
-            box-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.14);
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .steps__rail {
-            transform: none;
-            transition: none;
-        }
     }
 
     @media (max-width: 640px) {
-        .steps { padding-inline: 20px; }
-        .steps__list { gap: 28px; }
+        .steps-wrap { --container-pad: 20px; }
+        .steps__list { --timeline-gap: 28px; --timeline-rail-x: 22px; }
         .step { gap: 18px; }
-        .step__num { width: 44px; height: 44px; font-size: 0.72rem; }
-        .steps__rail { left: 22px; }
+        .step__num { --round-badge-size: 44px; font-size: 0.72rem; }
     }
 </style>

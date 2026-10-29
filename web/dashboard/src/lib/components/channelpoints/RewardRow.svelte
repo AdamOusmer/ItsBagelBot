@@ -4,6 +4,8 @@
 	import '@bagel/ui/styles/elements/typography.css';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import '@bagel/ui/styles/elements/row-body.css';
+  import '@bagel/ui/styles/elements/swatch.css';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -35,12 +37,12 @@
 
 <ManagementRow as="li" selected={expanded} {expanded} controls="reward-editor" onSelect={onExpand}>
   {#snippet primary()}
-    <span class="prow">
-      {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+    <span class="prow bb-row-body bb-row-body--stack" style:--row-stack-gap="6px">
+      {#if idx}<span class="bb-row-body__idx" aria-hidden="true">{idx}</span>{/if}
       <span class="reward">
         <span class="reward-name">
-          <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
-          <span class="title-text">{r.title}</span>
+          <span class="bb-swatch bb-swatch--sm" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
+          <span class="bb-row-body__name bb-row-body__name--display">{r.title}</span>
         </span>
         <span class="tags">
           {#if r.maxPerStreamEnabled && r.maxPerStream === 1}
@@ -63,8 +65,8 @@
           <span class="silent">{t('channelpoints.chipSilent')}</span>
         {/if}
       </span>
-      <span class="meta">
-        <span class="cost"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
+      <span class="bb-row-body__meta meta">
+        <span class="bb-row-body__val bb-row-body__val--xs"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
         <Tag tone={r.isEnabled ? 'live' : 'quiet'} mark={r.isEnabled ? 'solid' : 'hollow'}>
           {r.isEnabled ? t('channelpoints.stateVisible') : t('channelpoints.stateHidden')}
         </Tag>
@@ -81,37 +83,10 @@
 </ManagementRow>
 
 <style>
-  .prow {
-    display: grid;
-    grid-template-columns: 28px minmax(150px, 1fr) minmax(0, 1.6fr) auto;
-    align-items: center;
-    gap: 14px;
-  }
-  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
+  .prow { --row-cols: 28px minmax(150px, 1fr) minmax(0, 1.6fr) auto; }
 
   .reward { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .reward-name {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: var(--bb-text-sm);
-    color: var(--bb-white);
-    min-width: 0;
-  }
-  .title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  .swatch {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    flex: none;
-    border-radius: var(--bb-radius-sm);
-    background: var(--sw);
-    border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
-  }
+  .reward-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 
   .tags { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .resp {
@@ -125,34 +100,16 @@
   }
   .silent { opacity: 0.6; font-style: italic; }
 
-  .meta { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .cost {
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
-    color: var(--bb-tan-light);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
+  .meta { flex-direction: column; align-items: flex-end; gap: 4px; }
 
   @media (max-width: 760px) {
-    .prow {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas:
-        'reward'
-        'resp'
-        'meta';
-      row-gap: 6px;
-    }
-    .idx { display: none; }
-    .reward { grid-area: reward; }
     .resp {
-      grid-area: resp;
       white-space: normal;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;
       -webkit-box-orient: vertical;
     }
-    .meta { grid-area: meta; flex-direction: row; align-items: center; gap: 12px; }
+    .meta { flex-direction: row; align-items: center; gap: 12px; }
   }
 </style>

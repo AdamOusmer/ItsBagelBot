@@ -39,12 +39,6 @@ const groupCopy = {
     copy: t('guides.variables.copy'),
 };
 
-const clientCopy = {
-    copy: groupCopy.copy,
-    copied: t('guides.variables.copied'),
-    copyFailed: t('guides.variables.copyFailed'),
-};
-
 const timerGroupIds = new Set(forSurface('timer').map((def) => def.group));
 const timerGroupLabels = GROUP_ORDER
     .filter((group) => timerGroupIds.has(group))
@@ -74,7 +68,6 @@ const timerNote = t('guides.variables.timerNote').replace('{groups}', timerGroup
         <TextLink href={localizePath('/command-builder', lang)} label={t('guides.variables.openBuilder')} size="0.72rem" />
     </div>
 
-    <script is:inline type="application/json" data-vref-copy-text set:html={JSON.stringify(clientCopy)} />
 </section>
 
 <script>

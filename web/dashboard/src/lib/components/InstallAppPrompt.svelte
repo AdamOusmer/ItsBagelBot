@@ -6,6 +6,7 @@
   import { page } from '$app/state';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import IconTile from '@bagel/ui/svelte/IconTile.svelte';
   import Popover from '@bagel/ui/svelte/Popover.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -139,11 +140,11 @@
 
     <ol class="steps">
       <li>
-        <span class="glyph" aria-hidden="true"><Icon name="share" size={17} strokeWidth={1.7} /></span>
+        <IconTile size="sm"><Icon name="share" size={17} strokeWidth={1.7} /></IconTile>
         <Text as="span" size="sm">{t('install.ios.step1')}</Text>
       </li>
       <li>
-        <span class="glyph" aria-hidden="true"><Icon name="addSquare" size={17} strokeWidth={1.7} /></span>
+        <IconTile size="sm"><Icon name="addSquare" size={17} strokeWidth={1.7} /></IconTile>
         <Text as="span" size="sm">{t('install.ios.step2')}</Text>
       </li>
     </ol>
@@ -165,16 +166,5 @@
     display: flex;
     align-items: center;
     gap: 11px;
-  }
-  .glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    flex: none;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-tan-light);
   }
 </style>

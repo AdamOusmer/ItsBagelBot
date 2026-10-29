@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Container from '@bagel/ui/astro/Container.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import BentoGrid from './BentoGrid.astro';
 import FeatureCard from './FeatureCard.astro';
@@ -24,6 +25,7 @@ const NETWORK_WAVES = [0, 1];
 const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === wave);
 ---
 
+<Container class="safe-wrap">
 <Section size="page" class="safe" id="safety-layers" data-motion>
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
         <span slot="badge" class="safe__beta"><span class="safe__beta-label"><span data-fit>{t('badge.beta')}</span></span></span>
@@ -109,6 +111,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         </FeatureCard>
     </BentoGrid>
 </Section>
+</Container>
 
 <style>
     .safe {
@@ -116,9 +119,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         --section-heading-lines-phone: 3;
         --fcard-demo-h: 170px;
         position: relative;
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding-inline: 24px;
         z-index: 3;
     }
 
@@ -366,7 +366,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         place-items: center;
         width: 36px;
         height: 27px;
-        border: 1px solid var(--bb-border);
+        border: 1px solid transparent;
+        box-shadow: var(--bb-depth-1);
         border-radius: var(--bb-radius-xs);
         color: var(--bb-muted);
         background: var(--bb-bg-0);
@@ -759,7 +760,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     @media (max-width: 640px) {
-        .safe { padding-inline: 20px; }
+        .safe-wrap { --container-pad: 20px; }
         .network__alert,
         .network__status { font-size: 0.52rem; }
     }

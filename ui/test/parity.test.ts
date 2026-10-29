@@ -16,6 +16,8 @@ import SvelteNavLink from '../svelte/NavLink.svelte';
 import AstroNavLink from '../astro/NavLink.astro';
 import SvelteBadge from '../svelte/Badge.svelte';
 import AstroBadge from '../astro/Badge.astro';
+import SvelteChatPreview from '../svelte/ChatPreview.svelte';
+import AstroChatPreview from '../astro/ChatPreview.astro';
 import SvelteChip from '../svelte/Chip.svelte';
 import AstroChip from '../astro/Chip.astro';
 import SvelteEmptyState from '../svelte/EmptyState.svelte';
@@ -175,6 +177,8 @@ import SvelteCardAtmosphere from '../svelte/CardAtmosphere.svelte';
 import AstroCardAtmosphere from '../astro/CardAtmosphere.astro';
 import SveltePageToolbar from '../svelte/PageToolbar.svelte';
 import AstroPageToolbar from '../astro/PageToolbar.astro';
+import SvelteWell from '../svelte/Well.svelte';
+import AstroWell from '../astro/Well.astro';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Adapter = any;
@@ -356,6 +360,24 @@ describe('PageToolbar', () => {
     astro: AstroPageToolbar,
     props: { class: 'filters', role: 'toolbar', 'aria-label': 'Filters' },
     html: '<div class="bb-toolbar filters" role="toolbar" aria-label="Filters"><div class="bb-toolbar__grow"></div></div>',
+  });
+});
+
+describe('Well', () => {
+  contract({
+    name: 'control radius by default',
+    svelte: SvelteWell,
+    astro: AstroWell,
+    props: {},
+    html: '<div class="bb-well"></div>',
+  });
+
+  contract({
+    name: 'container modifier, element and extra class',
+    svelte: SvelteWell,
+    astro: AstroWell,
+    props: { container: true, as: 'span', class: 'x' },
+    html: '<span class="bb-well bb-well--container x"></span>',
   });
 });
 
@@ -922,6 +944,10 @@ import SvelteDivider from '../svelte/Divider.svelte';
 import AstroDivider from '../astro/Divider.astro';
 import SvelteHaloPanel from '../svelte/HaloPanel.svelte';
 import AstroHaloPanel from '../astro/HaloPanel.astro';
+import SvelteStepCard from '../svelte/StepCard.svelte';
+import AstroStepCard from '../astro/StepCard.astro';
+import SvelteLinkRow from '../svelte/LinkRow.svelte';
+import AstroLinkRow from '../astro/LinkRow.astro';
 import SvelteSpacer from '../svelte/Spacer.svelte';
 import AstroSpacer from '../astro/Spacer.astro';
 import SvelteInput from '../svelte/Input.svelte';
@@ -1178,6 +1204,21 @@ const PRIMITIVES: {
     html: "<a class=\"bb-halo-panel bb-halo-panel--green tile\" href=\"/x\"><span class=\"bb-halo-panel__halo\" aria-hidden=\"true\"></span>x</a>",
   },
   {
+    name: "StepCard",
+    svelte: SvelteStepCard,
+    astro: AstroStepCard,
+    props: {"index":3,"title":"Go"},
+    slot: "x",
+    html: "<li><div class=\"bb-card bb-step-card\" data-card data-atmo data-hover><div class=\"bb-card-atmo\" aria-hidden=\"true\"><span class=\"bb-card-atmo__ring\"></span><span class=\"bb-card-atmo__sheen\"></span></div><span class=\"bb-eyebrow\" aria-hidden=\"true\">03</span><h3 class=\"bb-h bb-h--l5 bb-step-card__title\"><span data-fit=\"block\">Go</span></h3><p class=\"bb-text bb-text--sm bb-text--muted bb-step-card__body\"><span data-fit=\"block\">x</span></p></div></li>",
+  },
+  {
+    name: "LinkRow",
+    svelte: SvelteLinkRow,
+    astro: AstroLinkRow,
+    props: {"title":"See also","links":[{"href":"https://b.test","label":"B","external":true}]},
+    html: "<nav class=\"bb-link-row\" aria-label=\"See also\"><h2 class=\"bb-h bb-h--l5 bb-link-row__title\"><span data-fit>See also</span></h2><ul class=\"bb-link-row__list\"><li><a class=\"bb-text-link\" href=\"https://b.test\" aria-label=\"B\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"bb-text-link__mask\" aria-hidden=\"true\" data-fit><span class=\"bb-text-link__row bb-text-link__row--rest\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span><span class=\"bb-text-link__row bb-text-link__row--over\"><span class=\"bb-text-link__glyph\" style=\"--gi: 0;\">B</span></span></span></a></li></ul></nav>",
+  },
+  {
     name: "Spacer",
     svelte: SvelteSpacer,
     astro: AstroSpacer,
@@ -1386,4 +1427,15 @@ test('magnetic keeps its tuned ease and settle threshold', async () => {
   const src = await Bun.file(new URL('../lib/magnetic.ts', import.meta.url)).text();
   expect(src).toContain('const EASE = 0.2;');
   expect(src).toContain('const SETTLE_PX = 0.1;');
+});
+
+test('chat preview: both adapters emit the contract markup', async () => {
+  const props = { title: '#your_channel', label: 'Chat', kind: 'chat' };
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteChatPreview, { props }).body);
+  const astro = normalise(await container.renderToString(AstroChatPreview, { props }));
+
+  expect(svelte).toContain('<div class="bb-chat" role="img" aria-label="Chat">');
+  expect(svelte).toContain('<span class="bb-chat__title">#your_channel</span><b class="bb-chat__kind">chat</b>');
+  expect(astro).toBe(svelte);
 });

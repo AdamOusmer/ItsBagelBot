@@ -139,15 +139,12 @@
     color: var(--bb-muted);
 }
 
-.dframe__body .gs-value[data-focus] {
-    border-color: rgba(var(--bb-tan-rgb), 0.45);
-}
-
 .dframe__body .gs-var {
     font-family: var(--bb-font-mono);
     font-size: var(--bb-text-xs);
     color: var(--bb-tan-light);
-    background: rgba(var(--bb-tan-rgb), 0.12);
+    background: rgba(var(--bb-tan-rgb), 0.07);
+    box-shadow: var(--bb-depth-0);
     border-radius: var(--bb-radius-xs);
     padding: 1px var(--bb-space-1);
 }

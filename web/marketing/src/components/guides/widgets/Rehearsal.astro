@@ -52,12 +52,14 @@ const L = {
                 <Input fill data-rh-args value={L.argsDefault} maxlength={80} />
             </label>
         </div>
-        <div class="rh__out">
-            <Label mono as="span">{L.outputLabel}</Label>
-            <p class="rh__line" data-rh-output aria-live="polite">
-                <b class="rh__bot">{L.botName}</b>
-                <span data-rh-content>{L.outputDefault}</span>
-            </p>
+        <Label mono as="span">{L.outputLabel}</Label>
+        <div class="bb-chat">
+            <div class="bb-chat__feed">
+                <p class="bb-chat__line" data-rh-output aria-live="polite">
+                    <b class="bb-chat__name bb-chat__name--bot">{L.botName}</b>
+                    <span class="bb-chat__msg" data-rh-content>{L.outputDefault}</span>
+                </p>
+            </div>
         </div>
         <Text size="xs" tone="muted">{L.builderNote}{' '}<TextLink variant="inline" href={L.builderHref}>{L.builderLinkText}</TextLink></Text>
         <template data-rh-pill><Badge shape="pill" tone="paid">{L.pillLabel}</Badge></template>
@@ -76,31 +78,6 @@ const L = {
     .rh__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .rh__field { display: grid; gap: 5px; min-width: 0; }
     .rh__field--wide { grid-column: 1 / -1; }
-
-    .rh__out {
-        display: grid;
-        gap: 8px;
-        padding-top: 4px;
-        border-top: 1px solid var(--bb-border);
-    }
-
-    .rh__line {
-        margin: 0;
-        font-family: var(--bb-font-body);
-        font-size: 0.92rem;
-        line-height: 1.6;
-        color: rgba(var(--bb-white-rgb), 0.9);
-        transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo),
-            transform var(--bb-dur-fast) var(--bb-ease-out-expo);
-    }
-
-    .rh__line.is-updating { opacity: 0; transform: translateX(12px); }
-    .rh__bot { color: var(--bb-green-glow); margin-right: 6px; }
-
-    @media (prefers-reduced-motion: reduce) {
-        .rh__line { transition: none; }
-        .rh__line.is-updating { opacity: 1; transform: none; }
-    }
 
     @media (max-width: 520px) {
         .rh__grid { grid-template-columns: 1fr; }
@@ -181,8 +158,9 @@ const L = {
             const segments = expand(response!.value, who!.value, args!.value, counterSample);
             content!.replaceChildren(...segments.map((seg) => (seg.pill ? makePill() : document.createTextNode(seg.text))));
             if (animate && !reduceMotion) {
-                line!.classList.add('is-updating');
-                requestAnimationFrame(() => line!.classList.remove('is-updating'));
+                content!.classList.remove('bb-chat__reply');
+                void content!.offsetWidth;
+                content!.classList.add('bb-chat__reply');
             }
         }
 

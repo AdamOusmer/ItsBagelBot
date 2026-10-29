@@ -1,0 +1,22 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/step-card.css';
+import Card from './Card.astro';
+import Eyebrow from './Eyebrow.astro';
+import Heading from './Heading.astro';
+import Text from './Text.astro';
+
+interface Props extends Omit<HTMLAttributes<'div'>, 'index' | 'title' | 'class'> {
+    index: number;
+    title?: string;
+    class?: string;
+}
+
+const { index, title, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-step-card', className].filter(Boolean).join(' ');
+---
+
+<li><Card atmo hover class={classes} {...rest}><Eyebrow aria-hidden="true">{String(index).padStart(2, '0')}</Eyebrow>{title && <Heading level={5} as="h3" class="bb-step-card__title"><span data-fit="block">{title}</span></Heading>}<Text size="sm" tone="muted" class="bb-step-card__body"><span data-fit="block"><slot /></span></Text></Card></li>

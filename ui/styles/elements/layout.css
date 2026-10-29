@@ -9,8 +9,10 @@
         width: 100%;
         max-width: var(--container-max);
         margin-inline: auto;
-        padding-inline: 24px;
+        padding-inline: var(--container-pad, 24px);
     }
+
+    .bb-container--hero { --container-max: var(--bb-content-hero); }
 
     .bb-container--narrow { --container-max: var(--bb-content-narrow); }
 
@@ -25,6 +27,7 @@
 
     .bb-section--sm { --section-pad: clamp(var(--bb-space-5), 5vw, var(--bb-space-7)); }
     .bb-section--lg { --section-pad: clamp(var(--bb-space-8), 11vw, 140px); }
+    .bb-section--band { --section-pad: var(--bb-space-section-sm); }
     .bb-section--flush { --section-pad: 0; }
     .bb-section--page { --section-pad: var(--bb-space-section); }
 

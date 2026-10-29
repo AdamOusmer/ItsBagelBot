@@ -42,6 +42,7 @@
     type ModuleState
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import ModuleIndexRow from '$lib/components/modules/ModuleIndexRow.svelte';
 
   let { data } = $props();
@@ -202,6 +203,7 @@
         />
       </div>
     </div>
+    <Divider flush />
   </div>
 
   <div class="find-help">
@@ -276,11 +278,13 @@
     position: sticky;
     top: var(--bb-topbar-height);
     z-index: 5;
-    padding: 10px 0 14px;
+    padding: 10px 0 0;
     margin: 0 0 10px;
     background: var(--bb-bg-0);
-    border-bottom: 1px solid var(--bb-border);
+    display: grid;
+    gap: 14px;
   }
+  .find-row { margin-top: 0; }
   .find-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
   .find { flex: 1; min-width: 0; position: relative; }
   .status-filter { flex: none; }

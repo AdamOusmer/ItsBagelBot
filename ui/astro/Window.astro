@@ -1,0 +1,17 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/window.css';
+
+interface Props extends Omit<HTMLAttributes<'div'>, 'class'> {
+    class?: string;
+}
+
+const { class: className = '', ...rest } = Astro.props;
+const classes = ['bb-window', className].filter(Boolean).join(' ');
+const hasActions = Astro.slots.has('actions');
+---
+
+<div class={classes} {...rest}><div class="bb-window__bar"><div class="bb-window__title"><slot name="title" /></div>{hasActions && <div class="bb-window__actions"><slot name="actions" /></div>}</div><div class="bb-window__body"><slot /></div></div>
