@@ -1,0 +1,328 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Icon from '@bagel/ui/astro/Icon.astro';
+import LightField from '@bagel/ui/astro/LightField.astro';
+import BolotaSvg from '../BolotaSvg.astro';
+import Tiers from './Tiers.astro';
+import { staticBolota } from '../../lib/bolota';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const KOFI_URL = 'https://ko-fi.com/Q8P121QNHK';
+
+const t = useTranslations(getLangFromUrl(Astro.url));
+const titleWords = t('pricing.eyebrow').split(' ');
+const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val', 88, 'green'), staticBolota('caramel_cass', 64, 'tan')];
+---
+
+<section class="stage">
+    <div class="starfield" aria-hidden="true"><LightField class="bb-light-field--bleed" /></div>
+    <div class="bg" aria-hidden="true">
+        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
+        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
+    </div>
+
+    <div class="wrap">
+        <h1 class="title" data-pricing-title><span data-fit>{titleWords.map((word, i) => (
+            <>{i > 0 && ' '}<span class="word" data-pricing-word>{word}</span></>
+        ))}</span></h1>
+
+        <Tiers />
+
+        <p class="oath" data-reveal><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><span data-fit>{t('pricingTiers.oath')}</span></span></p>
+
+        <div class="donate" data-reveal>
+            <div class="donate__crowd" aria-hidden="true">
+                {donors.map((donor) => (
+                    <BolotaSvg bolota={donor} class="donate__face" style={`--s: ${donor.size}px`} expression="love" />
+                ))}
+            </div>
+            <span class="donate__label"><span data-fit>{t('pricing.donateLabel')}</span></span>
+            <h2 class="donate__title"><span data-fit="block">{t('pricing.donateTitle')}</span></h2>
+            <p class="donate__text"><span data-fit="block">{t('pricing.donateText')}</span></p>
+            <ButtonLink class="donate__cta" href={KOFI_URL} target="_blank" rel="noopener noreferrer"><span data-fit>{t('pricing.donateCta')}</span></ButtonLink>
+            <span class="donate__note"><span data-fit>{t('pricing.donateNote')}</span></span>
+        </div>
+    </div>
+</section>
+
+<script>
+    import { animate, stagger, cubicBezier } from 'motion';
+    import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+    import type { EngineHandle } from '@luzir/bolota/engine';
+
+    const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'shy', 'love'];
+    const EXPRESSION_MIN_MS = 2600;
+    const EXPRESSION_SPREAD_MS = 3400;
+    const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
+
+    interface Live {
+        svg: SVGSVGElement;
+        handle: EngineHandle;
+        timer: ReturnType<typeof setTimeout> | null;
+    }
+
+    let engines: Live[] = [];
+    let mounting = false;
+
+    function titleIntro(): void {
+        const h1 = document.querySelector<HTMLElement>('[data-pricing-title]');
+        if (!h1 || h1.dataset.motionReady === 'true') return;
+        h1.dataset.motionReady = 'true';
+        if (prefersReducedMotion()) return;
+        animate(
+            h1.querySelectorAll<HTMLElement>('[data-pricing-word]'),
+            {
+                transform: ['translateY(112%) rotate(3deg)', 'translateY(0%) rotate(0deg)'],
+                opacity: [0, 1],
+                filter: ['blur(8px)', 'blur(0px)'],
+            },
+            { delay: stagger(0.11, { startDelay: 0.3 }), duration: 0.9, ease: easeOutQuint },
+        );
+    }
+
+    function scheduleExpression(live: Live, delayMs: number): void {
+        live.timer = setTimeout(() => {
+            live.handle.setExpression(EXPRESSIONS[Math.floor(Math.random() * EXPRESSIONS.length)]);
+            scheduleExpression(live, EXPRESSION_MIN_MS + Math.random() * EXPRESSION_SPREAD_MS);
+        }, delayMs);
+    }
+
+    function startExpressions(live: Live): void {
+        const fixed = live.svg.dataset.expression;
+        if (fixed) live.handle.setExpression(fixed);
+        else scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
+    }
+
+    async function mountBolotas(): Promise<void> {
+        if (engines.length || mounting || prefersReducedMotion()) return;
+        const svgs = Array.from(document.querySelectorAll<SVGSVGElement>('.stage [data-live-bolota]'));
+        if (!svgs.length) return;
+        mounting = true;
+        const { mountEngine } = await import('@luzir/bolota/engine');
+        if (!mounting) return;
+
+        engines = svgs.map((svg) => {
+            const handle = mountEngine(svg, svg.dataset.liveBolota ?? 'oven_fresh', {
+                size: Number(svg.dataset.size) || 100,
+                palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+                background: false,
+            });
+            svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
+            handle.loop('idle');
+            const live: Live = { svg, handle, timer: null };
+            startExpressions(live);
+            return live;
+        });
+        mounting = false;
+    }
+
+    function unmountBolotas(): void {
+        mounting = false;
+        engines.forEach((live) => {
+            if (live.timer) clearTimeout(live.timer);
+            live.handle.destroy();
+            live.svg.querySelector('[data-pose]')?.removeAttribute('display');
+        });
+        engines = [];
+    }
+
+    function setup(): void {
+        titleIntro();
+        void mountBolotas();
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+    document.addEventListener('astro:before-swap', unmountBolotas);
+    window.addEventListener('pagehide', unmountBolotas);
+</script>
+
+<style>
+    .stage {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        padding: calc(var(--nav-offset) + var(--bb-space-8)) 0 var(--bb-space-section);
+    }
+
+    .starfield,
+    .bg {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    .bg { overflow: hidden; }
+
+    .orb { --bb-orb-opacity: 0.16; }
+
+    .orb-1 {
+        width: 520px;
+        height: 520px;
+        top: -140px;
+        right: -80px;
+    }
+
+    .orb-2 {
+        width: 420px;
+        height: 420px;
+        bottom: -120px;
+        left: -100px;
+        --bb-orb-pulse-delay: 400ms;
+    }
+
+    .wrap {
+        width: min(100% - 32px, 1080px);
+        margin-inline: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .title {
+        display: flex;
+        width: 100%;
+        height: calc(1lh + 0.08em);
+        margin: 0 0 var(--bb-space-8);
+        font-family: var(--bb-font-display);
+        font-size: clamp(1.9rem, 3.4vw, 2.75rem);
+        font-weight: 500;
+        letter-spacing: var(--bb-tracking-display);
+        line-height: 1.04;
+        overflow: hidden;
+    }
+
+    .word {
+        display: inline-block;
+        transform-origin: 20% 90%;
+        background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
+    }
+
+    .oath {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--bb-space-2);
+        margin: 0;
+        padding-top: var(--bb-space-5);
+        font-size: var(--bb-text-sm);
+        color: var(--bb-muted);
+    }
+
+    .oath :global(.oath__check) {
+        flex: none;
+        color: var(--bb-green-glow);
+    }
+
+    .oath__text {
+        display: flex;
+        width: min(100% - 24px, 30rem);
+    }
+
+    .donate {
+        position: relative;
+        isolation: isolate;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--bb-space-4);
+        margin-top: calc(var(--bb-space-section) * 0.8);
+        padding: var(--bb-space-8) var(--bb-space-6) var(--bb-space-7);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-lg);
+        background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-surface-raised);
+        box-shadow: var(--bb-depth-2);
+        text-align: center;
+    }
+
+    .donate__crowd {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        display: flex;
+        align-items: flex-end;
+        transform: translate(-50%, -62%);
+        pointer-events: none;
+    }
+
+    .donate__crowd :global(.donate__face) {
+        display: block;
+        width: var(--s);
+        height: var(--s);
+        overflow: visible;
+    }
+
+    .donate__crowd :global(.donate__face + .donate__face) { margin-left: -12px; }
+
+    .donate__label {
+        display: flex;
+        justify-content: center;
+        width: min(100%, 16rem);
+        font-size: var(--bb-text-md);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--bb-green-glow);
+        text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+    }
+
+    .donate__title {
+        width: min(100%, 22ch);
+        height: calc(2 * 1lh);
+        margin: var(--bb-space-2) 0 0;
+        font-family: var(--bb-font-display);
+        font-size: clamp(1.7rem, 3vw, 2.4rem);
+        font-weight: 500;
+        letter-spacing: var(--bb-tracking-display);
+        line-height: 1.1;
+        color: var(--bb-paper);
+        text-wrap: balance;
+    }
+
+    .donate__text {
+        width: min(100%, 54ch);
+        height: calc(3 * 1lh);
+        margin: 0;
+        font-size: clamp(1.05rem, 1.5vw, 1.2rem);
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+        color: var(--bb-muted-light);
+        text-wrap: pretty;
+    }
+
+    .donate :global(.donate__cta) {
+        --btn-w: 240px;
+        --btn-min-h: 48px;
+        margin-top: var(--bb-space-3);
+    }
+
+    .donate__note {
+        display: flex;
+        justify-content: center;
+        width: min(100%, 24rem);
+        font-size: var(--bb-text-xs);
+        color: var(--bb-muted);
+    }
+
+    @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+        .word {
+            opacity: 0;
+            transform: translateY(112%) rotate(3deg);
+        }
+    }
+
+    @media (max-width: 760px) {
+        .stage { padding-top: calc(var(--nav-offset) + var(--bb-space-6)); }
+        .title { margin-bottom: var(--bb-space-7); }
+        .donate { padding: var(--bb-space-7) var(--bb-space-5) var(--bb-space-6); }
+        .donate__text { height: calc(6 * 1lh); }
+        .donate :global(.donate__cta) { --btn-w: 100%; }
+        .donate__title { height: calc(3 * 1lh); }
+    }
+</style>

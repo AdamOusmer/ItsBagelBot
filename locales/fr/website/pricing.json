@@ -1,7 +1,10 @@
 {
   "eyebrow": "Tarifs",
-  "title": "Chaque fonctionnalité terminée est sur le forfait gratuit.",
-  "desc": "Premium place votre chaîne en tête de file quand le chat est chargé, ouvre les modules bêta en premier et paie les serveurs.",
   "metaTitle": "Bot Twitch gratuit et tarifs Premium | ItsBagelBot",
-  "metaDesc": "Comparez Free, Premium et Enterprise. Les fonctions sorties de bêta sont gratuites; Premium offre un traitement prioritaire et les modules bêta."
+  "metaDesc": "Comparez Free, Premium et Enterprise. Les fonctions sorties de bêta sont gratuites; Premium offre un traitement prioritaire et les modules bêta.",
+  "donateLabel": "Dons",
+  "donateTitle": "Grâce aux dons, le forfait Gratuit reste gratuit.",
+  "donateText": "Chaque chaîne, gratuite ou Premium, fonctionne sur les mêmes serveurs. Le Premium et les dons servent à les payer, alors un don sur Ko-fi garde le bot en ligne pour tout le monde.",
+  "donateCta": "Donner sur Ko-fi",
+  "donateNote": "N’importe quel montant. Aucun avantage en échange."
 }
