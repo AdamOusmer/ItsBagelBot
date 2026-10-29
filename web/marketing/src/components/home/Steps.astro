@@ -4,7 +4,6 @@
 
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 import Heading from '@bagel/ui/astro/Heading.astro';
-import LightField from '@bagel/ui/astro/LightField.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 
@@ -31,7 +30,6 @@ const steps = [
 ---
 
 <Section size="page" class="steps" id="how">
-    <LightField class="bb-light-field--bleed" />
     <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
 
     <ol class="steps__list" data-reveal>

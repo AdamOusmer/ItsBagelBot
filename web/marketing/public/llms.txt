@@ -13,7 +13,7 @@ For setup help, start with https://ai.itsbagelbot.com/llms.txt and select the re
 - [Enterprise plan](https://itsbagelbot.com/pricing/): custom pricing for dedicated hardware, multi-streamer management, custom terms and an account manager, with Premium features included.
 - [Twitch connection](https://itsbagelbot.com/guides/getting-started/): sign in with Twitch and connect the channel before configuring the bot; some actions require additional Twitch permissions.
 - [Spotify prerequisites](https://itsbagelbot.com/guides/spotify-song-requests/): song requests are free in ItsBagelBot, but Spotify Premium is required for both the connected account and the account owning the streamer's Spotify developer app; Spotify must be playing on a device.
-- [Govee prerequisites](https://itsbagelbot.com/guides/govee-lights/): requires a Govee Home account, compatible colour-changing lights already set up in the app, a Govee API key and access to Twitch custom channel-point rewards.
+- [Govee prerequisites](https://itsbagelbot.com/guides/govee-lights/): requires a Govee Home account, colour-changing Wi-Fi lights already set up in the app (Bluetooth-only lights have no API access), a Govee API key and access to Twitch custom channel-point rewards.
 - [Game account identifiers](https://itsbagelbot.com/guides/data-sources/): game lookups use the relevant player identifier, such as a Riot ID with its #tag, an Epic display name, a Minecraft account, a Clash Royale player tag or a CODM Global UID or exact nickname.
 
 ## Features

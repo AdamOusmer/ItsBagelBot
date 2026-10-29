@@ -1,0 +1,127 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+interface Props {
+    tone?: 'green' | 'tan';
+}
+
+const { tone = 'green' } = Astro.props;
+---
+
+<div class="seam" data-tone={tone} aria-hidden="true">
+    <i class="seam__glow"></i>
+    <i class="seam__line"></i>
+    <i class="seam__node"></i>
+</div>
+
+<style>
+    .seam {
+        --seam-rgb: var(--bb-green-glow-rgb);
+        position: relative;
+        height: 0;
+        pointer-events: none;
+    }
+
+    .seam[data-tone='tan'] {
+        --seam-rgb: var(--bb-tan-rgb);
+    }
+
+    .seam > i {
+        position: absolute;
+        top: 0;
+    }
+
+    .seam__glow {
+        left: 50%;
+        z-index: -1;
+        width: min(1200px, 92vw);
+        height: 520px;
+        translate: -50% -50%;
+        border-radius: 50%;
+        background: radial-gradient(
+            ellipse at center,
+            rgba(var(--seam-rgb), 0.11),
+            rgba(var(--seam-rgb), 0.04) 40%,
+            transparent 70%
+        );
+        filter: blur(30px);
+    }
+
+    .seam__line {
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(var(--seam-rgb), 0.35) 35%,
+            rgba(var(--seam-rgb), 0.35) 65%,
+            transparent
+        );
+    }
+
+    .seam__node {
+        left: 50%;
+        width: 13px;
+        height: 13px;
+        translate: -50% -50%;
+        border-radius: 50%;
+        background:
+            radial-gradient(circle, rgba(var(--seam-rgb), 0.9) 0 2px, transparent 3px),
+            var(--bb-black);
+        box-shadow:
+            0 0 0 1px rgba(var(--seam-rgb), 0.5),
+            0 0 18px rgba(var(--seam-rgb), 0.45);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .seam__glow {
+            animation: seam-float 14s ease-in-out infinite alternate;
+        }
+
+        @supports (animation-timeline: view()) {
+            .seam__glow {
+                animation:
+                    seam-float 14s ease-in-out infinite alternate,
+                    seam-glow linear both;
+                animation-timeline: auto, view();
+                animation-range: normal, cover 0% cover 100%;
+            }
+
+            .seam__line {
+                animation: seam-draw linear both;
+                animation-timeline: view();
+                animation-range: cover 0% cover 55%;
+            }
+
+            .seam__node {
+                animation: seam-node linear both;
+                animation-timeline: view();
+                animation-range: cover 20% cover 55%;
+            }
+        }
+    }
+
+    @keyframes seam-float {
+        from { transform: translateX(-4%) scale(0.96); }
+        to { transform: translateX(4%) scale(1.04); }
+    }
+
+    @keyframes seam-glow {
+        0% { opacity: 0; }
+        35%, 65% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    @keyframes seam-draw {
+        from { transform: scaleX(0); opacity: 0; }
+        to { transform: scaleX(1); opacity: 1; }
+    }
+
+    @keyframes seam-node {
+        from { scale: 0; opacity: 0; }
+        70% { scale: 1.25; opacity: 1; }
+        to { scale: 1; opacity: 1; }
+    }
+</style>
