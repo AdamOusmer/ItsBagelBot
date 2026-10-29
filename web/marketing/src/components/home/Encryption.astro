@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { SITE } from '@bagel/kit/site-links';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
@@ -40,15 +41,25 @@ const CODE_LINES = [
             </div>
         </HaloPanel>
 
-        <HaloPanel as="article" tone="gold" class="enc__card">
+        <HaloPanel
+            tone="gold"
+            href={SITE.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="enc__card enc__card--link"
+            data-cursor="quiet"
+        >
             <div class="enc__inner" data-reveal style="--reveal-i: 1">
                 <div class="enc__demo enc__demo--code" aria-hidden="true">
                     <div class="code__win">
-                        <span class="code__dots"><i></i><i></i><i></i></span>
+                        <span class="code__bar">
+                            <span class="code__dots"><i></i><i></i><i></i></span>
+                            <span class="code__go" data-cursor>↗</span>
+                        </span>
                         {CODE_LINES.map((line) => (
                             <span class="code__line" style={`--w: ${line.width}%; --indent: ${line.indent}px`}></span>
                         ))}
-                        <span class="code__scan"></span>
+                        <span class="code__caret"></span>
                     </div>
                 </div>
                 <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p3Eyebrow')}</span></Eyebrow>
@@ -193,10 +204,41 @@ const CODE_LINES = [
         background: rgba(var(--bb-white-rgb), 0.02);
     }
 
+    .code__bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
     .code__dots {
         display: flex;
         gap: 5px;
-        margin-bottom: 6px;
+    }
+
+    .code__go {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        font-size: var(--bb-text-sm);
+        color: var(--bb-muted);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-pill);
+        transition:
+            color var(--bb-dur-fast) ease,
+            border-color var(--bb-dur-fast) ease,
+            background-color var(--bb-dur-fast) ease;
+    }
+
+    .enc__card--link:hover .code__go {
+        color: var(--bb-black);
+        background: var(--bb-white);
+        border-color: var(--bb-white);
+    }
+
+    .enc__card--link:focus-visible .code__go {
+        border-color: var(--bb-green-glow);
     }
 
     .code__dots i {
@@ -218,12 +260,12 @@ const CODE_LINES = [
         background: rgba(var(--bb-green-glow-rgb), 0.35);
     }
 
-    .code__scan {
-        position: absolute;
-        inset: 0 0 auto;
-        height: 40px;
-        background: linear-gradient(to bottom, transparent, rgba(var(--bb-tan-rgb), 0.12), transparent);
-        animation: enc-scan 3.2s ease-in-out infinite;
+    .code__caret {
+        width: 7px;
+        height: 12px;
+        border-radius: 1px;
+        background: var(--bb-tan);
+        animation: enc-blink 1.1s steps(1) infinite;
     }
 
     @keyframes enc-spin {
@@ -242,9 +284,8 @@ const CODE_LINES = [
         100% { transform: translateX(calc(100% + 48px)); opacity: 0; }
     }
 
-    @keyframes enc-scan {
-        from { transform: translateY(-40px); }
-        to { transform: translateY(170px); }
+    @keyframes enc-blink {
+        50% { opacity: 0; }
     }
 
     @media (min-width: 1024px) {
@@ -266,8 +307,12 @@ const CODE_LINES = [
     @media (prefers-reduced-motion: reduce) {
         .lock__ring,
         .lock__lane,
-        .code__scan {
+        .code__caret {
             animation: none;
+        }
+
+        .code__go {
+            transition: none;
         }
 
         .lock__lane {
