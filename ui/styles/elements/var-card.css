@@ -92,6 +92,23 @@
   .bb-var-card__insert code { color: var(--bb-tan-light); font: 11px var(--bb-font-mono); }
   .bb-var-card__insert .bb-var-card__plus { width: 20px; height: 20px; }
 
+  .bb-var-card--list {
+    grid-template-columns: auto minmax(0, 1fr) 25px;
+    gap: 8px;
+    padding: 6px 8px;
+    width: 100%;
+  }
+  .bb-var-card--list.bb-var-card--static { grid-template-columns: auto minmax(0, 1fr); }
+  .bb-var-card--list .bb-var-card__token { grid-area: auto; }
+  .bb-var-card--list .bb-var-card__body { grid-area: auto; gap: 2px; }
+  .bb-var-card--list .bb-var-card__body small { height: auto; }
+  .bb-var-card--list .bb-var-card__plus { grid-area: auto; width: 20px; height: 20px; }
+  @media (max-width: 700px) {
+    .bb-var-card--list { grid-template-columns: minmax(0, 1fr) 25px; }
+    .bb-var-card--list.bb-var-card--static { grid-template-columns: minmax(0, 1fr); }
+    .bb-var-card--list .bb-var-card__body { grid-column: 1 / -1; }
+  }
+
   small.bb-var-card__hint { display: block; height: calc(2 * 1lh); color: var(--bb-muted); font: 11.5px/1.5 var(--bb-font-body); }
 
   @media (max-width: 700px) {

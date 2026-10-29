@@ -328,8 +328,8 @@
                     </Field>
                   </Grid>
                 </div>
-                <Card glass flush>
-                  <div class="well"><CommitList commits={shown?.commits ?? []} since={shown?.last_tag ?? '-'} open /></div>
+                <Card glass style="--card-pad: var(--bb-space-2) var(--bb-space-4)">
+                  <CommitList commits={shown?.commits ?? []} since={shown?.last_tag ?? '-'} open />
                 </Card>
               </Stack>
             {:else if current === 'rollback'}
@@ -424,9 +424,6 @@
     display: flex;
     align-items: center;
     height: 38px;
-  }
-  .well {
-    padding: var(--bb-space-2) var(--bb-space-4);
   }
 
   .back.gone {

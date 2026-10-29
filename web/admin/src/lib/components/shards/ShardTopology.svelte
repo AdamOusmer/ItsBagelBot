@@ -4,6 +4,7 @@
   import type { IngressCapacity, ShardSnapshot, TrialSocket } from '@bagel/kit';
   import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import Badge from '@bagel/ui/svelte/Badge.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -54,7 +55,7 @@
       <div class="network-body">
         <div class="network-head">
           <div class="stack"><Heading level={6} as="h3" id="production-title"><span class="path-mark" aria-hidden="true"></span>{t('admin.shards.production')}</Heading><Text size="xs" tone="muted">{t('admin.shards.productionHint')}</Text></div>
-          <span class="network-count">{snapshot.shards.length}</span>
+          <Badge shape="pill" tone="neutral">{snapshot.shards.length}</Badge>
         </div>
         <div class="hub">
           <Card>
@@ -103,7 +104,7 @@
         <div class="network-body">
           <div class="network-head">
             <div class="stack"><Heading level={6} as="h3" id="trials-title"><span class="path-mark" aria-hidden="true"></span>{t('admin.shards.trialConnections')}</Heading><Text size="xs" tone="muted">{t('admin.shards.trialsHint')}</Text></div>
-            <span class="network-count">{trials === null ? '-' : channels.length}</span>
+            <Badge shape="pill" tone="neutral">{trials === null ? '-' : channels.length}</Badge>
           </div>
           <div class="hub">
             <Card dashed>
@@ -181,7 +182,6 @@
   .network-body { --card-pad: var(--bb-space-4); --card-border: var(--wire); --card-bg: var(--bb-card-bg); }
   .network-head { display: flex; justify-content: space-between; align-items: start; gap: var(--bb-space-3); margin-bottom: var(--bb-space-5); }
   .path-mark { display: inline-block; vertical-align: middle; width: 18px; height: 0; margin-right: var(--bb-space-2); border-top: 2px var(--line-style) var(--path); }
-  .network-count { flex: none; min-width: 30px; text-align: center; padding: var(--bb-space-1) var(--bb-space-2); border: 1px solid var(--wire); border-radius: var(--bb-radius-xs); color: var(--path); font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); }
   .hub { width: fit-content; max-width: 100%; margin-left: 18px; }
   .hub-body { display: flex; align-items: center; gap: var(--bb-space-3); }
   .hub-icon { color: var(--path); font-size: 29px; line-height: 1; }

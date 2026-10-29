@@ -12,6 +12,7 @@
   import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Kbd from '@bagel/ui/svelte/Kbd.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -785,22 +786,26 @@
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
     {#snippet trailing()}
+      <div class="deck-stat-block">
+      <Divider flush />
       <dl class="deck-stats">
         <div class="ds-cell">
           <dt><Label mono as="span">{t('commands.statActive')}</Label></dt>
           <dd><span class="big">{activeCount}</span><Text as="span" size="xs" mono tone="muted">/{items.length}</Text></dd>
         </div>
-        <div class="ds-rule" aria-hidden="true"></div>
+        <Divider vertical flush />
         <div class="ds-cell">
           <dt><Label mono as="span">{t('commands.statFires')}</Label></dt>
           <dd><span class="big">{formatCounterValue(fires.toString())}</span></dd>
         </div>
-        <div class="ds-rule" aria-hidden="true"></div>
+        <Divider vertical flush />
         <div class="ds-cell">
           <dt><Label mono as="span">{t('commands.statBusiest')}</Label></dt>
           <dd><Text as="span" mono tone="accent">{busiest ? `!${busiest.name}` : t('commands.statNone')}</Text></dd>
         </div>
       </dl>
+      <Divider flush />
+      </div>
       {#if data.publicPage}
         <div class="public-page"><PublicPageChip on={data.publicPage.on} url={data.publicPage.url} /></div>
       {/if}
@@ -1023,11 +1028,8 @@
     gap: 26px;
     margin: 0;
     padding: 14px 0;
-    border-top: 1px solid var(--bb-border);
-    border-bottom: 1px solid var(--bb-border);
   }
   .ds-cell { white-space: nowrap; }
-  .ds-rule { width: 1px; align-self: stretch; background: var(--bb-border); }
   .deck-stats dt { margin-bottom: 6px; }
   .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
   .deck-stats .big {

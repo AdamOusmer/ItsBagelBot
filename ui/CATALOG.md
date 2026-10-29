@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **116** blocks;
+Every block the library ships, by family. **117** blocks;
 **103** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 116 times
+omitted: nearly every block takes both, and listing them 117 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -150,6 +150,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
+| **VarCard** | `token*`: string<br>`hint`: string<br>`title`: string<br>`onclick`: () => void<br>`onfocus`: () => void | svelte<br>*Svelte only: the compact list form of the variable card; Astro pages build the full card from the `bb-var-card` classes.* | svelte-only | `styles/elements/var-card.css` |
 
 ## Motion
 

@@ -51,6 +51,7 @@
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import { warmOnIntent } from '$lib/warm-on-intent';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   const loadSpotifyRewardEditor = () => import('$lib/components/spotify/SpotifyRewardEditor.svelte');
   import {
     spotifyDraftFor,
@@ -578,6 +579,7 @@
               onchange: (liveOnly) => { redeem.allowOffline = !liveOnly; redeemToggled(); }
             })}
           </form>
+          <Divider flush />
           <div class="reward-slot">
             <SpotifyRewardRow
               {redeem}
@@ -708,7 +710,6 @@
   }
   .reward-slot {
     margin: 0 -4px;
-    border-top: 1px solid var(--bb-border);
     padding-top: 4px;
   }
   @media (min-width: 1080px) {

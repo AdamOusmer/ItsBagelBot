@@ -38,6 +38,7 @@
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
   import { MATCH_KEY, TriggerRules } from '$lib/components/modules/trigger-rules.svelte';
   import TimezonePicker from '$lib/components/modules/TimezonePicker.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
 
   let { data } = $props();
 
@@ -448,6 +449,7 @@
         {/if}
       </div>
       {#if !enabled}
+        <Divider flush />
         <div class="disabled-note"><Text size="sm" tone="muted">{t('modules.disabledNote')}</Text></div>
       {/if}
     </Card>
@@ -467,6 +469,7 @@
         </div>
         {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
           {@const needs = requiredDef(field)}
+          <Divider flush />
           {#if field.type === 'toggle'}
             <div class="setting-row toggle">
               <SwitchRow
@@ -544,6 +547,7 @@
             </div>
           {/if}
           {#if needs}
+            <Divider flush />
             <div class="disabled-note">
               <AlertBanner tone="warning" stack>
                 {t('modules.settingNeeds', { module: tModuleLabel(t, needs) })}
@@ -570,6 +574,7 @@
             {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
             <Button variant="ghost" onclick={() => rulesCtl.add()} disabled={locked}>{t('modules.addTrigger')}</Button>
           </div>
+          <Divider flush />
           {#if ruleRows.length}
             <ul class="list" aria-label={t('modules.triggerRulesTitle')}>
               {#each ruleRows as reply, i (reply.key)}
@@ -602,6 +607,7 @@
               </div>
             {/if}
           </div>
+          <Divider flush />
           <ul class="list" aria-label={t('modules.repliesLabel')}>
             {#each visibleReplies as { reply, i } (reply.key)}
               <li>
@@ -723,7 +729,6 @@
 
   .disabled-note {
     padding: 12px 18px 16px;
-    border-top: 1px solid var(--bb-border);
   }
 
   .section-head {
@@ -731,7 +736,6 @@
     align-items: center;
     gap: 12px;
     padding: 12px 18px;
-    border-bottom: 1px solid var(--bb-border);
   }
 
   .setting-row {
@@ -740,7 +744,6 @@
     align-items: center;
     gap: 12px;
     padding: 14px 18px;
-    border-top: 1px solid var(--bb-border);
   }
   .setting-picker { width: min(260px, 44vw); }
 

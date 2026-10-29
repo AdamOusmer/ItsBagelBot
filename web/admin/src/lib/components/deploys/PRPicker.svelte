@@ -1,9 +1,9 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import Card from '@bagel/ui/svelte/Card.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -34,9 +34,7 @@
 </script>
 
 {#if prs.length === 0}
-  <Card glass flush>
-    <div class="empty"><Text size="sm" tone="muted">{t('admin.deploys.prsEmpty')}</Text></div>
-  </Card>
+  <EmptyState title={t('admin.deploys.prsEmpty')} />
 {:else}
   <DeckList as="ul" aria-label={t('admin.deploys.prs')}>
     {#each prs as pr (pr.number)}
@@ -69,9 +67,6 @@
 {/if}
 
 <style>
-  .empty {
-    padding: var(--bb-space-2) var(--bb-space-4);
-  }
   .pick {
     --bb-check-flex: 1;
     --bb-check-label-min-width: 0;

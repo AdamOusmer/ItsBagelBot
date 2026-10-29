@@ -4,6 +4,7 @@
   import { deserialize } from '$app/forms';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
@@ -148,6 +149,7 @@
         </ul>
       {/if}
 
+      <Divider flush />
       <div class="new-head"><Label mono as="span">{t('counters.pickerNew')}</Label></div>
       <Input
         aria-label={t('counters.fieldName')}
@@ -169,7 +171,7 @@
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  .new-head { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--bb-border); }
+  .new-head { margin-top: 4px; }
 
   .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 
