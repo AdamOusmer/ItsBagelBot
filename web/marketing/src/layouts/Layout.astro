@@ -20,14 +20,13 @@ import Footer from '@bagel/ui/astro/Footer.astro'
 import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro'
 import {
     SITE_NAV,
-    SITE_FOOTER,
-    SITE_LEGAL,
     dashboardHref,
     linkLocale,
     resolveSiteLinks,
-    resolveSiteColumns,
+    siteNavProps,
     type SiteLinkContext,
 } from '@bagel/kit/site-links'
+import { siteFooterProps } from '@bagel/kit/site-footer'
 import Brackets from '@bagel/ui/astro/Brackets.astro'
 import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro'
 import SkipLink from '@bagel/ui/astro/SkipLink.astro'
@@ -177,13 +176,26 @@ const footerContext = {
 } satisfies SiteLinkContext;
 
 const navLinks = resolveSiteLinks(SITE_NAV, navContext);
-const footerColumns = resolveSiteColumns(SITE_FOOTER, footerContext);
-const footerLegal = resolveSiteLinks(SITE_LEGAL, footerContext);
 const navLocales = localeOptions(Astro.url);
 const getAppHref = dashboardHref('/?install=1', langQuery);
 
 const navLogo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
+const navProps = siteNavProps({
+    home: localizePath("/", lang),
+    logoSrc: navLogo.src,
+    links: navLinks,
+    ctaHref: dashLoginHref(lang),
+    text: {
+        cta: t('nav.cta'),
+        aria: t('nav.primary'),
+        menuOpen: t('nav.menuOpen'),
+        menuClose: t('nav.menuClose'),
+        menu: t('menu.primary'),
+        menuMeta: t('menu.meta'),
+    },
+});
 const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
+const footer = siteFooterProps(footerContext, footerLogo.src);
 
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
 const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
@@ -284,16 +296,7 @@ const contentSecurityPolicy = [
     <main id="main-content">
         <slot/>
     </main>
-    <Nav
-        class="bb-nav--brand-lg"
-        brand={{ title: 'ItsBagelBot', href: localizePath("/", lang), logoSrc: navLogo.src, logoAlt: '' }}
-        links={navLinks}
-        cta={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        locales={navLocales}
-        label={t('nav.primary')}
-        menuLabels={{ open: t('nav.menuOpen'), close: t('nav.menuClose'), panel: t('menu.primary') }}
-        menuMeta={t('menu.meta')}
-    >
+    <Nav {...navProps} locales={navLocales}>
         <Fragment slot="mobileFooter">
             <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
             <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>
@@ -301,16 +304,7 @@ const contentSecurityPolicy = [
     </Nav>
     <ReadingProgress/>
     <Brackets/>
-    <Footer
-        brand={{ title: 'ItsBagelBot', sub: t('footer.tagline'), logoSrc: footerLogo.src, logoAlt: t('footer.logoAlt') }}
-        signoff={{ line: t('footer.signoff'), sub: t('footer.signoffSub') }}
-        columns={footerColumns}
-        legal={footerLegal}
-        copyright="© 2026 ItsBagelBot"
-        note={t('footer.note')}
-        class="bb-footer--raised"
-        studio={t('footer.studio')}
-    >
+    <Footer {...footer}>
         {isHome && <div slot="colophon" id="about">
             <p><span data-fit="block">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</span></p>
             <p><span data-fit="block">{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</span></p>

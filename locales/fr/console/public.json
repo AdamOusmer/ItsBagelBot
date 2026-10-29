@@ -15,7 +15,7 @@
     "getApp": "Installer l'app"
   },
   "footer": {
-    "signoff": "Préparé tard. Servi frais.",
+    "signoff": "Préparé tard, servi frais.",
     "signoffSub": "À bientôt dans le chat.",
     "logoAlt": "Logo ItsBagelBot",
     "tagline": "Votre stream. Vos règles.",
@@ -49,8 +49,7 @@
     "stats": "Stats",
     "status": "Statut",
     "community": "Communauté",
-    "copyright": "© 2026 ItsBagelBot",
-    "note": "Aucun traceur. Vos données ne sont jamais vendues.",
+    "note": "Vos données ne sont jamais vendues · Code source disponible sur GitHub",
     "privacy": "Politique de confidentialité",
     "terms": "Conditions d'utilisation",
     "creatorTerms": "Codes de créateur"

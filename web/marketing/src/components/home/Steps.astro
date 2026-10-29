@@ -6,7 +6,6 @@ import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 import Code from '@bagel/ui/astro/Code.astro';
 import Container from '@bagel/ui/astro/Container.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
-import LightField from '@bagel/ui/astro/LightField.astro';
 import RoundBadge from '@bagel/ui/astro/RoundBadge.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
@@ -37,7 +36,6 @@ const steps = [
 
 <Container width="hero" class="steps-wrap">
     <Section size="page" class="steps" id="how">
-        <LightField class="bb-light-field--bleed" />
         <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
 
         <Timeline rail="bridge" draw class="steps__list" data-reveal>

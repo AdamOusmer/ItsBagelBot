@@ -99,9 +99,9 @@
 
   .bb-page-hero__line {
     display: block;
-    padding-bottom: 0.12em;
-    margin-bottom: -0.12em;
-    clip-path: inset(-0.6em -100vw 0 -100vw);
+    padding: 0.6em 1em 0.5em;
+    margin: -0.6em -1em -0.5em;
+    mask-image: linear-gradient(to top, transparent, #000 0.5em);
   }
 
   .bb-page-hero__line > span {

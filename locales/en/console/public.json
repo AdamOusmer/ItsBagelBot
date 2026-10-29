@@ -15,9 +15,9 @@
     "getApp": "Get the app"
   },
   "footer": {
-    "signoff": "Baked late. Served fresh.",
+    "signoff": "Baked late, served fresh.",
     "signoffSub": "See you in chat.",
-    "logoAlt": "ItsBagelBot Logo",
+    "logoAlt": "ItsBagelBot logo",
     "tagline": "Your stream. Your rules.",
     "studio": "A Luzir Studio Project",
     "product": "Product",
@@ -49,8 +49,7 @@
     "stats": "Stats",
     "status": "Status",
     "community": "Community",
-    "copyright": "© 2026 ItsBagelBot",
-    "note": "No trackers. Your data is never sold.",
+    "note": "Your data is never sold · Source available on GitHub",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "creatorTerms": "Creator Codes"

@@ -44,9 +44,10 @@ interface Props {
     loginHref: string;
     importHref: string;
     other: { href: string; label: string };
+    related: { title: string; links: { href: string; label: string }[] };
 }
 
-const { content, labels, loginHref, importHref, other } = Astro.props;
+const { content, labels, loginHref, importHref, other, related } = Astro.props;
 const { hero, suits, rows, migrate, faq, sources, reviewed } = content;
 const columns = [
     { heading: labels.suitsUs, items: suits.us },
@@ -131,9 +132,15 @@ const columns = [
   </Container>
 </Section>
 
-<Section size="band" class="vs--last">
+<Section size="band">
   <Container>
     <LinkRow title={labels.sourcesTitle} links={sources.map((source) => ({ href: source.url, label: source.label, external: true }))} />
+  </Container>
+</Section>
+
+<Section size="band" class="vs--last">
+  <Container>
+    <LinkRow title={related.title} links={related.links} />
   </Container>
 </Section>
 

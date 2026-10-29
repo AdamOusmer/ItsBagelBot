@@ -180,6 +180,30 @@ test.describe('comparison pages', () => {
         await page.goto('/vs/streamelements/');
         await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/de/vs/streamelements/');
     });
+
+    test('each page links the other comparisons and the hub', async ({ page }) => {
+        await page.goto('/de/vs/nightbot/');
+        const links = page.locator('.vs__related a');
+        await expect(links).toHaveCount(VS_SLUGS.length);
+        await expect(links.last()).toHaveAttribute('href', '/de/vs/');
+        await expect(links.last()).toHaveAccessibleName('Alle Vergleiche');
+        await expect(page.locator('.vs__sources a').first()).toHaveAccessibleName(/\S/);
+        await expect(page.locator('.vs__related a[href="/de/vs/nightbot/"]')).toHaveCount(0);
+    });
+
+    for (const [lang, prefix] of VS_LOCALES) {
+        test(`${prefix}/vs/ hub links every comparison`, async ({ page }) => {
+            await page.goto(`${prefix}/vs/`);
+            await expect(page.locator('html')).toHaveAttribute('lang', lang);
+            for (const slug of VS_SLUGS) {
+                await expect(page.locator(`.vshub__grid a[href="${prefix}/vs/${slug}/"]`)).toHaveCount(1);
+            }
+            expect(await page.title()).toMatch(/^.{1,60}$/);
+            expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
+            const graph = JSON.parse(await page.locator('head script[type="application/ld+json"]').textContent())['@graph'];
+            expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(VS_SLUGS.length);
+        });
+    }
 });
 
 function catalogEntryCount(id) {
@@ -215,6 +239,8 @@ for (const feature of FEATURE_PAGES) {
         expect(graph.find((node) => node['@type'] === 'ItemList').numberOfItems).toBe(feature.rows);
         expect(await page.title()).toMatch(/^.{1,60}$/);
         expect(await page.locator('head meta[name="description"]').getAttribute('content')).toMatch(/^.{1,155}$/);
-        await expect(page.locator('.flrel a')).toHaveCount(3);
+        await expect(page.locator('.flrel a')).toHaveCount(4);
+        await expect(page.locator('.flrel a').last()).toHaveAttribute('href', '/vs/');
+        await expect(page.locator('.flrel a').last()).toHaveAccessibleName('Bot comparisons');
     });
 }

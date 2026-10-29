@@ -5,7 +5,6 @@
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
 import Container from '@bagel/ui/astro/Container.astro';
-import LightField from '@bagel/ui/astro/LightField.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import BentoGrid from './BentoGrid.astro';
 import FeatureCard from './FeatureCard.astro';
@@ -29,7 +28,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
 <Container class="safe-wrap">
 <Section size="page" class="safe" id="safety-layers" data-motion>
-    <LightField class="bb-light-field--bleed" />
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
         <Badge slot="badge" tone="incoming" mark="plus" class="safe__badge"><span class="safe__badge-label"><span data-fit>{t('badge.beta')}</span></span></Badge>
     </SectionHeading>

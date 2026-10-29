@@ -15,7 +15,7 @@
     "getApp": "Obtener la aplicación"
   },
   "footer": {
-    "signoff": "Horneado tarde. Servido fresco.",
+    "signoff": "Horneado tarde, servido fresco.",
     "signoffSub": "Nos vemos en el chat.",
     "logoAlt": "Logotipo de ItsBagelBot",
     "tagline": "Tu directo. Tus reglas.",
@@ -49,8 +49,7 @@
     "stats": "Estadísticas",
     "status": "Estado",
     "community": "Comunidad",
-    "copyright": "© 2026 ItsBagelBot",
-    "note": "Sin rastreadores. Tus datos nunca se venden.",
+    "note": "Tus datos nunca se venden · Código fuente disponible en GitHub",
     "privacy": "Política de privacidad",
     "terms": "Términos del servicio",
     "creatorTerms": "Códigos de creador"

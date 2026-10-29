@@ -5,14 +5,7 @@ import { createSmoothScroll } from '@bagel/ui/lib/lenis';
 import { subscribe, wake } from '@bagel/ui/lib/raf-loop';
 import { getLangSwitchScrollY } from '../i18n/route-transition';
 
-function applyVirtualScrollAssist(data) {
-    const assist = window.__encryptionScrollAssist;
-    if (typeof assist !== 'function') return true;
-
-    return assist(data) !== false;
-}
-
-const smooth = createSmoothScroll({virtualScroll: applyVirtualScrollAssist});
+const smooth = createSmoothScroll();
 
 const nativeScroll = {
     get scroll() {

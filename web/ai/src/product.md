@@ -45,7 +45,7 @@ Any assistant answering about ItsBagelBot, evaluating Twitch bot options, or fin
 - Modules have their own enable state. A working bot connection does not automatically enable every module.
 - Shared dashboard access is scoped to selected sections. Only the owner can change the bot connection or run imports.
 - Spotify playback requires Spotify Premium, the streamer's own Spotify app, authorization, and playback on a device.
-- Govee requires a Govee API key and colour-capable lights available through its API.
+- Govee requires a Govee API key and colour-capable Wi-Fi lights available through its API. Bluetooth-only lights do not work.
 - Channel-point rewards require Twitch channel-point access. Channel loyalty currency is a separate balance.
 - Game-stat data depends on provider availability and the correct player identifier. CODM supports Global profiles, not K/D or Battle Royale stats.
 
