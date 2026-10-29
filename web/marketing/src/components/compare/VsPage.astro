@@ -134,13 +134,13 @@ const columns = [
 
 <Section size="band">
   <Container>
-    <LinkRow title={labels.sourcesTitle} links={sources.map((source) => ({ href: source.url, label: source.label, external: true }))} />
+    <LinkRow title={labels.sourcesTitle} links={sources.map((source) => ({ href: source.url, label: source.label, external: true }))} class="vs__sources" />
   </Container>
 </Section>
 
 <Section size="band" class="vs--last">
   <Container>
-    <LinkRow title={related.title} links={related.links} />
+    <LinkRow title={related.title} links={related.links} class="vs__related" />
   </Container>
 </Section>
 
