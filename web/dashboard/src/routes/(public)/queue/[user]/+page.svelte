@@ -244,6 +244,7 @@
     .q-note { height: calc(4 * 1lh); }
   }
 
+  .q-page :global(.stats-layout__ranking) { grid-column: 1 / -1; }
   .q-list :global(.bb-ranking-card) { min-height: 24rem; }
 
   .q-empty {
