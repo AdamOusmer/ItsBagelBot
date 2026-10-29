@@ -42,7 +42,8 @@
 
   .bb-rail {
     border-right-color: transparent;
-    box-shadow: 1px 0 0 rgba(var(--bb-shadow-rgb), 0.35), 8px 0 28px rgba(var(--bb-shadow-rgb), 0.35);
+    background: rgba(var(--bb-shadow-rgb), 0.3);
+    box-shadow: inset -14px 0 24px -14px rgba(var(--bb-shadow-rgb), 0.7);
   }
 
   .bb-input,
