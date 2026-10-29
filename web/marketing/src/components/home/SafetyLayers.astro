@@ -3,7 +3,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
-import Badge from '@bagel/ui/astro/Badge.astro';
 import Container from '@bagel/ui/astro/Container.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import BentoGrid from './BentoGrid.astro';
@@ -29,7 +28,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 <Container class="safe-wrap">
 <Section size="page" class="safe" id="safety-layers" data-motion>
     <SectionHeading eyebrow={t('safetyLayers.eyebrow')} title={t('safetyLayers.title')}>
-        <Badge slot="badge" tone="incoming" mark="plus" class="safe__badge"><span class="safe__badge-label"><span data-fit>{t('badge.beta')}</span></span></Badge>
+        <span slot="badge" class="safe__beta"><span class="safe__beta-label"><span data-fit>{t('badge.beta')}</span></span></span>
     </SectionHeading>
 
     <BentoGrid cols={3}>
@@ -123,11 +122,20 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         z-index: 3;
     }
 
-    .safe__badge {
-        width: 64px;
+    .safe__beta {
+        display: inline-flex;
+        align-items: center;
+        width: 56px;
+        height: 24px;
+        font-family: var(--bb-font-body);
+        font-size: var(--bb-text-md);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--bb-green-glow);
+        text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
     }
 
-    .safe__badge-label {
+    .safe__beta-label {
         flex: 1 1 0;
         min-width: 0;
     }
