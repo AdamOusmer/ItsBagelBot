@@ -147,25 +147,43 @@ function forgetHeroState() {
     lastHeroComplete = null;
 }
 
-function resetRouteScroll() {
-    forgetHeroState();
-    const langSwitchScrollY = getLangSwitchScrollY();
-    if (langSwitchScrollY !== null) {
-        restoreRouteScroll(langSwitchScrollY);
+let traversing = false;
+let routeFrame = 0;
 
-        requestAnimationFrame(() => {
-            restoreRouteScroll(langSwitchScrollY);
-            scrollController.resize?.();
-        });
-        return;
-    }
+// A follow-up frame left over from the previous swap would run on the next history entry and
+// overwrite its saved position. Astro itself saves on scrollend, which a mid-scroll click beats.
+document.addEventListener('astro:before-preparation', (event) => {
+    cancelAnimationFrame(routeFrame);
+    traversing = event.navigationType === 'traverse';
+    if (!traversing) stampCurrentHistoryPosition(window.scrollX, window.scrollY);
+});
 
-    jumpToPageTop();
+function traversedScrollY() {
+    const top = history.state?.scrollY;
+    return traversing && Number.isFinite(top) ? top : null;
+}
 
-    requestAnimationFrame(() => {
-        jumpToPageTop();
+let scrolledSinceSwap = false;
+
+for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
+    window.addEventListener(type, () => { scrolledSinceSwap = true; }, {passive: true, capture: true});
+}
+
+// The follow-up frame can land late on a busy main thread, after the reader already moved.
+function settleRouteScroll(settle) {
+    settle();
+    scrolledSinceSwap = false;
+    routeFrame = requestAnimationFrame(() => {
+        if (!scrolledSinceSwap) settle();
         scrollController.resize?.();
     });
+}
+
+function resetRouteScroll() {
+    forgetHeroState();
+    const keptScrollY = getLangSwitchScrollY() ?? traversedScrollY();
+    if (keptScrollY !== null) settleRouteScroll(() => restoreRouteScroll(keptScrollY));
+    else settleRouteScroll(jumpToPageTop);
 }
 
 window.addEventListener('resize', () => {
