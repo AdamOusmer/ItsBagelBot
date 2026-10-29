@@ -70,6 +70,13 @@ const [first, ...rest] = guides;
             ))}
         </div>
 
+        <div class="ghub__help ghub__compare" data-reveal style="--reveal-i: 6">
+            <Text tone="muted" class="ghub__help-prompt"><span data-fit>{t('compare.guidesPrompt')}</span></Text>
+            <div class="ghub__help-links">
+                <TextLink href={localizePath('/vs', lang)} label={t('compare.allComparisons')} fit />
+            </div>
+        </div>
+
         <div class="ghub__help" data-reveal style="--reveal-i: 6">
             <Text tone="muted" class="ghub__help-prompt"><span data-fit>{hub.help.prompt}</span></Text>
             <div class="ghub__help-links">
