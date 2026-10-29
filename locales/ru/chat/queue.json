@@ -1,7 +1,8 @@
 {
   "cleared": "Очередь очищена.",
   "closed": "Запись в очередь закрыта.",
-  "err.usage": "Использование: !queue <open|close|next|list|remove|clear>; или !join / !leave / !list",
+  "err.usage": "Использование: !queue <open|close|next|list|full|remove|clear>; или !join / !leave / !list",
+  "full": "Вся очередь: {queue:url}",
   "join.already": "@{queue:user} вы уже в очереди на месте #{queue:pos}.",
   "join.closed": "@{queue:user} сейчас очередь закрыта.",
   "join.ok": "@{queue:user} вы встали в очередь на место #{queue:pos}.",

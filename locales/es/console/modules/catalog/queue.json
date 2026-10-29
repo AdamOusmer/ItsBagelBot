@@ -46,6 +46,7 @@
     "queue_close": "Deja de admitir incorporaciones; la cola se conserva.",
     "queue_next": "Llama al siguiente jugador y lo anuncia.",
     "queue_remove_user": "Retira a alguien de la cola.",
-    "queue_clear": "Vacía la cola."
+    "queue_clear": "Vacía la cola.",
+    "queue_full": "Enlaza la página pública con toda la cola."
   }
 }

@@ -1,0 +1,23 @@
+{
+  "title": "File d'attente de {channel}",
+  "metaDescription": "Voyez qui attend pour jouer avec {channel} sur ItsBagelBot, mis à jour en direct.",
+  "eyebrow": "File d'attente",
+  "tagline": "Qui attend et qui sera appelé ensuite, mis à jour en direct.",
+  "joinHint": "Rejoignez depuis le chat avec !join ou !queue join.",
+  "statusOpen": "Inscriptions ouvertes",
+  "statusClosed": "Inscriptions fermées",
+  "statusUnknown": "Statut indisponible",
+  "inLine": "En attente",
+  "live": "En direct",
+  "upNext": "Prochain",
+  "ahead": "{count} devant",
+  "nobodyYet": "Personne pour l'instant",
+  "justJoined": "Vient d'arriver",
+  "boardTitle": "La file",
+  "boardNote": "Premier arrivé, premier appelé. Affiche jusqu'à {max} spectateurs.",
+  "moreNote": "Affichage des {shown} premiers sur {total} spectateurs",
+  "emptyTitle": "Personne n'attend",
+  "emptyBody": "Quand des spectateurs rejoindront la file, ils apparaîtront ici.",
+  "degradedTitle": "File indisponible",
+  "degraded": "La file ne peut pas se charger pour le moment. Cette page continue d'essayer."
+}

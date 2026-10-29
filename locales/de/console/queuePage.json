@@ -1,0 +1,23 @@
+{
+  "title": "Warteschlange von {channel}",
+  "metaDescription": "Sieh, wer bei {channel} auf ItsBagelBot in der Schlange zum Mitspielen steht, live aktualisiert.",
+  "eyebrow": "Warteschlange",
+  "tagline": "Wer ansteht und wer als Nächstes drankommt, live aktualisiert.",
+  "joinHint": "Tritt im Chat mit !join oder !queue join bei.",
+  "statusOpen": "Beitritt offen",
+  "statusClosed": "Beitritt geschlossen",
+  "statusUnknown": "Status nicht verfügbar",
+  "inLine": "In der Schlange",
+  "live": "Live",
+  "upNext": "Als Nächstes",
+  "ahead": "{count} davor",
+  "nobodyYet": "Noch niemand",
+  "justJoined": "Gerade beigetreten",
+  "boardTitle": "Die Schlange",
+  "boardNote": "Wer zuerst kommt, wird zuerst gerufen. Zeigt bis zu {max} Zuschauer.",
+  "moreNote": "Die ersten {shown} von {total} Zuschauern",
+  "emptyTitle": "Niemand steht an",
+  "emptyBody": "Sobald Zuschauer der Warteschlange beitreten, erscheinen sie hier.",
+  "degradedTitle": "Warteschlange nicht ladbar",
+  "degraded": "Die Warteschlange lässt sich gerade nicht laden. Diese Seite versucht es weiter."
+}

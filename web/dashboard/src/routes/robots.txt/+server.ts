@@ -74,11 +74,20 @@ Allow: /user/
 Disallow: /
 `;
 
+const QUEUE = `# ItsBagelBot Queue: https://queue.itsbagelbot.com
+# One live line per channel at /<login>. The contents change every few seconds,
+# so there is nothing here to index.
+
+User-agent: *
+Disallow: /
+`;
+
 const BODY: Readonly<Record<SeoHost, string>> = {
   dashboard: DASHBOARD,
   stats: STATS,
   leaderboard: LEADERBOARD,
-  commands: COMMANDS
+  commands: COMMANDS,
+  queue: QUEUE
 };
 
 export const GET: RequestHandler = ({ url }) =>

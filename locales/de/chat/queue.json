@@ -1,7 +1,8 @@
 {
   "cleared": "Die Warteschlange wurde geleert.",
   "closed": "Die Warteschlange ist jetzt für neue Einträge geschlossen.",
-  "err.usage": "Verwendung: !queue <open|close|next|list|remove|clear>; oder !join / !leave / !list",
+  "err.usage": "Verwendung: !queue <open|close|next|list|full|remove|clear>; oder !join / !leave / !list",
+  "full": "Die ganze Warteschlange: {queue:url}",
   "join.already": "@{queue:user} du bist bereits auf Platz #{queue:pos} in der Warteschlange.",
   "join.closed": "@{queue:user} die Warteschlange ist gerade geschlossen.",
   "join.ok": "@{queue:user} du stehst jetzt auf Platz #{queue:pos} in der Warteschlange.",

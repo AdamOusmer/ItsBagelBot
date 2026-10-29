@@ -1,0 +1,23 @@
+{
+  "title": "Fila de jogo de {channel}",
+  "metaDescription": "Veja quem está na fila para jogar com {channel} no ItsBagelBot, atualizada ao vivo.",
+  "eyebrow": "Fila de jogo",
+  "tagline": "Quem está na fila e quem é chamado em seguida, atualizado ao vivo.",
+  "joinHint": "Entre pelo chat com !join ou !queue join.",
+  "statusOpen": "Entradas abertas",
+  "statusClosed": "Entradas fechadas",
+  "statusUnknown": "Status indisponível",
+  "inLine": "Na fila",
+  "live": "Ao vivo",
+  "upNext": "Próximo",
+  "ahead": "{count} na frente",
+  "nobodyYet": "Ninguém ainda",
+  "justJoined": "Acabou de entrar",
+  "boardTitle": "A fila",
+  "boardNote": "Quem chega primeiro é chamado primeiro. Mostra até {max} espectadores.",
+  "moreNote": "Mostrando os primeiros {shown} de {total} espectadores",
+  "emptyTitle": "Ninguém está na fila",
+  "emptyBody": "Quando os espectadores entrarem na fila, eles aparecem aqui.",
+  "degradedTitle": "Não foi possível carregar a fila",
+  "degraded": "A fila não pode ser carregada agora. Esta página continua tentando."
+}

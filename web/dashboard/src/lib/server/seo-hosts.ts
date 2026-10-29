@@ -6,12 +6,13 @@
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 
-export type SeoHost = 'dashboard' | 'stats' | 'leaderboard' | 'commands';
+export type SeoHost = 'dashboard' | 'stats' | 'leaderboard' | 'commands' | 'queue';
 
 const KIND_BY_LABEL: Readonly<Record<string, SeoHost>> = {
   stats: 'stats',
   leaderboard: 'leaderboard',
-  commands: 'commands'
+  commands: 'commands',
+  queue: 'queue'
 };
 
 export function seoHost(url: URL): SeoHost {
@@ -22,7 +23,8 @@ export const SEO_ORIGIN: Readonly<Record<SeoHost, string>> = {
   dashboard: 'https://dashboard.itsbagelbot.com',
   stats: 'https://stats.itsbagelbot.com',
   leaderboard: 'https://leaderboard.itsbagelbot.com',
-  commands: 'https://commands.itsbagelbot.com'
+  commands: 'https://commands.itsbagelbot.com',
+  queue: 'https://queue.itsbagelbot.com'
 };
 
 export function requireHost(url: URL, host: SeoHost): void {

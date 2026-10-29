@@ -1,7 +1,8 @@
 {
   "cleared": "La file a été vidée.",
   "closed": "La file est maintenant fermée aux nouvelles inscriptions.",
-  "err.usage": "Utilisation : !queue <open|close|next|list|remove|clear> ; ou !join / !leave / !list",
+  "err.usage": "Utilisation : !queue <open|close|next|list|full|remove|clear> ; ou !join / !leave / !list",
+  "full": "Toute la file : {queue:url}",
   "join.already": "@{queue:user} vous êtes déjà dans la file en position n°{queue:pos}.",
   "join.closed": "@{queue:user} la file est fermée pour le moment.",
   "join.ok": "@{queue:user} vous avez rejoint la file en position n°{queue:pos}.",

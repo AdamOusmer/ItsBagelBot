@@ -79,6 +79,7 @@ type Deps struct {
 	Analytics      *analytics.Recorder
 
 	LeaderboardBaseURL string
+	QueueBaseURL       string
 }
 
 type FeedCounts struct {

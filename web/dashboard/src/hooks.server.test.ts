@@ -35,6 +35,7 @@ type EventOptions = {
 const LOGIN = '/(public)/login';
 const CHANNEL = '/(public)/user/[channel]';
 const LEADERBOARD = '/(public)/[user]';
+const QUEUE = '/(public)/queue/[user]';
 const SET_COOKIE = { 'set-cookie': 'bagel_session=; Max-Age=0; Path=/' };
 
 function makeEvent(opts: EventOptions): Event {
@@ -150,6 +151,9 @@ const edgeCases: { name: string; event: EventOptions; res: Response; want: Recor
   { name: 'leaderboard: search page data is shared under its channel tag', event: { ...BOARD, isDataRequest: true, search: '?q=fan&x-sveltekit-invalidated=001' }, res: dataResponse(), want: LEADERBOARD_TTL },
   { name: 'leaderboard: a hidden board 404 carries its channel tag', event: { ...BOARD, edgeOutcome: 'hidden' }, res: htmlResponse(404), want: LEADERBOARD_TTL },
   { name: 'leaderboard: a busy or degraded board is never cached', event: { ...BOARD, edgeOutcome: 'skip' }, res: htmlResponse(200), want: uncached },
+  { name: 'queue: the live page is shared for a few seconds', event: { ...PAGE, routeId: QUEUE }, res: htmlResponse(200), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
+  { name: 'queue: a disabled-module 404 shares the same short TTL', event: { edgeOutcome: 'hidden', routeId: QUEUE }, res: htmlResponse(404), want: cached('max-age=5, stale-while-revalidate=5, stale-if-error=86400') },
+  { name: 'queue: a degraded line is never cached', event: { edgeOutcome: 'skip', routeId: QUEUE }, res: htmlResponse(200), want: uncached },
   { name: 'signed-in page data is never cached', event: { ...PAGE, isDataRequest: true, sessionCookie: signedIn }, res: dataResponse(), want: uncached },
   { name: 'a plain 200 emits CDN-only directives so browsers revalidate', event: {}, res: htmlResponse(200), want: DEFAULT_TTL },
   { name: 'login uses its own TTL', event: { routeId: LOGIN }, res: htmlResponse(200), want: cached('max-age=600, stale-while-revalidate=86400, stale-if-error=86400') },
