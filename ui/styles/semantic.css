@@ -12,6 +12,14 @@
     --bb-border: rgba(var(--bb-white-pure-rgb), 0.08);
     --bb-border-strong: rgba(var(--bb-white-pure-rgb), 0.16);
     --bb-border-chip: rgba(var(--bb-white-pure-rgb), 0.12);
+    --bb-surface-raised:
+        linear-gradient(180deg, rgba(var(--bb-white-pure-rgb), 0.04), rgba(var(--bb-white-pure-rgb), 0) 55%),
+        var(--bb-card-bg);
+    --bb-surface-raised-shadow:
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.07),
+        0 30px 60px -30px rgba(var(--bb-shadow-rgb), 0.7);
+    --bb-halo-gold-rgb: var(--bb-tan-rgb);
+    --bb-halo-green-rgb: var(--bb-green-glow-rgb);
     --bb-glow-tan: rgba(var(--bb-tan-rgb), 0.18);
     --bb-glow-green: rgba(var(--bb-green-glow-rgb), 0.16);
     --bb-accent-soft: rgba(var(--bb-green-glow-rgb), 0.12);

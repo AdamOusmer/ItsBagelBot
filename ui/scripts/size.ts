@@ -256,7 +256,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "a11y", budget: 560 },
   { name: "elements/nav-link", budget: 1350 },
   { name: "elements/button", budget: 1870 }, // 1547 B: brand variant, static span, icon danger (2026-09-29)
-  { name: "elements/card", budget: 1460 },
+  { name: "elements/card", budget: 1760 }, // 1470 B: halo surface and light-theme shadow in the base card (2026-10-28)
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 3450 }, // 2981 B: flagged locale popover replaced the code row (2026-09-30)

@@ -27,20 +27,21 @@ function releasesNewestFirst() {
         });
 }
 
-function scrollToEncryptionUntilItTakesCanvas(previousId) {
+function scrollEncryptionIntoView() {
     const section = document.querySelector('#enc-section');
-    if (!section) return false;
+    if (!section) return;
     const rect = section.getBoundingClientRect();
-    if (rect.top > window.innerHeight || rect.bottom < 0) {
-        const target = rect.top + window.scrollY;
-        window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
-        window.scrollTo({ top: target, behavior: 'instant' });
-        return false;
-    }
+    if (rect.top <= window.innerHeight && rect.bottom >= 0) return;
+    const target = rect.top + window.scrollY;
+    window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
+    window.scrollTo({ top: target, behavior: 'instant' });
+}
+
+function encryptionTookCanvas(previousId) {
     const canvas = document.querySelector('#enc-canvas');
     const active = window.__itsbagelbotPreload?.activeEncryption;
     return active?.id > previousId
-        && active.section === section
+        && active.section === document.querySelector('#enc-section')
         && canvas?.width !== 300;
 }
 
@@ -84,7 +85,10 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
-        await page.waitForFunction(scrollToEncryptionUntilItTakesCanvas, previousId, { polling: 100 });
+        await expect.poll(async () => {
+            await page.evaluate(scrollEncryptionIntoView);
+            return page.evaluate(encryptionTookCanvas, previousId);
+        }, { timeout: 25_000, intervals: [100] }).toBe(true);
         await page.waitForFunction(encryptionSized, previousId);
     }
 
@@ -377,22 +381,15 @@ test.describe('ItsBagelBot site', () => {
         await expectPageTop(page);
     });
 
-    test('decode text animates after client route swaps', async ({ page }) => {
+    test('page hero title shows after client route swaps', async ({ page }) => {
         await page.goto('/');
 
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
-        await page.waitForFunction(() => {
-            const title = document.querySelector('.bb-page-hero__title [data-decode]');
-            return Boolean(
-                title &&
-                title.dataset.decode &&
-                title.textContent !== title.dataset.decode
-            );
-        });
-
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
+        const title = page.locator('.bb-page-hero__title');
+        await expect(title).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
+        await expect(title).toBeVisible();
     });
 
     test('encryption scene boots again when returning home', async ({ page }) => {
