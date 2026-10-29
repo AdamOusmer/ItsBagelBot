@@ -4,7 +4,12 @@
 export interface GlideOptions {
   observe?: HTMLElement | null;
   selector?: string;
+  // Follow selection changes made outside the caller (scroll-spy, a sibling
+  // script toggling classes) by re-measuring when the items' state flips.
+  watch?: boolean;
 }
+
+const WATCHED = ['class', 'aria-checked', 'aria-current', 'data-active'];
 
 const DEFAULT_SELECTOR = '[data-active]';
 
@@ -43,6 +48,23 @@ export function mountGlide(
       : null;
   observer?.observe(options.observe as HTMLElement);
 
-  const dispose = () => observer?.disconnect();
+  const watcher =
+    options.watch && typeof MutationObserver !== 'undefined' ? new MutationObserver(measure) : null;
+  watcher?.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: WATCHED });
+
+  const dispose = () => {
+    observer?.disconnect();
+    watcher?.disconnect();
+  };
   return Object.assign(dispose, { measure });
+}
+
+// Astro pages have no component lifecycle: bind every tab strip that carries a
+// glide once, and again after each client-side navigation.
+export function mountTabGlides(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('.bb-tabs:not([data-bb-glide])').forEach((tabs) => {
+    if (!tabs.querySelector(':scope > .bb-glide')) return;
+    tabs.dataset.bbGlide = '';
+    mountGlide(tabs, { observe: tabs, selector: ':scope > .bb-tab.is-active', watch: true });
+  });
 }

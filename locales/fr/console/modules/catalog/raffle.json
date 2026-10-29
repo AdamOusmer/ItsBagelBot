@@ -62,6 +62,8 @@
     }
   },
   "commands": {
+    "join": "Participer au tirage pendant qu'il est ouvert (aussi !raffle join).",
+    "claim": "Confirmer un prix personnalisé après avoir gagné un tirage.",
     "winner": "Rappeler les gagnants du dernier tirage et combien ont confirmé.",
     "raffle_status": "Voir si un tirage tourne, les inscriptions et le temps restant (un viewer qui tape !raffle obtient la même chose).",
     "raffle_amount_seconds": "Lancer un tirage à un seul gagnant : il empoche tout le montant (aussi !sraffle, !singleraffle). Les montants acceptent k et m ; défauts 1000 points, 60 secondes.",

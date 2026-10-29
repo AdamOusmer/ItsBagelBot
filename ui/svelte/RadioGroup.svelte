@@ -7,6 +7,8 @@
   import '../styles/elements/tabs.css';
   import '../styles/elements/radio-group.css';
   import Icon from './Icon.svelte';
+  import Glide from './Glide.svelte';
+  import { mountGlide } from '../lib/glide';
 
   type RadioOption = { value: string; label: string; description?: string; meta?: string; disabled?: boolean };
 
@@ -66,6 +68,12 @@
       .join(' ') || undefined,
   );
 
+  let tabsEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!tabsEl) return;
+    return mountGlide(tabsEl, { observe: tabsEl, selector: ':scope > .bb-tab.is-active', watch: true });
+  });
+
   function pick(next: string) {
     value = next;
     onValueChange?.(next);
@@ -78,7 +86,8 @@
 </script>
 
 {#if variant === 'tabs'}
-  <div class={tabsClass} role="radiogroup" aria-label={label} {...rest}>
+  <div bind:this={tabsEl} class={tabsClass} role="radiogroup" aria-label={label} {...rest}>
+    <Glide />
     {#each options as opt (opt.value)}
       <label class="bb-tab {value === opt.value ? 'is-active' : ''}">
         <input

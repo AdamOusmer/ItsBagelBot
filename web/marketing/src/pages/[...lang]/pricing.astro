@@ -3,8 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Layout from '../../layouts/Layout.astro';
-import PageHero from '@bagel/ui/astro/PageHero.astro';
-import Tiers from '../../components/pricing/Tiers.astro';
+import PricingStage from '../../components/pricing/PricingStage.astro';
 import Faq from '../../components/pricing/Faq.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
 
@@ -15,12 +14,6 @@ const t = useTranslations(lang);
 ---
 
 <Layout title={t('pricing.metaTitle')} description={t('pricing.metaDesc')} aiDoc="https://ai.itsbagelbot.com/product.md">
-    <PageHero
-        eyebrow={t('pricing.eyebrow')}
-        title={t('pricing.title')}
-        description={t('pricing.desc')}
-        style="--page-hero-title-lines: 3; --page-hero-title-lines-phone: 4"
-    />
-    <Tiers />
-    <Faq />
+    <PricingStage />
+    <Faq lanes />
 </Layout>

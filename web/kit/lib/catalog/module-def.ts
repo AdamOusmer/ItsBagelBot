@@ -66,6 +66,8 @@ export interface ModuleCommandInfo {
   perm?: 'mod' | 'lead_mod';
   aliases?: string[];
   permKey?: string;
+  // A toggle setting that must be 'on' for the command to answer at all.
+  requiresSetting?: string;
   previewArgs?: string;
   preview?: string;
 }

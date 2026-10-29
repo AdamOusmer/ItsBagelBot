@@ -11,13 +11,11 @@ const { publicCommands, publicModules } = await import('./public-directory');
 const { MODULE_CATALOG } = await import('@bagel/kit/catalog');
 
 describe('public directory locale shaping', () => {
-  test('localizes catalog module metadata and reply event copy', () => {
-    const queue = MODULE_CATALOG.find((def) => def.id === 'queue')!;
-    const joinKey = `modules.catalog.queue.replies.${queue.replies[0].key}.tagline`;
+  test('localizes catalog module metadata and command summaries', () => {
     const shaped = publicModules([{ name: 'queue', is_enabled: true }], 'fr').find((entry) => entry.id === 'queue');
     expect({ tagline: shaped?.tagline, firstCommand: shaped?.commands[0].meta }).toEqual({
       tagline: staticText('fr', 'modules.catalog.queue.tagline'),
-      firstCommand: staticText('fr', joinKey)
+      firstCommand: staticText('fr', 'modules.catalog.queue.commands.join')
     });
     expect(shaped?.tagline).not.toBe(staticText('en', 'modules.catalog.queue.tagline'));
   });
@@ -31,6 +29,52 @@ describe('public directory locale shaping', () => {
       perm: staticText('fr', 'perm.sub'),
       response: 'Welcome to the channel!',
       cooldowns: [5, 60]
+    });
+  });
+});
+
+describe('public directory module commands', () => {
+  const commandsOf = (rows: Parameters<typeof publicModules>[0], id: string) =>
+    publicModules(rows, 'en').find((entry) => entry.id === id)?.commands ?? [];
+
+  test('lists each trigger once, not once per reply line', () => {
+    const raffle = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
+    expect(raffle.filter((label) => label === '!join')).toHaveLength(1);
+    expect(new Set(raffle).size).toBe(raffle.length);
+
+    const queue = commandsOf([{ name: 'queue', is_enabled: true }], 'queue').map((c) => c.label);
+    expect(queue.filter((label) => label === '!join')).toHaveLength(1);
+    expect(queue).toEqual(MODULE_CATALOG.find((def) => def.id === 'queue')!.commands!.map((c) => c.trigger));
+  });
+
+  test('lists !claim only while the streamer has it turned on', () => {
+    const off = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').map((c) => c.label);
+    const on = commandsOf([{ name: 'raffle', is_enabled: true, configs: { claimEnabled: 'on' } }], 'raffle').map((c) => c.label);
+    expect({ off: off.includes('!claim'), on: on.includes('!claim') }).toEqual({ off: false, on: true });
+  });
+
+  test('raffle !join reads as a command, not a reply line', () => {
+    const join = commandsOf([{ name: 'raffle', is_enabled: true }], 'raffle').find((c) => c.label === '!join');
+    expect(join?.meta).toBe(staticText('en', 'modules.catalog.raffle.commands.join'));
+  });
+
+  test('shows the level each command needs', () => {
+    const queue = commandsOf([{ name: 'queue', is_enabled: true }], 'queue');
+    expect(queue.find((c) => c.label === '!join')?.perm).toBe(staticText('en', 'perm.everyone'));
+    expect(queue.find((c) => c.label === '!queue next')?.perm).toBe(staticText('en', 'perm.mod'));
+  });
+
+  test('honours a saved level for a command that has one', () => {
+    const cmd = commandsOf([{ name: 'cmd', is_enabled: true, configs: { addPerm: 'vip' } }], 'cmd');
+    expect(cmd.find((c) => c.label.startsWith('!cmd add'))?.perm).toBe(staticText('en', 'perm.vip'));
+  });
+
+  test('built-ins carry their saved level and summary', () => {
+    const [row] = commandsOf([{ name: 'accountage', is_enabled: true, configs: { permission: 'sub' } }], 'accountage');
+    expect({ label: row.label, meta: row.meta, perm: row.perm }).toEqual({
+      label: '!accountage',
+      meta: staticText('en', 'builtinDirectory.accountage.summary'),
+      perm: staticText('en', 'perm.sub')
     });
   });
 });

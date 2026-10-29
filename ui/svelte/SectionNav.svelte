@@ -4,6 +4,8 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/tabs.css';
   import { mountSectionNav } from '../lib/scroll-spy';
+  import { mountGlide } from '../lib/glide';
+  import Glide from './Glide.svelte';
 
   type Own = {
     label: string;
@@ -43,11 +45,16 @@
     if (!navEl || routed) return;
     return mountSectionNav(navEl);
   });
+
+  $effect(() => {
+    if (!navEl) return;
+    return mountGlide(navEl, { observe: navEl, selector: ':scope > .bb-tab.is-active', watch: true });
+  });
 </script>
 
 <div class="bb-tabs-host"
   ><nav bind:this={navEl} class={classes} aria-label={label} data-lenis-prevent="" {...rest}
-    >{#each items as item, position (item.href)}<a
+    ><Glide />{#each items as item, position (item.href)}<a
         class={item.current ? 'bb-tab is-active' : 'bb-tab'}
         href={item.href}
         aria-current={item.current ? 'page' : undefined}

@@ -2,11 +2,13 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Glide from '@bagel/ui/svelte/Glide.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
@@ -19,6 +21,9 @@
   import { commandsHref } from '@bagel/kit/site-links';
   import Mark from '@bagel/ui/svelte/Mark.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import { mountGlide } from '@bagel/ui/lib/glide';
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { tick } from 'svelte';
   import { page } from '$app/state';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
@@ -42,6 +47,7 @@
     source: string;
     moduleId: string | null;
   };
+  type Group = { key: string; title: string; tagline: string; rows: Row[] };
 
   const FILTERS: Array<{ id: Filter; label: string; heading: string }> = [
     { id: 'all', label: t('public.commands.filterAll'), heading: t('public.commands.filterAllHeading') },
@@ -52,7 +58,7 @@
 
   let query = $state('');
   let filter = $state<Filter>('all');
-  let moduleId = $state<string | null>(null);
+  let activeGroup = $state<string | null>(null);
 
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
@@ -68,12 +74,12 @@
       m.commands.map((c, i) => ({
         key: `${m.id}:${i}:${c.label}`,
         trigger: c.label,
-        aliases: [],
+        aliases: c.aliases,
         response: c.meta,
-        perm: '',
-        cooldown: 0,
+        perm: c.perm,
+        cooldown: c.cooldown,
         userCooldown: 0,
-        liveOnly: false,
+        liveOnly: c.liveOnly,
         uses: '',
         kind: m.category === 'Built-in' ? 'builtin' : 'module',
         source: m.category === 'Built-in' ? t('public.commands.filterBuiltin') : m.label,
@@ -89,22 +95,95 @@
     !needle ||
     [r.trigger, r.aliases.join(' '), r.response, r.source].some((field) => field.toLowerCase().includes(needle));
 
-  const inScope = (r: Row) => (moduleId ? r.moduleId === moduleId : filter === 'all' || r.kind === filter);
+  const inScope = (r: Row) => filter === 'all' || r.kind === filter;
 
-  const rows = $derived(
-    all
-      .filter((r) => inScope(r) && matchesQuery(r, q))
-      .sort((a, b) => a.trigger.localeCompare(b.trigger))
-  );
+  const rows = $derived(all.filter((r) => inScope(r) && matchesQuery(r, q)));
+
+  // Custom commands first, then one block per module (rows keep catalog order,
+  // viewer commands before mod ones), then the built-ins together in one block.
+  const groups = $derived.by((): Group[] => {
+    const custom: Group = { key: 'custom', title: t('public.commands.filterCustomHeading'), tagline: '', rows: [] };
+    const builtin: Group = { key: 'builtin', title: t('public.commands.filterBuiltinHeading'), tagline: '', rows: [] };
+    const modules = new Map<string, Group>(
+      data.modules
+        .filter((m) => m.category !== 'Built-in')
+        .toSorted((a, b) => a.label.localeCompare(b.label))
+        .map((m) => [m.id, { key: m.id, title: m.label, tagline: m.tagline, rows: [] }])
+    );
+    for (const row of rows) {
+      const group = row.kind === 'custom' ? custom : row.kind === 'builtin' ? builtin : modules.get(row.moduleId ?? '');
+      group?.rows.push(row);
+    }
+    builtin.rows.sort((a, b) => a.trigger.localeCompare(b.trigger));
+    return [custom, ...modules.values(), builtin].filter((g) => g.rows.length > 0);
+  });
 
   const countOf = (id: Filter) => all.filter((r) => id === 'all' || r.kind === id).length;
 
   const filterOptions = $derived(FILTERS.map((f) => ({ value: f.id, label: f.label, count: countOf(f.id) })));
 
-  const activeModule = $derived(data.modules.find((m) => m.id === moduleId) ?? null);
-  const listHeading = $derived(
-    `${activeModule ? activeModule.label : FILTERS.find((f) => f.id === filter)?.heading} · ${rows.length}`
+  const listHeading = $derived(`${FILTERS.find((f) => f.id === filter)?.heading} · ${rows.length}`);
+
+  const groupKeyOf = (mod: { id: string; category: string }) => (mod.category === 'Built-in' ? 'builtin' : mod.id);
+
+  // Same order as the blocks: modules alphabetically, built-ins last.
+  const sideModules = $derived(
+    data.modules.toSorted(
+      (a, b) => Number(a.category === 'Built-in') - Number(b.category === 'Built-in') || a.label.localeCompare(b.label)
+    )
   );
+
+  let sideEl = $state<HTMLElement | null>(null);
+  let modsEl = $state<HTMLElement | null>(null);
+  let glide: ReturnType<typeof mountGlide> | null = null;
+
+  $effect(() => {
+    if (!modsEl) return;
+    const handle = mountGlide(modsEl, { observe: modsEl, selector: '.mod.on' });
+    glide = handle;
+    return () => {
+      handle();
+      glide = null;
+    };
+  });
+
+  // The glide follows the lit module as the reader scrolls.
+  $effect(() => {
+    void activeGroup;
+    void sideModules;
+    glide?.measure();
+  });
+
+  // Keep the lit module in view when the sidebar is its own scroller.
+  $effect(() => {
+    if (!sideEl || !activeGroup || sideEl.scrollHeight <= sideEl.clientHeight) return;
+    const lit = sideEl.querySelector<HTMLElement>('.mod.on');
+    if (!lit) return;
+    const box = sideEl.getBoundingClientRect();
+    const item = lit.getBoundingClientRect();
+    if (item.top >= box.top && item.bottom <= box.bottom) return;
+    sideEl.scrollTo({
+      top: sideEl.scrollTop + item.top - box.top - box.height / 3,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth'
+    });
+  });
+
+  // Scroll-spy: the sidebar lights up the module block currently under the reading line.
+  $effect(() => {
+    const keys = groups.map((g) => g.key);
+    const sections = keys.map((key) => document.getElementById(`group-${key}`)).filter((el) => el !== null);
+    if (!sections.length || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) activeGroup = (entry.target as HTMLElement).dataset.group ?? null;
+        }
+      },
+      { rootMargin: '-35% 0px -55% 0px' }
+    );
+    for (const section of sections) observer.observe(section);
+    return () => observer.disconnect();
+  });
 
   const summary = $derived(t('public.commands.summary', {
     commands: data.commands.length === 1
@@ -120,12 +199,16 @@
 
   function pickFilter(id: string) {
     filter = id as Filter;
-    moduleId = null;
   }
 
-  function pickModule(id: string) {
-    moduleId = moduleId === id ? null : id;
-    filter = 'all';
+  async function jumpTo(key: string) {
+    if (!groups.some((g) => g.key === key)) {
+      query = '';
+      filter = 'all';
+      await tick();
+    }
+    activeGroup = key;
+    document.getElementById(`group-${key}`)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
   }
 
   const COPY_FLASH_MS = 1400;
@@ -137,6 +220,7 @@
   url={commandsHref(page.params.channel ?? '')}
 />
 
+<AuroraBg />
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
 
@@ -173,7 +257,7 @@
     <div class="filters">
       <SegmentedControl
         options={filterOptions}
-        value={moduleId ? '' : filter}
+        value={filter}
         label={t('public.commands.sourceLabel')}
         onValueChange={pickFilter}
       />
@@ -182,70 +266,93 @@
 
   <div class="columns">
     <section class="list-wrap" aria-label={t('public.commands.commandsLabel')}>
-      <Card atmo flush>
-        <div class="list__head">
-          <Label mono as="span">{listHeading}</Label>
-          <Label mono as="span">{t('public.commands.clickRow')}</Label>
-        </div>
+      <div class="list__head">
+        <Label mono as="span">{listHeading}</Label>
+        <Label mono as="span">{t('public.commands.clickRow')}</Label>
+      </div>
 
-        {#if rows.length}
-          <ul class="rows">
-            {#each rows as row (row.key)}
-              <li>
-                <CopySurface
-                  variant="row"
-                  text={row.trigger}
-                  hint=""
-                  copiedLabel={t('common.copied')}
-                  flashMs={COPY_FLASH_MS}
-                  announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
-                >
-                  <span class="row__trigger">
-                    <Code tone="success">{row.trigger}</Code>
-                    {#if row.aliases.length}
-                      <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
-                    {/if}
-                  </span>
-                  <span class="row__response"><Text as="span">{row.response}</Text></span>
-                  <span class="row__tags">
-                    <Tag tone="alpha">{row.source}</Tag>
-                    {#if row.perm}
-                      <Tag tone="bare">{row.perm}</Tag>
-                    {/if}
-                    {#if row.cooldown > 0}
-                      <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
-                        <Icon name="clock" size={11} />
-                        <span aria-hidden="true">{row.cooldown}s</span>
-                        <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
-                      </Tag>
-                    {/if}
-                    {#if row.userCooldown > 0}
-                      <Tag tone="bare" title={t('public.commands.userCooldownSeconds', { n: row.userCooldown })}>
-                        <Icon name="clock" size={11} />
-                        <span aria-hidden="true">{t('public.commands.userCooldownShort', { n: row.userCooldown })}</span>
-                        <VisuallyHidden>{t('public.commands.userCooldownSeconds', { n: row.userCooldown })}</VisuallyHidden>
-                      </Tag>
-                    {/if}
-                    {#if row.liveOnly}
-                      <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
-                    {/if}
-                    {#if row.uses}
-                      <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
-                    {/if}
-                  </span>
-                </CopySurface>
-              </li>
-            {/each}
-          </ul>
-        {:else if all.length === 0}
-          <EmptyState title={t('public.commands.noCommands')} />
-        {:else}
-          <EmptyState title={t('public.commands.noMatches', { query })} />
-        {/if}
-      </Card>
+      {#if rows.length}
+        {#each groups as group, i (group.key)}
+          <section
+            class="group reveal"
+            id={`group-${group.key}`}
+            data-group={group.key}
+            style:--i={i}
+            aria-labelledby={`group-${group.key}-title`}
+          >
+            <Card atmo flush>
+              <header class="group__head">
+                <span class="group__title">
+                  <Mark class="group__mark" />
+                  <Heading level={2} variant="card" id={`group-${group.key}-title`}>{group.title}</Heading>
+                  <span class="group__count"><Label mono as="span">{group.rows.length}</Label></span>
+                </span>
+                {#if group.tagline}
+                  <Text size="sm" tone="muted">{group.tagline}</Text>
+                {/if}
+              </header>
+              <ul class="rows">
+                {#each group.rows as row (row.key)}
+                  <li>
+                    <CopySurface
+                      variant="row"
+                      text={row.trigger}
+                      hint=""
+                      copiedLabel={t('common.copied')}
+                      flashMs={COPY_FLASH_MS}
+                      announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
+                    >
+                      <span class="row__trigger">
+                        <Code tone="success">{row.trigger}</Code>
+                        {#if row.aliases.length}
+                          <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
+                        {/if}
+                      </span>
+                      <span class="row__response"><Text as="span">{row.response}</Text></span>
+                      <span class="row__tags">
+                        {#if row.perm}
+                          <Tag tone="bare">{row.perm}</Tag>
+                        {/if}
+                        {#if row.cooldown > 0}
+                          <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
+                            <Icon name="clock" size={11} />
+                            <span aria-hidden="true">{row.cooldown}s</span>
+                            <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
+                          </Tag>
+                        {/if}
+                        {#if row.userCooldown > 0}
+                          <Tag tone="bare" title={t('public.commands.userCooldownSeconds', { n: row.userCooldown })}>
+                            <Icon name="clock" size={11} />
+                            <span aria-hidden="true">{t('public.commands.userCooldownShort', { n: row.userCooldown })}</span>
+                            <VisuallyHidden>{t('public.commands.userCooldownSeconds', { n: row.userCooldown })}</VisuallyHidden>
+                          </Tag>
+                        {/if}
+                        {#if row.liveOnly}
+                          <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
+                        {/if}
+                        {#if row.uses}
+                          <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
+                        {/if}
+                      </span>
+                    </CopySurface>
+                  </li>
+                {/each}
+              </ul>
+            </Card>
+          </section>
+        {/each}
+      {:else}
+        <Card atmo>
+          {#if all.length === 0}
+            <EmptyState title={t('public.commands.noCommands')} />
+          {:else}
+            <EmptyState title={t('public.commands.noMatches', { query })} />
+          {/if}
+        </Card>
+      {/if}
     </section>
 
-    <aside class="side">
+    <aside class="side" bind:this={sideEl}>
       <div class="modules">
         <Card atmo>
           <div class="side__head">
@@ -253,28 +360,32 @@
             <Label mono as="span">{data.modules.length}</Label>
           </div>
           {#if data.modules.length}
-            <ul class="mods">
-              {#each data.modules as mod (mod.id)}
-                {@const n = mod.commands.length}
-                <li>
-                  <button
-                    class="mod"
-                    class:on={moduleId === mod.id}
-                    type="button"
-                    disabled={n === 0}
-                    aria-pressed={moduleId === mod.id}
-                    onclick={() => pickModule(mod.id)}
-                  >
-                    <Mark class="mod__mark" />
-                    <span class="mod__text">
-                      <span class="mod__label">{mod.label}</span>
-                      <span class="mod__tagline">{mod.tagline}</span>
-                    </span>
-                    <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
+            <div class="mods-wrap" bind:this={modsEl}>
+              <Glide class="mods__glide" />
+              <ul class="mods">
+                {#each sideModules as mod (mod.id)}
+                  {@const n = mod.commands.length}
+                  {@const key = groupKeyOf(mod)}
+                  <li>
+                    <button
+                      class="mod"
+                      class:on={n > 0 && activeGroup === key}
+                      type="button"
+                      disabled={n === 0}
+                      aria-current={n > 0 && activeGroup === key ? 'true' : undefined}
+                      onclick={() => jumpTo(key)}
+                    >
+                      <Mark class="mod__mark" />
+                      <span class="mod__text">
+                        <span class="mod__label">{mod.label}</span>
+                        <span class="mod__tagline">{mod.tagline}</span>
+                      </span>
+                      <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
           {:else}
             <Text size="sm" tone="muted">{t('public.commands.noModules')}</Text>
           {/if}
@@ -307,7 +418,7 @@
     position: absolute;
     left: 50%;
     top: -160px;
-    width: min(1100px, 140vw);
+    width: min(1100px, 100vw);
     height: 640px;
     transform: translateX(-50%);
     pointer-events: none;
@@ -394,10 +505,54 @@
     justify-content: space-between;
     gap: 12px;
   }
-  .list__head { padding: 16px 24px; border-bottom: 1px solid var(--bb-border); }
+  .list__head { padding: 0 4px 14px; }
   .side__head { margin-bottom: 16px; }
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
+
+  .group {
+    --bb-reveal-distance: 18px;
+    --bb-reveal-step: 60ms;
+
+    scroll-margin-top: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + 96px);
+  }
+  .group + .group { margin-top: 18px; }
+  .group__head {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 22px 24px 14px;
+    border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--bb-green-glow-rgb), 0.06), transparent);
+  }
+  .group__head::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    bottom: -1px;
+    width: 56px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--bb-green-glow), transparent);
+    box-shadow: 0 0 12px rgba(var(--bb-green-glow-rgb), 0.6);
+  }
+  .group__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .group__title :global(.group__mark) {
+    flex: none;
+    color: var(--bb-green-glow);
+    filter: drop-shadow(0 0 8px rgba(var(--bb-green-glow-rgb), 0.55));
+  }
+  .group__count {
+    margin-left: auto;
+    padding: 2px 9px;
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.16);
+    border-radius: 999px;
+    color: var(--bb-tan);
+  }
 
   .row__trigger {
     flex: 0 0 168px;
@@ -414,7 +569,7 @@
     overflow-wrap: anywhere;
   }
   .row__tags {
-    flex: 0 0 auto;
+    flex: 0 0 196px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -423,8 +578,22 @@
     padding-top: 2px;
   }
 
+  .mods-wrap { position: relative; }
   .mods { display: flex; flex-direction: column; }
+
+  @media (min-width: 900px) {
+    .side {
+      position: sticky;
+      top: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + 84px);
+      max-height: calc(100dvh - var(--bb-nav-height) - env(safe-area-inset-top, 0px) - 108px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+    }
+    .side::-webkit-scrollbar { display: none; }
+  }
   .mod {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -441,8 +610,8 @@
     transition: background var(--bb-dur-fast);
   }
   .mod:disabled { cursor: default; }
-  .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(var(--bb-tan-rgb), 0.06); }
-  .mod.on { background: rgba(var(--bb-green-glow-rgb), 0.12); }
+  .mod:not(:disabled, .on):hover, .mod:not(.on):focus-visible { background: rgba(var(--bb-tan-rgb), 0.06); }
+  .mod.on .mod__label { color: var(--bb-white); }
   .mod :global(.mod__mark) { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
@@ -481,10 +650,14 @@
     .mods::-webkit-scrollbar { display: none; }
     .mods li { flex: 0 0 auto; }
     .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
+    .mod.on { border-color: rgba(var(--bb-green-glow-rgb), 0.45); }
+    .mods-wrap :global(.mods__glide) { display: none; }
     .mod__tagline { display: none; }
     .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
-    .row__tags { justify-content: flex-start; }
+    .row__tags { flex-basis: 100%; justify-content: flex-start; }
     .list__head { padding: 14px 18px; }
+    .group__head { padding: 16px 18px 12px; }
+    .group__head::after { left: 18px; }
   }
 </style>
