@@ -107,7 +107,7 @@
           menuId="{menuId}-lang"
         />{/if}{#if cta}<NavLink
           class="bb-nav__cta"
-          variant="cta"
+          variant={cta.icon === 'twitch' ? 'twitch' : 'cta'}
           href={cta.href}
           label={cta.label}
           external={cta.external}
