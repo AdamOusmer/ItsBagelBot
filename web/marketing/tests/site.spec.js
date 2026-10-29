@@ -55,10 +55,12 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
-        await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(2);
+        await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(1);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
-        await expect(page.locator('.sky .bb-light-field')).toHaveCount(1);
         await expect(page.locator('.seam')).toHaveCount(7);
+        await expect(page.locator('.seam__line').first()).toHaveCSS('animation-name', 'seam-draw');
+        await expect(page.locator('.seam__line').first()).toHaveCSS('animation-timeline', 'view()');
+        await expect(page.locator('#playground > *').nth(1)).toHaveCSS('animation-name', 'section-handoff');
 
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Try it here.');
