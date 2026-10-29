@@ -8,6 +8,7 @@
   import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Glide from '@bagel/ui/svelte/Glide.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
@@ -20,6 +21,7 @@
   import { commandsHref } from '@bagel/kit/site-links';
   import Mark from '@bagel/ui/svelte/Mark.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import { mountGlide } from '@bagel/ui/lib/glide';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { tick } from 'svelte';
   import { page } from '$app/state';
@@ -132,6 +134,25 @@
   );
 
   let sideEl = $state<HTMLElement | null>(null);
+  let modsEl = $state<HTMLElement | null>(null);
+  let glide: ReturnType<typeof mountGlide> | null = null;
+
+  $effect(() => {
+    if (!modsEl) return;
+    const handle = mountGlide(modsEl, { observe: modsEl, selector: '.mod.on' });
+    glide = handle;
+    return () => {
+      handle();
+      glide = null;
+    };
+  });
+
+  // The glide follows the lit module as the reader scrolls.
+  $effect(() => {
+    void activeGroup;
+    void sideModules;
+    glide?.measure();
+  });
 
   // Keep the lit module in view when the sidebar is its own scroller.
   $effect(() => {
@@ -339,29 +360,32 @@
             <Label mono as="span">{data.modules.length}</Label>
           </div>
           {#if data.modules.length}
-            <ul class="mods">
-              {#each sideModules as mod (mod.id)}
-                {@const n = mod.commands.length}
-                {@const key = groupKeyOf(mod)}
-                <li>
-                  <button
-                    class="mod"
-                    class:on={n > 0 && activeGroup === key}
-                    type="button"
-                    disabled={n === 0}
-                    aria-current={n > 0 && activeGroup === key ? 'true' : undefined}
-                    onclick={() => jumpTo(key)}
-                  >
-                    <Mark class="mod__mark" />
-                    <span class="mod__text">
-                      <span class="mod__label">{mod.label}</span>
-                      <span class="mod__tagline">{mod.tagline}</span>
-                    </span>
-                    <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
+            <div class="mods-wrap" bind:this={modsEl}>
+              <Glide />
+              <ul class="mods">
+                {#each sideModules as mod (mod.id)}
+                  {@const n = mod.commands.length}
+                  {@const key = groupKeyOf(mod)}
+                  <li>
+                    <button
+                      class="mod"
+                      class:on={n > 0 && activeGroup === key}
+                      type="button"
+                      disabled={n === 0}
+                      aria-current={n > 0 && activeGroup === key ? 'true' : undefined}
+                      onclick={() => jumpTo(key)}
+                    >
+                      <Mark class="mod__mark" />
+                      <span class="mod__text">
+                        <span class="mod__label">{mod.label}</span>
+                        <span class="mod__tagline">{mod.tagline}</span>
+                      </span>
+                      <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
           {:else}
             <Text size="sm" tone="muted">{t('public.commands.noModules')}</Text>
           {/if}
@@ -554,6 +578,7 @@
     padding-top: 2px;
   }
 
+  .mods-wrap { position: relative; }
   .mods { display: flex; flex-direction: column; }
 
   @media (min-width: 900px) {
@@ -568,6 +593,7 @@
     .side::-webkit-scrollbar { display: none; }
   }
   .mod {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -584,11 +610,8 @@
     transition: background var(--bb-dur-fast);
   }
   .mod:disabled { cursor: default; }
-  .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(var(--bb-tan-rgb), 0.06); }
-  .mod.on {
-    background: rgba(var(--bb-green-glow-rgb), 0.12);
-    box-shadow: inset 2px 0 0 var(--bb-green-glow);
-  }
+  .mod:not(:disabled, .on):hover, .mod:not(.on):focus-visible { background: rgba(var(--bb-tan-rgb), 0.06); }
+  .mod.on .mod__label { color: var(--bb-white); }
   .mod :global(.mod__mark) { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
@@ -627,6 +650,8 @@
     .mods::-webkit-scrollbar { display: none; }
     .mods li { flex: 0 0 auto; }
     .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
+    .mod.on { border-color: rgba(var(--bb-green-glow-rgb), 0.45); }
+    .mods-wrap :global(.bb-glide) { display: none; }
     .mod__tagline { display: none; }
     .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
