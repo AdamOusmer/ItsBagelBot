@@ -66,7 +66,7 @@
     ><div class="bb-mobile-menu__footer" data-menu-footer
       >{#if cta}<NavLink
           class="bb-mobile-menu__cta"
-          variant="cta"
+          variant={cta.icon === 'twitch' ? 'twitch' : 'cta'}
           href={cta.href}
           label={cta.label}
           external={cta.external}

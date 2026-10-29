@@ -30,7 +30,7 @@ const titleWords = t('finale.title').split(' ');
         </Heading>
         <Lead class="finale__sub" data-reveal><span data-fit="block">{t('finale.sub')}</span></Lead>
         <Cluster gap={4} justify="center" class="finale__actions" data-reveal>
-            <ButtonLink class="finale__cta" href={dashLoginHref(lang)}><span data-fit>{t('nav.cta')}</span></ButtonLink>
+            <ButtonLink class="finale__cta" href={dashLoginHref(lang)} variant="twitch"><span data-fit>{t('nav.cta')}</span></ButtonLink>
             <ButtonLink class="finale__cta" variant="secondary" href={localizePath('/pricing', lang)}><span data-fit>{t('finale.seePricing')}</span></ButtonLink>
         </Cluster>
         <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal><span data-fit="block">{t('finale.honesty')}</span></Text>

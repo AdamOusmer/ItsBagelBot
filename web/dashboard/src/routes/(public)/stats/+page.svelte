@@ -215,7 +215,7 @@
   // The crowd uses names from the current board when available. Seed-only
   // fallbacks are decorative, never sample channels or invented statistics.
   const crowdNames = $derived(
-    Array.from({ length: 6 }, (_, i) => traffic[i]?.name || traffic[i]?.id || `ItsBagelBot-${i}`)
+    Array.from({ length: 12 }, (_, i) => traffic[i]?.name || traffic[i]?.id || `ItsBagelBot-${i}`)
   );
   const feedArtworkNames = $derived(
     Array.from({ length: 3 }, (_, i) => feed.entries[i]?.name || feed.entries[i]?.id || `ItsBagelBot-feed-${i}`)
@@ -232,7 +232,7 @@
 <main class="stats-page">
   <StatsPageLayout
     arrangement="playful"
-    style={t('stats.pageHeadline').length > 9 ? '--bb-stats-heading-size: clamp(30px, 9vw, 64px)' : undefined}
+    style={t('stats.pageHeadline').length > 9 ? '--stats-heading-size: clamp(30px, 9vw, 64px)' : undefined}
   >
     {#snippet heading()}
       <div class="stats-heading">
@@ -244,7 +244,7 @@
 
     {#snippet crowd()}
       {#each crowdNames as name, i (`${i}:${name}`)}
-        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} active gate /></span>
+        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} motionState="idle" active gate /></span>
       {/each}
     {/snippet}
 
@@ -343,7 +343,7 @@
 
 <style>
   .stats-page { min-width: 0; }
-  .stats-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+  .stats-heading { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .ink-tan { color: var(--bb-tan); }
   .feeding-friends { display: flex; align-items: end; justify-content: center; }
   .feeding-friends :global(svg + svg) { margin-left: -5px; }

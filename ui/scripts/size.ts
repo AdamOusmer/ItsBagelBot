@@ -294,7 +294,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/ambient-sky", budget: 1680 }, // 1510 B: pre-blurred orb gradient stops, room ~10%
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
-  { name: "elements/ranking-card", budget: 1190 }, // 928 B
+  { name: "elements/ranking-card", budget: 1350 }, // 1227 B: tonal row divider, room ~10%
   // Blocks added 2026-09-28, macOS/arm64: measured gzip +150 B platform variance and ~10% room.
   { name: "elements/deck-layout", budget: 400 }, // 206 B
   { name: "elements/fact-list", budget: 1100 }, // 868 B: list layout (2026-10-28)
