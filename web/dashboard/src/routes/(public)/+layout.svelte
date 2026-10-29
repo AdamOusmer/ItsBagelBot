@@ -12,17 +12,15 @@
   import { reveal } from '@bagel/ui/svelte/actions';
   import {
     SITE,
-    SITE_FOOTER,
-    SITE_LEGAL,
     SITE_NAV,
     dashboardHref,
     localeOptions,
-    resolveSiteColumns,
     linkLocale,
     resolveSiteLinks,
     webHref,
     type SiteLinkContext
   } from '@bagel/kit/site-links';
+  import { siteFooterProps } from '@bagel/kit/site-footer';
 
   let { children } = $props();
 
@@ -50,8 +48,7 @@
   } satisfies SiteLinkContext);
 
   const links = $derived(resolveSiteLinks(SITE_NAV, navContext));
-  const columns = $derived(resolveSiteColumns(SITE_FOOTER, footerContext));
-  const legal = $derived(resolveSiteLinks(SITE_LEGAL, footerContext));
+  const footer = $derived(siteFooterProps(footerContext, '/logo.png'));
   const locales = $derived(
     localeOptions(LOCALES, locale, page.url, (code) => page.data.localeNames?.[code] ?? code)
   );
@@ -87,28 +84,11 @@
 
 {@render children()}
 
-<div class="footer-ground" use:reveal>
-  <Footer
-    brand={{
-      title: 'ItsBagelBot',
-      sub: t('public.footer.tagline'),
-      logoSrc: '/logo.png',
-      logoAlt: t('public.footer.logoAlt')
-    }}
-    signoff={{ line: t('public.footer.signoff'), sub: t('public.footer.signoffSub') }}
-    {columns}
-    {legal}
-    copyright={t('public.footer.copyright')}
-    note={t('public.footer.note')}
-    studio={t('public.footer.studio')}
-  />
+<div use:reveal>
+  <Footer {...footer} />
 </div>
 
 <style>
-  .footer-ground {
-    background: var(--bb-bg-0);
-  }
-
   .menu-lang {
     display: flex;
     justify-content: center;

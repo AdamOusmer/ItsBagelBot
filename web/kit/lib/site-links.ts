@@ -31,7 +31,6 @@ export interface SiteLinkDef {
 export interface SiteColumnDef {
   key: string;
   links: readonly SiteLinkDef[];
-  stacked?: boolean;
 }
 
 export interface SiteLink {
@@ -44,7 +43,6 @@ export interface SiteLink {
 export interface SiteColumn {
   title: string;
   links: SiteLink[];
-  stacked?: boolean;
 }
 
 export interface SiteLinkContext {
@@ -129,7 +127,6 @@ export function resolveSiteColumns(
   return defs.map((column) => ({
     title: ctx.label(column.key),
     links: resolveSiteLinks(column.links, ctx),
-    ...(column.stacked ? { stacked: true } : {}),
   }));
 }
 

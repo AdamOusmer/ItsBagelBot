@@ -99,7 +99,8 @@
     "./live-poll": "./lib/live-poll.ts",
     "./rates": "./lib/rates.ts",
     "./social": "./lib/social.ts",
-    "./site-links": "./lib/site-links.ts"
+    "./site-links": "./lib/site-links.ts",
+    "./site-footer": "./lib/site-footer.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
