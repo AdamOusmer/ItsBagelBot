@@ -15,7 +15,10 @@
     background: transparent;
     box-shadow: var(--bb-depth-1);
     color: var(--bb-white);
+    font-family: var(--bb-font-body);
     font-style: normal;
+    letter-spacing: normal;
+    line-height: 1;
     transition: background var(--bb-dur-fast), color var(--bb-dur-fast);
   }
 
