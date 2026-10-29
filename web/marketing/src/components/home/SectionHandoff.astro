@@ -8,8 +8,8 @@
     @supports (animation-timeline: view()) {
         @media (prefers-reduced-motion: no-preference) {
             :global(:is(
-                #main-content > section > :not(script, style, [data-field], .bento, ol, .finale__glow),
-                #main-content > section > :is(.bento, ol) > *
+                :is(#main-content, #main-content > .bb-container) > section > :not(script, style, [data-field], .bento, ol, .finale__glow),
+                :is(#main-content, #main-content > .bb-container) > section > :is(.bento, ol) > *
             )) {
                 animation-name: section-handoff;
                 animation-timing-function: linear;
