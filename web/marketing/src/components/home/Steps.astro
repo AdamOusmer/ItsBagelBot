@@ -7,7 +7,6 @@ import Heading from '@bagel/ui/astro/Heading.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
-import Text from '@bagel/ui/astro/Text.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -16,19 +15,16 @@ const steps = [
     {
         num: '01',
         title: t('steps.s1Title'),
-        body: t('steps.s1Body'),
         receipt: 'oauth ✓ · scopes ✓ · 1.2s',
     },
     {
         num: '02',
         title: t('steps.s2Title'),
-        body: t('steps.s2Body'),
         receipt: t('steps.s2Receipt'),
     },
     {
         num: '03',
         title: t('steps.s3Title'),
-        body: t('steps.s3Body'),
         receipt: t('steps.s3Receipt'),
     },
 ];
@@ -45,7 +41,6 @@ const steps = [
                 <span class="step__num" aria-hidden="true">{step.num}</span>
                 <div class="step__body">
                     <Heading level={4} as="h3" class="step__title"><span data-fit="block">{step.title}</span></Heading>
-                    <Text tone="muted" class="step__text"><span data-fit="block">{step.body}</span></Text>
                     <span class="step__receipt"><span data-fit data-decode={step.receipt}>{step.receipt}</span></span>
                 </div>
             </li>
@@ -70,7 +65,7 @@ const steps = [
         position: relative;
         display: flex;
         flex-direction: column;
-        gap: 48px;
+        gap: 32px;
         padding-left: 0;
         margin: 0;
     }
@@ -138,13 +133,29 @@ const steps = [
     .step__title {
         height: calc(var(--step-title-lines, 1) * 1lh);
         font-weight: 700;
-        margin: 6px 0 8px;
+        margin: 6px 0 12px;
     }
 
-    .step__text {
-        max-width: 46ch;
-        height: calc(var(--step-text-lines, 3) * 1lh);
-        margin: 0 0 12px;
+    @media (min-width: 1024px) {
+        .steps__list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 32px;
+        }
+
+        .steps__rail {
+            display: none;
+        }
+
+        .step {
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .step__title {
+            --step-title-lines: 2;
+            margin-top: 0;
+        }
     }
 
     .step__receipt {
@@ -177,7 +188,7 @@ const steps = [
 
     @media (max-width: 640px) {
         .steps { padding-inline: 20px; }
-        .steps__list { gap: 40px; }
+        .steps__list { gap: 28px; }
         .step { gap: 18px; }
         .step__num { width: 44px; height: 44px; font-size: 0.72rem; }
         .steps__rail { left: 22px; }

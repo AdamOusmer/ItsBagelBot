@@ -1,0 +1,54 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+interface Props {
+    cols?: 3 | 4;
+    class?: string;
+}
+
+const { cols = 3, class: cls = '' } = Astro.props;
+---
+
+<div class:list={['bento', `bento--${cols}`, cls]}><slot /></div>
+
+<style>
+    .bento {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+
+    @media (min-width: 720px) {
+        .bento {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .bento > :global(.fcard--span-3),
+        .bento > :global(:last-child:nth-child(odd):not(.fcard--span-2)) {
+            grid-column: 1 / -1;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .bento--3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .bento--4 {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .bento > :global(:last-child:nth-child(odd):not(.fcard--span-2)) {
+            grid-column: auto;
+        }
+
+        .bento > :global(.fcard--span-2) {
+            grid-column: span 2;
+        }
+
+        .bento > :global(.fcard--span-3) {
+            grid-column: 1 / -1;
+        }
+    }
+</style>

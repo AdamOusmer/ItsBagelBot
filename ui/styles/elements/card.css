@@ -9,16 +9,61 @@
 
   .bb-card {
     position: relative;
+    isolation: isolate;
     display: block;
     overflow: hidden;
     padding: var(--card-pad);
-    background: var(--card-bg, var(--bb-card-bg));
+    background: var(--card-bg, var(--bb-surface-raised));
     border: 1px solid var(--card-border, var(--bb-border));
-    border-radius: var(--card-radius, var(--bb-radius-md));
+    border-radius: var(--card-radius, var(--bb-radius-lg));
+    box-shadow: var(--card-shadow, var(--bb-surface-raised-shadow));
     text-decoration: none;
+    transition: border-color var(--bb-dur-base) ease;
+  }
+
+  .bb-card::after {
+    content: "";
+    position: absolute;
+    inset: -35% -10% auto;
+    z-index: -1;
+    height: 100%;
+    background: radial-gradient(closest-side, rgba(var(--card-halo-rgb, var(--bb-halo-gold-rgb)), 0.16), transparent);
+    opacity: var(--card-halo, 0.7);
+    pointer-events: none;
+    transition: opacity var(--bb-dur-slow) ease;
+  }
+
+  .bb-card--danger::after {
+    content: none;
+  }
+
+  :root[data-theme='light'] .bb-card {
+    --card-shadow: 0 1px 2px rgba(var(--bb-shadow-rgb), 0.06);
+    --card-halo: 0.35;
+  }
+
+  .bb-card--raised {
+    --card-shadow: var(--bb-depth-2);
+  }
+
+  :where([data-surface='tonal']) .bb-card {
+    --card-hover-border: var(--card-border, transparent);
+    background: var(--card-bg, var(--bb-elev-1));
+    border-color: var(--card-border, transparent);
+    border-radius: var(--card-radius, var(--bb-radius-md));
+    box-shadow: var(--card-shadow, var(--bb-depth-1));
     transition:
-      border-color 360ms var(--bb-ease-out-expo),
-      transform 360ms var(--bb-ease-out-expo);
+      background-color var(--bb-dur-base) ease,
+      box-shadow var(--bb-dur-base) ease;
+  }
+
+  :where([data-surface='tonal']) .bb-card::after {
+    content: none;
+  }
+
+  :where([data-surface='tonal']) .bb-card:is(.bb-card--raised, [data-hover]:hover, [href]:hover, [data-hover]:focus-visible, [href]:focus-visible) {
+    background: var(--card-bg, var(--bb-elev-2));
+    box-shadow: var(--card-shadow-raised, var(--bb-depth-2));
   }
 
   .bb-card--stat {
@@ -39,7 +84,7 @@
 
   .bb-card--accent {
     border-color: var(--bb-border-strong);
-    box-shadow: 0 0 40px rgba(var(--bb-tan-rgb), 0.08);
+    --card-shadow: var(--bb-surface-raised-shadow), 0 0 40px rgba(var(--bb-halo-gold-rgb), 0.08);
   }
 
   .bb-card--danger {
@@ -79,8 +124,8 @@
     align-items: center;
     height: var(--card-band-h, calc(96px * var(--d)));
     padding: var(--card-band-pad, calc(14px * var(--d)) calc(18px * var(--d)));
-    background: var(--bb-bg-0);
-    border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.12);
+    background: transparent;
+    border-bottom: 1px solid var(--bb-border);
     overflow: hidden;
   }
 
@@ -116,36 +161,17 @@
     padding: var(--card-body-pad, var(--card-pad, 24px));
   }
 
-  .bb-card[data-atmo]:not(.bb-card--band) {
-    isolation: isolate;
+  .bb-card .bb-card-atmo {
+    display: none;
   }
 
-  .bb-card-atmo {
-    z-index: -1;
-    border-radius: inherit;
-    --card-atmo-ease: var(--bb-ease-out-expo);
-  }
-
-  .bb-card:nth-child(even) .bb-card-atmo {
-    transform: scaleX(-1);
-  }
-
-  .bb-card[data-hover]:is(:hover, :focus-visible) .bb-card-atmo {
-    --card-atmo-glow: 1.6;
-    --card-atmo-ring: 0.24;
-  }
-
-  .bb-card__band .bb-card-atmo__ring {
-    top: 50%;
-    right: -16%;
-    width: 62%;
-    --card-atmo-ring: 0.18;
+  .bb-card:is([data-hover], [href]):is(:hover, :focus-visible) {
+    --card-halo: 1;
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .bb-card[data-hover]:hover {
-      border-color: rgba(var(--bb-tan-rgb), 0.38);
-      transform: translateY(-3px);
+    .bb-card:is([data-hover], [href]):hover {
+      border-color: var(--card-hover-border, var(--bb-border-strong));
     }
   }
 

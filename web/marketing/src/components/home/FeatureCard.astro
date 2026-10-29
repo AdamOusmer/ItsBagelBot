@@ -1,0 +1,135 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+
+interface Props {
+    label?: string;
+    href?: string;
+    tone?: 'gold' | 'green';
+    span?: 1 | 2 | 3;
+    index?: number;
+    class?: string;
+}
+
+const { label, href, tone = 'gold', span = 1, index = 0, class: cls = '' } = Astro.props;
+---
+
+<HaloPanel
+    as={href ? 'a' : 'article'}
+    href={href}
+    tone={tone}
+    class:list={['fcard', `fcard--${tone}`, span > 1 && `fcard--span-${span}`, cls]}
+    data-card
+    data-cursor={href ? 'quiet' : undefined}
+>
+    <div class="fcard__inner" data-reveal style={`--reveal-i: ${index}`}>
+        {(label || href) && (
+            <div class="fcard__top">
+                {label && <span class="fcard__label"><span data-fit>{label}</span></span>}
+                {href && <span class="fcard__go" data-cursor aria-hidden="true">→</span>}
+            </div>
+        )}
+        <div class="fcard__demo" aria-hidden="true"><slot name="demo" /></div>
+        <Heading level={5} as="h3" variant="title" class="fcard__title"><span data-fit="block"><slot /></span></Heading>
+    </div>
+</HaloPanel>
+
+<style>
+    .fcard {
+        display: flex;
+        min-width: 0;
+        padding: 28px;
+    }
+
+    .fcard__inner {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 20px;
+        min-width: 0;
+    }
+
+    .fcard__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 32px;
+    }
+
+    .fcard__label {
+        display: block;
+        flex: 1;
+        min-width: 0;
+        height: 1lh;
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-xs);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--bb-tan);
+    }
+
+    .fcard__go {
+        display: grid;
+        place-items: center;
+        flex: none;
+        width: 32px;
+        height: 32px;
+        margin-left: auto;
+        font-size: var(--bb-text-sm);
+        color: var(--bb-muted);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-pill);
+        transition:
+            color var(--bb-dur-fast) ease,
+            border-color var(--bb-dur-fast) ease,
+            background-color var(--bb-dur-fast) ease;
+    }
+
+    .fcard[href]:hover .fcard__go {
+        color: var(--bb-black);
+        background: var(--bb-white);
+        border-color: var(--bb-white);
+    }
+
+    .fcard__demo {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: var(--fcard-demo-h, 140px);
+        min-width: 0;
+        font-family: var(--bb-font-mono);
+        font-size: 0.78rem;
+    }
+
+    .fcard :global(.fcard__title) {
+        height: calc(var(--fcard-title-lines, 2) * 1lh);
+        margin: auto 0 0;
+        color: var(--bb-white);
+    }
+
+    .fcard :global(.fcard-value) {
+        font-family: var(--bb-font-display);
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.01em;
+        background: var(--bb-gold-gradient);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fcard--green :global(.fcard-value) {
+        background-image: var(--bb-green-gradient);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .fcard__go {
+            transition: none;
+        }
+    }
+</style>

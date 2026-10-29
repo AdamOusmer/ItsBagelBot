@@ -2,13 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
-import Heading from '@bagel/ui/astro/Heading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
 import Section from '@bagel/ui/astro/Section.astro';
-import Text from '@bagel/ui/astro/Text.astro';
-import TextLink from '@bagel/ui/astro/TextLink.astro';
+import BentoGrid from './BentoGrid.astro';
+import FeatureCard from './FeatureCard.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -20,9 +18,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 <Section size="page" class="qw" id="quiet-work" data-motion>
     <SectionHeading eyebrow={t('quietWork.eyebrow')} title={t('quietWork.title')} />
 
-    <div class="qw__grid">
-        <Card atmo hover class="qw__card qw__card--full" data-reveal>
-            <div class="qw__demo qw__demo--song" slot="band" aria-hidden="true">
+    <BentoGrid cols={3}>
+        <FeatureCard index={0} span={2} tone="gold" href={localizePath('/song-requests', lang)}>
+            <div slot="demo" class="qw__demo qw__demo--song">
                 <span class="qw-song__art">
                     <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
                 </span>
@@ -36,13 +34,11 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.songTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.songDesc')}</span></Text>
-            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/song-requests', lang)}><span class="qw__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
-        </Card>
+            {t('quietWork.songTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
-            <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
+        <FeatureCard index={1} tone="green" href={localizePath('/govee', lang)}>
+            <div slot="demo" class="qw__demo qw__demo--govee">
                 <span class="qw-govee__glow bb-layers">
                     {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                 </span>
@@ -57,43 +53,38 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-govee__dot bb-layers">
                         {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                     </span>
-                    <span class="qw-govee__redeem-text"><span data-fit>{t('quietWork.goveeReward')}</span></span>
+                    <span class="qw-govee__redeem-text"><span data-fit="block">{t('quietWork.goveeReward')}</span></span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.goveeTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.goveeDesc')}</span></Text>
-            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/govee', lang)}><span class="qw__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
-        </Card>
+            {t('quietWork.goveeTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
-            <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
+        <FeatureCard index={2} tone="green" href={localizePath('/command-builder', lang)}>
+            <div slot="demo" class="qw__demo qw__demo--cmd">
                 <span class="qw-cmd__in">!welcome PrincessBarney</span>
                 <span class="qw-cmd__out"><span data-fit>{t('quietWork.cmdOut')}</span></span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.cmdTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.cmdDesc')}</span></Text>
-        </Card>
+            {t('quietWork.cmdTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
-            <div class="qw__demo qw__demo--queue" slot="band" aria-hidden="true">
+        <FeatureCard index={3} tone="gold" href={localizePath('/viewer-queue', lang)}>
+            <div slot="demo" class="qw__demo qw__demo--queue">
                 <span class="qw-queue__row"><b class="qw-queue__pos">#1</b>Lotti</span>
                 <span class="qw-queue__row"><b class="qw-queue__pos">#2</b>PrincessBarney</span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.queueTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.queueDesc')}</span></Text>
-        </Card>
+            {t('quietWork.queueTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
-            <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
+        <FeatureCard index={4} tone="gold" href={localizePath('/giveaways', lang)}>
+            <div slot="demo" class="qw__demo qw__demo--win">
                 <span class="qw-win__label"><span data-fit>{t('quietWork.winLabel')}</span></span>
-                <span class="qw-win__name" data-qw-winner>MikanMeerkat</span>
+                <span class="qw-win__name"><span data-fit><span class="fcard-value" data-qw-winner>MikanMeerkat</span></span></span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.winTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.winDesc')}</span></Text>
-        </Card>
+            {t('quietWork.winTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
-            <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
+        <FeatureCard index={5} span={3} tone="green" href={localizePath('/timers', lang)} class="qw__beat-card">
+            <div slot="demo" class="qw__demo qw__demo--beat">
                 <span class="qw-beat">
                     <span class="qw-beat__wipe bb-wipe">
                         <svg viewBox="0 0 120 32" preserveAspectRatio="none">
@@ -103,10 +94,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     </span>
                 </span>
             </div>
-            <Heading level={5} as="h3" variant="title" class="qw__title"><span class="qw__title-text"><span data-fit="block">{t('quietWork.beatTitle')}</span></span></Heading>
-            <Text size="sm" tone="muted" class="qw__desc"><span data-fit="block">{t('quietWork.beatDesc')}</span></Text>
-        </Card>
-    </div>
+            {t('quietWork.beatTitle')}
+        </FeatureCard>
+    </BentoGrid>
 </Section>
 
 <style>
@@ -120,52 +110,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         z-index: 3;
     }
 
-    .qw__grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 20px;
-        --card-band-h: 112px;
-    }
-
-    @media (min-width: 720px) {
-        .qw__grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (min-width: 1024px) {
-        .qw__grid { grid-template-columns: repeat(6, 1fr); }
-        .qw__card { grid-column: span 2; }
-        .qw__card--wide { grid-column: span 3; }
-    }
-
-    .qw__card--full { grid-column: 1 / -1; }
-
-    @media (min-width: 720px) {
-        .qw__card--full { --qw-title-lines: 1; --qw-desc-lines: 2; }
-    }
-
-    .qw__title {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-        margin: 0 0 8px;
-    }
-
-    .qw__title-text {
-        display: block;
-        align-self: stretch;
-        height: calc(var(--qw-title-lines, 2) * 1lh);
-    }
-
-    .qw__desc {
-        height: calc(var(--qw-desc-lines, 3) * 1lh);
-    }
-
-    .qw__more { margin-top: 14px; align-self: flex-start; }
-
-    .qw__more-box {
-        display: block;
-        width: 136px;
+    .qw :global(.qw__beat-card) {
+        --fcard-demo-h: 72px;
     }
 
     .qw__demo {
@@ -324,6 +270,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         transform-origin: 38px 50%;
         animation: qwGoveeBloom 9s ease-in-out infinite;
         pointer-events: none;
+        mask-image: radial-gradient(160px 50% at 38px 50%, #000 35%, transparent);
     }
 
     .qw-govee__glow i {
@@ -356,6 +303,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     .qw-govee__redeem-text {
         flex: 1 1 0;
         min-width: 0;
+        height: calc(2 * 1lh);
     }
 
     .qw-govee__dot {
@@ -455,8 +403,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         96%, 100% { opacity: 0; }
     }
 
-
-
     .qw-queue__row {
         display: flex;
         gap: 10px;
@@ -472,7 +418,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
     .qw-queue__row:nth-child(2) { color: var(--bb-green-glow); }
 
-    .qw__demo--win { align-items: flex-start; gap: 4px; }
+    .qw__demo--win { align-items: stretch; gap: 8px; }
 
     .qw-win__label {
         align-self: stretch;
@@ -483,9 +429,11 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     .qw-win__name {
-        font-size: 1rem;
-        color: var(--bb-tan-light);
-        text-shadow: 0 0 18px rgba(var(--bb-tan-rgb), 0.35);
+        display: block;
+        height: 1lh;
+        font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+        line-height: 1;
+        white-space: nowrap;
     }
 
     .qw__demo--beat { color: var(--bb-green-glow); padding: 18px 12px; }

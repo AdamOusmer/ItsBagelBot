@@ -6,11 +6,12 @@ import type { HTMLAttributes } from 'astro/types';
 import CardAtmosphere from './CardAtmosphere.astro';
 import '../styles/elements/card.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'href' | 'atmo' | 'sheen' | 'stat' | 'glass' | 'hover' | 'label' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'href' | 'atmo' | 'sheen' | 'raised' | 'stat' | 'glass' | 'hover' | 'label' | 'class'> {
     as?: 'div' | 'a' | 'article' | 'section' | 'li' | 'aside';
     href?: string;
     atmo?: boolean;
     sheen?: boolean;
+    raised?: boolean;
     stat?: boolean;
     glass?: boolean;
     hover?: boolean;
@@ -26,6 +27,7 @@ const {
     href,
     atmo = false,
     sheen = false,
+    raised = false,
     stat = false,
     glass = false,
     hover = false,
@@ -45,6 +47,7 @@ const classes = [
     banded && 'bb-card--band',
     stat && 'bb-card--stat',
     sheen && 'bb-card--sheen',
+    raised && 'bb-card--raised',
     glass && 'bb-card--glass',
     flush && 'bb-card--flush',
     dashed && 'bb-card--dashed',

@@ -57,11 +57,11 @@ const t = useTranslations(lang);
 
 <style>
     .enc {
-        height: 520vh;
+        height: 420vh;
         width: 100%;
         max-width: none;
         padding: 0;
-        margin: -100vh 0 0;
+        margin: 0;
         position: relative;
     }
 
@@ -419,9 +419,8 @@ const t = useTranslations(lang);
     }
 
     function encryptionScrollMetrics() {
-        const heroOffset = window.innerHeight;
-        const top = section.offsetTop + heroOffset;
-        const total = Math.max(1, section.offsetHeight - window.innerHeight - heroOffset);
+        const top = section.offsetTop;
+        const total = Math.max(1, section.offsetHeight - window.innerHeight);
         return {top, total};
     }
 
@@ -926,9 +925,8 @@ const t = useTranslations(lang);
         let escapeAccum = 0;
 
         function scrollMetrics() {
-            const heroOffset = window.innerHeight;
-            const top = section.offsetTop + heroOffset;
-            const total = Math.max(1, section.offsetHeight - window.innerHeight - heroOffset);
+            const top = section.offsetTop;
+            const total = Math.max(1, section.offsetHeight - window.innerHeight);
             return {top, total};
         }
 
@@ -1382,6 +1380,10 @@ const t = useTranslations(lang);
 
     function onBootScroll() {
         if (window.scrollY < POST_BOOT_SCROLL_THRESHOLD) return;
+        if (!pendingStart && isSectionNearViewport()) {
+            requestEncryptionStart();
+            return;
+        }
         schedulePreloadEncryption();
         maybeStartAfterBoot();
     }

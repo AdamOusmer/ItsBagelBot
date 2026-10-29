@@ -1,0 +1,23 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/halo-panel.css';
+
+interface Props extends Omit<HTMLAttributes<'div'>, 'class'> {
+    as?: 'div' | 'a' | 'article' | 'section' | 'aside';
+    href?: string;
+    tone?: 'gold' | 'green';
+    class?: string;
+}
+
+const { as, href, tone = 'gold', class: className = '', ...rest } = Astro.props;
+
+const Tag = as ?? (href ? 'a' : 'div');
+const classes = ['bb-halo-panel', tone === 'green' ? 'bb-halo-panel--green' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} href={href} {...rest}><span class="bb-halo-panel__halo" aria-hidden="true"></span><slot /></Tag>

@@ -64,7 +64,7 @@
 </script>
 
 <section class="ov-stream" class:ov-stream--slim={slim} class:ov-stream--stale={stale} aria-labelledby="ov-stream-h">
-  <Card flush>
+  <Card flush raised>
     <div class="ov-stream__glow" aria-hidden="true"></div>
     <div class="ov-stream__grid">
       <div class="ov-stream__main">

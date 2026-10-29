@@ -20,7 +20,7 @@
     z-index: var(--bb-z-overlay);
     overflow-y: auto;
     border-radius: var(--bb-radius-md);
-    box-shadow: 0 12px 32px rgba(var(--bb-shadow-rgb), 0.45);
+    box-shadow: var(--bb-depth-3);
   }
   :root[data-theme='light'] .bb-picker-panel--dropdown { box-shadow: 0 12px 32px rgba(var(--bb-ink-rgb), 0.15); }
 

@@ -315,6 +315,14 @@ describe('Card', () => {
   });
 
   contract({
+    name: 'raised modifier lifts the card a depth level',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { raised: true },
+    html: '<div class="bb-card bb-card--raised" data-card>body</div>',
+  });
+
+  contract({
     name: 'glass modifier frosts the surface',
     svelte: SvelteCard,
     astro: AstroCard,
@@ -912,6 +920,8 @@ import SvelteGrid from '../svelte/Grid.svelte';
 import AstroGrid from '../astro/Grid.astro';
 import SvelteDivider from '../svelte/Divider.svelte';
 import AstroDivider from '../astro/Divider.astro';
+import SvelteHaloPanel from '../svelte/HaloPanel.svelte';
+import AstroHaloPanel from '../astro/HaloPanel.astro';
 import SvelteSpacer from '../svelte/Spacer.svelte';
 import AstroSpacer from '../astro/Spacer.astro';
 import SvelteInput from '../svelte/Input.svelte';
@@ -1150,6 +1160,22 @@ const PRIMITIVES: {
     astro: AstroDivider,
     props: {"vertical":true,"fade":true},
     html: "<span class=\"bb-divider bb-divider--v bb-divider--fade\" aria-hidden=\"true\"></span>",
+  },
+  {
+    name: "HaloPanel",
+    svelte: SvelteHaloPanel,
+    astro: AstroHaloPanel,
+    props: {},
+    slot: "x",
+    html: "<div class=\"bb-halo-panel\"><span class=\"bb-halo-panel__halo\" aria-hidden=\"true\"></span>x</div>",
+  },
+  {
+    name: "HaloPanel|green link",
+    svelte: SvelteHaloPanel,
+    astro: AstroHaloPanel,
+    props: {"tone":"green","href":"/x","class":"tile"},
+    slot: "x",
+    html: "<a class=\"bb-halo-panel bb-halo-panel--green tile\" href=\"/x\"><span class=\"bb-halo-panel__halo\" aria-hidden=\"true\"></span>x</a>",
   },
   {
     name: "Spacer",

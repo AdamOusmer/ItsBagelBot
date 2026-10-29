@@ -1,7 +1,7 @@
 {
   "eyebrow": "Une démo qui fonctionne",
   "title": "Essayez ici.",
-  "sub": "Après tout ça, voici ce que vos spectateurs rencontrent vraiment : un bot posé tranquillement dans le chat. Tapez une commande, envoyez du spam, et regardez ce qu'il fait.",
+  "sub": "Un bot posé tranquillement dans le chat. Tapez une commande, envoyez du spam, et regardez ce qu'il fait.",
   "sendSpam": "envoyer du spam",
   "hint": "Le bot ne parle que lorsqu'on lui parle. Le chat reste le vôtre.",
   "live": "en direct",

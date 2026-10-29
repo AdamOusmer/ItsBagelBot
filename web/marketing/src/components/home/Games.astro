@@ -4,15 +4,13 @@
 
 import { SITE } from '@bagel/kit/site-links';
 
-import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
-import Card from '@bagel/ui/astro/Card.astro';
-import Heading from '@bagel/ui/astro/Heading.astro';
-import Icon from '@bagel/ui/astro/Icon.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import BentoGrid from './BentoGrid.astro';
+import FeatureCard from './FeatureCard.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -23,15 +21,15 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 <Section size="page" class="games" id="integrations" data-motion>
     <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
 
-    <div class="games__grid">
-        <Card atmo hover class="games__card" label={t('games.mcCh')} data-reveal>
-            <div class="games__demo games__demo--mc" slot="band" aria-hidden="true">
+    <BentoGrid cols={4}>
+        <FeatureCard index={0} tone="gold" label={t('games.mcCh')} href={localizePath('/hypixel-bedwars-stats', lang)}>
+            <div slot="demo" class="games__demo games__demo--mc">
                 <div class="games-mc__group games-mc__group--bw">
                     <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
+                    <span class="games__value fcard-value games-mc__value"><span data-fit>4.82</span></span>
                     <div class="games-mc__stats games-mc__stats--bw">
                         <span class="games-mc__stat"><b class="games-stat__key">Level</b> 402</span>
                         <span class="games-mc__stat"><b class="games-stat__key">Wins</b> 2,541</span>
-                        <span class="games-mc__stat"><b class="games-stat__key">FKDR</b> 4.82</span>
                     </div>
                 </div>
                 <div class="games-mc__group games-mc__group--mcsr">
@@ -42,81 +40,66 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </div>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/hypixel-bedwars-stats', lang)}>{t('games.mcTitle')}</a></span></Heading>
-            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.mcDesc')}</span></Text>
-        </Card>
+            {t('games.mcTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
-            <div class="games__demo games__demo--fn" slot="band" aria-hidden="true">
-                <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M10 32 L30 29 L30 47 L14 50 Z" />
-                    <path d="M14 36 L27 34.5" stroke-width="1.5" />
-                    <path d="M30 27 H134 V47 H30 Z" />
-                    <path d="M34 27 V22 H128 V27" />
-                    <path d="M44 22 v3 M56 22 v3 M68 22 v3 M80 22 v3 M92 22 v3 M104 22 v3 M116 22 v3" stroke-width="1.5" />
-                    <path d="M40 22 v-5 h7 v5" />
-                    <path d="M62 22 v-4" />
-                    <path d="M84 33 h20 v7 H84 Z" stroke-width="1.5" />
-                    <path d="M76 47 q1 9 10 9 h8" />
-                    <path d="M98 47 L94 64 L104 66 L109 47" />
-                    <path d="M112 47 C110 57 114 64 123 66 L133 62 C128 56 128 51 129 47 Z" />
-                    <path d="M134 31 H184 M134 41 H184" />
-                    <path d="M152 31 v-8 h7 v8" />
-                    <path d="M184 28 h16 l4 4 v6 l-4 4 h-12 Z" />
-                    <path d="M190 32 v8 M196 32 v8" stroke-width="1.5" />
-                </svg>
+        <FeatureCard index={1} tone="green" label={t('games.fnCh')} href={localizePath('/fortnite-stats', lang)}>
+            <div slot="demo" class="games__demo games__demo--fn">
+                    <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 32 L30 29 L30 47 L14 50 Z" />
+                        <path d="M14 36 L27 34.5" stroke-width="1.5" />
+                        <path d="M30 27 H134 V47 H30 Z" />
+                        <path d="M34 27 V22 H128 V27" />
+                        <path d="M44 22 v3 M56 22 v3 M68 22 v3 M80 22 v3 M92 22 v3 M104 22 v3 M116 22 v3" stroke-width="1.5" />
+                        <path d="M40 22 v-5 h7 v5" />
+                        <path d="M62 22 v-4" />
+                        <path d="M84 33 h20 v7 H84 Z" stroke-width="1.5" />
+                        <path d="M76 47 q1 9 10 9 h8" />
+                        <path d="M98 47 L94 64 L104 66 L109 47" />
+                        <path d="M112 47 C110 57 114 64 123 66 L133 62 C128 56 128 51 129 47 Z" />
+                        <path d="M134 31 H184 M134 41 H184" />
+                        <path d="M152 31 v-8 h7 v8" />
+                        <path d="M184 28 h16 l4 4 v6 l-4 4 h-12 Z" />
+                        <path d="M190 32 v8 M196 32 v8" stroke-width="1.5" />
+                    </svg>
+                <span class="games__value fcard-value games-fn__value"><span data-fit>1,200</span></span>
                 <div class="games-fn__meta">
                     <span class="games-fn__rarity">Legendary</span>
-                    <span class="games-fn__price">
-                        <svg viewBox="0 0 12 12" width="11" height="11" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="6" r="2" fill="currentColor"/></svg>
-                        1,200
-                    </span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/fortnite-stats', lang)}>{t('games.fnTitle')}</a></span></Heading>
-            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.fnDesc')}</span></Text>
-        </Card>
+            {t('games.fnTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
-            <div class="games__demo games__demo--val" slot="band" aria-hidden="true">
+        <FeatureCard index={2} tone="gold" label={t('games.valCh')} href={localizePath('/valorant-stats', lang)}>
+            <div slot="demo" class="games__demo games__demo--val">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
+                <span class="games__value fcard-value games-val__value"><span data-fit>Immortal 2</span></span>
                 <div class="games-val__stats">
-                    <span class="games-val__stat"><b class="games-stat__key">Tier</b> Immortal 2</span>
                     <span class="games-val__stat"><b class="games-stat__key">RR</b> 67</span>
                     <span class="games-val__stat"><b class="games-stat__key">Peak</b> Immortal 1</span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.valTitle')}</span></Heading>
-            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.valDesc')}</span></Text>
-            <TextLink variant="arrow" tone="go" class="games__more" href={localizePath('/valorant-stats', lang)}><span class="games__more-box"><span data-fit>{t('rail.learnMore')}</span></span></TextLink>
-        </Card>
+            {t('games.valTitle')}
+        </FeatureCard>
 
-        <Card atmo hover class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
-            <div class="games__demo games__demo--cr" slot="band" aria-hidden="true">
+        <FeatureCard index={3} tone="green" label={t('games.crCh')} href={localizePath('/clash-royale-stats', lang)}>
+            <div slot="demo" class="games__demo games__demo--cr">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
+                <span class="games__value fcard-value games-cr__value"><span data-fit>60%</span></span>
                 <div class="games-cr__stats">
                     <span class="games-cr__stat"><b class="games-stat__key">Level</b> 62</span>
                     <span class="games-cr__stat"><b class="games-stat__key">W/L</b> 600/300</span>
-                    <span class="games-cr__stat"><b class="games-stat__key">WR</b> 60%</span>
                 </div>
             </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block"><a class="games__title-link" href={localizePath('/clash-royale-stats', lang)}>{t('games.crTitle')}</a></span></Heading>
-            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.crDesc')}</span></Text>
-        </Card>
+            {t('games.crTitle')}
+        </FeatureCard>
+    </BentoGrid>
 
-        <Card atmo hover class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
-            <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
-                <ButtonLink variant="secondary" href={`${SITE.github}/issues/new`} target="_blank" rel="noopener noreferrer">
-                    <Icon name="githubLine" />
-                    New Issue
-                </ButtonLink>
-            </div>
-            <Heading level={5} as="h3" variant="title" class="games__title"><span data-fit="block">{t('games.reqTitle')}</span></Heading>
-            <Text size="sm" tone="muted" class="games__desc"><span data-fit="block">{t('games.reqDesc')}</span></Text>
-        </Card>
-    </div>
-
-    <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block">{legalShortBefore}<TextLink
+    <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block"><TextLink
+        variant="inline"
+        external
+        href={`${SITE.github}/issues/new`}
+    >{t('games.reqTitle')}</TextLink> {legalShortBefore}<TextLink
         variant="inline"
         href={localizePath('/terms', lang)}
     >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</span></Text>
@@ -134,44 +117,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         scroll-margin-top: calc(var(--nav-offset) + 16px);
     }
 
-    .games__grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 20px;
-        --card-band-h: 132px;
-    }
-
-    @media (min-width: 720px) {
-        .games__grid { grid-template-columns: repeat(3, 1fr); }
-        .games__card--req { grid-column: span 2; }
-    }
-
-    .games__title {
-        height: calc(var(--games-title-lines, 2) * 1lh);
-        margin: 0 0 8px;
-    }
-
-    .games__title-link {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .games__title-link:is(:hover, :focus-visible) {
-        text-decoration: underline;
-    }
-
-    .games__desc {
-        height: calc(var(--games-desc-lines, 3) * 1lh);
-    }
-
-
-    .games__more { margin-top: 14px; align-self: flex-start; }
-
-    .games__more-box {
-        display: block;
-        width: 136px;
-    }
-
     .games__demo {
         display: flex;
         flex-direction: column;
@@ -183,6 +128,26 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-size: 0.74rem;
     }
 
+    .games__value {
+        display: block;
+        min-width: 0;
+        height: calc(1 * 1lh);
+        font-size: clamp(1.5rem, 2vw, 2rem);
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .games-mc__value,
+    .games-val__value,
+    .games-cr__value {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    .games-mc__value { animation: gamesFadeMcBw 12s ease-in-out infinite; }
+    .games-val__value { animation: gamesFadeVal 12s ease-in-out infinite; }
+    .games-cr__value { animation: gamesFadeCr 12s ease-in-out infinite; }
+
     .games__demo--mc {
         position: relative;
     }
@@ -193,8 +158,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         display: flex;
         flex-direction: column;
         justify-content: center;
-        gap: 12px;
-        padding: 14px 16px;
+        gap: 8px;
     }
 
     .games-mc__line {
@@ -240,7 +204,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games__demo--fn {
         align-items: center;
         gap: 8px;
-        padding: 12px 16px;
     }
 
     .games-fn__scar {
@@ -249,6 +212,11 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         color: var(--bb-tan-light);
         filter: drop-shadow(0 0 10px color-mix(in srgb, var(--bb-tan-light) 22%, transparent));
         animation: gamesFnFloat 4.5s ease-in-out infinite;
+    }
+
+    .games-fn__value {
+        width: 100%;
+        text-align: center;
     }
 
     .games-fn__meta {
@@ -262,14 +230,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-size: 0.75rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-    }
-
-    .games-fn__price {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        color: var(--bb-muted);
-        font-size: 0.75rem;
     }
 
     .games-val__line,
@@ -295,10 +255,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games-cr__line { animation: gamesTypeCr 12s steps(12) infinite; }
     .games-val__stats { animation: gamesFadeVal 12s ease-in-out infinite; }
     .games-cr__stats { animation: gamesFadeCr 12s ease-in-out infinite; }
-
-    .games__demo--req {
-        align-items: center;
-    }
 
     @keyframes gamesTypeMcBw {
         0%, 4% { width: 0; opacity: 1; }
@@ -355,7 +311,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games__legal {
-        height: calc(var(--games-legal-lines, 2) * 1lh);
+        height: calc(var(--games-legal-lines, 3) * 1lh);
         margin: 28px auto 0;
         max-width: 720px;
         text-align: center;
@@ -368,7 +324,10 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             border-right: none;
         }
         .games-mc__line--bw { width: 17ch; opacity: 1; }
-        .games-mc__stats--bw {
+        .games-mc__stats--bw,
+        .games-mc__value,
+        .games-val__value,
+        .games-cr__value {
             animation: none;
             opacity: 1;
             transform: none;
@@ -391,7 +350,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     @media (max-width: 640px) {
-        .games { --games-legal-lines: 3; padding-inline: 20px; }
+        .games { --games-legal-lines: 4; padding-inline: 20px; }
         .games-mc__stats { flex-wrap: wrap; gap: 8px; }
     }
 </style>

@@ -27,6 +27,16 @@ function releasesNewestFirst() {
         });
 }
 
+function scrollEncryptionIntoView() {
+    const section = document.querySelector('#enc-section');
+    if (!section) return;
+    const rect = section.getBoundingClientRect();
+    if (rect.top <= window.innerHeight && rect.bottom >= 0) return;
+    const target = rect.top + window.scrollY;
+    window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
+    window.scrollTo({ top: target, behavior: 'instant' });
+}
+
 function encryptionTookCanvas(previousId) {
     const canvas = document.querySelector('#enc-canvas');
     const active = window.__itsbagelbotPreload?.activeEncryption;
@@ -55,13 +65,14 @@ function encryptionSized(previousId) {
 
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
-        await page.evaluate(() => {
+        await page.waitForFunction(() => {
+            if (window.scrollY > 500) return true;
             const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
             const target = Math.min(Math.max(window.innerHeight * 1.4, 700), maxScroll);
             window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
             window.scrollTo({ top: target, behavior: 'instant' });
-        });
-        await page.waitForFunction(() => window.scrollY > 500);
+            return false;
+        }, null, { polling: 100 });
     }
 
     async function expectPageTop(page) {
@@ -74,8 +85,10 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
-        await page.waitForFunction(encryptionTookCanvas, previousId);
-        await jumpDown(page);
+        await expect.poll(async () => {
+            await page.evaluate(scrollEncryptionIntoView);
+            return page.evaluate(encryptionTookCanvas, previousId);
+        }, { timeout: 25_000, intervals: [100] }).toBe(true);
         await page.waitForFunction(encryptionSized, previousId);
     }
 
@@ -349,17 +362,6 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"][aria-current="page"]')).toHaveCount(1);
     });
 
-    test('nav button marker is turned a quarter into a diamond', async ({ page }) => {
-        await page.goto('/');
-        const turn = await page.locator('.bb-nav a.bb-nav__cta').evaluate((el) => {
-            const style = getComputedStyle(el, '::before');
-            const matrix = new DOMMatrix(style.transform === 'none' ? undefined : style.transform);
-            const extra = style.rotate === 'none' ? 0 : parseFloat(style.rotate);
-            return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI + extra);
-        });
-        expect(turn).toBe(45);
-    });
-
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
@@ -378,22 +380,15 @@ test.describe('ItsBagelBot site', () => {
         await expectPageTop(page);
     });
 
-    test('decode text animates after client route swaps', async ({ page }) => {
+    test('page hero title shows after client route swaps', async ({ page }) => {
         await page.goto('/');
 
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
-        await page.waitForFunction(() => {
-            const title = document.querySelector('.bb-page-hero__title [data-decode]');
-            return Boolean(
-                title &&
-                title.dataset.decode &&
-                title.textContent !== title.dataset.decode
-            );
-        });
-
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
+        const title = page.locator('.bb-page-hero__title');
+        await expect(title).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
+        await expect(title).toBeVisible();
     });
 
     test('encryption scene boots again when returning home', async ({ page }) => {
