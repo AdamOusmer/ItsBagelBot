@@ -30,15 +30,18 @@ const root = (children: Stub[]) => ({ querySelectorAll: () => children }) as unk
 
 let observed: Stub[];
 let callbacks: ((entries: unknown[], observer: unknown) => void)[];
+let thresholds: unknown[];
 
 beforeEach(() => {
   observed = [];
   callbacks = [];
+  thresholds = [];
   (globalThis as { window?: unknown }).window = { innerHeight: 1000 };
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = class {
     #live = true;
-    constructor(cb: (entries: unknown[], observer: unknown) => void) {
+    constructor(cb: (entries: unknown[], observer: unknown) => void, options: { threshold?: unknown }) {
       callbacks.push(cb);
+      thresholds.push(options.threshold);
     }
     observe(target: Stub) {
       if (this.#live) observed.push(target);
@@ -68,6 +71,12 @@ test("below-fold elements are observed, above-fold ones reveal immediately", () 
   expect(above.classes.has("is-revealed")).toBe(true);
   expect(below.classes.has("is-revealed")).toBe(false);
   expect(observed).toEqual([below]);
+});
+
+test("default threshold is 0 so an element taller than the viewport still reveals", () => {
+  observeReveal(root([el(4000)]));
+
+  expect(thresholds).toEqual([0]);
 });
 
 function intersect(...targets: Stub[]): Stub[] {
