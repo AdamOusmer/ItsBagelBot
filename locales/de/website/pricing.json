@@ -1,7 +1,10 @@
 {
   "eyebrow": "Preise",
-  "title": "Jede fertige Funktion ist im kostenlosen Tarif.",
-  "desc": "Premium sorgt dafür, dass die Anfragen deines Kanals bei hoher Chataktivität bevorzugt verarbeitet werden, gibt dir früher Zugang zu Beta-Modulen und finanziert die Server.",
   "metaTitle": "Kostenloser Twitch-Bot und Premium-Preise | ItsBagelBot",
-  "metaDesc": "Vergleiche Free, Premium und Enterprise. Fertige Funktionen sind kostenlos; Premium bietet bevorzugte Verarbeitung und Zugang zu Beta-Modulen."
+  "metaDesc": "Vergleiche Free, Premium und Enterprise. Fertige Funktionen sind kostenlos; Premium bietet bevorzugte Verarbeitung und Zugang zu Beta-Modulen.",
+  "donateLabel": "Spenden",
+  "donateTitle": "Spenden halten den kostenlosen Tarif kostenlos.",
+  "donateText": "Jeder Kanal, ob kostenlos oder Premium, läuft auf denselben Servern. Premium und Spenden bezahlen sie, also hält eine Spende auf Ko-fi den Bot für alle online.",
+  "donateCta": "Auf Ko-fi spenden",
+  "donateNote": "Jeder Betrag. Ohne Gegenleistung."
 }

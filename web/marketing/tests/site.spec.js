@@ -117,10 +117,10 @@ test.describe('ItsBagelBot site', () => {
         );
     });
 
-    test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
+    test('pricing renders free-first tiers, oath, donations, and faq', async ({ page }) => {
         await page.goto('/pricing');
 
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Every finished feature is on the free plan.');
+        await expect(page.locator('h1')).toContainText('Pricing');
 
         const tiers = page.locator('.tiers [data-card]');
         await expect(tiers).toHaveCount(3);
@@ -128,11 +128,17 @@ test.describe('ItsBagelBot site', () => {
         await expect(tiers.nth(1)).toContainText('Premium');
         await expect(tiers.nth(2)).toContainText('Enterprise');
 
-        await expect(tiers.nth(1)).toContainText('The tip jar, with perks');
+        await expect(tiers.nth(1)).toContainText('Priority + early access');
+        await expect(tiers.nth(1)).toContainText('Get Premium');
 
-        await expect(page.locator('.tiers__oath')).toContainText('no card needed');
+        await expect(page.locator('.oath')).toContainText('no card needed');
 
-        await expect(page.locator('details')).toHaveCount(5);
+        const donate = page.locator('.donate');
+        await expect(donate).toContainText('Donations keep the free plan free.');
+        await expect(donate.locator('a[href="https://ko-fi.com/Q8P121QNHK"]')).toBeVisible();
+
+        await expect(page.locator('.faq__lane')).toHaveCount(5);
+        await expect(page.locator('details')).toHaveCount(0);
 
         await expect(page.getByText('not the same as open source')).toHaveCount(1);
     });
@@ -356,9 +362,10 @@ test.describe('ItsBagelBot site', () => {
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
-        const title = page.locator('.bb-page-hero__title');
-        await expect(title).toContainText('Every finished feature is on the free plan.', { timeout: 3000 });
+        const title = page.locator('[data-pricing-title]');
+        await expect(title).toContainText('Pricing', { timeout: 3000 });
         await expect(title).toBeVisible();
+        await expect.poll(() => title.locator('[data-pricing-word]').first().evaluate((word) => getComputedStyle(word).opacity), { timeout: 3000 }).toBe('1');
     });
 });
 

@@ -1,0 +1,29 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import type { StaticBolota } from '../lib/bolota';
+
+interface Props {
+    bolota: StaticBolota;
+    expression?: string;
+    class?: string;
+    style?: string;
+}
+
+const { bolota, expression, class: className, style } = Astro.props;
+---
+
+<svg
+    class={className}
+    style={style}
+    viewBox="0 0 100 100"
+    aria-hidden="true"
+    data-live-bolota={bolota.name}
+    data-size={bolota.size}
+    data-head={bolota.head}
+    data-eye={bolota.eye}
+    data-expression={expression}
+>
+    <g data-pose set:html={bolota.inner} />
+</svg>
