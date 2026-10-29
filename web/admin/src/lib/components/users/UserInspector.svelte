@@ -405,6 +405,5 @@
 
   .danger {
     padding-top: 14px;
-    border-top: 1px solid var(--bb-border);
   }
 </style>
