@@ -268,13 +268,13 @@ describe('LogTail', () => {
 describe('step stylesheets', () => {
   sourceContracts([
     {
-      name: 'compact CSS: the label reserves 44px in pale tan mono caps and replaces the cells at 760px',
+      name: 'compact CSS: the label reserves 44px in pale tan mono caps and replaces the cells on one truncated line at 760px',
       checks: [
         {
           file: 'styles/elements/stepper.css',
           has: [
             /\.bb-stepper__compact \{\s*display: none;\s*align-items: center;\s*min-height: 44px;\s*color: var\(--bb-tan-pale\);\s*font-family: var\(--bb-font-mono\);\s*font-size: 11px;\s*letter-spacing: 0\.1em;\s*text-transform: uppercase;\s*\}/,
-            /@media \(max-width: 760px\) \{[^@]*\.bb-stepper--compact :is\(\.bb-stepper__list, \.bb-stepper__track, \.bb-stepper__glide\) \{\s*display: none;\s*\}\s*\.bb-stepper__compact \{\s*display: flex;\s*\}/,
+            /@media \(max-width: 760px\) \{[^@]*\.bb-stepper--compact :is\(\.bb-stepper__list, \.bb-stepper__track, \.bb-stepper__glide\) \{\s*display: none;\s*\}\s*\.bb-stepper__compact \{\s*display: block;\s*min-width: 0;\s*line-height: 44px;\s*white-space: nowrap;\s*overflow: hidden;\s*text-overflow: ellipsis;\s*\}/,
           ],
         },
       ],

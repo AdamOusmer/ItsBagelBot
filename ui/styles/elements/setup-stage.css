@@ -20,6 +20,7 @@
     container: setup-stage / size;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     overflow: clip;
   }
 
@@ -212,6 +213,7 @@
     }
 
     .bb-setup-stage__top {
+      flex-wrap: nowrap;
       padding-top: 8px;
     }
   }

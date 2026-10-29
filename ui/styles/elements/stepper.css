@@ -241,12 +241,27 @@
       --stepper-cell: clamp(25px, 8vw, 34px);
     }
 
+    .bb-stepper--compact {
+      min-width: 0;
+    }
+
     .bb-stepper--compact :is(.bb-stepper__list, .bb-stepper__track, .bb-stepper__glide) {
       display: none;
     }
 
     .bb-stepper__compact {
-      display: flex;
+      display: block;
+      min-width: 0;
+      line-height: 44px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  @media (max-width: 359px) {
+    .bb-stepper__compact {
+      display: none;
     }
   }
 
