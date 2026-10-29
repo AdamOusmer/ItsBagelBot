@@ -22,11 +22,14 @@ interface Budget {
 // chunks; lazy is the same for every slice the route can import later. A raise needs the measurement and the
 // reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
-  '/(public)/login': { js: 97700, css: 21900, catalog: 2900, lazy: 0 },
+  // css raised from 21900 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 21873, ~2% room.
+  '/(public)/login': { js: 97700, css: 22300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
-  '/(app)': { js: 121000, css: 44700, catalog: 5000, lazy: 0 },
+  // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
+  '/(app)': { js: 121000, css: 45200, catalog: 5000, lazy: 0 },
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
-  '/(app)/commands': { js: 142000, css: 46000, catalog: 4600, lazy: 31200 },
+  // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
+  '/(app)/commands': { js: 142000, css: 46500, catalog: 4600, lazy: 31200 },
   '/(public)/user/[channel]': { js: 100000, css: 21500, catalog: 2800, lazy: 0 }
 };
 
