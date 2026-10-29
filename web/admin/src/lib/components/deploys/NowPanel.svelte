@@ -44,7 +44,7 @@
 </script>
 
 {#if current}
-  <Card as="section" glass flush aria-label={heading()}>
+  <Card as="section" flush aria-label={heading()}>
     <div class="now">
       <Eyebrow as="p" tone={finished ? 'default' : 'go'}>{heading()}</Eyebrow>
 
@@ -137,12 +137,14 @@
     height: 30px;
     padding: 0 var(--bb-space-2);
     overflow: hidden;
-    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
-    background: rgba(var(--bb-shadow-rgb), 0.18);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
   }
   .lane.live {
-    border-color: rgba(var(--bb-green-glow-rgb), 0.45);
+    box-shadow:
+      var(--bb-depth-0),
+      inset 0 0 0 1px rgba(var(--bb-green-glow-rgb), 0.45);
   }
   .lane.live::after {
     content: '';
@@ -161,23 +163,24 @@
     width: 22px;
     height: 10px;
     border-radius: var(--bb-radius-pill);
-    border: 1px solid var(--bb-border-strong);
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
     transition:
       background var(--bb-dur-slow) var(--bb-ease-out-expo),
-      border-color var(--bb-dur-slow) var(--bb-ease-out-expo);
+      box-shadow var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.new {
     background: var(--bb-green-glow);
-    border-color: var(--bb-green-glow);
     animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.pending {
-    border-color: var(--bb-green-glow);
+    box-shadow:
+      var(--bb-depth-1),
+      inset 0 0 0 1px var(--bb-green-glow);
     animation: pulse calc(var(--bb-dur-slow) * 2) ease-in-out infinite;
   }
   .pod.failing {
     background: var(--bb-status-danger);
-    border-color: var(--bb-status-danger);
   }
 
   .jobs {
@@ -190,19 +193,22 @@
     position: relative;
     height: 26px;
     overflow: hidden;
-    border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-sm);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
     transition:
       background var(--bb-dur-slow) var(--bb-ease-out-expo),
-      border-color var(--bb-dur-slow) var(--bb-ease-out-expo);
+      box-shadow var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .job.done {
     background: linear-gradient(100deg, var(--bb-tan), rgba(var(--bb-green-glow-rgb), 0.8));
-    border-color: transparent;
+    box-shadow: var(--bb-depth-1);
     animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .job.live {
-    border-color: var(--bb-green-glow);
+    box-shadow:
+      var(--bb-depth-0),
+      inset 0 0 0 1px var(--bb-green-glow);
   }
   .job.live::after {
     content: '';
