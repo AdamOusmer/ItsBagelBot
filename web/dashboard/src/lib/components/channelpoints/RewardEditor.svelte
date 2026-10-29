@@ -10,8 +10,8 @@
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { namespaceReplySamples, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
   import { REWARD_ERROR_KEYS, rewardErrors, type RewardErrorField } from './reward-draft';
 
   let {

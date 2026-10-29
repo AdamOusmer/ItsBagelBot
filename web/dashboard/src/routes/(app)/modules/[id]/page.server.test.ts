@@ -13,7 +13,7 @@ const reads: string[] = [];
 let conflict = false;
 let synced = true;
 
-mock.module('$lib/server/commands-store', () => ({
+mock.module('#lib/server/commands-store', () => ({
   listModules: async () => {
     reads.push('projection');
     return [{ name: def.id, is_enabled: true, revision: 4, configs: {} }];
@@ -26,13 +26,13 @@ mock.module('$lib/server/commands-store', () => ({
   patchModule: async (p: { expectedRev: number }) =>
     conflict ? { rev: 5, conflict: true, synced: false } : { rev: p.expectedRev + 1, conflict: false, synced }
 }));
-mock.module('$lib/server/module-gate', () => ({
+mock.module('#lib/server/module-gate', () => ({
   gateSection: () => {},
   gateModulePage: () => {},
   moduleLocked: async () => false,
   moduleWriteDenial: async () => null
 }));
-mock.module('$lib/server/minecraft-uuid', () => ({ attachLinkedUUID: async (_def: unknown, cfg: unknown) => cfg }));
+mock.module('#lib/server/minecraft-uuid', () => ({ attachLinkedUUID: async (_def: unknown, cfg: unknown) => cfg }));
 
 const { actions, load } = await import('./+page.server');
 

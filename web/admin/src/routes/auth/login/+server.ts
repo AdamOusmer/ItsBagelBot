@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
-import { twitch, scopes } from '$lib/server/oauth';
+import { twitch, scopes } from '#lib/server/oauth';
 
 export const GET: RequestHandler = ({ cookies, url }) => {
   const state = generateState();

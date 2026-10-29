@@ -4,7 +4,7 @@
 import { json } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
-import { listCounters } from '$lib/server/loyalty-store';
+import { listCounters } from '#lib/server/loyalty-store';
 import type { RequestHandler } from './$types';
 
 const DEMO = dev && env.DEMO === '1';

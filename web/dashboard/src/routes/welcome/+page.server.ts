@@ -4,13 +4,13 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
-import { setOnboarded } from '$lib/server/services';
-import { applyFeaturePreset } from '$lib/server/feature-presets';
+import { setOnboarded } from '#lib/server/services';
+import { applyFeaturePreset } from '#lib/server/feature-presets';
 import { count } from '@bagel/kit/server/analytics';
-import { SERVER_STRATEGIES } from '$lib/server/importer';
-import { actionError } from '$lib/server/action-errors';
-import { isOwnerSession } from '$lib/server/owner';
-import type { Session } from '$lib/server/session';
+import { SERVER_STRATEGIES } from '#lib/server/importer';
+import { actionError } from '#lib/server/action-errors';
+import { isOwnerSession } from '#lib/server/owner';
+import type { Session } from '#lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -24,7 +24,7 @@ const consented = (form: FormData) => form.get('consent') === 'yes';
 
 async function tourSession(locals: App.Locals): Promise<Session | null> {
   if (locals.session) return locals.session;
-  return DEMO ? (await import('$lib/server/demo-data')).demoSession() : null;
+  return DEMO ? (await import('#lib/server/demo-data')).demoSession() : null;
 }
 
 function sourceConnected(id: ImportSource, cookies: Cookies): boolean {

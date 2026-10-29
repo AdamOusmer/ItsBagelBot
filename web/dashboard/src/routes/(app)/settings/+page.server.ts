@@ -23,18 +23,18 @@ import {
   setLeaderboardPage,
   hasGrant,
   type NotificationWire
-} from '$lib/server/services';
-import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { purgeChannelPages, scheduleLeaderboardPurge, schedulePurgeChannel } from '$lib/server/edge-purge';
+} from '#lib/server/services';
+import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '#lib/server/fetches-store';
+import { purgeChannelPages, scheduleLeaderboardPurge, schedulePurgeChannel } from '#lib/server/edge-purge';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
-import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
+import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '#lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
-import { actionError } from '$lib/server/action-errors';
+import { actionError } from '#lib/server/action-errors';
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
-import { cookieOptions, deleteOptions } from '$lib/server/cookies';
+import { cookieOptions, deleteOptions } from '#lib/server/cookies';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -127,7 +127,7 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (DEMO) {
-    const d = await import('$lib/server/demo-data');
+    const d = await import('#lib/server/demo-data');
     return {
       given: d.demoDelegationGiven,
       received: d.demoDelegationReceived,
@@ -196,7 +196,7 @@ function keyEntryError(label: string, value: string, locale: Locale): string | n
 }
 
 async function demoKeySet(label: string, value: string) {
-  const d = await import('$lib/server/demo-data');
+  const d = await import('#lib/server/demo-data');
   const current = d.demoFetches();
   return {
     ok: true,
@@ -210,7 +210,7 @@ async function demoKeySet(label: string, value: string) {
 }
 
 async function demoKeyDelete(label: string) {
-  const d = await import('$lib/server/demo-data');
+  const d = await import('#lib/server/demo-data');
   return {
     ok: true,
     action: 'fetchkeydeleted',

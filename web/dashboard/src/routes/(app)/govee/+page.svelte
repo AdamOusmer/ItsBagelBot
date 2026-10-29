@@ -33,11 +33,11 @@
     type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
-  import GoveeSetup from '$lib/components/govee/GoveeSetup.svelte';
-  import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '$lib/components/govee/govee-draft';
-  import { warmOnIntent } from '$lib/warm-on-intent';
-  const loadGoveeRewardEditor = () => import('$lib/components/govee/GoveeRewardEditor.svelte');
+  import GoveeLightRow from '#lib/components/govee/GoveeLightRow.svelte';
+  import GoveeSetup from '#lib/components/govee/GoveeSetup.svelte';
+  import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '#lib/components/govee/govee-draft';
+  import { warmOnIntent } from '#lib/warm-on-intent';
+  const loadGoveeRewardEditor = () => import('#lib/components/govee/GoveeRewardEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();

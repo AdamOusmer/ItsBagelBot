@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Select from '@bagel/ui/svelte/Select.svelte';
   import { namespaceReplyTemplate, type ActionOk } from '@bagel/kit';
-  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
@@ -30,14 +30,14 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleCommandInfo, type ModuleField, type ModuleReply, type Perm, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
+  import ReplyRow from '#lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
-  import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
-  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
-  import ModuleCommandEditor, { commandLevel } from '$lib/components/modules/ModuleCommandEditor.svelte';
-  import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
-  import { MATCH_KEY, TriggerRules } from '$lib/components/modules/trigger-rules.svelte';
-  import TimezonePicker from '$lib/components/modules/TimezonePicker.svelte';
+  import ReplyEditor from '#lib/components/modules/ReplyEditor.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import ModuleCommandEditor, { commandLevel } from '#lib/components/modules/ModuleCommandEditor.svelte';
+  import TriggerRuleEditor from '#lib/components/modules/TriggerRuleEditor.svelte';
+  import { MATCH_KEY, TriggerRules } from '#lib/components/modules/trigger-rules.svelte';
+  import TimezonePicker from '#lib/components/modules/TimezonePicker.svelte';
   import Divider from '@bagel/ui/svelte/Divider.svelte';
 
   let { data } = $props();

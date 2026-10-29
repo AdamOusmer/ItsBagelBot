@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Shard, ShardSnapshot } from '@bagel/kit';
-import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
+import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
 import { eventsPerSecond, resolveCapacity } from '../../throughput';
 
 export interface ThroughputPoint {

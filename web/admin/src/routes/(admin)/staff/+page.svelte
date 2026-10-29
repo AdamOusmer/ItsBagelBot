@@ -21,16 +21,16 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { canManage, grantableRoles, type AdminRole } from '$lib/access';
-  import type { AdminAcct, AuditEntry } from '$lib/server/services';
-  import StaffRow from '$lib/components/staff/StaffRow.svelte';
-  import StaffEditor from '$lib/components/staff/StaffEditor.svelte';
+  import { canManage, grantableRoles, type AdminRole } from '#lib/access';
+  import type { AdminAcct, AuditEntry } from '#lib/server/services';
+  import StaffRow from '#lib/components/staff/StaffRow.svelte';
+  import StaffEditor from '#lib/components/staff/StaffEditor.svelte';
   import {
     NEW_MEMBER,
     blankDraft,
     draftComplete,
     type StaffDraft
-  } from '$lib/components/staff/staff-roles';
+  } from '#lib/components/staff/staff-roles';
   import { STAFF_RANK } from '@bagel/kit/staff-role';
 
   let { data } = $props();

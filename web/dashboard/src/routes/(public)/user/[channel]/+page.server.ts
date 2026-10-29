@@ -4,13 +4,13 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { Locale } from '@bagel/kit/i18n';
 import type { PageServerLoad } from './$types';
-import { listCommands, listModules } from '$lib/server/commands-store';
-import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
-import { accountState, userCommandsPage, type ResolvedChannel } from '$lib/server/services';
-import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
-import { lookupLogin } from '$lib/server/channel-lookup';
-import { requireHost } from '$lib/server/seo-hosts';
-import { LOGIN_RE, normalizeLogin } from '$lib/public-login';
+import { listCommands, listModules } from '#lib/server/commands-store';
+import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '#lib/server/public-directory';
+import { accountState, userCommandsPage, type ResolvedChannel } from '#lib/server/services';
+import { markEdge, pageOutcome, readVisibility } from '#lib/server/edge-cache';
+import { lookupLogin } from '#lib/server/channel-lookup';
+import { requireHost } from '#lib/server/seo-hosts';
+import { LOGIN_RE, normalizeLogin } from '#lib/public-login';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 
@@ -99,7 +99,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
   requireHost(url, 'commands');
 
   if (DEMO) {
-    const d = await import('$lib/server/demo-data');
+    const d = await import('#lib/server/demo-data');
     return {
       userId: '1',
       channelName: parseSegment(params.channel).login ?? 'demo',

@@ -15,7 +15,7 @@ const read = <T>(name: string, value: T) => async (): Promise<T> => {
 };
 
 const services = await import('../src/lib/server/services');
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   ...services,
   userEnrollment: read('enrollment', { days: [{ date: '2026-09-30', count: 4 }], stats: { total_users: 9, active_users: 8, premium_users: 1, vip_users: 0, paid_users: 1, granted_users: 0 } }),
   shardSnapshot: read('fleet', { shard_count: 3 }),
@@ -25,7 +25,7 @@ mock.module('$lib/server/services', () => ({
   auditList: read('audit', []),
   tokenStatus: read('bot', { present: true })
 }));
-mock.module('$lib/server/giveaways', () => ({ giveawayAlerts: read('giveawayAlerts', []) }));
+mock.module('#lib/server/giveaways', () => ({ giveawayAlerts: read('giveawayAlerts', []) }));
 
 const { load } = await import('../src/routes/(admin)/+page.server');
 

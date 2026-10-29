@@ -35,10 +35,10 @@
     type ActionOk
   } from '@bagel/kit';
   import { QUOTES_MODULE } from '@bagel/kit/catalog/quotes';
-  import type { QuoteView } from '$lib/server/quotes-store';
-  import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
-  import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';
-  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
+  import type { QuoteView } from '#lib/server/quotes-store';
+  import QuoteRow from '#lib/components/quotes/QuoteRow.svelte';
+  import QuoteEditor from '#lib/components/quotes/QuoteEditor.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
 
   let { data } = $props();
   const { t } = getI18n();

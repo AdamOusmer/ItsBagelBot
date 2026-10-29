@@ -4,9 +4,9 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
-import { twitch } from '$lib/server/oauth';
-import { adminCheck } from '$lib/server/services';
-import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
+import { twitch } from '#lib/server/oauth';
+import { adminCheck } from '#lib/server/services';
+import { COOKIE, seal, SESSION_TTL_SECONDS } from '#lib/server/session';
 import { env } from '@bagel/kit/server/env';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {

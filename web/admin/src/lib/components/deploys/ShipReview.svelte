@@ -8,7 +8,7 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { STAGES_FOR } from '$lib/deploys/types';
+  import { STAGES_FOR } from '#lib/deploys/types';
   import { KIND_KEY, STAGE_KEY, shortSha } from './view';
   import { countKey, shipVersion, type ShipState } from './ship';
 

@@ -4,15 +4,15 @@
 import type { RequestHandler } from './$types';
 import { error, json } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { requireRole } from '$lib/server/access';
-import { trialList } from '$lib/server/services';
+import { requireRole } from '#lib/server/access';
+import { trialList } from '#lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireRole({ locals }, 'trials.manage'))) throw error(403, 'forbidden');
   if (DEMO) {
-    const { sampleTrials } = await import('$lib/server/demo-data');
+    const { sampleTrials } = await import('#lib/server/demo-data');
     return json({ snapshot: sampleTrials });
   }
   try {

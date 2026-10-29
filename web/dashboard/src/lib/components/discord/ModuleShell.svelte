@@ -20,7 +20,7 @@
     tDiscordModuleTagline
   } from '@bagel/kit';
   import type { Snippet } from 'svelte';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
 
   let {
     draft,

@@ -7,7 +7,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { CATEGORY_NAME_MAX, encodeNameList, getI18n, parseNameList, type DiscordConfig } from '@bagel/kit';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {

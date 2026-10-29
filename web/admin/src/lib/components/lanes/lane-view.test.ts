@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 // @ts-ignore Bun supplies this module at test runtime.
 import { describe, expect, test } from 'bun:test';
-import type { LaneView } from '$lib/server/lanes';
+import type { LaneView } from '#lib/server/lanes';
 import { groupLanes, laneTone } from './lane-view';
 
 const lane = (stream: string, consumer: string, changes: Partial<LaneView> = {}): LaneView => ({

@@ -6,8 +6,8 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { encodeIdList, getI18n, parseIdList, LOG_IGNORED_CHANNELS_MAX, type DiscordConfig } from '@bagel/kit';
-  import type { DiscordEntry } from '$lib/server/discord-store';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
+  import type { DiscordEntry } from '#lib/server/discord-store';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {

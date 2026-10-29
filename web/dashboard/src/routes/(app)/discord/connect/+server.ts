@@ -11,7 +11,7 @@ import {
   discordFail,
   putDiscordState,
   requireDiscordActor
-} from '$lib/server/discord-oauth';
+} from '#lib/server/discord-oauth';
 
 export const GET: RequestHandler = async ({ cookies, url, locals }) => {
   const uid = requireDiscordActor(locals);

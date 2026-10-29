@@ -4,8 +4,8 @@
 import { error } from '@sveltejs/kit';
 import type { Handle, HandleServerError, ResolveOptions, ServerInit } from '@sveltejs/kit/hooks';
 import newrelic from 'newrelic';
-import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
-import { guardSession } from '$lib/server/guard';
+import { COOKIE, CURSOR_COOKIE, open } from '#lib/server/session';
+import { guardSession } from '#lib/server/guard';
 import { LOCALE_COOKIE, type Locale } from '@bagel/kit/i18n';
 import { warm as warmValkey } from '@bagel/kit/server/valkey-store';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
@@ -20,16 +20,16 @@ import {
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
 import { logger } from '@bagel/kit/server/logger';
-import { startInvalidationListener } from '$lib/server/services';
-import { assertConfigSane } from '$lib/server/config-sanity';
-import { purgeEdgeByTag } from '$lib/server/edge-purge';
-import { enumerableChannelQuery } from '$lib/server/channel-urls';
-import { preloadCatalog, preloadSlices } from '$lib/server/catalog-preload';
+import { startInvalidationListener } from '#lib/server/services';
+import { assertConfigSane } from '#lib/server/config-sanity';
+import { purgeEdgeByTag } from '#lib/server/edge-purge';
+import { enumerableChannelQuery } from '#lib/server/channel-urls';
+import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('dashboard');
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 export const init: ServerInit = async () => {
   initConsoleRuntime(process.env, assertConfigSane);
 

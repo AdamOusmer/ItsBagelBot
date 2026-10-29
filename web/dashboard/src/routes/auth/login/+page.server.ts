@@ -7,9 +7,9 @@ import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
-import { cookieOptions, STATE_TTL_SECONDS } from '$lib/server/cookies';
-import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
-import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
+import { cookieOptions, STATE_TTL_SECONDS } from '#lib/server/cookies';
+import { twitch, scopes, safeNextPath } from '#lib/server/oauth';
+import { skipAuthorizeIfSignedIn } from '#lib/server/oauth-start';
 
 const DEMO = dev && env.DEMO === '1';
 

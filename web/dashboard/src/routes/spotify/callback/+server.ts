@@ -4,9 +4,9 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { rpc } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
-import { spotifyRedirectURI } from '$lib/server/oauth';
-import { SUB, auditDashboardImpersonation } from '$lib/server/services';
-import { SPOTIFY_STATE_COOKIE, requireSongqueueActor, songqueueFail } from '$lib/server/spotify-oauth';
+import { spotifyRedirectURI } from '#lib/server/oauth';
+import { SUB, auditDashboardImpersonation } from '#lib/server/services';
+import { SPOTIFY_STATE_COOKIE, requireSongqueueActor, songqueueFail } from '#lib/server/spotify-oauth';
 
 interface SpotifyGrantReply {
   refreshToken?: string;

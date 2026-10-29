@@ -41,8 +41,8 @@
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
-  import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
+  import CounterRow from '#lib/components/counters/CounterRow.svelte';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 

@@ -16,8 +16,8 @@ import type {
   RunState,
   StageId,
   StageState
-} from '$lib/deploys/types';
-import { TERMINAL_RUN_STATES } from '$lib/deploys/types';
+} from '#lib/deploys/types';
+import { TERMINAL_RUN_STATES } from '#lib/deploys/types';
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger';
 

@@ -17,9 +17,9 @@
   import { goto } from '$app/navigation';
   import { page as route } from '$app/state';
   import { formatPointValue, getI18n } from '@bagel/kit';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
-  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
-  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '$lib/leaderboard-board';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
+  import StatsPageLayout from '#lib/components/stats/StatsPageLayout.svelte';
+  import { boardHref, cleanQuery, emptyCopyKeys, MAX_QUERY_LENGTH } from '#lib/leaderboard-board';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 

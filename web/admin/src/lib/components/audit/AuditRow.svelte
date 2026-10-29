@@ -5,7 +5,7 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AuditEntry } from '$lib/server/services';
+  import type { AuditEntry } from '#lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';

@@ -4,8 +4,8 @@
 import type { RequestHandler } from './$types';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
-import { overviewLanes } from '$lib/server/overview-lanes';
-import { broadcastResponse, createBroadcast } from '$lib/server/sse-broadcast';
+import { overviewLanes } from '#lib/server/overview-lanes';
+import { broadcastResponse, createBroadcast } from '#lib/server/sse-broadcast';
 
 const DEMO = dev && env.DEMO === '1';
 

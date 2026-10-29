@@ -27,18 +27,18 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows } from '$lib/access';
-  import type { LaneView, LanesResult } from '$lib/server/lanes';
-  import LaneRow from '$lib/components/lanes/LaneRow.svelte';
-  import LaneEditor from '$lib/components/lanes/LaneEditor.svelte';
-  import { matchesPipeline } from '$lib/components/lanes/lane-pipeline';
+  import { allows } from '#lib/access';
+  import type { LaneView, LanesResult } from '#lib/server/lanes';
+  import LaneRow from '#lib/components/lanes/LaneRow.svelte';
+  import LaneEditor from '#lib/components/lanes/LaneEditor.svelte';
+  import { matchesPipeline } from '#lib/components/lanes/lane-pipeline';
   import {
     currentAlias,
     groupLanes,
     laneKey,
     normalizeAlias,
     type LaneDraft
-  } from '$lib/components/lanes/lane-view';
+  } from '#lib/components/lanes/lane-view';
 
   let { data } = $props();
 

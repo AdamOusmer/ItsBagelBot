@@ -24,14 +24,14 @@
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n, containsLink } from '@bagel/kit';
-  import CelebrationModal from '$lib/components/billing/CelebrationModal.svelte';
-  import { reseedOnChange } from '$lib/client-actions.svelte';
+  import CelebrationModal from '#lib/components/billing/CelebrationModal.svelte';
+  import { reseedOnChange } from '#lib/client-actions.svelte';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { invalidateAll, replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
-  import type { BillingState } from '$lib/server/services';
-  import type { PrizeAward } from '$lib/server/giveaways';
+  import type { BillingState } from '#lib/server/services';
+  import type { PrizeAward } from '#lib/server/giveaways';
 
   let { data, form } = $props();
 

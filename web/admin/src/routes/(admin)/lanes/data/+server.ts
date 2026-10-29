@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
-import { requireAdmin } from '$lib/server/access';
-import { loadLanes } from '$lib/server/lanes';
+import { requireAdmin } from '#lib/server/access';
+import { loadLanes } from '#lib/server/lanes';
 
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');

@@ -16,7 +16,7 @@ import {
 } from '@bagel/kit';
 import { usesCount } from '@bagel/kit/uses';
 import { formatCounterValue } from '@bagel/kit/validation';
-import type { ModuleView } from '$lib/server/commands-store';
+import type { ModuleView } from '#lib/server/commands-store';
 
 export type PublicCommand = {
   trigger: string;

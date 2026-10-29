@@ -6,7 +6,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployItem } from '$lib/deploys/types';
+  import type { DeployItem } from '#lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
   import { STEP_STATE_KEY, ratio, stageTone } from './view';
 

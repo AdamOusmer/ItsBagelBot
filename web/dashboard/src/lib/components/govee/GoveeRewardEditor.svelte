@@ -6,7 +6,7 @@
   import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { namespaceReplySamples, getI18n } from '@bagel/kit';
-  import RewardCoreFields from '$lib/components/channelpoints/RewardCoreFields.svelte';
+  import RewardCoreFields from '#lib/components/channelpoints/RewardCoreFields.svelte';
   import { GOVEE_ERROR_KEYS, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
 
   let {

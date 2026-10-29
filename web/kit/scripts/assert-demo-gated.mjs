@@ -49,8 +49,8 @@ function stripComments(body) {
 }
 
 async function resolveSpecifier(specifier, fromFile) {
-  const base = specifier.startsWith('$lib/')
-    ? join(appRoot, 'src', 'lib', specifier.slice('$lib/'.length))
+  const base = specifier.startsWith('#lib/')
+    ? join(appRoot, 'src', 'lib', specifier.slice('#lib/'.length))
     : specifier.startsWith('.')
       ? resolve(dirname(fromFile), specifier)
       : null;

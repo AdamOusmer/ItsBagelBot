@@ -14,7 +14,7 @@
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { LaneView } from '$lib/server/lanes';
+  import type { LaneView } from '#lib/server/lanes';
   import { ALIAS_MAX, type LaneDraft } from './lane-view';
 
   let {

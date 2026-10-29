@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { LaneView } from '$lib/server/lanes';
+import type { LaneView } from '#lib/server/lanes';
 
 export type PipelineStage = 'ingress' | 'outgress' | 'system';
 export type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';

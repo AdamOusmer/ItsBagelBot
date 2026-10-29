@@ -5,12 +5,12 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
-import { previewImport, commitImport, SERVER_STRATEGIES } from '$lib/server/importer';
-import type { SourceInput } from '$lib/server/importer';
+import { previewImport, commitImport, SERVER_STRATEGIES } from '#lib/server/importer';
+import type { SourceInput } from '#lib/server/importer';
 import { IMPORT_STRATEGIES, isImportSource } from '@bagel/kit/importer/strategy';
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
-import { actionError } from '$lib/server/action-errors';
-import type { Session } from '$lib/server/session';
+import { actionError } from '#lib/server/action-errors';
+import type { Session } from '#lib/server/session';
 import {
   IMPORT_SOURCES,
   translate,
@@ -53,7 +53,7 @@ async function importGate(locals: App.Locals): Promise<GateVerdict> {
 
 async function requireOwner(locals: App.Locals): Promise<Session | null> {
   if (DEMO) {
-    const { demoSession } = await import('$lib/server/demo-data');
+    const { demoSession } = await import('#lib/server/demo-data');
     return demoSession();
   }
   const s = locals.session;
@@ -164,7 +164,7 @@ export const actions: Actions = {
     if (!read.ok) return fail(read.status, { error: actionError(locals.locale, read.error), step: 'preview' });
 
     if (DEMO) {
-      const demo = await import('$lib/server/demo-import');
+      const demo = await import('#lib/server/demo-import');
       return { ok: true, step: 'preview', source, preview: demo.demoImportPreview(source) };
     }
 
@@ -214,7 +214,7 @@ export const actions: Actions = {
     }
 
     if (DEMO) {
-      const demo = await import('$lib/server/demo-import');
+      const demo = await import('#lib/server/demo-import');
       return { ok: true, step: 'commit', commit: demo.demoImportCommit(manifest, overwrite) };
     }
 

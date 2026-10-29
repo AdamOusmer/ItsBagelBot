@@ -18,7 +18,7 @@ const saves: unknown[] = [];
 const moduleSaves: unknown[] = [];
 let saveReply = { version: 1, code: '', error: '' };
 
-mock.module('$lib/server/discord-store', () => ({
+mock.module('#lib/server/discord-store', () => ({
   ...realStore,
   readDiscord: async () => ({
     enabled: true,
@@ -42,14 +42,14 @@ mock.module('$lib/server/discord-store', () => ({
     moduleSaves.push(save);
   }
 }));
-mock.module('$lib/server/module-gate', () => ({
+mock.module('#lib/server/module-gate', () => ({
   gateModulePage: () => {},
   moduleLocked: async () => false,
   assertModuleUnlocked: async () => true
 }));
-mock.module('$lib/server/discord-oauth', () => ({ discordConfigured: () => true, requireDiscordActor: () => {} }));
-mock.module('$lib/server/services', () => ({ auditDashboardImpersonation: () => {} }));
-mock.module('$lib/server/board', () => ({ effectiveId: () => '42' }));
+mock.module('#lib/server/discord-oauth', () => ({ discordConfigured: () => true, requireDiscordActor: () => {} }));
+mock.module('#lib/server/services', () => ({ auditDashboardImpersonation: () => {} }));
+mock.module('#lib/server/board', () => ({ effectiveId: () => '42' }));
 mock.module('@bagel/kit', () => ({ ...kit, legacyConfigFor: () => legacyConfig }));
 
 const { loadGuildShell, loadGuildModule } = await import('./discord-guild');

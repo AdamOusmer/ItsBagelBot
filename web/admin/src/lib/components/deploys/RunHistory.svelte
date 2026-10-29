@@ -9,8 +9,8 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployRunSummary } from '$lib/deploys/types';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import type { DeployRunSummary } from '#lib/deploys/types';
+  import StatePill from '#lib/components/StatePill.svelte';
   import { KIND_KEY, RUN_STATE_KEY, STAGE_KEY, runName, runPill } from './view';
 
   let { runs }: { runs: DeployRunSummary[] } = $props();

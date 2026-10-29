@@ -7,9 +7,9 @@ import { randomBytes } from 'node:crypto';
 import newrelic from 'newrelic';
 import { verifyViewAs } from '@bagel/kit/server/impersonation';
 import { claimOnce } from '@bagel/kit/server/rate-limit';
-import { COOKIE, seal, IMPERSONATION_TTL_SECONDS } from '$lib/server/session';
+import { COOKIE, seal, IMPERSONATION_TTL_SECONDS } from '#lib/server/session';
 import { LOCALE_COOKIE } from '@bagel/kit/i18n';
-import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
+import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 
 const JTI_TTL_SECONDS = 6 * 60;
 

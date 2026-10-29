@@ -3,9 +3,9 @@
 
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { requireRole } from '$lib/server/access';
-import { deployApi, deployStatus, RunRelay } from '$lib/server/deploys';
-import type { DeployRun, RunRequest } from '$lib/deploys/types';
+import { requireRole } from '#lib/server/access';
+import { deployApi, deployStatus, RunRelay } from '#lib/server/deploys';
+import type { DeployRun, RunRequest } from '#lib/deploys/types';
 
 const KEEPALIVE_MS = 20_000;
 

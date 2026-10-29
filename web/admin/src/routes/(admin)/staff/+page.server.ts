@@ -4,10 +4,10 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { allows, requireRole, canManage, type AdminIdentity } from '$lib/server/access';
-import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '$lib/server/services';
-import type { AdminAcct } from '$lib/server/services';
-import { actionError, adminText, audited } from '$lib/server/admin-action';
+import { allows, requireRole, canManage, type AdminIdentity } from '#lib/server/access';
+import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '#lib/server/services';
+import type { AdminAcct } from '#lib/server/services';
+import { actionError, adminText, audited } from '#lib/server/admin-action';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
 const DEMO = dev && process.env.DEMO === '1';
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ parent }) => {
   if (!allows(admin.role, 'staff.manage')) throw redirect(302, '/');
 
   const roster: Promise<RosterBundle> = DEMO
-    ? import('$lib/server/demo-data').then(({ demoStaff }) => ({
+    ? import('#lib/server/demo-data').then(({ demoStaff }) => ({
         staff: demoStaff(),
         degraded: false
       }))

@@ -3,7 +3,7 @@
 
 import { namespaceReplyTemplate, type ChannelPointReward } from '@bagel/kit';
 import { CHANNELPOINTS_MODULE } from '@bagel/kit/catalog/channelpoints';
-import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, normalizeCounterName, wholeBetween } from '$lib/reward-fields';
+import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, normalizeCounterName, wholeBetween } from '#lib/reward-fields';
 
 export const REWARD_DEFAULT_COLOR = '#9147ff';
 

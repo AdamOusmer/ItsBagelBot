@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { NodePod } from '$lib/deploys/types';
+  import type { NodePod } from '#lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
   import { POD_PHASE_KEY, groupNodes, podTone } from './view';
 

@@ -10,7 +10,7 @@ let accountReply: () => Promise<unknown> = async () => ({});
 
 const services = await import('./services');
 const revocation = await import('@bagel/kit/server/session-revocation');
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   ...services,
   accountState: () => accountReply(),
   delegationAccess: async () => [],

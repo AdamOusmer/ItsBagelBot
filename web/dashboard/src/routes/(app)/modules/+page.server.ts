@@ -2,22 +2,22 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { toWire, type ModuleStateWire } from '$lib/module-states';
+import { toWire, type ModuleStateWire } from '#lib/module-states';
 import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef, type ModuleDef } from '@bagel/kit';
-import { listModules, type ModuleView } from '$lib/server/commands-store';
-import { setModuleEnabled } from '$lib/server/module-blob';
-import { auditDashboardImpersonation } from '$lib/server/services';
+import { listModules, type ModuleView } from '#lib/server/commands-store';
+import { setModuleEnabled } from '#lib/server/module-blob';
+import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { broadcasterPremium, delegateCanOpen, gateSection, moduleWriteDenial } from '$lib/server/module-gate';
-import { moduleEditState } from '$lib/server/module-edit-state';
-import { disableChildren } from '$lib/server/module-parent';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
-import { signedInAction } from '$lib/server/action-context';
+import { broadcasterPremium, delegateCanOpen, gateSection, moduleWriteDenial } from '#lib/server/module-gate';
+import { moduleEditState } from '#lib/server/module-edit-state';
+import { disableChildren } from '#lib/server/module-parent';
+import type { Session } from '#lib/server/session';
+import { effectiveId } from '#lib/server/board';
+import { signedInAction } from '#lib/server/action-context';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
-import { actionError } from '$lib/server/action-errors';
+import { actionError } from '#lib/server/action-errors';
 
 const DEMO = dev && env.DEMO === '1';
 

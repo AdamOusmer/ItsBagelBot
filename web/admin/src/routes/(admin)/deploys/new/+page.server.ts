@@ -3,8 +3,8 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { allows, requireAdmin } from '$lib/server/access';
-import { loadDeploys } from '$lib/server/deploys';
+import { allows, requireAdmin } from '#lib/server/access';
+import { loadDeploys } from '#lib/server/deploys';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);

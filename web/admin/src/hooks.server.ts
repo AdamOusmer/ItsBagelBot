@@ -6,8 +6,8 @@ import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks'
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import newrelic from 'newrelic';
-import { COOKIE, open } from '$lib/server/session';
-import { requireAdmin } from '$lib/server/access';
+import { COOKIE, open } from '#lib/server/session';
+import { requireAdmin } from '#lib/server/access';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
   harden,
@@ -17,17 +17,17 @@ import {
   resolveLocale,
   tagTransaction
 } from '@bagel/kit/server/hooks';
-import { startInvalidationListener } from '$lib/server/services';
-import { assertConfigSane } from '$lib/server/config-sanity';
-import { ensureLaneStoreHA } from '$lib/server/lanes';
-import { isPublicAdminRoute } from '$lib/server/public-routes';
+import { startInvalidationListener } from '#lib/server/services';
+import { assertConfigSane } from '#lib/server/config-sanity';
+import { ensureLaneStoreHA } from '#lib/server/lanes';
+import { isPublicAdminRoute } from '#lib/server/public-routes';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('admin');
 
 const DEMO = dev && process.env.DEMO === '1';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 export const init: ServerInit = async () => {
   initConsoleRuntime(process.env, assertConfigSane);
 

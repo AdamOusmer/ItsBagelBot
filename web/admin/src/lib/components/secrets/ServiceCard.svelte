@@ -7,7 +7,7 @@
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DbCredentialStatus } from '$lib/server/secrets';
+  import type { DbCredentialStatus } from '#lib/server/secrets';
   import StatePill from '../StatePill.svelte';
 
   let {

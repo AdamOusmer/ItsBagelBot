@@ -10,10 +10,10 @@ import {
   laneDurable,
   laneDelete,
   type LaneMutationResult
-} from '$lib/server/lanes';
-import { requireRole } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
-import { adminText } from '$lib/server/admin-action';
+} from '#lib/server/lanes';
+import { requireRole } from '#lib/server/access';
+import { audit } from '#lib/server/audit';
+import { adminText } from '#lib/server/admin-action';
 
 const DEMO = dev && process.env.DEMO === '1';
 

@@ -7,10 +7,10 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
   import type { VariableSurface } from '@bagel/kit/variables';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import DurationField from '$lib/components/shared/DurationField.svelte';
-  import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, type RewardCoreDraft, type RewardCoreErrors } from '$lib/reward-fields';
+  import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
+  import DurationField from '#lib/components/shared/DurationField.svelte';
+  import { REWARD_COOLDOWN_MAX, REWARD_COST_MAX, type RewardCoreDraft, type RewardCoreErrors } from '#lib/reward-fields';
 
   let {
     draft = $bindable<RewardCoreDraft>(),

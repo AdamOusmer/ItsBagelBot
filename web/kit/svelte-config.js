@@ -28,7 +28,6 @@ export function consoleKitConfig({ directives = {} } = {}) {
   return {
     preprocess: vitePreprocess(),
     adapter: withPrunedChunks(withBoundedCompress(adapter({ precompress: true }))),
-    alias: { $lib: 'src/lib' },
     // RootShell's post-deploy full reload needs pollInterval; without it navigation fetches deleted bundles.
     version: { name: process.env.BUILD_VERSION || 'dev', pollInterval: 60000 },
     paths: {

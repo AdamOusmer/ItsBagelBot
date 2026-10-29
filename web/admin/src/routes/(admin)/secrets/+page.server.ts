@@ -4,10 +4,10 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { auditAppend } from '$lib/server/services';
-import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
-import { actionError, adminText } from '$lib/server/admin-action';
+import { auditAppend } from '#lib/server/services';
+import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
+import { audit } from '#lib/server/audit';
+import { actionError, adminText } from '#lib/server/admin-action';
 import {
   credentialStatuses,
   revokeCredential,
@@ -19,7 +19,7 @@ import {
   type DbCredentialStatus,
   type ScopeReport,
   type SecretServiceId
-} from '$lib/server/secrets';
+} from '#lib/server/secrets';
 
 export type SecretsBundle = {
   services: DbCredentialStatus[];
@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ parent }) => {
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
 
   const bundle: Promise<SecretsBundle> = DEMO
-    ? import('$lib/server/demo-data').then(({ demoSecretsBundle }) =>
+    ? import('#lib/server/demo-data').then(({ demoSecretsBundle }) =>
         demoSecretsBundle(serviceIds())
       )
     : loadBundle();
@@ -80,7 +80,7 @@ function secretAction(spec: SecretSpec) {
         return fail(400, { error: adminText(locals.locale, 'admin.secrets.typeToConfirm', { phrase }) });
       }
       if (DEMO) {
-        const { demoSecretNotice } = await import('$lib/server/demo-data');
+        const { demoSecretNotice } = await import('#lib/server/demo-data');
         return { action: { ok: true, notice: adminText(locals.locale, 'admin.secrets.demoNotice', { action: spec.name }) } };
       }
 

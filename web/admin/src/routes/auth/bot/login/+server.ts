@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import { generateState } from '@bagel/kit/server/oauth';
-import { botTwitch, botScopes } from '$lib/server/oauth';
+import { botTwitch, botScopes } from '#lib/server/oauth';
 import { env } from '@bagel/kit/server/env';
 
 export const GET: RequestHandler = ({ cookies, url }) => {

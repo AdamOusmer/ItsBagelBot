@@ -21,12 +21,12 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import StatePill from '#lib/components/StatePill.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { giveawaySummary, MAX_PRIZE_MONTHS } from '@bagel/kit/giveaway';
-  import type { GiveawayPreviewWire, GiveawayWire } from '$lib/server/giveaways';
+  import type { GiveawayPreviewWire, GiveawayWire } from '#lib/server/giveaways';
 
   let { data, form } = $props();
   const errorMessage = $derived((form as { error?: string } | null)?.error);

@@ -5,7 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { error, redirect } from '@sveltejs/kit';
-import { actionError } from '$lib/server/action-errors';
+import { actionError } from '#lib/server/action-errors';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -42,7 +42,7 @@ export const actions: Actions = {
     const kind = readKind(form.get('kind') as string | null);
     const recipient = kind === 'gift' ? String(form.get('recipient') ?? '') : '';
 
-    const { demoCheckoutComplete, demoRecordTransaction } = await import('$lib/server/demo-data');
+    const { demoCheckoutComplete, demoRecordTransaction } = await import('#lib/server/demo-data');
     if (kind === 'premium') demoCheckoutComplete(plan);
     demoRecordTransaction(kind, plan, kind === 'gift' ? recipient : null);
 

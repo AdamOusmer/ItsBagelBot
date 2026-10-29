@@ -16,9 +16,9 @@
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AccessKey } from '$lib/access';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
-  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
+  import type { AccessKey } from '#lib/access';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
+  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';

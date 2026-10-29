@@ -4,9 +4,9 @@
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { requireAdmin } from '$lib/server/access';
-import { subscribeStatus, decode, type FeedEvent } from '$lib/server/feed';
-import { STATUS_PREFIX } from '$lib/server/services';
+import { requireAdmin } from '#lib/server/access';
+import { subscribeStatus, decode, type FeedEvent } from '#lib/server/feed';
+import { STATUS_PREFIX } from '#lib/server/services';
 
 const enc = new TextEncoder();
 const DEMO = dev && process.env.DEMO === '1';
@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ locals }) => {
       start(controller) {
         controller.enqueue(enc.encode(': connected\n\n'));
         let n = 0;
-        const fixture = import('$lib/server/demo-data');
+        const fixture = import('#lib/server/demo-data');
         // Writing to a closed controller throws ERR_INVALID_STATE; uncaught in a timer it kills the server.
         const push = (chunk: Uint8Array) => {
           try {

@@ -9,7 +9,7 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n, type ChannelPointReward } from '@bagel/kit';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 

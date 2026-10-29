@@ -17,10 +17,10 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import { livePoll } from '@bagel/ui/lib/live-poll';
-  import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
+  import type { TrialChannel, TrialSnapshot } from '#lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { TrialsBundle } from './+page.server';
-  import { durationLabel } from '$lib/duration';
+  import { durationLabel } from '#lib/duration';
 
   let { data, form } = $props();
   const { t } = getI18n();

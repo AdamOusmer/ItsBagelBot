@@ -9,7 +9,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { ServiceHealth } from '$lib/server/services';
+  import type { ServiceHealth } from '#lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
   let { probes, ok }: { probes: ServiceHealth[]; ok: boolean } = $props();

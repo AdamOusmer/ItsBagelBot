@@ -1,16 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 import { dev } from '$app/env';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { delegateAllowedPaths, pathnameAllowed } from '@bagel/kit';
-import { COOKIE, seal, type Session } from '$lib/server/session';
-import { cookieOptions, deleteOptions } from '$lib/server/cookies';
-import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
+import { COOKIE, seal, type Session } from '#lib/server/session';
+import { cookieOptions, deleteOptions } from '#lib/server/cookies';
+import { accountState, delegationAccess, isBanned, type AccountState } from '#lib/server/services';
 import { RpcError } from '@bagel/kit/server/nats';
 import { isSessionRevoked } from '@bagel/kit/server/session-revocation';
-import { assertBetaRouteOpen } from '$lib/server/module-gate';
+import { assertBetaRouteOpen } from '#lib/server/module-gate';
 
 const DEMO = dev && process.env.DEMO === '1';
 

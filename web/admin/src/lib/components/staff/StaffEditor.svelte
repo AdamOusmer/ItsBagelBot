@@ -16,8 +16,8 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AdminRole } from '$lib/access';
-  import type { AdminAcct, AuditEntry } from '$lib/server/services';
+  import type { AdminRole } from '#lib/access';
+  import type { AdminAcct, AuditEntry } from '#lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import { ROLE_LABEL, type StaffDraft } from './staff-roles';
 

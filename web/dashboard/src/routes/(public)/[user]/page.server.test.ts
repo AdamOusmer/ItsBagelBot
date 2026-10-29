@@ -68,7 +68,7 @@ function serveStandings(req: PageRequest): { rows: Row[]; total: number } {
   return { rows: searched ? hits : hits.slice(req.offset, req.offset + req.limit), total: hits.length };
 }
 
-mock.module('$lib/server/loyalty-store', () => ({
+mock.module('#lib/server/loyalty-store', () => ({
   readLoyalty: async () => {
     if (loyaltyFails) throw new Error('loyalty down');
     return { enabled: loyaltyEnabled, config: { pointsName: 'bagels' } };
@@ -82,13 +82,13 @@ mock.module('$lib/server/loyalty-store', () => ({
     return serveStandings(req);
   }
 }));
-mock.module('$lib/server/viewer-lookup', () => ({
+mock.module('#lib/server/viewer-lookup', () => ({
   resolveCurrentViewer: async (login: string) => {
     resolverCalls.push(login);
     return resolution;
   }
 }));
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   resolveLogin: async (login: string) => ({ userId: '42', username: login }),
   userCommandsPage: (id: string) => commandsPageReply(id),
   userLeaderboardPage: (id: string) => leaderboardPageReply(id)

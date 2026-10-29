@@ -19,7 +19,7 @@
     type Perm
   } from '@bagel/kit';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();

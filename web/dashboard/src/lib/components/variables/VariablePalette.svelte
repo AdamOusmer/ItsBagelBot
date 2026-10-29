@@ -16,9 +16,9 @@
   import { rovingFocus } from '@bagel/ui/svelte/actions';
   import { chipHint, pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
-  import ModuleVariablePicker from '$lib/components/commands/ModuleVariablePicker.svelte';
-  import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
-  import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import ModuleVariablePicker from '#lib/components/commands/ModuleVariablePicker.svelte';
+  import CounterPicker from '#lib/components/counters/CounterPicker.svelte';
+  import FetchSourcePicker, { type SourceDef } from '#lib/components/commands/fetches/FetchSourcePicker.svelte';
 
   const { t, locale } = getI18n();
 

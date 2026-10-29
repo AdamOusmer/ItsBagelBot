@@ -24,16 +24,16 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows, type AccessKey } from '$lib/access';
-  import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
-  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
-  import UserRow from '$lib/components/users/UserRow.svelte';
-  import UserInspector from '$lib/components/users/UserInspector.svelte';
-  import MessageDialog from '$lib/components/users/MessageDialog.svelte';
-  import { usersCsv } from '$lib/components/users/csv';
+  import { allows, type AccessKey } from '#lib/access';
+  import type { AdminUserWire, AuditEntry, ChannelSubState } from '#lib/server/services';
+  import type { GiveawayWinnerWire } from '#lib/server/giveaways';
+  import UserRow from '#lib/components/users/UserRow.svelte';
+  import UserInspector from '#lib/components/users/UserInspector.svelte';
+  import MessageDialog from '#lib/components/users/MessageDialog.svelte';
+  import { usersCsv } from '#lib/components/users/csv';
   import { downloadCsv } from '@bagel/ui/lib/csv';
-  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '$lib/components/users/user-state';
-  import { USER_ACTIONS, type UserActionDef } from '$lib/components/users/user-actions';
+  import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '#lib/components/users/user-state';
+  import { USER_ACTIONS, type UserActionDef } from '#lib/components/users/user-actions';
   import type { UserDirectory } from './+page.server';
 
   let { data } = $props();

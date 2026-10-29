@@ -3,8 +3,8 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { COOKIE } from '$lib/server/session';
-import { deleteOptions } from '$lib/server/cookies';
+import { COOKIE } from '#lib/server/session';
+import { deleteOptions } from '#lib/server/cookies';
 import { revokeSession } from '@bagel/kit/server/session-revocation';
 
 export const POST: RequestHandler = async ({ cookies, url, locals }) => {

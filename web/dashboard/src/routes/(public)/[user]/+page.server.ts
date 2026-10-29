@@ -5,9 +5,9 @@ import { error, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import type { PageServerLoad } from './$types';
-import { userCommandsPage, userLeaderboardPage } from '$lib/server/services';
-import { readLoyalty, standingsPage, topStandings } from '$lib/server/loyalty-store';
-import { resolveCurrentViewer } from '$lib/server/viewer-lookup';
+import { userCommandsPage, userLeaderboardPage } from '#lib/server/services';
+import { readLoyalty, standingsPage, topStandings } from '#lib/server/loyalty-store';
+import { resolveCurrentViewer } from '#lib/server/viewer-lookup';
 import {
 	boardParams,
 	canonicalLocation,
@@ -20,12 +20,12 @@ import {
 	type BoardView,
 	type PageReply,
 	type PageRequest
-} from '$lib/leaderboard-board';
-import { channelLabel } from '$lib/server/public-directory';
-import { markEdge, pageOutcome, readVisibility } from '$lib/server/edge-cache';
-import { lookupLogin } from '$lib/server/channel-lookup';
-import { leaderboardCacheTag } from '$lib/edge-tags';
-import { LOGIN_RE, normalizeLogin } from '$lib/public-login';
+} from '#lib/leaderboard-board';
+import { channelLabel } from '#lib/server/public-directory';
+import { markEdge, pageOutcome, readVisibility } from '#lib/server/edge-cache';
+import { lookupLogin } from '#lib/server/channel-lookup';
+import { leaderboardCacheTag } from '#lib/edge-tags';
+import { LOGIN_RE, normalizeLogin } from '#lib/public-login';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -103,7 +103,7 @@ async function standings(userId: string, loyalty: ReturnType<typeof readLoyalty>
 }
 
 async function demoPage(login: string, params: BoardParams) {
-	const d = await import('$lib/server/demo-data');
+	const d = await import('#lib/server/demo-data');
 	return {
 		login,
 		channelName: login,

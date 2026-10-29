@@ -5,8 +5,8 @@
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { encodeIdList, getI18n, parseIdList, type DiscordConfig } from '@bagel/kit';
-  import type { DiscordEntry } from '$lib/server/discord-store';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
+  import type { DiscordEntry } from '#lib/server/discord-store';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {

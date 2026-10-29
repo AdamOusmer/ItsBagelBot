@@ -4,8 +4,8 @@
 import { safeReturnPath } from '@bagel/kit/return-path';
 import { redirect } from '@sveltejs/kit';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
-import { setLocale } from '$lib/server/services';
-import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
+import { setLocale } from '#lib/server/services';
+import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, url, cookies, locals }) => {

@@ -4,14 +4,14 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { requireRole } from '$lib/server/access';
+import { requireRole } from '#lib/server/access';
 import {
   auditPage,
   AUDIT_MAX_PAGES,
   AUDIT_PAGE_SIZE,
   type AuditEntry
-} from '$lib/server/services';
-import { parsePage, normalizeSearch } from '$lib/server/paging';
+} from '#lib/server/services';
+import { parsePage, normalizeSearch } from '#lib/server/paging';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -50,7 +50,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const search = normalizeSearch(url.searchParams.get('q'));
 
   if (DEMO) {
-    const { demoAuditPageEntries } = await import('$lib/server/demo-data');
+    const { demoAuditPageEntries } = await import('#lib/server/demo-data');
     return json(demoPage(page, search, demoAuditPageEntries()));
   }
 

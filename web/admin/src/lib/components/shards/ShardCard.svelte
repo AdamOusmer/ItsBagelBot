@@ -8,7 +8,7 @@
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '../StatePill.svelte';
-  import { pctLabel } from '$lib/throughput';
+  import { pctLabel } from '#lib/throughput';
   import { loadTone, rateLabel, shardBadge } from './shard-state';
 
   let { shard, pod, eps, burstEps, utilization, ratedEps, targetUtilization }: {

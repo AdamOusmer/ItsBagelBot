@@ -14,7 +14,7 @@ let existing: () => Promise<{ username: string }> = async () => ({ username: 'st
 const purged: { kind: 'pages' | 'board'; userId: string; logins: readonly string[] }[] = [];
 
 const services = await import('../../../lib/server/services');
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   ...services,
   isBanned: async () => false,
   accountState: () => existing(),
@@ -24,11 +24,11 @@ mock.module('$lib/server/services', () => ({
 }));
 const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({ ...nats, rpc: async () => ({ ok: true }) }));
-mock.module('$lib/server/edge-purge', () => ({
+mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'pages', userId, logins }),
   scheduleLeaderboardPurge: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'board', userId, logins })
 }));
-mock.module('$lib/server/oauth', () => ({
+mock.module('#lib/server/oauth', () => ({
   safeNextPath: () => null,
   fetchAccountEmail: async () => null,
   twitch: () => ({

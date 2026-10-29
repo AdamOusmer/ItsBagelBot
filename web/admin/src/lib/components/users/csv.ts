@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { AdminUserWire } from '$lib/server/services';
+import type { AdminUserWire } from '#lib/server/services';
 import { csvDocument } from '@bagel/ui/lib/csv';
 
 const HEADER = 'id,username,status,active,banned,creator_code,created_at,updated_at';

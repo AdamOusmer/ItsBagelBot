@@ -28,12 +28,12 @@ import {
   type DiscordSetup,
   type DiscordStatus,
   type DiscordView
-} from '$lib/server/discord-store';
-import { discordConfigured, requireDiscordActor } from '$lib/server/discord-oauth';
-import { auditDashboardImpersonation } from '$lib/server/services';
+} from '#lib/server/discord-store';
+import { discordConfigured, requireDiscordActor } from '#lib/server/discord-oauth';
+import { auditDashboardImpersonation } from '#lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
-import { DISCORD_DEF } from '$lib/server/discord-def';
+import { assertModuleUnlocked, gateModulePage, moduleLocked } from '#lib/server/module-gate';
+import { DISCORD_DEF } from '#lib/server/discord-def';
 import {
   DISCORD_CONFIG_VERSION_NEW,
   alertOff,
@@ -50,12 +50,12 @@ import {
   type DiscordModuleSettings,
   type PinnedSlot
 } from '@bagel/kit';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import type { Session } from '#lib/server/session';
+import { effectiveId } from '#lib/server/board';
 import { dev } from '$app/env';
 import { error, fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 function gate(session: Session | null | undefined): void {
@@ -220,7 +220,7 @@ async function moduleRead(
 
 async function demoModulePage(def: DiscordModuleDef, guildId: string, url: URL): Promise<DiscordModulePage> {
   const page = await demoPage(guildId, url);
-  const { demoDiscordConfig } = await import('$lib/server/demo-data');
+  const { demoDiscordConfig } = await import('#lib/server/demo-data');
   const stored = demoDiscordConfig();
   const row = defaultRow(def);
   const settings = parseDiscordModuleSettings(def.id, stored.config);
@@ -272,7 +272,7 @@ export const loadGuildModule = async (
 
 async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   const { demoDiscordView, demoDiscordConfig, demoDiscordLayout, demoDiscordStatus } = await import(
-    '$lib/server/demo-data'
+    '#lib/server/demo-data'
   );
   const view = demoDiscordView();
   const g = ownedGuild(view.guilds, guildId);
@@ -296,11 +296,11 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
 
 async function demoOutcome(label: string, ctx: ActionCtx) {
   if (label === 'preview') {
-    const { demoDiscordTemplatePreview } = await import('$lib/server/demo-data');
+    const { demoDiscordTemplatePreview } = await import('#lib/server/demo-data');
     return { ok: true, plan: demoDiscordTemplatePreview() };
   }
   if (label === 'setup') {
-    const { demoDiscordDroppedPins } = await import('$lib/server/demo-data');
+    const { demoDiscordDroppedPins } = await import('#lib/server/demo-data');
     rememberDroppedPins(ctx.cookies, ctx.guildId, droppedPinNotice(demoDiscordDroppedPins()));
   }
   return { ok: true };

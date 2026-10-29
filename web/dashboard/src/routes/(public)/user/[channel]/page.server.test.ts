@@ -15,14 +15,14 @@ let commandsPageReply: (id: string) => Promise<boolean> = async () => true;
 
 let listFails = false;
 
-mock.module('$lib/server/commands-store', () => ({
+mock.module('#lib/server/commands-store', () => ({
   listCommands: async () => {
     if (listFails) throw new Error('commands down');
     return [{ name: 'hello', response: 'hi', is_active: true }];
   },
   listModules: async () => []
 }));
-mock.module('$lib/server/services', () => ({
+mock.module('#lib/server/services', () => ({
   accountState: async () => ({ creatorCode: null, username: '', displayName: '' }),
   resolveLogin: (login: string) => resolveLoginReply(login),
   userCommandsPage: (id: string) => commandsPageReply(id)

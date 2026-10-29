@@ -3,9 +3,9 @@
 
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { allows } from '$lib/server/access';
-import { AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/services';
-import { parsePage, normalizeSearch } from '$lib/server/paging';
+import { allows } from '#lib/server/access';
+import { AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '#lib/server/services';
+import { parsePage, normalizeSearch } from '#lib/server/paging';
 
 export const load: PageServerLoad = async ({ parent, url }) => {
   const admin = await parent();

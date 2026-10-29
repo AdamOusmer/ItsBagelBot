@@ -15,13 +15,13 @@
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import StatePill from '#lib/components/StatePill.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { giveawayDrawState } from '@bagel/kit/giveaway';
-  import { freezePoolDigest } from '$lib/giveaway-workflow';
-  import type { GiveawayDetailWire, GiveawayExcludedWire, GiveawayWinnerWire } from '$lib/server/giveaways';
+  import { freezePoolDigest } from '#lib/giveaway-workflow';
+  import type { GiveawayDetailWire, GiveawayExcludedWire, GiveawayWinnerWire } from '#lib/server/giveaways';
 
   let { data, form } = $props();
   const errorMessage = $derived((form as { error?: string } | null)?.error);

@@ -4,8 +4,8 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { requireRole } from '$lib/server/access';
-import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/services';
+import { requireRole } from '#lib/server/access';
+import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '#lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -22,7 +22,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   page = Math.min(Math.max(Math.trunc(page), 1), AUDIT_MAX_PAGES);
 
   if (DEMO) {
-    const { demoStaffHistory } = await import('$lib/server/demo-data');
+    const { demoStaffHistory } = await import('#lib/server/demo-data');
     const entries = page === 1 ? demoStaffHistory(Number(actorId)) : [];
     return json({ entries, page, page_size: AUDIT_PAGE_SIZE, max_pages: AUDIT_MAX_PAGES, has_more: false });
   }

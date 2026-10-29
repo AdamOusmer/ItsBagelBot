@@ -4,7 +4,7 @@
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { logger } from '@bagel/kit/server/logger';
-import { leaderboardCacheTag } from '$lib/edge-tags';
+import { leaderboardCacheTag } from '#lib/edge-tags';
 import { accountState } from './services';
 import { channelPageUrls } from './channel-urls';
 

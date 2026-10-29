@@ -22,16 +22,16 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import type { ShardSnapshot } from '@bagel/kit';
-  import type { TrialSnapshot } from '$lib/server/services';
+  import type { TrialSnapshot } from '#lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows } from '$lib/access';
+  import { allows } from '#lib/access';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
-  import ShardTopology from '$lib/components/shards/ShardTopology.svelte';
-  import ThroughputChart from '$lib/components/shards/ThroughputChart.svelte';
-  import { ThroughputHistory, type ThroughputPoint } from '$lib/components/shards/throughput-history';
-  import { ReadOrder } from '$lib/components/shards/read-order';
-  import { rateLabel } from '$lib/components/shards/shard-state';
-  import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '$lib/throughput';
+  import ShardTopology from '#lib/components/shards/ShardTopology.svelte';
+  import ThroughputChart from '#lib/components/shards/ThroughputChart.svelte';
+  import { ThroughputHistory, type ThroughputPoint } from '#lib/components/shards/throughput-history';
+  import { ReadOrder } from '#lib/components/shards/read-order';
+  import { rateLabel } from '#lib/components/shards/shard-state';
+  import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '#lib/throughput';
   import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
 
   let { data } = $props();

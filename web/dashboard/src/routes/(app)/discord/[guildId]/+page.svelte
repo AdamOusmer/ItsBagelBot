@@ -9,11 +9,11 @@
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { DISCORD_MODULES, getI18n } from '@bagel/kit';
-  import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
-  import ModuleRow from '$lib/components/discord/ModuleRow.svelte';
-  import { CLOSE_KEYS } from '$lib/discord/guild-fields';
-  import { botOnlineOf, layoutDownOf, pillStateOf } from '$lib/discord/guild-view';
-  import { moduleStateOf } from '$lib/discord/module-view';
+  import DiscordStateTag from '#lib/components/discord/DiscordStateTag.svelte';
+  import ModuleRow from '#lib/components/discord/ModuleRow.svelte';
+  import { CLOSE_KEYS } from '#lib/discord/guild-fields';
+  import { botOnlineOf, layoutDownOf, pillStateOf } from '#lib/discord/guild-view';
+  import { moduleStateOf } from '#lib/discord/module-view';
 
   let { data } = $props();
   const { t } = getI18n();

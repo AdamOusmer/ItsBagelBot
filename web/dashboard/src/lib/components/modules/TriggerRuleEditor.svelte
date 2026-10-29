@@ -8,8 +8,8 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { getI18n, namespaceReplyTemplate } from '@bagel/kit';
-  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
 
   export type Match = 'word' | 'contains' | 'exact' | 'prefix';
 

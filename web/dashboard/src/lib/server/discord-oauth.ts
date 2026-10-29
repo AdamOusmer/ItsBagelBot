@@ -19,7 +19,7 @@ export type GuildId = string;
 export type UserId = string;
 type AccessToken = string;
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 // One cookie and HMAC label per leg: a shared one lets either flow's state validate the other.

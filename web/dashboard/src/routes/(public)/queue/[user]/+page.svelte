@@ -14,9 +14,9 @@
   import { onMount, untrack } from 'svelte';
   import { page as route } from '$app/state';
   import { getI18n } from '@bagel/kit';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
-  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
-  import { MAX_QUEUE_ENTRIES, parseSnapshot, waitedSeconds } from '$lib/queue-snapshot';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
+  import StatsPageLayout from '#lib/components/stats/StatsPageLayout.svelte';
+  import { MAX_QUEUE_ENTRIES, parseSnapshot, waitedSeconds } from '#lib/queue-snapshot';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();

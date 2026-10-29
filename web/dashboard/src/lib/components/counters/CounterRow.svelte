@@ -7,7 +7,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 

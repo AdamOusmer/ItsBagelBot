@@ -15,8 +15,8 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { getI18n } from '@bagel/kit';
   import { invalidateAll } from '$app/navigation';
-  import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/action-result';
-  import type { TemplateItem, TemplatePlan } from '$lib/server/discord-store';
+  import { payloadOf, refusalTextOf, succeeded } from '#lib/discord/action-result';
+  import type { TemplateItem, TemplatePlan } from '#lib/server/discord-store';
 
   let { data } = $props();
   const { t } = getI18n();

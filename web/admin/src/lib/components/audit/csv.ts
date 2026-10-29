@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { AuditEntry } from '$lib/server/services';
+import type { AuditEntry } from '#lib/server/services';
 import { csvDocument } from '@bagel/ui/lib/csv';
 
 const HEADER = 'id,actor_id,actor_login,action,target,detail,ok,error,created_at';

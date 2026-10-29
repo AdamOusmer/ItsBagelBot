@@ -5,7 +5,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { DeployReleaseInfo } from '$lib/deploys/types';
+  import type { DeployReleaseInfo } from '#lib/deploys/types';
   import { shortSha } from './view';
 
   let { releases, value = $bindable('') }: { releases: DeployReleaseInfo[]; value: string } = $props();

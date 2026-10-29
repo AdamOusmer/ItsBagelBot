@@ -24,10 +24,10 @@ import {
   type RunReply,
   type RunRequest,
   type StartRequest
-} from '$lib/deploys/types';
-import type { AnalyticsRow } from '$lib/analytics-view';
+} from '#lib/deploys/types';
+import type { AnalyticsRow } from '#lib/analytics-view';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 // `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
 const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',

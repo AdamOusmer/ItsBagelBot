@@ -3,7 +3,7 @@
 
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { seoHost, SEO_ORIGIN, type SeoHost } from '$lib/server/seo-hosts';
+import { seoHost, SEO_ORIGIN, type SeoHost } from '#lib/server/seo-hosts';
 
 const PATHS: Readonly<Record<SeoHost, readonly string[]>> = {
   dashboard: [],

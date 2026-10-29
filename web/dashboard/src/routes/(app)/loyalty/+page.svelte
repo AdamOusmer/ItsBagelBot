@@ -33,8 +33,8 @@
     type LoyaltyConfig
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
-  import LoyaltyGameRow from '$lib/components/loyalty/LoyaltyGameRow.svelte';
+  import ModuleCommandList from '#lib/components/modules/ModuleCommandList.svelte';
+  import LoyaltyGameRow from '#lib/components/loyalty/LoyaltyGameRow.svelte';
 
   let { data } = $props();
   const { t, locale } = getI18n();

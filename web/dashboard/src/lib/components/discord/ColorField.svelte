@@ -4,7 +4,7 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { LIVE_COLOR_HEX, getI18n, normalizeHex, type DiscordConfig } from '@bagel/kit';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
   let {

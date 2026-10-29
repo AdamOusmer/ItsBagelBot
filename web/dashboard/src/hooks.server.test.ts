@@ -9,7 +9,7 @@ import { stubSvelteKit } from '../test/sveltekit';
 process.env.SESSION_KEY = Buffer.alloc(32, 7).toString('base64');
 stubSvelteKit();
 let guardImpl: (session: unknown) => Promise<unknown> = async (session) => session;
-mock.module('$lib/server/guard', () => ({ guardSession: (_event: unknown, session: unknown) => guardImpl(session) }));
+mock.module('#lib/server/guard', () => ({ guardSession: (_event: unknown, session: unknown) => guardImpl(session) }));
 
 const { COOKIE, CURSOR_COOKIE, seal } = await import('./lib/server/session');
 const { LOCALE_COOKIE } = await import('@bagel/kit/i18n');

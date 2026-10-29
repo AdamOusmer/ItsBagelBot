@@ -14,7 +14,7 @@
   import Table from '@bagel/ui/svelte/Table.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AnalyticsView, Table as ViewTable } from '$lib/analytics-page';
+  import type { AnalyticsView, Table as ViewTable } from '#lib/analytics-page';
 
   let { data } = $props();
   const { t } = getI18n();

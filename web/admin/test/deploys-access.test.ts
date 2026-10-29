@@ -13,7 +13,7 @@ const requireAdmin = mock(async () => adminReply);
 const allows = mock(() => allowsReply);
 const requireRole = mock(async () => (allowsReply ? adminReply : null));
 
-mock.module('$lib/server/access', () => ({ requireAdmin, allows, requireRole }));
+mock.module('#lib/server/access', () => ({ requireAdmin, allows, requireRole }));
 
 const loadDeploys = mock(async () => ({ planned: Promise.resolve({ plan: null, planError: null }), runs: [], active: null, runsError: null }));
 const loadDeployRun = mock(async () => ({ run: {} }));
@@ -25,7 +25,7 @@ class RunRelay {
   keepalive() {}
 }
 
-mock.module('$lib/server/deploys', () => ({
+mock.module('#lib/server/deploys', () => ({
   loadDeploys,
   loadDeployRun,
   runActions: {},

@@ -10,11 +10,11 @@ import {
   updateReward,
   deleteReward,
   setChannelPointsEnabled
-} from '$lib/server/channelpoints-store';
-import { moduleLoad } from '$lib/server/module-page';
-import { done, storeMutator } from '$lib/server/reward-action';
-import { flag, hexOrEmpty, int, oneOf, text } from '$lib/server/reward-form';
-import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle, normalizeCounterName } from '$lib/reward-fields';
+} from '#lib/server/channelpoints-store';
+import { moduleLoad } from '#lib/server/module-page';
+import { done, storeMutator } from '#lib/server/reward-action';
+import { flag, hexOrEmpty, int, oneOf, text } from '#lib/server/reward-form';
+import { REWARD_COST_MAX, REWARD_COST_MIN, isValidRewardTitle, normalizeCounterName } from '#lib/reward-fields';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 
@@ -23,7 +23,7 @@ const DEMO = dev && env.DEMO === '1';
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('channelpoints', locals.session, {
     demo: DEMO
-      ? async () => ({ enabled: true, rewards: (await import('$lib/server/demo-data')).demoRewards() })
+      ? async () => ({ enabled: true, rewards: (await import('#lib/server/demo-data')).demoRewards() })
       : undefined,
     read: async (uid) => {
       const view = await readRewards(uid);

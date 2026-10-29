@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { requireRole } from '$lib/server/access';
-import { giveawayHistory } from '$lib/server/giveaways';
+import { requireRole } from '#lib/server/access';
+import { giveawayHistory } from '#lib/server/giveaways';
 
 export async function GET({ locals, url }) {
   const admin = await requireRole({ locals }, 'giveaways.manage');

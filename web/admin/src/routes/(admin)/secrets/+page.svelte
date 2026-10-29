@@ -20,11 +20,11 @@
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { allows } from '$lib/access';
-  import type { DbCredentialStatus } from '$lib/server/secrets';
-  import StatePill from '$lib/components/StatePill.svelte';
-  import ServiceCard from '$lib/components/secrets/ServiceCard.svelte';
-  import { SECRET_DIALOGS, type SecretVerb } from '$lib/components/secrets/secret-dialogs';
+  import { allows } from '#lib/access';
+  import type { DbCredentialStatus } from '#lib/server/secrets';
+  import StatePill from '#lib/components/StatePill.svelte';
+  import ServiceCard from '#lib/components/secrets/ServiceCard.svelte';
+  import { SECRET_DIALOGS, type SecretVerb } from '#lib/components/secrets/secret-dialogs';
   import type { SecretsBundle } from './+page.server';
 
   let { data } = $props();

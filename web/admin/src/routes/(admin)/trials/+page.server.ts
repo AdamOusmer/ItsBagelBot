@@ -4,9 +4,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
-import { allows, requireRole } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
-import { trialAdd, trialList, trialRemove, trialSetEnabled, type TrialSnapshot } from '$lib/server/services';
+import { allows, requireRole } from '#lib/server/access';
+import { audit } from '#lib/server/audit';
+import { trialAdd, trialList, trialRemove, trialSetEnabled, type TrialSnapshot } from '#lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 const EMPTY: TrialSnapshot = { version: 1, trials: [] };

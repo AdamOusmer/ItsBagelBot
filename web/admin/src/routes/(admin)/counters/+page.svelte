@@ -27,14 +27,14 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { BotCounter } from '$lib/server/services';
-  import StatePill from '$lib/components/StatePill.svelte';
+  import type { BotCounter } from '#lib/server/services';
+  import StatePill from '#lib/components/StatePill.svelte';
   import {
     NEW_COUNTER,
     blankCounter,
     counterComplete,
     type CounterDraft
-  } from '$lib/components/counters/counter-draft';
+  } from '#lib/components/counters/counter-draft';
   import type { BotCountersBundle } from './+page.server';
 
   let { data } = $props();

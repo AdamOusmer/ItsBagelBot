@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { NotificationWire } from '$lib/server/services';
+import type { NotificationWire } from '#lib/server/services';
 
 export type NotificationLevel = NotificationWire['level'];
 export type NotificationScope = NotificationWire['scope'];

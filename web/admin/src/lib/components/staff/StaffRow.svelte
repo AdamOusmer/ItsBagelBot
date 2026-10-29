@@ -5,7 +5,7 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import type { AdminAcct } from '$lib/server/services';
+  import type { AdminAcct } from '#lib/server/services';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import StatePill from '../StatePill.svelte';
   import { ROLE_LABEL } from './staff-roles';

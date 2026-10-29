@@ -11,7 +11,7 @@ import {
   type TextInputSpec
 } from '@bagel/kit/importer/strategy';
 import type { CommitResponse, ImportDiagnostic, ImportSource, PreviewResponse } from '@bagel/kit';
-import { localizeImporterError } from '$lib/importer-errors';
+import { localizeImporterError } from '#lib/importer-errors';
 import { failureKey, type ImportFailure } from './errors';
 import {
   buildRetryManifest,

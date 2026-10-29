@@ -3,8 +3,8 @@
 
 import { expect, mock, test } from 'bun:test';
 
-mock.module('$lib/server/public-stats', () => ({ publicStats: async () => ({ degraded: false }) }));
-mock.module('$lib/server/public-boards', () => ({ publicBoards: async () => ({ degraded: false }) }));
+mock.module('#lib/server/public-stats', () => ({ publicStats: async () => ({ degraded: false }) }));
+mock.module('#lib/server/public-boards', () => ({ publicBoards: async () => ({ degraded: false }) }));
 
 const { GET: statsGet } = await import('./data/+server');
 const { GET: boardsGet } = await import('./boards/+server');

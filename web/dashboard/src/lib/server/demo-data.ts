@@ -35,7 +35,7 @@ import type {
   ActivityRow,
   ActivityKind,
   AnsweredTonight
-} from '$lib/overview-live';
+} from '#lib/overview-live';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 

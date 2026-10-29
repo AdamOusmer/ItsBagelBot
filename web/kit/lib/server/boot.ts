@@ -7,7 +7,7 @@ import { warm } from './nats';
 
 type Env = Record<string, string | undefined>;
 
-/** Pass process.env: reading $env/dynamic/private under init()'s top-level await deadlocks boot. */
+/** Pass process.env: $app/env/private only exposes variables declared in src/env.ts. */
 export function initConsoleRuntime(env: Env, assertConfigSane: (env: Env) => void): void {
   // IPv4 first: IPv6 lookups time out in the k3s cluster.
   dns.setDefaultResultOrder('ipv4first');

@@ -8,7 +8,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 

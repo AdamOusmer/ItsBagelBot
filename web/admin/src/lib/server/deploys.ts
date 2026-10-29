@@ -34,9 +34,9 @@ import {
   type RunKind,
   type RunRequest,
   type StartRequest
-} from '$lib/deploys/types';
+} from '#lib/deploys/types';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 export interface DeployApi {

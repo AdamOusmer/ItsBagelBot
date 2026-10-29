@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { json } from '@sveltejs/kit';
-import { CURSOR_COOKIE, type Session } from '$lib/server/session';
-import { setCursor } from '$lib/server/services';
-import { cookieOptions, YEAR_SECONDS } from '$lib/server/cookies';
+import { CURSOR_COOKIE, type Session } from '#lib/server/session';
+import { setCursor } from '#lib/server/services';
+import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import type { RequestHandler } from './$types';
 
 function isOwner(s: Session | null): s is Session {

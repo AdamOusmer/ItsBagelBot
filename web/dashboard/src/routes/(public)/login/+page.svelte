@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { playHeroTitle } from '$lib/login-hero';
+  import { playHeroTitle } from '#lib/login-hero';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -13,7 +13,7 @@
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n } from '@bagel/kit';
   import { SITE, webHref } from '@bagel/kit/site-links';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
 
   const { t, locale } = getI18n();
 

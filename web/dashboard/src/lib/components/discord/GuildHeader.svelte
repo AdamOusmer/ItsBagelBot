@@ -10,8 +10,8 @@
   import { getI18n, type GuildBotState } from '@bagel/kit';
   import DiscordStateTag from './DiscordStateTag.svelte';
   import GuildCrest from './GuildCrest.svelte';
-  import { sinceParts } from '$lib/discord/guild-view';
-  import type { DiscordGuildSummary } from '$lib/server/discord-store';
+  import { sinceParts } from '#lib/discord/guild-view';
+  import type { DiscordGuildSummary } from '#lib/server/discord-store';
 
   let {
     guildId,

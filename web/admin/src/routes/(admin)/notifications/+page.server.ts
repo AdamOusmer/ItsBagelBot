@@ -11,8 +11,8 @@ import {
   NOTIFICATIONS_PAGE_SIZE,
   NOTIFICATIONS_MAX_PAGES,
   type NotificationWire
-} from '$lib/server/services';
-import { requireRole, type AdminIdentity } from '$lib/server/access';
+} from '#lib/server/services';
+import { requireRole, type AdminIdentity } from '#lib/server/access';
 import {
   audited,
   actionError,
@@ -21,8 +21,8 @@ import {
   okReply,
   refusalReply,
   type ParseResult
-} from '$lib/server/admin-action';
-import { parsePage } from '$lib/server/paging';
+} from '#lib/server/admin-action';
+import { parsePage } from '#lib/server/paging';
 
 const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
 const MAX_TITLE_LENGTH = 120;
@@ -75,7 +75,7 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
 export const load: PageServerLoad = ({ url }) => {
   const page = parsePage(url.searchParams.get('page'), NOTIFICATIONS_MAX_PAGES);
   const history: Promise<HistoryBundle> = DEMO
-    ? import('$lib/server/demo-data').then(({ sampleNotifications }) =>
+    ? import('#lib/server/demo-data').then(({ sampleNotifications }) =>
         demoPage(page, sampleNotifications)
       )
     : loadHistory(page);

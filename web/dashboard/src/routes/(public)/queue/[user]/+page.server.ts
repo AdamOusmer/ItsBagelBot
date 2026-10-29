@@ -3,8 +3,8 @@
 
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { markEdge } from '$lib/server/edge-cache';
-import { readQueueChannel, requireQueueLogin } from '$lib/server/queue-channel';
+import { markEdge } from '#lib/server/edge-cache';
+import { readQueueChannel, requireQueueLogin } from '#lib/server/queue-channel';
 
 function canonicalPath(url: URL, login: string): string {
   return `${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}${login}${url.search}`;

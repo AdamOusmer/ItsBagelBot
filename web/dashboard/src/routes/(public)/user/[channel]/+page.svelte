@@ -20,7 +20,7 @@
   import Mark from '@bagel/ui/svelte/Mark.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { page } from '$app/state';
-  import PublicHead from '$lib/components/public/PublicHead.svelte';
+  import PublicHead from '#lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();

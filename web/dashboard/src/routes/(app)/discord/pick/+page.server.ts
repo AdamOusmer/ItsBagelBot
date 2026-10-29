@@ -16,13 +16,13 @@ import {
   requireDiscordActor,
   takeDiscordCode,
   type DiscordUserGuild
-} from '$lib/server/discord-oauth';
-import { listGuilds, type DiscordGuildSummary } from '$lib/server/discord-store';
+} from '#lib/server/discord-oauth';
+import { listGuilds, type DiscordGuildSummary } from '#lib/server/discord-store';
 import { canManageGuild, guildIconURL, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
-import { gateModulePage } from '$lib/server/module-gate';
+import { gateModulePage } from '#lib/server/module-gate';
 import { dev } from '$app/env';
 
-// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
 const DEMO = dev && process.env.DEMO === '1';
 
 export type PickChoice = {
@@ -83,7 +83,7 @@ async function manageableGuilds(code: string): Promise<DiscordUserGuild[]> {
 
 async function demoPick(cookies: Cookies): Promise<{ choices: PickChoice[] }> {
   const { demoDiscordPicker, demoDiscordGuilds, demoDiscordBlocked } = await import(
-    '$lib/server/demo-data'
+    '#lib/server/demo-data'
   );
   const rows = demoDiscordGuilds();
   const bound = rows.map((g) => g.guildId);

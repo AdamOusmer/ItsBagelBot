@@ -25,10 +25,10 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import { localeFlag } from '@bagel/kit/site-links';
-  import CursorSwitch from '$lib/components/CursorSwitch.svelte';
-  import Completion from '$lib/components/welcome/Completion.svelte';
-  import ImportWizard from '$lib/components/welcome/ImportWizard.svelte';
-  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import CursorSwitch from '#lib/components/CursorSwitch.svelte';
+  import Completion from '#lib/components/welcome/Completion.svelte';
+  import ImportWizard from '#lib/components/welcome/ImportWizard.svelte';
+  import ChatPreview from '#lib/components/commands/ChatPreview.svelte';
 
   let { data } = $props();
 

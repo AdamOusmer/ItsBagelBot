@@ -3,10 +3,10 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { GOVEE_COLOR_NAMES } from '@bagel/kit';
-import { goveeStore, type GoveeDevice, type GoveeView, type RewardDraft } from '$lib/server/govee-store';
-import { moduleLoad } from '$lib/server/module-page';
-import { done, storeMutator } from '$lib/server/reward-action';
-import { parseRewardCore } from '$lib/server/reward-form';
+import { goveeStore, type GoveeDevice, type GoveeView, type RewardDraft } from '#lib/server/govee-store';
+import { moduleLoad } from '#lib/server/module-page';
+import { done, storeMutator } from '#lib/server/reward-action';
+import { parseRewardCore } from '#lib/server/reward-form';
 import { dev } from '$app/env';
 import { env } from '@bagel/kit/server/env';
 import { fail } from '@sveltejs/kit';
@@ -28,7 +28,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
   return moduleLoad<GoveePage>('govee', locals.session, {
     demo: DEMO
       ? async () => {
-          const { demoGoveeView, demoGoveeDevices } = await import('$lib/server/demo-data');
+          const { demoGoveeView, demoGoveeDevices } = await import('#lib/server/demo-data');
           const setupPreview = url.searchParams.get('setup') === '1';
           return { ...demoGoveeView(), keyPresent: !setupPreview, setupPreview, devices: { devices: demoGoveeDevices(), error: undefined }, colors };
         }

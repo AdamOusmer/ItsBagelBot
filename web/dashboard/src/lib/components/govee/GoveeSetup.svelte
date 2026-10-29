@@ -21,7 +21,7 @@
   import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
   import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
-  import SetupAskAi from '$lib/components/shared/SetupAskAi.svelte';
+  import SetupAskAi from '#lib/components/shared/SetupAskAi.svelte';
 
   type DeviceList = { devices: GoveeDevice[]; error?: string; code?: 'key_rejected' | 'unreachable' };
   let { name, devices, preview = false, onFinish }: {

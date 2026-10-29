@@ -29,10 +29,10 @@
     type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
-  import { namespaceRewardMessage, rewardDraftFrom, rewardErrors } from '$lib/components/channelpoints/reward-draft';
-  import { warmOnIntent } from '$lib/warm-on-intent';
-  const loadRewardEditor = () => import('$lib/components/channelpoints/RewardEditor.svelte');
+  import RewardRow from '#lib/components/channelpoints/RewardRow.svelte';
+  import { namespaceRewardMessage, rewardDraftFrom, rewardErrors } from '#lib/components/channelpoints/reward-draft';
+  import { warmOnIntent } from '#lib/warm-on-intent';
+  const loadRewardEditor = () => import('#lib/components/channelpoints/RewardEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();

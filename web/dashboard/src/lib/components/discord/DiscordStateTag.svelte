@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n, type GuildBotState } from '@bagel/kit';
-  import { DISCORD_PILL_KEYS, DISCORD_STATE_TAG } from '$lib/discord-messages';
+  import { DISCORD_PILL_KEYS, DISCORD_STATE_TAG } from '#lib/discord-messages';
 
   let { state }: { state: GuildBotState } = $props();
 

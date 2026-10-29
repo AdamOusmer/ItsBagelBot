@@ -8,8 +8,8 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n, fmtDate, type TimerDef } from '@bagel/kit';
-  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
-  import { formatDuration } from '$lib/components/shared/duration';
+  import RowDeleteButton from '#lib/components/shared/RowDeleteButton.svelte';
+  import { formatDuration } from '#lib/components/shared/duration';
 
   const { t, locale } = getI18n();
 

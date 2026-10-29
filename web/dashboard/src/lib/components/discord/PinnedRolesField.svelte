@@ -4,8 +4,8 @@
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { encodePinnedRoles, getI18n, parsePinnedRoles, type DiscordConfig, type PinnedSlot } from '@bagel/kit';
-  import type { ModuleDraft } from '$lib/discord/module-draft.svelte';
-  import { SLOT_LABEL_KEYS } from '$lib/discord/guild-fields';
+  import type { ModuleDraft } from '#lib/discord/module-draft.svelte';
+  import { SLOT_LABEL_KEYS } from '#lib/discord/guild-fields';
   import FieldNote from './FieldNote.svelte';
 
   let {

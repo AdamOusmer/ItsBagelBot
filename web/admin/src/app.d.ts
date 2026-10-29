@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Session } from '$lib/server/session';
+import type { Session } from '#lib/server/session';
 import type { Locale } from '@bagel/kit/i18n';
 
 declare global {

@@ -6,16 +6,16 @@ import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction } from '@bagel/kit/server/form-action';
 import { normalizeCounterName, parseCounterValue } from '@bagel/kit/validation';
 import { dev } from '$app/env';
-import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
-import { actionError, adminText } from '$lib/server/admin-action';
+import { allows, requireRole, type AdminIdentity } from '#lib/server/access';
+import { audit } from '#lib/server/audit';
+import { actionError, adminText } from '#lib/server/admin-action';
 import {
   botCounterList,
   botCounterCreate,
   botCounterSet,
   botCounterDelete,
   type BotCounter
-} from '$lib/server/services';
+} from '#lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 

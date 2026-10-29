@@ -26,12 +26,12 @@
   } from '@bagel/kit';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
-  import TimerRow from '$lib/components/timers/TimerRow.svelte';
+  import TimerRow from '#lib/components/timers/TimerRow.svelte';
   import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
-  import { firstTimerError } from '$lib/timer-validation';
-  import { postAction, reseedOnChange } from '$lib/client-actions.svelte';
-  import { warmOnIntent } from '$lib/warm-on-intent';
-  const loadTimerEditor = () => import('$lib/components/timers/TimerEditor.svelte');
+  import { firstTimerError } from '#lib/timer-validation';
+  import { postAction, reseedOnChange } from '#lib/client-actions.svelte';
+  import { warmOnIntent } from '#lib/warm-on-intent';
+  const loadTimerEditor = () => import('#lib/components/timers/TimerEditor.svelte');
 
   let { data } = $props();
   const { t } = getI18n();
