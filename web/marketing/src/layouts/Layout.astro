@@ -285,6 +285,7 @@ const contentSecurityPolicy = [
         <slot/>
     </main>
     <Nav
+        class="bb-nav--brand-lg"
         brand={{ title: 'ItsBagelBot', href: localizePath("/", lang), logoSrc: navLogo.src, logoAlt: '' }}
         links={navLinks}
         cta={{ href: dashLoginHref(lang), label: t('nav.cta') }}

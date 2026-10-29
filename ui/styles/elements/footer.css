@@ -10,7 +10,7 @@
     --footer-signoff-lines: 1;
     --footer-fine-lines: 1;
     --footer-colophon-lines: 1;
-    --footer-cols-max: 920px;
+    --footer-cols-max: 640px;
     --footer-col-gap: 56px;
     --bb-footer-bg: var(--bb-bg-0);
 
@@ -58,32 +58,6 @@
     background:
       radial-gradient(closest-side, rgba(var(--bb-green-rgb), 0.22), transparent) -150px 6% / 460px 460px no-repeat,
       radial-gradient(closest-side, rgba(var(--bb-tan-rgb), 0.16), transparent) right -130px top 34% / 420px 420px no-repeat;
-  }
-
-  .bb-footer__ring {
-    position: absolute;
-    top: 190px;
-    left: 50%;
-    z-index: -1;
-    width: 860px;
-    height: 860px;
-    translate: -50% -50%;
-    opacity: 0.26;
-    pointer-events: none;
-    mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 88%);
-  }
-
-  .bb-footer__ring svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    animation: bb-footer-spin 80s linear infinite;
-  }
-
-  @keyframes bb-footer-spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 
   .bb-footer__signoff {
@@ -368,12 +342,6 @@
   @media (pointer: coarse) {
     .bb-footer .bb-nav-link {
       min-height: 44px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bb-footer__ring svg {
-      animation: none;
     }
   }
 }
