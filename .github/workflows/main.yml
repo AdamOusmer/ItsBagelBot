@@ -51,6 +51,11 @@ jobs:
           set -euo pipefail
           run=true
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # --no-renames: a moved file must count under its old path too, or
+            # moving a Go file into docs/ would read as a docs-only change. The
+            # diff goes to a file first so a git failure fails the step instead
+            # of looking like an empty, skippable change.
+            git diff --no-renames --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed"
             run=false
             # locales/<lang>/{website,console,docs} feed only the web apps; Go
             # embeds and walks locales/<lang>/chat and manifest.json alone.
@@ -61,7 +66,7 @@ jobs:
                 echo "Go-relevant change: $path"
                 break
               fi
-            done < <(git diff --name-only "$BASE...$HEAD")
+            done < "$RUNNER_TEMP/changed"
           fi
           [[ "$run" == "true" ]] || echo "No Go-relevant changes; skipping the Go suite."
           echo "run=$run" >> "$GITHUB_OUTPUT"
@@ -176,7 +181,8 @@ jobs:
   test:
     name: Run Unit Tests
     needs: [ scope, shard ]
-    if: always()
+    # Not on a run a newer push cancelled: that commit is superseded.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions: {}
 

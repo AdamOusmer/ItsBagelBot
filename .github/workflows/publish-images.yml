@@ -568,8 +568,11 @@ jobs:
           fi
           if (( ${#cache_args[@]} )); then
             echo "::warning::cached build failed; rebuilding without the layer cache"
+            # --layers alone keeps the same layer layout as a cached build.
+            build --layers
+          else
+            build
           fi
-          build
 
       - name: Push native image to GHCR
         if: github.event_name != 'pull_request'
