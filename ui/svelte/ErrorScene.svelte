@@ -2,8 +2,10 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import '../styles/orbs.css';
   import '../styles/elements/error-scene.css';
   import type { Snippet } from 'svelte';
+  import { perchSplit } from '../lib/error-scene';
   import LightField from './LightField.svelte';
 
   type ErrorSceneAction = {
@@ -25,6 +27,7 @@
     secondary?: ErrorSceneAction;
     actions?: Snippet;
     mark?: Snippet;
+    mascot?: Snippet;
     children?: Snippet;
   };
 
@@ -40,12 +43,14 @@
     secondary,
     actions,
     mark,
+    mascot,
     children,
     ...rest
   }: Own & Omit<SvelteHTMLElements['main'], keyof Own> = $props();
 
   const classes = $derived(['bb-error-scene', className || null].filter(Boolean).join(' '));
   const hasActions = $derived(Boolean(primary || secondary || actions));
+  const code = $derived(perchSplit(status ?? ''));
 </script>
 
 {#snippet control(action: ErrorSceneAction, tone: 'primary' | 'quiet')}
@@ -57,18 +62,21 @@
 {/snippet}
 
 <main class={classes} aria-labelledby={labelledBy} {...rest}>
-  <LightField />
-  <div class="bb-error-scene__glow" aria-hidden="true"></div>
+  <LightField class="bb-light-field--bleed" />
 
-  <div class="bb-error-scene__orbits" aria-hidden="true">
-    <span class="bb-error-scene__orbit"></span>
-    <span class="bb-error-scene__orbit bb-error-scene__orbit--two"></span>
+  <div class="bb-error-scene__orbs" aria-hidden="true">
+    <span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"></span>
+    <span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"></span>
   </div>
 
   <div class="bb-error-scene__content">
     {#if status !== undefined}
       <p class="bb-error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p>
-      <p class="bb-error-scene__code" aria-hidden="true">{status}</p>
+      <p class="bb-error-scene__code" aria-hidden="true"
+        >{code.before}<span class="bb-error-scene__perch"
+          >{code.digit}{#if mascot}<span class="bb-error-scene__mascot">{@render mascot()}</span>{/if}</span
+        >{code.after}</p
+      >
     {:else}
       {#if mark}<div class="bb-error-scene__mark" aria-hidden="true">{@render mark()}</div>{/if}
       <p class="bb-error-scene__eyebrow">{eyebrow}</p>

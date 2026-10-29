@@ -4,6 +4,9 @@
   import ErrorScene from '@bagel/ui/svelte/ErrorScene.svelte';
   import { page } from '$app/state';
   import { getI18n } from '../lib/i18n/context';
+  import Bolota from './Bolota.svelte';
+
+  const mascotPalette = { head: '#62a593', eye: '#111113' };
 
   let { appName, loginHref = '/login' }: { appName: string; loginHref?: string } = $props();
   const { t } = getI18n();
@@ -63,4 +66,6 @@
   labelledBy="error-title"
   primary={view.primary}
   secondary={backAction}
-/>
+>
+  {#snippet mascot()}<Bolota name="oven_fresh" size={240} palette={mascotPalette} active follow />{/snippet}
+</ErrorScene>

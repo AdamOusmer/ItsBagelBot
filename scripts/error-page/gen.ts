@@ -4,10 +4,13 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { parts } from '../../web/node_modules/@luzir/bolota/dist/index.js';
 
 const root = resolve(import.meta.dir, '../..');
 const target = join(root, 'deploy/k8s/config/error-pages.html');
 const ui = (path: string) => readFileSync(join(root, 'ui', path), 'utf8');
+
+const MASCOT = { name: 'oven_fresh', size: 240 };
 
 const FONTS = ['syne-latin.woff2', 'dm-sans-latin.woff2', 'dm-mono-400.woff2'];
 
@@ -66,6 +69,24 @@ function tokens(): string {
   return ui('styles/brand.css').replace(/^@import .*$/m, '');
 }
 
+type BrandColor = 'bb-green-glow' | 'bb-black';
+
+function brandColor(name: BrandColor): string {
+  const value = tokens().match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})\\s*;`))?.[1];
+  if (!value) throw new Error(`ui/styles/brand.css has no color token --${name}`);
+  return value;
+}
+
+function mascot(): string {
+  const palette = { head: brandColor('bb-green-glow'), eye: brandColor('bb-black') };
+  const { inner } = parts(MASCOT.name, { size: MASCOT.size, palette, background: false });
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" data-error-bolota="${MASCOT.name}" data-size="${MASCOT.size}" data-head="${palette.head}" data-eye="${palette.eye}"><g data-pose>${inner}</g></svg>`;
+}
+
+function digit(from: number, to?: number): string {
+  return `{{ slice (printf "%d" .StatusCode) ${from}${to === undefined ? '' : ` ${to}`} }}`;
+}
+
 const BASE = `*,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-white);-webkit-font-smoothing:antialiased}`;
 
@@ -98,7 +119,7 @@ function primary(group: Group, en: Copy): string {
   return `<a class="bb-error-scene__action bb-error-scene__action--primary" href="${action.href}" data-copy="${action.key}">${escape(en[action.key])}</a>`;
 }
 
-function page(copy: Record<string, Copy>, css: string, js: string): string {
+function page(copy: Record<string, Copy>, css: string, js: string, svg: string): string {
   const en = copy.en;
   const field = (name: string) => branches((group) => escape(en[group.name + name]));
   return `<!doctype html>
@@ -113,12 +134,11 @@ function page(copy: Record<string, Copy>, css: string, js: string): string {
 </head>
 <body>
 <main class="bb-error-scene" aria-labelledby="error-title" data-group="${branches((group) => group.name)}">
-<div class="bb-light-field" data-field aria-hidden="true"></div>
-<div class="bb-error-scene__glow" aria-hidden="true"></div>
-<div class="bb-error-scene__orbits" aria-hidden="true"><span class="bb-error-scene__orbit"></span><span class="bb-error-scene__orbit bb-error-scene__orbit--two"></span></div>
+<div class="bb-light-field bb-light-field--bleed" data-field aria-hidden="true"></div>
+<div class="bb-error-scene__orbs" aria-hidden="true"><span class="bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb"></span><span class="bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two"></span></div>
 <div class="bb-error-scene__content">
 <p class="bb-error-scene__eyebrow"><span>{{ .StatusCode }}</span> · <b data-copy="*Eyebrow">${field('Eyebrow')}</b></p>
-<p class="bb-error-scene__code" aria-hidden="true">{{ .StatusCode }}</p>
+<p class="bb-error-scene__code" aria-hidden="true">${digit(0, 1)}<span class="bb-error-scene__perch">${digit(1, 2)}<span class="bb-error-scene__mascot">${svg}</span></span>${digit(2)}</p>
 <h1 class="bb-error-scene__title" id="error-title" data-copy="*Title">${field('Title')}</h1>
 <p class="bb-error-scene__desc" data-copy="*Description">${field('Description')}</p>
 <div class="bb-error-scene__actions">${branches((group) => primary(group, en))}<a class="bb-error-scene__action bb-error-scene__action--quiet" href="/" data-error-back data-copy="goBack">${escape(en.goBack)}</a></div>
@@ -133,13 +153,14 @@ function page(copy: Record<string, Copy>, css: string, js: string): string {
 }
 
 async function render(): Promise<string> {
-  const css = [fontFaces(), tokens(), BASE, ui('styles/elements/light-field.css'), ui('styles/elements/error-scene.css'), '.bb-error-scene__eyebrow b{font-weight:inherit}'].join('\n');
+  const css = [fontFaces(), tokens(), BASE, ui('styles/orbs.css'), ui('styles/elements/light-field.css'), ui('styles/elements/error-scene.css'), '.bb-error-scene__eyebrow b{font-weight:inherit}'].join('\n');
   const js = await script();
   const copy = catalogs();
-  for (const [name, asset] of [['css', css], ['js', js], ['copy', JSON.stringify(copy)]]) {
+  const svg = mascot();
+  for (const [name, asset] of [['css', css], ['js', js], ['copy', JSON.stringify(copy)], ['mascot', svg]]) {
     if (asset.includes('{{')) throw new Error(`${name} contains "{{", which error-pages parses as a Go template action`);
   }
-  return page(copy, css, js);
+  return page(copy, css, js, svg);
 }
 
 const next = await render();
