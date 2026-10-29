@@ -601,7 +601,7 @@ export const demoPublicModules = [
     label: 'Clip',
     category: 'Built-in',
     tagline: 'Let viewers capture and share a recent stream moment.',
-    commands: [{ label: '!clip', meta: 'clip the last moment' }],
+    commands: [{ label: '!clip', meta: 'clip the last moment', perm: PERM_LABELS.everyone, aliases: [], cooldown: 30, liveOnly: false }],
     events: []
   }
 ];

@@ -5,11 +5,12 @@ import {
   BUILTIN_COMMANDS,
   MODULE_CATALOG,
   PERM_LABELS,
+  PERMS,
+  tModuleCommandSummary,
   tModuleLabel,
   tModuleReplyPart,
   tModuleTagline,
   translate,
-  translateList,
   type CommandView,
   type Locale,
   type Perm
@@ -34,12 +35,19 @@ export type ModuleDetail = {
   meta: string;
 };
 
+export type ModuleCommand = ModuleDetail & {
+  perm: string;
+  aliases: string[];
+  cooldown: number;
+  liveOnly: boolean;
+};
+
 export type PublicModule = {
   id: string;
   label: string;
   category: string;
   tagline: string;
-  commands: ModuleDetail[];
+  commands: ModuleCommand[];
   events: ModuleDetail[];
 };
 
@@ -67,19 +75,26 @@ function activeReply(config: Record<string, string>, enableKey?: string): boolea
   return !enableKey || enabledFlag(config[enableKey]);
 }
 
+function parsePerm(raw: unknown, fallback: Perm): Perm {
+  return PERMS.includes(raw as Perm) ? (raw as Perm) : fallback;
+}
+
+function permLabel(locale: Locale, perm: Perm): string {
+  const permKey = `perm.${perm}`;
+  const localized = translate(locale, permKey);
+  return localized === permKey ? (PERM_LABELS[perm] ?? PERM_LABELS.everyone) : localized;
+}
+
 export function publicCommands(rows: CommandView[], locale: Locale = 'en'): PublicCommand[] {
   const builtinNames = new Set(BUILTIN_COMMANDS.map((cmd) => cmd.id));
   return rows
     .filter((cmd) => cmd.is_active && cmd.name && !builtinNames.has(cmd.name))
     .map((cmd) => {
-      const perm = (cmd.perm ?? 'everyone') as Perm;
-      const permKey = `perm.${perm}`;
-      const localizedPerm = translate(locale, permKey);
       return {
         trigger: `!${cmd.name}`,
         aliases: (cmd.aliases ?? []).filter(Boolean).map((alias) => `!${alias}`),
         response: cmd.response,
-        perm: localizedPerm === permKey ? (PERM_LABELS[perm] ?? PERM_LABELS.everyone) : localizedPerm,
+        perm: permLabel(locale, parsePerm(cmd.perm, 'everyone')),
         cooldown: Math.max(0, Number(cmd.cooldown ?? 0) || 0),
         userCooldown: Math.max(0, Number(cmd.user_cooldown ?? 0) || 0),
         liveOnly: cmd.stream_online_only === true,
@@ -94,6 +109,43 @@ function activeModule(byName: Map<string, ModuleView>, id: string, fallback: boo
   return row ? row.is_enabled : fallback;
 }
 
+// Strips argument placeholders so "!raffle draw [winners]" covers replies to "!raffle draw".
+function triggerBase(trigger: string): string {
+  return trigger
+    .split(/\s+/)
+    .filter((word) => !/^[<[]/.test(word))
+    .join(' ')
+    .toLowerCase();
+}
+
+function moduleCommand(label: string, meta: string, perm: string): ModuleCommand {
+  return { label, meta, perm, aliases: [], cooldown: 0, liveOnly: false };
+}
+
+// One row per chat command: the documented commands first, then any command
+// only a reply names. Replies are the chat lines a command can answer with, so
+// several share one trigger and must never each become a row.
+function catalogCommands(def: (typeof MODULE_CATALOG)[number], config: Record<string, string>, locale: Locale): ModuleCommand[] {
+  const t = (key: string) => translate(locale, key);
+  const rows = (def.commands ?? []).map((command) => {
+    const fallback = command.perm ?? 'everyone';
+    const perm = command.permKey ? parsePerm(config[command.permKey], fallback) : fallback;
+    return moduleCommand(command.trigger, tModuleCommandSummary(t, def.id, command), permLabel(locale, perm));
+  });
+  const seen = new Set(rows.map((row) => triggerBase(row.label)));
+  for (const reply of def.replies) {
+    if (!reply.command || !activeReply(config, reply.enableKey)) continue;
+    const base = `!${reply.command}`;
+    const label = tModuleReplyPart(t, def.id, reply, 'label');
+    const trigger = label.toLowerCase().startsWith(base.toLowerCase()) ? label : base;
+    if (seen.has(triggerBase(base)) || seen.has(triggerBase(trigger))) continue;
+    seen.add(triggerBase(base));
+    seen.add(triggerBase(trigger));
+    rows.push(moduleCommand(trigger, tModuleReplyPart(t, def.id, reply, 'tagline'), permLabel(locale, 'everyone')));
+  }
+  return rows;
+}
+
 function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, ModuleView>, locale: Locale): PublicModule[] {
   if (!activeModule(byName, def.id, def.defaultEnabled)) return [];
   const config = asConfig(byName.get(def.id)?.configs);
@@ -104,9 +156,7 @@ function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, 
       label: tModuleLabel((key) => translate(locale, key), def),
       category: 'Module',
       tagline: tModuleTagline((key) => translate(locale, key), def),
-      commands: live
-        .filter((reply) => reply.command)
-        .map((reply) => ({ label: `!${reply.command}`, meta: tModuleReplyPart((key) => translate(locale, key), def.id, reply, 'tagline') })),
+      commands: catalogCommands(def, config, locale),
       events: live
         .filter((reply) => !reply.command)
         .map((reply) => ({
@@ -123,21 +173,25 @@ function localizedBuiltin(locale: Locale, id: string, part: 'label' | 'summary',
   return value === key ? fallback : value;
 }
 
-function localizedBuiltinUsage(locale: Locale, id: string, fallback: string[]): string {
-  const key = `builtinDirectory.${id}.usage`;
-  const value = translateList(locale, key);
-  return value.length ? value.join(' / ') : fallback.join(' / ');
-}
-
 function builtinEntry(def: (typeof BUILTIN_COMMANDS)[number], byName: Map<string, ModuleView>, locale: Locale): PublicModule[] {
   if (!activeModule(byName, def.id, def.defaultActive)) return [];
+  const config = asConfig(byName.get(def.id)?.configs);
   return [
     {
       id: def.id,
       label: localizedBuiltin(locale, def.id, 'label', def.label),
       category: 'Built-in',
       tagline: localizedBuiltin(locale, def.id, 'summary', def.summary),
-      commands: [{ label: `!${def.id}`, meta: localizedBuiltinUsage(locale, def.id, def.usage) }],
+      commands: [
+        {
+          label: `!${def.id}`,
+          meta: localizedBuiltin(locale, def.id, 'summary', def.summary),
+          perm: permLabel(locale, parsePerm(config.permission, def.defaultPerm)),
+          aliases: (def.aliases ?? []).filter(Boolean).map((alias) => `!${alias}`),
+          cooldown: def.defaultCooldown,
+          liveOnly: def.liveOnly
+        }
+      ],
       events: []
     }
   ];
