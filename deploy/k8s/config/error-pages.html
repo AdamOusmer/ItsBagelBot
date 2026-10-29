@@ -323,6 +323,14 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     width: min(100%, 760px);
   }
 
+  .bb-error-scene__mark {
+    display: grid;
+    place-items: center;
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards;
+  }
+
   .bb-error-scene__eyebrow {
     margin: 0 0 18px;
     color: var(--bb-green-glow);
@@ -492,6 +500,7 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     .bb-error-scene__glow,
     .bb-error-scene__orbits,
     .bb-error-scene__orbit,
+    .bb-error-scene__mark,
     .bb-error-scene__eyebrow,
     .bb-error-scene__code,
     .bb-error-scene__code::after,
@@ -503,6 +512,7 @@ html,body{margin:0;min-height:100%;background:var(--bb-black);color:var(--bb-whi
     }
 
     .bb-error-scene__orbits,
+    .bb-error-scene__mark,
     .bb-error-scene__eyebrow,
     .bb-error-scene__code,
     .bb-error-scene__title,
