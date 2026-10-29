@@ -70,7 +70,7 @@
       "name": "@bagel/kit",
       "version": "0.0.0",
       "dependencies": {
-        "@luzir/bolota": "0.1.6",
+        "@luzir/bolota": "0.1.7",
         "@nats-io/jetstream": "^3.4.0",
         "@nats-io/transport-node": "^3.4.0",
         "iovalkey": "^0.4.0",
@@ -87,7 +87,7 @@
         "@astrojs/check": "^0.9.9",
         "@astrojs/sitemap": "^3.7.3",
         "@bagel/kit": "workspace:*",
-        "@luzir/bolota": "0.1.6",
+        "@luzir/bolota": "0.1.7",
         "astro": "^7.0.6",
         "cookie": "^2.0.1",
         "motion": "^13.0.0",
@@ -318,7 +318,7 @@
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
-    "@luzir/bolota": ["@luzir/bolota@0.1.6", "", {}, "sha512-xVadeemh1Y6aSjCGlzv93y8x4p1s8gufKR1abpWSbXAsatVICmoZDX34z+R5c15bYWrF0ZNDdsHT5d7jebxCSA=="],
+    "@luzir/bolota": ["@luzir/bolota@0.1.7", "", {}, "sha512-rRM9BxP157Ez/q+Y1bTh7cOfLmdwKblFxDolvpbYRkVYwv90xAe4mUWu+s1FZrYX3uPpka+Z9nvSMqHlYaTdaA=="],
 
     "@mermaid-js/parser": ["@mermaid-js/parser@2.0.1", "", { "dependencies": { "@chevrotain/types": "~13.2.0" } }, "sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA=="],
 
