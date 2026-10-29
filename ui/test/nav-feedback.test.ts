@@ -98,7 +98,7 @@ describe('SectionNav modes', () => {
         ],
       },
       html:
-        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--auto" aria-label="Server" data-lenis-prevent>' +
+        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--auto" aria-label="Server" data-lenis-prevent><span class="bb-glide" aria-hidden="true"></span>' +
         '<a class="bb-tab is-active" href="/discord/1" aria-current="page">Overview</a>' +
         '<a class="bb-tab" href="/discord/1/roles">Roles</a></nav></div>',
     },
@@ -114,7 +114,7 @@ describe('SectionNav modes', () => {
         ],
       },
       html:
-        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--toc" aria-label="On this page" data-lenis-prevent>' +
+        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--toc" aria-label="On this page" data-lenis-prevent><span class="bb-glide" aria-hidden="true"></span>' +
         '<a class="bb-tab" href="#start"><i class="bb-tab__index">01</i>Start</a>' +
         '<a class="bb-tab" href="#next"><i class="bb-tab__index">02</i>Next<span class="bb-tab__count">3</span></a>' +
         '</nav></div>',
@@ -130,7 +130,7 @@ describe('SectionNav modes', () => {
         ],
       },
       html:
-        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--toc" aria-label="Guide" data-lenis-prevent>' +
+        '<div class="bb-tabs-host"><nav class="bb-tabs bb-tabs--toc" aria-label="Guide" data-lenis-prevent><span class="bb-glide" aria-hidden="true"></span>' +
         '<a class="bb-tab" href="#setup" data-guide-link="setup">Setup</a>' +
         '<a class="bb-tab" href="#faq">FAQ</a></nav></div>',
     },

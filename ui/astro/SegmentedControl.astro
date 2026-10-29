@@ -5,6 +5,7 @@ import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
 
 import '../styles/elements/tabs.css';
+import Glide from './Glide.astro';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'value' | 'label' | 'class'> {
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
@@ -20,10 +21,11 @@ const tabStop = items.some((opt) => opt.value === value) ? value : items[0]?.val
 const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}><span data-fit>{opt.label}</span>{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
+<div class={classes} role="radiogroup" aria-label={label} {...rest}><Glide />{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}><span data-fit>{opt.label}</span>{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
 
 <script>
     import { rovingTarget } from '../lib/roving-focus';
+    import { mountTabGlides } from '../lib/glide';
 
     const RADIO = 'button[role="radio"]';
     const RADIOS = { selector: RADIO, orientation: 'both', wrap: true } as const;
@@ -65,5 +67,9 @@ const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
     }
 
     bindSegmented();
-    document.addEventListener('astro:page-load', bindSegmented);
+    mountTabGlides();
+    document.addEventListener('astro:page-load', () => {
+        bindSegmented();
+        mountTabGlides();
+    });
 </script>

@@ -361,7 +361,7 @@
           </div>
           {#if data.modules.length}
             <div class="mods-wrap" bind:this={modsEl}>
-              <Glide />
+              <Glide class="mods__glide" />
               <ul class="mods">
                 {#each sideModules as mod (mod.id)}
                   {@const n = mod.commands.length}
@@ -651,7 +651,7 @@
     .mods li { flex: 0 0 auto; }
     .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
     .mod.on { border-color: rgba(var(--bb-green-glow-rgb), 0.45); }
-    .mods-wrap :global(.bb-glide) { display: none; }
+    .mods-wrap :global(.mods__glide) { display: none; }
     .mod__tagline { display: none; }
     .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
