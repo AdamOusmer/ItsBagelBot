@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'add' | 'brand';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'add' | 'brand' | 'twitch';
 export type ButtonTone = 'neutral' | 'success' | 'danger';
 export type ButtonSize = 'md' | 'sm';
 

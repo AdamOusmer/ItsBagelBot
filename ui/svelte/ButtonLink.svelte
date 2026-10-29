@@ -5,6 +5,7 @@
   import type { Snippet } from 'svelte';
   import { buttonClass, hasMark, type ButtonSize, type ButtonTone, type ButtonVariant } from '../lib/button';
   import '../styles/elements/button.css';
+  import Icon from './Icon.svelte';
 
   type Own = {
     href: string;
@@ -41,5 +42,5 @@
   {...rest}
 >
   {#if hasMark(variant)}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}
-  <span class="bb-btn__content">{@render children?.()}</span>
+  <span class="bb-btn__content">{#if variant === 'twitch'}<Icon name="twitch" />{/if}{@render children?.()}</span>
 </a>

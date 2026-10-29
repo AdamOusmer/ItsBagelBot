@@ -100,7 +100,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('hero.lede')}</span></Text>
 
         <div class="actions">
-            <ButtonLink class="cta" href={dashLoginHref(lang)} tone="success"><span data-fit>{t('nav.cta')}</span></ButtonLink>
+            <ButtonLink class="cta" href={dashLoginHref(lang)} variant="twitch"><span data-fit>{t('nav.cta')}</span></ButtonLink>
             <ButtonLink class="cta" variant="secondary" href={localizePath('/import', lang)}><span data-fit>{t('hero.importCta')}</span></ButtonLink>
         </div>
     </div>
