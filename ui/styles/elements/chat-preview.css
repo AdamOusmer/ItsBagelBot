@@ -63,7 +63,7 @@
   .bb-chat__name {
     display: inline-flex;
     flex: none;
-    align-items: center;
+    align-items: baseline;
     gap: 5px;
     font: 700 12.5px var(--bb-font-body);
     white-space: nowrap;
@@ -78,6 +78,7 @@
   .bb-chat__avatar {
     display: inline-flex;
     flex: none;
+    align-self: center;
     align-items: center;
     justify-content: center;
     width: 20px;

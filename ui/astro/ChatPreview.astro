@@ -1,10 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
 import '../styles/elements/chat-preview.css';
 import StatusDot from './StatusDot.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'title' | 'class'> {
   title: string;
   label?: string;
   kind?: string;
@@ -12,13 +14,13 @@ interface Props {
   class?: string;
 }
 
-const { title, label, kind, note, class: className = '' } = Astro.props;
+const { title, label, kind, note, class: className = '', ...rest } = Astro.props;
 ---
 
-<div class={`bb-chat ${className}`.trim()} role={label ? 'img' : 'group'} aria-label={label}>
+<div class={`bb-chat ${className}`.trim()} role={label ? 'img' : 'group'} aria-label={label} {...rest}>
   <div class="bb-chat__bar">
     <StatusDot tone="success" />
-    <span class="bb-chat__title">{title}</span>
+    <span class="bb-chat__title"><slot name="heading">{title}</slot></span>
     {kind && <b class="bb-chat__kind">{kind}</b>}
   </div>
   <div class="bb-chat__feed"><slot /></div>
