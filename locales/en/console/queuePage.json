@@ -18,6 +18,10 @@
   "moreNote": "Showing the first {shown} of {total} viewers",
   "emptyTitle": "Nobody is in line",
   "emptyBody": "When viewers join the queue, they show up here.",
+  "searchLabel": "Search the queue",
+  "searchPlaceholder": "Search by username",
+  "noMatchTitle": "No match in line",
+  "noMatchBody": "Nobody in the queue matches that name.",
   "degradedTitle": "Can't load the queue",
   "degraded": "The queue can't load right now. This page keeps trying."
 }

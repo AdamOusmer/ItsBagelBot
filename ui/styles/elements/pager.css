@@ -15,7 +15,7 @@
   .bb-pager__label {
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
-    color: var(--bb-muted);
+    color: var(--bb-muted-light);
   }
 
   .bb-pager--fixed { box-sizing: border-box; min-height: 56px; }

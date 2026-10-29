@@ -18,6 +18,10 @@
   "moreNote": "Mostrando os primeiros {shown} de {total} espectadores",
   "emptyTitle": "Ninguém está na fila",
   "emptyBody": "Quando os espectadores entrarem na fila, eles aparecem aqui.",
+  "searchLabel": "Buscar na fila",
+  "searchPlaceholder": "Buscar por usuário",
+  "noMatchTitle": "Nenhum resultado na fila",
+  "noMatchBody": "Ninguém na fila corresponde a esse nome.",
   "degradedTitle": "Não foi possível carregar a fila",
   "degraded": "A fila não pode ser carregada agora. Esta página continua tentando."
 }

@@ -18,6 +18,10 @@
   "moreNote": "Die ersten {shown} von {total} Zuschauern",
   "emptyTitle": "Niemand steht an",
   "emptyBody": "Sobald Zuschauer der Warteschlange beitreten, erscheinen sie hier.",
+  "searchLabel": "Warteschlange durchsuchen",
+  "searchPlaceholder": "Nach Benutzername suchen",
+  "noMatchTitle": "Kein Treffer in der Schlange",
+  "noMatchBody": "Niemand in der Warteschlange entspricht diesem Namen.",
   "degradedTitle": "Warteschlange nicht ladbar",
   "degraded": "Die Warteschlange lässt sich gerade nicht laden. Diese Seite versucht es weiter."
 }
