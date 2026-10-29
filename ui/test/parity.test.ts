@@ -175,6 +175,8 @@ import SvelteCardAtmosphere from '../svelte/CardAtmosphere.svelte';
 import AstroCardAtmosphere from '../astro/CardAtmosphere.astro';
 import SveltePageToolbar from '../svelte/PageToolbar.svelte';
 import AstroPageToolbar from '../astro/PageToolbar.astro';
+import SvelteWell from '../svelte/Well.svelte';
+import AstroWell from '../astro/Well.astro';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Adapter = any;
@@ -356,6 +358,24 @@ describe('PageToolbar', () => {
     astro: AstroPageToolbar,
     props: { class: 'filters', role: 'toolbar', 'aria-label': 'Filters' },
     html: '<div class="bb-toolbar filters" role="toolbar" aria-label="Filters"><div class="bb-toolbar__grow"></div></div>',
+  });
+});
+
+describe('Well', () => {
+  contract({
+    name: 'control radius by default',
+    svelte: SvelteWell,
+    astro: AstroWell,
+    props: {},
+    html: '<div class="bb-well"></div>',
+  });
+
+  contract({
+    name: 'container modifier, element and extra class',
+    svelte: SvelteWell,
+    astro: AstroWell,
+    props: { container: true, as: 'span', class: 'x' },
+    html: '<span class="bb-well bb-well--container x"></span>',
   });
 });
 

@@ -4,8 +4,10 @@
 
 import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
+import JsonTree from '@bagel/ui/astro/JsonTree.astro';
 import Label from '@bagel/ui/astro/Label.astro';
 import Textarea from '@bagel/ui/astro/Textarea.astro';
+import Well from '@bagel/ui/astro/Well.astro';
 
 interface Props {
     labels?: Record<string, string>;
@@ -57,16 +59,16 @@ const sample =
             </label>
             <div class="gpath__col">
                 <Label mono as="span">{L.treeLabel}</Label>
-                <div class="gpath__tree" data-pp-tree><small class="gpath__hint">{L.empty}</small></div>
+                <Well container class="gpath__well"><JsonTree nodes={[]} data-pp-tree><small class="gpath__hint">{L.empty}</small></JsonTree></Well>
             </div>
         </div>
-        <div class="gpath__out" data-pp-out hidden>
+        <Well class="gpath__out" data-pp-out hidden>
             <p><i>{L.savedPathLabel}</i><code data-pp-path></code></p>
             <p><i>{L.tokenLabel}</i><code data-pp-token></code></p>
             <p data-pp-override-row><i>{L.overrideLabel}</i><code data-pp-override></code></p>
             <p><i>{L.chatLabel}</i><code data-pp-chat></code><em data-pp-cut hidden>{L.cutHere}</em></p>
             <p class="gpath__note" data-pp-note hidden>{L.wholeNote}</p>
-        </div>
+        </Well>
         <Button variant="secondary" size="sm" class="gpath__whole" data-pp-whole>{L.wholeButton}</Button>
         <p class="gpath__strings" hidden data-pp-strings
             data-too-deep={L.tooDeep} data-bad-segment={L.badSegment} data-not-usable={L.notUsable}
@@ -80,24 +82,15 @@ const sample =
     .gpath__grid { display: grid; gap: 12px; }
     @media (min-width: 720px) { .gpath__grid { grid-template-columns: 1fr 1fr; } }
     .gpath__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
-    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid transparent; box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.7); }
+    .gpath__well { min-height: 200px; max-height: 260px; overflow: auto; padding: 9px 10px; }
     .gpath :global(.gpath__hint) { font-family: var(--bb-font-body); font-size: 0.78rem; color: var(--bb-muted); }
-    .gpath__tree :global(.key) { font-family: var(--bb-font-mono); font-size: 0.68rem; color: var(--bb-tan-light); }
-    .gpath__tree :global(.kids) { display: grid; gap: 2px; margin-left: 9px; padding-left: 9px; border-left: 1px solid var(--bb-border); }
-    .gpath__tree :global(.leaf) { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 3px 6px; border: 0; border-radius: var(--bb-radius-sm); background: none; text-align: left; cursor: pointer; font-family: var(--bb-font-mono); font-size: 0.68rem; color: rgba(var(--bb-white-rgb), 0.82); transition: background var(--bb-dur-base) var(--bb-ease-out-expo); }
-    .gpath__tree :global(.leaf em) { font-style: normal; color: var(--bb-muted); }
-    .gpath__tree :global(.leaf:hover:not(:disabled)) { background: rgba(var(--bb-tan-rgb), 0.12); }
-    .gpath__tree :global(.leaf:focus-visible) { outline: 2px solid var(--bb-green-glow); outline-offset: -2px; }
-    .gpath__tree :global(.leaf:disabled) { cursor: not-allowed; color: var(--bb-muted); }
-    .gpath__tree :global(.leaf.is-picked) { background: rgba(var(--bb-green-glow-rgb), 0.14); color: var(--bb-green-glow); }
-    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid transparent; box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.5); }
+    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; }
     .gpath__out p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
     .gpath__out i { font-style: normal; min-width: 150px; font-family: var(--bb-font-body); font-size: 0.72rem; color: var(--bb-muted); }
     .gpath__out code { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan-light); word-break: break-all; }
     .gpath__out em { font-style: normal; font-family: var(--bb-font-mono); font-size: 0.62rem; color: var(--bb-green-glow); }
     .gpath__note { font-family: var(--bb-font-body); font-size: 0.8rem; color: var(--bb-muted); }
     .gpath__whole { justify-self: start; }
-    @media (prefers-reduced-motion: reduce) { .gpath__tree :global(.leaf) { transition: none; } }
 </style>
 
 <script>
@@ -157,40 +150,50 @@ const sample =
             out.hidden = false;
         }
 
-        function leafButton(label: string, value: unknown, segs: string[]): HTMLElement {
+        function clearPicked() {
+            tree.querySelectorAll('[aria-current]').forEach((el) => el.removeAttribute('aria-current'));
+        }
+
+        function leafRow(label: string, value: unknown, segs: string[]): HTMLElement {
+            const row = document.createElement('div');
+            row.className = 'bb-picker-option';
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'leaf';
+            button.className = 'bb-picker-option__main';
             const usable = value !== null && value !== undefined;
             const pickable = usable && segs.length <= JSON_PATH_MAX_DEPTH && segs.every((s) => PATH_SEGMENT_RE.test(s));
             button.disabled = !pickable;
             if (!pickable) button.title = usable ? refusal(segs, strings) : (strings.notUsable ?? '');
-            button.innerHTML = '<span></span><em></em>';
-            button.querySelector('span')!.textContent = label;
-            button.querySelector('em')!.textContent = JSON.stringify(value) ?? '';
+            button.innerHTML = '<span class="bb-picker-option__label"></span><span class="bb-picker-option__desc"></span>';
+            button.querySelector('.bb-picker-option__label')!.textContent = label;
+            button.querySelector('.bb-picker-option__desc')!.textContent = JSON.stringify(value) ?? '';
             button.addEventListener('click', () => {
-                tree.querySelectorAll('.leaf').forEach((el) => el.classList.remove('is-picked'));
-                button.classList.add('is-picked');
+                clearPicked();
+                button.setAttribute('aria-current', 'true');
                 show(segs, String(value));
             });
-            return button;
+            row.append(button);
+            return row;
         }
 
         function render(label: string, value: unknown, segs: string[], into: HTMLElement) {
             if (value !== null && typeof value === 'object') {
+                const branch = document.createElement('div');
+                branch.className = 'bb-json-tree__branch';
                 const key = document.createElement('span');
-                key.className = 'key';
+                key.className = 'bb-json-tree__key';
                 key.textContent = label;
                 const kids = document.createElement('div');
-                kids.className = 'kids';
+                kids.className = 'bb-json-tree__kids';
                 const entries: [string, unknown][] = Array.isArray(value)
                     ? value.map((v, i) => [String(i), v])
                     : Object.entries(value as Record<string, unknown>);
                 for (const [k, v] of entries) render(k, v, [...segs, k], kids);
-                into.append(key, kids);
+                branch.append(key, kids);
+                into.append(branch);
                 return;
             }
-            into.append(leafButton(label, value, segs));
+            into.append(leafRow(label, value, segs));
         }
 
         function rebuild() {
@@ -212,7 +215,7 @@ const sample =
 
         input.addEventListener('input', rebuild);
         root.querySelector<HTMLButtonElement>('[data-pp-whole]')!.addEventListener('click', () => {
-            tree.querySelectorAll('.leaf').forEach((el) => el.classList.remove('is-picked'));
+            clearPicked();
             show(null, input.value);
         });
         rebuild();

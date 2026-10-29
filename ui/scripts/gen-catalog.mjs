@@ -37,9 +37,12 @@ const FAMILY = {
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback',
+  Well: 'Layout', Window: 'Layout', JsonTree: 'Data',
 };
 
 const ADAPTER_NOTE = {
+  JsonTree: 'Astro only: static rendering of a parsed response; the dashboard builds the same `bb-json-tree` markup from client state.',
+  Window: 'Astro only: a static frame around a screenshot-like body; the title and actions are named slots.',
   PickerPanel: 'Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.',
   ToastHost: 'Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.',
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',

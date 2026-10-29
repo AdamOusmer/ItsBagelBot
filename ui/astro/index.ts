@@ -124,3 +124,6 @@ export { default as SkipLink } from './SkipLink.astro';
 export { default as CopySurface } from './CopySurface.astro';
 
 export { uiI18n } from './i18n';
+export { default as Well } from './Well.astro';
+export { default as JsonTree } from './JsonTree.astro';
+export { default as Window } from './Window.astro';

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **112** blocks;
-**101** ship both adapters.
+Every block the library ships, by family. **115** blocks;
+**102** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 112 times
+omitted: nearly every block takes both, and listing them 115 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -50,6 +50,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **SetupStep** | `kicker*`: string<br>`title*`: string<br>`body`: string<br>`dir`: number<br>`instant`: boolean<br>`hero`: boolean<br>`heading`: HTMLHeadingElement \| null<br>`status`: Snippet | svelte | svelte-only | `styles/elements/page-hero.css, styles/elements/setup-step.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
 | **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
+| **Well** | `container`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/well.css` |
+| **Window** | — | astro<br>*Astro only: a static frame around a screenshot-like body; the title and actions are named slots.* | astro-only | `styles/elements/window.css` |
 
 ## Controls
 
@@ -139,6 +141,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **HaloPanel** | `as`: 'div' \| 'a' \| 'article' \| 'section' \| 'aside'<br>`href`: string<br>`tone`: 'gold' \| 'green' | svelte + astro | stable | `styles/elements/halo-panel.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | stable | `styles/elements/icon.css` |
+| **JsonTree** | — | astro<br>*Astro only: static rendering of a parsed response; the dashboard builds the same `bb-json-tree` markup from client state.* | astro-only | `styles/elements/json-tree.css` |
 | **LineSeries** | `points*`: readonly LinePoint[]<br>`series*`: readonly LineSeriesSpec[]<br>`label*`: string<br>`description`: string<br>`unit`: string<br>`emptyLabel`: string<br>`formatValue`: (value: number \| null \| undefined) => string<br>`formatTime`: (at: number) => string | svelte + astro<br>*Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.* | stable | `styles/elements/line-series.css` |
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | svelte-only | `styles/elements/log-tail.css` |
 | **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | stable | `styles/elements/management-row.css` |

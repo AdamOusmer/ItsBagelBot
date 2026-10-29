@@ -4,6 +4,7 @@
 
 import Card from '@bagel/ui/astro/Card.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
+import '@bagel/ui/styles/elements/step-list.css';
 
 interface Props {
     items: { title: string; html: string }[];
@@ -12,11 +13,11 @@ interface Props {
 const { items } = Astro.props;
 ---
 
-<ol class="gsteps">
+<ol class="bb-steps bb-steps--numbered gsteps">
     {items.map((item) => (
-        <Card as="li" flush>
-            <div class="gsteps__item">
-                <Heading level={6} as="div" class="gsteps__title">{item.title}</Heading>
+        <Card as="li" flush class="bb-step">
+            <div class="bb-step__item">
+                <Heading level={6} as="div">{item.title}</Heading>
                 <div class="gsteps__body" set:html={item.html}></div>
             </div>
         </Card>
@@ -24,36 +25,7 @@ const { items } = Astro.props;
 </ol>
 
 <style>
-    .gsteps {
-        list-style: none;
-        display: grid;
-        gap: 14px;
-        counter-reset: gstep;
-        margin: 22px 0;
-        padding: 0;
-    }
-
-    .gsteps__item {
-        counter-increment: gstep;
-        position: relative;
-        padding: 14px 16px 14px 46px;
-    }
-
-    .gsteps__item::before {
-        content: counter(gstep, decimal-leading-zero);
-        position: absolute;
-        top: 15px;
-        left: 16px;
-        font-family: var(--bb-font-mono);
-        font-size: 0.7rem;
-        color: var(--bb-tan);
-    }
-
-    .gsteps__title { margin-bottom: 4px; }
+    .gsteps { margin: 22px 0; }
 
     .gsteps__body :global(p) { margin: 0; }
-
-    @media (max-width: 640px) {
-        .gsteps__item { padding: 12px 13px 13px 40px; }
-    }
 </style>
