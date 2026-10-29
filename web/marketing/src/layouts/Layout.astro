@@ -26,6 +26,7 @@ import {
     linkLocale,
     resolveSiteLinks,
     resolveSiteColumns,
+    siteNavProps,
     type SiteLinkContext,
 } from '@bagel/kit/site-links'
 import Brackets from '@bagel/ui/astro/Brackets.astro'
@@ -183,6 +184,20 @@ const navLocales = localeOptions(Astro.url);
 const getAppHref = dashboardHref('/?install=1', langQuery);
 
 const navLogo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
+const navProps = siteNavProps({
+    home: localizePath("/", lang),
+    logoSrc: navLogo.src,
+    links: navLinks,
+    ctaHref: dashLoginHref(lang),
+    text: {
+        cta: t('nav.cta'),
+        aria: t('nav.primary'),
+        menuOpen: t('nav.menuOpen'),
+        menuClose: t('nav.menuClose'),
+        menu: t('menu.primary'),
+        menuMeta: t('menu.meta'),
+    },
+});
 const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
 
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
@@ -284,16 +299,7 @@ const contentSecurityPolicy = [
     <main id="main-content">
         <slot/>
     </main>
-    <Nav
-        class="bb-nav--brand-lg"
-        brand={{ title: 'ItsBagelBot', href: localizePath("/", lang), logoSrc: navLogo.src, logoAlt: '' }}
-        links={navLinks}
-        cta={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        locales={navLocales}
-        label={t('nav.primary')}
-        menuLabels={{ open: t('nav.menuOpen'), close: t('nav.menuClose'), panel: t('menu.primary') }}
-        menuMeta={t('menu.meta')}
-    >
+    <Nav {...navProps} locales={navLocales}>
         <Fragment slot="mobileFooter">
             <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
             <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>

@@ -20,6 +20,7 @@
     resolveSiteColumns,
     linkLocale,
     resolveSiteLinks,
+    siteNavProps,
     webHref,
     type SiteLinkContext
   } from '@bagel/kit/site-links';
@@ -49,7 +50,22 @@
     langQuery
   } satisfies SiteLinkContext);
 
-  const links = $derived(resolveSiteLinks(SITE_NAV, navContext));
+  const navProps = $derived(
+    siteNavProps({
+      home: locale === 'en' ? SITE.web : `${SITE.web}/${locale}/`,
+      logoSrc: '/logo.png',
+      links: resolveSiteLinks(SITE_NAV, navContext),
+      ctaHref: dashboardHref('/auth/login', langQuery),
+      text: {
+        cta: t('public.nav.cta'),
+        aria: t('public.nav.aria'),
+        menuOpen: t('public.nav.menuOpen'),
+        menuClose: t('public.nav.menuClose'),
+        menu: t('public.nav.menu'),
+        menuMeta: t('public.nav.menuMeta')
+      }
+    })
+  );
   const columns = $derived(resolveSiteColumns(SITE_FOOTER, footerContext));
   const legal = $derived(resolveSiteLinks(SITE_LEGAL, footerContext));
   const locales = $derived(
@@ -58,23 +74,9 @@
 </script>
 
 <Nav
-  brand={{
-    title: 'ItsBagelBot',
-    href: locale === 'en' ? SITE.web : `${SITE.web}/${locale}/`,
-    logoSrc: '/logo.png',
-    logoAlt: ''
-  }}
-  {links}
-  cta={{ href: dashboardHref('/auth/login', langQuery), label: t('public.nav.cta') }}
+  {...navProps}
   {locales}
   localeLabel={t('lang.switchAria')}
-  label={t('public.nav.aria')}
-  menuLabels={{
-    open: t('public.nav.menuOpen'),
-    close: t('public.nav.menuClose'),
-    panel: t('public.nav.menu')
-  }}
-  menuMeta={t('public.nav.menuMeta')}
   data-sveltekit-preload-data="off"
 >
   {#snippet mobileFooter()}
@@ -112,6 +114,5 @@
   .menu-lang {
     display: flex;
     justify-content: center;
-    padding-bottom: 10px;
   }
 </style>
