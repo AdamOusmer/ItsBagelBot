@@ -2370,7 +2370,6 @@ export type KnownMessageKey =
   | 'login.scopesLink'
   | 'login.title1'
   | 'login.title2'
-  | 'login.title3'
   | 'login.topText'
   | 'loyalty.botOn'
   | 'loyalty.botOnHint'

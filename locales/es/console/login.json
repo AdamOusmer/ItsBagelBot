@@ -1,10 +1,9 @@
 {
   "badge": "Consola",
   "topText": "Recién horneado para el chat de Twitch",
-  "title1": "Tu transmisión.",
-  "title2": "Tus herramientas.",
-  "title3": "Tus reglas.",
-  "lede": "Cifrado de extremo a extremo, ejecutándose en más de una máquina. Tu bot y tus comandos en una sola consola.",
+  "title1": "El bot de Twitch",
+  "title2": "gratis para tu chat.",
+  "lede": "Estadísticas de Valorant y Fortnite en el chat, moderación por capas y un panel moderno, todo gratis.",
   "cta": "Continuar con Twitch",
   "featUptime": "Siempre activo",
   "featEncrypted": "Cifrado de extremo a extremo",

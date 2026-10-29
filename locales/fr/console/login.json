@@ -1,10 +1,9 @@
 {
   "badge": "Console",
   "topText": "Fraîchement préparé pour le chat Twitch",
-  "title1": "Votre stream.",
-  "title2": "Vos outils.",
-  "title3": "Vos règles.",
-  "lede": "Chiffré de bout en bout, réparti sur plusieurs machines. Votre bot et vos commandes dans une seule console.",
+  "title1": "Le bot de chat",
+  "title2": "Twitch gratuit.",
+  "lede": "Stats Valorant et Fortnite dans le chat, modération couche par couche et tableau de bord moderne, tout gratuit.",
   "cta": "Continuer avec Twitch",
   "featUptime": "Toujours actif",
   "featEncrypted": "Chiffrement de bout en bout",

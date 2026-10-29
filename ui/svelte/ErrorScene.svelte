@@ -14,7 +14,7 @@
   };
 
   type Own = {
-    status: number | string;
+    status?: number | string;
     eyebrow: string;
     title: string;
     description: string;
@@ -24,6 +24,8 @@
     primary?: ErrorSceneAction;
     secondary?: ErrorSceneAction;
     actions?: Snippet;
+    mark?: Snippet;
+    children?: Snippet;
   };
 
   let {
@@ -37,6 +39,8 @@
     primary,
     secondary,
     actions,
+    mark,
+    children,
     ...rest
   }: Own & Omit<SvelteHTMLElements['main'], keyof Own> = $props();
 
@@ -62,8 +66,13 @@
   </div>
 
   <div class="bb-error-scene__content">
-    <p class="bb-error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p>
-    <p class="bb-error-scene__code" aria-hidden="true">{status}</p>
+    {#if status !== undefined}
+      <p class="bb-error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p>
+      <p class="bb-error-scene__code" aria-hidden="true">{status}</p>
+    {:else}
+      {#if mark}<div class="bb-error-scene__mark" aria-hidden="true">{@render mark()}</div>{/if}
+      <p class="bb-error-scene__eyebrow">{eyebrow}</p>
+    {/if}
     <h1 class="bb-error-scene__title" id={labelledBy}>{title}</h1>
     <p class="bb-error-scene__desc">{description}</p>
 
@@ -79,5 +88,7 @@
     {#if aside}
       <p class="bb-error-scene__aside">{aside}</p>
     {/if}
+
+    {@render children?.()}
   </div>
 </main>

@@ -4,31 +4,57 @@
   import { playHeroTitle } from '#lib/login-hero';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
+  import '@bagel/ui/styles/orbs.css';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
-  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Brand from '@bagel/ui/svelte/Brand.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit';
-  import { SITE, webHref } from '@bagel/kit/site-links';
+  import { SITE } from '@bagel/kit/site-links';
   import PublicHead from '#lib/components/public/PublicHead.svelte';
 
-  const { t, locale } = getI18n();
+  const { t } = getI18n();
 
-  const lines = $derived([
-    { text: t('login.title1'), cls: 'tan' },
-    { text: t('login.title2'), cls: '' },
-    { text: t('login.title3'), cls: 'green' }
-  ]);
-  const facts = $derived([
-    t('login.featUptime'),
-    t('login.featEncrypted'),
-    t('login.featEdge'),
-    t('login.featSource')
-  ]);
-  const titleLabel = $derived(lines.map((l) => l.text).join(' '));
+  const PALETTES = [
+    { head: '#62a593', eye: '#111113' },
+    { head: '#eadbbd', eye: '#111113' },
+    { head: '#f6efe1', eye: '#111113' }
+  ];
+
+  type Row = 'back' | 'mid' | 'front' | 'hero';
+  type Seat = { name: string; x: number; row: Row; size: number; palette: number; wide?: boolean };
+
+  const SEATS: Seat[] = [
+    { name: 'ttv_marguerite', x: 3, row: 'back', size: 64, palette: 1, wide: true },
+    { name: 'noodle_arms', x: 13, row: 'back', size: 72, palette: 2, wide: true },
+    { name: 'glazed_val', x: 26, row: 'back', size: 60, palette: 0, wide: true },
+    { name: 'byte_sized_ben', x: 36, row: 'back', size: 70, palette: 1 },
+    { name: 'seedling_sky', x: 49, row: 'back', size: 58, palette: 2 },
+    { name: 'the_other_sam', x: 62, row: 'back', size: 66, palette: 2 },
+    { name: 'caramel_cass', x: 19, row: 'back', size: 56, palette: 0, wide: true },
+    { name: 'pixel_pavlova', x: 80, row: 'back', size: 60, palette: 1, wide: true },
+    { name: 'oven_mitt', x: 72, row: 'back', size: 74, palette: 0, wide: true },
+    { name: 'frosty_fern', x: 86, row: 'back', size: 62, palette: 1, wide: true },
+    { name: 'ash_runs_it', x: 97, row: 'back', size: 68, palette: 2, wide: true },
+
+    { name: 'lumen_tv', x: 6, row: 'mid', size: 104, palette: 2, wide: true },
+    { name: 'dusty_crumbs', x: 21, row: 'mid', size: 118, palette: 0 },
+    { name: 'sesame_sam', x: 36, row: 'mid', size: 96, palette: 1 },
+    { name: 'tobi_plays', x: 50, row: 'mid', size: 88, palette: 2, wide: true },
+    { name: 'crumb_lord', x: 64, row: 'mid', size: 110, palette: 1 },
+    { name: 'kiki_bakes', x: 79, row: 'mid', size: 122, palette: 2 },
+    { name: 'moonpie_mo', x: 94, row: 'mid', size: 100, palette: 0, wide: true },
+
+    { name: 'nightfall_jo', x: 11, row: 'front', size: 196, palette: 1 },
+    { name: 'ren_exe', x: 30, row: 'front', size: 172, palette: 2 },
+    { name: 'oven_fresh', x: 50, row: 'hero', size: 290, palette: 0 },
+    { name: 'mirafox', x: 70, row: 'front', size: 180, palette: 1 },
+    { name: 'kassidy_mod', x: 89, row: 'front', size: 204, palette: 2 }
+  ];
+
+  const titleWords = $derived(`${t('login.title1')} ${t('login.title2')}`.split(' '));
 
   const NOTICES: Record<string, string> = {
     signedout: t('login.noticeSignedout'),
@@ -48,145 +74,94 @@
   const next = $derived(page.url.searchParams.get('next'));
   const loginHref = $derived(next ? `/auth/login?next=${encodeURIComponent(next)}` : '/auth/login');
 
-  function glyphs(text: string): string[] {
-    return Array.from(text, (g) => (g === ' ' ? '\u00a0' : g));
-  }
-
   onMount(playHeroTitle);
 </script>
 
 <PublicHead title={t('login.metaTitle')} description={t('login.metaDescription')} url="https://dashboard.itsbagelbot.com/login" />
 
-<div class="starfield" aria-hidden="true"><LightField /></div>
-
-<header data-orbs="off">
-  <div class="bg" aria-hidden="true">
-    <div class="bg-ring">
-      <svg viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M400 400 Q 550 200 650 400 Q 750 600 550 700 Q 350 800 200 650 Q 50 500 150 300 Q 250 100 450 150 Q 650 200 700 400 Q 750 600 600 720 Q 450 840 280 760 Q 110 680 80 500 Q 50 320 180 200 Q 310 80 480 120"
-          stroke="url(#login-g1)"
-          stroke-width="2.5"
-          fill="none"
-        />
-        <path
-          d="M400 400 Q 240 220 150 400 Q 60 580 240 680 Q 420 780 560 660 Q 700 540 680 360 Q 660 180 480 140 Q 300 100 180 240 Q 60 380 120 560 Q 180 740 360 780"
-          stroke="url(#login-g2)"
-          stroke-width="1.5"
-          fill="none"
-        />
-        <defs>
-          <linearGradient id="login-g1" x1="0" y1="0" x2="800" y2="800" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#d8bf91" offset="0" />
-            <stop offset="1" stop-color="#24584a" />
-          </linearGradient>
-          <linearGradient id="login-g2" x1="800" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#2f735f" offset="0" />
-            <stop offset="1" stop-color="#d8bf91" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </div>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
+<header class="hero">
+  <div class="starfield" aria-hidden="true">
+    <LightField class="bb-light-field--bleed" />
   </div>
-  <div class="header-material">
+
+  <div class="bg" aria-hidden="true">
+    <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
+    <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
+  </div>
+
+  <div class="material">
     {#if notice}
-      <div class="notice reveal">
+      <div class="notice">
         <AlertBanner tone="danger">{notice}</AlertBanner>
       </div>
     {/if}
 
-    <a class="eyebrow reveal" href={SITE.discord} target="_blank" rel="noopener noreferrer">
-      <Tag tone="live" mark="solid" sweep>
-        {t('login.badge')}
-      </Tag>
-      <Eyebrow tone="go">{t('login.topText')}</Eyebrow>
-    </a>
+    <div class="eyebrow">
+      <span class="eyebrow__beta"><span class="eyebrow__beta-label"><span data-fit>{t('login.badge')}</span></span></span>
+      <Brand title="ItsBagelBot" logoSrc="/logo.png" wordmark size="lg" class="eyebrow__brand" />
+    </div>
 
-    <div class="split">
-      <h1 aria-label={titleLabel} data-hero-title>
-        {#each lines as line (line.text)}
-          <span class="line {line.cls}" aria-hidden="true" data-hero-line>
-            {#each glyphs(line.text) as glyph, i (i)}
-              <span class="glyph" data-hero-glyph>{glyph}</span>
-            {/each}
-          </span>
-        {/each}
-      </h1>
+    <h1 data-hero-title aria-label={titleWords.join(' ')}><span data-fit="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" data-hero-word>{word}</span>{/each}</span></h1>
 
-      <div class="aside">
-        <div class="lede reveal">
-          <Text tone="muted-soft">{t('login.lede')}</Text>
-        </div>
+    <Text tone="muted-soft" size="md" class="lede"><span data-fit="block">{t('login.lede')}</span></Text>
 
-        <div class="facts reveal">
-          {#each facts as fact (fact)}
-            <span>{fact}</span>
-          {/each}
-        </div>
+    <div class="actions">
+      <ButtonLink class="cta" href={loginHref} variant="twitch" data-sveltekit-reload><span data-fit>{t('login.cta')}</span></ButtonLink>
+      <ButtonLink class="cta" variant="secondary" href={SITE.web}><span data-fit>{t('login.back')}</span></ButtonLink>
+    </div>
 
-        <div class="scopes reveal">
-          <Text size="xs"><TextLink variant="inline" href={webHref(locale, '/privacy')} external>{t('login.scopesLink')}</TextLink></Text>
-        </div>
+    <p class="consent">{@html t('login.consent')}</p>
+  </div>
 
-        <div class="cta reveal">
-          <a class="cta-link" href={loginHref} data-sveltekit-reload>
-            <Icon name="twitch" size={17} />
-            {t('login.cta')}
-          </a>
-        </div>
-
-        <p class="consent reveal">{@html t('login.consent')}</p>
-
-        <div class="migrate reveal">
-          <TextLink variant="arrow" tone="go" prose href={SITE.web} label={t('login.back')} />
+  <div class="crowd" aria-hidden="true">
+    {#each SEATS as seat, i (seat.name)}
+      <div
+        class="seat seat--{seat.row}"
+        class:seat--wide={seat.wide}
+        style="--x: {seat.x}%; --s: {seat.size}px; --d: {(i * 37) % 11}"
+      >
+        <div class="bob">
+          <Bolota name={seat.name} size={seat.size} palette={PALETTES[seat.palette]} motionState="idle" active gate class="seat__bolota" />
         </div>
       </div>
-    </div>
+    {/each}
   </div>
 </header>
 
 <style>
-  .starfield {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  header {
-    --bb-entrance: bb-rise-in;
+  .hero {
+    --hero-pad-x: 40px;
+    --crowd-h: 360px;
+    --crowd-scale: 1;
+    --nav-offset: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px));
 
     position: relative;
-    z-index: 1;
-    min-height: 100vh;
-    min-height: 100svh;
+    isolation: isolate;
+    height: 100vh;
+    height: 100svh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     text-align: center;
-    padding: max(96px, 12vh) 50px 48px;
+    padding: calc(var(--nav-offset) + clamp(40px, 8vh, 88px)) var(--hero-pad-x) 0;
     overflow: hidden;
   }
 
-  .header-material {
+  .material {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: min(100%, 1200px);
+    width: min(100%, 1160px);
+    position: relative;
+    z-index: 2;
   }
 
-  .split {
-    display: contents;
-  }
-
-  .aside {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    max-width: 100%;
+  .starfield {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
   }
 
   .bg {
@@ -196,340 +171,349 @@
     overflow: hidden;
   }
 
-  .bg-ring {
-    position: absolute;
-    top: 50%;
-    right: -180px;
-    width: 760px;
-    height: 760px;
-    opacity: 0.1;
-    transform: translateY(-50%);
-  }
-
-  .bg-ring svg {
-    width: 100%;
-    height: 100%;
-    animation: slowspin 40s linear infinite;
-  }
-
   .orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.16;
-  }
-
-  .orb::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: inherit;
-    animation: pulse 5s ease-in-out infinite;
+    --bb-orb-opacity: 0.16;
+    --bb-orb-core-opacity: 0;
   }
 
   .orb-1 {
-    width: 500px;
-    height: 500px;
-    background: var(--bb-green);
-    top: -120px;
-    right: -60px;
+    width: 520px;
+    height: 520px;
+    top: -140px;
+    right: -80px;
   }
 
   .orb-2 {
-    width: 400px;
-    height: 400px;
-    background: var(--bb-tan);
-    bottom: -100px;
-    left: -80px;
-  }
-
-  .orb-2::before {
-    animation-delay: 400ms;
-  }
-
-  @keyframes slowspin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 0.55; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.1); }
+    width: 420px;
+    height: 420px;
+    bottom: -120px;
+    left: -100px;
+    --bb-orb-pulse-delay: 400ms;
   }
 
   .notice {
     max-width: 60ch;
+    margin-bottom: 20px;
     text-align: left;
   }
 
   .eyebrow {
-    --i: 2.5;
+    --hero-brand-size: min(calc((100vw - var(--hero-pad-x) * 2) / 9), 5.2rem);
 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 800ms 150ms var(--bb-ease-out-expo) forwards;
+  }
+
+  .eyebrow :global(.eyebrow__brand) {
+    --brand-name-size: var(--hero-brand-size);
+    flex: none;
+    height: calc(var(--hero-brand-size) * 1.12);
+  }
+
+  .eyebrow :global(.eyebrow__brand .bb-brand__name) {
+    letter-spacing: var(--bb-tracking-display);
+    line-height: 1.12;
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
+  }
+
+  .eyebrow__beta {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-    text-decoration: none;
+    flex: none;
+    width: 84px;
+    height: 24px;
+    font-family: var(--bb-font-body);
+    font-size: var(--bb-text-md);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--bb-green-glow);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+
+  .eyebrow__beta-label {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   h1 {
-    font-family: var(--bb-font-display);
-    font-size: clamp(3rem, min(9vw, 15vh), 8rem);
-    font-weight: 800;
-    line-height: 0.9;
-    letter-spacing: 0;
-    margin-top: 0;
-    margin-bottom: 24px;
-    color: var(--bb-white);
-  }
-
-  h1 .line {
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    padding-block: 0.12em;
-    margin-block: -0.12em;
-  }
-
-  h1 .line.tan { color: var(--bb-tan); }
-  h1 .line.green { color: var(--bb-green-glow); }
-
-  h1 .glyph {
-    display: inline-block;
-    transform-origin: 20% 80%;
-  }
-
-  @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
-    h1 .glyph {
-      opacity: 0;
-      transform: translateY(118%) rotate(6deg);
-    }
-  }
-
-  .lede {
-    --i: 6.25;
-
-    max-width: 550px;
-    margin-bottom: 24px;
-  }
-
-  .facts {
-    --i: 8;
+    --h1-lines: 1;
 
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    margin-top: 26px;
-    font-family: var(--bb-font-mono);
-    font-size: var(--bb-text-xs);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(var(--bb-tan-rgb), 0.66);
-  }
-
-  .facts span:not(:last-child)::after {
-    content: '·';
-    margin: 0 16px;
-    color: rgba(var(--bb-tan-rgb), 0.4);
-  }
-
-  .cta {
-    --i: 10;
-
-    margin-top: 18px;
-  }
-
-  .cta-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px 36px;
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-tan);
-    color: var(--bb-black);
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 0.95rem;
+    flex-direction: column;
+    justify-content: safe center;
+    font-family: var(--bb-font-body);
+    font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+    font-weight: 600;
+    line-height: 1.2;
     letter-spacing: -0.01em;
-    text-decoration: none;
-    transition: background var(--bb-dur-fast), box-shadow var(--bb-dur-fast);
+    color: var(--bb-tan-pale);
+    text-wrap: balance;
+    width: min(100%, 900px);
+    height: calc(var(--h1-lines) * 1lh);
+    margin-top: 0;
+    margin-bottom: 20px;
+    overflow: hidden;
   }
 
-  .cta-link:hover {
-    background: var(--bb-tan-light);
-    box-shadow: 0 8px 32px rgba(var(--bb-tan-rgb), 0.25);
+  .word {
+    display: inline-block;
+    transform-origin: 20% 90%;
+    transition: none;
   }
 
-  .scopes {
-    --i: 9;
+  .material :global(.lede) {
+    --lede-lines: 2;
 
-    margin-top: 14px;
+    width: min(100%, 560px);
+    height: calc(var(--lede-lines) * 1lh);
+    display: flex;
+    flex-direction: column;
+    justify-content: safe center;
+    line-height: 1.6;
+    margin-bottom: 36px;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.55s var(--bb-ease-out-expo) forwards;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.75s var(--bb-ease-out-expo) forwards;
+  }
+
+  .actions :global(.cta) {
+    --btn-w: 216px;
+    --btn-justify: center;
+    --btn-min-h: 48px;
+    --btn-pad: 13px 16px;
   }
 
   .consent {
-    --i: 11.5;
-
-    margin-top: 16px;
-    margin-bottom: 0;
-    margin-inline: auto;
+    margin: 16px 0 0;
     font-family: var(--bb-font-body);
     font-size: 0.78rem;
     line-height: 1.5;
     color: var(--bb-muted);
-    max-width: 42ch;
-    text-align: center;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.85s var(--bb-ease-out-expo) forwards;
   }
+
   .consent :global(a) {
     color: var(--bb-tan-light);
     text-decoration: none;
   }
+
   .consent :global(a:hover) {
     color: var(--bb-white);
   }
 
-  .migrate {
-    --i: 13;
-
-    margin-top: 18px;
+  .crowd {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--crowd-h);
+    z-index: 1;
+    pointer-events: none;
   }
 
-  @media (max-height: 820px) {
-    h1 { margin-bottom: 16px; }
-    .facts { margin-top: 16px; }
-    .cta { margin-top: 12px; }
-    .migrate { margin-top: 12px; }
+  .seat {
+    position: absolute;
+    left: var(--x);
+    bottom: var(--row-bottom);
+    width: calc(var(--s) * var(--crowd-scale));
+    height: calc(var(--s) * var(--crowd-scale));
+    transform: translateX(-50%);
+    opacity: var(--row-opacity, 1);
   }
 
-  @media (max-width: 900px) {
-    header { padding: clamp(72px, 10vh, 92px) 24px 28px; }
-    .header-material { width: min(100%, 680px); }
-
-    .bg-ring {
-      top: 53%;
-      left: 50%;
-      right: auto;
-      width: clamp(440px, 128vw, 620px);
-      height: clamp(440px, 128vw, 620px);
-      opacity: 0.08;
-      transform: translate(-50%, -50%);
-    }
-
-    h1 {
-      font-size: clamp(1.9rem, min(9vw, 8.4vh), 4.2rem);
-      line-height: 0.96;
-      margin-bottom: 18px;
-    }
-
-    .eyebrow {
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-
-    .lede {
-      max-width: min(520px, 100%);
-      margin-bottom: 18px;
-    }
-
-    .facts {
-      margin-top: 18px;
-      letter-spacing: 0.11em;
-    }
-    .facts span:not(:last-child)::after { margin: 0 11px; }
-
-    .cta { margin-top: 14px; }
-    .cta-link { padding: 14px 28px; font-size: 0.9rem; }
-    .migrate { margin-top: 14px; }
+  .seat--back {
+    --row-bottom: 60%;
+    --row-opacity: 0.5;
   }
 
-  @media (max-width: 480px) {
-    header { padding: clamp(80px, 10vh, 84px) 18px 20px; }
-
-    .bg-ring {
-      top: 50%;
-      width: clamp(380px, 118vw, 500px);
-      height: clamp(380px, 118vw, 500px);
-    }
-
-    .eyebrow { gap: 8px; margin-bottom: 12px; }
-    .cta-link { padding: 14px 24px; font-size: 0.85rem; }
-
-    h1 {
-      font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
-      margin-bottom: 16px;
-    }
-    .lede { margin-bottom: 16px; }
-    .facts { margin-top: 14px; }
-    .facts span:not(:last-child)::after { margin: 0 8px; }
-    .migrate { margin-top: 12px; }
+  .seat--mid {
+    --row-bottom: 30%;
+    --row-opacity: 0.8;
   }
 
-  @media (min-width: 901px) {
-    .header-material {
-      align-items: flex-start;
-      text-align: left;
-      width: min(100%, 1360px);
-      margin-inline: auto;
-    }
-
-    .split {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 56px;
-      align-items: end;
-      width: 100%;
-    }
-
-    .split h1 {
-      margin-bottom: 0;
-      font-size: clamp(3rem, min(6.1vw, 13vh), 5.5rem);
-    }
-
-    .aside {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      padding-bottom: 10px;
-    }
-
-    .lede {
-      max-width: 380px;
-      margin-bottom: 24px;
-    }
-
-    .eyebrow {
-      align-self: flex-start;
-      margin-bottom: 36px;
-    }
-
-    .facts {
-      justify-content: flex-start;
-      margin-top: 0;
-      text-align: left;
-    }
-
-    .consent {
-      text-align: left;
-      margin-inline: 0;
-    }
-
-    .cta { margin-top: 16px; }
-    .migrate { margin-top: 16px; }
+  .seat--front {
+    --row-bottom: -6%;
   }
 
-  @media (min-width: 901px) and (max-width: 1180px) {
-    .split {
-      gap: 36px;
-    }
+  .seat--hero {
+    --row-bottom: -8%;
+    z-index: 2;
+  }
 
-    .split h1 {
-      font-size: clamp(2.7rem, min(5vw, 10vh), 4.6rem);
+  .bob {
+    width: 100%;
+    height: 100%;
+    animation:
+      riseIn 1.1s calc(0.5s + var(--d) * 0.09s) var(--bb-ease-out-back) both,
+      bob 6.5s calc(var(--d) * -0.7s) ease-in-out infinite alternate;
+  }
+
+  .bob :global(.seat__bolota) {
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+    .word {
+      opacity: 0;
+      transform: translateY(112%) rotate(3deg);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .bg-ring svg, .orb::before { animation: none; }
+    .eyebrow,
+    .material :global(.lede),
+    .actions,
+    .consent {
+      opacity: 1;
+      animation: none;
+    }
+
+    .bob {
+      animation: none;
+    }
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes riseIn {
+    from {
+      opacity: 0;
+      transform: translateY(70%) scale(0.86);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes bob {
+    from { translate: 0 0; }
+    to { translate: 0 -7px; }
+  }
+
+  @media (max-height: 820px) and (min-width: 901px) {
+    .hero {
+      --crowd-h: 280px;
+      padding-top: calc(var(--nav-offset) + 32px);
+    }
+
+    .eyebrow {
+      --hero-brand-size: min(calc((100vw - var(--hero-pad-x) * 2) / 9), 4rem);
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin-bottom: 16px;
+    }
+
+    .material :global(.lede) {
+      margin-bottom: 28px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .hero {
+      --hero-pad-x: 20px;
+      --crowd-h: 36svh;
+      --crowd-scale: 0.74;
+      height: auto;
+      min-height: 100svh;
+      padding: calc(var(--nav-offset) + 40px) var(--hero-pad-x) 0;
+    }
+
+    .crowd {
+      position: relative;
+      flex: 1 0 var(--crowd-h);
+      width: calc(100% + var(--hero-pad-x) * 2);
+      margin-top: 20px;
+    }
+
+    .eyebrow {
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      --h1-lines: 2;
+      font-size: clamp(1.2rem, 4.6vw, 1.8rem);
+      margin-bottom: 16px;
+    }
+
+    .material :global(.lede) {
+      --lede-lines: 3;
+      font-size: var(--bb-text-md);
+      line-height: 1.55;
+      margin-bottom: 28px;
+    }
+
+    .seat--wide {
+      display: none;
+    }
+
+    .seat--back {
+      --row-bottom: 78%;
+    }
+
+    .seat--mid {
+      --row-bottom: 45%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .hero {
+      --hero-pad-x: 16px;
+      --crowd-h: 34svh;
+      --crowd-scale: 0.64;
+      padding-top: calc(var(--nav-offset) + 32px);
+    }
+
+    .eyebrow {
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .material :global(.lede) {
+      font-size: var(--bb-text-sm);
+      margin-bottom: 24px;
+    }
+
+    .actions {
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .actions :global(.cta) {
+      --btn-w: 240px;
+    }
   }
 </style>

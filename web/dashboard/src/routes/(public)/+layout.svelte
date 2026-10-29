@@ -31,6 +31,8 @@
 
   const langQuery = $derived(locale === 'en' ? '' : `?lang=${locale}`);
 
+  const showFooter = $derived(page.route.id !== '/(public)/login');
+
   const isActive = $derived((href: string) =>
     href === SITE.stats ? page.url.pathname === '/stats' : false
   );
@@ -86,9 +88,11 @@
 
 {@render children()}
 
-<div use:reveal>
-  <Footer {...footer} />
-</div>
+{#if showFooter}
+  <div use:reveal>
+    <Footer {...footer} />
+  </div>
+{/if}
 
 <style>
   .menu-lang {

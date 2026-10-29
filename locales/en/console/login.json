@@ -1,10 +1,9 @@
 {
   "badge": "Console",
   "topText": "Freshly baked for Twitch chat",
-  "title1": "Your stream.",
-  "title2": "Your tools.",
-  "title3": "Your rules.",
-  "lede": "Encrypted end to end, running on more than one machine. Your bot and your commands in one console.",
+  "title1": "The free",
+  "title2": "Twitch chat bot.",
+  "lede": "Valorant and Fortnite stats in chat, layered moderation and a modern dashboard, all free.",
   "cta": "Continue with Twitch",
   "featUptime": "Always on",
   "featEncrypted": "End-to-end encrypted",
