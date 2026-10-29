@@ -4315,8 +4315,6 @@ export type KnownMessageKey =
   | 'spotifySetup.premiumBody'
   | 'spotifySetup.premiumTitle'
   | 'spotifySetup.preview'
-  | 'spotifySetup.previewConnect'
-  | 'spotifySetup.previewHint'
   | 'spotifySetup.previewKeys'
   | 'spotifySetup.railApp'
   | 'spotifySetup.railConnect'

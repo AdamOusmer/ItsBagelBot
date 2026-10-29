@@ -9,17 +9,19 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk } from '@bagel/kit';
   import { copyFlash } from '@bagel/ui/lib/clipboard';
-  import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
-  import SetupStage from '../shared/SetupStage.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
+  import SetupStep from '@bagel/ui/svelte/SetupStep.svelte';
+  import SetupNote from '@bagel/ui/svelte/SetupNote.svelte';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
   import SetupAskAi from '../shared/SetupAskAi.svelte';
 
   let { name, app, redirectUri, preview = false, error = '', onRemoveApp }: {
@@ -57,10 +59,7 @@
   let hover = $state(false);
   let heading = $state<HTMLHeadingElement | null>(null);
   const maxStep = $derived(appReady ? 3 : Math.min(furthest + 1, 2));
-  const arrive = (node: Element, { i = 0 } = {}) =>
-    lateralFly(node, { x: dir * TRAVEL_IN * (i % 2 ? -1 : 1), duration: 760, delay: 160 + i * 70 });
-  const depart = (node: Element, { i = 0 } = {}) =>
-    lateralFly(node, { x: -dir * TRAVEL_OUT * (i % 2 ? -1 : 1), duration: 380, delay: i * 35 });
+  const hero = $derived(step === 0 || done);
   async function go(target: number) {
     if (saving || done) return;
     target = Math.max(0, Math.min(target, maxStep));
@@ -114,120 +113,108 @@
     saved = true;
     void go(3);
   }
-  async function previewConnect() {
-    if (!dev || !preview) return;
-    done = true;
-    sequenceKey += 1;
-    await tick();
-    heading?.focus({ preventScroll: true });
-  }
 </script>
 
-<SetupStage label={t('spotify.connection.connectTitle')} {name} {step} {done} {railSteps} {maxStep} onSelect={go} expression={done ? 'proud' : copied ? 'proud' : hover ? 'excited' : faces[step]} {sequenceKey} backLabel={t('spotify.back')} footer={dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')} later={t('spotifySetup.later')}>
+<SetupStage
+  label={t('spotify.connection.connectTitle')}
+  steps={railSteps}
+  current={step}
+  {maxStep}
+  stepLabel={t('onboarding.stepOf', { n: step + 1, total: railSteps.length })}
+  onSelect={go}
+  {hero}
+  style="--setup-stage-offset: 76px"
+  data-orbs="off"
+  data-canvas="fill"
+>
+  {#snippet start()}<TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} />{/snippet}
+  {#snippet art()}
+    <Bolota {name} size={240} active follow cycle={false}
+      expression={done || copied ? 'proud' : hover ? 'excited' : faces[step]}
+      sequence={done ? 'burst' : 'entrance'} {sequenceKey} sequenceFor={1100} sequenceHold={240} />
+  {/snippet}
   {#snippet aside()}
     {#if !done}<SetupAskAi feature="spotify" step={railSteps[step].label} stepIndex={step} error={aiError} {redirectUri} />{/if}
   {/snippet}
+  {#snippet foot()}
+    <Text as="span" size="xs" mono tone="muted">{dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')}</Text>
+  {/snippet}
+  {#snippet end()}<TextLink variant="quiet" href="/modules" label={`${t('spotifySetup.later')} ↗`} />{/snippet}
   {#key `${step}-${done}`}
-    <section class="step">
-      <div class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}><Eyebrow as="p">{t('spotify.eyebrow')} <span class="kicker-step"> / {String(step + 1).padStart(2, '0')}</span></Eyebrow></div>
-      <h1 class="title" tabindex="-1" bind:this={heading} in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>{t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}</h1>
-      <div class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}><Text tone="muted">{t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}</Text></div>
-      <div class="controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
-        {#if done}
-          <ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink>
-        {:else if step === 0}
-          <div class="premium-note"><Text as="span" size="sm" tone="pale"><strong>{t('spotifySetup.premiumTitle')}</strong></Text><Text size="xs" tone="muted">{t('spotifySetup.premiumBody')}</Text></div>
-          <div class="promise"><span class="promise-glyph" aria-hidden="true">♪</span><Text as="span" size="sm" tone="pale">Spotify <i>×</i> ItsBagelBot</Text></div>
-          <div class="actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
-        {:else if step === 1}
+    <SetupStep
+      kicker={`${t('spotify.eyebrow')} / ${String(step + 1).padStart(2, '0')}`}
+      title={t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}
+      body={t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}
+      {dir}
+      {hero}
+      bind:heading
+    >
+      {#if done}
+        <div class="bb-setup-actions"><ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink></div>
+      {:else if step === 0}
+        <SetupNote title={t('spotifySetup.premiumTitle')} body={t('spotifySetup.premiumBody')}>
+          {#snippet icon()}<span class="glyph">♪</span>{/snippet}
+        </SetupNote>
+        <div class="bb-setup-actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
+      {:else if step === 1}
+        <div class="block">
+          <Label mono as="span">{t('spotifySetup.redirectLabel')}</Label>
+          {#if redirectUri}<div class="bb-setup-row"><span class="redirect-value"><Text as="span" size="xs" mono tone="pale">{redirectUri}</Text></span><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.app.redirectCopied') : t('spotify.app.redirectCopy')}</Button></div>
+          {:else}<Text size="sm" tone="muted">{t('spotifySetup.redirectMissing')}</Text>{/if}
+        </div>
+        <div class="bb-setup-actions">
+          <Button variant="ghost" onclick={() => go(0)}>{t('onboarding.back')}</Button>
           <ButtonLink href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" variant="secondary">{t('spotifySetup.developer')} ↗</ButtonLink>
-          <div class="redirect-block"><Label mono as="span">{t('spotifySetup.redirectLabel')}</Label>
-            {#if redirectUri}<div class="redirect"><span class="redirect-value"><Text as="span" size="xs" mono tone="pale">{redirectUri}</Text></span><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.app.redirectCopied') : t('spotify.app.redirectCopy')}</Button></div>
-            {:else}<Text size="sm" tone="muted">{t('spotifySetup.redirectMissing')}</Text>{/if}
+          <Button onclick={() => go(2)} disabled={!redirectUri}>{t('spotifySetup.appCreated')} →</Button>
+        </div>
+      {:else if step === 2}
+        {#if appReady && !replacing}
+          <div class="ready">
+            <span class="ready-mark" aria-hidden="true"><Icon name="check" size={14} /></span>
+            <Text as="span" size="sm">{t('spotifySetup.saved')}</Text>
+            <Text as="span" size="xs" mono tone="muted">{app.clientId || clientId}</Text>
           </div>
-          <div class="actions"><Button variant="ghost" onclick={() => go(0)}>{t('onboarding.back')}</Button><Button onclick={() => go(2)} disabled={!redirectUri}>{t('spotifySetup.appCreated')} →</Button></div>
-        {:else if step === 2}
-          {#if appReady && !replacing}
-            <div class="saved"><Tag tone="live" mark="solid">{t('spotifySetup.saved')}</Tag></div><Text as="span" size="xs" mono tone="pale">{app.clientId || clientId}</Text>
-            <div class="actions">
-              <Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button>
-              <Button variant="secondary" onclick={startReplace}>{t('spotify.app.replace')}</Button>
-              {#if app.present}<Button onclick={removeApp} tone="danger">{t('spotify.app.remove')}</Button>{/if}
-              <Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button>
-            </div>
-          {:else}
-            <form method="POST" action="?/saveApp" use:enhance={submit}>
-              <Field label={t('spotify.app.clientIdLabel')}><Input fill mono name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required /></Field>
-              <Field label={t('spotify.app.clientSecretLabel')}><Input fill mono name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required /></Field>
-              <Text size="xs" tone="muted">{t('spotify.app.clientSecretHint')}</Text>
-              <div class="actions">
-                {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.app.cancel')}</Button>
-                {:else}<Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button>{/if}
-                <Button type="submit" busy={saving}>{t('spotifySetup.saveContinue')} →</Button>
-              </div>
-            </form>
-            {#if dev && preview}<div class="preview-action"><Button variant="ghost" onclick={usePreviewKeys}>{t('spotifySetup.previewKeys')} →</Button></div>{/if}
-          {/if}
+          <div class="bb-setup-actions">
+            <Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button>
+            <Button variant="secondary" onclick={startReplace}>{t('spotify.app.replace')}</Button>
+            {#if app.present}<Button onclick={removeApp} tone="danger">{t('spotify.app.remove')}</Button>{/if}
+            <Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button>
+          </div>
         {:else}
-          <div class="saved"><Tag tone="live" mark="solid">{t('spotifySetup.saved')}</Tag></div>
-          <div class="actions"><Button variant="ghost" onclick={() => go(2)}>{t('onboarding.back')}</Button>
-            {#if dev && preview}<Button onclick={previewConnect}>{t('spotifySetup.previewConnect')} →</Button>
-            {:else}<ButtonLink href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.connectCta')} →</ButtonLink>{/if}
-          </div>
-          {#if dev && preview}<div class="preview-hint"><Text size="xs" tone="muted">{t('spotifySetup.previewHint')}</Text></div>{/if}
+          <form method="POST" action="?/saveApp" use:enhance={submit}>
+            <Field label={t('spotify.app.clientIdLabel')}><Input fill mono name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required /></Field>
+            <Field label={t('spotify.app.clientSecretLabel')}><Input fill mono name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required /></Field>
+            <Text size="xs" tone="muted">{t('spotify.app.clientSecretHint')}</Text>
+            <div class="bb-setup-actions">
+              {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.app.cancel')}</Button>
+              {:else}<Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button>{/if}
+              <Button type="submit" busy={saving}>{t('spotifySetup.saveContinue')} →</Button>
+            </div>
+          </form>
+          {#if dev && preview}<div class="bb-setup-actions"><Button variant="ghost" onclick={usePreviewKeys}>{t('spotifySetup.previewKeys')} →</Button></div>{/if}
         {/if}
-      </div>
-      <div class="message-slot" in:arrive={{ i: 4 }} out:depart={{ i: 4 }}>
+      {:else}
+        <div class="ready">
+          <span class="ready-mark" aria-hidden="true"><Icon name="check" size={14} /></span>
+          <Text as="span" size="sm">{t('spotifySetup.saved')}</Text>
+        </div>
+        <div class="bb-setup-actions"><Button variant="ghost" onclick={() => go(2)}>{t('onboarding.back')}</Button>
+          <ButtonLink href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.connectCta')} →</ButtonLink>
+        </div>
+      {/if}
+      {#snippet status()}
         {#if message}<AlertBanner tone={saveError ? 'danger' : 'warning'} flush>{message}</AlertBanner>{/if}
-      </div>
-    </section>
+      {/snippet}
+    </SetupStep>
   {/key}
 </SetupStage>
 
 <style>
-  .step { grid-area: 1 / 1; min-width: 0; }
-  .kicker { margin-bottom: var(--setup-kicker-gap); }
-  .kicker-step { color: var(--bb-muted); }
-  .title { margin: 0 0 var(--setup-title-gap); font: 700 var(--setup-title-size)/1.04 var(--bb-font-display); letter-spacing: -.035em; outline: none; background: linear-gradient(100deg, var(--bb-white) 0 40%, var(--bb-tan-pale) 50%, var(--bb-white) 60% 100%); background-size: 260% 100%; background-position: 120% 0; background-clip: text; -webkit-text-fill-color: transparent; animation: sheen 1.8s var(--bb-ease-out-expo) 520ms both; }
-  .body { max-width: 46ch; }
-  .controls { margin-top: var(--setup-controls-gap); overflow-wrap: anywhere; }
-  .message-slot { min-height: calc(2lh + 10px); margin-top: 10px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-  .premium-note { display: grid; gap: 6px; padding: min(14px, 1vw, 1.5vh) 16px; background: rgba(var(--bb-tan-rgb), .06); border-radius: var(--bb-radius-md); margin-bottom: min(14px, 1vw, 1.5vh); }
-  .promise { display: flex; align-items: center; gap: 12px; padding: min(12px, 1vw, 1.3vh) 0; }
-  .promise-glyph { color: var(--bb-green-glow); font-size: 26px; }
-  .promise i { font-style: normal; padding: 0 8px; color: var(--bb-muted); }
-  .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: var(--setup-actions-gap); }
-  form { --field-mb: 0; display: grid; gap: min(16px, 1.2vw, 1.2vh); }
-  form .actions { margin-top: 8px; }
-  .preview-action { margin-top: min(16px, 1.2vw, 1.2vh); }
-  .redirect-block { display: grid; gap: 8px; margin-top: min(24px, 1.8vw, 1.8vh); }
-  .redirect { border-block: 1px solid var(--bb-border); padding: min(12px, 1vw, 1.3vh) 0; display: flex; gap: 8px; align-items: center; }
+  .glyph { font-size: 20px; line-height: 1; }
+  .ready { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }
+  .ready-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--bb-radius-pill); background: rgba(var(--bb-green-glow-rgb), 0.16); color: var(--bb-green-glow); }
+  .block { display: grid; gap: 8px; }
   .redirect-value { flex: 1; min-width: 0; user-select: all; }
-  .preview-hint { margin-top: min(16px, 1.2vw, 1.2vh); }
-  .saved { margin-block: 13px; }
-  @keyframes sheen { from { background-position: 120% 0; } to { background-position: -20% 0; } }
-  @media (min-width: 761px) and (max-height: 860px), (max-width: 760px) {
-    .body { --bb-text-md: 14px; }
-    .premium-note { gap: 4px; padding: 10px 12px; margin-bottom: 8px; }
-    .promise { padding: 6px 0; }
-    form { --field-mb: 0; gap: 10px; }
-    .preview-action, .preview-hint { margin-top: 10px; }
-    .redirect-block { margin-top: 14px; gap: 6px; }
-    .redirect { padding-block: 8px; }
-  }
-  @media (min-width: 761px) and (max-height: 760px), (max-width: 760px) {
-    .premium-note { padding: 8px 10px; }
-    .promise { padding: 4px 0; }
-    .redirect-block { margin-top: 10px; }
-    form { gap: 8px; }
-    form .actions { margin-top: 4px; }
-    .preview-action, .preview-hint { margin-top: 8px; }
-    .saved { margin-block: 8px; }
-  }
-  @media (max-width: 760px) {
-    form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    form > :global(:nth-child(n+3)) { grid-column: 1 / -1; }
-    form .actions { margin-top: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) { .title { animation: none; } }
+  form { --field-mb: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  form > :global(:nth-child(n+3)) { grid-column: 1 / -1; }
 </style>

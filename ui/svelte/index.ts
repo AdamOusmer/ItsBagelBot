@@ -123,6 +123,9 @@ export { default as FactList } from './FactList.svelte';
 export { default as Pager } from './Pager.svelte';
 
 export { default as Stepper } from './Stepper.svelte';
+export { default as SetupStage } from './SetupStage.svelte';
+export { default as SetupStep } from './SetupStep.svelte';
+export { default as SetupNote } from './SetupNote.svelte';
 export { default as Spinner } from './Spinner.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export type { LinePoint, LineSeriesSpec } from '../lib/line-series';

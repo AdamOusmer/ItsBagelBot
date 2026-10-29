@@ -56,14 +56,14 @@
         flex-direction: column;
         gap: 8px;
         min-height: var(--choice-min-h, auto);
-        padding: 14px;
+        padding: 16px;
         overflow: hidden;
         text-align: left;
-        background: rgba(var(--bb-white-pure-rgb), 0.03);
-        border: 1px solid var(--bb-border);
+        background: var(--bb-elev-2);
         border-radius: var(--bb-radius-md);
+        box-shadow: var(--bb-depth-1), 0 14px 28px -14px rgba(var(--bb-shadow-rgb), 0.7);
         transition:
-            border-color var(--bb-dur-fast) var(--bb-ease-out-expo),
+            background-color var(--bb-dur-base) var(--bb-ease-out-expo),
             box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
@@ -72,27 +72,30 @@
     .bb-choices--cards .bb-choice::before {
         content: "";
         position: absolute;
-        inset: 0;
+        inset: -35% -10% auto;
         z-index: -1;
-        background: linear-gradient(100deg, rgba(var(--bb-tan-rgb), 0.16), rgba(var(--bb-green-glow-rgb), 0.08));
-        transform: translateX(calc(var(--side) * 101%));
-        transition: transform var(--bb-dur-slow) var(--bb-ease-out-expo);
+        height: 100%;
+        background: radial-gradient(closest-side, rgba(var(--bb-halo-gold-rgb), 0.18), transparent);
+        opacity: 0;
+        transition: opacity var(--bb-dur-slow) var(--bb-ease-out-expo);
     }
 
-    .bb-choices--cards .bb-choice:has(.bb-choice__input:checked)::before { transform: none; }
+    .bb-choices--cards .bb-choice:has(.bb-choice__input:checked)::before { opacity: 1; }
 
     .bb-choices--cards .bb-choice:is(:hover:not(:has(.bb-choice__input:disabled)), :has(.bb-choice__input:checked)) {
-        border-color: var(--bb-tan);
+        background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 7%);
+        box-shadow: var(--bb-depth-2), 0 26px 44px -18px rgba(var(--bb-shadow-rgb), 0.85);
     }
 
     .bb-choices--cards .bb-choice:has(.bb-choice__input:checked) {
         box-shadow:
-            0 0 0 1px rgba(var(--bb-tan-rgb), 0.35),
-            0 14px 32px rgba(var(--bb-shadow-rgb), 0.22);
+            var(--bb-depth-2),
+            0 26px 44px -18px rgba(var(--bb-shadow-rgb), 0.85),
+            0 0 32px -6px rgba(var(--bb-halo-gold-rgb), 0.22);
     }
 
     .bb-choices--cards .bb-choice:has(.bb-choice__input:focus-visible) {
-        outline: 2px solid var(--bb-tan);
+        outline: 2px solid var(--bb-focus);
         outline-offset: 2px;
     }
 
@@ -122,15 +125,16 @@
         display: inline-grid;
         place-items: center;
         flex: none;
-        width: 18px;
-        height: 18px;
+        width: 28px;
+        height: 28px;
         margin-left: auto;
-        border: 1px solid var(--bb-border-strong);
-        border-radius: 50%;
-        color: var(--bb-bg-0);
+        border-radius: var(--bb-radius-pill);
+        background: var(--bb-elev-2);
+        box-shadow: var(--bb-depth-0);
+        color: var(--bb-black);
         transition:
             background var(--bb-dur-fast) var(--bb-ease-out-expo),
-            border-color var(--bb-dur-fast) var(--bb-ease-out-expo);
+            box-shadow var(--bb-dur-fast) var(--bb-ease-out-expo);
     }
 
     .bb-choice__tick svg {
@@ -139,8 +143,8 @@
     }
 
     .bb-choice:has(.bb-choice__input:checked) .bb-choice__tick {
-        background: var(--bb-green-glow);
-        border-color: var(--bb-green-glow);
+        background: var(--bb-white);
+        box-shadow: var(--bb-depth-1);
     }
 
     .bb-choice:has(.bb-choice__input:checked) .bb-choice__tick svg { transform: scale(1); }
@@ -153,6 +157,9 @@
         font: 12px/1.45 var(--bb-font-body);
         color: var(--bb-muted);
     }
+
+    .bb-choices--terse .bb-choice { min-height: 0; }
+    .bb-choices--terse :is(.bb-choice__desc, .bb-choice__meta) { display: none; }
 
     .bb-choices--cards .bb-choice__meta {
         margin-top: auto;
@@ -219,6 +226,16 @@
         font-size: 11px;
         color: var(--bb-muted);
     }
+
+    :where([data-surface='tonal']) .bb-choices--rows {
+        border-color: transparent;
+        background: var(--bb-elev-1);
+        box-shadow: var(--bb-depth-1);
+    }
+
+    :where([data-surface='tonal']) .bb-choices--rows .bb-choice { border-bottom-color: transparent; }
+
+    :where([data-surface='tonal']) .bb-choices--rows .bb-choice:hover { background: var(--bb-elev-2); }
 
     @media (prefers-reduced-motion: reduce) {
         .bb-choice,

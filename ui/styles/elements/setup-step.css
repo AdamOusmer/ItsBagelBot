@@ -1,0 +1,182 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+
+  .bb-setup-step {
+    --setup-controls-w: 540px;
+    --setup-step-gap: var(--setup-gap, 24px);
+    display: grid;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .bb-setup-step__kicker {
+    margin-bottom: clamp(6px, 1.4svh, 14px);
+  }
+
+  .bb-setup-step__title {
+    --setup-title-fill: linear-gradient(180deg, var(--bb-white) 35%, var(--bb-tan-pale));
+    position: relative;
+    width: min(100%, 24ch);
+    margin: 0 0 clamp(6px, 1.4svh, 14px);
+    font-family: var(--bb-font-display);
+    font-weight: 600;
+    font-size: clamp(1.4rem, min(3.4vw, 4.8svh), 2.75rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+    color: var(--bb-white);
+    text-wrap: balance;
+    outline: none;
+    opacity: 0;
+    animation: bb-setup-title-in 1ms 1600ms forwards;
+  }
+
+  .bb-setup-step__title:is([data-line-rise], .is-shown) {
+    opacity: 1;
+    animation: none;
+  }
+
+  .bb-setup-step__title [data-fit],
+  .bb-setup-step__title .bb-page-hero__line > span {
+    background: var(--setup-title-fill);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .bb-setup-step__title [data-fit] {
+    display: block;
+  }
+
+  .bb-setup-step__title .bb-page-hero__line > span {
+    animation-delay: calc(340ms + var(--line-i, 0) * 90ms);
+  }
+
+  .bb-setup-step--hero .bb-setup-step__title {
+    --setup-title-fill: var(--bb-gold-gradient);
+    font-size: clamp(1.75rem, min(5vw, 6.4svh), 3.75rem);
+  }
+
+  @container setup-stage (min-height: 861px) and (min-width: 761px) {
+    .bb-setup-step {
+      --setup-controls-w: 620px;
+    }
+
+    .bb-setup-step__title {
+      font-size: clamp(2rem, min(3.8vw, 5.2svh), 3.4rem);
+    }
+
+    .bb-setup-step--hero .bb-setup-step__title {
+      font-size: clamp(2.6rem, min(6vw, 8svh), 5.2rem);
+    }
+
+    .bb-setup-step__body {
+      --bb-text-md: 18px;
+    }
+  }
+
+  @keyframes bb-setup-title-in {
+    to { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-setup-step__title {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  .bb-setup-step__body {
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+
+  .bb-setup-step__controls {
+    display: grid;
+    gap: clamp(8px, 1.6svh, 16px);
+    width: min(100%, var(--setup-controls-w));
+    margin-top: var(--setup-step-gap);
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  .bb-setup-stage--wide .bb-setup-step {
+    --setup-controls-w: 100%;
+  }
+
+  .bb-setup-step__status {
+    width: min(100%, var(--setup-controls-w));
+    min-height: calc(1lh + 8px);
+    margin-top: clamp(6px, 1.2svh, 12px);
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  .bb-setup-step__body:empty,
+  .bb-setup-step__controls:empty,
+  .bb-setup-step__status:not([data-reserve]) {
+    display: none;
+  }
+
+  .bb-setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: clamp(0px, 0.8svh, 8px);
+  }
+
+  .bb-card.bb-setup-note {
+    --card-pad: clamp(10px, 1.6svh, 16px) 18px;
+    --card-bg: var(--bb-elev-2);
+    --card-shadow: var(--bb-depth-2);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    text-align: start;
+  }
+
+  .bb-setup-note__icon {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-0);
+    color: var(--bb-green-glow);
+  }
+
+  .bb-setup-note__copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  @media (max-width: 760px), (max-height: 760px) {
+    .bb-setup-step__body {
+      --bb-text-md: 14px;
+    }
+
+    .bb-setup-note__icon {
+      display: none;
+    }
+  }
+
+  .bb-setup-row {
+    display: flex;
+    align-items: center;
+    gap: 8px 12px;
+    padding: clamp(6px, 1.2svh, 12px) 14px;
+    background: color-mix(in srgb, var(--bb-elev-1), var(--bb-black) 35%);
+    border-radius: var(--bb-radius-sm);
+    box-shadow: var(--bb-depth-0);
+  }
+}
