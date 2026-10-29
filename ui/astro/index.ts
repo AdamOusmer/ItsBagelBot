@@ -43,6 +43,7 @@ export { default as Textarea } from './Textarea.astro';
 
 export { default as AlertBanner } from './AlertBanner.astro';
 export { default as Badge } from './Badge.astro';
+export { default as ChatPreview } from './ChatPreview.astro';
 export { default as Chip } from './Chip.astro';
 export { default as EmptyState } from './EmptyState.astro';
 export { default as ErrorScene } from './ErrorScene.astro';

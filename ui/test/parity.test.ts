@@ -16,6 +16,8 @@ import SvelteNavLink from '../svelte/NavLink.svelte';
 import AstroNavLink from '../astro/NavLink.astro';
 import SvelteBadge from '../svelte/Badge.svelte';
 import AstroBadge from '../astro/Badge.astro';
+import SvelteChatPreview from '../svelte/ChatPreview.svelte';
+import AstroChatPreview from '../astro/ChatPreview.astro';
 import SvelteChip from '../svelte/Chip.svelte';
 import AstroChip from '../astro/Chip.astro';
 import SvelteEmptyState from '../svelte/EmptyState.svelte';
@@ -1386,4 +1388,15 @@ test('magnetic keeps its tuned ease and settle threshold', async () => {
   const src = await Bun.file(new URL('../lib/magnetic.ts', import.meta.url)).text();
   expect(src).toContain('const EASE = 0.2;');
   expect(src).toContain('const SETTLE_PX = 0.1;');
+});
+
+test('chat preview: both adapters emit the contract markup', async () => {
+  const props = { title: '#your_channel', label: 'Chat', kind: 'chat' };
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteChatPreview, { props }).body);
+  const astro = normalise(await container.renderToString(AstroChatPreview, { props }));
+
+  expect(svelte).toContain('<div class="bb-chat" role="img" aria-label="Chat">');
+  expect(svelte).toContain('<span class="bb-chat__title">#your_channel</span><b class="bb-chat__kind">chat</b>');
+  expect(astro).toBe(svelte);
 });

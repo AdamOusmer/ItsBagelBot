@@ -34,7 +34,7 @@ const FAMILY = {
   FactList: 'Data', Fact: 'Data', DeckLayout: 'Layout', Disclosure: 'Layout', Pager: 'Navigation',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
   ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
-  Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
+  Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback', ChatPreview: 'Data',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback',
 };
