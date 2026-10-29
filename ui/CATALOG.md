@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **112** blocks;
+Every block the library ships, by family. **115** blocks;
 **101** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 112 times
+omitted: nearly every block takes both, and listing them 115 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -103,6 +103,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
+| **ActionBar** | `as`: 'div' \| 'form'<br>`roomy`: boolean<br>`actions`: Snippet | svelte | svelte-only | `styles/elements/action-bar.css` |
 | **Brand** | `title*`: string<br>`sub`: string<br>`href`: string<br>`logoSrc`: string<br>`logoAlt`: string<br>`size`: 'sm' \| 'md' \| 'lg'<br>`logoShape`: 'square' \| 'circle'<br>`wordmark`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/brand-mark.css` |
 | **Dock** | `items`: UiNavLink[]<br>`groups`: UiNavGroup[]<br>`label`: string<br>`homeHref`: string<br>`fallbackIcon`: IconName<br>`quick`: number | svelte + astro | stable | `styles/elements/shell.css` |
 | **EditorFooter** | `status`: 'idle' \| 'saving' \| 'saved' \| 'error' \| 'conflict'<br>`dirty`: boolean<br>`canSave`: boolean<br>`saveLabel`: string<br>`cancelLabel`: string<br>`savingLabel`: string<br>`savedLabel`: string<br>`errorLabel`: string<br>`dirtyLabel`: string<br>`onCancel*`: () => void | svelte + astro | stable | `styles/elements/editor-footer.css` |
@@ -139,9 +140,11 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **HaloPanel** | `as`: 'div' \| 'a' \| 'article' \| 'section' \| 'aside'<br>`href`: string<br>`tone`: 'gold' \| 'green' | svelte + astro | stable | `styles/elements/halo-panel.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | stable | `styles/elements/icon.css` |
+| **IconTile** | `size`: 'sm' \| 'md' \| 'lg'<br>`tone`: 'success'<br>`picked`: boolean | svelte | svelte-only | `styles/elements/icon-tile.css` |
 | **LineSeries** | `points*`: readonly LinePoint[]<br>`series*`: readonly LineSeriesSpec[]<br>`label*`: string<br>`description`: string<br>`unit`: string<br>`emptyLabel`: string<br>`formatValue`: (value: number \| null \| undefined) => string<br>`formatTime`: (at: number) => string | svelte + astro<br>*Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.* | stable | `styles/elements/line-series.css` |
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | svelte-only | `styles/elements/log-tail.css` |
 | **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | stable | `styles/elements/management-row.css` |
+| **MarkBadge** | `src`: string<br>`alt`: string<br>`size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`tone`: 'premium' \| 'success' | svelte | svelte-only | `styles/elements/mark-badge.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | stable | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |

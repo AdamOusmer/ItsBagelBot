@@ -131,4 +131,10 @@
     .bb-stat--accent .bb-stat__value {
         color: var(--bb-tan-light);
     }
+
+    :where([data-surface='tonal']) .bb-stat:not(.bb-stat--inline) {
+        background: var(--bb-elev-2);
+        border-color: transparent;
+        box-shadow: var(--bb-depth-1);
+    }
 }

@@ -69,7 +69,7 @@
     position: absolute;
     width: min(88vw, 700px);
     aspect-ratio: 1;
-    border-radius: 50%;
+    border-radius: var(--bb-radius-pill);
     background: radial-gradient(circle, rgba(var(--bb-green-glow-rgb), .16), rgba(var(--bb-tan-rgb), .07) 42%, transparent 70%);
     transform: scale(.72);
     opacity: 0;
@@ -90,8 +90,8 @@
   .ripple {
     position: absolute;
     inset: 13px;
-    border-radius: 50%;
-    border: 1px solid var(--bb-tan-pale);
+    border-radius: var(--bb-radius-pill);
+    box-shadow: 0 0 0 1px var(--bb-tan-pale);
     opacity: 0;
   }
   .done .ripple { animation: ripple calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo) both; }
@@ -103,7 +103,7 @@
     width: 5px;
     height: 5px;
     margin: -2.5px 0 0 -2.5px;
-    border-radius: 50%;
+    border-radius: var(--bb-radius-pill);
     background: var(--bb-green-glow);
     box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), .8);
     opacity: 0;
@@ -159,7 +159,7 @@
   .inner-glow {
     position: absolute;
     inset: 24px;
-    border-radius: 50%;
+    border-radius: var(--bb-radius-pill);
     box-shadow: 0 0 55px rgba(var(--bb-green-glow-rgb), .16);
     opacity: 0;
     transition: opacity var(--bb-dur-slow) ease;

@@ -7,6 +7,7 @@
   import { portal } from '@bagel/ui/lib/overlay-stack';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Spinner from '@bagel/ui/svelte/Spinner.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
@@ -119,17 +120,19 @@
 
 <Modal {open} onClose={close} {label}>
   <div class="celebrate">
-    <div class="celebrate-badge" class:celebrate-badge--gift={kind === 'gift'}>
-      <Bolota
-        name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
-        size={58}
-        active={open}
-        cycle={false}
-        sequence={seq}
-        sequenceKey={seqKey}
-        sequenceFor={seq === 'entrance' ? SWIRL_MS : BURST_MS}
-        expression={expr}
-      />
+    <div class="celebrate-badge">
+      <MarkBadge size="lg" tone={kind === 'gift' ? 'success' : 'premium'}>
+        <Bolota
+          name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
+          size={58}
+          active={open}
+          cycle={false}
+          sequence={seq}
+          sequenceKey={seqKey}
+          sequenceFor={seq === 'entrance' ? SWIRL_MS : BURST_MS}
+          expression={expr}
+        />
+      </MarkBadge>
     </div>
 
     {#if kind === 'gift'}
@@ -185,22 +188,10 @@
     padding: 4px 2px 0;
   }
   .celebrate-badge {
-    width: 68px;
-    height: 68px;
-    margin: 0 auto 18px;
     display: flex;
-    align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    color: var(--bb-tan-light);
-    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-tan-rgb), 0.28), rgba(var(--bb-tan-rgb), 0.06));
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.4);
+    margin: 0 auto 18px;
     animation: pop 620ms var(--bb-ease-out-back) both;
-  }
-  .celebrate-badge--gift {
-    color: var(--bb-green-light);
-    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-green-glow-rgb), 0.28), rgba(var(--bb-green-glow-rgb), 0.06));
-    border-color: rgba(var(--bb-green-glow-rgb), 0.4);
   }
   .celebrate-title {
     margin: 0 0 10px;

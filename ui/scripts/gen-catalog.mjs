@@ -37,6 +37,7 @@ const FAMILY = {
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback',
+  IconTile: 'Data', MarkBadge: 'Data', ActionBar: 'Navigation',
 };
 
 const ADAPTER_NOTE = {

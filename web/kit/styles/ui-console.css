@@ -2,6 +2,7 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 /* Element sheets only console and error pages render; links after ui-public.css in the same global order. */
+@import '@bagel/ui/styles/elements/halo-panel.css';
 @import '@bagel/ui/styles/elements/chip.css';
 @import '@bagel/ui/styles/elements/table.css';
 @import '@bagel/ui/styles/elements/step-list.css';
@@ -41,4 +42,6 @@
 @import '@bagel/ui/styles/elements/setup-stage.css';
 @import '@bagel/ui/styles/elements/setup-step.css';
 @import '@bagel/ui/styles/elements/feed.css';
+@import '@bagel/ui/styles/elements/action-bar.css';
+@import '@bagel/ui/styles/elements/mark-badge.css';
 @import './notifications.css';
