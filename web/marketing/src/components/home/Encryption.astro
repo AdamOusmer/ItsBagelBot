@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import Text from '@bagel/ui/astro/Text.astro';
@@ -11,91 +12,266 @@ import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-const beats = [
-    { eyebrow: t('encryption.p1Eyebrow'), title: t('encryption.p1Title'), desc: t('encryption.p1Desc') },
-    { eyebrow: t('encryption.p2Eyebrow'), title: t('encryption.p2Title'), desc: t('encryption.p2Desc') },
-    { eyebrow: t('encryption.p3Eyebrow'), title: t('encryption.p3Title'), desc: t('encryption.p3Desc') },
+const CODE_LINES = [
+    { width: 62, indent: 0 },
+    { width: 44, indent: 16 },
+    { width: 78, indent: 0 },
+    { width: 30, indent: 0 },
+    { width: 56, indent: 16 },
+    { width: 70, indent: 0 },
+    { width: 38, indent: 0 },
 ];
 ---
 
 <Section size="page" class="enc" id="enc-section">
-    <ol class="enc__list">
-        {beats.map((beat, i) => (
-            <li class="enc__beat" data-reveal style={`--reveal-i: ${i}`}>
-                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{beat.eyebrow}</span></Eyebrow>
-                <Heading level={3} as="h2" class="enc__title"><span data-fit="block">{beat.title}</span></Heading>
-                <Text class="enc__desc"><span data-fit="block">{beat.desc}</span></Text>
-            </li>
-        ))}
-    </ol>
+    <div class="enc__grid">
+        <HaloPanel as="article" tone="green" class="enc__card">
+            <div class="enc__inner" data-reveal style="--reveal-i: 0">
+                <div class="enc__demo enc__demo--lock" aria-hidden="true">
+                    <span class="lock__ring lock__ring--outer"></span>
+                    <span class="lock__ring lock__ring--inner"></span>
+                    <span class="lock__lane"><span class="lock__packet">TLS</span></span>
+                    <span class="lock__lane lock__lane--late"><span class="lock__packet">TLS</span></span>
+                    <svg class="lock__glyph" viewBox="0 0 40 48"><path d="M10 21v-7a10 10 0 0 1 20 0v7" /><rect x="5" y="21" width="30" height="23" rx="5" /><circle cx="20" cy="31" r="2.5" /><path d="M20 33.5v4" /></svg>
+                </div>
+                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p1Eyebrow')}</span></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p1Title')}</span></Heading>
+                <Text class="enc__desc"><span data-fit="block">{t('encryption.p1Desc')}</span></Text>
+            </div>
+        </HaloPanel>
+
+        <HaloPanel as="article" tone="gold" class="enc__card">
+            <div class="enc__inner" data-reveal style="--reveal-i: 1">
+                <div class="enc__demo enc__demo--code" aria-hidden="true">
+                    <div class="code__win">
+                        <span class="code__dots"><i></i><i></i><i></i></span>
+                        {CODE_LINES.map((line) => (
+                            <span class="code__line" style={`--w: ${line.width}%; --indent: ${line.indent}px`}></span>
+                        ))}
+                        <span class="code__scan"></span>
+                    </div>
+                </div>
+                <Eyebrow tone="go" class="enc__eyebrow"><span data-fit="block">{t('encryption.p3Eyebrow')}</span></Eyebrow>
+                <Heading level={5} as="h3" variant="title" class="enc__title"><span data-fit="block">{t('encryption.p3Title')}</span></Heading>
+                <Text class="enc__desc"><span data-fit="block">{t('encryption.p3Desc')}</span></Text>
+            </div>
+        </HaloPanel>
+    </div>
 </Section>
 
 <style>
     .enc {
         position: relative;
-        padding-inline: 24px;
-        max-width: var(--bb-content-hero);
+        max-width: var(--bb-content-max);
         margin: 0 auto;
+        padding-inline: 24px;
         z-index: 3;
     }
 
-    .enc__list {
-        display: flex;
-        flex-direction: column;
-        gap: 48px;
-        padding: 0;
-        margin: 0;
-        list-style: none;
+    .enc__grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
     }
 
-    .enc__beat {
+    .enc__card {
+        display: flex;
+        min-width: 0;
+        padding: 28px;
+    }
+
+    .enc__inner {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
         min-width: 0;
     }
 
-    .enc__beat :where(h2, p, span) {
+    .enc__inner :where(h3, p, span) {
         overflow-wrap: normal;
         word-break: normal;
         hyphens: none;
     }
 
+    .enc__demo {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: 170px;
+        margin-bottom: 24px;
+        overflow: hidden;
+        font-family: var(--bb-font-mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+    }
+
     .enc__eyebrow {
         display: block;
         height: calc(var(--enc-eyebrow-lines, 1) * 1lh);
-        margin-bottom: 14px;
+        margin-bottom: 10px;
     }
 
     .enc__title {
-        height: calc(var(--enc-title-lines, 2) * 1lh);
-        font-weight: 800;
-        letter-spacing: var(--bb-tracking-tight);
-        margin-bottom: 16px;
+        height: calc(var(--enc-title-lines, 1) * 1lh);
+        margin-bottom: 10px;
     }
 
     .enc__desc {
-        height: calc(var(--enc-desc-lines, 4) * 1lh);
-        opacity: 0.9;
+        height: calc(var(--enc-desc-lines, 3) * 1lh);
+        color: var(--bb-muted-soft);
+    }
+
+    .lock__ring {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        border-radius: 50%;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.35);
+    }
+
+    .lock__ring--outer {
+        width: 132px;
+        height: 132px;
+        border-style: dashed;
+        animation: enc-spin 24s linear infinite;
+    }
+
+    .lock__ring--inner {
+        width: 92px;
+        height: 92px;
+        border-color: rgba(var(--bb-tan-rgb), 0.3);
+        animation: enc-breathe 4s ease-in-out infinite;
+    }
+
+    .lock__lane {
+        position: absolute;
+        top: calc(50% - 10px);
+        left: 0;
+        width: 100%;
+        animation: enc-travel 4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+    }
+
+    .lock__lane--late {
+        animation-delay: -2s;
+    }
+
+    .lock__packet {
+        display: inline-block;
+        padding: 2px 6px;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.45);
+        border-radius: var(--bb-radius-xs);
+        background: var(--bb-bg-0);
+        color: var(--bb-green-glow);
+        translate: -100% 0;
+    }
+
+    .lock__glyph {
+        position: relative;
+        width: 34px;
+        fill: none;
+        stroke: var(--bb-mint);
+        stroke-width: 1.6;
+        filter: drop-shadow(0 0 10px rgba(var(--bb-green-glow-rgb), 0.6));
+    }
+
+    .lock__glyph circle {
+        fill: var(--bb-mint);
+        stroke: none;
+    }
+
+    .code__win {
+        position: relative;
+        display: grid;
+        align-content: start;
+        gap: 9px;
+        width: 100%;
+        height: 100%;
+        padding: 14px 16px;
+        overflow: hidden;
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        background: rgba(var(--bb-white-rgb), 0.02);
+    }
+
+    .code__dots {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 6px;
+    }
+
+    .code__dots i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(var(--bb-white-rgb), 0.14);
+    }
+
+    .code__line {
+        width: var(--w);
+        height: 5px;
+        margin-left: var(--indent);
+        border-radius: 3px;
+        background: rgba(var(--bb-tan-rgb), 0.28);
+    }
+
+    .code__line:nth-child(3n) {
+        background: rgba(var(--bb-green-glow-rgb), 0.35);
+    }
+
+    .code__scan {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 40px;
+        background: linear-gradient(to bottom, transparent, rgba(var(--bb-tan-rgb), 0.12), transparent);
+        animation: enc-scan 3.2s ease-in-out infinite;
+    }
+
+    @keyframes enc-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes enc-breathe {
+        50% { transform: scale(1.06); opacity: 0.7; }
+    }
+
+    @keyframes enc-travel {
+        0% { transform: translateX(0); opacity: 0; }
+        15% { opacity: 1; }
+        42%, 58% { opacity: 0; }
+        85% { opacity: 1; }
+        100% { transform: translateX(calc(100% + 48px)); opacity: 0; }
+    }
+
+    @keyframes enc-scan {
+        from { transform: translateY(-40px); }
+        to { transform: translateY(170px); }
     }
 
     @media (min-width: 1024px) {
-        .enc__list {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 40px;
-        }
-
-        .enc__beat {
-            --enc-eyebrow-lines: 2;
-            --enc-title-lines: 3;
-            --enc-desc-lines: 5;
+        .enc__grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 
     @media (max-width: 640px) {
         .enc { padding-inline: 20px; }
-        .enc__list { gap: 40px; }
-        .enc__beat {
-            --enc-title-lines: 3;
+        .enc__card { padding: 22px; }
+        .enc__inner {
+            --enc-eyebrow-lines: 2;
+            --enc-title-lines: 2;
             --enc-desc-lines: 5;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .lock__ring,
+        .lock__lane,
+        .code__scan {
+            animation: none;
+        }
+
+        .lock__lane {
+            opacity: 0;
         }
     }
 </style>
