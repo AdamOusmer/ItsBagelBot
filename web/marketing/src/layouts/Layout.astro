@@ -213,7 +213,7 @@ const contentSecurityPolicy = [
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     `script-src 'self'${devScriptSources} https://static.cloudflareinsights.com`,
-    `connect-src 'self' https://cloudflareinsights.com${devConnectSources}`,
+    `connect-src 'self' https://cloudflareinsights.com https://status.itsbagelbot.com${devConnectSources}`,
     "base-uri 'self'",
     "form-action 'self'",
 ].join('; ');

@@ -178,18 +178,22 @@ test.describe('ItsBagelBot site', () => {
         }
     });
 
-    test('contact renders 4 switchboard lines with copy affordance', async ({ page }) => {
+    test('contact shows both lanes, the live status and the socials', async ({ page }) => {
+        await page.route('https://status.itsbagelbot.com/**', (route) =>
+            route.fulfill({ json: { data: { attributes: { aggregate_state: 'degraded' } } } }),
+        );
         await page.goto('/contact');
 
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Talk to a human.');
-        await expect(page.locator('.board .line')).toHaveCount(4);
-        await expect(page.locator('.line').filter({ hasText: 'Discord' })).toHaveCount(1);
-        await expect(page.locator('.line').filter({ hasText: 'Support' })).toHaveCount(1);
+        await expect(page.locator('h1')).toContainText('Talk to a human.');
+        await expect(page.locator('.lane')).toHaveCount(2);
+        await expect(page.locator('a[href^="https://discord.gg/"]').first()).toBeVisible();
+        await expect(page.locator('a[href="mailto:support@itsbagelbot.com"]')).toBeVisible();
 
-        await expect(page.locator('[data-copy]')).toHaveCount(2);
-        await expect(page.locator('a button')).toHaveCount(0);
-        await page.locator('[data-copy]').first().click();
-        await expect(page).toHaveURL(/\/contact\/?$/);
+        const status = page.locator('[data-contact-status]');
+        await expect(status).toHaveAttribute('data-state', 'degraded');
+        await expect(status).toContainText('Some services are degraded.');
+
+        await expect(page.locator('.social')).toHaveCount(4);
     });
 
     test('changelog lists tagged releases ordered by version', async ({ page }) => {

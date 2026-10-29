@@ -38,7 +38,13 @@ const footerLabels = labelsOf((ctx) => {
   resolveSiteLinks(SITE_LEGAL, ctx);
 });
 
+const CONTACT_STATES = ['Operational', 'Degraded', 'Downtime', 'Maintenance'];
+const CONTACT_BLOCKS = ['community', 'support', 'enterprise', 'source', 'docs'];
+const CONTACT_PARTS = ['Label', 'Text', 'Cta'];
+
 const DYNAMIC: Record<string, string[]> = {
+  'contact.status': CONTACT_STATES.map((s) => `contact.status${s}`),
+  'contact.': CONTACT_BLOCKS.flatMap((b) => CONTACT_PARTS.map((p) => `contact.${b}${p}`)),
   'nav.': navLabels.map((k) => `nav.${k}`),
   'footer.': footerLabels.map((k) => `footer.${k}`),
   'guides.variables.group.': GROUP_ORDER.map((g) => `guides.variables.group.${g}`),
