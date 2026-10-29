@@ -62,6 +62,8 @@
     }
   },
   "commands": {
+    "join": "Entra en el sorteo mientras esté en curso (también !raffle join).",
+    "claim": "Confirma un premio personalizado después de ganar un sorteo.",
     "winner": "Recuerda quién ganó el último sorteo y cuántos premios se confirmaron.",
     "raffle_status": "Muestra si hay un sorteo en curso, las inscripciones y el tiempo restante (un espectador que escribe !raffle obtiene lo mismo).",
     "raffle_amount_seconds": "Inicia un sorteo de un solo ganador que se lleva toda la cantidad (también !sraffle, !singleraffle). Las cantidades admiten k y m; por defecto 1000 puntos, 60 segundos.",

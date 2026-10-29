@@ -91,6 +91,8 @@ export const RAFFLE_MODULE: ModuleDef =
     }
   ],
   commands: [
+    { trigger: '!join', summary: 'Enter the raffle while one is running (also !raffle join).' },
+    { trigger: '!claim', summary: 'Confirm a custom prize after winning a draw.', requiresSetting: 'claimEnabled' },
     { trigger: '!winner', summary: "Recall the last draw's winners and how many confirmed." },
     { trigger: '!raffle status', summary: 'Show whether a raffle is running, entries and time left (a viewer typing !raffle gets the same).' },
     { trigger: '!raffle [amount] [seconds]', summary: 'Start a single-winner raffle: one winner takes the whole amount (also !sraffle, !singleraffle). Amounts take k and m; defaults 1000 points, 60 seconds.', perm: 'mod' },

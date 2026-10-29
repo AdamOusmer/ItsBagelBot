@@ -4,6 +4,7 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/tabs.css';
+import Glide from './Glide.astro';
 
 interface Props extends Omit<HTMLAttributes<'nav'>, 'label' | 'items' | 'orientation' | 'class'> {
     label: string;
@@ -35,4 +36,11 @@ const classes = ['bb-tabs', variant === 'toc' ? 'bb-tabs--toc' : MODIFIER[orient
 const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 ---
 
-<div class="bb-tabs-host"><nav class={classes} aria-label={label} data-lenis-prevent="" {...rest}>{items.map((item, position) => (<a class={item.current ? 'bb-tab is-active' : 'bb-tab'} href={item.href} aria-current={item.current ? 'page' : undefined} {...item.attrs}>{index && <i class="bb-tab__index">{ordinal(position)}</i>}{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>
+<div class="bb-tabs-host"><nav class={classes} aria-label={label} data-lenis-prevent="" {...rest}><Glide />{items.map((item, position) => (<a class={item.current ? 'bb-tab is-active' : 'bb-tab'} href={item.href} aria-current={item.current ? 'page' : undefined} {...item.attrs}>{index && <i class="bb-tab__index">{ordinal(position)}</i>}{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>
+
+<script>
+    import { mountTabGlides } from '../lib/glide';
+
+    mountTabGlides();
+    document.addEventListener('astro:page-load', () => mountTabGlides());
+</script>
