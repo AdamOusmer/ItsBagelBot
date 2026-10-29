@@ -24,7 +24,7 @@ const FAMILY = {
   EmptyState: 'Feedback', Modal: 'Feedback', ConfirmDialog: 'Feedback', Tooltip: 'Feedback',
   SaveStatus: 'Feedback', ErrorScene: 'Feedback', ProgressBar: 'Feedback', StepList: 'Feedback',
   Nav: 'Navigation', MobileMenu: 'Navigation', NavLink: 'Navigation', NavGroup: 'Navigation',
-  Rail: 'Navigation', RailItem: 'Navigation', Topbar: 'Navigation', Dock: 'Navigation',
+  Rail: 'Navigation', RailItem: 'Navigation', Glide: 'Navigation', Topbar: 'Navigation', Dock: 'Navigation',
   SectionNav: 'Navigation', Footer: 'Navigation', Brand: 'Navigation',
   LanguageSwitcher: 'Navigation', SocialRail: 'Navigation', PageHead: 'Navigation',
   PageToolbar: 'Navigation', Hamburger: 'Navigation', EditorFooter: 'Navigation',
