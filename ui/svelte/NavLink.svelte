@@ -5,12 +5,13 @@
   import '../styles/elements/button.css';
   import '../styles/elements/nav-link.css';
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   type Own = {
     href?: string;
     label?: string;
     current?: boolean;
-    variant?: 'rail' | 'cta';
+    variant?: 'rail' | 'cta' | 'twitch';
     external?: boolean;
     block?: boolean;
     disabled?: boolean;
@@ -41,12 +42,14 @@
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
+  const twitch = $derived(variant === 'twitch');
   const classes = $derived(
     [
       'bb-nav-link',
-      variant === 'cta' ? 'bb-nav-link--cta' : null,
+      variant !== 'rail' ? 'bb-nav-link--cta' : null,
       block ? 'bb-nav-link--block' : null,
       variant === 'cta' ? 'bb-btn bb-btn--go-solid' : null,
+      twitch ? 'bb-btn bb-btn--twitch' : null,
       className || null,
     ]
       .filter(Boolean)
@@ -70,7 +73,7 @@
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-    >{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
+    >{#if twitch}<Icon name="twitch" />{/if}{#if leading}{@render leading()}{/if}<span class="bb-nav-link__label" data-fit={fit ? '' : undefined} data-fit-group={fit ? fitGroup : undefined}
       >{#if children}{@render children()}{:else}{label}{/if}</span
     >{#if trailing}{@render trailing()}{/if}</a
   >

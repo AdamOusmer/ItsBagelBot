@@ -157,13 +157,11 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
     .gshell__block {
         max-width: var(--bb-content-max);
         margin: 0 auto;
-        padding: 100px 48px;
+        padding: 64px 48px;
         scroll-margin-top: calc(var(--nav-offset) + 24px);
     }
 
-    .gshell__heading { margin: 60px 0 14px; }
-
-    .gshell__block:first-of-type .gshell__heading { margin-top: 0; }
+    .gshell__heading { margin: 0 0 14px; }
 
     .gshell__num {
         margin-right: 12px;
@@ -252,7 +250,6 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 
     @media (max-width: 640px) {
         .gshell { padding: 0 16px 72px; }
-        .gshell__heading { margin-top: 44px; }
         .gshell__pager { grid-template-columns: 1fr; }
         .gshell__pager-card--next { text-align: left; }
     }

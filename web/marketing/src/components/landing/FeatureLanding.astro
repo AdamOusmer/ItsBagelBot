@@ -222,7 +222,7 @@ const {
 <Section class="flcta">
     <SectionHeading title={ctaTitle} class="flcta__title" />
     <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
-        <ButtonLink href={ctaPrimary.href} class="flcta__btn"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
+        <ButtonLink href={ctaPrimary.href} class="flcta__btn" variant="twitch"><span data-fit>{ctaPrimary.label}</span></ButtonLink>
         {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href} class="flcta__btn"><span data-fit>{ctaSecondary.label}</span></ButtonLink>}
     </Cluster>
     {legal && <Text size="xs" mono tone="muted" class="flcta__legal"><span data-fit="block">{legal}</span></Text>}

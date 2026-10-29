@@ -14,16 +14,25 @@ export type RevealOptions = {
 
 const DEFAULTS: Required<RevealOptions> = {
     rootMargin: '0px 0px -10% 0px',
-    threshold: 0.08,
+    threshold: 0,
     instant: false,
 };
+
+function nestedIn(el: HTMLElement): HTMLElement[] {
+    return Array.from(el.querySelectorAll<HTMLElement>(SELECTOR));
+}
+
+function reveal(el: HTMLElement, observer: IntersectionObserver): void {
+    el.classList.add(REVEALED);
+    if (el.dataset.revealRepeat !== 'true') observer.unobserve(el);
+}
 
 function onIntersect(entries: IntersectionObserverEntry[], observer: IntersectionObserver): void {
     for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const el = entry.target as HTMLElement;
-        el.classList.add(REVEALED);
-        if (el.dataset.revealRepeat !== 'true') observer.unobserve(el);
+        reveal(el, observer);
+        for (const nested of nestedIn(el)) reveal(nested, observer);
     }
 }
 
@@ -58,8 +67,10 @@ export function observeReveal(root: ParentNode, options: RevealOptions = {}): ()
 
     const observer = new IntersectionObserver(onIntersect, { rootMargin, threshold });
     const visible = targets.map(onScreen);
-    targets.forEach((el, i) => {
-        if (visible[i]) el.classList.add(REVEALED);
+    const shown = new Set(targets.filter((_, i) => visible[i]));
+    for (const el of [...shown]) nestedIn(el).forEach((nested) => shown.add(nested));
+    targets.forEach((el) => {
+        if (shown.has(el)) el.classList.add(REVEALED);
         else observer.observe(el);
     });
 

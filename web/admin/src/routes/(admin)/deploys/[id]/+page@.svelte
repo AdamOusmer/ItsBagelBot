@@ -151,8 +151,6 @@
   progress={fraction}
   progressLabel={t('admin.deploys.overall')}
   count={stageOf}
-  turn={focusIndex}
-  leaving={run.state === 'succeeded'}
 >
   {#snippet status()}
     <StatePill tone={runPill(run.state)}>{t(RUN_STATE_KEY[run.state])}</StatePill>
@@ -201,7 +199,7 @@
             {/snippet}
             {#snippet children()}
               {#if hasDetail}
-                <div class="detail"><Card glass><StageDetail {stage} /></Card></div>
+                <div class="detail"><Card><StageDetail {stage} /></Card></div>
               {/if}
             {/snippet}
           </StageScene>
@@ -282,8 +280,6 @@
     flex-wrap: wrap;
     margin-top: auto;
     padding: var(--bb-space-2) 0 var(--bb-space-1);
-    background: linear-gradient(180deg, transparent, rgba(var(--bb-black-rgb), 0.78) 40%);
-    backdrop-filter: blur(6px);
   }
   .verbs {
     flex: 1;
