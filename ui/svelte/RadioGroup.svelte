@@ -108,7 +108,7 @@
         />{#if variant === 'cards'}<span class="bb-choice__top"
             >{#if leading}<span class="bb-choice__lead">{@render leading(opt, value === opt.value)}</span>{/if}<span
               class="bb-choice__tick"
-              aria-hidden="true"><Icon name="check" size={12} /></span
+              aria-hidden="true"><Icon name="check" size={14} /></span
             ></span
           >{/if}<span class="bb-choice__label">{opt.label}</span>{#if opt.description}<span class="bb-choice__desc"
             >{opt.description}</span

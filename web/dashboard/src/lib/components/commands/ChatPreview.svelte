@@ -221,11 +221,12 @@
     font-size: 12.5px;
     flex: none;
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 5px;
   }
   .viewer-name { color: var(--bb-tan-light); }
   .avatar {
+    align-self: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;

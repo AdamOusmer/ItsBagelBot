@@ -6,15 +6,14 @@
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
 
-  let { title, count, glass = false, children }: {
+  let { title, count, children }: {
     title: string;
     count: number;
-    glass?: boolean;
     children: Snippet;
   } = $props();
 </script>
 
-<Card {glass} flush>
+<Card flush>
   <div class="group-head">
     <Eyebrow>{title}</Eyebrow>
     <Text as="span" size="xs" mono tone="muted">{count}</Text>
@@ -28,6 +27,6 @@
     align-items: center;
     gap: 12px;
     padding: 16px 22px;
-    border-bottom: 1px solid var(--bb-border);
+    background: var(--bb-elev-2);
   }
 </style>

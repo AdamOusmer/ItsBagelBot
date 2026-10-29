@@ -6,7 +6,7 @@
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
   import { lateralFly, TRAVEL_IN, TRAVEL_OUT } from '$lib/scene-motion';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
-  import Sky from '@bagel/ui/svelte/Sky.svelte';
+  import SetupStage from '@bagel/ui/svelte/SetupStage.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
@@ -39,12 +39,10 @@
   import Label from '@bagel/ui/svelte/Label.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
-  import Stepper from '@bagel/ui/svelte/Stepper.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
-  import { parallax } from '@bagel/ui/svelte/actions';
   import { PermBadge, Bolota, actionPayload } from '@bagel/kit';
   import {
     CHIP_LABEL_KEYS,
@@ -253,13 +251,6 @@
     };
   });
 
-  let px = $state(0);
-  let py = $state(0);
-  function follow(point: { px: number; py: number }) {
-    px = point.px;
-    py = point.py;
-  }
-
   const sourceOptions = $derived(
     IMPORT_SOURCES.map((id) => {
       const s = IMPORT_STRATEGIES[id];
@@ -289,15 +280,6 @@
     goStep('pick');
     session.reset();
   }
-
-  const railDetail = $derived.by(() => [
-    strategy ? strategy.label : t('import.railPickPending'),
-    session.inputDetail(inputSpec),
-    previewResult ? t('onboardingImport.commandsCount', { n: previewResult.manifest?.commands?.length ?? 0 }) : '',
-    previewResult ? session.statsLine : '',
-    previewResult ? session.selectionLine : '',
-    commitResult ? t('import.railDone') : ''
-  ]);
 
   const reviewHint = $derived.by(() => {
     if (!strategy) return '';
@@ -399,57 +381,28 @@
 </script>
 
 <svelte:head><title>{t('onboardingImport.pageTitle')} · ItsBagelBot</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<Sky
-  shift={stepIndex % 2 ? 1 : -1}
-  turn={stepIndex * 24}
-  {px}
-  {py}
-  progress={journeyStep / (journeySteps.length - 1)}
+<SetupStage
+  label={t('onboardingImport.pageTitle')}
+  steps={journeySteps}
+  current={journeyStep}
+  maxStep={journeyStep}
+  stepLabel={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })}
+  onSelect={selectRail}
+  wide
   leaving={showCompletion}
-/>
-<div class="welcome-import" class:leaving={showCompletion} data-orbs="off" use:parallax={{ scope: 'viewport', onmove: follow }}>
-  <header class="top">
-    <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
-    <Stepper compact steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onSelect={selectRail} />
-  </header>
-<section class="screen active">
-  <div class="intro">
-    <div class="companion" class:flip={stepIndex % 2 === 1} aria-hidden="true">
-      <div class="companion-blob">
-        <span class="companion-plate"></span>
-        <span class="companion-scale">
-        <Bolota
-          name={page.data.name ?? 'ItsBagelBot'}
-          size={130}
-          active
-          follow
-          cycle={false}
-          {expression}
-          {sequence}
-          {sequenceKey}
-          sequenceFor={1000}
-          sequenceHold={200}
-        />
-        </span>
-      </div>
-      <div class="bubble">
-        {#key step}
-          <span class="bubble-inner" in:sceneIn out:sceneOut>
-            <span class="bubble-stage">{String(journeyStep + 1).padStart(2, '0')} · {STAGES[stepIndex]}</span>
-            {#if railDetail[stepIndex]}<span class="bubble-detail">{railDetail[stepIndex]}</span>{/if}
-          </span>
-        {/key}
-      </div>
-    </div>
-  </div>
-
-  <div class="wizard">
+  class="welcome-import"
+  data-orbs="off"
+>
+  {#snippet start()}<Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />{/snippet}
+  {#snippet art()}
+    <Bolota name={page.data.name ?? 'ItsBagelBot'} size={240} active follow cycle={false} {expression} {sequence} {sequenceKey} sequenceFor={1000} sequenceHold={200} />
+  {/snippet}
     <div class="flow" bind:this={flowEl}>
   {#key step}
   <div class="scene" data-step={step} in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
-    <Card glass>
+    <Card>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.stepPick'))}</Heading></div>
       <div class="hint"><Text size="sm" tone="muted">{t('import.pickHint')}</Text></div>
 
@@ -480,7 +433,7 @@
   {:else if step === 'instructions' && source}
     {@const st = IMPORT_STRATEGIES[source]}
     {@const spec = st.input}
-    <Card glass>
+    <Card>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
         <Heading level={6} as="h2">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
@@ -571,7 +524,7 @@
     </Card>
   {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
     {#if step === 'review'}
-    <Card glass>
+    <Card>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.reviewTitle'))}</Heading></div>
       <div class="hint"><Text size="sm" tone="muted">{reviewHint}</Text></div>
 
@@ -609,7 +562,7 @@
       {/if}
 
       {#if step === 'commands' && previewResult.manifest.commands?.length}
-        <ImportGroup glass title={t('import.hCommands')} count={previewResult.manifest.commands.length}>
+        <ImportGroup title={t('import.hCommands')} count={previewResult.manifest.commands.length}>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
               <ImportRow {session} text={rowText} kind="commands" index={i} label={`!${c.name}`} collided={session.collidedCommands.has(normalizeName(c.name))}>
@@ -629,7 +582,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.timers?.length}
-        <ImportGroup glass title={t('import.hTimers')} count={previewResult.manifest.timers.length}>
+        <ImportGroup title={t('import.hTimers')} count={previewResult.manifest.timers.length}>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
               <ImportRow {session} text={rowText} kind="timers" index={i} ariaLabel={tm.message}>
@@ -646,7 +599,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.triggers?.length}
-        <ImportGroup glass title={t('import.hTriggers')} count={previewResult.manifest.triggers.length}>
+        <ImportGroup title={t('import.hTriggers')} count={previewResult.manifest.triggers.length}>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
               <ImportRow {session} text={rowText} kind="triggers" index={i} label={tg.phrase}>
@@ -660,7 +613,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.quotes?.length}
-        <ImportGroup glass title={t('import.hQuotes')} count={previewResult.manifest.quotes.length}>
+        <ImportGroup title={t('import.hQuotes')} count={previewResult.manifest.quotes.length}>
           <div class="group-note"><Text size="sm" tone="muted">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</Text></div>
         </ImportGroup>
       {/if}
@@ -692,7 +645,7 @@
         </div>
       {/if}
   {:else if step === 'done'}
-    <Card glass>
+    <Card>
       <span class="done-seal" aria-hidden="true"><Icon name="check" size={22} /></span>
       <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.doneTitle'))}</Heading></div>
       {#if commitResult}
@@ -742,9 +695,7 @@
   </div>
   {/key}
     </div>
-  </div>
-</section>
-</div>
+</SetupStage>
 <VisuallyHidden as="p" role="status">{stepAnnouncement}</VisuallyHidden>
 <ConfirmDialog
   open={leaveTarget !== null}
@@ -758,114 +709,13 @@
 {#if showCompletion}<Completion label={t('onboardingImport.stageDone')} oncomplete={afterCompletion} />{/if}
 
 <style>
-  .welcome-import {
-    position: relative;
-    z-index: 1;
-    min-height: 100vh;
-    padding: 0 clamp(18px, 5vw, 72px) 72px;
-    color: var(--bb-white);
-    overflow-x: clip;
-  }
-  .top { animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) backwards; }
-  .welcome-import .screen { animation: arrive-far var(--bb-dur-slow) var(--bb-ease-out-expo) backwards; }
-  .leaving .top,
-  .leaving .screen {
-    opacity: 0;
-    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    min-height: 96px;
-  }
-  .welcome-import .screen {
-    width: min(1120px, 100%);
-    margin: 24px auto 0;
-  }
-  .intro {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    margin-bottom: 12px;
-  }
-
-  .companion {
-    --blob: 156px;
-    --bubble: 220px;
-    flex: none;
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    width: calc(var(--blob) + var(--bubble) + 14px);
-  }
-  .companion-blob {
-    position: relative;
-    flex: none;
-    width: var(--blob);
-    height: var(--blob);
-    display: grid;
-    place-items: center;
-    filter: drop-shadow(0 14px 26px rgba(var(--bb-shadow-rgb), .38));
-    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
-  }
-  .companion-scale {
-    display: grid;
-    place-items: center;
-    animation: float 9s ease-in-out infinite;
-  }
-  .companion-plate {
-    position: absolute;
-    inset: -8%;
-    z-index: -1;
-    border-radius: 50%;
-    background: radial-gradient(
-      circle at 40% 35%,
-      rgba(var(--bb-green-glow-rgb), .3),
-      rgba(var(--bb-tan-rgb), .14) 46%,
-      transparent 70%
-    );
-    filter: blur(18px);
-    animation: breathe 6s ease-in-out infinite;
-  }
-  .bubble {
-    position: relative;
-    display: grid;
-    width: var(--bubble);
-    min-height: 64px;
-    padding: 12px 16px;
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-md);
-    background: rgba(var(--bb-card-bg-rgb), .7);
-    backdrop-filter: blur(14px);
-    overflow: hidden;
-    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
-  }
-  .bubble-inner { grid-area: 1 / 1; display: grid; gap: 4px; align-content: center; }
-  .bubble-stage {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--bb-tan-pale);
-  }
-  .bubble-detail {
-    font-size: 12.5px;
-    line-height: 1.4;
-    color: var(--bb-muted);
-    overflow-wrap: anywhere;
-  }
-  .companion.flip .companion-blob { transform: translateX(calc(var(--bubble) + 14px)); }
-  .companion.flip .bubble { transform: translateX(calc(-1 * (var(--blob) + 14px))); }
+  :global(.bb-setup-stage.welcome-import .bb-setup-stage__main) { grid-template-rows: auto minmax(0, 1fr); }
+  :global(.bb-setup-stage.welcome-import .bb-setup-stage__content) { min-height: 0; }
   .category-head {
     padding: 26px 30px;
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-lg);
-    background: rgba(var(--bb-card-bg-rgb), .76);
-    backdrop-filter: blur(18px);
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-1);
   }
   .category-title { margin-bottom: 12px; }
   .category-actions {
@@ -875,38 +725,17 @@
     padding-top: 8px;
   }
 
-  @media (max-width: 760px) {
-    .top { flex-wrap: wrap; padding: 18px 0; }
-    .welcome-import .screen { margin-top: 24px; }
-  }
-  @media (max-width: 1000px) {
-    .intro {
-      flex-direction: column-reverse;
-      align-items: stretch;
-      gap: 18px;
-      margin-bottom: 24px;
-    }
-    .companion {
-      --blob: 84px;
-      --bubble: calc(100% - 98px);
-      width: 100%;
-    }
-    .companion-scale { scale: .64; }
-    .companion.flip .companion-blob,
-    .companion.flip .bubble { transform: none; }
-  }
-
   .step-title { margin-bottom: 6px; }
   .hint { margin: 0 0 12px; }
 
-  .wizard {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
   .flow {
     min-width: 0;
+    min-height: 0;
     display: grid;
+    align-content: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
   .scene {
     grid-area: 1 / 1;
@@ -933,8 +762,8 @@
     width: 34px;
     height: 34px;
     border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--bb-glass-border);
-    background: rgba(var(--bb-white-pure-rgb), 0.04);
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-0);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -944,12 +773,13 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan-light);
     transition:
-      border-color var(--bb-dur-fast) ease,
+      background-color var(--bb-dur-fast) ease,
       color var(--bb-dur-fast) ease;
   }
   .glyph.picked {
-    border-color: rgba(var(--bb-tan-rgb), 0.55);
-    color: var(--bb-tan);
+    background: var(--bb-white);
+    color: var(--bb-black);
+    box-shadow: var(--bb-depth-1);
   }
 
   .steps {
@@ -1026,12 +856,10 @@
     gap: 14px;
     align-items: center;
     justify-content: space-between;
-    border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-pill);
-    background: rgba(var(--bb-card-bg-rgb), 0.92);
-    backdrop-filter: blur(18px);
+    background: var(--bb-elev-2);
     padding: 14px 16px 14px 24px;
-    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.35);
+    box-shadow: var(--bb-depth-3);
   }
 
   .done-seal {
@@ -1041,7 +869,6 @@
     height: 52px;
     margin-bottom: 14px;
     border-radius: 50%;
-    border: 1px solid rgba(var(--bb-green-glow-rgb), .5);
     background: rgba(var(--bb-green-glow-rgb), .14);
     color: var(--bb-green-glow);
     box-shadow: 0 0 0 6px rgba(var(--bb-green-glow-rgb), .06);
@@ -1056,49 +883,34 @@
   }
   .applied-tile {
     padding: 16px 18px;
-    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
-    background: var(--bb-glass-fill);
+    background: var(--bb-elev-2);
+    box-shadow: var(--bb-depth-1);
   }
   .audit { margin-top: 24px; }
 
+  @media (max-width: 760px), (max-height: 760px) {
+    .tiles { --choice-min-h: 0; margin: 8px 0 0; }
+    .tiles :global(.bb-choice__desc) { display: none; }
+    .scene :global(.bb-card) { --card-pad: 16px; }
+    .scene { gap: 12px; }
+    .actions { margin-top: 12px; }
+  }
   @media (max-width: 560px) {
+    .tiles :global(.bb-choices) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .commit-bar {
       border-radius: var(--bb-radius-sm);
       padding: 14px 16px;
     }
   }
 
-  @keyframes settle {
-    from { opacity: 0; transform: translateX(-16px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes arrive-far {
-    from { opacity: 0; transform: translateX(8vw); }
-    to { opacity: 1; transform: none; }
-  }
   @keyframes seal-in {
     from { opacity: 0; transform: scale(.4); }
     to { opacity: 1; transform: none; }
   }
-  @keyframes float {
-    0%, 100% { transform: translate(0, 0); }
-    32% { transform: translate(8px, -3px); }
-    64% { transform: translate(-6px, 3px); }
-  }
-  @keyframes breathe {
-    0%, 100% { opacity: .7; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.08); }
-  }
 
   @media (prefers-reduced-motion: reduce) {
-    .top,
-    .welcome-import .screen,
-    .companion-scale,
-    .companion-plate,
     .done-seal { animation: none; }
-    .companion-blob,
-    .bubble,
     .glyph { transition: none; }
   }
 </style>

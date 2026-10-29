@@ -60,6 +60,17 @@
         outline-offset: 3px;
     }
 
+    :where([data-surface='tonal']) .bb-switch {
+        border-color: transparent;
+        background: var(--bb-elev-1);
+        box-shadow: var(--bb-depth-0);
+    }
+
+    :where([data-surface='tonal']) .bb-switch[data-state='on'] {
+        background: var(--switch-on-bg);
+        border-color: transparent;
+    }
+
     .bb-switch:disabled { cursor: default; opacity: 0.55; }
     .bb-switch[data-busy] { cursor: progress; }
 

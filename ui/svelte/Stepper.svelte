@@ -11,6 +11,9 @@
   import Icon from './Icon.svelte';
   import VisuallyHidden from './VisuallyHidden.svelte';
   import { getUiI18n } from './i18n';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+  import { prefersReducedMotion } from '../lib/motion-query';
 
   type Own = {
     steps: readonly StepperStep[];
@@ -55,6 +58,25 @@
     return i18n.t(index < current ? 'steps.completed' : 'steps.upcoming');
   }
 
+  const slide = (node: Element, { x = 0 } = {}) =>
+    prefersReducedMotion() ? { duration: 0 } : fly(node, { x, duration: 420, easing: cubicOut, opacity: 0 });
+
+  let nav = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!nav || typeof ResizeObserver === 'undefined') return;
+    const host = nav;
+    let left = host.getBoundingClientRect().left;
+    const observer = new ResizeObserver(() => {
+      const next = host.getBoundingClientRect().left;
+      const shift = left - next;
+      left = next;
+      if (!shift || prefersReducedMotion()) return;
+      host.animate([{ translate: `${shift}px 0` }, { translate: '0 0' }], { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    });
+    observer.observe(host);
+    return () => observer.disconnect();
+  });
+
   const ordinal = (index: number) => String(index + 1).padStart(2, '0');
   const currentOf = (index: number) => (index === current ? 'step' : undefined);
 </script>
@@ -85,12 +107,13 @@
     class={classes}
     aria-label={label}
     style="--stepper-i: {Math.max(current, 0)}; --stepper-n: {Math.max(steps.length, 1)};"
+    bind:this={nav}
     {...rest}
   >
     <span class={current < 0 ? 'bb-stepper__track bb-stepper__track--idle' : 'bb-stepper__track'} aria-hidden="true"><span class="bb-stepper__trail"></span></span>
     <ol class="bb-stepper__list">
       {#each steps as step, i (i)}
-        <li class={itemClass(i)}>
+        <li class={itemClass(i)} in:slide={{ x: 18 }} out:slide={{ x: -18 }}>
           {#if onSelect}
             <button
               type="button"
