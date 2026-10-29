@@ -96,8 +96,6 @@
     min-height: 44px;
     margin-top: var(--bb-space-5);
     padding: var(--bb-space-2) 0 var(--bb-space-1);
-    background: linear-gradient(180deg, transparent, rgba(var(--bb-black-rgb), 0.78) 40%);
-    backdrop-filter: blur(6px);
   }
   .scene.center .actions {
     justify-content: center;
