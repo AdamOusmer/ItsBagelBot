@@ -88,7 +88,7 @@ spec:
       priorityClassName: bagel-service
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.14-beta@sha256:0dbbade138f2c63f4879b63960be58b44db65fed145fcbcb4134cf172990f65b
+          image: ghcr.io/adamousmer/itsbagelbot/warp:v0.3.0-beta@sha256:be1c4ccd026b752cefe9852f57fed215a596a0015c8be7cea750841f2b67e348
           imagePullPolicy: IfNotPresent
           restartPolicy: Always
           env:
@@ -166,7 +166,7 @@ spec:
               memory: 512Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:v0.2.14-beta@sha256:cee2049580ccee0c3c4d9f672aea708a39c93773dd0a0c9153844f892226da9a
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:v0.3.0-beta@sha256:70c71e36b900128f787bd4e3f9a8d8c104f9d89055d392ac8272d58ba81304de
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_URL
