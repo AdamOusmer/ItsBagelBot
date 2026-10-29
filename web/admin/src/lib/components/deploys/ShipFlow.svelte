@@ -277,7 +277,6 @@
   {progress}
   progressLabel={t('admin.deploys.flow.label')}
   count={stepOf}
-  turn={step}
   {leaving}
 >
   {#snippet side()}
@@ -328,7 +327,7 @@
                     </Field>
                   </Grid>
                 </div>
-                <Card glass flush>
+                <Card flush>
                   <div class="well"><CommitList commits={shown?.commits ?? []} since={shown?.last_tag ?? '-'} open /></div>
                 </Card>
               </Stack>

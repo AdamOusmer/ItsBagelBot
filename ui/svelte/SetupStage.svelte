@@ -15,11 +15,13 @@
     stepLabel?: string;
     onSelect?: (index: number) => void;
     wide?: boolean;
+    full?: boolean;
     fill?: boolean;
     hero?: boolean;
     leaving?: boolean;
     class?: string;
     start?: Snippet;
+    trail?: Snippet;
     art?: Snippet;
     aside?: Snippet;
     foot?: Snippet;
@@ -35,11 +37,13 @@
     stepLabel = '',
     onSelect,
     wide = false,
+    full = false,
     fill = false,
     hero = false,
     leaving = false,
     class: className = '',
     start,
+    trail,
     art,
     aside,
     foot,
@@ -52,6 +56,7 @@
     [
       'bb-setup-stage',
       wide && 'bb-setup-stage--wide',
+      full && 'bb-setup-stage--full',
       fill && 'bb-setup-stage--fill',
       hero && 'bb-setup-stage--hero',
       leaving && 'bb-setup-stage--leaving',
@@ -69,6 +74,7 @@
     {#if steps.length > 0}
       <Stepper compact {steps} {current} {maxStep} label={stepLabel} {onSelect} />
     {/if}
+    {#if trail}<div class="bb-setup-stage__trail">{@render trail()}</div>{/if}
   </header>
   <div class="bb-setup-stage__main">
     {#if art}
