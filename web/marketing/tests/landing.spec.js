@@ -141,10 +141,7 @@ test.describe('feature landing pages', () => {
 const VS_SLUGS = ['nightbot', 'streamelements', 'fossabot', 'moobot', 'streamlabs-chatbot', 'wizebot'];
 const VS_LOCALES = [['en', ''], ['fr', '/fr'], ['de', '/de'], ['es', '/es'], ['pt-br', '/pt-br'], ['ru', '/ru']];
 const VS_CASES = VS_SLUGS.flatMap((slug) => VS_LOCALES.map(([lang, prefix]) => ({ slug, lang, prefix })));
-const FOOTER_PAGES = [
-    '/valorant-stats/', '/fortnite-stats/', '/hypixel-bedwars-stats/', '/mcsr-ranked-stats/', '/clash-royale-stats/', '/codm-stats/',
-    '/vs/nightbot/', '/vs/streamelements/', '/vs/fossabot/', '/vs/moobot/', '/vs/streamlabs-chatbot/', '/vs/wizebot/',
-];
+const FOOTER_PAGES = ['/pricing/', '/guides/', '/command-builder/', '/changelog/', '/contact/'];
 const FOOTER_CASES = [['', '/'], ['/de', '/de/']].flatMap(([prefix, route]) => FOOTER_PAGES.map((path) => ({ route, href: `${prefix}${path}` })));
 
 for (const { slug, lang, prefix } of VS_CASES) {
@@ -179,11 +176,7 @@ for (const { route, href } of FOOTER_CASES) {
 }
 
 test.describe('comparison pages', () => {
-    test('footer compare links and language switcher follow the locale', async ({ page }) => {
-        await page.goto('/fr/');
-        await expect(page.locator('footer a[href="/fr/vs/nightbot/"]')).toBeVisible();
-        await page.goto('/de/');
-        await expect(page.locator('footer a[href="/de/vs/nightbot/"]')).toBeVisible();
+    test('language switcher follows the locale', async ({ page }) => {
         await page.goto('/vs/streamelements/');
         await expect(page.locator('.bb-lang-switch a[hreflang="de"]').first()).toHaveAttribute('href', '/de/vs/streamelements/');
     });

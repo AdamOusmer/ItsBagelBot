@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { splitWordmark } from '../lib/brand-wordmark';
-import { FOOTER_RING, stackColumns } from '../lib/footer-layout';
+import { stackColumns } from '../lib/footer-layout';
 
 const column = (title: string, stacked?: boolean) => ({ title, links: [], stacked });
 
@@ -44,10 +44,4 @@ describe('splitWordmark', () => {
     expect(splitWordmark('o')).toEqual(['', '']);
     expect(splitWordmark('Bot')).toEqual(['B', 't']);
   });
-});
-
-test('the footer ring references only gradients it defines', () => {
-  const used = [...FOOTER_RING.matchAll(/url\(#([^)]+)\)/g)].map((m) => m[1]);
-  expect(used.length).toBeGreaterThan(0);
-  for (const id of used) expect(FOOTER_RING).toContain(`id="${id}"`);
 });

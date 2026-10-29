@@ -291,7 +291,6 @@ test.describe('ItsBagelBot site', () => {
 
         await page.goto('/valorant-stats');
         await expect(page.locator('head link[rel="describedby"][href="https://ai.itsbagelbot.com/features/valorant.md"]')).toHaveCount(1);
-        await expect(page.locator('footer a.bb-nav-link[href="/valorant-stats/"]')).toHaveCount(1);
         await expect(page.locator('a[href="/guides/modules/"]').last()).toBeVisible();
 
         await page.goto('/pricing');
