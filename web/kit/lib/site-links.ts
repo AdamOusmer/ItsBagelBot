@@ -149,7 +149,7 @@ export function siteNavProps({ home, logoSrc, links, ctaHref, text }: SiteNavInp
   return {
     brand: { title: 'ItsBagelBot', href: home, logoSrc, logoAlt: '' },
     links,
-    cta: { href: ctaHref, label: text.cta },
+    cta: { href: ctaHref, label: text.cta, icon: 'twitch' as const },
     label: text.aria,
     menuLabels: { open: text.menuOpen, close: text.menuClose, panel: text.menu },
     menuMeta: text.menuMeta,
