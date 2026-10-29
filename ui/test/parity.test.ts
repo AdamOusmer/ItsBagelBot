@@ -315,6 +315,14 @@ describe('Card', () => {
   });
 
   contract({
+    name: 'raised modifier lifts the card a depth level',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { raised: true },
+    html: '<div class="bb-card bb-card--raised" data-card>body</div>',
+  });
+
+  contract({
     name: 'glass modifier frosts the surface',
     svelte: SvelteCard,
     astro: AstroCard,

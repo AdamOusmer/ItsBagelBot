@@ -127,7 +127,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Status | Contract |
 | --- | --- | --- | --- | --- |
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | stable | `styles/elements/area-series.css` |
-| **Card** | `as`: T<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | stable | `styles/elements/card.css` |
+| **Card** | `as`: T<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`raised`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | stable | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | stable | `styles/elements/card.css` |
 | **CommunityCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: CardTone<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/community-card.css` |
 | **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: CardTone \| 'silver'<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`spot`: boolean<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/counter-card.css` |

@@ -11,6 +11,7 @@
     href?: string;
     atmo?: boolean;
     sheen?: boolean;
+    raised?: boolean;
     stat?: boolean;
     glass?: boolean;
     hover?: boolean;
@@ -28,6 +29,7 @@
     href,
     atmo = false,
     sheen = false,
+    raised = false,
     stat = false,
     glass = false,
     hover = false,
@@ -47,6 +49,7 @@
       band && 'bb-card--band',
       stat && 'bb-card--stat',
       sheen && 'bb-card--sheen',
+      raised && 'bb-card--raised',
       glass && 'bb-card--glass',
       flush && 'bb-card--flush',
       dashed && 'bb-card--dashed',

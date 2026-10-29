@@ -42,6 +42,30 @@
     --card-halo: 0.35;
   }
 
+  .bb-card--raised {
+    --card-shadow: var(--bb-depth-2);
+  }
+
+  :where([data-surface='tonal']) .bb-card {
+    --card-hover-border: var(--card-border, transparent);
+    background: var(--card-bg, var(--bb-elev-1));
+    border-color: var(--card-border, transparent);
+    border-radius: var(--card-radius, var(--bb-radius-md));
+    box-shadow: var(--card-shadow, var(--bb-depth-1));
+    transition:
+      background-color var(--bb-dur-base) ease,
+      box-shadow var(--bb-dur-base) ease;
+  }
+
+  :where([data-surface='tonal']) .bb-card::after {
+    content: none;
+  }
+
+  :where([data-surface='tonal']) .bb-card:is(.bb-card--raised, [data-hover]:hover, [href]:hover, [data-hover]:focus-visible, [href]:focus-visible) {
+    background: var(--card-bg, var(--bb-elev-2));
+    box-shadow: var(--card-shadow-raised, var(--bb-depth-2));
+  }
+
   .bb-card--stat {
     padding: calc(20px * var(--d));
   }
@@ -147,7 +171,7 @@
 
   @media (hover: hover) and (pointer: fine) {
     .bb-card:is([data-hover], [href]):hover {
-      border-color: var(--bb-border-strong);
+      border-color: var(--card-hover-border, var(--bb-border-strong));
     }
   }
 
