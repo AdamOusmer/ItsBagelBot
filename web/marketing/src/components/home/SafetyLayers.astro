@@ -464,9 +464,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
     .gates__receipt {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         align-items: center;
-        gap: 10px;
+        gap: 6px 10px;
         padding-top: 10px;
         border-top: 1px solid var(--bb-border);
         color: var(--bb-muted);
@@ -485,7 +485,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     .gates__check:nth-child(3) { animation-name: receiptThree; }
     .gates__ok { color: var(--bb-green-glow); font-weight: 500; transition: none; }
     .gates__receipt em {
-        text-align: right;
+        grid-column: 1 / -1;
+        text-align: left;
         color: var(--bb-green-glow);
         font-size: 0.58rem;
         font-style: normal;
