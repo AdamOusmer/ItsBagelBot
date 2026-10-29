@@ -9,24 +9,41 @@
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: var(--btn-gap, 12px);
+    gap: var(--btn-gap, 8px);
     width: var(--btn-w, auto);
-    justify-content: var(--btn-justify, flex-start);
-    min-height: var(--btn-min-h, auto);
-    padding: var(--btn-pad, 13px 20px 13px 16px);
-    border: 1px solid var(--bb-tan);
+    justify-content: var(--btn-justify, center);
+    min-height: var(--btn-min-h, 40px);
+    padding: var(--btn-pad, 0 16px);
+    border: 1px solid transparent;
     border-radius: var(--btn-radius, var(--bb-radius-sm));
-    background: transparent;
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono);
-    font-size: var(--btn-size, 12.5px);
-    letter-spacing: 0.04em;
+    background: var(--bb-white);
+    color: var(--bb-ink);
+    font-family: var(--bb-font-body);
+    font-size: var(--btn-size, 14px);
+    font-weight: 500;
+    letter-spacing: -0.005em;
     line-height: 1;
     white-space: nowrap;
     text-decoration: none;
     cursor: pointer;
-    --btn-spinner: var(--bb-tan-light);
-    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+    --btn-spinner: var(--bb-ink);
+    transition:
+      background-color var(--bb-dur-fast) ease,
+      border-color var(--bb-dur-fast) ease,
+      color var(--bb-dur-fast) ease,
+      box-shadow var(--bb-dur-fast) ease,
+      transform var(--bb-dur-fast) ease;
+  }
+
+  .bb-btn:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.98);
+  }
+
+  .bb-btn:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--bb-bg-0),
+      0 0 0 4px var(--bb-focus);
   }
 
   .bb-btn--block {
@@ -57,99 +74,87 @@
     min-width: 0;
   }
 
-  .bb-btn__mark,
-  .bb-btn:not([data-mark])::before {
-    content: "";
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 5px;
-    height: 5px;
-    border: 1px solid currentColor;
-    background: transparent;
-    transform: rotate(45deg);
+  .bb-btn__mark {
+    display: none;
   }
 
   .bb-btn--primary {
-    border-color: var(--bb-tan);
-    color: var(--bb-tan-light);
+    background: var(--bb-white);
+    color: var(--bb-ink);
+    --btn-spinner: var(--bb-ink);
   }
 
   .bb-btn:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--primary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   a:hover .bb-btn--static.bb-btn--primary {
-    background: var(--bb-tan);
-    color: var(--bb-black);
+    background: var(--bb-gray-1-dark);
+    color: var(--bb-ink);
   }
 
   .bb-btn--secondary,
   .bb-btn--icon {
-    border-color: var(--bb-border-chip);
-    color: var(--bb-tan-light);
+    border-color: var(--bb-border-strong);
+    background: var(--bb-card-bg);
+    color: var(--bb-white);
+    --btn-spinner: var(--bb-white);
   }
 
   .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   a:hover .bb-btn--static.bb-btn--secondary {
-    background: rgba(var(--bb-tan-rgb), 0.08);
-    border-color: rgba(var(--bb-tan-rgb), 0.5);
-    color: var(--bb-tan-pale);
+    background: var(--bb-elev-2);
+    border-color: var(--bb-muted);
+    color: var(--bb-white);
   }
 
   .bb-btn--ghost {
     border-color: transparent;
-    color: var(--bb-muted);
+    background: transparent;
+    color: var(--bb-muted-light);
     --btn-spinner: var(--bb-muted);
   }
 
-  .bb-btn--ghost .bb-btn__mark,
-  .bb-btn--ghost:not([data-mark])::before {
-    width: 6px;
-    height: 1px;
-    border: 0;
-    background: currentColor;
-    transform: none;
-  }
-
   .bb-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: transparent;
-    border-color: var(--bb-border-chip);
-    color: var(--bb-tan-light);
+    background: var(--bb-elev-1);
+    border-color: transparent;
+    color: var(--bb-white);
   }
 
   .bb-btn--go {
-    border-color: var(--bb-green-light);
+    border-color: rgba(var(--bb-green-glow-rgb), 0.35);
+    background: var(--bb-card-bg);
     color: var(--bb-green-glow);
     --btn-spinner: var(--bb-green-glow);
   }
 
   .bb-btn--go:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: var(--bb-green);
-    color: var(--bb-white);
+    background: var(--bb-elev-2);
+    border-color: var(--bb-green-glow);
+    color: var(--bb-green-glow);
   }
 
   .bb-btn--go-solid {
-    border-color: var(--bb-green-light);
-    background: var(--bb-green);
-    color: var(--bb-white);
+    background: var(--bb-green-glow);
+    color: var(--bb-ink);
+    --btn-spinner: var(--bb-ink);
   }
 
   .bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    border-color: var(--bb-green-glow);
-    background: var(--bb-green-light);
-    color: var(--bb-white);
+    background: color-mix(in srgb, var(--bb-green-glow) 78%, var(--bb-mint));
+    color: var(--bb-ink);
   }
 
   .bb-btn--danger {
-    border-style: dashed;
-    border-color: rgba(var(--bb-status-danger-rgb), 0.4);
-    color: var(--bb-status-danger);
-    --btn-spinner: var(--bb-status-danger);
+    border-color: var(--bb-status-danger-border);
+    background: var(--bb-status-danger-bg);
+    color: var(--bb-status-danger-fg);
+    --btn-spinner: var(--bb-status-danger-fg);
   }
 
   .bb-btn--danger:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(var(--bb-status-danger-rgb), 0.08);
-    border-color: rgba(var(--bb-status-danger-rgb), 0.6);
-    color: var(--bb-status-danger);
+    background: color-mix(in srgb, var(--bb-status-danger-bg) 70%, var(--bb-status-danger));
+    border-color: var(--bb-status-danger-border);
+    color: var(--bb-status-danger-fg);
   }
 
   .bb-btn--brand {
@@ -170,15 +175,13 @@
     --btn-pad: 5px 12px;
     --btn-gap: 8px;
     --btn-size: 12px;
+    --btn-min-h: 0px;
     --btn-radius: var(--bb-radius-pill);
     --btn-spinner: var(--bb-green-glow);
     border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.4);
     background: rgba(var(--bb-green-glow-rgb), 0.06);
     color: var(--bb-green-glow);
-    font-family: var(--bb-font-body);
-    letter-spacing: normal;
     line-height: normal;
-    transition-duration: var(--bb-dur-fast);
   }
 
   .bb-btn--add:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
@@ -187,42 +190,28 @@
   }
 
   .bb-btn--sm {
-    --btn-pad: 7px 12px 7px 10px;
-    --btn-gap: 9px;
-    --btn-size: 11.5px;
-    --btn-min-h: 36px;
-  }
-
-  .bb-btn--sm .bb-btn__mark,
-  .bb-btn--sm:not([data-mark])::before {
-    width: 4px;
-    height: 4px;
-  }
-
-  .bb-btn--sm.bb-btn--ghost .bb-btn__mark,
-  .bb-btn--sm.bb-btn--ghost:not([data-mark])::before {
-    width: 6px;
-    height: 1px;
+    --btn-pad: 0 12px;
+    --btn-size: 13px;
+    --btn-min-h: 32px;
   }
 
   .bb-btn--icon {
     min-width: var(--btn-icon-min-size, 0);
-    min-height: var(--btn-icon-min-size, var(--btn-min-h, auto));
+    min-height: var(--btn-icon-min-size, var(--btn-min-h, 40px));
     width: 40px;
     height: 40px;
     padding: 0;
     justify-content: center;
   }
 
-  .bb-btn--icon:not([data-mark])::before {
-    content: none;
-  }
-
   .bb-btn--icon.bb-btn--sm {
+    --btn-min-h: 28px;
     width: 28px;
     height: 28px;
     border-color: transparent;
-    color: var(--bb-muted);
+    background: transparent;
+    color: var(--bb-muted-light);
+    --btn-spinner: var(--bb-muted);
   }
 
   .bb-btn--icon.bb-btn--sm svg {
@@ -232,20 +221,22 @@
   }
 
   .bb-btn--icon.bb-btn--sm:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: transparent;
-    border-color: var(--bb-border-chip);
-    color: var(--bb-tan-light);
+    background: var(--bb-elev-1);
+    border-color: transparent;
+    color: var(--bb-white);
   }
 
   .bb-btn.bb-btn--danger-hover:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     color: var(--bb-status-danger);
-    border-color: rgba(var(--bb-status-danger-border-rgb), 0.4);
   }
 
   .bb-btn:disabled,
   .bb-btn[aria-disabled="true"] {
-    opacity: 0.4;
+    border-color: var(--bb-border);
+    background: var(--bb-elev-1);
+    color: var(--bb-gray-4-dark);
     cursor: not-allowed;
+    transform: none;
   }
 
   .bb-btn[aria-disabled="true"] {
@@ -255,12 +246,6 @@
   .bb-btn.is-loading {
     color: transparent;
     cursor: progress;
-  }
-
-  .bb-btn.is-loading .bb-btn__mark,
-  .bb-btn.is-loading:not([data-mark])::before {
-    border-color: transparent;
-    background: transparent;
   }
 
   .bb-btn__spinner,
@@ -279,20 +264,87 @@
   }
 
   .bb-btn.is-done {
-    border-style: solid;
-    border-color: rgba(var(--bb-green-glow-rgb), 0.4);
-    background: rgba(var(--bb-green-glow-rgb), 0.07);
+    border-color: rgba(var(--bb-green-glow-rgb), 0.35);
+    background: var(--bb-card-bg);
     color: var(--bb-green-glow);
     --btn-spinner: var(--bb-green-glow);
   }
 
-  .bb-btn.is-done .bb-btn__mark,
-  .bb-btn.is-done:not([data-mark])::before {
-    border: 0;
-    background: currentColor;
+  :where(:root[data-theme='light']) .bb-btn--primary {
+    background: var(--bb-ink);
+    color: var(--bb-paper);
+    --btn-spinner: var(--bb-paper);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--secondary,
+  :where(:root[data-theme='light']) .bb-btn--icon {
+    border-color: var(--bb-gray-5-light);
+    background: var(--bb-paper-card);
+    color: var(--bb-ink);
+    --btn-spinner: var(--bb-ink);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--ghost,
+  :where(:root[data-theme='light']) .bb-btn--icon.bb-btn--sm {
+    border-color: transparent;
+    background: transparent;
+    color: var(--bb-gray-3-light);
+    --btn-spinner: var(--bb-gray-3-light);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  :where(:root[data-theme='light']) .bb-btn--primary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  :where(:root[data-theme='light']) a:hover .bb-btn--static.bb-btn--primary {
+    background: var(--bb-ink-soft);
+    color: var(--bb-paper);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  :where(:root[data-theme='light']) .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  :where(:root[data-theme='light']) a:hover .bb-btn--static.bb-btn--secondary {
+    background: var(--bb-paper-sidebar);
+    border-color: var(--bb-gray-5-light);
+    color: var(--bb-ink);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  :where(:root[data-theme='light']) .bb-btn--icon.bb-btn--sm:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: var(--bb-paper-sidebar);
+    border-color: transparent;
+    color: var(--bb-ink);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: color-mix(in srgb, var(--bb-green-glow) 78%, var(--bb-mint));
+    color: var(--bb-ink);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn:disabled,
+  :where(:root[data-theme='light']) .bb-btn[aria-disabled="true"] {
+    border-color: var(--bb-border);
+    background: var(--bb-paper-sidebar);
+    color: var(--bb-gray-4-light);
+  }
+
+  :where(:root[data-theme='light']) .bb-btn.is-loading {
+    color: transparent;
+  }
+
+  :where(:root[data-theme='light']) .bb-btn.is-done {
+    border-color: rgba(var(--bb-green-glow-rgb), 0.35);
+    background: var(--bb-paper-card);
+    color: var(--bb-green-glow);
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .bb-btn {
+      transition: none;
+    }
+
+    .bb-btn:active:not(:disabled):not([aria-disabled="true"]) {
+      transform: none;
+    }
+
     .bb-btn__spinner,
     .bb-btn.is-loading:not([data-mark])::after {
       animation: none;
