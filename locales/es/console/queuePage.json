@@ -18,6 +18,10 @@
   "moreNote": "Mostrando los primeros {shown} de {total} espectadores",
   "emptyTitle": "Nadie está en la cola",
   "emptyBody": "Cuando los espectadores se unan a la cola, aparecerán aquí.",
+  "searchLabel": "Buscar en la cola",
+  "searchPlaceholder": "Buscar por usuario",
+  "noMatchTitle": "Sin coincidencias en la cola",
+  "noMatchBody": "Nadie en la cola coincide con ese nombre.",
   "degradedTitle": "No se puede cargar la cola",
   "degraded": "La cola no se puede cargar ahora mismo. Esta página sigue intentándolo."
 }

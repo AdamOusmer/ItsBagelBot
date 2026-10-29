@@ -39,4 +39,4 @@
   const classes = $derived(['bb-pager', fixed ? 'bb-pager--fixed' : null, className || null].filter(Boolean).join(' '));
 </script>
 
-<nav class={classes} aria-label={navLabel} {...rest}><ButtonLink variant="ghost" href={prevHref} disabled={!hasPrev}>{#if fixed}<span data-fit="">{prevLabel}</span>{:else}{prevLabel}{/if}</ButtonLink><span class="bb-pager__label" aria-current="page">{#if fit}<span data-fit="">{label}</span>{:else}{label}{/if}</span><ButtonLink variant="ghost" href={nextHref} disabled={!hasNext}>{#if fixed}<span data-fit="">{nextLabel}</span>{:else}{nextLabel}{/if}</ButtonLink></nav>
+<nav class={classes} aria-label={navLabel} {...rest}><ButtonLink variant="secondary" href={prevHref} disabled={!hasPrev}>{#if fixed}<span data-fit="">{prevLabel}</span>{:else}{prevLabel}{/if}</ButtonLink><span class="bb-pager__label" aria-current="page">{#if fit}<span data-fit="">{label}</span>{:else}{label}{/if}</span><ButtonLink variant="secondary" href={nextHref} disabled={!hasNext}>{#if fixed}<span data-fit="">{nextLabel}</span>{:else}{nextLabel}{/if}</ButtonLink></nav>
