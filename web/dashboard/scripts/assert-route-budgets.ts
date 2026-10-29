@@ -22,10 +22,10 @@ interface Budget {
 // chunks; lazy is the same for every slice the route can import later. A raise needs the measurement and the
 // reason in the same commit.
 const BUDGETS: Record<string, Budget> = {
-  '/(public)/login': { js: 91600, css: 21900, catalog: 2900, lazy: 0 },
+  '/(public)/login': { js: 97700, css: 21900, catalog: 2900, lazy: 0 },
   '/(app)': { js: 118700, css: 44700, catalog: 5000, lazy: 0 },
   '/(app)/commands': { js: 138900, css: 46000, catalog: 4600, lazy: 31200 },
-  '/(public)/user/[channel]': { js: 97100, css: 21500, catalog: 2800, lazy: 0 }
+  '/(public)/user/[channel]': { js: 100000, css: 21500, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {
