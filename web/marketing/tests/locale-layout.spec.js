@@ -77,6 +77,7 @@ function fitProblemOf(el, minRatio) {
 function fitProblemsOf(minRatio) {
     const problems = [];
     for (const el of document.querySelectorAll('[data-fit]')) {
+        if (!el.checkVisibility()) continue;
         const problem = fitProblemOf(el, minRatio);
         if (problem) problems.push(`${problem}: ${pathOf(el)} "${(el.textContent ?? '').trim().slice(0, 40)}"`);
     }
@@ -181,4 +182,19 @@ test.describe('locale-stable layout', () => {
             expect(failures, summary(failures)).toEqual([]);
         });
     }
+
+    test('disclosure text is fitted once opened', async ({ browser }) => {
+        const context = await browser.newContext({ viewport: VIEWPORTS[1], reducedMotion: 'reduce', deviceScaleFactor: 1 });
+        const page = await context.newPage();
+        await page.addInitScript({ content: PAGE_HELPERS_SOURCE });
+        await page.goto(localeUrl('ru', '/command-builder'), { waitUntil: 'networkidle' });
+        await page.evaluate(() => document.fonts.ready);
+        const closed = page.locator('details:not([open]) > summary:visible');
+        while (await closed.count()) await closed.first().click();
+        await expect.poll(() => page.evaluate(() => {
+            const inside = Array.from(document.querySelectorAll('details [data-fit]')).filter((el) => el.checkVisibility());
+            return inside.length > 0 && window.__localeLayout.fitProblemsOf(0.6);
+        })).toEqual([]);
+        await context.close();
+    });
 });
