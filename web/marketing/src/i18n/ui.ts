@@ -43,7 +43,7 @@ export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   ...guideLocalizedPaths, '/guides/variables', '/command-builder', '/changelog', '/song-requests',
   '/valorant-stats', '/fortnite-stats', '/hypixel-bedwars-stats', '/mcsr-ranked-stats', '/clash-royale-stats', '/codm-stats',
   '/giveaways', '/loyalty-points', '/death-counter', '/timers', '/viewer-queue', '/discord-bot',
-  '/import', '/govee', ...changelogLocalizedPaths, ...compareLocalizedPaths,
+  '/import', '/govee', '/green-hosting', ...changelogLocalizedPaths, ...compareLocalizedPaths,
 ]);
 
 const PATH_LOCALES: ReadonlyMap<string, readonly Lang[]> = new Map(

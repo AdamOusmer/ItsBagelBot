@@ -7,10 +7,9 @@
   "cmdTitle": "It greets your regulars by name.",
   "songTitle": "Spotify song requests, run by chat.",
   "songNow": "now playing",
-  "songTrack": "late night lo-fi · requested by PrincessBarney",
   "songAck": "queued · #2",
+  "upNext": "up next",
   "queueTitle": "Your chat lines up to play.",
   "winLabel": "winner",
-  "winTitle": "Every entry gets the same odds.",
-  "beatTitle": "It stays in chat when you're offline."
+  "winTitle": "Every entry gets the same odds."
 }

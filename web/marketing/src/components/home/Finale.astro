@@ -7,10 +7,8 @@ import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Divider from '@bagel/ui/astro/Divider.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
-import Icon from '@bagel/ui/astro/Icon.astro';
 import Lead from '@bagel/ui/astro/Lead.astro';
 import Text from '@bagel/ui/astro/Text.astro';
-import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath, dashLoginHref } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -34,16 +32,6 @@ const titleWords = t('finale.title').split(' ');
             <ButtonLink class="finale__cta" variant="secondary" href={localizePath('/pricing', lang)}><span data-fit>{t('finale.seePricing')}</span></ButtonLink>
         </Cluster>
         <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal><span data-fit="block">{t('finale.honesty')}</span></Text>
-        <div class="finale__eco" data-reveal>
-            <span class="finale__eco-row">
-                <Icon name="leaf" size={16} strokeWidth={1.5} class="finale__leaf" />
-                <span class="finale__eco-title"><span data-fit>{t('ecoFriendly.title')}</span></span>
-            </span>
-            <span class="finale__eco-row">
-                <TextLink variant="quiet" class="finale__eco-link" href="https://www.websitecarbon.com/website/itsbagelbot-com/" label="Website Carbon: ItsBagelBot" external />
-                <TextLink variant="quiet" class="finale__eco-link" href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" label="Website Carbon: Dashboard" external />
-            </span>
-        </div>
     </div>
 </section>
 
@@ -151,53 +139,6 @@ const titleWords = t('finale.title').split(' ');
         height: calc(var(--finale-honesty-lines, 1) * 1lh);
         margin-top: 30px;
         opacity: 0.75;
-    }
-
-    .finale__eco {
-        --reveal-i: 11;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        margin-top: 28px;
-    }
-
-    .finale__eco-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-        gap: 8px 16px;
-        width: 100%;
-    }
-
-    .finale__eco :global(.finale__leaf) {
-        flex: none;
-        width: 16px;
-        height: 16px;
-        color: var(--bb-green-glow);
-    }
-
-    .finale__eco-title {
-        display: block;
-        flex: none;
-        width: min(100%, 280px);
-        height: calc(var(--finale-eco-lines, 1) * 1lh);
-        font-size: var(--bb-text-xs);
-        color: var(--bb-white);
-        opacity: 0.75;
-    }
-
-    .finale__eco :global(.finale__eco-link) {
-        font-family: var(--bb-font-mono);
-        font-size: var(--bb-text-xs);
-        color: var(--bb-green-glow);
-        transition: color var(--bb-dur-fast) ease;
-    }
-
-    .finale__eco :global(.finale__eco-link:hover) {
-        color: var(--bb-white);
     }
 
     @media (prefers-reduced-motion: reduce) {

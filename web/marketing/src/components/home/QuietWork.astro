@@ -17,6 +17,8 @@ const t = useTranslations(lang);
 
 const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'danger' } as const;
+// Sixteen raffle entries in an 8x2 grid; the ring lands on the winner's slot.
+const WIN_ENTRIES = Array.from({ length: 16 }, (_, i) => i);
 ---
 
 <Container class="qw-wrap">
@@ -26,17 +28,38 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
     <BentoGrid cols={3}>
         <FeatureCard index={0} span={2} tone="gold" href={localizePath('/song-requests', lang)}>
             <div slot="demo" class="qw__demo qw__demo--song">
-                <span class="qw-song__art">
-                    <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
+                <span class="qw-song__glow bb-layers">
+                    <i class="qw-song__glow-a"></i>
+                    <i class="qw-song__glow-b"></i>
+                </span>
+                <span class="qw-song__disc">
+                    <span class="qw-song__vinyl"><i></i></span>
+                    <span class="qw-song__sheen"></span>
                 </span>
                 <span class="qw-song__meta">
-                    <span class="qw-song__now">{t('quietWork.songNow')}</span>
-                    <span class="qw-song__track">{t('quietWork.songTrack')}</span>
-                    <ProgressBar class="qw-song__scrub" value={0.06} size="sm" tone="success" gradient label={t('quietWork.songNow')} />
+                    <span class="qw-song__now"><span data-fit>{t('quietWork.songNow')}</span></span>
+                    <span class="qw-song__track bb-layers">
+                        <span class="qw-song__title qw-song__title--a">One More Time<small class="qw-song__artist">Daft Punk</small></span>
+                        <span class="qw-song__title qw-song__title--b">Midnight City<small class="qw-song__artist">M83</small></span>
+                    </span>
+                    <ProgressBar class="qw-song__scrub" value={0} size="sm" tone="success" gradient label={t('quietWork.songNow')} />
+                    <span class="qw-song__req">
+                        <span class="qw-song__cmd"><b class="qw__user">PrincessBarney</b>!sr late night lo-fi</span>
+                        <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
+                    </span>
                 </span>
-                <span class="qw-song__req">
-                    <span class="qw-song__cmd">!sr late night lo-fi</span>
-                    <span class="qw-song__ack"><span data-fit>{t('quietWork.songAck')}</span></span>
+                <span class="qw-song__next">
+                    <span class="qw-song__next-label"><span data-fit>{t('quietWork.upNext')}</span></span>
+                    <span class="qw-song__list">
+                        <span class="qw-song__item qw-song__item--a">
+                            <b class="qw-song__pos">#1</b>
+                            <span class="qw-song__item-text">Midnight City<em>Lotti</em></span>
+                        </span>
+                        <span class="qw-song__item qw-song__item--b">
+                            <b class="qw-song__pos bb-layers"><i class="qw-song__pos-was">#2</i><i class="qw-song__pos-now">#1</i></b>
+                            <span class="qw-song__item-text">late night lo-fi<em>PrincessBarney</em></span>
+                        </span>
+                    </span>
                 </span>
             </div>
             {t('quietWork.songTitle')}
@@ -76,32 +99,56 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
 
         <FeatureCard index={3} tone="gold" href={localizePath('/viewer-queue', lang)}>
             <div slot="demo" class="qw__demo qw__demo--queue">
-                <span class="qw-queue__row"><b class="qw-queue__pos">#1</b>Lotti</span>
-                <span class="qw-queue__row"><b class="qw-queue__pos">#2</b>PrincessBarney</span>
+                <span class="qw-queue__chat bb-layers">
+                    <span class="qw-queue__msg qw-queue__msg--join"><b class="qw__user">MikanMeerkat</b>!join</span>
+                    <span class="qw-queue__msg qw-queue__msg--next"><b class="qw__user">Ayshacinder</b>!queue next</span>
+                </span>
+                <span class="qw-queue__list">
+                    <span class="qw-queue__row qw-queue__row--a">
+                        <b class="qw-queue__pos">#1</b>
+                        <span class="qw-queue__name">PrincessBarney</span>
+                        <em class="qw-queue__tag">
+                            <Icon name="gamepad" size={12} strokeWidth={1.8} class="qw-queue__tag-icon" />
+                            <span class="qw-queue__tag-text"><span data-fit>{t('quietWork.upNext')}</span></span>
+                        </em>
+                    </span>
+                    <span class="qw-queue__row qw-queue__row--b">
+                        <b class="qw-queue__pos bb-layers"><i class="qw-queue__pos-was">#2</i><i class="qw-queue__pos-now">#1</i></b>
+                        <span class="qw-queue__name">Lotti</span>
+                    </span>
+                    <span class="qw-queue__row qw-queue__row--c">
+                        <b class="qw-queue__pos bb-layers"><i class="qw-queue__pos-was">#3</i><i class="qw-queue__pos-now">#2</i></b>
+                        <span class="qw-queue__name">MikanMeerkat</span>
+                        <em class="qw-queue__joined">✓</em>
+                    </span>
+                </span>
             </div>
             {t('quietWork.queueTitle')}
         </FeatureCard>
 
         <FeatureCard index={4} tone="gold" href={localizePath('/giveaways', lang)}>
-            <div slot="demo" class="qw__demo qw__demo--win">
-                <span class="qw-win__label"><span data-fit>{t('quietWork.winLabel')}</span></span>
-                <span class="qw-win__name"><span data-fit><span class="fcard-value" data-qw-winner>MikanMeerkat</span></span></span>
-            </div>
-            {t('quietWork.winTitle')}
-        </FeatureCard>
-
-        <FeatureCard index={5} span={3} tone="green" href={localizePath('/timers', lang)} class="qw__beat-card">
-            <div slot="demo" class="qw__demo qw__demo--beat">
-                <span class="qw-beat">
-                    <span class="qw-beat__wipe bb-wipe">
-                        <svg viewBox="0 0 120 32" preserveAspectRatio="none">
-                            <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
-                                  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-                        </svg>
+            <div slot="demo" class="qw__demo qw__demo--win" data-qw-draw>
+                <span class="qw-win__chat bb-layers">
+                    <span class="qw-win__msg qw-win__msg--open"><b class="qw__user">Ayshacinder</b>!raffle 1000 60</span>
+                    <span class="qw-win__msg qw-win__msg--join1"><b class="qw__user">Lotti</b>!join</span>
+                    <span class="qw-win__msg qw-win__msg--join2"><b class="qw__user">PrincessBarney</b>!join</span>
+                    <span class="qw-win__msg qw-win__msg--draw"><b class="qw__user">Ayshacinder</b>!raffle draw</span>
+                    <span class="qw-win__msg qw-win__msg--claim"><b class="qw__user">MikanMeerkat</b>!claim<em>✓</em></span>
+                </span>
+                <span class="qw-win__pool">
+                    <span class="qw-win__dots">
+                        {WIN_ENTRIES.map((i) => <i style={`--i: ${i}`}></i>)}
                     </span>
+                    <i class="qw-win__pulse"></i>
+                    <i class="qw-win__pick"></i>
+                    <i class="qw-win__ring" data-qw-ring></i>
+                </span>
+                <span class="qw-win__result">
+                    <span class="qw-win__label"><span data-fit>{t('quietWork.winLabel')}</span></span>
+                    <span class="qw-win__name"><span data-fit><span class="fcard-value" data-qw-winner>MikanMeerkat</span></span></span>
                 </span>
             </div>
-            {t('quietWork.beatTitle')}
+            {t('quietWork.winTitle')}
         </FeatureCard>
     </BentoGrid>
 </Section>
@@ -115,10 +162,6 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
         z-index: 3;
     }
 
-    .qw :global(.qw__beat-card) {
-        --fcard-demo-h: 72px;
-    }
-
     .qw__demo {
         display: flex;
         flex-direction: column;
@@ -130,61 +173,98 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
         font-size: 0.74rem;
     }
 
+    .qw__user,
+    .qw-song__pos,
+    .qw-queue__pos {
+        font-weight: 500;
+    }
+
+    /* Song requests: a record player on the left, the request landing in the
+       queue on the right, and the queue advancing when the track ends. Ten
+       second loop; the glow, title and scrub all flip at the change. */
+
     .qw__demo--song {
+        position: relative;
         flex-direction: row;
         align-items: center;
         gap: 18px;
         padding: 4px 0;
     }
 
-    .qw-song__art {
+    .qw-song__glow {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 200px;
+        pointer-events: none;
+    }
+
+    .qw-song__glow i {
+        border-radius: 50%;
+        opacity: 0;
+        animation-duration: 10s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+    }
+
+    .qw-song__glow-a {
+        background: radial-gradient(closest-side, rgba(var(--bb-green-glow-rgb), 0.22), transparent);
+        animation-name: qwSongLayerA;
+    }
+
+    .qw-song__glow-b {
+        background: radial-gradient(closest-side, rgba(var(--bb-tan-rgb), 0.24), transparent);
+        animation-name: qwSongLayerB;
+    }
+
+    .qw-song__disc {
+        position: relative;
         flex: none;
-        display: grid;
-        place-items: center;
         width: 56px;
         height: 56px;
-        border-radius: var(--bb-radius-md);
-        background: linear-gradient(145deg, rgba(var(--bb-green-glow-rgb), 0.16), rgba(var(--bb-tan-rgb), 0.1));
-        box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.07);
     }
 
-    .qw-song__eq {
-        display: flex;
-        align-items: flex-end;
-        gap: 3px;
-        height: 22px;
+    .qw-song__vinyl {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        box-shadow:
+            0 0 0 1px rgba(var(--bb-white-rgb), 0.08),
+            0 8px 18px rgba(var(--bb-black-rgb), 0.55);
+        overflow: hidden;
     }
 
-    .qw-song__eq i {
-        width: 3px;
-        height: 100%;
-        border-radius: var(--bb-radius-pill);
-        background: var(--bb-green-glow);
-        transform-origin: bottom;
-        transform: scaleY(0.25);
-        animation: qwSongEq 1.15s ease-in-out infinite alternate;
+    .qw-song__vinyl i {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background:
+            conic-gradient(from 20deg, transparent 0 78%, rgba(var(--bb-white-pure-rgb), 0.06) 78% 100%),
+            radial-gradient(circle, var(--bb-tan-deep) 0 5px, #1b1b1e 5.5px 7px, transparent 7px),
+            repeating-radial-gradient(circle, #2b2b30 0 1.5px, #18181b 1.5px 3.5px);
+        animation: qwSongSpin 3.6s linear infinite;
     }
 
-    .qw-song__eq i:nth-child(2) { animation-delay: 0.16s; }
-    .qw-song__eq i:nth-child(3) { animation-delay: 0.34s; }
-    .qw-song__eq i:nth-child(4) { animation-delay: 0.08s; }
-    .qw-song__eq i:nth-child(5) { animation-delay: 0.26s; }
-
-    @keyframes qwSongEq {
-        from { transform: scaleY(0.2); opacity: 0.55; }
-        to   { transform: scaleY(1);   opacity: 1; }
+    .qw-song__sheen {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(var(--bb-white-pure-rgb), 0.1), transparent 48%);
+        pointer-events: none;
     }
 
     .qw-song__meta {
+        position: relative;
         display: flex;
+        flex: 1 1 0;
         flex-direction: column;
         gap: 5px;
         min-width: 0;
-        flex: 0 1 440px;
-        margin-right: auto;
     }
 
-    .qw-song__now {
+    .qw-song__now,
+    .qw-song__next-label {
+        display: block;
+        height: 1lh;
         font-size: 0.62rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
@@ -192,60 +272,236 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
     }
 
     .qw-song__track {
+        height: 30px;
+    }
+
+    .qw-song__title {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
         color: var(--bb-tan-light);
         white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis;
+        opacity: 0;
+        animation-duration: 10s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
     }
+
+    .qw-song__artist {
+        font-size: 0.62rem;
+        color: var(--bb-muted);
+    }
+
+    .qw-song__title--a { animation-name: qwSongTitleA; }
+    .qw-song__title--b { animation-name: qwSongTitleB; }
 
     .qw-song__scrub > :global(span) {
-        animation: qwSongScrub 9s var(--bb-ease-out-expo) infinite;
-    }
-
-    @keyframes qwSongScrub {
-        0%   { transform: scaleX(0.06); }
-        100% { transform: scaleX(1); }
+        transform-origin: left;
+        animation: qwSongScrub 10s linear infinite;
     }
 
     .qw-song__req {
-        flex: none;
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
-        gap: 6px;
-        text-align: right;
+        gap: 3px;
+        margin-top: 5px;
+        min-width: 0;
+    }
+
+    .qw-song__cmd,
+    .qw-queue__msg,
+    .qw-win__msg {
+        display: block;
+        height: 1lh;
+        white-space: nowrap;
+        overflow: hidden;
+        color: var(--bb-white);
+    }
+
+    .qw__user {
+        margin-right: 0.6em;
+        color: var(--bb-tan);
     }
 
     .qw-song__cmd {
-        color: var(--bb-muted);
         opacity: 0;
-        animation: qwSongReq 9s var(--bb-ease-out-expo) infinite;
+        animation: qwSongCmd 10s ease infinite;
     }
 
     .qw-song__ack {
         display: block;
-        width: 100px;
+        width: 120px;
+        height: 1lh;
         font-size: 0.68rem;
         color: var(--bb-green-glow);
         opacity: 0;
-        animation: qwSongAck 9s var(--bb-ease-out-expo) infinite;
+        animation: qwSongAck 10s ease infinite;
     }
 
-    @keyframes qwSongReq {
-        0%       { opacity: 0; transform: translateX(18px); }
-        12%, 88% { opacity: 1; transform: none; }
-        97%, 100% { opacity: 0; transform: translateX(18px); }
+    .qw-song__next {
+        display: flex;
+        flex: none;
+        flex-direction: column;
+        gap: 5px;
+        width: 190px;
+        align-self: flex-start;
+        padding-top: 4px;
+    }
+
+    .qw-song__list {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        height: 70px;
+        opacity: 0;
+        animation: qwSongList 10s ease infinite;
+    }
+
+    .qw-song__item {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 8px;
+        height: 32px;
+        padding: 0 9px;
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-sm);
+        background: rgba(var(--bb-white-rgb), 0.03);
+        color: var(--bb-tan-light);
+        white-space: nowrap;
+    }
+
+    .qw-song__item--a { animation: qwSongItemA 10s ease infinite; }
+
+    .qw-song__item--b {
+        opacity: 0;
+        animation: qwSongItemB 10s ease infinite;
+    }
+
+    .qw-song__pos,
+    .qw-queue__pos {
+        flex: none;
+        font-size: 0.62rem;
+        color: var(--bb-muted);
+    }
+
+    .qw-song__pos-was,
+    .qw-queue__pos-was,
+    .qw-song__pos-now,
+    .qw-queue__pos-now {
+        font-style: normal;
+        animation-duration: 10s;
+        animation-timing-function: ease;
+        animation-iteration-count: infinite;
+    }
+
+    .qw-song__pos-was { animation-name: qwSongPosWas; }
+    .qw-song__pos-now { opacity: 0; animation-name: qwSongPosNow; }
+
+    .qw-song__item-text {
+        display: flex;
+        flex: 1 1 0;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .qw-song__item-text em {
+        font-size: 0.56rem;
+        font-style: normal;
+        color: var(--bb-muted);
+    }
+
+    @keyframes qwSongSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes qwSongLayerA {
+        0%, 54% { opacity: 1; }
+        59%, 94% { opacity: 0; }
+        99%, 100% { opacity: 1; }
+    }
+
+    @keyframes qwSongLayerB {
+        0%, 54% { opacity: 0; }
+        59%, 94% { opacity: 1; }
+        99%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwSongTitleA {
+        0%, 54% { opacity: 1; transform: none; }
+        58% { opacity: 0; transform: translateY(-5px); }
+        60%, 94% { opacity: 0; transform: translateY(5px); }
+        98%, 100% { opacity: 1; transform: none; }
+    }
+
+    @keyframes qwSongTitleB {
+        0%, 54% { opacity: 0; transform: translateY(5px); }
+        58%, 94% { opacity: 1; transform: none; }
+        98% { opacity: 0; transform: translateY(-5px); }
+        99%, 100% { opacity: 0; transform: translateY(5px); }
+    }
+
+    @keyframes qwSongScrub {
+        0% { transform: scaleX(0); }
+        54%, 56% { transform: scaleX(1); }
+        56.5% { transform: scaleX(0); }
+        95% { transform: scaleX(0.72); }
+        95.5%, 100% { transform: scaleX(0); }
+    }
+
+    @keyframes qwSongCmd {
+        0%, 8% { opacity: 0; transform: translateX(12px); animation-timing-function: var(--bb-ease-out-expo); }
+        12%, 50% { opacity: 1; transform: none; }
+        54%, 100% { opacity: 0; transform: translateX(-6px); }
     }
 
     @keyframes qwSongAck {
-        0%, 20%  { opacity: 0; transform: translateX(12px); }
-        30%, 88% { opacity: 1; transform: none; }
-        97%, 100% { opacity: 0; transform: translateX(12px); }
+        0%, 15% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        19%, 50% { opacity: 1; transform: none; }
+        54%, 100% { opacity: 0; transform: translateX(-6px); }
     }
 
-    @media (max-width: 560px) {
-        .qw-song__req { display: none; }
+    @keyframes qwSongList {
+        0% { opacity: 0; }
+        4%, 93% { opacity: 1; }
+        97%, 100% { opacity: 0; }
     }
+
+    @keyframes qwSongItemA {
+        0%, 54% { opacity: 1; transform: none; }
+        58%, 100% { opacity: 0; transform: translateY(-10px); }
+    }
+
+    @keyframes qwSongItemB {
+        0%, 16% { opacity: 0; transform: translateY(8px) scale(0.96); animation-timing-function: var(--bb-ease-out-back); }
+        21%, 54% { opacity: 1; transform: none; animation-timing-function: var(--bb-ease-out-expo); }
+        58%, 100% { opacity: 1; transform: translateY(-38px); }
+    }
+
+    @keyframes qwSongPosWas {
+        0%, 54% { opacity: 1; }
+        58%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwSongPosNow {
+        0%, 54% { opacity: 0; }
+        58%, 100% { opacity: 1; }
+    }
+
+    /* Below the three-column grid the card is one column wide: the player
+       keeps the request line and the queue column goes. */
+    @media (max-width: 1023px) {
+        .qw-song__next { display: none; }
+        .qw-song__cmd .qw__user { display: none; }
+    }
+
+    /* Govee lights. */
 
     .qw__demo--govee {
         position: relative;
@@ -256,16 +512,15 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
 
     .qw-govee__glow {
         position: absolute;
-        inset: 0;
+        inset: 0 auto 0 0;
+        width: 160px;
         opacity: 0.05;
-        transform-origin: 38px 50%;
         animation: qwGoveeBloom 9s ease-in-out infinite;
         pointer-events: none;
-        mask-image: radial-gradient(160px 50% at 38px 50%, #000 35%, transparent);
     }
 
     .qw-govee__glow i {
-        background: radial-gradient(circle at 38px 50%, currentColor, transparent 72%);
+        background: radial-gradient(closest-side, currentColor, transparent);
     }
 
     .qw-govee__bulb {
@@ -361,6 +616,8 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
         94%, 100% { opacity: 0; }
     }
 
+    /* Custom commands. */
+
     .qw-cmd__in {
         color: var(--bb-tan-light);
         width: 18ch;
@@ -392,25 +649,282 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
         96%, 100% { opacity: 0; }
     }
 
-    .qw-queue__row {
-        display: flex;
+    /* Play queue: a viewer joins at the back, a moderator calls the next
+       player, the front row leaves and the line moves up. Eight second loop.
+       Positions are stacked copies so the renumbering is an opacity swap. */
+
+    .qw__demo--queue {
+        justify-content: center;
         gap: 10px;
-        align-items: baseline;
+    }
+
+    .qw-queue__msg {
+        opacity: 0;
+        animation-duration: 8s;
+        animation-timing-function: ease;
+        animation-iteration-count: infinite;
+    }
+
+    .qw-queue__msg--join { animation-name: qwQueueJoinMsg; }
+    .qw-queue__msg--next { animation-name: qwQueueNextMsg; }
+
+    .qw-queue__list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        opacity: 0;
+        animation: qwQueueList 8s ease infinite;
+    }
+
+    .qw-queue__row {
+        position: relative;
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 10px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-sm);
+        background: rgba(var(--bb-white-rgb), 0.03);
         color: var(--bb-tan-light);
     }
 
-    .qw-queue__pos {
-        font-weight: 500;
-        font-size: 0.68rem;
-        color: var(--bb-muted);
+    .qw-queue__row--a::after {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.55);
+        border-radius: inherit;
+        background: rgba(var(--bb-green-glow-rgb), 0.1);
+        box-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.18);
+        opacity: 0;
+        animation: qwQueueCalled 8s ease infinite;
     }
 
-    .qw-queue__row:nth-child(2) { color: var(--bb-green-glow); }
+    .qw-queue__row--a { animation: qwQueueRowA 8s ease infinite; }
+    .qw-queue__row--b { animation: qwQueueRowB 8s ease infinite; }
 
-    .qw__demo--win { align-items: stretch; gap: 8px; }
+    .qw-queue__row--c {
+        opacity: 0;
+        animation: qwQueueRowC 8s ease infinite;
+    }
+
+    .qw-queue__pos-was { animation-name: qwQueuePosWas; animation-duration: 8s; }
+    .qw-queue__pos-now { opacity: 0; animation-name: qwQueuePosNow; animation-duration: 8s; }
+
+    .qw-queue__name {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .qw-queue__tag {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 5px;
+        width: 92px;
+        height: 18px;
+        padding: 0 7px;
+        border-radius: var(--bb-radius-pill);
+        background: rgba(var(--bb-green-glow-rgb), 0.16);
+        color: var(--bb-green-glow);
+        font-size: 0.56rem;
+        font-style: normal;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0;
+        animation: qwQueueTag 8s ease infinite;
+    }
+
+    .qw-queue__tag-icon { flex: none; }
+
+    .qw-queue__tag-text {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 1lh;
+    }
+
+    .qw-queue__joined {
+        flex: none;
+        color: var(--bb-green-glow);
+        font-style: normal;
+        opacity: 0;
+        animation: qwQueueJoined 8s ease infinite;
+    }
+
+    @keyframes qwQueueList {
+        0% { opacity: 0; }
+        3%, 94% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    @keyframes qwQueueJoinMsg {
+        0%, 5% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        9%, 36% { opacity: 1; transform: none; }
+        40%, 100% { opacity: 0; transform: translateX(-6px); }
+    }
+
+    @keyframes qwQueueNextMsg {
+        0%, 40% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        44%, 90% { opacity: 1; transform: none; }
+        94%, 100% { opacity: 0; transform: translateX(-6px); }
+    }
+
+    @keyframes qwQueueRowC {
+        0%, 12% { opacity: 0; transform: translateY(8px) scale(0.96); animation-timing-function: var(--bb-ease-out-back); }
+        17%, 58% { opacity: 1; transform: none; animation-timing-function: var(--bb-ease-out-expo); }
+        64%, 100% { opacity: 1; transform: translateY(-34px); }
+    }
+
+    @keyframes qwQueueJoined {
+        0%, 15% { opacity: 0; transform: scale(0.6); animation-timing-function: var(--bb-ease-out-back); }
+        19%, 38% { opacity: 1; transform: none; }
+        42%, 100% { opacity: 0; transform: none; }
+    }
+
+    @keyframes qwQueueCalled {
+        0%, 46% { opacity: 0; }
+        49%, 57% { opacity: 1; }
+        62%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwQueueTag {
+        0%, 46% { opacity: 0; transform: translateX(6px) scale(0.9); animation-timing-function: var(--bb-ease-out-back); }
+        50%, 57% { opacity: 1; transform: none; }
+        62%, 100% { opacity: 0; transform: none; }
+    }
+
+    @keyframes qwQueueRowA {
+        0%, 57% { opacity: 1; transform: none; animation-timing-function: var(--bb-ease-out-expo); }
+        63%, 100% { opacity: 0; transform: translateX(24px); }
+    }
+
+    @keyframes qwQueueRowB {
+        0%, 58% { transform: none; animation-timing-function: var(--bb-ease-out-expo); }
+        64%, 100% { transform: translateY(-34px); }
+    }
+
+    @keyframes qwQueuePosWas {
+        0%, 58% { opacity: 1; }
+        63%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwQueuePosNow {
+        0%, 58% { opacity: 0; }
+        63%, 100% { opacity: 1; }
+    }
+
+    /* Giveaway: entries fill an 8x2 pool, a ring hops between them, slows and
+       settles on one, which lights up while the name decodes in below. 8.4s
+       loop; the script in this file schedules the decode off the ring's
+       animation events so both stay in step. The pool entries carry a
+       staggered delay, so they also leave one by one after the draw. */
+
+    .qw__demo--win {
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .qw-win__msg {
+        opacity: 0;
+        animation-duration: 8.4s;
+        animation-timing-function: ease;
+        animation-iteration-count: infinite;
+    }
+
+    .qw-win__msg em {
+        margin-left: 0.6em;
+        font-style: normal;
+        color: var(--bb-green-glow);
+    }
+
+    .qw-win__msg--open { animation-name: qwWinMsgOpen; }
+    .qw-win__msg--join1 { animation-name: qwWinMsgJoin1; }
+    .qw-win__msg--join2 { animation-name: qwWinMsgJoin2; }
+    .qw-win__msg--draw { animation-name: qwWinMsgDraw; }
+    .qw-win__msg--claim { animation-name: qwWinMsgClaim; }
+
+    .qw-win__pool {
+        position: relative;
+        flex: none;
+        width: 180px;
+        height: 36px;
+        margin-left: 1px;
+    }
+
+    .qw-win__dots {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: repeat(8, 12px);
+        gap: 12px;
+        animation: qwWinDots 8.4s ease infinite;
+    }
+
+    .qw-win__dots i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(var(--bb-tan-rgb), 0.3);
+        box-shadow: inset 0 0 0 1px rgba(var(--bb-tan-rgb), 0.55);
+        opacity: 0;
+        animation: qwWinDot 8.4s ease infinite;
+        animation-delay: calc(var(--i) * 90ms);
+    }
+
+    .qw-win__pick,
+    .qw-win__pulse {
+        position: absolute;
+        top: 24px;
+        left: 72px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        opacity: 0;
+    }
+
+    .qw-win__pick {
+        background: var(--bb-tan-light);
+        box-shadow: 0 0 10px rgba(var(--bb-tan-rgb), 0.9), 0 0 24px rgba(var(--bb-tan-rgb), 0.45);
+        animation: qwWinPick 8.4s ease infinite;
+    }
+
+    .qw-win__pulse {
+        border: 1px solid rgba(var(--bb-tan-light-rgb), 0.8);
+        animation: qwWinPulse 8.4s ease-out infinite;
+    }
+
+    .qw-win__ring {
+        position: absolute;
+        top: -4px;
+        left: -4px;
+        width: 20px;
+        height: 20px;
+        border: 1.5px solid var(--bb-tan-light);
+        border-radius: 50%;
+        box-shadow: 0 0 8px rgba(var(--bb-tan-rgb), 0.6);
+        opacity: 0;
+        animation: qwWinRing 8.4s infinite;
+    }
+
+    .qw-win__result {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        opacity: 0;
+        animation: qwWinResult 8.4s ease infinite;
+    }
 
     .qw-win__label {
         align-self: stretch;
+        height: 1lh;
         font-size: 0.62rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
@@ -420,52 +934,105 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
     .qw-win__name {
         display: block;
         height: 1lh;
-        font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+        font-size: clamp(1.5rem, 2.2vw, 1.9rem);
         line-height: 1;
         white-space: nowrap;
     }
 
-    .qw__demo--beat { color: var(--bb-green-glow); padding: 18px 12px; }
-
-    .qw-beat {
-        display: block;
-        width: 100%;
-        height: 100%;
-        animation: qwBeat 3.2s linear infinite;
+    @keyframes qwWinMsgOpen {
+        0%, 2% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        5%, 12% { opacity: 1; transform: none; }
+        15%, 100% { opacity: 0; transform: translateX(-6px); }
     }
 
-    .qw-beat__wipe {
-        display: block;
-        height: calc(100% + 24px);
-        margin-block: -12px;
-        padding-block: 12px;
-        animation-duration: 3.2s;
-        animation-timing-function: linear(0, 1 62%, 1);
-        animation-iteration-count: infinite;
+    @keyframes qwWinMsgJoin1 {
+        0%, 14% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        17%, 20% { opacity: 1; transform: none; }
+        23%, 100% { opacity: 0; transform: translateX(-6px); }
     }
 
-    .qw-beat__wipe svg { display: block; width: 100%; height: 100%; overflow: visible; }
-
-    .qw-beat__path {
-        filter: drop-shadow(0 0 6px rgba(var(--bb-green-glow-rgb), 0.55));
+    @keyframes qwWinMsgJoin2 {
+        0%, 20% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        23%, 26% { opacity: 1; transform: none; }
+        29%, 100% { opacity: 0; transform: translateX(-6px); }
     }
 
-    @keyframes qwBeat {
-        0%, 62% { opacity: 1; }
-        78% { opacity: 0.25; }
-        100% { opacity: 0; }
+    @keyframes qwWinMsgDraw {
+        0%, 27% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        30%, 60% { opacity: 1; transform: none; }
+        64%, 100% { opacity: 0; transform: translateX(-6px); }
+    }
+
+    @keyframes qwWinMsgClaim {
+        0%, 68% { opacity: 0; transform: translateX(10px); animation-timing-function: var(--bb-ease-out-expo); }
+        71%, 92% { opacity: 1; transform: none; }
+        95%, 100% { opacity: 0; transform: translateX(-6px); }
+    }
+
+    @keyframes qwWinDot {
+        0% { opacity: 0; transform: scale(0.3); animation-timing-function: var(--bb-ease-out-back); }
+        3.5%, 73% { opacity: 1; transform: none; }
+        77%, 100% { opacity: 0; transform: scale(0.6); }
+    }
+
+    @keyframes qwWinDots {
+        0%, 60% { opacity: 1; }
+        63%, 100% { opacity: 0.35; }
+    }
+
+    /* Hops hold with steps(), the last leg glides in, then the ring sits on the winner. */
+    @keyframes qwWinRing {
+        0%, 24% { opacity: 0; transform: translate(0, 0) scale(0.6); animation-timing-function: var(--bb-ease-out-back); }
+        26% { opacity: 1; transform: translate(0, 0); animation-timing-function: steps(1, end); }
+        27.6% { transform: translate(120px, 0); animation-timing-function: steps(1, end); }
+        29.2% { transform: translate(48px, 24px); animation-timing-function: steps(1, end); }
+        31% { transform: translate(48px, 0); animation-timing-function: steps(1, end); }
+        32.9% { transform: translate(144px, 24px); animation-timing-function: steps(1, end); }
+        34.9% { transform: translate(168px, 0); animation-timing-function: steps(1, end); }
+        37.1% { transform: translate(24px, 24px); animation-timing-function: steps(1, end); }
+        39.6% { transform: translate(168px, 24px); animation-timing-function: steps(1, end); }
+        42.4% { transform: translate(72px, 0); animation-timing-function: steps(1, end); }
+        45.7% { transform: translate(96px, 24px); animation-timing-function: steps(1, end); }
+        49.6% { transform: translate(144px, 0); animation-timing-function: steps(1, end); }
+        54.3% { transform: translate(24px, 0); animation-timing-function: var(--bb-ease-out-expo); }
+        60%, 92% { opacity: 1; transform: translate(72px, 24px); }
+        96%, 100% { opacity: 0; transform: translate(72px, 24px) scale(0.8); }
+    }
+
+    @keyframes qwWinPick {
+        0%, 60% { opacity: 0; transform: scale(0.5); animation-timing-function: var(--bb-ease-out-back); }
+        63% { opacity: 1; transform: scale(1.3); }
+        67%, 92% { opacity: 1; transform: none; }
+        96%, 100% { opacity: 0; transform: scale(0.8); }
+    }
+
+    @keyframes qwWinPulse {
+        0%, 60% { opacity: 0; transform: scale(0.6); }
+        61% { opacity: 0.9; }
+        74%, 100% { opacity: 0; transform: scale(3.4); }
+    }
+
+    @keyframes qwWinResult {
+        0%, 60% { opacity: 0; transform: translateY(8px); animation-timing-function: var(--bb-ease-out-expo); }
+        65%, 92% { opacity: 1; transform: none; }
+        96%, 100% { opacity: 0; transform: translateY(-4px); }
     }
 
     @media (prefers-reduced-motion: reduce) {
         .qw-govee__glow, .qw-govee__bulb, .qw-govee__tone, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
-        .qw-song__eq i, .qw-song__scrub > :global(span), .qw-song__cmd, .qw-song__ack,
-        .qw-beat {
+        .qw-song__glow i, .qw-song__vinyl i, .qw-song__title,
+        .qw-song__scrub > :global(span), .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item,
+        .qw-song__pos-was, .qw-song__pos-now,
+        .qw-queue__msg, .qw-queue__list, .qw-queue__row, .qw-queue__row--a::after, .qw-queue__tag,
+        .qw-queue__joined, .qw-queue__pos-was, .qw-queue__pos-now,
+        .qw-win__msg, .qw-win__dots, .qw-win__dots i, .qw-win__pick, .qw-win__pulse, .qw-win__ring,
+        .qw-win__result {
             animation: none;
         }
-        .qw-song__eq i { transform: scaleY(0.7); }
+        .qw-song__glow-a, .qw-song__title--a { opacity: 1; }
         .qw-song__scrub > :global(span) { transform: scaleX(0.46); }
-        .qw-song__cmd, .qw-song__ack { opacity: 1; transform: none; }
+        .qw-song__cmd, .qw-song__ack, .qw-song__list, .qw-song__item--b { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
         .qw-govee__bulb { opacity: 1; }
         .qw-govee__tone { opacity: 0; }
@@ -473,6 +1040,10 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
         .qw-govee__redeem { opacity: 1; }
         .qw-cmd__in { width: 18ch; border-right: none; }
         .qw-cmd__out { opacity: 1; }
+        .qw-queue__msg--next, .qw-queue__list, .qw-queue__row--c, .qw-queue__row--a::after, .qw-queue__tag { opacity: 1; transform: none; }
+        .qw-win__msg--claim, .qw-win__dots i, .qw-win__pick, .qw-win__result { opacity: 1; transform: none; }
+        .qw-win__dots { opacity: 0.35; }
+        .qw-win__ring { opacity: 1; transform: translate(72px, 24px); }
     }
 
     @media (max-width: 640px) {
@@ -485,32 +1056,44 @@ const GOVEE_DOT = { off: 'neutral', green: 'success', tan: 'warning', red: 'dang
     import { decode } from '@bagel/ui/lib/decode';
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    const NAMES = ['MikanMeerkat', 'SnackPackPanda', 'PrincessBarney', 'Ayshacinder', 'Lotti'];
-    const SCRAMBLE = { charset: 'abcdefghijklmnopqrstuvwxyz_0123456789', durationMs: 900 };
+    const WINNER = 'MikanMeerkat';
+    const SCRAMBLE = { charset: 'abcdefghijklmnopqrstuvwxyz_0123456789', durationMs: 720 };
+    // The ring's loop in the stylesheet above: it settles on the winner at 60% of 8.4s.
+    const RING_ANIMATION = 'qwWinRing';
+    const LAND_MS = 5040;
 
-    function setupWinner(el: HTMLElement) {
-        if (reduceMotion.matches) return;
+    // The CSS loop owns the clock. The ring's animation events mark each
+    // cycle (and every restart after the motion gate), so the decode is
+    // armed from them instead of a free-running timer that would drift.
+    function setupDraw(root: HTMLElement) {
+        const ring = root.querySelector<HTMLElement>('[data-qw-ring]');
+        const name = root.querySelector<HTMLElement>('[data-qw-winner]');
+        if (!ring || !name || reduceMotion.matches) return;
 
-        let visible = false;
-        let i = 0;
         let timer = 0;
         let stopDecode = () => {};
 
-        function loop() {
+        function settle() {
             window.clearTimeout(timer);
-            if (!visible || document.hidden) return;
             stopDecode();
-            stopDecode = decode(el, NAMES[i++ % NAMES.length], SCRAMBLE);
-            timer = window.setTimeout(loop, 4200);
+            stopDecode = () => {};
+            if (name!.textContent !== WINNER) name!.textContent = WINNER;
         }
 
-        const io = new IntersectionObserver(([entry]) => {
-            visible = entry.isIntersecting;
-            if (visible) loop();
-            else window.clearTimeout(timer);
-        }, { rootMargin: '40px' });
-        io.observe(el);
+        function arm(event: AnimationEvent) {
+            if (event.animationName !== RING_ANIMATION) return;
+            settle();
+            timer = window.setTimeout(() => {
+                stopDecode = decode(name!, WINNER, SCRAMBLE);
+            }, LAND_MS);
+        }
+
+        ring.addEventListener('animationstart', arm);
+        ring.addEventListener('animationiteration', arm);
+        ring.addEventListener('animationcancel', (event) => {
+            if (event.animationName === RING_ANIMATION) settle();
+        });
     }
 
-    bindOnce('[data-qw-winner]', setupWinner);
+    bindOnce('[data-qw-draw]', setupDraw);
 </script>

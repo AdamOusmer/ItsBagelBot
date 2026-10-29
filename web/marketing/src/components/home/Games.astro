@@ -4,6 +4,7 @@
 
 import { SITE } from '@bagel/kit/site-links';
 
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Container from '@bagel/ui/astro/Container.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
@@ -97,14 +98,19 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </FeatureCard>
     </BentoGrid>
 
-    <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block"><TextLink
-        variant="inline"
-        external
-        href={`${SITE.github}/issues/new`}
-    >{t('games.reqTitle')}</TextLink> {legalShortBefore}<TextLink
-        variant="inline"
-        href={localizePath('/terms', lang)}
-    >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</span></Text>
+    <div class="games__foot">
+        <ButtonLink
+            class="games__req"
+            variant="secondary"
+            href={`${SITE.github}/issues/new`}
+            target="_blank"
+            rel="noopener noreferrer"
+        ><span data-fit>{t('games.reqTitle')}</span></ButtonLink>
+        <Text size="xs" mono tone="muted" class="games__legal"><span data-fit="block">{legalShortBefore}<TextLink
+            variant="inline"
+            href={localizePath('/terms', lang)}
+        >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</span></Text>
+    </div>
 </Section>
 </Container>
 
@@ -310,9 +316,21 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         92%, 100% { opacity: 0; transform: translateY(4px); }
     }
 
+    .games__foot {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        margin-top: 32px;
+    }
+
+    .games__req {
+        --btn-w: 216px;
+        --btn-justify: center;
+    }
+
     .games__legal {
         height: calc(var(--games-legal-lines, 3) * 1lh);
-        margin: 28px auto 0;
         max-width: 720px;
         text-align: center;
         opacity: 0.75;

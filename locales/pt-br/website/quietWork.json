@@ -7,10 +7,9 @@
   "cmdTitle": "Ele cumprimenta seus frequentadores pelo nome.",
   "songTitle": "Pedidos de música no Spotify, controlados pelo chat.",
   "songNow": "tocando agora",
-  "songTrack": "late night lo-fi · pedido de PrincessBarney",
   "songAck": "na fila · #2",
+  "upNext": "a seguir",
   "queueTitle": "Seu chat entra na fila para jogar.",
   "winLabel": "quem ganhou",
-  "winTitle": "Cada inscrição tem a mesma chance.",
-  "beatTitle": "Ele fica no chat quando você está offline."
+  "winTitle": "Cada inscrição tem a mesma chance."
 }

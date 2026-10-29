@@ -57,7 +57,7 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('main .bb-light-field[data-field]')).toHaveCount(1);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
-        await expect(page.locator('.seam')).toHaveCount(7);
+        await expect(page.locator('.seam')).toHaveCount(8);
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-name', 'seam-draw');
         await expect(page.locator('.seam__line').first()).toHaveCSS('animation-timeline', 'view()');
         await expect(page.locator('#playground > *').nth(1)).toHaveCSS('animation-name', 'section-handoff');
@@ -74,7 +74,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(play.locator('.pmsg--bot').last()).toContainText('fresh from the oven', { timeout: 5000 });
 
         const quiet = page.locator('#quiet-work');
-        await expect(quiet.locator('[data-card]')).toHaveCount(6);
+        await expect(quiet.locator('[data-card]')).toHaveCount(5);
         await expect(quiet).toContainText('The things it handles while you stream.');
         await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
 

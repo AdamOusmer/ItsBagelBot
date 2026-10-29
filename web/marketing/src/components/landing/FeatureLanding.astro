@@ -93,7 +93,7 @@ interface Props {
     demo?: DemoSpec;
     prereq?: PrereqSpec;
     convert?: ConvertSpec;
-    related?: { title: string; links: { href: string; label: string }[] };
+    related?: { title: string; links: { href: string; label: string; external?: boolean }[] };
 }
 
 const {
