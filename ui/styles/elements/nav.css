@@ -138,6 +138,17 @@
     width: max-content;
   }
 
+  .bb-nav--brand-lg {
+    --nav-max: 1100px;
+    --nav-brand-w: 196px;
+  }
+
+  .bb-nav--brand-lg .bb-nav__brand {
+    --brand-mark: 32px;
+    --brand-name-size: 17px;
+    --brand-gap: 10px;
+  }
+
   .bb-nav[data-variant="bar"] {
     position: static;
     width: 100%;
