@@ -914,6 +914,22 @@ test('ErrorScene: carries no copy of its own', async () => {
   expect(html).not.toContain('Bagel');
 });
 
+test('ErrorScene: the mascot perches on the middle digit of any status', async () => {
+  const SvelteErrorScene = (await import('../svelte/ErrorScene.svelte')).default;
+  const { body } = render(SvelteErrorScene, {
+    props: {
+      status: 429,
+      eyebrow: 'E',
+      title: 'T',
+      description: 'D',
+      mascot: createRawSnippet(() => ({ render: () => '<i>M</i>' })),
+    },
+  });
+  expect(normalise(body)).toContain(
+    '<p class="bb-error-scene__code" aria-hidden="true">4<span class="bb-error-scene__perch">2<span class="bb-error-scene__mascot"><i>M</i></span></span>9</p>',
+  );
+});
+
 import SvelteHeading from '../svelte/Heading.svelte';
 import AstroHeading from '../astro/Heading.astro';
 import SvelteText from '../svelte/Text.svelte';
@@ -1385,7 +1401,7 @@ const PRIMITIVES: {
     svelte: SvelteErrorScene,
     astro: AstroErrorScene,
     props: {"status":404,"eyebrow":"Not found","title":"T","description":"D","aside":"A"},
-    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__glow\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbits\" aria-hidden=\"true\"><span class=\"bb-error-scene__orbit\"></span><span class=\"bb-error-scene__orbit bb-error-scene__orbit--two\"></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">404</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
+    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field bb-light-field--bleed\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbs\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--halo bb-orb--green bb-error-scene__orb\"></span><span class=\"bb-orb bb-orb--halo bb-orb--tan bb-error-scene__orb bb-error-scene__orb--two\"></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">4<span class=\"bb-error-scene__perch\">0</span>4</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
   },
 ];
 

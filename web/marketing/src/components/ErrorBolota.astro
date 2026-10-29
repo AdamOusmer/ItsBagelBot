@@ -1,0 +1,79 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import brandTokens from '@bagel/ui/styles/brand.css?raw';
+import { parts } from '@luzir/bolota';
+
+const NAME = 'oven_fresh';
+const SIZE = 240;
+
+function token(name: string): string {
+    const value = brandTokens.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})\\s*;`))?.[1];
+    if (!value) throw new Error(`@bagel/ui brand.css has no color token --${name}`);
+    return value;
+}
+
+const palette = { head: token('bb-green-glow'), eye: token('bb-black') };
+const { inner } = parts(NAME, { size: SIZE, palette, background: false });
+---
+
+<svg
+    viewBox="0 0 100 100"
+    aria-hidden="true"
+    data-error-bolota={NAME}
+    data-size={SIZE}
+    data-head={palette.head}
+    data-eye={palette.eye}
+>
+    <g data-pose set:html={inner} />
+</svg>
+
+<script>
+    import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+    import type { EngineHandle } from '@luzir/bolota/engine';
+
+    const EXPRESSIONS = ['curious', 'surprised', 'shy', 'attentive'];
+    const EXPRESSION_MS = 3400;
+
+    let handle: EngineHandle | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let mounting = false;
+
+    async function mount(): Promise<void> {
+        const svg = document.querySelector<SVGSVGElement>('[data-error-bolota]');
+        if (!svg || handle || mounting || prefersReducedMotion()) return;
+        mounting = true;
+        const { mountEngine } = await import('@luzir/bolota/engine');
+        if (!mounting) return;
+
+        handle = mountEngine(svg, svg.dataset.errorBolota ?? 'oven_fresh', {
+            size: Number(svg.dataset.size) || 240,
+            palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
+            background: false,
+        });
+        svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
+        handle.loop('idle');
+        handle.follow('window');
+
+        let step = 0;
+        const next = () => handle?.setExpression(EXPRESSIONS[step++ % EXPRESSIONS.length]);
+        next();
+        timer = setInterval(next, EXPRESSION_MS);
+        mounting = false;
+    }
+
+    function teardown(): void {
+        mounting = false;
+        if (timer) clearInterval(timer);
+        timer = null;
+        handle?.destroy();
+        handle = null;
+        document.querySelector('[data-error-bolota] [data-pose]')?.removeAttribute('display');
+    }
+
+    mount();
+    document.addEventListener('astro:page-load', mount);
+    document.addEventListener('astro:before-swap', teardown);
+    window.addEventListener('pagehide', teardown);
+</script>

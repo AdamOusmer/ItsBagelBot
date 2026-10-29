@@ -4,6 +4,7 @@
 
 import Layout from '../../layouts/Layout.astro';
 import ErrorScene from '@bagel/ui/astro/ErrorScene.astro';
+import ErrorBolota from '../../components/ErrorBolota.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths, localizePath } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
@@ -22,7 +23,9 @@ const home = localizePath('/', lang);
         aside={t('error.aside')}
         primary={{ label: t('error.500.action'), href: home }}
         secondary={{ label: t('error.back'), 'data-error-back': home }}
-    />
+    >
+        <ErrorBolota slot="mascot" />
+    </ErrorScene>
 </Layout>
 
 <script>
