@@ -616,7 +616,7 @@ const guide: GuideContent = {
           html: `
             <p>
                 A few more answer without appearing anywhere: <code>!ping</code> proves the bot is
-                awake, <code>!itsbagelbot</code> and <code>!source</code> say what it is,
+                awake, <code>!itsbagelbot</code> and <code>!itsbagelbot source</code> say what it is,
                 <code>!bagels</code> counts how many bagels chat has fed it, and
                 <code>!bagelboard</code> ranks the feeders. Mods get <code>!cmd</code> (also
                 <code>!commands</code>) for the command list, and <code>!nuke</code> when a raid

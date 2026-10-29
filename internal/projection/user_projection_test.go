@@ -27,6 +27,7 @@ var fullUser = UserProjection{
 	CommandsPageHidden: true,
 
 	LeaderboardPageHidden: true,
+	CreatorCode:           "BAGEL10",
 }
 
 func TestFullUserSetsEveryField(t *testing.T) {
@@ -36,39 +37,57 @@ func TestFullUserSetsEveryField(t *testing.T) {
 	}
 }
 
-func TestUserFromReplyCopiesEveryField(t *testing.T) {
-	got := UserFromReply(contract.UserReply{
-		Lifecycle:          fullUser.Lifecycle,
-		StateRevision:      7,
-		AccountCreatedAt:   101,
-		UserID:             "42",
-		Status:             "paid",
-		IsActive:           true,
-		Banned:             true,
-		Locale:             "fr",
-		CommandsPageHidden: true,
+func TestUserMappersCopyEveryField(t *testing.T) {
+	mapped := map[string]UserProjection{
+		"reply": UserFromReply(contract.UserReply{
+			Lifecycle:          fullUser.Lifecycle,
+			StateRevision:      7,
+			AccountCreatedAt:   101,
+			UserID:             "42",
+			Status:             "paid",
+			IsActive:           true,
+			Banned:             true,
+			Locale:             "fr",
+			CommandsPageHidden: true,
 
-		LeaderboardPageHidden: true,
-	})
-	require.Equal(t, fullUser, got)
+			LeaderboardPageHidden: true,
+			CreatorCode:           "BAGEL10",
+		}),
+		"changed": UserFromChanged(data.UserChangedDTO{
+			Lifecycle:          fullUser.Lifecycle,
+			StateRevision:      7,
+			UserID:             42,
+			AccountCreatedAt:   101,
+			Username:           "bagel",
+			IsActive:           true,
+			Status:             "paid",
+			Banned:             true,
+			Locale:             "fr",
+			CommandsPageHidden: true,
+
+			LeaderboardPageHidden: true,
+			CreatorCode:           "BAGEL10",
+		}),
+	}
+	for name, got := range mapped {
+		require.Equal(t, fullUser, got, name)
+	}
 }
 
-func TestUserFromChangedCopiesEveryField(t *testing.T) {
-	got := UserFromChanged(data.UserChangedDTO{
-		Lifecycle:          fullUser.Lifecycle,
-		StateRevision:      7,
-		UserID:             42,
-		AccountCreatedAt:   101,
-		Username:           "bagel",
-		IsActive:           true,
-		Status:             "paid",
-		Banned:             true,
-		Locale:             "fr",
-		CommandsPageHidden: true,
+func TestSetUserRoundTripsCreatorCode(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
 
-		LeaderboardPageHidden: true,
-	})
-	require.Equal(t, fullUser, got)
+	require.NoError(t, store.SetUser(ctx, 74, UserProjection{Status: "vip", IsActive: true, CreatorCode: "BAGEL10"}))
+	user, found, err := store.GetUserRuntime(ctx, 74)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "BAGEL10", user.CreatorCode)
+
+	require.NoError(t, store.SetUser(ctx, 74, UserProjection{Status: "vip", IsActive: true}))
+	user, _, err = store.GetUserRuntime(ctx, 74)
+	require.NoError(t, err)
+	assert.Empty(t, user.CreatorCode, "a cleared code must overwrite the projected one")
 }
 
 func TestSetUserRoundTripsLeaderboardPageHidden(t *testing.T) {

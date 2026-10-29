@@ -20,6 +20,7 @@ func UserFromReply(r contract.UserReply) UserProjection {
 		CommandsPageHidden: r.CommandsPageHidden,
 
 		LeaderboardPageHidden: r.LeaderboardPageHidden,
+		CreatorCode:           r.CreatorCode,
 	}
 }
 
@@ -35,5 +36,6 @@ func UserFromChanged(dto data.UserChangedDTO) UserProjection {
 		CommandsPageHidden: dto.CommandsPageHidden,
 
 		LeaderboardPageHidden: dto.LeaderboardPageHidden,
+		CreatorCode:           dto.CreatorCode,
 	}
 }

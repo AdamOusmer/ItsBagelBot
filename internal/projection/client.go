@@ -37,7 +37,8 @@ type User struct {
 	Locale             string           `json:"locale,omitempty"`
 	CommandsPageHidden bool             `json:"commands_page_hidden,omitempty"`
 
-	LeaderboardPageHidden bool `json:"leaderboard_page_hidden,omitempty"`
+	LeaderboardPageHidden bool   `json:"leaderboard_page_hidden,omitempty"`
+	CreatorCode           string `json:"creator_code,omitempty"`
 }
 
 func (u User) Premium() bool {
