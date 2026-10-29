@@ -67,6 +67,7 @@ export { default as NavGroup } from './NavGroup.astro';
 export { default as NavLink } from './NavLink.astro';
 export { default as PageHead } from './PageHead.astro';
 export { default as PageToolbar } from './PageToolbar.astro';
+export { default as Glide } from './Glide.astro';
 export { default as Rail } from './Rail.astro';
 export { default as RailItem } from './RailItem.astro';
 export { default as SectionNav } from './SectionNav.astro';

@@ -101,7 +101,7 @@
       const next = d.commands?.find((c) => c.name === d.name);
       if (next) {
         const without = items.filter((c) => c.name !== d.name && c.name !== d.original);
-        items = [...without, next];
+        items = [...without, d.action === 'updated' ? keepStats(next, d) : next];
       }
     }
     if (!d.silent) {
@@ -113,6 +113,14 @@
             : 'commands.toastUpdated';
       toast('success', t(key, { name: d.name ?? '' }));
     }
+  }
+
+  // An edit never changes a command's uses or creation time, so a reply row
+  // missing them must not reset them: the list sorts on both, and a zeroed
+  // row would drop to the bottom after every save.
+  function keepStats(next: CommandView, d: ActionResult): CommandView {
+    const prev = items.find((c) => c.name === d.name) ?? items.find((c) => c.name === d.original);
+    return { ...next, uses: next.uses ?? prev?.uses, created_at: next.created_at ?? prev?.created_at };
   }
 
   let rowStatus = $state<Record<string, SaveState>>({});
