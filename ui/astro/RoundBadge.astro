@@ -1,0 +1,28 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import type { HTMLAttributes } from 'astro/types';
+import '../styles/elements/round-badge.css';
+
+interface Props extends Omit<HTMLAttributes<'span'>, 'size' | 'solid' | 'muted' | 'as' | 'class'> {
+    size?: 'xs' | 'sm' | 'md' | 'lg';
+    solid?: boolean;
+    muted?: boolean;
+    as?: 'span' | 'i' | 'b';
+    class?: string;
+}
+
+const { size = 'sm', solid = false, muted = false, as: Tag = 'span', class: className = '', ...rest } = Astro.props;
+const classes = [
+    'bb-round-badge',
+    size === 'sm' ? null : `bb-round-badge--${size}`,
+    solid ? 'bb-round-badge--solid' : null,
+    muted ? 'bb-round-badge--muted' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

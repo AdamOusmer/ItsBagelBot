@@ -36,6 +36,7 @@ const FAMILY = {
   ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
+  RoundBadge: 'Feedback', Timeline: 'Data', TimelineItem: 'Data',
   SetupStage: 'Layout', SetupStep: 'Layout', SetupNote: 'Feedback',
 };
 

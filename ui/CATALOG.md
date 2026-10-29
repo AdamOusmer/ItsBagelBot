@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **112** blocks;
-**101** ship both adapters.
+Every block the library ships, by family. **115** blocks;
+**104** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 112 times
+omitted: nearly every block takes both, and listing them 115 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -36,7 +36,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | --- | --- | --- | --- | --- |
 | **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`dockQuick`: number<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFooter`: Snippet | svelte + astro | stable | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
-| **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
+| **Container** | `width`: 'default' \| 'hero' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | stable | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | stable | `styles/elements/deck-layout.css` |
 | **Disclosure** | `summary*`: string<br>`open`: boolean<br>`onOpenChange`: (open: boolean) => void<br>`index`: string<br>`size`: 'md' \| 'sm' | svelte + astro | stable | `styles/elements/disclosure.css` |
 | **Divider** | `vertical`: boolean<br>`flush`: boolean<br>`fade`: boolean | svelte + astro | stable | `styles/elements/layout.css` |
@@ -88,6 +88,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Modal** | `open`: boolean<br>`title`: string<br>`label`: string<br>`toolbarLabel`: string<br>`toolbar`: Snippet<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void<br>`busy`: boolean<br>`closeLabel`: string<br>`variant`: 'dialog' \| 'viewer'<br>`role`: 'dialog' \| 'alertdialog'<br>`describedBy`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`hint`: Snippet | svelte + astro | stable | `styles/elements/modal.css` |
 | **Popover** | `open`: boolean<br>`label*`: string<br>`title*`: string<br>`closeLabel`: string<br>`expands`: boolean<br>`placement`: 'top' \| 'bottom'<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`onActivate`: () => void<br>`dismissLabel`: string<br>`onDismiss`: () => void<br>`pill*`: Snippet | svelte<br>*Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.* | svelte-only | `styles/elements/popover.css` |
 | **ProgressBar** | `value*`: number \| null<br>`tone`: ProgressTone<br>`label*`: string<br>`size`: 'sm' \| 'md'<br>`gradient`: boolean<br>`ramp`: 1 \| 2 \| 3<br>`target`: number<br>`segments`: readonly (ProgressTone \| null)[]<br>`current`: number | svelte + astro | stable | `styles/elements/progress-bar.css` |
+| **RoundBadge** | `size`: 'xs' \| 'sm' \| 'md' \| 'lg'<br>`solid`: boolean<br>`muted`: boolean<br>`as`: 'span' \| 'i' \| 'b' | svelte + astro | stable | `styles/elements/round-badge.css` |
 | **SaveStatus** | `state`: SaveState<br>`compact`: boolean<br>`savingLabel`: string<br>`savedLabel`: string<br>`liveLabel`: string<br>`errorLabel`: string | svelte + astro | stable | `styles/elements/mark.css, styles/elements/tag.css` |
 | **SetupNote** | `title*`: string<br>`body`: string<br>`icon`: Snippet | svelte | svelte-only | `styles/elements/setup-step.css` |
 | **Skeleton** | `variant`: 'text' \| 'pill' \| 'block'<br>`width`: string<br>`height`: string<br>`lines`: number | svelte + astro | stable | `styles/elements/skeleton.css` |
@@ -146,6 +147,8 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **RankingCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`footer`: Snippet<br>`empty`: Snippet<br>`scale`: number<br>`emptyLabel`: string<br>`board`: boolean | svelte + astro | stable | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | stable | `styles/elements/stat-tile.css` |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean<br>`roomy`: boolean<br>`minWidth`: string | svelte + astro | stable | `styles/elements/table.css` |
+| **Timeline** | `rail`: 'fade' \| 'bridge'<br>`draw`: boolean<br>`as`: 'ol' \| 'ul' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
+| **TimelineItem** | `dot`: boolean<br>`as`: 'li' \| 'div' | svelte + astro | stable | `styles/elements/timeline.css` |
 
 ## Motion
 
