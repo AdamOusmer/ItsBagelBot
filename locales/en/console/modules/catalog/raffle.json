@@ -62,6 +62,8 @@
     }
   },
   "commands": {
+    "join": "Enter the raffle while one is running (also !raffle join).",
+    "claim": "Confirm a custom prize after winning a draw.",
     "winner": "Recall the last draw's winners and how many confirmed.",
     "raffle_status": "Show whether a raffle is running, entries and time left (a viewer typing !raffle gets the same).",
     "raffle_amount_seconds": "Start a single-winner raffle: one winner takes the whole amount (also !sraffle, !singleraffle). Amounts take k and m; defaults 1000 points, 60 seconds.",

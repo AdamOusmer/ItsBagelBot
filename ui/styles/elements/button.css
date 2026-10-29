@@ -405,7 +405,15 @@
     box-shadow: var(--bb-depth-2);
   }
 
-  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon):focus-visible {
+  :where([data-surface='tonal']) :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid) {
+    box-shadow: var(--bb-depth-1);
+  }
+
+  :where([data-surface='tonal']) :is(.bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    box-shadow: var(--bb-depth-2);
+  }
+
+  :where([data-surface='tonal']) :is(.bb-btn--secondary, .bb-btn--icon, .bb-btn--primary, .bb-btn--twitch, .bb-btn--go-solid):focus-visible {
     border-color: transparent;
     box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
   }

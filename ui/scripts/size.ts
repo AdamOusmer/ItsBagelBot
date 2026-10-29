@@ -122,10 +122,10 @@ const ENTRIES: {
              globalThis.x = [tween, bezier];`,
   },
   {
-    name: "rail-glide",
+    name: "glide",
     budget: 560,
     external: [],
-    source: `import { mountGlide } from "../../lib/rail-glide";
+    source: `import { mountGlide } from "../../lib/glide";
              globalThis.x = mountGlide;`,
   },
   {
@@ -255,7 +255,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "orbs", budget: 1000 },
   { name: "a11y", budget: 560 },
   { name: "elements/nav-link", budget: 1350 },
-  { name: "elements/button", budget: 1870 }, // 1547 B: brand variant, static span, icon danger (2026-09-29)
+  { name: "elements/button", budget: 2000 }, // 1919 B: tonal depth on primary, twitch and go-solid (2026-10-29)
   { name: "elements/card", budget: 1760 }, // 1470 B: halo surface and light-theme shadow in the base card (2026-10-28)
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },

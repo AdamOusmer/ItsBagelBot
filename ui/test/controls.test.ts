@@ -265,7 +265,7 @@ describe('RadioGroup', () => {
         options: [{ value: 'a', label: 'A', description: 'x' }, { value: 'b', label: 'B', disabled: true }],
       },
       html:
-        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Options">' +
+        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Options"><span class="bb-glide" aria-hidden="true"></span>' +
         '<label class="bb-tab is-active"><input class="bb-tab__input" type="radio" name="t" value="a" checked> A</label>' +
         '<label class="bb-tab "><input class="bb-tab__input" type="radio" name="t" value="b" disabled> B</label></div>',
     },
@@ -310,7 +310,7 @@ describe('SegmentedControl', () => {
         options: [{ value: 'all', label: 'All', count: 12 }, { value: 'mod', label: 'Modules', count: 0 }, 'Plain'],
       },
       html:
-        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source">' +
+        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source"><span class="bb-glide" aria-hidden="true"></span>' +
         '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all"><span data-fit>All</span><span class="bb-tab__count">12</span></button>' +
         '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod"><span data-fit>Modules</span><span class="bb-tab__count">0</span></button>' +
         '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain"><span data-fit>Plain</span></button></div>',
@@ -319,7 +319,7 @@ describe('SegmentedControl', () => {
       name: 'segment buttons carry their value',
       props: { value: 'custom', label: 'Mode', options: [{ value: 'custom', label: 'Custom' }, 'plain'] },
       html:
-        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
+        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode"><span class="bb-glide" aria-hidden="true"></span>' +
         '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom"><span data-fit>Custom</span></button>' +
         '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain"><span data-fit>plain</span></button></div>',
     },
@@ -331,7 +331,7 @@ describe('SegmentedControl', () => {
         options: [{ value: 'custom', label: 'Custom', attrs: { 'data-mode': 'custom' } }, 'plain'],
       },
       html:
-        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
+        '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode"><span class="bb-glide" aria-hidden="true"></span>' +
         '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom" data-mode="custom"><span data-fit>Custom</span></button>' +
         '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain"><span data-fit>plain</span></button></div>',
     },

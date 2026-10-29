@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **125** blocks;
-**108** ship both adapters.
+Every block the library ships, by family. **126** blocks;
+**109** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 125 times
+omitted: nearly every block takes both, and listing them 126 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -111,6 +111,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Dock** | `items`: UiNavLink[]<br>`groups`: UiNavGroup[]<br>`label`: string<br>`homeHref`: string<br>`fallbackIcon`: IconName<br>`quick`: number | svelte + astro | stable | `styles/elements/shell.css` |
 | **EditorFooter** | `status`: 'idle' \| 'saving' \| 'saved' \| 'error' \| 'conflict'<br>`dirty`: boolean<br>`canSave`: boolean<br>`saveLabel`: string<br>`cancelLabel`: string<br>`savingLabel`: string<br>`savedLabel`: string<br>`errorLabel`: string<br>`dirtyLabel`: string<br>`onCancel*`: () => void | svelte + astro | stable | `styles/elements/editor-footer.css` |
 | **Footer** | `brand*`: UiBrand<br>`signoff`: { line: string; sub?: string }<br>`columns`: UiFooterColumn[]<br>`legal`: UiNavLink[]<br>`copyright*`: string<br>`note`: string<br>`studio`: string<br>`colophon`: Snippet | svelte + astro | stable | `styles/elements/footer.css` |
+| **Glide** | `shown`: boolean | svelte + astro | stable | `styles/elements/glide.css` |
 | **Hamburger** | `label`: string<br>`closeLabel`: string<br>`controls`: string | svelte + astro | stable | `styles/elements/nav.css` |
 | **LanguageSwitcher** | `options*`: { code: string; label: string; href?: string; current?: boolean; title?: string; flag?: string }[]<br>`label`: string<br>`action`: string<br>`name`: string<br>`fields`: Record<string, string><br>`onSelect`: (code: string) => void<br>`variant`: 'compact' \| 'field'<br>`menuId`: string | svelte + astro | stable | `styles/elements/nav.css` |
 | **LinkRow** | `title`: string<br>`links*`: { href: string; label: string; external?: boolean }[] | svelte + astro | stable | `styles/elements/link-row.css` |
