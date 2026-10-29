@@ -18,7 +18,10 @@
     --bb-elev-1: var(--bb-rim), 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45), 0 6px 16px rgba(var(--bb-shadow-rgb), 0.3);
     --bb-elev-2: var(--bb-rim), 0 2px 4px rgba(var(--bb-shadow-rgb), 0.5), 0 14px 32px rgba(var(--bb-shadow-rgb), 0.42);
     --bb-elev-3: var(--bb-rim), 0 4px 8px rgba(var(--bb-shadow-rgb), 0.5), 0 24px 56px rgba(var(--bb-shadow-rgb), 0.55);
-    --bb-sunken: inset 0 1px 3px rgba(var(--bb-shadow-rgb), 0.55), inset 0 0 0 1px rgba(var(--bb-shadow-rgb), 0.2);
+    --bb-sunken: inset 0 2px 5px rgba(var(--bb-shadow-rgb), 0.5);
+    --bb-focus-glow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
+    --bb-control-fill: rgba(var(--bb-white-pure-rgb), 0.055);
+    --bb-control-fill-hover: rgba(var(--bb-tan-rgb), 0.12);
   }
 
   .bb-card,
@@ -35,6 +38,11 @@
   .bb-notifications__icon-btn,
   .bb-btn--icon:not(.bb-btn--sm) {
     box-shadow: var(--bb-elev-2);
+  }
+
+  .bb-alert:not(.bb-alert--callout) {
+    border-color: transparent;
+    box-shadow: var(--bb-elev-1);
   }
 
   .bb-card--danger,
@@ -56,13 +64,36 @@
 
   .bb-input,
   .bb-search,
-  .bb-select__trigger,
   .bb-check__box {
     box-shadow: var(--bb-sunken);
   }
 
-  .bb-chip {
+  .bb-input:focus-within:not(:where([data-invalid])) {
+    border-color: transparent;
+    box-shadow: var(--bb-sunken), var(--bb-focus-glow);
+  }
+
+  .bb-select__trigger,
+  .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted), .is-done, [data-pressed])),
+  .bb-btn--secondary,
+  .bb-btn--icon:not(.bb-btn--sm) {
+    background: var(--bb-control-fill);
     box-shadow: var(--bb-elev-1);
+  }
+
+  .bb-select__trigger:hover,
+  .bb-select__trigger[aria-expanded='true'],
+  .bb-chip:not(:is([class*='bb-chip--']:not(.bb-chip--muted), .is-done, [data-pressed])):hover,
+  .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--icon:not(.bb-btn--sm):hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    border-color: transparent;
+    background: var(--bb-control-fill-hover);
+    box-shadow: var(--bb-elev-2);
+  }
+
+  .bb-select__trigger:focus-visible {
+    border-color: transparent;
+    box-shadow: var(--bb-elev-1), var(--bb-focus-glow);
   }
 
   .bb-kbd {

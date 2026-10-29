@@ -66,7 +66,7 @@
           <AlertBanner tone="warning" flush role="note" stack>
             {issue.text}
             {#snippet actions()}
-              <ButtonLink href={issue.href} variant="ghost" data-sveltekit-reload={issue.reload ? '' : undefined}>{issue.cta}</ButtonLink>
+              <ButtonLink href={issue.href} variant="secondary" data-sveltekit-reload={issue.reload ? '' : undefined}>{issue.cta}</ButtonLink>
             {/snippet}
           </AlertBanner>
         </li>
