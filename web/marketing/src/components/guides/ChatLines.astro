@@ -1,0 +1,33 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+export interface ChatLine {
+    who: 'viewer' | 'mod' | 'bot' | 'system';
+    name?: string;
+    text?: string;
+    html?: string;
+    time?: string;
+    hook?: string;
+}
+
+interface Props {
+    lines: ChatLine[];
+}
+
+const { lines } = Astro.props;
+const nameOf = (line: ChatLine) => (line.who === 'bot' ? (line.name ?? 'ItsBagelBot') : (line.name ?? 'viewer'));
+---
+
+{lines.map((line) => {
+    const msgClass = line.who === 'viewer' ? 'bb-chat__msg bb-chat__msg--cmd' : 'bb-chat__msg';
+    return (
+        <p class:list={['bb-chat__line', line.who === 'system' && 'bb-chat__line--sys']}>
+            {line.time && <time>{line.time}</time>}
+            {line.who !== 'system' && <b class={`bb-chat__name bb-chat__name--${line.who}`}>{nameOf(line)}</b>}
+            {line.html
+                ? <span class={msgClass} data-chat-hook={line.hook} set:html={line.html} />
+                : <span class={msgClass} data-chat-hook={line.hook}>{line.text}</span>}
+        </p>
+    );
+})}

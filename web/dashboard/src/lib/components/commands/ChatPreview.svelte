@@ -14,7 +14,7 @@
     type RehearsedLine,
     type Seg
   } from '@bagel/kit';
-  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import ChatPreview from '@bagel/ui/svelte/ChatPreview.svelte';
 
   const i18n = getI18n();
 
@@ -50,14 +50,6 @@
   const botSeed = $derived(broadcasterName ?? (page.data.displayName as string | undefined) ?? 'ItsBagelBot');
 
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
-
-  const ACCENT: Record<string, string> = {
-    primary: 'var(--bb-tan-light)',
-    blue: '#4a9eff',
-    green: '#62a593',
-    orange: '#ff9f45',
-    purple: '#c77dff'
-  };
 
   const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
 
@@ -95,8 +87,8 @@
 </script>
 
 {#snippet botName()}
-  <span class="who bot-name">
-    <span class="avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
+  <span class="bb-chat__name bb-chat__name--bot">
+    <span class="bb-chat__avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
     ItsBagelBot
   </span>
 {/snippet}
@@ -104,253 +96,93 @@
 {#snippet segs(list: Seg[])}
   {#each list as seg, i (i)}
     {#if seg.kind === 'sample'}<mark>{seg.text}</mark>
-    {:else if seg.kind === 'unknown'}<mark class="unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
+    {:else if seg.kind === 'unknown'}<mark class="bb-chat__unknown" title={t('chatPreview.unknownVar')}>{seg.text}</mark>
     {:else}{seg.text}{/if}
   {/each}
 {/snippet}
 
-<div
-  class="chat"
-  role="group"
-  aria-label={t('chatPreview.ariaPreview')}
+<ChatPreview
+  title={tag ?? t('chatPreview.rehearsal')}
+  label={t('chatPreview.ariaPreview')}
+  class="chat-preview"
   onpointerenter={() => (hovered = true)}
   onpointerleave={() => (hovered = false)}
 >
-  <span class="chat-tag"><Tag tone="live" bare>{tag ?? t('chatPreview.rehearsal')}</Tag></span>
   {#if effectiveShowViewer}
-    <div class="line viewer">
-      <span class="who viewer-name">{viewerName}</span>
-      <span class="msg" class:plain={viewerText !== undefined}>{viewerText ?? trigger}</span>
+    <div class="bb-chat__line">
+      <span class="bb-chat__name bb-chat__name--viewer">{viewerName}</span>
+      <span class="bb-chat__msg" class:bb-chat__msg--cmd={viewerText === undefined}>{viewerText ?? trigger}</span>
     </div>
   {/if}
   {#if typing}
-    <div class="line bot">
+    <div class="bb-chat__line">
       {@render botName()}
-      <span class="msg typing" aria-label={t('chatPreview.ariaTyping')}>
+      <span class="bb-chat__msg bb-chat__msg--typing" aria-label={t('chatPreview.ariaTyping')}>
         <span class="bb-drawline" aria-hidden="true"></span>
       </span>
     </div>
   {:else if views.length === 0}
-    <div class="line bot">
+    <div class="bb-chat__line">
       {@render botName()}
-      <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
+      <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.nothingToSay')}</span>
     </div>
   {:else}
     {#each views as v, li (li)}
       <div
-        class="line bot"
-        class:special={v.mode !== 'chat'}
-        class:me={v.mode === 'me'}
+        class="bb-chat__line"
+        class:bb-chat__line--stack={v.mode !== 'chat' && v.mode !== 'me'}
+        class:bb-chat__line--bare={v.mode === 'me'}
         style:--reply-delay="{li * 140}ms"
       >
         {@render botName()}
         {#if v.mode === 'announce'}
-          <div class="announce" style:--acc={ACCENT[v.color ?? 'primary']}>
-            <span class="announce-head">
-              <span class="via" title={t('chatPreview.runsVerb', { verb: v.verb ?? '' })}>Twitch {verbLabelOf(v)}</span>
+          <div class="bb-chat__announce bb-chat__acc--{v.color ?? 'primary'}">
+            <span class="bb-chat__head">
+              <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: v.verb ?? '' })}>Twitch {verbLabelOf(v)}</span>
               {t('chatPreview.announcement')}
             </span>
             {#if v.segments.length}
-              <span class="msg reply">{@render segs(v.segments)}</span>
+              <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
             {:else}
-              <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: v.verb ?? '' })}</span>
+              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addMessageAfter', { verb: v.verb ?? '' })}</span>
             {/if}
           </div>
         {:else if v.mode === 'shoutout'}
-          <div class="shoutout">
-            <span class="via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
+          <div class="bb-chat__shoutout">
+            <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
             {#if v.target}
-              <span class="msg reply">{t('chatPreview.shoutsOut')} <strong class="target">@{v.target}</strong></span>
+              <span class="bb-chat__msg bb-chat__reply">{t('chatPreview.shoutsOut')} <strong>@{v.target}</strong></span>
             {:else}
-              <span class="msg empty">{t('chatPreview.nameChannel')}</span>
+              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.nameChannel')}</span>
             {/if}
           </div>
         {:else if v.mode === 'me'}
-          <span class="via inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
+          <span class="bb-chat__via bb-chat__via--inline" title={t('chatPreview.runsVerb', { verb: '/me' })}>Twitch /me</span>
           {#if v.segments.length}
-            <span class="msg reply action">{@render segs(v.segments)}</span>
+            <span class="bb-chat__msg bb-chat__reply bb-chat__msg--action">{@render segs(v.segments)}</span>
           {:else}
-            <span class="msg empty">{t('chatPreview.addActionAfterMe')}</span>
+            <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addActionAfterMe')}</span>
           {/if}
         {:else if v.mode === 'pin'}
-          <div class="pin">
-            <span class="pin-head">
-              <span class="via" title={t('chatPreview.runsVerb', { verb: '/pin' })}>Twitch /pin</span>
+          <div class="bb-chat__pin">
+            <span class="bb-chat__head">
+              <span class="bb-chat__via" title={t('chatPreview.runsVerb', { verb: '/pin' })}>Twitch /pin</span>
               {t('chatPreview.pinnedForStream')}
             </span>
             {#if v.segments.length}
-              <span class="msg reply">{@render segs(v.segments)}</span>
+              <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
             {:else}
-              <span class="msg empty">{t('chatPreview.addMessageAfter', { verb: '/pin' })}</span>
+              <span class="bb-chat__msg bb-chat__msg--empty">{t('chatPreview.addMessageAfter', { verb: '/pin' })}</span>
             {/if}
           </div>
         {:else}
-          <span class="msg reply">{@render segs(v.segments)}</span>
+          <span class="bb-chat__msg bb-chat__reply">{@render segs(v.segments)}</span>
         {/if}
       </div>
     {/each}
   {/if}
-</div>
+</ChatPreview>
 
 <style>
-  .chat {
-    position: relative;
-    margin-top: 10px;
-    padding: 14px 14px 12px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    background: rgba(var(--bb-shadow-rgb), 0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .chat-tag {
-    position: absolute;
-    top: -8px;
-    left: 10px;
-    display: flex;
-    padding: 0 4px;
-    background: var(--bb-bg-0);
-  }
-
-  .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-  .line.bot.special { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .who {
-    font-family: var(--bb-font-body);
-    font-weight: 700;
-    font-size: 12.5px;
-    flex: none;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
-  }
-  .viewer-name { color: var(--bb-tan-light); }
-  .avatar {
-    align-self: center;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    overflow: hidden;
-  }
-  .viewer-name::after, .bot-name::after { content: ':'; color: var(--bb-muted); font-weight: 400; }
-  .line.bot.me .bot-name::after { content: none; }
-  .line.bot.special .bot-name::after { content: none; }
-  .bot-name { color: var(--bb-green-glow); }
-
-  .msg {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-white);
-    overflow-wrap: anywhere;
-    min-width: 0;
-  }
-  .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
-  .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: 13px; }
-
-  .reply { animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both; animation-delay: var(--reply-delay); }
-  @keyframes reply-in {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: none; }
-  }
-
-  .msg mark {
-    background: rgba(var(--bb-green-glow-rgb), 0.14);
-    color: var(--bb-green-glow);
-    border-radius: var(--bb-radius-xs);
-    padding: 0 3px;
-  }
-  .msg mark.unknown {
-    background: rgba(var(--bb-status-danger-border-rgb), 0.16);
-    color: var(--bb-status-danger);
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-  }
-  .msg.empty { color: var(--bb-muted); font-style: italic; }
-
-  .via {
-    font-family: var(--bb-font-mono);
-    font-weight: 600;
-    font-size: 10px;
-    letter-spacing: 0.02em;
-    color: var(--acc, var(--bb-green-glow));
-    background: color-mix(in srgb, var(--acc, var(--bb-green-glow)) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--acc, var(--bb-green-glow)) 40%, transparent);
-    border-radius: var(--bb-radius-pill);
-    padding: 1px 7px;
-    white-space: nowrap;
-  }
-  .via.inline { margin-right: 2px; }
-
-  .announce {
-    width: 100%;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding: 9px 11px;
-    border-radius: var(--bb-radius-md);
-    background: color-mix(in srgb, var(--acc) 10%, rgba(var(--bb-shadow-rgb), 0.25));
-    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
-    animation-delay: var(--reply-delay);
-  }
-  .announce-head {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 10.5px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--acc);
-  }
-
-  .shoutout {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 7px 11px;
-    border-radius: var(--bb-radius-md);
-    border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.4);
-    background: rgba(var(--bb-green-glow-rgb), 0.06);
-    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
-    animation-delay: var(--reply-delay);
-  }
-  .target { color: var(--bb-green-glow); }
-
-  .pin {
-    width: 100%;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px 10px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid rgba(199, 125, 255, 0.35);
-    background: rgba(199, 125, 255, 0.07);
-    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
-    animation-delay: var(--reply-delay);
-  }
-  .pin-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-display);
-    font-size: 10.5px;
-  }
-
-  .msg.action { font-style: italic; color: var(--bb-green-glow); }
-
-  .typing { display: inline-flex; align-items: center; padding: 4px 0; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .reply, .announce, .shoutout, .pin { animation: none; }
-  }
+  :global(.chat-preview) { margin-top: 10px; }
 </style>

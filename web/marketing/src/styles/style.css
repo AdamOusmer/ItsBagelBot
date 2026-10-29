@@ -17,6 +17,7 @@
 @import '@bagel/ui/styles/elements/well.css';
 @import '@bagel/ui/styles/elements/window.css';
 @import '@bagel/ui/styles/elements/json-tree.css';
+@import '@bagel/ui/styles/elements/chat-preview.css';
 @import '@bagel/ui/styles/motion.css';
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';

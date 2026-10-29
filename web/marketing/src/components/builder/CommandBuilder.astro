@@ -3,6 +3,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Tag from '@bagel/ui/astro/Tag.astro';
+import StatusDot from '@bagel/ui/astro/StatusDot.astro';
+import Divider from '@bagel/ui/astro/Divider.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
@@ -91,6 +93,7 @@ for (const surface of builderData(defaultLang).surfaces) {
                 <div class="recipes" data-recipes><Label mono as="span" class="recipes__label"><span data-fit>{ui.recipesLabel}</span></Label></div>
 
                 <section class="palette">
+                    <Divider />
                     <div class="palette__head">
                         <Heading level={5} as="h3" class="palette__title"><span data-fit>{ui.step3Title}</span></Heading>
                         <Tag tone="live" bare class="palette__scope"><span data-fit data-scope></span></Tag>
@@ -103,6 +106,7 @@ for (const surface of builderData(defaultLang).surfaces) {
                 </section>
 
                 <div class="more" data-more>
+                    <Divider />
                     <Disclosure size="sm" summary={ui.moreOptions}>
                         <div class="more-grid">
                             <div class="span2">
@@ -133,8 +137,12 @@ for (const surface of builderData(defaultLang).surfaces) {
                     <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><span data-fit>{ui.previewTitle}</span></Label>
                     <Label mono as="span" class="card-head__end"><span data-fit data-context></span></Label>
                 </div>
-                <div class="chat" data-chat data-avatar={avatarImage.src}>
-                    <Tag tone="live" bare class="chat-tag" data-chat-tag><span data-fit data-chat-tag-text>{ui.rehearsal}</span></Tag>
+                <div class="bb-chat bb-chat--fixed" data-chat data-avatar={avatarImage.src}>
+                    <div class="bb-chat__bar">
+                        <StatusDot tone="success" />
+                        <span class="bb-chat__title"><span data-fit data-chat-tag-text>{ui.rehearsal}</span></span>
+                    </div>
+                    <div class="bb-chat__feed" data-chat-feed></div>
                 </div>
                 <Text as="small" size="xs" tone="muted-light" class="preview__note"><span data-fit="block" data-preview-note></span></Text>
             </Card>
@@ -151,6 +159,7 @@ for (const surface of builderData(defaultLang).surfaces) {
                     <Text size="xs" tone="muted" class="send__help"><span data-fit="block">{ui.sendHelp}</span></Text>
                 </div>
                 <div class="copyw" data-copy-wrap>
+                    <Divider />
                     <Label mono as="span" class="copyw__label"><span data-fit="block" data-copy-title>{ui.copyTitleCustom}</span></Label>
                     <Code block wrap maxHeight="150px" data-output />
                     <Chip class="copyw__btn" data-copy-cta><span data-fit data-copy-label>{ui.copyCta}</span></Chip>
@@ -226,14 +235,6 @@ for (const surface of builderData(defaultLang).surfaces) {
         return tokens.length === 1 && tokens[0].kind === 'var' ? tokens[0] : null;
     }
 
-    const ACCENT: Record<string, string> = {
-        primary: 'var(--bb-tan-light)',
-        blue: '#4a9eff',
-        green: 'var(--bb-green-glow)',
-        orange: '#ff9f45',
-        purple: '#c77dff',
-    };
-
     const MODES = ['custom', 'module'] as const;
     const COPY_FLASH_MS = 1800;
     const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -287,9 +288,8 @@ for (const surface of builderData(defaultLang).surfaces) {
         const copyWrap = $<HTMLElement>('[data-copy-wrap]');
         const output = $<HTMLElement>('[data-output] code');
         const copyBtn = $<HTMLButtonElement>('[data-copy-cta]');
-        const chat = $<HTMLElement>('[data-chat]');
-        const chatTag = $<HTMLElement>('[data-chat-tag]');
-        const avatarSrc = chat.dataset.avatar ?? '';
+        const avatarSrc = $<HTMLElement>('[data-chat]').dataset.avatar ?? '';
+        const chat = $<HTMLElement>('[data-chat-feed]');
 
         const fitted = new Map<Element, () => void>();
         const fitWithin = (box: Element) => {
@@ -387,13 +387,14 @@ for (const surface of builderData(defaultLang).surfaces) {
         };
 
         function botName(): HTMLElement {
-            const who = el('span', 'who bot-name');
+            const who = el('span', 'bb-chat__name bb-chat__name--bot');
             if (avatarSrc) {
                 const img = document.createElement('img');
-                img.className = 'bot-avatar';
                 img.src = avatarSrc;
                 img.alt = '';
-                who.append(img);
+                const avatar = el('span', 'bb-chat__avatar');
+                avatar.append(img);
+                who.append(avatar);
             }
             who.append('ItsBagelBot');
             return who;
@@ -405,7 +406,7 @@ for (const surface of builderData(defaultLang).surfaces) {
                 if (seg.kind === 'plain') {
                     msg.append(seg.text);
                 } else {
-                    const mark = el('mark', seg.kind === 'unknown' ? 'unknown' : '', seg.text);
+                    const mark = el('mark', seg.kind === 'unknown' ? 'bb-chat__unknown' : '', seg.text);
                     if (seg.kind === 'unknown') mark.title = ui.unknownVar;
                     msg.append(mark);
                 }
@@ -414,57 +415,54 @@ for (const surface of builderData(defaultLang).surfaces) {
         }
 
         function viaBadge(label: string, inline = false): HTMLElement {
-            return el('span', `via bb-tag bb-tag--quiet bb-tag--bare${inline ? ' inline' : ''}`, `Twitch ${label}`);
+            return el('span', `bb-chat__via${inline ? ' bb-chat__via--inline' : ''}`, `Twitch ${label}`);
         }
 
+        const REPLY = 'bb-chat__msg bb-chat__reply';
+        const EMPTY = 'bb-chat__msg bb-chat__msg--empty';
+
         function botLine(view: RehearsedLine, index: number): HTMLElement {
-            const line = el('div', 'line bot');
+            const stacked = view.mode !== 'chat' && view.mode !== 'me';
+            const line = el('div', `bb-chat__line${stacked ? ' bb-chat__line--stack' : ''}${view.mode === 'me' ? ' bb-chat__line--bare' : ''}`);
             line.style.setProperty('--reply-delay', `${index * 140}ms`);
-            if (view.mode !== 'chat') line.classList.add('special');
-            if (view.mode === 'me') {
-                line.classList.remove('special');
-                line.classList.add('me');
-            }
             line.append(botName());
 
             if (view.mode === 'announce') {
-                const box = el('div', 'announce');
-                box.style.setProperty('--acc', ACCENT[view.color ?? 'primary']);
-                const head = el('span', 'announce-head');
+                const box = el('div', `bb-chat__announce bb-chat__acc--${view.color ?? 'primary'}`);
+                const head = el('span', 'bb-chat__head');
                 head.append(viaBadge(verbLabelOf(view)), ui.announcement);
                 box.append(head);
                 box.append(view.segments.length
-                    ? msgWithSegments('msg reply', view.segments)
-                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', view.verb ?? '')));
+                    ? msgWithSegments(REPLY, view.segments)
+                    : el('span', EMPTY, ui.addMessageAfter.replace('{verb}', view.verb ?? '')));
                 line.append(box);
             } else if (view.mode === 'shoutout') {
-                const box = el('div', 'shoutout');
+                const box = el('div', 'bb-chat__shoutout');
                 box.append(viaBadge('/shoutout'));
                 if (view.target) {
-                    const msg = el('span', 'msg reply', `${ui.shoutsOut} `);
-                    const strong = el('strong', '', `@${view.target}`);
-                    msg.append(strong);
+                    const msg = el('span', REPLY, `${ui.shoutsOut} `);
+                    msg.append(el('strong', '', `@${view.target}`));
                     box.append(msg);
                 } else {
-                    box.append(el('span', 'msg empty', ui.nameChannel));
+                    box.append(el('span', EMPTY, ui.nameChannel));
                 }
                 line.append(box);
             } else if (view.mode === 'pin') {
-                const box = el('div', 'pin');
-                const head = el('span', 'pin-head');
+                const box = el('div', 'bb-chat__pin');
+                const head = el('span', 'bb-chat__head');
                 head.append(viaBadge('/pin'), ui.pinnedForStream);
                 box.append(head);
                 box.append(view.segments.length
-                    ? msgWithSegments('msg reply', view.segments)
-                    : el('span', 'msg empty', ui.addMessageAfter.replace('{verb}', '/pin')));
+                    ? msgWithSegments(REPLY, view.segments)
+                    : el('span', EMPTY, ui.addMessageAfter.replace('{verb}', '/pin')));
                 line.append(box);
             } else if (view.mode === 'me') {
                 line.append(viaBadge('/me', true));
                 line.append(view.segments.length
-                    ? msgWithSegments('msg reply action', view.segments)
-                    : el('span', 'msg empty', ui.addActionAfterMe));
+                    ? msgWithSegments(`${REPLY} bb-chat__msg--action`, view.segments)
+                    : el('span', EMPTY, ui.addActionAfterMe));
             } else {
-                line.append(msgWithSegments('msg reply', view.segments));
+                line.append(msgWithSegments(REPLY, view.segments));
             }
             return line;
         }
@@ -477,17 +475,17 @@ for (const surface of builderData(defaultLang).surfaces) {
         };
 
         function clearChat() {
-            for (const node of [...chat.children]) if (node !== chatTag) node.remove();
+            chat.replaceChildren();
         }
 
         function viewerLine(): HTMLElement | null {
             const kind = promptKind();
             if (kind === 'event') return null;
             const surface = current();
-            const line = el('div', 'line viewer');
-            const who = el('span', 'who viewer-name', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'SnackPackPanda');
+            const line = el('div', 'bb-chat__line');
+            const who = el('span', 'bb-chat__name bb-chat__name--viewer', surface.vars.find((x) => x.token === '{user}')?.sample ?? 'SnackPackPanda');
             const text = mode === 'custom' ? `!${cleanName() || 'command'}` : surface.prompt;
-            const msg = el('span', kind === 'message' ? 'msg plain' : 'msg', text);
+            const msg = el('span', kind === 'message' ? 'bb-chat__msg' : 'bb-chat__msg bb-chat__msg--cmd', text);
             line.append(who, msg);
             return line;
         }
@@ -500,8 +498,8 @@ for (const surface of builderData(defaultLang).surfaces) {
 
             const views = rehearse();
             if (views.length === 0) {
-                const line = el('div', 'line bot');
-                line.append(botName(), el('span', 'msg empty', ui.nothingToSay));
+                const line = el('div', 'bb-chat__line');
+                line.append(botName(), el('span', EMPTY, ui.nothingToSay));
                 chat.append(line);
                 return;
             }
@@ -513,8 +511,8 @@ for (const surface of builderData(defaultLang).surfaces) {
             setFitText('[data-chat-tag-text]', promptKind() === 'event' ? current().prompt : ui.rehearsal);
             const viewer = viewerLine();
             if (viewer) chat.append(viewer);
-            const line = el('div', 'line bot');
-            const msg = el('span', 'msg typing');
+            const line = el('div', 'bb-chat__line');
+            const msg = el('span', 'bb-chat__msg bb-chat__msg--typing');
             msg.setAttribute('aria-label', ui.ariaTyping);
             msg.append(el('span', 'bb-drawline'));
             line.append(botName(), msg);
@@ -790,7 +788,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
     .compose { display: grid; gap: 20px; container-type: inline-size; }
 
-    .module-pick { padding: 14px 16px; background: rgba(var(--bb-white-pure-rgb), 0.02); border-radius: var(--bb-radius-md); }
+    .module-pick { padding: 14px 16px; background: var(--bb-inset-bg); box-shadow: var(--bb-depth-0); border-radius: var(--bb-radius-md); }
 
     .f-name { max-width: 380px; }
     .f-name__prefix { color: var(--bb-green-glow); }
@@ -807,7 +805,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         .recipes__label { grid-column: auto; }
     }
 
-    .palette { max-width: var(--bb-content-max); margin: 0 auto; padding: 18px 48px 100px; border-top: 1px solid var(--bb-border); }
+    .palette { max-width: var(--bb-content-max); margin: 0 auto; padding: 0 48px 100px; }
     .palette__head { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: baseline; gap: 12px; }
     .palette__title { min-width: 0; }
     .palette__scope { justify-content: flex-end; }
@@ -823,7 +821,6 @@ for (const surface of builderData(defaultLang).surfaces) {
     .compose :global(.bb-disclosure--sm > .bb-disclosure__summary) { width: 100%; }
     .compose :global(.bb-disclosure--sm .bb-disclosure__label) { height: 1lh; }
 
-    .more { padding-top: 16px; border-top: 1px solid var(--bb-border); }
     .more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
     .span2 { grid-column: 1 / -1; }
 
@@ -839,8 +836,7 @@ for (const surface of builderData(defaultLang).surfaces) {
 
     .send__help { height: calc(2 * 1lh); margin-top: 10px; text-align: center; }
 
-    .copyw { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--bb-border); }
-    [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
+    [data-send-wrap][hidden] + .copyw > .bb-divider { display: none; }
     .copyw__label { display: block; height: calc(2 * 1lh); margin-bottom: 10px; }
     .copyw :global(.bb-code-block) { height: calc(4 * 1lh + 2 * var(--bb-space-4) + 2px); overflow-y: auto; }
     .copyw :global(.bb-code-block .bb-code) { display: block; }
@@ -861,162 +857,6 @@ for (const surface of builderData(defaultLang).surfaces) {
         .compose :global(.bb-disclosure--sm .bb-disclosure__label) { height: calc(2 * 1lh); }
         .learn { height: calc(2 * 1lh); }
         .palette { padding-inline: 0; }
-    }
-</style>
-
-<style is:global>
-    [data-chat].chat {
-        position: relative;
-        padding: 14px 14px 12px;
-        border: 1px solid rgba(var(--bb-white-rgb), 0.1);
-        border-radius: var(--bb-radius-md);
-        background: rgba(0, 0, 0, 0.3);
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        height: 9rem;
-        overflow-y: auto;
-    }
-
-    [data-chat] .chat-tag {
-        position: absolute;
-        top: -9px;
-        left: 10px;
-        display: block;
-        overflow: hidden;
-        width: calc(100% - 20px);
-        padding: 0;
-    }
-
-    [data-chat] .chat-tag > [data-fit] {
-        padding: 0 6px;
-        background: var(--bb-card-bg);
-    }
-
-    [data-chat] .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-    [data-chat] .line.bot.special { flex-direction: column; align-items: flex-start; gap: 6px; }
-
-    [data-chat] .who {
-        font-family: var(--bb-font-body);
-        font-weight: 700;
-        font-size: 12.5px;
-        flex: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-    }
-
-    [data-chat] .viewer-name { color: var(--bb-tan-light); }
-    [data-chat] .viewer-name::after,
-    [data-chat] .bot-name::after { content: ':'; color: var(--bb-muted); font-weight: 400; }
-    [data-chat] .line.bot.me .bot-name::after { content: none; }
-    [data-chat] .line.bot.special .bot-name::after { content: none; }
-    [data-chat] .bot-name { color: var(--bb-green-glow); }
-    [data-chat] .bot-avatar { width: 14px; height: 14px; border-radius: 50%; }
-
-    [data-chat] .msg {
-        font-family: var(--bb-font-body);
-        font-size: var(--bb-text-sm);
-        line-height: 1.5;
-        color: var(--bb-white);
-        overflow-wrap: anywhere;
-        min-width: 0;
-    }
-    [data-chat] .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
-    [data-chat] .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: var(--bb-text-sm); }
-
-    [data-chat] .reply { animation: bb-reply-in var(--bb-dur-fast) var(--bb-ease-out-back) both; animation-delay: var(--reply-delay); }
-    @keyframes bb-reply-in {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    [data-chat] .msg mark {
-        background: rgba(var(--bb-green-glow-rgb), 0.14);
-        color: var(--bb-green-glow);
-        border-radius: var(--bb-radius-xs);
-        padding: 0 3px;
-    }
-    [data-chat] .msg mark.unknown {
-        background: rgba(var(--bb-status-danger-border-rgb), 0.16);
-        color: var(--bb-status-danger);
-        font-family: var(--bb-font-mono);
-        font-size: var(--bb-text-xs);
-    }
-    [data-chat] .msg.empty { color: var(--bb-muted); font-style: italic; }
-
-    [data-chat] .via { color: var(--acc, var(--bb-green-glow)); }
-    [data-chat] .via.inline { margin-right: 2px; }
-
-    [data-chat] .announce {
-        width: 100%;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-        padding: 9px 11px;
-        border-radius: var(--bb-radius-md);
-        background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
-        animation: bb-reply-in var(--bb-dur-fast) var(--bb-ease-out-back) both;
-        animation-delay: var(--reply-delay);
-    }
-    [data-chat] .announce-head {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        font-family: var(--bb-font-display);
-        font-weight: 700;
-        font-size: 10.5px;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--acc);
-    }
-
-    [data-chat] .shoutout {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        padding: 7px 11px;
-        border-radius: var(--bb-radius-md);
-        border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.4);
-        background: rgba(var(--bb-green-glow-rgb), 0.06);
-        animation: bb-reply-in var(--bb-dur-fast) var(--bb-ease-out-back) both;
-        animation-delay: var(--reply-delay);
-    }
-    [data-chat] .shoutout .reply strong { color: var(--bb-green-glow); }
-
-    [data-chat] .pin {
-        width: 100%;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        padding: 8px 10px;
-        border-radius: var(--bb-radius-md);
-        border: 1px solid rgba(199, 125, 255, 0.35);
-        background: rgba(199, 125, 255, 0.07);
-        animation: bb-reply-in var(--bb-dur-fast) var(--bb-ease-out-back) both;
-        animation-delay: var(--reply-delay);
-    }
-    [data-chat] .pin-head {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--bb-muted);
-        font-family: var(--bb-font-display);
-        font-size: 10.5px;
-    }
-
-    [data-chat] .msg.action { font-style: italic; color: var(--bb-green-glow); }
-
-    [data-chat] .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
-
-    @media (prefers-reduced-motion: reduce) {
-        [data-chat] .reply,
-        [data-chat] .announce,
-        [data-chat] .shoutout,
-        [data-chat] .pin { animation: none; }
     }
 </style>
 

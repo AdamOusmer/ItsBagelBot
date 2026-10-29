@@ -42,6 +42,7 @@ export { default as Textarea } from './Textarea.svelte';
 
 export { default as AlertBanner } from './AlertBanner.svelte';
 export { default as Badge } from './Badge.svelte';
+export { default as ChatPreview } from './ChatPreview.svelte';
 export { default as Chip } from './Chip.svelte';
 export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as EmptyState } from './EmptyState.svelte';

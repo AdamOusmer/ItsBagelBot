@@ -1,0 +1,26 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import '../styles/elements/chat-preview.css';
+import StatusDot from './StatusDot.astro';
+
+interface Props {
+  title: string;
+  label?: string;
+  kind?: string;
+  note?: string;
+  class?: string;
+}
+
+const { title, label, kind, note, class: className = '' } = Astro.props;
+---
+
+<div class={`bb-chat ${className}`.trim()} role={label ? 'img' : 'group'} aria-label={label}>
+  <div class="bb-chat__bar">
+    <StatusDot tone="success" />
+    <span class="bb-chat__title">{title}</span>
+    {kind && <b class="bb-chat__kind">{kind}</b>}
+  </div>
+  <div class="bb-chat__feed"><slot /></div>
+  {note && <i class="gs-mark" data-note={note}></i>}
+</div>
