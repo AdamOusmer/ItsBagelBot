@@ -6,6 +6,7 @@ import {
   type CheckState,
   type DeployCommit,
   type DeployFailure,
+  type DeployItem,
   type DeployPlan,
   type DeployPRInfo,
   type DeployRun,
@@ -131,7 +132,7 @@ function toRun(run: WorkflowRun, jobs: Job[]): DeployRun {
     ...summary,
     seq: Date.parse(run.updated_at) + jobs.filter((j) => j.status === 'completed').length,
     stages,
-    outputs: { messaging_changed: false },
+    outputs: {},
     failure: stages.find((s) => s.failure)?.failure
   };
 }
@@ -146,7 +147,73 @@ async function get(req: RunRequest): Promise<DeployRun> {
     github<WorkflowRun>(`/actions/runs/${encodeURIComponent(req.run_id)}`),
     github<{ jobs: Job[] }>(`/actions/runs/${encodeURIComponent(req.run_id)}/jobs?per_page=50`)
   ]);
-  return toRun(run, jobs.jobs);
+  return withBuildItems(toRun(run, jobs.jobs), run);
+}
+
+const IMAGE_WORKFLOW = 'publish-images.yml';
+const BUILD_JOB = /^Build (.+?)( Intel x86_64)?$/;
+const MANIFEST_JOB = /^Publish manifest (.+)$/;
+
+// Mirrors the release CLI's build stage lookup: a tag push for a release, main at the run's commit for a bump.
+function imageRunFilter(run: DeployRun, head: WorkflowRun): string | null {
+  if (run.kind === 'bump') return `branch=${MAIN}&head_sha=${head.head_sha}`;
+  if (run.version) return `branch=${encodeURIComponent(run.version)}`;
+  return null;
+}
+
+function imageOf(job: Job): string | null {
+  const match = MANIFEST_JOB.exec(job.name) ?? BUILD_JOB.exec(job.name);
+  return match ? match[1] : null;
+}
+
+function groupState(jobs: Job[]): StageState {
+  const states = jobs.map((j) => jobState(j, false));
+  if (states.includes('failed')) return 'failed';
+  if (states.every((s) => s === 'succeeded')) return 'succeeded';
+  return states.some((s) => s !== 'pending') ? 'running' : 'pending';
+}
+
+function imageItems(jobs: Job[]): DeployItem[] {
+  const groups = new Map<string, Job[]>();
+  for (const job of jobs) {
+    const image = imageOf(job);
+    if (image) groups.set(image, [...(groups.get(image) ?? []), job]);
+  }
+  return [...groups].map(([image, group]) => ({
+    key: image,
+    label: image,
+    state: groupState(group),
+    url: group[0].html_url,
+    progress: { done: group.filter((j) => j.status === 'completed').length, total: group.length }
+  }));
+}
+
+async function buildJobs(filter: string): Promise<Job[]> {
+  const runs = await github<{ workflow_runs: { id: number }[] }>(
+    `/actions/workflows/${IMAGE_WORKFLOW}/runs?event=push&per_page=1&${filter}`
+  );
+  const build = runs.workflow_runs[0];
+  if (!build) return [];
+  return (await github<{ jobs: Job[] }>(`/actions/runs/${build.id}/jobs?per_page=100`)).jobs;
+}
+
+const NOT_STARTED = new Set<StageState>(['pending', 'skipped']);
+
+function startedBuild(run: DeployRun): DeployStage | undefined {
+  const stage = run.stages.find((s) => s.id === 'build');
+  return stage && !NOT_STARTED.has(stage.state) ? stage : undefined;
+}
+
+async function withBuildItems(run: DeployRun, head: WorkflowRun): Promise<DeployRun> {
+  const stage = startedBuild(run);
+  const filter = imageRunFilter(run, head);
+  if (!stage) return run;
+  if (!filter) return run;
+  const items = imageItems(await buildJobs(filter));
+  stage.items = items;
+  stage.progress = { done: items.filter((i) => i.state === 'succeeded').length, total: items.length };
+  run.seq += items.reduce((n, i) => n + i.progress.done, 0);
+  return run;
 }
 
 async function list(req: ListRequest): Promise<DeployRuns> {

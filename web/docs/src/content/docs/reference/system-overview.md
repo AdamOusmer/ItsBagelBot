@@ -99,8 +99,9 @@ to its output, so replies leave on `twitch.outgress.premium` or
   Traefik. Operators reach the admin console, NATS monitoring and the Kubernetes API over
   Tailscale. Cilium provides the CNI, and each namespace starts from default-deny policies.
   See [Networking →](/infrastructure/networking/).
-- **Delivery**: GitHub Actions builds images and the deployer pins them by digest in
-  `deploy/k8s` (a CI test enforces the digest pins). Flux no longer runs on the cluster.
+- **Delivery**: GitHub Actions builds images and the Release workflow pins them by digest in
+  `deploy/k8s` (a CI test enforces the digest pins), then moves the `deploy` branch. Flux
+  syncs the cluster from that branch only (`deploy/flux`).
 - **NATS**: three hub members hold every JetStream stream at R3, plus a leaf
   DaemonSet that services connect to (`deploy/messaging/README.md`).
 

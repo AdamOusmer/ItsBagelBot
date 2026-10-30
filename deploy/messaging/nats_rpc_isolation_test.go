@@ -4,53 +4,14 @@
 package messaging
 
 import (
-	"maps"
 	"slices"
 	"strings"
 	"testing"
 
-	"ItsBagelBot/internal/domain/rpc/deploy"
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/stretchr/testify/assert"
 )
-
-var deploySurface = map[string]string{
-	"service": deploy.Prefix + ".>",
-	"stream":  deploy.EventsPrefix + ".>",
-}
-
-func TestDeployerSurfaceIsPrivateToAdmin(t *testing.T) {
-	private := make(map[string][]string)
-	for _, exp := range loadRPCCatalog(t).accounts["DEPLOYER_RPC"].exports {
-		if exp.accounts != nil {
-			private[exp.kind+" "+exp.subject] = exp.accounts
-		}
-	}
-	want := make(map[string][]string, len(deploySurface))
-	for kind, subject := range deploySurface {
-		want[kind+" "+subject] = []string{"ADMIN_RPC"}
-	}
-
-	assert.True(t, maps.EqualFunc(private, want, slices.Equal[[]string]), "DEPLOYER_RPC private exports differ:\nwant %v\n got %v", want, private)
-}
-
-func TestOnlyAdminImportsDeploySurface(t *testing.T) {
-	var got []string
-	for name, account := range loadRPCCatalog(t).accounts {
-		for _, imp := range account.imports {
-			if imp.account == "DEPLOYER_RPC" && imp.subject == deploySurface[imp.kind] {
-				got = append(got, name+" "+imp.kind+" "+imp.subject)
-			}
-		}
-	}
-	slices.Sort(got)
-
-	assert.Equal(t, []string{
-		"ADMIN_RPC service " + deploySurface["service"],
-		"ADMIN_RPC stream " + deploySurface["stream"],
-	}, got)
-}
 
 func TestGiveawayGrantCustody(t *testing.T) {
 	for _, verb := range []string{"pool", "coverage", "prepare", "commit", "cancel"} {

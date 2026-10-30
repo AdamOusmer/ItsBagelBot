@@ -28,7 +28,6 @@ var pullFetchStreams = map[string][]string{
 
 var coordinationBuckets = map[string][]string{
 	"outgress_bus": {"outgress_rate", "outgress_batch", "outgress_pause"},
-	"deployer_bus": {"DEPLOY_RUNS"},
 }
 
 type streamGrants struct {
@@ -106,7 +105,6 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"discord_engine_bus":   {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
 		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
 		"discord_ingress_bus":  {},
-		"deployer_bus":         {},
 	}
 	owners := map[string][]string{
 		"users_bus":            {"BAGEL_DATA", "BAGEL_DLQ"},
@@ -121,7 +119,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"projector_bus", "worker_bus", "outgress_bus",
 		"twitch_ingress_bus", "dashboard_bus",
 		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
-		"discord_data_bus", "deployer_bus",
+		"discord_data_bus",
 	}
 
 	for _, user := range serviceUsers {

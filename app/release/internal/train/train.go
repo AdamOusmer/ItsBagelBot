@@ -17,8 +17,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-var ErrApprovalUnsupported = errors.New("stage asked for approval; gate it with a GitHub environment instead")
-
 type File struct {
 	mu   sync.Mutex
 	path string
@@ -62,10 +60,6 @@ func (f *File) Update(_ context.Context, edit func(*deploy.Run)) error {
 	edit(&f.run)
 	f.run.UpdatedAt = time.Now().UTC()
 	return f.save()
-}
-
-func (f *File) AwaitApproval(context.Context, deploy.StageID, string) error {
-	return ErrApprovalUnsupported
 }
 
 func (f *File) save() error {
