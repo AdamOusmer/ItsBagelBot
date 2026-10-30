@@ -4,7 +4,6 @@
   "sub": "A bot sitting quietly in chat. Try a command, send some spam, and see what it does.",
   "sendSpam": "send spam",
   "hint": "The bot only speaks when spoken to. Chat stays yours.",
-  "live": "live",
   "inputPlaceholder": "try !bagel",
   "inputAria": "Type a chat message",
   "sendAria": "Send message",

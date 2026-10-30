@@ -1,0 +1,363 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../../layouts/Showcase.astro';
+import HaloPanel from '../../../../astro/HaloPanel.astro';
+
+const chips = ['!bagel', '!song', '!join', '!lurk'];
+const arrow = 'M5 12h13M13 6l6 6-6 6';
+const enter = 'M19 6v5a3 3 0 0 1-3 3H6M10 10l-4 4 4 4';
+---
+
+<Showcase title="Chat playground" lead="Sober drafts for the homepage “Try it here” chat window. Square controls on the radius scale, no pills, color only where the bot speaks. The chips drive every window at once, and each composer works on its own.">
+  <section class="sc-block">
+    <h2>Drive all windows</h2>
+    <div class="sc-row">
+      {chips.map((cmd) => <button type="button" class="chat-chip" data-chat-cmd={cmd}>{cmd}</button>)}
+      <button type="button" class="chat-chip" data-chat-spam>send spam</button>
+    </div>
+  </section>
+
+  <section class="chat-lab">
+    <div class="sc-block">
+      <h2>Current</h2>
+      <p>The window on the site today.</p>
+      <HaloPanel tone="green" class="chat chat--now" data-chat>
+        <div class="now__bar"><span class="now__channel">#your_channel</span><span class="now__live">◆ LIVE</span></div>
+        <div class="chat__feed" data-feed role="log" aria-label="Simulated Twitch chat"></div>
+        <form class="now__composer" data-form>
+          <input class="now__input" data-input maxlength="80" placeholder="try !bagel" aria-label="Type a chat message" autocomplete="off" spellcheck="false" />
+          <button type="submit" class="now__send" aria-label="Send message">↵</button>
+        </form>
+      </HaloPanel>
+    </div>
+
+    <div class="sc-block">
+      <h2>D. Log</h2>
+      <p>Chat as a clean log: names in one aligned column, the bot row sits on a faint tint. One surface, hairlines between header, feed and composer. White square send button like the primary button.</p>
+      <HaloPanel tone="green" class="chat chat--d" data-chat>
+        <div class="d__head">
+          <span class="d__channel">#your_channel</span>
+          <span class="d__live"><span class="d__dot" aria-hidden="true"></span>Live</span>
+        </div>
+        <div class="chat__feed" data-feed role="log" aria-label="Simulated Twitch chat"></div>
+        <form class="d__composer" data-form>
+          <input class="sober-input" data-input maxlength="80" placeholder="try !bagel" aria-label="Type a chat message" autocomplete="off" spellcheck="false" />
+          <button type="submit" class="sober-send sober-send--primary" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d={arrow} /></svg></button>
+        </form>
+      </HaloPanel>
+    </div>
+
+    <div class="sc-block">
+      <h2>E. Plain</h2>
+      <p>Closest to a text transcript. No header bar, the channel is a quiet caption. The bot reply is indented under a small return mark. The composer is one field with an Enter key hint inside instead of a separate button.</p>
+      <HaloPanel tone="green" class="chat chat--e" data-chat>
+        <div class="e__head">
+          <span>your_channel</span>
+          <span class="e__live">live</span>
+        </div>
+        <div class="chat__feed" data-feed role="log" aria-label="Simulated Twitch chat"></div>
+        <form class="e__composer" data-form>
+          <input data-input maxlength="80" placeholder="try !bagel" aria-label="Type a chat message" autocomplete="off" spellcheck="false" />
+          <button type="submit" class="e__key" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d={enter} /></svg>enter</button>
+        </form>
+      </HaloPanel>
+    </div>
+
+    <div class="sc-block">
+      <h2>F. Panel</h2>
+      <p>Keeps today's structure but quieter: header and composer share the feed surface, names are muted, the bot gets a small square BOT tag. Secondary send button, same height as the field.</p>
+      <HaloPanel tone="green" class="chat chat--f" data-chat>
+        <div class="f__head">
+          <span class="f__channel">your_channel</span>
+          <span class="f__count"><span data-viewers>1,284</span> watching</span>
+          <span class="f__live">LIVE</span>
+        </div>
+        <div class="chat__feed" data-feed role="log" aria-label="Simulated Twitch chat"></div>
+        <form class="f__composer" data-form>
+          <input class="sober-input" data-input maxlength="80" placeholder="Send a message" aria-label="Type a chat message" autocomplete="off" spellcheck="false" />
+          <button type="submit" class="sober-send" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d={arrow} /></svg></button>
+        </form>
+      </HaloPanel>
+    </div>
+  </section>
+</Showcase>
+
+<style is:global>
+  @layer bb.app {
+    .chat-lab { display: grid; gap: 16px; }
+    .chat-lab .chat { width: min(100%, 620px); }
+
+    .chat-chip {
+      height: 32px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: var(--bb-radius-sm);
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 10%);
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+      color: var(--bb-white);
+      font-family: var(--bb-font-mono);
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+
+    .chat-chip:hover { background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 16%); }
+
+    .chat {
+      --hair: rgba(var(--bb-white-rgb), 0.06);
+      display: flex;
+      flex-direction: column;
+      height: 460px;
+      overflow: hidden;
+    }
+
+    .chat__feed {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 2px;
+      padding: 16px 14px;
+      mask-image: linear-gradient(to bottom, transparent 0, black 64px);
+    }
+
+    .cm {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 5px 8px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      animation: cmIn var(--bb-dur-base) var(--bb-ease-out-expo) both;
+    }
+
+    @keyframes cmIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .cm__name { flex: none; font-family: var(--bb-font-mono); font-size: 0.76rem; color: var(--bb-muted); }
+    .cm__text { min-width: 0; color: rgba(var(--bb-white-rgb), 0.86); overflow-wrap: anywhere; }
+    .cm__badge { display: none; }
+    .cm--you .cm__name { color: var(--bb-white); }
+    .cm--bot .cm__name { color: var(--bb-green-glow); }
+    .cm--spam .cm__text { color: rgba(var(--bb-white-rgb), 0.5); }
+    .cm--spam.is-caught { opacity: 0.4; transition: opacity var(--bb-dur-base); }
+    .cm--spam.is-caught .cm__text { text-decoration: line-through; }
+    .cm--note { font-family: var(--bb-font-mono); font-size: 0.7rem; letter-spacing: 0.03em; color: var(--bb-muted); }
+
+    .sober-input {
+      flex: 1;
+      min-width: 0;
+      height: 38px;
+      padding: 0 12px;
+      border: 0;
+      outline: 0;
+      border-radius: var(--bb-radius-sm);
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 6%);
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+      color: var(--bb-white);
+      font-family: var(--bb-font-mono);
+      font-size: 13px;
+    }
+
+    .sober-input::placeholder { color: var(--bb-muted); }
+    .sober-input:focus-visible { box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45), 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus); }
+
+    .sober-send {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--bb-radius-sm);
+      background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 10%);
+      color: var(--bb-white);
+      cursor: pointer;
+      transition: background-color var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .sober-send:hover { background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 16%); }
+    .sober-send--primary { background: rgb(var(--bb-white-pure-rgb)); color: var(--bb-ink); }
+    .sober-send--primary:hover { background: var(--bb-gray-1-dark); }
+    .sober-send svg, .e__key svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Current */
+    .now__bar { display: flex; align-items: center; padding: 14px 18px; background: var(--bb-card-bg); box-shadow: var(--bb-depth-1); }
+    .now__channel { font-family: var(--bb-font-mono); font-size: 0.78rem; letter-spacing: 0.04em; }
+    .now__live { margin-left: auto; font-family: var(--bb-font-mono); font-size: 0.72rem; letter-spacing: 0.2em; color: var(--bb-green-glow); }
+    .now__composer { display: flex; gap: 10px; padding: 12px 14px; background: var(--bb-card-bg); box-shadow: var(--bb-depth-1); }
+    .now__input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border: 0; border-radius: var(--bb-radius-sm); background: var(--bb-bg-0); color: var(--bb-white); font-family: var(--bb-font-mono); }
+    .now__send { width: 40px; border: 0; border-radius: var(--bb-radius-sm); background: var(--bb-elev-2); color: var(--bb-white); }
+    .chat--now .cm__name { color: var(--bb-tan-light); }
+    .chat--now .cm--bot .cm__name { color: var(--bb-green-glow); }
+
+    /* D. Log */
+    .d__head { display: flex; align-items: center; padding: 14px 18px; box-shadow: 0 1px 0 var(--hair); }
+    .d__channel { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-white); }
+    .d__live { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bb-muted); }
+    .d__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bb-green-glow); }
+    .chat--d .cm { display: grid; grid-template-columns: 116px 1fr; border-radius: var(--bb-radius-sm); }
+    .chat--d .cm__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat--d .cm--bot { margin: 2px 0; background: rgba(var(--bb-green-glow-rgb), 0.07); }
+    .chat--d .cm--note { display: block; padding-left: calc(116px + 18px); }
+    .d__composer { display: flex; gap: 8px; padding: 12px 14px; box-shadow: 0 -1px 0 var(--hair); }
+
+    /* E. Plain */
+    .e__head { display: flex; justify-content: space-between; padding: 16px 20px 0; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); letter-spacing: 0.04em; }
+    .e__live { color: var(--bb-green-glow); text-transform: uppercase; letter-spacing: 0.14em; font-size: 10.5px; }
+    .chat--e .chat__feed { padding: 16px 20px 12px; gap: 4px; }
+    .chat--e .cm { padding: 2px 0; }
+    .chat--e .cm--bot { padding-left: 22px; position: relative; }
+    .chat--e .cm--bot::before { content: '↳'; position: absolute; left: 4px; color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 0.8rem; }
+    .chat--e .cm--note { padding-left: 22px; }
+    .e__composer {
+      display: flex; align-items: center; gap: 8px; margin: 0 16px 16px; padding: 0 6px 0 14px; height: 44px;
+      border-radius: var(--bb-radius-sm); background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 6%);
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+    }
+    .e__composer:focus-within { box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45), 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus); }
+    .e__composer input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none; color: var(--bb-white); font-family: var(--bb-font-mono); font-size: 13px; }
+    .e__composer input::placeholder { color: var(--bb-muted); }
+    .e__key {
+      display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0;
+      border-radius: var(--bb-radius-xs); background: var(--bb-elev-2); box-shadow: 0 1px 0 rgba(var(--bb-shadow-rgb), 0.6);
+      color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 11px; cursor: pointer;
+    }
+    .e__key:hover { color: var(--bb-white); }
+
+    /* F. Panel */
+    .f__head { display: flex; align-items: baseline; gap: 12px; padding: 16px 18px 12px; box-shadow: 0 1px 0 var(--hair); }
+    .f__channel { font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; }
+    .f__count { color: var(--bb-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .f__live {
+      margin-left: auto; padding: 3px 7px; border-radius: var(--bb-radius-xs);
+      background: rgba(var(--bb-green-glow-rgb), 0.14); color: var(--bb-green-glow);
+      font-family: var(--bb-font-mono); font-size: 10.5px; letter-spacing: 0.12em;
+    }
+    .chat--f .cm--bot .cm__badge {
+      display: inline-block; margin-right: -4px; padding: 0 5px; border-radius: var(--bb-radius-xs);
+      background: rgba(var(--bb-green-glow-rgb), 0.16); color: var(--bb-green-glow);
+      font-family: var(--bb-font-mono); font-size: 9.5px; letter-spacing: 0.1em; line-height: 16px; align-self: center;
+    }
+    .f__composer { display: flex; gap: 8px; padding: 12px 14px 14px; box-shadow: 0 -1px 0 var(--hair); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cm { animation: none; }
+    }
+  }
+</style>
+
+<script>
+  const VIEWERS = ['PrincessBarney', 'SnackPackPanda', 'Lotti', 'MikanMeerkat', 'Ayshacinder'];
+  const AMBIENT = [
+    'this soundtrack is so good', 'LETS GOOO', 'first time here, vibes are great', 'anyone else hungry now',
+    'that jump was clean', 'chat moving fast tonight', 'ok that was actually smooth', 'gl on the next run', 'the bot caught that fast lol',
+  ];
+  const REPLIES: Record<string, string> = {
+    '!bagel': '@you 🥯 fresh from the oven. one warm bagel, zero calories.',
+    '!song': "now playing · 'late night lo-fi' · lined up for @you",
+    '!join': '@you you joined the queue at position #3.',
+    '!lurk': "@you settled in to lurk. your seat's saved, I'll wave when you're back.",
+  };
+  const SPAM = ['FREE F0LLOWERS >> sketchy.link/boost CLICK NOW', 'im giving away gift subs, DM me on telegram!!'];
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  type Chat = { say: (cmd: string) => void; spam: () => void; ambient: () => void };
+
+  function mount(root: HTMLElement): Chat | null {
+    const feed = root.querySelector<HTMLElement>('[data-feed]');
+    const form = root.querySelector<HTMLFormElement>('[data-form]');
+    const input = root.querySelector<HTMLInputElement>('[data-input]');
+    if (!feed || !form || !input) return null;
+
+    const trim = () => { while (feed.children.length > 12) feed.firstElementChild?.remove(); };
+
+    function line(who: string, text: string, cls = '') {
+      const row = document.createElement('div');
+      row.className = `cm ${cls}`;
+      const name = document.createElement('span');
+      name.className = 'cm__name';
+      name.textContent = who;
+      const msg = document.createElement('span');
+      msg.className = 'cm__text';
+      msg.textContent = text;
+      if (cls.includes('cm--bot')) {
+        const badge = document.createElement('span');
+        badge.className = 'cm__badge';
+        badge.textContent = 'BOT';
+        row.append(badge);
+      }
+      row.append(name, msg);
+      feed!.append(row);
+      trim();
+      return row;
+    }
+
+    function note(text: string) {
+      const row = document.createElement('div');
+      row.className = 'cm cm--note';
+      row.textContent = text;
+      feed!.append(row);
+      trim();
+      return row;
+    }
+
+    function bot(text: string) {
+      const typing = line('itsbagelbot', '···', 'cm--bot');
+      setTimeout(() => { typing.remove(); line('itsbagelbot', text, 'cm--bot'); }, reduce ? 80 : 700);
+    }
+
+    function say(raw: string) {
+      const text = raw.trim();
+      if (!text) return;
+      line('you', text, 'cm--you');
+      if (!text.startsWith('!')) { setTimeout(() => note('the bot stays quiet unless you call it. chat is yours.'), 600); return; }
+      const cmd = text.split(/\s+/)[0].toLowerCase();
+      bot(REPLIES[cmd] ?? `@you I don't know ${cmd} yet. you could teach it in the dashboard in about ten seconds.`);
+    }
+
+    let spamIndex = 0;
+    function spam() {
+      const row = line('definitely_human_01', SPAM[spamIndex++ % SPAM.length], 'cm--spam');
+      setTimeout(() => {
+        row.classList.add('is-caught');
+        setTimeout(() => row.replaceWith(note('removed · link spam · 0 viewers saw it')), reduce ? 100 : 480);
+      }, reduce ? 150 : 650);
+    }
+
+    function ambient() {
+      line(VIEWERS[Math.floor(Math.random() * VIEWERS.length)], AMBIENT[Math.floor(Math.random() * AMBIENT.length)]);
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      say(input.value);
+      input.value = '';
+    });
+
+    line('SnackPackPanda', 'chat moving fast tonight');
+    line('PrincessBarney', 'try typing !bagel');
+    return { say, spam, ambient };
+  }
+
+  const chats = [...document.querySelectorAll<HTMLElement>('[data-chat]')].map(mount).filter((chat) => chat !== null);
+
+  document.querySelectorAll<HTMLButtonElement>('[data-chat-cmd]').forEach((chip) =>
+    chip.addEventListener('click', () => chats.forEach((chat) => chat.say(chip.dataset.chatCmd ?? ''))));
+  document.querySelector('[data-chat-spam]')?.addEventListener('click', () => chats.forEach((chat) => chat.spam()));
+
+  let tick = 0;
+  setInterval(() => {
+    if (document.hidden) return;
+    chats.forEach((chat) => chat.ambient());
+    if (++tick % 6 === 0) chats.forEach((chat) => chat.spam());
+    document.querySelectorAll('[data-viewers]').forEach((el) => {
+      el.textContent = (1270 + Math.floor(Math.random() * 40)).toLocaleString('en-US');
+    });
+  }, 3200);
+</script>
