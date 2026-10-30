@@ -242,7 +242,7 @@
     gap: 12px;
     margin: 0;
     font-family: var(--bb-font-display);
-    font-weight: 800;
+    font-weight: 500;
     font-size: clamp(22px, 2.4vw, 28px);
     letter-spacing: -0.01em;
     line-height: 1.1;

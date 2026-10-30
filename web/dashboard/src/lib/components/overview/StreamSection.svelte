@@ -163,7 +163,7 @@
   }
   .ov-stream__big {
     font-family: var(--bb-font-display);
-    font-weight: 800;
+    font-weight: 500;
     font-size: 68px;
     line-height: 1;
     letter-spacing: -0.03em;
