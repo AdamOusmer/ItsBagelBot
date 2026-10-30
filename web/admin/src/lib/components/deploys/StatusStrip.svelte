@@ -23,8 +23,6 @@
 
   const dash = '-';
 
-  const drifted = $derived([...new Set((plan?.drift ?? []).map((d) => d.workload))]);
-
   function clusterValue(): string {
     if (active) return t('admin.deploys.rolling');
     if (!plan) return t('admin.deploys.unknown');
@@ -33,8 +31,8 @@
 
   function clusterDelta(): string {
     if (active) return t(STAGE_KEY[currentStageId(active)]);
-    if (drifted.length > 0) return drifted.join(', ');
-    return plan ? t('admin.deploys.syncedDelta') : dash;
+    if (!plan) return dash;
+    return t(plan.in_sync ? 'admin.deploys.syncedDelta' : 'admin.deploys.behindDelta');
   }
 
   function lastDelta(): string {

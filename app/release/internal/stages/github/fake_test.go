@@ -49,7 +49,6 @@ func (s *fakeSink) Update(_ context.Context, edit func(*deploy.Run)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	edit(&s.run)
-	s.run.Seq++
 	for _, st := range s.run.Stages {
 		s.noteWait(st.Waiting)
 	}
@@ -61,8 +60,6 @@ func (s *fakeSink) noteWait(msg string) {
 		s.waits = append(s.waits, msg)
 	}
 }
-
-func (s *fakeSink) AwaitApproval(context.Context, deploy.StageID, string) error { return nil }
 
 func newRun(kind deploy.RunKind) deploy.Run {
 	run := deploy.Run{ID: "run1", Kind: kind, State: deploy.RunRunning}

@@ -97,8 +97,9 @@ comme l'enrôlement EventSub, utilisent `twitch.outgress.system`. Les diffuseurs
 - **Réseau** : le trafic public entre par le tunnel sortant **cloudflared** vers Traefik. Les opérateurs
   atteignent la console admin, la supervision NATS et l'API Kubernetes via Tailscale. Cilium fournit le CNI,
   et chaque namespace part de politiques de refus par défaut. Voir [Réseau →](/fr/infrastructure/networking/).
-- **Livraison** : GitHub Actions compile les images et le deployer les épingle par empreinte dans
-  `deploy/k8s` (un test CI impose les empreintes). Flux ne tourne plus sur le cluster.
+- **Livraison** : GitHub Actions compile les images et le workflow Release les épingle par empreinte dans
+  `deploy/k8s` (un test CI impose les empreintes), puis déplace la branche `deploy`. Flux
+  synchronise le cluster depuis cette seule branche (`deploy/flux`).
 - **NATS** : trois membres de hub conservent chaque flux JetStream en R3, plus un DaemonSet leaf auquel
   les services se connectent (`deploy/messaging/README.md`).
 

@@ -74,11 +74,4 @@ func TestLiveACLPermissions(t *testing.T) {
 			subject:   "bagel.rpc.internal.tokens.get",
 		})
 	})
-	t.Run("serves a request across a restricted export's activation token", func(t *testing.T) {
-		server.assertCrossAccountRequest(t, crossAccountProbe{
-			responder: roleEndpoint{"DEPLOYER_RPC", "deployer_rpc"},
-			requester: roleEndpoint{"ADMIN_RPC", "admin_rpc"},
-			subject:   "bagel.rpc.admin.deploy.status",
-		})
-	})
 }

@@ -23,10 +23,10 @@ import (
 const realAccountsYAML = "../../deploy/messaging/accounts.yaml"
 
 const (
-	wantAccounts  = 20
-	wantRoles     = 34
+	wantAccounts  = 19
+	wantRoles     = 32
 	wantKeySeeds  = 2 + wantAccounts + wantRoles
-	wantRoleCreds = 33 // 34 roles minus "sys", which owns no service credential
+	wantRoleCreds = 31 // 32 roles minus "sys", which owns no service credential
 )
 
 type harness struct {
@@ -136,7 +136,7 @@ func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	assert.Equal(t, wantKeySeeds+wantRoleCreds*2+3, h.store.setCalls)
 	keys := h.keys(t)
 	assert.Len(t, keys.Accounts, wantAccounts)
-	assert.Len(t, keys.Activations["ADMIN_RPC"], 2)
+	assert.Empty(t, keys.Activations, "no export is restricted to named accounts any more")
 }
 
 func TestSecondRunChangesOnlyWhatWasRotated(t *testing.T) {

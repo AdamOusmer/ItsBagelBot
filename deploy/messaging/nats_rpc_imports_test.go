@@ -195,16 +195,6 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.health.users", "web/admin health page"},
 		{"bagel.rpc.health.projector", "web/admin health page"},
 		{"bagel.rpc.health.sesame", "web/admin health page"},
-		{"bagel.rpc.admin.deploy.plan", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.start", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.get", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.list", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.resume", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.cancel", "web/admin deploys page"},
-		{"bagel.rpc.admin.deploy.approve", "web/admin deploys page"},
-	},
-	"deployer_rpc": {
-		{"bagel.rpc.admin.user.auth.check", "app/deployer/internal/rpc owner check"},
 	},
 }
 
