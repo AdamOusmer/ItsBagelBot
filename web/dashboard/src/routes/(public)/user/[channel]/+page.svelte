@@ -2,14 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
-  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Glide from '@bagel/ui/svelte/Glide.svelte';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Label from '@bagel/ui/svelte/Label.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
@@ -61,6 +58,8 @@
   let activeGroup = $state<string | null>(null);
 
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
+  const titleWords = $derived(data.channelName.split(' '));
+  const titleSize = $derived(data.channelName.length > 16 ? 'long' : data.channelName.length > 9 ? 'mid' : '');
 
   const all = $derived.by((): Row[] => {
     const custom: Row[] = data.commands.map((c, i) => ({
@@ -220,16 +219,20 @@
   url={commandsHref(page.params.channel ?? '')}
 />
 
-<AuroraBg />
-<div class="starfield" aria-hidden="true"><LightField /></div>
-<div class="glow" aria-hidden="true"></div>
+<div class="sky" aria-hidden="true">
+  <LightField />
+  <div class="bb-orb bb-orb--halo bb-orb--green orb orb--green"></div>
+  <div class="bb-orb bb-orb--halo bb-orb--tan orb orb--tan"></div>
+</div>
 
 <main class="page">
   <header class="hero">
     <div class="hero__text">
-      <span class="eyebrow"><Eyebrow tone="go">{t('public.commands.eyebrow')}</Eyebrow></span>
-      <Heading level={1}>{data.channelName}</Heading>
-      <Text tone="muted">{summary}</Text>
+      <span class="eyebrow"><span data-fit="">{t('public.commands.eyebrow')}</span></span>
+      <h1 class="title{titleSize ? ` title--${titleSize}` : ''}">
+        {#each titleWords as word, i (i)}{i > 0 ? ' ' : ''}<span class="word">{word}</span>{/each}
+      </h1>
+      <p class="tagline">{summary}</p>
     </div>
     {#if creatorCode}
       <CopySurface
@@ -252,7 +255,7 @@
 
   <div class="toolbar">
     <div class="search">
-      <SearchInput bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
+      <SearchInput fill bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
     </div>
     <div class="filters">
       <SegmentedControl
@@ -280,11 +283,10 @@
             style:--i={i}
             aria-labelledby={`group-${group.key}-title`}
           >
-            <Card atmo flush>
+            <Card flush>
               <header class="group__head">
                 <span class="group__title">
-                  <Mark class="group__mark" />
-                  <Heading level={2} variant="card" id={`group-${group.key}-title`}>{group.title}</Heading>
+                  <h2 class="group__name" id={`group-${group.key}-title`}>{group.title}</h2>
                   <span class="group__count"><Label mono as="span">{group.rows.length}</Label></span>
                 </span>
                 {#if group.tagline}
@@ -342,7 +344,7 @@
           </section>
         {/each}
       {:else}
-        <Card atmo>
+        <Card>
           {#if all.length === 0}
             <EmptyState title={t('public.commands.noCommands')} />
           {:else}
@@ -354,7 +356,7 @@
 
     <aside class="side" bind:this={sideEl}>
       <div class="modules">
-        <Card atmo>
+        <Card>
           <div class="side__head">
             <Label mono as="span">{t('public.commands.activeModules')}</Label>
             <Label mono as="span">{data.modules.length}</Label>
@@ -407,29 +409,17 @@
 </main>
 
 <style>
-  .starfield {
+  .sky {
     position: fixed;
     inset: 0;
     z-index: 0;
+    overflow: hidden;
     pointer-events: none;
   }
 
-  .glow {
-    position: absolute;
-    left: 50%;
-    top: -160px;
-    width: min(1100px, 100vw);
-    height: 640px;
-    transform: translateX(-50%);
-    pointer-events: none;
-    background: radial-gradient(
-      50% 55% at 50% 45%,
-      rgba(var(--bb-tan-rgb), 0.18) 0%,
-      rgba(var(--bb-green-glow-rgb), 0.08) 40%,
-      transparent 72%
-    );
-    filter: blur(18px);
-  }
+  .orb { --bb-orb-opacity: 0.16; }
+  .orb--green { width: 520px; height: 520px; top: -140px; right: -80px; }
+  .orb--tan { width: 420px; height: 420px; bottom: -120px; left: -100px; --bb-orb-pulse-delay: 400ms; }
 
   .page {
     --label-mono-size: var(--bb-text-xs);
@@ -437,9 +427,9 @@
 
     position: relative;
     z-index: 1;
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + 72px) 24px 96px;
+    width: min(100% - 32px, 1080px);
+    margin-inline: auto;
+    padding: calc(var(--bb-nav-height) + var(--bb-space-8)) 0 var(--bb-space-section);
     color: var(--bb-white);
   }
 
@@ -448,20 +438,56 @@
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 24px 40px;
-    margin-bottom: 44px;
+    gap: var(--bb-space-6) var(--bb-space-8);
+    margin-bottom: var(--bb-space-8);
   }
 
   .hero__text {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    align-items: flex-start;
+    gap: var(--bb-space-3);
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
   .eyebrow {
-    text-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.45);
+    display: flex;
+    width: min(100%, 16rem);
+    font-size: var(--bb-text-md);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--bb-green-glow);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+
+  .title {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 500;
+    letter-spacing: var(--bb-tracking-display);
+    line-height: 1.04;
+  }
+
+  .title--mid { font-size: clamp(2.25rem, 4.8vw, 3.5rem); }
+  .title--long { font-size: clamp(1.9rem, 3.6vw, 2.75rem); }
+
+  .word {
+    display: inline-block;
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
+  }
+
+  .tagline {
+    width: min(100%, 52ch);
+    margin: 0;
+    font-size: var(--bb-text-md);
+    line-height: 1.6;
+    color: var(--bb-muted-light);
   }
 
   .notice { margin-bottom: 24px; }
@@ -518,40 +544,29 @@
   }
   .group + .group { margin-top: 18px; }
   .group__head {
-    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 22px 24px 14px;
-    border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.08);
-    background: linear-gradient(180deg, rgba(var(--bb-green-glow-rgb), 0.06), transparent);
-  }
-  .group__head::after {
-    content: '';
-    position: absolute;
-    left: 24px;
-    bottom: -1px;
-    width: 56px;
-    height: 1px;
-    background: linear-gradient(90deg, var(--bb-green-glow), transparent);
-    box-shadow: 0 0 12px rgba(var(--bb-green-glow-rgb), 0.6);
+    gap: var(--bb-space-1);
+    padding: var(--bb-space-6) var(--bb-space-6) var(--bb-space-4);
+    box-shadow: inset 0 -1px 0 rgba(var(--bb-white-rgb), 0.05);
   }
   .group__title {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: baseline;
+    gap: var(--bb-space-3);
   }
-  .group__title :global(.group__mark) {
-    flex: none;
-    color: var(--bb-green-glow);
-    filter: drop-shadow(0 0 8px rgba(var(--bb-green-glow-rgb), 0.55));
+  .group__name {
+    min-width: 0;
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--bb-paper);
   }
   .group__count {
     margin-left: auto;
-    padding: 2px 9px;
-    border: 1px solid rgba(var(--bb-tan-rgb), 0.16);
-    border-radius: 999px;
-    color: var(--bb-tan);
+    color: var(--bb-muted);
   }
 
   .row__trigger {
@@ -631,7 +646,7 @@
   }
 
   @media (max-width: 640px) {
-    .page { padding-left: 16px; padding-right: 16px; }
+    .page { padding-top: calc(var(--bb-nav-height) + var(--bb-space-6)); }
     .toolbar { display: contents; }
     .search {
       position: sticky;
@@ -657,7 +672,6 @@
     .row__trigger { flex-basis: 100%; }
     .row__tags { flex-basis: 100%; justify-content: flex-start; }
     .list__head { padding: 14px 18px; }
-    .group__head { padding: 16px 18px 12px; }
-    .group__head::after { left: 18px; }
+    .group__head { padding: var(--bb-space-5) var(--bb-space-4) var(--bb-space-3); }
   }
 </style>
