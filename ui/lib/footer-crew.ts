@@ -2,7 +2,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { EngineHandle } from '@luzir/bolota/engine';
-import { prefersReducedMotion } from './motion-query';
 
 export const FOOTER_CREW = [
   { name: 'everything', head: '--bb-green-glow', size: 0.82 },
@@ -15,10 +14,11 @@ export const FOOTER_CREW = [
 const LIFT_REACH_PX = 220;
 const LIFT_ZONE_PX = 360;
 const IDLE_WAIT_MS = 200;
+const MOUNT_WAIT_MS = 3000;
 
-function idle(): Promise<void> {
+function idle(timeout = IDLE_WAIT_MS): Promise<void> {
   return new Promise((resolve) => {
-    if ('requestIdleCallback' in window) requestIdleCallback(() => resolve(), { timeout: IDLE_WAIT_MS });
+    if ('requestIdleCallback' in window) requestIdleCallback(() => resolve(), { timeout });
     else setTimeout(resolve, 0);
   });
 }
@@ -46,66 +46,44 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
   const crew = seats(footer);
   if (!crew.length) return () => {};
 
-  let painted = false;
-  let live = false;
   let stopped = false;
-  let generation = 0;
 
   const lift = (ev: PointerEvent) => {
     const close = ev.clientY > footer.getBoundingClientRect().bottom - LIFT_ZONE_PX;
-    for (const seat of crew) {
+    const centres = crew.map((seat) => {
       const box = seat.el.getBoundingClientRect();
-      const amount = close ? Math.max(0, 1 - Math.abs(ev.clientX - (box.left + box.width / 2)) / LIFT_REACH_PX) : 0;
+      return box.left + box.width / 2;
+    });
+    crew.forEach((seat, i) => {
+      const amount = close ? Math.max(0, 1 - Math.abs(ev.clientX - centres[i]) / LIFT_REACH_PX) : 0;
       seat.el.style.setProperty('--lift', amount.toFixed(2));
       seat.handle?.setExpression(amount > 0.6 ? 'curious' : null);
-    }
+    });
   };
   const settle = () => crew.forEach((seat) => seat.el.style.setProperty('--lift', '0'));
 
-  async function paint(): Promise<void> {
-    if (painted) return;
-    painted = true;
-    const { parts } = await import('@luzir/bolota');
-    for (const seat of crew) {
-      seat.svg.innerHTML = `<g data-pose>${parts(seat.name, { size: 100, palette: seat.palette, background: false }).inner}</g>`;
-    }
-  }
-
-  const animate = !prefersReducedMotion();
-
-  async function wake(): Promise<void> {
-    await paint();
-    if (!animate) return;
-    if (live || stopped) return;
-    live = true;
-    const run = generation;
-    window.addEventListener('pointermove', lift, { passive: true });
+  async function mount(): Promise<void> {
     const { mountEngine } = await import('@luzir/bolota/engine');
     for (const seat of crew) {
       await idle();
-      if (run !== generation) return;
+      if (stopped) return;
       seat.handle = mountEngine(seat.svg, seat.name, { size: 100, palette: seat.palette, background: false });
-      seat.svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
       seat.handle.loop('idle');
       seat.handle.follow('window');
     }
   }
 
-  function sleep(): void {
-    live = false;
-    generation++;
+  function hide(): void {
     window.removeEventListener('pointermove', lift);
     settle();
-    for (const seat of crew) {
-      seat.handle?.destroy();
-      seat.handle = undefined;
-      seat.svg.querySelector('[data-pose]')?.removeAttribute('display');
-    }
   }
 
-  const io = new IntersectionObserver(([entry]) => (entry.isIntersecting ? void wake() : sleep()), {
-    rootMargin: '200px 0px',
-  });
+  void idle(MOUNT_WAIT_MS).then(mount);
+
+  const io = new IntersectionObserver(
+    ([entry]) => (entry.isIntersecting ? window.addEventListener('pointermove', lift, { passive: true }) : hide()),
+    { rootMargin: '200px 0px' },
+  );
   io.observe(footer);
   footer.addEventListener('pointerleave', settle);
 
@@ -113,6 +91,10 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
     stopped = true;
     io.disconnect();
     footer.removeEventListener('pointerleave', settle);
-    sleep();
+    hide();
+    for (const seat of crew) {
+      seat.handle?.destroy();
+      seat.handle = undefined;
+    }
   };
 }

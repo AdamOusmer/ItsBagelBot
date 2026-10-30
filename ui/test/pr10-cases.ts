@@ -158,7 +158,7 @@ export const CASES: ParityCase[] = [
     props: {
       brand,
       columns: [
-        { title: 'Product', links: [{ href: '/pricing', label: 'Pricing' }] },
+        { title: 'Product', links: [{ href: '/pricing', label: 'Pricing', current: true }] },
         {
           title: 'Community',
           links: [{ href: 'https://d.example.test', label: 'Discord', external: true }],

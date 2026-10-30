@@ -5,7 +5,7 @@
     "": {
       "name": "@bagel/ui",
       "dependencies": {
-        "@luzir/bolota": "0.1.7",
+        "@luzir/bolota": "0.2.1",
         "lenis": "^1.3.23",
       },
       "devDependencies": {
@@ -170,7 +170,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@luzir/bolota": ["@luzir/bolota@0.1.7", "", {}, "sha512-rRM9BxP157Ez/q+Y1bTh7cOfLmdwKblFxDolvpbYRkVYwv90xAe4mUWu+s1FZrYX3uPpka+Z9nvSMqHlYaTdaA=="],
+    "@luzir/bolota": ["@luzir/bolota@0.2.1", "", {}, "sha512-bozRvE+lgApCFN4UudvP/RYHlTXlVVt/H0sNBV/+B//moTzNq57LyRIMAsqSxjHiRXuE029u+8EpOGKcwhztGw=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.5", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-HshSvXzmBxNzqejd3k/KemgQ3hdREUYFRRrgxOZ+gPljDIsO2SDZrVZMd4Z/HsxudQbE62OVyVFE8z9BCurfjA=="],
 

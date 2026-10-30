@@ -100,9 +100,8 @@ const titleWords = t('contact.title').split(' ');
                     data-head={mascot.colors.head}
                     data-eye={mascot.colors.eye}
                     data-follow
-                >
-                    <g data-pose set:html={mascot.inner} />
-                </svg>
+                    set:html={mascot.inner}
+                />
             </div>
         </div>
 
@@ -119,9 +118,8 @@ const titleWords = t('contact.title').split(' ');
                                     data-size={face.size}
                                     data-head={face.colors.head}
                                     data-eye={face.colors.eye}
-                                >
-                                    <g data-pose set:html={face.inner} />
-                                </svg>
+                                    set:html={face.inner}
+                                />
                             ))}
                         </span>
                         <span class="label__text"><span data-fit>{t(`contact.${lane.key}Label`)}</span></span>
@@ -166,13 +164,15 @@ const titleWords = t('contact.title').split(' ');
 </section>
 
 <script>
+    import '@luzir/bolota/motion.css';
+    import '@luzir/bolota/gaze.css';
     import { animate, stagger, cubicBezier } from 'motion';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import type { EngineHandle } from '@luzir/bolota/engine';
 
     const STATUS_URL = 'https://status.itsbagelbot.com/en/index.json';
     const STATES = new Set(['operational', 'degraded', 'downtime', 'maintenance']);
-    const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'shy', 'love'];
+    const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
     const easeOutQuint = cubicBezier(0.22, 1, 0.36, 1);
@@ -223,7 +223,6 @@ const titleWords = t('contact.title').split(' ');
                 palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
                 background: false,
             });
-            svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
             handle.loop('idle');
             if (svg.hasAttribute('data-follow')) handle.follow('window');
             const live: Live = { svg, handle, timer: null };
@@ -238,7 +237,6 @@ const titleWords = t('contact.title').split(' ');
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.handle.destroy();
-            live.svg.querySelector('[data-pose]')?.removeAttribute('display');
         });
         engines = [];
     }
@@ -386,6 +384,7 @@ const titleWords = t('contact.title').split(' ');
     .face {
         display: block;
         overflow: visible;
+        scale: 0.9;
     }
 
     .bolota {
