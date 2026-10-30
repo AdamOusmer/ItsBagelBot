@@ -1,23 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Keep in step with the Host() matchers in deploy/k8s/console-dashboard.yaml.
-
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/env';
+import { seoHost, type SeoHost } from '#lib/seo-host';
 
-export type SeoHost = 'dashboard' | 'stats' | 'leaderboard' | 'commands' | 'queue';
-
-const KIND_BY_LABEL: Readonly<Record<string, SeoHost>> = {
-  stats: 'stats',
-  leaderboard: 'leaderboard',
-  commands: 'commands',
-  queue: 'queue'
-};
-
-export function seoHost(url: URL): SeoHost {
-  return KIND_BY_LABEL[url.hostname.split('.')[0] ?? ''] ?? 'dashboard';
-}
+export { seoHost, type SeoHost };
 
 export const SEO_ORIGIN: Readonly<Record<SeoHost, string>> = {
   dashboard: 'https://dashboard.itsbagelbot.com',

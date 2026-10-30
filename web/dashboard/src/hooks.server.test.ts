@@ -316,3 +316,42 @@ describe('handle session admission', () => {
     }
   });
 });
+
+type PageLoad = { href: string; routeId?: string | null; method?: string; isDataRequest?: boolean };
+
+function pageLoad({ href, routeId = null, method = 'GET', isDataRequest = false }: PageLoad): Event {
+  const url = new URL(href);
+  return {
+    route: { id: routeId },
+    request: new Request(url, { method }),
+    url,
+    isDataRequest,
+    locals: { session: null, locale: 'en' },
+    cookies: { get: () => undefined, set: () => {}, delete: () => {} }
+  } as unknown as Event;
+}
+
+async function locationAfter(load: PageLoad, res: Response): Promise<[number, string | null]> {
+  const response = await handle({ event: pageLoad(load) as never, resolve: async () => res });
+  return [response.status, response.headers.get('location')];
+}
+
+describe('error pages have their own route', () => {
+  test.each([
+    { name: 'a wrong dashboard link goes to /not-found', load: { href: 'https://dashboard.itsbagelbot.com/modules/nope' }, status: 404, want: [303, '/not-found'] },
+    { name: 'a crashed dashboard page goes to /error with its code', load: { href: 'https://dashboard.itsbagelbot.com/commands', routeId: '/(app)/commands' }, status: 500, want: [303, '/error?code=500'] },
+    { name: 'the language query follows the redirect', load: { href: 'https://dashboard.itsbagelbot.com/nope?lang=fr' }, status: 404, want: [303, '/not-found?lang=fr'] },
+    { name: 'a public leaderboard 404 stays in place for the edge and search engines', load: { href: 'https://leaderboard.itsbagelbot.com/ghost', routeId: LEADERBOARD }, status: 404, want: [404, null] },
+    { name: 'a public route on the dashboard host stays in place', load: { href: 'https://dashboard.itsbagelbot.com/queue/ghost', routeId: QUEUE }, status: 404, want: [404, null] },
+    { name: 'the error routes never redirect to themselves', load: { href: 'https://dashboard.itsbagelbot.com/not-found', routeId: '/not-found' }, status: 404, want: [404, null] },
+    { name: 'client navigation data is left for the error page to move', load: { href: 'https://dashboard.itsbagelbot.com/modules/nope', isDataRequest: true }, status: 404, want: [404, null] },
+    { name: 'form posts keep their response', load: { href: 'https://dashboard.itsbagelbot.com/modules', method: 'POST' }, status: 500, want: [500, null] }
+  ])('$name', async ({ load, status, want }) => {
+    expect(await locationAfter(load, htmlResponse(status))).toEqual(want as [number, string | null]);
+  });
+
+  test('a JSON 404 from an endpoint is not turned into a page redirect', async () => {
+    const json = new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+    expect(await locationAfter({ href: 'https://dashboard.itsbagelbot.com/stats/data' }, json)).toEqual([404, null]);
+  });
+});

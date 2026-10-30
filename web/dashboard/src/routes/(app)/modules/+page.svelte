@@ -9,20 +9,13 @@
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '$app/forms';
-  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Kbd from '@bagel/ui/svelte/Kbd.svelte';
-  import Label from '@bagel/ui/svelte/Label.svelte';
-  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
-  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import SectionNav from '@bagel/ui/svelte/SectionNav.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import {
     getI18n,
@@ -32,8 +25,6 @@
     writeModuleIndexQuery,
     MODULE_CATEGORY_I18N,
     categoryAnchorId,
-    categoryHref,
-    moduleHref,
     tModuleLabel,
     tModuleTagline,
     tModuleDescription,
@@ -42,7 +33,6 @@
     type ModuleState
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
-  import Divider from '@bagel/ui/svelte/Divider.svelte';
   import ModuleIndexRow from '#lib/components/modules/ModuleIndexRow.svelte';
 
   let { data } = $props();
@@ -87,22 +77,7 @@
     return keys ? t(keys.hint) : '';
   }
 
-  const navItems = $derived(
-    groups.map((group) => ({
-      href: categoryHref(group.name),
-      label: catLabel(group.name),
-      count: group.modules.length
-    }))
-  );
-
-  // Use only modules present in this viewer's catalog so shortcuts respect
-  // the same delegation rules as the rows below.
-  const shortcuts = $derived(
-    ['songqueue', 'timers', 'loyalty', 'quotes'].flatMap((id) => {
-      const module = items.find((m) => m.def.id === id);
-      return module ? [module] : [];
-    })
-  );
+  const groupActive = (modules: ModuleState[]): number => modules.filter((m) => m.enabled).length;
 
   function clearSearch() {
     searchQuery = '';
@@ -177,138 +152,238 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="screen active">
-  <PageHead
-    eyebrow={t('modules.eyebrow')}
-    description={t('modules.description', { active: activeCount, total: items.length })}
-  >{t('modules.titlePre')}<em>{t('modules.titleEm')}</em></PageHead>
+<section class="screen active mods">
+  <header class="mods__hero">
+    <span class="mods__eyebrow"><span class="mods__beacon" aria-hidden="true"></span>{t('modules.eyebrow')}</span>
+    <h1 class="mods__title"><span class="mods__word">{t('modules.titlePre')}</span><span class="mods__word mods__word--em">{t('modules.titleEm')}</span></h1>
+    <p class="mods__lede">{t('modules.description', { active: activeCount, total: items.length })}</p>
+  </header>
 
   {#if data.degraded}
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
   {/if}
 
-  <div class="deck">
-    <Label htmlFor="module-search">{t('modules.searchLabel')}</Label>
-    <div class="find-row">
-      <div class="find">
-        <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
-          aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
-        {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
-      </div>
-      <div class="status-filter">
-        <SegmentedControl
-          options={statusOptions}
-          label={t('modules.statusFilterLabel')}
-          bind:value={() => statusFilter, (v) => (statusFilter = v === 'on' ? 'on' : 'all')}
-        />
-      </div>
+  <div class="mods__toolbar">
+    <div class="mods__find">
+      <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
+        aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
+      {#if !searchQuery}<span class="mods__keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
     </div>
-    <Divider flush />
+    <SegmentedControl
+      options={statusOptions}
+      label={t('modules.statusFilterLabel')}
+      bind:value={() => statusFilter, (v) => (statusFilter = v === 'on' ? 'on' : 'all')}
+    />
   </div>
 
-  <div class="find-help">
-    <Text size="sm" tone="muted" id="module-search-hint">{t('modules.openHint')}</Text>
-    <Text size="sm" tone="muted" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</Text>
+  <div class="mods__help">
+    <span id="module-search-hint">{t('modules.openHint')}</span>
+    <span aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</span>
   </div>
-
-  {#if shortcuts.length}
-    <nav class="shortcuts" class:concealed={!!searchQuery.trim()} aria-label={t('modules.quickAccess')}>
-      <span class="shortcut-label"><Text as="span" size="xs" tone="muted">{t('modules.quickAccess')}</Text></span>
-      {#each shortcuts as module (module.def.id)}
-        <ButtonLink variant="ghost" href={moduleHref(module.def)}>
-          {#if module.def.id === 'songqueue'}<Icon name="music" size={16} />{/if}
-          {tModuleLabel(t, module.def)}
-          <span class="chev"><Icon name="chevron" size={12} /></span>
-        </ButtonLink>
-      {/each}
-    </nav>
-  {/if}
 
   {#if groups.length === 0}
     <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
       <Button variant="ghost" onclick={clearSearch}>{t('modules.searchClear')}</Button>
     </EmptyState>
   {:else}
-    <div class="index">
-      <SectionNav label={t('modules.catNav')} items={navItems} />
-      <div class="families">
-        {#each groups as group (group.name)}
-          <section
-            class="family"
-            id={categoryAnchorId(group.name)}
-            tabindex="-1"
-            aria-labelledby="family-{categoryAnchorId(group.name)}"
-          >
-            <header class="family-head">
-              <Heading level={5} as="h2" class="family-title" id="family-{categoryAnchorId(group.name)}"
-                >{catLabel(group.name)}</Heading
-              >
-              {#if catHint(group.name)}
-                <div class="family-hint"><Text size="sm" tone="muted">{catHint(group.name)}</Text></div>
-              {/if}
+    <div class="mods__groups">
+      {#each groups as group (group.name)}
+        <section
+          class="mods__group"
+          id={categoryAnchorId(group.name)}
+          tabindex="-1"
+          aria-labelledby="family-{categoryAnchorId(group.name)}"
+        >
+          <Card class="mods__lane">
+            <header class="mods__lane-head">
+              <div class="mods__lane-intro">
+                <h2 class="mods__lane-title" id="family-{categoryAnchorId(group.name)}">{catLabel(group.name)}</h2>
+                {#if catHint(group.name)}<p class="mods__lane-hint">{catHint(group.name)}</p>{/if}
+              </div>
+              <span class="mods__lane-count">{groupActive(group.modules)} / {group.modules.length} {t('modules.statusOn')}</span>
             </header>
-            <DeckList>
+            <div class="mods__rows">
               {#each group.modules as m (m.def.id)}
                 <ModuleIndexRow module={m} status={modStatus[m.def.id] ?? 'idle'} toggleSubmit={toggleSubmit(m)} />
               {/each}
-            </DeckList>
-          </section>
-        {/each}
-      </div>
+            </div>
+          </Card>
+        </section>
+      {/each}
     </div>
   {/if}
 </section>
 
 <style>
-  .screen {
-    --find-clear: 98px;
+  .mods {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-5);
+    padding-bottom: var(--bb-space-section);
   }
-  .find-help {
+
+  .mods__hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+    padding-top: var(--bb-space-4);
+  }
+
+  .mods__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    font-size: var(--bb-text-md);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--bb-green-glow);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+
+  .mods__beacon {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 10px var(--bb-green-glow);
+  }
+
+  .mods__title {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: clamp(2.25rem, 4.4vw, 3.5rem);
+    font-weight: 500;
+    letter-spacing: var(--bb-tracking-display);
+    line-height: 1.06;
+  }
+
+  .mods__word {
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  .mods__word--em {
+    background: linear-gradient(180deg, var(--bb-tan-pale) 30%, var(--bb-tan));
+    background-clip: text;
+    -webkit-background-clip: text;
+  }
+
+  .mods__lede {
+    margin: 0;
+    max-width: 60ch;
+    font-size: var(--bb-text-md);
+    line-height: 1.6;
+    color: var(--bb-muted-light);
+  }
+
+  .mods__toolbar {
+    position: sticky;
+    top: calc(var(--bb-topbar-height) + 4px);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-2);
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-elev-1);
+    box-shadow: var(--bb-depth-2);
+  }
+
+  .mods__find {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mods__keys {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .mods__help {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 6px 20px;
-    margin-bottom: 16px;
+    gap: var(--bb-space-1) var(--bb-space-5);
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted);
   }
-  .shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 22px; }
-  .shortcut-label { margin-right: 4px; }
-  .chev { display: inline-flex; transform: rotate(-90deg); }
-  .shortcuts.concealed { visibility: hidden; }
-  .deck {
-    position: sticky;
-    top: var(--bb-topbar-height);
-    z-index: 5;
-    padding: 10px 0 0;
-    margin: 0 0 10px;
-    background: var(--bb-bg-0);
-    display: grid;
-    gap: 14px;
-  }
-  .find-row { margin-top: 0; }
-  .find-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-  .find { flex: 1; min-width: 0; position: relative; }
-  .status-filter { flex: none; }
-  .find .keys { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
 
-  .index {
-    display: grid;
-    gap: 18px 32px;
-    --bb-tabs-sticky-top: calc(var(--bb-topbar-height) + var(--find-clear));
+  .mods__groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-5);
   }
-  @media (min-width: 761px) {
-    .index {
-      grid-template-columns: 10rem minmax(0, 1fr);
-    }
+
+  .mods__group {
+    scroll-margin-top: calc(var(--bb-topbar-height) + 84px);
   }
-  .families { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
-  .family {
-    scroll-margin-top: calc(var(--bb-topbar-height) + var(--find-clear) + 4px);
+
+  .mods__group:focus { outline: none; }
+
+  .mods :global(.mods__lane) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-5) var(--bb-space-5) var(--bb-space-3);
   }
-  .family:focus { outline: none; }
-  .family:target :global(.family-title) { color: var(--bb-tan-pale); }
-  .family-head { display: grid; gap: 4px; margin-bottom: 10px; }
-  .family-hint { max-width: 52ch; }
+
+  .mods__lane-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--bb-space-3);
+  }
+
+  .mods__lane-intro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-1);
+    min-width: 0;
+  }
+
+  .mods__lane-title {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--bb-paper);
+  }
+
+  .mods__group:target .mods__lane-title { color: var(--bb-tan-pale); }
+
+  .mods__lane-hint {
+    max-width: 60ch;
+    margin: 0;
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted);
+  }
+
+  .mods__lane-count {
+    flex: none;
+    font: var(--bb-text-xs)/1.6 var(--bb-font-mono);
+    color: var(--bb-muted);
+  }
+
+  .mods__rows {
+    display: flex;
+    flex-direction: column;
+    margin-inline: calc(var(--bb-space-3) * -1);
+  }
+
+  .mods__rows > :global(* + *) {
+    box-shadow: inset 0 1px 0 rgba(var(--bb-white-rgb), 0.05);
+  }
+
   @media (max-width: 760px) {
-    .keys { display: none; }
+    .mods__keys { display: none; }
+    .mods :global(.mods__lane) { padding-inline: var(--bb-space-4); }
   }
 </style>

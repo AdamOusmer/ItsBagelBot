@@ -25,6 +25,7 @@ import { assertConfigSane } from '#lib/server/config-sanity';
 import { purgeEdgeByTag } from '#lib/server/edge-purge';
 import { enumerableChannelQuery } from '#lib/server/channel-urls';
 import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
+import { errorTarget } from '#lib/error-routes';
 import { countView, setAnalyticsApp } from '@bagel/kit/server/analytics';
 
 setAnalyticsApp('dashboard');
@@ -215,6 +216,20 @@ function pageChunkTransform(locale: Locale): NonNullable<ResolveOptions['transfo
   };
 }
 
+function isHtml(res: Response): boolean {
+  return (res.headers.get('content-type') ?? '').includes('text/html');
+}
+
+function fullPageLoad(event: HookEvent, res: Response): boolean {
+  return event.request.method === 'GET' && !event.isDataRequest && isHtml(res);
+}
+
+function errorPageRedirect(event: HookEvent, res: Response): Response | null {
+  if (!fullPageLoad(event, res)) return null;
+  const target = errorTarget(event.url, event.route.id, res.status);
+  return target ? new Response(null, { status: 303, headers: { location: target } }) : null;
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/readyz') return resolve(event);
 
@@ -228,6 +243,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   await prepareRequest(event);
   const locale = event.locals.locale;
   const res = await resolve(event, { preload: preloadStrategy, transformPageChunk: pageChunkTransform(locale) });
+  const moved = errorPageRedirect(event, res);
+  if (moved) return moved;
 
   preloadSlices(res.headers, locale);
   harden(res, PERMISSIONS_POLICY);
