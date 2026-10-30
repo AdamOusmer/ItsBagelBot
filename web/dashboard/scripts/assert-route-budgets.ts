@@ -34,7 +34,8 @@ const BUDGETS: Record<string, Budget> = {
   '/(app)/commands': { js: 142000, css: 47200, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
-  '/(public)/user/[channel]': { js: 101500, css: 22000, catalog: 2800, lazy: 0 }
+  // css raised from 22000 (2026-10-30) for the leaderboard-style title and orbs: measured 22146 B, ~1.6% room.
+  '/(public)/user/[channel]': { js: 101500, css: 22500, catalog: 2800, lazy: 0 }
 };
 
 interface RouteEntry {

@@ -15,6 +15,8 @@
   "justJoined": "Just joined",
   "boardTitle": "The line",
   "boardNote": "First in, first called. Shows up to {max} viewers.",
+  "colViewer": "Viewer",
+  "colWaited": "Waiting",
   "moreNote": "Showing the first {shown} of {total} viewers",
   "emptyTitle": "Nobody is in line",
   "emptyBody": "When viewers join the queue, they show up here.",
