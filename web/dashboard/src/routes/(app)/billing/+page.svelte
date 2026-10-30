@@ -1,8 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import Badge from '@bagel/ui/svelte/Badge.svelte';
-  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import HaloPanel from '@bagel/ui/svelte/HaloPanel.svelte';
   import MarkBadge from '@bagel/ui/svelte/MarkBadge.svelte';
@@ -15,8 +13,8 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import Label from '@bagel/ui/svelte/Label.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
@@ -51,9 +49,9 @@
   const staffGrant = $derived(account.status === 'paid' && account.source === 'admin');
   const tebexPaid = $derived(account.status === 'paid' && account.source === 'tebex');
   const cancelPending = $derived(tebexPaid && account.cancelPending);
-  const money = $derived(
-    new Intl.NumberFormat(i18n.locale, { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(7)
-  );
+  const cad = $derived(new Intl.NumberFormat(i18n.locale, { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }));
+  const money = $derived(cad.format(7));
+  const freeMoney = $derived(cad.format(0));
   const paidUntil = $derived(account.expiresAt);
   const canSubscribe = $derived(!isPaid);
   const canManage = $derived(tebexPaid);
@@ -248,17 +246,16 @@
 <div class="starfield" aria-hidden="true"><LightField warmth={0.7} /></div>
 
 <section class="screen active">
-  <PageHead
-    eyebrow={t('billing.eyebrow')}
-    description={isPaid ? t('billing.descManage') : t('billing.descChoose')}
-  >
-    {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
-    {#snippet trailing()}
-      <div class="gift-trail">
-        <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
-      </div>
-    {/snippet}
-  </PageHead>
+  <header class="hero">
+    <div class="hero-text">
+      <span class="hero-eyebrow"><span class="beacon" aria-hidden="true"></span>{t('billing.eyebrow')}</span>
+      <h1 class="hero-title"><span class="hero-word">{isPaid ? t('billing.managePre') : t('billing.choosePre')}</span><span class="hero-word hero-word--em">{t('billing.planEm')}</span></h1>
+      <p class="hero-lede">{isPaid ? t('billing.descManage') : t('billing.descChoose')}</p>
+    </div>
+    <div class="gift-trail">
+      <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
+    </div>
+  </header>
 
   {#if data.degraded}
     <AlertBanner>{t('billing.degraded')}</AlertBanner>
@@ -299,51 +296,41 @@
 
   {#if !isPaid}
 
-    <p class="plan-status">
-      <Tag tone="quiet">{t('billing.currentPlan')}</Tag>
-      <Tag tone="live" status>{awaitingActivation ? t('billing.activating') : statusLabel}</Tag>
-    </p>
-
     <h2 class="bb-sr-only">{t('billing.comparePlans')}</h2>
     <div class="plans">
-      <Card>
-        <div class="plan">
-          <div class="plan-title">
-            <Label mono as="span">{t('billing.currentPlan')}</Label>
-            <Heading level={6} as="h3" variant="title" uppercase>{t('billing.free')}</Heading>
+      <div class="plan plan--free">
+        <Card class="plan-card">
+          <div class="plan-head">
+            <h3 class="plan-name">{t('billing.free')}</h3>
+            <span class="plan-current" role="status"><span class="beacon" aria-hidden="true"></span>{awaitingActivation ? t('billing.activating') : t('billing.onThisPlan')}</span>
           </div>
-          <p class="plan-price">
-            <span class="plan-amt">{t('billing.free')}</span>
-          </p>
-          <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.freeDesc')}</Text></div>
+          <p class="plan-price"><span class="plan-amt">{freeMoney}</span><span class="plan-suffix">{t('billing.perMonth')}</span></p>
+          <p class="plan-desc">{t('billing.freeDesc')}</p>
+          <span class="plan-rule" aria-hidden="true"></span>
           <ul class="plan-feats">
             {#each freeFeatures as feature}
-              <Text as="li" size="sm" tone="soft">{feature}</Text>
+              <li class="plan-feat"><Icon name="check" size={14} class="plan-check" />{feature}</li>
             {/each}
           </ul>
-          <div class="plan-current">
-            <Tag tone="live">{t('billing.onThisPlan')}</Tag>
-          </div>
-        </div>
-      </Card>
+          <span class="plan-actions"></span>
+        </Card>
+      </div>
 
-      <Card tone="accent">
-        <div class="plan">
-          <span class="plan-badge"><Badge shape="pill" tone="paid">{t('billing.priorityLane')}</Badge></span>
-          <div class="plan-title">
-            <Label mono as="span">{t('billing.upgrade')}</Label>
-            <Heading level={6} as="h3" variant="title" uppercase>{t('billing.premium')}</Heading>
+      <div class="plan plan--premium">
+        <Card class="plan-card" tone="accent" raised>
+          <div class="plan-head">
+            <h3 class="plan-name">{t('billing.premium')}</h3>
+            <span class="plan-badge">{t('billing.priorityLane')}</span>
           </div>
-          <p class="plan-price">
-            <span class="plan-amt">{money}</span>
-            <Text as="span" size="sm" tone="muted">{t('billing.perMonth')}</Text>
-          </p>
-          <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.premiumDesc')}</Text></div>
+          <p class="plan-price"><span class="plan-amt">{money}</span><span class="plan-suffix">{t('billing.perMonth')}</span></p>
+          <p class="plan-desc">{t('billing.premiumDesc')}</p>
+          <span class="plan-rule" aria-hidden="true"></span>
           <ul class="plan-feats">
             {#each premiumFeatures as feature}
-              <Text as="li" size="sm" tone="soft">{feature}</Text>
+              <li class="plan-feat"><Icon name="check" size={14} class="plan-check" />{feature}</li>
             {/each}
           </ul>
+          <div class="plan-actions">
           <div class="plan-buttons">
             <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={() => onSubscribeSubmit('monthly')}>
               <input type="hidden" name="plan" value="monthly" />
@@ -375,16 +362,13 @@
           <div class="launch-note" role="status" class:is-on={launching !== null}>
             <Text size="sm" tone="accent">{launching ? t('billing.takingToCheckout') : ''}</Text>
           </div>
-          <div class="plan-fine"><Text size="xs" tone="muted" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</Text></div>
-        </div>
-      </Card>
+          <p class="plan-fine" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
+          </div>
+        </Card>
+      </div>
     </div>
 
-    <div class="oath">
-      <Card style="--card-pad: 11px 22px">
-        <Text size="xs" mono tone="muted">{t('billing.oath')}</Text>
-      </Card>
-    </div>
+    <p class="oath"><Icon name="check" size={14} class="oath-check" />{t('billing.oath')}</p>
 
     {#if form?.error && !form?.gift}
       <div class="form-error"><FieldError message={String(form.error)} /></div>
@@ -599,84 +583,176 @@
   .prize-cell { display:flex; flex-direction:column; gap:5px; }
   .prize-mark { color:var(--bb-tan-pale); font-size:24px; }
 
-  .plan-status {
+  .hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--bb-space-5);
+    padding-top: var(--bb-space-4);
+    margin-bottom: var(--bb-space-6);
+  }
+  .hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-3);
+  }
+  .hero-eyebrow {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    margin: 0 0 4px;
+    gap: var(--bb-space-2);
+    font-size: var(--bb-text-md);
+    font-weight: 700;
+    color: var(--bb-green-glow);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+  .beacon {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 10px var(--bb-green-glow);
+  }
+  .hero-title {
+    margin: 0;
+    font-family: var(--bb-font-display);
+    font-size: clamp(2.25rem, 4.4vw, 3.5rem);
+    font-weight: 500;
+    letter-spacing: var(--bb-tracking-display);
+    line-height: 1.06;
+  }
+  .hero-word {
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .hero-word--em {
+    background-image: linear-gradient(180deg, var(--bb-tan-pale) 30%, var(--bb-tan));
+  }
+  .hero-lede {
+    margin: 0;
+    color: var(--bb-muted-light);
+    font-size: var(--bb-text-md);
   }
 
   .plans {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 20px;
-    margin-top: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(7, auto);
+    column-gap: var(--bb-space-5);
   }
-  @media (min-width: 820px) {
-    .plans {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
   .plan {
+    display: grid;
+    grid-row: span 7;
+    grid-template-rows: subgrid;
+    min-width: 0;
+  }
+  .plan :global(.plan-card) {
+    grid-row: 1 / span 7;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    row-gap: var(--bb-space-4);
+    padding: var(--bb-space-6);
+  }
+  .plan--free :global(.plan-card) {
+    --card-halo-rgb: var(--bb-halo-green-rgb);
+  }
+  .plan-head {
     display: flex;
-    flex-direction: column;
-    height: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--bb-space-3);
+  }
+  .plan-name {
+    margin: 0;
+    font-size: var(--bb-text-md);
+    font-weight: 600;
+  }
+  .plan--free .plan-name {
+    color: var(--bb-tier-free);
+  }
+  .plan--premium .plan-name {
+    color: var(--bb-tier-paid);
+  }
+  .plan-current {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bb-space-2);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-green-glow);
   }
   .plan-badge {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-  }
-  .plan-title {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
   }
   .plan-price {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 7px;
-    margin: 0 0 12px;
+    gap: var(--bb-space-2);
+    margin: 0;
   }
   .plan-amt {
     font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 3rem;
+    font-size: clamp(2.5rem, 4vw, 3.25rem);
+    font-weight: 500;
+    letter-spacing: -0.05em;
     line-height: 1;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
+    color: var(--bb-paper);
     font-variant-numeric: tabular-nums;
   }
+  .plan-suffix {
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted);
+  }
   .plan-desc {
-    margin: 0 0 20px;
-    max-width: 42ch;
+    margin: 0;
+    font-size: var(--bb-text-sm);
+    line-height: 1.55;
+    color: var(--bb-muted-light);
+  }
+  .plan-rule {
+    align-self: center;
+    height: 1px;
+    background: var(--bb-border);
   }
   .plan-feats {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 11px;
-    margin: 0 0 24px;
-    padding: 20px 0 0;
-    border-top: 1px solid var(--bb-border);
+    gap: var(--bb-space-3);
+    margin: 0;
+    padding: 0;
   }
-  .plan-current {
-    margin: auto 0 0;
+  .plan-feat {
+    display: flex;
+    gap: var(--bb-space-2);
+    font-size: var(--bb-text-sm);
+    color: var(--bb-paper);
+  }
+  .plan-feats :global(.plan-check) {
+    flex: none;
+    margin-top: 3px;
+    color: var(--bb-green-glow);
+  }
+  .plan--premium .plan-feats :global(.plan-check) {
+    color: var(--bb-tan-light);
+  }
+  .plan-actions {
+    align-self: end;
+    display: flex;
+    flex-direction: column;
   }
   .plan-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: auto;
-  }
-  .plan-buttons form {
-    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--bb-space-3);
   }
   .launch-note {
     min-height: calc(var(--bb-text-sm) * 1.5);
-    margin: 12px 0 0;
+    margin: var(--bb-space-2) 0 0;
     visibility: hidden;
     opacity: 0;
     transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
@@ -686,13 +762,24 @@
     opacity: 1;
   }
   .plan-fine {
-    margin: 4px 0 0;
+    margin: 0;
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
   }
 
   .oath {
-    margin: 18px auto 0;
-    max-width: fit-content;
-    text-align: center;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--bb-space-2);
+    margin: var(--bb-space-6) 0 0;
+    font-size: var(--bb-text-sm);
+    color: var(--bb-muted);
+  }
+  .oath :global(.oath-check) {
+    flex: none;
+    margin-top: 3px;
+    color: var(--bb-green-glow);
   }
 
   .gift-trail { --btn-min-h: 44px; }
@@ -725,7 +812,7 @@
   }
   .premium-title {
     font-family: var(--bb-font-display);
-    font-weight: 800;
+    font-weight: 500;
     font-size: 28px;
     letter-spacing: var(--bb-tracking-display);
     color: var(--bb-white);
@@ -839,8 +926,22 @@
 
       flex-direction: column;
     }
-    .plan-buttons {
+    .hero {
       flex-direction: column;
+      align-items: flex-start;
     }
   }
-</style>
+  @media (max-width: 860px) {
+    .plans {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--bb-space-5);
+    }
+    .plan {
+      grid-row: auto;
+      grid-template-rows: none;
+    }
+    .plan :global(.plan-card) {
+      grid-row: auto;
+      grid-template-rows: none;
+    }
+  }</style>
