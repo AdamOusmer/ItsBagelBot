@@ -48,11 +48,9 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
   const crew = seats(footer);
   if (!crew.length) return () => {};
 
-  let painted = false;
-  let live = false;
+  const animate = !prefersReducedMotion();
+  let visible = false;
   let stopped = false;
-  let generation = 0;
-
   let scrolling: ReturnType<typeof setTimeout> | undefined;
   let following = true;
 
@@ -86,55 +84,51 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
   };
   const settle = () => crew.forEach((seat) => seat.el.style.setProperty('--lift', '0'));
 
-  async function paint(): Promise<void> {
-    if (painted) return;
-    painted = true;
+  const wakeSeat = (seat: Seat) => {
+    seat.handle?.loop('idle');
+    seat.handle?.follow(following ? 'window' : false);
+  };
+
+  // The engines share one frame loop and reuse their nodes, so each is mounted once at idle and only paused off-screen.
+  async function prepare(): Promise<void> {
     const { parts } = await import('@luzir/bolota');
+    if (stopped) return;
     for (const seat of crew) {
       seat.svg.innerHTML = `<g data-pose>${parts(seat.name, { size: 100, palette: seat.palette, background: false }).inner}</g>`;
     }
-  }
-
-  const animate = !prefersReducedMotion();
-
-  async function wake(): Promise<void> {
-    await paint();
     if (!animate) return;
-    if (live || stopped) return;
-    live = true;
-    const run = generation;
-    window.addEventListener('pointermove', lift, { passive: true });
-    window.addEventListener('scroll', hold, { passive: true });
     const { mountEngine } = await import('@luzir/bolota/engine');
     for (const seat of crew) {
       await idle();
-      if (run !== generation) return;
+      if (stopped) return;
       seat.handle = mountEngine(seat.svg, seat.name, { size: 100, palette: seat.palette, background: false });
       seat.svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
-      seat.handle.loop('idle');
-      seat.handle.follow(following ? 'window' : false);
+      if (visible) wakeSeat(seat);
+      else seat.handle.stop();
     }
   }
 
-  function sleep(): void {
-    live = false;
-    generation++;
+  function show(): void {
+    visible = true;
+    window.addEventListener('pointermove', lift, { passive: true });
+    window.addEventListener('scroll', hold, { passive: true });
+    crew.forEach(wakeSeat);
+  }
+
+  function hide(): void {
+    visible = false;
     window.removeEventListener('pointermove', lift);
     window.removeEventListener('scroll', hold);
     clearTimeout(scrolling);
     scrolling = undefined;
     following = true;
     settle();
-    for (const seat of crew) {
-      seat.handle?.destroy();
-      seat.handle = undefined;
-      seat.svg.querySelector('[data-pose]')?.removeAttribute('display');
-    }
+    crew.forEach((seat) => seat.handle?.stop());
   }
 
-  if (animate) void idle(WARM_WAIT_MS).then(() => import('@luzir/bolota/engine'));
+  void idle(WARM_WAIT_MS).then(prepare);
 
-  const io = new IntersectionObserver(([entry]) => (entry.isIntersecting ? void wake() : sleep()), {
+  const io = new IntersectionObserver(([entry]) => (entry.isIntersecting ? show() : hide()), {
     rootMargin: '200px 0px',
   });
   io.observe(footer);
@@ -144,6 +138,11 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
     stopped = true;
     io.disconnect();
     footer.removeEventListener('pointerleave', settle);
-    sleep();
+    hide();
+    for (const seat of crew) {
+      seat.handle?.destroy();
+      seat.handle = undefined;
+      seat.svg.querySelector('[data-pose]')?.removeAttribute('display');
+    }
   };
 }
