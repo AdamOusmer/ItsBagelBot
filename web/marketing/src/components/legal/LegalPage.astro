@@ -3,7 +3,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Layout from '../../layouts/Layout.astro';
-import PageHero from '@bagel/ui/astro/PageHero.astro';
 import LegalShell from './LegalShell.astro';
 import { getCollection, getEntry, render } from 'astro:content';
 import { getLangFromUrl, defaultLang } from '../../i18n/ui';
@@ -45,6 +44,5 @@ const sections = await Promise.all(
 ---
 
 <Layout title={meta.metaTitle} description={meta.metaDescription}>
-    <PageHero eyebrow={meta.eyebrow} title={meta.title} description={meta.description} />
-    <LegalShell updated={meta.updated} sections={sections} />
+    <LegalShell eyebrow={meta.eyebrow} title={meta.title} description={meta.description} updated={meta.updated} sections={sections} />
 </Layout>

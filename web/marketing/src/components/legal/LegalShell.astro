@@ -2,13 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import SectionNav from '@bagel/ui/astro/SectionNav.astro';
-import Container from '@bagel/ui/astro/Container.astro';
-import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
-import Heading from '@bagel/ui/astro/Heading.astro';
-import Label from '@bagel/ui/astro/Label.astro';
-import Tag from '@bagel/ui/astro/Tag.astro';
-import Text from '@bagel/ui/astro/Text.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import LightField from '@bagel/ui/astro/LightField.astro';
+import BolotaSvg from '../BolotaSvg.astro';
+import { staticBolota } from '../../lib/bolota';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 
@@ -20,138 +18,281 @@ interface Section {
 }
 
 interface Props {
+    eyebrow: string;
+    title: string;
+    description: string;
     updated: string;
     sections: Section[];
 }
 
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
-
-const { updated, sections } = Astro.props;
+const { eyebrow, title, description, updated, sections } = Astro.props;
 const t = useTranslations(getLangFromUrl(Astro.url));
-const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('legal.plain') };
-const tocItems = sections.map((section) => ({
-    href: `#${section.id}`,
-    label: section.heading,
-    attrs: { 'data-legal-link': section.id },
-}));
+const labels = { summary: t('legal.summary'), updated: t('legal.updated') };
+const ordinal = (i: number) => String(i + 1).padStart(2, '0');
+const titleWords = title.split(' ');
+const reader = staticBolota('sesame_sam', 84, 'green');
 ---
 
-<Container class="lshell">
-    <div class="lshell__grid">
-        <div class="lshell__toc">
-            <Label mono as="span" class="lshell__toc-label">{labels.toc}</Label>
-            <SectionNav variant="toc" label={labels.toc} items={tocItems} data-legal-toc />
-        </div>
+<div class="lsky" aria-hidden="true">
+    <LightField class="bb-light-field--bleed" />
+    <div class="bb-orb bb-orb--halo bb-orb--green lorb lorb--green"></div>
+    <div class="bb-orb bb-orb--halo bb-orb--tan lorb lorb--tan"></div>
+</div>
 
-        <article class="lshell__content">
-            <Text size="xs" mono tone="muted" class="lshell__updated" data-reveal>{`${labels.updated} ${updated}`}</Text>
+<div class="lshell">
+    <header class="lshell__hero">
+        <span class="lshell__eyebrow">{eyebrow}</span>
+        <h1 class="lshell__title">{titleWords.map((word, i) => <>{i > 0 && ' '}<span class="lshell__word">{word}</span></>)}</h1>
+        <p class="lshell__lede">{description}</p>
+        <p class="lshell__updated">{`${labels.updated} ${updated}`}</p>
+    </header>
 
-            {sections.map((section, i) => {
-                const Content = section.Content;
-                return (
-                    <div class="lshell__block bb-prose" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                        <Heading level={4} as="h2" class="lshell__heading">{section.heading}</Heading>
-                        <AlertBanner tone="neutral" role="note" class="lshell__plain" variant="callout"><Tag tone="neutral" bare class="lshell__plain-tag"><span data-fit>{labels.plain}</span></Tag>{section.plain}</AlertBanner>
-                        <Content />
+    <section class="lshell__short" aria-labelledby="legal-summary">
+        <div class="lshell__reader" aria-hidden="true"><BolotaSvg bolota={reader} class="lshell__reader-face" expression="happy" /></div>
+        <Card class="lshell__short-card" tone="accent" raised>
+            <h2 class="lshell__short-label" id="legal-summary">{labels.summary}</h2>
+            <ol class="lshell__short-grid">
+                {sections.map((section, i) => (
+                    <li class="lshell__short-cell">
+                        <a class="lshell__short-item" href={`#${section.id}`}>
+                            <span class="lshell__short-num">{ordinal(i)}</span>
+                            <span class="lshell__short-heading">{section.heading}</span>
+                            <span class="lshell__short-plain">{section.plain}</span>
+                        </a>
+                    </li>
+                ))}
+            </ol>
+        </Card>
+    </section>
+
+    <article class="lshell__doc">
+        {sections.map((section, i) => {
+            const Content = section.Content;
+            return (
+                <section class="lshell__lane" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                    <div class="lshell__side">
+                        <span class="lshell__num">{ordinal(i)}</span>
+                        <h2 class="lshell__heading">{section.heading}</h2>
                     </div>
-                );
-            })}
-        </article>
-    </div>
-</Container>
+                    <div class="bb-prose lshell__body"><Content /></div>
+                </section>
+            );
+        })}
+    </article>
+</div>
 
 <style>
-    .lshell { padding-bottom: 96px; }
-
-    .lshell__grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 48px;
+    .lsky {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        overflow: hidden;
+        pointer-events: none;
     }
 
-    @media (min-width: 980px) {
-        .lshell__grid {
-            grid-template-columns: 220px minmax(0, 1fr);
-            gap: 72px;
-        }
+    .lorb { --bb-orb-opacity: 0.14; }
+    .lorb--green { width: 520px; height: 520px; top: -140px; right: -80px; }
+    .lorb--tan { width: 420px; height: 420px; bottom: -120px; left: -100px; --bb-orb-pulse-delay: 400ms; }
+
+    .lshell {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-8);
+        width: min(100% - 32px, 1120px);
+        margin-inline: auto;
+        padding: calc(var(--nav-offset) + var(--bb-space-8)) 0 var(--bb-space-section);
     }
 
-    .lshell__toc { display: none; }
-
-    @media (min-width: 980px) {
-        .lshell__toc {
-            display: block;
-            position: sticky;
-            top: calc(var(--nav-offset) + 32px);
-            align-self: start;
-        }
+    .lshell__hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--bb-space-3);
+        text-align: center;
     }
 
-    .lshell__toc-label { margin-bottom: 16px; }
+    .lshell__eyebrow {
+        font-size: var(--bb-text-md);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--bb-green-glow);
+        text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+    }
 
-    .lshell__content { max-width: var(--bb-content-text); }
+    .lshell__title {
+        margin: 0;
+        font-family: var(--bb-font-display);
+        font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+        font-weight: 500;
+        letter-spacing: var(--bb-tracking-display);
+        line-height: 1.04;
+    }
+
+    .lshell__word {
+        display: inline-block;
+        background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55));
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
+    }
+
+    .lshell__lede {
+        max-width: 56ch;
+        margin: 0;
+        font-size: var(--bb-text-md);
+        line-height: 1.6;
+        color: var(--bb-muted-light);
+    }
 
     .lshell__updated {
-        margin-bottom: 48px;
-        letter-spacing: 0.08em;
-    }
-
-    .lshell__block { scroll-margin-top: calc(var(--nav-offset) + 24px); }
-
-    .lshell__heading { margin: 52px 0 12px; }
-
-    .lshell__plain { margin: 0 0 16px; }
-
-    .lshell__plain-tag {
-        display: flex;
-        width: min(12rem, 100%);
-        margin-bottom: 6px;
-    }
-
-    .lshell__block:first-of-type .lshell__heading { margin-top: 0; }
-
-    .lshell__block :global(p),
-    .lshell__block :global(ul) {
-        font-family: var(--bb-font-body);
-        font-size: 0.94rem;
+        margin: 0;
+        font: var(--bb-text-xs)/1.4 var(--bb-font-mono);
+        letter-spacing: 0.06em;
         color: var(--bb-muted);
-        line-height: 1.8;
-        margin-bottom: 14px;
     }
 
-    .lshell__block :global(ul) {
-        padding-left: 1.4em;
-        list-style-type: disc;
+    .lshell__short {
+        display: flex;
+        flex-direction: column;
     }
 
-    .lshell__block :global(ul li) { margin-bottom: 7px; }
-    .lshell__block :global(ul li::marker) { color: var(--bb-muted); }
+    .lshell__reader {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        height: 84px;
+        margin-bottom: -40px;
+    }
 
-    @media (max-width: 480px) {
-        .lshell { padding-bottom: 72px; }
-        .lshell__heading { margin-top: 40px; }
+    .lshell__reader :global(.lshell__reader-face) {
+        width: 84px;
+        height: 84px;
+        overflow: visible;
+        animation: lshell-bob 6.5s ease-in-out infinite alternate;
+    }
+
+    .lshell__short :global(.lshell__short-card) {
+        padding: calc(var(--bb-space-7) + 6px) var(--bb-space-6) var(--bb-space-6);
+    }
+
+    .lshell__short-label {
+        margin: 0 0 var(--bb-space-4);
+        font-size: var(--bb-text-md);
+        font-weight: 700;
+        text-align: center;
+        color: var(--bb-green-glow);
+        text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+    }
+
+    .lshell__short-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--bb-space-2) var(--bb-space-5);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .lshell__short-cell { min-width: 0; }
+
+    .lshell__short-item {
+        display: grid;
+        grid-template-columns: 2rem minmax(0, 1fr);
+        column-gap: var(--bb-space-2);
+        height: 100%;
+        padding: var(--bb-space-3);
+        border-radius: var(--bb-radius-sm);
+        color: inherit;
+        text-decoration: none;
+        transition: background var(--bb-dur-fast) ease;
+    }
+
+    .lshell__short-item:hover { background: rgba(var(--bb-white-rgb), 0.04); }
+
+    .lshell__short-item:focus-visible {
+        outline: 2px solid var(--bb-focus);
+        outline-offset: 2px;
+    }
+
+    .lshell__short-num {
+        grid-row: span 2;
+        font: var(--bb-text-xs)/1.6 var(--bb-font-mono);
+        color: var(--bb-tan-light);
+    }
+
+    .lshell__short-heading {
+        font-size: var(--bb-text-sm);
+        font-weight: 600;
+        color: var(--bb-paper);
+    }
+
+    .lshell__short-plain {
+        font-size: var(--bb-text-sm);
+        line-height: 1.5;
+        color: var(--bb-muted-light);
+    }
+
+    .lshell__doc {
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid var(--bb-border);
+    }
+
+    .lshell__lane {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        gap: var(--bb-space-7);
+        padding: var(--bb-space-7) 0;
+        border-bottom: 1px solid var(--bb-border);
+        scroll-margin-top: calc(var(--nav-offset) + 24px);
+    }
+
+    .lshell__side {
+        position: sticky;
+        top: calc(var(--nav-offset) + var(--bb-space-5));
+        align-self: start;
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-2);
+    }
+
+    .lshell__num {
+        font: 500 var(--bb-text-sm)/1 var(--bb-font-mono);
+        color: var(--bb-tan-light);
+    }
+
+    .lshell__heading {
+        margin: 0;
+        font-family: var(--bb-font-display);
+        font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+        font-weight: 500;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        color: var(--bb-paper);
+    }
+
+    .lshell__body { max-width: 68ch; }
+
+    @keyframes lshell-bob {
+        from { translate: 0 0; }
+        to { translate: 0 -6px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .lshell__reader :global(.lshell__reader-face) { animation: none; }
+    }
+
+    @media (max-width: 900px) {
+        .lshell__short-grid,
+        .lshell__lane { grid-template-columns: minmax(0, 1fr); }
+        .lshell__lane { gap: var(--bb-space-4); }
+        .lshell__side { position: static; }
+    }
+
+    @media (max-width: 640px) {
+        .lshell { padding-top: calc(var(--nav-offset) + var(--bb-space-6)); }
+        .lshell__short :global(.lshell__short-card) { padding-inline: var(--bb-space-4); }
     }
 </style>
-
-<script>
-    import { mountSectionNav } from '@bagel/ui/lib/scroll-spy';
-
-    let dispose: (() => void) | undefined;
-
-    function unmountToc() {
-        dispose?.();
-        dispose = undefined;
-    }
-
-    function mountToc() {
-        unmountToc();
-        const toc = document.querySelector<HTMLElement>('[data-legal-toc]');
-        if (toc) dispose = mountSectionNav(toc);
-    }
-
-    mountToc();
-    document.addEventListener('astro:page-load', mountToc);
-    document.addEventListener('astro:before-swap', unmountToc);
-    window.addEventListener('pagehide', unmountToc);
-    window.addEventListener('pageshow', (event) => { if (event.persisted) mountToc(); });
-</script>

@@ -48,16 +48,6 @@ const ALLOWLIST = new Map([
       'the only handle there is.',
   ],
   [
-    'marketing/src/components/guides/GuideShell.astro',
-    'Dresses an authored markdown body (`:global(p:not([class]))` and its ' +
-      'siblings). The one case a bare selector is correct: the guide author ' +
-      'writes prose, not class names.',
-  ],
-  [
-    'marketing/src/components/legal/LegalShell.astro',
-    'Same as GuideShell: the terms and privacy bodies are authored markdown.',
-  ],
-  [
     'marketing/src/components/builder/CommandBuilder.astro',
     'Builds its palette, variable and recipe rows in a script (document ' +
       'createElement, no class at author time) and styles them by element for ' +
