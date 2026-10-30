@@ -63,26 +63,32 @@ export async function fluxTiers(): Promise<FluxTier[]> {
   return list.items.map(tierOf).filter((t) => t.name !== 'flux-system');
 }
 
-function mergePatch(name: string, body: unknown): Promise<Kustomization> {
-  return kube(`${KUSTOMIZATIONS}/${encodeURIComponent(name)}`, {
-    method: 'PATCH',
-    body,
-    contentType: 'application/merge-patch+json'
-  });
+export type TierRef = { tier: string };
+export type ServiceRef = { service: string };
+export type PinRequest = ServiceRef & { tag: string };
+
+type Patch = { metadata?: Record<string, unknown>; spec?: Record<string, unknown> };
+
+function tierPath(ref: TierRef): string {
+  return `${KUSTOMIZATIONS}/${encodeURIComponent(ref.tier)}`;
 }
 
-export async function reconcile(name: string): Promise<void> {
-  await mergePatch(name, { metadata: { annotations: { 'reconcile.fluxcd.io/requestedAt': new Date().toISOString() } } });
+function mergePatch(ref: TierRef, body: Patch): Promise<Kustomization> {
+  return kube(tierPath(ref), { method: 'PATCH', body, contentType: 'application/merge-patch+json' });
 }
 
-export async function setSuspended(name: string, suspend: boolean): Promise<void> {
-  await mergePatch(name, { spec: { suspend } });
+export async function reconcile(ref: TierRef): Promise<void> {
+  await mergePatch(ref, { metadata: { annotations: { 'reconcile.fluxcd.io/requestedAt': new Date().toISOString() } } });
+}
+
+export async function setSuspended(ref: TierRef & { suspend: boolean }): Promise<void> {
+  await mergePatch(ref, { spec: { suspend: ref.suspend } });
 }
 
 // A merge patch replaces the whole images list: the resourceVersion makes a concurrent edit fail instead of vanish.
-async function editImages(tier: string, edit: (images: ImageOverride[]) => ImageOverride[]): Promise<void> {
-  const k = await kube<Kustomization>(`${KUSTOMIZATIONS}/${encodeURIComponent(tier)}`);
-  await mergePatch(tier, {
+async function editImages(ref: TierRef, edit: (images: ImageOverride[]) => ImageOverride[]): Promise<void> {
+  const k = await kube<Kustomization>(tierPath(ref));
+  await mergePatch(ref, {
     metadata: { resourceVersion: k.metadata.resourceVersion },
     spec: { images: edit(k.spec.images ?? []) }
   });
@@ -113,29 +119,24 @@ const SERVICE_TIER: Record<string, string> = {
 
 export const PINNABLE = Object.keys(SERVICE_TIER).sort();
 
-function tierFor(service: string): string {
-  const tier = SERVICE_TIER[service];
-  if (!tier) throw new FluxError(400, `unknown service ${service}`);
-  return tier;
+function tierFor(ref: ServiceRef): TierRef {
+  const tier = SERVICE_TIER[ref.service];
+  if (!tier) throw new FluxError(400, `unknown service ${ref.service}`);
+  return { tier };
 }
 
-function imageName(service: string): string {
-  return `${IMAGE_REPO}/${service}`;
+function imageName(ref: ServiceRef): string {
+  return `${IMAGE_REPO}/${ref.service}`;
 }
 
-export function serviceOf(image: string): string {
-  return image.startsWith(`${IMAGE_REPO}/`) ? image.slice(IMAGE_REPO.length + 1) : image;
-}
-
-export async function pinImage(service: string, tag: string): Promise<ImageOverride> {
-  const tier = tierFor(service);
-  const pin = { name: imageName(service), newTag: tag, digest: await resolveDigest(service, tag) };
-  await editImages(tier, (images) => [...images.filter((i) => i.name !== pin.name), pin]);
+export async function pinImage(req: PinRequest): Promise<ImageOverride> {
+  const pin = { name: imageName(req), newTag: req.tag, digest: await resolveDigest(req) };
+  await editImages(tierFor(req), (images) => [...images.filter((i) => i.name !== pin.name), pin]);
   return pin;
 }
 
-export async function clearImage(service: string): Promise<void> {
-  await editImages(tierFor(service), (images) => images.filter((i) => i.name !== imageName(service)));
+export async function clearImage(ref: ServiceRef): Promise<void> {
+  await editImages(tierFor(ref), (images) => images.filter((i) => i.name !== imageName(ref)));
 }
 
 const MANIFEST_TYPES = [
@@ -145,16 +146,16 @@ const MANIFEST_TYPES = [
 ].join(', ');
 
 // The manifests pin tag@digest; overriding only the tag would keep the old digest, which wins at pull.
-async function resolveDigest(service: string, tag: string): Promise<string> {
-  const repo = `adamousmer/itsbagelbot/${service}`;
+async function resolveDigest(req: PinRequest): Promise<string> {
+  const repo = `adamousmer/itsbagelbot/${req.service}`;
   const auth = await fetch(`https://ghcr.io/token?scope=repository:${repo}:pull`);
-  if (!auth.ok) throw new FluxError(502, `ghcr token for ${service}: ${auth.status}`);
+  if (!auth.ok) throw new FluxError(502, `ghcr token for ${req.service}: ${auth.status}`);
   const { token } = (await auth.json()) as { token: string };
-  const res = await fetch(`https://ghcr.io/v2/${repo}/manifests/${encodeURIComponent(tag)}`, {
+  const res = await fetch(`https://ghcr.io/v2/${repo}/manifests/${encodeURIComponent(req.tag)}`, {
     method: 'HEAD',
     headers: { authorization: `Bearer ${token}`, accept: MANIFEST_TYPES }
   });
-  const digest = res.headers.get('docker-content-digest');
-  if (!res.ok || !digest) throw new FluxError(404, `${service}:${tag} is not in ghcr`);
+  const digest = res.ok ? res.headers.get('docker-content-digest') : null;
+  if (!digest) throw new FluxError(404, `${req.service}:${req.tag} is not in ghcr`);
   return digest;
 }

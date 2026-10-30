@@ -59,12 +59,19 @@ func checksGreen(ctx context.Context, rc *stage.RunCtx, target deploy.SHA) (bool
 func mainChecksFailed(ctx context.Context, rc *stage.RunCtx, target deploy.SHA, sum ports.CheckSummary) error {
 	f := fail(deploy.FailChecksFailed, "required checks failed on %s", short(target))
 	for _, c := range sum.Checks {
-		if c.State == deploy.ChecksFailure && (c.Required || c.Name == rc.Deps.Config.CodeSceneCheck) {
+		if blocking(c, rc.Deps.Config.CodeSceneCheck) {
 			f.LogTail = append(f.LogTail, c.Evidence()...)
 			rc.AddLink(ctx, deploy.Link{Label: c.Name, URL: c.URL})
 		}
 	}
 	return f
+}
+
+func blocking(c ports.Check, codescene string) bool {
+	if c.State != deploy.ChecksFailure {
+		return false
+	}
+	return c.Required || c.Name == codescene
 }
 
 func promoteDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {

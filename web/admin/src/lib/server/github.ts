@@ -38,7 +38,7 @@ function appCredentials(): { appId: string; installation: string; key: string } 
   const appId = env.RELEASE_GITHUB_APP_ID ?? '';
   const installation = env.RELEASE_GITHUB_APP_INSTALLATION_ID ?? '';
   const key = (env.RELEASE_GITHUB_APP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n');
-  if (!appId || !installation || !key) throw new GitHubError(503, 'release GitHub App credentials are not configured');
+  if ([appId, installation, key].includes('')) throw new GitHubError(503, 'release GitHub App credentials are not configured');
   return { appId, installation, key };
 }
 

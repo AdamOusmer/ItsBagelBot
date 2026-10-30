@@ -73,7 +73,7 @@ func run(ctx context.Context, f flags) error {
 	if err != nil {
 		return err
 	}
-	return train.Drive(ctx, deps, file, github.All(), deploy.StageID(f.stage))
+	return train.New(deps, github.All()).Drive(ctx, file, deploy.StageID(f.stage))
 }
 
 func seedRun(ctx context.Context, hub ports.GitHub, f flags) (deploy.Run, error) {

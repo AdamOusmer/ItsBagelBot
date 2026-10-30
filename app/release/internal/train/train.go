@@ -76,24 +76,48 @@ func (f *File) save() error {
 	return os.WriteFile(f.path, b, 0o600)
 }
 
-// An empty only drives every unfinished stage; the workflow passes one stage per job.
-func Drive(ctx context.Context, deps stage.Deps, f *File, stages []stage.Stage, only deploy.StageID) error {
+type Train struct {
+	deps stage.Deps
+	byID map[deploy.StageID]stage.Stage
+}
+
+func New(deps stage.Deps, stages []stage.Stage) Train {
 	byID := make(map[deploy.StageID]stage.Stage, len(stages))
 	for _, s := range stages {
 		byID[s.ID()] = s
 	}
+	return Train{deps: deps, byID: byID}
+}
+
+// An empty only drives every unfinished stage; the workflow passes one stage per job.
+func (t Train) Drive(ctx context.Context, f *File, only deploy.StageID) error {
 	for _, s := range f.View().Stages {
-		if s.State == deploy.StateSucceeded || s.State == deploy.StateSkipped || (only != "" && s.ID != only) {
+		if !due(s, only) {
 			continue
 		}
-		impl, ok := byID[s.ID]
-		if !ok {
-			return fmt.Errorf("no implementation for stage %s", s.ID)
-		}
-		if err := step(ctx, deps, f, impl); err != nil {
+		if err := t.run(ctx, f, s.ID); err != nil {
 			return err
 		}
 	}
+	return finish(ctx, f)
+}
+
+func due(s deploy.Stage, only deploy.StageID) bool {
+	if s.State == deploy.StateSucceeded || s.State == deploy.StateSkipped {
+		return false
+	}
+	return only == "" || s.ID == only
+}
+
+func (t Train) run(ctx context.Context, f *File, id deploy.StageID) error {
+	impl, ok := t.byID[id]
+	if !ok {
+		return fmt.Errorf("no implementation for stage %s", id)
+	}
+	return step(ctx, t.deps, f, impl)
+}
+
+func finish(ctx context.Context, f *File) error {
 	if run := f.View(); run.CurrentStage() != "" {
 		return nil
 	}

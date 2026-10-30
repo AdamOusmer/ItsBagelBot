@@ -35,34 +35,48 @@ type rolloutManifest struct {
 			Spec struct {
 				Affinity struct {
 					PodAntiAffinity struct {
-						Required []struct {
-							TopologyKey string `yaml:"topologyKey"`
-						} `yaml:"requiredDuringSchedulingIgnoredDuringExecution"`
+						Required []antiTerm `yaml:"requiredDuringSchedulingIgnoredDuringExecution"`
 					} `yaml:"podAntiAffinity"`
 				} `yaml:"affinity"`
-				Spread []struct {
-					TopologyKey       string   `yaml:"topologyKey"`
-					WhenUnsatisfiable string   `yaml:"whenUnsatisfiable"`
-					MatchLabelKeys    []string `yaml:"matchLabelKeys"`
-				} `yaml:"topologySpreadConstraints"`
+				Spread []spreadRule `yaml:"topologySpreadConstraints"`
 			} `yaml:"spec"`
 		} `yaml:"template"`
 	} `yaml:"spec"`
 }
 
+type antiTerm struct {
+	TopologyKey string `yaml:"topologyKey"`
+}
+
+type spreadRule struct {
+	TopologyKey       string   `yaml:"topologyKey"`
+	WhenUnsatisfiable string   `yaml:"whenUnsatisfiable"`
+	MatchLabelKeys    []string `yaml:"matchLabelKeys"`
+}
+
+func (a antiTerm) pinsHost() bool { return a.TopologyKey == hostnameKey }
+
+func (s spreadRule) pinsHost() bool {
+	if s.TopologyKey != hostnameKey {
+		return false
+	}
+	if s.WhenUnsatisfiable != "DoNotSchedule" {
+		return false
+	}
+	return !slices.Contains(s.MatchLabelKeys, "pod-template-hash")
+}
+
 func (m rolloutManifest) onePerNode() bool {
 	pod := m.Spec.Template.Spec
-	for _, term := range pod.Affinity.PodAntiAffinity.Required {
-		if term.TopologyKey == hostnameKey {
-			return true
-		}
+	return slices.ContainsFunc(pod.Affinity.PodAntiAffinity.Required, antiTerm.pinsHost) ||
+		slices.ContainsFunc(pod.Spread, spreadRule.pinsHost)
+}
+
+func (m rolloutManifest) deadlocks() bool {
+	if m.Kind != "Deployment" && m.Kind != "DaemonSet" {
+		return false
 	}
-	for _, s := range pod.Spread {
-		if s.TopologyKey == hostnameKey && s.WhenUnsatisfiable == "DoNotSchedule" && !slices.Contains(s.MatchLabelKeys, "pod-template-hash") {
-			return true
-		}
-	}
-	return false
+	return m.onePerNode() && m.nodesForRoll() > eligibleHosts
 }
 
 func (m rolloutManifest) nodesForRoll() int {
@@ -91,7 +105,7 @@ func TestOnePerNodeRollsFitTheEligibleHosts(t *testing.T) {
 	var deadlocks []string
 	for _, filename := range manifestFilenames(t) {
 		for _, m := range decodeFile[rolloutManifest](t, filename) {
-			if (m.Kind == "Deployment" || m.Kind == "DaemonSet") && m.onePerNode() && m.nodesForRoll() > eligibleHosts {
+			if m.deadlocks() {
 				deadlocks = append(deadlocks, fmt.Sprintf("%s %s/%s needs %d nodes", m.Kind, m.Metadata.Namespace, m.Metadata.Name, m.nodesForRoll()))
 			}
 		}

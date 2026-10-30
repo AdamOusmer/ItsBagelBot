@@ -252,20 +252,21 @@ function semver(tag: string): number[] | null {
   return m ? m.slice(1).map(Number) : null;
 }
 
-function newer(a: number[], b: number[]): boolean {
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
-  return false;
+type Tagged = { tag: string; v: number[] };
+
+function byVersionDesc(a: Tagged, b: Tagged): number {
+  return b.v[0] - a.v[0] || b.v[1] - a.v[1] || b.v[2] - a.v[2];
+}
+
+function tagged(ref: { ref: string }): Tagged[] {
+  const tag = ref.ref.replace('refs/tags/', '');
+  const v = semver(tag);
+  return v ? [{ tag, v }] : [];
 }
 
 async function lastTag(): Promise<string | undefined> {
   const refs = await github<{ ref: string }[]>('/git/matching-refs/tags/v');
-  let best: { tag: string; v: number[] } | undefined;
-  for (const r of refs) {
-    const tag = r.ref.replace('refs/tags/', '');
-    const v = semver(tag);
-    if (v && (!best || newer(v, best.v))) best = { tag, v };
-  }
-  return best?.tag;
+  return refs.flatMap(tagged).sort(byVersionDesc)[0]?.tag;
 }
 
 function nextVersion(tag: string | undefined): string | undefined {

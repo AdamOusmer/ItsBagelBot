@@ -353,11 +353,11 @@ function fluxFields(f: FormData): ParseResult<FluxFields> {
 type FluxVerb = { action: string; target: (v: FluxFields) => string; call: (v: FluxFields) => Promise<unknown> };
 
 const FLUX_VERBS = {
-  fluxSync: { action: 'flux_sync', target: (v) => v.tier, call: (v) => reconcile(v.tier) },
-  fluxPause: { action: 'flux_pause', target: (v) => v.tier, call: (v) => setSuspended(v.tier, true) },
-  fluxResume: { action: 'flux_resume', target: (v) => v.tier, call: (v) => setSuspended(v.tier, false) },
-  fluxPin: { action: 'flux_pin', target: (v) => `${v.service}:${v.tag}`, call: (v) => pinImage(v.service, v.tag) },
-  fluxUnpin: { action: 'flux_unpin', target: (v) => v.service, call: (v) => clearImage(v.service) }
+  fluxSync: { action: 'flux_sync', target: (v) => v.tier, call: reconcile },
+  fluxPause: { action: 'flux_pause', target: (v) => v.tier, call: (v) => setSuspended({ ...v, suspend: true }) },
+  fluxResume: { action: 'flux_resume', target: (v) => v.tier, call: (v) => setSuspended({ ...v, suspend: false }) },
+  fluxPin: { action: 'flux_pin', target: (v) => `${v.service}:${v.tag}`, call: pinImage },
+  fluxUnpin: { action: 'flux_unpin', target: (v) => v.service, call: clearImage }
 } satisfies Record<string, FluxVerb>;
 
 function fluxAction(verb: FluxVerb) {
