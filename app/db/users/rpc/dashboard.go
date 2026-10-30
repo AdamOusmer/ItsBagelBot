@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -103,6 +104,12 @@ func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
 func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
 	if err := invalidate.Publish(d.nc, d.invalidationPrefix, scope, id); err != nil {
 		d.log.Warn(op+" invalidation publish failed", zap.Error(err))
+	}
+}
+
+func (d *dashboardRPC) publishRename(id, login, prior string) {
+	if err := invalidate.PublishKeys(d.nc, d.invalidationPrefix, "rename", id, login, prior); err != nil {
+		d.log.Warn("rename invalidation publish failed", zap.Error(err))
 	}
 }
 
@@ -276,6 +283,9 @@ func (d *dashboardRPC) handleIdentitySync(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 	d.publishInvalidate("status", req.UserID, "identity_sync")
+	if prior != "" {
+		d.publishRename(req.UserID, strings.ToLower(strings.TrimSpace(req.Username)), prior)
+	}
 	bus.Respond(msg, usersrpc.IdentitySyncReply{Renamed: prior != "", PriorUsername: prior})
 }
 

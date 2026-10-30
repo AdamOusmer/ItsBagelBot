@@ -36,3 +36,20 @@ func TestChannelSubscriptionsOmitChatWithoutBot(t *testing.T) {
 		}
 	}
 }
+
+func TestChannelSubscriptionsIncludeUserUpdate(t *testing.T) {
+	var found []SubSpec
+	for _, s := range ChannelSubscriptions("123", "bot") {
+		if s.Type == UserUpdateType {
+			found = append(found, s)
+		}
+	}
+	if len(found) != 1 || found[0].Version != "1" || found[0].Condition["user_id"] != "123" || len(found[0].Condition) != 1 {
+		t.Fatalf("user.update specs = %+v, want one v1 spec conditioned on user_id", found)
+	}
+	for _, s := range ControlSubscriptions(ChannelSubscriptions("123", "bot")) {
+		if s.Type == UserUpdateType {
+			t.Fatal("user.update must not be a control subscription")
+		}
+	}
+}

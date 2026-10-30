@@ -461,6 +461,27 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
+  # Renames are account facts for Outgress, not chat-pipeline traffic.
+  defp handle_twitch(
+         _which,
+         "notification",
+         %{"subscription" => %{"type" => "user.update"}} = payload,
+         meta,
+         state
+       ) do
+    event = payload["event"] || %{}
+
+    Nats.publish("twitch.ingress.status.authz.user_update", %{
+      user_id: event["user_id"],
+      user_login: event["user_login"],
+      user_name: event["user_name"],
+      event_id: meta["message_id"],
+      observed_at: meta["message_timestamp"]
+    })
+
+    {:noreply, state |> count_notification() |> pet_watchdog()}
+  end
+
   # Moderation control facts bypass normal processing admission. Only the
   # configured bot's moderation leaves Ingress; viewer bans are dropped here.
   defp handle_twitch(

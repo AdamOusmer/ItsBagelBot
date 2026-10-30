@@ -88,6 +88,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.internal.tokens.save", "app/twitch/outgress/internal/tokenstore"},
 		{"bagel.rpc.ingress.conduit.get", "app/twitch/outgress/internal/config ConduitSubject"},
 		{"bagel.rpc.dashboard.state_get", "app/twitch/outgress/internal/config UsersStateSubject"},
+		{"bagel.rpc.dashboard.identity_sync", "app/twitch/outgress/internal/config UsersIdentitySyncSubject"},
 		{"bagel.rpc.admin.notifications.send", "app/twitch/outgress/internal/config NotifySendSubject"},
 	},
 	"transactions_rpc": {
