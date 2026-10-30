@@ -3406,6 +3406,8 @@ export type KnownMessageKey =
   | 'queuePage.ahead'
   | 'queuePage.boardNote'
   | 'queuePage.boardTitle'
+  | 'queuePage.colViewer'
+  | 'queuePage.colWaited'
   | 'queuePage.degraded'
   | 'queuePage.degradedTitle'
   | 'queuePage.emptyBody'
