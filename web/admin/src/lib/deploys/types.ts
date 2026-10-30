@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export const DEPLOY_PREFIX = 'bagel.rpc.admin.deploy';
-export const DEPLOY_EVENTS_PREFIX = 'bagel.deploy.events';
-export const DEPLOY_KEEP_RUNS = 50;
-
-export const DEPLOY_VERBS = ['plan', 'start', 'get', 'list', 'resume', 'cancel', 'approve'] as const;
-export type DeployVerb = (typeof DEPLOY_VERBS)[number];
-
-export function deploySubject(verb: DeployVerb): string {
-  return `${DEPLOY_PREFIX}.${verb}`;
-}
-
-export function deployEventsSubject(runId: string): string {
-  return `${DEPLOY_EVENTS_PREFIX}.${runId}`;
-}
-
 export const RUN_KINDS = ['release', 'hotfix', 'bump', 'rollback', 'reapply'] as const;
 export type RunKind = (typeof RUN_KINDS)[number];
 
@@ -28,18 +13,16 @@ export const STAGE_IDS = [
   'build',
   'digests',
   'pin_pr',
-  'acl',
-  'rollout',
-  'verify',
+  'promote',
 ] as const;
 export type StageId = (typeof STAGE_IDS)[number];
 
 export const STAGES_FOR: Record<RunKind, readonly StageId[]> = {
-  release: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'acl', 'rollout', 'verify'],
-  hotfix: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'acl', 'rollout', 'verify'],
-  bump: ['preflight', 'merge_prs', 'build', 'digests', 'pin_pr', 'acl', 'rollout', 'verify'],
-  rollback: ['preflight', 'pin_pr', 'acl', 'rollout', 'verify'],
-  reapply: ['preflight', 'acl', 'rollout', 'verify'],
+  release: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'promote'],
+  hotfix: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'promote'],
+  bump: ['preflight', 'merge_prs', 'build', 'digests', 'pin_pr', 'promote'],
+  rollback: ['preflight', 'pin_pr', 'promote'],
+  reapply: ['preflight', 'promote'],
 };
 
 export type StageState = 'pending' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
@@ -50,16 +33,11 @@ export const TERMINAL_RUN_STATES: readonly RunState[] = ['succeeded', 'failed', 
 
 export type Progress = { done: number; total: number };
 
-export type PodPhase = 'old' | 'new' | 'pending' | 'failing';
-
-export type NodePod = { node: string; pod: string; phase: PodPhase };
-
 export type DeployItem = {
   key: string;
   label: string;
   state: StageState;
   progress: Progress;
-  nodes?: NodePod[];
   detail?: string;
   url?: string;
 };
@@ -213,7 +191,22 @@ export type DeployPlan = {
   active_run_id?: string;
 };
 
-export type PlanRequest = { actor_id: string; kind?: RunKind; rollback_to?: string };
+export type ImageOverride = { name: string; newTag?: string; digest?: string };
+
+export type FluxTier = {
+  name: string;
+  ready: boolean | null;
+  reason: string;
+  message: string;
+  revision: string;
+  suspended: boolean;
+  dependsOn: string[];
+  images: ImageOverride[];
+};
+
+export type FluxResult = { tiers: FluxTier[]; pinnable: string[]; fluxError: string | null };
+
+export type PlanRequest ={ actor_id: string; kind?: RunKind; rollback_to?: string };
 
 export type StartRequest = {
   actor_id: string;

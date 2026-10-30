@@ -41,6 +41,7 @@ spec:
       labels:
         app: console-admin
     spec:
+      serviceAccountName: console-admin
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/region
@@ -158,8 +159,6 @@ spec:
               value: bagel.rpc.admin.user.audit
             - name: NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX
               value: bagel.rpc.admin.notifications
-            - name: NATS_ADMIN_DEPLOY_SUBJECT_PREFIX
-              value: bagel.rpc.admin.deploy
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback
             - name: DASHBOARD_PUBLIC_ORIGIN
@@ -308,3 +307,50 @@ spec:
   selector:
     matchLabels:
       app: console-admin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: console-admin
+  namespace: app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: console-admin-flux
+  namespace: flux-system
+rules:
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: [kustomizations]
+    verbs: [get, list, watch, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: console-admin-flux
+  namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: console-admin-flux
+subjects:
+  - kind: ServiceAccount
+    name: console-admin
+    namespace: app
+---
+# No toFQDNs or dns rules: Cilium's DNS proxy never answers on these nodes, so the pod would resolve nothing.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: console-admin-apiserver
+  namespace: app
+spec:
+  endpointSelector:
+    matchLabels:
+      app: console-admin
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - {port: "6443", protocol: TCP}

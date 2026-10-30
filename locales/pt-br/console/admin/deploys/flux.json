@@ -1,0 +1,20 @@
+{
+  "title": "Sincronização do cluster",
+  "body": "O Flux aplica o branch deploy nível por nível e restaura tudo o que se desvia.",
+  "ready": "Sincronizado",
+  "notReady": "Não está pronto",
+  "unknown": "Ainda sem status",
+  "paused": "Pausado",
+  "sync": "Sincronizar agora",
+  "pause": "Pausar",
+  "resume": "Retomar",
+  "pins": "Fixações temporárias",
+  "pinsBody": "Roda um serviço com outra imagem sem publicar uma versão. Remova a fixação para voltar ao branch deploy.",
+  "noPins": "Nenhuma fixação temporária.",
+  "service": "Serviço",
+  "pickService": "Escolha um serviço",
+  "tag": "Tag da imagem",
+  "pin": "Fixar",
+  "clear": "Remover",
+  "error": "Status do Flux indisponível: {error}"
+}

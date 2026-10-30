@@ -10,7 +10,6 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployItem, DeployStage } from '#lib/deploys/types';
   import ItemRow from './ItemRow.svelte';
-  import NodeDots from './NodeDots.svelte';
   import { STAGE_KEY } from './view';
 
   let { stage }: { stage: DeployStage } = $props();
@@ -43,8 +42,6 @@
         {#each items as item (item.key)}
           {#if stage.id === 'build'}
             <ItemRow {item}>{#snippet extra()}{@render manifest(item)}{/snippet}</ItemRow>
-          {:else if stage.id === 'rollout'}
-            <ItemRow {item}>{#snippet extra()}<NodeDots pods={item.nodes} />{/snippet}</ItemRow>
           {:else}
             <ItemRow {item} />
           {/if}

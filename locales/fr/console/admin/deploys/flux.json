@@ -1,0 +1,20 @@
+{
+  "title": "Synchronisation du cluster",
+  "body": "Flux applique la branche deploy niveau par niveau et remet en place tout ce qui dérive.",
+  "ready": "Synchronisé",
+  "notReady": "Pas prêt",
+  "unknown": "Pas encore de statut",
+  "paused": "En pause",
+  "sync": "Synchroniser",
+  "pause": "Mettre en pause",
+  "resume": "Reprendre",
+  "pins": "Épinglages temporaires",
+  "pinsBody": "Fait tourner un service sur une autre image sans publication. Retirez l’épinglage pour revenir à la branche deploy.",
+  "noPins": "Aucun épinglage temporaire.",
+  "service": "Service",
+  "pickService": "Choisir un service",
+  "tag": "Tag de l’image",
+  "pin": "Épingler",
+  "clear": "Retirer",
+  "error": "Statut Flux indisponible : {error}"
+}

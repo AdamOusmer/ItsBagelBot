@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../k8s/commands.yaml
+  - ../../../k8s/loyalty.yaml
+  - ../../../k8s/modules.yaml
+  - ../../../k8s/notifications.yaml
+  - ../../../k8s/discord-data.yaml
+  - ../../../k8s/projector.yaml
+  - ../../../k8s/transactions.yaml
+  - ../../../k8s/users.yaml

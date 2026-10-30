@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+name: Release stage
+description: Run one release train stage against the run state shared through the cache.
+
+inputs:
+  stage:
+    description: Stage id to run
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore release CLI
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: release
+        key: release-bin-${{ github.run_id }}
+        fail-on-cache-miss: true
+
+    # The newest state under the run prefix is the previous stage's, or this stage's failed attempt on a re-run.
+    - name: Restore run state
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: run.json
+        key: release-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.stage }}
+        restore-keys: release-state-${{ github.run_id }}-
+
+    - name: Run ${{ inputs.stage }}
+      shell: bash
+      env:
+        STAGE: ${{ inputs.stage }}
+      run: |
+        changelog=""
+        if [ -n "$CHANGELOG" ]; then printf '%s' "$CHANGELOG" > changelog.json; changelog=changelog.json; fi
+        ./release -state run.json -stage "$STAGE" -kind "$KIND" -version "$VERSION" \
+          -rollback-to "$ROLLBACK_TO" -target-sha "$TARGET_SHA" -prs "$PRS" -services "$SERVICES" \
+          -changelog "$changelog" -actor "$ACTOR"
+
+    - name: Save run state
+      if: always()
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: run.json
+        key: release-state-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.stage }}

@@ -7,7 +7,5 @@
   "build": "Construction des images",
   "digests": "Contrôle des empreintes",
   "pin_pr": "PR d’épinglage",
-  "acl": "ACL NATS",
-  "rollout": "Redéploiement",
-  "verify": "Vérification"
+  "promote": "Promotion"
 }

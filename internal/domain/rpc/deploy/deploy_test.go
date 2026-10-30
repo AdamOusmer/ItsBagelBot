@@ -11,8 +11,8 @@ import (
 func TestStagesForBracketsEveryKind(t *testing.T) {
 	for _, kind := range Kinds() {
 		got := StagesFor(kind)
-		ends := []StageID{got[0], got[len(got)-2], got[len(got)-1]}
-		if want := []StageID{StagePreflight, StageRollout, StageVerify}; !reflect.DeepEqual(ends, want) {
+		ends := []StageID{got[0], got[len(got)-1]}
+		if want := []StageID{StagePreflight, StagePromote}; !reflect.DeepEqual(ends, want) {
 			t.Errorf("%s: ends %v, want %v", kind, ends, want)
 		}
 	}
@@ -22,7 +22,7 @@ func TestStagesForBracketsEveryKind(t *testing.T) {
 }
 
 func TestStagesForReturnsCopy(t *testing.T) {
-	StagesFor(KindRelease)[0] = StageVerify
+	StagesFor(KindRelease)[0] = StagePromote
 	if StagesFor(KindRelease)[0] != StagePreflight {
 		t.Error("caller mutated the shared table")
 	}

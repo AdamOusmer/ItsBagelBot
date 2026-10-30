@@ -7,7 +7,5 @@
   "build": "Build images",
   "digests": "Check digests",
   "pin_pr": "Pin PR",
-  "acl": "NATS ACL",
-  "rollout": "Rollout",
-  "verify": "Verify"
+  "promote": "Promote"
 }

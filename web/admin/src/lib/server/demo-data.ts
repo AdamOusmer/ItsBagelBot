@@ -20,7 +20,8 @@ import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
 import type { DeployApi } from './deploys';
-import type { DeployListener, DeployRunId, DeployRuns } from './services';
+import type { DeployListener, DeployRunId, DeployRuns } from './release';
+import type { FluxTier } from '#lib/deploys/types';
 import { RpcError } from '@bagel/kit/server/nats';
 import {
   STAGES_FOR,
@@ -30,7 +31,6 @@ import {
   type DeployRun,
   type DeployRunSummary,
   type DeployStage,
-  type PodPhase,
   type RunRequest,
   type StageId,
   type StageState,
@@ -284,7 +284,6 @@ export function demoFeedEvent(sequence: number, statusPrefix: string): FeedEvent
 }
 
 const DEMO_TICK_MS = 1500;
-const DEMO_NODES = ['node1', 'node2', 'node3'];
 const DEMO_SERVICES = ['users', 'gossip', 'twitch-ingress', 'console-admin'] as const;
 type DemoService = (typeof DEMO_SERVICES)[number];
 const DEMO_REPO = 'https://github.com/AdamOusmer/ItsBagelBot';
@@ -293,8 +292,7 @@ const demoRuns = new Map<DeployRunId, DeployRun>();
 
 const DEMO_JOBS = 2;
 const DEMO_UNITS: Partial<Record<StageId, number>> = {
-  build: DEMO_SERVICES.length * DEMO_JOBS,
-  rollout: DEMO_SERVICES.length * DEMO_NODES.length
+  build: DEMO_SERVICES.length * DEMO_JOBS
 };
 
 function demoStage(id: StageId): DeployStage {
@@ -343,12 +341,6 @@ function slotState(s: DemoSlot): StageState {
   return slotStarted(s) ? 'running' : 'pending';
 }
 
-function slotPodPhase(s: DemoSlot, pod: number): PodPhase {
-  const fresh = slotFresh(s);
-  if (pod < fresh) return 'new';
-  return slotStarted(s) && pod === fresh ? 'pending' : 'old';
-}
-
 function demoBuildItem(s: DemoSlot): DeployItem {
   return {
     key: s.service,
@@ -359,19 +351,8 @@ function demoBuildItem(s: DemoSlot): DeployItem {
   };
 }
 
-function demoRolloutItem(s: DemoSlot): DeployItem {
-  return {
-    key: s.service,
-    label: s.service,
-    state: slotState(s),
-    progress: { done: slotFresh(s), total: s.per },
-    nodes: DEMO_NODES.map((node, pod) => ({ node, pod: `${s.service}-${pod}`, phase: slotPodPhase(s, pod) }))
-  };
-}
-
 const DEMO_ITEMS: Partial<Record<StageId, { per: number; item: (s: DemoSlot) => DeployItem }>> = {
-  build: { per: DEMO_JOBS, item: demoBuildItem },
-  rollout: { per: DEMO_NODES.length, item: demoRolloutItem }
+  build: { per: DEMO_JOBS, item: demoBuildItem }
 };
 
 function demoStep(stage: DeployStage): void {
@@ -472,6 +453,31 @@ demoPut({
     return { ...stage, state: 'succeeded', progress: { ...stage.progress, done: stage.progress.total } };
   })
 });
+
+function demoTier(name: string, dependsOn: string[], images: FluxTier['images'] = []): FluxTier {
+  return {
+    name,
+    ready: true,
+    reason: 'ReconciliationSucceeded',
+    message: `Applied revision: deploy@sha1:${DEMO_SHA}`,
+    revision: `deploy@sha1:${DEMO_SHA}`,
+    suspended: false,
+    dependsOn,
+    images
+  };
+}
+
+export function demoFluxTiers(): FluxTier[] {
+  return [
+    demoTier('platform', []),
+    demoTier('messaging', ['platform']),
+    demoTier('ops', ['messaging']),
+    demoTier('db', ['ops'], [
+      { name: 'ghcr.io/adamousmer/itsbagelbot/users', newTag: 'main-1793000000-4f1c9e2ab7d0', digest: 'sha256:' + 'a'.repeat(64) }
+    ]),
+    demoTier('app', ['db'])
+  ];
+}
 
 export function demoDeployApi(): DeployApi {
   const same = async (req: RunRequest) => demoGet(req);

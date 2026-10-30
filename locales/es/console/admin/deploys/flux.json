@@ -1,0 +1,20 @@
+{
+  "title": "Sincronización del clúster",
+  "body": "Flux aplica la rama deploy nivel por nivel y restaura todo lo que se desvía.",
+  "ready": "Sincronizado",
+  "notReady": "No está listo",
+  "unknown": "Aún sin estado",
+  "paused": "En pausa",
+  "sync": "Sincronizar ahora",
+  "pause": "Pausar",
+  "resume": "Reanudar",
+  "pins": "Fijaciones temporales",
+  "pinsBody": "Ejecuta un servicio con otra imagen sin publicar una versión. Quita la fijación para volver a la rama deploy.",
+  "noPins": "No hay fijaciones temporales.",
+  "service": "Servicio",
+  "pickService": "Elige un servicio",
+  "tag": "Etiqueta de imagen",
+  "pin": "Fijar",
+  "clear": "Quitar",
+  "error": "Estado de Flux no disponible: {error}"
+}
