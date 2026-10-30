@@ -57,5 +57,5 @@
   newTabLabel={t('common.opensInNewTab')}
   menuLabel={label}
 >
-  {#snippet avatar(a)}<Bolota name={a.name} size={a.size} active={a.active} gate={a.item} />{/snippet}
+  {#snippet avatar(a)}<Bolota name={a.name} size={a.size} active={a.active} gate={a.item} plate={false} />{/snippet}
 </ProfileMenu>
