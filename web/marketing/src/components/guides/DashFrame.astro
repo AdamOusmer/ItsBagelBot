@@ -26,7 +26,7 @@ const { path = '/', notes = [], caption } = Astro.props;
 <figure class="dframe" data-reveal>
     <Window class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
         <Well as="span" slot="title" class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></Well>
-        <div class="dframe__body" data-static>
+        <div class="dframe__body" data-static inert>
             <slot />
         </div>
     </Window>

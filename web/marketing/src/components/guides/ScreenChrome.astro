@@ -40,17 +40,16 @@ const {
 
 const brand = { title: 'ItsBagelBot', sub: consoleLabel };
 
-const SECTIONS: readonly { id: SectionId; href: string; icon: UiNavLink['icon'] }[] = [
-    { id: 'overview', href: '/', icon: 'overview' },
-    { id: 'commands', href: '/commands', icon: 'commands' },
-    { id: 'modules', href: '/modules', icon: 'modules' },
-    { id: 'discord', href: '/discord', icon: 'discord' },
-    { id: 'billing', href: '/billing', icon: 'card' },
-    { id: 'settings', href: '/settings', icon: 'settings' },
+const SECTIONS: readonly { id: SectionId; icon: UiNavLink['icon'] }[] = [
+    { id: 'overview', icon: 'overview' },
+    { id: 'commands', icon: 'commands' },
+    { id: 'modules', icon: 'modules' },
+    { id: 'discord', icon: 'discord' },
+    { id: 'billing', icon: 'card' },
+    { id: 'settings', icon: 'settings' },
 ];
 
 const items: UiNavLink[] = SECTIONS.map((section) => ({
-    href: section.href,
     icon: section.icon,
     label: nav[section.id],
     current: section.id === active,
@@ -67,7 +66,7 @@ const items: UiNavLink[] = SECTIONS.map((section) => ({
     <div class="dframe__stage">
         <Topbar
             brand={brand}
-            crumbs={[{ label: crumbRoot, href: '/' }, { label: crumb }]}
+            crumbs={[{ label: crumbRoot }, { label: crumb }]}
             clock={false}
             railed
         />
