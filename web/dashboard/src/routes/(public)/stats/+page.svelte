@@ -220,6 +220,7 @@
   const GREEN = { head: '#62a593', eye: '#111113' };
   const TAN = { head: '#eadbbd', eye: '#111113' };
   const PALE = { head: '#f6efe1', eye: '#111113' };
+  const palettes = [GREEN, TAN, PALE];
   const tilePalette = { green: GREEN, tan: TAN };
   const donors = [
     { name: 'oven_mitt', size: 64, palette: PALE },
@@ -245,7 +246,7 @@
     </div>
     <div class="st-crew" aria-hidden="true">
       {#each crewNames as name, i (`${i}:${name}`)}
-        <span class="st-mate st-mate--{i}"><Bolota {name} size={i === 2 ? 150 : i % 2 ? 96 : 82} motionState="idle" follow active gate /></span>
+        <span class="st-mate st-mate--{i}"><Bolota {name} size={i === 2 ? 150 : i % 2 ? 96 : 82} palette={palettes[i % palettes.length]} motionState="idle" follow active gate /></span>
       {/each}
     </div>
   </header>
@@ -281,7 +282,7 @@
     <div class="st-board">
       <div class="st-board__faces" aria-hidden="true">
         {#each trafficTrio as name, i (`${i}:${name}`)}
-          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} motionState="idle" active gate /></span>
+          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} palette={palettes[i]} motionState="idle" active gate /></span>
         {/each}
       </div>
       <Card class="st-board__card">
@@ -322,7 +323,7 @@
     <div class="st-board st-board--feed">
       <div class="st-board__faces" aria-hidden="true">
         {#each feedTrio as name, i (`${i}:${name}`)}
-          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} expression="excited" motionState="idle" active gate /></span>
+          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} palette={palettes[(i + 1) % palettes.length]} expression="excited" motionState="idle" active gate /></span>
         {/each}
       </div>
       <Card class="st-board__card" tone="accent">
