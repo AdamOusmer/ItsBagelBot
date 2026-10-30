@@ -1,0 +1,104 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+name: Release
+
+run-name: ${{ inputs.kind }} ${{ inputs.version || inputs.rollback_to }} by ${{ inputs.actor || github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: Run kind
+        required: true
+        type: choice
+        options: [release, hotfix, bump, rollback, reapply]
+      version:
+        description: vX.Y.Z-beta (release, hotfix)
+        type: string
+      rollback_to:
+        description: Release to roll back to (rollback)
+        type: string
+      prs:
+        description: Comma-separated PR numbers to merge first
+        type: string
+      services:
+        description: Comma-separated services (bump)
+        type: string
+      changelog:
+        description: Changelog entry JSON (release, hotfix)
+        type: string
+      actor:
+        description: Admin console login that started the run
+        type: string
+
+# One train at a time; a queued run waits instead of racing the deploy branch.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  GO_VERSION: '1.27.3'
+
+jobs:
+  train:
+    name: Train
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Restore run state
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: run.json
+          key: release-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: release-${{ github.run_id }}-
+
+      - name: Write changelog input
+        if: inputs.changelog != ''
+        env:
+          CHANGELOG: ${{ inputs.changelog }}
+        run: printf '%s' "$CHANGELOG" > changelog.json
+
+      - name: Run train
+        env:
+          APP_ENV: production
+          GITHUB_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.RELEASE_APP_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KIND: ${{ inputs.kind }}
+          VERSION: ${{ inputs.version }}
+          ROLLBACK_TO: ${{ inputs.rollback_to }}
+          PRS: ${{ inputs.prs }}
+          SERVICES: ${{ inputs.services }}
+          ACTOR: ${{ inputs.actor || github.actor }}
+        run: |
+          changelog=""
+          if [ -f changelog.json ]; then changelog=changelog.json; fi
+          go run ./app/release -state run.json -kind "$KIND" -version "$VERSION" \
+            -rollback-to "$ROLLBACK_TO" -prs "$PRS" -services "$SERVICES" \
+            -changelog "$changelog" -actor "$ACTOR"
+
+      - name: Save run state
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: run.json
+          key: release-${{ github.run_id }}-${{ github.run_attempt }}

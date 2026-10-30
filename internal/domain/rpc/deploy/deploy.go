@@ -58,17 +58,15 @@ const (
 	StageBuild     StageID = "build"
 	StageDigests   StageID = "digests"
 	StagePinPR     StageID = "pin_pr"
-	StageACL       StageID = "acl"
-	StageRollout   StageID = "rollout"
-	StageVerify    StageID = "verify"
+	StagePromote   StageID = "promote"
 )
 
 var stagesByKind = map[RunKind][]StageID{
-	KindRelease:  {StagePreflight, StageMergePRs, StageChangelog, StageTag, StageRelease, StageBuild, StageDigests, StagePinPR, StageACL, StageRollout, StageVerify},
-	KindHotfix:   {StagePreflight, StageMergePRs, StageChangelog, StageTag, StageRelease, StageBuild, StageDigests, StagePinPR, StageACL, StageRollout, StageVerify},
-	KindBump:     {StagePreflight, StageMergePRs, StageBuild, StageDigests, StagePinPR, StageACL, StageRollout, StageVerify},
-	KindRollback: {StagePreflight, StagePinPR, StageACL, StageRollout, StageVerify},
-	KindReapply:  {StagePreflight, StageACL, StageRollout, StageVerify},
+	KindRelease:  {StagePreflight, StageMergePRs, StageChangelog, StageTag, StageRelease, StageBuild, StageDigests, StagePinPR, StagePromote},
+	KindHotfix:   {StagePreflight, StageMergePRs, StageChangelog, StageTag, StageRelease, StageBuild, StageDigests, StagePinPR, StagePromote},
+	KindBump:     {StagePreflight, StageMergePRs, StageBuild, StageDigests, StagePinPR, StagePromote},
+	KindRollback: {StagePreflight, StagePinPR, StagePromote},
+	KindReapply:  {StagePreflight, StagePromote},
 }
 
 func StagesFor(kind RunKind) []StageID {

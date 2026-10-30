@@ -223,12 +223,12 @@ var rpcServiceUsers = map[string]string{
 	"app/discord/engine":   "discord_engine_rpc",
 	"app/discord/ingress":  "discord_ingress_rpc",
 	"app/discord/outgress": "discord_outgress_rpc",
-	"app/deployer":         "deployer_rpc",
 }
 
 var rpcServicesWithoutIdentity = map[string]string{
 	"app/plain":      "template service; config.Load() is called but no NATS connection is opened",
 	"app/clusterops": "connects only as the system account's claims push user, never over RPC",
+	"app/release":    "a GitHub Actions CLI; it never connects to NATS",
 }
 
 var rpcIntraAccountSubjects = map[string]map[string]string{
