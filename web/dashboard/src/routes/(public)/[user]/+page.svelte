@@ -233,7 +233,7 @@
     note={t('leaderboard.donateNote')}
   >
     {#each donors as donor (donor.name)}
-      <span style="--s: {donor.size}px"><Bolota name={donor.name} size={donor.size} palette={donor.palette} expression="love" motionState="idle" active gate /></span>
+      <span style="--s: {donor.size}px"><Bolota name={donor.name} size={donor.size} palette={donor.palette} expression="excited" motionState="idle" active gate /></span>
     {/each}
   </DonateCard>
 </main>

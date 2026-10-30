@@ -322,7 +322,7 @@
     <div class="st-board st-board--feed">
       <div class="st-board__faces" aria-hidden="true">
         {#each feedTrio as name, i (`${i}:${name}`)}
-          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} expression="happy" motionState="idle" active gate /></span>
+          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} expression="excited" motionState="idle" active gate /></span>
         {/each}
       </div>
       <Card class="st-board__card" tone="accent">
@@ -375,7 +375,7 @@
     note={t('leaderboard.donateNote')}
   >
     {#each donors as donor (donor.name)}
-      <span style="--s: {donor.size}px"><Bolota name={donor.name} size={donor.size} palette={donor.palette} expression="love" motionState="idle" active gate /></span>
+      <span style="--s: {donor.size}px"><Bolota name={donor.name} size={donor.size} palette={donor.palette} expression="excited" motionState="idle" active gate /></span>
     {/each}
   </DonateCard>
 </main>
