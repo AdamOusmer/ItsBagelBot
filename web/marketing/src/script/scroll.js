@@ -80,6 +80,7 @@ function updateHeroProgress() {
     if (heroUiHidden !== lastHeroUiHidden) {
         hero.style.setProperty('--hero-ui-pointer-events', heroUiHidden ? 'none' : 'auto');
         lastHeroUiHidden = heroUiHidden;
+        hero.dispatchEvent(new CustomEvent('itsbagelbot:hero-fade', { detail: { faded: heroUiHidden } }));
     }
 
     if (heroComplete !== lastHeroComplete) {

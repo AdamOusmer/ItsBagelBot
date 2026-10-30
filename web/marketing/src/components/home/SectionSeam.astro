@@ -40,6 +40,7 @@ const { tone = 'green' } = Astro.props;
         translate: -50% -50%;
     }
 
+    /* No blur here: WebKit re-filtered this 1200x520 box on every scroll frame under the view() opacity, halving the frame rate page-wide. */
     .seam__glow::before {
         content: '';
         position: absolute;
@@ -47,11 +48,11 @@ const { tone = 'green' } = Astro.props;
         border-radius: 50%;
         background: radial-gradient(
             ellipse at center,
-            rgba(var(--seam-rgb), 0.11),
-            rgba(var(--seam-rgb), 0.04) 40%,
-            transparent 70%
+            rgba(var(--seam-rgb), 0.1),
+            rgba(var(--seam-rgb), 0.05) 32%,
+            rgba(var(--seam-rgb), 0.015) 58%,
+            transparent 74%
         );
-        filter: blur(30px);
     }
 
     .seam__line {

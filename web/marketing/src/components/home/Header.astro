@@ -171,6 +171,12 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     let observer: IntersectionObserver | null = null;
     let mounting = false;
     let crowdVisible = false;
+    let crowdFaded = false;
+    let heroEl: HTMLElement | null = null;
+    let heroFadeListener: ((event: Event) => void) | null = null;
+
+    // The crowd sits at opacity 0 from two thirds of the hero scroll on; 24 idle engines kept animating it there.
+    const crowdActive = () => crowdVisible && !crowdFaded;
 
     let enginePromise: Promise<typeof import('@luzir/bolota/engine')> | null = null;
     const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
@@ -215,27 +221,53 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
         engines.forEach((live) => scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS));
         mounting = false;
-        if (!crowdVisible) pauseCrowd();
+        if (!crowdActive()) pauseCrowd();
     }
 
     function pauseCrowd(): void {
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.timer = null;
+            live.handle.stop();
         });
     }
 
     function resumeCrowd(): void {
         engines.forEach((live) => {
-            scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
+            live.handle.loop('idle');
+            if (!live.timer) scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
         });
+    }
+
+    function syncCrowd(crowd: HTMLElement): void {
+        if (!crowdActive()) pauseCrowd();
+        else if (engines.length) resumeCrowd();
+        else mountCrowd(crowd);
     }
 
     function onCrowdVisibility(crowd: HTMLElement, visible: boolean): void {
         crowdVisible = visible;
-        if (!visible) pauseCrowd();
-        else if (engines.length) resumeCrowd();
-        else mountCrowd(crowd);
+        syncCrowd(crowd);
+    }
+
+    function onHeroFade(crowd: HTMLElement, event: Event): void {
+        crowdFaded = Boolean((event as CustomEvent<{ faded: boolean }>).detail?.faded);
+        syncCrowd(crowd);
+    }
+
+    function watchHeroFade(crowd: HTMLElement): void {
+        heroEl = crowd.closest<HTMLElement>('[data-hero-progress]');
+        if (!heroEl) return;
+        crowdFaded = heroEl.style.getPropertyValue('--hero-ui-pointer-events') === 'none';
+        heroFadeListener = (event) => onHeroFade(crowd, event);
+        heroEl.addEventListener('itsbagelbot:hero-fade', heroFadeListener);
+    }
+
+    function unwatchHeroFade(): void {
+        if (heroEl && heroFadeListener) heroEl.removeEventListener('itsbagelbot:hero-fade', heroFadeListener);
+        heroEl = null;
+        heroFadeListener = null;
+        crowdFaded = false;
     }
 
     function unmountCrowd(): void {
@@ -253,6 +285,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         crowd.dataset.heroMotionReady = 'true';
         if (prefersReducedMotion()) return;
 
+        watchHeroFade(crowd);
         if (typeof IntersectionObserver !== 'function') {
             onCrowdVisibility(crowd, true);
             return;
@@ -266,6 +299,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
     function teardown(): void {
         observer?.disconnect();
         observer = null;
+        unwatchHeroFade();
         unmountCrowd();
     }
 
