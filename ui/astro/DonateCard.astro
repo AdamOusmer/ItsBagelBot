@@ -1,0 +1,23 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+
+import '../styles/elements/donate-card.css';
+import ButtonLink from './ButtonLink.astro';
+
+interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'class'> {
+    label: string;
+    title: string;
+    text: string;
+    cta: string;
+    href: string;
+    note: string;
+    class?: string;
+}
+
+const { label, title, text, cta, href, note, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-donate-card', className].filter(Boolean).join(' ');
+---
+
+<section class={classes} {...rest}><div class="bb-donate-card__crowd" aria-hidden="true"><slot /></div><span class="bb-donate-card__label"><span data-fit>{label}</span></span><h2 class="bb-donate-card__title"><span data-fit="block">{title}</span></h2><p class="bb-donate-card__text"><span data-fit="block">{text}</span></p><ButtonLink class="bb-donate-card__cta" href={href} target="_blank" rel="noopener noreferrer"><span data-fit>{cta}</span></ButtonLink><span class="bb-donate-card__note"><span data-fit>{note}</span></span></section>

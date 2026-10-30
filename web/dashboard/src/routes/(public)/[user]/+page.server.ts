@@ -106,7 +106,7 @@ async function demoPage(login: string, params: BoardParams) {
 	const d = await import('#lib/server/demo-data');
 	return {
 		login,
-		channelName: login,
+		channelName: d.demoSession().display_name,
 		currencyName: d.demoLeaderboard.currencyName,
 		podium: d.demoPodium(),
 		...(await loadBoard(params, async (req) => d.demoStandingsPage(req))),

@@ -81,6 +81,7 @@ export { default as AreaSeries } from './AreaSeries.svelte';
 export { default as Card } from './Card.svelte';
 export { default as CardHead } from './CardHead.svelte';
 export { default as HaloPanel } from './HaloPanel.svelte';
+export { default as DonateCard } from './DonateCard.svelte';
 export { default as DeckList } from './DeckList.svelte';
 export { default as Icon } from './Icon.svelte';
 export { default as LogTail } from './LogTail.svelte';

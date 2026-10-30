@@ -23,5 +23,11 @@
   "emptyTitle": "Noch keine Legenden",
   "emptyBody": "Diese Liste füllt sich, wenn die Community von {channel} live zuschaut, abonniert, verschenkt und Cheers sendet. Schau rein und hol dir den ersten Platz.",
   "degraded": "Die Live-Rangliste ist vorübergehend nicht verfügbar. Sie aktualisiert sich später automatisch.",
-  "earnNote": "Gesammelt durch Zuschauen bei Livestreams, Abos, Geschenke und Cheers."
+  "earnNote": "Gesammelt durch Zuschauen bei Livestreams, Abos, Geschenke und Cheers.",
+  "colViewer": "Zuschauer",
+  "donateLabel": "Spenden",
+  "donateTitle": "Spenden halten den kostenlosen Tarif kostenlos.",
+  "donateText": "Jeder Kanal, ob kostenlos oder Premium, läuft auf denselben Servern. Premium und Spenden bezahlen sie, also hält eine Spende auf Ko-fi den Bot für alle online.",
+  "donateCta": "Auf Ko-fi spenden",
+  "donateNote": "Jeder Betrag. Ohne Gegenleistung."
 }

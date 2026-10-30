@@ -78,6 +78,7 @@ export { default as AreaSeries } from './AreaSeries.astro';
 export { default as Card } from './Card.astro';
 export { default as CardHead } from './CardHead.astro';
 export { default as HaloPanel } from './HaloPanel.astro';
+export { default as DonateCard } from './DonateCard.astro';
 export { default as DeckList } from './DeckList.astro';
 export { default as Icon } from './Icon.astro';
 export { default as ManagementRow } from './ManagementRow.astro';

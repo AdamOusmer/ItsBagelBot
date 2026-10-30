@@ -17,6 +17,7 @@ export const SITE = {
   enterpriseEmail: 'enterprise@itsbagelbot.com',
   discord: 'https://discord.gg/SZ2remwSDv',
   twitch: 'https://twitch.tv/itsbagelbot',
+  kofi: 'https://ko-fi.com/Q8P121QNHK',
 } as const;
 
 export interface SiteLinkDef {

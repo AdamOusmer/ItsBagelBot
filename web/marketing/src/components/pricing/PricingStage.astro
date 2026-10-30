@@ -2,15 +2,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import { SITE } from '@bagel/kit/site-links';
+import DonateCard from '@bagel/ui/astro/DonateCard.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import BolotaSvg from '../BolotaSvg.astro';
 import Tiers from './Tiers.astro';
 import { staticBolota } from '../../lib/bolota';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
-
-const KOFI_URL = 'https://ko-fi.com/Q8P121QNHK';
 
 const t = useTranslations(getLangFromUrl(Astro.url));
 const titleWords = t('pricing.eyebrow').split(' ');
@@ -33,18 +32,20 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
 
         <p class="oath" data-reveal><Icon name="check" size={14} class="oath__check" /><span class="oath__text"><span data-fit>{t('pricingTiers.oath')}</span></span></p>
 
-        <div class="donate" data-reveal>
-            <div class="donate__crowd" aria-hidden="true">
-                {donors.map((donor) => (
-                    <BolotaSvg bolota={donor} class="donate__face" style={`--s: ${donor.size}px`} expression="love" />
-                ))}
-            </div>
-            <span class="donate__label"><span data-fit>{t('pricing.donateLabel')}</span></span>
-            <h2 class="donate__title"><span data-fit="block">{t('pricing.donateTitle')}</span></h2>
-            <p class="donate__text"><span data-fit="block">{t('pricing.donateText')}</span></p>
-            <ButtonLink class="donate__cta" href={KOFI_URL} target="_blank" rel="noopener noreferrer"><span data-fit>{t('pricing.donateCta')}</span></ButtonLink>
-            <span class="donate__note"><span data-fit>{t('pricing.donateNote')}</span></span>
-        </div>
+        <DonateCard
+            class="donate"
+            data-reveal
+            label={t('pricing.donateLabel')}
+            title={t('pricing.donateTitle')}
+            text={t('pricing.donateText')}
+            cta={t('pricing.donateCta')}
+            href={SITE.kofi}
+            note={t('pricing.donateNote')}
+        >
+            {donors.map((donor) => (
+                <BolotaSvg bolota={donor} style={`--s: ${donor.size}px`} expression="love" />
+            ))}
+        </DonateCard>
     </div>
 </section>
 
@@ -226,88 +227,8 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
         width: min(100% - 24px, 30rem);
     }
 
-    .donate {
-        position: relative;
-        isolation: isolate;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: var(--bb-space-4);
+    .wrap :global(.donate) {
         margin-top: calc(var(--bb-space-section) * 0.8);
-        padding: var(--bb-space-8) var(--bb-space-6) var(--bb-space-7);
-        border: 1px solid var(--bb-border);
-        border-radius: var(--bb-radius-lg);
-        background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-surface-raised);
-        box-shadow: var(--bb-depth-2);
-        text-align: center;
-    }
-
-    .donate__crowd {
-        position: absolute;
-        top: 0;
-        left: 50%;
-        display: flex;
-        align-items: flex-end;
-        transform: translate(-50%, -62%);
-        pointer-events: none;
-    }
-
-    .donate__crowd :global(.donate__face) {
-        display: block;
-        width: var(--s);
-        height: var(--s);
-        overflow: visible;
-    }
-
-    .donate__crowd :global(.donate__face + .donate__face) { margin-left: -12px; }
-
-    .donate__label {
-        display: flex;
-        justify-content: center;
-        width: min(100%, 16rem);
-        font-size: var(--bb-text-md);
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        color: var(--bb-green-glow);
-        text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
-    }
-
-    .donate__title {
-        width: min(100%, 22ch);
-        height: calc(2 * 1lh);
-        margin: var(--bb-space-2) 0 0;
-        font-family: var(--bb-font-display);
-        font-size: clamp(1.7rem, 3vw, 2.4rem);
-        font-weight: 500;
-        letter-spacing: var(--bb-tracking-display);
-        line-height: 1.1;
-        color: var(--bb-paper);
-        text-wrap: balance;
-    }
-
-    .donate__text {
-        width: min(100%, 54ch);
-        height: calc(3 * 1lh);
-        margin: 0;
-        font-size: clamp(1.05rem, 1.5vw, 1.2rem);
-        line-height: 1.5;
-        letter-spacing: -0.01em;
-        color: var(--bb-muted-light);
-        text-wrap: pretty;
-    }
-
-    .donate :global(.donate__cta) {
-        --btn-w: 240px;
-        --btn-min-h: 48px;
-        margin-top: var(--bb-space-3);
-    }
-
-    .donate__note {
-        display: flex;
-        justify-content: center;
-        width: min(100%, 24rem);
-        font-size: var(--bb-text-xs);
-        color: var(--bb-muted);
     }
 
     @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
@@ -320,9 +241,5 @@ const donors = [staticBolota('oven_mitt', 64, 'pale'), staticBolota('glazed_val'
     @media (max-width: 760px) {
         .stage { padding-top: calc(var(--nav-offset) + var(--bb-space-6)); }
         .title { margin-bottom: var(--bb-space-7); }
-        .donate { padding: var(--bb-space-7) var(--bb-space-5) var(--bb-space-6); }
-        .donate__text { height: calc(6 * 1lh); }
-        .donate :global(.donate__cta) { --btn-w: 100%; }
-        .donate__title { height: calc(3 * 1lh); }
     }
 </style>

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **126** blocks;
-**109** ship both adapters.
+Every block the library ships, by family. **127** blocks;
+**110** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 126 times
+omitted: nearly every block takes both, and listing them 127 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -142,6 +142,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **CommunityCard** | `title*`: string<br>`headingLevel`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: CardTone<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/community-card.css` |
 | **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: CardTone \| 'silver'<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`spot`: boolean<br>`artwork`: Snippet | svelte + astro | stable | `styles/elements/counter-card.css` |
 | **DeckList** | `as`: T | svelte + astro | stable | `styles/elements/card.css, styles/elements/deck-list.css` |
+| **DonateCard** | `label*`: string<br>`title*`: string<br>`text*`: string<br>`cta*`: string<br>`href*`: string<br>`note*`: string | svelte + astro | stable | `styles/elements/donate-card.css` |
 | **Fact** | `term*`: string<br>`tone`: 'danger'<br>`mono`: boolean<br>`wide`: boolean<br>`truncate`: boolean<br>`fit`: boolean | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' \| 'list' | svelte + astro | stable | `styles/elements/fact-list.css` |
 | **HaloPanel** | `as`: 'div' \| 'a' \| 'article' \| 'section' \| 'aside'<br>`href`: string<br>`tone`: 'gold' \| 'green' | svelte + astro | stable | `styles/elements/halo-panel.css` |

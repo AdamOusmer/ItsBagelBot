@@ -962,6 +962,8 @@ import SvelteGlide from '../svelte/Glide.svelte';
 import AstroGlide from '../astro/Glide.astro';
 import SvelteHaloPanel from '../svelte/HaloPanel.svelte';
 import AstroHaloPanel from '../astro/HaloPanel.astro';
+import SvelteDonateCard from '../svelte/DonateCard.svelte';
+import AstroDonateCard from '../astro/DonateCard.astro';
 import SvelteStepCard from '../svelte/StepCard.svelte';
 import AstroStepCard from '../astro/StepCard.astro';
 import SvelteLinkRow from '../svelte/LinkRow.svelte';
@@ -1234,6 +1236,14 @@ const PRIMITIVES: {
     props: {"tone":"green","href":"/x","class":"tile"},
     slot: "x",
     html: "<a class=\"bb-halo-panel bb-halo-panel--green tile\" href=\"/x\"><span class=\"bb-halo-panel__halo\" aria-hidden=\"true\"></span>x</a>",
+  },
+  {
+    name: "DonateCard",
+    svelte: SvelteDonateCard,
+    astro: AstroDonateCard,
+    props: {"label":"L","title":"T","text":"X","cta":"C","href":"/k","note":"N","class":"d"},
+    slot: "x",
+    html: "<section class=\"bb-donate-card d\"><div class=\"bb-donate-card__crowd\" aria-hidden=\"true\">x</div><span class=\"bb-donate-card__label\"><span data-fit>L</span></span><h2 class=\"bb-donate-card__title\"><span data-fit=\"block\">T</span></h2><p class=\"bb-donate-card__text\"><span data-fit=\"block\">X</span></p><a class=\"bb-btn bb-btn--primary bb-donate-card__cta\" href=\"/k\" data-mark target=\"_blank\" rel=\"noopener noreferrer\"><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\"><span data-fit>C</span></span></a><span class=\"bb-donate-card__note\"><span data-fit>N</span></span></section>",
   },
   {
     name: "StepCard",
