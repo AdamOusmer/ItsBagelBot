@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
+     Proprietary. No license granted. See LICENSE.md. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111113" />
+    <meta name="robots" content="noindex" />
+    <title>%sveltekit.status%: ItsBagelBot Dashboard</title>
+    <script>
+      (function () {
+        var status = Number('%sveltekit.status%');
+        var path = location.pathname;
+        if (path === '/not-found' || path === '/error') return;
+        var lang = new URLSearchParams(location.search).get('lang');
+        var suffix = lang ? 'lang=' + encodeURIComponent(lang) : '';
+        var target = status === 404 ? '/not-found' + (suffix ? '?' + suffix : '') : '/error?code=' + status + (suffix ? '&' + suffix : '');
+        location.replace(target);
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+        background:
+          radial-gradient(60% 50% at 85% 0%, rgba(98, 165, 147, 0.12), transparent 70%),
+          radial-gradient(50% 45% at 0% 100%, rgba(216, 191, 145, 0.1), transparent 70%),
+          #111113;
+        color: #f4f4f5;
+        font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        text-align: center;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        max-width: 30rem;
+      }
+      .eyebrow {
+        font: 500 0.75rem/1.4 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #62a593;
+      }
+      .eyebrow b {
+        font-weight: 500;
+        color: #eadbbd;
+      }
+      .code {
+        margin: 4px 0 0;
+        font-family: 'Syne', 'DM Sans', system-ui, sans-serif;
+        font-size: clamp(4.5rem, 18vw, 7.5rem);
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        background: linear-gradient(180deg, #f4f4f5 40%, rgba(234, 219, 189, 0.55));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 600;
+        color: #fbfbfc;
+      }
+      .message {
+        margin: 0;
+        color: #b4b4bc;
+        font-size: 1rem;
+      }
+      .fr {
+        margin: 0;
+        color: #a1a1aa;
+        font-size: 0.9rem;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 11rem;
+        min-height: 44px;
+        padding: 0 20px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .primary {
+        background: #f4f4f5;
+        color: #111113;
+      }
+      .secondary {
+        background: #18181b;
+        color: #f4f4f5;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+      .secondary:hover {
+        background: #1f1f23;
+      }
+      a:focus-visible {
+        outline: 2px solid #62a593;
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow"><b>%sveltekit.status%</b> · lost in the crumbs</span>
+      <p class="code" aria-hidden="true">%sveltekit.status%</p>
+      <h1>Something went wrong.</h1>
+      <p class="message">%sveltekit.error.message%</p>
+      <p class="fr">Une erreur est survenue. Réessayez dans un instant.</p>
+      <div class="actions">
+        <a class="primary" href="/">Back to dashboard</a>
+        <a class="secondary" id="retry" href="">Try again · Réessayer</a>
+      </div>
+    </main>
+    <script>
+      document.getElementById('retry').addEventListener('click', function (event) {
+        event.preventDefault();
+        location.reload();
+      });
+    </script>
+  </body>
+</html>
