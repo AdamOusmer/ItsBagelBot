@@ -40,7 +40,11 @@
     font-size: clamp(32px, 4vw, 48px);
     line-height: 1.05;
     letter-spacing: -0.01em;
-    color: var(--bb-white);
+    background: linear-gradient(180deg, var(--bb-white) 40%, rgba(var(--bb-tan-light-rgb), 0.55)) 0 0 / 100% 1lh;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 36px rgba(var(--bb-tan-rgb), 0.18));
     margin: 0;
   }
 
