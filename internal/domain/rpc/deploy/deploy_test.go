@@ -9,7 +9,7 @@ import (
 )
 
 func TestStagesForBracketsEveryKind(t *testing.T) {
-	for _, kind := range Kinds() {
+	for _, kind := range []RunKind{KindRelease, KindHotfix, KindBump, KindRollback, KindReapply} {
 		got := StagesFor(kind)
 		ends := []StageID{got[0], got[len(got)-1]}
 		if want := []StageID{StagePreflight, StagePromote}; !reflect.DeepEqual(ends, want) {
@@ -34,7 +34,7 @@ func TestCurrentStageSkipsFinished(t *testing.T) {
 		{ID: StageMergePRs, State: StateSkipped},
 		{ID: StageBuild, State: StateFailed},
 	}}
-	if got := run.Summary().CurrentStage; got != StageBuild {
+	if got := run.CurrentStage(); got != StageBuild {
 		t.Errorf("current stage %q, want %q", got, StageBuild)
 	}
 }

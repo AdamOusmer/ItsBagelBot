@@ -44,7 +44,6 @@ type Sink interface {
 	// Slices and maps inside may be shared: treat them as read-only.
 	View() deploy.Run
 	Update(ctx context.Context, edit func(*deploy.Run)) error
-	AwaitApproval(ctx context.Context, id deploy.StageID, reason string) error
 }
 
 type RunCtx struct {
@@ -90,10 +89,6 @@ func (rc *RunCtx) AddLink(ctx context.Context, l deploy.Link) {
 
 func (rc *RunCtx) Waiting(ctx context.Context, msg string) {
 	rc.report(ctx, func(s *deploy.Stage) { s.Waiting, s.State = msg, waitingState(msg) })
-}
-
-func (rc *RunCtx) AwaitApproval(ctx context.Context, reason string) error {
-	return rc.sink.AwaitApproval(ctx, rc.stage, reason)
 }
 
 func (rc *RunCtx) report(ctx context.Context, edit func(*deploy.Stage)) {
