@@ -1,0 +1,63 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../layouts/Showcase.astro';
+
+const surfaces = ['--bb-bg-0', '--bb-elev-1', '--bb-card-bg', '--bb-elev-2'];
+const colors = ['--bb-white', '--bb-muted-light', '--bb-muted', '--bb-ink', '--bb-green-glow', '--bb-mint', '--bb-tan-light', '--bb-twitch'];
+const status = ['success', 'warning', 'danger', 'info'];
+const radii = ['--bb-radius-xs', '--bb-radius-sm', '--bb-radius-md', '--bb-radius-lg', '--bb-radius-pill'];
+---
+
+<Showcase title="Foundations" lead="Tokens from brand.css and semantic.css.">
+  <section class="sc-block">
+    <h2>Surfaces</h2>
+    <div class="sc-row">
+      {surfaces.map((token) => (
+        <figure class="fd-swatch"><span style={`background: var(${token})`}></span><figcaption>{token}</figcaption></figure>
+      ))}
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Colour</h2>
+    <div class="sc-row">
+      {colors.map((token) => (
+        <figure class="fd-swatch"><span style={`background: var(${token})`}></span><figcaption>{token}</figcaption></figure>
+      ))}
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Status</h2>
+    <div class="sc-row">
+      {status.map((name) => (
+        <span class="fd-status" style={`background: var(--bb-status-${name}-bg); color: var(--bb-status-${name}-fg)`}>{name}</span>
+      ))}
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Radius</h2>
+    <div class="sc-row">
+      {radii.map((token) => (
+        <figure class="fd-swatch"><span style={`background: var(--bb-elev-2); border-radius: var(${token})`}></span><figcaption>{token}</figcaption></figure>
+      ))}
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Type</h2>
+    <p class="fd-display">Syne display, 28px</p>
+    <p class="fd-body">DM Sans body, 14px. The quick brown fox jumps over the lazy dog.</p>
+  </section>
+</Showcase>
+
+<style>
+  .fd-swatch { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+  .fd-swatch span { display: block; width: 96px; height: 56px; border-radius: var(--bb-radius-sm); box-shadow: var(--bb-depth-1); }
+  .fd-swatch figcaption { color: var(--bb-muted); font-size: 11.5px; }
+  .fd-status { padding: 6px 12px; border-radius: var(--bb-radius-pill); font-size: 13px; }
+  .fd-display { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 28px; }
+  .fd-body { margin: 0; font-size: 14px; color: var(--bb-muted-light); }
+</style>

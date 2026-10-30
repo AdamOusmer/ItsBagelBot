@@ -66,7 +66,7 @@
       }
     })
   );
-  const footer = $derived(siteFooterProps(footerContext, '/logo.png'));
+  const footer = $derived(siteFooterProps(footerContext, '/logo-320.webp'));
   const locales = $derived(
     localeOptions(LOCALES, locale, new URL(page.url.href), (code) => page.data.localeNames?.[code] ?? code)
   );

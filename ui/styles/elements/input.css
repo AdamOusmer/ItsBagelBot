@@ -109,6 +109,10 @@
     }
 
     .bb-check {
+        --check-off-bg: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 12%);
+        --check-off-hover-bg: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
+        --check-off-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+
         display: inline-flex;
         flex: var(--bb-check-flex, 0 1 auto);
         align-items: var(--bb-check-align, flex-start);
@@ -139,37 +143,51 @@
     .bb-check__box {
         flex: 0 0 auto;
         position: relative;
-        width: 16px;
-        height: 16px;
-        margin-top: 2px;
-        border: 1px solid var(--bb-border-strong);
-        border-radius: var(--bb-radius-xs);
-        background: rgba(var(--bb-shadow-rgb), 0.35);
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
+        border-radius: 5px;
+        background: var(--check-off-bg);
+        box-shadow: var(--check-off-shadow);
         transition:
-            background-color var(--bb-dur-base) var(--bb-ease-out-expo),
-            border-color var(--bb-dur-base) var(--bb-ease-out-expo);
+            background-color var(--bb-dur-fast) var(--bb-ease-out-expo),
+            box-shadow var(--bb-dur-fast) var(--bb-ease-out-expo),
+            scale var(--bb-dur-fast) var(--bb-ease-out-expo);
     }
 
     .bb-check__box::after {
         content: "";
         position: absolute;
-        inset: 3px;
-        background: var(--bb-black);
+        inset: 4px;
+        background: rgb(var(--bb-white-pure-rgb));
         clip-path: polygon(14% 46%, 0 60%, 39% 100%, 100% 22%, 86% 8%, 39% 72%);
         scale: 0;
         transition: scale var(--bb-dur-base) var(--bb-ease-out-back);
     }
 
+    .bb-check:hover .bb-check__input:not(:checked, :disabled) + .bb-check__box {
+        background: var(--check-off-hover-bg);
+    }
+
+    .bb-check:active .bb-check__input:not(:disabled) + .bb-check__box { scale: 0.92; }
+
     .bb-check__input:checked + .bb-check__box {
         background: var(--bb-green-glow);
-        border-color: var(--bb-green-glow);
+        box-shadow:
+            inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.18),
+            inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.2);
     }
 
     .bb-check__input:checked + .bb-check__box::after { scale: 1; }
 
     .bb-check__input:focus-visible + .bb-check__box {
-        outline: 2px solid var(--bb-focus);
-        outline-offset: 2px;
+        box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+    }
+
+    :where(:root[data-theme='light']) .bb-check {
+        --check-off-bg: var(--bb-gray-5-light);
+        --check-off-hover-bg: color-mix(in srgb, var(--bb-gray-5-light), var(--bb-ink) 8%);
+        --check-off-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
     .bb-check__input:disabled + .bb-check__box { opacity: 0.55; }
@@ -188,6 +206,4 @@
         .bb-check__box,
         .bb-check__box::after { transition: none; }
     }
-
-    :where([data-surface='tonal']) .bb-check__box { box-shadow: var(--bb-depth-0); }
 }

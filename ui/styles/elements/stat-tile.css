@@ -93,6 +93,10 @@
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
     }
 
+    @media (max-width: 760px) {
+        .bb-stat-grid--auto { grid-template-columns: 1fr 1fr; }
+    }
+
     .bb-stat--inline {
         display: flex;
         flex-direction: column;

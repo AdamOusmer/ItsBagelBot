@@ -57,13 +57,18 @@
     {#snippet leading(option, on)}
       {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
       <IconTile picked={on}>{s.initials}</IconTile>
-      {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
+      {#if s.available}<span class="chip"><Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag></span>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
     {/snippet}
   </RadioGroup>
 </div>
 
 <style>
-  .tiles { margin: 16px 0 4px; }
+  .tiles { margin: 16px 0 4px; container-type: inline-size; }
+  .chip { display: contents; }
+
+  @container (max-width: 480px) {
+    .chip { display: none; }
+  }
 
   @media (max-width: 760px), (max-height: 760px) {
     .tiles { margin: 8px 0 0; }

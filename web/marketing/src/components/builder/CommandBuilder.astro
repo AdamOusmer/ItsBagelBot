@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Tag from '@bagel/ui/astro/Tag.astro';
-import StatusDot from '@bagel/ui/astro/StatusDot.astro';
+import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import Divider from '@bagel/ui/astro/Divider.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Card from '@bagel/ui/astro/Card.astro';
@@ -137,13 +137,9 @@ for (const surface of builderData(defaultLang).surfaces) {
                     <Label mono as="span" class="card-head__start"><i class="bb-mark card-head__rec" aria-hidden="true"></i><span data-fit>{ui.previewTitle}</span></Label>
                     <Label mono as="span" class="card-head__end"><span data-fit data-context></span></Label>
                 </div>
-                <div class="bb-chat bb-chat--fixed" data-chat data-avatar={avatarImage.src}>
-                    <div class="bb-chat__bar">
-                        <StatusDot tone="success" />
-                        <span class="bb-chat__title"><span data-fit data-chat-tag-text>{ui.rehearsal}</span></span>
-                    </div>
-                    <div class="bb-chat__feed" data-chat-feed></div>
-                </div>
+                <ChatPreview title={ui.rehearsal} class="bb-chat--fixed" data-chat data-avatar={avatarImage.src}>
+                    <span slot="heading" data-fit data-chat-tag-text>{ui.rehearsal}</span>
+                </ChatPreview>
                 <Text as="small" size="xs" tone="muted-light" class="preview__note"><span data-fit="block" data-preview-note></span></Text>
             </Card>
 
@@ -289,7 +285,7 @@ for (const surface of builderData(defaultLang).surfaces) {
         const output = $<HTMLElement>('[data-output] code');
         const copyBtn = $<HTMLButtonElement>('[data-copy-cta]');
         const avatarSrc = $<HTMLElement>('[data-chat]').dataset.avatar ?? '';
-        const chat = $<HTMLElement>('[data-chat-feed]');
+        const chat = $<HTMLElement>('[data-chat] .bb-chat__feed');
 
         const fitted = new Map<Element, () => void>();
         const fitWithin = (box: Element) => {

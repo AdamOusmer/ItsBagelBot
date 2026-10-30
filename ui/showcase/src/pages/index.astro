@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../layouts/Showcase.astro';
+import TextLink from '../../../astro/TextLink.astro';
+import { SECTIONS } from '../sections';
+
+const pages = SECTIONS.flatMap((group) => group.links.filter((link) => link.href !== '/').map((link) => ({ ...link, group: group.title })));
+---
+
+<Showcase title="Overview" lead="Local-only gallery of the @bagel/ui blocks, rendered from the real Astro adapters and stylesheets. Lab pages hold design drafts before they land in the library.">
+  <section class="sc-grid">
+    {pages.map((page) => (
+      <div class="sc-block">
+        <p>{page.group}</p>
+        <TextLink href={page.href} label={page.label} variant="arrow" tone="lead" />
+      </div>
+    ))}
+  </section>
+</Showcase>

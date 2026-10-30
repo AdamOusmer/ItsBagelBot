@@ -20,7 +20,15 @@ astro/     Astro adapters
 locales/   default strings per language (generated index.ts)
 scripts/   assert-*.mjs gates, gen-catalog.mjs, gen-locales.mjs, size.ts
 test/      parity.test.ts, golden fixtures, engine and adapter tests
+showcase/  local-only component site (never built or deployed)
 ```
+
+## Showcase
+
+`bun run showcase` serves the component site at http://127.0.0.1:4330. It
+renders the real Astro adapters and stylesheets. `showcase/src/pages/lab/`
+holds design drafts that restyle library blocks before the change lands in
+`styles/`; add a page there and link it in `showcase/src/sections.ts`.
 
 `lib/` and `styles/` are the domain half: no `svelte`, no `$app/*`, no
 `astro:*`, no `node:*` builtin. `svelte/` and `astro/` are adapters and exist

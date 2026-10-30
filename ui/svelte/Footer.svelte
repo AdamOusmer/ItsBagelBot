@@ -28,9 +28,9 @@
 
 <footer class="bb-footer" bind:this={footer}
   ><div class="bb-footer__sky" aria-hidden="true"
-    ><span class="bb-footer__aurora"
+    ><span class="bb-footer__grain"></span><span class="bb-footer__aurora"
       ><span class="bb-footer__band"></span><span class="bb-footer__band"></span><span class="bb-footer__band"></span></span
-    ><span class="bb-footer__grain"></span></div
+    ></div
   ><div class="bb-footer__top"
     ><div class="bb-footer__id">{#if studio}<p class="bb-footer__studio"><span data-fit>{studio}</span></p>{/if}</div
     ><div class="bb-footer__cols"

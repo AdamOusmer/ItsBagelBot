@@ -1,0 +1,61 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../layouts/Showcase.astro';
+import Button from '../../../astro/Button.astro';
+import TextLink from '../../../astro/TextLink.astro';
+import Switch from '../../../astro/Switch.astro';
+import SwitchRow from '../../../astro/SwitchRow.astro';
+import Checkbox from '../../../astro/Checkbox.astro';
+---
+
+<Showcase title="Controls" lead="Live library controls. Switches flip on click.">
+  <section class="sc-block">
+    <h2>Button</h2>
+    <div class="sc-row">
+      <Button>Primary</Button>
+      <Button variant="secondary">Secondary</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button tone="success">Success</Button>
+      <Button variant="secondary" tone="danger">Danger</Button>
+      <Button variant="add">Add</Button>
+      <Button disabled>Disabled</Button>
+      <Button busy>Busy</Button>
+    </div>
+    <div class="sc-row">
+      <Button size="sm">Primary sm</Button>
+      <Button size="sm" variant="secondary">Secondary sm</Button>
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Text link</h2>
+    <div class="sc-row">
+      <TextLink href="#" label="Arrow link" variant="arrow" />
+      <TextLink href="#" label="Lead arrow" variant="arrow" tone="lead" />
+      <TextLink href="#" label="Go arrow" variant="arrow" tone="go" />
+      <TextLink href="#" label="Inline link" variant="inline" />
+    </div>
+  </section>
+
+  <section class="sc-block">
+    <h2>Switch</h2>
+    <div class="sc-row">
+      <Switch label="Off" />
+      <Switch label="On" checked />
+      <Switch label="Disabled" disabled />
+      <Switch label="Disabled on" checked disabled />
+    </div>
+    <SwitchRow label="Public commands page" hint="Viewers can see your command list." checked control="end" />
+  </section>
+
+  <section class="sc-block">
+    <h2>Checkbox</h2>
+    <div class="sc-row">
+      <Checkbox>Unchecked</Checkbox>
+      <Checkbox checked>Checked</Checkbox>
+      <Checkbox disabled>Disabled</Checkbox>
+      <Checkbox checked disabled>Disabled checked</Checkbox>
+    </div>
+  </section>
+</Showcase>

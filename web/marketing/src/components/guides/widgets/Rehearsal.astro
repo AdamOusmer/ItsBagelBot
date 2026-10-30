@@ -4,12 +4,14 @@
 
 import Badge from '@bagel/ui/astro/Badge.astro';
 import Card from '@bagel/ui/astro/Card.astro';
+import ChatPreview from '@bagel/ui/astro/ChatPreview.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Input from '@bagel/ui/astro/Input.astro';
 import Label from '@bagel/ui/astro/Label.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Textarea from '@bagel/ui/astro/Textarea.astro';
+import ChatLines from '../ChatLines.astro';
 
 interface Props {
     labels?: Record<string, string>;
@@ -52,15 +54,9 @@ const L = {
                 <Input fill data-rh-args value={L.argsDefault} maxlength={80} />
             </label>
         </div>
-        <Label mono as="span">{L.outputLabel}</Label>
-        <div class="bb-chat">
-            <div class="bb-chat__feed">
-                <p class="bb-chat__line" data-rh-output aria-live="polite">
-                    <b class="bb-chat__name bb-chat__name--bot">{L.botName}</b>
-                    <span class="bb-chat__msg" data-rh-content>{L.outputDefault}</span>
-                </p>
-            </div>
-        </div>
+        <ChatPreview title={L.outputLabel} aria-live="polite">
+            <ChatLines lines={[{ who: 'bot', name: L.botName, text: L.outputDefault, hook: 'rh-content' }]} />
+        </ChatPreview>
         <Text size="xs" tone="muted">{L.builderNote}{' '}<TextLink variant="inline" href={L.builderHref}>{L.builderLinkText}</TextLink></Text>
         <template data-rh-pill><Badge shape="pill" tone="paid">{L.pillLabel}</Badge></template>
     </div>
@@ -146,10 +142,9 @@ const L = {
         const response = root.querySelector<HTMLTextAreaElement>('[data-rh-response]');
         const who = root.querySelector<HTMLInputElement>('[data-rh-who]');
         const args = root.querySelector<HTMLInputElement>('[data-rh-args]');
-        const line = root.querySelector<HTMLElement>('[data-rh-output]');
-        const content = root.querySelector<HTMLElement>('[data-rh-content]');
+        const content = root.querySelector<HTMLElement>('[data-chat-hook="rh-content"]');
         const fields = [response, who, args];
-        if (fields.some((field) => !field) || !line || !content) return;
+        if (fields.some((field) => !field) || !content) return;
 
         const makePill = pillFrom(root.querySelector<HTMLTemplateElement>('[data-rh-pill]'));
         const reduceMotion = prefersReducedMotion();

@@ -5,70 +5,81 @@
 
 @layer bb.elements {
     .bb-switch {
-        --switch-w: 38px;
-        --switch-h: 22px;
-        --switch-knob: 16px;
-        --switch-on-bg: var(--bb-accent-soft);
-        --switch-on-knob: var(--bb-green-glow);
+        --switch-w: 42px;
+        --switch-h: 24px;
+        --switch-knob: 20px;
+        --switch-pad: 2px;
+        --switch-stretch: 0px;
+        --switch-off-bg: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 12%);
+        --switch-off-hover-bg: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
+        --switch-on-bg: var(--bb-green-glow);
+        --switch-on-hover-bg: color-mix(in srgb, var(--bb-green-glow) 88%, var(--bb-mint));
 
         width: var(--switch-w);
         height: var(--switch-h);
         flex-shrink: 0;
         display: inline-block;
         position: relative;
+        padding: 0;
+        border: 0;
         border-radius: var(--bb-radius-pill);
-        background: rgba(var(--bb-white-pure-rgb), 0.06);
-        border: 1px solid rgba(var(--bb-white-rgb), 0.11);
+        background: var(--switch-off-bg);
+        box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
         cursor: pointer;
-        transition: background var(--bb-dur-base) var(--bb-ease-out-back),
-                    border-color var(--bb-dur-base) var(--bb-ease-out-back);
+        transition: background-color var(--bb-dur-base) var(--bb-ease-out-expo),
+                    box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
     .bb-switch::before {
         content: '';
         position: absolute;
-        inset: -11px -3px;
+        inset: -10px -1px;
     }
 
     .bb-switch::after {
         content: '';
         position: absolute;
-        top: 2px;
-        left: 2px;
-        width: var(--switch-knob);
+        top: var(--switch-pad);
+        left: var(--switch-pad);
+        width: calc(var(--switch-knob) + var(--switch-stretch));
         height: var(--switch-knob);
-        border-radius: 50%;
-        background: var(--bb-muted);
-        transition: left var(--bb-dur-base) var(--bb-ease-out-back),
-                    background var(--bb-dur-base) var(--bb-ease-out-back),
-                    box-shadow var(--bb-dur-base) var(--bb-ease-out-back);
+        border-radius: var(--bb-radius-pill);
+        background: linear-gradient(180deg, rgb(var(--bb-white-pure-rgb)), var(--bb-gray-1-dark));
+        box-shadow: 0 1px 1px rgba(var(--bb-shadow-rgb), 0.25),
+                    0 2px 6px rgba(var(--bb-shadow-rgb), 0.35);
+        transition: left var(--bb-dur-base) var(--bb-ease-out-expo),
+                    width var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .bb-switch:active:not(:disabled) { --switch-stretch: 5px; }
+
+    .bb-switch:hover:not(:disabled):not([data-state='on']) {
+        background: var(--switch-off-hover-bg);
     }
 
     .bb-switch[data-state='on'] {
         background: var(--switch-on-bg);
-        border-color: rgba(var(--bb-green-glow-rgb), 0.4);
+        box-shadow: inset 0 1px 1px rgba(var(--bb-white-pure-rgb), 0.18),
+                    inset 0 -1px 2px rgba(var(--bb-shadow-rgb), 0.2);
+    }
+
+    .bb-switch[data-state='on']:hover:not(:disabled) {
+        background: var(--switch-on-hover-bg);
     }
 
     .bb-switch[data-state='on']::after {
-        left: calc(var(--switch-w) - var(--switch-knob) - 4px);
-        background: var(--switch-on-knob);
-        box-shadow: 0 0 8px var(--switch-on-knob);
+        left: calc(var(--switch-w) - var(--switch-knob) - var(--switch-stretch) - var(--switch-pad));
     }
 
     .bb-switch:focus-visible {
-        outline: 2px solid var(--bb-green-glow);
-        outline-offset: 3px;
+        outline: none;
+        box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
     }
 
-    :where([data-surface='tonal']) .bb-switch {
-        border-color: transparent;
-        background: var(--bb-elev-1);
-        box-shadow: var(--bb-depth-0);
-    }
-
-    :where([data-surface='tonal']) .bb-switch[data-state='on'] {
-        background: var(--switch-on-bg);
-        border-color: transparent;
+    :where(:root[data-theme='light']) .bb-switch {
+        --switch-off-bg: var(--bb-gray-5-light);
+        --switch-off-hover-bg: color-mix(in srgb, var(--bb-gray-5-light), var(--bb-ink) 8%);
+        box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.12);
     }
 
     .bb-switch:disabled { cursor: default; opacity: 0.55; }
