@@ -52,6 +52,7 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 		"state_get":            d.handleStateGet,
 		"lifecycle_retry":      d.handleLifecycleRetry,
 		"login_resolve":        d.handleLoginResolve,
+		"identity_sync":        d.handleIdentitySync,
 		"onboarded_set":        d.handleOnboardedSet,
 		"locale_set":           d.handleLocaleSet,
 		"cursor_set":           d.handleCursorSet,
@@ -257,6 +258,25 @@ func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 		"username":     view.Username,
 		"display_name": view.DisplayName,
 	})
+}
+
+func (d *dashboardRPC) handleIdentitySync(ctx context.Context, msg *nats.Msg) {
+	req, ok := decodeRequest[usersrpc.IdentitySyncRequest](msg)
+	if !ok {
+		return
+	}
+	id, ok := parseWireID(msg, req.UserID, "user_id")
+	if !ok {
+		return
+	}
+
+	prior, err := d.repo.SyncIdentity(ctx, id, req.Username, req.DisplayName)
+	if err != nil {
+		respondFail(msg, err, domainrpc.Is(validate.ErrUsernameInvalid, domainrpc.CodeInvalid))
+		return
+	}
+	d.publishInvalidate("status", req.UserID, "identity_sync")
+	bus.Respond(msg, usersrpc.IdentitySyncReply{Renamed: prior != "", PriorUsername: prior})
 }
 
 func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(repository.UserView) map[string]any) {
