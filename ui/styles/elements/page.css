@@ -47,7 +47,7 @@
   .bb-page-head h1 em {
     font-style: normal;
     font-weight: 500;
-    color: var(--bb-tan-light);
+    color: inherit;
     font-family: var(--bb-font-display);
   }
 
