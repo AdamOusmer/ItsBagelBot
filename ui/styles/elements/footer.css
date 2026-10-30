@@ -331,6 +331,29 @@
     .bb-footer__fine {
       text-align: left;
     }
+
+    .bb-footer__band {
+      top: -8%;
+      height: 48%;
+    }
+
+    .bb-footer__band:nth-child(1) {
+      left: -45%;
+      width: 120%;
+      rotate: 4deg;
+    }
+
+    .bb-footer__band:nth-child(2) {
+      left: -5%;
+      width: 110%;
+      rotate: -3deg;
+    }
+
+    .bb-footer__band:nth-child(3) {
+      left: 25%;
+      width: 120%;
+      rotate: 6deg;
+    }
   }
 
   @media (max-width: 639px) {
