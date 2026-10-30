@@ -112,7 +112,7 @@ spec:
               kubernetes.io/metadata.name: ops
           podSelector:
             matchLabels:
-              app: deployer
+              app: clusterops
       ports:
         - port: 4223
     - from:
@@ -146,12 +146,6 @@ spec:
           podSelector:
             matchLabels:
               app: keda-operator
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ops
-          podSelector:
-            matchLabels:
-              app: deployer
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: app

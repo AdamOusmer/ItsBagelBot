@@ -13,7 +13,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/app/clusterops/internal/aclpush"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/tlsenv"
@@ -48,10 +48,10 @@ func (cfg Config) validate() error {
 	return nil
 }
 
-// Adapter implements ports.ClaimsPusher over direct connections to the hub
+// Adapter implements aclpush.ClaimsPusher over direct connections to the hub
 // and leaf clusters, authenticated as the system account's push user.
 type Adapter struct {
-	conns map[ports.ClusterName]*nats.Conn
+	conns map[aclpush.ClusterName]*nats.Conn
 }
 
 func New(cfg Config) (*Adapter, error) {
@@ -67,7 +67,7 @@ func New(cfg Config) (*Adapter, error) {
 		hub.Close()
 		return nil, fmt.Errorf("natsclaims: connect leaf: %w", err)
 	}
-	return &Adapter{conns: map[ports.ClusterName]*nats.Conn{ports.ClusterHub: hub, ports.ClusterLeaf: leaf}}, nil
+	return &Adapter{conns: map[aclpush.ClusterName]*nats.Conn{aclpush.ClusterHub: hub, aclpush.ClusterLeaf: leaf}}, nil
 }
 
 func (a *Adapter) Close() {
@@ -76,7 +76,7 @@ func (a *Adapter) Close() {
 	}
 }
 
-func (a *Adapter) conn(cluster ports.ClusterName) (*nats.Conn, error) {
+func (a *Adapter) conn(cluster aclpush.ClusterName) (*nats.Conn, error) {
 	nc, ok := a.conns[cluster]
 	if !ok {
 		return nil, fmt.Errorf("natsclaims: unknown cluster %q", cluster)
@@ -84,7 +84,7 @@ func (a *Adapter) conn(cluster ports.ClusterName) (*nats.Conn, error) {
 	return nc, nil
 }
 
-func (a *Adapter) Servers(ctx context.Context, cluster ports.ClusterName) ([]string, error) {
+func (a *Adapter) Servers(ctx context.Context, cluster aclpush.ClusterName) ([]string, error) {
 	nc, err := a.conn(cluster)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (a *Adapter) Servers(ctx context.Context, cluster ports.ClusterName) ([]str
 	return serverNames(msgs), nil
 }
 
-func (a *Adapter) Lookup(ctx context.Context, cluster ports.ClusterName, accountKey string) (string, error) {
+func (a *Adapter) Lookup(ctx context.Context, cluster aclpush.ClusterName, accountKey string) (string, error) {
 	nc, err := a.conn(cluster)
 	if err != nil {
 		return "", err
@@ -111,7 +111,7 @@ func (a *Adapter) Lookup(ctx context.Context, cluster ports.ClusterName, account
 	return string(msg.Data), nil
 }
 
-func (a *Adapter) Push(ctx context.Context, cluster ports.ClusterName, accountJWT string, expect int) ([]ports.ClaimsReply, error) {
+func (a *Adapter) Push(ctx context.Context, cluster aclpush.ClusterName, accountJWT string, expect int) ([]aclpush.ClaimsReply, error) {
 	nc, err := a.conn(cluster)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (a *Adapter) Push(ctx context.Context, cluster ports.ClusterName, accountJW
 }
 
 func connect(cfg Config, url string) (*nats.Conn, error) {
-	opts := []nats.Option{nats.UserJWTAndSeed(cfg.SysJWT, cfg.SysSeed), nats.Timeout(connectTimeout), nats.Name("deployer-acl"), nats.IgnoreDiscoveredServers()}
+	opts := []nats.Option{nats.UserJWTAndSeed(cfg.SysJWT, cfg.SysSeed), nats.Timeout(connectTimeout), nats.Name("clusterops-claims"), nats.IgnoreDiscoveredServers()}
 	secure, err := secureOption()
 	if err != nil {
 		return nil, err
@@ -245,20 +245,20 @@ type claimUpdateReply struct {
 	} `json:"error"`
 }
 
-func claimsReplies(msgs []*nats.Msg) []ports.ClaimsReply {
-	out := make([]ports.ClaimsReply, 0, len(msgs))
+func claimsReplies(msgs []*nats.Msg) []aclpush.ClaimsReply {
+	out := make([]aclpush.ClaimsReply, 0, len(msgs))
 	for _, m := range msgs {
 		out = append(out, claimsReply(m.Data))
 	}
 	return out
 }
 
-func claimsReply(data []byte) ports.ClaimsReply {
+func claimsReply(data []byte) aclpush.ClaimsReply {
 	var r claimUpdateReply
 	if err := codec.Unmarshal(data, &r); err != nil {
-		return ports.ClaimsReply{Message: err.Error()}
+		return aclpush.ClaimsReply{Message: err.Error()}
 	}
-	reply := ports.ClaimsReply{}
+	reply := aclpush.ClaimsReply{}
 	if r.Server != nil {
 		reply.Server = r.Server.Name
 	}

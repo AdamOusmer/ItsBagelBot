@@ -1,0 +1,280 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: clusterops
+  namespace: ops
+imagePullSecrets:
+  - name: ghcr-pull
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: clusterops
+  namespace: app
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments]
+    verbs: [get, list, watch, patch]
+  - apiGroups: ["cert-manager.io"]
+    resources: [certificates]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: clusterops
+  namespace: app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: clusterops
+subjects:
+  - kind: ServiceAccount
+    name: clusterops
+    namespace: ops
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-tls
+  namespace: ops
+spec:
+  secretName: nats-client-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  commonName: nats-client.ops.svc.cluster.local
+  dnsNames:
+    - nats-client.ops.svc.cluster.local
+---
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: clusterops-env
+  namespace: ops
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: deployer-doppler-token
+  managedSecret:
+    name: clusterops-env
+    namespace: ops
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clusterops
+  namespace: ops
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: clusterops
+  template:
+    metadata:
+      labels:
+        app: clusterops
+    spec:
+      serviceAccountName: clusterops
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-operator
+      containers:
+        - name: clusterops
+          image: ghcr.io/adamousmer/itsbagelbot/clusterops:main
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NATS_ACCOUNTS_FILE
+              value: /etc/nats-accounts/accounts.yaml
+            - name: NATS_ACCOUNTS_KEYS_FILE
+              value: /etc/nats-accounts/accounts.keys.yaml
+            - name: GOMEMLIMIT
+              value: 80MiB
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: clusterops-env, key: APP_ENV}
+            - name: NATS_SIGNING_SEED
+              valueFrom:
+                secretKeyRef: {name: clusterops-env, key: DEPLOY_NATS_SIGNING_SEED}
+            - name: NATS_SYS_JWT
+              valueFrom:
+                secretKeyRef: {name: clusterops-env, key: DEPLOY_NATS_SYS_JWT}
+            - name: NATS_SYS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: clusterops-env, key: DEPLOY_NATS_SYS_NKEY_SEED}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: nats-accounts, mountPath: /etc/nats-accounts, readOnly: true}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+      terminationGracePeriodSeconds: 15
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: nats-accounts
+          configMap:
+            name: nats-accounts-source
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clusterops
+  namespace: ops
+spec:
+  podSelector:
+    matchLabels:
+      app: clusterops
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [nats, nats-leaf]
+      ports:
+        - port: 4222
+          protocol: TCP
+        - port: 4223
+          protocol: TCP
+---
+# No toFQDNs or dns rules: Cilium's DNS proxy never answers on these nodes, so the pod would resolve nothing.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: clusterops-egress
+  namespace: ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app: clusterops
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - {port: "6443", protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clusterops
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ops
+          podSelector:
+            matchLabels:
+              app: clusterops
+      ports:
+        - port: 4222

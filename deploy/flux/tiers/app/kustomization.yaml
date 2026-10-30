@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../k8s/network-policies.yaml
+  - ../../../k8s/error-pages.yaml
+  - ../../../k8s/web-error-pages.yaml
+  - ../../../k8s/status-routes.yaml
+  - ../../../k8s/gossip.yaml
+  - ../../../k8s/outgress.yaml
+  - ../../../k8s/sesame.yaml
+  - ../../../k8s/discord.yaml
+  - ../../../k8s/twitch-ingress.yaml
+  - ../../../k8s/console-dashboard.yaml
+  - ../../../k8s/console-admin.yaml
+
+configMapGenerator:
+  - name: error-pages-template
+    namespace: app
+    files:
+      - ../../../k8s/config/error-pages.html

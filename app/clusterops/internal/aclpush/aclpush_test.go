@@ -12,24 +12,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ItsBagelBot/app/deployer/internal/aclpush"
-	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/app/clusterops/internal/aclpush"
 )
 
 type fakeCP struct {
 	servers []string
 	live    map[string]string
-	replies []ports.ClaimsReply
+	replies []aclpush.ClaimsReply
 	pushed  []string
 }
 
-func (f *fakeCP) Servers(context.Context, ports.ClusterName) ([]string, error) { return f.servers, nil }
+func (f *fakeCP) Servers(context.Context, aclpush.ClusterName) ([]string, error) {
+	return f.servers, nil
+}
 
-func (f *fakeCP) Lookup(_ context.Context, _ ports.ClusterName, key string) (string, error) {
+func (f *fakeCP) Lookup(_ context.Context, _ aclpush.ClusterName, key string) (string, error) {
 	return f.live[key], nil
 }
 
-func (f *fakeCP) Push(_ context.Context, _ ports.ClusterName, accountJWT string, _ int) ([]ports.ClaimsReply, error) {
+func (f *fakeCP) Push(_ context.Context, _ aclpush.ClusterName, accountJWT string, _ int) ([]aclpush.ClaimsReply, error) {
 	f.pushed = append(f.pushed, accountJWT)
 	return f.replies, nil
 }
@@ -88,7 +89,7 @@ func TestDrift(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := aclpush.NewClusterPusher(context.Background(), &fakeCP{live: tc.live}, op, ports.ClusterHub)
+			p, err := aclpush.NewClusterPusher(context.Background(), &fakeCP{live: tc.live}, op, aclpush.ClusterHub)
 			require.NoError(t, err)
 
 			got, err := p.Drift(context.Background(), tc.compiled)
@@ -101,24 +102,24 @@ func TestDrift(t *testing.T) {
 func TestPush(t *testing.T) {
 	cases := []struct {
 		name    string
-		replies []ports.ClaimsReply
+		replies []aclpush.ClaimsReply
 		want    *aclpush.PushError
 	}{
-		{"succeeds when every server replies 200", []ports.ClaimsReply{{Server: "s1", Code: 200}, {Server: "s2", Code: 200}}, nil},
-		{"fails naming a server that never replies", []ports.ClaimsReply{{Server: "s1", Code: 200}}, &aclpush.PushError{Missing: []string{"s2"}}},
-		{"fails naming a server that replies without code 200", []ports.ClaimsReply{
+		{"succeeds when every server replies 200", []aclpush.ClaimsReply{{Server: "s1", Code: 200}, {Server: "s2", Code: 200}}, nil},
+		{"fails naming a server that never replies", []aclpush.ClaimsReply{{Server: "s1", Code: 200}}, &aclpush.PushError{Missing: []string{"s2"}}},
+		{"fails naming a server that replies without code 200", []aclpush.ClaimsReply{
 			{Server: "s1", Code: 200}, {Server: "s2", Code: 500, Message: "boom"},
 		}, &aclpush.PushError{Bad: []string{"s2"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cp := &fakeCP{servers: []string{"s1", "s2"}, replies: tc.replies}
-			p, err := aclpush.NewClusterPusher(context.Background(), cp, operator(t), ports.ClusterHub)
+			p, err := aclpush.NewClusterPusher(context.Background(), cp, operator(t), aclpush.ClusterHub)
 			require.NoError(t, err)
 
 			res, err := p.Push(context.Background(), namedClaims(t, "PUSHED"))
 
-			assert.Equal(t, aclpush.PushResult{Account: "PUSHED", Cluster: ports.ClusterHub, Replies: tc.replies}, res)
+			assert.Equal(t, aclpush.PushResult{Account: "PUSHED", Cluster: aclpush.ClusterHub, Replies: tc.replies}, res)
 			assert.Len(t, cp.pushed, 1)
 			if tc.want == nil {
 				require.NoError(t, err)
@@ -127,6 +128,36 @@ func TestPush(t *testing.T) {
 			var pe *aclpush.PushError
 			require.ErrorAs(t, err, &pe)
 			assert.Equal(t, tc.want, pe)
+		})
+	}
+}
+
+func TestSync(t *testing.T) {
+	op := operator(t)
+	matching, drifted := namedClaims(t, "MATCHING"), namedClaims(t, "DRIFTED")
+	ok := []aclpush.ClaimsReply{{Server: "s1", Code: 200}}
+	cases := []struct {
+		name    string
+		replies []aclpush.ClaimsReply
+		want    []aclpush.ClusterName
+		wantErr bool
+	}{
+		{"pushes the drifted account to hub then leaf", ok, []aclpush.ClusterName{aclpush.ClusterHub, aclpush.ClusterLeaf}, false},
+		{"stops at the hub when a server refuses", []aclpush.ClaimsReply{{Server: "s1", Code: 500}}, nil, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cp := &fakeCP{servers: []string{"s1"}, replies: tc.replies, live: map[string]string{matching.Subject: encode(t, matching, op)}}
+
+			res, err := aclpush.Sync(context.Background(), cp, op, []*jwt.AccountClaims{matching, drifted})
+
+			var clusters []aclpush.ClusterName
+			for _, r := range res {
+				assert.Equal(t, "DRIFTED", r.Account)
+				clusters = append(clusters, r.Cluster)
+			}
+			assert.Equal(t, tc.want, clusters)
+			assert.Equal(t, tc.wantErr, err != nil)
 		})
 	}
 }

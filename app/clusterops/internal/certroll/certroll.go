@@ -57,7 +57,7 @@ func newRoller(dyn dynamic.Interface, cs kubernetes.Interface, log *zap.Logger) 
 	return &Roller{dyn: dyn, cs: cs, log: log}
 }
 
-// Reads Certificate status, never Secrets: the deployer holds no Secret access and must not gain it.
+// Reads Certificate status, never Secrets: clusterops holds no Secret access and must not gain it.
 func (r *Roller) Reconcile(ctx context.Context, namespace string) error {
 	issued, err := r.fingerprints(ctx, namespace)
 	if err != nil {

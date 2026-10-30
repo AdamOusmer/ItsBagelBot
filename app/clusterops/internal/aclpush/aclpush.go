@@ -7,25 +7,25 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 
-	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/natsacl"
 )
 
-// Load reads accounts.yaml and accounts.keys.yaml at ref and compiles them,
+// Load reads accounts.yaml and accounts.keys.yaml and compiles them,
 // exporters first, matching the order natsacl.Compile returns.
-func Load(ctx context.Context, gh ports.GitHub, cfg ports.Config, ref ports.Ref) ([]*jwt.AccountClaims, error) {
-	aclBytes, err := gh.File(ctx, cfg.AccountsFile, ref)
+func Load(accountsFile, keysFile string) ([]*jwt.AccountClaims, error) {
+	aclBytes, err := os.ReadFile(accountsFile)
 	if err != nil {
-		return nil, fmt.Errorf("read %s at %s: %w", cfg.AccountsFile, ref, err)
+		return nil, fmt.Errorf("read %s: %w", accountsFile, err)
 	}
-	keysBytes, err := gh.File(ctx, cfg.AccountsKeysFile, ref)
+	keysBytes, err := os.ReadFile(keysFile)
 	if err != nil {
-		return nil, fmt.Errorf("read %s at %s: %w", cfg.AccountsKeysFile, ref, err)
+		return nil, fmt.Errorf("read %s: %w", keysFile, err)
 	}
 	acl, err := natsacl.ParseACL(aclBytes)
 	if err != nil {
@@ -50,8 +50,8 @@ func Signer(seed string) (nkeys.KeyPair, error) {
 // PushResult is one account's push outcome on one cluster, for stage/UI reporting.
 type PushResult struct {
 	Account string
-	Cluster ports.ClusterName
-	Replies []ports.ClaimsReply
+	Cluster ClusterName
+	Replies []ClaimsReply
 }
 
 // PushError names the servers a push did not confirm on: missing a reply,
@@ -75,20 +75,53 @@ func (e *PushError) Error() string {
 // ClusterPusher pushes and looks up account claims against one cluster,
 // against the server set it read when constructed.
 type ClusterPusher struct {
-	cp      ports.ClaimsPusher
-	cluster ports.ClusterName
+	cp      ClaimsPusher
+	cluster ClusterName
 	signer  nkeys.KeyPair
 	servers []string
 }
 
-func (p *ClusterPusher) Cluster() ports.ClusterName { return p.cluster }
+func (p *ClusterPusher) Cluster() ClusterName { return p.cluster }
 
-func NewClusterPusher(ctx context.Context, cp ports.ClaimsPusher, signer nkeys.KeyPair, cluster ports.ClusterName) (*ClusterPusher, error) {
+func NewClusterPusher(ctx context.Context, cp ClaimsPusher, signer nkeys.KeyPair, cluster ClusterName) (*ClusterPusher, error) {
 	servers, err := cp.Servers(ctx, cluster)
 	if err != nil {
 		return nil, fmt.Errorf("aclpush: list %s servers: %w", cluster, err)
 	}
 	return &ClusterPusher{cp: cp, cluster: cluster, signer: signer, servers: servers}, nil
+}
+
+// Sync pushes every drifted account to the hub, then the leaf, stopping at the first failure.
+func Sync(ctx context.Context, cp ClaimsPusher, signer nkeys.KeyPair, compiled []*jwt.AccountClaims) ([]PushResult, error) {
+	var pushed []PushResult
+	for _, cluster := range []ClusterName{ClusterHub, ClusterLeaf} {
+		p, err := NewClusterPusher(ctx, cp, signer, cluster)
+		if err != nil {
+			return pushed, err
+		}
+		results, err := p.pushDrifted(ctx, compiled)
+		pushed = append(pushed, results...)
+		if err != nil {
+			return pushed, err
+		}
+	}
+	return pushed, nil
+}
+
+func (p *ClusterPusher) pushDrifted(ctx context.Context, compiled []*jwt.AccountClaims) ([]PushResult, error) {
+	drifted, err := p.Drift(ctx, compiled)
+	if err != nil {
+		return nil, err
+	}
+	var pushed []PushResult
+	for _, c := range drifted {
+		r, err := p.Push(ctx, c)
+		if err != nil {
+			return pushed, fmt.Errorf("aclpush: %s on %s: %w", c.Name, p.cluster, err)
+		}
+		pushed = append(pushed, r)
+	}
+	return pushed, nil
 }
 
 // Drift returns the subset of compiled claims whose live JWT on the cluster
@@ -148,8 +181,8 @@ func decodeLive(token string) *jwt.AccountClaims {
 	return c
 }
 
-func checkReplies(servers []string, replies []ports.ClaimsReply) error {
-	byServer := make(map[string]ports.ClaimsReply, len(replies))
+func checkReplies(servers []string, replies []ClaimsReply) error {
+	byServer := make(map[string]ClaimsReply, len(replies))
 	for _, r := range replies {
 		byServer[r.Server] = r
 	}

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/app/clusterops/internal/aclpush"
 )
 
 const clusterConfigTmpl = `
@@ -181,7 +181,7 @@ func TestAdapterAgainstEmbeddedCluster(t *testing.T) {
 	t.Run("Servers counts every node in the cluster", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		names, err := adapter.Servers(ctx, ports.ClusterHub)
+		names, err := adapter.Servers(ctx, aclpush.ClusterHub)
 		require.NoError(t, err)
 		assert.Len(t, names, 3)
 	})
@@ -192,7 +192,7 @@ func TestAdapterAgainstEmbeddedCluster(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		replies, err := adapter.Push(ctx, ports.ClusterHub, pushJWT, 3)
+		replies, err := adapter.Push(ctx, aclpush.ClusterHub, pushJWT, 3)
 		require.NoError(t, err)
 		require.Len(t, replies, 3)
 		for _, r := range replies {
@@ -200,7 +200,7 @@ func TestAdapterAgainstEmbeddedCluster(t *testing.T) {
 			assert.NotEmpty(t, r.Server)
 		}
 
-		live, err := adapter.Lookup(ctx, ports.ClusterHub, accountPub)
+		live, err := adapter.Lookup(ctx, aclpush.ClusterHub, accountPub)
 		require.NoError(t, err)
 		decoded, err := jwt.DecodeAccountClaims(live)
 		require.NoError(t, err)

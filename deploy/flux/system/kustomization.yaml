@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - sync.yaml
+
+images:
+  - name: ghcr.io/fluxcd/source-controller
+    newTag: v1.9.5@sha256:6f20d232d596a758c923d2861f23511718fc303b8a2e36a1434a7c736b9f4268
+  - name: ghcr.io/fluxcd/kustomize-controller
+    newTag: v1.9.5@sha256:a3a955eb2bc432c2eaa94d2d3714e3beae7fdf17586fd23aadf71ab597ac3339
+
+patches:
+  - target:
+      kind: Deployment
+      name: (source-controller|kustomize-controller)
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 20m, memory: 64Mi}
+          limits: {memory: 256Mi}
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --concurrent=4
