@@ -9,10 +9,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
+
+	"go.uber.org/zap"
 
 	"ItsBagelBot/app/release/internal/config"
 	"ItsBagelBot/app/release/internal/gh"
@@ -44,9 +44,10 @@ func main() {
 	flag.StringVar(&f.stage, "stage", "", "run only this stage; empty runs every unfinished stage")
 	flag.Parse()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := run(ctx, f); err != nil {
+	core, done := svcboot.NewCore("release")
+	err := run(core, f)
+	done()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		var fail *ports.Fail
 		if errors.As(err, &fail) {
@@ -56,12 +57,13 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, f flags) error {
+func run(core svcboot.Core, f flags) error {
+	ctx := core.Ctx
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	deps, err := stageDeps(cfg)
+	deps, err := stageDeps(cfg, core.Log)
 	if err != nil {
 		return err
 	}
@@ -95,7 +97,7 @@ func seedRun(ctx context.Context, hub ports.GitHub, f flags) (deploy.Run, error)
 	return train.Seed(ctx, hub, deploy.Actor{Login: f.actor}, req)
 }
 
-func stageDeps(cfg *config.Config) (stage.Deps, error) {
+func stageDeps(cfg *config.Config, log *zap.Logger) (stage.Deps, error) {
 	hub, err := gh.New(gh.Config{
 		AppID: cfg.GitHubAppID, InstallationID: cfg.GitHubInstallationID,
 		PrivateKey: cfg.GitHubPrivateKey, Deploy: cfg.Deploy,
@@ -108,7 +110,7 @@ func stageDeps(cfg *config.Config) (stage.Deps, error) {
 		Registry: registry.New(registry.Config{Repo: cfg.Deploy.ImageRepo, Username: cfg.GHCRUsername, Password: cfg.GHCRToken}),
 		Clock:    ports.SystemClock{},
 		Config:   cfg.Deploy,
-		Log:      svcboot.NewLogger("release"),
+		Log:      log,
 	}, nil
 }
 
