@@ -1,0 +1,8 @@
+{
+  "label": "Escolha uma cor",
+  "plane": "Saturação e brilho",
+  "planeValue": "Saturação {saturation}, brilho {brightness}",
+  "hue": "Matiz",
+  "hex": "Cor hexadecimal",
+  "swatch": "Usar {hex}"
+}

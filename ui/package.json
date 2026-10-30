@@ -11,6 +11,7 @@
     "./styles/*.css": "./styles/*.css",
     "./fonts/*.woff2": "./fonts/*.woff2",
     "./lib/clipboard": "./lib/clipboard.ts",
+    "./lib/color": "./lib/color.ts",
     "./lib/count-up": "./lib/count-up.ts",
     "./lib/csv": "./lib/csv.ts",
     "./lib/decode": "./lib/decode.ts",

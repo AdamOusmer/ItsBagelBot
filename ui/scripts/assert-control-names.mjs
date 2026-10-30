@@ -41,4 +41,4 @@ if (unnamed.length > 0) {
   process.exit(1);
 }
 
-console.log('every Checkbox, Input, Select, Slider and Textarea call site has an accessible name');
+console.log('every Checkbox, ColorPicker, Input, Select, Slider and Textarea call site has an accessible name');

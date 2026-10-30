@@ -1,0 +1,461 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import Showcase from '../../layouts/Showcase.astro';
+
+const swatches = ['#c47a3a', '#62a593', '#5865f2', '#dfe4e9', '#b05a46', '#8a7cc9', '#d8bf91', '#3d8bd9'];
+const chevron = 'M5 8l5 5 5-5';
+---
+
+<Showcase title="Color picker" lead="Drafts for a custom picker that replaces the native color input. Each one is live: drag the plane, rail or wheel, type a hex, pick a swatch. Arrow keys move a focused knob, Shift moves it faster.">
+  <section class="sc-grid">
+    <div class="sc-block">
+      <h2>A. Panel (shipped)</h2>
+      <p>Shipped as the Svelte <code>ColorPicker</code>. Pill trigger with the hex. Panel opens with a brightness plane, a hue rail with the switch knob, a hex field and swatches.</p>
+      <div class="cp cp--a" data-cp data-value="#62a593">
+        <button class="cp-trigger" type="button" aria-expanded="true" data-cp-toggle>
+          <span class="cp-dot"></span><span class="cp-trigger__hex" data-cp-label></span>
+          <svg class="cp-chev" viewBox="0 0 20 20" aria-hidden="true"><path d={chevron} /></svg>
+        </button>
+        <div class="cp-panel" data-cp-panel>
+          <div class="cp-plane" data-cp-area="plane"><span class="cp-knob" role="slider" tabindex="0" aria-label="Saturation and brightness" data-cp-knob="plane"></span></div>
+          <div class="cp-rail cp-rail--hue" data-cp-area="hue"><span class="cp-thumb" role="slider" tabindex="0" aria-label="Hue" data-cp-knob="hue"></span></div>
+          <div class="cp-foot">
+            <span class="cp-preview"></span>
+            <label class="cp-field"><span>#</span><input data-cp-hex maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex color" /></label>
+          </div>
+          <div class="cp-swatches">{swatches.map((hex) => <button type="button" class="cp-swatch" style={`--sw: ${hex}`} data-cp-swatch={hex} aria-label={hex}></button>)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-block">
+      <h2>B. Swatches first</h2>
+      <p>Brand palette up front as round chips. Hue and brightness rails below for anything custom. Smallest footprint.</p>
+      <div class="cp cp--b" data-cp data-value="#c47a3a">
+        <button class="cp-trigger" type="button" aria-expanded="true" data-cp-toggle>
+          <span class="cp-dot"></span><span class="cp-trigger__hex" data-cp-label></span>
+          <svg class="cp-chev" viewBox="0 0 20 20" aria-hidden="true"><path d={chevron} /></svg>
+        </button>
+        <div class="cp-panel" data-cp-panel>
+          <div class="cp-swatches">{swatches.map((hex) => <button type="button" class="cp-swatch" style={`--sw: ${hex}`} data-cp-swatch={hex} aria-label={hex}></button>)}</div>
+          <div class="cp-rail cp-rail--hue" data-cp-area="hue"><span class="cp-thumb" role="slider" tabindex="0" aria-label="Hue" data-cp-knob="hue"></span></div>
+          <div class="cp-rail cp-rail--val" data-cp-area="val"><span class="cp-thumb" role="slider" tabindex="0" aria-label="Brightness" data-cp-knob="val"></span></div>
+          <label class="cp-field"><span>#</span><input data-cp-hex maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex color" /></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-block">
+      <h2>C. Wheel</h2>
+      <p>Round trigger. Hue and saturation on one disc, brightness on a rail, hex beside the preview.</p>
+      <div class="cp cp--c" data-cp data-value="#5865f2">
+        <button class="cp-trigger" type="button" aria-expanded="true" data-cp-toggle>
+          <span class="cp-dot"></span><span class="cp-trigger__hex" data-cp-label></span>
+          <svg class="cp-chev" viewBox="0 0 20 20" aria-hidden="true"><path d={chevron} /></svg>
+        </button>
+        <div class="cp-panel" data-cp-panel>
+          <div class="cp-wheel" data-cp-area="wheel"><span class="cp-knob" role="slider" tabindex="0" aria-label="Hue and saturation" data-cp-knob="wheel"></span></div>
+          <div class="cp-rail cp-rail--val" data-cp-area="val"><span class="cp-thumb" role="slider" tabindex="0" aria-label="Brightness" data-cp-knob="val"></span></div>
+          <div class="cp-foot">
+            <span class="cp-preview"></span>
+            <label class="cp-field"><span>#</span><input data-cp-hex maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex color" /></label>
+          </div>
+          <div class="cp-swatches">{swatches.map((hex) => <button type="button" class="cp-swatch" style={`--sw: ${hex}`} data-cp-swatch={hex} aria-label={hex}></button>)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-block">
+      <h2>Current</h2>
+      <p>The native input the library ships today. Opens the operating system picker.</p>
+      <span class="bb-input bb-input--color"><input type="color" value="#62a593" aria-label="Native color" /></span>
+    </div>
+  </section>
+</Showcase>
+
+<style is:global>
+  @layer bb.app {
+    .cp {
+      --cp-off: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 12%);
+      --cp-off-hover: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 18%);
+      --cp-inset: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+      --cp-knob-face: linear-gradient(180deg, rgb(var(--bb-white-pure-rgb)), var(--bb-gray-1-dark));
+      --cp-knob-drop: 0 1px 1px rgba(var(--bb-shadow-rgb), 0.25), 0 2px 6px rgba(var(--bb-shadow-rgb), 0.35);
+
+      display: grid;
+      gap: 8px;
+      width: 260px;
+      max-width: 100%;
+    }
+
+    .cp-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      justify-self: start;
+      height: 36px;
+      padding: 0 10px 0 6px;
+      border: 0;
+      border-radius: var(--bb-radius-sm);
+      background: var(--cp-off);
+      box-shadow: var(--cp-inset);
+      color: var(--bb-white);
+      font-family: var(--bb-font-mono);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background-color var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .cp-trigger:hover { background: var(--cp-off-hover); }
+    .cp-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus); }
+
+    .cp-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: var(--bb-radius-xs);
+      background: var(--cp-color);
+      box-shadow: inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.14), inset 0 -6px 10px rgba(var(--bb-shadow-rgb), 0.18);
+    }
+
+    .cp-chev {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: var(--bb-muted);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: rotate var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .cp-trigger[aria-expanded='true'] .cp-chev { rotate: 180deg; }
+
+    .cp-panel {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      border-radius: var(--bb-radius-md);
+      background: color-mix(in srgb, var(--bb-elev-1), var(--bb-white) 4%);
+      box-shadow: 0 14px 36px rgba(var(--bb-shadow-rgb), 0.5), inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.05);
+    }
+
+    .cp-panel[hidden] { display: none; }
+
+    .cp-plane,
+    .cp-rail,
+    .cp-wheel {
+      position: relative;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .cp-plane {
+      height: 148px;
+      border-radius: var(--bb-radius-sm);
+      background:
+        linear-gradient(to top, #000, transparent),
+        linear-gradient(to right, #fff, hsl(var(--cp-hue) 100% 50%));
+      box-shadow: inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.06);
+    }
+
+    .cp-wheel {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        radial-gradient(closest-side, #fff, transparent),
+        conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    }
+
+    .cp-wheel::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: #000;
+      opacity: calc(1 - var(--cp-v));
+      pointer-events: none;
+    }
+
+    .cp-rail {
+      height: 12px;
+      margin: 0 9px;
+      border-radius: var(--bb-radius-pill);
+      cursor: pointer;
+    }
+
+    .cp-rail::before {
+      content: '';
+      position: absolute;
+      inset: 0 -9px;
+      border-radius: inherit;
+      background: inherit;
+      box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.35);
+    }
+
+    .cp-rail--hue { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+    .cp-rail--val { background: linear-gradient(to right, #000, var(--cp-full)); }
+
+    .cp-knob,
+    .cp-thumb {
+      position: absolute;
+      z-index: 1;
+      translate: -50% -50%;
+      border-radius: 50%;
+      transition: scale var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .cp-knob {
+      width: 18px;
+      height: 18px;
+      background: var(--cp-color);
+      box-shadow: 0 0 0 3px rgb(var(--bb-white-pure-rgb)), var(--cp-knob-drop);
+    }
+
+    .cp-thumb {
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      background: var(--cp-knob-face);
+      box-shadow: var(--cp-knob-drop);
+    }
+
+    .cp-knob:active,
+    .cp-thumb:active,
+    [data-dragging] > :is(.cp-knob, .cp-thumb) { scale: 1.15; }
+
+    .cp-knob:focus-visible,
+    .cp-thumb:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--bb-white-pure-rgb)), 0 0 0 6px var(--bb-focus); }
+
+    .cp-foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cp-preview {
+      flex: none;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--bb-radius-sm);
+      background: var(--cp-color);
+      box-shadow: inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.14);
+    }
+
+    .cp-field {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      gap: 4px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: var(--bb-radius-sm);
+      background: var(--cp-off);
+      box-shadow: var(--cp-inset);
+      color: var(--bb-muted);
+      font-family: var(--bb-font-mono);
+      font-size: 13px;
+    }
+
+    .cp-field:focus-within { box-shadow: var(--cp-inset), 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus); }
+
+    .cp-field input {
+      width: 100%;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      background: none;
+      color: var(--bb-white);
+      font: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .cp-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .cp-swatch {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--bb-radius-xs);
+      background: var(--sw);
+      box-shadow: inset 0 0 0 1px rgba(var(--bb-white-pure-rgb), 0.12);
+      cursor: pointer;
+      transition: scale var(--bb-dur-fast) var(--bb-ease-out-expo), box-shadow var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .cp-swatch:hover { scale: 1.1; }
+    .cp-swatch:active { scale: 0.92; }
+    .cp-swatch[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bb-elev-1), 0 0 0 4px rgb(var(--bb-white-pure-rgb)); }
+    .cp-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bb-elev-1), 0 0 0 4px var(--bb-focus); }
+
+    .cp--b .cp-panel { gap: 14px; }
+
+    .cp--b .cp-swatches {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .cp--b .cp-swatch {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1;
+      border-radius: 50%;
+    }
+
+    .cp--b .cp-swatch[aria-pressed='true'] { box-shadow: 0 0 0 3px var(--bb-elev-1), 0 0 0 5px rgb(var(--bb-white-pure-rgb)); }
+
+    .cp--c .cp-dot,
+    .cp--c .cp-preview,
+    .cp--c .cp-swatch { border-radius: 50%; }
+
+    .cp--c .cp-trigger { padding-left: 4px; border-radius: var(--bb-radius-pill); }
+    .cp--c .cp-dot { width: 28px; height: 28px; }
+    .cp--c .cp-wheel { width: 196px; justify-self: center; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cp-trigger, .cp-chev, .cp-knob, .cp-thumb, .cp-swatch { transition: none; }
+    }
+  }
+</style>
+
+<script>
+  type Hsv = { h: number; s: number; v: number };
+
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+
+  function toRgb({ h, s, v }: Hsv): [number, number, number] {
+    const f = (n: number) => {
+      const k = (n + h / 60) % 6;
+      return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1))));
+    };
+    return [f(5), f(3), f(1)];
+  }
+
+  const toHex = (hsv: Hsv) => '#' + toRgb(hsv).map((c) => c.toString(16).padStart(2, '0')).join('');
+
+  function fromHex(hex: string): Hsv | null {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255);
+    const max = Math.max(r, g, b);
+    const d = max - Math.min(r, g, b);
+    let h = 0;
+    if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (h * 60 + 360) % 360, s: max ? d / max : 0, v: max };
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-cp]')) {
+    const state = fromHex(root.dataset.value ?? '') ?? { h: 0, s: 0, v: 1 };
+    const hexInput = root.querySelector<HTMLInputElement>('[data-cp-hex]');
+    const label = root.querySelector<HTMLElement>('[data-cp-label]');
+    const knob = (name: string) => root.querySelector<HTMLElement>(`[data-cp-knob="${name}"]`);
+
+    const render = (syncInput = true) => {
+      const hex = toHex(state);
+      root.style.setProperty('--cp-color', hex);
+      root.style.setProperty('--cp-hue', `${state.h}deg`);
+      root.style.setProperty('--cp-v', `${state.v}`);
+      root.style.setProperty('--cp-full', toHex({ ...state, v: 1 }));
+      if (label) label.textContent = hex.toUpperCase();
+      if (hexInput && syncInput) hexInput.value = hex.slice(1).toUpperCase();
+      const plane = knob('plane');
+      if (plane) Object.assign(plane.style, { left: `${state.s * 100}%`, top: `${(1 - state.v) * 100}%` });
+      const hue = knob('hue');
+      if (hue) hue.style.left = `${(state.h / 360) * 100}%`;
+      const val = knob('val');
+      if (val) val.style.left = `${state.v * 100}%`;
+      const wheel = knob('wheel');
+      if (wheel) {
+        const a = (state.h * Math.PI) / 180;
+        Object.assign(wheel.style, { left: `${50 + Math.sin(a) * state.s * 50}%`, top: `${50 - Math.cos(a) * state.s * 50}%` });
+      }
+      for (const sw of root.querySelectorAll<HTMLElement>('[data-cp-swatch]')) sw.setAttribute('aria-pressed', String(sw.dataset.cpSwatch === hex));
+    };
+
+    const apply = (area: string, x: number, y: number) => {
+      if (area === 'plane') Object.assign(state, { s: clamp(x), v: clamp(1 - y) });
+      if (area === 'hue') state.h = clamp(x) * 359.9;
+      if (area === 'val') state.v = clamp(x);
+      if (area === 'wheel') {
+        const dx = x - 0.5;
+        const dy = 0.5 - y;
+        state.h = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+        state.s = clamp(Math.hypot(dx, dy) * 2);
+      }
+      render();
+    };
+
+    for (const el of root.querySelectorAll<HTMLElement>('[data-cp-area]')) {
+      const area = el.dataset.cpArea!;
+      const move = (e: PointerEvent) => {
+        const r = el.getBoundingClientRect();
+        apply(area, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+      };
+      el.addEventListener('pointerdown', (e) => {
+        el.setPointerCapture(e.pointerId);
+        el.toggleAttribute('data-dragging', true);
+        move(e);
+        knob(area)?.focus({ preventScroll: true });
+      });
+      el.addEventListener('pointermove', (e) => el.hasPointerCapture(e.pointerId) && move(e));
+      el.addEventListener('pointerup', () => el.removeAttribute('data-dragging'));
+      el.addEventListener('pointercancel', () => el.removeAttribute('data-dragging'));
+    }
+
+    for (const el of root.querySelectorAll<HTMLElement>('[data-cp-knob]')) {
+      const area = el.dataset.cpKnob!;
+      el.addEventListener('keydown', (e) => {
+        const step = e.shiftKey ? 0.1 : 0.01;
+        const dx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+        const dy = e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0;
+        if (!dx && !dy) return;
+        e.preventDefault();
+        if (area === 'plane') Object.assign(state, { s: clamp(state.s + dx), v: clamp(state.v - dy) });
+        if (area === 'hue') state.h = (state.h + (dx - dy) * 360 + 360) % 360;
+        if (area === 'val') state.v = clamp(state.v + dx - dy);
+        if (area === 'wheel') {
+          state.h = (state.h + dx * 360 + 360) % 360;
+          state.s = clamp(state.s - dy);
+        }
+        render();
+      });
+    }
+
+    hexInput?.addEventListener('input', () => {
+      const next = fromHex(hexInput.value);
+      if (next) {
+        Object.assign(state, next);
+        render(false);
+      }
+    });
+    hexInput?.addEventListener('blur', () => render());
+
+    for (const sw of root.querySelectorAll<HTMLElement>('[data-cp-swatch]')) {
+      sw.addEventListener('click', () => {
+        Object.assign(state, fromHex(sw.dataset.cpSwatch!)!);
+        render();
+      });
+    }
+
+    const toggle = root.querySelector<HTMLButtonElement>('[data-cp-toggle]');
+    const panel = root.querySelector<HTMLElement>('[data-cp-panel]');
+    toggle?.addEventListener('click', () => {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(open));
+      if (panel) panel.hidden = !open;
+    });
+
+    render();
+  }
+</script>

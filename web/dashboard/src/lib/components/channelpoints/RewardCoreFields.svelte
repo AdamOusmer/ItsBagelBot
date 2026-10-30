@@ -4,7 +4,7 @@
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-  import Text from '@bagel/ui/svelte/Text.svelte';
+  import ColorPicker from '@bagel/ui/svelte/ColorPicker.svelte';
   import { getI18n } from '@bagel/kit';
   import type { VariableSurface } from '@bagel/kit/variables';
   import ResponseEditor from '#lib/components/commands/ResponseEditor.svelte';
@@ -70,10 +70,7 @@
   </div>
   <div class="color-field">
     <Field label={labels.color}>
-      <span class="color-row">
-        <span class="swatch"><Input data-cursor={cursorColor ? '' : undefined} type="color" bind:value={draft.color} /></span>
-        <Text as="span" size="xs" mono tone="accent">{draft.color.toUpperCase()}</Text>
-      </span>
+      <ColorPicker data-cursor={cursorColor ? '' : undefined} bind:value={draft.color} />
     </Field>
   </div>
 </div>
@@ -102,9 +99,7 @@
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
   .field-grow { flex: 1; min-width: 0; }
 
-  .color-field { flex: none; width: 116px; }
-  .color-row { display: flex; align-items: center; gap: 8px; }
-  .swatch { display: block; flex: none; width: 44px; }
+  .color-field { flex: none; }
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 12px; }
