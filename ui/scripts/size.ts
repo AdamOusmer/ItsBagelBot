@@ -242,7 +242,7 @@ const ENTRIES: {
 const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/typography", budget: 1680 }, // 1370 B: text tones, truncate, heading title/label, code wrap (2026-09-29)
   { name: "elements/layout", budget: 1310 }, // 1035 B: grid stackAt md (2026-09-29)
-  { name: "elements/input", budget: 1230 },
+  { name: "elements/input", budget: 1530 }, // 1361 B: borderless checkbox with off/hover/light vars, press scale (2026-10-29)
   // Custom select styling: 811 B gzip, +150 B platform variance and ~10% room.
   { name: "elements/select", budget: 1060 },
   { name: "elements/tooltip", budget: 730 },
@@ -269,7 +269,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/search-input", budget: 520 },
   { name: "elements/skeleton", budget: 700 },
   { name: "elements/stat-tile", budget: 980 },
-  { name: "elements/toggle", budget: 1000 }, // 840 B: tonal recessed switch track (2026-10-28)
+  { name: "elements/toggle", budget: 1150 }, // 1000 B: borderless switch, shadowed knob, press stretch, light theme (2026-10-29)
   { name: "elements/alert", budget: 1100 }, // 847 B: tip/note callouts, exit action, phone stack and second row (2026-09-29)
   { name: "elements/area-series", budget: 390 },
   { name: "elements/aurora", budget: 450 },
