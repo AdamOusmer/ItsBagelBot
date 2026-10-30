@@ -346,7 +346,7 @@
       max(12px, env(safe-area-inset-left, 0px));
     padding: 7px 12px 7px 8px;
     border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-pill);
+    border-radius: var(--bb-radius-md);
     background: rgba(var(--bb-black-rgb), 0.55);
     backdrop-filter: blur(18px);
   }
