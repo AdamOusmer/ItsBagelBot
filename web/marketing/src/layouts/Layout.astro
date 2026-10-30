@@ -194,7 +194,7 @@ const navProps = siteNavProps({
         menuMeta: t('menu.meta'),
     },
 });
-const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
+const footerLogo = await getImage({ src: logoImage, width: 320, height: 320, format: 'webp' });
 const footer = siteFooterProps(footerContext, footerLogo.src);
 
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');

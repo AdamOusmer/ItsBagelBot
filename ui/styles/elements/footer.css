@@ -57,18 +57,16 @@
   .bb-footer__aurora {
     position: absolute;
     inset: 0;
-    opacity: 0.7;
     mask-image: linear-gradient(180deg, #000 0%, #000 35%, transparent 85%);
   }
 
+  /* A live blur or blend under moving curtains repaints the sky every frame and halved the scroll frame rate into the footer. */
   .bb-footer__band {
     position: absolute;
     top: -18%;
     height: 70%;
-    border-radius: 50%;
-    filter: blur(48px);
+    mask-image: radial-gradient(farthest-side, #000 50%, transparent);
     transform-origin: 50% 0;
-    mix-blend-mode: screen;
   }
 
   .bb-footer__band:nth-child(1) {
@@ -304,7 +302,6 @@
   }
 
   :root[data-theme="light"] .bb-footer__band {
-    mix-blend-mode: multiply;
     opacity: 0.35;
   }
 

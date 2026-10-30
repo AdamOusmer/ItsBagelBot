@@ -14,6 +14,14 @@ export const FOOTER_CREW = [
 
 const LIFT_REACH_PX = 220;
 const LIFT_ZONE_PX = 360;
+const IDLE_WAIT_MS = 200;
+
+function idle(): Promise<void> {
+  return new Promise((resolve) => {
+    if ('requestIdleCallback' in window) requestIdleCallback(() => resolve(), { timeout: IDLE_WAIT_MS });
+    else setTimeout(resolve, 0);
+  });
+}
 
 type Seat = {
   el: HTMLElement;
@@ -41,6 +49,7 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
   let painted = false;
   let live = false;
   let stopped = false;
+  let generation = 0;
 
   const lift = (ev: PointerEvent) => {
     const close = ev.clientY > footer.getBoundingClientRect().bottom - LIFT_ZONE_PX;
@@ -69,19 +78,22 @@ export function mountFooterCrew(footer: HTMLElement): () => void {
     if (!animate) return;
     if (live || stopped) return;
     live = true;
+    const run = generation;
+    window.addEventListener('pointermove', lift, { passive: true });
     const { mountEngine } = await import('@luzir/bolota/engine');
-    if (!live || stopped) return;
     for (const seat of crew) {
+      await idle();
+      if (run !== generation) return;
       seat.handle = mountEngine(seat.svg, seat.name, { size: 100, palette: seat.palette, background: false });
       seat.svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
       seat.handle.loop('idle');
       seat.handle.follow('window');
     }
-    window.addEventListener('pointermove', lift, { passive: true });
   }
 
   function sleep(): void {
     live = false;
+    generation++;
     window.removeEventListener('pointermove', lift);
     settle();
     for (const seat of crew) {

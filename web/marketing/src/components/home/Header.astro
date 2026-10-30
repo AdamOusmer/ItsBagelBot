@@ -15,7 +15,7 @@ import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '..
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
-const heroLogo = await getImage({ src: logoImage, width: 96, height: 96, format: 'webp' });
+const heroLogo = await getImage({ src: logoImage, width: 320, height: 320, format: 'webp' });
 
 function token(name: string): string {
     const value = brandTokens.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})\\s*;`))?.[1];

@@ -98,7 +98,7 @@
 
     <div class="eyebrow">
       <span class="eyebrow__beta"><span class="eyebrow__beta-label"><span data-fit>{t('login.badge')}</span></span></span>
-      <Brand title="ItsBagelBot" logoSrc="/logo.png" wordmark size="lg" class="eyebrow__brand" />
+      <Brand title="ItsBagelBot" logoSrc="/logo-320.webp" wordmark size="lg" class="eyebrow__brand" />
     </div>
 
     <h1 data-hero-title aria-label={titleWords.join(' ')}><span data-fit="block" aria-hidden="true">{#each titleWords as word, i (i)}{#if i > 0}{' '}{/if}<span class="word" data-hero-word>{word}</span>{/each}</span></h1>
