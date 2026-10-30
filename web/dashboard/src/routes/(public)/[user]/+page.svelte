@@ -27,9 +27,6 @@
   const GREEN = { head: '#62a593', eye: '#111113' };
   const TAN = { head: '#eadbbd', eye: '#111113' };
   const PALE = { head: '#f6efe1', eye: '#111113' };
-  const SILVER = { head: '#c9ccd1', eye: '#111113' };
-  const podiumPalettes = [TAN, SILVER, GREEN];
-  const rowPalettes = [GREEN, TAN, PALE];
   const donors = [
     { name: 'oven_mitt', size: 64, palette: PALE },
     { name: 'glazed_val', size: 88, palette: GREEN },
@@ -135,7 +132,7 @@
       {#each podium as spot (spot.viewer.viewerId)}
         <div class="lb-spot lb-spot--{spot.rank}">
           <div class="lb-spot__face" aria-hidden="true">
-            <Bolota name={artName(spot.viewer)} size={spot.rank === 1 ? 110 : 84} palette={podiumPalettes[spot.rank - 1]} motionState="idle" active gate />
+            <Bolota name={artName(spot.viewer)} size={spot.rank === 1 ? 110 : 84} motionState="idle" active gate />
           </div>
           <Card class="lb-spot__card" tone={spot.rank === 1 ? 'accent' : undefined} raised={spot.rank === 1}>
             <div class="lb-spot__top">
@@ -191,7 +188,7 @@
           <div class="lb-row" role="row" style="--share: {shareOf(viewer.points)}">
             <span class="lb-cell lb-cell--rank" role="cell">{viewer.rank ?? ''}</span>
             <span class="lb-cell lb-cell--viewer" role="cell">
-              <span class="lb-face" aria-hidden="true"><Bolota name={artName(viewer)} size={40} palette={rowPalettes[i % rowPalettes.length]} /></span>
+              <span class="lb-face" aria-hidden="true"><Bolota name={artName(viewer)} size={40} /></span>
               <span class="lb-name">{rowName(viewer)}</span>
             </span>
             <span class="lb-cell lb-cell--hours" role="cell">{hoursFmt(viewer.watchSeconds)} <small class="lb-unit">{t('leaderboard.watchUnit')}</small></span>
