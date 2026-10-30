@@ -52,7 +52,7 @@ func TestDriveRunsEveryStageAndPersists(t *testing.T) {
 	require.NoError(t, err)
 	var runs []deploy.StageID
 
-	require.NoError(t, train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, f, stages(&runs, nil)))
+	require.NoError(t, train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, f, stages(&runs, nil), ""))
 
 	reopened, err := train.Open(path, deploy.Run{})
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestDriveStopsAtAFailureAndARerunResumesThere(t *testing.T) {
 	require.NoError(t, err)
 	var runs []deploy.StageID
 
-	err = train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, f, stages(&runs, ports.Failf(deploy.FailGitHub, "boom")))
+	err = train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, f, stages(&runs, ports.Failf(deploy.FailGitHub, "boom")), "")
 
 	require.Error(t, err)
 	failed := f.View()
@@ -78,6 +78,21 @@ func TestDriveStopsAtAFailureAndARerunResumesThere(t *testing.T) {
 	runs = nil
 	resumed, err := train.Open(path, deploy.Run{})
 	require.NoError(t, err)
-	require.NoError(t, train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, resumed, stages(&runs, nil)))
+	require.NoError(t, train.Drive(t.Context(), stage.Deps{Log: zap.NewNop()}, resumed, stages(&runs, nil), ""))
 	assert.Equal(t, []deploy.StageID{deploy.StagePromote}, runs, "the rerun skips the stage that already succeeded")
+}
+
+func TestDriveOneStagePerJob(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.json")
+	f, err := train.Open(path, deploy.Run{Kind: deploy.KindReapply})
+	require.NoError(t, err)
+	var runs []deploy.StageID
+	deps := stage.Deps{Log: zap.NewNop()}
+
+	require.NoError(t, train.Drive(t.Context(), deps, f, stages(&runs, nil), deploy.StagePreflight))
+	assert.Equal(t, deploy.RunRunning, f.View().State, "the run is not done while promote is pending")
+
+	require.NoError(t, train.Drive(t.Context(), deps, f, stages(&runs, nil), deploy.StagePromote))
+	assert.Equal(t, []deploy.StageID{deploy.StagePreflight, deploy.StagePromote}, runs)
+	assert.Equal(t, deploy.RunSucceeded, f.View().State)
 }

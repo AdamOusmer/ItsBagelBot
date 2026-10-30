@@ -43,62 +43,139 @@ permissions:
 
 env:
   GO_VERSION: '1.27.3'
+  APP_ENV: production
+  GITHUB_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+  GITHUB_APP_INSTALLATION_ID: ${{ secrets.RELEASE_APP_INSTALLATION_ID }}
+  GITHUB_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+  GHCR_USERNAME: ${{ github.actor }}
+  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  KIND: ${{ inputs.kind }}
+  VERSION: ${{ inputs.version }}
+  ROLLBACK_TO: ${{ inputs.rollback_to }}
+  PRS: ${{ inputs.prs }}
+  SERVICES: ${{ inputs.services }}
+  CHANGELOG: ${{ inputs.changelog }}
+  ACTOR: ${{ inputs.actor || github.actor }}
 
 jobs:
-  train:
-    name: Train
+  cli:
+    name: cli
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
-    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
-
-      - name: Restore run state
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: run.json
-          key: release-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: release-${{ github.run_id }}-
-
-      - name: Write changelog input
-        if: inputs.changelog != ''
-        env:
-          CHANGELOG: ${{ inputs.changelog }}
-        run: printf '%s' "$CHANGELOG" > changelog.json
-
-      - name: Run train
-        env:
-          APP_ENV: production
-          GITHUB_APP_ID: ${{ secrets.RELEASE_APP_ID }}
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.RELEASE_APP_INSTALLATION_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KIND: ${{ inputs.kind }}
-          VERSION: ${{ inputs.version }}
-          ROLLBACK_TO: ${{ inputs.rollback_to }}
-          PRS: ${{ inputs.prs }}
-          SERVICES: ${{ inputs.services }}
-          ACTOR: ${{ inputs.actor || github.actor }}
-        run: |
-          changelog=""
-          if [ -f changelog.json ]; then changelog=changelog.json; fi
-          go run ./app/release -state run.json -kind "$KIND" -version "$VERSION" \
-            -rollback-to "$ROLLBACK_TO" -prs "$PRS" -services "$SERVICES" \
-            -changelog "$changelog" -actor "$ACTOR"
-
-      - name: Save run state
-        if: always()
+      - name: Build release CLI
+        run: CGO_ENABLED=0 go build -trimpath -o release ./app/release
+      - name: Share release CLI
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: run.json
-          key: release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+          key: release-bin-${{ github.run_id }}
+
+  preflight:
+    name: preflight
+    needs: cli
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: preflight}
+
+  merge_prs:
+    name: merge_prs
+    needs: preflight
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: merge_prs}
+
+  changelog:
+    name: changelog
+    needs: merge_prs
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: changelog}
+
+  tag:
+    name: tag
+    needs: changelog
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: tag}
+
+  release:
+    name: release
+    needs: tag
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: release}
+
+  build:
+    name: build
+    needs: release
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: build}
+
+  digests:
+    name: digests
+    needs: build
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: digests}
+
+  pin_pr:
+    name: pin_pr
+    needs: digests
+    if: ${{ !failure() && !cancelled() && inputs.kind != 'reapply' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: pin_pr}
+
+  promote:
+    name: promote
+    needs: pin_pr
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-22.04
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: promote}

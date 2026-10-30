@@ -27,7 +27,7 @@ import (
 )
 
 type flags struct {
-	kind, version, rollbackTo, prs, services, changelog, state, actor string
+	kind, version, rollbackTo, prs, services, changelog, state, actor, stage string
 }
 
 func main() {
@@ -40,6 +40,7 @@ func main() {
 	flag.StringVar(&f.changelog, "changelog", "", "path to a changelog entry JSON")
 	flag.StringVar(&f.state, "state", "run.json", "run state file; an existing one is resumed")
 	flag.StringVar(&f.actor, "actor", "", "who started the run")
+	flag.StringVar(&f.stage, "stage", "", "run only this stage; empty runs every unfinished stage")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -71,7 +72,7 @@ func run(ctx context.Context, f flags) error {
 	if err != nil {
 		return err
 	}
-	return train.Drive(ctx, deps, file, github.All())
+	return train.Drive(ctx, deps, file, github.All(), deploy.StageID(f.stage))
 }
 
 func seedRun(ctx context.Context, hub ports.GitHub, f flags) (deploy.Run, error) {

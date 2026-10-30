@@ -76,13 +76,14 @@ func (f *File) save() error {
 	return os.WriteFile(f.path, b, 0o600)
 }
 
-func Drive(ctx context.Context, deps stage.Deps, f *File, stages []stage.Stage) error {
+// An empty only drives every unfinished stage; the workflow passes one stage per job.
+func Drive(ctx context.Context, deps stage.Deps, f *File, stages []stage.Stage, only deploy.StageID) error {
 	byID := make(map[deploy.StageID]stage.Stage, len(stages))
 	for _, s := range stages {
 		byID[s.ID()] = s
 	}
 	for _, s := range f.View().Stages {
-		if s.State == deploy.StateSucceeded || s.State == deploy.StateSkipped {
+		if s.State == deploy.StateSucceeded || s.State == deploy.StateSkipped || (only != "" && s.ID != only) {
 			continue
 		}
 		impl, ok := byID[s.ID]
@@ -93,12 +94,15 @@ func Drive(ctx context.Context, deps stage.Deps, f *File, stages []stage.Stage) 
 			return err
 		}
 	}
+	if run := f.View(); run.CurrentStage() != "" {
+		return nil
+	}
 	return f.Update(ctx, func(r *deploy.Run) { r.State = deploy.RunSucceeded })
 }
 
 func step(ctx context.Context, deps stage.Deps, f *File, s stage.Stage) error {
 	id := s.ID()
-	if err := f.Update(ctx, func(r *deploy.Run) { begin(r.Stage(id)) }); err != nil {
+	if err := f.Update(ctx, func(r *deploy.Run) { begin(r, id) }); err != nil {
 		return err
 	}
 	rc := stage.New(id, deps, f)
@@ -115,10 +119,11 @@ func step(ctx context.Context, deps stage.Deps, f *File, s stage.Stage) error {
 	return nil
 }
 
-func begin(s *deploy.Stage) {
-	now := time.Now().UTC()
+func begin(r *deploy.Run, id deploy.StageID) {
+	s, now := r.Stage(id), time.Now().UTC()
 	s.State, s.StartedAt, s.EndedAt, s.Failure, s.Waiting = deploy.StateRunning, &now, nil, nil, ""
 	s.Attempts++
+	r.State, r.Failure = deploy.RunRunning, nil
 }
 
 func end(r *deploy.Run, id deploy.StageID, err error) {
