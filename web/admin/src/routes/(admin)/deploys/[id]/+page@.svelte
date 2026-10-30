@@ -77,7 +77,7 @@
     cancelled: 'sleepy'
   };
 
-  const LIVE_PANEL: ReadonlySet<StageId> = new Set(['build', 'rollout']);
+  const LIVE_PANEL: ReadonlySet<StageId> = new Set(['build']);
 
   const live = $derived(liveStageId(run));
   let pinned = $state<StageId | null>(null);

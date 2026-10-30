@@ -32,16 +32,15 @@ on:
           - users
           - sesame
           - gossip
-          - deployer
+          - clusterops
           - warp
           - twitch-ingress
           - console-dashboard
           - console-admin
           - nats-server
 
-# Queue, never cancel: Flux's digest-pin commits land on main right after a
-# merge and share this group — with cancel-in-progress they killed the very
-# build that produces the images those pins were waiting for.
+# Queue, never cancel: pin commits land on main right after a merge and share
+# this group; cancelling killed the build those pins were waiting for.
 concurrency:
   group: publish-images-${{ github.ref }}
   cancel-in-progress: false
@@ -169,10 +168,10 @@ jobs:
               "description": "ItsBagelBot external API gossip service"
             },
             {
-              "image": "deployer",
+              "image": "clusterops",
               "context": ".",
-              "containerfile": "app/deployer/Containerfile",
-              "description": "ItsBagelBot release train for the admin console Deploys page"
+              "containerfile": "app/clusterops/Containerfile",
+              "description": "ItsBagelBot console cert roller and NATS account claims sync"
             },
             {
               "image": "twitch-ingress",
@@ -232,7 +231,7 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
-            add "deployer"
+            add "clusterops"
           }
 
           add_all_services() {
@@ -250,7 +249,7 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
-            add "deployer"
+            add "clusterops"
             add "warp"
             add "twitch-ingress"
             add "console-dashboard"
@@ -331,8 +330,8 @@ jobs:
               app/gossip/*)
                 add "gossip"
                 ;;
-              app/deployer/*)
-                add "deployer"
+              app/clusterops/*)
+                add "clusterops"
                 ;;
               app/warp/*)
                 add "warp"

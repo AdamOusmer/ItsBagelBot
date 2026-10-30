@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	appPolicies       = "network-policies.yaml"
-	dbPolicies        = "../db/network-policies.yaml"
-	messagingPolicies = "../messaging/network-policies.yaml"
-	deployerManifest  = "deployer.yaml"
+	appPolicies        = "network-policies.yaml"
+	dbPolicies         = "../db/network-policies.yaml"
+	messagingPolicies  = "../messaging/network-policies.yaml"
+	clusterOpsManifest = "clusterops.yaml"
 )
 
 type networkPolicyManifest struct {
@@ -247,14 +247,13 @@ func TestNatsLeafIngressIsExact(t *testing.T) {
 		"allow-nats-leaf-data-plane": {
 			"kubernetes.io/metadata.name=app | any | 4223/TCP",
 			"kubernetes.io/metadata.name=db | any | 4223/TCP",
-			"kubernetes.io/metadata.name=ops | app=deployer | 4223/TCP",
+			"kubernetes.io/metadata.name=ops | app=clusterops | 4223/TCP",
 			"any | app=nats-leaf | 6223/TCP",
 		},
 		"allow-nats-leaf-monitor": {
 			"kubernetes.io/metadata.name=observability | any | 8223/TCP",
 			"kubernetes.io/metadata.name=tailscale | any | 8223/TCP",
 			"kubernetes.io/metadata.name=keda | app=keda-operator | 8223/TCP",
-			"kubernetes.io/metadata.name=ops | app=deployer | 8223/TCP",
 			"kubernetes.io/metadata.name=app | any | 8223/TCP",
 			"kubernetes.io/metadata.name=db | any | 8223/TCP",
 			"kubernetes.io/metadata.name=observability | app.kubernetes.io/name=newrelic-prometheus-agent | 7778/TCP",
@@ -294,10 +293,10 @@ func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
 	assert.False(t, base.grantsEgressPort(443) || base.grantsEgressPort(3306), "default-deny-db must grant neither blanket 443 nor blanket 3306")
 }
 
-func TestDeployerPoliciesAreExact(t *testing.T) {
-	policies := loadNetworkPolicies(t, deployerManifest)
+func TestClusterOpsPoliciesAreExact(t *testing.T) {
+	policies := loadNetworkPolicies(t, clusterOpsManifest)
 	got := map[string][]string{}
-	for _, name := range []string{"deployer", "allow-deployer"} {
+	for _, name := range []string{"clusterops", "allow-clusterops"} {
 		policy := requirePolicy(t, policies, name)
 		got[name+" selects"] = []string{policy.Metadata.Namespace + " " + policy.Spec.PodSelector.render()}
 		got[name+" types"] = policy.Spec.PolicyTypes
@@ -306,15 +305,15 @@ func TestDeployerPoliciesAreExact(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string][]string{
-		"deployer selects": {"ops app in deployer"},
-		"deployer types":   {"Ingress", "Egress"},
-		"deployer ingress": {"any | any | 8080/TCP"},
-		"deployer egress": {"kubernetes.io/metadata.name=messaging | app in nats,nats-leaf | " +
-			"4222/TCP,4223/TCP,8222/TCP,8223/TCP"},
-		"allow-deployer selects": {"messaging app=nats"},
-		"allow-deployer types":   {"Ingress"},
-		"allow-deployer ingress": {"kubernetes.io/metadata.name=ops | app=deployer | 4222/TCP,8222/TCP"},
-		"allow-deployer egress":  nil,
+		"clusterops selects": {"ops app=clusterops"},
+		"clusterops types":   {"Ingress", "Egress"},
+		"clusterops ingress": {"any | any | 8080/TCP"},
+		"clusterops egress": {"kubernetes.io/metadata.name=messaging | app in nats,nats-leaf | " +
+			"4222/TCP,4223/TCP"},
+		"allow-clusterops selects": {"messaging app=nats"},
+		"allow-clusterops types":   {"Ingress"},
+		"allow-clusterops ingress": {"kubernetes.io/metadata.name=ops | app=clusterops | 4222/TCP"},
+		"allow-clusterops egress":  nil,
 	}, got)
 }
 
@@ -422,18 +421,17 @@ func (p ciliumNetworkPolicy) egressPeers() []string {
 	return out
 }
 
-func TestDeployerCiliumEgressAvoidsTheDNSProxy(t *testing.T) {
-	policies := ciliumPolicies(t, deployerManifest)
-	require.NotEmpty(t, policies, "deployer.yaml has no CiliumNetworkPolicy")
+func TestClusterOpsCiliumEgressAvoidsTheDNSProxy(t *testing.T) {
+	policies := ciliumPolicies(t, clusterOpsManifest)
+	require.NotEmpty(t, policies, "clusterops.yaml has no CiliumNetworkPolicy")
 	policy := policies[0]
 
 	assert.Equal(t, sorted(
 		"endpoints k8s:io.kubernetes.pod.namespace=kube-system;k8s:k8s-app=kube-dns | 53/UDP,53/TCP",
 		"entity kube-apiserver | 6443/TCP",
-		"entity world | 443/TCP",
 	), policy.egressPeers(), "any toFQDNs peer or L7 rule routes lookups through Cilium's DNS proxy, which never answers on these nodes")
-	assert.Equal(t, "ops app=deployer", policy.Metadata.Namespace+" "+policy.Spec.EndpointSelector.render())
-	assert.Empty(t, policy.Spec.Ingress, "deployer-egress must stay egress-only; ingress lives in the deployer NetworkPolicy")
+	assert.Equal(t, "ops app=clusterops", policy.Metadata.Namespace+" "+policy.Spec.EndpointSelector.render())
+	assert.Empty(t, policy.Spec.Ingress, "clusterops-egress must stay egress-only; ingress lives in the clusterops NetworkPolicy")
 }
 
 func isYAMLFile(d fs.DirEntry) bool { return !d.IsDir() && strings.HasSuffix(d.Name(), ".yaml") }

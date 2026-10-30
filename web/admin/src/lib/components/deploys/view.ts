@@ -9,8 +9,6 @@ import type {
   DeployRunSummary,
   DeployStage,
   FailureAction,
-  NodePod,
-  PodPhase,
   Progress,
   RunKind,
   RunState,
@@ -56,9 +54,7 @@ export const STAGE_KEY: Record<StageId, string> = {
   build: 'admin.deploys.stage.build',
   digests: 'admin.deploys.stage.digests',
   pin_pr: 'admin.deploys.stage.pin_pr',
-  acl: 'admin.deploys.stage.acl',
-  rollout: 'admin.deploys.stage.rollout',
-  verify: 'admin.deploys.stage.verify'
+  promote: 'admin.deploys.stage.promote'
 };
 
 export const STAGE_ABOUT_KEY: Record<StageId, string> = {
@@ -70,9 +66,7 @@ export const STAGE_ABOUT_KEY: Record<StageId, string> = {
   build: 'admin.deploys.run.about.build',
   digests: 'admin.deploys.run.about.digests',
   pin_pr: 'admin.deploys.run.about.pin_pr',
-  acl: 'admin.deploys.run.about.acl',
-  rollout: 'admin.deploys.run.about.rollout',
-  verify: 'admin.deploys.run.about.verify'
+  promote: 'admin.deploys.run.about.promote'
 };
 
 export const STAGE_STATE_BODY_KEY: Record<StageState, string> = {
@@ -102,13 +96,6 @@ export const STEP_STATE_KEY: Record<StageState, string> = {
   failed: 'admin.deploys.stepState.failed',
   skipped: 'admin.deploys.stepState.skipped',
   cancelled: 'admin.deploys.stepState.cancelled'
-};
-
-export const POD_PHASE_KEY: Record<PodPhase, string> = {
-  old: 'admin.deploys.pod.old',
-  new: 'admin.deploys.pod.new',
-  pending: 'admin.deploys.pod.pending',
-  failing: 'admin.deploys.pod.failing'
 };
 
 export const CHECK_KEY: Record<CheckState, string> = {
@@ -144,13 +131,6 @@ const CHECK_TONE: Record<CheckState, Tone> = {
   failure: 'danger'
 };
 
-const POD_TONE: Record<PodPhase, Tone> = {
-  old: 'neutral',
-  new: 'success',
-  pending: 'warning',
-  failing: 'danger'
-};
-
 const PILL: Record<Tone, 'neutral' | 'success' | 'warning' | 'danger'> = {
   neutral: 'neutral',
   success: 'success',
@@ -169,7 +149,6 @@ export const runTone = (s: RunState): Tone => RUN_TONE[s];
 export const runPill = (s: RunState) => PILL[RUN_TONE[s]];
 export const stageTone = (s: StageState): Tone => STAGE_TONE[s];
 export const checkTone = (s: CheckState): Tone => CHECK_TONE[s];
-export const podTone = (p: PodPhase): Tone => POD_TONE[p];
 export const queueTone = (s: StageState): Tone | null => QUEUE_TONE[s] ?? null;
 
 export const isTerminal = (s: RunState): boolean => TERMINAL_RUN_STATES.includes(s);
@@ -267,12 +246,6 @@ export function currentItem(stage: Pick<DeployStage, 'items' | 'state'>): Deploy
     (stage.state === 'succeeded' ? undefined : items.find((i) => i.state === 'pending')) ??
     items[items.length - 1]
   );
-}
-
-export function groupNodes(pods: NodePod[] | undefined): { node: string; pods: NodePod[] }[] {
-  const byNode = new Map<string, NodePod[]>();
-  for (const p of pods ?? []) byNode.set(p.node, [...(byNode.get(p.node) ?? []), p]);
-  return [...byNode].map(([node, list]) => ({ node, pods: list }));
 }
 
 export function offered(run: DeployRun): ReadonlySet<FailureAction> {

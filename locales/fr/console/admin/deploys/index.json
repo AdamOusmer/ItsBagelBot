@@ -82,7 +82,5 @@
   "rollbackTitle": "Revenir en arrière sur le cluster ?",
   "rollbackBody": "Lance une nouvelle exécution qui épingle les images de {version} et redéploie chaque service modifié.",
   "manifest": "Manifeste",
-  "logLabel": "Journal de l’étape {stage}",
-  "nodeDots": "Pods sur {node}",
-  "podDot": "{pod} : {phase}"
+  "logLabel": "Journal de l’étape {stage}"
 }

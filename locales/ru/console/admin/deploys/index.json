@@ -82,7 +82,5 @@
   "rollbackTitle": "Откатить кластер?",
   "rollbackBody": "Начнётся новый запуск, который закрепит образы {version} и обновит все изменившиеся сервисы.",
   "manifest": "Манифест",
-  "logLabel": "Журнал этапа {stage}",
-  "nodeDots": "Поды на {node}",
-  "podDot": "{pod}: {phase}"
+  "logLabel": "Журнал этапа {stage}"
 }

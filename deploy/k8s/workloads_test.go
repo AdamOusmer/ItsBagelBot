@@ -62,26 +62,22 @@ func TestDiscordEnvContracts(t *testing.T) {
 	}
 }
 
-func TestDeployerSecretsAreWiredOneByOne(t *testing.T) {
-	want := secretEnv{Refs: map[string]string{}}
-	for _, key := range []string{
-		"APP_ENV",
-		"NATS_JWT", "NATS_NKEY_SEED", "NATS_RPC_JWT", "NATS_RPC_NKEY_SEED",
-		"GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID", "GITHUB_APP_PRIVATE_KEY",
-		"GHCR_USERNAME", "GHCR_TOKEN",
-		"DEPLOY_NATS_SIGNING_SEED", "DEPLOY_NATS_SYS_JWT", "DEPLOY_NATS_SYS_NKEY_SEED",
-	} {
-		want.Refs[key] = "deployer-env/" + key
-	}
+func TestClusterOpsSecretsAreWiredOneByOne(t *testing.T) {
+	want := secretEnv{Refs: map[string]string{
+		"APP_ENV":            "clusterops-env/APP_ENV",
+		"NATS_SIGNING_SEED":  "clusterops-env/DEPLOY_NATS_SIGNING_SEED",
+		"NATS_SYS_JWT":       "clusterops-env/DEPLOY_NATS_SYS_JWT",
+		"NATS_SYS_NKEY_SEED": "clusterops-env/DEPLOY_NATS_SYS_NKEY_SEED",
+	}}
 
-	assert.Equal(t, want, findDeployment(t, deployerManifest, "deployer").secretEnv())
+	assert.Equal(t, want, findDeployment(t, clusterOpsManifest, "clusterops").secretEnv())
 }
 
-func TestDeployerRunsOneEngine(t *testing.T) {
-	deployer := findDeployment(t, deployerManifest, "deployer")
+func TestClusterOpsRunsOneRoller(t *testing.T) {
+	ops := findDeployment(t, clusterOpsManifest, "clusterops")
 
-	assert.Equal(t, [2]any{1, "Recreate"}, [2]any{deployer.Spec.Replicas, deployer.Spec.Strategy.Type},
-		"a second engine would drive the same run")
+	assert.Equal(t, [2]any{1, "Recreate"}, [2]any{ops.Spec.Replicas, ops.Spec.Strategy.Type},
+		"two rollers would stamp the same console rollout twice")
 }
 
 func TestSpreadIsHardWithoutMinDomains(t *testing.T) {

@@ -82,7 +82,5 @@
   "rollbackTitle": "Roll back the cluster?",
   "rollbackBody": "Starts a new run that pins the {version} images and rolls every changed service.",
   "manifest": "Manifest",
-  "logLabel": "Log for {stage}",
-  "nodeDots": "Pods on {node}",
-  "podDot": "{pod}: {phase}"
+  "logLabel": "Log for {stage}"
 }

@@ -35,7 +35,8 @@ cette page et le code font foi.
 | **discord-data** | `app/db/discord/` | Go | Configuration des serveurs Discord, tickets et XP |
 | **discord** | `app/discord/{ingress,engine,outgress}/` | Go | Session de la passerelle Discord, décisions des modules et effets REST |
 | **gossip** | `app/gossip/` | Go | Passerelle vers les API externes, avec cache et budgets amont |
-| **deployer** | `app/deployer/` | Go | Exécutions de publication et d'application sur le cluster pilotées depuis la console admin |
+| **release** | `app/release/` | Go | CLI du train de publication exécutée par le workflow GitHub Release, une étape par job |
+| **clusterops** | `app/clusterops/` | Go | Redémarre les consoles au renouvellement TLS et garde les claims de comptes NATS à jour |
 | **console** | `web/dashboard/`, `web/admin/` | SvelteKit SSR | `dashboard` (libre-service des diffuseurs et pages publiques) et `admin` (équipe) ; ne parle aux services que par RPC NATS |
 
 `CONTEXT-MAP.md` à la racine du dépôt liste des emplacements réservés comme `app/plain/` et

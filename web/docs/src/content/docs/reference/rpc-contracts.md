@@ -55,7 +55,6 @@ Other families, each with its own context file under `app/`:
 | `bagel.rpc.discord-data.*` | discord-data |
 | `bagel.rpc.discord-outgress.*`, `bagel.rpc.dingress.*` (older name kept for wire compatibility) | discord outgress |
 | `bagel.rpc.gossip.*` | gossip |
-| `bagel.rpc.admin.deploy.*` | deployer |
 | `bagel.rpc.health.<service>` | every service |
 
 ---

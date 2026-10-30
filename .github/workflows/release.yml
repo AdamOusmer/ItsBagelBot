@@ -1,0 +1,185 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+name: Release
+
+run-name: ${{ inputs.kind }} ${{ inputs.version || inputs.rollback_to }} by ${{ inputs.actor || github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: Run kind
+        required: true
+        type: choice
+        options: [release, hotfix, bump, rollback, reapply]
+      version:
+        description: vX.Y.Z-beta (release, hotfix)
+        type: string
+      rollback_to:
+        description: Release to roll back to (rollback)
+        type: string
+      target_sha:
+        description: Main commit to ship (bump); empty ships main's head
+        type: string
+      prs:
+        description: Comma-separated PR numbers to merge first
+        type: string
+      services:
+        description: Comma-separated services (bump)
+        type: string
+      changelog:
+        description: Changelog entry JSON (release, hotfix)
+        type: string
+      actor:
+        description: Admin console login that started the run
+        type: string
+
+# One train at a time; a queued run waits instead of racing the deploy branch.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  GO_VERSION: '1.27.3'
+  APP_ENV: production
+  GITHUB_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+  GITHUB_APP_INSTALLATION_ID: ${{ secrets.RELEASE_APP_INSTALLATION_ID }}
+  GITHUB_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+  GHCR_USERNAME: ${{ github.actor }}
+  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  KIND: ${{ inputs.kind }}
+  VERSION: ${{ inputs.version }}
+  ROLLBACK_TO: ${{ inputs.rollback_to }}
+  TARGET_SHA: ${{ inputs.target_sha }}
+  PRS: ${{ inputs.prs }}
+  SERVICES: ${{ inputs.services }}
+  CHANGELOG: ${{ inputs.changelog }}
+  ACTOR: ${{ inputs.actor || github.actor }}
+
+jobs:
+  cli:
+    name: cli
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - name: Build release CLI
+        run: CGO_ENABLED=0 go build -trimpath -o release ./app/release
+      - name: Share release CLI
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: release
+          key: release-bin-${{ github.run_id }}
+
+  preflight:
+    name: preflight
+    needs: cli
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: preflight}
+
+  merge_prs:
+    name: merge_prs
+    needs: preflight
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: merge_prs}
+
+  changelog:
+    name: changelog
+    needs: merge_prs
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: changelog}
+
+  tag:
+    name: tag
+    needs: changelog
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: tag}
+
+  release:
+    name: release
+    needs: tag
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: release}
+
+  build:
+    name: build
+    needs: release
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: build}
+
+  digests:
+    name: digests
+    needs: build
+    if: ${{ !failure() && !cancelled() && contains(fromJSON('["release","hotfix","bump"]'), inputs.kind) }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: digests}
+
+  pin_pr:
+    name: pin_pr
+    needs: digests
+    if: ${{ !failure() && !cancelled() && inputs.kind != 'reapply' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: pin_pr}
+
+  promote:
+    name: promote
+    needs: pin_pr
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-22.04
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false, sparse-checkout: .github/actions}
+      - uses: ./.github/actions/release-stage
+        with: {stage: promote}

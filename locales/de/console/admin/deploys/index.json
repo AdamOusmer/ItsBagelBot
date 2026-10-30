@@ -82,7 +82,5 @@
   "rollbackTitle": "Cluster zurücksetzen?",
   "rollbackBody": "Startet einen neuen Durchlauf, der die Images von {version} festlegt und jeden geänderten Dienst neu ausrollt.",
   "manifest": "Manifest",
-  "logLabel": "Protokoll für {stage}",
-  "nodeDots": "Pods auf {node}",
-  "podDot": "{pod}: {phase}"
+  "logLabel": "Protokoll für {stage}"
 }

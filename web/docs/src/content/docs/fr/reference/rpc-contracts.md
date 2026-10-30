@@ -49,7 +49,6 @@ Autres familles, chacune documentée dans le fichier de contexte de son applicat
 | `bagel.rpc.discord-data.*` | discord-data |
 | `bagel.rpc.discord-outgress.*`, `bagel.rpc.dingress.*` (ancien nom conservé pour la compatibilité du protocole) | discord outgress |
 | `bagel.rpc.gossip.*` | gossip |
-| `bagel.rpc.admin.deploy.*` | deployer |
 | `bagel.rpc.health.<service>` | chaque service |
 
 ---

@@ -13,7 +13,8 @@ import (
 var firstPartyImage = regexp.MustCompile(`(?m)^\s*(?:-\s+)?image:\s*["']?ghcr\.io/adamousmer/itsbagelbot/` +
 	`([a-z0-9][a-z0-9._/-]*):([A-Za-z0-9_][A-Za-z0-9._-]*)(@sha256:[0-9a-f]{64})?`)
 
-var awaitingFirstPin = map[string]string{}
+// TODO(clusterops): pin by digest once main publishes the first clusterops image.
+var awaitingFirstPin = map[string]string{"clusterops": "first image builds on merge"}
 
 func TestFirstPartyImagesArePinnedByDigest(t *testing.T) {
 	for _, filename := range manifestFilenames(t) {
