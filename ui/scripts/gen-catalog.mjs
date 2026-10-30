@@ -30,7 +30,7 @@ const FAMILY = {
   PageToolbar: 'Navigation', Hamburger: 'Navigation', EditorFooter: 'Navigation',
   Card: 'Data', CardHead: 'Data', DeckList: 'Data', ManagementRow: 'Data',
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
-  LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data', HaloPanel: 'Data',
+  LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data', HaloPanel: 'Data', DonateCard: 'Data',
   FactList: 'Data', Fact: 'Data', StepCard: 'Data', LinkRow: 'Navigation', DeckLayout: 'Layout', Disclosure: 'Layout', Pager: 'Navigation',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
   ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',

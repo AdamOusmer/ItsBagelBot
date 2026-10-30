@@ -1,0 +1,115 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+
+  .bb-donate-card {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--bb-space-4);
+    padding: var(--bb-space-8) var(--bb-space-6) var(--bb-space-7);
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-lg);
+    background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-surface-raised);
+    box-shadow: var(--bb-depth-2);
+    text-align: center;
+  }
+
+  :where([data-surface='tonal']) .bb-donate-card {
+    border-color: transparent;
+    background: radial-gradient(90% 120% at 50% 0%, rgba(var(--bb-halo-green-rgb), 0.16), transparent 65%), var(--bb-elev-1);
+  }
+
+  .bb-donate-card__crowd {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: flex;
+    align-items: flex-end;
+    transform: translate(-50%, -62%);
+    pointer-events: none;
+  }
+
+  .bb-donate-card__crowd > * {
+    display: block;
+    width: var(--s, 64px);
+    height: var(--s, 64px);
+    overflow: visible;
+  }
+
+  .bb-donate-card__crowd > * + * {
+    margin-left: -12px;
+  }
+
+  .bb-donate-card__label {
+    display: flex;
+    justify-content: center;
+    width: min(100%, 16rem);
+    font-size: var(--bb-text-md);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--bb-green-glow);
+    text-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.45);
+  }
+
+  .bb-donate-card__title {
+    width: min(100%, 22ch);
+    height: calc(2 * 1lh);
+    margin: var(--bb-space-2) 0 0;
+    font-family: var(--bb-font-display);
+    font-size: clamp(1.7rem, 3vw, 2.4rem);
+    font-weight: 500;
+    letter-spacing: var(--bb-tracking-display);
+    line-height: 1.1;
+    color: var(--bb-paper);
+    text-wrap: balance;
+  }
+
+  .bb-donate-card__text {
+    width: min(100%, 54ch);
+    height: calc(3 * 1lh);
+    margin: 0;
+    font-size: clamp(1.05rem, 1.5vw, 1.2rem);
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+    color: var(--bb-muted-light);
+    text-wrap: pretty;
+  }
+
+  .bb-donate-card__cta {
+    --btn-w: 240px;
+    --btn-min-h: 48px;
+    margin-top: var(--bb-space-3);
+  }
+
+  .bb-donate-card__note {
+    display: flex;
+    justify-content: center;
+    width: min(100%, 24rem);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
+  }
+
+  @media (max-width: 760px) {
+    .bb-donate-card {
+      padding: var(--bb-space-7) var(--bb-space-5) var(--bb-space-6);
+    }
+
+    .bb-donate-card__title {
+      height: calc(3 * 1lh);
+    }
+
+    .bb-donate-card__text {
+      height: calc(6 * 1lh);
+    }
+
+    .bb-donate-card__cta {
+      --btn-w: 100%;
+    }
+  }
+}

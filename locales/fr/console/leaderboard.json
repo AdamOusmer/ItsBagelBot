@@ -23,5 +23,11 @@
   "emptyTitle": "Pas encore de légendes",
   "emptyBody": "Ce classement se remplit à mesure que la communauté de {channel} regarde en direct, s'abonne, offre des cadeaux et envoie des cheers. Connectez-vous et prenez la première place.",
   "degraded": "Le classement en direct est temporairement indisponible. Il se remettra à jour de lui-même.",
-  "earnNote": "Gagné en regardant en direct, avec les abonnements, cadeaux et cheers."
+  "earnNote": "Gagné en regardant en direct, avec les abonnements, cadeaux et cheers.",
+  "colViewer": "Spectateur",
+  "donateLabel": "Dons",
+  "donateTitle": "Grâce aux dons, le forfait Gratuit reste gratuit.",
+  "donateText": "Chaque chaîne, gratuite ou Premium, fonctionne sur les mêmes serveurs. Le Premium et les dons servent à les payer, alors un don sur Ko-fi garde le bot en ligne pour tout le monde.",
+  "donateCta": "Donner sur Ko-fi",
+  "donateNote": "N’importe quel montant. Aucun avantage en échange."
 }

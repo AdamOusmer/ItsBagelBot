@@ -23,5 +23,11 @@
   "emptyTitle": "No legends yet",
   "emptyBody": "This board fills up as {channel}'s community watches live, subscribes, gifts and cheers. Tune in and claim the top spot.",
   "degraded": "Live standings are temporarily unavailable. They will catch up on their own.",
-  "earnNote": "Earned by watching live, subs, gifts and cheers."
+  "earnNote": "Earned by watching live, subs, gifts and cheers.",
+  "colViewer": "Viewer",
+  "donateLabel": "Donations",
+  "donateTitle": "Donations keep the free plan free.",
+  "donateText": "Every channel, free or Premium, runs on the same servers. Premium and donations are what pay for them, so a Ko-fi donation keeps the bot online for everyone.",
+  "donateCta": "Donate on Ko-fi",
+  "donateNote": "Any amount. No perks attached."
 }
