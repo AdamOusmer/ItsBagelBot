@@ -5,6 +5,8 @@
 import Card from '@bagel/ui/astro/Card.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import BolotaSvg from '../BolotaSvg.astro';
+import SectionLane from '../shared/SectionLane.astro';
+import SectionLaneList from '../shared/SectionLaneList.astro';
 import { staticBolota } from '../../lib/bolota';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
@@ -65,20 +67,16 @@ const reader = staticBolota('sesame_sam', 84, 'green');
         </Card>
     </section>
 
-    <article class="lshell__doc">
+    <SectionLaneList>
         {sections.map((section, i) => {
             const Content = section.Content;
             return (
-                <section class="lshell__lane" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                    <div class="lshell__side">
-                        <span class="lshell__num">{ordinal(i)}</span>
-                        <h2 class="lshell__heading">{section.heading}</h2>
-                    </div>
+                <SectionLane class="lshell__lane" id={section.id} num={ordinal(i)} heading={section.heading} revealIndex={i + 1}>
                     <div class="bb-prose lshell__body"><Content /></div>
-                </section>
+                </SectionLane>
             );
         })}
-    </article>
+    </SectionLaneList>
 </div>
 
 <style>
@@ -234,45 +232,6 @@ const reader = staticBolota('sesame_sam', 84, 'green');
         color: var(--bb-muted-light);
     }
 
-    .lshell__doc {
-        display: flex;
-        flex-direction: column;
-        border-top: 1px solid var(--bb-border);
-    }
-
-    .lshell__lane {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-        gap: var(--bb-space-7);
-        padding: var(--bb-space-7) 0;
-        border-bottom: 1px solid var(--bb-border);
-        scroll-margin-top: calc(var(--nav-offset) + 24px);
-    }
-
-    .lshell__side {
-        position: sticky;
-        top: calc(var(--nav-offset) + var(--bb-space-5));
-        align-self: start;
-        display: flex;
-        flex-direction: column;
-        gap: var(--bb-space-2);
-    }
-
-    .lshell__num {
-        font: 500 var(--bb-text-sm)/1 var(--bb-font-mono);
-        color: var(--bb-tan-light);
-    }
-
-    .lshell__heading {
-        margin: 0;
-        font-family: var(--bb-font-display);
-        font-size: clamp(1.35rem, 2.2vw, 1.7rem);
-        font-weight: 500;
-        letter-spacing: -0.03em;
-        line-height: 1.2;
-        color: var(--bb-paper);
-    }
-
     .lshell__body { max-width: 68ch; }
 
     @keyframes lshell-bob {
@@ -285,10 +244,7 @@ const reader = staticBolota('sesame_sam', 84, 'green');
     }
 
     @media (max-width: 900px) {
-        .lshell__short-grid,
-        .lshell__lane { grid-template-columns: minmax(0, 1fr); }
-        .lshell__lane { gap: var(--bb-space-4); }
-        .lshell__side { position: static; }
+        .lshell__short-grid { grid-template-columns: minmax(0, 1fr); }
     }
 
     @media (max-width: 640px) {

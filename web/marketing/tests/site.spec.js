@@ -399,10 +399,10 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
     });
 
-    test('guide pages render toc, visuals, and pager', async ({ page }) => {
+    test('guide pages render sections, visuals, and pager', async ({ page }) => {
         await page.goto('/guides/commands');
 
-        await expect(page.locator('[data-guide-link]')).toHaveCount(6);
+        await expect(page.locator('.gshell__hub')).toHaveAccessibleName('All guides');
         await expect(page.locator('[data-guide-section]')).toHaveCount(6);
 
         await expect(page.locator('.cmock__win').first()).toBeVisible();
@@ -443,7 +443,7 @@ test.describe('guides & command builder', () => {
     test('french mirrors pair with english via the language switcher', async ({ page }) => {
         await page.goto('/fr/guides/commands');
 
-        await expect(page.locator('.gshell__toc-label')).toHaveText('Dans ce guide');
+        await expect(page.locator('.gshell__hub')).toHaveAccessibleName('Tous les guides');
         await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands/');
 
         await page.goto('/fr/guides/data-sources');

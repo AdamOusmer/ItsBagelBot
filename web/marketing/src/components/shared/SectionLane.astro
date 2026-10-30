@@ -1,0 +1,69 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+interface Props {
+    id: string;
+    num: string;
+    heading: string;
+    revealIndex: number;
+    class?: string;
+}
+
+const { id, num, heading, revealIndex, class: className } = Astro.props;
+const reveal = Math.min(revealIndex, 6);
+const classes = ['slane', className].filter(Boolean).join(' ');
+---
+
+<section class={classes} id={id} data-reveal style={`--reveal-i: ${reveal}`}>
+    <div class="slane__side">
+        <span class="slane__num">{num}</span>
+        <h2 class="slane__heading">{heading}</h2>
+        <slot name="side-note" />
+    </div>
+    <div class="slane__body"><slot /></div>
+</section>
+
+<style>
+    .slane {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        gap: var(--bb-space-7);
+        padding: var(--bb-space-7) 0;
+        border-bottom: 1px solid var(--bb-border);
+        scroll-margin-top: calc(var(--nav-offset) + 24px);
+    }
+
+    .slane__side {
+        position: sticky;
+        top: calc(var(--nav-offset) + var(--bb-space-5));
+        align-self: start;
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-2);
+    }
+
+    .slane__num {
+        font: 500 var(--bb-text-sm)/1 var(--bb-font-mono);
+        color: var(--bb-tan-light);
+    }
+
+    .slane__heading {
+        margin: 0;
+        font-family: var(--bb-font-display);
+        font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+        font-weight: 500;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        color: var(--bb-paper);
+    }
+
+    @media (max-width: 900px) {
+        .slane {
+            grid-template-columns: minmax(0, 1fr);
+            gap: var(--bb-space-4);
+        }
+
+        .slane__side { position: static; }
+    }
+</style>

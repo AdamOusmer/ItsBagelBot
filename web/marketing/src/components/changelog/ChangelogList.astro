@@ -3,15 +3,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { CollectionEntry } from 'astro:content';
-import Card from '@bagel/ui/astro/Card.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
-import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
-import Heading from '@bagel/ui/astro/Heading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import ReleaseTag from './ReleaseTag.astro';
-import Timeline from '@bagel/ui/astro/Timeline.astro';
-import TimelineItem from '@bagel/ui/astro/TimelineItem.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import SectionLane from '../shared/SectionLane.astro';
+import SectionLaneList from '../shared/SectionLaneList.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 interface Props {
@@ -53,72 +50,48 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
     {entries.length === 0 ? (
         <Text tone="muted" class="clog__empty">{t('changelog.empty')}</Text>
     ) : (
-        <Timeline class="clog__list">
+        <SectionLaneList>
             {entries.map((entry, i) => {
                 const { tag, version, title, highlights, github, date } = entry.data;
                 const lines = pickList(highlights, lang);
                 return (
-                    <TimelineItem class="clog__item" data-reveal style={`--reveal-i: ${i + 1}`}>
-                        <Eyebrow as="div">
-                            <time class="clog__date" datetime={date.toISOString()}><span data-fit>{dateFmt.format(date)}</span></time>
-                        </Eyebrow>
-                        <Card as="article" atmo hover class="clog__card">
-                            <div class="clog__body">
-                                <header class="clog__meta">
-                                    <ReleaseTag tag={tag} label={tagLabel[tag]} />
-                                    <a class="clog__ver" href={localizePath(`/changelog/${version}`, lang)}>
-                                        <Badge shape="pill" tone="neutral" literal>{version}</Badge>
-                                    </a>
-                                </header>
-                                <Heading level={2} variant="card">{pick(title, lang)}</Heading>
-                                <ul class="clog__highlights">
-                                    {lines.map((line) => (
-                                        <Text as="li" tone="muted-light" class="clog__highlight">{line}</Text>
-                                    ))}
-                                </ul>
-                                <TextLink
-                                    href={github}
-                                    label={t('changelog.releaseLink')}
-                                    external
-                                />
+                    <SectionLane class="clog__item" id={version} num={String(i + 1).padStart(2, '0')} heading={pick(title, lang)} revealIndex={i + 1}>
+                        <Fragment slot="side-note">
+                            <div class="clog__meta">
+                                <ReleaseTag tag={tag} label={tagLabel[tag]} />
+                                <a class="clog__ver" href={localizePath(`/changelog/${version}`, lang)}>
+                                    <Badge shape="pill" tone="neutral" literal>{version}</Badge>
+                                </a>
                             </div>
-                        </Card>
-                    </TimelineItem>
+                            <time class="clog__date" datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+                        </Fragment>
+                        <ul class="clog__highlights">
+                            {lines.map((line) => (
+                                <Text as="li" tone="muted-light" class="clog__highlight">{line}</Text>
+                            ))}
+                        </ul>
+                        <TextLink
+                            href={github}
+                            label={t('changelog.releaseLink')}
+                            external
+                        />
+                    </SectionLane>
                 );
             })}
-        </Timeline>
+        </SectionLaneList>
     )}
 </section>
 
 <style>
     .clog {
-        --card-pad: clamp(22px, 3vw, 30px);
-        width: min(760px, calc(100% - 48px));
-        margin: 0 auto;
-        padding: 0 0 110px;
-        max-width: none;
+        width: min(100% - 32px, 1120px);
+        margin-inline: auto;
+        padding-bottom: 96px;
     }
 
     .clog__empty {
         text-align: center;
         padding: 48px 0 80px;
-    }
-
-    .clog__date { display: block; }
-
-    .clog__item {
-        display: grid;
-        gap: 12px;
-    }
-
-    .clog__body {
-        display: grid;
-        gap: 14px;
-        justify-items: start;
-    }
-
-    .clog__item:nth-child(even) .clog__card {
-        --card-atmo-flip: -1;
     }
 
     .clog__meta {
@@ -128,11 +101,19 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         gap: 10px 14px;
     }
 
+    .clog__date {
+        display: block;
+        font: var(--bb-text-xs)/1.4 var(--bb-font-mono);
+        color: var(--bb-muted);
+    }
+
     .clog__highlights {
         display: grid;
         gap: 10px;
         max-width: 62ch;
         width: 100%;
+        margin: 0 0 14px;
+        padding: 0;
     }
 
     .clog__highlight {
@@ -152,11 +133,6 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
     }
 
     @media (max-width: 640px) {
-        .clog {
-            width: calc(100% - 32px);
-            padding-bottom: 80px;
-        }
-
-        .clog__item { gap: 8px; }
+        .clog { padding-bottom: 72px; }
     }
 </style>
