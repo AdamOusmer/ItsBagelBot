@@ -3,7 +3,10 @@
 
 package twitch
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestChannelSubscriptionsOrder(t *testing.T) {
 	specs := ChannelSubscriptions("123", "bot")
@@ -37,19 +40,29 @@ func TestChannelSubscriptionsOmitChatWithoutBot(t *testing.T) {
 	}
 }
 
-func TestChannelSubscriptionsIncludeUserUpdate(t *testing.T) {
+func userUpdateSpecs(specs []SubSpec) []SubSpec {
 	var found []SubSpec
-	for _, s := range ChannelSubscriptions("123", "bot") {
+	for _, s := range specs {
 		if s.Type == UserUpdateType {
 			found = append(found, s)
 		}
 	}
-	if len(found) != 1 || found[0].Version != "1" || found[0].Condition["user_id"] != "123" || len(found[0].Condition) != 1 {
-		t.Fatalf("user.update specs = %+v, want one v1 spec conditioned on user_id", found)
+	return found
+}
+
+func TestChannelSubscriptionsIncludeUserUpdate(t *testing.T) {
+	found := userUpdateSpecs(ChannelSubscriptions("123", "bot"))
+	if len(found) != 1 {
+		t.Fatalf("user.update specs = %+v, want exactly one", found)
 	}
-	for _, s := range ControlSubscriptions(ChannelSubscriptions("123", "bot")) {
-		if s.Type == UserUpdateType {
-			t.Fatal("user.update must not be a control subscription")
-		}
+	want := SubSpec{Type: UserUpdateType, Version: "1", Condition: map[string]string{"user_id": "123"}}
+	if !reflect.DeepEqual(found[0], want) {
+		t.Fatalf("user.update spec = %+v, want %+v", found[0], want)
+	}
+}
+
+func TestUserUpdateIsNotAControlSubscription(t *testing.T) {
+	if got := userUpdateSpecs(ControlSubscriptions(ChannelSubscriptions("123", "bot"))); len(got) != 0 {
+		t.Fatalf("control subscriptions include user.update: %+v", got)
 	}
 }

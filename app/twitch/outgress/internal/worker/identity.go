@@ -21,13 +21,15 @@ type userUpdate struct {
 	EventID   string `json:"event_id"`
 }
 
+func (ev userUpdate) valid() bool { return ev.UserID != "" && ev.UserLogin != "" }
+
 // Duplicates are harmless: identity_sync is a no-op once the stored login matches.
 func (w *Worker) HandleUserUpdate(msg *bus.Message) error {
 	ctx := msg.Context()
 	log := monitor.TxnLogger(ctx, w.log)
 
 	var ev userUpdate
-	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" || ev.UserLogin == "" {
+	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || !ev.valid() {
 		log.Error("dropping malformed user.update event", zap.Error(err))
 		return nil
 	}
@@ -38,20 +40,26 @@ func (w *Worker) HandleUserUpdate(msg *bus.Message) error {
 	reply, err := w.reauth.SyncIdentity(ctx, usersrpc.IdentitySyncRequest{
 		UserID: ev.UserID, Username: ev.UserLogin, DisplayName: ev.UserName,
 	})
-	var refused bus.RPCReplyError
-	switch {
-	case bus.NotFoundReply(err):
-		return nil
-	case errors.As(err, &refused):
-		log.Warn("identity sync refused", zap.String("user_id", ev.UserID), zap.Error(err))
-		return nil
-	case err != nil:
-		log.Warn("identity sync failed", zap.String("user_id", ev.UserID), zap.Error(err))
-		return err
+	if err != nil {
+		return identitySyncFailure(log, ev.UserID, err)
 	}
 	if reply.Renamed {
 		log.Info("broadcaster renamed on Twitch",
 			zap.String("user_id", ev.UserID), zap.String("login", ev.UserLogin), zap.String("prior_login", reply.PriorUsername))
 	}
 	return nil
+}
+
+// Refusals are final; only transport failures are returned for redelivery.
+func identitySyncFailure(log *zap.Logger, userID string, err error) error {
+	if bus.NotFoundReply(err) {
+		return nil
+	}
+	var refused bus.RPCReplyError
+	if errors.As(err, &refused) {
+		log.Warn("identity sync refused", zap.String("user_id", userID), zap.Error(err))
+		return nil
+	}
+	log.Warn("identity sync failed", zap.String("user_id", userID), zap.Error(err))
+	return err
 }

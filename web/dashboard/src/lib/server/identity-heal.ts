@@ -9,16 +9,20 @@ const DEFINITIVE_MISS: ReadonlySet<string> = new Set(['not_found', 'invalid']);
 
 type TwitchIdentity = { id: string; login: string; displayName: string };
 
-async function twitchIdentity(login: string): Promise<TwitchIdentity | null> {
-  const reply = await rpc<{ target_id?: string; login?: string; display_name?: string; user_found?: boolean; error?: string }>(
-    `${SUB.outgressRpc}.accountage.get`,
-    { target_login: login },
-    4000
-  );
+type AccountAgeReply = { target_id?: string; login?: string; display_name?: string; user_found?: boolean; error?: string };
+
+// The reply must name the asked login: an id alone could belong to someone who has since renamed away.
+function matchingIdentity(reply: AccountAgeReply, login: string): TwitchIdentity | null {
   const id = (reply.target_id ?? '').trim();
-  if (reply.error || reply.user_found !== true || !id) return null;
+  const found = !reply.error && reply.user_found === true;
+  if (!found || !id) return null;
   if ((reply.login ?? '').toLowerCase() !== login) return null;
   return { id, login, displayName: (reply.display_name ?? '').trim() || login };
+}
+
+async function twitchIdentity(login: string): Promise<TwitchIdentity | null> {
+  const reply = await rpc<AccountAgeReply>(`${SUB.outgressRpc}.accountage.get`, { target_login: login }, 4000);
+  return matchingIdentity(reply, login);
 }
 
 async function registered(twitch: TwitchIdentity): Promise<ResolvedChannel | null> {

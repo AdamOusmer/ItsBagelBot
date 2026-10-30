@@ -180,42 +180,6 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 	return r.publishChanged(ctx, id)
 }
 
-// SyncIdentity applies a Twitch rename to an existing account and returns the replaced login ("" when unchanged).
-// Unlike Register it never creates a row: a public lookup must not sign anyone up.
-func (r *Users) SyncIdentity(ctx context.Context, id uint64, username, rawDisplayName string) (string, error) {
-	if err := validate.UserID(id); err != nil {
-		return "", err
-	}
-	username = strings.ToLower(strings.TrimSpace(username))
-	if err := validate.Username(username); err != nil {
-		return "", err
-	}
-	name := displayName(rawDisplayName).storable()
-
-	var prior string
-	changed := false
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		existing, err := r.client.User.Query().
-			Where(user.IDEQ(id)).
-			Only(ctx)
-		if err != nil || !name.changes(existing, username) {
-			return err
-		}
-		if existing.Username != username {
-			prior = existing.Username
-		}
-		_, err = name.apply(existing.Update().SetUsername(username)).Save(ctx)
-		changed = err == nil
-		return err
-	}); err != nil {
-		return "", err
-	}
-	if !changed {
-		return "", nil
-	}
-	return prior, r.publishChanged(ctx, id)
-}
-
 type registration struct {
 	id       uint64
 	username string
