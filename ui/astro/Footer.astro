@@ -22,10 +22,10 @@ const colophon = ((await Astro.slots.render('colophon')) ?? '').trim();
 
 <footer class="bb-footer"><div class="bb-footer__sky" aria-hidden="true"><span class="bb-footer__grain"></span><span class="bb-footer__aurora"><span class="bb-footer__band"></span><span class="bb-footer__band"></span><span class="bb-footer__band"></span></span></div><div class="bb-footer__top"><div class="bb-footer__id">{studio && <p class="bb-footer__studio"><span data-fit>{studio}</span></p>}</div><div class="bb-footer__cols">{columns.map((column, i) => (
   <div class="bb-footer__col"><div class="bb-footer__group"><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{column.links.map((link) => (
-    <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup={`bb-footer-links-${i}`} />
+    <NavLink href={link.href} label={link.label} external={link.external} fit fitGroup={`bb-footer-links-${i}`} />
   ))}</div></div>
 ))}</div></div><div class="bb-footer__mark"><Brand class="bb-footer__brand" title={brand.title} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" wordmark /></div><div class="bb-footer__bottom"><div class="bb-footer__legal">{legal.map((link) => (
-  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} fit fitGroup="bb-footer-legal" />
+  <NavLink href={link.href} label={link.label} external={link.external} fit fitGroup="bb-footer-legal" />
 ))}</div><p class="bb-footer__fine"><span data-fit="block"><span>{copyright}</span>{note && <Fragment><span class="bb-footer__sep" aria-hidden="true">·</span><span>{note}</span></Fragment>}</span></p>{colophon && <div class="bb-footer__colophon" set:html={colophon} />}</div><div class="bb-footer__crew" aria-hidden="true">{FOOTER_CREW.map((seat) => (
   <span class="bb-footer__peeker" data-crew={seat.name} data-head={seat.head} style={`--seat: ${seat.size}`}><svg viewBox="0 0 100 100"></svg></span>
 ))}</div></footer>

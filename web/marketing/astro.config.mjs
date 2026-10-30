@@ -58,6 +58,10 @@ export default defineConfig({
     server: {
       allowedHosts: true,
     },
+    // @bagel/ui installs its own copy; without this the footer ships a second bolota engine.
+    resolve: {
+      dedupe: ['@luzir/bolota'],
+    },
     build: {
       // The CSP allows only same-origin scripts: never inline small chunks.
       assetsInlineLimit: 0,

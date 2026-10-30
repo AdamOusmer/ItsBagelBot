@@ -11,7 +11,6 @@
     "./styles/*.css": "./styles/*.css",
     "./fonts/*.woff2": "./fonts/*.woff2",
     "./lib/clipboard": "./lib/clipboard.ts",
-    "./lib/color": "./lib/color.ts",
     "./lib/count-up": "./lib/count-up.ts",
     "./lib/csv": "./lib/csv.ts",
     "./lib/decode": "./lib/decode.ts",
@@ -51,7 +50,7 @@
     "showcase": "bun --bun astro dev --root showcase"
   },
   "dependencies": {
-    "@luzir/bolota": "0.1.7",
+    "@luzir/bolota": "0.2.1",
     "lenis": "^1.3.23"
   },
   "peerDependencies": {

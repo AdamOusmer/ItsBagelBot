@@ -14,7 +14,7 @@
     "@astrojs/check": "^0.9.12",
     "@astrojs/sitemap": "^3.7.3",
     "@bagel/kit": "workspace:*",
-    "@luzir/bolota": "0.1.7",
+    "@luzir/bolota": "0.2.1",
     "astro": "^7.4.4",
     "cookie": "^2.0.1",
     "motion": "^13.0.0",
