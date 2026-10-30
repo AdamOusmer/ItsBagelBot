@@ -7,6 +7,8 @@ export {
   fabric,
   invalidate,
   broadcastInvalidation,
+  evictRenamed,
+  onRename,
   startInvalidationListener,
   userPrefixes,
   type BoardChange
@@ -53,6 +55,7 @@ export {
   isBanned,
   resolveLogin,
   saveGrant,
+  syncIdentity,
   tier,
   type ResolvedChannel
 } from './services/account';

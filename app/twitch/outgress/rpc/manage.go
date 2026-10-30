@@ -169,7 +169,7 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 	if req.TargetID == "" && req.TargetLogin == "" {
 		return outgressrpc.AccountAgeReply{Error: "bad request"}
 	}
-	id, createdAt, found, err := m.twitch.UserCreatedAt(ctx, req.TargetID, req.TargetLogin)
+	user, found, err := m.twitch.LookupUser(ctx, req.TargetID, req.TargetLogin)
 	if err != nil {
 		log.Warn("accountage lookup failed", zap.Error(err))
 		return outgressrpc.AccountAgeReply{Error: "lookup failed"}
@@ -177,7 +177,13 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 	if !found {
 		return outgressrpc.AccountAgeReply{UserFound: false}
 	}
-	return outgressrpc.AccountAgeReply{TargetID: id, UserFound: true, CreatedAt: createdAt}
+	return outgressrpc.AccountAgeReply{
+		TargetID:    user.ID,
+		Login:       user.Login,
+		DisplayName: user.DisplayName,
+		UserFound:   true,
+		CreatedAt:   user.CreatedAt,
+	}
 }
 
 func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {

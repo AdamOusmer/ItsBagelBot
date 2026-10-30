@@ -46,16 +46,21 @@ var (
 )
 
 type ReauthConfig struct {
-	SendSubject   string
-	StateSubject  string
-	ActiveSubject string
-	BotID         string
+	SendSubject     string
+	StateSubject    string
+	ActiveSubject   string
+	IdentitySubject string
+	BotID           string
 }
 
 func (r *ReauthNotifier) SetActive(ctx context.Context, broadcasterID string, active bool) error {
 	_, err := bus.RequestJSONTimeout[map[string]any](ctx, r.nc, r.cfg.ActiveSubject,
 		usersrpc.ActiveSetRequest{BroadcasterUserID: broadcasterID, Active: active}, 3*time.Second)
 	return err
+}
+
+func (r *ReauthNotifier) SyncIdentity(ctx context.Context, req usersrpc.IdentitySyncRequest) (usersrpc.IdentitySyncReply, error) {
+	return bus.RequestJSONTimeout[usersrpc.IdentitySyncReply](ctx, r.nc, r.cfg.IdentitySubject, req, 3*time.Second)
 }
 
 type ReauthNotifier struct {

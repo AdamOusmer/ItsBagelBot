@@ -98,3 +98,16 @@ func TestTransientRecoveryListenerFailureIsReturnedForDurableRetry(t *testing.T)
 	}))
 	require.Error(t, w.createControlListeners(context.Background(), enrollment{broadcasterID: testBroadcaster, conduitID: "conduit"}))
 }
+
+func TestUserUpdateSubscriptionIsAttributedByUserID(t *testing.T) {
+	w := &Worker{botID: "bot"}
+	e := enrollment{broadcasterID: "42", conduitID: "conduit"}
+	sub := twitch.EventSubEntry{Type: twitch.UserUpdateType}
+	sub.Transport.ConduitID = "conduit"
+	sub.Condition.UserID = "42"
+	require.True(t, ownedSub(sub, e))
+	require.True(t, w.botOwnedSubscription(sub))
+	sub.Condition.UserID = "43"
+	require.False(t, ownedSub(sub, e), "another broadcaster's user.update must not be cleaned up with this one")
+	require.Contains(t, w.requiredSubscriptionTypes("42"), twitch.UserUpdateType)
+}

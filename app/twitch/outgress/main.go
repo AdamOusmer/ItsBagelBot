@@ -116,10 +116,11 @@ func main() {
 	defer closeSubs()
 
 	reauth := worker.NewReauthNotifier(nc, worker.ReauthConfig{
-		SendSubject:   cfg.NotifySendSubject,
-		StateSubject:  cfg.UsersStateSubject,
-		ActiveSubject: cfg.UsersActiveSubject,
-		BotID:         cfg.TwitchBotUserID,
+		SendSubject:     cfg.NotifySendSubject,
+		StateSubject:    cfg.UsersStateSubject,
+		ActiveSubject:   cfg.UsersActiveSubject,
+		IdentitySubject: cfg.UsersIdentitySubject,
+		BotID:           cfg.TwitchBotUserID,
 	}, log.Named("reauth"))
 	premium.SetReauthNotifier(reauth)
 	standard.SetReauthNotifier(reauth)
@@ -393,6 +394,7 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 		d.cfg.AuthzGrantedSubject:    system.HandleAuthzGranted,
 		d.cfg.AuthzRevokedSubject:    system.HandleAuthzRevoked,
 		d.cfg.AuthzSubRevokedSubject: system.HandleAuthzSubRevoked,
+		d.cfg.UserUpdateSubject:      system.HandleUserUpdate,
 	}
 	for subject, handle := range lanes {
 		svcboot.FatalIf(d.log, bus.Consume(ctx, d.nrApp, authzSub, subject, handle, d.log),

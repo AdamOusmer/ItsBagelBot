@@ -19,7 +19,7 @@ type SubSpec struct {
 }
 
 func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
-	specs := make([]SubSpec, 0, 12)
+	specs := make([]SubSpec, 0, 13)
 
 	specs = append(specs,
 		SubSpec{"stream.online", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
@@ -31,6 +31,7 @@ func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 		SubSpec{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
+		SubSpec{UserUpdateType, "1", map[string]string{"user_id": broadcasterID}},
 	)
 
 	controls := []SubSpec{
@@ -60,7 +61,10 @@ func ControlSubscriptions(specs []SubSpec) []SubSpec {
 	return controls
 }
 
-const ChatMessageType = "channel.chat.message"
+const (
+	ChatMessageType = "channel.chat.message"
+	UserUpdateType  = "user.update"
+)
 
 func ChannelOptionalSubscriptions(broadcasterID string) []SubSpec {
 	return []SubSpec{

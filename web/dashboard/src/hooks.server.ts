@@ -20,9 +20,9 @@ import {
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
 import { logger } from '@bagel/kit/server/logger';
-import { startInvalidationListener } from '#lib/server/services';
+import { onRename, startInvalidationListener } from '#lib/server/services';
 import { assertConfigSane } from '#lib/server/config-sanity';
-import { purgeEdgeByTag } from '#lib/server/edge-purge';
+import { purgeEdgeByTag, purgeRenamedChannel } from '#lib/server/edge-purge';
 import { enumerableChannelQuery } from '#lib/server/channel-urls';
 import { preloadCatalog, preloadSlices } from '#lib/server/catalog-preload';
 import { errorTarget } from '#lib/error-routes';
@@ -38,6 +38,7 @@ export const init: ServerInit = async () => {
   warmRateLimiter();
   warmSessionRevocation();
 
+  onRename(purgeRenamedChannel);
   startInvalidationListener();
   scheduleDeployPurge();
 };

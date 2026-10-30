@@ -420,6 +420,9 @@ func ownedSub(sub twitch.EventSubEntry, e enrollment) bool {
 	if sub.Transport.ConduitID != e.conduitID {
 		return false
 	}
+	if sub.Type == twitch.UserUpdateType {
+		return sub.Condition.UserID == e.broadcasterID
+	}
 	return sub.Condition.BroadcasterUserID == e.broadcasterID || sub.Condition.ToBroadcasterUserID == e.broadcasterID
 }
 

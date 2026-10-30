@@ -164,6 +164,19 @@ type UpsertUserRequest struct {
 	Email       string `json:"email,omitempty"`
 }
 
+// IdentitySyncRequest refreshes a registered account's login after a Twitch rename; it never creates accounts.
+type IdentitySyncRequest struct {
+	UserID      string `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+}
+
+type IdentitySyncReply struct {
+	Renamed       bool   `json:"renamed"`
+	PriorUsername string `json:"prior_username,omitempty"`
+	rpc.Refusal
+}
+
 type LoginResolveRequest struct {
 	Login string `json:"login"`
 }

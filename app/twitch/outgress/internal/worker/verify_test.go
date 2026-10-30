@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
 	"ItsBagelBot/app/twitch/outgress/internal/conduit"
+	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/lifecycle"
 	"ItsBagelBot/internal/valkeytest"
 
@@ -40,7 +41,11 @@ func (v *verifyTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	entries := make([]string, 0, len(v.present))
 	for _, kind := range v.present {
-		entries = append(entries, fmt.Sprintf(`{"id":"%s","type":"%s","status":"enabled","transport":{"conduit_id":"conduit"},"condition":{"broadcaster_user_id":"%s","user_id":"%s"}}`, kind, kind, testBroadcaster, testBot))
+		userID := testBot
+		if kind == twitch.UserUpdateType {
+			userID = testBroadcaster
+		}
+		entries = append(entries, fmt.Sprintf(`{"id":"%s","type":"%s","status":"enabled","transport":{"conduit_id":"conduit"},"condition":{"broadcaster_user_id":"%s","user_id":"%s"}}`, kind, kind, testBroadcaster, userID))
 	}
 	return subscriptionResponse(200, `{"data":[`+strings.Join(entries, ",")+`]}`), nil
 }

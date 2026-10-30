@@ -3,7 +3,10 @@
 
 package twitch
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestChannelSubscriptionsOrder(t *testing.T) {
 	specs := ChannelSubscriptions("123", "bot")
@@ -34,5 +37,32 @@ func TestChannelSubscriptionsOmitChatWithoutBot(t *testing.T) {
 		if s.Type == ChatMessageType {
 			t.Fatal("chat subscription built without a bot id")
 		}
+	}
+}
+
+func userUpdateSpecs(specs []SubSpec) []SubSpec {
+	var found []SubSpec
+	for _, s := range specs {
+		if s.Type == UserUpdateType {
+			found = append(found, s)
+		}
+	}
+	return found
+}
+
+func TestChannelSubscriptionsIncludeUserUpdate(t *testing.T) {
+	found := userUpdateSpecs(ChannelSubscriptions("123", "bot"))
+	if len(found) != 1 {
+		t.Fatalf("user.update specs = %+v, want exactly one", found)
+	}
+	want := SubSpec{Type: UserUpdateType, Version: "1", Condition: map[string]string{"user_id": "123"}}
+	if !reflect.DeepEqual(found[0], want) {
+		t.Fatalf("user.update spec = %+v, want %+v", found[0], want)
+	}
+}
+
+func TestUserUpdateIsNotAControlSubscription(t *testing.T) {
+	if got := userUpdateSpecs(ControlSubscriptions(ChannelSubscriptions("123", "bot"))); len(got) != 0 {
+		t.Fatalf("control subscriptions include user.update: %+v", got)
 	}
 }

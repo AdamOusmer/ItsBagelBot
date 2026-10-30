@@ -40,6 +40,7 @@ export interface InvalidationEvent {
   scope: string;
   id: string;
   prefixes: string[];
+  keys: readonly string[];
 }
 
 export interface CacheFabricOptions {
@@ -104,7 +105,7 @@ export class CacheFabric {
     startInvalidationBus({
       cache: this.cache,
       scopes: this.scopes,
-      onApplied: this.onInvalidation ? (scope, id, prefixes) => this.onInvalidation!({ scope, id, prefixes }) : undefined
+      onApplied: this.onInvalidation ? (scope, id, prefixes, keys) => this.onInvalidation!({ scope, id, prefixes, keys }) : undefined
     });
   }
 }
