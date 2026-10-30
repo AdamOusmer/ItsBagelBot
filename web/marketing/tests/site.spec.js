@@ -311,19 +311,20 @@ test.describe('ItsBagelBot site', () => {
         expect(sitemap).toContain('<loc>https://itsbagelbot.com/de/guides/modules/</loc>');
     });
 
-    test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
+    test('legal pages render with summary, lanes, and copy intact', async ({ page }) => {
         await page.goto('/privacy');
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Privacy Policy');
+        await expect(page.locator('.lshell__title')).toContainText('Privacy Policy');
         await expect(page.locator('body')).toContainText('Data We Collect');
-        await expect(page.locator('[data-legal-link]')).toHaveCount(11);
-        await expect(page.locator('.lshell__plain').first()).toContainText('plain words');
+        await expect(page.locator('.lshell__short-item')).toHaveCount(11);
+        await expect(page.locator('.lshell__lane')).toHaveCount(11);
+        await expect(page.locator('.lshell__short-label')).toContainText('The short version');
 
         await page.goto('/terms');
-        await expect(page.locator('.bb-page-hero__title')).toContainText('Terms of Service');
+        await expect(page.locator('.lshell__title')).toContainText('Terms of Service');
         await expect(page.locator('body')).toContainText('Acceptable Use');
         await expect(page.locator('body')).toContainText('Source Available License');
         await expect(page.locator('body')).toContainText('Third-Party Games and Trademarks');
-        await expect(page.locator('[data-legal-link]')).toHaveCount(12);
+        await expect(page.locator('.lshell__short-item')).toHaveCount(12);
     });
 
     test('active nav route is marked', async ({ page }) => {
