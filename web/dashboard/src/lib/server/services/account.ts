@@ -8,7 +8,7 @@ import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/serv
 import * as valkey from '@bagel/kit/server/valkey-store';
 import type { Tier } from '@bagel/kit';
 import { SUB } from './subjects';
-import { fabric, invalidate, invalidateUser } from './fabric';
+import { evictRenamed, fabric, invalidate, invalidateUser } from './fabric';
 
 // Must match the projector's tierFromStatus.
 function tierFromStatus(status: string): Tier {
@@ -88,6 +88,20 @@ export const resolveLogin = defineRead({
     policy: POLICY.entity
   }
 });
+
+export type IdentitySync = { renamed: boolean; priorUsername?: string };
+
+// Updates an existing account only: an unregistered id rejects with not_found.
+export async function syncIdentity(userId: string, username: string, displayName: string): Promise<IdentitySync> {
+  const r = await rpc<{ renamed?: boolean; prior_username?: string }>(
+    `${SUB.dashboard}.identity_sync`,
+    { user_id: userId, username, display_name: displayName },
+    READ_TIMEOUT_MS
+  );
+  const prior = (r.prior_username ?? '').trim().toLowerCase();
+  if (r.renamed) evictRenamed(userId, [username, prior]);
+  return { renamed: r.renamed === true, ...(prior ? { priorUsername: prior } : {}) };
+}
 
 /** Irreversible; the caller must drop the session cookie after it resolves. */
 export async function deleteSelf(userId: string): Promise<void> {

@@ -16,6 +16,7 @@ const queueReads: string[] = [];
 const moduleReads: string[] = [];
 
 mock.module('#lib/server/services', () => ({ resolveLogin: () => resolveReply() }));
+mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => ({ kind: 'missing' }) }));
 mock.module('#lib/server/module-blob', () => ({
   readModuleBlob: async (userId: string, modId: string) => {
     moduleReads.push(`${userId}:${modId}`);

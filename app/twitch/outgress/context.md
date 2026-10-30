@@ -42,7 +42,7 @@ there is no Rust AutoMod journal/action adapter in this checkout.
 | Token identity and refresh | [internal/twitch/token.go](internal/twitch/token.go), [broadcaster.go](internal/twitch/broadcaster.go), [internal/tokenstore/tokenstore.go](internal/tokenstore/tokenstore.go), [token_lease.go](token_lease.go) |
 | Fleet send coordination | [coordination.go](coordination.go), [internal/worker/buckets.go](internal/worker/buckets.go), [shared ratelimit](../../../pkg/ratelimit) |
 | Batches and checkpoints | [internal/worker/batch.go](internal/worker/batch.go), [batch_valkey.go](internal/worker/batch_valkey.go), [batch_jetstream.go](internal/worker/batch_jetstream.go) |
-| Enrollment, stream facts, authorization | [internal/worker/eventsub.go](internal/worker/eventsub.go), [streamstatus.go](internal/worker/streamstatus.go), [authz.go](internal/worker/authz.go), [reauth.go](internal/worker/reauth.go) |
+| Enrollment, stream facts, authorization | [internal/worker/eventsub.go](internal/worker/eventsub.go), [streamstatus.go](internal/worker/streamstatus.go), [authz.go](internal/worker/authz.go), [reauth.go](internal/worker/reauth.go), [identity.go](internal/worker/identity.go) (`user.update` rename sync) |
 | Channel registry/invalidation | [internal/channels/registry.go](internal/channels/registry.go), [pause_jetstream.go](internal/channels/pause_jetstream.go) |
 | Management/read RPCs | [rpc/manage.go](rpc/manage.go), [rpc/channelpoints.go](rpc/channelpoints.go), [rpc/streaminfo.go](rpc/streaminfo.go), [rpc/chatters.go](rpc/chatters.go), [rpc/trials.go](rpc/trials.go) |
 | Clip completion and facts | [internal/worker/clip.go](internal/worker/clip.go), [clip_verify.go](internal/worker/clip_verify.go) |

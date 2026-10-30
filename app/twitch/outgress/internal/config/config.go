@@ -49,10 +49,12 @@ type Config struct {
 	AuthzGrantedSubject    string
 	AuthzRevokedSubject    string
 	AuthzSubRevokedSubject string
+	UserUpdateSubject      string
 
-	NotifySendSubject  string
-	UsersStateSubject  string
-	UsersActiveSubject string
+	NotifySendSubject    string
+	UsersStateSubject    string
+	UsersActiveSubject   string
+	UsersIdentitySubject string
 
 	RateRegion          string
 	LeaseEpoch          time.Duration
@@ -82,9 +84,11 @@ func Load() *Config {
 		AuthzGrantedSubject:    env.Get("NATS_SUBJECT_AUTHZ_GRANTED", "twitch.ingress.status.authz.granted"),
 		AuthzRevokedSubject:    env.Get("NATS_SUBJECT_AUTHZ_REVOKED", "twitch.ingress.status.authz.revoked"),
 		AuthzSubRevokedSubject: env.Get("NATS_SUBJECT_AUTHZ_SUBREVOKED", "twitch.ingress.status.authz.subrevoked"),
+		UserUpdateSubject:      env.Get("NATS_SUBJECT_USER_UPDATE", "twitch.ingress.status.authz.user_update"),
 		NotifySendSubject:      env.Get("NATS_NOTIFY_SEND_SUBJECT", "bagel.rpc.admin.notifications.send"),
 		UsersStateSubject:      env.Get("NATS_USERS_STATE_SUBJECT", "bagel.rpc.dashboard.state_get"),
 		UsersActiveSubject:     env.Get("NATS_USERS_ACTIVE_SUBJECT", "bagel.rpc.dashboard.active_set"),
+		UsersIdentitySubject:   env.Get("NATS_USERS_IDENTITY_SUBJECT", "bagel.rpc.dashboard.identity_sync"),
 		MinRoutines:            env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:            env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:           env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

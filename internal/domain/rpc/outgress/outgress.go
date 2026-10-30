@@ -26,10 +26,12 @@ type AccountAgeRequest struct {
 }
 
 type AccountAgeReply struct {
-	TargetID  string    `json:"target_id,omitempty"`
-	UserFound bool      `json:"user_found"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
-	Error     string    `json:"error,omitempty"`
+	TargetID    string    `json:"target_id,omitempty"`
+	Login       string    `json:"login,omitempty"`
+	DisplayName string    `json:"display_name,omitempty"`
+	UserFound   bool      `json:"user_found"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
+	Error       string    `json:"error,omitempty"`
 }
 
 type UptimeRequest struct {

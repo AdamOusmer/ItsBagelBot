@@ -311,8 +311,18 @@ func (c *Client) StreamDetails(ctx context.Context, broadcasterID string) (Strea
 }
 
 type helixUser struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	Login       string    `json:"login"`
+	DisplayName string    `json:"display_name"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// UserInfo is a Twitch account's current identity; logins change on rename, IDs never do.
+type UserInfo struct {
+	ID          string
+	Login       string
+	DisplayName string
+	CreatedAt   time.Time
 }
 
 func (c *Client) getUser(ctx context.Context, query string) (helixUser, bool, error) {
@@ -344,7 +354,7 @@ func (c *Client) UserIDByLogin(ctx context.Context, login string) (string, error
 	return user.ID, err
 }
 
-func (c *Client) UserCreatedAt(ctx context.Context, targetID, targetLogin string) (id string, createdAt time.Time, found bool, err error) {
+func (c *Client) LookupUser(ctx context.Context, targetID, targetLogin string) (UserInfo, bool, error) {
 	q := url.Values{}
 	if targetID != "" {
 		q.Set("id", targetID)
@@ -352,7 +362,7 @@ func (c *Client) UserCreatedAt(ctx context.Context, targetID, targetLogin string
 		q.Set("login", targetLogin)
 	}
 	user, found, err := c.getUser(ctx, q.Encode())
-	return user.ID, user.CreatedAt, found, err
+	return UserInfo{ID: user.ID, Login: user.Login, DisplayName: user.DisplayName, CreatedAt: user.CreatedAt}, found, err
 }
 
 func (c *Client) FollowedAt(ctx context.Context, broadcasterID, targetID string) (time.Time, bool, error) {

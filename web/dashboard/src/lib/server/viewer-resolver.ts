@@ -10,24 +10,39 @@ export const BUCKET_REFILL_PER_SECOND = 0.5;
 
 export type Resolution = { kind: 'found'; viewerId: string } | { kind: 'missing' } | { kind: 'busy' } | { kind: 'error' };
 
+export type Lookup<V> = { kind: 'found'; value: V } | { kind: 'missing' } | { kind: 'busy' } | { kind: 'error' };
+
 export interface ResolverDeps {
   lookup: (login: string) => Promise<string>;
   now?: () => number;
   maxEntries?: number;
 }
 
-interface Cached {
-  viewerId: string;
+export interface CachedResolverDeps<V> {
+  lookup: (login: string) => Promise<V | null>;
+  foundTtlMs?: number;
+  now?: () => number;
+  maxEntries?: number;
+}
+
+interface Cached<V> {
+  value: V | null;
   expiresAt: number;
 }
 
-function settled(viewerId: string): Resolution {
-  return viewerId ? { kind: 'found', viewerId } : { kind: 'missing' };
+function settled<V>(value: V | null): Lookup<V> {
+  return value === null ? { kind: 'missing' } : { kind: 'found', value };
 }
 
-export function createViewerResolver({ lookup, now = Date.now, maxEntries = MAX_CACHED_LOGINS }: ResolverDeps): (login: string) => Promise<Resolution> {
-  const cache = new Map<string, Cached>();
-  const inflight = new Map<string, Promise<Resolution>>();
+// Token bucket + positive/negative cache + inflight dedupe: an anonymous probe cannot hammer the upstream.
+export function createCachedResolver<V>({
+  lookup,
+  foundTtlMs = FOUND_TTL_MS,
+  now = Date.now,
+  maxEntries = MAX_CACHED_LOGINS
+}: CachedResolverDeps<V>): (login: string) => Promise<Lookup<V>> {
+  const cache = new Map<string, Cached<V>>();
+  const inflight = new Map<string, Promise<Lookup<V>>>();
   let tokens = BUCKET_CAPACITY;
   let refilledAt = now();
 
@@ -40,25 +55,25 @@ export function createViewerResolver({ lookup, now = Date.now, maxEntries = MAX_
     return true;
   }
 
-  function cached(login: string): Resolution | null {
+  function cached(login: string): Lookup<V> | null {
     const hit = cache.get(login);
     if (!hit) return null;
-    if (hit.expiresAt > now()) return settled(hit.viewerId);
+    if (hit.expiresAt > now()) return settled(hit.value);
     cache.delete(login);
     return null;
   }
 
-  function remember(login: string, viewerId: string): void {
+  function remember(login: string, value: V | null): void {
     cache.delete(login);
     if (cache.size >= maxEntries) cache.delete(cache.keys().next().value as string);
-    cache.set(login, { viewerId, expiresAt: now() + (viewerId ? FOUND_TTL_MS : MISSING_TTL_MS) });
+    cache.set(login, { value, expiresAt: now() + (value === null ? MISSING_TTL_MS : foundTtlMs) });
   }
 
-  async function fetchOnce(login: string): Promise<Resolution> {
+  async function fetchOnce(login: string): Promise<Lookup<V>> {
     try {
-      const viewerId = await lookup(login);
-      remember(login, viewerId);
-      return settled(viewerId);
+      const value = await lookup(login);
+      remember(login, value);
+      return settled(value);
     } catch {
       return { kind: 'error' };
     }
@@ -74,5 +89,13 @@ export function createViewerResolver({ lookup, now = Date.now, maxEntries = MAX_
     const started = fetchOnce(login).finally(() => inflight.delete(login));
     inflight.set(login, started);
     return started;
+  };
+}
+
+export function createViewerResolver({ lookup, ...rest }: ResolverDeps): (login: string) => Promise<Resolution> {
+  const resolve = createCachedResolver<string>({ lookup: async (login) => (await lookup(login)) || null, ...rest });
+  return async (login) => {
+    const res = await resolve(login);
+    return res.kind === 'found' ? { kind: 'found', viewerId: res.value } : res;
   };
 }

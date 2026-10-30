@@ -526,6 +526,8 @@ accounts:
               from: USERS_RPC
             - stream: bagel.cache.invalidate.status
               from: USERS_RPC
+            - stream: bagel.cache.invalidate.rename
+              from: USERS_RPC
             - stream: bagel.cache.invalidate.delegation
               from: USERS_RPC
             - stream: bagel.cache.invalidate.locale
@@ -680,6 +682,10 @@ accounts:
             - service: bagel.rpc.dashboard.state_get
               from: USERS_RPC
             - service: bagel.rpc.dashboard.state_get.node.*
+              from: USERS_RPC
+            - service: bagel.rpc.dashboard.identity_sync
+              from: USERS_RPC
+            - service: bagel.rpc.dashboard.identity_sync.node.*
               from: USERS_RPC
             - service: bagel.rpc.dashboard.active_set
               from: USERS_RPC
@@ -836,6 +842,7 @@ accounts:
             - service: bagel.rpc.internal.users.counts.get.node.*
             - stream: bagel.cache.invalidate.grant
             - stream: bagel.cache.invalidate.status
+            - stream: bagel.cache.invalidate.rename
             - stream: bagel.cache.invalidate.delegation
             - stream: bagel.cache.invalidate.locale
         roles:

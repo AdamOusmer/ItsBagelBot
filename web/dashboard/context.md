@@ -93,7 +93,8 @@ Preserve variable/token/form/surface wording in editors and help copy.
   caching for any other spelling or query string there. Leaderboard pages and searches carry
   Cache-Tag `lb:<login>`, purged by tag only on board hide/unhide, loyalty on/off, rename and
   account deletion; never tag-purge from command or module writes.
-  Unknown channels cache a 60 s 404, purged on first sign-in or rename.
+  Unknown channels cache a 60 s 404, purged on first sign-in or rename. A login miss first self-heals through
+  `identity-heal.ts` (Twitch lookup + `identity_sync`, rate-limited); the `rename` cache scope evicts `login:*`/`state:*` and purges the edge on every pod.
 - Boot import graphs use `process.env`; request-time dynamic env is safe after initialization.
 - `DEMO` branches require direct build-time `dev` gating and production cleanup verification.
 - Edge-cache only anonymous default renders using normalized Accept-Language; locale preference cookies,
