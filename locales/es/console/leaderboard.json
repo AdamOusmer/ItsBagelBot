@@ -23,5 +23,11 @@
   "emptyTitle": "Aún no hay leyendas",
   "emptyBody": "Esta clasificación se llena a medida que la comunidad de {channel} ve transmisiones en directo, se suscribe, regala suscripciones y envía Cheers. Entra y conquista el primer puesto.",
   "degraded": "La clasificación en vivo no está disponible temporalmente. Se actualizará automáticamente.",
-  "earnNote": "Ganados al ver transmisiones en directo, suscribirse, regalar suscripciones y enviar Cheers."
+  "earnNote": "Ganados al ver transmisiones en directo, suscribirse, regalar suscripciones y enviar Cheers.",
+  "colViewer": "Espectador",
+  "donateLabel": "Donaciones",
+  "donateTitle": "Las donaciones mantienen gratis el plan gratis.",
+  "donateText": "Cada canal, gratis o Premium, funciona en los mismos servidores. Premium y las donaciones son lo que los paga, así que una donación en Ko-fi mantiene el bot en línea para todos.",
+  "donateCta": "Donar en Ko-fi",
+  "donateNote": "Cualquier cantidad. Sin nada a cambio."
 }
