@@ -6,11 +6,12 @@ import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
 import Label from '@bagel/ui/astro/Label.astro';
-import SectionNav from '@bagel/ui/astro/SectionNav.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import GuideBody from './GuideBody.astro';
+import SectionLane from '../shared/SectionLane.astro';
+import SectionLaneList from '../shared/SectionLaneList.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 import type { Block } from '../../lib/guides/types';
 
@@ -37,106 +38,68 @@ const { sections, minutes, prev, next } = Astro.props;
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const labels = {
-    toc: t('guide.toc'),
     glance: t('guide.glance'),
     hub: t('guide.hub'),
     prev: t('guide.prevLabel'),
     next: t('guide.nextLabel'),
 };
 const hubHref = localizePath('/guides', lang);
-const tocItems = sections.map((section) => ({
-    href: `#${section.id}`,
-    label: section.heading,
-    attrs: { 'data-guide-link': section.id },
-}));
 const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 ---
 
 <div class="gshell">
-    <div class="gshell__grid">
-        <div class="gshell__toc">
+    <article class="gshell__content">
+        <div class="gshell__meta" data-reveal>
             <TextLink class="gshell__hub" href={hubHref} label={labels.hub} size="0.7rem" />
-            <Label mono as="span" class="gshell__toc-label">{labels.toc}</Label>
-            <SectionNav variant="toc" index label={labels.toc} items={tocItems} data-guide-toc />
+            {minutes && <Text as="span" size="xs" mono tone="success" class="gshell__minutes">{minutes}</Text>}
         </div>
 
-        <article class="gshell__content">
-            <div class="gshell__meta" data-reveal>
-                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={labels.hub} size="0.7rem" />
-                {minutes && <Text as="span" size="xs" mono tone="success" class="gshell__minutes">{minutes}</Text>}
-            </div>
-
+        <SectionLaneList>
             {sections.map((section, i) => (
-                <section class="gshell__block bb-prose bb-prose-code" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                    <Heading level={3} as="h2" class="gshell__heading"><Text as="span" size="xs" mono tone="success" class="gshell__num">{ordinal(i)}</Text>{section.heading}</Heading>
-                    {section.note && (
-                        <AlertBanner tone="success" role="note" class="gshell__glance" variant="callout"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
-                    )}
-                    <GuideBody blocks={section.blocks} />
-                </section>
+                <SectionLane id={section.id} num={ordinal(i)} heading={section.heading} revealIndex={i + 1}>
+                    <div class="bb-prose bb-prose-code" data-guide-section>
+                        {section.note && (
+                            <AlertBanner tone="success" role="note" class="gshell__glance" variant="callout"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
+                        )}
+                        <GuideBody blocks={section.blocks} />
+                    </div>
+                </SectionLane>
             ))}
+        </SectionLaneList>
 
-            {(prev || next) && (
-                <nav class="gshell__pager" aria-label={labels.next}>
-                    {prev ? (
-                        <Card as="a" href={prev.href} hover flush class="gshell__pager-card">
-                            <span class="gshell__pager-body">
-                                <Label mono as="span">{labels.prev}</Label>
-                                <Heading level={5} as="span">{prev.label}</Heading>
-                            </span>
-                        </Card>
-                    ) : <span />}
-                    {next && (
-                        <Card as="a" href={next.href} hover flush class="gshell__pager-card gshell__pager-card--next">
-                            <span class="gshell__pager-body">
-                                <Label mono as="span">{labels.next}</Label>
-                                <Heading level={5} as="span">{next.label}</Heading>
-                            </span>
-                        </Card>
-                    )}
-                </nav>
-            )}
-        </article>
-    </div>
+        {(prev || next) && (
+            <nav class="gshell__pager" aria-label={labels.next}>
+                {prev ? (
+                    <Card as="a" href={prev.href} hover flush class="gshell__pager-card">
+                        <span class="gshell__pager-body">
+                            <Label mono as="span">{labels.prev}</Label>
+                            <Heading level={5} as="span">{prev.label}</Heading>
+                        </span>
+                    </Card>
+                ) : <span />}
+                {next && (
+                    <Card as="a" href={next.href} hover flush class="gshell__pager-card gshell__pager-card--next">
+                        <span class="gshell__pager-body">
+                            <Label mono as="span">{labels.next}</Label>
+                            <Heading level={5} as="span">{next.label}</Heading>
+                        </span>
+                    </Card>
+                )}
+            </nav>
+        )}
+    </article>
 </div>
 
 <style>
     .gshell {
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding: 0 24px 96px;
+        width: min(100% - 32px, 1120px);
+        margin-inline: auto;
+        padding-bottom: 96px;
     }
 
-    .gshell__grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 48px;
-    }
-
-    @media (min-width: 980px) {
-        .gshell__grid {
-            grid-template-columns: 240px minmax(0, 1fr);
-            gap: 72px;
-        }
-    }
-
-    .gshell__toc { display: none; }
-
-    @media (min-width: 980px) {
-        .gshell__toc {
-            display: flex;
-            flex-direction: column;
-            position: sticky;
-            top: calc(var(--nav-offset) + 32px);
-            align-self: start;
-        }
-    }
+    .gshell__content { min-width: 0; }
 
     .gshell__hub { margin-bottom: 26px; }
-
-    .gshell__toc-label { margin-bottom: 16px; }
-
-    .gshell__content { max-width: 780px; min-width: 0; }
 
     .gshell__meta {
         display: flex;
@@ -146,27 +109,7 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
         margin-bottom: 44px;
     }
 
-    .gshell__hub--inline { margin-bottom: 0; }
-
-    @media (min-width: 980px) {
-        .gshell__hub--inline { display: none; }
-    }
-
     .gshell__minutes { letter-spacing: 0.08em; }
-
-    .gshell__block {
-        max-width: var(--bb-content-max);
-        margin: 0 auto;
-        padding: 64px 48px;
-        scroll-margin-top: calc(var(--nav-offset) + 24px);
-    }
-
-    .gshell__heading { margin: 0 0 14px; }
-
-    .gshell__num {
-        margin-right: 12px;
-        letter-spacing: 0.1em;
-    }
 
     .gshell__glance { margin: 0 0 18px; }
 
@@ -189,31 +132,8 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
     .gshell__pager-card--next { text-align: right; }
 
     @media (max-width: 640px) {
-        .gshell { padding: 0 16px 72px; }
+        .gshell { padding-bottom: 72px; }
         .gshell__pager { grid-template-columns: 1fr; }
         .gshell__pager-card--next { text-align: left; }
     }
 </style>
-
-<script>
-    import { mountSectionNav } from '@bagel/ui/lib/scroll-spy';
-
-    let dispose: (() => void) | undefined;
-
-    function unmountToc() {
-        dispose?.();
-        dispose = undefined;
-    }
-
-    function mountToc() {
-        unmountToc();
-        const toc = document.querySelector<HTMLElement>('[data-guide-toc]');
-        if (toc) dispose = mountSectionNav(toc);
-    }
-
-    mountToc();
-    document.addEventListener('astro:page-load', mountToc);
-    document.addEventListener('astro:before-swap', unmountToc);
-    window.addEventListener('pagehide', unmountToc);
-    window.addEventListener('pageshow', (event) => { if (event.persisted) mountToc(); });
-</script>
