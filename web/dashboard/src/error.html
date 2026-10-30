@@ -46,7 +46,81 @@
         line-height: 1.5;
         text-align: center;
       }
+      .sky {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .stars {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 3px;
+        border-radius: 50%;
+        background: transparent;
+        filter: brightness(1.6);
+        animation: twinkle 6s ease-in-out infinite alternate;
+      }
+      .stars--a {
+        box-shadow:
+          6vw 12vh rgba(234, 219, 189, 0.55), 14vw 64vh rgba(98, 165, 147, 0.5), 21vw 28vh rgba(244, 244, 245, 0.35),
+          27vw 86vh rgba(234, 219, 189, 0.4), 33vw 9vh rgba(98, 165, 147, 0.45), 39vw 47vh rgba(244, 244, 245, 0.3),
+          46vw 74vh rgba(234, 219, 189, 0.5), 52vw 19vh rgba(244, 244, 245, 0.35), 58vw 92vh rgba(98, 165, 147, 0.4),
+          63vw 38vh rgba(234, 219, 189, 0.45), 69vw 6vh rgba(244, 244, 245, 0.3), 74vw 58vh rgba(98, 165, 147, 0.5),
+          81vw 81vh rgba(234, 219, 189, 0.4), 87vw 24vh rgba(244, 244, 245, 0.35), 93vw 67vh rgba(98, 165, 147, 0.45),
+          97vw 41vh rgba(234, 219, 189, 0.4), 3vw 44vh rgba(244, 244, 245, 0.3), 11vw 93vh rgba(98, 165, 147, 0.4);
+      }
+      .stars--b {
+        animation-delay: -3s;
+        animation-duration: 8s;
+        box-shadow:
+          9vw 33vh rgba(244, 244, 245, 0.3), 17vw 7vh rgba(234, 219, 189, 0.45), 24vw 55vh rgba(98, 165, 147, 0.4),
+          30vw 71vh rgba(244, 244, 245, 0.35), 36vw 26vh rgba(234, 219, 189, 0.4), 43vw 96vh rgba(98, 165, 147, 0.35),
+          49vw 4vh rgba(244, 244, 245, 0.3), 55vw 61vh rgba(234, 219, 189, 0.45), 61vw 83vh rgba(98, 165, 147, 0.4),
+          66vw 14vh rgba(244, 244, 245, 0.35), 72vw 33vh rgba(234, 219, 189, 0.4), 78vw 95vh rgba(98, 165, 147, 0.35),
+          84vw 49vh rgba(244, 244, 245, 0.3), 90vw 11vh rgba(234, 219, 189, 0.45), 95vw 87vh rgba(98, 165, 147, 0.4),
+          1vw 76vh rgba(244, 244, 245, 0.3), 42vw 37vh rgba(234, 219, 189, 0.35), 57vw 52vh rgba(244, 244, 245, 0.25);
+      }
+      .orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.16;
+        animation: pulse 9s ease-in-out infinite alternate;
+      }
+      .orb--green {
+        top: -140px;
+        right: -80px;
+        width: 520px;
+        height: 520px;
+        background: #62a593;
+      }
+      .orb--tan {
+        bottom: -120px;
+        left: -100px;
+        width: 420px;
+        height: 420px;
+        background: #d8bf91;
+        animation-delay: -4s;
+      }
+      @keyframes twinkle {
+        from { opacity: 0.6; }
+        to { opacity: 1; }
+      }
+      @keyframes pulse {
+        from { opacity: 0.12; transform: scale(0.96); }
+        to { opacity: 0.2; transform: scale(1.04); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stars,
+        .orb { animation: none; }
+      }
       main {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -129,6 +203,12 @@
     </style>
   </head>
   <body>
+    <div class="sky" aria-hidden="true">
+      <div class="orb orb--green"></div>
+      <div class="orb orb--tan"></div>
+      <div class="stars stars--a"></div>
+      <div class="stars stars--b"></div>
+    </div>
     <main>
       <span class="eyebrow"><b>%sveltekit.status%</b> · lost in the crumbs</span>
       <p class="code" aria-hidden="true">%sveltekit.status%</p>
