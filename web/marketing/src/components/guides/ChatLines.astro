@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { getImage } from 'astro:assets';
+import logoImage from '../../assets/LogoBOT.png';
+
 export interface ChatLine {
     who: 'viewer' | 'mod' | 'bot' | 'system';
     name?: string;
@@ -16,6 +19,7 @@ interface Props {
 }
 
 const { lines } = Astro.props;
+const avatar = await getImage({ src: logoImage, width: 28, height: 28, format: 'webp' });
 const nameOf = (line: ChatLine) => (line.who === 'bot' ? (line.name ?? 'ItsBagelBot') : (line.name ?? 'viewer'));
 ---
 
@@ -24,7 +28,12 @@ const nameOf = (line: ChatLine) => (line.who === 'bot' ? (line.name ?? 'ItsBagel
     return (
         <p class:list={['bb-chat__line', line.who === 'system' && 'bb-chat__line--sys']}>
             {line.time && <time>{line.time}</time>}
-            {line.who !== 'system' && <b class={`bb-chat__name bb-chat__name--${line.who}`}>{nameOf(line)}</b>}
+            {line.who !== 'system' && (
+                <b class={`bb-chat__name bb-chat__name--${line.who}`}>
+                    {line.who === 'bot' && <span class="bb-chat__avatar"><img src={avatar.src} alt="" /></span>}
+                    {nameOf(line)}
+                </b>
+            )}
             {line.html
                 ? <span class={msgClass} data-chat-hook={line.hook} set:html={line.html} />
                 : <span class={msgClass} data-chat-hook={line.hook}>{line.text}</span>}
