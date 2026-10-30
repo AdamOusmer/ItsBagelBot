@@ -26,10 +26,12 @@ const BUDGETS: Record<string, Budget> = {
   '/(public)/login': { js: 97700, css: 22300, catalog: 2900, lazy: 0 },
   // js raised from 118700 (2026-10-29) for the shared Glide rail selector (+128 B): measured 118765, ~2% room.
   // css raised from 44700 (2026-10-29) for the aurora footer in the shared stylesheet (+413 B): measured 44682, ~1% room.
-  '/(app)': { js: 121000, css: 45200, catalog: 5000, lazy: 0 },
+  // css raised from 45200 (2026-10-29) for the shared .bb-prose style in typography.css (+213 B gzip there): CI measured 45295, ~1% room.
+  '/(app)': { js: 121000, css: 45700, catalog: 5000, lazy: 0 },
   // js raised from 138900 (2026-10-29): main already measured 138945, Glide adds 131 B for 139076, ~2% room.
   // css raised from 46000 (2026-10-29): main measured 45607, the aurora footer adds 413 B for 46020, ~1% room.
-  '/(app)/commands': { js: 142000, css: 46500, catalog: 4600, lazy: 31200 },
+  // css raised from 46500 (2026-10-29) for the shared .bb-prose style in typography.css: CI measured 46697, ~1% room.
+  '/(app)/commands': { js: 142000, css: 47200, catalog: 4600, lazy: 31200 },
   // js and css raised from 100000 / 21500 (2026-10-29) for the aurora footer: CI measured main at 99484 / 21152 and
   // this change at 100323 / 21571 (+839 / +419 B), ~1-2% room.
   '/(public)/user/[channel]': { js: 101500, css: 22000, catalog: 2800, lazy: 0 }
