@@ -37,7 +37,7 @@ Chaque Deployment first-party déclare ses requêtes et ses limites dans son man
 | `bagel-data-plane` | 900000 | Valkey et NATS |
 | `bagel-service` | 800000 | twitch-ingress, sesame, outgress, projector, gossip et les services adossés à une base de données |
 | `bagel-edge` | 700000 | Les consoles dashboard et admin |
-| `bagel-operator` | 600000 | L'outillage du cluster, comme KEDA et le deployer |
+| `bagel-operator` | 600000 | L'outillage du cluster, comme KEDA et clusterops |
 
 L'ordre est voulu : les services dépendent du plan de données, qui est donc évincé en dernier. Une console brièvement non planifiable coûte à l'opérateur un rafraîchissement de page, alors qu'évincer un service d'exécution coupe du trafic de chat en direct.
 
@@ -51,7 +51,8 @@ Un arrêt par manque de mémoire (OOM) est traité comme un signal de charge, pa
 | `db` | Les services adossés à une base (users, commands, modules, loyalty, transactions, notifications, discord-data), le projector et les jobs de sauvegarde |
 | `cache` | Valkey avec Sentinel |
 | `messaging` | Les hubs NATS et les nœuds leaf |
-| `ops` | Le deployer |
+| `ops` | clusterops |
+| `flux-system` | Les contrôleurs source et kustomize de Flux |
 | `operators` | cloudflared et l'opérateur Doppler |
 | `networking` | Traefik |
 | `tailscale`, `keda`, `observability` | Les proxys Tailscale, KEDA et les agents New Relic |

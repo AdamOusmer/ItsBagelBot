@@ -51,7 +51,7 @@ first-party pod carries one of four priority classes (`deploy/k8s/priorityclasse
 | `bagel-data-plane` | 900000 | Valkey and NATS |
 | `bagel-service` | 800000 | twitch-ingress, sesame, outgress, projector, gossip, and the database-backed services |
 | `bagel-edge` | 700000 | The dashboard and admin consoles |
-| `bagel-operator` | 600000 | Cluster tooling such as KEDA and the deployer |
+| `bagel-operator` | 600000 | Cluster tooling such as KEDA and clusterops |
 
 The order is deliberate: services depend on the data plane, so the data plane is evicted last.
 A console that is briefly unschedulable costs an operator a page refresh, while evicting a
@@ -68,7 +68,8 @@ the service that was killed, not to add slack everywhere.
 | `db` | The database-backed services (users, commands, modules, loyalty, transactions, notifications, discord-data), the projector, and the backup jobs |
 | `cache` | Valkey with Sentinel |
 | `messaging` | NATS hubs and leaf nodes |
-| `ops` | The deployer |
+| `ops` | clusterops |
+| `flux-system` | Flux source and kustomize controllers |
 | `operators` | cloudflared and the Doppler operator |
 | `networking` | Traefik |
 | `tailscale`, `keda`, `observability` | Tailscale proxies, KEDA, and the New Relic agents |

@@ -35,7 +35,8 @@ disagrees, this page and the code are the source of truth.
 | **discord-data** | `app/db/discord/` | Go | Discord guild configuration, tickets and XP |
 | **discord** | `app/discord/{ingress,engine,outgress}/` | Go | Discord gateway session, module decisions, and REST effects |
 | **gossip** | `app/gossip/` | Go | Gateway for external APIs, with caching and upstream budgets |
-| **deployer** | `app/deployer/` | Go | Release and cluster-apply runs driven from the admin console |
+| **release** | `app/release/` | Go | Release train CLI the GitHub Release workflow runs, one stage per job |
+| **clusterops** | `app/clusterops/` | Go | Rolls the consoles on TLS renewal and keeps NATS account claims in sync |
 | **console** | `web/dashboard/`, `web/admin/` | SvelteKit SSR | `dashboard` (broadcaster self-serve and public pages) and `admin` (staff); talks to services only over NATS RPC |
 
 `CONTEXT-MAP.md` at the repository root lists

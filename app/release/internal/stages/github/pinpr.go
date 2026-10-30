@@ -159,7 +159,7 @@ func pinTitle(run deploy.Run, services []string) string {
 
 func (p pinPlan) body(run deploy.Run) string {
 	var b strings.Builder
-	b.WriteString("Opened by the deployer for run " + string(run.ID) + ".\n\n")
+	b.WriteString("Opened by the release workflow for run " + string(run.ID) + ".\n\n")
 	current := pinsByImage(p.lines)
 	for _, img := range sortedImages(p.pins) {
 		b.WriteString("- `" + string(img) + "`: " + pinChange(current[img], p.pins[img]) + "\n")

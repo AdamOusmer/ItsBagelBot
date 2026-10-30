@@ -179,7 +179,7 @@ func commitChangelog(ctx context.Context, rc *stage.RunCtx, want changelogFile) 
 	}
 	pr, err := ensurePR(ctx, rc, prRequest{
 		Branch: changelogBranch(run), Title: title,
-		Body:  "Changelog for " + string(run.Version) + ", opened by the deployer.",
+		Body:  "Changelog for " + string(run.Version) + ", opened by the release workflow.",
 		Files: ports.Files{changelogPath(rc.Deps.Config, run.Version): body},
 	})
 	if err != nil {
