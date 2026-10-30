@@ -2,7 +2,7 @@
   "stageOf": "Phase {n} von {total}",
   "follow": "Live verfolgen",
   "about": {
-    "preflight": "Prüft, ob der Cluster erreichbar ist, die Manifeste die Lint-Prüfung bestehen, die erforderlichen Prüfungen auf dem Ziel erfolgreich sind und alle Workloads stabil laufen.",
+    "preflight": "Prüft, ob die erforderlichen Prüfungen auf dem auszuliefernden Commit erfolgreich sind.",
     "merge_prs": "Führt jeden ausgewählten Pull Request zusammen, sobald seine Prüfungen erfolgreich sind, und aktualisiert zuvor veraltete Branches.",
     "changelog": "Öffnet einen Pull Request, der die Datei des Änderungsprotokolls dieser Version zu main hinzufügt, und führt ihn zusammen.",
     "tag": "Erstellt den Versions-Tag auf dem Changelog-Commit. Alles außerhalb von main wird abgelehnt.",
@@ -10,9 +10,7 @@
     "build": "Wartet auf den Abschluss des Image-Workflows auf GitHub und verfolgt die Build-Jobs jedes Images.",
     "digests": "Ermittelt jedes erstellte Image und prüft beide Architekturen, den richtigen Commit und den Herkunftsnachweis.",
     "pin_pr": "Öffnet einen Pull Request, der die Manifeste auf main an die neuen Image-Digests bindet, und führt ihn zusammen.",
-    "acl": "Wendet die NATS-Konfiguration an und wartet, bis alle NATS-Server sie neu geladen haben und zur Ruhe gekommen sind.",
-    "rollout": "Wendet die gemeinsame Konfiguration an, rollt dann einen Dienst nach dem anderen aus und wartet jeweils auf dessen Pods.",
-    "verify": "Prüft, ob jeder Pod sein festgelegtes Image ausführt und die Statusseiten antworten. Bei Abweichungen wird ein Rollback angeboten."
+    "promote": "Setzt den deploy-Branch auf den festgelegten Commit. Ab dort bringt Flux den Cluster auf diesen Stand."
   },
   "state": {
     "pending": "Beginnt, sobald die vorherigen Phasen abgeschlossen sind.",
@@ -24,11 +22,8 @@
     "cancelled": "Vor Abschluss abgebrochen."
   },
   "nowBuilding": "Wird erstellt",
-  "nowRolling": "Wird ausgerollt",
   "nowOf": "{n} von {total}",
   "nowAllBuilt": "Alle Images erstellt: {total}",
-  "nowAllRolled": "Alle Dienste ausgerollt: {total}",
-  "pods": "Pods bereit: {done} von {total}",
   "jobs": "Jobs abgeschlossen: {done} von {total}",
   "openJob": "Job öffnen"
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { rpc, publish, subscribeDurable, RpcError } from '@bagel/kit/server/nats';
+import { rpc, publish, RpcError } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
 import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
@@ -11,20 +11,6 @@ import type { ScopeMap } from '@bagel/kit/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { parseCounterValue } from '@bagel/kit/validation';
 import { adminL1CacheCapacity } from './config-sanity';
-import {
-  DEPLOY_EVENTS_PREFIX,
-  DEPLOY_PREFIX,
-  type DeployPlan,
-  type DeployRun,
-  type DeployRunSummary,
-  type ListReply,
-  type ListRequest,
-  type PlanReply,
-  type PlanRequest,
-  type RunReply,
-  type RunRequest,
-  type StartRequest
-} from '#lib/deploys/types';
 import type { AnalyticsRow } from '#lib/analytics-view';
 
 // process.env, not $app/env/private: it only exposes variables declared in src/env.ts.
@@ -43,9 +29,7 @@ const SUB = {
   notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
   modules: process.env.NATS_MODULES_SUBJECT_PREFIX || 'bagel.rpc.modules',
-  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health',
-  deploy: process.env.NATS_ADMIN_DEPLOY_SUBJECT_PREFIX || DEPLOY_PREFIX,
-  deployEvents: process.env.NATS_DEPLOY_EVENTS_SUBJECT_PREFIX || DEPLOY_EVENTS_PREFIX
+  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health'
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -908,94 +892,5 @@ export async function feedBoard(): Promise<FeedBoard> {
       name: (row.name ?? '').trim(),
       count: feedValue(row.count)
     }))
-  };
-}
-
-// Must match the deployer's DEPLOY_RPC_TIMEOUT.
-const DEPLOY_PLAN_TIMEOUT_MS = 20_000;
-
-export type DeployRunId = DeployRun['id'];
-
-export type DeployRuns = { runs: DeployRunSummary[]; activeRunId: DeployRunId | null };
-
-function runOf(reply: RunReply): DeployRun {
-  if (!reply.run) throw new Error('deployer replied without a run');
-  return reply.run;
-}
-
-export const deployPlan = defineRead({
-  subject: `${SUB.deploy}.plan`,
-  request: (req: PlanRequest) => req,
-  map: (reply: PlanReply): DeployPlan | null => reply.plan ?? null,
-  timeoutMs: DEPLOY_PLAN_TIMEOUT_MS
-});
-
-// A Go nil slice marshals as null: keep the `?? []`.
-export const deployList = defineRead({
-  subject: `${SUB.deploy}.list`,
-  request: (req: ListRequest) => req,
-  map: (reply: ListReply): DeployRuns => ({
-    runs: reply.runs ?? [],
-    activeRunId: reply.active_run_id || null
-  })
-});
-
-export const deployGet = defineRead({
-  subject: `${SUB.deploy}.get`,
-  request: (req: RunRequest) => req,
-  map: runOf
-});
-
-export const deployStart = defineWrite({
-  subject: `${SUB.deploy}.start`,
-  request: (req: StartRequest) => req,
-  map: runOf
-});
-
-type DeployRunVerb = 'resume' | 'cancel' | 'approve';
-
-function deployRunWrite(verb: DeployRunVerb) {
-  return defineWrite({
-    subject: `${SUB.deploy}.${verb}`,
-    request: (req: RunRequest) => req,
-    map: runOf
-  });
-}
-
-export const deployResume = deployRunWrite('resume');
-export const deployCancel = deployRunWrite('cancel');
-export const deployApprove = deployRunWrite('approve');
-
-export type DeployListener = {
-  run: (run: DeployRun) => void;
-  gap: () => void;
-};
-
-// subscribeDurable: plain subscribe gives up for the process lifetime after one dial failure.
-const deployWatchers = new Map<DeployRunId, Set<DeployListener>>();
-let deployEventsStarted = false;
-
-function deployEvent(subject: string, data: Uint8Array): void {
-  const set = deployWatchers.get(subject.slice(SUB.deployEvents.length + 1));
-  if (!set) return;
-  const run = JSON.parse(new TextDecoder().decode(data)) as DeployRun;
-  for (const listener of set) listener.run(run);
-}
-
-function deployEventsGap(): void {
-  for (const set of deployWatchers.values()) set.forEach((listener) => listener.gap());
-}
-
-export function watchDeployRun(runId: DeployRunId, listener: DeployListener): () => void {
-  if (!deployEventsStarted) {
-    deployEventsStarted = true;
-    subscribeDurable(`${SUB.deployEvents}.>`, deployEvent, deployEventsGap);
-  }
-  const set = deployWatchers.get(runId) ?? new Set<DeployListener>();
-  set.add(listener);
-  deployWatchers.set(runId, set);
-  return () => {
-    set.delete(listener);
-    if (set.size === 0 && deployWatchers.get(runId) === set) deployWatchers.delete(runId);
   };
 }

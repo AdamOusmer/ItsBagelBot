@@ -82,7 +82,5 @@
   "rollbackTitle": "¿Revertir el clúster?",
   "rollbackBody": "Inicia una nueva ejecución que fija las imágenes de {version} y despliega cada servicio modificado.",
   "manifest": "Manifiesto",
-  "logLabel": "Registro de {stage}",
-  "nodeDots": "Pods en {node}",
-  "podDot": "{pod}: {phase}"
+  "logLabel": "Registro de {stage}"
 }

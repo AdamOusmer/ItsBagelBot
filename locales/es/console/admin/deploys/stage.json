@@ -7,7 +7,5 @@
   "build": "Compilar imágenes",
   "digests": "Comprobar digests",
   "pin_pr": "PR de imágenes fijadas",
-  "acl": "ACL de NATS",
-  "rollout": "Despliegue",
-  "verify": "Verificar"
+  "promote": "Promoción"
 }

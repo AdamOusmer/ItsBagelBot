@@ -1,0 +1,20 @@
+{
+  "title": "Cluster sync",
+  "body": "Flux applies the deploy branch tier by tier and puts back anything that drifts.",
+  "ready": "In sync",
+  "notReady": "Not ready",
+  "unknown": "No status yet",
+  "paused": "Paused",
+  "sync": "Sync now",
+  "pause": "Pause",
+  "resume": "Resume",
+  "pins": "Temporary pins",
+  "pinsBody": "Runs one service on another image without a release. Clear the pin to go back to the deploy branch.",
+  "noPins": "No temporary pins.",
+  "service": "Service",
+  "pickService": "Pick a service",
+  "tag": "Image tag",
+  "pin": "Pin",
+  "clear": "Clear",
+  "error": "Flux status unavailable: {error}"
+}

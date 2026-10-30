@@ -17,7 +17,10 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-var versionPattern = regexp.MustCompile(`^v\d+\.\d+\.\d+-beta$`)
+var (
+	versionPattern = regexp.MustCompile(`^v\d+\.\d+\.\d+-beta$`)
+	shaPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
+)
 
 type need int
 
@@ -57,7 +60,7 @@ func Seed(ctx context.Context, gh ports.GitHub, actor deploy.Actor, req deploy.S
 	}
 	now := time.Now().UTC()
 	return deploy.Run{
-		ID: deploy.RunID(id.String()), Kind: req.Kind, Version: req.Version, PRs: req.PRs,
+		ID: deploy.RunID(id.String()), Kind: req.Kind, Version: req.Version, TargetSHA: req.TargetSHA, PRs: req.PRs,
 		Changelog: req.Changelog, RollbackTo: req.RollbackTo, Services: req.Services,
 		Actor: actor, State: deploy.RunRunning, CreatedAt: now, UpdatedAt: now,
 	}, nil
@@ -83,7 +86,24 @@ func validate(ctx context.Context, gh ports.GitHub, req deploy.StartRequest) err
 	if err != nil {
 		return err
 	}
+	if err := targetOnMain(ctx, gh, req.TargetSHA); err != nil {
+		return err
+	}
 	return versionState(ctx, gh, req)
+}
+
+func targetOnMain(ctx context.Context, gh ports.GitHub, sha deploy.SHA) error {
+	if sha == "" {
+		return nil
+	}
+	if !shaPattern.MatchString(string(sha)) {
+		return fmt.Errorf("target_sha %q is not a full commit sha: %w", sha, ports.ErrInvalid)
+	}
+	ok, err := github.OnMain(ctx, gh, "main", sha)
+	if err != nil || ok {
+		return err
+	}
+	return fmt.Errorf("target_sha %s is not on main: only reviewed, merged commits deploy: %w", sha, ports.ErrInvalid)
 }
 
 func versionFormat(name string, v deploy.Version) error {

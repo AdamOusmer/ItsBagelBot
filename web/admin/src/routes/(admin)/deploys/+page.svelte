@@ -13,6 +13,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusStrip from '#lib/components/deploys/StatusStrip.svelte';
   import RunHistory from '#lib/components/deploys/RunHistory.svelte';
+  import FluxPanel from '#lib/components/deploys/FluxPanel.svelte';
 
   let { data } = $props();
 
@@ -58,6 +59,11 @@
           </Cluster>
         </Card>
       </div>
+      {#await data.flux}
+        <SkeletonStack rows={1} height="180px" />
+      {:then flux}
+        <FluxPanel {flux} />
+      {/await}
       <RunHistory runs={data.runs} />
     </Stack>
   </div>

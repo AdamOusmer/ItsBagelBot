@@ -35,7 +35,7 @@ runs:
         changelog=""
         if [ -n "$CHANGELOG" ]; then printf '%s' "$CHANGELOG" > changelog.json; changelog=changelog.json; fi
         ./release -state run.json -stage "$STAGE" -kind "$KIND" -version "$VERSION" \
-          -rollback-to "$ROLLBACK_TO" -prs "$PRS" -services "$SERVICES" \
+          -rollback-to "$ROLLBACK_TO" -target-sha "$TARGET_SHA" -prs "$PRS" -services "$SERVICES" \
           -changelog "$changelog" -actor "$ACTOR"
 
     - name: Save run state

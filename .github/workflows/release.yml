@@ -19,6 +19,9 @@ on:
       rollback_to:
         description: Release to roll back to (rollback)
         type: string
+      target_sha:
+        description: Main commit to ship (bump); empty ships main's head
+        type: string
       prs:
         description: Comma-separated PR numbers to merge first
         type: string
@@ -52,6 +55,7 @@ env:
   KIND: ${{ inputs.kind }}
   VERSION: ${{ inputs.version }}
   ROLLBACK_TO: ${{ inputs.rollback_to }}
+  TARGET_SHA: ${{ inputs.target_sha }}
   PRS: ${{ inputs.prs }}
   SERVICES: ${{ inputs.services }}
   CHANGELOG: ${{ inputs.changelog }}

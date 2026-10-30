@@ -1,0 +1,20 @@
+{
+  "title": "Cluster-Synchronisierung",
+  "body": "Flux wendet den deploy-Branch Stufe für Stufe an und setzt alles zurück, was abweicht.",
+  "ready": "Synchron",
+  "notReady": "Nicht bereit",
+  "unknown": "Noch kein Status",
+  "paused": "Pausiert",
+  "sync": "Jetzt synchronisieren",
+  "pause": "Pausieren",
+  "resume": "Fortsetzen",
+  "pins": "Temporäre Festlegungen",
+  "pinsBody": "Lässt einen Dienst ohne Release mit einem anderen Image laufen. Entferne die Festlegung, um zum deploy-Branch zurückzukehren.",
+  "noPins": "Keine temporären Festlegungen.",
+  "service": "Dienst",
+  "pickService": "Dienst auswählen",
+  "tag": "Image-Tag",
+  "pin": "Festlegen",
+  "clear": "Entfernen",
+  "error": "Flux-Status nicht verfügbar: {error}"
+}

@@ -27,7 +27,7 @@ import (
 )
 
 type flags struct {
-	kind, version, rollbackTo, prs, services, changelog, state, actor, stage string
+	kind, version, rollbackTo, targetSHA, prs, services, changelog, state, actor, stage string
 }
 
 func main() {
@@ -35,6 +35,7 @@ func main() {
 	flag.StringVar(&f.kind, "kind", "", "release, hotfix, bump, rollback or reapply")
 	flag.StringVar(&f.version, "version", "", "vX.Y.Z-beta for release and hotfix")
 	flag.StringVar(&f.rollbackTo, "rollback-to", "", "release to roll back to")
+	flag.StringVar(&f.targetSHA, "target-sha", "", "main commit to ship; empty ships main's head")
 	flag.StringVar(&f.prs, "prs", "", "comma-separated PR numbers to merge first")
 	flag.StringVar(&f.services, "services", "", "comma-separated services for a bump")
 	flag.StringVar(&f.changelog, "changelog", "", "path to a changelog entry JSON")
@@ -81,7 +82,7 @@ func seedRun(ctx context.Context, hub ports.GitHub, f flags) (deploy.Run, error)
 	}
 	req := deploy.StartRequest{
 		Kind: deploy.RunKind(f.kind), Version: deploy.Version(f.version),
-		RollbackTo: deploy.Version(f.rollbackTo), Services: list(f.services),
+		RollbackTo: deploy.Version(f.rollbackTo), TargetSHA: deploy.SHA(f.targetSHA), Services: list(f.services),
 	}
 	prs, err := numbers(f.prs)
 	if err != nil {

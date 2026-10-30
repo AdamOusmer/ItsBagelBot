@@ -9,24 +9,15 @@ import type { Locale } from '@bagel/kit/i18n';
 import { requireRole, type AdminIdentity } from './access';
 import { audit } from './audit';
 import { actionError, badRequest, type ParseResult } from './admin-action';
-import {
-  deployApprove,
-  deployCancel,
-  deployGet,
-  deployList,
-  deployPlan,
-  deployResume,
-  deployStart,
-  watchDeployRun,
-  type DeployListener,
-  type DeployRunId,
-  type DeployRuns
-} from './services';
+import { GitHubError } from './github';
+import { FluxError, PINNABLE, clearImage, fluxTiers, pinImage, reconcile, setSuspended } from './flux';
+import { releaseApi, type DeployListener, type DeployRunId, type DeployRuns } from './release';
 import {
   RUN_KINDS,
   STAGE_IDS,
   type ChangelogEntry,
   type DeployPlan,
+  type FluxResult,
   type DeployRun,
   type DeployRunSummary,
   type ListRequest,
@@ -43,30 +34,19 @@ export interface DeployApi {
   plan(req: PlanRequest): Promise<DeployPlan | null>;
   list(req: ListRequest): Promise<DeployRuns>;
   get(req: RunRequest): Promise<DeployRun>;
-  start(req: StartRequest): Promise<DeployRun>;
+  start(req: StartRequest & { actor_login?: string }): Promise<DeployRun>;
   resume(req: RunRequest): Promise<DeployRun>;
   cancel(req: RunRequest): Promise<DeployRun>;
   approve(req: RunRequest): Promise<DeployRun>;
   watch(runId: DeployRunId, listener: DeployListener): () => void;
 }
 
-const LIVE: DeployApi = {
-  plan: deployPlan,
-  list: deployList,
-  get: deployGet,
-  start: deployStart,
-  resume: deployResume,
-  cancel: deployCancel,
-  approve: deployApprove,
-  watch: watchDeployRun
-};
-
 export async function deployApi(): Promise<DeployApi> {
   if (DEMO) {
     const { demoDeployApi } = await import('./demo-data');
     return demoDeployApi();
   }
-  return LIVE;
+  return releaseApi;
 }
 
 const STATUS_FOR: Record<RpcCode, number> = {
@@ -79,6 +59,7 @@ const STATUS_FOR: Record<RpcCode, number> = {
 };
 
 export function deployStatus(e: unknown): number {
+  if (e instanceof GitHubError || e instanceof FluxError) return e.status === 422 ? 400 : e.status;
   if (e instanceof RpcError && e.code) return STATUS_FOR[e.code];
   return 503;
 }
@@ -101,10 +82,23 @@ export type PlanResult = { plan: DeployPlan | null; planError: string | null };
 // awaiting it here held the whole page (and the sidebar click) for seconds.
 export type DeploysPageData = {
   planned: Promise<PlanResult>;
+  flux: Promise<FluxResult>;
   runs: DeployRunSummary[];
   active: DeployRun | null;
   runsError: string | null;
 };
+
+async function fluxResult(): Promise<FluxResult> {
+  if (DEMO) {
+    const { demoFluxTiers } = await import('./demo-data');
+    return { tiers: demoFluxTiers(), pinnable: PINNABLE, fluxError: null };
+  }
+  try {
+    return { tiers: await fluxTiers(), pinnable: PINNABLE, fluxError: null };
+  } catch (e) {
+    return { tiers: [], pinnable: PINNABLE, fluxError: message(e) };
+  }
+}
 
 type RunsAndActive = { list: DeployRuns; active: DeployRun | null };
 
@@ -136,6 +130,7 @@ export async function loadDeploys(actor: Actor): Promise<DeploysPageData> {
   const listed = runs.status === 'fulfilled' ? runs.value : NO_RUNS;
   return {
     planned,
+    flux: fluxResult(),
     runs: listed.list.runs,
     active: listed.active,
     runsError: firstRejection([runs])
@@ -151,7 +146,18 @@ export async function loadDeployRun(actor: Actor, runId: DeployRunId): Promise<{
   }
 }
 
-type FormField = 'kind' | 'version' | 'target_sha' | 'changelog' | 'rollback_to' | 'run_id' | 'stage' | 'rerun';
+type FormField =
+  | 'kind'
+  | 'version'
+  | 'target_sha'
+  | 'changelog'
+  | 'rollback_to'
+  | 'run_id'
+  | 'stage'
+  | 'rerun'
+  | 'tier'
+  | 'service'
+  | 'tag';
 
 function field(f: FormData, name: FormField): string {
   return String(f.get(name) ?? '').trim();
@@ -301,7 +307,7 @@ async function planAction(event: ActionEvent) {
 async function startAction(event: ActionEvent) {
   const g = await gate(event, startFields);
   if (!('admin' in g)) return g;
-  const req: StartRequest = { actor_id: g.admin.id, ...g.value };
+  const req = { actor_id: g.admin.id, actor_login: g.admin.login, ...g.value };
   let run: DeployRun;
   try {
     run = await recorded(startRecord(g.admin, req), async () => (await deployApi()).start(req));
@@ -338,10 +344,47 @@ export const runActions = {
   approve: runAction('approve')
 };
 
+type FluxFields = { tier: string; service: string; tag: string };
+
+function fluxFields(f: FormData): ParseResult<FluxFields> {
+  return { value: { tier: field(f, 'tier'), service: field(f, 'service'), tag: field(f, 'tag') } };
+}
+
+type FluxVerb = { action: string; target: (v: FluxFields) => string; call: (v: FluxFields) => Promise<unknown> };
+
+const FLUX_VERBS = {
+  fluxSync: { action: 'flux_sync', target: (v) => v.tier, call: (v) => reconcile(v.tier) },
+  fluxPause: { action: 'flux_pause', target: (v) => v.tier, call: (v) => setSuspended(v.tier, true) },
+  fluxResume: { action: 'flux_resume', target: (v) => v.tier, call: (v) => setSuspended(v.tier, false) },
+  fluxPin: { action: 'flux_pin', target: (v) => `${v.service}:${v.tag}`, call: (v) => pinImage(v.service, v.tag) },
+  fluxUnpin: { action: 'flux_unpin', target: (v) => v.service, call: (v) => clearImage(v.service) }
+} satisfies Record<string, FluxVerb>;
+
+function fluxAction(verb: FluxVerb) {
+  return async (event: ActionEvent) => {
+    const g = await gate(event, fluxFields);
+    if (!('admin' in g)) return g;
+    const target = verb.target(g.value);
+    try {
+      if (!DEMO) await verb.call(g.value);
+      audit(g.admin, { action: verb.action, target, ok: true });
+    } catch (e) {
+      audit(g.admin, { action: verb.action, target, ok: false, error: message(e) });
+      return deployFailure(e);
+    }
+    return { flux: await fluxResult() };
+  };
+}
+
+const fluxActions = Object.fromEntries(
+  Object.entries(FLUX_VERBS).map(([name, verb]) => [name, fluxAction(verb)])
+) as Record<keyof typeof FLUX_VERBS, ReturnType<typeof fluxAction>>;
+
 export const deployActions = {
   plan: planAction,
   start: startAction,
-  ...runActions
+  ...runActions,
+  ...fluxActions
 };
 
 const enc = new TextEncoder();

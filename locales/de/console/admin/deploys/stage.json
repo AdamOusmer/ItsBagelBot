@@ -7,7 +7,5 @@
   "build": "Images bauen",
   "digests": "Digests prüfen",
   "pin_pr": "PR zur Image-Festlegung",
-  "acl": "NATS ACL",
-  "rollout": "Rollout",
-  "verify": "Prüfen"
+  "promote": "Freigeben"
 }
