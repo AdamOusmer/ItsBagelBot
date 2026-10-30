@@ -27,6 +27,8 @@ export default defineConfig({
     })
   ],
   ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['newrelic', 'iovalkey', 'pino'] },
+  // @bagel/ui installs its own copy; without this the footer ships a second bolota engine.
+  resolve: { dedupe: ['@luzir/bolota'] },
   // Widening fs.allow to '..' or '../..' serves sibling apps or the whole repo over /@fs in dev.
   server: { port: 5173, fs: { allow: ['../kit', '../../ui', '../../locales'] } },
   // Named exports give every lazily imported locale file a namespace object: +40% gzip on the fr catalog.
