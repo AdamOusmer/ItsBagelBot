@@ -2766,6 +2766,8 @@ export type KnownMessageKey =
   | 'modules.catalog.quotes.label'
   | 'modules.catalog.quotes.tagline'
   | 'modules.catalog.raffle.commands.cancelraffle'
+  | 'modules.catalog.raffle.commands.claim'
+  | 'modules.catalog.raffle.commands.join'
   | 'modules.catalog.raffle.commands.mraffle_amount_seconds'
   | 'modules.catalog.raffle.commands.raffle_amount_seconds'
   | 'modules.catalog.raffle.commands.raffle_cancel'

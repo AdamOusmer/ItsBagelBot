@@ -12,8 +12,7 @@ import {
 } from './site-links';
 
 export interface SiteFooterProps {
-  brand: { title: string; sub: string; logoSrc: string; logoAlt: string };
-  signoff: { line: string; sub: string };
+  brand: { title: string; logoSrc: string; logoAlt: string };
   columns: SiteColumn[];
   legal: SiteLink[];
   copyright: string;
@@ -25,8 +24,7 @@ export const SITE_COPYRIGHT = '© 2026 ItsBagelBot';
 
 export function siteFooterProps(ctx: SiteLinkContext, logoSrc: string): SiteFooterProps {
   return {
-    brand: { title: 'ItsBagelBot', sub: ctx.label('tagline'), logoSrc, logoAlt: ctx.label('logoAlt') },
-    signoff: { line: ctx.label('signoff'), sub: ctx.label('signoffSub') },
+    brand: { title: 'ItsBagelBot', logoSrc, logoAlt: ctx.label('logoAlt') },
     columns: resolveSiteColumns(SITE_FOOTER, ctx),
     legal: resolveSiteLinks(SITE_LEGAL, ctx),
     copyright: SITE_COPYRIGHT,

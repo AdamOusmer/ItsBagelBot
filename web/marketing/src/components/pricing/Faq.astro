@@ -21,12 +21,14 @@ interface Props {
     eyebrow?: string;
     title?: string;
     items?: FaqItem[];
+    lanes?: boolean;
 }
 
 const {
     eyebrow = t('faq.eyebrow'),
     title = t('faq.title'),
     items,
+    lanes = false,
 } = Astro.props;
 
 const faqs: FaqItem[] = items ?? [
@@ -50,15 +52,29 @@ const faqLd = {
 
 <Section size="page">
   <Container>
-    <SectionHeading eyebrow={eyebrow} title={title} />
+    <SectionHeading eyebrow={eyebrow} title={title} align={lanes ? 'left' : 'center'} />
 
-    <div class="faq__list">
-        {faqs.map((faq, i) => (
-            <Disclosure summary={faq.question} index={String(i + 1).padStart(2, '0')} data-reveal style={`--reveal-i: ${i}`}>
-                <Text size="sm" tone="muted" class="faq__answer"><span data-fit="block">{faq.answer}</span></Text>
-            </Disclosure>
-        ))}
-    </div>
+    {lanes ? (
+        <dl class="faq__lanes">
+            {faqs.map((faq, i) => (
+                <div class="faq__lane" data-reveal style={`--reveal-i: ${i}`}>
+                    <dt class="faq__question">
+                        <span class="faq__index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                        <span class="faq__question-text"><span data-fit="block">{faq.question}</span></span>
+                    </dt>
+                    <dd class="faq__lane-answer"><span data-fit="block">{faq.answer}</span></dd>
+                </div>
+            ))}
+        </dl>
+    ) : (
+        <div class="faq__list">
+            {faqs.map((faq, i) => (
+                <Disclosure summary={faq.question} index={String(i + 1).padStart(2, '0')} data-reveal style={`--reveal-i: ${i}`}>
+                    <Text size="sm" tone="muted" class="faq__answer"><span data-fit="block">{faq.answer}</span></Text>
+                </Disclosure>
+            ))}
+        </div>
+    )}
 
     <script type="application/ld+json" set:html={JSON.stringify(faqLd)} is:inline />
   </Container>
@@ -72,8 +88,67 @@ const faqLd = {
 
     .faq__answer { height: calc(3 * 1lh); }
 
+    .faq__lanes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--bb-space-8);
+        max-width: 1080px;
+        margin: 0 auto;
+        padding-top: var(--bb-space-7);
+        border-top: 1px solid var(--bb-border);
+    }
+
+    .faq__lane {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-3);
+        min-width: 0;
+    }
+
+    .faq__question {
+        display: flex;
+        align-items: baseline;
+        gap: var(--bb-space-2);
+        font-size: var(--bb-text-sm);
+        line-height: 1.45;
+        color: var(--bb-muted);
+    }
+
+    .faq__index {
+        flex: none;
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-xs);
+        color: var(--bb-tan-light);
+    }
+
+    .faq__question-text {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 1lh;
+    }
+
+    .faq__lane-answer {
+        margin: 0;
+        max-width: 40ch;
+        height: calc(5 * 1lh);
+        font-size: clamp(1.05rem, 1.5vw, 1.2rem);
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+        color: var(--bb-paper);
+        text-wrap: pretty;
+    }
+
+    @media (max-width: 900px) {
+        .faq__lanes {
+            grid-template-columns: minmax(0, 1fr);
+            gap: var(--bb-space-7);
+        }
+    }
+
     @media (max-width: 640px) {
         .faq__answer { height: calc(7 * 1lh); }
         .faq__list { --disclosure-label-lines: 2; }
+        .faq__question-text { height: calc(2 * 1lh); }
+        .faq__lane-answer { height: calc(8 * 1lh); }
     }
 </style>

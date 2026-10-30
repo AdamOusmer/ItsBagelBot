@@ -7,6 +7,7 @@ import { uiI18n } from './i18n';
 import '../styles/elements/tabs.css';
 import '../styles/elements/radio-group.css';
 import Icon from './Icon.astro';
+import Glide from './Glide.astro';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'terse' | 'class'> {
     name: string;
@@ -42,12 +43,14 @@ const style = [min && `--choices-min: ${min};`, cols && `--choices-cols: ${cols}
 ---
 
 {variant === 'tabs' ? (
-<div class={tabsClass} role="radiogroup" aria-label={label} {...rest}>{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} /> {opt.label}</label>))}</div>
+<div class={tabsClass} role="radiogroup" aria-label={label} {...rest}><Glide />{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} /> {opt.label}</label>))}</div>
 ) : (
 <div class={choicesClass} role="radiogroup" aria-label={label} style={style} {...rest}>{options.map((opt) => (<label class="bb-choice"><input class="bb-choice__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} />{variant === 'cards' && (<span class="bb-choice__top"><span class="bb-choice__tick" aria-hidden="true"><Icon name="check" size={14} /></span></span>)}<span class="bb-choice__label">{opt.label}</span>{opt.description && <span class="bb-choice__desc">{opt.description}</span>}{opt.meta && <span class="bb-choice__meta">{opt.meta}</span>}</label>))}</div>
 )}
 
 <script>
+    import { mountTabGlides } from '../lib/glide';
+
     function syncTabs(event: Event) {
         const input = event.target;
         if (!(input instanceof HTMLInputElement) || !input.matches('.bb-tab__input')) return;
@@ -58,4 +61,6 @@ const style = [min && `--choices-min: ${min};`, cols && `--choices-cols: ${cols}
     }
 
     document.addEventListener('change', syncTabs);
+    mountTabGlides();
+    document.addEventListener('astro:page-load', () => mountTabGlides());
 </script>

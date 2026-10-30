@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/disclosure.css';
   import type { Snippet } from 'svelte';
+  import { wireDisclosure } from '../lib/disclosure';
 
   type Own = {
     summary: string;
@@ -38,6 +39,12 @@
       .join(' '),
   );
 
+  let details = $state<HTMLDetailsElement>();
+
+  $effect(() => {
+    if (details) return wireDisclosure(details);
+  });
+
   const toggled: NonNullable<SvelteHTMLElements['details']['ontoggle']> = (event) => {
     ontoggle?.(event);
     const next = event.currentTarget.open;
@@ -47,7 +54,7 @@
   };
 </script>
 
-<details class={classes} {open} ontoggle={toggled} {...rest}><summary class="bb-disclosure__summary"
+<details class={classes} bind:this={details} {open} ontoggle={toggled} {...rest}><summary class="bb-disclosure__summary"
     >{#if index}<span class="bb-disclosure__index" aria-hidden="true">{index}</span>{/if}<span
       class="bb-disclosure__label"><span data-fit="block">{summary}</span></span
     ><span class="bb-disclosure__icon" aria-hidden="true"></span></summary

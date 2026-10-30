@@ -1,7 +1,10 @@
 {
   "eyebrow": "Pricing",
-  "title": "Every finished feature is on the free plan.",
-  "desc": "Premium moves your channel to the front of the queue when chat is busy, opens beta modules first, and pays for the servers.",
   "metaTitle": "Free Twitch Bot Pricing and Premium | ItsBagelBot",
-  "metaDesc": "Compare Free, Premium and Enterprise. Finished features are free; Premium adds priority handling and access to beta modules."
+  "metaDesc": "Compare Free, Premium and Enterprise. Finished features are free; Premium adds priority handling and access to beta modules.",
+  "donateLabel": "Donations",
+  "donateTitle": "Donations keep the free plan free.",
+  "donateText": "Every channel, free or Premium, runs on the same servers. Premium and donations are what pay for them, so a Ko-fi donation keeps the bot online for everyone.",
+  "donateCta": "Donate on Ko-fi",
+  "donateNote": "Any amount. No perks attached."
 }

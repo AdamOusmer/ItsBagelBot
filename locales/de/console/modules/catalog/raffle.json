@@ -62,6 +62,8 @@
     }
   },
   "commands": {
+    "join": "Nimmt an der laufenden Verlosung teil (auch !raffle join).",
+    "claim": "Bestätigt einen eigenen Preis nach einem Gewinn bei der Ziehung.",
     "winner": "Ruft die Gewinner der letzten Ziehung und die Anzahl der Bestätigungen ab.",
     "raffle_status": "Zeigt, ob eine Verlosung läuft, die Teilnahmen und die Restzeit (Zuschauer, die !raffle eingeben, erhalten dasselbe).",
     "raffle_amount_seconds": "Startet eine Verlosung mit einem Gewinner, der den gesamten Betrag erhält (auch !sraffle, !singleraffle). Beträge erlauben k und m; Standard: 1000 Punkte, 60 Sekunden.",

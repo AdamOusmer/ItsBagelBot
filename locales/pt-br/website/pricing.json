@@ -1,7 +1,10 @@
 {
   "eyebrow": "Preços",
-  "title": "Cada recurso pronto está no plano grátis.",
-  "desc": "O Premium coloca seu canal na frente da fila quando o chat está cheio, libera os módulos beta primeiro e paga os servidores.",
   "metaTitle": "Bot grátis para Twitch e preços Premium | ItsBagelBot",
-  "metaDesc": "Compare Free, Premium e Enterprise. Recursos prontos são grátis; Premium oferece processamento prioritário e acesso a módulos beta."
+  "metaDesc": "Compare Free, Premium e Enterprise. Recursos prontos são grátis; Premium oferece processamento prioritário e acesso a módulos beta.",
+  "donateLabel": "Doações",
+  "donateTitle": "As doações mantêm o plano Gratuito grátis.",
+  "donateText": "Cada canal, grátis ou Premium, roda nos mesmos servidores. O Premium e as doações pagam por eles, então uma doação no Ko-fi mantém o bot online para todos.",
+  "donateCta": "Doar no Ko-fi",
+  "donateNote": "Qualquer valor. Sem benefícios em troca."
 }

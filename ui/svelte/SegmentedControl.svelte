@@ -5,6 +5,8 @@
   import { getUiI18n } from './i18n';
   import '../styles/elements/tabs.css';
   import { rovingTarget } from '../lib/roving-focus';
+  import { mountGlide } from '../lib/glide';
+  import Glide from './Glide.svelte';
 
   const i18n = getUiI18n();
   type Own = {
@@ -31,6 +33,12 @@
   const tabStop = $derived(items.some((opt) => opt.value === value) ? value : items[0]?.value);
   const classes = $derived(['bb-tabs bb-tabs--wrap', className || null].filter(Boolean).join(' '));
 
+  let tabsEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!tabsEl) return;
+    return mountGlide(tabsEl, { observe: tabsEl, selector: ':scope > .bb-tab.is-active', watch: true });
+  });
+
   function pick(next: string) {
     value = next;
     onValueChange?.(next);
@@ -47,7 +55,8 @@
   }
 </script>
 
-<div class={classes} role="radiogroup" aria-label={label} {...rest} {onkeydown}>
+<div bind:this={tabsEl} class={classes} role="radiogroup" aria-label={label} {...rest} {onkeydown}>
+  <Glide />
   {#each items as opt (opt.value)}
     <button
       type="button"

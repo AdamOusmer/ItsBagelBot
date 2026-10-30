@@ -1353,28 +1353,28 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\"><span data-fit>All</span></button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\"><span data-fit>Live</span></button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><span class=\"bb-glide\" aria-hidden=\"true\"></span><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\"><span data-fit>All</span></button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\"><span data-fit>Live</span></button></div>",
   },
   {
     name: "RadioGroup",
     svelte: SvelteRadioGroup,
     astro: AstroRadioGroup,
     props: {"name":"tier","options":[{"value":"a","label":"A"}],"value":"a"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Options\"><label class=\"bb-tab is-active\"><input class=\"bb-tab__input\" type=\"radio\" name=\"tier\" value=\"a\" checked> A</label></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Options\"><span class=\"bb-glide\" aria-hidden=\"true\"></span><label class=\"bb-tab is-active\"><input class=\"bb-tab__input\" type=\"radio\" name=\"tier\" value=\"a\" checked> A</label></div>",
   },
   {
     name: "SectionNav",
     svelte: SvelteSectionNav,
     astro: AstroSectionNav,
     props: {"label":"Sections","items":[{"href":"#a","label":"A","count":2}]},
-    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--auto\" aria-label=\"Sections\" data-lenis-prevent><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-tab__count\">2</span></a></nav></div>",
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--auto\" aria-label=\"Sections\" data-lenis-prevent><span class=\"bb-glide\" aria-hidden=\"true\"></span><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-tab__count\">2</span></a></nav></div>",
   },
   {
     name: "SectionNav|vertical",
     svelte: SvelteSectionNav,
     astro: AstroSectionNav,
     props: {"label":"Sections","items":[{"href":"#a","label":"A"}],"orientation":"vertical"},
-    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--vertical\" aria-label=\"Sections\" data-lenis-prevent><a class=\"bb-tab\" href=\"#a\">A</a></nav></div>",
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--vertical\" aria-label=\"Sections\" data-lenis-prevent><span class=\"bb-glide\" aria-hidden=\"true\"></span><a class=\"bb-tab\" href=\"#a\">A</a></nav></div>",
   },
   {
     name: "Scroller",
@@ -1470,4 +1470,12 @@ test('chat preview: both adapters emit the contract markup', async () => {
   expect(svelte).toContain('<div class="bb-chat" role="img" aria-label="Chat">');
   expect(svelte).toContain('<span class="bb-chat__title">#your_channel</span><b class="bb-chat__kind">chat</b>');
   expect(astro).toBe(svelte);
+});
+
+test('chat preview: astro adapter passes extra attributes to the root', async () => {
+  const props = { title: 'Rehearsal', class: 'bb-chat--fixed', 'data-chat': '', 'aria-live': 'polite' as const };
+  const container = await experimental_AstroContainer.create();
+  const astro = normalise(await container.renderToString(AstroChatPreview, { props }));
+
+  expect(astro).toContain('<div class="bb-chat bb-chat--fixed" role="group" data-chat aria-live="polite">');
 });
