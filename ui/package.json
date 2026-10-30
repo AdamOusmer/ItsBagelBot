@@ -50,7 +50,7 @@
     "showcase": "bun --bun astro dev --root showcase"
   },
   "dependencies": {
-    "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0-f1f2b90.tgz",
+    "@luzir/bolota": "0.2.1",
     "lenis": "^1.3.23"
   },
   "peerDependencies": {
