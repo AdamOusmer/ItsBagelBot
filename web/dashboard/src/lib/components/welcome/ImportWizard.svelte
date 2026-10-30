@@ -519,14 +519,16 @@
       <div class="review-bar">
         {#each session.statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
         <span class="review-spacer"></span>
-        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(true)}>{t('import.selectAll')}</Button>
-        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(false)}>{t('import.selectNone')}</Button>
+        <span class="review-select">
+          <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(true)}>{t('import.selectAll')}</Button>
+          <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(false)}>{t('import.selectNone')}</Button>
+        </span>
       </div>
     </Card>
     {:else}
       <div class="category-head">
         <Eyebrow>{step === 'commands' ? t('onboardingImport.commandsEyebrow') : t('onboardingImport.extrasEyebrow')}</Eyebrow>
-        <div class="category-title"><Heading level={2}>{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</Heading></div>
+        <div class="category-title"><Heading level={compact.current ? 4 : 2} as="h2">{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</Heading></div>
         <Text tone="muted">{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</Text>
       </div>
       {#if step === 'extras'}
@@ -647,7 +649,7 @@
           {locale}
         />
         {#if commitError}<ImportAlert message={commitError} />{/if}
-        <ImportApplied tiles={session.appliedTiles} staggered style={APPLIED_STAGGER} />
+        <ImportApplied tiles={session.appliedTiles} inline={compact.current} staggered style={APPLIED_STAGGER} />
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
           <AlertBanner tone={d.severity === 'error' ? 'danger' : 'warning'} role="status">{d.message}</AlertBanner>
         {/each}
@@ -768,6 +770,11 @@
   .review-spacer {
     flex: 1;
   }
+  .review-select {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
 
   .group-note {
     padding: 16px 22px;
@@ -782,6 +789,17 @@
   @media (max-width: 760px), (max-height: 760px) {
     .scene { gap: 12px; }
     .actions { margin-top: 12px; }
+    .hint { margin-bottom: 8px; }
+    .done-seal { margin-bottom: 6px; }
+    .category-head { padding: 16px 18px; }
+    .category-title { margin-bottom: 6px; }
+    .category-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      padding: 10px 0;
+      background: var(--bb-bg-0);
+    }
   }
 
   @keyframes seal-in {

@@ -588,6 +588,11 @@
   }
   .role-glyph.on { color: var(--bb-green-glow); }
 
+  @media (max-height: 620px) {
+    .role-previews { margin-top: 6px; }
+    .role-glyph { width: 26px; height: 26px; }
+  }
+
   .veil {
     position: fixed;
     inset: 0;

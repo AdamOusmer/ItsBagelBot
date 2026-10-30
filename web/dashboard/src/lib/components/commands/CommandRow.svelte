@@ -73,6 +73,7 @@
 <div class="row-wrap" class:flash-save={status === 'saved'} data-row-name={c.name}>
   <ManagementRow
     accent
+    stackActions
     selected={expanded}
     {expanded}
     disabled={!c.is_active}
@@ -241,21 +242,21 @@
 
   @container (max-width: 560px) {
     .prow {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr);
       grid-template-areas:
-        'cmd'
-        'resp'
-        'perm'
-        'uses';
+        'cmd cmd'
+        'resp resp'
+        'perm uses';
       row-gap: 6px;
+      column-gap: 14px;
+      align-items: center;
     }
     .prow.selecting {
-      grid-template-columns: 22px minmax(0, 1fr);
+      grid-template-columns: 22px auto minmax(0, 1fr);
       grid-template-areas:
-        'idx cmd'
-        '. resp'
-        '. perm'
-        '. uses';
+        'idx cmd cmd'
+        '. resp resp'
+        '. perm uses';
     }
     .idx { grid-area: idx; }
     .cmd { grid-area: cmd; flex-wrap: wrap; }

@@ -824,10 +824,13 @@
     <AlertBanner>{t('commands.degraded')}</AlertBanner>
   {/if}
 
-  <PageToolbar>
+  <div class="tb-wrap">
+  <PageToolbar class="cmd-toolbar">
     {#snippet leading()}
       <div class="tb-lead">
-        <SegmentedControl options={stateOptions} bind:value={stateValue.get, stateValue.set} label={t('commands.filterLabel')} />
+        <div class="tb-tabs">
+          <SegmentedControl options={stateOptions} bind:value={stateValue.get, stateValue.set} label={t('commands.filterLabel')} />
+        </div>
         <div class="tb-select">
           <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} />
         </div>
@@ -850,6 +853,7 @@
       </Button>
     {/snippet}
   </PageToolbar>
+  </div>
 
   <DeckLayout inspecting={!!editorDraft}>
     <div class="main-col">
@@ -1054,6 +1058,7 @@
   .main-col { min-width: 0; }
 
   .tb-lead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .tb-tabs { display: contents; }
   .tb-select { width: 168px; }
   .public-page { margin-top: 10px; }
 
@@ -1092,10 +1097,18 @@
     .keys { display: inline-flex; }
   }
 
+  .tb-wrap { container-type: inline-size; }
+  .tb-wrap :global(.cmd-toolbar) { flex-wrap: wrap; }
+
   @media (max-width: 760px) {
     .deck-stats { gap: 16px; }
     .deck-stats .big { font-size: 20px; }
+  }
+
+  @container (max-width: 760px) {
+    .tb-lead { flex: 1 1 100%; min-width: 0; }
+    .tb-tabs { display: block; flex: 1 1 100%; min-width: 0; }
+    .tb-select { flex: 1 1 0; width: auto; min-width: 0; }
     .toolbar-search { width: 100%; order: 3; }
-    .tb-select { flex: 1; min-width: 140px; }
   }
 </style>

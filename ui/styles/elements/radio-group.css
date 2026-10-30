@@ -161,6 +161,10 @@
     .bb-choices--terse .bb-choice { min-height: 0; }
     .bb-choices--terse :is(.bb-choice__desc, .bb-choice__meta) { display: none; }
 
+    @media (max-height: 620px) {
+        .bb-choices--terse.bb-choices--cards .bb-choice { gap: 6px; padding: 12px; }
+    }
+
     .bb-choices--cards .bb-choice__meta {
         margin-top: auto;
         font-family: var(--bb-font-mono);
