@@ -59,5 +59,5 @@
   feedback={{ href: SITE.newIssue, label: t('topbar.feedback'), external: true }}
   menuLabel={name}
 >
-  {#snippet avatar(a)}<Bolota name={a.name} size={a.size} active={a.active} gate={a.item} />{/snippet}
+  {#snippet avatar(a)}<Bolota name={a.name} size={a.size} active={a.active} gate={a.item} plate={false} />{/snippet}
 </ProfileMenu>

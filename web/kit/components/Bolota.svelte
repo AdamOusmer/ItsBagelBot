@@ -20,6 +20,7 @@
     sequenceHold = 0,
     sequenceFor = 0,
     gate = false,
+    plate = true,
     title = '',
     class: klass = ''
   }: {
@@ -36,6 +37,7 @@
     sequenceHold?: number;
     sequenceFor?: number;
     gate?: boolean;
+    plate?: boolean;
     title?: string;
     class?: string;
   } = $props();
@@ -46,7 +48,7 @@
   const label = $derived(title || name);
   const BACKDROP_MAX = 48;
   const BODY_FILL = 0.66;
-  const backdrop = $derived(size <= BACKDROP_MAX ? ('circle' as const) : false);
+  const backdrop = $derived(plate && size <= BACKDROP_MAX ? ('circle' as const) : false);
   const pose = $derived(parts(name, { size, palette, background: backdrop, title: label }));
 
   function viewBoxOf(inner: string): string {
