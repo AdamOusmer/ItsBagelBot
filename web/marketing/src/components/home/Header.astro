@@ -119,9 +119,8 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
                         data-size={seat.size}
                         data-head={PALETTES[seat.palette].head}
                         data-eye={PALETTES[seat.palette].eye}
-                    >
-                        <g data-pose set:html={inner} />
-                    </svg>
+                        set:html={inner}
+                    />
                 </div>
             </div>
         ))}
@@ -130,6 +129,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 </header>
 
 <script>
+    import '@luzir/bolota/motion.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import { animate, stagger, cubicBezier } from 'motion';
     import type { EngineHandle } from '@luzir/bolota/engine';
@@ -138,7 +138,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
 
     const TITLE_DELAY = 0.3;
     const TITLE_WORD_STAGGER = 0.11;
-    const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'shy', 'love'];
+    const EXPRESSIONS = ['happy', 'attentive', 'curious', 'proud', 'excited'];
     const EXPRESSION_MIN_MS = 2600;
     const EXPRESSION_SPREAD_MS = 3400;
 
@@ -209,7 +209,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
                 palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
                 background: false,
             });
-            svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
             handle.loop('idle');
             engines.push({ svg, handle, expression: null, timer: null });
         });
@@ -223,13 +222,11 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.timer = null;
-            live.handle.stop();
         });
     }
 
     function resumeCrowd(): void {
         engines.forEach((live) => {
-            live.handle.loop('idle');
             scheduleExpression(live, Math.random() * EXPRESSION_SPREAD_MS);
         });
     }
@@ -246,7 +243,6 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         engines.forEach((live) => {
             if (live.timer) clearTimeout(live.timer);
             live.handle.destroy();
-            live.svg.querySelector('[data-pose]')?.removeAttribute('display');
         });
         engines = [];
     }
@@ -491,6 +487,8 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         height: calc(var(--s) * var(--crowd-scale));
         transform: translateX(-50%);
         opacity: var(--row-opacity, 1);
+        /* Do not inherit the scroll variable: it restyles every animated bolota subtree per frame. */
+        --hero-p: 0;
     }
 
     .seat--back {
@@ -526,6 +524,7 @@ const titleWords = `${t('hero.title1')} ${t('hero.title2')}`.split(' ');
         width: 100%;
         height: 100%;
         overflow: visible;
+        scale: 0.9;
     }
 
     @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {

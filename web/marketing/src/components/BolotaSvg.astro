@@ -24,6 +24,9 @@ const { bolota, expression, class: className, style } = Astro.props;
     data-head={bolota.head}
     data-eye={bolota.eye}
     data-expression={expression}
->
-    <g data-pose set:html={bolota.inner} />
-</svg>
+    set:html={bolota.inner}
+/>
+
+<style>
+    svg { scale: 0.9; }
+</style>

@@ -11,7 +11,6 @@
     "./styles/*.css": "./styles/*.css",
     "./fonts/*.woff2": "./fonts/*.woff2",
     "./lib/clipboard": "./lib/clipboard.ts",
-    "./lib/color": "./lib/color.ts",
     "./lib/count-up": "./lib/count-up.ts",
     "./lib/csv": "./lib/csv.ts",
     "./lib/decode": "./lib/decode.ts",
@@ -51,7 +50,7 @@
     "showcase": "bun --bun astro dev --root showcase"
   },
   "dependencies": {
-    "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0.tgz",
+    "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0-f1f2b90.tgz",
     "lenis": "^1.3.23"
   },
   "peerDependencies": {

@@ -104,7 +104,7 @@
     "./site-footer": "./lib/site-footer.ts"
   },
   "dependencies": {
-    "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0.tgz",
+    "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0-f1f2b90.tgz",
     "@nats-io/jetstream": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",

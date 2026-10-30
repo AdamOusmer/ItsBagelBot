@@ -5,7 +5,7 @@
     "": {
       "name": "@bagel/ui",
       "dependencies": {
-        "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0.tgz",
+        "@luzir/bolota": "file:/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0-f1f2b90.tgz",
         "lenis": "^1.3.23",
       },
       "devDependencies": {
@@ -170,7 +170,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@luzir/bolota": ["@luzir/bolota@/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0.tgz", {}, "sha512-ZQ/po+i1Jw7udWAi09Bde4C/eLSPz/lATHqlUgwSHAUYbkDPtNyyMvqcmgsNutO5o36LB81itBLDXzzKtHOeLQ=="],
+    "@luzir/bolota": ["@luzir/bolota@/private/tmp/claude-501/-Users-itsmavey-GolandProjects-ItsBagelBot/c0abbca7-aca8-432e-b189-2305cfc3492d/scratchpad/pack/luzir-bolota-0.2.0-f1f2b90.tgz", {}, "sha512-6ZwtMUn2foa79XFVz9szEi91dSy0fnL9i7uH06UDe4ZOpyyigGRljPIezOSdXJ2+ZUagc6oO6EtAfOUqKfwQuA=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.5", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-HshSvXzmBxNzqejd3k/KemgQ3hdREUYFRRrgxOZ+gPljDIsO2SDZrVZMd4Z/HsxudQbE62OVyVFE8z9BCurfjA=="],
 

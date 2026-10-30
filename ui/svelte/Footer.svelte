@@ -40,7 +40,6 @@
             ><p class="bb-footer__col-title"><span data-fit data-fit-group="bb-footer-titles">{column.title}</span></p>{#each column.links as link (link.href)}<NavLink
                 href={link.href}
                 label={link.label}
-                current={link.current}
                 external={link.external}
                 fit
                 fitGroup="bb-footer-links-{i}"
@@ -62,7 +61,6 @@
       >{#each legal as link (link.href)}<NavLink
           href={link.href}
           label={link.label}
-          current={link.current}
           external={link.external}
           fit
           fitGroup="bb-footer-legal"

@@ -81,7 +81,12 @@
   let visible = $state(true);
 
   let enginePromise: Promise<typeof import('@luzir/bolota/engine')> | null = null;
-  const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
+  const loadEngine = () =>
+    (enginePromise ??= Promise.all([
+      import('@luzir/bolota/motion.css'),
+      import('@luzir/bolota/gaze.css'),
+      import('@luzir/bolota/engine')
+    ]).then(([, , engine]) => engine));
   let sequencePromise: Promise<typeof import('@luzir/bolota/sequences')> | null = null;
   const loadSequences = () => (sequencePromise ??= import('@luzir/bolota/sequences'));
 
@@ -203,7 +208,7 @@
   role="img"
   aria-label={label}
 >
-  <g style:display={ready ? 'none' : null}>{@html pose.inner}</g>
+  {@html pose.inner}
 </svg>
 
 <style>

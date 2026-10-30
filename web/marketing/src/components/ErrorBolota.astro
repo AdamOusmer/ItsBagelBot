@@ -25,15 +25,16 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
     data-size={SIZE}
     data-head={palette.head}
     data-eye={palette.eye}
->
-    <g data-pose set:html={inner} />
-</svg>
+    set:html={inner}
+/>
 
 <script>
+    import '@luzir/bolota/motion.css';
+    import '@luzir/bolota/gaze.css';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
     import type { EngineHandle } from '@luzir/bolota/engine';
 
-    const EXPRESSIONS = ['curious', 'surprised', 'shy', 'attentive'];
+    const EXPRESSIONS = ['curious', 'surprised', 'proud', 'attentive'];
     const EXPRESSION_MS = 3400;
 
     let handle: EngineHandle | null = null;
@@ -52,7 +53,6 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
             palette: { head: svg.dataset.head ?? '', eye: svg.dataset.eye ?? '' },
             background: false,
         });
-        svg.querySelector('[data-pose]')?.setAttribute('display', 'none');
         handle.loop('idle');
         handle.follow('window');
 
@@ -69,7 +69,6 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
         timer = null;
         handle?.destroy();
         handle = null;
-        document.querySelector('[data-error-bolota] [data-pose]')?.removeAttribute('display');
     }
 
     mount();
@@ -77,3 +76,7 @@ const { inner } = parts(NAME, { size: SIZE, palette, background: false });
     document.addEventListener('astro:before-swap', teardown);
     window.addEventListener('pagehide', teardown);
 </script>
+
+<style>
+    svg { scale: 0.9; }
+</style>
