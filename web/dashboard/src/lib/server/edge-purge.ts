@@ -140,3 +140,9 @@ export function scheduleLeaderboardPurge(userId: string, logins: readonly string
   if (DEMO) return;
   void knownLogins(userId, logins).then((known) => leaderboardQueue.add(known.map(leaderboardCacheTag)));
 }
+
+// Every pod runs this on a rename broadcast: page URLs are cheap, and the debounced queue bounds leaderboard tag purges to one batch per pod per 10 s.
+export function purgeRenamedChannel(userId: string, logins: readonly string[]): void {
+  schedulePurgeChannel(userId, logins);
+  scheduleLeaderboardPurge(userId, logins);
+}

@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   BUCKET_CAPACITY,
+  createCachedResolver,
   createViewerResolver,
   FOUND_TTL_MS,
   MAX_CACHED_LOGINS,
@@ -145,5 +146,32 @@ describe('viewer resolver token bucket', () => {
     });
     for (let i = 0; i < BUCKET_CAPACITY; i++) expect(await resolve(`vvv${i}`)).toEqual({ kind: 'error' });
     expect(await resolve('extra')).toEqual({ kind: 'busy' });
+  });
+});
+
+describe('cached resolver values', () => {
+  test('a found value is cached for the configured TTL and a null result is missing for 1 minute', async () => {
+    const clock = { now: 1_000_000 };
+    const calls: string[] = [];
+    const resolve = createCachedResolver<{ id: string }>({
+      lookup: async (login) => {
+        calls.push(login);
+        return login === 'ghost' ? null : { id: login };
+      },
+      foundTtlMs: 5000,
+      now: () => clock.now
+    });
+    expect(await resolve('sammy')).toEqual({ kind: 'found', value: { id: 'sammy' } });
+    expect(await resolve('ghost')).toEqual({ kind: 'missing' });
+    clock.now += 4999;
+    await resolve('sammy');
+    await resolve('ghost');
+    expect(calls).toEqual(['sammy', 'ghost']);
+    clock.now += 1;
+    await resolve('sammy');
+    expect(calls).toEqual(['sammy', 'ghost', 'sammy']);
+    clock.now += MISSING_TTL_MS;
+    await resolve('ghost');
+    expect(calls).toEqual(['sammy', 'ghost', 'sammy', 'ghost']);
   });
 });

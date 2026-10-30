@@ -42,6 +42,8 @@ let standingsReads = 0;
 let viewerCount: number | null = null;
 let resolution: Resolution = { kind: 'missing' };
 const resolverCalls: string[] = [];
+let storedLogin = true;
+let healReply: { kind: string; value?: { userId: string; username: string } } = { kind: 'missing' };
 const reconciled = new Map<string, string>();
 
 function activeBoard(): Row[] {
@@ -89,10 +91,12 @@ mock.module('#lib/server/viewer-lookup', () => ({
   }
 }));
 mock.module('#lib/server/services', () => ({
-  resolveLogin: async (login: string) => ({ userId: '42', username: login }),
+  resolveLogin: async (login: string) => (storedLogin ? { userId: '42', username: login } : null),
   userCommandsPage: (id: string) => commandsPageReply(id),
   userLeaderboardPage: (id: string) => leaderboardPageReply(id)
 }));
+
+mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => healReply }));
 
 const { load } = await import('./+page.server');
 
@@ -132,6 +136,8 @@ function arrange(setup: Setup): void {
   resolution = setup.resolution ?? { kind: 'missing' };
   standingsReads = 0;
   viewerCount = setup.viewers ?? null;
+  storedLogin = true;
+  healReply = { kind: 'missing' };
   commandsPageReply = setup.commandsPage ?? (async () => true);
   leaderboardPageReply = setup.leaderboardPage ?? (async () => true);
   loyaltyFails = setup.loyaltyFails ?? false;
@@ -546,5 +552,25 @@ describe('(public)/[user] load: search past the last page', () => {
         { limit: 15, offset: 0, viewerId: '1' }
       ]
     });
+  });
+});
+
+describe('(public)/[user] load: renamed channel self-heal', () => {
+  test('a login the users DB missed but the heal resolves renders the board', async () => {
+    arrange({});
+    storedLogin = false;
+    healReply = { kind: 'found', value: { userId: '42', username: 'somechannel' } };
+    const out = await loadPage();
+    expect({ status: out.status, top: out.page?.podium.length }).toEqual({ status: undefined, top: 1 });
+  });
+
+  test.each([
+    { kind: 'missing', edge: 'missing' },
+    { kind: 'busy', edge: undefined }
+  ])('a $kind heal 404s with edge outcome $edge', async ({ kind, edge }) => {
+    arrange({});
+    storedLogin = false;
+    healReply = { kind };
+    expect(await loadPage()).toEqual({ status: 404, message: 'Channel not found', edge });
   });
 });

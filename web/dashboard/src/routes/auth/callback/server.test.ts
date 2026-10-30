@@ -26,7 +26,10 @@ const nats = await import('@bagel/kit/server/nats');
 mock.module('@bagel/kit/server/nats', () => ({ ...nats, rpc: async () => ({ ok: true }) }));
 mock.module('#lib/server/edge-purge', () => ({
   schedulePurgeChannel: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'pages', userId, logins }),
-  scheduleLeaderboardPurge: (userId: string, logins: readonly string[] = []) => void purged.push({ kind: 'board', userId, logins })
+  purgeRenamedChannel: (userId: string, logins: readonly string[] = []) => {
+    purged.push({ kind: 'pages', userId, logins });
+    purged.push({ kind: 'board', userId, logins });
+  }
 }));
 mock.module('#lib/server/oauth', () => ({
   safeNextPath: () => null,
@@ -83,6 +86,16 @@ describe('auth callback channel purge', () => {
       { kind: 'pages', userId: '42', logins: ['streamer', 'oldname'] },
       { kind: 'board', userId: '42', logins: ['streamer', 'oldname'] }
     ]);
+  });
+
+  test('a rename drops the stale login lookup and account snapshot from L1', async () => {
+    existing = async () => ({ username: 'oldname' });
+    const { fabric } = services;
+    fabric.cache.set('login:oldname', 'stale', 60_000);
+    fabric.cache.set('state:42', 'stale', 60_000);
+    await signIn();
+    const reload = (key: string) => fabric.readKey(key, 60_000, async () => 'fresh');
+    expect([await reload('login:oldname'), await reload('state:42')]).toEqual(['fresh', 'fresh']);
   });
 
   test('an unreadable account state purges nothing and relies on the short 404 TTL', async () => {

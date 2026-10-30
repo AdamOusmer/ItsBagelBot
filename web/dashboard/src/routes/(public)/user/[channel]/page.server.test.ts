@@ -14,6 +14,7 @@ let resolveLoginReply: (login: string) => Promise<Resolved> = async () => null;
 let commandsPageReply: (id: string) => Promise<boolean> = async () => true;
 
 let listFails = false;
+let healReply: { kind: string; value?: Resolved } = { kind: 'missing' };
 
 mock.module('#lib/server/commands-store', () => ({
   listCommands: async () => {
@@ -27,6 +28,8 @@ mock.module('#lib/server/services', () => ({
   resolveLogin: (login: string) => resolveLoginReply(login),
   userCommandsPage: (id: string) => commandsPageReply(id)
 }));
+
+mock.module('#lib/server/identity-heal', () => ({ healLogin: async () => healReply }));
 
 const { load } = await import('./+page.server');
 
@@ -130,5 +133,26 @@ describe('(public)/user/[channel] load: one URL per spelling', () => {
     resolveLoginReply = found;
     commandsPageReply = async () => true;
     expect(await outcome(raw)).toEqual(want);
+  });
+});
+
+describe('(public)/user/[channel] load: renamed channel self-heal', () => {
+  const miss = async (): Promise<Resolved> => null;
+
+  test('a login the users DB missed but Twitch and identity_sync resolve renders now', async () => {
+    resolveLoginReply = miss;
+    commandsPageReply = async () => true;
+    healReply = { kind: 'found', value: { userId: '42', username: 'newname' } };
+    expect(await outcome('newname')).toEqual({ degraded: false, commands: 1, edge: 'page' });
+  });
+
+  test.each([
+    { kind: 'missing', edge: 'missing' },
+    { kind: 'busy', edge: undefined },
+    { kind: 'error', edge: undefined }
+  ])('a $kind heal 404s with edge outcome $edge', async ({ kind, edge }) => {
+    resolveLoginReply = miss;
+    healReply = { kind };
+    expect(await outcome('newname')).toEqual({ ...notFound, edge });
   });
 });

@@ -20,6 +20,7 @@ mock.module('@bagel/kit/server/nats', () => ({
     if (subject.endsWith('.notifications.list')) {
       return { notifications: [{ id: 1, expires_at: new Date(NOW + 30_000).toISOString() }], unread_count: 1 };
     }
+    if (subject.endsWith('.identity_sync')) return { renamed: true, prior_username: 'OldName' };
     return { active: true, status: 'paid', locale: 'fr', commands_page_hidden: true, expires_at: '2026-12-01' };
   },
   publish: async (subject: string, payload: unknown) => {
@@ -37,8 +38,8 @@ startInvalidationListener();
 
 const cached = (key: string) => fabric.readKey(key, 60_000, async () => 'reloaded');
 
-function invalidation(scope: string, broadcasterId: string): void {
-  deliver(`inv.${scope}`, new TextEncoder().encode(JSON.stringify({ broadcaster_id: broadcasterId })));
+function invalidation(scope: string, broadcasterId: string, keys?: unknown): void {
+  deliver(`inv.${scope}`, new TextEncoder().encode(JSON.stringify({ broadcaster_id: broadcasterId, keys })));
 }
 
 const KEYS = ['state:42', 'stream-meta:42', 'commands:42', 'notifications:42', 'notifications:7'];
@@ -134,3 +135,31 @@ test('cached notifications reload once the earliest one expires', async () => {
   setSystemTime();
 });
 
+
+test('a rename event evicts the account snapshot and both login lookups, ignoring invalid keys', async () => {
+  for (const key of ['login:newname', 'login:oldname', 'login:other']) fabric.cache.set(key, 'cached', 60_000);
+  invalidation('rename', '42', ['NewName', 'oldname', 'not a login!']);
+  expect([await cached('state:42'), await cached('login:newname'), await cached('login:oldname'), await cached('login:other')]).toEqual([
+    'reloaded',
+    'reloaded',
+    'reloaded',
+    'cached'
+  ]);
+});
+
+test('a rename event hands the validated logins to the boot-registered handler', () => {
+  const calls: unknown[] = [];
+  services.onRename((userId, logins) => calls.push([userId, logins]));
+  invalidation('rename', '42', ['NewName', 'oldname', 'bad login']);
+  invalidation('rename', '42', ['bad login']);
+  invalidation('rename', '42');
+  expect(calls).toEqual([['42', ['newname', 'oldname']]]);
+});
+
+test('syncIdentity evicts the renamed logins locally and reports the prior one', async () => {
+  fabric.cache.set('login:newname', 'cached', 60_000);
+  fabric.cache.set('login:oldname', 'cached', 60_000);
+  const sync = await services.syncIdentity('42', 'newname', 'NewName');
+  expect(sync).toEqual({ renamed: true, priorUsername: 'oldname' });
+  expect([await cached('login:newname'), await cached('login:oldname')]).toEqual(['reloaded', 'reloaded']);
+});

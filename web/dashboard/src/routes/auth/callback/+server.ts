@@ -9,13 +9,13 @@ import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '#lib/server/oauth';
 import { rpc, RpcError } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
-import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor, accountState } from '#lib/server/services';
+import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor, accountState, evictRenamed } from '#lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '#lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '@bagel/kit/server/env';
 import { cookieOptions, YEAR_SECONDS } from '#lib/server/cookies';
 import { isBotAccount } from '#lib/server/bot-account';
-import { scheduleLeaderboardPurge, schedulePurgeChannel } from '#lib/server/edge-purge';
+import { purgeRenamedChannel, schedulePurgeChannel } from '#lib/server/edge-purge';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
 
@@ -135,12 +135,10 @@ async function priorLogin(userId: string): Promise<string | null | undefined> {
 
 function purgeNewChannelPages(id: Identity, prior: string | null | undefined): void {
   if (prior === null) schedulePurgeChannel(id.userId, [id.login]);
-  else if (prior && prior !== id.login) purgeRenamedChannel(id.userId, [id.login, prior]);
-}
-
-function purgeRenamedChannel(userId: string, logins: string[]): void {
-  schedulePurgeChannel(userId, logins);
-  scheduleLeaderboardPurge(userId, logins);
+  else if (prior && prior !== id.login) {
+    evictRenamed(id.userId, [id.login, prior]);
+    purgeRenamedChannel(id.userId, [id.login, prior]);
+  }
 }
 
 function validOAuthState(code: string | null, state: string | null, stored: string | undefined): code is string {

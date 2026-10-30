@@ -15,7 +15,7 @@ mock.module('./services', () => ({
   }
 }));
 
-const { purgeChannelPages, purgeEdgeByTag, scheduleLeaderboardPurge, schedulePurgeChannel } = await import('./edge-purge');
+const { purgeChannelPages, purgeEdgeByTag, purgeRenamedChannel, scheduleLeaderboardPurge, schedulePurgeChannel } = await import('./edge-purge');
 const { channelPageUrls, enumerableChannelQuery } = await import('./channel-urls');
 
 type Purge = { url: string; authorization: string; body: { files?: string[]; tags?: string[] } };
@@ -180,6 +180,16 @@ describe('scheduleLeaderboardPurge', () => {
     schedulePurgeChannel('10');
     await settle();
     expect(purges.every((p) => !p.body.tags)).toBe(true);
+  });
+});
+
+describe('purgeRenamedChannel', () => {
+  test('purges both logins page URLs and leaderboard tags, dropping invalid logins', async () => {
+    purgeRenamedChannel('8', ['newname', 'OldName', 'bad login!']);
+    await settle();
+    const bodies = purges.map((p) => p.body);
+    expect(bodies.flatMap((b) => b.tags ?? [])).toEqual(['lb:newname', 'lb:oldname']);
+    expect(new Set(bodies.flatMap((b) => b.files ?? []))).toEqual(new Set(channelPageUrls('8', ['newname', 'oldname'])));
   });
 });
 
