@@ -104,7 +104,7 @@
     "./site-footer": "./lib/site-footer.ts"
   },
   "dependencies": {
-    "@luzir/bolota": "0.2.1",
+    "@luzir/bolota": "0.2.2",
     "@nats-io/jetstream": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "iovalkey": "^0.4.0",
