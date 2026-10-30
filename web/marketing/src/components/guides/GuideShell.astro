@@ -67,7 +67,7 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
             </div>
 
             {sections.map((section, i) => (
-                <section class="gshell__block bb-prose-code" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                <section class="gshell__block bb-prose bb-prose-code" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                     <Heading level={3} as="h2" class="gshell__heading"><Text as="span" size="xs" mono tone="success" class="gshell__num">{ordinal(i)}</Text>{section.heading}</Heading>
                     {section.note && (
                         <AlertBanner tone="success" role="note" class="gshell__glance" variant="callout"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
@@ -172,51 +172,6 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 
     .gshell__glance-tag { margin-right: 8px; }
 
-    .gshell__block :global(p:not([class])),
-    .gshell__block :global(ul:not([class])),
-    .gshell__block :global(ol:not([class])) {
-        font-family: var(--bb-font-body);
-        font-size: 1.05rem;
-        color: var(--bb-muted-soft);
-        line-height: 1.85;
-        margin-bottom: 16px;
-    }
-
-    .gshell__block :global(ul:not([class])),
-    .gshell__block :global(ol:not([class])) { padding-left: 1.4em; }
-    .gshell__block :global(ul:not([class])) { list-style-type: disc; }
-    .gshell__block :global(ul:not([class]) li),
-    .gshell__block :global(ol:not([class]) li) { margin-bottom: 7px; }
-    .gshell__block :global(ul:not([class]) li::marker),
-    .gshell__block :global(ol:not([class]) li::marker) { color: var(--bb-green-glow); }
-
-    .gshell__block :global(h3:not([class])) {
-        font-family: var(--bb-font-display);
-        font-size: 1.12rem;
-        font-weight: 700;
-        color: var(--bb-white);
-        margin: 30px 0 10px;
-    }
-
-    .gshell__block :global(a:not([class])) {
-        color: var(--bb-tan);
-        background-image: linear-gradient(
-            90deg,
-            rgba(var(--bb-tan-rgb), 0.75),
-            rgba(var(--bb-green-glow-rgb), 0.55)
-        );
-        background-repeat: no-repeat;
-        background-position: 0 100%;
-        background-size: 0% 1px;
-        padding-bottom: 1px;
-        transition: color var(--bb-dur-fast) ease, background-size var(--bb-dur-base) var(--bb-ease-out-expo);
-    }
-
-    .gshell__block :global(a:not([class]):hover) {
-        color: var(--bb-tan-light);
-        background-size: 100% 1px;
-    }
-
     .gshell__pager {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -232,10 +187,6 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
     }
 
     .gshell__pager-card--next { text-align: right; }
-
-    @media (prefers-reduced-motion: reduce) {
-        .gshell__block :global(a:not([class])) { transition: none; }
-    }
 
     @media (max-width: 640px) {
         .gshell { padding: 0 16px 72px; }

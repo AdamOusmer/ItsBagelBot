@@ -240,7 +240,7 @@ const ENTRIES: {
 ];
 
 const CSS_ENTRIES: { name: string; budget: number }[] = [
-  { name: "elements/typography", budget: 1680 }, // 1370 B: text tones, truncate, heading title/label, code wrap (2026-09-29)
+  { name: "elements/typography", budget: 2080 }, // 1893 B: text tones, truncate, heading title/label, code wrap, shared .bb-prose markdown style (2026-10-29)
   { name: "elements/layout", budget: 1310 }, // 1035 B: grid stackAt md (2026-09-29)
   { name: "elements/input", budget: 1530 }, // 1361 B: borderless checkbox with off/hover/light vars, press scale (2026-10-29)
   // Custom select styling: 811 B gzip, +150 B platform variance and ~10% room.

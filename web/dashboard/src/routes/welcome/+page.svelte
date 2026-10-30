@@ -445,7 +445,7 @@
       {#if current.kind === 'consent'}
         <div class="consent">
           <Switch bind:checked={consentAccepted} label={current.title} onCheckedChange={onConsent} />
-          <Text as="span" size="sm" tone="muted" class="bb-prose">{@html tr('onboarding.consentLabel')}</Text>
+          <Text as="span" size="sm" tone="muted"><span class="bb-prose bb-prose-inline">{@html tr('onboarding.consentLabel')}</span></Text>
         </div>
         <div class="consent-hint" class:shown={consentBlocked}>
           <Text size="xs" tone="muted" id="wlc-consent-hint">{tr('onboarding.consentHint')}</Text>
@@ -558,8 +558,7 @@
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  .consent { display: flex; align-items: center; gap: 14px; }
-  .consent-hint { min-height: 20px; visibility: hidden; opacity: 0; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
+  .consent { display: flex; align-items: center; gap: 14px; }  .consent-hint { min-height: 20px; visibility: hidden; opacity: 0; transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo); }
   .consent-hint.shown { visibility: visible; opacity: 1; }
   .mod-well { display: flex; justify-content: center; }
   .pref-text { display: grid; gap: 4px; flex: 1; min-width: 0; }
