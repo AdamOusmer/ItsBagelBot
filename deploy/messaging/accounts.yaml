@@ -59,14 +59,6 @@ accounts:
               from: TWITCH_INGRESS_RPC
             - service: bagel.rpc.health.ingress.node.*
               from: TWITCH_INGRESS_RPC
-            - service: bagel.rpc.health.deployer
-              from: DEPLOYER_RPC
-            - service: bagel.rpc.health.deployer.node.*
-              from: DEPLOYER_RPC
-            - service: bagel.rpc.admin.deploy.>
-              from: DEPLOYER_RPC
-            - stream: bagel.deploy.events.>
-              from: DEPLOYER_RPC
             - service: bagel.rpc.admin.user.>
               from: USERS_RPC
             - service: bagel.rpc.loyalty.counter.>
@@ -146,20 +138,6 @@ accounts:
                 publish:
                     allow:
                         - twitch.outgress.system
-                subscribe:
-                    allow:
-                        - _INBOX.>
-            deployer_bus:
-                publish:
-                    allow:
-                        - $JS.API.INFO
-                        - $JS.API.STREAM.INFO.KV_DEPLOY_RUNS
-                        - $JS.API.STREAM.CREATE.KV_DEPLOY_RUNS
-                        - $JS.API.STREAM.UPDATE.KV_DEPLOY_RUNS
-                        - $JS.API.STREAM.MSG.GET.KV_DEPLOY_RUNS
-                        - $JS.API.DIRECT.GET.KV_DEPLOY_RUNS.>
-                        - $JS.API.DIRECT.GET.KV_DEPLOY_RUNS
-                        - $KV.DEPLOY_RUNS.>
                 subscribe:
                     allow:
                         - _INBOX.>
@@ -562,23 +540,6 @@ accounts:
               from: LOYALTY_RPC
         roles:
             dashboard_rpc: {}
-    DEPLOYER_RPC:
-        exports:
-            - service: bagel.rpc.health.deployer
-            - service: bagel.rpc.health.deployer.node.*
-            - service: bagel.rpc.admin.deploy.>
-              accounts:
-                - ADMIN_RPC
-            - stream: bagel.deploy.events.>
-              accounts:
-                - ADMIN_RPC
-        imports:
-            - service: bagel.rpc.admin.user.auth.check
-              from: USERS_RPC
-            - service: bagel.rpc.admin.user.auth.check.node.*
-              from: USERS_RPC
-        roles:
-            deployer_rpc: {}
     DISCORD_DATA_RPC:
         exports:
             - service: bagel.rpc.health.discord-data
