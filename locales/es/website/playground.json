@@ -4,7 +4,6 @@
   "sub": "Un bot tranquilo en el chat. Prueba un comando, envía algo de spam y mira qué hace.",
   "sendSpam": "enviar spam",
   "hint": "El bot solo habla cuando le hablas. El chat sigue siendo tuyo.",
-  "live": "en directo",
   "inputPlaceholder": "prueba !bagel",
   "inputAria": "Escribe un mensaje en el chat",
   "sendAria": "Enviar mensaje",

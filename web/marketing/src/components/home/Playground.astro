@@ -8,11 +8,8 @@ import Container from '@bagel/ui/astro/Container.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import HaloPanel from '@bagel/ui/astro/HaloPanel.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
-import IconButton from '@bagel/ui/astro/IconButton.astro';
-import Input from '@bagel/ui/astro/Input.astro';
 import Lead from '@bagel/ui/astro/Lead.astro';
 import Section from '@bagel/ui/astro/Section.astro';
-import Tag from '@bagel/ui/astro/Tag.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 
 // DOM + textContent only: never innerHTML for anything user-typed.
@@ -69,16 +66,14 @@ const playStrings = {
     <div class="play__stage" data-reveal data-playground>
         <HaloPanel tone="green" class="play__window">
             <div class="play__bar">
-                <span class="play__channel">#your_channel</span>
-                <Tag tone="live" class="play__live" mark="solid" sweep data-motion><span class="play__live-label"><span data-fit>{t('playground.live')}</span></span></Tag>
+                <span class="play__channel">your_channel</span>
             </div>
 
             <div class="play__feed" data-play-feed role="log" aria-label={t('playground.feedAria')}></div>
 
             <form class="play__composer" data-play-form>
-                <Input
-                    mono
-                    fill
+                <input
+                    class="play__input"
                     id="play-input"
                     name="message"
                     data-play-input
@@ -88,7 +83,9 @@ const playStrings = {
                     autocomplete="off"
                     spellcheck="false"
                 />
-                <IconButton type="submit" label={t('playground.sendAria')} class="play__send">↵</IconButton>
+                <button type="submit" class="play__send" aria-label={t('playground.sendAria')}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6v5a3 3 0 0 1-3 3H6M10 10l-4 4 4 4" /></svg>
+                </button>
             </form>
         </HaloPanel>
     </div>
@@ -192,27 +189,14 @@ const playStrings = {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 14px 18px;
-        background: var(--bb-card-bg);
-        box-shadow: var(--bb-depth-1);
+        padding: 16px 20px 0;
     }
 
     .play__channel {
         font-family: var(--bb-font-mono);
-        font-size: 0.78rem;
-        color: var(--bb-white);
+        font-size: 0.72rem;
+        color: var(--bb-muted);
         letter-spacing: 0.04em;
-    }
-
-    .play__live {
-        flex: none;
-        width: 96px;
-        margin-left: auto;
-    }
-
-    .play__live-label {
-        flex: 1 1 0;
-        min-width: 0;
     }
 
     .play__feed {
@@ -221,8 +205,8 @@ const playStrings = {
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
-        gap: 2px;
-        padding: 16px 14px;
+        gap: 4px;
+        padding: 16px 20px 12px;
         mask-image: linear-gradient(to bottom, transparent 0, black 56px);
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 56px);
     }
@@ -230,49 +214,52 @@ const playStrings = {
     .play__feed :global(.pmsg) {
         display: flex;
         align-items: baseline;
-        gap: 8px;
-        padding: 5px 8px;
-        border-radius: var(--bb-radius-md);
+        gap: 10px;
+        padding: 2px 0;
         font-size: 0.85rem;
         line-height: 1.5;
         animation: pmsgIn var(--bb-dur-base) var(--bb-ease-out-expo) both;
     }
 
     @keyframes pmsgIn {
-        from { opacity: 0; transform: translateY(10px); }
+        from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: none; }
     }
 
     .play__feed :global(.pmsg__name) {
         font-family: var(--bb-font-mono);
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         flex-shrink: 0;
-        color: var(--bb-tan-light);
+        color: var(--bb-muted);
     }
 
     .play__feed :global(.pmsg__text) {
         font-family: var(--bb-font-body);
-        color: rgba(var(--bb-white-rgb), 0.82);
+        color: rgba(var(--bb-white-rgb), 0.86);
         min-width: 0;
         overflow-wrap: anywhere;
     }
 
-    .play__feed :global(.pmsg--you) {
-        background: rgba(var(--bb-tan-rgb), 0.06);
+    .play__feed :global(.pmsg--you .pmsg__name) {
+        color: var(--bb-white);
     }
 
     .play__feed :global(.pmsg--bot) {
-        background: rgba(var(--bb-green-glow-rgb), 0.05);
+        position: relative;
+        padding-left: 22px;
+    }
+
+    .play__feed :global(.pmsg--bot::before) {
+        content: '↳';
+        position: absolute;
+        left: 4px;
+        font-family: var(--bb-font-mono);
+        font-size: 0.8rem;
+        color: var(--bb-muted);
     }
 
     .play__feed :global(.pmsg--bot .pmsg__name) {
         color: var(--bb-green-glow);
-    }
-
-    .play__feed :global(.pmsg--bot .pmsg__name::after) {
-        content: " ✓";
-        font-size: 0.62rem;
-        opacity: 0.7;
     }
 
     .play__feed :global(.pmsg--typing .pmsg__text) {
@@ -282,18 +269,13 @@ const playStrings = {
         padding-top: 4px;
     }
 
-    .play__feed :global(.pmsg--spam .pmsg__name) {
-        color: var(--bb-status-danger);
-    }
-
     .play__feed :global(.pmsg--spam .pmsg__text) {
-        color: rgba(var(--bb-status-danger-rgb), 0.9);
+        color: rgba(var(--bb-white-rgb), 0.5);
     }
 
     .play__feed :global(.pmsg--spam.is-caught) {
-        transition: opacity var(--bb-dur-base) ease, filter var(--bb-dur-base) ease;
-        opacity: 0.5;
-        filter: blur(1.5px);
+        transition: opacity var(--bb-dur-base) ease;
+        opacity: 0.4;
     }
 
     .play__feed :global(.pmsg--spam.is-caught .pmsg__text) {
@@ -301,22 +283,84 @@ const playStrings = {
     }
 
     .play__feed :global(.pmsg--caught) {
+        padding-left: 22px;
         font-family: var(--bb-font-mono);
         font-size: 0.7rem;
-        letter-spacing: 0.06em;
-        color: var(--bb-tan-light);
-        background: rgba(var(--bb-tan-rgb), 0.07);
-        box-shadow: var(--bb-depth-0);
-        border-radius: var(--bb-radius-xs);
-        padding: 6px 10px;
+        letter-spacing: 0.03em;
+        color: var(--bb-muted);
     }
 
     .play__composer {
         display: flex;
-        gap: 10px;
-        padding: 12px 14px;
-        background: var(--bb-card-bg);
-        box-shadow: var(--bb-depth-1);
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        margin: 0 16px 16px;
+        padding: 0 6px 0 14px;
+        border-radius: var(--bb-radius-sm);
+        background: color-mix(in srgb, var(--bb-elev-2), var(--bb-white) 6%);
+        box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45);
+    }
+
+    .play__composer:focus-within {
+        box-shadow: inset 0 1px 2px rgba(var(--bb-shadow-rgb), 0.45), 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+    }
+
+    .play__input {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        outline: 0;
+        background: none;
+        color: var(--bb-white);
+        font-family: var(--bb-font-mono);
+        font-size: 13px;
+    }
+
+    .play__input::placeholder {
+        color: var(--bb-muted);
+    }
+
+    .play__send {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: var(--bb-radius-xs);
+        background: var(--bb-elev-2);
+        box-shadow: 0 1px 0 rgba(var(--bb-shadow-rgb), 0.6);
+        color: var(--bb-muted);
+        cursor: pointer;
+        transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .play__send:hover,
+    .play__send:focus-visible {
+        color: var(--bb-white);
+    }
+
+    .play__send:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--bb-bg-0), 0 0 0 4px var(--bb-focus);
+    }
+
+    .play__send svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    @media (pointer: coarse) {
+        .play__input { font-size: 16px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
