@@ -309,7 +309,7 @@ function demoRunFrom(req: StartRequest, id: DeployRunId): DeployRun {
     actor: { id: actor_id, login: 'itsmavey' },
     state: 'running',
     stages: STAGES_FOR[req.kind].map(demoStage),
-    outputs: { messaging_changed: false },
+    outputs: {},
     created_at: now,
     updated_at: now
   };

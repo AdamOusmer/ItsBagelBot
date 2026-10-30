@@ -167,6 +167,7 @@ export type KnownMessageKey =
   | 'admin.deploys.actionFailed'
   | 'admin.deploys.attempt'
   | 'admin.deploys.back'
+  | 'admin.deploys.behindDelta'
   | 'admin.deploys.cancelRequested'
   | 'admin.deploys.changelog'
   | 'admin.deploys.changelogHighlightsEn'

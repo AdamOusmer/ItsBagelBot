@@ -105,8 +105,6 @@ export type DeployOutputs = {
   services?: string[];
   pin_pr?: number;
   pin_sha?: string;
-  messaging_changed: boolean;
-  acl_applied_at?: string;
 };
 
 export type DeployActor = { id: string; login: string };
@@ -166,14 +164,6 @@ export type DeployPRInfo = {
 
 export type DeployCommit = { sha: string; title: string; author: string; pr?: number; url?: string };
 
-export type DeployDriftItem = {
-  namespace: string;
-  workload: string;
-  container: string;
-  pinned: string;
-  live: string;
-};
-
 export type DeployReleaseInfo = { version: string; sha: string; url: string; published_at: string };
 
 export type DeployPlan = {
@@ -183,7 +173,6 @@ export type DeployPlan = {
   next_version?: string;
   main_sha?: string;
   in_sync: boolean;
-  drift?: DeployDriftItem[];
   commits?: DeployCommit[];
   prs?: DeployPRInfo[];
   releases?: DeployReleaseInfo[];
