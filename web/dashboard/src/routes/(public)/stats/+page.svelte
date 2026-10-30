@@ -220,7 +220,6 @@
   const GREEN = { head: '#62a593', eye: '#111113' };
   const TAN = { head: '#eadbbd', eye: '#111113' };
   const PALE = { head: '#f6efe1', eye: '#111113' };
-  const palettes = [GREEN, TAN, PALE];
   const tilePalette = { green: GREEN, tan: TAN };
   const donors = [
     { name: 'oven_mitt', size: 64, palette: PALE },
@@ -246,7 +245,7 @@
     </div>
     <div class="st-crew" aria-hidden="true">
       {#each crewNames as name, i (`${i}:${name}`)}
-        <span class="st-mate st-mate--{i}"><Bolota {name} size={i === 2 ? 150 : i % 2 ? 96 : 82} palette={palettes[i % palettes.length]} motionState="idle" follow active gate /></span>
+        <span class="st-mate st-mate--{i}"><Bolota {name} size={i === 2 ? 150 : i % 2 ? 96 : 82} motionState="idle" follow active gate /></span>
       {/each}
     </div>
   </header>
@@ -282,7 +281,7 @@
     <div class="st-board">
       <div class="st-board__faces" aria-hidden="true">
         {#each trafficTrio as name, i (`${i}:${name}`)}
-          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} palette={palettes[i]} motionState="idle" active gate /></span>
+          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} motionState="idle" active gate /></span>
         {/each}
       </div>
       <Card class="st-board__card">
@@ -306,7 +305,7 @@
               <div class="st-row" role="row" style="--share: {share(item.value, rankingTop)}">
                 <span class="st-cell st-cell--rank" role="cell">{i + 1}</span>
                 <span class="st-cell st-cell--name" role="cell">
-                  <span class="st-face" aria-hidden="true"><Bolota name={item.art} size={36} palette={palettes[i % palettes.length]} /></span>
+                  <span class="st-face" aria-hidden="true"><Bolota name={item.art} size={36} /></span>
                   {#if item.href}<a class="st-name" href={item.href}>{item.label}</a>{:else}<span class="st-name st-name--muted">{item.label}</span>{/if}
                 </span>
                 <span class="st-cell st-cell--num st-cell--main" role="cell">
@@ -323,7 +322,7 @@
     <div class="st-board st-board--feed">
       <div class="st-board__faces" aria-hidden="true">
         {#each feedTrio as name, i (`${i}:${name}`)}
-          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} palette={palettes[(i + 1) % palettes.length]} expression="happy" motionState="idle" active gate /></span>
+          <span style="--s: {i === 1 ? 84 : 62}px"><Bolota {name} size={i === 1 ? 84 : 62} expression="happy" motionState="idle" active gate /></span>
         {/each}
       </div>
       <Card class="st-board__card" tone="accent">
@@ -350,7 +349,7 @@
               <div class="st-row" role="row" style="--share: {share(Number(row.count), feedTop)}">
                 <span class="st-cell st-cell--rank" role="cell">{i + 1}</span>
                 <span class="st-cell st-cell--name" role="cell">
-                  <span class="st-face" aria-hidden="true"><Bolota name={row.name || row.id} size={36} palette={palettes[(i + 1) % palettes.length]} /></span>
+                  <span class="st-face" aria-hidden="true"><Bolota name={row.name || row.id} size={36} /></span>
                   {#if row.name}<a class="st-name" href={channelHref(row)}>{row.name}</a>{:else}<span class="st-name st-name--muted">{t('stats.unknownChannel')}</span>{/if}
                 </span>
                 <span class="st-cell st-cell--num st-cell--main" role="cell">
