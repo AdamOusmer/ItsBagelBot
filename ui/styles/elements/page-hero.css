@@ -71,7 +71,7 @@
     color: var(--bb-white);
     font-family: var(--bb-font-display);
     font-size: var(--page-hero-title-size, clamp(2.2rem, 6.5vw, 4rem));
-    font-weight: 800;
+    font-weight: 500;
     line-height: 1.02;
     letter-spacing: -0.03em;
     text-shadow:

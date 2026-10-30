@@ -48,7 +48,7 @@
     max-width: 100%;
     font-family: var(--bb-font-display);
     font-size: var(--stats-heading-size, clamp(48px, 7vw, 84px));
-    font-weight: 800;
+    font-weight: 500;
     line-height: 1.08;
     letter-spacing: var(--bb-tracking-display);
     overflow-wrap: anywhere;

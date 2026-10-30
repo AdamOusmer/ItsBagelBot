@@ -1046,7 +1046,7 @@
   .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
   .deck-stats .big {
     font-family: var(--bb-font-display);
-    font-weight: 800;
+    font-weight: 500;
     font-size: 26px;
     line-height: 1;
     letter-spacing: -0.01em;
